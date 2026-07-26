@@ -4,15 +4,45 @@ use anyhow::{Context, Result, bail, ensure};
 use veoveo_deploy_contract::LoadedProfile;
 
 use crate::{
-    ReleaseImagesArgs, ReleasePythonSdkArgs,
+    ReleaseHelmChartsArgs, ReleaseImagesArgs, ReleasePythonSdkArgs,
     commands::{
-        builder,
+        builder, helm,
         image::{self, OutputMode, Selection},
         python,
         source::PublicationSource,
     },
     context::RepositoryContext,
 };
+
+pub(crate) fn helm_charts(
+    repository: &RepositoryContext,
+    args: &ReleaseHelmChartsArgs,
+) -> Result<()> {
+    let publication = PublicationSource::prepare(repository, &args.revision)?;
+    let output_root = if args.output_dir.is_absolute() {
+        args.output_dir.clone()
+    } else {
+        repository.root().join(&args.output_dir)
+    };
+    let output = output_root.join(publication.revision()).join(&args.version);
+    let mut release = helm::build(
+        publication.path(),
+        &output,
+        &args.version,
+        publication.revision(),
+    )?;
+    if let Some(registry) = &args.registry {
+        helm::push(
+            &mut release,
+            registry,
+            args.plain_http,
+            &args.version,
+            publication.revision(),
+        )?;
+    }
+    println!("Helm chart release bundle: {}", output.display());
+    Ok(())
+}
 
 pub(crate) fn python_sdk(
     repository: &RepositoryContext,

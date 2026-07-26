@@ -21,7 +21,7 @@ images:
     digest: ""
 
 platform:
-  instanceLabel: veoveo
+  installationId: veoveo
   publicBaseUrl: http://localhost:8780
   installationSecret: veoveo-installation-secrets
   cesiumSecret: veoveo-uav-sim-secrets

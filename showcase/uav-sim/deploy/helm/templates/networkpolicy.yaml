@@ -8,17 +8,13 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: veoveo
-      app.kubernetes.io/instance: {{ .Values.platform.instanceLabel }}
-      app.kubernetes.io/component: uav-sim
+      {{- include "veoveo-extension.componentSelector" (dict "installation" .Values.platform.installationId "component" "uav-sim") | nindent 6 }}
   policyTypes: [Ingress, Egress]
   ingress:
     - from:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: veoveo
-              app.kubernetes.io/instance: {{ .Values.platform.instanceLabel }}
-              app.kubernetes.io/component: gateway
+              {{- include "veoveo-extension.componentSelector" (dict "installation" .Values.platform.installationId "component" "gateway") | nindent 14 }}
       ports:
         - protocol: TCP
           port: 8802
@@ -36,8 +32,7 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: veoveo
-              app.kubernetes.io/instance: {{ .Values.platform.instanceLabel }}
+              {{- include "veoveo-extension.installationSelector" (dict "installation" .Values.platform.installationId) | nindent 14 }}
     - to:
         - namespaceSelector:
             matchLabels:

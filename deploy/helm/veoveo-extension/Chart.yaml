@@ -1,0 +1,9 @@
+apiVersion: v2
+name: veoveo-extension
+description: Private reusable Helm primitives for Veoveo extension charts
+type: library
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.28.0-0"
+annotations:
+  veoveo.ai/library-api: veoveo.io/extension-helm-library/v1

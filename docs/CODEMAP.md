@@ -110,12 +110,14 @@ is the browser edition of the harness document.
 | `testing/` | conformance tooling and multi-process smoke harnesses |
 | `sdk/` | language SDK workspaces |
 | `deploy/helm/veoveo/` | Kubernetes installation chart |
+| `deploy/helm/veoveo-extension/` | private reusable extension-chart helper API and immutable chart package source |
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
 | `showcase/uav-sim/` | Google 3D Tiles UAV simulation showcase over Isaac, Cesium, Pegasus, and PX4 |
 | `examples/bioma/` | executable enterprise GitOps reference with Bioma-owned desired state |
 | `sdk/python/` | Python platform package for hosted MCP servers |
 | `templates/python-mcp/` | canonical Python server template (`datasheet`) |
+| `testing/fixtures/extension-helm-consumer/` | anonymous cross-release Helm library acceptance fixture |
 | `tools/image-build/` | managed BuildKit configuration and shared Rust image-builder inputs |
 | `tools/xtask/` | compiled repository command, enforcement, image planning, and release orchestration |
 

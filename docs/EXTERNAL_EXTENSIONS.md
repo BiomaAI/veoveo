@@ -124,6 +124,16 @@ domain server crate or central server registry. `conformance certify --profile
 advertised capabilities, applicable requirement results, and bounded evidence. The
 same binary ships in the private `veoveo/mcp-conformance` OCI artifact.
 
+`deploy/helm/veoveo-extension` is the private library-chart source for
+`veoveo.io/extension-helm-library/v1`. It exports stable installation and component
+labels, production image resolution, restricted security contexts, platform
+environment, HTTP probes, bootstrap mounts, the recording forwarder, and declared
+network policy. `cargo xtask release helm-charts --revision <commit> --version
+<version>` packages the library with the application charts from a clean exact
+revision and writes SHA-256 release evidence. Supplying `--registry
+<private-host/repository>` publishes them through the authenticated Helm OCI client
+and records each returned manifest digest.
+
 ## Installation Composition
 
 The extension contributes capabilities. The installation decides exposure and

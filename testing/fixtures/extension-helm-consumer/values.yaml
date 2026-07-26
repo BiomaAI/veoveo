@@ -1,0 +1,21 @@
+veoveo:
+  installationId: veoveo
+  publicBaseUrl: https://veoveo.enterprise.example
+  production: false
+  registry: ""
+  imagePullSecrets: []
+  installationSecret: veoveo-installation-secrets
+  surreal:
+    endpoint: ws://surrealdb:8000
+    namespace: veoveo
+    database: platform
+    existingSecret: veoveo-surreal-runtime
+image:
+  repository: extension/example-mcp
+  tag: 0.1.0
+  digest: ""
+service:
+  port: 8811
+networkPolicy:
+  dnsNamespaceSelector:
+    kubernetes.io/metadata.name: kube-system

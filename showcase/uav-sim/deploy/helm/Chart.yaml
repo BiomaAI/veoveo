@@ -4,3 +4,7 @@ description: Isaac Sim UAV sessions with Cesium ion, Pegasus, PX4, and Veoveo MC
 type: application
 version: 0.1.0
 appVersion: "6.0.1"
+dependencies:
+  - name: veoveo-extension
+    version: 0.1.0
+    repository: file://../../../../deploy/helm/veoveo-extension

@@ -18,6 +18,9 @@
     "networkPolicy"
   ],
   "properties": {
+    "veoveo-extension": {
+      "type": "object"
+    },
     "global": {
       "type": "object",
       "additionalProperties": false,
@@ -60,7 +63,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "instanceLabel",
+        "installationId",
         "publicBaseUrl",
         "installationSecret",
         "cesiumSecret",
@@ -72,7 +75,10 @@
         "recordingTenantKey"
       ],
       "properties": {
-        "instanceLabel": {"type": "string", "minLength": 1},
+        "installationId": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+        },
         "publicBaseUrl": {"type": "string", "pattern": "^https?://"},
         "installationSecret": {"type": "string", "minLength": 1},
         "cesiumSecret": {"type": "string", "minLength": 1},

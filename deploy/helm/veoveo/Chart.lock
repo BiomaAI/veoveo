@@ -1,0 +1,6 @@
+dependencies:
+- name: veoveo-extension
+  repository: file://../veoveo-extension
+  version: 0.1.0
+digest: sha256:f015ad0ab5cef81695bc62c94f148a09158cbe953c0acf318974429d37d94da7
+generated: "2026-07-26T13:32:27.636987852-06:00"

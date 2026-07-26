@@ -148,9 +148,21 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/work:ro" -w /work \
             alpine/helm@sha256:e7ecbf4a200dea73d64bfb8cb0936829164945f2b4d02a0274093073ee8d264f \
+            lint deploy/helm/veoveo-extension
+          docker run --rm -v "$PWD:/work:ro" -w /work \
+            alpine/helm@sha256:e7ecbf4a200dea73d64bfb8cb0936829164945f2b4d02a0274093073ee8d264f \
             lint deploy/helm/veoveo
           docker run --rm -v "$PWD:/work:ro" -w /work \
             alpine/helm@sha256:e7ecbf4a200dea73d64bfb8cb0936829164945f2b4d02a0274093073ee8d264f \
+            lint showcase/uav-sim/deploy/helm
+          docker run --rm -v "$PWD:/work:ro" -w /work \
+            alpine/helm@sha256:e7ecbf4a200dea73d64bfb8cb0936829164945f2b4d02a0274093073ee8d264f \
+            lint testing/fixtures/extension-helm-consumer
+          docker run --rm -v "$PWD:/work:ro" -w /work \
+            alpine/helm@sha256:e7ecbf4a200dea73d64bfb8cb0936829164945f2b4d02a0274093073ee8d264f \
             template veoveo deploy/helm/veoveo >/dev/null
+          docker run --rm -v "$PWD:/work:ro" -w /work \
+            alpine/helm@sha256:e7ecbf4a200dea73d64bfb8cb0936829164945f2b4d02a0274093073ee8d264f \
+            template separate-extension-release testing/fixtures/extension-helm-consumer >/dev/null
       - name: Verify offline bundle contract
         run: cargo test -p veoveo-smoke --test offline_contract

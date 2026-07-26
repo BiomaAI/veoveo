@@ -1,54 +1,42 @@
 {{- define "uav-sim.labels" -}}
-app.kubernetes.io/name: veoveo
-app.kubernetes.io/instance: {{ .Values.platform.instanceLabel }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
+{{ include "veoveo-extension.labels" (dict
+    "name" "uav-sim"
+    "releaseName" .Release.Name
+    "managedBy" .Release.Service
+    "chart" (printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_")
+    "installation" .Values.platform.installationId
+    "component" "uav-sim"
+  ) }}
 {{- end }}
 
 {{- define "uav-sim.selectorLabels" -}}
-app.kubernetes.io/name: veoveo
-app.kubernetes.io/instance: {{ .Values.platform.instanceLabel }}
-app.kubernetes.io/component: uav-sim
+{{ include "veoveo-extension.selectorLabels" (dict
+    "name" "uav-sim"
+    "releaseName" .Release.Name
+    "installation" .Values.platform.installationId
+    "component" "uav-sim"
+  ) }}
 {{- end }}
 
 {{- define "uav-sim.image" -}}
 {{- $root := index . 0 -}}
 {{- $image := index . 1 -}}
-{{- $registry := trimSuffix "/" $root.Values.global.veoveoRegistry -}}
-{{- $repository := $image.repository -}}
-{{- if $registry -}}{{- $repository = printf "%s/%s" $registry $repository -}}{{- end -}}
 {{- $lockedDigest := get $root.Values.global.imageDigests $image.repository | default "" -}}
 {{- $digest := $image.digest | default $lockedDigest -}}
-{{- if and $root.Values.global.production (not $digest) -}}
-{{- fail (printf "global.production requires an immutable digest for %s" $repository) -}}
-{{- end -}}
-{{- if $digest -}}
-{{- printf "%s@%s" $repository $digest -}}
-{{- else -}}
 {{- $tag := default $image.tag $root.Values.global.veoveoTag -}}
-{{- printf "%s:%s" $repository $tag -}}
-{{- end -}}
+{{- include "veoveo-extension.image" (dict
+    "registry" $root.Values.global.veoveoRegistry
+    "production" $root.Values.global.production
+    "image" (dict "repository" $image.repository "tag" $tag "digest" $digest)
+  ) -}}
 {{- end }}
 
 {{- define "uav-sim.podSecurityContext" -}}
-runAsNonRoot: true
-runAsUser: 10001
-runAsGroup: 10001
-fsGroup: 10001
-fsGroupChangePolicy: OnRootMismatch
-seccompProfile:
-  type: RuntimeDefault
+{{ include "veoveo-extension.podSecurityContext" . }}
 {{- end }}
 
 {{- define "uav-sim.containerSecurityContext" -}}
-allowPrivilegeEscalation: false
-capabilities:
-  drop: ["ALL"]
-runAsNonRoot: true
-runAsUser: 10001
-runAsGroup: 10001
-seccompProfile:
-  type: RuntimeDefault
+{{ include "veoveo-extension.containerSecurityContext" . }}
 {{- end }}
 
 {{- define "uav-sim.runtimeEnv" -}}
@@ -160,52 +148,27 @@ seccompProfile:
 {{- end }}
 
 {{- define "uav-sim.recordingForwarder" -}}
-- name: recording-forwarder
-  restartPolicy: Always
-  image: {{ include "uav-sim.image" (list .root .root.Values.images.forwarder) }}
-  imagePullPolicy: {{ .root.Values.images.pullPolicy }}
-  args:
-    - --gateway-url
-    - {{ printf "%s/" (trimSuffix "/" .root.Values.platform.publicBaseUrl) | quote }}
-    - --gateway-transport-url
-    - {{ printf "%s/" (trimSuffix "/" .root.Values.recordingForwarder.gatewayTransportUrl) | quote }}
-    - --protected-resource
-    - {{ printf "%s/ingest/recordings" (trimSuffix "/" .root.Values.platform.publicBaseUrl) | quote }}
-    - --client-id
-    - {{ .root.Values.recordingForwarder.clientId | quote }}
-    - --key-id
-    - {{ .root.Values.recordingForwarder.keyId | quote }}
-    - --signing-algorithm
-    - {{ .root.Values.recordingForwarder.signingAlgorithm | quote }}
-    - --private-key-pem-file
-    - /run/secrets/recording-producer/private-key.pem
-    - --queue-dir
-    - /var/lib/veoveo-recording-forwarder
-    - --maximum-queue-bytes
-    - {{ printf "%.0f" .root.Values.recordingForwarder.maximumQueueBytes | quote }}
-    - --batch-message-limit
-    - {{ .root.Values.recordingForwarder.batchMessageLimit | quote }}
-    - --batch-flush-milliseconds
-    - {{ .root.Values.recordingForwarder.batchFlushMilliseconds | quote }}
-    - --grpc-memory-limit-bytes
-    - {{ printf "%.0f" .root.Values.recordingForwarder.grpcMemoryLimitBytes | quote }}
-  env:
-    - name: RUST_LOG
-      value: info
-  startupProbe:
-    exec:
-      command: [nc, -z, 127.0.0.1, "9876"]
-    periodSeconds: 2
-    failureThreshold: 150
-  securityContext:
-    {{- include "uav-sim.containerSecurityContext" .root | nindent 4 }}
-    readOnlyRootFilesystem: true
-  resources:
-    {{- toYaml .root.Values.recordingForwarder.resources | nindent 4 }}
-  volumeMounts:
-    - name: recording-forwarder-queue
-      mountPath: /var/lib/veoveo-recording-forwarder
-    - name: recording-producer-key
-      mountPath: /run/secrets/recording-producer
-      readOnly: true
+{{- $image := .root.Values.images.forwarder -}}
+{{- $lockedDigest := get .root.Values.global.imageDigests $image.repository | default "" -}}
+{{- include "veoveo-extension.recordingForwarder" (dict
+    "image" (dict
+      "repository" $image.repository
+      "tag" (default $image.tag .root.Values.global.veoveoTag)
+      "digest" (default $lockedDigest $image.digest)
+    )
+    "registry" .root.Values.global.veoveoRegistry
+    "production" .root.Values.global.production
+    "imagePullPolicy" .root.Values.images.pullPolicy
+    "gatewayUrl" (printf "%s/" (trimSuffix "/" .root.Values.platform.publicBaseUrl))
+    "gatewayTransportUrl" (printf "%s/" (trimSuffix "/" .root.Values.recordingForwarder.gatewayTransportUrl))
+    "protectedResource" (printf "%s/ingest/recordings" (trimSuffix "/" .root.Values.platform.publicBaseUrl))
+    "clientId" .root.Values.recordingForwarder.clientId
+    "keyId" .root.Values.recordingForwarder.keyId
+    "signingAlgorithm" .root.Values.recordingForwarder.signingAlgorithm
+    "maximumQueueBytes" (printf "%.0f" .root.Values.recordingForwarder.maximumQueueBytes)
+    "batchMessageLimit" .root.Values.recordingForwarder.batchMessageLimit
+    "batchFlushMilliseconds" .root.Values.recordingForwarder.batchFlushMilliseconds
+    "grpcMemoryLimitBytes" (printf "%.0f" .root.Values.recordingForwarder.grpcMemoryLimitBytes)
+    "resources" .root.Values.recordingForwarder.resources
+  ) -}}
 {{- end }}

@@ -67,6 +67,8 @@ enum ReleaseCommand {
     Images(ReleaseImagesArgs),
     /// Build, verify, and optionally publish the Python SDK.
     PythonSdk(ReleasePythonSdkArgs),
+    /// Build, verify, and optionally publish the private Helm chart set.
+    HelmCharts(ReleaseHelmChartsArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -149,6 +151,25 @@ struct ReleasePythonSdkArgs {
     dry_run: bool,
 }
 
+#[derive(Debug, Args)]
+struct ReleaseHelmChartsArgs {
+    /// Exact Git revision or ref to resolve.
+    #[arg(long)]
+    revision: String,
+    /// Semantic chart release version.
+    #[arg(long)]
+    version: String,
+    /// Parent directory for revision- and version-addressed release bundles.
+    #[arg(long, default_value = "output/releases/helm")]
+    output_dir: PathBuf,
+    /// Private OCI registry host and repository prefix, without oci://.
+    #[arg(long)]
+    registry: Option<String>,
+    /// Permit unencrypted OCI transport for an explicitly selected internal registry.
+    #[arg(long, requires = "registry")]
+    plain_http: bool,
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let repository = RepositoryContext::discover(&PathBuf::from("."))?;
@@ -172,6 +193,7 @@ fn main() -> Result<()> {
         Command::Release { command } => match command {
             ReleaseCommand::Images(args) => release::images(&repository, &args),
             ReleaseCommand::PythonSdk(args) => release::python_sdk(&repository, &args),
+            ReleaseCommand::HelmCharts(args) => release::helm_charts(&repository, &args),
         },
     }
 }

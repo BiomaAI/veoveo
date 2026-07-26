@@ -85,13 +85,55 @@ pub(crate) async fn surreal_integration() -> Result<()> {
 
 pub(crate) async fn helm_config() -> Result<()> {
     for chart in [
+        "deploy/helm/veoveo-extension",
         "deploy/helm/veoveo",
         "showcase/sumo/deploy/helm",
         "showcase/uav-sim/deploy/helm",
+        "testing/fixtures/extension-helm-consumer",
     ] {
         run_checked(Path::new("helm"), ["lint".into(), chart.into()], [])
             .with_context(|| format!("linting Helm chart {chart}"))?;
     }
+
+    let extension = run_checked(
+        Path::new("helm"),
+        [
+            "template".into(),
+            "separate-extension-release".into(),
+            "testing/fixtures/extension-helm-consumer".into(),
+            "--namespace".into(),
+            "veoveo".into(),
+        ],
+        [],
+    )?;
+    for expected in [
+        "app.kubernetes.io/instance: \"separate-extension-release\"",
+        "veoveo.ai/installation: \"veoveo\"",
+        "app.kubernetes.io/component: \"anonymous-mcp\"",
+        "app.kubernetes.io/component: \"gateway\"",
+        "app.kubernetes.io/component: \"artifact-service\"",
+        "app.kubernetes.io/component: \"recording\"",
+        "runAsUser: 10001",
+        "readOnlyRootFilesystem: true",
+        "name: VEOVEO_INTERNAL_TRUST_JWKS",
+    ] {
+        contains(&extension, expected)?;
+    }
+    not_contains(&extension, "app.kubernetes.io/instance: \"veoveo\"")?;
+    let production_extension = Command::new("helm")
+        .args([
+            "template",
+            "separate-extension-release",
+            "testing/fixtures/extension-helm-consumer",
+            "--set",
+            "veoveo.production=true",
+        ])
+        .output()
+        .context("rendering the production extension fixture without an image digest")?;
+    ensure!(
+        !production_extension.status.success(),
+        "production extension render must reject mutable image tags"
+    );
 
     let platform = run_checked(
         Path::new("helm"),
