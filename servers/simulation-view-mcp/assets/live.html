@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Simulation View</title>
+<style>
+:root{color-scheme:dark;--bg:#071015;--panel:#0c1b23;--panel2:#102630;--ink:#e9f7fb;--muted:#88a7b3;--cyan:#66e4ff;--green:#75dfa4;--amber:#f3c86b;--red:#ff8b86;--line:#21404b}
+:root[data-theme="light"]{color-scheme:light;--bg:#eaf2f4;--panel:#fff;--panel2:#f2f8f9;--ink:#102a33;--muted:#5a747d;--cyan:#08788f;--green:#167449;--amber:#866100;--red:#a2312c;--line:#c5d8dd}
+*{box-sizing:border-box}html,body{margin:0;width:100%;background:var(--bg);color:var(--ink);font:13px/1.45 ui-sans-serif,system-ui,sans-serif}
+#app{width:100%;background:var(--panel)}header{display:flex;align-items:center;gap:10px;min-height:52px;padding:9px 12px;border-bottom:1px solid var(--line)}h1{margin:0;font-size:15px}.spacer{flex:1}.chip{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;padding:3px 8px;color:var(--muted)}.chip.live{border-color:#35735a;color:var(--green)}.chip.warn{border-color:#80672d;color:var(--amber)}
+button,select,input{border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--ink);padding:6px 8px;font:inherit}button{cursor:pointer}button:hover{border-color:var(--cyan)}button:disabled{cursor:not-allowed;opacity:.55}
+#controls{display:grid;grid-template-columns:minmax(180px,1fr) repeat(2,minmax(130px,.5fr)) auto;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line)}#cameras{display:flex;gap:7px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line)}.camera-choice{display:flex;align-items:center;gap:5px;color:var(--muted)}.camera-choice input{accent-color:var(--cyan)}
+#grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--line)}.view{position:relative;min-width:0;aspect-ratio:16/9;background:#020608;overflow:hidden}.view video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#020608}.view .empty{position:absolute;inset:0;display:grid;place-items:center;padding:20px;color:var(--muted);text-align:center}.view .bar{position:absolute;z-index:2;left:8px;right:8px;top:8px;display:flex;gap:6px;align-items:center}.view .bar span{background:#071015d9;border:1px solid #29434d;border-radius:999px;padding:3px 7px;color:#dcebf0}.view .stats{position:absolute;z-index:2;left:8px;right:8px;bottom:8px;display:flex;gap:6px;flex-wrap:wrap}.view .stats span{background:#071015d9;border-radius:4px;padding:3px 6px;color:#a9c0c8}.view .close{margin-left:auto;background:#071015d9;color:#fff;padding:3px 7px}
+#empty-grid{min-height:230px;display:grid;place-items:center;color:var(--muted);background:var(--panel2)}
+#error{margin:10px 12px;padding:9px 11px;border:1px solid #8c4845;border-radius:6px;background:#401b1bed;color:#ffd6d2}
+footer{display:flex;gap:12px;align-items:center;padding:8px 12px;border-top:1px solid var(--line);color:var(--muted)}
+@media(max-width:720px){#controls{grid-template-columns:1fr 1fr}#grid{grid-template-columns:1fr}.view{aspect-ratio:16/9}header{flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Simulation View</h1>
+    <span id="decode" class="chip">NVIDIA NVENC · H.264</span>
+    <span id="status" class="chip">discovering</span>
+    <span class="spacer"></span>
+    <span id="capacity" class="chip">capacity —</span>
+  </header>
+  <section id="controls">
+    <select id="camera-select" aria-label="Camera"></select>
+    <select id="rig-select" aria-label="Camera rig">
+      <option value="follow_entity">Follow entity</option>
+      <option value="chase_entity">Chase entity</option>
+      <option value="orbit">Orbit</option>
+    </select>
+    <select id="entity-select" aria-label="Target entity"></select>
+    <button id="apply-rig" type="button">Apply rig</button>
+  </section>
+  <section id="cameras" aria-label="Visible cameras"></section>
+  <main id="grid"><div id="empty-grid">No capacity-admitted camera is available.</div></main>
+  <div id="error" hidden></div>
+  <footer><span id="session">No renderer session</span><span class="spacer"></span><span id="freshness">frame age —</span></footer>
+</div>
+<script>/*__NVIDIA_OV_WEB_RTC__*/</script>
+<script>
+"use strict";
+const maximumVisibleViews=4;
+const el=(id)=>document.getElementById(id);
+const bridge=(()=>{
+  let nextId=1;const pending=new Map(),handlers=new Map();
+  const post=(message)=>window.parent.postMessage(message,"*");
+  const request=(method,params)=>new Promise((resolve,reject)=>{const id=nextId++;pending.set(id,{resolve,reject});post({jsonrpc:"2.0",id,method,params});});
+  window.addEventListener("message",(event)=>{const message=event.data;if(!message||message.jsonrpc!=="2.0")return;
+    if(message.id!==undefined&&(message.result!==undefined||message.error!==undefined)){const waiter=pending.get(message.id);if(!waiter)return;pending.delete(message.id);message.error?waiter.reject(new Error(message.error.message||"host error")):waiter.resolve(message.result);return;}
+    const handler=handlers.get(message.method);if(handler)handler(message.params,message.id);else if(message.id!==undefined)post({jsonrpc:"2.0",id:message.id,error:{code:-32601,message:"method not found"}});
+  });
+  return{request,notify:(method,params)=>post({jsonrpc:"2.0",method,params}),on:(method,handler)=>handlers.set(method,handler),post};
+})();
+let session=null,cameras=[],entities=[],capacity=null,refreshTimer=null,lastHeight=0,refreshing=false,tearingDown=false;
+const selected=new Set(),players=new Map();
+function structured(result){if(result&&(result.isError||result.is_error)){const content=Array.isArray(result.content)?result.content:[];throw new Error((content.find((item)=>item.type==="text")||{}).text||"MCP tool failed");}return result&&(result.structuredContent||result.structured_content)||result;}
+async function callTool(name,args){return structured(await bridge.request("tools/call",{name,arguments:args}));}
+async function readJson(uri){const result=await bridge.request("resources/read",{uri});const content=result&&result.contents&&result.contents[0];if(!content||typeof content.text!=="string")throw new Error(`resource ${uri} returned no JSON`);return JSON.parse(content.text);}
+function showError(cause){el("error").textContent=cause instanceof Error?cause.message:String(cause);el("error").hidden=false;}
+function clearError(){el("error").hidden=true;}
+function setStatus(text,live=false,warn=false){el("status").textContent=text;el("status").classList.toggle("live",live);el("status").classList.toggle("warn",warn);}
+function reportSize(){requestAnimationFrame(()=>{const height=Math.ceil(document.documentElement.scrollHeight);if(Math.abs(height-lastHeight)<2)return;lastHeight=height;bridge.notify("ui/notifications/size-changed",{height});});}
+function byId(id){return cameras.find((camera)=>camera.cameraId===id);}
+function sessionUri(suffix=""){return`simulation-view://session/${session.sessionId}${suffix}`;}
+async function verifyDecode(stream){if(!navigator.mediaCapabilities||!navigator.mediaCapabilities.decodingInfo)throw new Error("The browser cannot assess smooth H.264 decoding");
+  const result=await navigator.mediaCapabilities.decodingInfo({type:"webrtc",video:{contentType:'video/H264; codecs="avc1.42E01E"',width:stream.widthPx,height:stream.heightPx,bitrate:8000000,framerate:stream.frameRateMillihertz/1000}});
+  if(!result.supported||!result.smooth)throw new Error("Supported, smooth H.264 decoding is required");
+  el("decode").textContent=result.powerEfficient?"NVIDIA NVENC · hardware H.264 decode":"NVIDIA NVENC · software H.264 decode";
+}
+function slot(id){let node=document.getElementById(`view-${id}`);if(node)return node;
+  node=document.createElement("section");node.className="view";node.id=`view-${id}`;
+  node.innerHTML=`<video id="video-${id}" autoplay muted playsinline></video><div class="empty">Opening hardware-rendered view…</div><div class="bar"><span class="name"></span><span class="health">starting</span><button class="close" type="button">Close</button></div><div class="stats"><span class="resolution">—</span><span class="fps">—</span><span class="age">frame age —</span><span class="encoder">NVIDIA NVENC</span></div>`;
+  node.querySelector(".close").addEventListener("click",()=>{selected.delete(id);void closeView(id,true);renderChoices();});el("grid").append(node);return node;
+}
+async function openView(cameraId){
+  if(players.has(cameraId)||tearingDown)return;const camera=byId(cameraId);if(!camera)return;
+  const node=slot(cameraId);node.querySelector(".name").textContent=`${camera.definition.rig.kind} · ${cameraId}`;
+  const player={connection:null,streamer:null,renewTimer:null,retryTimer:null};players.set(cameraId,player);
+  try{
+    player.connection=await callTool("open_live_view",{sessionId:session.sessionId,cameraId});
+    const value=player.connection,stream=value.stream,endpoint=stream.endpoint,signal=new URL(endpoint.signalingUrl),OV=globalThis.OVWebRTC;
+    if(!OV||globalThis.__VEOVEO_WEBRTC_STUB__)throw new Error("NVIDIA WebRTC client is unavailable in this build");
+    await verifyDecode(stream);player.streamer=new OV.AppStreamer();
+    player.streamer.connect({streamSource:OV.StreamType.DIRECT,logLevel:OV.LogLevel.WARN,streamConfig:{
+      accessToken:value.accessToken,authenticate:true,autoLaunch:true,videoElementId:`video-${cameraId}`,sessionId:stream.liveViewId,
+      signalingServer:signal.hostname,signalingPort:Number(signal.port||443),signalingPath:signal.pathname,mediaServer:endpoint.mediaHost,mediaPort:endpoint.mediaPort,forceWSS:signal.protocol==="wss:",
+      width:stream.widthPx,height:stream.heightPx,fps:stream.frameRateMillihertz/1000,codec:OV.VideoCodec.H264,localizeTextInput:false,mic:false,nativeTouchEvents:false,
+      onStart:(event)=>{if(event&&event.status===OV.EventStatus.SUCCESS){node.querySelector(".empty").hidden=true;node.querySelector(".health").textContent="live";setStatus(`${players.size} live`,true);}else{retry(cameraId,new Error("NVIDIA stream did not start"));}},
+      onStop:()=>{if(!tearingDown)retry(cameraId,new Error("stream stopped"));},
+      onStreamStats:(event)=>{const stats=event&&event.data&&event.data.stats;node.querySelector(".fps").textContent=stats&&stats.fps?`${stats.fps} fps`:`${stream.frameRateMillihertz/1000} fps`;},
+    }});
+    node.querySelector(".resolution").textContent=`${stream.widthPx}×${stream.heightPx}`;scheduleRenew(cameraId);
+  }catch(cause){retry(cameraId,cause);}
+}
+function scheduleRenew(cameraId){const player=players.get(cameraId);if(!player||!player.connection)return;clearTimeout(player.renewTimer);
+  const delay=Math.max(5000,(Date.parse(player.connection.stream.expiresAt)-Date.now())*.5);
+  player.renewTimer=setTimeout(async()=>{try{player.connection=await callTool("renew_live_view",{sessionId:session.sessionId,liveViewId:player.connection.stream.liveViewId});scheduleRenew(cameraId);}catch(cause){retry(cameraId,cause);}},delay);
+}
+function retry(cameraId,cause){showError(cause);void closeView(cameraId,false).then(()=>{if(selected.has(cameraId)&&!tearingDown)setTimeout(()=>void openView(cameraId),2500);});}
+async function closeView(cameraId,removeSlot){const player=players.get(cameraId);players.delete(cameraId);if(player){clearTimeout(player.renewTimer);clearTimeout(player.retryTimer);if(player.streamer){try{player.streamer.terminate();}catch(_){}}
+    if(player.connection){try{await callTool("close_live_view",{sessionId:session.sessionId,liveViewId:player.connection.stream.liveViewId});}catch(cause){if(!tearingDown)showError(cause);}}}
+  if(removeSlot)document.getElementById(`view-${cameraId}`)?.remove();if(!players.size)setStatus("ready");renderGridEmpty();
+}
+function renderGridEmpty(){let empty=el("empty-grid");if(players.size||selected.size){empty?.remove();return;}if(!empty){empty=document.createElement("div");empty.id="empty-grid";empty.textContent="Select up to four capacity-admitted cameras.";el("grid").append(empty);}}
+function renderChoices(){const limit=Math.min(maximumVisibleViews,capacity?.limits?.maximumStreamedCameras||maximumVisibleViews);el("cameras").replaceChildren();
+  for(const camera of cameras){const label=document.createElement("label");label.className="camera-choice";const input=document.createElement("input");input.type="checkbox";input.checked=selected.has(camera.cameraId);input.disabled=!input.checked&&selected.size>=limit;
+    input.addEventListener("change",()=>{if(input.checked){selected.add(camera.cameraId);void openView(camera.cameraId);}else{selected.delete(camera.cameraId);void closeView(camera.cameraId,true);}renderChoices();});
+    label.append(input,document.createTextNode(`${camera.cameraId} · ${camera.definition.rig.kind}`));el("cameras").append(label);}
+  renderGridEmpty();
+}
+function renderSelectors(){const current=el("camera-select").value;el("camera-select").replaceChildren(...cameras.map((camera)=>new Option(`${camera.cameraId} · ${camera.definition.rig.kind}`,camera.cameraId)));if(cameras.some((camera)=>camera.cameraId===current))el("camera-select").value=current;
+  el("entity-select").replaceChildren(...entities.map((entity)=>new Option(entity.entityId,entity.entityId)));
+}
+async function applyRig(){const camera=byId(el("camera-select").value),target=el("entity-select").value,kind=el("rig-select").value;if(!camera||!target)return;
+  const rig=kind==="orbit"?{kind,targetEntity:target,radiusM:12,azimuthDegrees:35,elevationDegrees:25}:kind==="chase_entity"?{kind,targetEntity:target,distanceM:8,heightM:3,smoothingSeconds:.15}:{kind,targetEntity:target,offsetFluM:{x:-6,y:0,z:2.5},smoothingSeconds:.15};
+  try{clearError();const result=await callTool("set_camera",{sessionId:session.sessionId,cameraId:camera.cameraId,expectedRevision:camera.revision,definition:{...camera.definition,rig}});
+    if(result.status==="rejected")throw new Error(`camera rejected: ${result.rejection.dimension}`);await closeView(camera.cameraId,true);await refresh();
+  }catch(cause){showError(cause);}
+}
+function updateHealth(streams){let newest=null;for(const stream of streams){const node=document.getElementById(`view-${stream.cameraId}`);if(!node)continue;node.querySelector(".health").textContent=stream.cameraHealth;const age=stream.lastFrameAt?Math.max(0,Date.now()-Date.parse(stream.lastFrameAt)):null;node.querySelector(".age").textContent=age===null?"frame age —":`frame age ${age} ms`;if(age!==null&&(newest===null||age<newest))newest=age;}el("freshness").textContent=newest===null?"frame age —":`freshest frame ${newest} ms`;}
+async function refresh(){if(refreshing||tearingDown)return;refreshing=true;try{capacity=await readJson("simulation-view://capacity");const sessions=await readJson("simulation-view://sessions");session=sessions.find((item)=>item.lifecycle!=="closed"&&item.lifecycle!=="failed")||null;
+    el("capacity").textContent=`${capacity.usage.streamedCameras}/${capacity.limits.maximumStreamedCameras} streams · ${capacity.usage.renderedCameras}/${capacity.limits.maximumRenderedCameras} render`;
+    if(!session){cameras=[];entities=[];el("session").textContent="No renderer session";setStatus("waiting",false,true);renderSelectors();renderChoices();return;}
+    [cameras]=await Promise.all([readJson(sessionUri("/cameras"))]);const scene=await readJson(sessionUri("/scene")).catch(()=>null);entities=scene?.body?.entities||[];const streams=await readJson(sessionUri("/streams"));
+    el("session").textContent=`${session.sessionId} · ${session.lifecycle} · ${session.poseSource?.stale?"pose stale":"pose current"}`;setStatus(players.size?`${players.size} live`:"ready",players.size>0,session.poseSource?.stale===true);
+    for(const id of [...selected])if(!byId(id)){selected.delete(id);void closeView(id,true);}renderSelectors();renderChoices();updateHealth(streams);
+  }catch(cause){showError(cause);if(!players.size)setStatus("unavailable",false,true);}finally{refreshing=false;}}
+bridge.on("ui/notifications/tool-result",()=>void refresh());
+bridge.on("ui/notifications/host-context-changed",(params)=>{const context=params&&(params.hostContext||params);if(context&&(context.theme==="light"||context.theme==="dark"))document.documentElement.dataset.theme=context.theme;});
+bridge.on("ui/resource-teardown",(_params,id)=>{tearingDown=true;clearInterval(refreshTimer);void Promise.all([...players.keys()].map((cameraId)=>closeView(cameraId,true))).finally(()=>{if(id!==undefined)bridge.post({jsonrpc:"2.0",id,result:{}});});});
+el("apply-rig").addEventListener("click",()=>void applyRig());new ResizeObserver(reportSize).observe(el("app"));window.addEventListener("resize",reportSize);
+(async()=>{try{await bridge.request("ui/initialize",{protocolVersion:"2026-01-26",appInfo:{name:"simulation-view-live",version:"1.0.0"},appCapabilities:{availableDisplayModes:["inline"]}});bridge.notify("ui/notifications/initialized",{});await refresh();refreshTimer=setInterval(()=>void refresh(),1000);reportSize();}catch(cause){showError(cause);setStatus("failed");}})();
+</script>
+</body>
+</html>

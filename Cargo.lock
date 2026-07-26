@@ -737,6 +737,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31b698c5f9a010f6573133b09e0de5408834d0c82f8d7475a89fc1867a71cd90"
 dependencies = [
  "axum-core",
+ "base64 0.22.1",
  "bytes",
  "form_urlencoded",
  "futures-util",
@@ -755,8 +756,10 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "serde_urlencoded",
+ "sha1 0.10.6",
  "sync_wrapper",
  "tokio",
+ "tokio-tungstenite 0.29.0",
  "tower",
  "tower-layer",
  "tower-service",
@@ -4201,7 +4204,7 @@ dependencies = [
  "http",
  "httpdate",
  "mime",
- "sha1",
+ "sha1 0.10.6",
 ]
 
 [[package]]
@@ -8115,7 +8118,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
- "tokio-tungstenite",
+ "tokio-tungstenite 0.28.0",
  "tracing",
  "tracing-futures",
  "url",
@@ -8851,6 +8854,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha1"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aacc4cc499359472b4abe1bf11d0b12e688af9a805fa5e3016f9a386dc2d0214"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.3.0",
+ "digest 0.11.3",
+]
+
+[[package]]
 name = "sha1_smol"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9276,7 +9290,7 @@ dependencies = [
  "surrealdb-types",
  "surrealdb-types-derive",
  "tokio",
- "tokio-tungstenite",
+ "tokio-tungstenite 0.28.0",
  "tokio-tungstenite-wasm",
  "tokio-util",
  "tracing",
@@ -9366,7 +9380,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
- "sha1",
+ "sha1 0.10.6",
  "sha2 0.10.9",
  "storekey",
  "strsim",
@@ -9800,8 +9814,32 @@ dependencies = [
  "rustls-pki-types",
  "tokio",
  "tokio-rustls",
- "tungstenite",
+ "tungstenite 0.28.0",
  "webpki-roots 0.26.11",
+]
+
+[[package]]
+name = "tokio-tungstenite"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f72a05e828585856dacd553fba484c242c46e391fb0e58917c942ee9202915c"
+dependencies = [
+ "futures-util",
+ "log",
+ "tokio",
+ "tungstenite 0.29.0",
+]
+
+[[package]]
+name = "tokio-tungstenite"
+version = "0.30.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17a073bfed563fa236697a068031408a93cd9522e08abf9933ead3e73411bd71"
+dependencies = [
+ "futures-util",
+ "log",
+ "tokio",
+ "tungstenite 0.30.0",
 ]
 
 [[package]]
@@ -9818,7 +9856,7 @@ dependencies = [
  "js-sys",
  "thiserror 2.0.18",
  "tokio",
- "tokio-tungstenite",
+ "tokio-tungstenite 0.28.0",
  "wasm-bindgen",
  "web-sys",
 ]
@@ -10178,10 +10216,42 @@ dependencies = [
  "rand 0.9.4",
  "rustls",
  "rustls-pki-types",
- "sha1",
+ "sha1 0.10.6",
  "thiserror 2.0.18",
  "url",
  "utf-8",
+]
+
+[[package]]
+name = "tungstenite"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c01152af293afb9c7c2a57e4b559c5620b421f6d133261c60dd2d0cdb38e6b8"
+dependencies = [
+ "bytes",
+ "data-encoding",
+ "http",
+ "httparse",
+ "log",
+ "rand 0.9.4",
+ "sha1 0.10.6",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "tungstenite"
+version = "0.30.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e48ac77174b19c110a50ab2128b24215ac9cb40e0e12e093fb602d175c569d22"
+dependencies = [
+ "bytes",
+ "data-encoding",
+ "http",
+ "httparse",
+ "log",
+ "rand 0.10.2",
+ "sha1 0.11.0",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -11263,10 +11333,46 @@ name = "veoveo-simulation-pose"
 version = "0.1.0"
 dependencies = [
  "memmap2",
+ "schemars",
  "serde",
  "sha2 0.11.0",
  "tempfile",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "veoveo-simulation-view-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.22.1",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "futures",
+ "getrandom 0.3.4",
+ "jsonschema",
+ "reqwest",
+ "rmcp",
+ "rustls",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "subtle",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-tungstenite 0.30.0",
+ "tokio-util",
+ "tower",
+ "tower-http 0.7.0",
+ "tracing",
+ "url",
+ "uuid",
+ "veoveo-mcp-apps-extension",
+ "veoveo-mcp-contract",
+ "veoveo-simulation-pose",
 ]
 
 [[package]]

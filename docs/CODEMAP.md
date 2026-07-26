@@ -47,6 +47,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`mcp/composer/DESIGN.md`](../mcp/composer/DESIGN.md) | offline external gateway fragment/binding composition, requirements, and deterministic provenance |
 | [`platform/runtimes/simulation/DESIGN.md`](../platform/runtimes/simulation/DESIGN.md) | canonical hardware-GPU Isaac Sim and Isaac Lab runtime, selected extension profile, and conformance probes |
 | [`platform/simulation/pose/DESIGN.md`](../platform/simulation/pose/DESIGN.md) | provider-neutral binary latest-pose schema, freshness rules, shared memory, and streaming framing |
+| [`servers/simulation-view-mcp/DESIGN.md`](../servers/simulation-view-mcp/DESIGN.md) | renderer-only scene mirroring, logical cameras, capacity, live-view leases, signaling, and the generic App |
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and bounded transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration |
@@ -374,6 +375,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/perception-mcp` | local recorded-sensor inference and Rerun annotations |
 | `servers/reason-mcp` | local recorded-video reasoning, grounding, and Rerun annotations |
 | `servers/recording-mcp` | governed recording catalog, queries, subscriptions, and sealing |
+| `servers/simulation-view-mcp` | governed renderer sessions, immutable visual scenes, pose-producer authorization, logical camera admission, live-view leases, authenticated signaling, and the generic live-view App |
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifacts |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | owner-scoped geospatial views, shared 3D Tiles streaming, offscreen Bevy rendering, and captured frames |
@@ -464,6 +466,11 @@ Simulation View data-plane ownership:
 
 | Path | Responsibility |
 |---|---|
+| `servers/simulation-view-mcp/src/contract.rs` | governed scene declarations, renderer sessions, generic camera rigs, explicit capacity, and direct MCP requests and results |
+| `servers/simulation-view-mcp/src/state.rs` | owner-scoped scene, camera, and lease transitions with optimistic revisions and typed admission |
+| `servers/simulation-view-mcp/src/mcp.rs` | canonical tools, resources, subscriptions, well-known surface, and App declarations |
+| `servers/simulation-view-mcp/src/server/` | signed gateway auth, public host checks, fail-closed runtime readiness, administrative docs, and authenticated signaling |
+| `servers/simulation-view-mcp/assets/live.html` | self-contained selected-view and bounded multi-camera MCP App |
 | `platform/simulation/pose/src/contract.rs` | session, epoch, Frames, entity-table, coordinate, limit, and pose types |
 | `platform/simulation/pose/src/codec.rs` | deterministic `simulation-view-pose/v1` binary encoding |
 | `platform/simulation/pose/src/store.rs` | nonblocking latest-value admission, epoch reset, heartbeat, and staleness |
