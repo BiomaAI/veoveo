@@ -543,6 +543,19 @@ async fn assert_road_route_workflow(conformance: &Path, mcp_url: &str) -> Result
                 "valid_from": Utc::now() - TimeDelta::minutes(5),
                 "labels": []
             },
+            "planning": {
+                "minimum_speed": 1.0,
+                "minimum_turn_radius": 5.5,
+                "maximum_climb_angle": 15.0,
+                "maximum_descent_angle": 15.0,
+                "vertical_clearance": 0.3,
+                "lateral_clearance": 0.5,
+                "maximum_range": 500000.0,
+                "maximum_route_points": 1000,
+                "maximum_segment_length": 50000.0,
+                "allowed_terrain_classes": ["paved"],
+                "allowed_restriction_kinds": []
+            },
             "class": "passenger_car",
             "dimensions": {"length": 4.5, "width": 1.8, "height": 1.6},
             "gross_mass": 1800.0,
@@ -559,7 +572,6 @@ async fn assert_road_route_workflow(conformance: &Path, mcp_url: &str) -> Result
             },
             "axle_count": 2,
             "maximum_axle_load": 1200.0,
-            "minimum_turning_radius": 5.5,
             "hazardous_cargo": false,
             "unpaved_allowed": false
         }
@@ -634,6 +646,19 @@ async fn assert_governed_graph_workflow(conformance: &Path, mcp_url: &str) -> Re
                 "valid_from": Utc::now() - TimeDelta::minutes(5),
                 "labels": []
             },
+            "planning": {
+                "minimum_speed": 0.5,
+                "minimum_turn_radius": 30.0,
+                "maximum_climb_angle": 5.0,
+                "maximum_descent_angle": 5.0,
+                "vertical_clearance": 1.0,
+                "lateral_clearance": 5.0,
+                "maximum_range": 500000.0,
+                "maximum_route_points": 1000,
+                "maximum_segment_length": 50000.0,
+                "allowed_terrain_classes": ["navigable_water"],
+                "allowed_restriction_kinds": ["navigational_warning"]
+            },
             "class": "tug_workboat",
             "dimensions": {"length": 18.0, "width": 6.0, "height": 8.0},
             "displacement": 90000.0,
@@ -651,7 +676,6 @@ async fn assert_governed_graph_workflow(conformance: &Path, mcp_url: &str) -> Re
             "draft": 2.0,
             "air_draft": 7.0,
             "minimum_under_keel_clearance": 1.0,
-            "minimum_turning_radius": 30.0,
             "berth_requirements": []
         }
     });
