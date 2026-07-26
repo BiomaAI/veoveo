@@ -5,8 +5,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    Kilograms, Kilopascals, KilowattHours, Liters, Meters, MetersPerSecond, MobilityProfileId,
-    QuantityError, Ratio, Seconds,
+    Degrees, Kilograms, Kilopascals, KilowattHours, Liters, Meters, MetersPerSecond,
+    MobilityProfileId, QuantityError, Ratio, RestrictionKind, Seconds,
 };
 
 #[derive(
@@ -82,6 +82,54 @@ pub struct VehicleDimensions {
     pub height: Meters,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct MobilityPlanningEnvelope {
+    pub minimum_speed: MetersPerSecond,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub minimum_turn_radius: Option<Meters>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub maximum_climb_angle: Option<Degrees>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub maximum_descent_angle: Option<Degrees>,
+    pub vertical_clearance: Meters,
+    pub lateral_clearance: Meters,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operating_ceiling: Option<Meters>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub maximum_range: Option<Meters>,
+    pub maximum_route_points: u32,
+    pub maximum_segment_length: Meters,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub allowed_terrain_classes: BTreeSet<String>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub allowed_restriction_kinds: BTreeSet<RestrictionKind>,
+}
+
+impl MobilityPlanningEnvelope {
+    pub fn validate(&self, maximum_speed: MetersPerSecond) -> Result<(), MobilityProfileError> {
+        if self.minimum_speed > maximum_speed
+            || self
+                .minimum_turn_radius
+                .is_some_and(|value| value.get() <= 0.0)
+            || self
+                .maximum_climb_angle
+                .is_some_and(|value| value.get() > 90.0)
+            || self
+                .maximum_descent_angle
+                .is_some_and(|value| value.get() > 90.0)
+            || self
+                .operating_ceiling
+                .is_some_and(|value| value.get() <= 0.0)
+            || self.maximum_range.is_some_and(|value| value.get() <= 0.0)
+            || !(2..=10_000).contains(&self.maximum_route_points)
+            || self.maximum_segment_length.get() <= 0.0
+        {
+            return Err(MobilityProfileError::InvalidPlanningEnvelope);
+        }
+        validate_text_set("allowed_terrain_classes", &self.allowed_terrain_classes)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum EnergySource {
@@ -132,6 +180,7 @@ pub enum HumanMovementMode {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct HumanMobilityProfile {
     pub metadata: MobilityProfileMetadata,
+    pub planning: MobilityPlanningEnvelope,
     pub mode: HumanMovementMode,
     pub preferred_speed: MetersPerSecond,
     pub maximum_speed: MetersPerSecond,
@@ -163,6 +212,7 @@ pub enum RoadVehicleClass {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RoadVehicleProfile {
     pub metadata: MobilityProfileMetadata,
+    pub planning: MobilityPlanningEnvelope,
     pub class: RoadVehicleClass,
     pub dimensions: VehicleDimensions,
     pub gross_mass: Kilograms,
@@ -170,7 +220,6 @@ pub struct RoadVehicleProfile {
     pub energy: EnergyProfile,
     pub axle_count: u16,
     pub maximum_axle_load: Kilograms,
-    pub minimum_turning_radius: Meters,
     #[serde(default)]
     pub hazardous_cargo: bool,
     #[serde(default)]
@@ -192,6 +241,7 @@ pub enum OffRoadLocomotionClass {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct OffRoadVehicleProfile {
     pub metadata: MobilityProfileMetadata,
+    pub planning: MobilityPlanningEnvelope,
     pub class: OffRoadLocomotionClass,
     pub dimensions: VehicleDimensions,
     pub gross_mass: Kilograms,
@@ -204,7 +254,6 @@ pub struct OffRoadVehicleProfile {
     pub maximum_water_depth: Meters,
     pub ground_clearance: Meters,
     pub ground_pressure: Kilopascals,
-    pub minimum_turning_radius: Meters,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub allowed_surface_classes: BTreeSet<String>,
 }
@@ -221,6 +270,7 @@ pub enum RailVehicleClass {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RailVehicleProfile {
     pub metadata: MobilityProfileMetadata,
+    pub planning: MobilityPlanningEnvelope,
     pub class: RailVehicleClass,
     pub dimensions: VehicleDimensions,
     pub gross_mass: Kilograms,
@@ -252,6 +302,7 @@ pub enum SurfaceVesselClass {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct SurfaceVesselProfile {
     pub metadata: MobilityProfileMetadata,
+    pub planning: MobilityPlanningEnvelope,
     pub class: SurfaceVesselClass,
     pub dimensions: VehicleDimensions,
     pub displacement: Kilograms,
@@ -260,7 +311,6 @@ pub struct SurfaceVesselProfile {
     pub draft: Meters,
     pub air_draft: Meters,
     pub minimum_under_keel_clearance: Meters,
-    pub minimum_turning_radius: Meters,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub berth_requirements: BTreeSet<String>,
 }
@@ -277,6 +327,7 @@ pub enum SubsurfaceVesselClass {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct SubsurfaceVesselProfile {
     pub metadata: MobilityProfileMetadata,
+    pub planning: MobilityPlanningEnvelope,
     pub class: SubsurfaceVesselClass,
     pub dimensions: VehicleDimensions,
     pub displacement: Kilograms,
@@ -312,6 +363,7 @@ pub enum FixedWingClass {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct FixedWingProfile {
     pub metadata: MobilityProfileMetadata,
+    pub planning: MobilityPlanningEnvelope,
     pub class: FixedWingClass,
     pub dimensions: VehicleDimensions,
     pub maximum_takeoff_mass: Kilograms,
@@ -335,6 +387,7 @@ pub enum RotorcraftClass {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RotorcraftProfile {
     pub metadata: MobilityProfileMetadata,
+    pub planning: MobilityPlanningEnvelope,
     pub class: RotorcraftClass,
     pub dimensions: VehicleDimensions,
     pub maximum_takeoff_mass: Kilograms,
@@ -358,6 +411,7 @@ pub enum UasClass {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UasProfile {
     pub metadata: MobilityProfileMetadata,
+    pub planning: MobilityPlanningEnvelope,
     pub class: UasClass,
     pub dimensions: VehicleDimensions,
     pub maximum_takeoff_mass: Kilograms,
@@ -430,8 +484,37 @@ impl MobilityProfile {
         }
     }
 
+    pub fn planning(&self) -> &MobilityPlanningEnvelope {
+        match self {
+            Self::Human(profile) => &profile.planning,
+            Self::RoadVehicle(profile) => &profile.planning,
+            Self::OffRoadVehicle(profile) => &profile.planning,
+            Self::RailVehicle(profile) => &profile.planning,
+            Self::SurfaceVessel(profile) => &profile.planning,
+            Self::SubsurfaceVessel(profile) => &profile.planning,
+            Self::FixedWing(profile) => &profile.planning,
+            Self::Rotorcraft(profile) => &profile.planning,
+            Self::Uas(profile) => &profile.planning,
+        }
+    }
+
+    pub fn maximum_speed(&self) -> MetersPerSecond {
+        match self {
+            Self::Human(profile) => profile.maximum_speed,
+            Self::RoadVehicle(profile) => profile.performance.maximum_speed,
+            Self::OffRoadVehicle(profile) => profile.performance.maximum_speed,
+            Self::RailVehicle(profile) => profile.performance.maximum_speed,
+            Self::SurfaceVessel(profile) => profile.performance.maximum_speed,
+            Self::SubsurfaceVessel(profile) => profile.performance.maximum_speed,
+            Self::FixedWing(profile) => profile.performance.maximum_speed,
+            Self::Rotorcraft(profile) => profile.performance.maximum_speed,
+            Self::Uas(profile) => profile.performance.maximum_speed,
+        }
+    }
+
     pub fn validate(&self) -> Result<(), MobilityProfileError> {
         self.metadata().validate()?;
+        self.planning().validate(self.maximum_speed())?;
         match self {
             Self::Human(profile) => {
                 if profile.preferred_speed > profile.maximum_speed {
@@ -595,6 +678,8 @@ pub enum MobilityProfileError {
     MissingEnergyCapacity,
     #[error("controlled mobility profile value is invalid")]
     InvalidControlledValue,
+    #[error("mobility planning envelope is invalid or internally inconsistent")]
+    InvalidPlanningEnvelope,
     #[error(transparent)]
     Quantity(#[from] QuantityError),
 }
@@ -611,6 +696,23 @@ mod tests {
             valid_from: Utc::now(),
             valid_until: None,
             labels: BTreeSet::new(),
+        }
+    }
+
+    fn planning() -> MobilityPlanningEnvelope {
+        MobilityPlanningEnvelope {
+            minimum_speed: MetersPerSecond::new(0.1).unwrap(),
+            minimum_turn_radius: Some(Meters::new(0.5).unwrap()),
+            maximum_climb_angle: Some(Degrees::new(30.0).unwrap()),
+            maximum_descent_angle: Some(Degrees::new(30.0).unwrap()),
+            vertical_clearance: Meters::new(0.2).unwrap(),
+            lateral_clearance: Meters::new(0.2).unwrap(),
+            operating_ceiling: None,
+            maximum_range: Some(Meters::new(10_000.0).unwrap()),
+            maximum_route_points: 1_000,
+            maximum_segment_length: Meters::new(1_000.0).unwrap(),
+            allowed_terrain_classes: BTreeSet::from(["paved".to_owned()]),
+            allowed_restriction_kinds: BTreeSet::new(),
         }
     }
 
@@ -634,6 +736,7 @@ mod tests {
     fn human_profile_selects_active_and_intermodal_maps() {
         let profile = MobilityProfile::Human(HumanMobilityProfile {
             metadata: metadata(),
+            planning: planning(),
             mode: HumanMovementMode::Walk,
             preferred_speed: MetersPerSecond::new(1.4).unwrap(),
             maximum_speed: MetersPerSecond::new(2.0).unwrap(),
