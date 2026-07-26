@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use url::Url;
 use veoveo_simulation_pose::{
@@ -7,7 +8,7 @@ use veoveo_simulation_pose::{
     PoseIngressReadiness, PoseProducerAuthorization, SessionId, entity_identity_table_digest,
 };
 
-use crate::contract::{CameraRecord, PoseSourceState, SimulationViewSession};
+use crate::contract::{CameraDefinition, CameraRecord, PoseSourceState, SimulationViewSession};
 
 pub const RENDERER_PROFILE: &str = "veoveo.io/simulation-view-renderer/isaac-rtx/v1";
 
@@ -57,11 +58,60 @@ pub struct SimulationViewReadiness {
     pub error: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RendererSessionBinding<'a> {
+    session_id: &'a veoveo_mcp_contract::LiveSessionId,
+    epoch_id: &'a veoveo_simulation_pose::EpochId,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RendererCameraBinding<'a> {
+    session_id: &'a veoveo_mcp_contract::LiveSessionId,
+    camera_id: &'a veoveo_mcp_contract::LiveCameraId,
+    revision: u64,
+    render_slot: u16,
+    definition: &'a CameraDefinition,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RendererStreamBinding<'a> {
+    session_id: &'a veoveo_mcp_contract::LiveSessionId,
+    camera_id: &'a veoveo_mcp_contract::LiveCameraId,
+    live_view_id: &'a veoveo_mcp_contract::LiveViewId,
+    render_slot: u16,
+    media_port: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RendererCameraStatus {
+    pub camera_id: veoveo_mcp_contract::LiveCameraId,
+    pub ready: bool,
+    pub last_pose_sequence: Option<u64>,
+    pub last_frame_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RendererStreamStatus {
+    pub live_view_id: veoveo_mcp_contract::LiveViewId,
+    pub ready: bool,
+    pub signal_port: u16,
+    pub media_port: u16,
+    pub last_pose_sequence: Option<u64>,
+    pub last_frame_at: Option<DateTime<Utc>>,
+}
+
 #[derive(Clone)]
 pub struct RuntimeClients {
     client: reqwest::Client,
     renderer_endpoint: Url,
     pose_endpoint: Url,
+    renderer_signaling_port_base: u16,
+    public_media_port_base: u16,
     renderer_control_token: Arc<str>,
     pose_control_token: Arc<str>,
 }
@@ -72,6 +122,8 @@ impl RuntimeClients {
         pose_endpoint: &str,
         renderer_control_token: &str,
         pose_control_token: &str,
+        renderer_signaling_url: &str,
+        public_media_port_base: u16,
     ) -> anyhow::Result<Self> {
         let _ = rustls::crypto::ring::default_provider().install_default();
         validate_control_token(renderer_control_token)?;
@@ -83,6 +135,8 @@ impl RuntimeClients {
                 .build()?,
             renderer_endpoint: internal_http_endpoint(renderer_endpoint, "renderer")?,
             pose_endpoint: internal_http_endpoint(pose_endpoint, "pose ingress")?,
+            renderer_signaling_port_base: internal_ws_port(renderer_signaling_url)?,
+            public_media_port_base,
             renderer_control_token: Arc::from(renderer_control_token),
             pose_control_token: Arc::from(pose_control_token),
         })
@@ -108,8 +162,14 @@ impl RuntimeClients {
     }
 
     pub async fn create_session(&self, session: &SimulationViewSession) -> anyhow::Result<()> {
-        self.put_renderer(&format!("v1/sessions/{}", session.session_id), session)
-            .await
+        self.put_renderer(
+            &format!("v1/sessions/{}", session.session_id),
+            &RendererSessionBinding {
+                session_id: &session.session_id,
+                epoch_id: &session.epoch_id,
+            },
+        )
+        .await
     }
 
     pub async fn bind_scene(&self, session: &SimulationViewSession) -> anyhow::Result<()> {
@@ -225,15 +285,31 @@ impl RuntimeClients {
         pose.and(renderer)
     }
 
-    pub async fn upsert_camera(&self, camera: &CameraRecord) -> anyhow::Result<()> {
-        self.put_renderer(
-            &format!(
-                "v1/sessions/{}/cameras/{}",
-                camera.session_id, camera.camera_id
-            ),
-            camera,
-        )
-        .await
+    pub async fn upsert_camera(
+        &self,
+        camera: &CameraRecord,
+        render_slot: u16,
+    ) -> anyhow::Result<RendererCameraStatus> {
+        let status: RendererCameraStatus = self
+            .put_renderer_json(
+                &format!(
+                    "v1/sessions/{}/cameras/{}",
+                    camera.session_id, camera.camera_id
+                ),
+                &RendererCameraBinding {
+                    session_id: &camera.session_id,
+                    camera_id: &camera.camera_id,
+                    revision: camera.revision,
+                    render_slot,
+                    definition: &camera.definition,
+                },
+            )
+            .await?;
+        anyhow::ensure!(
+            status.camera_id == camera.camera_id,
+            "renderer returned status for a different camera"
+        );
+        Ok(status)
     }
 
     pub async fn close_camera(
@@ -253,15 +329,43 @@ impl RuntimeClients {
     pub async fn open_stream(
         &self,
         stream: &veoveo_mcp_contract::LiveViewState,
-    ) -> anyhow::Result<()> {
-        self.put_renderer(
-            &format!(
-                "v1/sessions/{}/streams/{}",
-                stream.session_id, stream.live_view_id
-            ),
-            stream,
-        )
-        .await
+        render_slot: u16,
+    ) -> anyhow::Result<RendererStreamStatus> {
+        let expected_signal_port = self
+            .renderer_signaling_port_base
+            .checked_add(render_slot)
+            .ok_or_else(|| anyhow::anyhow!("renderer signaling port range overflow"))?;
+        let expected_media_port = self
+            .public_media_port_base
+            .checked_add(render_slot)
+            .ok_or_else(|| anyhow::anyhow!("public media port range overflow"))?;
+        anyhow::ensure!(
+            stream.endpoint.media_port == expected_media_port,
+            "live-view endpoint does not match its physical media slot"
+        );
+        let status: RendererStreamStatus = self
+            .put_renderer_json(
+                &format!(
+                    "v1/sessions/{}/streams/{}",
+                    stream.session_id, stream.live_view_id
+                ),
+                &RendererStreamBinding {
+                    session_id: &stream.session_id,
+                    camera_id: &stream.camera_id,
+                    live_view_id: &stream.live_view_id,
+                    render_slot,
+                    media_port: stream.endpoint.media_port,
+                },
+            )
+            .await?;
+        anyhow::ensure!(
+            status.live_view_id == stream.live_view_id
+                && status.ready
+                && status.signal_port == expected_signal_port
+                && status.media_port == expected_media_port,
+            "renderer stream did not become ready on its admitted media slot"
+        );
+        Ok(status)
     }
 
     pub async fn close_stream(
@@ -315,6 +419,20 @@ impl RuntimeClients {
         .await
     }
 
+    async fn put_renderer_json<T: Serialize + ?Sized, R: serde::de::DeserializeOwned>(
+        &self,
+        path: &str,
+        value: &T,
+    ) -> anyhow::Result<R> {
+        self.put_json(
+            &self.renderer_endpoint,
+            &self.renderer_control_token,
+            path,
+            value,
+        )
+        .await
+    }
+
     async fn put<T: Serialize + ?Sized>(
         &self,
         base: &Url,
@@ -330,6 +448,24 @@ impl RuntimeClients {
             .await?
             .error_for_status()?;
         Ok(())
+    }
+
+    async fn put_json<T: Serialize + ?Sized, R: serde::de::DeserializeOwned>(
+        &self,
+        base: &Url,
+        token: &str,
+        path: &str,
+        value: &T,
+    ) -> anyhow::Result<R> {
+        let response = self
+            .client
+            .put(base.join(path)?)
+            .bearer_auth(token)
+            .json(value)
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(response.json().await?)
     }
 
     async fn delete(
@@ -370,6 +506,21 @@ fn internal_http_endpoint(value: &str, label: &str) -> anyhow::Result<Url> {
     Ok(url)
 }
 
+fn internal_ws_port(value: &str) -> anyhow::Result<u16> {
+    let url = Url::parse(value)?;
+    anyhow::ensure!(
+        url.scheme() == "ws"
+            && url.host_str().is_some()
+            && url.username().is_empty()
+            && url.password().is_none()
+            && url.port().is_some()
+            && url.query().is_none()
+            && url.fragment().is_none(),
+        "renderer signaling URL must be a credential-free internal ws URL with an explicit port"
+    );
+    Ok(url.port().expect("validated explicit port"))
+}
+
 fn validate_control_token(token: &str) -> anyhow::Result<()> {
     anyhow::ensure!(
         (32..=512).contains(&token.len()) && !token.chars().any(char::is_whitespace),
@@ -402,18 +553,46 @@ mod tests {
     fn runtime_endpoints_are_private_http_only() {
         let token = "a".repeat(32);
         assert!(
-            RuntimeClients::new("http://renderer:8810", "http://pose:8811", &token, &token).is_ok()
+            RuntimeClients::new(
+                "http://renderer:8810",
+                "http://pose:8811",
+                &token,
+                &token,
+                "ws://renderer:49100",
+                47998,
+            )
+            .is_ok()
         );
         assert!(
-            RuntimeClients::new("https://renderer:8810", "http://pose:8811", &token, &token)
-                .is_err()
+            RuntimeClients::new(
+                "https://renderer:8810",
+                "http://pose:8811",
+                &token,
+                &token,
+                "ws://renderer:49100",
+                47998,
+            )
+            .is_err()
         );
         assert!(
             RuntimeClients::new(
                 "http://user@renderer:8810",
                 "http://pose:8811",
                 &token,
-                &token
+                &token,
+                "ws://renderer:49100",
+                47998,
+            )
+            .is_err()
+        );
+        assert!(
+            RuntimeClients::new(
+                "http://renderer:8810",
+                "http://pose:8811",
+                &token,
+                &token,
+                "ws://renderer",
+                47998,
             )
             .is_err()
         );

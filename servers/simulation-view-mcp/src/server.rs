@@ -51,13 +51,20 @@ pub async fn run() -> Result<()> {
         &args.pose_endpoint,
         &args.renderer_control_token,
         &args.pose_control_token,
+        &args.renderer_signaling_url,
+        args.public_media_port,
     )?);
     let mcp_state = SimulationViewMcpState::new(
         service.clone(),
         runtimes.clone(),
         &args.public_signaling_url,
     )?;
-    let signaling = SignalingState::new(service, mcp_state.clone(), &args.renderer_signaling_url)?;
+    let signaling = SignalingState::new(
+        service,
+        mcp_state.clone(),
+        &args.renderer_signaling_url,
+        args.public_media_port,
+    )?;
 
     let cancellation = tokio_util::sync::CancellationToken::new();
     let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);

@@ -1,0 +1,191 @@
+from __future__ import annotations
+
+import hashlib
+import os
+import struct
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from veoveo_simulation_view.config import RendererConfig
+from veoveo_simulation_view.contracts import (
+    CameraBinding,
+    ContractError,
+    PoseSourceBinding,
+    SessionBinding,
+)
+from veoveo_simulation_view.pose import decode_snapshot
+from veoveo_simulation_view.scene import ArtifactStore
+
+
+class RendererContractsTest(unittest.TestCase):
+    def test_config_requires_disjoint_bounded_port_ranges(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            values = {
+                "SIMULATION_VIEW_RENDERER_CONTROL_TOKEN": "a" * 32,
+                "SIMULATION_VIEW_PUBLIC_MEDIA_IP": "192.0.2.42",
+                "SIMULATION_VIEW_ARTIFACT_DIRECTORY": f"{directory}/artifacts",
+                "SIMULATION_VIEW_POSE_DIRECTORY": f"{directory}/pose",
+                "SIMULATION_VIEW_RENDERER_CACHE_DIRECTORY": f"{directory}/cache",
+                "SIMULATION_VIEW_MAXIMUM_RENDER_SLOTS": "4",
+                "SIMULATION_VIEW_SIGNALING_PORT_BASE": "49100",
+                "SIMULATION_VIEW_MEDIA_PORT_BASE": "47998",
+            }
+            with patch.dict(os.environ, values, clear=True):
+                config = RendererConfig.from_environment()
+            self.assertEqual(config.signaling_port_base + 3, 49103)
+            self.assertEqual(config.media_port_base + 3, 48001)
+
+    def test_private_bindings_are_exact_and_typed(self) -> None:
+        session = SessionBinding.parse(
+            {"sessionId": "session-1", "epochId": "epoch-1"}
+        )
+        self.assertEqual(session.session_id, "session-1")
+        with self.assertRaises(ContractError):
+            SessionBinding.parse(
+                {
+                    "sessionId": "session-1",
+                    "epochId": "epoch-1",
+                    "owner": "must-not-cross-runtime-boundary",
+                }
+            )
+
+        camera = CameraBinding.parse(
+            {
+                "sessionId": "session-1",
+                "cameraId": "camera-1",
+                "revision": 1,
+                "renderSlot": 2,
+                "definition": {
+                    "rig": {
+                        "kind": "look_at",
+                        "eyeM": {"x": 4.0, "y": -4.0, "z": 3.0},
+                        "targetM": {"x": 0.0, "y": 0.0, "z": 0.0},
+                    },
+                    "widthPx": 1280,
+                    "heightPx": 720,
+                    "frameRateMillihertz": 20_000,
+                    "verticalFovDegrees": 60.0,
+                    "nearClipM": 0.1,
+                    "farClipM": 10_000.0,
+                    "streamPolicy": "on_demand",
+                    "recordingPolicy": "disabled",
+                },
+            },
+            4,
+        )
+        self.assertEqual(camera.render_slot, 2)
+
+    def test_artifacts_are_content_addressed_and_self_contained(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifacts = root / "artifacts"
+            cache = root / "cache"
+            (artifacts / "sha256").mkdir(parents=True)
+            payload = b'#usda 1.0\n\ndef Xform "Root" {}\n'
+            digest = hashlib.sha256(payload).hexdigest()
+            path = artifacts / "sha256" / f"{digest}.usd"
+            path.write_bytes(payload)
+            resolved = ArtifactStore(artifacts, cache).resolve(
+                {
+                    "artifactUri": "artifact://fixture/world",
+                    "digest": f"sha256:{digest}",
+                    "format": "usd",
+                    "byteLength": len(payload),
+                }
+            )
+            self.assertEqual(resolved.path, path)
+            path.write_bytes(payload + b" ")
+            with self.assertRaises(ContractError):
+                ArtifactStore(artifacts, cache).resolve(
+                    {
+                        "artifactUri": "artifact://fixture/world",
+                        "digest": f"sha256:{digest}",
+                        "format": "usd",
+                        "byteLength": len(payload),
+                    }
+                )
+
+    def test_pose_decoder_rejects_binding_mismatch(self) -> None:
+        entity_id = b"entity-1"
+        table_hasher = hashlib.sha256()
+        table_hasher.update(struct.pack(">QH", 1, len(entity_id)))
+        table_hasher.update(entity_id)
+        table_digest = table_hasher.digest()
+        frame_digest = bytes.fromhex("11" * 32)
+        session = b"session-1"
+        epoch = b"epoch-1"
+        frame = b"frames://world/synthetic/revision/r1"
+        entity = (
+            struct.pack(">HBB", len(entity_id), 0x03, 0)
+            + struct.pack(">7d", 1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)
+            + entity_id
+        )
+        header = (
+            b"VVPOSE01"
+            + struct.pack(">HHI", 1, 0, 0)
+            + struct.pack(
+                ">QqQIHHHH",
+                1,
+                10_000_000,
+                1,
+                1,
+                len(session),
+                len(epoch),
+                len(frame),
+                1,
+            )
+            + frame_digest
+            + table_digest
+            + session
+            + epoch
+            + frame
+        )
+        encoded = bytearray(header + entity)
+        encoded[12:16] = struct.pack(">I", len(encoded))
+        binding = PoseSourceBinding.parse(
+            {
+                "schemaVersion": (
+                    "veoveo.io/simulation-view-pose-ingress-control/v1"
+                ),
+                "sessionId": "session-1",
+                "epochId": "epoch-1",
+                "frameRevision": {
+                    "uri": frame.decode(),
+                    "digest": f"sha256:{frame_digest.hex()}",
+                },
+                "entityTableRevision": 1,
+                "entityTableDigest": f"sha256:{table_digest.hex()}",
+                "limits": {
+                    "maximumEntities": 8,
+                    "maximumMessageBytes": 65536,
+                    "maximumCadenceHz": 120,
+                    "staleAfterMs": 500,
+                },
+                "producer": {
+                    "producerId": "fixture",
+                    "spiffeId": "spiffe://example.test/fixture",
+                    "expiresAt": "2026-07-26T12:00:00Z",
+                },
+            }
+        )
+        snapshot = decode_snapshot(bytes(encoded), binding)
+        self.assertEqual(snapshot.entities[0].position_enu_m, (1.0, 2.0, 3.0))
+        wrong = PoseSourceBinding(
+            session_id="session-2",
+            epoch_id=binding.epoch_id,
+            frame_uri=binding.frame_uri,
+            frame_digest=binding.frame_digest,
+            entity_table_revision=binding.entity_table_revision,
+            entity_table_digest=binding.entity_table_digest,
+            maximum_entities=binding.maximum_entities,
+            maximum_message_bytes=binding.maximum_message_bytes,
+            stale_after_ms=binding.stale_after_ms,
+        )
+        with self.assertRaises(ContractError):
+            decode_snapshot(bytes(encoded), wrong)
+
+
+if __name__ == "__main__":
+    unittest.main()

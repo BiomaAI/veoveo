@@ -478,6 +478,7 @@ Simulation View data-plane ownership:
 | `platform/simulation/pose/src/stream.rs` | identical length-delimited framing for mutually authenticated streams |
 | `platform/simulation/pose/src/ingress.rs` | typed private producer-binding control declarations and readiness |
 | `platform/simulation/pose-ingress/` | TLS 1.3 mutual-authentication ingress, SPIFFE producer authorization, private control endpoint, and shared-memory publication |
+| `platform/simulation/view-isaac/` | hardware-only Isaac/RTX renderer, governed local asset preflight, render-only USD mirroring, pose consumption, generic camera rigs, AOV/NVENC slot pools, and private runtime control |
 
 ## Recordings
 

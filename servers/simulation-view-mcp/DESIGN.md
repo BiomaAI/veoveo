@@ -61,6 +61,12 @@ complete snapshot to the renderer without backpressure to that producer.
 MCP never carries continuous poses, camera pixels, media packets, filesystem
 paths, certificates, or provider credentials.
 
+The private runtime control boundary is installation-secret authenticated.
+It sends narrow session, scene, pose-source, camera, and stream bindings. User
+and Work Context ownership remain in the MCP process and do not cross into the
+renderer. The renderer has no domain simulator, dynamics loop, control
+adapter, or extension-code loader.
+
 ## Scene Contract
 
 `bind_scene` binds once. A declaration identifies the session and epoch, an
@@ -74,6 +80,13 @@ lengths. Environment and prototype roots accept USD, USDZ, GLB, or glTF.
 Texture payloads remain dependencies of those governed roots. Network URLs,
 credentials, executable code, unknown schemas, duplicate identities,
 unbounded content, invalid transforms, and mismatched digests are rejected.
+
+An installation-owned materializer places roots under a private digest-named
+artifact volume. The renderer performs size and SHA-256 verification before
+opening a layer. Standalone USD must be declarative, self-contained USDA.
+USDZ members and references cannot escape their archive. glTF and GLB permit
+only embedded resources. Physics schemas, scripts, native libraries, external
+URLs, and filesystem references fail admission before Kit opens the asset.
 
 The scene body is serialized from its strongly typed field order and hashed.
 An existing session accepts the same digest idempotently and rejects a
@@ -115,6 +128,12 @@ budget, and profile. The service never changes resolution, cadence, rig,
 stream policy, renderer, or encoder to make a request fit. Changing a camera
 revision closes its old stream leases.
 
+Every admitted rendered camera receives one explicit physical slot. The slot
+selects a stable RTX HydraTexture AOV name and is sent only over the private
+runtime control boundary. This initial profile renders every logical camera;
+it does not claim cadence virtualization that the implementation has not
+measured.
+
 `rtx4090-development-v1` is a conservative development profile, not release
 qualification. A production profile requires measured renderer and encoder
 evidence tied to the image and GPU.
@@ -132,6 +151,13 @@ The WebSocket proxy accepts the token in the
 private renderer connection, preserves the renderer signaling path, and
 disconnects when the lease closes or expires. One URI or camera identity does
 not grant media access.
+
+NVIDIA AOV streams require a unique TCP signaling port and UDP media port per
+physical slot. The MCP proxy derives the private signaling port from the
+authorized stream's slot. The public endpoint reports the corresponding
+installation-exposed UDP media port. Chart validation and component-profile
+validation treat both ranges as one bounded unit. A second camera never
+silently shares or replaces another camera's renderer port.
 
 Lease ownership includes principal, tenant, gateway profile, data labels,
 Work Context, policy revision, output policy, and invocation provenance.
@@ -176,6 +202,14 @@ private workloads and fails unless:
 There is no CPU renderer or software encoder fallback. The Isaac workload
 requests an NVIDIA RuntimeClass, one `nvidia.com/gpu`, writable runtime
 caches, and at least 2 GiB of memory-backed `/dev/shm`.
+
+`simulation-view-isaac` starts with a built-in declarative diagnostic scene
+and one RTX health render product. Readiness stays false until CUDA and NVENC
+driver APIs succeed and that product produces a visible, non-stale frame.
+Media travels from the RTX AOV to NVIDIA's WebRTC extension without CPU
+readback. A low-cadence frame-health probe currently copies a diagnostic AOV
+for visibility reduction and is marked `TODO(GPU)` at the exact migration
+path. It is not the media data plane.
 
 Production uses a separate GPU from a GPU simulation workload. A shared GPU
 profile is invalid without measured memory, cadence, context-contention,

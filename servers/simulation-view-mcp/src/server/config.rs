@@ -114,9 +114,18 @@ impl Args {
                 && upstream.host_str().is_some()
                 && upstream.username().is_empty()
                 && upstream.password().is_none()
+                && upstream.port().is_some()
                 && upstream.query().is_none()
                 && upstream.fragment().is_none(),
-            "renderer signaling URL must be a credential-free internal ws URL"
+            "renderer signaling URL must be a credential-free internal ws URL with an explicit base port"
+        );
+        let rendered_span = self.maximum_rendered_cameras.saturating_sub(1);
+        anyhow::ensure!(
+            u32::from(self.public_media_port).saturating_add(rendered_span) <= u32::from(u16::MAX)
+                && u32::from(upstream.port().expect("validated explicit port"))
+                    .saturating_add(rendered_span)
+                    <= u32::from(u16::MAX),
+            "rendered camera count exceeds the configured signaling or media port range"
         );
         validate_control_token(&self.renderer_control_token)?;
         validate_control_token(&self.pose_control_token)?;
