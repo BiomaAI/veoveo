@@ -23,6 +23,7 @@ complies with in its crate documents and in its contract resource.
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned server capabilities and platform requirements |
 | `veoveo.io/gateway-binding/v1` | installation-owned exposure, policy, artifact audience, and recording producer declarations |
 | `veoveo.io/gateway-composition-provenance/v1` | exact input/output SHA-256 identities and contributed-object summaries |
+| `veoveo.io/live-view/v1` | provider-neutral owner-scoped camera stream state, hardware encode identity, endpoint metadata, and redacted connection token |
 
 ## Scope And Discovery
 
