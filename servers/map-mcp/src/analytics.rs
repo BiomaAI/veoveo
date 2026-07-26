@@ -6,15 +6,17 @@ use duckdb::{Connection, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use veoveo_duckdb_runtime::{EngineSettings, FileAccess, TrustedExtension, open_connection};
+use veoveo_mcp_contract::WorkContextId;
 
 use crate::contract::{
     Facility, MapBoundary, MapBoundaryId, MapFamily, MapLocation, Meters,
-    QuerySourceFeaturesOutput, QuerySourceFeaturesRequest, SearchLocationsOutput,
-    SearchLocationsRequest, SourceFeature, SourceFeatureId, SourceFeatureMatch, SourceSpatialQuery,
-    Wgs84BoundingBox, Wgs84LineString, Wgs84Position,
+    QuerySourceFeaturesOutput, QuerySourceFeaturesRequest, RasterDerivation, RasterDerivationId,
+    RasterProduct, RasterProductId, SearchLocationsOutput, SearchLocationsRequest, SourceFeature,
+    SourceFeatureId, SourceFeatureMatch, SourceSpatialQuery, Wgs84BoundingBox, Wgs84LineString,
+    Wgs84Position,
 };
 
-const SCHEMA_VERSION: i64 = 4;
+const SCHEMA_VERSION: i64 = 5;
 
 #[derive(Clone, Debug)]
 pub struct MapAnalyticsConfig {
@@ -382,6 +384,131 @@ impl MapAnalytics {
         Ok(Some(serde_json::from_str(&row.get::<_, String>(0)?)?))
     }
 
+    pub fn put_raster_product(&self, tenant_key: &str, raster: &RasterProduct) -> Result<()> {
+        raster.validate()?;
+        let connection = self.connection(false)?;
+        connection.execute(
+            "INSERT OR REPLACE INTO map_raster_product VALUES (?, ?, ?, ?, ?, ?)",
+            params![
+                tenant_key,
+                raster.raster_id.as_str(),
+                raster.release_id.as_str(),
+                raster.source_id.as_str(),
+                raster.checksum_sha256,
+                serde_json::to_string(raster)?,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn raster_product(
+        &self,
+        tenant_key: &str,
+        raster_id: &RasterProductId,
+    ) -> Result<Option<RasterProduct>> {
+        let connection = self.connection(true)?;
+        let mut statement = connection.prepare(
+            "SELECT canonical_json FROM map_raster_product WHERE tenant_key = ? AND raster_key = ? LIMIT 1",
+        )?;
+        let mut rows = statement.query(params![tenant_key, raster_id.as_str()])?;
+        let Some(row) = rows.next()? else {
+            return Ok(None);
+        };
+        Ok(Some(serde_json::from_str(&row.get::<_, String>(0)?)?))
+    }
+
+    pub fn list_raster_products(
+        &self,
+        tenant_key: &str,
+        release_id: Option<&crate::contract::DatasetReleaseId>,
+        limit: u32,
+    ) -> Result<Vec<RasterProduct>> {
+        if !(1..=10_000).contains(&limit) {
+            bail!("raster product limit must be within 1..=10000");
+        }
+        let connection = self.connection(true)?;
+        let sql = if release_id.is_some() {
+            "SELECT canonical_json FROM map_raster_product WHERE tenant_key = ? AND release_key = ? ORDER BY raster_key LIMIT ?"
+        } else {
+            "SELECT canonical_json FROM map_raster_product WHERE tenant_key = ? ORDER BY release_key, raster_key LIMIT ?"
+        };
+        let mut statement = connection.prepare(sql)?;
+        let mut rows = if let Some(release_id) = release_id {
+            statement.query(params![tenant_key, release_id.as_str(), limit])?
+        } else {
+            statement.query(params![tenant_key, limit])?
+        };
+        let mut rasters = Vec::new();
+        while let Some(row) = rows.next()? {
+            rasters.push(serde_json::from_str(&row.get::<_, String>(0)?)?);
+        }
+        Ok(rasters)
+    }
+
+    pub fn put_raster_derivation(
+        &self,
+        tenant_key: &str,
+        derivation: &RasterDerivation,
+    ) -> Result<()> {
+        derivation.validate()?;
+        let connection = self.connection(false)?;
+        connection.execute(
+            "INSERT OR REPLACE INTO map_raster_derivation VALUES (?, ?, ?, ?, ?, ?, ?)",
+            params![
+                tenant_key,
+                derivation.work_context.as_str(),
+                derivation.created_by.as_str(),
+                derivation.derivation_id.as_str(),
+                derivation.source_raster_id.as_str(),
+                derivation.source_release_id.as_str(),
+                serde_json::to_string(derivation)?,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn raster_derivation(
+        &self,
+        tenant_key: &str,
+        work_context: &WorkContextId,
+        derivation_id: &RasterDerivationId,
+    ) -> Result<Option<RasterDerivation>> {
+        let connection = self.connection(true)?;
+        let mut statement = connection.prepare(
+            "SELECT canonical_json FROM map_raster_derivation WHERE tenant_key = ? AND work_context_key = ? AND derivation_key = ? LIMIT 1",
+        )?;
+        let mut rows = statement.query(params![
+            tenant_key,
+            work_context.as_str(),
+            derivation_id.as_str()
+        ])?;
+        let Some(row) = rows.next()? else {
+            return Ok(None);
+        };
+        Ok(Some(serde_json::from_str(&row.get::<_, String>(0)?)?))
+    }
+
+    pub fn list_raster_derivations(
+        &self,
+        tenant_key: &str,
+        work_context: &WorkContextId,
+        limit: u32,
+    ) -> Result<Vec<RasterDerivation>> {
+        if !(1..=10_000).contains(&limit) {
+            bail!("raster derivation limit must be within 1..=10000");
+        }
+        let connection = self.connection(true)?;
+        let mut statement = connection.prepare(
+            "SELECT canonical_json FROM map_raster_derivation WHERE tenant_key = ? AND work_context_key = ? ORDER BY derivation_key LIMIT ?",
+        )?;
+        let mut rows = statement.query(params![tenant_key, work_context.as_str(), limit])?;
+        let mut derivations = Vec::new();
+        while let Some(row) = rows.next()? {
+            derivations.push(serde_json::from_str(&row.get::<_, String>(0)?)?);
+        }
+        Ok(derivations)
+    }
+
     pub fn query_source_features(
         &self,
         tenant_key: &str,
@@ -590,16 +717,18 @@ impl MapAnalytics {
     ) -> Result<()> {
         let mut connection = self.connection(false)?;
         let transaction = connection.transaction()?;
-        for table in [
-            "map_location",
-            "map_facility",
-            "map_boundary",
-            "map_network_edge",
-            "map_source_feature_tag",
-            "map_source_feature",
+        for (table, release_column) in [
+            ("map_location", "source_release_key"),
+            ("map_facility", "source_release_key"),
+            ("map_boundary", "source_release_key"),
+            ("map_network_edge", "source_release_key"),
+            ("map_source_feature_tag", "release_key"),
+            ("map_source_feature", "release_key"),
+            ("map_raster_product", "release_key"),
+            ("map_raster_derivation", "release_key"),
         ] {
             transaction.execute(
-                &format!("DELETE FROM {table} WHERE tenant_key = ? AND source_release_key = ?"),
+                &format!("DELETE FROM {table} WHERE tenant_key = ? AND {release_column} = ?"),
                 params![tenant_key, release_id.as_str()],
             )?;
         }
@@ -787,6 +916,27 @@ impl MapAnalytics {
                PRIMARY KEY (tenant_key, release_key, feature_key, tag_key)
              );
              CREATE INDEX IF NOT EXISTS map_source_feature_tag_lookup ON map_source_feature_tag(tenant_key, release_key, tag_key, tag_json, feature_key);
+             CREATE TABLE IF NOT EXISTS map_raster_product (
+               tenant_key VARCHAR NOT NULL,
+               raster_key VARCHAR NOT NULL,
+               release_key VARCHAR NOT NULL,
+               source_key VARCHAR NOT NULL,
+               checksum_sha256 VARCHAR NOT NULL,
+               canonical_json JSON NOT NULL,
+               PRIMARY KEY (tenant_key, raster_key)
+             );
+             CREATE INDEX IF NOT EXISTS map_raster_product_release ON map_raster_product(tenant_key, release_key, raster_key);
+             CREATE TABLE IF NOT EXISTS map_raster_derivation (
+               tenant_key VARCHAR NOT NULL,
+               work_context_key VARCHAR NOT NULL,
+               principal_key VARCHAR NOT NULL,
+               derivation_key VARCHAR NOT NULL,
+               raster_key VARCHAR NOT NULL,
+               release_key VARCHAR NOT NULL,
+               canonical_json JSON NOT NULL,
+               PRIMARY KEY (tenant_key, work_context_key, derivation_key)
+             );
+             CREATE INDEX IF NOT EXISTS map_raster_derivation_source ON map_raster_derivation(tenant_key, work_context_key, raster_key, derivation_key);
              CREATE TABLE IF NOT EXISTS map_authored_feature_revision (
                tenant_key VARCHAR NOT NULL,
                work_context_key VARCHAR NOT NULL,
@@ -848,7 +998,7 @@ impl MapAnalytics {
                last_sequence BIGINT NOT NULL,
                updated_at TIMESTAMPTZ NOT NULL
              );
-             UPDATE map_schema SET version = {SCHEMA_VERSION} WHERE version IN (2, 3);"
+             UPDATE map_schema SET version = {SCHEMA_VERSION} WHERE version IN (2, 3, 4);"
         ))?;
         let version: i64 =
             connection.query_row("SELECT max(version) FROM map_schema", [], |row| row.get(0))?;

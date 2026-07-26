@@ -15,6 +15,7 @@ pub mod geodesy;
 pub mod geography;
 pub mod mcp;
 pub mod prompts;
+pub mod raster;
 pub mod release_products;
 pub mod routes;
 mod server;

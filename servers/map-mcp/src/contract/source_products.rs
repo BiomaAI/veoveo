@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use veoveo_mcp_contract::{PrincipalId, WorkContextId, parse_artifact_plane_uri};
 
 use super::{
     DatasetLicense, DatasetReleaseId, FeatureGeometry, MapSourceId, Meters, RasterDerivationId,
@@ -12,9 +13,13 @@ use super::{
 
 pub const SOURCE_FEATURE_SCHEMA_VERSION: u64 = 1;
 pub const RASTER_PRODUCT_SCHEMA_VERSION: u64 = 1;
+pub const RASTER_DERIVATION_SCHEMA_VERSION: u64 = 1;
 pub const MAX_SOURCE_QUERY_LIMIT: u32 = 500;
 pub const MAX_SOURCE_TAG_FILTERS: usize = 32;
 pub const MAX_RASTER_WINDOW_PIXELS: u64 = 16_777_216;
+pub const MAX_RASTER_SAMPLE_POSITIONS: usize = 10_000;
+pub const MAX_RASTER_FULL_DERIVATION_PIXELS: u64 = 4_194_304;
+pub const RASTER_DERIVATION_ALGORITHM_REVISION: &str = "gdal-3.13.2-veoveo-raster-v1";
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
@@ -311,14 +316,18 @@ impl RasterProduct {
             || self.bands.len() > 256
             || self.transform.iter().any(|value| !value.is_finite())
             || self.extent.iter().any(|value| !value.is_finite())
+            || self.extent[0] >= self.extent[2]
+            || self.extent[1] >= self.extent[3]
             || self.resolution.iter().any(|value| !value.is_finite())
             || self.resolution.iter().any(|value| *value <= 0.0)
+            || !valid_transform(&self.transform)
             || !self.artifact_uri.starts_with("artifact://")
+            || parse_artifact_plane_uri(&self.artifact_uri).is_none()
         {
             return Err(SourceProductError::InvalidRaster);
         }
-        validate_controlled(&self.crs, 256)?;
-        validate_controlled(&self.attribution, 4_096)?;
+        validate_controlled(&self.crs, 16_384)?;
+        validate_text(&self.attribution, 4_096)?;
         validate_sha256(&self.checksum_sha256)?;
         self.license
             .validate()
@@ -383,16 +392,130 @@ pub struct DeriveRasterRequest {
     pub algorithm_revision: String,
 }
 
+impl DeriveRasterRequest {
+    pub fn validate(&self) -> Result<(), SourceProductError> {
+        validate_controlled(&self.algorithm_revision, 256)?;
+        if self.algorithm_revision != RASTER_DERIVATION_ALGORITHM_REVISION {
+            return Err(SourceProductError::UnsupportedRasterAlgorithm);
+        }
+        match &self.operation {
+            RasterDerivationOperation::Sample { band, positions } => {
+                validate_band(*band)?;
+                if positions.is_empty() || positions.len() > MAX_RASTER_SAMPLE_POSITIONS {
+                    return Err(SourceProductError::InvalidRasterOperation);
+                }
+                positions.iter().try_for_each(|position| {
+                    position
+                        .validate()
+                        .map_err(|_| SourceProductError::InvalidRasterOperation)
+                })?;
+            }
+            RasterDerivationOperation::Window {
+                bounds,
+                width,
+                height,
+            } => {
+                bounds
+                    .validate()
+                    .map_err(|_| SourceProductError::InvalidRasterOperation)?;
+                if bounds.west > bounds.east
+                    || *width == 0
+                    || *height == 0
+                    || u64::from(*width) * u64::from(*height) > MAX_RASTER_WINDOW_PIXELS
+                {
+                    return Err(SourceProductError::InvalidRasterOperation);
+                }
+            }
+            RasterDerivationOperation::ClassMask { band, classes } => {
+                validate_band(*band)?;
+                if classes.is_empty() || classes.len() > 256 {
+                    return Err(SourceProductError::InvalidRasterOperation);
+                }
+            }
+            RasterDerivationOperation::Contour {
+                band,
+                interval,
+                base,
+            } => {
+                validate_band(*band)?;
+                if !interval.is_finite() || *interval <= 0.0 || !base.is_finite() {
+                    return Err(SourceProductError::InvalidRasterOperation);
+                }
+            }
+            RasterDerivationOperation::Polygonize { band } => validate_band(*band)?,
+            RasterDerivationOperation::Skeletonize { band, threshold } => {
+                validate_band(*band)?;
+                if !threshold.is_finite() {
+                    return Err(SourceProductError::InvalidRasterOperation);
+                }
+            }
+            RasterDerivationOperation::DeriveLines {
+                band,
+                threshold,
+                minimum_length,
+            } => {
+                validate_band(*band)?;
+                if !threshold.is_finite()
+                    || !minimum_length.get().is_finite()
+                    || minimum_length.get() < 0.0
+                {
+                    return Err(SourceProductError::InvalidRasterOperation);
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RasterDerivation {
+    pub schema_version: u64,
     pub derivation_id: RasterDerivationId,
     pub source_raster_id: RasterProductId,
     pub source_release_id: DatasetReleaseId,
+    pub source_checksum_sha256: String,
+    pub source_crs: String,
+    pub source_transform: [f64; 6],
     pub operation: RasterDerivationOperation,
     pub algorithm_revision: String,
     pub output_artifact_uri: String,
+    pub output_mime_type: String,
+    pub output_crs: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_transform: Option<[f64; 6]>,
     pub output_checksum_sha256: String,
+    pub created_by: PrincipalId,
+    pub work_context: WorkContextId,
     pub created_at: DateTime<Utc>,
+}
+
+impl RasterDerivation {
+    pub fn validate(&self) -> Result<(), SourceProductError> {
+        if self.schema_version != RASTER_DERIVATION_SCHEMA_VERSION {
+            return Err(SourceProductError::UnsupportedSchema);
+        }
+        validate_sha256(&self.source_checksum_sha256)?;
+        validate_sha256(&self.output_checksum_sha256)?;
+        validate_controlled(&self.source_crs, 16_384)?;
+        validate_controlled(&self.output_crs, 16_384)?;
+        validate_controlled(&self.algorithm_revision, 256)?;
+        validate_controlled(&self.output_mime_type, 256)?;
+        if !valid_transform(&self.source_transform)
+            || self
+                .output_transform
+                .is_some_and(|transform| !valid_transform(&transform))
+            || !self.output_artifact_uri.starts_with("artifact://")
+            || parse_artifact_plane_uri(&self.output_artifact_uri).is_none()
+        {
+            return Err(SourceProductError::InvalidRaster);
+        }
+        DeriveRasterRequest {
+            raster_id: self.source_raster_id.clone(),
+            operation: self.operation.clone(),
+            algorithm_revision: self.algorithm_revision.clone(),
+        }
+        .validate()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -409,6 +532,8 @@ pub enum SourceProductError {
     TooManyTagFilters,
     InvalidCursor,
     InvalidRaster,
+    InvalidRasterOperation,
+    UnsupportedRasterAlgorithm,
 }
 
 impl std::fmt::Display for SourceProductError {
@@ -428,8 +553,26 @@ impl std::fmt::Display for SourceProductError {
             Self::TooManyTagFilters => "source-feature query exceeds 32 tag filters",
             Self::InvalidCursor => "source-feature query cursor is invalid",
             Self::InvalidRaster => "raster product metadata is invalid",
+            Self::InvalidRasterOperation => {
+                "raster derivation request is invalid or exceeds its bounds"
+            }
+            Self::UnsupportedRasterAlgorithm => {
+                "raster derivation algorithm revision is unsupported"
+            }
         })
     }
+}
+
+fn validate_band(band: u32) -> Result<(), SourceProductError> {
+    if band == 0 || band > 256 {
+        return Err(SourceProductError::InvalidRasterOperation);
+    }
+    Ok(())
+}
+
+fn valid_transform(transform: &[f64; 6]) -> bool {
+    transform.iter().all(|value| value.is_finite())
+        && transform[1] * transform[5] - transform[2] * transform[4] != 0.0
 }
 
 impl std::error::Error for SourceProductError {}
@@ -452,6 +595,18 @@ fn validate_controlled(value: &str, maximum_length: usize) -> Result<(), SourceP
     if value.is_empty()
         || value.len() > maximum_length
         || value.chars().any(|character| character.is_control())
+    {
+        return Err(SourceProductError::InvalidControlledValue);
+    }
+    Ok(())
+}
+
+fn validate_text(value: &str, maximum_length: usize) -> Result<(), SourceProductError> {
+    if value.is_empty()
+        || value.len() > maximum_length
+        || value
+            .chars()
+            .any(|character| character.is_control() && !matches!(character, '\n' | '\r' | '\t'))
     {
         return Err(SourceProductError::InvalidControlledValue);
     }
@@ -485,5 +640,18 @@ mod tests {
     #[test]
     fn raster_windows_have_a_hard_pixel_limit_constant() {
         assert_eq!(MAX_RASTER_WINDOW_PIXELS, 4096 * 4096);
+    }
+
+    #[test]
+    fn raster_derivations_pin_the_implemented_algorithm_revision() {
+        let request = DeriveRasterRequest {
+            raster_id: RasterProductId::new(),
+            operation: RasterDerivationOperation::Polygonize { band: 1 },
+            algorithm_revision: "caller-selected-implementation".to_owned(),
+        };
+        assert_eq!(
+            request.validate(),
+            Err(SourceProductError::UnsupportedRasterAlgorithm)
+        );
     }
 }

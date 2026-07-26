@@ -55,6 +55,10 @@ pub(super) struct Args {
     pub helper_python: PathBuf,
     #[arg(long, default_value = "map_data")]
     pub helper_module: String,
+    #[arg(long, default_value = "map_data.raster_ops")]
+    pub raster_helper_module: String,
+    #[arg(long, default_value_t = 300)]
+    pub raster_operation_timeout_seconds: u64,
     #[arg(long, default_value = "/var/lib/veoveo/map/acquisitions")]
     pub acquisition_scratch_root: PathBuf,
     #[arg(long, default_value = "/var/lib/veoveo/map/authoring-tasks")]

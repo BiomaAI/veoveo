@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{
-    ArtifactProvenance, ArtifactPut, ArtifactWriteIdempotencyKey, ComplianceMetadata,
+    ArtifactId, ArtifactProvenance, ArtifactPut, ArtifactWriteIdempotencyKey, ComplianceMetadata,
     GatewayInternalIdentity, InvocationMode, InvocationProvenance,
     IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, PlaneCaller, PrincipalKind,
 };
@@ -30,9 +30,11 @@ use veoveo_task_runtime::{
 
 use crate::{
     contract::{
-        BuildVectorTilesOutput, BuildVectorTilesRequest, ExportFeatureLayerOutput,
-        ExportFeatureLayerRequest, ImportFeatureLayerRequest, LayerProduct, LayerProductId,
-        ReachableAreaRequest, RouteMatrixRequest, RouteRequest,
+        BuildVectorTilesOutput, BuildVectorTilesRequest, DeriveRasterRequest,
+        ExportFeatureLayerOutput, ExportFeatureLayerRequest, ImportFeatureLayerRequest,
+        LayerProduct, LayerProductId, MAX_RASTER_FULL_DERIVATION_PIXELS,
+        RASTER_DERIVATION_SCHEMA_VERSION, RasterDerivation, RasterDerivationId,
+        RasterDerivationOperation, ReachableAreaRequest, RouteMatrixRequest, RouteRequest,
     },
     server::auth::ForwardedBearer,
     state::MapApplication,
@@ -45,6 +47,7 @@ const REACHABLE_AREA_TASK: &str = "reachable_area";
 const IMPORT_FEATURE_LAYER_TASK: &str = "import_feature_layer";
 const EXPORT_FEATURE_LAYER_TASK: &str = "export_feature_layer";
 const BUILD_VECTOR_TILES_TASK: &str = "build_vector_tiles";
+const DERIVE_RASTER_TASK: &str = "derive_raster";
 
 /// Tool names `start_tool_task` accepts as durable task invocations. The
 /// `map://contract` capability inventory declares this list; keep it in
@@ -57,6 +60,7 @@ pub(crate) const TASK_TOOLS: &[&str] = &[
     IMPORT_FEATURE_LAYER_TASK,
     EXPORT_FEATURE_LAYER_TASK,
     BUILD_VECTOR_TILES_TASK,
+    DERIVE_RASTER_TASK,
 ];
 
 const TASK_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1_000;
@@ -102,6 +106,19 @@ struct DurableVectorTileRequest {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+struct DurableRasterDerivationRequest {
+    input: DeriveRasterRequest,
+    identity: GatewayInternalIdentity,
+    source_release_id: crate::contract::DatasetReleaseId,
+    source_digest_sha256: String,
+    source_crs: String,
+    source_transform: [f64; 6],
+    derivation_id: RasterDerivationId,
+    created_at: chrono::DateTime<Utc>,
+    artifact_write_capability: IssuedArtifactWriteCapability,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "request", rename_all = "snake_case")]
 enum MapTaskRequest {
     Route(RouteRequest),
@@ -110,6 +127,7 @@ enum MapTaskRequest {
     ImportFeatureLayer(DurableImportRequest),
     ExportFeatureLayer(DurableExportRequest),
     BuildVectorTiles(DurableVectorTileRequest),
+    DeriveRaster(DurableRasterDerivationRequest),
 }
 
 impl MapTaskExtension {
@@ -253,10 +271,21 @@ impl TaskExtensionHandler for MapTaskExtension {
                     .map_err(|error| AdapterError::internal(error.to_string()))?,
                 })
             }
+            DERIVE_RASTER_TASK => {
+                require_scope(&caller.identity, "map:dataset:read")?;
+                require_scope(&caller.identity, "map:raster:derive")?;
+                let input: DeriveRasterRequest = serde_json::from_value(arguments)
+                    .map_err(|error| AdapterError::invalid_params(error.to_string()))?;
+                MapTaskRequest::DeriveRaster(
+                    prepare_raster_request(self.state.as_ref(), caller, &task_id, input)
+                        .await
+                        .map_err(|error| AdapterError::invalid_params(error.to_string()))?,
+                )
+            }
             _ => return Ok(None),
         };
         let retention_pins = request.meta.task_retention_pin.into_iter().collect();
-        let authoring_task = args.is_authoring();
+        let uses_task_directory = args.uses_task_directory();
         let task_key = task_id.to_string();
         let snapshot = start_map_task(
             self.state.clone(),
@@ -269,7 +298,7 @@ impl TaskExtensionHandler for MapTaskExtension {
         let snapshot = match snapshot {
             Ok(snapshot) => snapshot,
             Err(error) => {
-                if authoring_task {
+                if uses_task_directory {
                     cleanup_task_directory(self.state.as_ref(), &task_key).await;
                 }
                 return Err(AdapterError::internal(error.to_string()));
@@ -384,6 +413,7 @@ pub(super) async fn recover_tasks(
                 | IMPORT_FEATURE_LAYER_TASK
                 | EXPORT_FEATURE_LAYER_TASK
                 | BUILD_VECTOR_TILES_TASK
+                | DERIVE_RASTER_TASK
         ) {
             anyhow::bail!("unknown resumable Map task type `{}`", snapshot.task_type);
         }
@@ -491,7 +521,7 @@ async fn run_map_task_inner(
     request: MapTaskRequest,
     cancellation: CancellationToken,
 ) {
-    let authoring_task = request.is_authoring();
+    let uses_task_directory = request.uses_task_directory();
     update_task(
         &state,
         &task_id,
@@ -503,7 +533,7 @@ async fn run_map_task_inner(
     .await;
     if cancellation.is_cancelled() {
         update_task(&state, &task_id, TaskTransition::Cancelled).await;
-        if authoring_task {
+        if uses_task_directory {
             cleanup_task_directory(state.as_ref(), &task_id).await;
         }
         return;
@@ -549,10 +579,14 @@ async fn run_map_task_inner(
         MapTaskRequest::BuildVectorTiles(request) => {
             run_vector_tile_task(state.as_ref(), &task_id, request).await
         }
+        MapTaskRequest::DeriveRaster(request) => {
+            run_raster_derivation_task(state.as_ref(), &task_id, request, cancellation.clone())
+                .await
+        }
     };
     if cancellation.is_cancelled() {
         update_task(&state, &task_id, TaskTransition::Cancelled).await;
-        if authoring_task {
+        if uses_task_directory {
             cleanup_task_directory(state.as_ref(), &task_id).await;
         }
         return;
@@ -574,7 +608,7 @@ async fn run_map_task_inner(
         },
         Err(error) => fail_task(&state, &task_id, "map_calculation_failed", error).await,
     }
-    if authoring_task {
+    if uses_task_directory {
         cleanup_task_directory(state.as_ref(), &task_id).await;
     }
 }
@@ -588,6 +622,7 @@ impl MapTaskRequest {
             Self::ImportFeatureLayer(_) => IMPORT_FEATURE_LAYER_TASK,
             Self::ExportFeatureLayer(_) => EXPORT_FEATURE_LAYER_TASK,
             Self::BuildVectorTiles(_) => BUILD_VECTOR_TILES_TASK,
+            Self::DeriveRaster(_) => DERIVE_RASTER_TASK,
         }
     }
 
@@ -599,13 +634,17 @@ impl MapTaskRequest {
             Self::ImportFeatureLayer(_) => "authored feature import",
             Self::ExportFeatureLayer(_) => "authored feature export",
             Self::BuildVectorTiles(_) => "published feature vector tiles",
+            Self::DeriveRaster(_) => "governed raster derivation",
         }
     }
 
-    fn is_authoring(&self) -> bool {
+    fn uses_task_directory(&self) -> bool {
         matches!(
             self,
-            Self::ImportFeatureLayer(_) | Self::ExportFeatureLayer(_) | Self::BuildVectorTiles(_)
+            Self::ImportFeatureLayer(_)
+                | Self::ExportFeatureLayer(_)
+                | Self::BuildVectorTiles(_)
+                | Self::DeriveRaster(_)
         )
     }
 }
@@ -636,6 +675,205 @@ where
                 .with_mime_type("application/json"),
         )
     }));
+    Ok(result)
+}
+
+async fn prepare_raster_request(
+    state: &MapApplication,
+    caller: &AuthenticatedCaller,
+    task_id: &TaskId,
+    input: DeriveRasterRequest,
+) -> anyhow::Result<DurableRasterDerivationRequest> {
+    input.validate()?;
+    let scope = state.scope(&caller.identity).await?;
+    let raster = state
+        .analytics
+        .raster_product(&scope.tenant_key(), &input.raster_id)?
+        .context("unknown raster product")?;
+    if let Some(band) = raster_operation_band(&input.operation)
+        && !raster.bands.iter().any(|candidate| candidate.index == band)
+    {
+        bail!("raster operation selects an unavailable band");
+    }
+    if raster_operation_reads_full_source(&input.operation)
+        && u64::from(raster.width) * u64::from(raster.height) > MAX_RASTER_FULL_DERIVATION_PIXELS
+    {
+        bail!(
+            "full-raster derivations are limited to {MAX_RASTER_FULL_DERIVATION_PIXELS} source pixels"
+        );
+    }
+    let artifact_id = raster
+        .artifact_uri
+        .strip_prefix("artifact://")
+        .context("raster source is not an Artifact-plane URI")
+        .and_then(|value| ArtifactId::parse(value).map_err(anyhow::Error::from))?;
+    let artifact = state
+        .artifacts
+        .get(&caller.caller, &artifact_id)
+        .await?
+        .context("raster source artifact is unavailable or unauthorized")?;
+    if artifact.metadata.byte_len > state.max_artifact_bytes
+        || artifact.bytes.len() as u64 != artifact.metadata.byte_len
+        || hex::encode(Sha256::digest(&artifact.bytes)) != raster.checksum_sha256
+    {
+        bail!("raster source artifact failed its bound size or digest check");
+    }
+    let directory = task_directory(state, &task_id.to_string())?;
+    tokio::fs::create_dir(&directory)
+        .await
+        .with_context(|| format!("creating raster task directory {}", directory.display()))?;
+    let staging = async {
+        let mut file = tokio::fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(directory.join("source.tif"))
+            .await?;
+        file.write_all(&artifact.bytes).await?;
+        file.sync_all().await
+    }
+    .await;
+    if let Err(error) = staging {
+        cleanup_task_directory(state, &task_id.to_string()).await;
+        return Err(error).context("staging authorized raster artifact");
+    }
+    let artifact_write_capability =
+        match issue_output_capability(state, &caller.caller, task_id).await {
+            Ok(capability) => capability,
+            Err(error) => {
+                cleanup_task_directory(state, &task_id.to_string()).await;
+                return Err(error).context("issuing raster output capability");
+            }
+        };
+    Ok(DurableRasterDerivationRequest {
+        input,
+        identity: caller.identity.clone(),
+        source_release_id: raster.release_id,
+        source_digest_sha256: raster.checksum_sha256,
+        source_crs: raster.crs,
+        source_transform: raster.transform,
+        derivation_id: RasterDerivationId::new(),
+        created_at: Utc::now(),
+        artifact_write_capability,
+    })
+}
+
+fn raster_operation_band(operation: &RasterDerivationOperation) -> Option<u32> {
+    match operation {
+        RasterDerivationOperation::Sample { band, .. }
+        | RasterDerivationOperation::ClassMask { band, .. }
+        | RasterDerivationOperation::Contour { band, .. }
+        | RasterDerivationOperation::Polygonize { band }
+        | RasterDerivationOperation::Skeletonize { band, .. }
+        | RasterDerivationOperation::DeriveLines { band, .. } => Some(*band),
+        RasterDerivationOperation::Window { .. } => None,
+    }
+}
+
+fn raster_operation_reads_full_source(operation: &RasterDerivationOperation) -> bool {
+    !matches!(
+        operation,
+        RasterDerivationOperation::Sample { .. } | RasterDerivationOperation::Window { .. }
+    )
+}
+
+async fn run_raster_derivation_task(
+    state: &MapApplication,
+    task_id: &str,
+    request: DurableRasterDerivationRequest,
+    cancellation: CancellationToken,
+) -> anyhow::Result<CallToolResult> {
+    request.input.validate()?;
+    let directory = task_directory(state, task_id)?;
+    let source_path = directory.join("source.tif");
+    let bytes = tokio::fs::read(&source_path).await?;
+    if bytes.len() as u64 > state.max_artifact_bytes
+        || hex::encode(Sha256::digest(&bytes)) != request.source_digest_sha256
+    {
+        bail!("staged raster failed its bound size or digest check");
+    }
+    let output_dir = directory.join("output");
+    let generated = state
+        .raster
+        .derive(
+            &source_path,
+            &output_dir,
+            &request.input.operation,
+            cancellation,
+        )
+        .await?;
+    let output = tokio::fs::read(&generated.path).await?;
+    let output_digest_sha256 = hex::encode(Sha256::digest(&output));
+    let mut artifact = ArtifactPut::new(output);
+    artifact.mime_type = Some(generated.mime_type.clone());
+    artifact.filename = Some(generated.filename);
+    artifact.compliance = artifact_compliance(&request.identity);
+    artifact.metadata = serde_json::json!({
+        "domain": "map_raster",
+        "schema_version": RASTER_DERIVATION_SCHEMA_VERSION,
+        "derivation_id": request.derivation_id,
+        "source_raster_id": request.input.raster_id,
+        "source_release_id": request.source_release_id,
+        "operation": request.input.operation,
+        "algorithm_revision": request.input.algorithm_revision,
+        "source_checksum_sha256": request.source_digest_sha256,
+        "source_crs": request.source_crs,
+        "source_transform": request.source_transform,
+        "output_crs": generated.output_crs,
+        "output_transform": generated.output_transform,
+        "output_mime_type": generated.mime_type,
+        "output_checksum_sha256": output_digest_sha256,
+    });
+    let metadata = state
+        .artifacts
+        .put_with_capability(
+            &request.artifact_write_capability,
+            ArtifactWriteIdempotencyKey::new(format!("map:{task_id}:raster-derivation"))?,
+            artifact,
+        )
+        .await?;
+    let scope = state.scope(&request.identity).await?;
+    let derivation = RasterDerivation {
+        schema_version: RASTER_DERIVATION_SCHEMA_VERSION,
+        derivation_id: request.derivation_id,
+        source_raster_id: request.input.raster_id,
+        source_release_id: request.source_release_id,
+        source_checksum_sha256: request.source_digest_sha256,
+        source_crs: request.source_crs,
+        source_transform: request.source_transform,
+        operation: request.input.operation,
+        algorithm_revision: request.input.algorithm_revision,
+        output_artifact_uri: metadata.artifact_uri,
+        output_mime_type: generated.mime_type,
+        output_crs: generated.output_crs,
+        output_transform: generated.output_transform,
+        output_checksum_sha256: output_digest_sha256,
+        created_by: request.identity.actor.id,
+        work_context: request.identity.authority.work_context,
+        created_at: request.created_at,
+    };
+    state
+        .analytics
+        .put_raster_derivation(&scope.tenant_key(), &derivation)?;
+    state
+        .subscriptions
+        .notify_resource_updated(crate::uris::RASTER_DERIVATIONS_URI)
+        .await;
+    let mut result = tool_result_with_links(
+        format!("created raster derivation {}", derivation.derivation_id),
+        &derivation,
+        [(
+            crate::uris::raster_derivation_uri(derivation.derivation_id.as_str()),
+            "Raster derivation",
+        )],
+    )?;
+    result.content.push(ContentBlock::resource_link(
+        Resource::new(
+            derivation.output_artifact_uri.clone(),
+            "Derived raster artifact",
+        )
+        .with_title("Derived raster artifact")
+        .with_mime_type(derivation.output_mime_type.clone()),
+    ));
     Ok(result)
 }
 

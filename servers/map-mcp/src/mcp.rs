@@ -32,11 +32,12 @@ use crate::{
     contract::{
         AcquisitionId, AcquisitionJob, CancelAcquisitionRequest, CorridorInspectionOutput,
         CorridorInspectionRequest, CreateAcquisitionRequest, CreateMobilityProfileRequest,
-        CreateSourceRequest, DatasetReleaseId, DisableSourceRequest, FacilityId,
-        GeodesicDirectOutput, GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest,
-        InspectLocationOutput, InspectLocationRequest, LocationId, MapDatasetId, MapSourceId,
-        MobilityProfile, MobilityProfileId, PublishRestrictionRequest, QuerySourceFeaturesOutput,
-        QuerySourceFeaturesRequest, ReachableArea, ReachableAreaRequest, RegisteredSource,
+        CreateSourceRequest, DatasetReleaseId, DeriveRasterRequest, DisableSourceRequest,
+        FacilityId, GeodesicDirectOutput, GeodesicDirectRequest, GeodesicInverseOutput,
+        GeodesicInverseRequest, InspectLocationOutput, InspectLocationRequest, LocationId,
+        MapDatasetId, MapSourceId, MobilityProfile, MobilityProfileId, PublishRestrictionRequest,
+        QuerySourceFeaturesOutput, QuerySourceFeaturesRequest, RasterDerivation,
+        RasterDerivationId, RasterProductId, ReachableArea, ReachableAreaRequest, RegisteredSource,
         ReleaseMutationRequest, ReleaseMutationResponse, ReplaceSourceRequest, RestrictionId,
         RestrictionMutationOutput, RouteId, RouteMatrix, RouteMatrixId, RouteMatrixRequest,
         RoutePlan, RouteRequest, RouteValidation, SearchLocationsOutput, SearchLocationsRequest,
@@ -225,6 +226,23 @@ impl MapMcp {
             ),
             &output,
         )
+    }
+
+    #[tool(
+        title = "Derive a governed raster product",
+        description = "Run one bounded sample, window, class-mask, contour, polygonize, skeletonize, or line-derivation operation against an immutable raster product. This operation requires durable task invocation.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<RasterDerivation>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
+    )]
+    async fn derive_raster(
+        &self,
+        Parameters(_request): Parameters<DeriveRasterRequest>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        Err(McpError::invalid_request(
+            "derive_raster requires task-based invocation",
+            None,
+        ))
     }
 
     #[tool(
@@ -1406,6 +1424,30 @@ impl ServerHandler for MapMcp {
                         .map_err(internal)?,
                 );
             }
+            uris::RASTERS_URI => {
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .analytics
+                        .list_raster_products(&scope.tenant_key(), None, 10_000)
+                        .map_err(internal)?,
+                );
+            }
+            uris::RASTER_DERIVATIONS_URI => {
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .analytics
+                        .list_raster_derivations(
+                            &scope.tenant_key(),
+                            &identity.authority.work_context,
+                            10_000,
+                        )
+                        .map_err(internal)?,
+                );
+            }
             _ => {}
         }
         if let Some(value) = uris::parse_single(uri, "map://source/") {
@@ -1489,6 +1531,30 @@ impl ServerHandler for MapMcp {
                     .facility(&scope.tenant_key(), &id)
                     .map_err(internal)?
                     .ok_or_else(|| not_found("facility"))?,
+            );
+        }
+        if let Some(value) = uris::parse_single(uri, "map://raster/") {
+            let id = RasterProductId::parse(value).map_err(invalid_params)?;
+            return json_resource(
+                uri,
+                &self
+                    .state
+                    .analytics
+                    .raster_product(&scope.tenant_key(), &id)
+                    .map_err(internal)?
+                    .ok_or_else(|| not_found("raster product"))?,
+            );
+        }
+        if let Some(value) = uris::parse_single(uri, "map://raster-derivation/") {
+            let id = RasterDerivationId::parse(value).map_err(invalid_params)?;
+            return json_resource(
+                uri,
+                &self
+                    .state
+                    .analytics
+                    .raster_derivation(&scope.tenant_key(), &identity.authority.work_context, &id)
+                    .map_err(internal)?
+                    .ok_or_else(|| not_found("raster derivation"))?,
             );
         }
         if let Some((value, version)) = uris::parse_profile(uri) {
@@ -1699,6 +1765,16 @@ fn resource_templates() -> Vec<ResourceTemplate> {
             uris::SOURCE_FEATURE_TEMPLATE,
             "Immutable source feature",
             "Complete normalized source feature pinned to one dataset release.",
+        ),
+        template(
+            uris::RASTER_TEMPLATE,
+            "Immutable raster product",
+            "Release-pinned raster metadata, provenance, and artifact identity.",
+        ),
+        template(
+            uris::RASTER_DERIVATION_TEMPLATE,
+            "Governed raster derivation",
+            "Immutable raster operation, source, parameters, algorithm, and output artifact.",
         ),
         template(
             uris::LOCATION_TEMPLATE,
@@ -1947,6 +2023,7 @@ fn stable_resource_uris() -> Vec<String> {
             uris::PUBLICATIONS_URI,
             uris::LAYER_PRODUCTS_URI,
             uris::COMPOSITIONS_URI,
+            uris::RASTER_DERIVATIONS_URI,
         ]
         .map(str::to_owned),
     );
@@ -1969,6 +2046,7 @@ fn root_resources() -> Vec<Resource> {
         (uris::RESTRICTIONS_URI, "Map restrictions"),
         (uris::ROUTES_URI, "Map routes"),
         (uris::MATRICES_URI, "Route matrices"),
+        (uris::RASTERS_URI, "Raster products"),
     ]
     .into_iter()
     .map(|(uri, title)| {
@@ -2303,6 +2381,7 @@ mod well_known_tests {
                 "import_feature_layer",
                 "export_feature_layer",
                 "build_vector_tiles",
+                "derive_raster",
             ]
         );
         for task in &inventory.tasks {

@@ -1,19 +1,21 @@
 use std::{
     fs::File,
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Read},
     path::{Component, Path, PathBuf},
 };
 
 use anyhow::{Context, Result, bail};
 use flate2::read::GzDecoder;
 use geojson::{Feature, GeoJson, GeometryValue};
+use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 use crate::{
     analytics::{MapAnalytics, NetworkEdge},
     contract::{
         DatasetRelease, Facility, FacilityId, FeatureGeometry, GeoJsonPosition, LocationId,
-        MapBoundary, MapBoundaryId, MapFamily, MapLocation, RegisteredSource,
+        MapBoundary, MapBoundaryId, MapFamily, MapLocation, RASTER_PRODUCT_SCHEMA_VERSION,
+        RasterBand, RasterProduct, RasterProductId, RegisteredSource,
         SOURCE_FEATURE_SCHEMA_VERSION, SourceElementType, SourceFeature, SourceFeatureId,
         SourceFeatureRepresentation, SourceLineage, Wgs84LineString, Wgs84Polygon, Wgs84Position,
         representation_for_geometry,
@@ -167,13 +169,15 @@ fn ingest_directory(
         .map(|entry| entry.map(|entry| entry.path()))
         .collect::<std::io::Result<Vec<_>>>()?;
     paths.sort();
-    for path in paths {
+    for path in &paths {
         let name = path
             .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or_default();
-        if name.ends_with(".geojson") || name.ends_with(".json") {
-            let geojson: GeoJson = std::fs::read_to_string(&path)?.parse()?;
+        if name.ends_with(".geojson")
+            || (name.ends_with(".json") && !name.ends_with(".raster.json"))
+        {
+            let geojson: GeoJson = std::fs::read_to_string(path)?.parse()?;
             ingest_geojson(
                 analytics,
                 tenant_key,
@@ -183,7 +187,7 @@ fn ingest_directory(
                 source_element_hint(name),
             )?;
         } else if name.ends_with(".geojsonseq") || name.ends_with(".geojsonl") {
-            for line in BufReader::new(File::open(&path)?).lines() {
+            for line in BufReader::new(File::open(path)?).lines() {
                 let line = line?;
                 let line = line.trim().trim_start_matches('\u{1e}');
                 if !line.is_empty() {
@@ -199,7 +203,118 @@ fn ingest_directory(
             }
         }
     }
+    ingest_raster_products(analytics, tenant_key, &paths, release, source)?;
     Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RasterMetadataSidecar {
+    schema_version: u64,
+    source_file: String,
+    checksum_sha256: String,
+    crs: String,
+    transform: [f64; 6],
+    width: u32,
+    height: u32,
+    extent: [f64; 4],
+    resolution: [f64; 2],
+    bands: Vec<RasterBand>,
+}
+
+fn ingest_raster_products(
+    analytics: &MapAnalytics,
+    tenant_key: &str,
+    paths: &[PathBuf],
+    release: &DatasetRelease,
+    source: &RegisteredSource,
+) -> Result<()> {
+    for metadata_path in paths.iter().filter(|path| {
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.ends_with(".raster.json"))
+    }) {
+        let metadata: RasterMetadataSidecar =
+            serde_json::from_slice(&std::fs::read(metadata_path)?)?;
+        if metadata.schema_version != RASTER_PRODUCT_SCHEMA_VERSION {
+            bail!("raster metadata uses an unsupported schema version");
+        }
+        if Path::new(&metadata.source_file)
+            .file_name()
+            .and_then(|name| name.to_str())
+            != Some(metadata.source_file.as_str())
+        {
+            bail!("raster metadata source filename is not canonical");
+        }
+        let raster_path = paths
+            .iter()
+            .find(|path| {
+                staged_original_filename(path).is_some_and(|name| name == metadata.source_file)
+            })
+            .context("raster metadata source file is absent from the release")?;
+        if sha256_file(raster_path)? != metadata.checksum_sha256 {
+            bail!("raster metadata checksum does not match its immutable product");
+        }
+        let product_index = staged_product_index(raster_path)?;
+        let artifact_uri = release
+            .normalized_artifact_uris
+            .get(product_index)
+            .context("raster product has no corresponding immutable artifact")?
+            .clone();
+        let raster = RasterProduct {
+            schema_version: metadata.schema_version,
+            raster_id: RasterProductId::from_stable_key(
+                format!("{}:{}", release.release_id, metadata.checksum_sha256).as_bytes(),
+            ),
+            source_id: source.source_id.clone(),
+            release_id: release.release_id.clone(),
+            artifact_uri,
+            checksum_sha256: metadata.checksum_sha256,
+            crs: metadata.crs,
+            transform: metadata.transform,
+            width: metadata.width,
+            height: metadata.height,
+            extent: metadata.extent,
+            resolution: metadata.resolution,
+            bands: metadata.bands,
+            license: release.license.clone(),
+            attribution: release.license.attribution.clone(),
+        };
+        analytics.put_raster_product(tenant_key, &raster)?;
+    }
+    Ok(())
+}
+
+fn staged_product_index(path: &Path) -> Result<usize> {
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .context("staged product filename is invalid")?;
+    let (index, _) = name
+        .split_once('-')
+        .context("staged product has no ordinal prefix")?;
+    index.parse().context("staged product ordinal is invalid")
+}
+
+fn staged_original_filename(path: &Path) -> Option<&str> {
+    path.file_name()?
+        .to_str()?
+        .split_once('-')
+        .map(|(_, name)| name)
+}
+
+fn sha256_file(path: &Path) -> Result<String> {
+    let mut file = File::open(path)?;
+    let mut digest = Sha256::new();
+    let mut buffer = [0_u8; 1024 * 1024];
+    loop {
+        let count = file.read(&mut buffer)?;
+        if count == 0 {
+            break;
+        }
+        digest.update(&buffer[..count]);
+    }
+    Ok(hex::encode(digest.finalize()))
 }
 
 fn ingest_geojson(
@@ -840,6 +955,21 @@ mod tests {
         assert_eq!(
             SourceFeatureId::from_stable_key(key),
             SourceFeatureId::from_stable_key(key)
+        );
+    }
+
+    #[test]
+    fn staged_raster_products_bind_an_exact_original_filename_and_digest() {
+        let root = TempDir::new().unwrap();
+        let raster = root.path().join("007-environmental-raster.tif");
+        std::fs::write(&raster, b"immutable-raster").unwrap();
+        assert_eq!(
+            staged_original_filename(&raster),
+            Some("environmental-raster.tif")
+        );
+        assert_eq!(
+            sha256_file(&raster).unwrap(),
+            hex::encode(Sha256::digest(b"immutable-raster"))
         );
     }
 }

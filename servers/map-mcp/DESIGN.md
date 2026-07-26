@@ -49,6 +49,7 @@ the `map://` scheme.
 | [GeoJSON RFC 7946](https://www.rfc-editor.org/rfc/rfc7946.html), OGC JSON-FG 1.0, and [GeoJSON Text Sequences RFC 8142](https://www.rfc-editor.org/rfc/rfc8142.html) | Canonical feature geometry, semantic feature types, valid time, bulk import, and immutable export. |
 | OGC CQL2 1.0 | Bounded Basic CQL2-JSON predicates over top-level authored properties. Arbitrary CQL2 and spatial predicates are not claimed. |
 | GeoParquet 1.0.0 | WKB primary geometry and verified `geo` metadata for immutable analytical products. |
+| OGC Cloud Optimized GeoTIFF 1.0 and GeoTIFF 1.1 | Environmental sources normalize to immutable COG products with explicit CRS, affine transform, extent, resolution, bands, units, nodata values, value interpretation, checksum, license, and attribution. |
 | Mapbox Vector Tile 2.1 and MapLibre Style 8 | Deterministic bounded XYZ tile bundles and safe literal presentation styles. |
 | OSM PBF, GTFS Schedule, S-57/S-100, AIXM, and FAA NASR exchange sets | Registered acquisition adapters accept only their documented snapshot profiles. Product-specific operational validation remains explicit. |
 | HTTPS and mounted exchange sets | Registered sources control hosts, redirects, media types, credentials, byte limits, elapsed time, and filesystem roots before an adapter runs. |
@@ -324,10 +325,11 @@ Valhalla data. Routing influence requires a separate governed validation and
 release-promotion operation.
 
 The implementation does not provide arbitrary CQL2, spatial CQL2 predicates,
-GeoParquet 2.0, raster authoring, 3D authoring, an OGC API Features HTTP service,
-collaborative locks or CRDTs, or automatic promotion of a `network_candidate`.
-View MCP does not yet render authored compositions. These are new contracts,
-not compatibility details, and must be added through their owning components.
+GeoParquet 2.0, mutable raster authoring, 3D authoring, an OGC API Features
+HTTP service, collaborative locks or CRDTs, or automatic promotion of a
+`network_candidate`. View MCP does not yet render authored compositions.
+These are new contracts, not compatibility details, and must be added through
+their owning components.
 
 Artifact write capabilities expire after 24 hours by artifact-plane policy. An
 output task that cannot redeem its submission-time capability within that
@@ -448,7 +450,7 @@ its build.
 | `open_street_map` | checks PBF references, writes every point, line, multiline, multipolygon, and relation layer plus GeoParquet, then builds and archives Valhalla routing data |
 | `authority_vector` | uses GDAL to write GeoParquet and WGS84 GeoJSON |
 | `gtfs_schedule` | checks safe ZIP expansion and required files, optionally runs a configured validator, retains a normalized ZIP |
-| `environmental` | uses the authority-vector normalization path |
+| `environmental` | writes a COG with Zstandard compression and overviews, then records complete typed raster metadata |
 | `s57_enc` and `s100` | use the pinned GDAL maritime conversion path to GeoParquet |
 | `aixm` and `faa_nasr` | use the pinned GDAL aviation conversion path to GeoParquet |
 | `gtfs_realtime` | represented in the contract but rejected by base-release acquisition |
@@ -471,6 +473,22 @@ representation, bounding box, intersection, containment, distance, and nearest
 predicates. Results use a deterministic identity order, or distance then
 identity for distance queries. An opaque cursor binds to the canonical query
 digest and cannot be replayed against another query.
+
+Environmental acquisition publishes the COG and its metadata sidecar as
+separate immutable artifacts. Release activation indexes a `RasterProduct`
+whose artifact identity, checksum, source release, CRS, affine transform,
+dimensions, extent, resolution, bands, units, nodata values, interpretation,
+license, and attribution remain available through Map resources.
+
+`derive_raster` is a durable task for bounded sampling, windows, class masks,
+contours, polygonization, skeletonization, and line derivation. A controlled
+GDAL helper reads only the already-authorized staged source and writes into
+the task directory. The task publishes one governed artifact and records the
+source checksum, CRS and affine transform, every operation parameter, the
+exact `gdal-3.13.2-veoveo-raster-v1` algorithm revision, output digest,
+output CRS and affine transform where applicable, principal, and Work
+Context. Sampling and raster products preserve their declared CRS. GeoJSON
+derivations are transformed to WGS84 before publication.
 
 The narrower projections remain derived conveniences. Named points become
 locations unless `facility_kind` is present. Polygon features become
@@ -644,6 +662,7 @@ operations renew leases while running and resume after a server restart.
 | `import_feature_layer` | task only | `map:feature:write` | atomic import changeset from an authorized artifact |
 | `export_feature_layer` | task only | `map:feature:publish` | immutable GeoJSON sequence or GeoParquet 1.0 product |
 | `build_vector_tiles` | task only | `map:feature:publish` | immutable MVT 2.1 bundle and MapLibre style |
+| `derive_raster` | task only | `map:raster:derive` | governed raster sample, window, mask, contour, polygon, skeleton, or line artifact |
 
 All tool results use structured content schemas. Tool and resource lists are
 paginated. Task-only tools use the durable task extension.
@@ -673,6 +692,8 @@ map://feature-layers
 map://publications
 map://layer-products
 map://compositions
+map://rasters
+map://raster-derivations
 ```
 
 Resource templates are:
@@ -682,6 +703,8 @@ map://source/{source_id}
 map://dataset/{dataset_id}
 map://dataset/{dataset_id}/release/{release_id}
 map://source-feature/{release_id}/{source_feature_id}
+map://raster/{raster_id}
+map://raster-derivation/{derivation_id}
 map://location/{location_id}
 map://facility/{facility_id}
 map://mobility-profile/{profile_id}/{profile_version}
@@ -705,7 +728,9 @@ map://composition/{composition_id}/revision/{composition_revision}
 Source resources present public source fields. Routes and matrices are owner
 scoped. Dataset, geography, profile, and restriction resources are tenant
 scoped. Authored layers, publications, products, and compositions are Work
-Context scoped and filtered by the caller's data labels.
+Context scoped and filtered by the caller's data labels. Raster derivation
+resources are confined to their creating Work Context, while the immutable
+source raster remains tenant scoped.
 
 ### Prompts And Completions
 
@@ -814,6 +839,11 @@ endpoint unavailable.
 - A style contains at most 32 rules. A composition contains at most 64 layers.
 - A vector product request contains at most 512 distinct XYZ tiles through zoom
   22.
+- A raster sample accepts at most 10,000 positions. A window contains at most
+  16,777,216 output pixels, class masks contain at most 256 class values, and
+  a full-raster derivation reads at most 4,194,304 source pixels.
+- Raster helpers inherit the 256 MiB artifact limit and terminate their process
+  group after the configured five-minute deadline or task cancellation.
 
 Unavailable coverage, invalid profile versions, disallowed advisory status,
 unsupported objectives, source digest mismatch, unsafe archives, and
@@ -843,6 +873,8 @@ Important arguments include:
 --acquisition-scratch-root
 --release-root
 --authoring-task-root
+--raster-helper-module
+--raster-operation-timeout-seconds
 --source-mount-root
 --source-secret-root
 --max-artifact-bytes

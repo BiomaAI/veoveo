@@ -624,6 +624,7 @@ fn media_type(path: &Path) -> &'static str {
     match path.extension().and_then(|extension| extension.to_str()) {
         Some("parquet") => "application/vnd.apache.parquet",
         Some("json") | Some("geojson") => "application/geo+json",
+        Some("tif") | Some("tiff") => "image/tiff; application=geotiff; profile=cloud-optimized",
         Some("zip") => "application/zip",
         Some("gz") => "application/gzip",
         _ => "application/octet-stream",

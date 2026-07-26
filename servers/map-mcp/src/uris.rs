@@ -14,6 +14,8 @@ pub const MOBILITY_PROFILES_URI: &str = "map://mobility-profiles";
 pub const RESTRICTIONS_URI: &str = "map://restrictions";
 pub const ROUTES_URI: &str = "map://routes";
 pub const MATRICES_URI: &str = "map://matrices";
+pub const RASTERS_URI: &str = "map://rasters";
+pub const RASTER_DERIVATIONS_URI: &str = "map://raster-derivations";
 pub const FEATURE_LAYERS_URI: &str = "map://feature-layers";
 pub const PUBLICATIONS_URI: &str = "map://publications";
 pub const LAYER_PRODUCTS_URI: &str = "map://layer-products";
@@ -25,6 +27,8 @@ pub const ACQUISITION_TEMPLATE: &str = "map://acquisition/{acquisition_id}";
 pub const DATASET_TEMPLATE: &str = "map://dataset/{dataset_id}";
 pub const RELEASE_TEMPLATE: &str = "map://dataset/{dataset_id}/release/{release_id}";
 pub const SOURCE_FEATURE_TEMPLATE: &str = "map://source-feature/{release_id}/{source_feature_id}";
+pub const RASTER_TEMPLATE: &str = "map://raster/{raster_id}";
+pub const RASTER_DERIVATION_TEMPLATE: &str = "map://raster-derivation/{raster_derivation_id}";
 pub const LOCATION_TEMPLATE: &str = "map://location/{location_id}";
 pub const FACILITY_TEMPLATE: &str = "map://facility/{facility_id}";
 pub const MOBILITY_PROFILE_TEMPLATE: &str = "map://mobility-profile/{profile_id}/{profile_version}";
@@ -75,6 +79,14 @@ pub fn release_uri(dataset_id: &str, release_id: &str) -> String {
 
 pub fn source_feature_uri(release_id: &str, feature_id: &str) -> String {
     format!("map://source-feature/{release_id}/{feature_id}")
+}
+
+pub fn raster_uri(raster_id: &str) -> String {
+    format!("map://raster/{raster_id}")
+}
+
+pub fn raster_derivation_uri(derivation_id: &str) -> String {
+    format!("map://raster-derivation/{derivation_id}")
 }
 
 pub fn location_uri(id: &str) -> String {

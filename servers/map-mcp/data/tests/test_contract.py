@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from map_data.contract import ContractError, NormalizeCommand, NormalizeResult
 from map_data.adapters.gtfs import normalize_gtfs
+from map_data.adapters.raster import raster_metadata
 
 
 class NormalizeCommandTests(unittest.TestCase):
@@ -121,6 +122,45 @@ class NormalizeCommandTests(unittest.TestCase):
         self.assertEqual(payload["schema_version"], 1)
         self.assertEqual(payload["acquisition_id"], "acquisition-test")
         self.assertIsNone(payload["routing_build_path"])
+
+    def test_raster_metadata_preserves_transform_bands_units_and_nodata(self):
+        with tempfile.TemporaryDirectory() as root:
+            raster = Path(root) / "raster.tif"
+            raster.write_bytes(b"bounded-raster")
+            metadata = raster_metadata(
+                {
+                    "driverShortName": "GTiff",
+                    "size": [4, 3],
+                    "geoTransform": [100.0, 2.0, 0.0, 200.0, 0.0, -2.0],
+                    "metadata": {"IMAGE_STRUCTURE": {"LAYOUT": "COG"}},
+                    "coordinateSystem": {"wkt": 'PROJCRS["example"]'},
+                    "cornerCoordinates": {
+                        "upperLeft": [100.0, 200.0],
+                        "lowerLeft": [100.0, 194.0],
+                        "lowerRight": [108.0, 194.0],
+                        "upperRight": [108.0, 200.0],
+                    },
+                    "bands": [
+                        {
+                            "type": "Float32",
+                            "description": "elevation",
+                            "unit": "m",
+                            "noDataValue": -9999.0,
+                            "colorInterpretation": "Gray",
+                            "metadata": {
+                                "": {
+                                    "VEOVEO_VALUE_INTERPRETATION": "continuous"
+                                }
+                            },
+                        }
+                    ],
+                },
+                raster,
+            )
+            self.assertEqual(metadata["resolution"], [2.0, 2.0])
+            self.assertEqual(metadata["bands"][0]["unit"], "m")
+            self.assertEqual(metadata["bands"][0]["nodata"], -9999.0)
+            self.assertEqual(len(metadata["checksum_sha256"]), 64)
 
 
 if __name__ == "__main__":
