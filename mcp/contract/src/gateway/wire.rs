@@ -77,6 +77,23 @@ pub(super) fn validate_uri_scheme(value: &str) -> Result<(), IdentifierError> {
     Ok(())
 }
 
+pub(super) fn validate_sha256_digest(value: &str) -> Result<(), IdentifierError> {
+    let Some(hex) = value.strip_prefix("sha256:") else {
+        return Err(IdentifierError::new(value, "must start with sha256:"));
+    };
+    if hex.len() != 64
+        || !hex
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(IdentifierError::new(
+            value,
+            "must contain 64 lowercase hexadecimal digits after sha256:",
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn validate_token_text(value: &str) -> Result<(), IdentifierError> {
     if value.is_empty() {
         return Err(IdentifierError::new(value, "must not be empty"));

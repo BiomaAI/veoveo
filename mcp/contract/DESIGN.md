@@ -12,6 +12,18 @@ make most of the contract hold by construction.
 `veoveo_mcp_contract::CONTRACT_REVISION`. A server declares the revision it
 complies with in its crate documents and in its contract resource.
 
+## Standards And Protocols
+
+| Standard or protocol | Supported profile |
+|---|---|
+| Model Context Protocol | protocol version `2025-11-25` with the Veoveo hosted-server requirements in this document |
+| MCP Streamable HTTP | sessionful event-stream responses, reconnectable GET, and explicit DELETE; legacy HTTP+SSE is excluded |
+| JSON Schema 2020-12 | self-contained controlled tool, gateway, fragment, binding, and provenance schemas |
+| OAuth 2.0 and protected-resource metadata | typed installation profiles and the extensions declared below; unsupported grants are rejected |
+| `veoveo.io/gateway-server-fragment/v1` | extension-owned server capabilities and platform requirements |
+| `veoveo.io/gateway-binding/v1` | installation-owned exposure, policy, artifact audience, and recording producer declarations |
+| `veoveo.io/gateway-composition-provenance/v1` | exact input/output SHA-256 identities and contributed-object summaries |
+
 ## Scope And Discovery
 
 The contract governs the servers in `servers/*-mcp/` and any independently
@@ -148,11 +160,13 @@ configuration.
 ## Packaging And Registration
 
 A server ships as an OCI image with a versioned Helm chart. Its gateway entry
-is registered in the typed control plane with its routes, capabilities, and
-policy, and states the contract revision the server complies with. Extensions
-follow the identical pattern without adopting Veoveo's source build; the
-mechanics are in
-[`docs/ENTERPRISE_DEPLOYMENT.md`](../../docs/ENTERPRISE_DEPLOYMENT.md).
+is registered in the typed control plane with its routes and capabilities, and
+states the contract revision the server complies with. An external server
+publishes a `gateway-server-fragment/v1`; an installation grants exposure and
+policy only through a separate `gateway-binding/v1`. The offline composer
+emits an ordinary validated control plane. Extensions follow this pattern
+without adopting Veoveo's source build; the mechanics are in
+[`docs/EXTERNAL_EXTENSIONS.md`](../../docs/EXTERNAL_EXTENSIONS.md).
 
 ## Well-Known Surface
 

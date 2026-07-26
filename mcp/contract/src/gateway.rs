@@ -21,6 +21,8 @@ pub const MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION: &str =
     "io.modelcontextprotocol/enterprise-managed-authorization";
 pub const MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION: &str =
     "io.modelcontextprotocol/oauth-client-credentials";
+mod composition;
+pub use composition::*;
 mod policy;
 mod validation;
 mod wire;
@@ -127,6 +129,9 @@ impl GatewayControlPlane {
         let mut servers = BTreeMap::new();
         let mut server_ids = BTreeSet::new();
         let mut resource_schemes = BTreeSet::new();
+        let mut mount_paths = BTreeMap::new();
+        let mut mcp_paths = BTreeMap::new();
+        let mut gateway_routes = BTreeMap::new();
         for server in &self.servers {
             if !server_ids.insert(server.slug.clone()) {
                 return Err(GatewayControlPlaneError::DuplicateServer(
@@ -138,6 +143,33 @@ impl GatewayControlPlane {
                 return Err(GatewayControlPlaneError::DuplicateResourceScheme(
                     server.uri_scheme.clone(),
                 ));
+            }
+            if let Some(first) = mount_paths.insert(server.mount_path.clone(), server.slug.clone())
+            {
+                return Err(GatewayControlPlaneError::DuplicateMountPath {
+                    path: server.mount_path.clone(),
+                    first,
+                    second: server.slug.clone(),
+                });
+            }
+            if let Some(first) = mcp_paths.insert(server.mcp_path.clone(), server.slug.clone()) {
+                return Err(GatewayControlPlaneError::DuplicateMcpPath {
+                    path: server.mcp_path.clone(),
+                    first,
+                    second: server.slug.clone(),
+                });
+            }
+            for path in std::iter::once(&server.mount_path)
+                .chain(std::iter::once(&server.mcp_path))
+                .chain(server.owned_routes.iter().map(|route| &route.path))
+            {
+                if let Some(first) = gateway_routes.insert(path.clone(), server.slug.clone()) {
+                    return Err(GatewayControlPlaneError::DuplicateGatewayRoute {
+                        path: path.clone(),
+                        first,
+                        second: server.slug.clone(),
+                    });
+                }
             }
             if server.resource_projection == ResourceProjectionMode::ServerOwned {
                 resource_schemes

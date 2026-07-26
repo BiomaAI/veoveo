@@ -9,6 +9,21 @@ pub enum GatewayControlPlaneError {
     DuplicateAuthorizationServer(AuthorizationServerId),
     DuplicateServer(ServerSlug),
     DuplicateResourceScheme(ResourceScheme),
+    DuplicateMountPath {
+        path: MountPath,
+        first: ServerSlug,
+        second: ServerSlug,
+    },
+    DuplicateMcpPath {
+        path: MountPath,
+        first: ServerSlug,
+        second: ServerSlug,
+    },
+    DuplicateGatewayRoute {
+        path: MountPath,
+        first: ServerSlug,
+        second: ServerSlug,
+    },
     DuplicateProfile(GatewayProfileId),
     DuplicateRecordingIngestResource(ProtectedResourceName),
     DuplicateProtectedResource(ProtectedResourceId),
@@ -390,6 +405,30 @@ impl fmt::Display for GatewayControlPlaneError {
             Self::DuplicateResourceScheme(scheme) => {
                 write!(f, "duplicate server resource scheme `{scheme}`")
             }
+            Self::DuplicateMountPath {
+                path,
+                first,
+                second,
+            } => write!(
+                f,
+                "servers `{first}` and `{second}` declare duplicate mount path `{path}`"
+            ),
+            Self::DuplicateMcpPath {
+                path,
+                first,
+                second,
+            } => write!(
+                f,
+                "servers `{first}` and `{second}` declare duplicate MCP path `{path}`"
+            ),
+            Self::DuplicateGatewayRoute {
+                path,
+                first,
+                second,
+            } => write!(
+                f,
+                "servers `{first}` and `{second}` claim the same gateway route `{path}`"
+            ),
             Self::DuplicateProfile(profile) => write!(f, "duplicate gateway profile `{profile}`"),
             Self::DuplicateRecordingIngestResource(resource) => {
                 write!(f, "duplicate recording ingest resource `{resource}`")

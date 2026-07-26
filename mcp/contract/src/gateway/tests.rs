@@ -1947,6 +1947,9 @@ fn control_plane_rejects_unknown_policy_rule_references() {
     let mut simulation_server = media_manifest();
     simulation_server.slug = ServerSlug::new("simulation").unwrap();
     simulation_server.uri_scheme = ResourceScheme::new("simulation").unwrap();
+    simulation_server.mount_path = MountPath::new("/simulation").unwrap();
+    simulation_server.mcp_path = MountPath::new("/simulation/mcp").unwrap();
+    simulation_server.owned_routes.clear();
     let mut policy = default_policy();
     policy.rules[0].resource_schemes = BTreeSet::from([ResourceScheme::new("simulation").unwrap()]);
     let config = GatewayControlPlane {

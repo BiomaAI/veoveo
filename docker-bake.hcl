@@ -81,7 +81,7 @@ group "showcase-uav-sim-base" {
 }
 
 group "extension-support" {
-  targets = ["mcp-conformance"]
+  targets = ["mcp-conformance", "gateway-composer"]
 }
 
 target "base" {
@@ -306,6 +306,19 @@ target "mcp-conformance" {
     "io.veoveo.build.mode"      = "rust-shared"
     "io.veoveo.build.package"   = "veoveo-mcp-conformance"
     "io.veoveo.build.binaries"  = "certify"
+    "io.veoveo.build.family"    = "rust-trixie-v1"
+    "io.veoveo.build.auxiliary" = ""
+  }
+}
+
+target "gateway-composer" {
+  inherits   = ["_rust-trixie-runtime"]
+  dockerfile = "mcp/composer/Dockerfile"
+  tags       = [image_ref("gateway-composer")]
+  labels = {
+    "io.veoveo.build.mode"      = "rust-shared"
+    "io.veoveo.build.package"   = "veoveo-gateway-composer"
+    "io.veoveo.build.binaries"  = "gateway-compose"
     "io.veoveo.build.family"    = "rust-trixie-v1"
     "io.veoveo.build.auxiliary" = ""
   }

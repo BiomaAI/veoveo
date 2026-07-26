@@ -44,6 +44,7 @@ MCP designs live with the crate whose public contract they specify:
 |---|---|
 | [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP server contract: protocol surface, sessionful Streamable HTTP, notification ownership, singleton deployment identity, schema profile, packaging, well-known resources, and compliance |
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, and standalone distribution |
+| [`mcp/composer/DESIGN.md`](../mcp/composer/DESIGN.md) | offline external gateway fragment/binding composition, requirements, and deterministic provenance |
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and bounded transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration |
@@ -98,6 +99,7 @@ is the browser edition of the harness document.
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
 | `deploy/contract/` | typed deployment profiles, local registry declarations, path resolution, and pure validation |
 | `extensions/contract/` | typed external artifact, compatibility-manifest, extension-release, and schema contracts |
+| `extensions/examples/` | anonymous external fragment and installation-binding examples |
 | `deploy/local/k3d/` | GPU-capable local Kubernetes cluster and values |
 | `Justfile` | short human dispatch commands only |
 | `AGENTS.md` | hard-cut, task, type, module, and smoke-test rules |
@@ -183,6 +185,7 @@ protocol tooling.
 | `gateway/policy.rs` | actions, targets, rules, effects, audit reason model |
 | `gateway/runtime_state.rs` | durable auth/runtime record contracts |
 | `gateway/validation.rs` | fail-closed cross-reference and invariant validation |
+| `gateway/composition.rs` | typed external server fragments, installation bindings, deterministic pure composition, requirements, and provenance |
 | `internal_auth.rs` | Ed25519 signing keys, JWKS trust, internal issuer/verifier |
 | `deployment.rs` | Connected/offline Kubernetes topology contract |
 | `bootstrap.rs` | generic installation-time server bootstrap envelope, constants, and semantics |
@@ -191,6 +194,13 @@ protocol tooling.
 | `subscriptions.rs` | resource subscription hub |
 | `transport.rs`, `session.rs` | canonical sessionful Streamable HTTP configuration, event-stream responses, and bounded cleanup after client disconnect |
 | `telemetry.rs` | tracing/log initialization and guards |
+
+### `mcp/composer`
+
+Owns the offline `gateway-compose` native/OCI command. It reads matched anonymous or
+private extension fragments and installation bindings, calls the pure contract
+composer, and writes one ordinary validated control plane plus requirements and
+path-free content provenance.
 
 ### `mcp/schema-macros`
 

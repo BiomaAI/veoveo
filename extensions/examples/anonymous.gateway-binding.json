@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "veoveo.io/gateway-binding/v1",
+  "server": "anonymous",
+  "profiles": [
+    {
+      "profile": "operator",
+      "tools": {
+        "mode": "listed",
+        "items": [
+          "run"
+        ]
+      },
+      "resources": {
+        "mode": "listed",
+        "items": [
+          {
+            "kind": "scheme",
+            "scheme": "anonymous"
+          }
+        ]
+      },
+      "prompts": {
+        "mode": "none"
+      },
+      "completions": "disabled",
+      "tasks": "enabled"
+    }
+  ],
+  "policyRules": [
+    {
+      "policyVersion": "2026-07-02",
+      "rules": [
+        {
+          "id": "allow_anonymous_mcp_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "tasks_get",
+            "tasks_update",
+            "tasks_result",
+            "tasks_cancel",
+            "tasks_subscribe"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "anonymous"
+          ],
+          "tools": [
+            "run"
+          ],
+          "resource_schemes": [
+            "anonymous"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        }
+      ]
+    }
+  ],
+  "allowedArtifactAudiences": [
+    "anonymous"
+  ],
+  "metadata": {}
+}

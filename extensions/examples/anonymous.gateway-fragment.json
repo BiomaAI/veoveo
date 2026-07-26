@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "veoveo.io/gateway-server-fragment/v1",
+  "server": {
+    "slug": "anonymous",
+    "uri_scheme": "anonymous",
+    "mount_path": "/anonymous",
+    "mcp_path": "/anonymous/mcp",
+    "upstream": {
+      "transport": "streamable_http",
+      "url": "http://anonymous-mcp:8811/anonymous/mcp",
+      "security": "cluster_internal_http"
+    },
+    "capabilities": {
+      "tools": true,
+      "resources": true,
+      "resource_templates": false,
+      "resource_subscriptions": true,
+      "prompts": false,
+      "completions": false,
+      "tasks": true
+    },
+    "tools": [
+      "run"
+    ],
+    "required_scopes": [
+      "operator:use"
+    ],
+    "metadata": {}
+  },
+  "requiredPlatformCapabilities": [
+    "artifact",
+    "frames",
+    "map",
+    "media",
+    "recording",
+    "rrd"
+  ],
+  "requiredArtifactAudiences": [
+    "anonymous"
+  ],
+  "recordingProducerRequired": false,
+  "metadata": {}
+}

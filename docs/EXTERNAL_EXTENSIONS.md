@@ -145,6 +145,23 @@ and records deterministic provenance. Universal route, mount, MCP path, URI-sche
 resource-ownership, and policy-identity checks remain in
 `GatewayControlPlane::validate`.
 
+The standalone command is:
+
+```sh
+gateway-compose \
+  --base installation.gateway.json \
+  --fragment extension.gateway-fragment.json \
+  --binding installation.gateway-binding.json \
+  --output gateway.json \
+  --requirements gateway-requirements.json \
+  --provenance gateway-provenance.json
+```
+
+`mcp/composer` builds the native `gateway-compose` executable and the private
+`veoveo/gateway-composer` OCI image. The anonymous documents in
+`extensions/examples` prove the same workflow without a source dependency or a
+customer identity.
+
 Deployment v2 accepts named sources. Each source resolves an independent revision,
 image lock, chart, fragment, compatibility manifest, and evidence set. Production
 composition consumes immutable artifacts. Local development may use one detached
