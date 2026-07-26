@@ -179,13 +179,20 @@ compiling, but it does not invoke `veoveo-xtask` or copy Veoveo's builder famili
 | Package | extension OCI image and consumer-owned chart | extension manifest, immutable image digest, chart API, and provenance |
 | Integrate | installation-owned fragment and artifact lock | validated gateway, deployment, and bundle composition |
 
-The current delivery completes the internal source-local planner and leaves the public
-extension surfaces explicit in the hardening plan. A published SDK facade,
-compatibility manifest, standalone conformance distribution, smoke descriptor, Helm
-library, and multi-source installation composer are still planned. They are not a
-supported external CI interface yet. Until those artifacts land, an external
-repository can publish an independently built MCP server, but it cannot claim the
-future Veoveo extension compatibility profile from an end-to-end supported workflow.
+Published describes an immutable distribution state, not public visibility. SDKs,
+images, charts, conformance artifacts, and provenance may resolve from an authenticated
+customer-operated registry, a Veoveo-operated private registry, another
+installation-configured package source, or a verified offline bundle. The
+installation's client-facing origin is separate configuration and may be reachable only
+through private DNS, an internal network, or a VPN.
+
+The current delivery completes the internal source-local planner and leaves the
+supported external extension surfaces explicit in the hardening plan. A supported SDK
+facade, compatibility manifest, standalone conformance distribution, smoke descriptor,
+Helm library, and multi-source installation composer are still planned. They are not a
+supported external CI interface yet. Until those artifacts land, an external repository
+can publish an independently built MCP server, but it cannot claim the future Veoveo
+extension compatibility profile from an end-to-end supported workflow.
 
 Multi-source composition will pass an explicit source context and immutable artifact
 identity into the same typed planner model. It will coordinate independently published
