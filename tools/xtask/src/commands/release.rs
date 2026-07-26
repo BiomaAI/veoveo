@@ -396,21 +396,24 @@ fn publish_image_selections(
             OutputMode::Push,
             &evidence,
         )?;
+        let digests = evidence.published_image_digests(&prepared)?;
         for (name, reference) in prepared.image_references() {
-            references.insert(name, reference);
+            let digest = digests
+                .get(&name)
+                .with_context(|| format!("Buildx metadata omitted published image {name}"))?;
+            references.insert(name, (reference, digest.clone()));
         }
         println!("Release evidence: {}", evidence.directory().display());
     }
     references
         .into_iter()
-        .map(|(name, reference)| {
+        .map(|(name, (reference, digest))| {
             let repository = reference
                 .strip_suffix(&format!(":{revision}"))
                 .with_context(|| {
                     format!("published image {reference} does not use source revision tag")
                 })?
                 .to_owned();
-            let digest = inspect_manifest_digest(&reference)?;
             Ok(LockedImage {
                 name,
                 repository,
@@ -525,25 +528,6 @@ fn lock_source_charts(
             })
         })
         .collect()
-}
-
-fn inspect_manifest_digest(reference: &str) -> Result<String> {
-    let output = crate::process::output_text(
-        "docker",
-        [
-            "buildx",
-            "imagetools",
-            "inspect",
-            "--format",
-            "{{json .Manifest.Digest}}",
-            reference,
-        ],
-        None,
-    )
-    .with_context(|| format!("resolving OCI manifest digest for {reference}"))?;
-    let digest = serde_json::from_str::<String>(output.trim())
-        .with_context(|| format!("decoding OCI manifest digest for {reference}"))?;
-    Ok(digest)
 }
 
 fn write_json(path: &Path, value: &impl serde::Serialize) -> Result<()> {
