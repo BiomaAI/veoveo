@@ -11284,6 +11284,7 @@ dependencies = [
  "url",
  "uuid",
  "veoveo-deploy-contract",
+ "veoveo-extension-contract",
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",
  "veoveo-platform-store",

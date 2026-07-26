@@ -40,6 +40,7 @@ tempfile = "3"
 url.workspace = true
 uuid.workspace = true
 veoveo-deploy-contract.workspace = true
+veoveo-extension-contract.workspace = true
 veoveo-mcp-contract = { path = "../../mcp/contract" }
 veoveo-mcp-task-extension = { path = "../../mcp/task-extension" }
 veoveo-platform-store = { path = "../../platform/store" }

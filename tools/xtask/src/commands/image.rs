@@ -278,6 +278,16 @@ struct BakeTargetOverride {
     args: BTreeMap<String, String>,
 }
 
+#[derive(Debug, Serialize)]
+struct BakeAttestationOverride {
+    target: BTreeMap<String, BakeTargetAttestation>,
+}
+
+#[derive(Debug, Serialize)]
+struct BakeTargetAttestation {
+    attest: [&'static str; 2],
+}
+
 pub(crate) fn plan_command(
     repository: &RepositoryContext,
     args: &ImageSelectionArgs,
@@ -429,6 +439,18 @@ pub(crate) enum OutputMode {
     Push,
 }
 
+impl OutputMode {
+    fn exporter(self) -> &'static str {
+        match self {
+            // Local images are disposable developer artifacts. Rewriting every
+            // inherited layer makes a tiny Isaac overlay re-export the full
+            // multi-gigabyte base without strengthening release evidence.
+            Self::Load => "type=docker",
+            Self::Push => "type=registry,rewrite-timestamp=true",
+        }
+    }
+}
+
 pub(crate) fn execute(
     repository: &RepositoryContext,
     prepared: &PreparedPlan,
@@ -437,13 +459,41 @@ pub(crate) fn execute(
     evidence: &EvidenceRun,
 ) -> Result<()> {
     let bake = repository.root().join("docker-bake.hcl");
+    let mut attestation_override = match mode {
+        OutputMode::Load => None,
+        OutputMode::Push => {
+            let definition = BakeAttestationOverride {
+                target: prepared
+                    .plan
+                    .targets
+                    .iter()
+                    .map(|target| {
+                        (
+                            target.name.clone(),
+                            BakeTargetAttestation {
+                                attest: ["type=provenance,mode=max", "type=sbom"],
+                            },
+                        )
+                    })
+                    .collect(),
+            };
+            let mut file = NamedTempFile::new().context("creating release attestation override")?;
+            serde_json::to_writer_pretty(&mut file, &definition)?;
+            file.flush()?;
+            Some(file)
+        }
+    };
     let mut command = builder::buildx_command(repository)?;
     command
         .current_dir(repository.root())
         .args(["bake", "--builder", builder::BUILDER_NAME, "-f"])
         .arg(&bake)
         .arg("-f")
-        .arg(prepared.override_file.path())
+        .arg(prepared.override_file.path());
+    if let Some(override_file) = attestation_override.as_mut() {
+        command.arg("-f").arg(override_file.path());
+    }
+    command
         .arg(&prepared.plan.selection.name)
         .arg("--metadata-file")
         .arg(evidence.metadata_path())
@@ -453,13 +503,9 @@ pub(crate) fn execute(
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
     for target in &prepared.plan.targets {
-        let exporter = match mode {
-            OutputMode::Load => "type=docker,rewrite-timestamp=true",
-            OutputMode::Push => "type=registry,rewrite-timestamp=true",
-        };
         command
             .arg("--set")
-            .arg(format!("{}.output={exporter}", target.name));
+            .arg(format!("{}.output={}", target.name, mode.exporter()));
     }
     match command.status() {
         Ok(status) => {
@@ -771,7 +817,21 @@ fn family_fingerprint(
 }
 
 fn make_override(plan: &BuildPlanV1) -> Result<BakeOverride> {
-    let mut target = BTreeMap::new();
+    let mut target = plan
+        .targets
+        .iter()
+        .map(|image| {
+            (
+                image.name.clone(),
+                BakeTargetOverride {
+                    args: BTreeMap::from([(
+                        "SOURCE_REVISION".to_owned(),
+                        plan.source.revision.clone(),
+                    )]),
+                },
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
     for family in &plan.families {
         let args = if let Some(artifact) = family.family.shared_artifact_target() {
             let args = BTreeMap::from([
@@ -798,7 +858,13 @@ fn make_override(plan: &BuildPlanV1) -> Result<BakeOverride> {
                     family.target_cache_id.clone(),
                 ),
             ]);
-            target.insert(artifact.to_owned(), BakeTargetOverride { args });
+            target
+                .entry(artifact.to_owned())
+                .or_insert_with(|| BakeTargetOverride {
+                    args: BTreeMap::new(),
+                })
+                .args
+                .extend(args);
             continue;
         } else {
             BTreeMap::from([(
@@ -816,7 +882,11 @@ fn make_override(plan: &BuildPlanV1) -> Result<BakeOverride> {
                     .is_some_and(|unit| unit.family == family.family)
             })
             .context("standalone family has no image target")?;
-        target.insert(image.name.clone(), BakeTargetOverride { args });
+        target
+            .get_mut(&image.name)
+            .expect("direct image target was seeded")
+            .args
+            .extend(args);
     }
     Ok(BakeOverride { target })
 }

@@ -1,5 +1,6 @@
 use anyhow::ensure;
 use sha2::{Digest, Sha256};
+use veoveo_extension_contract::SimulationRuntimeBuildLock;
 
 use super::*;
 
@@ -502,9 +503,20 @@ pub(crate) async fn helm_config() -> Result<()> {
         "UAV dependency lock omitted a canonical release or Google tiles identity"
     );
     let uav_runtime_dockerfile = fs::read_to_string("showcase/uav-sim/runtime/Dockerfile")?;
+    let simulation_lock: SimulationRuntimeBuildLock = serde_json::from_slice(&fs::read(
+        "showcase/uav-sim/runtime/simulation-runtime.lock.json",
+    )?)?;
+    simulation_lock.validate()?;
     for expected in [
         "nvcr.io/nvidia/isaac-sim:6.0.1@sha256:",
         "px4io/px4-dev:v1.17.0@sha256:",
+        "ISAAC_LAB_COMMIT=ffff603eafc6b74264a5261cc0183d6a65390d78",
+        "WARP_VERSION=1.15.0",
+        "NEWTON_VERSION=1.4.0",
+        "MUJOCO_VERSION=3.10.0",
+        "MUJOCO_WARP_VERSION=3.10.0.3",
+        "apply_isaaclab_runtime_tuple.py",
+        "--require-hashes",
         "PX4_COMMIT=d6f12ad1c4f70ad3230afd7d86e971421e02fef4",
         "PEGASUS_COMMIT=644da37e9d5268e5f9a34e78bdcfd57a8bab82b4",
         "CESIUM_VERSION=0.29.0",
@@ -516,7 +528,9 @@ pub(crate) async fn helm_config() -> Result<()> {
         "rerun-sdk==${RERUN_SDK_VERSION}",
         "AS runtime-base",
         "ARG UAV_SIM_BASE_IMAGE=veoveo/uav-sim-base:",
-        "FROM ${UAV_SIM_BASE_IMAGE} AS runtime",
+        "FROM ${UAV_SIM_BASE_IMAGE} AS uav-overlay",
+        "FROM uav-overlay AS runtime",
+        "veoveo_simulation_base/",
         "org.opencontainers.image.revision=",
         "USER 10001:10001",
     ] {
@@ -590,6 +604,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         "group \"showcase-sumo\"",
         "group \"showcase-uav-sim-base\"",
         "group \"showcase-uav-sim\"",
+        "group \"showcase-uav-sim-overlay-acceptance\"",
+        "target \"simulation-overlay-acceptance\"",
         "sumo-base = \"target:sumo-base\"",
         "uav-sim-base = \"target:uav-sim-base\"",
         "veoveo-rust-artifacts = \"target:rust-trixie-artifacts\"",
@@ -603,6 +619,9 @@ pub(crate) async fn helm_config() -> Result<()> {
     ] {
         contains(&bake, expected)?;
     }
+    let image_orchestration = fs::read_to_string("tools/xtask/src/commands/image.rs")?;
+    contains(&image_orchestration, "type=provenance,mode=max")?;
+    contains(&image_orchestration, "type=sbom")?;
     let justfile = fs::read_to_string("Justfile")?;
     for expected in [
         "profile-validate profile:",

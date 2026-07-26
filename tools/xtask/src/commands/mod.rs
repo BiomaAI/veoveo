@@ -6,4 +6,5 @@ pub(crate) mod helm;
 pub(crate) mod image;
 pub(crate) mod python;
 pub(crate) mod release;
+pub(crate) mod simulation;
 pub(crate) mod source;
