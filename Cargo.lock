@@ -10705,6 +10705,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-gateway-composer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tempfile",
+ "veoveo-mcp-contract",
+]
+
+[[package]]
 name = "veoveo-map-mcp"
 version = "0.1.0"
 dependencies = [

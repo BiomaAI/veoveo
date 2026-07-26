@@ -36,6 +36,17 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
         "gateway-control-plane-revision.schema.json",
         GatewayControlPlaneRevision
     );
+    add_schema!(
+        schemas,
+        "gateway-server-fragment.schema.json",
+        GatewayServerFragment
+    );
+    add_schema!(schemas, "gateway-binding.schema.json", GatewayBinding);
+    add_schema!(
+        schemas,
+        "gateway-composition-provenance.schema.json",
+        GatewayCompositionProvenance
+    );
     add_schema!(schemas, "server-manifest.schema.json", ServerManifest);
     add_schema!(schemas, "gateway-profile.schema.json", GatewayProfile);
     add_schema!(

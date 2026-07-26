@@ -9,6 +9,7 @@ members = [
     "mcp/apps-extension",
     "mcp/bridges/stdio",
     "mcp/conformance",
+    "mcp/composer",
     "mcp/contract",
     "mcp/schema-macros",
     "mcp/task-contract",
