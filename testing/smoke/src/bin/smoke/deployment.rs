@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     env, fs,
     io::Write,
     path::{Path, PathBuf},
@@ -55,7 +55,18 @@ struct ResolvedSource {
 pub(crate) fn profile_validate(path: &Path) -> Result<()> {
     let profile = load_profile(path)?;
     let sources = resolve_sources(&profile)?;
-    validate_bake_groups(&profile, &sources)?;
+    let selected_images = validate_bake_groups(&profile, &sources)?;
+    let required_images = profile.required_platform_images()?;
+    let missing_images = required_images
+        .difference(&selected_images)
+        .cloned()
+        .collect::<Vec<_>>();
+    ensure!(
+        missing_images.is_empty(),
+        "deployment profile {} omits required Veoveo image targets from its Bake groups: {}",
+        profile.definition.name,
+        missing_images.join(", ")
+    );
     validate_helm_releases(&profile, &sources)?;
     let platform = profile.resolved_platform()?;
     println!(
@@ -443,10 +454,14 @@ fn cluster_gpu_capacity(context: &str) -> Result<u64> {
     Ok(gpu_capacity)
 }
 
-fn validate_bake_groups(profile: &LoadedProfile, sources: &[ResolvedSource]) -> Result<()> {
+fn validate_bake_groups(
+    profile: &LoadedProfile,
+    sources: &[ResolvedSource],
+) -> Result<BTreeSet<String>> {
+    let mut selected_images = BTreeSet::new();
     for source in sources {
         for group in &source.definition.image_groups {
-            output_checked(
+            let output = output_checked(
                 "docker",
                 ["buildx", "bake", group.as_str(), "--print"],
                 Some(&source.repository),
@@ -457,9 +472,15 @@ fn validate_bake_groups(profile: &LoadedProfile, sources: &[ResolvedSource]) -> 
                     source.definition.name, profile.definition.name
                 )
             })?;
+            let definition = serde_json::from_slice::<Value>(&output)
+                .with_context(|| format!("decoding Docker Bake group {group}"))?;
+            let targets = definition["target"]
+                .as_object()
+                .with_context(|| format!("Docker Bake group {group} has no target object"))?;
+            selected_images.extend(targets.keys().cloned());
         }
     }
-    Ok(())
+    Ok(selected_images)
 }
 
 fn validate_helm_releases(profile: &LoadedProfile, sources: &[ResolvedSource]) -> Result<()> {

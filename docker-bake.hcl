@@ -64,6 +64,20 @@ group "platform-full" {
   ]
 }
 
+group "external-extension-platform" {
+  targets = [
+    "mcp-gateway",
+    "artifact-service",
+    "recording-forwarder",
+    "recording-hub",
+    "recording-mcp",
+    "artifact-mcp",
+    "frames-mcp",
+    "map-mcp",
+    "media-mcp",
+  ]
+}
+
 group "showcase-sumo" {
   targets = ["sumo-sim", "sumo-mcp"]
 }

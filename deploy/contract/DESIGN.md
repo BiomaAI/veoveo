@@ -28,3 +28,10 @@ selection. Gateway composition requirements fail closed against that graph. Arti
 Frames, Map, Media, Recording, and RRD requirements select their actual hosted server
 and infrastructure dependencies; portable composition tools do not link those server
 implementations.
+
+The same resolution produces the exact Veoveo-owned OCI image closure. Platform
+components contribute their runtime images, each selected MCP server contributes its
+image, Recording contributes the hub and MCP images, and an RRD requirement contributes
+the producer-side recording forwarder. Operational tools compare this closure with the
+resolved Bake targets before validation or publication. A profile cannot select a
+service while omitting the image that implements it.
