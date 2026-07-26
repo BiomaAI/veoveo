@@ -896,44 +896,10 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
     {
         bail!("artifact metadata schema has no object compliance property");
     }
-    let frame = assert_schema_title(
-        &schemas.join("rrd-frame-definition.schema.json"),
-        "RrdFrameDefinition",
-    )?;
-    for property in ["frame_id", "kind", "view_coordinates"] {
-        if !frame
-            .get("properties")
-            .and_then(|properties| properties.get(property))
-            .is_some_and(Value::is_object)
-        {
-            bail!("frame definition schema has no object `{property}` property");
-        }
-    }
-    assert_schema_title(
-        &schemas.join("coordinate-point.schema.json"),
-        "CoordinatePoint",
-    )?;
     assert_schema_title(
         &schemas.join("coordinate-operation-provenance.schema.json"),
         "CoordinateOperationProvenance",
     )?;
-    assert_schema_title(
-        &schemas.join("rrd-geofence-geometry.schema.json"),
-        "RrdGeofenceGeometry",
-    )?;
-    let batch_transform = assert_schema_title(
-        &schemas.join("batch-transform-output.schema.json"),
-        "BatchTransformOutput",
-    )?;
-    for property in ["result", "artifact"] {
-        if !batch_transform
-            .get("properties")
-            .and_then(|properties| properties.get(property))
-            .is_some_and(Value::is_object)
-        {
-            bail!("batch transform schema has no object `{property}` property");
-        }
-    }
     let usage = assert_schema_title(&schemas.join("usage-report.schema.json"), "UsageReport")?;
     if !usage
         .get("properties")

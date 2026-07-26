@@ -1,12 +1,9 @@
 use std::collections::BTreeMap;
-use std::fmt;
-use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
-use veoveo_platform_store::TaskId;
-use veoveo_task_runtime::TaskRetentionPin;
+pub use veoveo_task_contract::{ProtocolTaskId, ProtocolTaskIdError, TaskRetentionPin};
 
 pub const PROTOCOL_VERSION: &str = "2026-06-30";
 pub const EXTENSION_ID: &str = "io.modelcontextprotocol/tasks";
@@ -109,23 +106,6 @@ impl Default for RequestMeta {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct ProtocolTaskId(TaskId);
-
-impl ProtocolTaskId {
-    pub fn new() -> Self {
-        Self(TaskId::new())
-    }
-
-    pub const fn from_task_id(task_id: TaskId) -> Self {
-        Self(task_id)
-    }
-
-    pub const fn task_id(self) -> TaskId {
-        self.0
-    }
-}
-
 impl DetailedTask {
     pub const fn metadata(&self) -> &TaskMetadata {
         match self {
@@ -146,64 +126,6 @@ impl DetailedTask {
             Self::Cancelled { .. } => TaskStatus::Cancelled,
         }
     }
-}
-
-impl Default for ProtocolTaskId {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl fmt::Display for ProtocolTaskId {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(formatter)
-    }
-}
-
-impl From<TaskId> for ProtocolTaskId {
-    fn from(value: TaskId) -> Self {
-        Self::from_task_id(value)
-    }
-}
-
-impl FromStr for ProtocolTaskId {
-    type Err = ProtocolTaskIdError;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let uuid = uuid::Uuid::parse_str(value)?;
-        if uuid.get_version_num() != 7 {
-            return Err(ProtocolTaskIdError::UnsupportedVersion);
-        }
-        Ok(Self(TaskId::from_uuid(uuid)))
-    }
-}
-
-impl Serialize for ProtocolTaskId {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
-    }
-}
-
-impl<'de> Deserialize<'de> for ProtocolTaskId {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        String::deserialize(deserializer)?
-            .parse()
-            .map_err(serde::de::Error::custom)
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ProtocolTaskIdError {
-    #[error("invalid task UUID: {0}")]
-    InvalidUuid(#[from] uuid::Error),
-    #[error("task id must be a UUIDv7")]
-    UnsupportedVersion,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

@@ -232,7 +232,7 @@ Server crates are named `*-mcp`.
 Verification is layered and discovers servers per the Scope And Discovery
 rules:
 
-- **Repository structure** — `testing/mcp-conformance` asserts C22, C23, and
+- **Repository structure** — `mcp/conformance` asserts C22, C23, and
   C24 for every discovered server crate, including required `AGENTS.md`
   sections and a parseable `Contract Compliance` declaration.
 - **Protocol conformance** — the conformance client validates advertised

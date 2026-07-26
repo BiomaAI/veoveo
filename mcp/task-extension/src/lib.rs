@@ -7,6 +7,7 @@
 
 mod adapter;
 mod models;
+#[cfg(feature = "runtime")]
 mod projection;
 
 pub use adapter::{
@@ -14,4 +15,5 @@ pub use adapter::{
     task_extension_middleware,
 };
 pub use models::*;
+#[cfg(feature = "runtime")]
 pub use projection::{project_snapshot, task_seed};

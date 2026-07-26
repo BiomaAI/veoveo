@@ -43,6 +43,7 @@ MCP designs live with the crate whose public contract they specify:
 | Document | Domain |
 |---|---|
 | [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP server contract: protocol surface, sessionful Streamable HTTP, notification ownership, singleton deployment identity, schema profile, packaging, well-known resources, and compliance |
+| [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, and standalone distribution |
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and bounded transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration |
@@ -157,6 +158,13 @@ REST or hardcoded console pages.
 
 This crate owns vocabulary shared across services. It must not absorb a domain tool
 schema merely because the server is first-party.
+
+### `mcp/task-contract`
+
+Owns the storage-independent UUIDv7 task identity and retention-pin types shared by the
+final MCP task wire and the durable runtime. The optional runtime feature supplies
+conversion to the platform-store task identity without pulling storage into standalone
+protocol tooling.
 
 | File | Responsibility |
 |---|---|
@@ -609,7 +617,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 
 | Path | Responsibility |
 |---|---|
-| `testing/mcp-conformance` | external protocol/configuration CLI and fake services |
+| `mcp/conformance` | reusable domain-neutral MCP certification library, thin CLI, schemas, profiles, and standalone image |
 | `testing/smoke/src/bin/smoke.rs` | smoke command dispatcher |
 | `testing/smoke/src/bin/smoke/scenarios/` | Rust process/deployment scenarios |
 | `testing/smoke/src/bin/smoke/support/` | process, HTTP, auth, fixture, usage helpers |

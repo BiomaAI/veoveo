@@ -117,6 +117,13 @@ version and creates its own lock against an operator-configured private index. I
 Docker build accepts that index only as a BuildKit secret and never copies Veoveo
 source into the build context.
 
+`mcp/conformance` is the standalone protocol boundary. Its typed profile supplies
+extension-owned names and URI schemes at runtime; the binary has no dependency on a
+domain server crate or central server registry. `conformance certify --profile
+<file> --report <file>` records implementation identity, negotiated protocol,
+advertised capabilities, applicable requirement results, and bounded evidence. The
+same binary ships in the private `veoveo/mcp-conformance` OCI artifact.
+
 ## Installation Composition
 
 The extension contributes capabilities. The installation decides exposure and

@@ -10775,6 +10775,8 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "clap",
+ "hex",
+ "hmac 0.13.0",
  "jsonschema",
  "jsonwebtoken",
  "rcgen",
@@ -10784,17 +10786,14 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "tokio",
  "tracing-subscriber",
  "url",
  "uuid",
- "veoveo-frames-mcp",
- "veoveo-map-mcp",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",
- "veoveo-media-mcp",
- "veoveo-rrd",
 ]
 
 [[package]]
@@ -10802,6 +10801,7 @@ name = "veoveo-mcp-contract"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "base64 0.22.1",
  "chrono",
  "duckdb",
@@ -10813,7 +10813,9 @@ dependencies = [
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "parking_lot",
+ "reqwest",
  "rmcp",
+ "rustls",
  "schemars",
  "serde",
  "serde_json",
@@ -10911,6 +10913,7 @@ dependencies = [
  "tower",
  "uuid",
  "veoveo-platform-store",
+ "veoveo-task-contract",
  "veoveo-task-runtime",
 ]
 
@@ -11306,6 +11309,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-task-contract"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror 2.0.18",
+ "uuid",
+ "veoveo-platform-store",
+]
+
+[[package]]
 name = "veoveo-task-runtime"
 version = "0.1.0"
 dependencies = [
@@ -11324,6 +11337,7 @@ dependencies = [
  "uuid",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
+ "veoveo-task-contract",
 ]
 
 [[package]]

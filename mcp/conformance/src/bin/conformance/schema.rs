@@ -18,6 +18,16 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
     let mut schemas = Vec::new();
     add_schema!(
         schemas,
+        "mcp-conformance-profile.schema.json",
+        veoveo_mcp_conformance::HostedServerConformanceProfile
+    );
+    add_schema!(
+        schemas,
+        "mcp-conformance-report.schema.json",
+        veoveo_mcp_conformance::ConformanceReport
+    );
+    add_schema!(
+        schemas,
         "gateway-control-plane.schema.json",
         GatewayControlPlane
     );
@@ -183,116 +193,8 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
     add_schema!(schemas, "artifact-metadata.schema.json", ArtifactMetadata);
     add_schema!(
         schemas,
-        "rrd-frame-definition.schema.json",
-        RrdFrameDefinition
-    );
-    add_schema!(
-        schemas,
-        "rrd-view-coordinates.schema.json",
-        RrdViewCoordinates
-    );
-    add_schema!(schemas, "rrd-geo-point.schema.json", RrdGeoPoint);
-    add_schema!(schemas, "rrd-geo-line-string.schema.json", RrdGeoLineString);
-    add_schema!(schemas, "rrd-local-point-3.schema.json", RrdLocalPoint3);
-    add_schema!(
-        schemas,
-        "rrd-local-line-string-2.schema.json",
-        RrdLocalLineString2
-    );
-    add_schema!(schemas, "rrd-local-polygon-2.schema.json", RrdLocalPolygon2);
-    add_schema!(
-        schemas,
-        "rrd-geofence-geometry.schema.json",
-        RrdGeofenceGeometry
-    );
-    add_schema!(schemas, "rrd-selection.schema.json", RrdSelection);
-    add_schema!(schemas, "rrd-time-point.schema.json", RrdTimePoint);
-    add_schema!(schemas, "rrd-time-range.schema.json", RrdTimeRange);
-    add_schema!(schemas, "coordinate-point.schema.json", CoordinatePoint);
-    add_schema!(
-        schemas,
         "coordinate-operation-provenance.schema.json",
         CoordinateOperationProvenance
-    );
-    add_schema!(
-        schemas,
-        "convert-frame-request.schema.json",
-        ConvertFrameRequest
-    );
-    add_schema!(
-        schemas,
-        "convert-frame-output.schema.json",
-        ConvertFrameOutput
-    );
-    add_schema!(
-        schemas,
-        "transform-crs-request.schema.json",
-        TransformCrsRequest
-    );
-    add_schema!(
-        schemas,
-        "transform-crs-output.schema.json",
-        TransformCrsOutput
-    );
-    add_schema!(
-        schemas,
-        "create-frame-world-request.schema.json",
-        CreateWorldRequest
-    );
-    add_schema!(
-        schemas,
-        "create-frame-world-output.schema.json",
-        CreateWorldOutput
-    );
-    add_schema!(
-        schemas,
-        "publish-frame-world-request.schema.json",
-        PublishWorldRequest
-    );
-    add_schema!(
-        schemas,
-        "publish-frame-world-output.schema.json",
-        PublishWorldOutput
-    );
-    add_schema!(
-        schemas,
-        "geodesic-inverse-request.schema.json",
-        GeodesicInverseRequest
-    );
-    add_schema!(
-        schemas,
-        "geodesic-inverse-output.schema.json",
-        GeodesicInverseOutput
-    );
-    add_schema!(
-        schemas,
-        "geodesic-direct-request.schema.json",
-        GeodesicDirectRequest
-    );
-    add_schema!(
-        schemas,
-        "geodesic-direct-output.schema.json",
-        GeodesicDirectOutput
-    );
-    add_schema!(
-        schemas,
-        "validate-geofence-request.schema.json",
-        ValidateGeofenceRequest
-    );
-    add_schema!(
-        schemas,
-        "validate-geofence-output.schema.json",
-        ValidateGeofenceOutput
-    );
-    add_schema!(
-        schemas,
-        "batch-transform-request.schema.json",
-        BatchTransformRequest
-    );
-    add_schema!(
-        schemas,
-        "batch-transform-output.schema.json",
-        BatchTransformOutput
     );
     add_schema!(
         schemas,

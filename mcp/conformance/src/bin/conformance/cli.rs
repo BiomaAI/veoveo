@@ -59,6 +59,15 @@ pub(super) struct Args {
 
 #[derive(Subcommand)]
 pub(super) enum Cmd {
+    /// Certify a running hosted server against a typed, domain-neutral profile.
+    Certify {
+        /// JSON conformance profile.
+        #[arg(long)]
+        profile: PathBuf,
+        /// Machine-readable conformance report.
+        #[arg(long, default_value = "conformance-report.json")]
+        report: PathBuf,
+    },
     /// Write JSON Schemas for external Rust/Python/TypeScript contract implementations.
     ContractSchemas {
         /// Directory that receives one .schema.json file per exported contract type.
