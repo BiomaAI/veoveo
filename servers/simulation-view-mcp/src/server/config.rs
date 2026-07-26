@@ -37,6 +37,18 @@ pub(super) struct Args {
     pub pose_endpoint: String,
     #[arg(
         long,
+        env = "SIMULATION_VIEW_RENDERER_CONTROL_TOKEN",
+        hide_env_values = true
+    )]
+    pub renderer_control_token: String,
+    #[arg(
+        long,
+        env = "SIMULATION_VIEW_POSE_CONTROL_TOKEN",
+        hide_env_values = true
+    )]
+    pub pose_control_token: String,
+    #[arg(
+        long,
         env = "SIMULATION_VIEW_RENDERER_SIGNALING_URL",
         default_value = "ws://simulation-view-isaac:49100"
     )]
@@ -106,6 +118,8 @@ impl Args {
                 && upstream.fragment().is_none(),
             "renderer signaling URL must be a credential-free internal ws URL"
         );
+        validate_control_token(&self.renderer_control_token)?;
+        validate_control_token(&self.pose_control_token)?;
         let _ = SimulationViewService::new(self.service_config()?)?;
         Ok(())
     }
@@ -139,6 +153,14 @@ impl Args {
             maximum_frame_age_ms: self.maximum_frame_age_ms,
         })
     }
+}
+
+fn validate_control_token(value: &str) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        (32..=512).contains(&value.len()) && !value.chars().any(char::is_whitespace),
+        "runtime control tokens must contain 32 to 512 non-whitespace characters"
+    );
+    Ok(())
 }
 
 fn parse_allowed_host(value: &str) -> Result<String, String> {

@@ -24,6 +24,7 @@ members = [
     "platform/recordings/video",
     "platform/runtimes/duckdb",
     "platform/simulation/pose",
+    "platform/simulation/pose-ingress",
     "platform/store",
     "platform/task-runtime",
     "servers/artifact-mcp",
@@ -133,6 +134,7 @@ subtle = "=2.6.1"
 sse-stream = "=0.2.5"
 syn = "2.0.118"
 tokio = "1.52.4"
+tokio-rustls = { version = "=0.26.4", default-features = false, features = ["logging", "ring"] }
 tokio-tungstenite = { version = "=0.30.0", default-features = false, features = ["connect", "handshake"] }
 tokio-util = "0.7.18"
 thiserror = "2.0.18"
@@ -145,6 +147,7 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 traci-rs = "0.2.0"
 url = "2.5.8"
 uuid = { version = "1.23.4", features = ["v4", "v5", "v7"] }
+x509-parser = "=0.18.1"
 zeroize = "1.8.2"
 vaultrs = { version = "0.8.0", default-features = false, features = ["rustls"] }
 veoveo-mcp-contract = { path = "mcp/contract", default-features = false }

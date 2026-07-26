@@ -304,11 +304,18 @@ impl PoseSnapshot {
 }
 
 pub fn entity_table_digest(revision: u64, entities: &[EntityPose]) -> Sha256Digest {
+    entity_identity_table_digest(revision, entities.iter().map(|entity| &entity.entity_id))
+}
+
+pub fn entity_identity_table_digest<'a>(
+    revision: u64,
+    entities: impl IntoIterator<Item = &'a EntityId>,
+) -> Sha256Digest {
     let mut hasher = Sha256::new();
     hasher.update(revision.to_be_bytes());
     for entity in entities {
-        hasher.update((entity.entity_id.as_str().len() as u16).to_be_bytes());
-        hasher.update(entity.entity_id.as_str().as_bytes());
+        hasher.update((entity.as_str().len() as u16).to_be_bytes());
+        hasher.update(entity.as_str().as_bytes());
     }
     Sha256Digest::from_bytes(hasher.finalize().into())
 }

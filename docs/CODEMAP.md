@@ -476,6 +476,8 @@ Simulation View data-plane ownership:
 | `platform/simulation/pose/src/store.rs` | nonblocking latest-value admission, epoch reset, heartbeat, and staleness |
 | `platform/simulation/pose/src/shared_memory.rs` | atomic double-slot co-located transport |
 | `platform/simulation/pose/src/stream.rs` | identical length-delimited framing for mutually authenticated streams |
+| `platform/simulation/pose/src/ingress.rs` | typed private producer-binding control declarations and readiness |
+| `platform/simulation/pose-ingress/` | TLS 1.3 mutual-authentication ingress, SPIFFE producer authorization, private control endpoint, and shared-memory publication |
 
 ## Recordings
 

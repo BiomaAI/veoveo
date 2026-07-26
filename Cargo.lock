@@ -11332,6 +11332,7 @@ dependencies = [
 name = "veoveo-simulation-pose"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "memmap2",
  "schemars",
  "serde",
@@ -11373,6 +11374,32 @@ dependencies = [
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-simulation-pose",
+]
+
+[[package]]
+name = "veoveo-simulation-view-pose-ingress"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "subtle",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
+ "tower-http 0.7.0",
+ "tracing",
+ "veoveo-mcp-contract",
+ "veoveo-simulation-pose",
+ "x509-parser",
 ]
 
 [[package]]

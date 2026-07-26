@@ -1,5 +1,6 @@
 use std::{
     fs::{File, OpenOptions},
+    os::unix::fs::PermissionsExt,
     path::Path,
     sync::atomic::{AtomicU64, Ordering},
 };
@@ -22,6 +23,26 @@ pub struct SharedPoseWriter {
 
 impl SharedPoseWriter {
     pub fn create(path: &Path, slot_capacity: usize) -> Result<Self, PoseError> {
+        Self::open(path, slot_capacity)
+    }
+
+    pub fn replace(path: &Path, slot_capacity: usize) -> Result<Self, PoseError> {
+        let temporary = path.with_extension("pose.next");
+        match std::fs::remove_file(&temporary) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        let writer = Self::create(&temporary, slot_capacity)?;
+        if let Err(error) = std::fs::rename(&temporary, path) {
+            drop(writer);
+            let _ = std::fs::remove_file(&temporary);
+            return Err(error.into());
+        }
+        Ok(writer)
+    }
+
+    fn open(path: &Path, slot_capacity: usize) -> Result<Self, PoseError> {
         if slot_capacity == 0 {
             return Err(PoseError::SharedSlot(
                 "slot capacity must be positive".to_owned(),
@@ -33,10 +54,12 @@ impl SharedPoseWriter {
             })?)
             .ok_or_else(|| PoseError::SharedSlot("shared pose slot size overflow".to_owned()))?;
         let file = OpenOptions::new()
+            .create(true)
             .create_new(true)
             .read(true)
             .write(true)
             .open(path)?;
+        file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
         file.set_len(total_bytes as u64)?;
         let mut map = map_mut(&file, total_bytes)?;
         map[..HEADER_BYTES].fill(0);
