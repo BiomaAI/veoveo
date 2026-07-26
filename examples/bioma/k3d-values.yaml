@@ -8,7 +8,6 @@ objectStore:
 artifactService:
   replicas: 1
 recording:
-  enabled: true
   tenantKey: bioma
   persistence:
     size: 20Gi

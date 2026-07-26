@@ -1,4 +1,4 @@
-{{- if include "veoveo.mcpServerEnabled" (list . "recording") }}
+{{- if include "veoveo.componentEnabled" (list . "recording-data-plane") }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -32,6 +32,7 @@ spec:
     - name: ingest-api
       port: 9878
       targetPort: ingest-api
+{{- if include "veoveo.mcpServerEnabled" (list . "recording") }}
 ---
 apiVersion: v1
 kind: Service
@@ -48,6 +49,7 @@ spec:
     - name: http
       port: 8796
       targetPort: recording-mcp
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -147,6 +149,7 @@ spec:
               mountPath: /recordings
             - name: tmp
               mountPath: /tmp
+        {{- if include "veoveo.mcpServerEnabled" (list . "recording") }}
         - name: recording-mcp
           image: {{ include "veoveo.ownedImage" (list . .Values.recording.mcpImage) }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
@@ -190,6 +193,7 @@ spec:
               readOnly: true
             - name: tmp
               mountPath: /tmp
+        {{- end }}
       volumes:
         - name: recordings
           persistentVolumeClaim:

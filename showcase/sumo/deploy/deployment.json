@@ -74,6 +74,7 @@
       "platform-store",
       "object-store",
       "artifact-service",
+      "recording-data-plane",
       "console",
       "telemetry",
       "ingress"
@@ -93,7 +94,11 @@
       "perception",
       "reason",
       "datasheet"
-    ]
+    ],
+    "externalWorkloads": [
+      "sumo-simulator"
+    ],
+    "gpuScheduling": null
   },
   "gatewayRequirements": [],
   "waitForDeployments": []

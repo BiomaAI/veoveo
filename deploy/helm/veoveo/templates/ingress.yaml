@@ -61,6 +61,15 @@ spec:
                 name: media-mcp
                 port:
                   number: 8787
+          {{- if and (include "veoveo.mcpServerEnabled" (list . "simulation-view")) (eq .Values.simulationView.signaling.exposure "Ingress") }}
+          - path: /simulation-view/signaling
+            pathType: Prefix
+            backend:
+              service:
+                name: simulation-view-mcp
+                port:
+                  number: {{ .Values.simulationView.ports.mcp }}
+          {{- end }}
           - path: /
             pathType: Prefix
             backend:

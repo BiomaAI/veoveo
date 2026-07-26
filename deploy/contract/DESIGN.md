@@ -9,6 +9,7 @@
 | `veoveo.io/local-registry/v1` | repository-owned loopback registry declaration |
 | Docker Buildx Bake | image-group names selected by a deployment profile |
 | Kubernetes and Helm | typed destination and ordered release inputs; process execution remains outside this crate |
+| Kubernetes NVIDIA device resources | exact exclusive-device accounting plus evidence-gated NVIDIA MIG or time-slicing declarations |
 
 ## Responsibility
 
@@ -28,3 +29,16 @@ selection. Gateway composition requirements fail closed against that graph. Arti
 Frames, Map, Media, Recording, and RRD requirements select their actual hosted server
 and infrastructure dependencies; portable composition tools do not link those server
 implementations.
+
+The component graph distinguishes the recording data plane, hardware GPU renderer, and
+canonical simulation-runtime support from hosted MCP servers and operator surfaces.
+External workload identifiers remain source-owned but enter the same immutable
+selection and deployment lock. A GPU scheduling profile names every selected GPU
+workload, its device count, and its isolation. Exclusive requests consume physical
+devices directly. NVIDIA MIG and time-slicing require a digest-addressed measurement
+record; configuration alone never makes sharing valid.
+
+Simulation View selects Frames MCP, its provider-neutral MCP server, the canonical
+runtime support component, and one renderer GPU. A profile that also places an external
+simulator on an ordinary one-GPU node with both workloads marked exclusive fails during
+pure profile resolution.

@@ -115,6 +115,7 @@ is the browser edition of the harness document.
 | `testing/` | conformance tooling and multi-process smoke harnesses |
 | `sdk/` | language SDK workspaces |
 | `deploy/helm/veoveo/` | Kubernetes installation chart, chart-owned first-party service definitions, and typed component/server presets |
+| `deploy/helm/veoveo/templates/simulation-view.yaml` | independently selected Simulation View MCP plus co-located hardware Isaac renderer and mTLS pose ingress, bounded signaling/media Services, shared memory, artifacts, and GPU placement |
 | `deploy/helm/veoveo-extension/` | private reusable extension-chart helper API and immutable chart package source |
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
