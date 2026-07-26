@@ -400,7 +400,7 @@ The geospatial hard cut has three canonical servers:
 
 | Path | Responsibility |
 |---|---|
-| `servers/map-mcp` | Earth geography, governed authored GeoJSON/JSON-FG layers, source acquisition, release activation, DuckDB Spatial analytics, CRS and geodesic work, geofences, restrictions, Valhalla land routing, governed network routing, matrices, and reachable areas |
+| `servers/map-mcp` | Earth geography, complete immutable source features, governed COG rasters and derivations, authored GeoJSON/JSON-FG layers, source acquisition, release activation, DuckDB Spatial analytics, CRS and geodesic work, geofences, restrictions, Valhalla land routing, governed network routing, matrices, and reachable areas |
 | `servers/frames-mcp` | ECEF-rooted world trees, geodetic/static/dynamic transforms, immutable revisions, bounded coordinate conversion, durable batch work, operation provenance, artifacts, and usage |
 | `servers/view-mcp` | configured 3D scene layers, camera poses and target rigs, shared tile caching, NVIDIA-accelerated offscreen rendering, and frame resources |
 
@@ -421,6 +421,15 @@ durable execution and task-local staging. `assets/editor-app.html` is the MCP-on
 feature editor. The canonical SurrealDB schemas are
 `platform/store/migrations/0025_map_authoring.surql`
 and `platform/store/migrations/0026_map_authoring_products.surql`.
+
+Immutable acquisition products use a separate analytical path.
+`src/contract/source_products.rs` owns complete source-feature, raster-product,
+query, and derivation contracts. `src/release_products.rs` projects activated
+GeoJSON, GeoJSON Sequence, and raster metadata into DuckDB Spatial.
+`data/src/map_data/adapters/` owns bounded normalization, while
+`data/src/map_data/raster_ops.py` performs the controlled GDAL derivations.
+`src/raster.rs` supervises that helper and `src/server/tasks.rs` owns its
+durable artifact publication.
 
 ### Temporal Domain
 

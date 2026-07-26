@@ -145,6 +145,12 @@ async fn serve(args: Args) -> Result<()> {
         artifacts.clone(),
         products.clone(),
     )?);
+    let raster = crate::raster::RasterService::new(crate::raster::RasterServiceConfig {
+        python_executable: args.helper_python.clone(),
+        module: args.raster_helper_module.clone(),
+        maximum_output_bytes: args.max_artifact_bytes,
+        timeout: Duration::from_secs(args.raster_operation_timeout_seconds),
+    })?;
     let state = Arc::new(MapApplication {
         tasks,
         catalog: catalog.clone(),
@@ -152,6 +158,7 @@ async fn serve(args: Args) -> Result<()> {
         authoring,
         routes,
         geography: GeographyService::new(catalog, analytics.clone()),
+        raster,
         acquisitions,
         artifacts,
         products,

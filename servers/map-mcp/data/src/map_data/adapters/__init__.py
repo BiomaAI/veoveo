@@ -3,6 +3,7 @@ from map_data.adapters.authority import normalize_authority
 from map_data.adapters.gtfs import normalize_gtfs, normalize_gtfs_realtime
 from map_data.adapters.maritime import normalize_maritime
 from map_data.adapters.osm import normalize_osm
+from map_data.adapters.raster import normalize_environmental
 
 __all__ = [
     "normalize_aviation",
@@ -11,4 +12,5 @@ __all__ = [
     "normalize_gtfs_realtime",
     "normalize_maritime",
     "normalize_osm",
+    "normalize_environmental",
 ]

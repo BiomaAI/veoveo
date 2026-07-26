@@ -9,6 +9,7 @@ from map_data.adapters import (
     normalize_authority,
     normalize_gtfs,
     normalize_gtfs_realtime,
+    normalize_environmental,
     normalize_maritime,
     normalize_osm,
 )
@@ -24,7 +25,7 @@ ADAPTERS = {
     "s100": normalize_maritime,
     "aixm": normalize_aviation,
     "faa_nasr": normalize_aviation,
-    "environmental": normalize_authority,
+    "environmental": normalize_environmental,
 }
 
 
