@@ -5,6 +5,9 @@
 //! shared artifact and usage contract types, and the small provider trait that
 //! normalizes catalog and prediction behavior.
 
+/// Canonical Veoveo hosted MCP server contract revision.
+pub const HOSTED_MCP_CONTRACT_REVISION: &str = "veoveo.io/hosted-mcp/v1";
+
 pub mod access;
 #[cfg(feature = "analytics")]
 pub mod analytics;

@@ -1,0 +1,239 @@
+- name: artifact-mcp
+  image:
+    repository: veoveo/artifact-mcp
+    tag: 0.1.0
+    digest: ""
+  port: 8794
+  healthPath: /artifact/healthz
+  args:
+    - --port
+    - "8794"
+    - --allowed-host
+    - artifact-mcp:8794
+    - --artifact-service-url
+    - http://artifact-service:8790
+- name: media-mcp
+  image:
+    repository: veoveo/media-mcp
+    tag: 0.1.0
+    digest: ""
+  port: 8787
+  healthPath: /media/healthz
+  args:
+    - --port
+    - "8787"
+    - --allowed-host
+    - media-mcp:8787
+    - --artifact-service-url
+    - http://artifact-service:8790
+- name: timeseries-mcp
+  image:
+    repository: veoveo/timeseries-mcp
+    tag: 0.1.0
+    digest: ""
+  port: 8789
+  healthPath: /timeseries/healthz
+  args:
+    - --port
+    - "8789"
+    - --allowed-host
+    - timeseries-mcp:8789
+    - --artifact-service-url
+    - http://artifact-service:8790
+    - --max-artifact-bytes
+    - "536870912"
+- name: optimization-mcp
+  image:
+    repository: veoveo/optimization-mcp
+    tag: 0.1.0
+    digest: ""
+  port: 8792
+  healthPath: /optimization/healthz
+  args:
+    - --port
+    - "8792"
+    - --allowed-host
+    - optimization-mcp:8792
+    - --artifact-service-url
+    - http://artifact-service:8790
+- name: frames-mcp
+  image:
+    repository: veoveo/frames-mcp
+    tag: 0.1.0
+    digest: ""
+  port: 8793
+  healthPath: /frames/healthz
+  args:
+    - serve
+    - --port
+    - "8793"
+    - --allowed-host
+    - frames-mcp:8793
+    - --artifact-service-url
+    - http://artifact-service:8790
+    - --max-artifact-bytes
+    - "67108864"
+- name: map-mcp
+  startupProbe:
+    failureThreshold: 60
+    periodSeconds: 5
+    timeoutSeconds: 3
+  image:
+    repository: veoveo/map-mcp
+    tag: 0.1.0
+    digest: ""
+  port: 8799
+  healthPath: /map/healthz
+  args:
+    - serve
+    - --port
+    - "8799"
+    - --allowed-host
+    - map-mcp:8799
+    - --artifact-service-url
+    - http://artifact-service:8790
+    - --map-database
+    - /var/lib/veoveo/map/catalog.duckdb
+    - --duckdb-spill-dir
+    - /var/lib/veoveo/map/spill
+    - --acquisition-scratch-root
+    - /var/lib/veoveo/map/acquisitions
+    - --authoring-task-root
+    - /var/lib/veoveo/map/authoring-tasks
+    - --release-root
+    - /var/lib/veoveo/map/releases
+    - --source-mount-root
+    - /data/map-sources
+    - --max-artifact-bytes
+    - "536870912"
+    - --max-routing-expanded-bytes
+    - "17179869184"
+  persistenceMountPath: /var/lib/veoveo/map
+  sourceExchangeClaim: ""
+  sourceSecretName: ""
+  persistence:
+    size: 100Gi
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+- name: time-mcp
+  image:
+    repository: veoveo/time-mcp
+    tag: 0.1.0
+    digest: ""
+  port: 8800
+  healthPath: /time/healthz
+  args:
+    - --port
+    - "8800"
+    - --allowed-host
+    - time-mcp:8800
+    - --acquisition-scratch-root
+    - /var/lib/veoveo/time/acquisitions
+    - --release-root
+    - /var/lib/veoveo/time/releases
+  persistenceMountPath: /var/lib/veoveo/time
+  persistence:
+    size: 10Gi
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+- name: view-mcp
+  runtimeClassName: nvidia
+  image:
+    repository: veoveo/view-mcp
+    tag: 0.1.0
+    digest: ""
+  port: 8801
+  healthPath: /view/readyz
+  args:
+    - --port
+    - "8801"
+    - --allowed-host
+    - view-mcp:8801
+    - --layer-catalog
+    - /etc/veoveo/view/layers.json
+  resources:
+    requests:
+      cpu: "1"
+      memory: 4Gi
+      nvidia.com/gpu: "1"
+    limits:
+      cpu: "8"
+      memory: 16Gi
+      nvidia.com/gpu: "1"
+- name: datasheet-mcp
+  image:
+    repository: veoveo/datasheet-mcp
+    tag: 0.1.0
+    digest: ""
+  port: 8798
+  healthPath: /datasheet/healthz
+  args:
+    - --port
+    - "8798"
+    - --allowed-host
+    - datasheet-mcp:8798
+    - --artifact-service-url
+    - http://artifact-service:8790
+- name: duckdb-mcp
+  image:
+    repository: veoveo/duckdb-mcp
+    tag: 0.1.0
+    digest: ""
+  port: 8791
+  healthPath: /duckdb/healthz
+  args:
+    - --port
+    - "8791"
+    - --allowed-host
+    - duckdb-mcp:8791
+    - --database-dir
+    - /var/lib/veoveo/duckdb/databases
+    - --exchange-dir
+    - /var/lib/veoveo/duckdb/exchange
+    - --spill-dir
+    - /var/lib/veoveo/duckdb/spill
+    - --spatial-extension
+    - /usr/local/lib/duckdb/extensions/spatial.duckdb_extension
+    - --artifact-service-url
+    - http://artifact-service:8790
+    - --max-artifact-bytes
+    - "536870912"
+  duckdbSandbox: true
+  persistence:
+    size: 20Gi
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+- name: chart-mcp
+  image:
+    repository: veoveo/chart-mcp
+    tag: 0.1.0
+    digest: ""
+  port: 8795
+  healthPath: /health
+  platformStore: false
+  args:
+    - --host
+    - 0.0.0.0
+    - --port
+    - "8795"
+    - --path
+    - /mcp
+    - --allowed-hosts
+    - chart-mcp:8795
+    - --disable-file-reference
+- name: rerun-bridge
+  image:
+    repository: veoveo/mcp-stdio-bridge
+    tag: 0.1.0
+    digest: ""
+  port: 8790
+  healthPath: /healthz
+  platformStore: false
+  args:
+    - --listen
+    - 0.0.0.0:8790
+    - --allowed-host
+    - rerun-bridge:8790
+    - --
+    - rerun
+    - viewer-mcp

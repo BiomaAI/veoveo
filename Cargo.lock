@@ -10600,8 +10600,11 @@ name = "veoveo-deploy-contract"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "jsonschema",
+ "schemars",
  "serde",
  "serde_json",
+ "url",
 ]
 
 [[package]]
@@ -11525,6 +11528,8 @@ dependencies = [
  "url",
  "veoveo-deploy-contract",
  "veoveo-extension-contract",
+ "veoveo-mcp-conformance",
+ "veoveo-mcp-contract",
 ]
 
 [[package]]

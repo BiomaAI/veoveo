@@ -21,4 +21,14 @@ impl RepositoryContext {
     pub(crate) fn root(&self) -> &Path {
         &self.root
     }
+
+    pub(crate) fn origin(&self) -> Result<String> {
+        let origin = process::output_text(
+            "git",
+            ["config", "--get", "remote.origin.url"],
+            Some(&self.root),
+        )
+        .context("reading repository origin")?;
+        crate::commands::source::normalize_origin(origin.trim())
+    }
 }

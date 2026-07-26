@@ -69,6 +69,8 @@ enum ReleaseCommand {
     PythonSdk(ReleasePythonSdkArgs),
     /// Build, verify, and optionally publish the private Helm chart set.
     HelmCharts(ReleaseHelmChartsArgs),
+    /// Generate one compatibility release from immutable publication evidence.
+    Compatibility(ReleaseCompatibilityArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -115,9 +117,12 @@ enum PlanFormat {
 
 #[derive(Debug, Args)]
 struct ReleaseImagesArgs {
-    /// Deployment profile path, interpreted inside the selected revision.
+    /// Deployment profile path, interpreted inside the selected profile revision.
     #[arg(long, conflicts_with_all = ["target", "group", "registry"])]
     profile: Option<PathBuf>,
+    /// Exact configuration-repository revision containing the deployment profile.
+    #[arg(long, requires = "profile", conflicts_with = "revision")]
+    profile_revision: Option<String>,
     /// One Docker Bake image target.
     #[arg(long, conflicts_with_all = ["profile", "group"])]
     target: Option<String>,
@@ -127,9 +132,15 @@ struct ReleaseImagesArgs {
     /// OCI registry for a direct target or group release.
     #[arg(long)]
     registry: Option<String>,
-    /// Exact Git revision or ref to resolve.
+    /// Exact source revision for a direct target or group release.
     #[arg(long)]
-    revision: String,
+    revision: Option<String>,
+    /// Immutable deployment lock output for a profile release.
+    #[arg(long, requires = "profile")]
+    lock_output: Option<PathBuf>,
+    /// Immutable image release evidence output for a direct release.
+    #[arg(long, conflicts_with = "profile")]
+    evidence_output: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -170,6 +181,34 @@ struct ReleaseHelmChartsArgs {
     plain_http: bool,
 }
 
+#[derive(Debug, Args)]
+struct ReleaseCompatibilityArgs {
+    /// Exact Veoveo source revision that owns the compatibility release.
+    #[arg(long)]
+    revision: String,
+    /// Semantic compatibility release identity.
+    #[arg(long)]
+    release: String,
+    /// Semantic Veoveo platform version.
+    #[arg(long)]
+    platform_version: String,
+    /// Python SDK release-evidence JSON.
+    #[arg(long)]
+    python_evidence: PathBuf,
+    /// Credential-free private Python artifact base using python://.
+    #[arg(long)]
+    python_artifact_base: String,
+    /// OCI Helm release-evidence JSON.
+    #[arg(long)]
+    helm_evidence: PathBuf,
+    /// Extension-support image release-evidence JSON.
+    #[arg(long)]
+    image_evidence: PathBuf,
+    /// Revision-addressed compatibility release output parent.
+    #[arg(long, default_value = "output/releases/compatibility")]
+    output_dir: PathBuf,
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let repository = RepositoryContext::discover(&PathBuf::from("."))?;
@@ -194,6 +233,7 @@ fn main() -> Result<()> {
             ReleaseCommand::Images(args) => release::images(&repository, &args),
             ReleaseCommand::PythonSdk(args) => release::python_sdk(&repository, &args),
             ReleaseCommand::HelmCharts(args) => release::helm_charts(&repository, &args),
+            ReleaseCommand::Compatibility(args) => release::compatibility(&repository, &args),
         },
     }
 }

@@ -13,6 +13,20 @@ Separately installed extension releases use the same
 impersonate this chart's Helm release. `global.production=true` requires an immutable
 digest for every rendered Veoveo-owned image.
 
+`installationPreset` owns the first-party deployment graph. `full` selects the
+supported complete surface, `extension-foundation` selects the platform foundation
+with Artifact MCP, Frames MCP, and Recording MCP, and `custom` consumes the typed
+`components` and `mcpServers` arrays. The chart owns the concrete image, port, probe,
+argument, storage, and GPU definitions for every first-party server under
+`definitions/domain-services.yaml`; an installation selects server identities instead
+of reproducing internal workload records.
+
+The Rust deployment resolver applies the same dependency graph before rendering. A
+selected hosted server requires the gateway. Artifact-backed servers require the
+platform store, object store, and artifact service. Perception and Reason require
+Recording. Gateway composition requirements for Artifact, Frames, Map, Media,
+Recording, and RRD fail when their corresponding runtime is absent.
+
 The recording workload is one pod with Recording Hub and the governed MCP
 server sharing `recording.persistence`. The `recording-hub` ClusterIP carries
 only the authenticated gateway API on port 9878. Hub's native Rerun receiver

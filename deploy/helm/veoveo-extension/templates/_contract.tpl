@@ -47,7 +47,8 @@ app.kubernetes.io/part-of: veoveo
 {{- $registry := trimSuffix "/" (default "" .registry) -}}
 {{- $repository := required "image.repository is required" $image.repository -}}
 {{- if $registry -}}{{- $repository = printf "%s/%s" $registry $repository -}}{{- end -}}
-{{- $digest := default "" $image.digest -}}
+{{- $lockedDigest := get (default dict .imageDigests) $image.repository | default "" -}}
+{{- $digest := default $lockedDigest $image.digest -}}
 {{- if and (default false .production) (not $digest) -}}
 {{- fail (printf "production requires an immutable digest for %s" $repository) -}}
 {{- end -}}
@@ -57,7 +58,8 @@ app.kubernetes.io/part-of: veoveo
 {{- end -}}
 {{- printf "%s@%s" $repository $digest -}}
 {{- else -}}
-{{- printf "%s:%s" $repository (required "image.tag is required outside production" $image.tag) -}}
+{{- $tag := default $image.tag .sourceTag -}}
+{{- printf "%s:%s" $repository (required "image.tag or sourceTag is required outside production" $tag) -}}
 {{- end -}}
 {{- end -}}
 

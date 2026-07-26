@@ -1,4 +1,5 @@
 pub(crate) mod builder;
+pub(crate) mod compatibility;
 pub(crate) mod doctor;
 pub(crate) mod enforce;
 pub(crate) mod helm;

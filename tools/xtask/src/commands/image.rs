@@ -175,6 +175,22 @@ pub(crate) struct PreparedPlan {
     override_file: NamedTempFile,
 }
 
+impl PreparedPlan {
+    pub(crate) fn image_references(&self) -> Vec<(String, String)> {
+        self.plan
+            .targets
+            .iter()
+            .flat_map(|target| {
+                target
+                    .tags
+                    .iter()
+                    .cloned()
+                    .map(|tag| (target.name.clone(), tag))
+            })
+            .collect()
+    }
+}
+
 pub(crate) struct EvidenceRun {
     operation: String,
     directory: PathBuf,
