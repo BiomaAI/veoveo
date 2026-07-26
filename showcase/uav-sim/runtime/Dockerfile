@@ -1,9 +1,9 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.25.0@sha256:0adf442eae370b6087e08edc7c50b552d80ddf261576f4ebd6421006b2461f12
 ARG TARGETPLATFORM=linux/amd64
 ARG PX4_BUILDER_IMAGE=px4io/px4-dev:v1.17.0@sha256:82e3ddcf4bf3fa4dbc0be6489c6de4158d0efbc8530182c691184302027335ce
 ARG SIMULATION_RUNTIME_IMAGE=veoveo/simulation-runtime:2026.07.0
 
-FROM --platform=${TARGETPLATFORM} ${PX4_BUILDER_IMAGE} AS upstream
+FROM --platform=${TARGETPLATFORM} ${PX4_BUILDER_IMAGE} AS uav-upstream
 
 ARG PX4_COMMIT=d6f12ad1c4f70ad3230afd7d86e971421e02fef4
 ARG PEGASUS_COMMIT=644da37e9d5268e5f9a34e78bdcfd57a8bab82b4
@@ -36,7 +36,7 @@ RUN curl --fail --location --show-error \
 COPY patches/cesium-0.29.0-preinstalled-vendor.patch /tmp/cesium.patch
 RUN patch --directory=/src/cesium --strip=1 < /tmp/cesium.patch
 
-FROM --platform=${TARGETPLATFORM} ${SIMULATION_RUNTIME_IMAGE} AS runtime
+FROM --platform=${TARGETPLATFORM} ${SIMULATION_RUNTIME_IMAGE} AS uav-overlay
 
 ARG RERUN_SDK_VERSION=0.35.0
 ARG AIOHAPPYEYEBALLS_VERSION=2.7.1
@@ -48,15 +48,17 @@ ARG FROZENLIST_VERSION=1.8.0
 ARG IDNA_VERSION=3.18
 ARG PYMAVLINK_VERSION=2.4.49
 ARG PYYAML_VERSION=6.0.3
+ARG TOML_VERSION=0.10.2
+ARG TYPING_EXTENSIONS_VERSION=4.16.0
 ARG YARL_VERSION=1.24.2
 ARG MULTIDICT_VERSION=6.7.1
 ARG PROPCACHE_VERSION=0.5.2
+ARG PSUTIL_VERSION=7.2.2
 ARG PYARROW_VERSION=25.0.0
 ARG FASTCRC_VERSION=0.3.6
-ARG SOURCE_REVISION=local
 
 USER root
-COPY --from=upstream --chown=10001:10001 /src/cesium/ /opt/veoveo/extensions/
+COPY --from=uav-upstream --chown=10001:10001 /src/cesium/ /opt/veoveo/extensions/
 RUN /isaac-sim/python.sh -m pip install \
       --disable-pip-version-check \
       --no-cache-dir \
@@ -72,28 +74,37 @@ RUN /isaac-sim/python.sh -m pip install \
       "idna==${IDNA_VERSION}" \
       "multidict==${MULTIDICT_VERSION}" \
       "propcache==${PROPCACHE_VERSION}" \
+      "psutil==${PSUTIL_VERSION}" \
       "pyarrow==${PYARROW_VERSION}" \
       "pymavlink==${PYMAVLINK_VERSION}" \
       "PyYAML==${PYYAML_VERSION}" \
       "rerun-sdk==${RERUN_SDK_VERSION}" \
+      "toml==${TOML_VERSION}" \
+      "typing-extensions==${TYPING_EXTENSIONS_VERSION}" \
       "yarl==${YARL_VERSION}" \
       /opt/veoveo/extensions/cesium.omniverse/vendor/lxml-6.0.2-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl \
     && chown -R 10001:10001 /opt/veoveo/uav-python
 
-COPY --from=upstream --chown=10001:10001 /src/pegasus/extensions/pegasus.simulator/ /opt/veoveo/extensions/pegasus.simulator/
-COPY --from=upstream --chown=10001:10001 /src/px4/ /opt/veoveo/px4/
-COPY --chown=10001:10001 veoveo_uav_sim/ /opt/veoveo/uav-sim/veoveo_uav_sim/
-COPY --chown=10001:10001 --chmod=0555 entrypoint.py /opt/veoveo/uav-sim/entrypoint.py
-
-LABEL org.opencontainers.image.revision="${SOURCE_REVISION}" \
-      veoveo.io/simulation-runtime-profile="isaac-6.0.1-lab-3.0.0-beta2.patch1-warp-1.15.0-newton-1.4.0"
+COPY --from=uav-upstream --chown=10001:10001 /src/pegasus/extensions/pegasus.simulator/ /opt/veoveo/extensions/pegasus.simulator/
+COPY --from=uav-upstream --chown=10001:10001 /src/px4/ /opt/veoveo/px4/
 
 ENV MAVLINK20=1 \
-    PYTHONPATH=/opt/veoveo/uav-sim:/opt/veoveo/uav-python:/isaac-sim/extscache/omni.warp.core-1.13.0+lx64:/isaac-sim/exts/isaacsim.pip.newton/pip_prebundle:/opt/veoveo/python:/opt/veoveo/isaaclab/source/isaaclab:/opt/veoveo/isaaclab/source/isaaclab_newton:/opt/veoveo/isaaclab/source/isaaclab_physx:/opt/veoveo/isaaclab/source/isaaclab_ov:/opt/veoveo/isaaclab/source/isaaclab_ovphysx \
+    PYTHONPATH=/opt/veoveo/uav-sim:/opt/veoveo/uav-python:/opt/veoveo/simulation-overlay:/opt/veoveo/simulation-base:/isaac-sim/extscache/omni.warp.core-1.13.0+lx64:/isaac-sim/exts/isaacsim.pip.newton/pip_prebundle:/opt/veoveo/python:/opt/veoveo/isaaclab/source/isaaclab:/opt/veoveo/isaaclab/source/isaaclab_newton:/opt/veoveo/isaaclab/source/isaaclab_physx:/opt/veoveo/isaaclab/source/isaaclab_ov:/opt/veoveo/isaaclab/source/isaaclab_ovphysx \
     UAV_SIM_EXTENSION_DIRECTORY=/opt/veoveo/extensions \
     UAV_SIM_PX4_DIRECTORY=/opt/veoveo/px4
 
 EXPOSE 8810
 USER 10001:10001
+
+FROM uav-overlay AS runtime
+
+ARG SOURCE_REVISION=local
+LABEL org.opencontainers.image.revision="${SOURCE_REVISION}" \
+      io.veoveo.simulation.overlay="first_party_uav" \
+      io.veoveo.simulation.base-lock="sha256:a4d6870c0c748ea1804feb06c24decf11c4d05ff154ae0fb0811e9073816545c"
+
+COPY --chown=10001:10001 veoveo_uav_sim/ /opt/veoveo/uav-sim/veoveo_uav_sim/
+COPY --chown=10001:10001 --chmod=0555 entrypoint.py /opt/veoveo/uav-sim/entrypoint.py
+COPY --chown=10001:10001 uav-overlay.identity.json /opt/veoveo/simulation-overlay/identity.json
 
 ENTRYPOINT ["/isaac-sim/python.sh", "/opt/veoveo/uav-sim/entrypoint.py"]

@@ -8,6 +8,7 @@ mod compatibility;
 mod ids;
 mod release;
 mod schema;
+mod simulation;
 
 pub use artifact::{
     ArtifactDescriptor, ArtifactKind, ArtifactPlatform, CpuArchitecture, OperatingSystem,
@@ -25,7 +26,19 @@ pub use release::{
     EXTENSION_RELEASE_SCHEMA, ExtensionReleaseManifest, ExtensionReleaseSchema, ExtensionSource,
     SimulationOverlayRequirement,
 };
-pub use schema::{compatibility_manifest_schema, extension_release_schema};
+pub use schema::{
+    compatibility_manifest_schema, extension_release_schema, simulation_conformance_result_schema,
+    simulation_runtime_build_lock_schema, simulation_runtime_release_evidence_schema,
+};
+pub use simulation::{
+    NvidiaDriverCapability, PythonDistributionInput, SIMULATION_CONFORMANCE_RESULT_SCHEMA,
+    SIMULATION_RUNTIME_BUILD_LOCK_SCHEMA, SIMULATION_RUNTIME_RELEASE_EVIDENCE_SCHEMA,
+    SimulationAttestationEvidence, SimulationConformanceResult, SimulationConformanceResultSchema,
+    SimulationGpuRequirement, SimulationHardwareEvidence, SimulationOverlayKind,
+    SimulationProbeKind, SimulationProbeResult, SimulationRuntimeBuildLock,
+    SimulationRuntimeBuildLockSchema, SimulationRuntimeReleaseEvidence,
+    SimulationRuntimeReleaseEvidenceSchema, SimulationSourceInput,
+};
 
 use thiserror::Error;
 
@@ -65,6 +78,14 @@ pub enum ExtensionContractError {
     Empty {
         /// Empty field.
         field: &'static str,
+    },
+    /// A canonical runtime tuple differs from the required component set.
+    #[error("simulation runtime component set differs: expected {expected:?}, received {actual:?}")]
+    RuntimeComponents {
+        /// Required components.
+        expected: std::collections::BTreeSet<RuntimeComponent>,
+        /// Supplied components.
+        actual: std::collections::BTreeSet<RuntimeComponent>,
     },
 }
 

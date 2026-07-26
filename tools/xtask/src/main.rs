@@ -69,6 +69,8 @@ enum ReleaseCommand {
     PythonSdk(ReleasePythonSdkArgs),
     /// Build, verify, and optionally publish the private Helm chart set.
     HelmCharts(ReleaseHelmChartsArgs),
+    /// Publish paired hardware evidence for the canonical simulation runtime.
+    SimulationRuntime(ReleaseSimulationRuntimeArgs),
     /// Generate one compatibility release from immutable publication evidence.
     Compatibility(ReleaseCompatibilityArgs),
 }
@@ -182,6 +184,28 @@ struct ReleaseHelmChartsArgs {
 }
 
 #[derive(Debug, Args)]
+struct ReleaseSimulationRuntimeArgs {
+    /// Exact Veoveo source revision that produced both certified overlays.
+    #[arg(long)]
+    revision: String,
+    /// Semantic simulation-runtime release version.
+    #[arg(long)]
+    version: String,
+    /// Private OCI registry host and repository prefix, without oci://.
+    #[arg(long)]
+    registry: String,
+    /// Hardware result for the existing first-party UAV overlay.
+    #[arg(long)]
+    first_party_result: PathBuf,
+    /// Hardware result for the repository-neutral external overlay fixture.
+    #[arg(long)]
+    anonymous_result: PathBuf,
+    /// Parent directory for revision- and version-addressed release bundles.
+    #[arg(long, default_value = "output/releases/simulation-runtime")]
+    output_dir: PathBuf,
+}
+
+#[derive(Debug, Args)]
 struct ReleaseCompatibilityArgs {
     /// Exact Veoveo source revision that owns the compatibility release.
     #[arg(long)]
@@ -204,6 +228,9 @@ struct ReleaseCompatibilityArgs {
     /// Extension-support image release-evidence JSON.
     #[arg(long)]
     image_evidence: PathBuf,
+    /// Optional published simulation-runtime release evidence.
+    #[arg(long)]
+    simulation_evidence: Option<PathBuf>,
     /// Revision-addressed compatibility release output parent.
     #[arg(long, default_value = "output/releases/compatibility")]
     output_dir: PathBuf,
@@ -233,6 +260,9 @@ fn main() -> Result<()> {
             ReleaseCommand::Images(args) => release::images(&repository, &args),
             ReleaseCommand::PythonSdk(args) => release::python_sdk(&repository, &args),
             ReleaseCommand::HelmCharts(args) => release::helm_charts(&repository, &args),
+            ReleaseCommand::SimulationRuntime(args) => {
+                release::simulation_runtime(&repository, &args)
+            }
             ReleaseCommand::Compatibility(args) => release::compatibility(&repository, &args),
         },
     }

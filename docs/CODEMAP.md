@@ -459,7 +459,7 @@ Simulation runtime ownership:
 | Path | Responsibility |
 |---|---|
 | `platform/runtimes/simulation/Dockerfile` | canonical Isaac Sim, Isaac Lab, Warp, Newton, MuJoCo, RTX streaming, and non-root runtime image |
-| `platform/runtimes/simulation/dependencies.lock.json` | exact compatibility identity, source revisions, artifacts, and driver floor |
+| `platform/runtimes/simulation/simulation-runtime.lock.json` | typed exact compatibility identity, source revisions, immutable components, GPU boundary, and driver floor |
 | `platform/runtimes/simulation/requirements.lock` | hash-locked Python dependency closure for the selected Isaac Lab profile |
 | `platform/runtimes/simulation/probes/` | import-identity and hardware-GPU conformance evidence |
 

@@ -84,7 +84,7 @@ Isaac Sim driver `595.58.03`.
 
 ## Build And Publication
 
-`dependencies.lock.json` is the tuple authority. `requirements.lock` is a generated,
+`simulation-runtime.lock.json` is the tuple authority. `requirements.lock` is a generated,
 hash-complete CPython 3.12 dependency lock for the supported Isaac Lab subset. The
 Dockerfile checks every independently downloaded archive and wheel before installation.
 

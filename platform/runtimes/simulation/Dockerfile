@@ -114,6 +114,8 @@ RUN curl --fail --location --show-error \
       --directory /opt/veoveo/isaaclab \
       --strip-components=1 \
     && test "$(cat /opt/veoveo/isaaclab/VERSION)" = "3.0.0" \
+    && printf '%s\n' "${ISAAC_LAB_REVISION}" \
+      > /opt/veoveo/isaaclab/.veoveo-source-revision \
     && ln -s /isaac-sim /opt/veoveo/isaaclab/_isaac_sim \
     && rm /tmp/isaaclab.tar.gz
 
@@ -158,13 +160,19 @@ RUN groupadd --gid 10001 veoveo \
       /var/lib/veoveo \
     && chmod 0755 /isaac-sim
 
-COPY dependencies.lock.json /opt/veoveo/simulation-runtime/dependencies.lock.json
 COPY --chmod=0555 probes/ /opt/veoveo/simulation-runtime/probes/
+COPY simulation-runtime.lock.json /opt/veoveo/simulation-base/simulation-runtime.lock.json
+COPY veoveo_simulation_base/ /opt/veoveo/simulation-base/veoveo_simulation_base/
+RUN echo "a4d6870c0c748ea1804feb06c24decf11c4d05ff154ae0fb0811e9073816545c  /opt/veoveo/simulation-base/simulation-runtime.lock.json" \
+      | sha256sum --check --strict \
+    && printf '%s\n' \
+      "a4d6870c0c748ea1804feb06c24decf11c4d05ff154ae0fb0811e9073816545c" \
+      > /opt/veoveo/simulation-base/simulation-runtime.lock.sha256
 
 ENV ACCEPT_EULA=Y \
     HOME=/var/lib/veoveo \
     ISAACLAB_PATH=/opt/veoveo/isaaclab \
-    PYTHONPATH=/isaac-sim/extscache/omni.warp.core-1.13.0+lx64:/isaac-sim/exts/isaacsim.pip.newton/pip_prebundle:/opt/veoveo/python:/opt/veoveo/isaaclab/source/isaaclab:/opt/veoveo/isaaclab/source/isaaclab_newton:/opt/veoveo/isaaclab/source/isaaclab_physx:/opt/veoveo/isaaclab/source/isaaclab_ov:/opt/veoveo/isaaclab/source/isaaclab_ovphysx \
+    PYTHONPATH=/isaac-sim/extscache/omni.warp.core-1.13.0+lx64:/isaac-sim/exts/isaacsim.pip.newton/pip_prebundle:/opt/veoveo/simulation-base:/opt/veoveo/python:/opt/veoveo/isaaclab/source/isaaclab:/opt/veoveo/isaaclab/source/isaaclab_newton:/opt/veoveo/isaaclab/source/isaaclab_physx:/opt/veoveo/isaaclab/source/isaaclab_ov:/opt/veoveo/isaaclab/source/isaaclab_ovphysx \
     VEOVEO_SIMULATION_RUNTIME_PROFILE=isaac-6.0.1-lab-3.0.0-beta2.patch1-warp-1.15.0-newton-1.4.0 \
     XDG_CACHE_HOME=/var/lib/veoveo/.cache \
     XDG_DATA_HOME=/var/lib/veoveo/.local/share

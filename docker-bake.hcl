@@ -80,6 +80,10 @@ group "simulation-runtime" {
   targets = ["simulation-runtime"]
 }
 
+group "showcase-uav-sim-overlay-acceptance" {
+  targets = ["uav-sim-runtime", "simulation-overlay-acceptance"]
+}
+
 group "extension-support" {
   targets = ["mcp-conformance", "gateway-composer"]
 }
@@ -479,6 +483,19 @@ target "uav-sim-runtime" {
   }
   args = {
     SIMULATION_RUNTIME_IMAGE = "simulation-runtime"
+  }
+}
+
+target "simulation-overlay-acceptance" {
+  context    = "testing/fixtures/simulation-overlay"
+  dockerfile = "Dockerfile"
+  platforms  = ["linux/amd64"]
+  tags       = [image_ref("simulation-overlay-acceptance")]
+  contexts = {
+    simulation-runtime = "target:simulation-runtime"
+  }
+  args = {
+    VEOVEO_SIMULATION_BASE = "simulation-runtime"
   }
 }
 
