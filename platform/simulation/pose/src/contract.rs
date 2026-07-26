@@ -1,5 +1,6 @@
 use std::{fmt, str::FromStr, time::Duration};
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -20,7 +21,9 @@ fn validate_id(value: &str) -> Result<(), PoseError> {
 
 macro_rules! id_type {
     ($name:ident) => {
-        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+        #[derive(
+            Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+        )]
         #[serde(try_from = "String", into = "String")]
         pub struct $name(String);
 
@@ -70,7 +73,7 @@ id_type!(SessionId);
 id_type!(EpochId);
 id_type!(EntityId);
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
 pub struct Sha256Digest(String);
 
@@ -132,7 +135,7 @@ fn hex_nibble(value: u8) -> u8 {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct FrameRevision {
     pub uri: String,
     pub digest: Sha256Digest,
@@ -147,20 +150,20 @@ impl FrameRevision {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum CoordinateConvention {
     EnuMetersFluXyzw,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct EnuPosition {
     pub east_m: f64,
     pub north_m: f64,
     pub up_m: f64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct QuaternionXyzw {
     pub x: f64,
     pub y: f64,
@@ -168,7 +171,7 @@ pub struct QuaternionXyzw {
     pub w: f64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct FluVelocity {
     pub forward_mps: f32,
     pub left_mps: f32,
@@ -178,7 +181,7 @@ pub struct FluVelocity {
     pub yaw_rps: f32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Rgba8 {
     pub red: u8,
     pub green: u8,
@@ -186,13 +189,13 @@ pub struct Rgba8 {
     pub alpha: u8,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct SemanticDisplayState {
     pub color: Rgba8,
     pub status_code: u16,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct EntityPose {
     pub entity_id: EntityId,
     pub position: EnuPosition,
@@ -255,7 +258,7 @@ impl EntityPose {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct PoseSnapshot {
     pub protocol_version: u16,
     pub session_id: SessionId,
