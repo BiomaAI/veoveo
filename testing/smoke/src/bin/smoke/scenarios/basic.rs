@@ -315,6 +315,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         "value: \"persistent\"",
         "name: XDG_CACHE_HOME",
         "/var/lib/veoveo/runtime-cache/isaac-6.0.1-cesium-0.29.0-v1",
+        "mountPath: /isaac-sim/kit/cache",
+        "mountPath: /isaac-sim/kit/data",
         "kind: PersistentVolumeClaim",
         "name: uav-sim-runtime-cache",
         "claimName: uav-sim-runtime-cache",
@@ -460,9 +462,13 @@ pub(crate) async fn helm_config() -> Result<()> {
     )?)?;
     ensure!(
         uav_dependencies
-            .pointer("/components/isaac_sim/version")
+            .pointer("/components/simulation_runtime/compatibility_release")
             .and_then(Value::as_str)
-            == Some("6.0.1")
+            == Some("2026.07.0")
+            && uav_dependencies
+                .pointer("/components/simulation_runtime/build_target")
+                .and_then(Value::as_str)
+                == Some("simulation-runtime")
             && uav_dependencies
                 .pointer("/components/cesium_for_omniverse/version")
                 .and_then(Value::as_str)
@@ -501,9 +507,68 @@ pub(crate) async fn helm_config() -> Result<()> {
                 == Some("0.35.0"),
         "UAV dependency lock omitted a canonical release or Google tiles identity"
     );
-    let uav_runtime_dockerfile = fs::read_to_string("showcase/uav-sim/runtime/Dockerfile")?;
+    let simulation_dependencies: Value = serde_json::from_str(&fs::read_to_string(
+        "platform/runtimes/simulation/dependencies.lock.json",
+    )?)?;
+    ensure!(
+        simulation_dependencies
+            .pointer("/schemaVersion")
+            .and_then(Value::as_str)
+            == Some("veoveo.io/simulation-runtime-lock/v1")
+            && simulation_dependencies
+                .pointer("/components/isaacSim/version")
+                .and_then(Value::as_str)
+                == Some("6.0.1")
+            && simulation_dependencies
+                .pointer("/components/isaacLab/version")
+                .and_then(Value::as_str)
+                == Some("v3.0.0-beta2.patch1")
+            && simulation_dependencies
+                .pointer("/components/warp/version")
+                .and_then(Value::as_str)
+                == Some("1.15.0")
+            && simulation_dependencies
+                .pointer("/components/newton/version")
+                .and_then(Value::as_str)
+                == Some("1.4.0")
+            && simulation_dependencies
+                .pointer("/platform/softwareRendering")
+                .and_then(Value::as_bool)
+                == Some(false)
+            && simulation_dependencies
+                .pointer("/platform/gpuCount")
+                .and_then(Value::as_u64)
+                == Some(1),
+        "simulation runtime dependency lock omitted its canonical GPU tuple"
+    );
+    let simulation_runtime_dockerfile =
+        fs::read_to_string("platform/runtimes/simulation/Dockerfile")?;
     for expected in [
         "nvcr.io/nvidia/isaac-sim:6.0.1@sha256:",
+        "ISAAC_LAB_REVISION=ffff603eafc6b74264a5261cc0183d6a65390d78",
+        "WARP_WHEEL_SHA256=95c169f28bd7d6c78ac4ad62e2df1e61a096033748f757157fa4551aed80d010",
+        "NEWTON_WHEEL_SHA256=0e11343cc51b86647d9afcd191a21ca4d0d5e410d84072a60ef84af908c72577",
+        "--require-hashes",
+        "sha256sum --check --strict",
+        "/isaac-sim/extscache/omni.warp.core-1.13.0+lx64",
+        "/isaac-sim/exts/isaacsim.pip.newton/pip_prebundle",
+        "VEOVEO_SIMULATION_RUNTIME_PROFILE=",
+        "USER 10001:10001",
+    ] {
+        contains(&simulation_runtime_dockerfile, expected)?;
+    }
+    for probe in [
+        "platform/runtimes/simulation/probes/identity.py",
+        "platform/runtimes/simulation/probes/gpu.py",
+    ] {
+        ensure!(
+            Path::new(probe).is_file(),
+            "missing simulation runtime probe {probe}"
+        );
+    }
+    let uav_runtime_dockerfile = fs::read_to_string("showcase/uav-sim/runtime/Dockerfile")?;
+    for expected in [
+        "ARG SIMULATION_RUNTIME_IMAGE=veoveo/simulation-runtime:2026.07.0",
         "px4io/px4-dev:v1.17.0@sha256:",
         "PX4_COMMIT=d6f12ad1c4f70ad3230afd7d86e971421e02fef4",
         "PEGASUS_COMMIT=644da37e9d5268e5f9a34e78bdcfd57a8bab82b4",
@@ -514,13 +579,15 @@ pub(crate) async fn helm_config() -> Result<()> {
         "git -C pegasus apply --unidiff-zero --check",
         "ARG RERUN_SDK_VERSION=0.35.0",
         "rerun-sdk==${RERUN_SDK_VERSION}",
-        "AS runtime-base",
-        "ARG UAV_SIM_BASE_IMAGE=veoveo/uav-sim-base:",
-        "FROM ${UAV_SIM_BASE_IMAGE} AS runtime",
+        "FROM --platform=${TARGETPLATFORM} ${SIMULATION_RUNTIME_IMAGE} AS runtime",
+        "veoveo.io/simulation-runtime-profile=",
         "org.opencontainers.image.revision=",
         "USER 10001:10001",
     ] {
         contains(&uav_runtime_dockerfile, expected)?;
+    }
+    for removed in ["UAV_SIM_BASE_IMAGE", "ISAAC_SIM_IMAGE", "AS runtime-base"] {
+        not_contains(&uav_runtime_dockerfile, removed)?;
     }
     contains(
         &fs::read_to_string("platform/recordings/hub/Dockerfile")?,
@@ -588,10 +655,10 @@ pub(crate) async fn helm_config() -> Result<()> {
         "group \"platform-full\"",
         "group \"showcase-sumo-base\"",
         "group \"showcase-sumo\"",
-        "group \"showcase-uav-sim-base\"",
+        "group \"simulation-runtime\"",
         "group \"showcase-uav-sim\"",
         "sumo-base = \"target:sumo-base\"",
-        "uav-sim-base = \"target:uav-sim-base\"",
+        "simulation-runtime = \"target:simulation-runtime\"",
         "veoveo-rust-artifacts = \"target:rust-trixie-artifacts\"",
         "veoveo-rust-artifacts = \"target:rust-bookworm-artifacts\"",
         "\"io.veoveo.build.mode\"",

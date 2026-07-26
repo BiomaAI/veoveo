@@ -1,0 +1,24 @@
+# Runtime dependencies required by the supported Isaac Lab core, renderer, and
+# frame-view subset. Warp, Newton, MuJoCo, and MuJoCo Warp are installed into
+# their authoritative Kit extension roots by the Dockerfile.
+torch==2.10.0
+numpy==2.3.1
+onnx>=1.18.0
+prettytable==3.3.0
+toml==0.10.2
+hidapi==0.14.0.post2
+gymnasium==1.2.1
+trimesh==4.11.1
+pyglet>=2.1.6,<3
+transformers==4.57.6
+einops
+matplotlib==3.10.8
+pillow==12.2.0
+botocore==1.40.61
+starlette==0.49.3
+packaging==26.0
+psutil==7.2.2
+filelock
+typing-extensions==4.12.2
+pydantic==2.11.10
+lazy-loader>=0.4

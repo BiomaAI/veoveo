@@ -75,7 +75,7 @@ CHART_VERSION=0.1.0-$(git rev-parse --short=12 HEAD)
 cargo xtask image builder ensure
 cargo xtask release images --group platform-full \
   --registry localhost:5001 --revision "$REVISION"
-cargo xtask release images --group showcase-uav-sim-base \
+cargo xtask release images --group simulation-runtime \
   --registry localhost:5001 --revision "$REVISION"
 cargo xtask release images --group showcase-uav-sim \
   --registry localhost:5001 --revision "$REVISION"

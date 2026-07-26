@@ -338,8 +338,8 @@ simulation foundation by carrying one exact compatible Isaac Sim, Isaac Lab, War
 Newton, MuJoCo, Kit/Python, CUDA, driver, and GPU contract. The build emits its input
 lock, digest, SBOM, provenance, and hardware conformance result.
 
-An isolated external compatibility experiment derived from the current immutable
-Veoveo `uav-sim-base` and proved this candidate tuple:
+An isolated external compatibility experiment derived from the immutable Isaac Sim
+image and established the tuple now owned by `platform/runtimes/simulation`:
 
 | Input | Provisional value |
 |---|---|
@@ -349,7 +349,7 @@ Veoveo `uav-sim-base` and proved this candidate tuple:
 | Newton | `1.4.0` |
 | MuJoCo | `3.10.0` |
 | MuJoCo Warp | `3.10.0.3` |
-| Isaac Lab | not yet installed; the candidate must pin the selected Isaac Sim 6.0.1-compatible release tag and full commit |
+| Isaac Lab | `v3.0.0-beta2.patch1` at `ffff603eafc6b74264a5261cc0183d6a65390d78` |
 
 The prototype establishes an implementation constraint. Isaac Sim registers bundled
 Warp and Newton payloads through Kit, so installing newer wheels in a separate virtual
