@@ -600,6 +600,7 @@ pub(crate) async fn helm_config() -> Result<()> {
     for expected in [
         "group \"platform-core\"",
         "group \"platform-full\"",
+        "group \"external-extension-platform\"",
         "group \"showcase-sumo-base\"",
         "group \"showcase-sumo\"",
         "group \"showcase-uav-sim-base\"",
