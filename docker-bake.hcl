@@ -76,8 +76,8 @@ group "showcase-uav-sim" {
   targets = ["uav-sim-runtime", "uav-sim-mcp"]
 }
 
-group "showcase-uav-sim-base" {
-  targets = ["uav-sim-base"]
+group "simulation-runtime" {
+  targets = ["simulation-runtime"]
 }
 
 group "extension-support" {
@@ -461,12 +461,11 @@ target "sumo-base" {
   tags       = [image_ref("sumo-base")]
 }
 
-target "uav-sim-base" {
-  context    = "showcase/uav-sim/runtime"
+target "simulation-runtime" {
+  context    = "platform/runtimes/simulation"
   dockerfile = "Dockerfile"
   platforms  = ["linux/amd64"]
-  target     = "runtime-base"
-  tags       = [image_ref("uav-sim-base")]
+  tags       = [image_ref("simulation-runtime")]
 }
 
 target "uav-sim-runtime" {
@@ -476,10 +475,10 @@ target "uav-sim-runtime" {
   target     = "runtime"
   tags       = [image_ref("uav-sim-runtime")]
   contexts = {
-    uav-sim-base = "target:uav-sim-base"
+    simulation-runtime = "target:simulation-runtime"
   }
   args = {
-    UAV_SIM_BASE_IMAGE = "uav-sim-base"
+    SIMULATION_RUNTIME_IMAGE = "simulation-runtime"
   }
 }
 

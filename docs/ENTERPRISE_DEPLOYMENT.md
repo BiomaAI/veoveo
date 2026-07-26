@@ -70,15 +70,15 @@ REVISION=$(git rev-parse HEAD)
 cargo xtask image builder ensure
 cargo xtask release images --group platform-full \
   --registry registry.example.com --revision "$REVISION"
-cargo xtask release images --group showcase-uav-sim-base \
+cargo xtask release images --group simulation-runtime \
   --registry registry.example.com --revision "$REVISION"
 cargo xtask release images --group showcase-uav-sim \
   --registry registry.example.com --revision "$REVISION"
 ~~~
 
-The UAV base is a separate publication phase because the runtime consumes it as a
-named build context. Independent targets within a phase remain eligible for concurrent
-BuildKit execution.
+The canonical simulation runtime is a separate publication phase because UAV and
+external simulator images consume it as a named build context. Independent targets
+within a phase remain eligible for concurrent BuildKit execution.
 
 ## Configuration repository
 

@@ -89,8 +89,12 @@ spec:
               mountPath: /dev/shm
             - name: runtime-cache
               mountPath: /var/lib/veoveo/runtime-cache
+            - name: runtime-cache
+              mountPath: /isaac-sim/kit/cache
             - name: runtime-data
               mountPath: /var/lib/veoveo/.local/share
+            - name: runtime-data
+              mountPath: /isaac-sim/kit/data
             - name: tmp
               mountPath: /tmp
         - name: uav-sim-mcp

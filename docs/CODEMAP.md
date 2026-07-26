@@ -45,6 +45,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP server contract: protocol surface, sessionful Streamable HTTP, notification ownership, singleton deployment identity, schema profile, packaging, well-known resources, and compliance |
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, and standalone distribution |
 | [`mcp/composer/DESIGN.md`](../mcp/composer/DESIGN.md) | offline external gateway fragment/binding composition, requirements, and deterministic provenance |
+| [`platform/runtimes/simulation/DESIGN.md`](../platform/runtimes/simulation/DESIGN.md) | canonical hardware-GPU Isaac Sim and Isaac Lab runtime, selected extension profile, and conformance probes |
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and bounded transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration |
@@ -448,6 +449,15 @@ DuckDB-specific ownership:
 | `servers/duckdb-mcp/src/engine.rs` | adapter from server results to the shared runtime |
 | `servers/duckdb-mcp/src/bin/server/ownership.rs` | derived owner workspaces and database resolution |
 | `servers/duckdb-mcp/src/bin/server/sql_ops.rs` | direct and task SQL operation contracts and interruption behavior |
+
+Simulation runtime ownership:
+
+| Path | Responsibility |
+|---|---|
+| `platform/runtimes/simulation/Dockerfile` | canonical Isaac Sim, Isaac Lab, Warp, Newton, MuJoCo, RTX streaming, and non-root runtime image |
+| `platform/runtimes/simulation/dependencies.lock.json` | exact compatibility identity, source revisions, artifacts, and driver floor |
+| `platform/runtimes/simulation/requirements.lock` | hash-locked Python dependency closure for the selected Isaac Lab profile |
+| `platform/runtimes/simulation/probes/` | import-identity and hardware-GPU conformance evidence |
 
 ## Recordings
 

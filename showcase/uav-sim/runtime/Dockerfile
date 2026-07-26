@@ -1,8 +1,7 @@
 # syntax=docker/dockerfile:1.7
 ARG TARGETPLATFORM=linux/amd64
 ARG PX4_BUILDER_IMAGE=px4io/px4-dev:v1.17.0@sha256:82e3ddcf4bf3fa4dbc0be6489c6de4158d0efbc8530182c691184302027335ce
-ARG ISAAC_SIM_IMAGE=nvcr.io/nvidia/isaac-sim:6.0.1@sha256:b1c542b2ecc549b3d1ebb78c25664aa3bacba1709e6ad8e0a68e09426d57dedb
-ARG UAV_SIM_BASE_IMAGE=veoveo/uav-sim-base:isaac-6.0.1-cesium-0.29.0-pegasus-5.1.0-px4-1.17.0
+ARG SIMULATION_RUNTIME_IMAGE=veoveo/simulation-runtime:2026.07.0
 
 FROM --platform=${TARGETPLATFORM} ${PX4_BUILDER_IMAGE} AS upstream
 
@@ -37,7 +36,7 @@ RUN curl --fail --location --show-error \
 COPY patches/cesium-0.29.0-preinstalled-vendor.patch /tmp/cesium.patch
 RUN patch --directory=/src/cesium --strip=1 < /tmp/cesium.patch
 
-FROM --platform=${TARGETPLATFORM} ${ISAAC_SIM_IMAGE} AS runtime-base
+FROM --platform=${TARGETPLATFORM} ${SIMULATION_RUNTIME_IMAGE} AS runtime
 
 ARG RERUN_SDK_VERSION=0.35.0
 ARG AIOHAPPYEYEBALLS_VERSION=2.7.1
@@ -49,40 +48,20 @@ ARG FROZENLIST_VERSION=1.8.0
 ARG IDNA_VERSION=3.18
 ARG PYMAVLINK_VERSION=2.4.49
 ARG PYYAML_VERSION=6.0.3
-ARG TOML_VERSION=0.10.2
-ARG TYPING_EXTENSIONS_VERSION=4.16.0
 ARG YARL_VERSION=1.24.2
 ARG MULTIDICT_VERSION=6.7.1
 ARG PROPCACHE_VERSION=0.5.2
-ARG PSUTIL_VERSION=7.2.2
 ARG PYARROW_VERSION=25.0.0
 ARG FASTCRC_VERSION=0.3.6
-ARG NVIDIA_LIVESTREAM_AOV_VERSION=10.2.0
-ARG NVIDIA_LIVESTREAM_AOV_BUILD=110.1.2.lx64.r.cp312
-ARG NVIDIA_LIVESTREAM_AOV_URL=https://d4i3qtqj3r0z5.cloudfront.net/omni.kit.livestream.aov-10.2.0%2B110.1.2.lx64.r.cp312.zip
-ARG NVIDIA_LIVESTREAM_AOV_SHA256=e842d29982283787b145f3a1f91210b4b16ecc9fbc7038e970ed4dc4bf482c49
-ARG NVIDIA_LIVESTREAM_AOV_CONFIG_SHA256=71081c9a5190fc4ed116e31a97fbdf54423e83834c736ce7883343d7676bfad4
+ARG SOURCE_REVISION=local
 
 USER root
-RUN curl --fail --location --show-error \
-      --output /tmp/omni.kit.livestream.aov.zip \
-      "${NVIDIA_LIVESTREAM_AOV_URL}" \
-    && echo "${NVIDIA_LIVESTREAM_AOV_SHA256}  /tmp/omni.kit.livestream.aov.zip" \
-      | sha256sum --check --strict \
-    && mkdir -p \
-      "/isaac-sim/extscache/omni.kit.livestream.aov-${NVIDIA_LIVESTREAM_AOV_VERSION}+${NVIDIA_LIVESTREAM_AOV_BUILD}" \
-    && unzip -q /tmp/omni.kit.livestream.aov.zip \
-      -d "/isaac-sim/extscache/omni.kit.livestream.aov-${NVIDIA_LIVESTREAM_AOV_VERSION}+${NVIDIA_LIVESTREAM_AOV_BUILD}" \
-    && config="/isaac-sim/extscache/omni.kit.livestream.aov-${NVIDIA_LIVESTREAM_AOV_VERSION}+${NVIDIA_LIVESTREAM_AOV_BUILD}/config/extension.toml" \
-    && echo "${NVIDIA_LIVESTREAM_AOV_CONFIG_SHA256}  ${config}" \
-      | sha256sum --check --strict \
-    && sed -i \
-      '/^# Default values for settings applied to the first spectator stream/,$d' \
-      "${config}" \
-    && ! grep -q 'spectatorStream' "${config}" \
-    && rm /tmp/omni.kit.livestream.aov.zip
 COPY --from=upstream --chown=10001:10001 /src/cesium/ /opt/veoveo/extensions/
-RUN /isaac-sim/python.sh -m pip install --no-cache-dir --no-deps \
+RUN /isaac-sim/python.sh -m pip install \
+      --disable-pip-version-check \
+      --no-cache-dir \
+      --no-deps \
+      --target /opt/veoveo/uav-python \
       "aiohappyeyeballs==${AIOHAPPYEYEBALLS_VERSION}" \
       "aiohttp==${AIOHTTP_VERSION}" \
       "aiosignal==${AIOSIGNAL_VERSION}" \
@@ -93,43 +72,28 @@ RUN /isaac-sim/python.sh -m pip install --no-cache-dir --no-deps \
       "idna==${IDNA_VERSION}" \
       "multidict==${MULTIDICT_VERSION}" \
       "propcache==${PROPCACHE_VERSION}" \
-      "psutil==${PSUTIL_VERSION}" \
       "pyarrow==${PYARROW_VERSION}" \
       "pymavlink==${PYMAVLINK_VERSION}" \
       "PyYAML==${PYYAML_VERSION}" \
       "rerun-sdk==${RERUN_SDK_VERSION}" \
-      "toml==${TOML_VERSION}" \
-      "typing-extensions==${TYPING_EXTENSIONS_VERSION}" \
       "yarl==${YARL_VERSION}" \
-      /opt/veoveo/extensions/cesium.omniverse/vendor/lxml-6.0.2-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl
+      /opt/veoveo/extensions/cesium.omniverse/vendor/lxml-6.0.2-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl \
+    && chown -R 10001:10001 /opt/veoveo/uav-python
 
 COPY --from=upstream --chown=10001:10001 /src/pegasus/extensions/pegasus.simulator/ /opt/veoveo/extensions/pegasus.simulator/
 COPY --from=upstream --chown=10001:10001 /src/px4/ /opt/veoveo/px4/
+COPY --chown=10001:10001 veoveo_uav_sim/ /opt/veoveo/uav-sim/veoveo_uav_sim/
+COPY --chown=10001:10001 --chmod=0555 entrypoint.py /opt/veoveo/uav-sim/entrypoint.py
 
-RUN groupadd --gid 10001 veoveo \
-    && useradd --uid 10001 --gid 10001 --create-home --home-dir /var/lib/veoveo veoveo \
-    && mkdir -p /var/lib/veoveo/.cache/ov /var/lib/veoveo/.local/share/ov /var/lib/veoveo/.nvidia-omniverse \
-    && chown -R 10001:10001 /var/lib/veoveo \
-    && chmod 0755 /isaac-sim
+LABEL org.opencontainers.image.revision="${SOURCE_REVISION}" \
+      veoveo.io/simulation-runtime-profile="isaac-6.0.1-lab-3.0.0-beta2.patch1-warp-1.15.0-newton-1.4.0"
 
-ENV ACCEPT_EULA=Y \
-    HOME=/var/lib/veoveo \
-    MAVLINK20=1 \
-    PYTHONPATH=/opt/veoveo/uav-sim \
+ENV MAVLINK20=1 \
+    PYTHONPATH=/opt/veoveo/uav-sim:/opt/veoveo/uav-python:/isaac-sim/extscache/omni.warp.core-1.13.0+lx64:/isaac-sim/exts/isaacsim.pip.newton/pip_prebundle:/opt/veoveo/python:/opt/veoveo/isaaclab/source/isaaclab:/opt/veoveo/isaaclab/source/isaaclab_newton:/opt/veoveo/isaaclab/source/isaaclab_physx:/opt/veoveo/isaaclab/source/isaaclab_ov:/opt/veoveo/isaaclab/source/isaaclab_ovphysx \
     UAV_SIM_EXTENSION_DIRECTORY=/opt/veoveo/extensions \
-    UAV_SIM_PX4_DIRECTORY=/opt/veoveo/px4 \
-    XDG_CACHE_HOME=/var/lib/veoveo/.cache \
-    XDG_DATA_HOME=/var/lib/veoveo/.local/share
+    UAV_SIM_PX4_DIRECTORY=/opt/veoveo/px4
 
 EXPOSE 8810
 USER 10001:10001
-
-FROM ${UAV_SIM_BASE_IMAGE} AS runtime
-
-ARG SOURCE_REVISION=local
-LABEL org.opencontainers.image.revision="${SOURCE_REVISION}"
-
-COPY --chown=10001:10001 veoveo_uav_sim/ /opt/veoveo/uav-sim/veoveo_uav_sim/
-COPY --chown=10001:10001 --chmod=0555 entrypoint.py /opt/veoveo/uav-sim/entrypoint.py
 
 ENTRYPOINT ["/isaac-sim/python.sh", "/opt/veoveo/uav-sim/entrypoint.py"]

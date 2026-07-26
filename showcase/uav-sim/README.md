@@ -9,7 +9,8 @@ encoded by NVIDIA NVENC.
 
 | Path | Responsibility |
 |---|---|
-| `runtime/` | Isaac Sim, Cesium for Omniverse, Pegasus, PX4, RTX cameras, NVIDIA WebRTC, the private adapter, and Rerun publication. |
+| `../../platform/runtimes/simulation/` | Canonical Isaac Sim, Isaac Lab, Warp, Newton, RTX camera, and NVIDIA streaming compatibility lineage. |
+| `runtime/` | Thin Cesium for Omniverse, Pegasus, PX4, private adapter, and Rerun overlay on the canonical simulation runtime. |
 | `deploy/helm/` | One GPU-required interactive simulator pod, authenticated signaling and media services, durable cache and forwarder queues, and network policy. |
 | `scenarios/` | Reusable frame-world trees and live acceptance parameters that remain outside the runtime image. |
 | `../../servers/uav-sim-mcp/` | Typed MCP tools, resources, tasks, subscriptions, prompts, stream leases, and the live App. |
