@@ -278,15 +278,33 @@ impl SimulationViewMcp {
     ) -> Result<CallToolResult, McpError> {
         let owner = require_owner(&context, "simulation-view:write")?;
         let session_id = request.session_id.clone();
-        let result = self
+        let mut result = self
             .state
             .service
             .create_camera(&owner, request)
             .map_err(service_error)?;
-        if let CameraAdmission::Admitted { camera } = &result {
-            if let Err(error) = self.state.runtimes.upsert_camera(camera).await {
-                self.state.service.fail_camera(&camera.camera_id);
-                return Err(runtime_error(error));
+        if let CameraAdmission::Admitted { camera } = &mut result {
+            let render_slot = self
+                .state
+                .service
+                .render_slot(&camera.camera_id)
+                .map_err(service_error)?;
+            match self.state.runtimes.upsert_camera(camera, render_slot).await {
+                Ok(status) if status.ready => {
+                    self.state.service.apply_camera_status(
+                        &camera.camera_id,
+                        status.last_pose_sequence,
+                        status.last_frame_at,
+                    );
+                    camera.health = veoveo_mcp_contract::LiveCameraHealth::Healthy;
+                    camera.last_pose_sequence = status.last_pose_sequence;
+                    camera.last_frame_at = status.last_frame_at;
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    self.state.service.fail_camera(&camera.camera_id);
+                    return Err(runtime_error(error));
+                }
             }
         }
         if matches!(result, CameraAdmission::Admitted { .. }) {
@@ -309,15 +327,33 @@ impl SimulationViewMcp {
         let owner = require_owner(&context, "simulation-view:write")?;
         let session_id = request.session_id.clone();
         let camera_id = request.camera_id.clone();
-        let result = self
+        let mut result = self
             .state
             .service
             .set_camera(&owner, request)
             .map_err(service_error)?;
-        if let CameraAdmission::Admitted { camera } = &result {
-            if let Err(error) = self.state.runtimes.upsert_camera(camera).await {
-                self.state.service.fail_camera(&camera.camera_id);
-                return Err(runtime_error(error));
+        if let CameraAdmission::Admitted { camera } = &mut result {
+            let render_slot = self
+                .state
+                .service
+                .render_slot(&camera.camera_id)
+                .map_err(service_error)?;
+            match self.state.runtimes.upsert_camera(camera, render_slot).await {
+                Ok(status) if status.ready => {
+                    self.state.service.apply_camera_status(
+                        &camera.camera_id,
+                        status.last_pose_sequence,
+                        status.last_frame_at,
+                    );
+                    camera.health = veoveo_mcp_contract::LiveCameraHealth::Healthy;
+                    camera.last_pose_sequence = status.last_pose_sequence;
+                    camera.last_frame_at = status.last_frame_at;
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    self.state.service.fail_camera(&camera.camera_id);
+                    return Err(runtime_error(error));
+                }
             }
         }
         if matches!(result, CameraAdmission::Admitted { .. }) {
@@ -382,15 +418,39 @@ impl SimulationViewMcp {
     ) -> Result<CallToolResult, McpError> {
         let owner = require_owner(&context, "simulation-view:stream")?;
         let session_id = request.session_id.clone();
-        let result = self
+        let mut result = self
             .state
             .service
             .open_live_view(&owner, request)
             .map_err(service_error)?;
-        if let Err(error) = self.state.runtimes.open_stream(&result.stream).await {
-            self.state.service.abort_stream(&result.stream.live_view_id);
-            return Err(runtime_error(error));
-        }
+        let render_slot = self
+            .state
+            .service
+            .render_slot(&result.stream.camera_id)
+            .map_err(service_error)?;
+        let status = match self
+            .state
+            .runtimes
+            .open_stream(&result.stream, render_slot)
+            .await
+        {
+            Ok(status) => status,
+            Err(error) => {
+                self.state.service.abort_stream(&result.stream.live_view_id);
+                return Err(runtime_error(error));
+            }
+        };
+        self.state.service.apply_camera_status(
+            &result.stream.camera_id,
+            status.last_pose_sequence,
+            status.last_frame_at,
+        );
+        self.state
+            .service
+            .mark_stream_ready(&result.stream.live_view_id);
+        result.stream.lifecycle = veoveo_mcp_contract::LiveViewLifecycle::Ready;
+        result.stream.camera_health = veoveo_mcp_contract::LiveCameraHealth::Healthy;
+        result.stream.last_frame_at = status.last_frame_at;
         self.notify_streams(&session_id, &context).await;
         structured_result(
             format!("opened {}", result.stream.resource_uri.as_str()),

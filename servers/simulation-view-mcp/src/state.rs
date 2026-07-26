@@ -75,6 +75,7 @@ struct Lease {
 struct ServiceState {
     sessions: BTreeMap<LiveSessionId, SimulationViewSession>,
     cameras: BTreeMap<LiveCameraId, CameraRecord>,
+    camera_slots: BTreeMap<LiveCameraId, u16>,
     leases: BTreeMap<LiveViewId, Lease>,
 }
 
@@ -102,6 +103,10 @@ impl SimulationViewService {
             || config.maximum_asset_bytes == 0
             || config.lease_duration.is_zero()
             || config.maximum_frame_age_ms == 0
+            || u32::from(config.endpoint.media_port)
+                .saturating_add(config.capacity.maximum_rendered_cameras)
+                .saturating_sub(1)
+                > u32::from(u16::MAX)
         {
             return Err(SimulationViewError::Access);
         }
@@ -270,6 +275,10 @@ impl SimulationViewService {
         state
             .cameras
             .retain(|_, camera| camera.session_id != request.session_id);
+        let active_camera_ids = state.cameras.keys().cloned().collect::<Vec<_>>();
+        state
+            .camera_slots
+            .retain(|camera_id, _| active_camera_ids.contains(camera_id));
         Ok(CloseResult {
             resource_uri: uris::session(&request.session_id),
             closed: true,
@@ -304,6 +313,14 @@ impl SimulationViewService {
             created_at: now,
             updated_at: now,
         };
+        let render_slot = first_available_render_slot(
+            &state.camera_slots,
+            self.config.capacity.maximum_rendered_cameras,
+        )
+        .ok_or(SimulationViewError::Lifecycle)?;
+        state
+            .camera_slots
+            .insert(camera.camera_id.clone(), render_slot);
         state
             .cameras
             .insert(camera.camera_id.clone(), camera.clone());
@@ -374,6 +391,7 @@ impl SimulationViewService {
         }
         check_revision(camera.revision, request.expected_revision)?;
         state.cameras.remove(&request.camera_id);
+        state.camera_slots.remove(&request.camera_id);
         for lease in state
             .leases
             .values_mut()
@@ -402,6 +420,10 @@ impl SimulationViewService {
             .filter(|camera| camera.session_id == request.session_id)
             .ok_or_else(|| SimulationViewError::CameraNotFound(request.camera_id.clone()))?
             .clone();
+        let render_slot = *state
+            .camera_slots
+            .get(&request.camera_id)
+            .ok_or(SimulationViewError::Lifecycle)?;
         if &camera.owner != owner {
             return Err(SimulationViewError::Ownership);
         }
@@ -434,6 +456,11 @@ impl SimulationViewService {
         let expires_at = expiry(now, self.config.lease_duration)?;
         let token = new_token()?;
         let selected_entity_id = selected_entity(&camera.definition).map(ToOwned::to_owned);
+        let mut endpoint = self.config.endpoint.clone();
+        endpoint.media_port = endpoint
+            .media_port
+            .checked_add(render_slot)
+            .ok_or(SimulationViewError::Access)?;
         let stream = LiveViewState {
             schema_version: LIVE_VIEW_SCHEMA.to_owned(),
             live_view_id: live_view_id.clone(),
@@ -462,7 +489,7 @@ impl SimulationViewService {
             camera_health: camera.health,
             last_frame_at: camera.last_frame_at,
             maximum_frame_age_ms: self.config.maximum_frame_age_ms,
-            endpoint: self.config.endpoint.clone(),
+            endpoint,
             created_at: now,
             expires_at,
         };
@@ -656,6 +683,42 @@ impl SimulationViewService {
         }
     }
 
+    pub(crate) fn apply_camera_status(
+        &self,
+        camera_id: &LiveCameraId,
+        last_pose_sequence: Option<u64>,
+        last_frame_at: Option<DateTime<Utc>>,
+    ) {
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        if let Some(camera) = state.cameras.get_mut(camera_id) {
+            camera.health = LiveCameraHealth::Healthy;
+            camera.last_pose_sequence = last_pose_sequence;
+            camera.last_frame_at = last_frame_at;
+            camera.updated_at = Utc::now();
+        }
+        for lease in state
+            .leases
+            .values_mut()
+            .filter(|lease| lease.state.camera_id == *camera_id)
+        {
+            lease.state.camera_health = LiveCameraHealth::Healthy;
+            lease.state.last_frame_at = last_frame_at;
+        }
+    }
+
+    pub(crate) fn mark_stream_ready(&self, stream_id: &LiveViewId) {
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        if let Some(lease) = state.leases.get_mut(stream_id) {
+            lease.state.lifecycle = LiveViewLifecycle::Ready;
+        }
+    }
+
     pub(crate) fn abort_stream(&self, stream_id: &LiveViewId) {
         let mut state = self
             .state
@@ -757,6 +820,16 @@ impl SimulationViewService {
             .filter(|lease| lease.state.owner == *owner && lease.state.session_id == *session_id)
             .map(|lease| lease.state.clone())
             .collect()
+    }
+
+    pub(crate) fn render_slot(&self, camera_id: &LiveCameraId) -> Result<u16, SimulationViewError> {
+        self.state
+            .lock()
+            .expect("simulation-view state lock poisoned")
+            .camera_slots
+            .get(camera_id)
+            .copied()
+            .ok_or_else(|| SimulationViewError::CameraNotFound(camera_id.clone()))
     }
 
     pub fn get_stream(
@@ -1032,6 +1105,12 @@ fn selected_entity(definition: &CameraDefinition) -> Option<&str> {
         }
         _ => None,
     }
+}
+
+fn first_available_render_slot(slots: &BTreeMap<LiveCameraId, u16>, maximum: u32) -> Option<u16> {
+    (0..maximum)
+        .map_while(|slot| u16::try_from(slot).ok())
+        .find(|candidate| !slots.values().any(|slot| slot == candidate))
 }
 
 fn new_token() -> Result<LiveViewAccessToken, SimulationViewError> {
@@ -1353,6 +1432,47 @@ mod tests {
                 )
                 .is_ok()
         );
+    }
+
+    #[test]
+    fn physical_render_slots_drive_unique_media_ports() {
+        let service = SimulationViewService::new(SimulationViewConfig::default()).unwrap();
+        let owner = view_owner("issuer#operator");
+        let session = bound_session(&service, &owner);
+        let mut cameras = Vec::new();
+        for _ in 0..2 {
+            let CameraAdmission::Admitted { camera } = service
+                .create_camera(
+                    &owner,
+                    CreateCameraRequest {
+                        session_id: session.session_id.clone(),
+                        definition: camera_definition(CameraStreamPolicy::OnDemand),
+                    },
+                )
+                .unwrap()
+            else {
+                panic!("camera should be admitted");
+            };
+            cameras.push(camera);
+        }
+        assert_eq!(service.render_slot(&cameras[0].camera_id).unwrap(), 0);
+        assert_eq!(service.render_slot(&cameras[1].camera_id).unwrap(), 1);
+        let streams = cameras
+            .into_iter()
+            .map(|camera| {
+                service
+                    .open_live_view(
+                        &owner,
+                        OpenLiveViewRequest {
+                            session_id: session.session_id.clone(),
+                            camera_id: camera.camera_id,
+                        },
+                    )
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(streams[0].stream.endpoint.media_port, 47998);
+        assert_eq!(streams[1].stream.endpoint.media_port, 47999);
     }
 
     #[test]

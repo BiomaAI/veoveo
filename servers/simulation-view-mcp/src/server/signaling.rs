@@ -33,6 +33,7 @@ pub(super) struct SignalingState {
     service: Arc<SimulationViewService>,
     mcp: Arc<SimulationViewMcpState>,
     upstream: Url,
+    public_media_port_base: u16,
 }
 
 impl SignalingState {
@@ -40,6 +41,7 @@ impl SignalingState {
         service: Arc<SimulationViewService>,
         mcp: Arc<SimulationViewMcpState>,
         upstream: &str,
+        public_media_port_base: u16,
     ) -> anyhow::Result<Self> {
         let upstream = Url::parse(upstream)?;
         anyhow::ensure!(
@@ -47,6 +49,7 @@ impl SignalingState {
                 && upstream.host_str().is_some()
                 && upstream.username().is_empty()
                 && upstream.password().is_none()
+                && upstream.port().is_some()
                 && upstream.query().is_none()
                 && upstream.fragment().is_none(),
             "renderer signaling URL must be a credential-free internal ws URL"
@@ -55,6 +58,7 @@ impl SignalingState {
             service,
             mcp,
             upstream,
+            public_media_port_base,
         })
     }
 }
@@ -93,7 +97,19 @@ pub(super) async fn upgrade(
         Ok(authorized) => authorized,
         Err(error) => return signaling_error(error),
     };
-    let upstream_url = match upstream_url(&state.upstream, &uri) {
+    let Some(render_slot) = authorized
+        .endpoint
+        .media_port
+        .checked_sub(state.public_media_port_base)
+    else {
+        state.service.disconnect_signaling(&live_view_id);
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "live-view media slot is invalid",
+        )
+            .into_response();
+    };
+    let upstream_url = match upstream_url(&state.upstream, &uri, render_slot) {
         Ok(url) => url,
         Err(response) => {
             state.service.disconnect_signaling(&live_view_id);
@@ -235,7 +251,11 @@ fn to_downstream(message: UpstreamMessage) -> Option<DownstreamMessage> {
     }
 }
 
-fn upstream_url(base: &Url, public_uri: &axum::http::Uri) -> Result<Url, Response> {
+fn upstream_url(
+    base: &Url,
+    public_uri: &axum::http::Uri,
+    render_slot: u16,
+) -> Result<Url, Response> {
     let path = public_uri.path();
     let suffix = path
         .split_once("/signaling")
@@ -245,6 +265,12 @@ fn upstream_url(base: &Url, public_uri: &axum::http::Uri) -> Result<Url, Respons
         return Err(StatusCode::NOT_FOUND.into_response());
     }
     let mut url = base.clone();
+    let port = base
+        .port()
+        .and_then(|port| port.checked_add(render_slot))
+        .ok_or_else(|| StatusCode::SERVICE_UNAVAILABLE.into_response())?;
+    url.set_port(Some(port))
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE.into_response())?;
     let base_path = base.path().trim_end_matches('/');
     url.set_path(&format!("{base_path}{suffix}"));
     url.set_query(public_uri.query());
@@ -279,10 +305,10 @@ mod tests {
             .parse()
             .unwrap();
         assert_eq!(
-            upstream_url(&base, &public).unwrap().as_str(),
-            "ws://renderer:49100/webrtc/client?quality=high"
+            upstream_url(&base, &public, 2).unwrap().as_str(),
+            "ws://renderer:49102/webrtc/client?quality=high"
         );
         let traversal: axum::http::Uri = "/simulation-view/signaling/../admin".parse().unwrap();
-        assert!(upstream_url(&base, &traversal).is_err());
+        assert!(upstream_url(&base, &traversal, 0).is_err());
     }
 }
