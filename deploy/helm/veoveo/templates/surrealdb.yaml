@@ -1,5 +1,6 @@
 # Veoveo supports one SurrealDB 3.2.1 RocksDB node. This StatefulSet does not
 # claim database HA; protect the PVC with the operator's backup policy.
+{{- if include "veoveo.componentEnabled" (list . "platform-store") }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -124,3 +125,4 @@ spec:
         resources:
           requests:
             storage: {{ .Values.surrealdb.persistence.size }}
+{{- end }}

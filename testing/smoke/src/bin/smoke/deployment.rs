@@ -12,7 +12,9 @@ use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
 use serde_json::Value;
 use veoveo_deploy_contract::{
-    ConfigMapSpec, LoadedProfile, ReleaseSpec, SecretFormat, SecretSpec, load_local_registry,
+    ConfigMapSpec, DeploymentSource, FirstPartyMcpServer, LoadedProfile, PlatformComponent,
+    ReleaseSpec, ReleaseValuesContract, SecretFormat, SecretSpec, SourceRepository,
+    load_local_registry,
 };
 use veoveo_mcp_contract::GatewayInternalTrustBundle;
 
@@ -42,15 +44,34 @@ struct K3dRegistrySummary {
     state: K3dRegistryState,
 }
 
+#[derive(Debug)]
+struct ResolvedSource {
+    definition: DeploymentSource,
+    repository: PathBuf,
+    revision: String,
+    _checkout: tempfile::TempDir,
+}
+
 pub(crate) fn profile_validate(path: &Path) -> Result<()> {
     let profile = load_profile(path)?;
-    validate_bake_groups(&profile)?;
-    validate_helm_releases(&profile)?;
+    let sources = resolve_sources(&profile)?;
+    validate_bake_groups(&profile, &sources)?;
+    validate_helm_releases(&profile, &sources)?;
+    let platform = profile.resolved_platform()?;
     println!(
-        "Deployment profile {} is valid: {} image groups and {} Helm releases",
+        "Deployment profile {} is valid: {} sources, {} image groups, {} Helm releases, {} platform components, and {} MCP servers",
         profile.definition.name,
-        profile.definition.image_groups.len(),
-        profile.definition.releases.len()
+        sources.len(),
+        sources
+            .iter()
+            .map(|source| source.definition.image_groups.len())
+            .sum::<usize>(),
+        sources
+            .iter()
+            .map(|source| source.definition.releases.len())
+            .sum::<usize>(),
+        platform.components.len(),
+        platform.mcp_servers.len(),
     );
     Ok(())
 }
@@ -143,9 +164,10 @@ pub(crate) fn profile_cluster_delete(path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn profile_up(path: &Path, revision: Option<&str>) -> Result<()> {
+pub(crate) fn profile_up(path: &Path) -> Result<()> {
     let profile = load_profile(path)?;
-    let revision = resolve_revision(&profile.repository, revision)?;
+    let sources = resolve_sources(&profile)?;
+    let platform = profile.resolved_platform()?;
     let context = profile.definition.kubernetes.context.as_str();
     apply_local_cluster_bootstrap(&profile)?;
     wait_for_cluster_gpu(context, Duration::from_secs(120))?;
@@ -183,8 +205,17 @@ pub(crate) fn profile_up(path: &Path, revision: Option<&str>) -> Result<()> {
         apply_secret(&profile, context, secret)?;
     }
 
-    for release in &profile.definition.releases {
-        helm_up(&profile, context, release, &revision)?;
+    for source in &sources {
+        for release in &source.definition.releases {
+            helm_up(
+                &profile,
+                source,
+                context,
+                release,
+                &platform.components,
+                &platform.mcp_servers,
+            )?;
+        }
     }
     for deployment in &profile.definition.wait_for_deployments {
         let target = format!("deployment/{deployment}");
@@ -205,8 +236,9 @@ pub(crate) fn profile_up(path: &Path, revision: Option<&str>) -> Result<()> {
         )?;
     }
     println!(
-        "Deployment profile {} now runs immutable revision {}",
-        profile.definition.name, revision
+        "Deployment profile {} now runs {} independently locked sources",
+        profile.definition.name,
+        sources.len()
     );
     Ok(())
 }
@@ -214,7 +246,13 @@ pub(crate) fn profile_up(path: &Path, revision: Option<&str>) -> Result<()> {
 pub(crate) fn profile_down(path: &Path) -> Result<()> {
     let profile = load_profile(path)?;
     let context = profile.definition.kubernetes.context.as_str();
-    for release in profile.definition.releases.iter().rev() {
+    let releases = profile
+        .definition
+        .sources
+        .iter()
+        .flat_map(|source| source.releases.iter())
+        .collect::<Vec<_>>();
+    for release in releases.into_iter().rev() {
         let output = Command::new("helm")
             .args([
                 "--kube-context",
@@ -254,6 +292,50 @@ fn load_profile(path: &Path) -> Result<LoadedProfile> {
         )
     })?;
     LoadedProfile::load(path, &repository)
+}
+
+fn resolve_sources(profile: &LoadedProfile) -> Result<Vec<ResolvedSource>> {
+    let mut resolved = Vec::with_capacity(profile.definition.sources.len());
+    for source in &profile.definition.sources {
+        let origin = match &source.repository {
+            SourceRepository::Local { .. } => profile.local_source_root(source)?,
+            SourceRepository::Git { url } => PathBuf::from(url),
+        };
+        let checkout = tempfile::Builder::new()
+            .prefix(&format!("veoveo-deployment-{}-", source.name))
+            .tempdir()
+            .with_context(|| format!("creating checkout for source {}", source.name))?;
+        let destination = checkout.path();
+        let clone_args = [
+            "clone",
+            "--quiet",
+            "--no-checkout",
+            path_str(&origin)?,
+            path_str(destination)?,
+        ];
+        status_checked("git", clone_args, &[], None)
+            .with_context(|| format!("cloning deployment source {}", source.name))?;
+        let revision = resolve_revision(destination, &source.revision)?;
+        status_checked(
+            "git",
+            ["checkout", "--quiet", "--detach", revision.as_str()],
+            &[],
+            Some(destination),
+        )
+        .with_context(|| {
+            format!(
+                "checking out deployment source {} at {revision}",
+                source.name
+            )
+        })?;
+        resolved.push(ResolvedSource {
+            definition: source.clone(),
+            repository: destination.to_path_buf(),
+            revision,
+            _checkout: checkout,
+        });
+    }
+    Ok(resolved)
 }
 
 fn ensure_local_registry(profile: &LoadedProfile) -> Result<()> {
@@ -361,49 +443,62 @@ fn cluster_gpu_capacity(context: &str) -> Result<u64> {
     Ok(gpu_capacity)
 }
 
-fn validate_bake_groups(profile: &LoadedProfile) -> Result<()> {
-    for group in &profile.definition.image_groups {
-        output_checked(
-            "docker",
-            ["buildx", "bake", group.as_str(), "--print"],
-            Some(&profile.repository),
-        )
-        .with_context(|| format!("validating Docker Bake group {group}"))?;
+fn validate_bake_groups(profile: &LoadedProfile, sources: &[ResolvedSource]) -> Result<()> {
+    for source in sources {
+        for group in &source.definition.image_groups {
+            output_checked(
+                "docker",
+                ["buildx", "bake", group.as_str(), "--print"],
+                Some(&source.repository),
+            )
+            .with_context(|| {
+                format!(
+                    "validating Docker Bake group {group} from source {} in profile {}",
+                    source.definition.name, profile.definition.name
+                )
+            })?;
+        }
     }
     Ok(())
 }
 
-fn validate_helm_releases(profile: &LoadedProfile) -> Result<()> {
-    for release in &profile.definition.releases {
-        let chart = profile.resolve(&release.chart);
-        let mut args = vec![
-            "template".to_owned(),
-            release.name.clone(),
-            path_str(&chart)?.to_owned(),
-        ];
-        for values in &release.values {
-            args.push("--values".to_owned());
-            args.push(path_str(&profile.resolve(values))?.to_owned());
-        }
-        args.extend([
-            "--set-string".to_owned(),
-            format!(
-                "global.veoveoRegistry={}",
+fn validate_helm_releases(profile: &LoadedProfile, sources: &[ResolvedSource]) -> Result<()> {
+    let platform = profile.resolved_platform()?;
+    for source in sources {
+        for release in &source.definition.releases {
+            let rendered = helm_render(
+                profile,
+                source,
+                release,
+                VALIDATION_REVISION,
+                &platform.components,
+                &platform.mcp_servers,
+            )?;
+            let images = rendered_container_images(&rendered)?;
+            ensure!(
+                !images.is_empty(),
+                "Helm release {} rendered no container images",
+                release.name
+            );
+            let registry_prefix = format!("{}/", profile.definition.registry.address);
+            let owned = images
+                .iter()
+                .filter(|image| image.starts_with(&registry_prefix))
+                .collect::<Vec<_>>();
+            ensure!(
+                !owned.is_empty(),
+                "Helm release {} rendered no images from selected registry {}",
+                release.name,
                 profile.definition.registry.address
-            ),
-            "--set-string".to_owned(),
-            format!("global.veoveoTag={VALIDATION_REVISION}"),
-        ]);
-        let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
-        let rendered = output_checked("helm", refs, None)
-            .with_context(|| format!("rendering Helm release {}", release.name))?;
-        let rendered = String::from_utf8(rendered)?;
-        ensure!(
-            rendered.contains(&format!("{}/veoveo/", profile.definition.registry.address))
-                && rendered.contains(VALIDATION_REVISION),
-            "Helm release {} did not render immutable Veoveo image references",
-            release.name
-        );
+            );
+            for image in owned {
+                ensure!(
+                    image.contains("@sha256:") || image.ends_with(VALIDATION_REVISION),
+                    "Helm release {} rendered mutable container image {image}",
+                    release.name
+                );
+            }
+        }
     }
     Ok(())
 }
@@ -466,11 +561,13 @@ fn apply_secret(profile: &LoadedProfile, context: &str, secret: &SecretSpec) -> 
 
 fn helm_up(
     profile: &LoadedProfile,
+    source: &ResolvedSource,
     context: &str,
     release: &ReleaseSpec,
-    revision: &str,
+    components: &std::collections::BTreeSet<PlatformComponent>,
+    mcp_servers: &std::collections::BTreeSet<FirstPartyMcpServer>,
 ) -> Result<()> {
-    let chart = profile.resolve(&release.chart);
+    let chart = source.repository.join(&release.chart);
     let mut args = vec![
         "--kube-context".to_owned(),
         context.to_owned(),
@@ -486,22 +583,130 @@ fn helm_up(
     }
     for values in &release.values {
         args.push("--values".to_owned());
-        args.push(path_str(&profile.resolve(values))?.to_owned());
+        args.push(path_str(&source.repository.join(values))?.to_owned());
     }
+    append_release_values(
+        &mut args,
+        profile,
+        release,
+        &source.revision,
+        components,
+        mcp_servers,
+    )?;
     args.extend([
-        "--set-string".to_owned(),
-        format!(
-            "global.veoveoRegistry={}",
-            profile.definition.registry.address
-        ),
-        "--set-string".to_owned(),
-        format!("global.veoveoTag={revision}"),
         "--wait".to_owned(),
         "--timeout".to_owned(),
         format!("{}s", release.timeout_seconds),
     ]);
     let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
     status_checked("helm", refs, &[], None)
+}
+
+fn helm_render(
+    profile: &LoadedProfile,
+    source: &ResolvedSource,
+    release: &ReleaseSpec,
+    revision: &str,
+    components: &std::collections::BTreeSet<PlatformComponent>,
+    mcp_servers: &std::collections::BTreeSet<FirstPartyMcpServer>,
+) -> Result<String> {
+    let chart = source.repository.join(&release.chart);
+    let mut args = vec![
+        "template".to_owned(),
+        release.name.clone(),
+        path_str(&chart)?.to_owned(),
+    ];
+    for values in &release.values {
+        args.push("--values".to_owned());
+        args.push(path_str(&source.repository.join(values))?.to_owned());
+    }
+    append_release_values(
+        &mut args,
+        profile,
+        release,
+        revision,
+        components,
+        mcp_servers,
+    )?;
+    let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+    let rendered = output_checked("helm", refs, None)
+        .with_context(|| format!("rendering Helm release {}", release.name))?;
+    String::from_utf8(rendered).context("Helm output is not UTF-8")
+}
+
+fn append_release_values(
+    args: &mut Vec<String>,
+    profile: &LoadedProfile,
+    release: &ReleaseSpec,
+    revision: &str,
+    components: &std::collections::BTreeSet<PlatformComponent>,
+    mcp_servers: &std::collections::BTreeSet<FirstPartyMcpServer>,
+) -> Result<()> {
+    match release.values_contract {
+        ReleaseValuesContract::Platform | ReleaseValuesContract::VeoveoSource => {
+            args.extend([
+                "--set-string".to_owned(),
+                format!(
+                    "global.veoveoRegistry={}",
+                    profile.definition.registry.address
+                ),
+                "--set-string".to_owned(),
+                format!("global.veoveoTag={revision}"),
+            ]);
+            if release.values_contract == ReleaseValuesContract::Platform {
+                args.extend([
+                    "--set-string".to_owned(),
+                    format!("global.installationId={}", profile.definition.name),
+                    "--set-string".to_owned(),
+                    "installationPreset=custom".to_owned(),
+                    "--set-json".to_owned(),
+                    format!("components={}", serde_json::to_string(components)?),
+                    "--set-json".to_owned(),
+                    format!("mcpServers={}", serde_json::to_string(mcp_servers)?),
+                    "--set-json".to_owned(),
+                    format!(
+                        "artifactService.allowedAudiences={}",
+                        serde_json::to_string(&profile.resolved_platform()?.artifact_audiences)?
+                    ),
+                ]);
+            }
+        }
+        ReleaseValuesContract::Extension => {
+            args.extend([
+                "--set-string".to_owned(),
+                format!("veoveo.registry={}", profile.definition.registry.address),
+                "--set-string".to_owned(),
+                format!("veoveo.sourceTag={revision}"),
+                "--set-string".to_owned(),
+                format!("veoveo.installationId={}", profile.definition.name),
+            ]);
+        }
+    }
+    Ok(())
+}
+
+fn rendered_container_images(rendered: &str) -> Result<Vec<String>> {
+    let mut images = Vec::new();
+    for line in rendered.lines() {
+        let trimmed = line.trim_start();
+        let value = trimmed
+            .strip_prefix("image:")
+            .or_else(|| trimmed.strip_prefix("- image:"));
+        let Some(value) = value else {
+            continue;
+        };
+        let value = value.trim().trim_matches(['\'', '"']);
+        ensure!(
+            !value.is_empty(),
+            "rendered Kubernetes image field is empty"
+        );
+        ensure!(
+            !value.chars().any(char::is_whitespace),
+            "rendered Kubernetes image field contains whitespace: {value}"
+        );
+        images.push(value.to_owned());
+    }
+    Ok(images)
 }
 
 fn kubectl_apply_value(context: &str, value: &Value) -> Result<()> {
@@ -527,8 +732,7 @@ fn kubectl_apply_value(context: &str, value: &Value) -> Result<()> {
     Ok(())
 }
 
-fn resolve_revision(repository: &Path, revision: Option<&str>) -> Result<String> {
-    let candidate = revision.unwrap_or("HEAD");
+fn resolve_revision(repository: &Path, candidate: &str) -> Result<String> {
     let expression = format!("{candidate}^{{commit}}");
     let output = output_checked(
         "git",

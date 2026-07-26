@@ -3,6 +3,8 @@ veoveo:
   publicBaseUrl: https://veoveo.enterprise.example
   production: false
   registry: ""
+  sourceTag: ""
+  imageDigests: {}
   imagePullSecrets: []
   installationSecret: veoveo-installation-secrets
   surreal:

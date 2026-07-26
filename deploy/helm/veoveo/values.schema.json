@@ -4,6 +4,9 @@
   "additionalProperties": false,
   "required": [
     "global",
+    "installationPreset",
+    "components",
+    "mcpServers",
     "serviceAccount",
     "surrealdb",
     "objectStore",
@@ -14,7 +17,6 @@
     "reason",
     "consoleBff",
     "clusterInspection",
-    "domainServices",
     "telemetry",
     "ingress",
     "networkPolicy",
@@ -23,6 +25,51 @@
   "properties": {
     "veoveo-extension": {
       "type": "object"
+    },
+    "installationPreset": {
+      "enum": [
+        "full",
+        "extension-foundation",
+        "custom"
+      ]
+    },
+    "components": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "gateway",
+          "platform-store",
+          "object-store",
+          "artifact-service",
+          "console",
+          "telemetry",
+          "ingress"
+        ]
+      }
+    },
+    "mcpServers": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "artifact",
+          "media",
+          "timeseries",
+          "optimization",
+          "frames",
+          "map",
+          "time",
+          "view",
+          "datasheet",
+          "duckdb",
+          "chart",
+          "rerun",
+          "recording",
+          "perception",
+          "reason"
+        ]
+      }
     },
     "global": {
       "type": "object",
@@ -348,7 +395,6 @@
     "recording": {
       "type": "object",
       "required": [
-        "enabled",
         "tenantKey",
         "workContext",
         "classification",
@@ -364,9 +410,6 @@
         "resources"
       ],
       "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
         "tenantKey": {
           "type": "string",
           "minLength": 1
@@ -427,7 +470,6 @@
     "perception": {
       "type": "object",
       "required": [
-        "enabled",
         "runtimeClassName",
         "image",
         "modelCache",
@@ -435,9 +477,6 @@
         "resources"
       ],
       "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
         "runtimeClassName": {
           "type": "string",
           "minLength": 1
@@ -460,7 +499,6 @@
     "reason": {
       "type": "object",
       "required": [
-        "enabled",
         "runtimeClassName",
         "image",
         "modelCache",
@@ -469,9 +507,6 @@
         "resources"
       ],
       "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
         "runtimeClassName": {
           "type": "string",
           "minLength": 1
@@ -559,93 +594,6 @@
         }
       },
       "additionalProperties": false
-    },
-    "domainServices": {
-      "type": "array",
-      "minItems": 0,
-      "items": {
-        "type": "object",
-        "required": [
-          "name",
-          "image",
-          "port",
-          "healthPath",
-          "args"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "pattern": "^[a-z0-9-]+$"
-          },
-          "image": {
-            "$ref": "#/definitions/image"
-          },
-          "port": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 65535
-          },
-          "healthPath": {
-            "type": "string",
-            "pattern": "^/"
-          },
-          "args": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "runtimeClassName": {
-            "type": "string",
-            "minLength": 1
-          },
-          "startupProbe": {
-            "type": "object",
-            "required": [
-              "failureThreshold",
-              "periodSeconds",
-              "timeoutSeconds"
-            ],
-            "properties": {
-              "failureThreshold": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "periodSeconds": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "timeoutSeconds": {
-                "type": "integer",
-                "minimum": 1
-              }
-            },
-            "additionalProperties": false
-          },
-          "duckdbSandbox": {
-            "type": "boolean"
-          },
-          "platformStore": {
-            "type": "boolean"
-          },
-          "persistence": {
-            "$ref": "#/definitions/persistence"
-          },
-          "persistenceMountPath": {
-            "type": "string",
-            "pattern": "^/"
-          },
-          "sourceExchangeClaim": {
-            "type": "string"
-          },
-          "sourceSecretName": {
-            "type": "string"
-          },
-          "resources": {
-            "type": "object"
-          }
-        }
-      }
     },
     "telemetry": {
       "type": "object"

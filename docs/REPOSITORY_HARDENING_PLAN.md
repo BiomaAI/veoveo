@@ -27,13 +27,13 @@ profiles:
 | `veoveo.io/image-build-run/v1` | internal immutable record of an image execution, its output mode, elapsed time, result, and Buildx metadata reference |
 | Model Context Protocol | public server protocol governed by `mcp/contract/DESIGN.md`; the current Streamable HTTP verification uses protocol version `2025-11-25` and only claims the repository profile defined there |
 | JSON Schema 2020-12 | canonical MCP tool-input and controlled configuration schemas |
-| `veoveo.io/deployment/v1` | current repository-owned single-source deployment profile schema; an internal deployment adapter contract, not a public MCP surface |
-| `veoveo.io/deployment/v2` | planned named-source installation schema for independently resolved revisions, charts, image locks, gateway inputs, and release status |
-| `veoveo.io/gateway-server-fragment/v1` | planned extension-owned declaration of one hosted server's protocol surface and platform requirements |
-| `veoveo.io/gateway-binding/v1` | planned installation-owned declaration of exposure, authorization, tenant, policy, and secret bindings |
+| `veoveo.io/deployment/v2` | named-source installation schema for independently resolved revisions, source-owned images and charts, gateway requirements, and typed platform selection |
+| `veoveo.io/deployment-lock/v2` | immutable combined source, revision, image-manifest, chart-content, and resolved-platform record |
+| `veoveo.io/gateway-server-fragment/v1` | extension-owned declaration of one hosted server's protocol surface and platform requirements |
+| `veoveo.io/gateway-binding/v1` | installation-owned declaration of exposure, authorization, tenant, policy, and producer bindings |
 | Offline bundle schema version 1 | repository-owned image and payload integrity contract |
 | Veoveo SDK compatibility manifest | planned supported external release contract relating SDK artifacts, contract and schema revisions, toolchains, protocol versions, and tested dependency resolutions |
-| Veoveo extension Helm library API | planned versioned chart-helper contract, packaged for authenticated OCI registry or offline-bundle distribution; consumer charts remain responsible for their values shape and installation policy |
+| Veoveo extension Helm library API | delivered versioned chart-helper contract, packaged for authenticated OCI registry or offline-bundle distribution; consumer charts remain responsible for their values shape and installation policy |
 | OCI Distribution Specification, images, and registries | reproducible build, digest pinning, SBOM, provenance, and private release distribution through an installation-configured registry; OCI packaging does not require public availability |
 | Veoveo Isaac simulation-base compatibility lock | planned exact record of the existing base lineage's Isaac Sim, Isaac Lab, Warp, Newton, MuJoCo, Kit/Python, CUDA, driver, and GPU conformance inputs |
 | Kubernetes and Helm | deployment rendering and workload security boundary, using the versions pinned by the repository when implemented |
@@ -102,7 +102,7 @@ their hard-cut boundary:
 | P0.2 xtask foundation | delivered for `doctor`, canonical Rust enforcement, image planning, builder management, and image release; later smoke, deployment, bundle, documentation, and hook commands remain planned |
 | P0.4 publication inputs | delivered through a locked persistent worktree, exact commit resolution, source-local profile loading, metadata-preservation tests, and the `docs/` context exclusion |
 | P1.5 internal image graph | delivered for the initial `linux/amd64` families, including consolidated trixie and bookworm Cargo actions, typed cache identities, managed Buildx and BuildKit, reproducible output timestamps, and immutable execution evidence |
-| External repository flow | Python SDK distributions, a domain-neutral native/OCI conformance runner, typed artifact contracts, and the private extension Helm library are delivered; the compatibility release generator, multi-source composer, and remaining installation composition are active |
+| External repository flow | Python SDK distributions, domain-neutral native/OCI conformance and gateway composition, typed artifact contracts, the private extension Helm library, deployment v2, immutable deployment locks, and typed platform selection are delivered; compatibility release publication and simulation-base acceptance remain active |
 
 The normative operating contract is
 [`IMAGE_BUILDS.md`](IMAGE_BUILDS.md). Measured acceptance belongs in
@@ -281,7 +281,7 @@ Safety that applies to every complete gateway control plane belongs in
 `GatewayControlPlane::validate`. Route, mount, MCP path, URI-scheme, resource ownership,
 and policy identity collisions cannot be composer-only checks.
 
-A future fragment composer produces an ordinary validated `GatewayControlPlane`. The
+The fragment composer produces an ordinary validated `GatewayControlPlane`. The
 extension describes its surface while the installation continues to own exposure and
 authorization.
 
@@ -294,13 +294,10 @@ contributed object identities, and the final control-plane digest.
 
 ### Source-Aware Evidence
 
-Initial xtask workflows may operate on one repository. Their internal command and
+Xtask workflows carry a named source and independent revision. Their internal command and
 evidence types still carry an explicit source root, resolved revision, artifact
 coordinate, image digest, and chart identity. They do not rely on one global `HEAD`, one
 image tag, or one chart root.
-
-This is a data-model constraint, not authorization to implement multi-repository
-publishing during P0 or P1.
 
 Deployment v2 applies that constraint to named sources. Each source resolves its own
 revision, chart artifact, image lock, gateway fragment, compatibility manifest, and
@@ -323,8 +320,9 @@ universal package list.
 ### Component-Oriented Deployment
 
 Deployment validation distinguishes MCP servers from platform components and evaluates
-a resolved component graph. It does not promote the core chart's current internal
-`domainServices` records into a public extension API.
+a resolved component graph. The core chart owns first-party workload definitions and
+accepts typed server identities; internal Deployment records are not a public extension
+API.
 
 Semantic preflight verifies gateway and workload agreement, bootstrap targets, artifact
 audiences, recording dependencies, image selection, and mandatory GPU resources. Helm
@@ -411,13 +409,13 @@ MCP conformance.
 
 Chart hardening accepts a chart root and rendered installation as inputs. Security,
 digest, identity, NetworkPolicy, secret mount, GPU, container, and init-container checks
-do not assume the core chart is the only consumer. The future library chart is verified
+do not assume the core chart is the only consumer. The library chart is verified
 through a reference consumer as well as Veoveo's own charts.
 
-The extension Helm library, compatibility manifest, fragment schemas, component
-selection schema, and multi-source profile follow the source-local hardening
-prerequisites as one external-extension program. Each contract receives a normative
-owner and independent compatibility evidence when its vertical slice lands.
+The extension Helm library, fragment schemas, component selection schema, and
+multi-source profile have crossed their hard-cut boundaries. The compatibility
+manifest generator and final simulation compatibility evidence remain in this
+external-extension program.
 
 ### External Extension Delivery Sequence
 

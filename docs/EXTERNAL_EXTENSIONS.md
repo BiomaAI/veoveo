@@ -18,6 +18,7 @@ It joins an installation through versioned artifacts and installation-owned comp
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned hosted-server declaration |
 | `veoveo.io/gateway-binding/v1` | installation-owned exposure and authorization declaration |
 | `veoveo.io/deployment/v2` | named-source installation composition with independent revisions and locks |
+| `veoveo.io/deployment-lock/v2` | immutable combined source, image, chart, and resolved-platform lock |
 | SHA-256 | artifact identity and composition input integrity |
 
 The repository pins the exact compatible tool and dependency versions when each
@@ -162,10 +163,14 @@ gateway-compose \
 `extensions/examples` prove the same workflow without a source dependency or a
 customer identity.
 
-Deployment v2 accepts named sources. Each source resolves an independent revision,
-image lock, chart, fragment, compatibility manifest, and evidence set. Production
-composition consumes immutable artifacts. Local development may use one detached
-worktree per explicitly selected source.
+Deployment v2 accepts named sources. Each source owns its repository, independently
+resolved revision, Bake groups, and Helm releases. `cargo xtask release images
+--profile <path> --profile-revision <revision>` materializes persistent exact
+publication worktrees, publishes source-owned images, and writes a combined
+`veoveo.io/deployment-lock/v2`. The lock records source repositories and revisions,
+OCI manifest digests, chart-content digests, and the expanded platform graph.
+Production composition replaces source-chart coordinates with immutable private OCI
+coordinates.
 
 ## Minimal Platform
 
@@ -174,9 +179,15 @@ resolver validates dependencies and prunes disabled workloads, Services, storage
 NetworkPolicies, PodDisruptionBudgets, bootstrap inputs, gateway entries, and digest
 requirements together.
 
-The first external profile requires the platform foundation plus Artifact MCP, Frames
-MCP, and Recording MCP. This is a reusable component selection rather than a
-customer-specific preset.
+The `extension-foundation` preset contains the platform foundation plus Artifact MCP,
+Frames MCP, and Recording MCP. The chart owns each first-party workload definition;
+installations select typed component and server names instead of reproducing
+Deployments. Custom selections can add Map and Media.
+
+Gateway requirements are evaluated before Helm. `artifact`, `frames`, `map`, and
+`media` each require the corresponding MCP server. `recording` and `rrd` require the
+Recording MCP and hub. Artifact audiences declared by composition must appear in the
+installation's admitted audience set.
 
 ## Simulation Overlays
 

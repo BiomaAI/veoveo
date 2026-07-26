@@ -115,9 +115,12 @@ enum PlanFormat {
 
 #[derive(Debug, Args)]
 struct ReleaseImagesArgs {
-    /// Deployment profile path, interpreted inside the selected revision.
+    /// Deployment profile path, interpreted inside the selected profile revision.
     #[arg(long, conflicts_with_all = ["target", "group", "registry"])]
     profile: Option<PathBuf>,
+    /// Exact configuration-repository revision containing the deployment profile.
+    #[arg(long, requires = "profile", conflicts_with = "revision")]
+    profile_revision: Option<String>,
     /// One Docker Bake image target.
     #[arg(long, conflicts_with_all = ["profile", "group"])]
     target: Option<String>,
@@ -127,9 +130,12 @@ struct ReleaseImagesArgs {
     /// OCI registry for a direct target or group release.
     #[arg(long)]
     registry: Option<String>,
-    /// Exact Git revision or ref to resolve.
+    /// Exact source revision for a direct target or group release.
     #[arg(long)]
-    revision: String,
+    revision: Option<String>,
+    /// Immutable deployment lock output for a profile release.
+    #[arg(long, requires = "profile")]
+    lock_output: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]

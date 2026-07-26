@@ -1,3 +1,4 @@
+{{- if include "veoveo.componentEnabled" (list . "console") }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -120,3 +121,4 @@ spec:
                     - key: ca.crt
                       path: ca.crt
         {{- end }}
+{{- end }}

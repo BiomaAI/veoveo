@@ -1,4 +1,21 @@
-{{- range $service := .Values.domainServices }}
+{{- $selectedServers := include "veoveo.selectedMcpServers" . | fromYamlArray -}}
+{{- $serviceDefinitions := .Files.Get "definitions/domain-services.yaml" | fromYamlArray -}}
+{{- $serverIds := dict
+  "artifact-mcp" "artifact"
+  "media-mcp" "media"
+  "timeseries-mcp" "timeseries"
+  "optimization-mcp" "optimization"
+  "frames-mcp" "frames"
+  "map-mcp" "map"
+  "time-mcp" "time"
+  "view-mcp" "view"
+  "datasheet-mcp" "datasheet"
+  "duckdb-mcp" "duckdb"
+  "chart-mcp" "chart"
+  "rerun-bridge" "rerun"
+-}}
+{{- range $service := $serviceDefinitions }}
+{{- if has (get $serverIds $service.name) $selectedServers }}
 {{- if $service.persistence }}
 ---
 apiVersion: v1
@@ -213,4 +230,5 @@ spec:
           configMap:
             name: {{ $service.name }}-bootstrap
         {{- end }}
+{{- end }}
 {{- end }}
