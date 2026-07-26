@@ -8,8 +8,10 @@ members = [
     "extensions/contract",
     "mcp/apps-extension",
     "mcp/bridges/stdio",
+    "mcp/conformance",
     "mcp/contract",
     "mcp/schema-macros",
+    "mcp/task-contract",
     "mcp/task-extension",
     "platform/artifacts/client",
     "platform/artifacts/service",
@@ -36,7 +38,6 @@ members = [
     "servers/uav-sim-mcp",
     "servers/view-mcp",
     "showcase/sumo/sumo-mcp",
-    "testing/mcp-conformance",
     "testing/smoke",
     "tools/xtask",
 ]
@@ -144,6 +145,7 @@ veoveo-mcp-contract = { path = "mcp/contract", default-features = false }
 veoveo-deploy-contract = { path = "deploy/contract" }
 veoveo-extension-contract = { path = "extensions/contract" }
 veoveo-mcp-schema-macros = { path = "mcp/schema-macros" }
+veoveo-task-contract = { path = "mcp/task-contract" }
 veoveo-platform-store = { path = "platform/store" }
 veoveo-recording-protocol = { path = "platform/recordings/protocol" }
 veoveo-rrd = { path = "platform/recordings/rrd" }

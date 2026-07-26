@@ -80,6 +80,10 @@ group "showcase-uav-sim-base" {
   targets = ["uav-sim-base"]
 }
 
+group "extension-support" {
+  targets = ["mcp-conformance"]
+}
+
 target "base" {
   context   = "."
   platforms = ["linux/amd64"]
@@ -289,6 +293,19 @@ target "mcp-stdio-bridge" {
     "io.veoveo.build.mode"      = "rust-shared"
     "io.veoveo.build.package"   = "veoveo-mcp-stdio-bridge"
     "io.veoveo.build.binaries"  = "bridge"
+    "io.veoveo.build.family"    = "rust-trixie-v1"
+    "io.veoveo.build.auxiliary" = ""
+  }
+}
+
+target "mcp-conformance" {
+  inherits   = ["_rust-trixie-runtime"]
+  dockerfile = "mcp/conformance/Dockerfile"
+  tags       = [image_ref("mcp-conformance")]
+  labels = {
+    "io.veoveo.build.mode"      = "rust-shared"
+    "io.veoveo.build.package"   = "veoveo-mcp-conformance"
+    "io.veoveo.build.binaries"  = "certify"
     "io.veoveo.build.family"    = "rust-trixie-v1"
     "io.veoveo.build.auxiliary" = ""
   }

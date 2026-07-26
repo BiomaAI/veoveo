@@ -484,7 +484,7 @@ async fn fake_media_submit(
                     let body = serde_json::to_vec(&terminal).expect("fake webhook serializes");
                     let webhook_id = format!("fake-webhook-{}", uuid::Uuid::now_v7());
                     let timestamp = chrono::Utc::now().timestamp().to_string();
-                    let signature = veoveo_media_mcp::webhook::sign(
+                    let signature = sign_webhook(
                         &webhook_secret,
                         &webhook_id,
                         &timestamp,
@@ -518,6 +518,21 @@ async fn fake_media_submit(
         "outputs": [],
         "status": "processing",
     }))
+}
+
+fn sign_webhook(secret: &str, webhook_id: &str, timestamp: &str, body: &[u8]) -> String {
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+
+    let key = secret.strip_prefix("whsec_").unwrap_or(secret);
+    let mut mac = <Hmac<Sha256> as hmac::KeyInit>::new_from_slice(key.as_bytes())
+        .expect("HMAC accepts every key length");
+    mac.update(webhook_id.as_bytes());
+    mac.update(b".");
+    mac.update(timestamp.as_bytes());
+    mac.update(b".");
+    mac.update(body);
+    format!("v3,{}", hex::encode(mac.finalize().into_bytes()))
 }
 
 async fn fake_media_delete(

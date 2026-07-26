@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "veoveo.io/mcp-conformance-profile/v1",
+  "profileId": "anonymous-extension-ci",
+  "contractRevision": "veoveo.io/hosted-mcp/v1",
+  "endpoint": "https://extension.example.internal/domain/mcp",
+  "serverSlug": "domain",
+  "ownedResourceSchemes": [
+    "domain"
+  ],
+  "http": {
+    "requireAuthenticationRejection": true,
+    "rejectedHost": "untrusted.invalid",
+    "healthUrl": "https://extension.example.internal/domain/healthz",
+    "readinessUrl": "https://extension.example.internal/domain/readyz"
+  },
+  "surfaces": {
+    "tools": "required",
+    "resources": "required",
+    "resourceTemplates": "required",
+    "prompts": "required",
+    "completions": "required",
+    "tasks": "required",
+    "subscriptions": "required",
+    "requiredTools": [
+      "inspect"
+    ],
+    "requiredResources": [
+      "domain://docs",
+      "domain://contract"
+    ],
+    "requiredResourceTemplates": [
+      "domain://items/{item_id}"
+    ],
+    "requiredPrompts": [
+      "review-item"
+    ]
+  }
+}

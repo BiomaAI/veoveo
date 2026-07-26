@@ -22,4 +22,5 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "ti
 tokio-util.workspace = true
 uuid = { workspace = true, features = ["serde", "v7"] }
 veoveo-mcp-contract = { path = "../../mcp/contract" }
+veoveo-task-contract.workspace = true
 veoveo-platform-store = { path = "../store" }

@@ -2,10 +2,19 @@
 name = "veoveo-mcp-conformance"
 version.workspace = true
 edition.workspace = true
+publish = false
+
+[lib]
+name = "veoveo_mcp_conformance"
+path = "src/lib.rs"
 
 [[bin]]
 name = "conformance"
 path = "src/bin/conformance.rs"
+
+[[bin]]
+name = "certify"
+path = "src/bin/certify.rs"
 
 [dependencies]
 anyhow.workspace = true
@@ -14,6 +23,8 @@ axum-server.workspace = true
 base64.workspace = true
 chrono.workspace = true
 clap.workspace = true
+hex.workspace = true
+hmac.workspace = true
 jsonwebtoken.workspace = true
 jsonschema.workspace = true
 rcgen.workspace = true
@@ -23,14 +34,11 @@ rustls.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing-subscriber.workspace = true
 url.workspace = true
 uuid.workspace = true
-veoveo-frames-mcp = { path = "../../servers/frames-mcp" }
-veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension" }
-veoveo-mcp-contract = { workspace = true, features = ["analytics"] }
-veoveo-map-mcp = { path = "../../servers/map-mcp" }
-veoveo-mcp-task-extension = { path = "../../mcp/task-extension" }
-veoveo-media-mcp = { path = "../../servers/media-mcp" }
-veoveo-rrd.workspace = true
+veoveo-mcp-apps-extension = { path = "../apps-extension" }
+veoveo-mcp-contract.workspace = true
+veoveo-mcp-task-extension = { path = "../task-extension", default-features = false }

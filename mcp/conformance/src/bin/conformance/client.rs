@@ -76,13 +76,7 @@ pub(super) struct FinalTaskClient {
 
 impl FinalTaskClient {
     pub(super) fn from_args(args: &Args) -> Result<Self> {
-        let bearer_token = if let Some(token) = &args.bearer_token {
-            Some(token.clone())
-        } else if let Some(private_key_der_b64) = &args.internal_signing_key_der_b64 {
-            Some(issue_internal_conformance_token(args, private_key_der_b64)?)
-        } else {
-            None
-        };
+        let bearer_token = bearer_token_from_args(args)?;
         Ok(Self {
             http: reqwest::Client::new(),
             endpoint: args.url.clone(),
@@ -209,13 +203,24 @@ struct RpcResponse<T> {
 
 pub(super) async fn connect(args: &Args) -> Result<Client> {
     let mut config = StreamableHttpClientTransportConfig::with_uri(args.url.clone());
-    if let Some(token) = &args.bearer_token {
-        config = config.auth_header(token.clone());
-    } else if let Some(private_key_der_b64) = &args.internal_signing_key_der_b64 {
-        config = config.auth_header(issue_internal_conformance_token(args, private_key_der_b64)?);
+    if let Some(token) = bearer_token_from_args(args)? {
+        config = config.auth_header(token);
     }
     let transport = StreamableHttpClientTransport::from_config(config);
     Ok(CliHandler.serve(transport).await?)
+}
+
+pub(super) fn bearer_token_from_args(args: &Args) -> Result<Option<String>> {
+    if let Some(token) = &args.bearer_token {
+        Ok(Some(token.clone()))
+    } else if let Some(private_key_der_b64) = &args.internal_signing_key_der_b64 {
+        Ok(Some(issue_internal_conformance_token(
+            args,
+            private_key_der_b64,
+        )?))
+    } else {
+        Ok(None)
+    }
 }
 
 fn issue_internal_conformance_token(args: &Args, private_key_der_b64: &str) -> Result<String> {

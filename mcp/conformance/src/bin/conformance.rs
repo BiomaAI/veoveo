@@ -56,15 +56,6 @@ use rmcp::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use url::Url;
-use veoveo_frames_mcp::contract::{
-    BatchTransformOutput, BatchTransformRequest, ConvertFrameOutput, ConvertFrameRequest,
-    CoordinatePoint, CreateWorldOutput, CreateWorldRequest, PublishWorldOutput,
-    PublishWorldRequest,
-};
-use veoveo_map_mcp::contract::{
-    GeodesicDirectOutput, GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest,
-    TransformCrsOutput, TransformCrsRequest, ValidateGeofenceOutput, ValidateGeofenceRequest,
-};
 use veoveo_mcp_contract::{
     AccessSubject, AccessTokenSubject, AnalyticalRuntimeDeployment, ArtifactMetadata, AuditEvent,
     AuthAuditEvent, ComplianceMetadata, CoordinateOperationProvenance, DataLabelDefinition,
@@ -85,11 +76,6 @@ use veoveo_mcp_contract::{
     TenantModel, TokenIssuer, TokenSubject, UpstreamEndpoint, UsageRecord, UsageReport,
     WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
-use veoveo_rrd::{
-    RrdFrameDefinition, RrdGeoLineString, RrdGeoPoint, RrdGeofenceGeometry, RrdLocalLineString2,
-    RrdLocalPoint3, RrdLocalPolygon2, RrdSelection, RrdTimePoint, RrdTimeRange, RrdViewCoordinates,
-};
-
 #[path = "conformance/auth_discovery.rs"]
 mod auth_discovery;
 #[path = "conformance/cli.rs"]
@@ -109,7 +95,7 @@ mod tokens;
 
 use auth_discovery::{AuthDiscoveryCheck, cmd_auth_discovery};
 use cli::{Args, Cmd};
-use client::{FinalTaskClient, connect};
+use client::{FinalTaskClient, bearer_token_from_args, connect};
 use control_plane::{
     cmd_gateway_agent_smoke_control_plane, cmd_gateway_pilot_smoke_control_plane,
     cmd_gateway_smoke_control_plane, cmd_gateway_two_server_smoke_control_plane,
@@ -145,6 +131,32 @@ async fn main() -> Result<()> {
         .init();
     let args = Args::parse();
     match &args.cmd {
+        Cmd::Certify { profile, report } => {
+            let profile: veoveo_mcp_conformance::HostedServerConformanceProfile =
+                serde_json::from_slice(&std::fs::read(profile)?)?;
+            let credentials = bearer_token_from_args(&args)?
+                .map(veoveo_mcp_conformance::ConformanceCredentials::bearer)
+                .unwrap_or_default();
+            let result =
+                veoveo_mcp_conformance::run_hosted_server_conformance(&profile, &credentials)
+                    .await?;
+            if let Some(parent) = report.parent()
+                && !parent.as_os_str().is_empty()
+            {
+                std::fs::create_dir_all(parent)?;
+            }
+            let mut bytes = serde_json::to_vec_pretty(&result)?;
+            bytes.push(b'\n');
+            std::fs::write(report, bytes)?;
+            println!(
+                "conformance {}: {} check(s), report {}",
+                if result.passed() { "passed" } else { "failed" },
+                result.checks.len(),
+                report.display()
+            );
+            anyhow::ensure!(result.passed(), "hosted-server conformance failed");
+            return Ok(());
+        }
         Cmd::ContractSchemas { output_dir } => {
             return cmd_contract_schemas(output_dir.clone());
         }
@@ -407,6 +419,7 @@ async fn main() -> Result<()> {
     let uris = ServerResourceUris::new(args.scheme);
 
     let result = match args.cmd {
+        Cmd::Certify { .. } => unreachable!("handled before MCP connection"),
         Cmd::AuthDiscovery { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayJwks => unreachable!("handled before MCP connection"),
         Cmd::GatewayPrivateKeyDerB64 => unreachable!("handled before MCP connection"),

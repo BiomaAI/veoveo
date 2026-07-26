@@ -36,4 +36,8 @@ uuid = { workspace = true, features = ["v7"] }
 veoveo-mcp-schema-macros.workspace = true
 
 [dev-dependencies]
+axum.workspace = true
 jsonschema.workspace = true
+reqwest = { workspace = true, features = ["rustls-no-provider"] }
+rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest", "reqwest-tls-no-provider"] }
+rustls.workspace = true
