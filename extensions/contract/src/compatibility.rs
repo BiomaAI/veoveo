@@ -159,6 +159,8 @@ pub struct CompatibilityManifest {
     pub sdks: Vec<SdkCompatibility>,
     /// Standalone conformance distribution.
     pub conformance: ArtifactDescriptor,
+    /// Offline deterministic gateway composition distribution.
+    pub gateway_composer: ArtifactDescriptor,
     /// Extension Helm library package.
     pub helm_library: ArtifactDescriptor,
     /// Optional canonical simulation profiles.
@@ -179,6 +181,11 @@ impl CompatibilityManifest {
             "conformance",
             &self.conformance,
             ArtifactKind::ConformanceImage,
+        )?;
+        require_kind(
+            "gatewayComposer",
+            &self.gateway_composer,
+            ArtifactKind::OciImage,
         )?;
         require_kind("helmLibrary", &self.helm_library, ArtifactKind::HelmChart)?;
 

@@ -32,7 +32,7 @@ profiles:
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned declaration of one hosted server's protocol surface and platform requirements |
 | `veoveo.io/gateway-binding/v1` | installation-owned declaration of exposure, authorization, tenant, policy, and producer bindings |
 | Offline bundle schema version 1 | repository-owned image and payload integrity contract |
-| Veoveo SDK compatibility manifest | planned supported external release contract relating SDK artifacts, contract and schema revisions, toolchains, protocol versions, and tested dependency resolutions |
+| `veoveo.io/compatibility-manifest/v1` | generated supported release contract relating SDK artifacts, contract and schema revisions, standalone tools, Helm API, and optional simulation runtimes |
 | Veoveo extension Helm library API | delivered versioned chart-helper contract, packaged for authenticated OCI registry or offline-bundle distribution; consumer charts remain responsible for their values shape and installation policy |
 | OCI Distribution Specification, images, and registries | reproducible build, digest pinning, SBOM, provenance, and private release distribution through an installation-configured registry; OCI packaging does not require public availability |
 | Veoveo Isaac simulation-base compatibility lock | planned exact record of the existing base lineage's Isaac Sim, Isaac Lab, Warp, Newton, MuJoCo, Kit/Python, CUDA, driver, and GPU conformance inputs |

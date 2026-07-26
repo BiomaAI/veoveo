@@ -15,3 +15,5 @@ tempfile = "=3.27.0"
 url.workspace = true
 veoveo-deploy-contract.workspace = true
 veoveo-extension-contract.workspace = true
+veoveo-mcp-contract = { workspace = true, default-features = false }
+veoveo-mcp-conformance = { path = "../../mcp/conformance" }
