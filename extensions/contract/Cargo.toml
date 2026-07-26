@@ -1,0 +1,20 @@
+[package]
+name = "veoveo-extension-contract"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lib]
+name = "veoveo_extension_contract"
+path = "src/lib.rs"
+
+[dependencies]
+schemars.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+jsonschema.workspace = true

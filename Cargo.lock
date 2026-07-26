@@ -10656,6 +10656,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-extension-contract"
+version = "0.1.0"
+dependencies = [
+ "jsonschema",
+ "schemars",
+ "semver",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "url",
+]
+
+[[package]]
 name = "veoveo-frames-mcp"
 version = "0.1.0"
 dependencies = [

@@ -16,6 +16,7 @@ component:
 | [`TECH_DESIGN.md`](TECH_DESIGN.md) | current implementation of those architecture decisions |
 | [`WORK_CONTEXT_GOVERNANCE.md`](WORK_CONTEXT_GOVERNANCE.md) | invocation authority, output ownership, effective access, and rollout |
 | [`ENTERPRISE_DEPLOYMENT.md`](ENTERPRISE_DEPLOYMENT.md) | OCI release, enterprise configuration, secrets, GitOps, extensions, and acceptance |
+| [`EXTERNAL_EXTENSIONS.md`](EXTERNAL_EXTENSIONS.md) | supported private external-repository contract, artifact ownership, compatibility manifests, and installation composition |
 | [`LOCAL_DEPLOYMENT_PROFILES.md`](LOCAL_DEPLOYMENT_PROFILES.md) | disposable k3d showcase profile contract |
 | [`CODEMAP.md`](CODEMAP.md) | documentation index, code ownership, and change routing |
 | [`RECORDINGS.md`](RECORDINGS.md) | recording ingest, catalog, sealing, and governed read path |
@@ -95,6 +96,7 @@ is the browser edition of the harness document.
 | `configs/reason/` | world-model checkpoint reason catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
 | `deploy/contract/` | typed deployment profiles, local registry declarations, path resolution, and pure validation |
+| `extensions/contract/` | typed external artifact, compatibility-manifest, extension-release, and schema contracts |
 | `deploy/local/k3d/` | GPU-capable local Kubernetes cluster and values |
 | `Justfile` | short human dispatch commands only |
 | `AGENTS.md` | hard-cut, task, type, module, and smoke-test rules |
@@ -125,6 +127,7 @@ crate belongs beside the system it implements; Rust is not an architectural boun
 |---|---|
 | `servers/` | a hosted MCP server with its own protocol surface, deployment image, and domain behavior |
 | `mcp/` | protocol contracts, transport extensions, or bridges shared by more than one server |
+| `extensions/` | cross-cutting contracts and reference material for independently owned extension repositories |
 | `platform/` | internal control/data-plane services, durable stores, and reusable execution runtimes |
 | `agents/` | autonomous agent behavior or durable agent scheduling |
 | `apps/` | a user-facing application and its application-specific backend |
