@@ -13,8 +13,10 @@ use veoveo_extension_contract::{
     ArtifactCoordinate, ArtifactDescriptor, ArtifactDigest, ArtifactKind, ArtifactName,
     CompatibilityManifest, CompatibilityManifestSchema, CompatibilityReleaseId,
     ContractCompatibility, ContractKind, EXTENSION_HELM_LIBRARY_API, EXTENSION_RELEASE_SCHEMA,
-    ReleaseVersion, SdkCompatibility, SdkLanguage, VersionRequirement,
-    compatibility_manifest_schema, extension_release_schema,
+    ReleaseVersion, SdkCompatibility, SdkLanguage, SimulationRuntimeCompatibility,
+    SimulationRuntimeReleaseEvidence, VersionRequirement, compatibility_manifest_schema,
+    extension_release_schema, simulation_conformance_result_schema,
+    simulation_runtime_build_lock_schema, simulation_runtime_release_evidence_schema,
 };
 use veoveo_mcp_conformance::{
     HOSTED_SERVER_PROFILE_SCHEMA, conformance_report_schema,
@@ -115,10 +117,18 @@ pub(crate) fn generate(
     let python_path = resolve_input(invocation_root, &args.python_evidence);
     let helm_path = resolve_input(invocation_root, &args.helm_evidence);
     let image_path = resolve_input(invocation_root, &args.image_evidence);
+    let simulation_path = args
+        .simulation_evidence
+        .as_ref()
+        .map(|path| resolve_input(invocation_root, path));
     let python = read_json::<PythonEvidence>(&python_path)?;
     let helm = read_json::<HelmEvidence>(&helm_path)?;
     let images = read_json::<ImageEvidence>(&image_path)?;
-    validate_evidence(revision, &python, &helm, &images)?;
+    let simulation = simulation_path
+        .as_ref()
+        .map(|path| read_json::<SimulationRuntimeReleaseEvidence>(path))
+        .transpose()?;
+    validate_evidence(revision, &python, &helm, &images, simulation.as_ref())?;
 
     let release = CompatibilityReleaseId::new(&args.release)?;
     let platform_version = ReleaseVersion::new(&args.platform_version)?;
@@ -214,7 +224,12 @@ pub(crate) fn generate(
             platform: None,
             media_type: Some(helm_library.media_type.clone()),
         },
-        simulation_runtimes: vec![],
+        simulation_runtimes: simulation
+            .as_ref()
+            .map(simulation_compatibility)
+            .transpose()?
+            .into_iter()
+            .collect(),
     };
     manifest.validate()?;
 
@@ -262,6 +277,18 @@ pub(crate) fn generate(
             "mcp-conformance-report.schema.json",
             serde_json::to_value(conformance_report_schema())?,
         ),
+        (
+            "simulation-runtime-build-lock.schema.json",
+            serde_json::to_value(simulation_runtime_build_lock_schema())?,
+        ),
+        (
+            "simulation-conformance-result.schema.json",
+            serde_json::to_value(simulation_conformance_result_schema())?,
+        ),
+        (
+            "simulation-runtime-release-evidence.schema.json",
+            serde_json::to_value(simulation_runtime_release_evidence_schema())?,
+        ),
     ]);
     let mut schema_sha256 = BTreeMap::new();
     for (name, schema) in schemas {
@@ -274,11 +301,21 @@ pub(crate) fn generate(
         source_revision: revision.to_owned(),
         manifest_sha256: sha256_file(&manifest_path)?,
         schema_sha256,
-        input_sha256: BTreeMap::from([
-            ("helm".to_owned(), sha256_file(&helm_path)?),
-            ("images".to_owned(), sha256_file(&image_path)?),
-            ("python".to_owned(), sha256_file(&python_path)?),
-        ]),
+        input_sha256: BTreeMap::from_iter(
+            [
+                ("helm".to_owned(), sha256_file(&helm_path)?),
+                ("images".to_owned(), sha256_file(&image_path)?),
+                ("python".to_owned(), sha256_file(&python_path)?),
+            ]
+            .into_iter()
+            .chain(
+                simulation_path
+                    .as_ref()
+                    .map(|path| Ok(("simulation".to_owned(), sha256_file(path)?)))
+                    .into_iter()
+                    .collect::<Result<Vec<_>>>()?,
+            ),
+        ),
     };
     write_json_immutable(&output.join("release-evidence.json"), &evidence)?;
 
@@ -295,6 +332,7 @@ fn validate_evidence(
     python: &PythonEvidence,
     helm: &HelmEvidence,
     images: &ImageEvidence,
+    simulation: Option<&SimulationRuntimeReleaseEvidence>,
 ) -> Result<()> {
     ensure!(
         python.schema_version == PYTHON_EVIDENCE_SCHEMA,
@@ -344,7 +382,26 @@ fn validate_evidence(
         let _ = ArtifactDigest::new(&artifact.sha256)?;
         ensure!(!artifact.filename.trim().is_empty(), "empty Helm filename");
     }
+    if let Some(simulation) = simulation {
+        simulation.validate()?;
+        ensure!(
+            simulation.source_revision.as_str() == revision,
+            "simulation evidence revision differs from compatibility revision {revision}"
+        );
+    }
     Ok(())
+}
+
+fn simulation_compatibility(
+    evidence: &SimulationRuntimeReleaseEvidence,
+) -> Result<SimulationRuntimeCompatibility> {
+    Ok(SimulationRuntimeCompatibility {
+        profile: evidence.profile.clone(),
+        base_image: evidence.base_image.clone(),
+        components: evidence.components.clone(),
+        gpu: evidence.gpu.clone(),
+        conformance_result: evidence.conformance_result.clone(),
+    })
 }
 
 fn image_descriptor(
@@ -510,6 +567,7 @@ mod tests {
             python_artifact_base: "python://packages.internal/veoveo".to_owned(),
             helm_evidence: PathBuf::from("helm.json"),
             image_evidence: PathBuf::from("images.json"),
+            simulation_evidence: None,
             output_dir: PathBuf::from("unused"),
         };
         let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");

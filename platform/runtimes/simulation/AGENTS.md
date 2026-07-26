@@ -6,7 +6,7 @@
   Warp, Newton, MuJoCo, Torch, Python, CUDA, or Kit independently without rebuilding
   and rerunning every hardware and overlay gate.
 - Keep one authoritative Warp and Newton module root before and after Kit launch.
-- Treat `dependencies.lock.json` and `requirements.lock` as build inputs. Verify every
+- Treat `simulation-runtime.lock.json` and `requirements.lock` as build inputs. Verify every
   downloaded archive or wheel by SHA-256.
 - Hardware CUDA, RTX output, and NVENC are mandatory. A CPU or software renderer run is
   never acceptance evidence.

@@ -27,14 +27,38 @@ struct ImageReleaseEvidence<'a> {
 
 use crate::{
     ReleaseCompatibilityArgs, ReleaseHelmChartsArgs, ReleaseImagesArgs, ReleasePythonSdkArgs,
+    ReleaseSimulationRuntimeArgs,
     commands::{
         builder, compatibility as compatibility_release, helm,
         image::{self, OutputMode, Selection},
-        python,
+        python, simulation,
         source::PublicationSource,
     },
     context::RepositoryContext,
 };
+
+pub(crate) fn simulation_runtime(
+    repository: &RepositoryContext,
+    args: &ReleaseSimulationRuntimeArgs,
+) -> Result<()> {
+    builder::ensure(repository)?;
+    let publication = PublicationSource::prepare(repository, &args.revision)?;
+    let output_root = if args.output_dir.is_absolute() {
+        args.output_dir.clone()
+    } else {
+        repository.root().join(&args.output_dir)
+    };
+    let output = output_root.join(publication.revision()).join(&args.version);
+    simulation::publish(
+        repository,
+        publication.path(),
+        publication.revision(),
+        args,
+        &output,
+    )?;
+    println!("Simulation-runtime release bundle: {}", output.display());
+    Ok(())
+}
 
 pub(crate) fn compatibility(
     repository: &RepositoryContext,

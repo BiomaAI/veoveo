@@ -1,5 +1,6 @@
 use anyhow::ensure;
 use sha2::{Digest, Sha256};
+use veoveo_extension_contract::SimulationRuntimeBuildLock;
 
 use super::*;
 
@@ -507,40 +508,10 @@ pub(crate) async fn helm_config() -> Result<()> {
                 == Some("0.35.0"),
         "UAV dependency lock omitted a canonical release or Google tiles identity"
     );
-    let simulation_dependencies: Value = serde_json::from_str(&fs::read_to_string(
-        "platform/runtimes/simulation/dependencies.lock.json",
+    let simulation_lock: SimulationRuntimeBuildLock = serde_json::from_slice(&fs::read(
+        "platform/runtimes/simulation/simulation-runtime.lock.json",
     )?)?;
-    ensure!(
-        simulation_dependencies
-            .pointer("/schemaVersion")
-            .and_then(Value::as_str)
-            == Some("veoveo.io/simulation-runtime-lock/v1")
-            && simulation_dependencies
-                .pointer("/components/isaacSim/version")
-                .and_then(Value::as_str)
-                == Some("6.0.1")
-            && simulation_dependencies
-                .pointer("/components/isaacLab/version")
-                .and_then(Value::as_str)
-                == Some("v3.0.0-beta2.patch1")
-            && simulation_dependencies
-                .pointer("/components/warp/version")
-                .and_then(Value::as_str)
-                == Some("1.15.0")
-            && simulation_dependencies
-                .pointer("/components/newton/version")
-                .and_then(Value::as_str)
-                == Some("1.4.0")
-            && simulation_dependencies
-                .pointer("/platform/softwareRendering")
-                .and_then(Value::as_bool)
-                == Some(false)
-            && simulation_dependencies
-                .pointer("/platform/gpuCount")
-                .and_then(Value::as_u64)
-                == Some(1),
-        "simulation runtime dependency lock omitted its canonical GPU tuple"
-    );
+    simulation_lock.validate()?;
     let simulation_runtime_dockerfile =
         fs::read_to_string("platform/runtimes/simulation/Dockerfile")?;
     for expected in [
@@ -579,8 +550,9 @@ pub(crate) async fn helm_config() -> Result<()> {
         "git -C pegasus apply --unidiff-zero --check",
         "ARG RERUN_SDK_VERSION=0.35.0",
         "rerun-sdk==${RERUN_SDK_VERSION}",
-        "FROM --platform=${TARGETPLATFORM} ${SIMULATION_RUNTIME_IMAGE} AS runtime",
-        "veoveo.io/simulation-runtime-profile=",
+        "FROM --platform=${TARGETPLATFORM} ${SIMULATION_RUNTIME_IMAGE} AS uav-overlay",
+        "FROM uav-overlay AS runtime",
+        "uav-overlay.identity.json",
         "org.opencontainers.image.revision=",
         "USER 10001:10001",
     ] {
@@ -657,6 +629,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         "group \"showcase-sumo\"",
         "group \"simulation-runtime\"",
         "group \"showcase-uav-sim\"",
+        "group \"showcase-uav-sim-overlay-acceptance\"",
+        "target \"simulation-overlay-acceptance\"",
         "sumo-base = \"target:sumo-base\"",
         "simulation-runtime = \"target:simulation-runtime\"",
         "veoveo-rust-artifacts = \"target:rust-trixie-artifacts\"",
@@ -670,10 +644,13 @@ pub(crate) async fn helm_config() -> Result<()> {
     ] {
         contains(&bake, expected)?;
     }
+    let image_orchestration = fs::read_to_string("tools/xtask/src/commands/image.rs")?;
+    contains(&image_orchestration, "type=provenance,mode=max")?;
+    contains(&image_orchestration, "type=sbom")?;
     let justfile = fs::read_to_string("Justfile")?;
     for expected in [
         "profile-validate profile:",
-        "profile-up profile revision='HEAD':",
+        "profile-up profile:",
         "profile-cluster-up profile:",
         "charts-publish registry version revision='HEAD' plain_http='false':",
         "cargo xtask image build --target map-mcp",

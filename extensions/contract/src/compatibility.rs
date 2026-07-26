@@ -97,6 +97,8 @@ pub enum RuntimeComponent {
     Python,
     /// CUDA runtime.
     Cuda,
+    /// NVIDIA Kit runtime.
+    Kit,
 }
 
 /// Exact component version in a simulation profile.
