@@ -111,7 +111,10 @@ target/veoveo-xtask/evidence/<revision>/
 families, cache identities, tags, and platform. `run.json` records the operation,
 output mode, start time, duration, exit status, and metadata filename. The Buildx file
 contains the exporter result and image digests reported by BuildKit. A failed execution
-also retains its plan and terminal record.
+also retains its plan and terminal record. Release locks consume the exporter digest
+directly and verify its image reference. They do not rediscover the digest through a
+second registry request, which keeps the evidence path independent of private-registry
+TLS transport.
 
 Image execution sets `SOURCE_DATE_EPOCH=0`. Registry publication rewrites timestamps,
 which removes wall-clock creation time from the release image. A local build uses the
