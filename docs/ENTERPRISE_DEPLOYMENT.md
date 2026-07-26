@@ -10,75 +10,109 @@ Helm is the package contract. GitOps is the recommended reconciliation model, wi
 Argo CD as the maintained reference. An operator may use Flux or direct Helm without
 changing the chart, image, configuration, or Secret contracts.
 
+## Standards And Protocols
+
+| Standard or protocol | Supported profile |
+|---|---|
+| OCI Distribution Specification | authenticated private image, chart, SBOM, provenance, schema, and evidence distribution |
+| Helm and Kubernetes | separately reconciled platform and extension application charts |
+| `veoveo.io/deployment/v2` | installation-owned named sources, independent revisions, Bake groups, chart releases, and typed platform selection |
+| `veoveo.io/deployment-lock/v2` | immutable source, image manifest, chart content, and resolved-platform record |
+| `veoveo.io/gateway-server-fragment/v1` | extension-owned hosted-server contribution |
+| `veoveo.io/gateway-binding/v1` | installation-owned exposure, tenant, producer, and authorization policy |
+| `veoveo.io/compatibility-manifest/v1` | supported SDK, chart library, standalone tools, schemas, and optional simulation tuple |
+| SHA-256 | production image, chart, schema, source-input, and evidence identity |
+| OpenID Connect and OAuth 2.0 | installation-owned identity and protected-resource boundary |
+
 ## Ownership
 
 | Concern | Owner | Durable source |
 |---|---|---|
-| Source compilation and image construction | Veoveo release pipeline | Git revision and Docker Bake definitions |
+| Source compilation and image construction | Each source repository | Independent Git revision and repository-local image graph |
 | Runtime images | OCI publisher | Registry manifests addressed by digest |
 | Platform and extension packages | OCI publisher | Versioned Helm chart artifacts |
-| Installation configuration | Enterprise | Private Git repository |
-| Credentials and private keys | Enterprise | Secret manager and Kubernetes Secret projections |
-| Cluster prerequisites | Enterprise platform team | Cluster platform repository |
-| Application reconciliation | Enterprise GitOps controller | Declared Applications or equivalent release objects |
-| Acceptance evidence | Enterprise release process | Rust smoke output and operational evidence |
+| Installation configuration | Installation owner | Private Git repository |
+| Credentials and private keys | Installation owner | Secret manager and Kubernetes Secret projections |
+| Cluster prerequisites | Installation platform team | Cluster platform repository |
+| Application reconciliation | Installation GitOps controller | Declared Applications or equivalent release objects |
+| Acceptance evidence | Installation release process | Rust smoke, conformance, and operational evidence |
 
 The build pipeline publishes artifacts. It does not connect to customer clusters.
 The configuration repository selects published artifacts. It does not compile
 Veoveo. The reconciliation controller reads the desired state and applies it to the
 cluster. The smoke harness verifies the resulting installation without owning it.
 
+## Installation Addressing
+
+The installation owner chooses the canonical client-facing origin, for example
+`https://veoveo.example.internal`. The name may resolve only through private DNS, an
+internal load balancer, or a VPN. It remains distinct from the private OCI registry and
+package-index coordinates.
+
+`global.publicBaseUrl`, ingress hosts, OAuth protected resources, redirect URIs, and
+gateway issuer metadata derive from that one installation-owned origin. No Veoveo
+artifact embeds a universal service hostname, and private deployment does not require a
+public Veoveo control plane.
+
 ## Release artifacts
 
-Every release publishes all first-party images under one source revision. Production
-Helm values address those images by digest through global.imageDigests; a mutable
-tag is not a production identity. The platform chart and each independently deployed
-extension chart receive a version containing the release revision and are pushed to
-an OCI chart repository whose tags are immutable.
+One installation release may combine several independently versioned sources.
+Production Helm values address images by digest; a mutable tag is not a production
+identity. Each source publishes its own images and application chart. The combined
+deployment lock records source revisions, image manifest digests, chart-content
+digests, and the fully expanded platform selection.
 
 A release pipeline follows this sequence:
 
-1. Build and push the selected Docker Bake groups directly to the OCI registry.
-2. Resolve each published image manifest digest and write the installation image lock.
-3. Package the platform and extension Helm charts with the committed source revision
-   as appVersion.
-4. Push the chart packages to the OCI chart repository and retain their registry
-   digests in release evidence.
-5. Update an installation configuration repository to select the chart versions and
-   image lock.
+1. Resolve the installation's deployment v2 profile from one exact configuration
+   revision.
+2. Resolve each named source to its independent full revision.
+3. Verify that selected Bake targets cover every typed platform and gateway-required
+   image, including producer-side RRD transport.
+4. Build and push each source-owned image graph with SBOM and provenance attestations.
+5. Package and publish each source-owned Helm chart, retaining its registry digest.
+6. Write one immutable deployment v2 lock and update the installation repository to
+   select it.
 
-The repository provides a conventional chart publisher:
+The Veoveo source provides a conventional private chart publisher:
 
 ~~~bash
 REVISION=$(git rev-parse HEAD)
 CHART_VERSION=0.1.0-$(git rev-parse --short=12 HEAD)
 
-just charts-publish registry.example.com/veoveo/charts   "$CHART_VERSION" "$REVISION"
+cargo xtask release helm-charts \
+  --registry registry.example.internal/veoveo/charts \
+  --version "$CHART_VERSION" \
+  --revision "$REVISION"
 ~~~
 
-The command accepts plain_http=true only for the loopback k3d registry. A fielded
-registry uses TLS, authentication, immutable tags, retention policy, and vulnerability
-scanning supplied by the installation owner.
+An internal development registry may explicitly enable plain HTTP. A fielded registry
+uses TLS, authentication, immutable tags, retention policy, and vulnerability scanning
+supplied by the installation owner.
 
-The typed image release command resolves Bake and Cargo metadata, moves the persistent
-publication source to one committed revision, and publishes without loading images into
-the host Docker store:
+The profile release command resolves each source-local Bake graph, moves its persistent
+publication worktree to the selected commit without resetting unchanged file metadata,
+and publishes without loading images into the host Docker store:
 
 ~~~bash
 REVISION=$(git rev-parse HEAD)
 
 cargo xtask image builder ensure
-cargo xtask release images --group platform-full \
-  --registry registry.example.com --revision "$REVISION"
-cargo xtask release images --group simulation-runtime \
-  --registry registry.example.com --revision "$REVISION"
-cargo xtask release images --group showcase-uav-sim \
-  --registry registry.example.com --revision "$REVISION"
+cargo xtask release images \
+  --profile path/to/deployment.json \
+  --profile-revision "$REVISION" \
+  --lock-output output/deployment.lock.json
 ~~~
 
-The canonical simulation runtime is a separate publication phase because UAV and
-external simulator images consume it as a named build context. Independent targets
-within a phase remain eligible for concurrent BuildKit execution.
+Direct group publication remains available for source-owned release pipelines. A
+Veoveo-backed extension platform uses `external-extension-platform`; the canonical
+simulation base and overlays use their dedicated groups. The simulation image group is
+an ABI and GPU certification boundary, not proof that Frames, Map, Media, or RRD
+services were installed. Deployment profile closure supplies that proof.
+
+The canonical simulation runtime is a separate build dependency because UAV and
+external simulator overlays consume it as a named build context. The deployment
+profile selects all required groups and records their combined immutable closure.
 
 ## Configuration repository
 
@@ -93,17 +127,22 @@ clusters/
     values/
       veoveo.yaml             installation identity, capacity, storage, ingress
       extension.yaml          independently deployed domain extension values
-      images.lock.yaml        image repository and digest selection
+      deployment.lock.json    named sources, charts, images, and digests
+      images.generated.yaml   Helm digest values projected from the deployment lock
     gateway/
-      control-plane.json      MCP catalog, OAuth clients, policy, and routing
+      base.json               installation-owned platform control plane
+      bindings/               installation-owned extension exposure and policy
+      fragments.lock.json     immutable extension fragment selection
+      control-plane.json      deterministic composed output
       public-jwks.json
 ~~~
 
 Helm values own chart inputs. Kubernetes manifests own resources outside a chart.
-The gateway control-plane document owns the MCP catalog and authorization policy.
-The GitOps controller may generate ConfigMaps from committed non-secret files.
-There is no second installation document that repeats releases, values files, Secret
-keys, and apply order.
+The gateway base and bindings own platform exposure and authorization. Extensions own
+server fragments in their release artifacts. `gateway-compose` produces the complete
+validated control plane and content provenance offline. The GitOps controller may
+generate ConfigMaps from committed non-secret outputs. There is no second installation
+document that repeats releases, values files, Secret keys, and apply order.
 
 Environment overlays use the native composition mechanism chosen by the enterprise:
 Helm values, Kustomize, or the GitOps controller's generator. One setting has one
@@ -142,8 +181,8 @@ Application begins only after the controller and its repository credentials exis
 
 A root application may create the installation namespace, non-secret ConfigMaps,
 ingress connectors, an AppProject, and child Applications. The platform chart is one
-child. Each optional or customer-authored MCP extension is another child with its own
-chart version, values, health, rollback, and lifecycle.
+child. Each optional private MCP extension is another child with its own chart version,
+values, health, rollback, and lifecycle.
 
 The controller reconciles drift continuously. Routine releases change Git and let the
 controller converge. kubectl apply and helm upgrade are bootstrap and recovery tools,
@@ -152,20 +191,24 @@ not concurrent owners of the same application resources.
 ## Independently deployed MCP extensions
 
 An extension packages its Kubernetes workload in its own Helm chart. The installation
-adds a child application for that chart and registers the server, routes, capabilities,
-and policy in the gateway control plane. This separates scheduling and rollout while
-preserving one MCP authority and one authorization boundary.
+adds a child application for that chart, selects its immutable release manifest, and
+binds its gateway fragment through installation-owned policy. The deterministic
+composer registers routes and capabilities in the complete control plane. This
+separates scheduling and rollout while preserving one MCP authority and one
+authorization boundary.
 
 An extension application normally selects two sources:
 
 - the immutable OCI chart version;
-- the enterprise Git repository containing values and the shared image lock.
+- the installation Git repository containing values, bindings, and the deployment lock.
 
-Custom enterprise MCP servers follow the same pattern. They do not need Veoveo's build
-system when their image and chart are already published. Their gateway entry still uses
-the canonical typed control-plane model, internal assertion trust, policy checks, audit
-path, and URI identities. The complete normative server requirements, including the
-well-known docs and contract resources, are in
+Private MCP servers follow the same pattern. They use their repository's native build
+system and do not join the Veoveo workspace. Their chart consumes the versioned
+`veoveo-extension` library from the configured private OCI registry or verified offline
+bundle. Their gateway fragment still uses the canonical typed control-plane model,
+internal assertion trust, policy checks, audit path, and URI identities. The complete
+normative server requirements, including the well-known docs and contract resources,
+are in
 [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md).
 
 ## Direct Helm
@@ -174,7 +217,7 @@ Argo CD is not a runtime dependency of Veoveo. An enterprise with another releas
 controller can render or install the same packages directly:
 
 ~~~bash
-helm upgrade --install veoveo   oci://registry.example.com/veoveo/charts/veoveo   --version "$CHART_VERSION"   --namespace veoveo   --create-namespace   --values values/veoveo.yaml   --values values/images.lock.yaml   --wait
+helm upgrade --install veoveo   oci://registry.example.com/veoveo/charts/veoveo   --version "$CHART_VERSION"   --namespace veoveo   --create-namespace   --values values/veoveo.yaml   --values values/images.generated.yaml   --wait
 ~~~
 
 The operator must apply the gateway ConfigMap and provision every referenced Secret

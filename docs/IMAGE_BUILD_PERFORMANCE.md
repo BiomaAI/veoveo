@@ -151,4 +151,42 @@ experiments.
 | Gateway edit avoids unrelated compilation | Cargo output names only `veoveo-mcp-gateway` | pass |
 | Unchanged runtime images remain identical | five non-gateway digests match | pass |
 | Execution evidence is immutable | unique create-only evidence directory for every run | pass |
-| Output timestamps are reproducible | epoch input and timestamp-rewriting exporters | pass |
+| Release output timestamps are reproducible | epoch input and timestamp-rewriting registry exporter | pass |
+
+## Extension Platform Closure
+
+The `external-extension-platform` plan resolves nine runtime targets. Eight use one
+`rust-trixie-v1` Cargo action; Map uses the distinct `rust-bookworm-v1` family. The
+typed deployment resolver requires the same target set when gateway composition selects
+Artifact, Frames, Map, Media, Recording, and RRD:
+
+```text
+artifact-mcp
+artifact-service
+frames-mcp
+map-mcp
+mcp-gateway
+media-mcp
+recording-forwarder
+recording-hub
+recording-mcp
+```
+
+This is a structural acceptance result. The services keep separate runtime images and
+can change independently, while one release plan prevents an installation from
+silently omitting a selected dependency.
+
+## Simulation Overlay Cold Stage
+
+The first complete `showcase-uav-sim-overlay-acceptance` build at implementation
+checkpoint `675d118` completed in about eight minutes with the large Isaac lineage
+already present locally. About 155 seconds were spent recursively initializing PX4
+submodules, including FlightGear and NuttX sources that `px4_sitl_default` does not
+execute. Importing the inherited 22 GB image lineage into the local Docker store cost
+roughly another two minutes.
+
+The GPU acceptance result is valid; these costs concern source preparation and local
+export. The next PX4 image change must replace recursive initialization with the
+hash-pinned SITL dependency closure and prove the resulting binary in the same hardware
+smoke. Registry release publication avoids the local Docker import, while the canonical
+base remains a shared digest rather than being flattened into each overlay.

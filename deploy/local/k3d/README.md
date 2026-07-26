@@ -94,7 +94,7 @@ REVISION=$(git rev-parse HEAD)
 just profile-validate "$PROFILE"
 just profile-cluster-up "$PROFILE"
 cargo xtask image builder ensure
-cargo xtask release images --profile "$PROFILE" --revision "$REVISION"
+cargo xtask release images --profile "$PROFILE" --profile-revision "$REVISION"
 just profile-up "$PROFILE" "$REVISION"
 just showcase-sumo-verify
 ```

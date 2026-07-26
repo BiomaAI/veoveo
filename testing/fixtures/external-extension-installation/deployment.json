@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "veoveo.io/deployment/v2",
+  "name": "anonymous-extension",
+  "registry": {
+    "address": "registry.example.internal",
+    "localConfig": null
+  },
+  "sources": [
+    {
+      "name": "veoveo",
+      "repository": {
+        "kind": "local",
+        "path": "../../.."
+      },
+      "revision": "HEAD",
+      "imageGroups": [
+        "external-extension-platform"
+      ],
+      "releases": [
+        {
+          "name": "veoveo",
+          "chart": "deploy/helm/veoveo",
+          "values": [],
+          "valuesContract": "platform",
+          "createNamespace": true,
+          "timeoutSeconds": 720
+        }
+      ]
+    }
+  ],
+  "kubernetes": {
+    "context": "anonymous-extension",
+    "localCluster": null
+  },
+  "namespace": "veoveo",
+  "resources": {
+    "manifests": [],
+    "configMaps": [],
+    "secrets": []
+  },
+  "platform": {
+    "installationPreset": "custom",
+    "components": [
+      "gateway",
+      "platform-store",
+      "object-store",
+      "artifact-service"
+    ],
+    "mcpServers": [
+      "artifact",
+      "frames",
+      "map",
+      "media",
+      "recording"
+    ],
+    "artifactAudiences": [
+      "anonymous"
+    ]
+  },
+  "gatewayRequirements": [
+    "gateway-requirements.json"
+  ],
+  "waitForDeployments": []
+}

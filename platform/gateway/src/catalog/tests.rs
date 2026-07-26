@@ -778,6 +778,10 @@ fn catalog_routes_server_owned_projected_ui_resources() {
     let mut chart_server = media_manifest();
     chart_server.slug = ServerSlug::new("charts").unwrap();
     chart_server.uri_scheme = ResourceScheme::new("charts").unwrap();
+    chart_server.mount_path = MountPath::new("/charts").unwrap();
+    chart_server.mcp_path = MountPath::new("/charts/mcp").unwrap();
+    chart_server.upstream.url = UpstreamUrl::new("http://chart-mcp:8795/charts/mcp").unwrap();
+    chart_server.owned_routes.clear();
     chart_server.resource_projection = ResourceProjectionMode::ServerOwned;
 
     let mut profile = profile();
