@@ -80,6 +80,10 @@ group "showcase-uav-sim-base" {
   targets = ["uav-sim-base"]
 }
 
+group "showcase-uav-sim-overlay-acceptance" {
+  targets = ["uav-sim-runtime", "simulation-overlay-acceptance"]
+}
+
 group "extension-support" {
   targets = ["mcp-conformance", "gateway-composer"]
 }
@@ -480,6 +484,19 @@ target "uav-sim-runtime" {
   }
   args = {
     UAV_SIM_BASE_IMAGE = "uav-sim-base"
+  }
+}
+
+target "simulation-overlay-acceptance" {
+  context    = "testing/fixtures/simulation-overlay"
+  dockerfile = "Dockerfile"
+  platforms  = ["linux/amd64"]
+  tags       = [image_ref("simulation-overlay-acceptance")]
+  contexts = {
+    uav-sim-base = "target:uav-sim-base"
+  }
+  args = {
+    VEOVEO_SIMULATION_BASE = "uav-sim-base"
   }
 }
 

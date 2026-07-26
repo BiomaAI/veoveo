@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "veoveo.io/simulation-runtime-build-lock/v1",
+  "profile": "isaac-sim-6",
+  "upstreamImage": "oci://nvcr.io/nvidia/isaac-sim@sha256:b1c542b2ecc549b3d1ebb78c25664aa3bacba1709e6ad8e0a68e09426d57dedb",
+  "upstreamDigest": "sha256:b1c542b2ecc549b3d1ebb78c25664aa3bacba1709e6ad8e0a68e09426d57dedb",
+  "components": [
+    {
+      "component": "isaac_sim",
+      "version": "6.0.1-rc.7+release.42383.32955d8d.gl"
+    },
+    {
+      "component": "isaac_lab",
+      "version": "3.0.0-beta2.patch1",
+      "revision": "ffff603eafc6b74264a5261cc0183d6a65390d78"
+    },
+    {
+      "component": "warp",
+      "version": "1.15.0"
+    },
+    {
+      "component": "newton",
+      "version": "1.4.0"
+    },
+    {
+      "component": "mujoco",
+      "version": "3.10.0"
+    },
+    {
+      "component": "mujoco_warp",
+      "version": "3.10.0.3"
+    },
+    {
+      "component": "python",
+      "version": "3.12.13"
+    },
+    {
+      "component": "cuda",
+      "version": "12.9"
+    },
+    {
+      "component": "kit",
+      "version": "110.1.2"
+    }
+  ],
+  "sources": [
+    {
+      "component": "isaac_lab",
+      "repository": "https://github.com/isaac-sim/IsaacLab.git",
+      "tag": "v3.0.0-beta2.patch1",
+      "revision": "ffff603eafc6b74264a5261cc0183d6a65390d78",
+      "archiveDigest": "sha256:5c1a0dc5e3a69f10ade3c9d8f6a5e702e609d1dc896c9c9f011c667b6ea38eb0",
+      "prereleaseReason": "Isaac Lab has no stable Isaac Sim 6.0-compatible release."
+    }
+  ],
+  "pythonDistributions": [
+    {
+      "package": "setuptools",
+      "version": "81.0.0",
+      "filename": "setuptools-81.0.0-py3-none-any.whl",
+      "digest": "sha256:fdd925d5c5d9f62e4b74b30d6dd7828ce236fd6ed998a08d81de62ce5a6310d6"
+    },
+    {
+      "package": "toml",
+      "version": "0.10.2",
+      "filename": "toml-0.10.2-py2.py3-none-any.whl",
+      "digest": "sha256:806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b"
+    },
+    {
+      "package": "wheel",
+      "version": "0.47.0",
+      "filename": "wheel-0.47.0-py3-none-any.whl",
+      "digest": "sha256:212281cab4dff978f6cedd499cd893e1f620791ca6ff7107cf270781e587eced"
+    },
+    {
+      "package": "warp-lang",
+      "version": "1.15.0",
+      "filename": "warp_lang-1.15.0-py3-none-manylinux_2_28_x86_64.whl",
+      "digest": "sha256:95c169f28bd7d6c78ac4ad62e2df1e61a096033748f757157fa4551aed80d010"
+    },
+    {
+      "package": "newton",
+      "version": "1.4.0",
+      "filename": "newton-1.4.0-py3-none-any.whl",
+      "digest": "sha256:0e11343cc51b86647d9afcd191a21ca4d0d5e410d84072a60ef84af908c72577"
+    },
+    {
+      "package": "mujoco",
+      "version": "3.10.0",
+      "filename": "mujoco-3.10.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "digest": "sha256:966d12f88e77e2b188e7530667b519d6963b9b906cff83bab534e5e4279325a0"
+    },
+    {
+      "package": "mujoco-warp",
+      "version": "3.10.0.3",
+      "filename": "mujoco_warp-3.10.0.3-py3-none-any.whl",
+      "digest": "sha256:9435e5d6a7061af32aecc8da38124bfccceea27fc85176b33b66b7c4b76b4c1a"
+    }
+  ],
+  "authoritativePackageRoots": [
+    "newton",
+    "warp"
+  ],
+  "overlayImmutableComponents": [
+    "isaac_sim",
+    "isaac_lab",
+    "warp",
+    "newton",
+    "mujoco",
+    "mujoco_warp",
+    "python",
+    "cuda",
+    "kit"
+  ],
+  "gpu": {
+    "runtime": {
+      "resourceName": "nvidia.com/gpu",
+      "count": 1,
+      "runtimeClassName": "nvidia",
+      "sharedMemoryBytes": 2147483648
+    },
+    "minimumDriverVersion": "580.173.02",
+    "driverCapabilities": [
+      "compute",
+      "graphics",
+      "video",
+      "utility"
+    ]
+  }
+}

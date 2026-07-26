@@ -9,7 +9,7 @@ use std::{
 
 use anyhow::{Context, Result, anyhow, bail};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use reqwest::{
     StatusCode,
     header::{CONTENT_TYPE, HOST, LOCATION},
@@ -28,6 +28,7 @@ use rmcp::{
 };
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
+use veoveo_extension_contract::SimulationOverlayKind;
 use veoveo_mcp_contract::{
     GatewayTaskStatusDocument, GatewayTaskStatusKind, RELATED_TASK_META_KEY,
 };
@@ -505,6 +506,30 @@ enum Cmd {
         #[arg(long, default_value_t = 900)]
         timeout_seconds: u64,
     },
+    /// Certify an immutable simulation overlay and base on NVIDIA hardware.
+    SimulationCertify {
+        /// Canonical base image using repository@sha256 identity.
+        #[arg(long)]
+        base_image: String,
+        /// Simulator overlay image using repository@sha256 identity.
+        #[arg(long)]
+        overlay_image: String,
+        /// Supported overlay class.
+        #[arg(long, value_enum)]
+        overlay_kind: SimulationOverlayArg,
+        /// Full source revision that produced the overlay.
+        #[arg(long)]
+        source_revision: String,
+        /// Machine-readable hardware result.
+        #[arg(long)]
+        output: PathBuf,
+        /// Persistent host shader and kernel cache.
+        #[arg(long, default_value = "output/simulation-certification/runtime-cache")]
+        cache_directory: PathBuf,
+        /// Hard upper bound including an uncached first Kit launch.
+        #[arg(long, default_value_t = 1200)]
+        timeout_seconds: u64,
+    },
     /// Run the DeepStream GPU detector through Recording Hub and the final MCP task protocol.
     PerceptionGpu {
         /// Environment file used by the active k3d profile and direct assertion signer.
@@ -523,6 +548,21 @@ enum Cmd {
         #[arg(long, default_value = "output/reason/work")]
         work_dir: PathBuf,
     },
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum SimulationOverlayArg {
+    FirstPartyUav,
+    AnonymousExternal,
+}
+
+impl From<SimulationOverlayArg> for SimulationOverlayKind {
+    fn from(value: SimulationOverlayArg) -> Self {
+        match value {
+            SimulationOverlayArg::FirstPartyUav => Self::FirstPartyUav,
+            SimulationOverlayArg::AnonymousExternal => Self::AnonymousExternal,
+        }
+    }
 }
 
 #[tokio::main]
@@ -776,6 +816,26 @@ async fn main() -> Result<()> {
             uav_sim_aov_probe(
                 &image,
                 frames,
+                &cache_directory,
+                Duration::from_secs(timeout_seconds),
+            )
+            .await
+        }
+        Cmd::SimulationCertify {
+            base_image,
+            overlay_image,
+            overlay_kind,
+            source_revision,
+            output,
+            cache_directory,
+            timeout_seconds,
+        } => {
+            simulation_certify(
+                &base_image,
+                &overlay_image,
+                overlay_kind.into(),
+                &source_revision,
+                &output,
                 &cache_directory,
                 Duration::from_secs(timeout_seconds),
             )

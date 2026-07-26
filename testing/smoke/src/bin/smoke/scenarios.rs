@@ -25,6 +25,8 @@ mod reason;
 mod recording_ingest;
 #[path = "scenarios/secrets.rs"]
 mod secrets;
+#[path = "scenarios/simulation.rs"]
+mod simulation;
 #[path = "scenarios/sumo.rs"]
 mod sumo;
 #[path = "scenarios/uav_sim.rs"]
@@ -44,6 +46,7 @@ pub(crate) use perception::*;
 pub(crate) use reason::*;
 pub(crate) use recording_ingest::*;
 pub(crate) use secrets::*;
+pub(crate) use simulation::*;
 pub(crate) use sumo::*;
 pub(crate) use uav_sim::*;
 pub(crate) use view::*;

@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "veoveo.io/simulation-overlay-identity/v1",
+  "kind": "first_party_uav",
+  "baseLockDigest": "sha256:0a27bf50bc5334dcbefe8488a74dc57c4514a0a13921f037e1b5e03b4702b5d8",
+  "probeModule": "veoveo_uav_sim.simulation_overlay",
+  "marker": "veoveo-uav-simulation"
+}

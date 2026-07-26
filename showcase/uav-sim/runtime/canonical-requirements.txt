@@ -1,0 +1,10 @@
+# Wheels are selected for Isaac Sim 6.0.1's CPython 3.12 linux/amd64 runtime.
+# Install with --no-deps because Isaac Sim owns NumPy and the Kit Python graph.
+warp-lang==1.15.0 \
+    --hash=sha256:95c169f28bd7d6c78ac4ad62e2df1e61a096033748f757157fa4551aed80d010
+newton==1.4.0 \
+    --hash=sha256:0e11343cc51b86647d9afcd191a21ca4d0d5e410d84072a60ef84af908c72577
+mujoco==3.10.0 \
+    --hash=sha256:966d12f88e77e2b188e7530667b519d6963b9b906cff83bab534e5e4279325a0
+mujoco-warp==3.10.0.3 \
+    --hash=sha256:9435e5d6a7061af32aecc8da38124bfccceea27fc85176b33b66b7c4b76b4c1a
