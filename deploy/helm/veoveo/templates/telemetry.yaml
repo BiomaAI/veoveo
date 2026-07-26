@@ -1,4 +1,4 @@
-{{- if .Values.telemetry.enabled }}
+{{- if and (include "veoveo.componentEnabled" (list . "telemetry")) .Values.telemetry.enabled }}
 apiVersion: v1
 kind: Service
 metadata:

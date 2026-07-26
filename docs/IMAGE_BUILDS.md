@@ -186,15 +186,13 @@ installation-configured package source, or a verified offline bundle. The
 installation's client-facing origin is separate configuration and may be reachable only
 through private DNS, an internal network, or a VPN.
 
-The current delivery completes the internal source-local planner and leaves the
-supported external extension surfaces explicit in the hardening plan. A supported SDK
-facade, compatibility manifest, standalone conformance distribution, smoke descriptor,
-Helm library, and multi-source installation composer are still planned. They are not a
-supported external CI interface yet. Until those artifacts land, an external repository
-can publish an independently built MCP server, but it cannot claim the future Veoveo
-extension compatibility profile from an end-to-end supported workflow.
+The current delivery includes the source-local planner, private Python SDK,
+standalone conformance distribution, gateway composer, Helm library, and named-source
+deployment v2 coordination. The compatibility release generator and final anonymous
+external acceptance remain active, so an external repository cannot claim the complete
+Veoveo extension compatibility profile yet.
 
-Multi-source composition will pass an explicit source context and immutable artifact
-identity into the same typed planner model. It will coordinate independently published
-graphs; it will not merge external packages into the core Cargo workspace or one
+Multi-source composition passes an explicit source context and immutable artifact
+identity into the same typed planner model. It coordinates independently published
+graphs; it does not merge external packages into the core Cargo workspace or one
 universal builder command.

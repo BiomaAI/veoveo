@@ -1,4 +1,4 @@
-{{- if .Values.reason.enabled }}
+{{- if include "veoveo.mcpServerEnabled" (list . "reason") }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

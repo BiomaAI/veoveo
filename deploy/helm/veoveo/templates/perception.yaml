@@ -1,4 +1,4 @@
-{{- if .Values.perception.enabled }}
+{{- if include "veoveo.mcpServerEnabled" (list . "perception") }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

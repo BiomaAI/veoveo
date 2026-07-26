@@ -13,7 +13,7 @@ The current complete profile is the SUMO development environment:
 | Local image destination | k3d-veoveo-registry.localhost:5001/veoveo/image:git-sha |
 | Platform workload graph | deploy/helm/veoveo |
 | Showcase workload graph | Its adjacent Helm chart |
-| Development composition | A veoveo.io/deployment/v1 JSON profile |
+| Development composition | A `veoveo.io/deployment/v2` named-source JSON profile |
 | Local registry lifecycle | deploy/local/k3d/registry.json |
 
 ## Workflow
@@ -30,8 +30,8 @@ REVISION=$(git rev-parse HEAD)
 just profile-validate "$PROFILE"
 just profile-cluster-up "$PROFILE"
 cargo xtask image builder ensure
-cargo xtask release images --profile "$PROFILE" --revision "$REVISION"
-just profile-up "$PROFILE" "$REVISION"
+cargo xtask release images --profile "$PROFILE" --profile-revision "$REVISION"
+just profile-up "$PROFILE"
 ~~~
 
 BuildKit pushes images directly to the shared local OCI registry. It does not load
@@ -45,23 +45,36 @@ Builders with a different operating-system ABI or native SDK use separate identi
 
 ## Contract
 
-Paths resolve relative to the profile. The fields are:
+Installation-owned paths resolve relative to the profile. Source-owned chart and values
+paths resolve inside that source's exact checkout. The fields are:
 
 | Field | Meaning |
 |---|---|
-| schemaVersion | veoveo.io/deployment/v1 |
+| schemaVersion | `veoveo.io/deployment/v2` |
 | name | Stable local environment identity |
 | registry.address | OCI host and port |
 | registry.localConfig | Shared k3d registry definition |
-| imageGroups | Ordered Docker Bake publication phases |
+| sources | Named repositories with independent revisions, image groups, and releases |
 | kubernetes.context | Explicit kubectl and Helm context |
 | kubernetes.localCluster | k3d configuration and node bootstrap manifests |
 | namespace | Namespace for local resources |
 | resources.manifests | Kubernetes resources applied before Helm |
 | resources.configMaps | File-backed development ConfigMaps |
 | resources.secrets | Environment-backed development Secrets |
-| releases | Ordered local Helm releases and values |
+| platform | Typed installation preset or exact components, MCP servers, and artifact audiences |
+| gatewayRequirements | Composer outputs that the selected runtime must satisfy |
 | waitForDeployments | Extra rollout gates |
+
+`cargo xtask release images --profile` resolves every source revision independently.
+It publishes each source's Bake groups under that revision and writes one
+`veoveo.io/deployment-lock/v2` document with source repositories, exact revisions,
+image manifest digests, chart-content digests, and the expanded platform graph.
+
+The `extension-foundation` preset selects the gateway, platform store, object store,
+artifact service, Artifact MCP, Frames MCP, and Recording MCP/hub. A custom selection
+can add Map and Media. If a gateway fragment requires either capability and the
+corresponding server is absent, profile validation fails before Helm runs. `rrd`
+requires the Recording MCP and hub because that runtime owns governed RRD playback.
 
 Secret values pass to Kubernetes over stdin. The JSON file contains environment
 variable names, not bytes. This mechanism is confined to local development; enterprise

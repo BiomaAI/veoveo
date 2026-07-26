@@ -1,8 +1,11 @@
 {{- if .Values.podDisruptionBudget.enabled }}
-{{- $workloads := list
-  (dict "name" "artifact-service" "component" "artifact-service")
-  (dict "name" "console-bff" "component" "console-bff")
--}}
+{{- $workloads := list -}}
+{{- if include "veoveo.componentEnabled" (list . "artifact-service") -}}
+{{- $workloads = append $workloads (dict "name" "artifact-service" "component" "artifact-service") -}}
+{{- end -}}
+{{- if include "veoveo.componentEnabled" (list . "console") -}}
+{{- $workloads = append $workloads (dict "name" "console-bff" "component" "console-bff") -}}
+{{- end -}}
 {{- range $workload := $workloads }}
 ---
 apiVersion: policy/v1
