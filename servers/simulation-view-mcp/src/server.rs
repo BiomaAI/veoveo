@@ -46,11 +46,17 @@ pub async fn run() -> Result<()> {
         GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
     );
     let service = SimulationViewService::new(args.service_config()?)?;
-    let mcp_state = SimulationViewMcpState::new(service.clone(), &args.public_signaling_url)?;
     let runtimes = Arc::new(RuntimeClients::new(
         &args.renderer_endpoint,
         &args.pose_endpoint,
+        &args.renderer_control_token,
+        &args.pose_control_token,
     )?);
+    let mcp_state = SimulationViewMcpState::new(
+        service.clone(),
+        runtimes.clone(),
+        &args.public_signaling_url,
+    )?;
     let signaling = SignalingState::new(service, mcp_state.clone(), &args.renderer_signaling_url)?;
 
     let cancellation = tokio_util::sync::CancellationToken::new();

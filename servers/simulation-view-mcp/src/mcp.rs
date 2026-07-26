@@ -27,6 +27,7 @@ use crate::{
         OpenLiveViewRequest, OpenLiveViewResult, PoseSourceState, RenewLiveViewRequest,
         RevokePoseProducerRequest, SetCameraRequest, SimulationViewError, SimulationViewSession,
     },
+    runtime::RuntimeClients,
     state::SimulationViewService,
     uris,
 };
@@ -51,12 +52,14 @@ pub(crate) struct SimulationViewMcpState {
     pub service: Arc<SimulationViewService>,
     pub subscriptions: SubscriptionHub,
     pub list_observers: ResourceListObservers,
+    runtimes: Arc<RuntimeClients>,
     app_connect_origin: String,
 }
 
 impl SimulationViewMcpState {
     pub(crate) fn new(
         service: Arc<SimulationViewService>,
+        runtimes: Arc<RuntimeClients>,
         signaling_url: &str,
     ) -> anyhow::Result<Arc<Self>> {
         let signaling_url = url::Url::parse(signaling_url)?;
@@ -69,6 +72,7 @@ impl SimulationViewMcpState {
             service,
             subscriptions: SubscriptionHub::new(),
             list_observers: ResourceListObservers::new(),
+            runtimes,
             app_connect_origin,
         }))
     }
@@ -136,6 +140,10 @@ impl SimulationViewMcp {
             .service
             .create_session(owner, request)
             .map_err(service_error)?;
+        if let Err(error) = self.state.runtimes.create_session(&session).await {
+            self.state.service.fail_session(&session.session_id);
+            return Err(runtime_error(error));
+        }
         self.notify_session_created(&session, &context).await;
         structured_result(
             format!("created {}", uris::session(&session.session_id)),
@@ -183,6 +191,10 @@ impl SimulationViewMcp {
             .service
             .bind_scene(&owner, request)
             .map_err(service_error)?;
+        if let Err(error) = self.state.runtimes.bind_scene(&session).await {
+            self.state.service.fail_session(&session.session_id);
+            return Err(runtime_error(error));
+        }
         self.notify_session(&session.session_id).await;
         structured_result(
             format!("bound {}", uris::scene(&session.session_id)),
@@ -208,6 +220,15 @@ impl SimulationViewMcp {
             .service
             .authorize_pose_producer(&owner, request)
             .map_err(service_error)?;
+        let session = self
+            .state
+            .service
+            .get_session(&owner, &session_id)
+            .map_err(service_error)?;
+        if let Err(error) = self.state.runtimes.bind_pose(&session, &result).await {
+            self.state.service.fail_session(&session_id);
+            return Err(runtime_error(error));
+        }
         self.notify_session(&session_id).await;
         structured_result(
             format!("authorized {}", uris::pose_source(&session_id)),
@@ -233,6 +254,10 @@ impl SimulationViewMcp {
             .service
             .revoke_pose_producer(&owner, request)
             .map_err(service_error)?;
+        if let Err(error) = self.state.runtimes.revoke_pose(&session_id).await {
+            self.state.service.fail_session(&session_id);
+            return Err(runtime_error(error));
+        }
         self.notify_session(&session_id).await;
         structured_result(
             format!("revoked {}", uris::pose_source(&session_id)),
@@ -258,6 +283,12 @@ impl SimulationViewMcp {
             .service
             .create_camera(&owner, request)
             .map_err(service_error)?;
+        if let CameraAdmission::Admitted { camera } = &result {
+            if let Err(error) = self.state.runtimes.upsert_camera(camera).await {
+                self.state.service.fail_camera(&camera.camera_id);
+                return Err(runtime_error(error));
+            }
+        }
         if matches!(result, CameraAdmission::Admitted { .. }) {
             self.notify_cameras(&session_id, &context).await;
         }
@@ -283,6 +314,12 @@ impl SimulationViewMcp {
             .service
             .set_camera(&owner, request)
             .map_err(service_error)?;
+        if let CameraAdmission::Admitted { camera } = &result {
+            if let Err(error) = self.state.runtimes.upsert_camera(camera).await {
+                self.state.service.fail_camera(&camera.camera_id);
+                return Err(runtime_error(error));
+            }
+        }
         if matches!(result, CameraAdmission::Admitted { .. }) {
             self.state
                 .subscriptions
@@ -310,11 +347,20 @@ impl SimulationViewMcp {
     ) -> Result<CallToolResult, McpError> {
         let owner = require_owner(&context, "simulation-view:write")?;
         let session_id = request.session_id.clone();
+        let camera_id = request.camera_id.clone();
         let result = self
             .state
             .service
             .close_camera(&owner, request)
             .map_err(service_error)?;
+        if let Err(error) = self
+            .state
+            .runtimes
+            .close_camera(&session_id, &camera_id)
+            .await
+        {
+            return Err(runtime_error(error));
+        }
         self.notify_cameras(&session_id, &context).await;
         self.state
             .subscriptions
@@ -341,6 +387,10 @@ impl SimulationViewMcp {
             .service
             .open_live_view(&owner, request)
             .map_err(service_error)?;
+        if let Err(error) = self.state.runtimes.open_stream(&result.stream).await {
+            self.state.service.abort_stream(&result.stream.live_view_id);
+            return Err(runtime_error(error));
+        }
         self.notify_streams(&session_id, &context).await;
         structured_result(
             format!("opened {}", result.stream.resource_uri.as_str()),
@@ -393,11 +443,20 @@ impl SimulationViewMcp {
     ) -> Result<CallToolResult, McpError> {
         let owner = require_owner(&context, "simulation-view:stream")?;
         let session_id = request.session_id.clone();
+        let stream_id = request.live_view_id.clone();
         let result = self
             .state
             .service
             .close_live_view(&owner, request)
             .map_err(service_error)?;
+        if let Err(error) = self
+            .state
+            .runtimes
+            .close_stream(&session_id, &stream_id)
+            .await
+        {
+            return Err(runtime_error(error));
+        }
         self.state
             .subscriptions
             .notify_resource_updated(&result.resource_uri)
@@ -445,6 +504,9 @@ impl SimulationViewMcp {
             .service
             .close_session(&owner, request)
             .map_err(service_error)?;
+        if let Err(error) = self.state.runtimes.close_session(&session_id).await {
+            return Err(runtime_error(error));
+        }
         self.notify_session(&session_id).await;
         self.notify_cameras(&session_id, &context).await;
         self.notify_streams(&session_id, &context).await;
@@ -989,6 +1051,11 @@ fn not_found() -> McpError {
 
 fn internal(error: impl std::fmt::Display) -> McpError {
     McpError::internal_error(error.to_string(), None)
+}
+
+fn runtime_error(error: impl std::fmt::Display) -> McpError {
+    tracing::error!(%error, "Simulation View runtime transition failed");
+    McpError::internal_error("Simulation View runtime transition failed", None)
 }
 
 #[cfg(test)]

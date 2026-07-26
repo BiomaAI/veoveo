@@ -602,6 +602,73 @@ impl SimulationViewService {
         }
     }
 
+    pub(crate) fn fail_session(&self, session_id: &LiveSessionId) {
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        if let Some(session) = state.sessions.get_mut(session_id) {
+            session.lifecycle = SessionLifecycle::Failed;
+            if let Some(source) = session.pose_source.as_mut() {
+                source.revoked = true;
+                source.stale = true;
+            }
+            advance_session(session);
+        }
+        for camera in state
+            .cameras
+            .values_mut()
+            .filter(|camera| camera.session_id == *session_id)
+        {
+            camera.health = LiveCameraHealth::Failed;
+            camera.updated_at = Utc::now();
+        }
+        for lease in state
+            .leases
+            .values_mut()
+            .filter(|lease| lease.state.session_id == *session_id)
+        {
+            lease.state.lifecycle = LiveViewLifecycle::Failed;
+            lease.state.connected_viewers = 0;
+            lease.token_hash.fill(0);
+            lease.state.expires_at = Utc::now();
+        }
+    }
+
+    pub(crate) fn fail_camera(&self, camera_id: &LiveCameraId) {
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        if let Some(camera) = state.cameras.get_mut(camera_id) {
+            camera.health = LiveCameraHealth::Failed;
+            camera.updated_at = Utc::now();
+        }
+        for lease in state
+            .leases
+            .values_mut()
+            .filter(|lease| lease.state.camera_id == *camera_id)
+        {
+            lease.state.lifecycle = LiveViewLifecycle::Failed;
+            lease.state.connected_viewers = 0;
+            lease.token_hash.fill(0);
+            lease.state.expires_at = Utc::now();
+        }
+    }
+
+    pub(crate) fn abort_stream(&self, stream_id: &LiveViewId) {
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        if let Some(lease) = state.leases.get_mut(stream_id) {
+            lease.state.lifecycle = LiveViewLifecycle::Failed;
+            lease.state.connected_viewers = 0;
+            lease.token_hash.fill(0);
+            lease.state.expires_at = Utc::now();
+        }
+    }
+
     pub fn capacity(&self) -> CapacityState {
         let state = self
             .state

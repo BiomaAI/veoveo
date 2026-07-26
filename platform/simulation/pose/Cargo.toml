@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+chrono.workspace = true
 memmap2.workspace = true
 schemars.workspace = true
 serde.workspace = true
