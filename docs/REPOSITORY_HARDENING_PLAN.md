@@ -27,11 +27,15 @@ profiles:
 | `veoveo.io/image-build-run/v1` | internal immutable record of an image execution, its output mode, elapsed time, result, and Buildx metadata reference |
 | Model Context Protocol | public server protocol governed by `mcp/contract/DESIGN.md`; the current Streamable HTTP verification uses protocol version `2025-11-25` and only claims the repository profile defined there |
 | JSON Schema 2020-12 | canonical MCP tool-input and controlled configuration schemas |
-| `veoveo.io/deployment/v1` | repository-owned deployment profile schema; an internal deployment adapter contract, not a public MCP surface |
+| `veoveo.io/deployment/v1` | current repository-owned single-source deployment profile schema; an internal deployment adapter contract, not a public MCP surface |
+| `veoveo.io/deployment/v2` | planned named-source installation schema for independently resolved revisions, charts, image locks, gateway inputs, and release status |
+| `veoveo.io/gateway-server-fragment/v1` | planned extension-owned declaration of one hosted server's protocol surface and platform requirements |
+| `veoveo.io/gateway-binding/v1` | planned installation-owned declaration of exposure, authorization, tenant, policy, and secret bindings |
 | Offline bundle schema version 1 | repository-owned image and payload integrity contract |
-| Veoveo SDK compatibility manifest | planned public release contract relating SDK artifacts, contract and schema revisions, toolchains, protocol versions, and tested dependency resolutions |
-| Veoveo extension Helm library API | planned public chart-helper contract; consumer charts remain responsible for their values shape and installation policy |
-| OCI images and registries | reproducible build, digest pinning, SBOM, provenance, and release distribution boundary |
+| Veoveo SDK compatibility manifest | planned supported external release contract relating SDK artifacts, contract and schema revisions, toolchains, protocol versions, and tested dependency resolutions |
+| Veoveo extension Helm library API | planned versioned chart-helper contract, packaged for authenticated OCI registry or offline-bundle distribution; consumer charts remain responsible for their values shape and installation policy |
+| OCI Distribution Specification, images, and registries | reproducible build, digest pinning, SBOM, provenance, and private release distribution through an installation-configured registry; OCI packaging does not require public availability |
+| Veoveo Isaac simulation-base compatibility lock | planned exact record of the existing base lineage's Isaac Sim, Isaac Lab, Warp, Newton, MuJoCo, Kit/Python, CUDA, driver, and GPU conformance inputs |
 | Kubernetes and Helm | deployment rendering and workload security boundary, using the versions pinned by the repository when implemented |
 | SPDX license expressions | dependency-license policy input |
 | SARIF 2.1.0 | preferred machine-readable exchange for compatible security and static-analysis results |
@@ -71,8 +75,11 @@ a conformance registry, dependency-policy configuration, or copied contract chec
 
 The hardening implementation will not assume that every compatible extension belongs to
 the Veoveo workspace, shares the Veoveo repository revision, uses the core Helm release,
-or ships inside the core offline bundle. Future external extension work consumes the
-boundaries established here without becoming part of the immediate hardening scope.
+or ships inside the core offline bundle. The external-extension program follows the
+immediate repository hardening track and consumes the boundaries established here. It
+will not assume a public package index, public registry, Veoveo-operated control plane,
+or internet-routable installation. Artifact coordinates and the installation origin
+are independent, installation-owned configuration.
 
 Image publication will resolve selected images into a typed, source-local build plan.
 Compatible Rust build units share one Cargo invocation for each builder family and
@@ -95,7 +102,7 @@ their hard-cut boundary:
 | P0.2 xtask foundation | delivered for `doctor`, canonical Rust enforcement, image planning, builder management, and image release; later smoke, deployment, bundle, documentation, and hook commands remain planned |
 | P0.4 publication inputs | delivered through a locked persistent worktree, exact commit resolution, source-local profile loading, metadata-preservation tests, and the `docs/` context exclusion |
 | P1.5 internal image graph | delivered for the initial `linux/amd64` families, including consolidated trixie and bookworm Cargo actions, typed cache identities, managed Buildx and BuildKit, reproducible output timestamps, and immutable execution evidence |
-| External repository flow | boundaries are preserved, but the public SDK facade, compatibility manifest, standalone conformance artifact, smoke descriptor, Helm library, and multi-source composer remain planned |
+| External repository flow | boundaries are preserved, but the supported SDK facade, compatibility manifest, standalone conformance artifact, smoke descriptor, privately distributable Helm library, and multi-source composer remain planned |
 
 The normative operating contract is
 [`IMAGE_BUILDS.md`](IMAGE_BUILDS.md). Measured acceptance belongs in
@@ -223,18 +230,40 @@ reusable Helm library, compose gateway fragments, resolve a typed minimal platfo
 support local development across repositories. Hardening prepares those seams without
 defining their final product schemas early.
 
-### Public Artifact Boundary
+### Supported External Artifact Boundary
 
 Repository policy distinguishes private packages, published implementation packages,
-public facades, and developer tools. A public package may not expose an unpublished
-dependency or a repository-layout type. Published artifacts carry complete coordinates,
-checksums, license metadata, toolchain requirements, and provenance.
+supported external facades, and developer tools. A supported package may not expose an
+unpublished dependency or a repository-layout type. Published artifacts carry complete
+coordinates, checksums, license metadata, toolchain requirements, and provenance.
+Publication means that an immutable version is available through a configured artifact
+source. It does not require anonymous access, public discovery, or an internet-facing
+registry.
 
 The compatibility manifest is generated from typed release inputs, Cargo metadata, and
 the resolved artifact set. It is not a second hand-maintained version registry.
 
 The future curated MCP SDK controls the supported external surface. Hardening does not
 publish the current internal crate graph merely to satisfy that future.
+
+### Installation-Owned Addressing And Distribution
+
+An installation owns one canonical external origin, such as
+`https://veoveo.customer.example` or `https://veoveo.bioma.ai`. External means that
+authorized clients can address the installation. It does not mean that the origin is
+reachable from the public internet. Private DNS, split-horizon DNS, internal load
+balancers, VPN routing, and air-gapped networks are valid deployment forms.
+
+The artifact registry is separate configuration. A customer-operated registry, a
+Veoveo-operated private registry, or an offline bundle may supply the same immutable
+artifacts. Registry endpoints, repository prefixes, trust roots, and credential Secret
+references belong to the installation. No extension contract embeds a Veoveo registry
+hostname or assumes that image and chart artifacts cross the public internet.
+
+The extension Helm library is a package rather than an installed service. Consumer
+charts may resolve its versioned package from the configured authenticated OCI registry
+or carry the exact package in an offline bundle. Production composition records its
+digest with the consumer chart and rejects an unresolved mutable dependency.
 
 ### Standalone Conformance
 
@@ -256,6 +285,13 @@ A future fragment composer produces an ordinary validated `GatewayControlPlane`.
 extension describes its surface while the installation continues to own exposure and
 authorization.
 
+`veoveo.io/gateway-server-fragment/v1` contains the extension-owned server identity,
+routes, URI schemes, capabilities, upstream identity, and declared platform
+requirements. `veoveo.io/gateway-binding/v1` contains installation-owned profile,
+tenant, authorization, secret, audience, and policy decisions. The composer orders
+inputs deterministically and records schema versions, source identities, input hashes,
+contributed object identities, and the final control-plane digest.
+
 ### Source-Aware Evidence
 
 Initial xtask workflows may operate on one repository. Their internal command and
@@ -265,6 +301,13 @@ image tag, or one chart root.
 
 This is a data-model constraint, not authorization to implement multi-repository
 publishing during P0 or P1.
+
+Deployment v2 applies that constraint to named sources. Each source resolves its own
+revision, chart artifact, image lock, gateway fragment, compatibility manifest, and
+release evidence. Installation status reports the source revision, Helm release, and
+image digest independently. Local development may materialize one detached worktree per
+source; production composition consumes immutable published artifacts and does not
+require source checkouts.
 
 ### Source-Local Build Graphs
 
@@ -286,6 +329,62 @@ a resolved component graph. It does not promote the core chart's current interna
 Semantic preflight verifies gateway and workload agreement, bootstrap targets, artifact
 audiences, recording dependencies, image selection, and mandatory GPU resources. Helm
 schema validates values shape; Rust owns semantic relationships.
+
+### Canonical Isaac Simulation Base And External Overlays
+
+Veoveo upgrades its existing Isaac Sim base lineage in place. It does not create a
+parallel `veoveo/isaac-warp-runtime` image. The current base becomes the canonical
+simulation foundation by carrying one exact compatible Isaac Sim, Isaac Lab, Warp,
+Newton, MuJoCo, Kit/Python, CUDA, driver, and GPU contract. The build emits its input
+lock, digest, SBOM, provenance, and hardware conformance result.
+
+An isolated external compatibility experiment derived from the current immutable
+Veoveo `uav-sim-base` and proved this candidate tuple:
+
+| Input | Provisional value |
+|---|---|
+| Isaac Sim | `6.0.1-rc.7+release.42383.32955d8d.gl` from the existing Veoveo base |
+| Python ABI | CPython 3.12 |
+| Warp | `1.15.0` |
+| Newton | `1.4.0` |
+| MuJoCo | `3.10.0` |
+| MuJoCo Warp | `3.10.0.3` |
+| Isaac Lab | not yet installed; the candidate must pin the selected Isaac Sim 6.0.1-compatible release tag and full commit |
+
+The prototype establishes an implementation constraint. Isaac Sim registers bundled
+Warp and Newton payloads through Kit, so installing newer wheels in a separate virtual
+environment leaves the bundled versions authoritative. Importing the candidate first
+creates a mixed module graph. The Veoveo implementation replaces or supersedes the Kit
+extension payloads coherently, updates their metadata and package inventory, and proves
+that every loaded Warp and Newton module resolves beneath one authoritative root.
+
+The provisional image passed Kit-first CUDA execution, a Newton tiled-camera probe, 20
+independent headless RTX views, and a 20-aircraft external fleet-simulation CUDA run. It
+also proved that host networking and host IPC are unnecessary. These results establish
+the mechanism but do not certify the shared base. Isaac Lab, the final Veoveo UAV
+overlay, and an anonymous external reference overlay remain required acceptance gaps.
+Any CPU invocation is a structural diagnostic and never GPU acceptance evidence.
+
+The pod contract includes an NVIDIA GPU request, a compatible runtime class, writable
+Kit cache and data paths, and a private memory-backed `/dev/shm`. The 20-camera probe
+passed with a 2 GiB shared-memory limit. Shader-cache persistence remains configurable
+because cold RTX startup performs material compilation work.
+
+The shared base does not own one simulator domain. Cesium, Pegasus, PX4, UAV code,
+scenarios, and UAV environment conventions move into the existing UAV overlay where
+they can evolve without changing the shared runtime contract.
+
+An external repository may build its own simulator overlay from the exact base digest.
+The overlay owns its code, assets, scenarios, chart, dependency lock, smoke evidence,
+and image in its configured private registry. It may add compatible Kit extensions and
+Python packages, but it may not silently replace the base's Isaac Sim, Isaac Lab, Warp,
+Newton, MuJoCo, CUDA, or core Kit/Python versions. A conflicting dependency set fails
+the compatibility profile until Veoveo deliberately advances the canonical base.
+
+The initial acceptance pair is the existing UAV runtime and an anonymous external
+simulation overlay. Both must pass hardware-backed GPU acceptance against the same base
+digest. Neither overlay joins the other's repository or release graph. External
+prototype evidence does not establish the final supported base digest.
 
 ### Bundle And Composition Ownership
 
@@ -316,8 +415,37 @@ do not assume the core chart is the only consumer. The future library chart is v
 through a reference consumer as well as Veoveo's own charts.
 
 The extension Helm library, compatibility manifest, fragment schemas, component
-selection schema, and multi-source profile are delivered by their owning future
-projects. This plan only prevents hardening from closing those paths.
+selection schema, and multi-source profile follow the source-local hardening
+prerequisites as one external-extension program. Each contract receives a normative
+owner and independent compatibility evidence when its vertical slice lands.
+
+### External Extension Delivery Sequence
+
+The supported external workflow lands through coherent vertical slices:
+
+1. Define the normative external-extension contract and create an anonymous,
+   independently owned acceptance consumer.
+2. Publish the curated Python SDK, compatibility manifest, and standalone conformance
+   binary and image through configurable private artifact sources and offline bundles.
+3. Deliver the extension Helm library, stable installation labels, private registry
+   configuration, and a reference consumer chart.
+4. Add typed server fragments and installation bindings, canonical path collision
+   validation, deterministic composition, and composition provenance.
+5. Hard-cut deployment profiles to v2 with named sources, independent revisions,
+   source-owned image and chart locks, structured rendered-image inspection, and
+   source-specific status.
+6. Resolve the typed minimal platform graph, beginning with the platform foundation,
+   Artifact MCP, Frames MCP, and Recording MCP. Disabled components disappear from
+   workloads, services, storage, policy, bootstrap, gateway inventory, and digest
+   requirements together.
+7. In parallel, implement the coherent Kit payload mechanism in the existing Isaac Sim
+   base, add the pinned Isaac Lab input, and certify both the Veoveo UAV overlay and an
+   anonymous external overlay against the resulting base digest.
+
+The workflow is supported when a clean external checkout consumes released artifacts,
+builds and publishes its own image and chart, runs standalone conformance, contributes
+a server fragment, and joins an installation without editing Veoveo or hand-authoring a
+complete gateway document.
 
 ## Enforcement Layers
 
@@ -1123,7 +1251,8 @@ Use Cargo metadata to enforce a small set of boundaries already supported by COD
   implementation.
 - `mcp/conformance` does not depend on domain servers, examples, or showcases.
 - `tools/smoke-kit` does not depend on Veoveo production implementations.
-- A public SDK facade does not expose private or unpublished implementation packages.
+- A supported SDK facade does not expose private or unpublished implementation
+  packages.
 - Component smoke packages may depend on conformance and smoke-kit.
 - Examples and showcases may compose the components they own.
 
@@ -1305,8 +1434,8 @@ The plan is complete when all of the following statements hold:
 - The central `veoveo-smoke` package and top-level `testing/` directory no longer exist.
 - Adding a server requires no CI, xtask, conformance-list, scanner, or Console edit.
 - Adding a first-party Rust image requires no shared builder package-list edit.
-- Public package policy rejects an unpublished or repository-local dependency from a
-  supported facade.
+- Supported package policy rejects an unpublished or repository-local dependency from
+  an external facade.
 - Contract additions fail compilation until shared profiles and conformance coverage are
   exhaustive.
 - Static generated projections fail the build when stale.
@@ -1324,6 +1453,13 @@ The plan is complete when all of the following statements hold:
 - Core, extension, and installation-composed offline artifacts retain explicit owners.
 - An external extension can consume published verification contracts without joining the
   Veoveo workspace or core image builder.
+- An installation can use an organization-owned client origin and authenticated artifact
+  registry reachable only through private DNS, an internal network, or a VPN.
+- The versioned extension Helm library can be consumed from the installation's private
+  registry or verified offline bundle without a public Veoveo service.
+- The existing Isaac Sim base is the sole shared simulation lineage, and Veoveo UAV and
+  independently owned external simulator overlays pass GPU acceptance against the same
+  base digest.
 - GPU and browser evidence always proves hardware-backed execution.
 - Release artifacts carry exact dependency, SBOM, and provenance evidence.
 - Protected delivery prevents merging when any required enforcement layer fails.
