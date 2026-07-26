@@ -2,7 +2,19 @@
 name = "veoveo-mcp"
 version = "0.1.0"
 description = "Veoveo platform contract, task runtime, and final MCP task extension for Python MCP servers"
-requires-python = ">=3.12"
+readme = "README.md"
+license = "LicenseRef-Proprietary"
+requires-python = ">=3.12,<3.15"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Pydantic :: 2",
+    "Private :: Do Not Upload",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
 dependencies = [
     "mcp>=1.16",
     "pydantic>=2.8",
@@ -13,6 +25,10 @@ dependencies = [
     "starlette>=0.47",
     "uuid7>=0.1",
 ]
+
+[project.urls]
+Documentation = "https://github.com/BiomaAI/veoveo/blob/main/docs/EXTERNAL_EXTENSIONS.md"
+Repository = "https://github.com/BiomaAI/veoveo"
 
 [project.optional-dependencies]
 dev = [

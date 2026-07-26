@@ -1,17 +1,57 @@
-use std::{collections::BTreeMap, fs, path::PathBuf};
+use std::{collections::BTreeMap, ffi::OsString, fs, path::PathBuf};
 
 use anyhow::{Context, Result, bail, ensure};
 use veoveo_deploy_contract::LoadedProfile;
 
 use crate::{
-    ReleaseImagesArgs,
+    ReleaseImagesArgs, ReleasePythonSdkArgs,
     commands::{
         builder,
         image::{self, OutputMode, Selection},
+        python,
         source::PublicationSource,
     },
     context::RepositoryContext,
 };
+
+pub(crate) fn python_sdk(
+    repository: &RepositoryContext,
+    args: &ReleasePythonSdkArgs,
+) -> Result<()> {
+    let publication = PublicationSource::prepare(repository, &args.revision)?;
+    let artifacts = python::build_and_verify(publication.path())?;
+    let output_root = if args.output_dir.is_absolute() {
+        args.output_dir.clone()
+    } else {
+        repository.root().join(&args.output_dir)
+    };
+    let output = output_root.join(publication.revision());
+    let published = python::write_release_bundle(&artifacts, publication.revision(), &output)?;
+
+    if let Some(publish_url) = &args.publish_url {
+        python::validate_publish_url(publish_url)?;
+        if let Some(check_url) = &args.check_url {
+            python::validate_index_url(check_url)?;
+        }
+        let mut publish_args = vec![
+            OsString::from("publish"),
+            OsString::from("--publish-url"),
+            OsString::from(publish_url),
+        ];
+        if let Some(check_url) = &args.check_url {
+            publish_args.push(OsString::from("--check-url"));
+            publish_args.push(OsString::from(check_url));
+        }
+        if args.dry_run {
+            publish_args.push(OsString::from("--dry-run"));
+        }
+        publish_args.extend(published.distributions.iter().map(OsString::from));
+        crate::process::status("uv", publish_args, Some(repository.root()))?;
+    }
+
+    println!("Python SDK release bundle: {}", output.display());
+    Ok(())
+}
 
 pub(crate) fn images(repository: &RepositoryContext, args: &ReleaseImagesArgs) -> Result<()> {
     builder::ensure(repository)?;

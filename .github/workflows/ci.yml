@@ -30,6 +30,23 @@ jobs:
       - name: Run the canonical Rust gate
         run: cargo xtask enforce rust
 
+  python:
+    name: Python SDK release boundary
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.32"
+          python-version: "3.13.14"
+          enable-cache: true
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        with:
+          toolchain: 1.97.1
+      - name: Test source and isolated released-package consumption
+        run: cargo xtask enforce python
+
   surrealdb:
     name: SurrealDB 3.2 integration
     runs-on: ubuntu-24.04

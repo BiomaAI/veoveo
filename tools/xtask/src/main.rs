@@ -44,6 +44,8 @@ enum Command {
 enum EnforceScope {
     /// Run Rust formatting, linting, tests, and documentation checks.
     Rust,
+    /// Run the locked Python SDK and released-package template checks.
+    Python,
 }
 
 #[derive(Debug, Subcommand)]
@@ -63,6 +65,8 @@ enum ImageCommand {
 enum ReleaseCommand {
     /// Publish images from one exact committed revision.
     Images(ReleaseImagesArgs),
+    /// Build, verify, and optionally publish the Python SDK.
+    PythonSdk(ReleasePythonSdkArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -126,6 +130,25 @@ struct ReleaseImagesArgs {
     revision: String,
 }
 
+#[derive(Debug, Args)]
+struct ReleasePythonSdkArgs {
+    /// Exact Git revision or ref to resolve.
+    #[arg(long)]
+    revision: String,
+    /// Parent directory for the revision-addressed release bundle.
+    #[arg(long, default_value = "output/releases/python-sdk")]
+    output_dir: PathBuf,
+    /// Private Python package upload endpoint. Credentials come from UV_PUBLISH_*.
+    #[arg(long)]
+    publish_url: Option<String>,
+    /// Private simple-index URL used to skip an artifact that already exists.
+    #[arg(long, requires = "publish_url")]
+    check_url: Option<String>,
+    /// Validate the upload without changing the package index.
+    #[arg(long, requires = "publish_url")]
+    dry_run: bool,
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let repository = RepositoryContext::discover(&PathBuf::from("."))?;
@@ -133,6 +156,7 @@ fn main() -> Result<()> {
         Command::Doctor => doctor::run(&repository),
         Command::Enforce { scope } => match scope.unwrap_or(EnforceScope::Rust) {
             EnforceScope::Rust => enforce::rust(&repository),
+            EnforceScope::Python => enforce::python(&repository),
         },
         Command::Image { command } => match command {
             ImageCommand::Builder { command } => match command {
@@ -147,6 +171,7 @@ fn main() -> Result<()> {
         },
         Command::Release { command } => match command {
             ReleaseCommand::Images(args) => release::images(&repository, &args),
+            ReleaseCommand::PythonSdk(args) => release::python_sdk(&repository, &args),
         },
     }
 }
