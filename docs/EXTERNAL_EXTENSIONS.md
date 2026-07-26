@@ -19,6 +19,9 @@ It joins an installation through versioned artifacts and installation-owned comp
 | `veoveo.io/gateway-binding/v1` | installation-owned exposure and authorization declaration |
 | `veoveo.io/deployment/v2` | named-source installation composition with independent revisions and locks |
 | `veoveo.io/deployment-lock/v2` | immutable combined source, image, chart, and resolved-platform lock |
+| `veoveo.io/simulation-runtime-build-lock/v1` | exact canonical Isaac simulation-base inputs and GPU requirements |
+| `veoveo.io/simulation-conformance-result/v1` | hardware result for one immutable simulator overlay and base |
+| `veoveo.io/simulation-runtime-release-evidence/v1` | paired first-party and anonymous-overlay evidence published through private OCI |
 | SHA-256 | artifact identity and composition input integrity |
 
 The repository pins the exact compatible tool and dependency versions when each
@@ -89,7 +92,8 @@ cargo xtask release compatibility \
   --python-evidence output/releases/python-sdk/"$REVISION"/release-evidence.json \
   --python-artifact-base python://packages.internal.example/veoveo \
   --helm-evidence output/releases/helm/"$REVISION"/0.1.0/release-evidence.json \
-  --image-evidence output/releases/images/"$REVISION"/extension-support.release-evidence.json
+  --image-evidence output/releases/images/"$REVISION"/extension-support.release-evidence.json \
+  --simulation-evidence output/releases/simulation-runtime/"$REVISION"/0.1.0/release-evidence.json
 ```
 
 The command rejects mixed revisions, a Helm library without an OCI publication, and
@@ -209,11 +213,32 @@ Gateway requirements are evaluated before Helm. `artifact`, `frames`, `map`, and
 Recording MCP and hub. Artifact audiences declared by composition must appear in the
 installation's admitted audience set.
 
+The same resolution produces the required Veoveo image closure. An RRD capability adds
+the producer-side `recording-forwarder`; Recording adds `recording-hub` and
+`recording-mcp`. Profile validation and publication fail before a build or push when
+the selected Bake groups omit any required image. `external-extension-platform`
+selects Artifact, Frames, Map, Media, Recording, and RRD transport as independently
+versioned images. None of those services is copied into an extension image.
+
+The anonymous installation fixture exercises this closure without a customer identity:
+
+```sh
+cargo run -p veoveo-smoke --bin smoke -- profile-validate \
+  --profile testing/fixtures/external-extension-installation/deployment.json
+```
+
 ## Simulation Overlays
 
 Veoveo has one canonical Isaac Sim base lineage. The existing base is upgraded in
 place; a parallel runtime image is not introduced. It owns one exact Isaac Sim, Isaac
 Lab, Warp, Newton, MuJoCo, Kit/Python, CUDA, driver, and GPU compatibility contract.
+
+The `isaac-sim-6` profile currently fixes Isaac Sim
+`6.0.1-rc.7+release.42383.32955d8d.gl`, Isaac Lab `v3.0.0-beta2.patch1` at
+`ffff603eafc6b74264a5261cc0183d6a65390d78`, Warp `1.15.0`, Newton `1.4.0`,
+MuJoCo `3.10.0`, MuJoCo Warp `3.10.0.3`, Python `3.12.13`, CUDA `12.9`, and
+Kit `110.1.2`. `showcase/uav-sim/runtime/simulation-runtime.lock.json` also pins the
+upstream image, source archive, and wheel digests.
 
 An external repository may derive an independently published simulator overlay from
 the immutable base digest. The overlay may add domain code, assets, scenarios, and
@@ -224,6 +249,43 @@ base and reruns both first-party and anonymous external-overlay GPU acceptance.
 Software rendering and CPU simulation are not acceptance evidence. Runtime images and
 charts request the required NVIDIA GPU and fail closed when the hardware path is
 unavailable.
+
+Build the two overlay candidates without conflating them with the platform services:
+
+```sh
+cargo xtask image build --group showcase-uav-sim-overlay-acceptance
+```
+
+Release builds must attach SBOM and provenance attestations. Certify their immutable
+registry identities separately:
+
+```sh
+cargo run -p veoveo-smoke --bin smoke -- simulation-certify \
+  --base-image "$REGISTRY/veoveo/uav-sim-base@$BASE_DIGEST" \
+  --overlay-image "$REGISTRY/veoveo/uav-sim-runtime@$UAV_DIGEST" \
+  --overlay-kind first-party-uav \
+  --source-revision "$REVISION" \
+  --output output/simulation-certification/first-party-uav.result.json
+
+cargo run -p veoveo-smoke --bin smoke -- simulation-certify \
+  --base-image "$REGISTRY/veoveo/uav-sim-base@$BASE_DIGEST" \
+  --overlay-image "$REGISTRY/veoveo/simulation-overlay-acceptance@$EXTERNAL_DIGEST" \
+  --overlay-kind anonymous-external \
+  --source-revision "$REVISION" \
+  --output output/simulation-certification/anonymous-external.result.json
+```
+
+Both results must name the same base digest, source revision, build-lock digest, and
+component tuple. Publication then creates the private OCI evidence bundle:
+
+```sh
+cargo xtask release simulation-runtime \
+  --revision "$REVISION" \
+  --version 0.1.0 \
+  --registry "$REGISTRY/veoveo" \
+  --first-party-result output/simulation-certification/first-party-uav.result.json \
+  --anonymous-result output/simulation-certification/anonymous-external.result.json
+```
 
 ## Definition Of Done
 

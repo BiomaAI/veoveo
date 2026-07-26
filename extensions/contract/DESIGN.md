@@ -10,6 +10,9 @@
 | SHA-256 | lowercase digest identity in `sha256:<64 hexadecimal digits>` form |
 | `veoveo.io/compatibility-manifest/v1` | Veoveo-supported release tuple |
 | `veoveo.io/extension-release/v1` | independently owned extension release |
+| `veoveo.io/simulation-runtime-build-lock/v1` | exact canonical simulation-base inputs |
+| `veoveo.io/simulation-conformance-result/v1` | hardware-backed immutable overlay result |
+| `veoveo.io/simulation-runtime-release-evidence/v1` | paired overlay and private OCI evidence record |
 
 ## Responsibility
 
@@ -30,5 +33,9 @@ Operational commands consume these types and keep process execution in `xtask`.
 - SDK language and artifact pairs are unique.
 - The standalone conformance and gateway-composer distributions are immutable.
 - Runtime profiles identify one immutable base image and conformance result.
+- Simulation build locks contain the complete Isaac Sim, Isaac Lab, Warp, Newton,
+  MuJoCo, Python, CUDA, and Kit tuple plus immutable input digests.
+- Simulation release evidence contains first-party and anonymous results for the same
+  source revision, lock digest, and canonical base digest.
 - Extension releases contain a chart, gateway fragment, and conformance evidence.
 - Installation authorization and Secret values never enter an extension release.

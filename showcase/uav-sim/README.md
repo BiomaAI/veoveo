@@ -5,6 +5,34 @@ Isaac Sim. Veoveo governs the simulation through a provider-neutral MCP server,
 records typed evidence in Rerun, and serves one low-latency follow-camera view
 encoded by NVIDIA NVENC.
 
+## Standards And Protocols
+
+| Boundary | Supported profile |
+|---|---|
+| Isaac Sim | marketing release 6.0.1; internal build `6.0.1-rc.7+release.42383.32955d8d.gl` |
+| `veoveo.io/simulation-runtime-build-lock/v1` | exact base inputs, immutable overlay components, and NVIDIA runtime requirements |
+| `veoveo.io/simulation-conformance-result/v1` | hardware result for one base and overlay digest |
+| Rerun 0.35.0 RRD | vehicle, transform, camera, mission, and simulation evidence |
+| NVIDIA CUDA, Vulkan, RTX, and NVENC | mandatory hardware simulation, rendering, and encoding path |
+| MAVLink 2 | pod-local PX4 command and telemetry transport |
+| OGC 3D Tiles | Cesium-streamed Google Photorealistic 3D Tiles |
+
+## Canonical Simulation Base
+
+Bake target `uav-sim-base` is the sole Veoveo simulation-base lineage. The name is
+retained in place; there is no parallel simulation-runtime image. Its `runtime-base`
+stage contains Isaac Lab `v3.0.0-beta2.patch1` at
+`ffff603eafc6b74264a5261cc0183d6a65390d78`, Warp `1.15.0`, Newton `1.4.0`,
+MuJoCo `3.10.0`, MuJoCo Warp `3.10.0.3`, Python `3.12.13`, CUDA `12.9`, and
+Kit `110.1.2`.
+
+`runtime/simulation-runtime.lock.json` pins the upstream image, source archive, wheel
+digests, authoritative module roots, minimum NVIDIA driver, and immutable overlay
+components. The base owns no UAV domain behavior. The `runtime` stage adds Cesium,
+Pegasus, PX4, scenarios, and the Veoveo UAV adapter as the first-party overlay.
+Independently owned overlays may derive from the exact base digest without replacing
+the locked tuple.
+
 ## Components
 
 | Path | Responsibility |
@@ -114,6 +142,18 @@ helm lint showcase/uav-sim/deploy/helm
 cargo test -p veoveo-smoke --bin smoke
 ```
 
+Resolve and build both canonical overlay candidates:
+
+```sh
+cargo xtask image plan --group showcase-uav-sim-overlay-acceptance
+cargo xtask image build --group showcase-uav-sim-overlay-acceptance
+```
+
+That group proves the shared image seam only. Frames MCP, Map MCP, Media MCP, Recording
+Hub, Recording MCP, and the RRD recording forwarder remain separate platform services.
+An integration deployment selects `external-extension-platform` or another Bake
+selection that satisfies the typed platform image closure.
+
 Run the isolated RTX camera and AOV regression without the cluster, Cesium,
 PX4, MCP server, or browser:
 
@@ -124,6 +164,23 @@ just showcase-uav-sim-aov-smoke <runtime-image>
 The Docker smoke requires an NVIDIA GPU. It proves Vulkan selected NVIDIA
 hardware, captures a 640x480 RGB frame from the direct nadir HydraTexture,
 enables the named AOV stream, and advances 600 frames without a native crash.
+
+Release certification accepts only registry manifests addressed by digest and requires
+their SBOM and provenance attestations:
+
+```sh
+cargo run -p veoveo-smoke --bin smoke -- simulation-certify \
+  --base-image "$BASE_REPOSITORY@$BASE_DIGEST" \
+  --overlay-image "$OVERLAY_REPOSITORY@$OVERLAY_DIGEST" \
+  --overlay-kind first-party-uav \
+  --source-revision "$REVISION" \
+  --output output/simulation-certification/first-party-uav.result.json
+```
+
+Run the same command with `--overlay-kind anonymous-external` and the anonymous overlay
+digest. Both results must prove the same base and lock. `cargo xtask release
+simulation-runtime` publishes the pair as private OCI conformance evidence for the
+compatibility manifest.
 
 The live acceptance command is installation-owned. It must point at
 `showcase/uav-sim/scenarios/new-york-aerial.json` and a deployed gateway. The

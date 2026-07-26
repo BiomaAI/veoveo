@@ -79,7 +79,7 @@ tool-owned publication worktree, plans every phase, and pushes the result.
 ```bash
 cargo xtask release images \
   --profile showcase/sumo/deploy/deployment.json \
-  --revision "$(git rev-parse HEAD)"
+  --profile-revision "$(git rev-parse HEAD)"
 
 cargo xtask release images \
   --group platform-full \
@@ -113,11 +113,16 @@ output mode, start time, duration, exit status, and metadata filename. The Build
 contains the exporter result and image digests reported by BuildKit. A failed execution
 also retains its plan and terminal record.
 
-Image execution sets `SOURCE_DATE_EPOCH=0`. Docker and registry exporters use
-timestamp rewriting, which removes wall-clock creation time from the image output.
-Cold and warm builds of one source state must therefore produce identical image
-digests. Build cache remains an optimization and never supplies the source identity or
-release tag.
+Image execution sets `SOURCE_DATE_EPOCH=0`. Registry publication rewrites timestamps,
+which removes wall-clock creation time from the release image. A local build uses the
+Docker exporter and is a disposable developer artifact; its image identity is not
+release evidence. Cold and warm registry builds of one source state must produce
+identical image digests. Build cache remains an optimization and never supplies the
+source identity or release tag.
+
+Every registry release attaches BuildKit SBOM and maximum-mode provenance attestations.
+The release lock records the resulting manifest-list digest, not an attestation-free
+local image identity.
 
 ## Rust Builder Families
 
@@ -164,6 +169,37 @@ copy named artifacts and contain no Cargo build stage. A genuinely different lib
 toolchain, SDK, target triple, feature set, rustflag, or compile-time environment
 requires a distinct typed family.
 
+## Platform Image Closure
+
+The deployment contract resolves an exact Veoveo image set from typed platform
+components, selected MCP servers, and composed gateway requirements. Profile validation
+and profile publication compare that set with the resolved Bake targets before any
+build or push.
+
+The `external-extension-platform` group contains the platform-side Artifact, Frames,
+Map, Media, Recording, and RRD transport images:
+
+```bash
+cargo xtask image plan --group external-extension-platform
+cargo xtask image build --group external-extension-platform
+```
+
+RRD is a data format and transport capability, not a fourth recording service image.
+Its producer-side runtime is `recording-forwarder`; the installation side is
+`recording-hub` plus `recording-mcp`. These remain separate images and release
+identities.
+
+The simulation ABI probe is intentionally a different group:
+
+```bash
+cargo xtask image build --group showcase-uav-sim-overlay-acceptance
+```
+
+It builds the canonical base, the first-party UAV overlay, and the anonymous overlay.
+It does not claim platform integration. A deployment profile that selects the
+simulation extension and Frames, Map, Media, or RRD must also select Bake groups whose
+resolved targets satisfy the platform image closure.
+
 ## External Repositories
 
 The repository boundary is intentional. A Veoveo-compatible extension keeps its
@@ -186,11 +222,10 @@ installation-configured package source, or a verified offline bundle. The
 installation's client-facing origin is separate configuration and may be reachable only
 through private DNS, an internal network, or a VPN.
 
-The current delivery includes the source-local planner, private Python SDK,
-standalone conformance distribution, gateway composer, Helm library, and named-source
-deployment v2 coordination. The compatibility release generator and final anonymous
-external acceptance remain active, so an external repository cannot claim the complete
-Veoveo extension compatibility profile yet.
+The current delivery includes the source-local planner, private Python SDK, standalone
+conformance distribution, gateway composer, Helm library, compatibility release
+generator, named-source deployment v2 coordination, platform-image closure
+enforcement, and paired hardware simulation-overlay certification.
 
 Multi-source composition passes an explicit source context and immutable artifact
 identity into the same typed planner model. It coordinates independently published
