@@ -254,6 +254,7 @@ fn release_profile_images(
     };
     let registry = committed_profile.definition.registry.address.clone();
     validate_registry(&registry)?;
+    validate_profile_image_closure(repository, &working_profile, &committed_profile, &registry)?;
     let mut locked_sources = Vec::new();
     for source in &committed_profile.definition.sources {
         let source_root = match &source.repository {
@@ -307,6 +308,62 @@ fn release_profile_images(
     let output = absolute_output(repository, &output);
     write_json(&output, &lock)?;
     println!("Deployment lock: {}", output.display());
+    Ok(())
+}
+
+fn validate_profile_image_closure(
+    repository: &RepositoryContext,
+    working_profile: &LoadedProfile,
+    committed_profile: &LoadedProfile,
+    registry: &str,
+) -> Result<()> {
+    let environment = BTreeMap::from([
+        ("VEOVEO_REGISTRY".to_owned(), registry.to_owned()),
+        (
+            "VEOVEO_IMAGE_TAG".to_owned(),
+            "closure-validation".to_owned(),
+        ),
+    ]);
+    let mut selected = BTreeSet::new();
+    for source in &committed_profile.definition.sources {
+        let source_root = match &source.repository {
+            SourceRepository::Local { .. } => working_profile.local_source_root(source)?,
+            SourceRepository::Git { url } => prepare_remote_repository(repository, url)?,
+        };
+        let source_repository = RepositoryContext::discover(&source_root).with_context(|| {
+            format!(
+                "discovering repository for deployment source {}",
+                source.name
+            )
+        })?;
+        let publication = PublicationSource::prepare(&source_repository, &source.revision)?;
+        let selected_repository = RepositoryContext::discover(publication.path())?;
+        for group in &source.image_groups {
+            let prepared =
+                image::prepare(&selected_repository, Selection::group(group)?, &environment)
+                    .with_context(|| {
+                        format!(
+                            "resolving image group {group} from deployment source {}",
+                            source.name
+                        )
+                    })?;
+            selected.extend(
+                prepared
+                    .image_references()
+                    .into_iter()
+                    .map(|(name, _)| name),
+            );
+        }
+    }
+
+    let required = committed_profile.required_platform_images()?;
+    let missing = required.difference(&selected).cloned().collect::<Vec<_>>();
+    ensure!(
+        missing.is_empty(),
+        "deployment profile {} omits required Veoveo image targets from its Bake groups: {}",
+        committed_profile.definition.name,
+        missing.join(", ")
+    );
     Ok(())
 }
 

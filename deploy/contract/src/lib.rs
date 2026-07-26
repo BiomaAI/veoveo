@@ -512,6 +512,16 @@ impl LoadedProfile {
         Ok(resolved)
     }
 
+    /// Resolves the Veoveo-owned OCI images required by the selected platform
+    /// and its composed gateway requirements.
+    pub fn required_platform_images(&self) -> Result<BTreeSet<String>> {
+        let platform = self.resolved_platform()?;
+        let requirements = self.gateway_requirements()?;
+        let mut images = platform.required_images();
+        images.extend(requirements.required_images());
+        Ok(images)
+    }
+
     fn validate(&self) -> Result<()> {
         let profile = &self.definition;
         ensure!(
@@ -746,6 +756,20 @@ impl FirstPartyMcpServer {
 }
 
 impl ResolvedPlatformSelection {
+    /// Returns the Veoveo-owned OCI image names required by this exact
+    /// component and MCP-server selection.
+    #[must_use]
+    pub fn required_images(&self) -> BTreeSet<String> {
+        let mut images = BTreeSet::new();
+        for component in &self.components {
+            images.extend(component.images().iter().map(|image| (*image).to_owned()));
+        }
+        for server in &self.mcp_servers {
+            images.extend(server.images().iter().map(|image| (*image).to_owned()));
+        }
+        images
+    }
+
     /// Validates component dependencies without reading Helm state.
     pub fn validate_dependencies(&self) -> Result<()> {
         for audience in &self.artifact_audiences {
@@ -1039,6 +1063,60 @@ impl ResolvedPlatformSelection {
             "{reason}; missing mcpServer {server:?}"
         );
         Ok(())
+    }
+}
+
+impl PlatformComponent {
+    fn images(self) -> &'static [&'static str] {
+        match self {
+            Self::Gateway => &["mcp-gateway"],
+            Self::ArtifactService => &["artifact-service"],
+            Self::RecordingDataPlane => &["recording-hub"],
+            Self::GpuRenderer => &["simulation-view-isaac", "simulation-view-pose"],
+            Self::SimulationRuntimeSupport => &["simulation-runtime"],
+            Self::Console => &["console-bff"],
+            Self::PlatformStore | Self::ObjectStore | Self::Telemetry | Self::Ingress => &[],
+        }
+    }
+}
+
+impl FirstPartyMcpServer {
+    fn images(self) -> &'static [&'static str] {
+        match self {
+            Self::Artifact => &["artifact-mcp"],
+            Self::Media => &["media-mcp"],
+            Self::Timeseries => &["timeseries-mcp"],
+            Self::Optimization => &["optimization-mcp"],
+            Self::Frames => &["frames-mcp"],
+            Self::Map => &["map-mcp"],
+            Self::Time => &["time-mcp"],
+            Self::View => &["view-mcp"],
+            Self::Datasheet => &["datasheet-mcp"],
+            Self::Duckdb => &["duckdb-mcp"],
+            Self::Chart => &["chart-mcp"],
+            Self::Rerun => &["mcp-stdio-bridge"],
+            Self::Recording => &["recording-mcp"],
+            Self::Perception => &["perception-mcp"],
+            Self::Reason => &["reason-mcp"],
+            Self::SimulationView => &["simulation-view-mcp"],
+        }
+    }
+}
+
+impl GatewayDeploymentRequirements {
+    /// Returns Veoveo-owned producer-side images implied by composed
+    /// capabilities. RRD transport uses the recording forwarder in the
+    /// extension pod in addition to the platform's Recording MCP and hub.
+    #[must_use]
+    pub fn required_images(&self) -> BTreeSet<String> {
+        if self
+            .platform_capabilities
+            .contains(&PlatformCapability::Rrd)
+        {
+            BTreeSet::from(["recording-forwarder".to_owned()])
+        } else {
+            BTreeSet::new()
+        }
     }
 }
 
@@ -1403,6 +1481,104 @@ mod tests {
                 artifact_audiences: BTreeSet::from(["anonymous".to_owned()]),
             })
             .expect("all runtime requirements selected");
+    }
+
+    #[test]
+    fn platform_image_closure_includes_service_and_rrd_transport_images() {
+        let selection = PlatformSelection {
+            installation_preset: InstallationPreset::Custom,
+            components: BTreeSet::from([
+                PlatformComponent::Gateway,
+                PlatformComponent::PlatformStore,
+                PlatformComponent::ObjectStore,
+                PlatformComponent::ArtifactService,
+                PlatformComponent::RecordingDataPlane,
+            ]),
+            mcp_servers: BTreeSet::from([
+                FirstPartyMcpServer::Artifact,
+                FirstPartyMcpServer::Frames,
+                FirstPartyMcpServer::Map,
+                FirstPartyMcpServer::Media,
+                FirstPartyMcpServer::Recording,
+            ]),
+            artifact_audiences: BTreeSet::from(["anonymous".to_owned()]),
+            external_workloads: BTreeSet::new(),
+            gpu_scheduling: None,
+        }
+        .resolve()
+        .expect("valid extension platform");
+        let requirements = GatewayDeploymentRequirements {
+            platform_capabilities: BTreeSet::from([
+                PlatformCapability::Artifact,
+                PlatformCapability::Frames,
+                PlatformCapability::Map,
+                PlatformCapability::Media,
+                PlatformCapability::Recording,
+                PlatformCapability::Rrd,
+            ]),
+            artifact_audiences: BTreeSet::from(["anonymous".to_owned()]),
+        };
+        let mut images = selection.required_images();
+        images.extend(requirements.required_images());
+        assert_eq!(
+            images,
+            BTreeSet::from([
+                "artifact-mcp".to_owned(),
+                "artifact-service".to_owned(),
+                "frames-mcp".to_owned(),
+                "map-mcp".to_owned(),
+                "mcp-gateway".to_owned(),
+                "media-mcp".to_owned(),
+                "recording-forwarder".to_owned(),
+                "recording-hub".to_owned(),
+                "recording-mcp".to_owned(),
+            ])
+        );
+    }
+
+    #[test]
+    fn simulation_view_image_closure_is_complete() {
+        let selection = PlatformSelection {
+            installation_preset: InstallationPreset::Custom,
+            components: BTreeSet::from([
+                PlatformComponent::Gateway,
+                PlatformComponent::PlatformStore,
+                PlatformComponent::ObjectStore,
+                PlatformComponent::ArtifactService,
+                PlatformComponent::GpuRenderer,
+                PlatformComponent::SimulationRuntimeSupport,
+            ]),
+            mcp_servers: BTreeSet::from([
+                FirstPartyMcpServer::Frames,
+                FirstPartyMcpServer::SimulationView,
+            ]),
+            artifact_audiences: BTreeSet::new(),
+            external_workloads: BTreeSet::new(),
+            gpu_scheduling: Some(GpuSchedulingProfile {
+                runtime_class_name: "nvidia".to_owned(),
+                allocatable_devices: 1,
+                workloads: vec![GpuWorkloadPlacement {
+                    workload: "simulation-view-renderer".to_owned(),
+                    devices: 1,
+                    isolation: GpuIsolation::Exclusive,
+                    evidence_digest: None,
+                }],
+            }),
+        }
+        .resolve()
+        .expect("valid Simulation View selection");
+        assert_eq!(
+            selection.required_images(),
+            BTreeSet::from([
+                "artifact-service".to_owned(),
+                "frames-mcp".to_owned(),
+                "mcp-gateway".to_owned(),
+                "simulation-runtime".to_owned(),
+                "simulation-view-isaac".to_owned(),
+                "simulation-view-mcp".to_owned(),
+                "simulation-view-pose".to_owned(),
+            ])
+        );
     }
 
     #[test]

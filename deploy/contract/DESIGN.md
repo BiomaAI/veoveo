@@ -42,3 +42,10 @@ Simulation View selects Frames MCP, its provider-neutral MCP server, the canonic
 runtime support component, and one renderer GPU. A profile that also places an external
 simulator on an ordinary one-GPU node with both workloads marked exclusive fails during
 pure profile resolution.
+
+The same resolution produces the exact Veoveo-owned OCI image closure. Platform
+components contribute their runtime images, each selected MCP server contributes its
+image, Recording contributes the hub and MCP images, and an RRD requirement contributes
+the producer-side recording forwarder. Operational tools compare this closure with the
+resolved Bake targets before validation or publication. A profile cannot select a
+service while omitting the image that implements it.
