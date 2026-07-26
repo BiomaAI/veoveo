@@ -8,7 +8,7 @@ use veoveo_mcp_contract::{PrincipalId, WorkContextId, parse_artifact_plane_uri};
 
 use super::{
     DatasetLicense, DatasetReleaseId, FeatureGeometry, MapSourceId, Meters, RasterDerivationId,
-    RasterProductId, SourceFeatureId, Wgs84BoundingBox, Wgs84Position,
+    RasterProductId, SourceFeatureId, Wgs84BoundingBox, Wgs84LineString, Wgs84Position,
 };
 
 pub const SOURCE_FEATURE_SCHEMA_VERSION: u64 = 1;
@@ -16,6 +16,8 @@ pub const RASTER_PRODUCT_SCHEMA_VERSION: u64 = 1;
 pub const RASTER_DERIVATION_SCHEMA_VERSION: u64 = 1;
 pub const MAX_SOURCE_QUERY_LIMIT: u32 = 500;
 pub const MAX_SOURCE_TAG_FILTERS: usize = 32;
+pub const MAX_SOURCE_GEOMETRY_COLLECTION_DEPTH: usize = 16;
+pub const MAX_SOURCE_GEOMETRY_PARTS: usize = 4_096;
 pub const MAX_RASTER_WINDOW_PIXELS: u64 = 16_777_216;
 pub const MAX_RASTER_SAMPLE_POSITIONS: usize = 10_000;
 pub const MAX_RASTER_FULL_DERIVATION_PIXELS: u64 = 4_194_304;
@@ -53,6 +55,11 @@ pub struct SourceFeature {
     pub source_element_id: String,
     pub source_element_version: String,
     pub representation: SourceFeatureRepresentation,
+    /// Zero-based traversal path from the source element's root geometry to
+    /// this governed simple or multi-geometry. The root geometry uses an
+    /// empty path. Relation GeometryCollections produce one feature per leaf.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub source_geometry_path: Vec<u32>,
     pub geometry: FeatureGeometry,
     pub geometry_digest_sha256: String,
     /// Source-owned properties are deliberately open-ended. Map preserves
@@ -76,6 +83,9 @@ impl SourceFeature {
         }
         validate_controlled(&self.source_element_id, 512)?;
         validate_controlled(&self.source_element_version, 256)?;
+        if self.source_geometry_path.len() > MAX_SOURCE_GEOMETRY_COLLECTION_DEPTH {
+            return Err(SourceProductError::GeometryCollectionTooDeep);
+        }
         validate_sha256(&self.geometry_digest_sha256)?;
         validate_sha256(&self.source_digest_sha256)?;
         self.geometry
@@ -383,6 +393,13 @@ pub enum RasterDerivationOperation {
         threshold: f64,
         minimum_length: Meters,
     },
+    CorridorMaximum {
+        band: u32,
+        corridor: Wgs84LineString,
+        sample_spacing: Meters,
+        half_width: Meters,
+        cross_track_samples: u32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -462,6 +479,32 @@ impl DeriveRasterRequest {
                     return Err(SourceProductError::InvalidRasterOperation);
                 }
             }
+            RasterDerivationOperation::CorridorMaximum {
+                band,
+                corridor,
+                sample_spacing,
+                half_width,
+                cross_track_samples,
+            } => {
+                validate_band(*band)?;
+                corridor
+                    .validate()
+                    .map_err(|_| SourceProductError::InvalidRasterOperation)?;
+                if corridor.coordinates.len() > MAX_RASTER_SAMPLE_POSITIONS
+                    || sample_spacing.get() <= 0.0
+                    || !(1..=64).contains(cross_track_samples)
+                    || (half_width.get() == 0.0 && *cross_track_samples != 1)
+                {
+                    return Err(SourceProductError::InvalidRasterOperation);
+                }
+                let along_track_samples =
+                    (approximate_line_length_m(corridor) / sample_spacing.get()).ceil() as u64 + 1;
+                if along_track_samples * u64::from(*cross_track_samples)
+                    > MAX_RASTER_SAMPLE_POSITIONS as u64
+                {
+                    return Err(SourceProductError::InvalidRasterOperation);
+                }
+            }
         }
         Ok(())
     }
@@ -525,6 +568,7 @@ pub enum SourceProductError {
     InvalidDigest,
     InvalidGeometry,
     RepresentationMismatch,
+    GeometryCollectionTooDeep,
     TooManyTags,
     InvalidTag,
     InvalidLicense,
@@ -545,6 +589,9 @@ impl std::fmt::Display for SourceProductError {
             Self::InvalidGeometry => "source-product geometry is invalid",
             Self::RepresentationMismatch => {
                 "source feature representation does not match its geometry"
+            }
+            Self::GeometryCollectionTooDeep => {
+                "source geometry collection exceeds its governed depth"
             }
             Self::TooManyTags => "source feature exceeds the normalized tag limit",
             Self::InvalidTag => "source feature tag is invalid",
@@ -568,6 +615,25 @@ fn validate_band(band: u32) -> Result<(), SourceProductError> {
         return Err(SourceProductError::InvalidRasterOperation);
     }
     Ok(())
+}
+
+fn approximate_line_length_m(line: &Wgs84LineString) -> f64 {
+    const EARTH_RADIUS_M: f64 = 6_371_008.8;
+    line.coordinates
+        .windows(2)
+        .map(|segment| {
+            let first_latitude = segment[0].latitude_deg.to_radians();
+            let second_latitude = segment[1].latitude_deg.to_radians();
+            let latitude_delta = second_latitude - first_latitude;
+            let longitude_delta =
+                (segment[1].longitude_deg - segment[0].longitude_deg).to_radians();
+            let haversine = (latitude_delta / 2.0).sin().powi(2)
+                + first_latitude.cos()
+                    * second_latitude.cos()
+                    * (longitude_delta / 2.0).sin().powi(2);
+            2.0 * EARTH_RADIUS_M * haversine.sqrt().asin()
+        })
+        .sum()
 }
 
 fn valid_transform(transform: &[f64; 6]) -> bool {
@@ -652,6 +718,29 @@ mod tests {
         assert_eq!(
             request.validate(),
             Err(SourceProductError::UnsupportedRasterAlgorithm)
+        );
+    }
+
+    #[test]
+    fn terrain_corridor_sampling_is_bounded_before_execution() {
+        let position =
+            |longitude_deg| Wgs84Position::new(longitude_deg, 0.0, None).expect("valid position");
+        let request = DeriveRasterRequest {
+            raster_id: RasterProductId::new(),
+            operation: RasterDerivationOperation::CorridorMaximum {
+                band: 1,
+                corridor: Wgs84LineString {
+                    coordinates: vec![position(0.0), position(1.0)],
+                },
+                sample_spacing: Meters::new(1.0).unwrap(),
+                half_width: Meters::new(10.0).unwrap(),
+                cross_track_samples: 3,
+            },
+            algorithm_revision: RASTER_DERIVATION_ALGORITHM_REVISION.to_owned(),
+        };
+        assert_eq!(
+            request.validate(),
+            Err(SourceProductError::InvalidRasterOperation)
         );
     }
 }

@@ -372,7 +372,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/artifact-mcp` | MCP resources, tools, prompts, and subscriptions over the artifact plane |
 | `servers/duckdb-mcp` | arbitrary analytical SQL, governed ingest/export, and DuckDB Spatial |
 | `servers/frames-mcp` | complete rooted frame worlds, immutable revisions, coordinate conversion, and operation provenance |
-| `servers/map-mcp` | Earth geography, governed feature authoring and products, source administration, releases, and logistics routing |
+| `servers/map-mcp` | Earth geography, governed feature authoring and products, source and raster releases, reusable spatial derivation, mobility validation, and logistics routing |
 | `servers/media-mcp` | webhook-completed provider media work and governed outputs |
 | `servers/optimization-mcp` | planning problem models, solver execution, validation, and mission outputs |
 | `servers/perception-mcp` | local recorded-sensor inference and Rerun annotations |
@@ -400,7 +400,7 @@ The geospatial hard cut has three canonical servers:
 
 | Path | Responsibility |
 |---|---|
-| `servers/map-mcp` | Earth geography, complete immutable source features, governed COG rasters and derivations, authored GeoJSON/JSON-FG layers, source acquisition, release activation, DuckDB Spatial analytics, CRS and geodesic work, geofences, restrictions, Valhalla land routing, governed network routing, matrices, and reachable areas |
+| `servers/map-mcp` | Earth geography, complete immutable source features, governed COG rasters and terrain derivations, reusable spatial geometry and mobility validation, authored GeoJSON/JSON-FG layers, source acquisition, release activation, DuckDB Spatial analytics, CRS and geodesic work, geofences, restrictions, Valhalla land routing, governed network routing, matrices, and reachable areas |
 | `servers/frames-mcp` | ECEF-rooted world trees, geodetic/static/dynamic transforms, immutable revisions, bounded coordinate conversion, durable batch work, operation provenance, artifacts, and usage |
 | `servers/view-mcp` | configured 3D scene layers, camera poses and target rigs, shared tile caching, NVIDIA-accelerated offscreen rendering, and frame resources |
 
@@ -430,6 +430,13 @@ GeoJSON, GeoJSON Sequence, and raster metadata into DuckDB Spatial.
 `data/src/map_data/raster_ops.py` performs the controlled GDAL derivations.
 `src/raster.rs` supervises that helper and `src/server/tasks.rs` owns its
 durable artifact publication.
+
+Reusable spatial planning is split from routing. `src/contract/spatial.rs`
+owns the bounded operation and persisted-result schemas. `src/spatial/derive.rs`
+implements pure geometry, `src/spatial/projection.rs` owns the exact local
+projection profile, and `src/spatial/validation.rs` resolves mobility envelopes
+and active restrictions. `src/spatial/mod.rs` binds catalog authority,
+provenance, and DuckDB persistence.
 
 ### Temporal Domain
 

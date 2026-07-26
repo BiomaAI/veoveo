@@ -16,6 +16,7 @@ use crate::{
     release_products::ReleaseProducts,
     routes::RouteService,
     routes::valhalla::ValhallaProcess,
+    spatial::SpatialService,
 };
 
 #[derive(Clone)]
@@ -27,6 +28,7 @@ pub struct MapApplication {
     pub routes: RouteService,
     pub geography: GeographyService,
     pub raster: RasterService,
+    pub spatial: SpatialService,
     pub acquisitions: Arc<AcquisitionService>,
     pub artifacts: ArtifactRepository,
     pub products: ReleaseProducts,

@@ -375,24 +375,33 @@ impl RouteService {
             )
             .await?
             .context("route mobility profile version is unavailable")?;
-        let restrictions = self.catalog.list_restrictions(scope).await?;
-        for restriction in restrictions.iter().filter(|restriction| {
-            restriction_applies(restriction, &profile, request.route.departure_time)
-        }) {
-            if restriction.effect.kind != RestrictionEffectKind::Prohibit {
-                continue;
-            }
-            let area = restriction.geometry.to_geo()?;
-            if request.route.legs.iter().any(|leg| {
-                leg.geometry
-                    .to_geo()
-                    .is_ok_and(|line| area.intersects(&line))
-            }) {
-                findings.push(format!(
-                    "route intersects active prohibition {}",
-                    restriction.restriction_id
-                ));
-            }
+        let restrictions = self
+            .catalog
+            .list_restrictions(scope)
+            .await?
+            .into_iter()
+            .filter(|restriction| {
+                restriction_applies(restriction, &profile, request.route.departure_time)
+            })
+            .collect::<Vec<_>>();
+        let route_lines = request
+            .route
+            .legs
+            .iter()
+            .map(|leg| leg.geometry.clone())
+            .collect::<Vec<_>>();
+        match crate::spatial::validate_route_lines(&profile, &route_lines, &restrictions) {
+            Ok(spatial_findings) => findings.extend(
+                spatial_findings
+                    .into_iter()
+                    .filter(|finding| {
+                        finding.severity == crate::contract::SpatialFindingSeverity::Violation
+                    })
+                    .map(|finding| format!("{:?}: {}", finding.code, finding.message)),
+            ),
+            Err(error) => findings.push(format!(
+                "complete mobility and restriction validation failed closed: {error}"
+            )),
         }
         Ok(RouteValidation {
             validation_id: ValidationId::new(),

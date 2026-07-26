@@ -19,6 +19,7 @@ pub mod raster;
 pub mod release_products;
 pub mod routes;
 mod server;
+pub mod spatial;
 pub mod state;
 pub mod uris;
 

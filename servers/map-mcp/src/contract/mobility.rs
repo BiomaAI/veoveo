@@ -512,6 +512,31 @@ impl MobilityProfile {
         }
     }
 
+    pub fn maximum_planning_range(&self) -> Option<Meters> {
+        let physical = match self {
+            Self::Human(_) => None,
+            Self::RoadVehicle(profile) => profile.performance.maximum_range,
+            Self::OffRoadVehicle(profile) => profile.performance.maximum_range,
+            Self::RailVehicle(profile) => profile.performance.maximum_range,
+            Self::SurfaceVessel(profile) => profile.performance.maximum_range,
+            Self::SubsurfaceVessel(profile) => profile.performance.maximum_range,
+            Self::FixedWing(profile) => Some(profile.performance.maximum_range),
+            Self::Rotorcraft(profile) => Some(profile.performance.maximum_range),
+            Self::Uas(profile) => Some(profile.performance.maximum_range),
+        };
+        minimum_optional(self.planning().maximum_range, physical)
+    }
+
+    pub fn maximum_planning_altitude(&self) -> Option<Meters> {
+        let physical = match self {
+            Self::FixedWing(profile) => Some(profile.performance.service_ceiling),
+            Self::Rotorcraft(profile) => Some(profile.performance.service_ceiling),
+            Self::Uas(profile) => Some(profile.performance.service_ceiling),
+            _ => None,
+        };
+        minimum_optional(self.planning().operating_ceiling, physical)
+    }
+
     pub fn validate(&self) -> Result<(), MobilityProfileError> {
         self.metadata().validate()?;
         self.planning().validate(self.maximum_speed())?;
@@ -585,6 +610,15 @@ impl MobilityProfile {
                 )
             }
         }
+    }
+}
+
+fn minimum_optional(first: Option<Meters>, second: Option<Meters>) -> Option<Meters> {
+    match (first, second) {
+        (Some(first), Some(second)) if first > second => Some(second),
+        (Some(first), _) => Some(first),
+        (_, Some(second)) => Some(second),
+        (None, None) => None,
     }
 }
 

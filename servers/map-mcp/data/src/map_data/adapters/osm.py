@@ -9,8 +9,13 @@ from map_data.adapters.common import write_quality_report
 from map_data.contract import NormalizeCommand
 from map_data.subprocesses import run_tool
 
+_OSM_CONFIG = Path(__file__).with_name("osmconf.ini")
+
 
 def normalize_osm(command: NormalizeCommand) -> tuple[tuple[Path, ...], Path, Path | None]:
+    if not _OSM_CONFIG.is_file():
+        raise RuntimeError("the governed OpenStreetMap normalization profile is missing")
+    open_options = ["-oo", f"CONFIG_FILE={_OSM_CONFIG}"]
     run_tool(
         "osmium",
         ["check-refs", str(command.source_path)],
@@ -24,6 +29,7 @@ def normalize_osm(command: NormalizeCommand) -> tuple[tuple[Path, ...], Path, Pa
             "ogr2ogr",
             [
                 "-f", "GeoJSONSeq", "-t_srs", "EPSG:4326", "-skipfailures",
+                *open_options,
                 str(geojson), str(command.source_path), layer,
             ],
             timeout_seconds=command.maximum_elapsed_seconds,
@@ -35,6 +41,7 @@ def normalize_osm(command: NormalizeCommand) -> tuple[tuple[Path, ...], Path, Pa
         "ogr2ogr",
         [
             "-f", "Parquet", "-t_srs", "EPSG:4326", "-skipfailures",
+            *open_options,
             str(parquet), str(command.source_path),
         ],
         timeout_seconds=command.maximum_elapsed_seconds,
@@ -79,6 +86,10 @@ def normalize_osm(command: NormalizeCommand) -> tuple[tuple[Path, ...], Path, Pa
             {
                 "name": "complete_source_layers_created",
                 "passed": all(path.is_file() for path in normalized[:-1]),
+            },
+            {
+                "name": "governed_source_identity_and_tags_profile",
+                "passed": _OSM_CONFIG.is_file(),
             },
         ],
     )

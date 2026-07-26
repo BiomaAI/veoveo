@@ -764,7 +764,8 @@ fn raster_operation_band(operation: &RasterDerivationOperation) -> Option<u32> {
         | RasterDerivationOperation::Contour { band, .. }
         | RasterDerivationOperation::Polygonize { band }
         | RasterDerivationOperation::Skeletonize { band, .. }
-        | RasterDerivationOperation::DeriveLines { band, .. } => Some(*band),
+        | RasterDerivationOperation::DeriveLines { band, .. }
+        | RasterDerivationOperation::CorridorMaximum { band, .. } => Some(*band),
         RasterDerivationOperation::Window { .. } => None,
     }
 }
@@ -772,7 +773,9 @@ fn raster_operation_band(operation: &RasterDerivationOperation) -> Option<u32> {
 fn raster_operation_reads_full_source(operation: &RasterDerivationOperation) -> bool {
     !matches!(
         operation,
-        RasterDerivationOperation::Sample { .. } | RasterDerivationOperation::Window { .. }
+        RasterDerivationOperation::Sample { .. }
+            | RasterDerivationOperation::Window { .. }
+            | RasterDerivationOperation::CorridorMaximum { .. }
     )
 }
 
