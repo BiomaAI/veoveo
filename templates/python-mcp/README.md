@@ -5,8 +5,9 @@ a Veoveo installation. It ships as a complete working server — `datasheet`, a
 dataset profiling service built on pandas — so every platform obligation has a
 running reference implementation rather than a description.
 
-The shared platform surface lives in `sdk/python`. The template stays
-thin: it owns its domain contract, its computation, and one durable task type.
+The shared platform surface comes from the exact `veoveo-mcp` release selected by the
+Veoveo compatibility manifest. The template stays thin: it owns its domain contract,
+its computation, and one durable task type.
 
 ## What the platform contract requires
 
@@ -32,25 +33,44 @@ listed next to each obligation is where this template satisfies it.
 1. Copy `templates/python-mcp` to a working directory and rename the package
    (`datasheet_mcp` → `yourdomain_mcp`), the slug, the URI scheme in `uris.py`,
    and the default port.
-2. Replace `contract.py` and `engine.py` with your domain types and
+2. Configure the installation's authenticated Python index outside source control.
+   Keep the exact supported `veoveo-mcp` version, then run `uv lock`. The resulting
+   lock belongs to the extension repository.
+3. Replace `contract.py` and `engine.py` with your domain types and
    computation. Publish request models with `mcp_input_schema`; recursive tool
    arguments are not supported. Keep the engine pure; it runs inside worker threads.
-3. Keep `server/` structurally intact: config, ownership, the task-extension
+4. Keep `server/` structurally intact: config, ownership, the task-extension
    handler, and the durable task module change names, not shape.
-4. Add the workload to `deploy/helm/veoveo`, register it in the intended
-   profile-owned gateway JSON, add its slug to the artifact service's allowed
-   audiences, and extend the Rust smoke
-   (`testing/smoke/src/bin/smoke/scenarios/datasheet.rs` is the model). All
-   smoke logic stays in Rust.
+5. Package the workload with the private `veoveo-extension` Helm library. Publish an
+   extension-owned gateway server fragment, image, application chart, domain smoke
+   evidence, and extension release manifest. The installation repository owns the
+   gateway binding, authorization, registry coordinates, and deployment source lock.
+
+The extension never edits the Veoveo chart or a complete Veoveo gateway document.
 
 ## Running locally
 
-```
-uv sync --all-extras
+```sh
+export UV_DEFAULT_INDEX=https://packages.example.internal/simple
+uv lock
+uv sync --locked --all-extras
 uv run pytest
 uv run datasheet-mcp --port 8798 --public-base-url https://veoveo.example \
     --allow-loopback-hosts --artifact-service-url http://127.0.0.1:8790
 ```
+
+For an image build, pass the index URL as a BuildKit secret. The URL may refer to a
+customer-operated or Veoveo-operated private service and may be reachable only over
+the installation network or VPN:
+
+```sh
+printf '%s' "$UV_DEFAULT_INDEX" | docker build \
+  --secret id=veoveo-python-index,src=/dev/stdin \
+  -t registry.example.internal/extensions/datasheet:0.1.0 .
+```
+
+The private index must provide the complete locked dependency set. The build does not
+fall through to a public index.
 
 SurrealDB credentials and the internal trust JWKS come from the same
 `VEOVEO_SURREAL_*` and `VEOVEO_INTERNAL_TRUST_JWKS` variables the Rust servers

@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Veoveo dataset profiling MCP server — the Python hosted-server template"
 requires-python = ">=3.12"
 dependencies = [
-    "veoveo-mcp",
+    "veoveo-mcp==0.1.0",
     "mcp>=1.16",
     "pydantic>=2.8",
     "pandas>=2.2",
@@ -18,9 +18,6 @@ dev = ["pytest>=8", "pytest-asyncio>=0.24"]
 
 [project.scripts]
 datasheet-mcp = "datasheet_mcp.server.main:main"
-
-[tool.uv.sources]
-veoveo-mcp = { path = "../../sdk/python", editable = true }
 
 [build-system]
 requires = ["hatchling"]

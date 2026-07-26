@@ -110,6 +110,13 @@ installation.
 An extension may use Cargo, npm, uv, another build tool, or its own compiled task
 runner. Veoveo does not prescribe an external build system.
 
+The Python SDK is the first released language surface. Veoveo builds and verifies its
+wheel and source distribution from an exact committed revision with
+`cargo xtask release python-sdk`. The canonical Python template pins the exact SDK
+version and creates its own lock against an operator-configured private index. Its
+Docker build accepts that index only as a BuildKit secret and never copies Veoveo
+source into the build context.
+
 ## Installation Composition
 
 The extension contributes capabilities. The installation decides exposure and
