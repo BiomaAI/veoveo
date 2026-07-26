@@ -35,13 +35,13 @@ use crate::{
         CreateSourceRequest, DatasetReleaseId, DisableSourceRequest, FacilityId,
         GeodesicDirectOutput, GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest,
         InspectLocationOutput, InspectLocationRequest, LocationId, MapDatasetId, MapSourceId,
-        MobilityProfile, MobilityProfileId, PublishRestrictionRequest, ReachableArea,
-        ReachableAreaRequest, RegisteredSource, ReleaseMutationRequest, ReleaseMutationResponse,
-        ReplaceSourceRequest, RestrictionId, RestrictionMutationOutput, RouteId, RouteMatrix,
-        RouteMatrixId, RouteMatrixRequest, RoutePlan, RouteRequest, RouteValidation,
-        SearchLocationsOutput, SearchLocationsRequest, TransformCrsOutput, TransformCrsRequest,
-        ValidateGeofenceOutput, ValidateGeofenceRequest, ValidateRouteRequest,
-        WithdrawRestrictionRequest,
+        MobilityProfile, MobilityProfileId, PublishRestrictionRequest, QuerySourceFeaturesOutput,
+        QuerySourceFeaturesRequest, ReachableArea, ReachableAreaRequest, RegisteredSource,
+        ReleaseMutationRequest, ReleaseMutationResponse, ReplaceSourceRequest, RestrictionId,
+        RestrictionMutationOutput, RouteId, RouteMatrix, RouteMatrixId, RouteMatrixRequest,
+        RoutePlan, RouteRequest, RouteValidation, SearchLocationsOutput, SearchLocationsRequest,
+        SourceFeatureId, TransformCrsOutput, TransformCrsRequest, ValidateGeofenceOutput,
+        ValidateGeofenceRequest, ValidateRouteRequest, WithdrawRestrictionRequest,
     },
     geodesy,
     prompts::MapPrompt,
@@ -178,6 +178,51 @@ impl MapMcp {
             .map_err(invalid_params)?;
         structured_result(
             format!("found {} location(s)", output.locations.len()),
+            &output,
+        )
+    }
+
+    #[tool(
+        title = "Query immutable source features",
+        description = "Query complete normalized point, line, polygon, and relation features from one immutable Map release by source identity, exact or existing tags, normalized text, and bounded spatial predicates. Ordering and cursors are deterministic.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<QuerySourceFeaturesOutput>(),
+        annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn query_source_features(
+        &self,
+        Parameters(request): Parameters<QuerySourceFeaturesRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let identity = require_scope(&context, "map:dataset:read")?;
+        let scope = self.state.scope(&identity).await.map_err(internal)?;
+        request.validate().map_err(invalid_params)?;
+        let release = self
+            .state
+            .catalog
+            .release(&scope, &request.release_id)
+            .await
+            .map_err(internal)?
+            .ok_or_else(|| not_found("dataset release"))?;
+        if request
+            .source_id
+            .as_ref()
+            .is_some_and(|source_id| *source_id != release.source_id)
+        {
+            return Err(invalid_params(
+                "source_id does not own the selected immutable release",
+            ));
+        }
+        let output = self
+            .state
+            .analytics
+            .query_source_features(&scope.tenant_key(), &request)
+            .map_err(invalid_params)?;
+        structured_result(
+            format!(
+                "matched {} source feature(s) in {}",
+                output.features.len(),
+                output.release_id
+            ),
             &output,
         )
     }
@@ -1387,6 +1432,25 @@ impl ServerHandler for MapMcp {
                 .ok_or_else(|| not_found("release"))?;
             return json_resource(uri, &release);
         }
+        if let Some((release, feature)) = uris::parse_source_feature(uri) {
+            let release_id = DatasetReleaseId::parse(release).map_err(invalid_params)?;
+            let feature_id = SourceFeatureId::parse(feature).map_err(invalid_params)?;
+            self.state
+                .catalog
+                .release(&scope, &release_id)
+                .await
+                .map_err(internal)?
+                .ok_or_else(|| not_found("dataset release"))?;
+            return json_resource(
+                uri,
+                &self
+                    .state
+                    .analytics
+                    .source_feature(&scope.tenant_key(), &release_id, &feature_id)
+                    .map_err(internal)?
+                    .ok_or_else(|| not_found("source feature"))?,
+            );
+        }
         if let Some(value) = uris::parse_single(uri, "map://dataset/") {
             let id = MapDatasetId::parse(value).map_err(invalid_params)?;
             let releases = self
@@ -1630,6 +1694,11 @@ fn resource_templates() -> Vec<ResourceTemplate> {
             uris::RELEASE_TEMPLATE,
             "Dataset release",
             "Immutable governed release.",
+        ),
+        template(
+            uris::SOURCE_FEATURE_TEMPLATE,
+            "Immutable source feature",
+            "Complete normalized source feature pinned to one dataset release.",
         ),
         template(
             uris::LOCATION_TEMPLATE,

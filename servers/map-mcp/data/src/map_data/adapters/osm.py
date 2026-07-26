@@ -17,26 +17,30 @@ def normalize_osm(command: NormalizeCommand) -> tuple[tuple[Path, ...], Path, Pa
         timeout_seconds=command.maximum_elapsed_seconds,
         cwd=command.output_dir,
     )
+    normalized = []
+    for layer in ("points", "lines", "multilinestrings", "multipolygons", "other_relations"):
+        geojson = command.output_dir / f"osm-{layer}.geojsonseq"
+        run_tool(
+            "ogr2ogr",
+            [
+                "-f", "GeoJSONSeq", "-t_srs", "EPSG:4326", "-skipfailures",
+                str(geojson), str(command.source_path), layer,
+            ],
+            timeout_seconds=command.maximum_elapsed_seconds,
+            cwd=command.output_dir,
+        )
+        normalized.append(geojson)
     parquet = command.output_dir / "osm-features.parquet"
     run_tool(
         "ogr2ogr",
         [
             "-f", "Parquet", "-t_srs", "EPSG:4326", "-skipfailures",
-            str(parquet), str(command.source_path), "points", "-where", "name IS NOT NULL",
+            str(parquet), str(command.source_path),
         ],
         timeout_seconds=command.maximum_elapsed_seconds,
         cwd=command.output_dir,
     )
-    places = command.output_dir / "osm-places.geojsonseq"
-    run_tool(
-        "ogr2ogr",
-        [
-            "-f", "GeoJSONSeq", "-t_srs", "EPSG:4326", "-skipfailures",
-            str(places), str(command.source_path), "points", "-where", "name IS NOT NULL",
-        ],
-        timeout_seconds=command.maximum_elapsed_seconds,
-        cwd=command.output_dir,
-    )
+    normalized.append(parquet)
     routing_directory = command.output_dir / "valhalla"
     routing_directory.mkdir()
     valhalla_config = os.environ.get("MAP_VALHALLA_BUILD_CONFIG")
@@ -72,7 +76,10 @@ def normalize_osm(command: NormalizeCommand) -> tuple[tuple[Path, ...], Path, Pa
             {"name": "osmium_check_refs", "passed": True},
             {"name": "geoparquet_created", "passed": parquet.is_file()},
             {"name": "routing_build_created", "passed": routing is not None},
-            {"name": "named_places_created", "passed": places.is_file()},
+            {
+                "name": "complete_source_layers_created",
+                "passed": all(path.is_file() for path in normalized[:-1]),
+            },
         ],
     )
-    return (parquet, places), report, routing
+    return tuple(normalized), report, routing

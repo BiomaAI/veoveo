@@ -24,6 +24,7 @@ pub const SOURCE_TEMPLATE: &str = "map://source/{source_id}";
 pub const ACQUISITION_TEMPLATE: &str = "map://acquisition/{acquisition_id}";
 pub const DATASET_TEMPLATE: &str = "map://dataset/{dataset_id}";
 pub const RELEASE_TEMPLATE: &str = "map://dataset/{dataset_id}/release/{release_id}";
+pub const SOURCE_FEATURE_TEMPLATE: &str = "map://source-feature/{release_id}/{source_feature_id}";
 pub const LOCATION_TEMPLATE: &str = "map://location/{location_id}";
 pub const FACILITY_TEMPLATE: &str = "map://facility/{facility_id}";
 pub const MOBILITY_PROFILE_TEMPLATE: &str = "map://mobility-profile/{profile_id}/{profile_version}";
@@ -70,6 +71,10 @@ pub fn dataset_uri(id: &str) -> String {
 
 pub fn release_uri(dataset_id: &str, release_id: &str) -> String {
     format!("map://dataset/{dataset_id}/release/{release_id}")
+}
+
+pub fn source_feature_uri(release_id: &str, feature_id: &str) -> String {
+    format!("map://source-feature/{release_id}/{feature_id}")
 }
 
 pub fn location_uri(id: &str) -> String {
@@ -164,6 +169,13 @@ pub fn parse_profile(uri: &str) -> Option<(&str, u64)> {
     let suffix = uri.strip_prefix("map://mobility-profile/")?;
     let (id, version) = suffix.split_once('/')?;
     Some((id, version.parse().ok()?))
+}
+
+pub fn parse_source_feature(uri: &str) -> Option<(&str, &str)> {
+    let suffix = uri.strip_prefix("map://source-feature/")?;
+    let (release, feature) = suffix.split_once('/')?;
+    (!release.is_empty() && !feature.is_empty() && !release.contains('/') && !feature.contains('/'))
+        .then_some((release, feature))
 }
 
 pub fn parse_feature_layer(uri: &str) -> Option<&str> {

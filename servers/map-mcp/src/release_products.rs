@@ -7,12 +7,16 @@ use std::{
 use anyhow::{Context, Result, bail};
 use flate2::read::GzDecoder;
 use geojson::{Feature, GeoJson, GeometryValue};
+use sha2::{Digest, Sha256};
 
 use crate::{
     analytics::{MapAnalytics, NetworkEdge},
     contract::{
-        DatasetRelease, Facility, FacilityId, LocationId, MapBoundary, MapBoundaryId, MapFamily,
-        MapLocation, RegisteredSource, SourceLineage, Wgs84LineString, Wgs84Polygon, Wgs84Position,
+        DatasetRelease, Facility, FacilityId, FeatureGeometry, GeoJsonPosition, LocationId,
+        MapBoundary, MapBoundaryId, MapFamily, MapLocation, RegisteredSource,
+        SOURCE_FEATURE_SCHEMA_VERSION, SourceElementType, SourceFeature, SourceFeatureId,
+        SourceFeatureRepresentation, SourceLineage, Wgs84LineString, Wgs84Polygon, Wgs84Position,
+        representation_for_geometry,
     },
 };
 
@@ -170,13 +174,27 @@ fn ingest_directory(
             .unwrap_or_default();
         if name.ends_with(".geojson") || name.ends_with(".json") {
             let geojson: GeoJson = std::fs::read_to_string(&path)?.parse()?;
-            ingest_geojson(analytics, tenant_key, geojson, release, source)?;
+            ingest_geojson(
+                analytics,
+                tenant_key,
+                geojson,
+                release,
+                source,
+                source_element_hint(name),
+            )?;
         } else if name.ends_with(".geojsonseq") || name.ends_with(".geojsonl") {
-            for line in BufReader::new(File::open(path)?).lines() {
+            for line in BufReader::new(File::open(&path)?).lines() {
                 let line = line?;
                 let line = line.trim().trim_start_matches('\u{1e}');
                 if !line.is_empty() {
-                    ingest_geojson(analytics, tenant_key, line.parse()?, release, source)?;
+                    ingest_geojson(
+                        analytics,
+                        tenant_key,
+                        line.parse()?,
+                        release,
+                        source,
+                        source_element_hint(name),
+                    )?;
                 }
             }
         }
@@ -190,16 +208,31 @@ fn ingest_geojson(
     geojson: GeoJson,
     release: &DatasetRelease,
     source: &RegisteredSource,
+    source_element_hint: Option<SourceElementType>,
 ) -> Result<()> {
     match geojson {
         GeoJson::FeatureCollection(collection) => {
             for (index, feature) in collection.features.into_iter().enumerate() {
-                ingest_feature(analytics, tenant_key, feature, index, release, source)?;
+                ingest_feature(
+                    analytics,
+                    tenant_key,
+                    feature,
+                    index,
+                    release,
+                    source,
+                    source_element_hint,
+                )?;
             }
         }
-        GeoJson::Feature(feature) => {
-            ingest_feature(analytics, tenant_key, feature, 0, release, source)?
-        }
+        GeoJson::Feature(feature) => ingest_feature(
+            analytics,
+            tenant_key,
+            feature,
+            0,
+            release,
+            source,
+            source_element_hint,
+        )?,
         GeoJson::Geometry(geometry) => ingest_feature(
             analytics,
             tenant_key,
@@ -213,6 +246,7 @@ fn ingest_geojson(
             0,
             release,
             source,
+            source_element_hint,
         )?,
     }
     Ok(())
@@ -225,6 +259,7 @@ fn ingest_feature(
     index: usize,
     release: &DatasetRelease,
     source: &RegisteredSource,
+    source_element_hint: Option<SourceElementType>,
 ) -> Result<()> {
     let Some(geometry) = feature.geometry.as_ref() else {
         return Ok(());
@@ -239,7 +274,17 @@ fn ingest_feature(
             geojson::feature::Id::String(value) => value.clone(),
             geojson::feature::Id::Number(value) => value.to_string(),
         })
+        .or_else(|| property_identity(&feature))
         .unwrap_or_else(|| index.to_string());
+    ingest_complete_source_feature(
+        analytics,
+        tenant_key,
+        &feature,
+        &source_feature_id,
+        release,
+        source,
+        source_element_hint,
+    )?;
     let lineage = SourceLineage {
         release_id: release.release_id.clone(),
         source_feature_id: source_feature_id.clone(),
@@ -363,6 +408,197 @@ fn ingest_feature(
         _ => {}
     }
     Ok(())
+}
+
+fn ingest_complete_source_feature(
+    analytics: &MapAnalytics,
+    tenant_key: &str,
+    feature: &Feature,
+    source_element_id: &str,
+    release: &DatasetRelease,
+    source: &RegisteredSource,
+    source_element_hint: Option<SourceElementType>,
+) -> Result<()> {
+    let Some(geometry) = feature.geometry.as_ref() else {
+        return Ok(());
+    };
+    let geometry = feature_geometry(&geometry.value)?;
+    let source_element_type = source_element_type(feature, source_element_hint);
+    let representation = if source_element_type == SourceElementType::Relation {
+        SourceFeatureRepresentation::Relation
+    } else {
+        representation_for_geometry(&geometry)
+    };
+    let source_element_version = ["source_version", "osm_version", "@version", "version"]
+        .into_iter()
+        .find_map(|key| {
+            feature.property(key).and_then(|value| match value {
+                serde_json::Value::String(value) => Some(value.clone()),
+                serde_json::Value::Number(value) => Some(value.to_string()),
+                _ => None,
+            })
+        })
+        .unwrap_or_else(|| release.version_label.clone());
+    let normalized_tags = feature
+        .properties
+        .clone()
+        .unwrap_or_default()
+        .into_iter()
+        .collect();
+    let original_names = feature
+        .properties
+        .iter()
+        .flat_map(|properties| properties.iter())
+        .filter(|(key, value)| {
+            (*key == "name" || key.starts_with("name:")) && value.as_str().is_some()
+        })
+        .map(|(key, value)| {
+            (
+                key.strip_prefix("name:").unwrap_or("und").to_owned(),
+                value.as_str().expect("filtered string").to_owned(),
+            )
+        })
+        .collect();
+    let original_references = feature
+        .properties
+        .iter()
+        .flat_map(|properties| properties.iter())
+        .filter(|(key, value)| {
+            (*key == "ref" || key.starts_with("ref:")) && value.as_str().is_some()
+        })
+        .map(|(_, value)| value.as_str().expect("filtered string").to_owned())
+        .collect();
+    let operating_area_ids = ["operating_area_id", "operating_area_ids"]
+        .into_iter()
+        .filter_map(|key| feature.property(key))
+        .flat_map(|value| match value {
+            serde_json::Value::String(value) => vec![value.clone()],
+            serde_json::Value::Array(values) => values
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::to_owned)
+                .collect(),
+            _ => Vec::new(),
+        })
+        .collect();
+    let geometry_bytes = geometry.to_geojson_string()?.into_bytes();
+    let stable_key = format!(
+        "{}:{:?}:{source_element_id}",
+        source.source_id, source_element_type
+    )
+    .to_lowercase();
+    analytics.put_source_feature(
+        tenant_key,
+        &SourceFeature {
+            schema_version: SOURCE_FEATURE_SCHEMA_VERSION,
+            feature_id: SourceFeatureId::from_stable_key(stable_key.as_bytes()),
+            source_id: source.source_id.clone(),
+            release_id: release.release_id.clone(),
+            source_element_type,
+            source_element_id: source_element_id.to_owned(),
+            source_element_version,
+            representation,
+            geometry,
+            geometry_digest_sha256: hex::encode(Sha256::digest(geometry_bytes)),
+            normalized_tags,
+            original_names,
+            original_references,
+            operating_area_ids,
+            source_digest_sha256: release.source_digest_sha256.clone(),
+            license: release.license.clone(),
+            acquired_at: release.acquired_at,
+        },
+    )
+}
+
+fn source_element_type(
+    feature: &Feature,
+    source_element_hint: Option<SourceElementType>,
+) -> SourceElementType {
+    let explicit = ["source_element_type", "osm_type", "@type"]
+        .into_iter()
+        .find_map(|key| feature.property(key).and_then(serde_json::Value::as_str));
+    match explicit {
+        Some("node") => SourceElementType::Node,
+        Some("way") => SourceElementType::Way,
+        Some("relation") => SourceElementType::Relation,
+        _ => source_element_hint.unwrap_or(SourceElementType::Feature),
+    }
+}
+
+fn source_element_hint(name: &str) -> Option<SourceElementType> {
+    if name.contains("other_relations") {
+        Some(SourceElementType::Relation)
+    } else if name.contains("points") {
+        Some(SourceElementType::Node)
+    } else if name.contains("lines") {
+        Some(SourceElementType::Way)
+    } else {
+        None
+    }
+}
+
+fn property_identity(feature: &Feature) -> Option<String> {
+    ["osm_id", "osm_way_id", "source_id", "id"]
+        .into_iter()
+        .find_map(|key| {
+            feature.property(key).and_then(|value| match value {
+                serde_json::Value::String(value) => Some(value.clone()),
+                serde_json::Value::Number(value) => Some(value.to_string()),
+                _ => None,
+            })
+        })
+}
+
+fn feature_geometry(value: &GeometryValue) -> Result<FeatureGeometry> {
+    let position = |value: &geojson::Position| -> Result<GeoJsonPosition> {
+        if value.len() < 2 {
+            bail!("GeoJSON position has fewer than two ordinates");
+        }
+        let position = GeoJsonPosition::new(value[0], value[1], value.as_slice().get(2).copied());
+        position.validate()?;
+        Ok(position)
+    };
+    let positions = |values: &[geojson::Position]| -> Result<Vec<GeoJsonPosition>> {
+        values.iter().map(position).collect()
+    };
+    let geometry = match value {
+        GeometryValue::Point { coordinates } => FeatureGeometry::Point(position(coordinates)?),
+        GeometryValue::MultiPoint { coordinates } => {
+            FeatureGeometry::MultiPoint(positions(coordinates)?)
+        }
+        GeometryValue::LineString { coordinates } => {
+            FeatureGeometry::LineString(positions(coordinates)?)
+        }
+        GeometryValue::MultiLineString { coordinates } => FeatureGeometry::MultiLineString(
+            coordinates
+                .iter()
+                .map(|line| positions(line))
+                .collect::<Result<_>>()?,
+        ),
+        GeometryValue::Polygon { coordinates } => FeatureGeometry::Polygon(
+            coordinates
+                .iter()
+                .map(|ring| positions(ring))
+                .collect::<Result<_>>()?,
+        ),
+        GeometryValue::MultiPolygon { coordinates } => FeatureGeometry::MultiPolygon(
+            coordinates
+                .iter()
+                .map(|polygon| {
+                    polygon
+                        .iter()
+                        .map(|ring| positions(ring))
+                        .collect::<Result<_>>()
+                })
+                .collect::<Result<_>>()?,
+        ),
+        GeometryValue::GeometryCollection { .. } => {
+            bail!("source GeometryCollections must be normalized into individual features")
+        }
+    };
+    geometry.validate()?;
+    Ok(geometry)
 }
 
 fn position_from_slice(value: &[f64]) -> Result<Wgs84Position> {
@@ -600,6 +836,10 @@ mod tests {
         assert_eq!(
             LocationId::from_stable_key(key),
             LocationId::from_stable_key(key)
+        );
+        assert_eq!(
+            SourceFeatureId::from_stable_key(key),
+            SourceFeatureId::from_stable_key(key)
         );
     }
 }
