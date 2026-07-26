@@ -1203,6 +1203,31 @@ mod tests {
     }
 
     #[test]
+    fn loads_anonymous_external_extension_installation() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let profile =
+            repository.join("testing/fixtures/external-extension-installation/deployment.json");
+        let loaded =
+            LoadedProfile::load(&profile, &repository).expect("load external extension profile");
+        assert_eq!(
+            loaded
+                .required_platform_images()
+                .expect("resolve image closure"),
+            BTreeSet::from([
+                "artifact-mcp".to_owned(),
+                "artifact-service".to_owned(),
+                "frames-mcp".to_owned(),
+                "map-mcp".to_owned(),
+                "mcp-gateway".to_owned(),
+                "media-mcp".to_owned(),
+                "recording-forwarder".to_owned(),
+                "recording-hub".to_owned(),
+                "recording-mcp".to_owned(),
+            ])
+        );
+    }
+
+    #[test]
     fn requirements_fail_closed_when_runtime_servers_are_absent() {
         let selection = PlatformSelection {
             installation_preset: InstallationPreset::Custom,
