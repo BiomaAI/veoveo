@@ -46,6 +46,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, and standalone distribution |
 | [`mcp/composer/DESIGN.md`](../mcp/composer/DESIGN.md) | offline external gateway fragment/binding composition, requirements, and deterministic provenance |
 | [`platform/runtimes/simulation/DESIGN.md`](../platform/runtimes/simulation/DESIGN.md) | canonical hardware-GPU Isaac Sim and Isaac Lab runtime, selected extension profile, and conformance probes |
+| [`platform/simulation/pose/DESIGN.md`](../platform/simulation/pose/DESIGN.md) | provider-neutral binary latest-pose schema, freshness rules, shared memory, and streaming framing |
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and bounded transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration |
@@ -458,6 +459,16 @@ Simulation runtime ownership:
 | `platform/runtimes/simulation/dependencies.lock.json` | exact compatibility identity, source revisions, artifacts, and driver floor |
 | `platform/runtimes/simulation/requirements.lock` | hash-locked Python dependency closure for the selected Isaac Lab profile |
 | `platform/runtimes/simulation/probes/` | import-identity and hardware-GPU conformance evidence |
+
+Simulation View data-plane ownership:
+
+| Path | Responsibility |
+|---|---|
+| `platform/simulation/pose/src/contract.rs` | session, epoch, Frames, entity-table, coordinate, limit, and pose types |
+| `platform/simulation/pose/src/codec.rs` | deterministic `simulation-view-pose/v1` binary encoding |
+| `platform/simulation/pose/src/store.rs` | nonblocking latest-value admission, epoch reset, heartbeat, and staleness |
+| `platform/simulation/pose/src/shared_memory.rs` | atomic double-slot co-located transport |
+| `platform/simulation/pose/src/stream.rs` | identical length-delimited framing for mutually authenticated streams |
 
 ## Recordings
 
