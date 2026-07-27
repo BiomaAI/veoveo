@@ -329,6 +329,9 @@ consoleBff:
   oauthScopes:
     - operator:use
     - admin:manage
+    - simulation-view:read
+    - simulation-view:write
+    - simulation-view:stream
     - map:admin
     - map:dataset:read
     - map:feature:admin

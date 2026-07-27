@@ -288,6 +288,13 @@ Live acceptance requires all of the following:
 7. No credential appears in a manifest value, MCP resource, task result, log,
    USD export, or retained artifact.
 
+`smoke uav-domain-verify` proves the UAV-owned items independently.
+`smoke uav-showcase-verify` is the showcase-owned composition proof. It uses
+the prepared scene as an input to Simulation View, observes one follow camera
+through the authenticated Console at takeoff, mission, and landing, and opens
+the governed Rerun recording. The composed harness owns orchestration and
+evidence only; the UAV server gains no Simulation View tools or media path.
+
 Missing authorization, frame disagreement, unavailable NVIDIA hardware,
 unavailable tiles, PX4 failure, recording failure, or pose transport failure
 fails explicitly. No UAV-owned live-view compatibility path remains.

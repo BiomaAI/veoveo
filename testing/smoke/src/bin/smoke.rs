@@ -476,8 +476,8 @@ enum Cmd {
         #[arg(long, default_value = "k3d-veoveo-sumo")]
         context: String,
     },
-    /// Verify Isaac, Google 3D Tiles, PX4, Recording Hub, View, and Perception in Bioma.
-    UavSimVerify {
+    /// Verify the independent UAV domain path through flight, recording, perception, and reason.
+    UavDomainVerify {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
         /// Runtime-loaded mission and acceptance parameters.
@@ -486,25 +486,50 @@ enum Cmd {
             default_value = "showcase/uav-sim/scenarios/new-york-aerial.json"
         )]
         scenario: PathBuf,
-        /// Kubernetes context owned by the Bioma development cluster.
-        #[arg(long, default_value = "k3d-veoveo-bioma")]
+        /// Kubernetes context containing the UAV showcase.
+        #[arg(long)]
         context: String,
-        /// Public Bioma base URL used for OAuth and MCP.
-        #[arg(long, default_value = "https://veoveo.bioma.ai")]
+        /// Public installation base URL used for OAuth and MCP.
+        #[arg(long)]
         public_base_url: String,
+    },
+    /// Run UAV flight and prove its independent Simulation View follow camera in the real Console.
+    UavShowcaseVerify {
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        #[arg(
+            long,
+            default_value = "showcase/uav-sim/scenarios/new-york-aerial.json"
+        )]
+        scenario: PathBuf,
+        /// Kubernetes context containing the composed showcase.
+        #[arg(long)]
+        context: String,
+        /// Namespace containing the platform and showcase releases.
+        #[arg(long, default_value = "veoveo")]
+        namespace: String,
+        /// Public installation base URL used by MCP and the authenticated Console.
+        #[arg(long)]
+        public_base_url: String,
+        /// DevTools endpoint of an already-running headed hardware-backed Chrome.
+        #[arg(long, default_value = "http://127.0.0.1:9227")]
+        chrome_cdp_url: String,
+        /// Root for revision- and run-qualified JSON and PNG evidence.
+        #[arg(long, default_value = "output/acceptance/uav")]
+        evidence_root: PathBuf,
     },
     /// Verify the independent Simulation View renderer with an anonymous pose producer and headed hardware browser.
     SimulationViewVerify {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
         /// Kubernetes context containing the composed platform and external fixture.
-        #[arg(long, default_value = "k3d-veoveo-bioma")]
+        #[arg(long)]
         context: String,
         /// Namespace containing Simulation View and the anonymous fixture.
         #[arg(long, default_value = "veoveo")]
         namespace: String,
         /// Public gateway and signaling origin.
-        #[arg(long, default_value = "https://veoveo.bioma.ai")]
+        #[arg(long)]
         public_base_url: String,
         /// Work Context selected for the automated operator identity.
         #[arg(long, default_value = "operations")]
@@ -812,12 +837,32 @@ async fn main() -> Result<()> {
             conformance_bin,
             context,
         } => sumo_verify(&conformance_bin, &context).await,
-        Cmd::UavSimVerify {
+        Cmd::UavDomainVerify {
             conformance_bin,
             scenario,
             context,
             public_base_url,
         } => uav_sim_verify(&conformance_bin, &scenario, &context, &public_base_url).await,
+        Cmd::UavShowcaseVerify {
+            conformance_bin,
+            scenario,
+            context,
+            namespace,
+            public_base_url,
+            chrome_cdp_url,
+            evidence_root,
+        } => {
+            uav_showcase_verify(
+                &conformance_bin,
+                &scenario,
+                &context,
+                &namespace,
+                &public_base_url,
+                &chrome_cdp_url,
+                &evidence_root,
+            )
+            .await
+        }
         Cmd::SimulationViewVerify {
             conformance_bin,
             context,

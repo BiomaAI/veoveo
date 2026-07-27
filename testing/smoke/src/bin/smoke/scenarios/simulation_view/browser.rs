@@ -1,7 +1,9 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, path::Path, sync::Arc};
 
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use futures::{SinkExt, StreamExt};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -20,6 +22,31 @@ pub(super) struct BrowserFixture {
     pub resources: BTreeMap<String, Value>,
     pub connection: Value,
     pub expected_camera_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ConsoleLiveCaptureEvidence {
+    schema: &'static str,
+    captured_at: chrono::DateTime<chrono::Utc>,
+    page_url: String,
+    screenshot_path: String,
+    screenshot_sha256: String,
+    hardware: HardwareIdentity,
+    video: AppVideoState,
+    decode: DecodeIdentity,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ConsoleRecordingCaptureEvidence {
+    schema: &'static str,
+    captured_at: chrono::DateTime<chrono::Utc>,
+    page_url: String,
+    recording_id: String,
+    screenshot_path: String,
+    screenshot_sha256: String,
+    hardware: HardwareIdentity,
 }
 
 struct AppHost {
@@ -83,6 +110,527 @@ pub(super) async fn verify_live_app_in_hardware_browser(
     let host_result = host.close().await;
     result?;
     host_result
+}
+
+pub(crate) async fn capture_console_live_app(
+    cdp_base: &str,
+    public_base_url: &str,
+    expected_camera_id: &str,
+    screenshot_path: &Path,
+    timeout: Duration,
+) -> Result<ConsoleLiveCaptureEvidence> {
+    let page_url = format!(
+        "{}/console/#/apps/simulation-view/live.html",
+        public_base_url.trim_end_matches('/')
+    );
+    tokio::time::timeout(
+        timeout,
+        capture_console_live_app_inner(cdp_base, &page_url, expected_camera_id, screenshot_path),
+    )
+    .await
+    .with_context(|| format!("Console live-App capture exceeded {timeout:?}"))?
+}
+
+pub(crate) async fn capture_console_recording(
+    cdp_base: &str,
+    public_base_url: &str,
+    recording_id: &str,
+    screenshot_path: &Path,
+    timeout: Duration,
+) -> Result<ConsoleRecordingCaptureEvidence> {
+    let page_url = format!(
+        "{}/console/#/recordings/{}",
+        public_base_url.trim_end_matches('/'),
+        recording_id
+    );
+    tokio::time::timeout(
+        timeout,
+        capture_console_recording_inner(cdp_base, &page_url, recording_id, screenshot_path),
+    )
+    .await
+    .with_context(|| format!("Console Rerun capture exceeded {timeout:?}"))?
+}
+
+async fn capture_console_live_app_inner(
+    cdp_base: &str,
+    page_url: &str,
+    expected_camera_id: &str,
+    screenshot_path: &Path,
+) -> Result<ConsoleLiveCaptureEvidence> {
+    let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, page_url).await?;
+    let acceptance = async {
+        wait_for_document(&mut cdp, &session_id).await?;
+        assert_page_visible(&mut cdp, &session_id).await?;
+        let hardware: HardwareIdentity =
+            cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
+        hardware.validate()?;
+        let app_context = wait_for_console_app_context(&mut cdp, &session_id).await?;
+        let ready = wait_for_console_app_camera(
+            &mut cdp,
+            &session_id,
+            app_context,
+            expected_camera_id,
+        )
+        .await?;
+        ensure!(
+            ready,
+            "Console Simulation View App exposed no camera {expected_camera_id:?}"
+        );
+        let first = wait_for_console_video(
+            &mut cdp,
+            &session_id,
+            app_context,
+            expected_camera_id,
+        )
+        .await?;
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        let second: AppVideoState = cdp
+            .evaluate_context(&session_id, app_context, APP_FRAME_VIDEO_STATE, false)
+            .await?;
+        second.validate(expected_camera_id)?;
+        ensure!(
+            second.current_time > first.current_time + 0.25,
+            "Console H.264 video did not advance: {} -> {}",
+            first.current_time,
+            second.current_time
+        );
+        let decode: DecodeIdentity = cdp
+            .evaluate_context(&session_id, app_context, APP_FRAME_DECODE_IDENTITY, true)
+            .await?;
+        decode.validate()?;
+        let snapshot: Value = cdp
+            .evaluate(
+                &session_id,
+                r#"(async () => {
+                  const snapshot = await fetch("/console/api/snapshot", {credentials:"same-origin"});
+                  const apps = await fetch("/console/api/apps", {credentials:"same-origin"});
+                  return {
+                    snapshotStatus:snapshot.status,
+                    appsStatus:apps.status,
+                    appFrameTitle:document.querySelector("iframe.app-frame")?.title ?? "",
+                    bodyText:document.body?.innerText ?? ""
+                  };
+                })()"#,
+                true,
+            )
+            .await?;
+        ensure!(
+            snapshot.get("snapshotStatus").and_then(Value::as_u64) == Some(200)
+                && snapshot.get("appsStatus").and_then(Value::as_u64) == Some(200)
+                && snapshot
+                    .get("appFrameTitle")
+                    .and_then(Value::as_str)
+                    .is_some_and(|title| title.contains("Simulation"))
+                && snapshot
+                    .get("bodyText")
+                    .and_then(Value::as_str)
+                    .is_some_and(|body| body.contains("Simulation live views")),
+            "real Console did not load its snapshot, App catalog, and Simulation View frame: \
+             {snapshot}"
+        );
+        let screenshot_sha256 =
+            capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
+        close_console_live_view(&mut cdp, &session_id, app_context, expected_camera_id).await?;
+        cdp.assert_no_software_renderer_events()?;
+        Ok(ConsoleLiveCaptureEvidence {
+            schema: "veoveo.io/uav-console-live-capture/v1",
+            captured_at: chrono::Utc::now(),
+            page_url: page_url.to_owned(),
+            screenshot_path: screenshot_path.display().to_string(),
+            screenshot_sha256,
+            hardware,
+            video: second,
+            decode,
+        })
+    }
+    .await;
+    let close = close_target(&mut cdp, &target_id).await;
+    let evidence = acceptance?;
+    close?;
+    Ok(evidence)
+}
+
+async fn capture_console_recording_inner(
+    cdp_base: &str,
+    page_url: &str,
+    recording_id: &str,
+    screenshot_path: &Path,
+) -> Result<ConsoleRecordingCaptureEvidence> {
+    let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, page_url).await?;
+    let acceptance = async {
+        wait_for_document(&mut cdp, &session_id).await?;
+        assert_page_visible(&mut cdp, &session_id).await?;
+        let hardware: HardwareIdentity =
+            cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
+        hardware.validate()?;
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(300);
+        loop {
+            let state: Value = cdp
+                .evaluate(
+                    &session_id,
+                    r#"(() => ({
+                      recordingVisible:document.body?.innerText?.includes("recording://recordings/") ?? false,
+                      canvasCount:document.querySelectorAll(".rerun-web-viewer-host canvas").length,
+                      loading:Boolean(document.querySelector(".recording-viewer-state")),
+                      error:document.querySelector(".recording-viewer-error")?.textContent ?? "",
+                      bodyText:document.body?.innerText ?? ""
+                    }))()"#,
+                    false,
+                )
+                .await?;
+            let body = state
+                .get("bodyText")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            ensure!(
+                state.get("error").and_then(Value::as_str).unwrap_or("").is_empty(),
+                "Console Rerun viewer failed: {state}"
+            );
+            ensure!(
+                !software_renderer(&body.to_ascii_lowercase()),
+                "Console Rerun viewer exposed a software-renderer warning"
+            );
+            if state.get("recordingVisible").and_then(Value::as_bool) == Some(true)
+                && state.get("canvasCount").and_then(Value::as_u64).unwrap_or(0) > 0
+                && state.get("loading").and_then(Value::as_bool) == Some(false)
+                && body.contains(recording_id)
+            {
+                break;
+            }
+            ensure!(
+                tokio::time::Instant::now() < deadline,
+                "Console did not render governed recording {recording_id}: {state}"
+            );
+            assert_page_visible(&mut cdp, &session_id).await?;
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+        assert_page_visible(&mut cdp, &session_id).await?;
+        let final_hardware: HardwareIdentity =
+            cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
+        final_hardware.validate()?;
+        let screenshot_sha256 =
+            capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
+        cdp.assert_no_software_renderer_events()?;
+        Ok(ConsoleRecordingCaptureEvidence {
+            schema: "veoveo.io/uav-console-recording-capture/v1",
+            captured_at: chrono::Utc::now(),
+            page_url: page_url.to_owned(),
+            recording_id: recording_id.to_owned(),
+            screenshot_path: screenshot_path.display().to_string(),
+            screenshot_sha256,
+            hardware: final_hardware,
+        })
+    }
+    .await;
+    let close = close_target(&mut cdp, &target_id).await;
+    let evidence = acceptance?;
+    close?;
+    Ok(evidence)
+}
+
+async fn open_headed_target(cdp_base: &str, page_url: &str) -> Result<(Cdp, String, String)> {
+    let version_url = Url::parse(cdp_base)?
+        .join("json/version")
+        .context("Chrome CDP URL cannot resolve /json/version")?;
+    let version: ChromeVersion = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()?
+        .get(version_url)
+        .send()
+        .await
+        .context("headed Chrome DevTools endpoint is unavailable")?
+        .error_for_status()?
+        .json()
+        .await?;
+    ensure!(
+        !version.browser.to_ascii_lowercase().contains("headless"),
+        "visual acceptance requires headed Chrome; endpoint reported {}",
+        version.browser
+    );
+    let mut cdp = Cdp::connect(&version.web_socket_debugger_url).await?;
+    let target = cdp
+        .command(
+            "Target.createTarget",
+            serde_json::json!({"url": page_url, "newWindow": false}),
+            None,
+        )
+        .await?;
+    let target_id = value_string(&target, "/targetId")?.to_owned();
+    let attached = cdp
+        .command(
+            "Target.attachToTarget",
+            serde_json::json!({"targetId": target_id, "flatten": true}),
+            None,
+        )
+        .await?;
+    let session_id = value_string(&attached, "/sessionId")?.to_owned();
+    for method in [
+        "Runtime.enable",
+        "Page.enable",
+        "Log.enable",
+        "Network.enable",
+    ] {
+        cdp.command(method, serde_json::json!({}), Some(&session_id))
+            .await?;
+    }
+    cdp.command(
+        "Emulation.setDeviceMetricsOverride",
+        serde_json::json!({
+            "width": 1920,
+            "height": 1080,
+            "deviceScaleFactor": 1,
+            "mobile": false,
+        }),
+        Some(&session_id),
+    )
+    .await?;
+    cdp.command(
+        "Page.bringToFront",
+        serde_json::json!({}),
+        Some(&session_id),
+    )
+    .await?;
+    Ok((cdp, target_id, session_id))
+}
+
+async fn close_target(cdp: &mut Cdp, target_id: &str) -> Result<()> {
+    cdp.command(
+        "Target.closeTarget",
+        serde_json::json!({"targetId": target_id}),
+        None,
+    )
+    .await?;
+    Ok(())
+}
+
+async fn wait_for_console_app_context(cdp: &mut Cdp, session_id: &str) -> Result<u64> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+    loop {
+        let tree = cdp
+            .command("Page.getFrameTree", serde_json::json!({}), Some(session_id))
+            .await?;
+        if let Some(frame_id) = find_app_frame_id(
+            tree.get("frameTree")
+                .context("Chrome frame tree omitted its root")?,
+        ) {
+            let isolated = cdp
+                .command(
+                    "Page.createIsolatedWorld",
+                    serde_json::json!({
+                        "frameId": frame_id,
+                        "worldName": "veoveo-uav-acceptance",
+                        "grantUniveralAccess": false
+                    }),
+                    Some(session_id),
+                )
+                .await?;
+            return isolated
+                .get("executionContextId")
+                .and_then(Value::as_u64)
+                .context("Chrome did not create an App-frame execution context");
+        }
+        let state: Value = cdp
+            .evaluate(
+                session_id,
+                r#"({url:location.href,title:document.title,body:document.body?.innerText ?? ""})"#,
+                false,
+            )
+            .await?;
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "authenticated Console did not load the Simulation View App frame: {state}"
+        );
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+}
+
+fn find_app_frame_id(frame_tree: &Value) -> Option<&str> {
+    let frame = frame_tree.get("frame")?;
+    let url = frame.get("url").and_then(Value::as_str).unwrap_or_default();
+    if url.contains("/console/api/apps/frame") && url.contains("simulation-view") {
+        return frame.get("id").and_then(Value::as_str);
+    }
+    frame_tree
+        .get("childFrames")
+        .and_then(Value::as_array)?
+        .iter()
+        .find_map(find_app_frame_id)
+}
+
+async fn wait_for_console_app_camera(
+    cdp: &mut Cdp,
+    session_id: &str,
+    context_id: u64,
+    expected_camera_id: &str,
+) -> Result<bool> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+    let expected = serde_json::to_string(expected_camera_id)?;
+    loop {
+        let expression = format!(
+            r#"(() => {{
+              const input=[...document.querySelectorAll('#cameras input[type="checkbox"]')]
+                .find((candidate)=>candidate.parentElement?.textContent?.trim().startsWith({expected}));
+              if (!input) return {{found:false,error:document.getElementById("error")?.hidden === false
+                ? document.getElementById("error").textContent : "",body:document.body?.innerText ?? ""}};
+              if (!input.checked) input.click();
+              return {{found:true,error:"",body:document.body?.innerText ?? ""}};
+            }})()"#
+        );
+        let state: Value = cdp
+            .evaluate_context(session_id, context_id, &expression, false)
+            .await?;
+        if state.get("found").and_then(Value::as_bool) == Some(true) {
+            return Ok(true);
+        }
+        ensure!(
+            state
+                .get("error")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .is_empty(),
+            "Console Simulation View App failed during camera discovery: {state}"
+        );
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "Console Simulation View App did not discover camera {expected_camera_id}: {state}"
+        );
+        cdp.assert_no_software_renderer_events()?;
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        assert_page_visible(cdp, session_id).await?;
+    }
+}
+
+async fn wait_for_console_video(
+    cdp: &mut Cdp,
+    session_id: &str,
+    context_id: u64,
+    expected_camera_id: &str,
+) -> Result<AppVideoState> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
+    loop {
+        let state: AppVideoState = cdp
+            .evaluate_context(session_id, context_id, APP_FRAME_VIDEO_STATE, false)
+            .await?;
+        if state.ready_state >= 2 && state.video_width > 0 && state.current_time > 0.0 {
+            state.validate(expected_camera_id)?;
+            return Ok(state);
+        }
+        ensure!(
+            state.error.is_empty(),
+            "Console Simulation View App failed while opening the real stream: {state:?}"
+        );
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "Console Simulation View App did not display real H.264 video: {state:?}"
+        );
+        cdp.assert_no_software_renderer_events()?;
+        assert_page_visible(cdp, session_id).await?;
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+}
+
+async fn assert_page_visible(cdp: &mut Cdp, session_id: &str) -> Result<()> {
+    let visible: bool = cdp
+        .evaluate(session_id, "document.visibilityState === 'visible'", false)
+        .await?;
+    ensure!(
+        visible,
+        "visual acceptance requires the headed Console target to remain visible"
+    );
+    Ok(())
+}
+
+async fn close_console_live_view(
+    cdp: &mut Cdp,
+    session_id: &str,
+    context_id: u64,
+    expected_camera_id: &str,
+) -> Result<()> {
+    let expected = serde_json::to_string(expected_camera_id)?;
+    let requested: bool = cdp
+        .evaluate_context(
+            session_id,
+            context_id,
+            &format!(
+                r#"(() => {{
+                  const input=[...document.querySelectorAll('#cameras input[type="checkbox"]')]
+                    .find((candidate)=>candidate.parentElement?.textContent?.trim().startsWith({expected}));
+                  if (!input) return false;
+                  if (input.checked) input.click();
+                  return true;
+                }})()"#
+            ),
+            false,
+        )
+        .await?;
+    ensure!(
+        requested,
+        "Console could not close follow-camera stream {expected_camera_id}"
+    );
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    loop {
+        let state: Value = cdp
+            .evaluate_context(
+                session_id,
+                context_id,
+                r#"(() => ({
+                  checked:document.querySelector('#cameras input[type="checkbox"]:checked') !== null,
+                  videoCount:document.querySelectorAll("video").length,
+                  status:document.getElementById("status")?.textContent ?? "",
+                  error:document.getElementById("error")?.hidden === false
+                    ? document.getElementById("error").textContent : ""
+                }))()"#,
+                false,
+            )
+            .await?;
+        ensure!(
+            state
+                .get("error")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .is_empty(),
+            "Console failed to close follow-camera stream: {state}"
+        );
+        if state.get("checked").and_then(Value::as_bool) == Some(false)
+            && state.get("videoCount").and_then(Value::as_u64) == Some(0)
+        {
+            return Ok(());
+        }
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "Console did not close follow-camera stream within 30 seconds: {state}"
+        );
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+}
+
+async fn capture_screenshot(cdp: &mut Cdp, session_id: &str, output: &Path) -> Result<String> {
+    if let Some(parent) = output.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("creating screenshot directory {}", parent.display()))?;
+    }
+    let result = cdp
+        .command(
+            "Page.captureScreenshot",
+            serde_json::json!({
+                "format": "png",
+                "fromSurface": true,
+                "captureBeyondViewport": false
+            }),
+            Some(session_id),
+        )
+        .await?;
+    let encoded = value_string(&result, "/data")?;
+    let bytes = STANDARD
+        .decode(encoded)
+        .context("decoding Chrome PNG screenshot")?;
+    ensure!(
+        bytes.starts_with(b"\x89PNG\r\n\x1a\n"),
+        "Chrome screenshot was not PNG"
+    );
+    fs::write(output, &bytes)
+        .with_context(|| format!("writing screenshot {}", output.display()))?;
+    Ok(format!("sha256:{}", hex::encode(Sha256::digest(&bytes))))
 }
 
 async fn verify_browser_inner(
@@ -260,7 +808,7 @@ struct ChromeVersion {
     web_socket_debugger_url: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct HardwareIdentity {
     user_agent: String,
@@ -302,7 +850,7 @@ impl HardwareIdentity {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct AppVideoState {
     camera_id: String,
@@ -350,7 +898,7 @@ impl AppVideoState {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct DecodeIdentity {
     supported: bool,
@@ -582,6 +1130,36 @@ impl Cdp {
             .cloned()
             .with_context(|| format!("browser evaluation returned no value: {result}"))?;
         serde_json::from_value(value).context("decoding browser evaluation result")
+    }
+
+    async fn evaluate_context<T: serde::de::DeserializeOwned>(
+        &mut self,
+        session_id: &str,
+        context_id: u64,
+        expression: &str,
+        await_promise: bool,
+    ) -> Result<T> {
+        let result = self
+            .command(
+                "Runtime.evaluate",
+                serde_json::json!({
+                    "expression": expression,
+                    "contextId": context_id,
+                    "awaitPromise": await_promise,
+                    "returnByValue": true,
+                    "userGesture": true,
+                }),
+                Some(session_id),
+            )
+            .await?;
+        if let Some(exception) = result.get("exceptionDetails") {
+            bail!("browser App-frame evaluation failed: {exception}");
+        }
+        let value = result
+            .pointer("/result/value")
+            .cloned()
+            .with_context(|| format!("browser App-frame evaluation returned no value: {result}"))?;
+        serde_json::from_value(value).context("decoding browser App-frame evaluation result")
     }
 
     fn assert_no_software_renderer_events(&self) -> Result<()> {
@@ -865,6 +1443,44 @@ const VIDEO_STATE: &str = r#"(() => {
   };
 })()"#;
 
+const APP_FRAME_VIDEO_STATE: &str = r#"(() => {
+  const video=document.querySelector("video");
+  const camera=document.querySelector(`#cameras input[type="checkbox"]:checked`);
+  return {
+    cameraId:camera?.parentElement?.textContent?.split(" · ")[0]?.trim() ?? "",
+    readyState:video?.readyState ?? 0,
+    videoWidth:video?.videoWidth ?? 0,
+    videoHeight:video?.videoHeight ?? 0,
+    currentTime:video?.currentTime ?? 0,
+    decodeLabel:document.getElementById("decode")?.textContent ?? "",
+    status:document.getElementById("status")?.textContent ?? "",
+    error:document.getElementById("error")?.hidden === false
+      ? document.getElementById("error").textContent : "",
+    bodyText:document.body?.innerText ?? "",
+    rtcStates:[]
+  };
+})()"#;
+
+const APP_FRAME_DECODE_IDENTITY: &str = r#"(async () => {
+  const video=document.querySelector("video");
+  const result=await navigator.mediaCapabilities.decodingInfo({
+    type:"webrtc",
+    video:{
+      contentType:'video/H264; codecs="avc1.42E01E"',
+      width:video.videoWidth,
+      height:video.videoHeight,
+      bitrate:8000000,
+      framerate:30
+    }
+  });
+  return {
+    supported:result.supported,
+    smooth:result.smooth,
+    powerEfficient:result.powerEfficient,
+    label:document.getElementById("decode")?.textContent ?? ""
+  };
+})()"#;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -953,5 +1569,19 @@ mod tests {
         assert!(software_renderer("mesa llvmpipe"));
         assert!(software_renderer("software rasterizer warning"));
         assert!(!software_renderer("nvidia geforce rtx 4090"));
+    }
+
+    #[test]
+    fn finds_the_sandboxed_simulation_view_frame_in_a_cdp_tree() {
+        let tree = serde_json::json!({
+            "frame": {"id": "root", "url": "https://installation.example/console/"},
+            "childFrames": [{
+                "frame": {
+                    "id": "app",
+                    "url": "https://installation.example/console/api/apps/frame?uri=ui%3A%2F%2Fsimulation-view%2Flive.html"
+                }
+            }]
+        });
+        assert_eq!(find_app_frame_id(&tree), Some("app"));
     }
 }
