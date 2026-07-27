@@ -343,6 +343,8 @@ pub(crate) async fn helm_config() -> Result<()> {
             "examples/bioma/k3d-values.yaml".into(),
             "--values".into(),
             "examples/bioma/lan-values.yaml".into(),
+            "--values".into(),
+            "examples/bioma/images.lock.yaml".into(),
         ],
         [],
     )?;
