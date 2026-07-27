@@ -3,6 +3,7 @@ use std::{collections::BTreeSet, fmt, str::FromStr};
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use url::{Host, Url};
 
 use crate::{
     DataLabelId, GatewayInternalIdentity, GatewayProfileId, InvocationAuthority, PrincipalId,
@@ -274,9 +275,29 @@ pub struct LiveMediaEndpoint {
     pub media_port: u16,
 }
 
+/// Returns whether a public live-view signaling URL uses the canonical
+/// credential-free secure profile or the exact-loopback development exception.
+pub fn is_valid_live_signaling_url(value: &str) -> bool {
+    let Ok(url) = Url::parse(value) else {
+        return false;
+    };
+    let loopback = match url.host() {
+        Some(Host::Domain(host)) => host.eq_ignore_ascii_case("localhost"),
+        Some(Host::Ipv4(address)) => address.is_loopback(),
+        Some(Host::Ipv6(address)) => address.is_loopback(),
+        None => false,
+    };
+    (matches!(url.scheme(), "https" | "wss") || (url.scheme() == "ws" && loopback))
+        && url.host_str().is_some()
+        && url.username().is_empty()
+        && url.password().is_none()
+        && url.query().is_none()
+        && url.fragment().is_none()
+}
+
 impl LiveMediaEndpoint {
     pub fn validate(&self) -> Result<(), LiveViewStateError> {
-        if !(self.signaling_url.starts_with("https://") || self.signaling_url.starts_with("wss://"))
+        if !is_valid_live_signaling_url(&self.signaling_url)
             || self.media_host.trim().is_empty()
             || self.media_host.chars().any(char::is_whitespace)
             || self.media_port == 0
@@ -390,5 +411,36 @@ mod tests {
     fn resource_uri_is_simulation_view_owned() {
         assert!(LiveViewUri::new("simulation-view://session/session-a/stream/stream-a").is_ok());
         assert!(LiveViewUri::new("uav-sim://stream/stream-a").is_err());
+    }
+
+    #[test]
+    fn signaling_url_accepts_secure_or_exact_loopback_transports() {
+        for url in [
+            "https://views.example.test/signaling",
+            "wss://views.example.test/signaling",
+            "ws://localhost:8782/signaling",
+            "ws://LOCALHOST:8782/signaling",
+            "ws://127.0.0.1:8782/signaling",
+            "ws://127.255.255.254:8782/signaling",
+            "ws://[::1]:8782/signaling",
+        ] {
+            assert!(is_valid_live_signaling_url(url), "{url}");
+        }
+    }
+
+    #[test]
+    fn signaling_url_rejects_insecure_or_ambiguous_transports() {
+        for url in [
+            "http://localhost:8782/signaling",
+            "ws://localhost.example:8782/signaling",
+            "ws://128.0.0.1:8782/signaling",
+            "ws://192.0.2.1:8782/signaling",
+            "ws://user@localhost:8782/signaling",
+            "ws://localhost:8782/signaling?token=secret",
+            "ws://localhost:8782/signaling#fragment",
+            "not a URL",
+        ] {
+            assert!(!is_valid_live_signaling_url(url), "{url}");
+        }
     }
 }
