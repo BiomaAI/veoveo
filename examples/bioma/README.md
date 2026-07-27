@@ -115,14 +115,14 @@ kubectl --context k3d-veoveo-bioma -n kube-system rollout status   daemonset/nvi
 kubectl --context k3d-veoveo-bioma get nodes   -o 'custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\.com/gpu'
 ~~~
 
-The node must report five allocatable GPU shares before application bootstrap.
+The node must report six allocatable GPU shares before application bootstrap.
 The local time-slicing profile keeps the UAV simulator, Simulation View
-renderer, View, Perception, and Reason in separate GPU-requesting workloads.
-Fielded installations use their measured exclusive, MIG, or time-slicing
-placement instead of inheriting this development profile.
+renderer, View, Perception, Reason, and the Rerun viewer MCP in separate
+GPU-requesting workloads. Fielded installations use their measured exclusive,
+MIG, or time-slicing placement instead of inheriting this development profile.
 Each required workload still requests nvidia.com/gpu: 1 and the nvidia runtime
-class. The shares make UAV Isaac Sim, Simulation View, View, Perception, and
-Reason schedulable together; they are not a CPU fallback.
+class. The shares make all six render and GPU-compute workloads schedulable
+together; they are not a CPU fallback.
 
 Install the local platform fixture separately:
 

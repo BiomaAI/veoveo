@@ -224,6 +224,7 @@
     - chart-mcp:8795
     - --disable-file-reference
 - name: rerun-bridge
+  runtimeClassName: nvidia
   image:
     repository: veoveo/mcp-stdio-bridge
     tag: 0.1.0
@@ -239,3 +240,12 @@
     - --
     - rerun
     - viewer-mcp
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+      nvidia.com/gpu: "1"
+    limits:
+      cpu: "4"
+      memory: 8Gi
+      nvidia.com/gpu: "1"

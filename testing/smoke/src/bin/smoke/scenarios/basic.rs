@@ -320,6 +320,14 @@ pub(crate) async fn helm_config() -> Result<()> {
             contains(deployment, "startupProbe:")?;
             contains(deployment, "failureThreshold: 60")?;
         }
+        if component == "rerun-bridge" {
+            contains(deployment, "runtimeClassName: nvidia")?;
+            contains(deployment, "name: NVIDIA_VISIBLE_DEVICES")?;
+            contains(deployment, "name: NVIDIA_DRIVER_CAPABILITIES")?;
+            contains(deployment, "name: WGPU_BACKEND")?;
+            contains(deployment, "value: vulkan")?;
+            contains(deployment, "nvidia.com/gpu: \"1\"")?;
+        }
     }
     let bioma_tunnel = fs::read_to_string("examples/bioma/gitops/cloudflared.yaml")?;
     contains(&bioma_tunnel, "name: TUNNEL_TOKEN")?;
@@ -667,10 +675,10 @@ pub(crate) async fn helm_config() -> Result<()> {
         contains(&px4_commander, expected)?;
     }
     let gpu_device_plugin = fs::read_to_string("deploy/local/k3d/node/nvidia-device-plugin.yaml")?;
-    contains(&gpu_device_plugin, "replicas: 5")?;
+    contains(&gpu_device_plugin, "replicas: 6")?;
     contains(
         &gpu_device_plugin,
-        "veoveo.ai/device-plugin-config: time-slicing-5",
+        "veoveo.ai/device-plugin-config: time-slicing-6",
     )?;
 
     let gateway_dockerfile = fs::read_to_string("platform/gateway/Dockerfile")?;
