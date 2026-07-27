@@ -14,12 +14,14 @@ use rmcp::{
 };
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    GatewayInternalIdentity, LiveViewOwner, Page, ResourceListObservers, SubscriptionHub,
+    GatewayInternalIdentity, LiveViewOwner, Page, PlaneCaller, ResourceListObservers,
+    SubscriptionHub,
     docs::{CapabilityInventory, ContractDeclaration, ServerDocs},
     paginate, tool,
 };
 
 use crate::{
+    artifacts::SceneArtifactMaterializer,
     contract::{
         AuthorizePoseProducerRequest, BindSceneRequest, CameraAdmission, CapacityState,
         CloseCameraRequest, CloseLiveViewRequest, CloseResult, CloseSessionRequest,
@@ -53,6 +55,7 @@ pub(crate) struct SimulationViewMcpState {
     pub subscriptions: SubscriptionHub,
     pub list_observers: ResourceListObservers,
     runtimes: Arc<RuntimeClients>,
+    artifacts: Arc<SceneArtifactMaterializer>,
     app_connect_origin: String,
 }
 
@@ -60,6 +63,7 @@ impl SimulationViewMcpState {
     pub(crate) fn new(
         service: Arc<SimulationViewService>,
         runtimes: Arc<RuntimeClients>,
+        artifacts: Arc<SceneArtifactMaterializer>,
         signaling_url: &str,
     ) -> anyhow::Result<Arc<Self>> {
         let signaling_url = url::Url::parse(signaling_url)?;
@@ -73,6 +77,7 @@ impl SimulationViewMcpState {
             subscriptions: SubscriptionHub::new(),
             list_observers: ResourceListObservers::new(),
             runtimes,
+            artifacts,
             app_connect_origin,
         }))
     }
@@ -127,7 +132,7 @@ impl SimulationViewMcp {
         title = "Create simulation-view session",
         description = "Create an owner-scoped renderer session for one simulation epoch. This does not start or control simulation dynamics.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<SimulationViewSession>(),
-        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
     async fn create_session(
         &self,
@@ -185,7 +190,17 @@ impl SimulationViewMcp {
         Parameters(request): Parameters<BindSceneRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let owner = require_owner(&context, "simulation-view:write")?;
+        let caller = require_caller(&context, "simulation-view:write")?;
+        let owner = LiveViewOwner::from_identity(&caller.identity);
+        self.state
+            .service
+            .validate_bind_scene(&owner, &request)
+            .map_err(service_error)?;
+        self.state
+            .artifacts
+            .materialize(&caller, &request.scene)
+            .await
+            .map_err(runtime_error)?;
         let session = self
             .state
             .service
@@ -1034,6 +1049,24 @@ fn require_owner(
     required: &str,
 ) -> Result<LiveViewOwner, McpError> {
     require_identity(context, required).map(|identity| LiveViewOwner::from_identity(&identity))
+}
+
+fn require_caller(
+    context: &RequestContext<RoleServer>,
+    required: &str,
+) -> Result<PlaneCaller, McpError> {
+    let identity = require_identity(context, required)?;
+    let bearer_token = context
+        .extensions
+        .get::<axum::http::request::Parts>()
+        .and_then(|parts| parts.extensions.get::<crate::server::ForwardedBearer>())
+        .map(|bearer| bearer.0.clone())
+        .ok_or_else(|| McpError::invalid_request("forwarded bearer missing", None))?;
+    Ok(PlaneCaller {
+        memberships: identity.actor.group_memberships(),
+        identity,
+        bearer_token,
+    })
 }
 
 fn identity_has_scope(identity: &GatewayInternalIdentity, required: &str) -> bool {

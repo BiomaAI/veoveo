@@ -379,7 +379,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/perception-mcp` | local recorded-sensor inference and Rerun annotations |
 | `servers/reason-mcp` | local recorded-video reasoning, grounding, and Rerun annotations |
 | `servers/recording-mcp` | governed recording catalog, queries, subscriptions, and sealing |
-| `servers/simulation-view-mcp` | governed renderer sessions, immutable visual scenes, pose-producer authorization, logical camera admission, live-view leases, authenticated signaling, and the generic live-view App |
+| `servers/simulation-view-mcp` | governed renderer sessions, streamed Artifact-plane scene materialization, immutable visual scenes, pose-producer authorization, logical camera admission, live-view leases, authenticated signaling, and the generic live-view App |
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifacts |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | immutable governed scene compositions, owner and Work Context scoped geospatial views, shared 3D Tiles streaming, GPU overlays, and captured frames |
@@ -496,6 +496,7 @@ Simulation View data-plane ownership:
 |---|---|
 | `servers/simulation-view-mcp/src/contract.rs` | governed scene declarations, renderer sessions, generic camera rigs, explicit capacity, and direct MCP requests and results |
 | `servers/simulation-view-mcp/src/state.rs` | owner-scoped scene, camera, and lease transitions with optimistic revisions and typed admission |
+| `servers/simulation-view-mcp/src/artifacts.rs` | caller-authorized Artifact-plane streaming into the private renderer digest-ingest boundary |
 | `servers/simulation-view-mcp/src/mcp.rs` | canonical tools, resources, subscriptions, well-known surface, and App declarations |
 | `servers/simulation-view-mcp/src/server/` | signed gateway auth, public host checks, fail-closed runtime readiness, administrative docs, and authenticated signaling |
 | `servers/simulation-view-mcp/assets/live.html` | self-contained selected-view and bounded multi-camera MCP App |
@@ -507,7 +508,7 @@ Simulation View data-plane ownership:
 | `platform/simulation/pose/src/stream.rs` | identical length-delimited framing for mutually authenticated streams |
 | `platform/simulation/pose/src/ingress.rs` | typed private producer-binding control declarations and readiness |
 | `platform/simulation/pose-ingress/` | TLS 1.3 mutual-authentication ingress, SPIFFE producer authorization, private control endpoint, and shared-memory publication |
-| `platform/simulation/view-isaac/` | hardware-only Isaac/RTX renderer, governed local asset preflight, render-only USD mirroring, pose consumption, generic camera rigs, AOV/NVENC slot pools, and private runtime control |
+| `platform/simulation/view-isaac/` | hardware-only Isaac/RTX renderer, atomic digest-addressed artifact ingest and preflight, render-only USD mirroring, pose consumption, generic camera rigs, AOV/NVENC slot pools, and private runtime control |
 
 ## Recordings
 

@@ -7,6 +7,9 @@ use axum::{
 use veoveo_mcp_contract::GatewayInternalTokenVerifier;
 
 #[derive(Clone)]
+pub(crate) struct ForwardedBearer(pub(crate) String);
+
+#[derive(Clone)]
 pub(super) struct InternalAuthState {
     pub verifier: GatewayInternalTokenVerifier,
 }
@@ -16,16 +19,22 @@ pub(super) async fn authenticate_internal(
     mut request: Request,
     next: Next,
 ) -> axum::response::Response {
-    let identity = request
+    let token = request
         .headers()
         .get(AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
         .and_then(bearer_token)
+        .map(str::to_owned);
+    let identity = token
+        .as_deref()
         .and_then(|token| state.verifier.verify(token).ok());
     let Some(identity) = identity else {
         tracing::warn!("rejected unsigned or invalid Simulation View request");
         return (StatusCode::UNAUTHORIZED, "invalid gateway authorization").into_response();
     };
+    request
+        .extensions_mut()
+        .insert(ForwardedBearer(token.expect("verified token")));
     request.extensions_mut().insert(identity);
     next.run(request).await
 }

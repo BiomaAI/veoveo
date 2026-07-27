@@ -37,6 +37,12 @@ pub(super) struct Args {
     pub pose_endpoint: String,
     #[arg(
         long,
+        env = "ARTIFACT_SERVICE_URL",
+        default_value = "http://artifact-service:8790"
+    )]
+    pub artifact_service_url: String,
+    #[arg(
+        long,
         env = "SIMULATION_VIEW_RENDERER_CONTROL_TOKEN",
         hide_env_values = true
     )]
@@ -129,6 +135,11 @@ impl Args {
         );
         validate_control_token(&self.renderer_control_token)?;
         validate_control_token(&self.pose_control_token)?;
+        let _ = crate::artifacts::SceneArtifactMaterializer::new(
+            &self.artifact_service_url,
+            &self.renderer_endpoint,
+            &self.renderer_control_token,
+        )?;
         let _ = SimulationViewService::new(self.service_config()?)?;
         Ok(())
     }

@@ -3,6 +3,7 @@ pub mod state;
 pub mod uris;
 
 mod app;
+mod artifacts;
 mod mcp;
 mod runtime;
 mod server;

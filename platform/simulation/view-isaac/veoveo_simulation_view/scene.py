@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import secrets
 import shutil
 import struct
+import threading
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, BinaryIO
 
 from .contracts import (
     ContractError,
@@ -45,6 +48,102 @@ class ResolvedArtifact:
     path: Path
     digest: str
     format: str
+
+
+class ArtifactMaterializer:
+    def __init__(self, directory: Path, maximum_bytes: int) -> None:
+        self._directory = directory.resolve()
+        self._sha_directory = self._directory / "sha256"
+        self._maximum_bytes = maximum_bytes
+        self._lock = threading.Lock()
+        if (
+            not self._sha_directory.is_dir()
+            or self._sha_directory.is_symlink()
+            or not self._sha_directory.resolve().is_relative_to(self._directory)
+        ):
+            raise ValueError(
+                "renderer artifact sha256 directory must be materialized safely"
+            )
+
+    def materialize(
+        self,
+        hexadecimal: str,
+        asset_format: str,
+        byte_length: int,
+        source: BinaryIO,
+    ) -> Path:
+        if (
+            len(hexadecimal) != 64
+            or any(character not in "0123456789abcdef" for character in hexadecimal)
+            or asset_format not in FORMAT_SUFFIX
+            or not 1 <= byte_length <= self._maximum_bytes
+        ):
+            raise ContractError("artifact materialization declaration is invalid")
+        destination = (
+            self._sha_directory
+            / f"{hexadecimal}{FORMAT_SUFFIX[asset_format]}"
+        )
+        with self._lock:
+            if destination.exists() or destination.is_symlink():
+                self._verify_existing(destination, hexadecimal, byte_length)
+                return destination
+            temporary = self._sha_directory / (
+                f".{hexadecimal}.{secrets.token_hex(12)}.next"
+            )
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+            if hasattr(os, "O_NOFOLLOW"):
+                flags |= os.O_NOFOLLOW
+            descriptor = os.open(temporary, flags, 0o600)
+            try:
+                digest = hashlib.sha256()
+                remaining = byte_length
+                with os.fdopen(descriptor, "wb", closefd=True) as output:
+                    descriptor = -1
+                    while remaining:
+                        chunk = source.read(min(1024 * 1024, remaining))
+                        if not chunk:
+                            raise ContractError(
+                                "artifact upload ended before its declared byte length"
+                            )
+                        output.write(chunk)
+                        digest.update(chunk)
+                        remaining -= len(chunk)
+                    output.flush()
+                    os.fsync(output.fileno())
+                if digest.hexdigest() != hexadecimal:
+                    raise ContractError(
+                        "artifact upload digest does not match its declaration"
+                    )
+                os.replace(temporary, destination)
+                destination.chmod(0o600)
+                return destination
+            finally:
+                if descriptor >= 0:
+                    os.close(descriptor)
+                temporary.unlink(missing_ok=True)
+
+    def _verify_existing(
+        self, path: Path, hexadecimal: str, byte_length: int
+    ) -> None:
+        if path.is_symlink() or not path.is_file():
+            raise ContractError(
+                "materialized artifact path is not a regular file"
+            )
+        resolved = path.resolve()
+        if not resolved.is_relative_to(self._directory):
+            raise ContractError(
+                "materialized artifact escaped its materialization root"
+            )
+        if resolved.stat().st_size != byte_length:
+            raise ContractError(
+                "materialized artifact byte length does not match"
+            )
+        digest = hashlib.sha256()
+        with resolved.open("rb") as existing:
+            while chunk := existing.read(1024 * 1024):
+                digest.update(chunk)
+        if digest.hexdigest() != hexadecimal:
+            raise ContractError("materialized artifact digest does not match")
 
 
 class ArtifactStore:

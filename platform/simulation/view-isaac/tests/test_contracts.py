@@ -5,6 +5,7 @@ import os
 import struct
 import tempfile
 import unittest
+from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,7 +17,7 @@ from veoveo_simulation_view.contracts import (
     SessionBinding,
 )
 from veoveo_simulation_view.pose import decode_snapshot
-from veoveo_simulation_view.scene import ArtifactStore
+from veoveo_simulation_view.scene import ArtifactMaterializer, ArtifactStore
 
 
 class RendererContractsTest(unittest.TestCase):
@@ -36,6 +37,9 @@ class RendererContractsTest(unittest.TestCase):
                 config = RendererConfig.from_environment()
             self.assertEqual(config.signaling_port_base + 3, 49103)
             self.assertEqual(config.media_port_base + 3, 48001)
+            self.assertEqual(
+                config.maximum_artifact_bytes, 4 * 1024 * 1024 * 1024
+            )
 
     def test_private_bindings_are_exact_and_typed(self) -> None:
         session = SessionBinding.parse(
@@ -106,6 +110,39 @@ class RendererContractsTest(unittest.TestCase):
                         "byteLength": len(payload),
                     }
                 )
+
+    def test_artifact_ingest_hashes_and_materializes_atomically(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            artifacts = Path(directory) / "artifacts"
+            (artifacts / "sha256").mkdir(parents=True)
+            materializer = ArtifactMaterializer(artifacts, 1024)
+            payload = b'#usda 1.0\n\ndef Xform "Root" {}\n'
+            digest = hashlib.sha256(payload).hexdigest()
+            path = materializer.materialize(
+                digest, "usd", len(payload), BytesIO(payload)
+            )
+            self.assertEqual(path.read_bytes(), payload)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+            repeated = materializer.materialize(
+                digest, "usd", len(payload), BytesIO(payload)
+            )
+            self.assertEqual(repeated, path)
+            self.assertFalse(
+                any(
+                    candidate.name.endswith(".next")
+                    for candidate in (artifacts / "sha256").iterdir()
+                )
+            )
+
+            wrong_digest = "1" * 64
+            with self.assertRaises(ContractError):
+                materializer.materialize(
+                    wrong_digest, "usd", len(payload), BytesIO(payload)
+                )
+            self.assertFalse(
+                (artifacts / "sha256" / f"{wrong_digest}.usd").exists()
+            )
 
     def test_pose_decoder_rejects_binding_mismatch(self) -> None:
         entity_id = b"entity-1"

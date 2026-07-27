@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
     LiveCameraHealth, LiveCameraId, LiveCameraSource, LiveSessionId, LiveViewConnection,
-    LiveViewId, LiveViewOwner, LiveViewState, WorldFrameUri,
+    LiveViewId, LiveViewOwner, LiveViewState, WorldFrameUri, parse_artifact_plane_uri,
 };
 use veoveo_simulation_pose::{EntityId, EpochId, FrameRevision, Sha256Digest};
 
@@ -157,8 +157,8 @@ pub struct GovernedArtifact {
 
 impl GovernedArtifact {
     pub fn validate(&self) -> Result<(), SimulationViewError> {
-        if !self.artifact_uri.starts_with("artifact://")
-            || self.artifact_uri.len() > 512
+        if self.artifact_uri.len() > 512
+            || parse_artifact_plane_uri(&self.artifact_uri).is_none()
             || self.byte_length == 0
         {
             return Err(SimulationViewError::InvalidArtifact);
@@ -411,6 +411,7 @@ pub struct SimulationViewSession {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CreateSessionRequest {
+    pub session_id: LiveSessionId,
     pub epoch_id: EpochId,
 }
 
@@ -796,6 +797,8 @@ pub enum SimulationViewError {
     InvalidCamera,
     #[error("session {0} was not found")]
     SessionNotFound(LiveSessionId),
+    #[error("session {0} already exists with a different epoch")]
+    SessionAlreadyExists(LiveSessionId),
     #[error("camera {0} was not found")]
     CameraNotFound(LiveCameraId),
     #[error("live view {0} was not found")]

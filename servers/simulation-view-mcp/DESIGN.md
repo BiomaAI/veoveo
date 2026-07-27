@@ -29,6 +29,7 @@ signaling   /simulation-view/signaling
 | `veoveo.io/simulation-view-scene/v1` | Immutable scene body and SHA-256 digest with governed artifact references, Frames identity, visual prototypes, entities, renderer bounds, and attribution. |
 | `veoveo.io/simulation-view-pose/v1` | Private latest-value binary snapshots in local ENU metres, FLU entity axes, and XYZW quaternions. |
 | `veoveo.io/live-view/v1` | Owner-scoped H.264 WebRTC lease state with NVIDIA NVENC, BT.709 metadata, redacted access tokens, and exact endpoints. |
+| Veoveo Artifact plane | Signed internal HTTP authorization and streaming bulk download for canonical `artifact://{uuidv7}` occurrences. Simulation View forwards bytes only to the private Isaac digest-ingest endpoint. |
 | OpenUSD | Render-only stage, content-addressed visual prototypes, instances, and transform mirroring. Executable scene content and physics authority are rejected. |
 | NVIDIA RTX, HydraTexture AOV, NVENC, and WebRTC | Isaac Sim 6.0.1 implementation profile from the canonical `2026.07.0` simulation runtime; browser client `@nvidia/ov-web-rtc` 6.6.0. These are private renderer mechanisms, not the provider-neutral MCP identity. |
 | SPIFFE and TLS 1.3 | Installation-issued workload identities and mutually authenticated pose transport. MCP authorizes the producer identity but does not carry certificates or pose messages. |
@@ -62,10 +63,11 @@ MCP never carries continuous poses, camera pixels, media packets, filesystem
 paths, certificates, or provider credentials.
 
 The private runtime control boundary is installation-secret authenticated.
-It sends narrow session, scene, pose-source, camera, and stream bindings. User
-and Work Context ownership remain in the MCP process and do not cross into the
-renderer. The renderer has no domain simulator, dynamics loop, control
-adapter, or extension-code loader.
+It sends narrow session, scene, pose-source, camera, and stream bindings. Its
+separate artifact-ingest route accepts only a declared byte count at a
+SHA-256-and-format path. User and Work Context ownership remain in the MCP
+process and do not cross into the renderer. The renderer has no domain
+simulator, dynamics loop, control adapter, or extension-code loader.
 
 ## Scene Contract
 
@@ -75,18 +77,30 @@ environment artifact, content-addressed visual prototypes, stable entities,
 allowed camera kinds, lighting, a bounded ray-traced quality policy, license
 metadata, and attribution.
 
+`create_session` takes the caller-selected session identity that the scene and
+external pose producer already share. Repeating the same owner, session, and
+epoch is idempotent. Reusing that identity for another owner or epoch fails.
+
 Artifacts use `artifact://` identities plus exact SHA-256 digests and byte
 lengths. Environment and prototype roots accept USD, USDZ, GLB, or glTF.
 Texture payloads remain dependencies of those governed roots. Network URLs,
 credentials, executable code, unknown schemas, duplicate identities,
 unbounded content, invalid transforms, and mismatched digests are rejected.
 
-An installation-owned materializer places roots under a private digest-named
-artifact volume. The renderer performs size and SHA-256 verification before
-opening a layer. Standalone USD must be declarative, self-contained USDA.
-USDZ members and references cannot escape their archive. glTF and GLB permit
-only embedded resources. Physics schemas, scripts, native libraries, external
-URLs, and filesystem references fail admission before Kit opens the asset.
+Simulation View validates ownership and the pending scene before fetching any
+bytes. It forwards the caller's signed bearer to Artifact Service, checks the
+returned occurrence identity and byte length, then streams the authorized
+body to the private Isaac endpoint. Isaac bounds the upload, hashes it while
+writing a private temporary file, and atomically installs it at
+`sha256/{digest}.{format}` only after the declaration matches. Existing
+content is reverified for idempotent binds. Partial files, symlinks, path
+escapes, wrong lengths, and wrong digests fail closed.
+
+The renderer repeats size and SHA-256 verification before opening a layer.
+Standalone USD must be declarative, self-contained USDA. USDZ members and
+references cannot escape their archive. glTF and GLB permit only embedded
+resources. Physics schemas, scripts, native libraries, external URLs, and
+filesystem references fail admission before Kit opens the asset.
 
 The scene body is serialized from its strongly typed field order and hashed.
 An existing session accepts the same digest idempotently and rejects a
@@ -196,8 +210,9 @@ use the diagnostic stub and cannot serve as production streaming evidence.
 ## Readiness And Deployment
 
 The MCP liveness endpoint reports only process health. Readiness calls both
-private workloads and fails unless:
+private workloads and Artifact Service, then fails unless:
 
+- the governed artifact plane is reachable;
 - the renderer is hardware accelerated on NVIDIA;
 - the named RTX render product is ready;
 - NVENC is ready;

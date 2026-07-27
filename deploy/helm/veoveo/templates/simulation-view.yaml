@@ -204,6 +204,8 @@ spec:
                   key: internal-trust-jwks
             - name: SIMULATION_VIEW_RENDERER_ENDPOINT
               value: {{ printf "http://simulation-view-renderer:%v" $view.ports.rendererControl | quote }}
+            - name: ARTIFACT_SERVICE_URL
+              value: http://artifact-service:8790
             - name: SIMULATION_VIEW_POSE_ENDPOINT
               value: {{ printf "http://simulation-view-renderer:%v" $view.ports.poseControl | quote }}
             - name: SIMULATION_VIEW_RENDERER_SIGNALING_URL
@@ -344,6 +346,8 @@ spec:
                   key: simulation-view-renderer-control-token
             - name: SIMULATION_VIEW_ARTIFACT_DIRECTORY
               value: /var/lib/veoveo/simulation-view/artifacts
+            - name: SIMULATION_VIEW_MAXIMUM_ARTIFACT_BYTES
+              value: {{ printf "%.0f" $view.capacity.maximumAssetBytes | quote }}
             - name: SIMULATION_VIEW_POSE_DIRECTORY
               value: /dev/shm/veoveo/simulation-view
             - name: SIMULATION_VIEW_RENDERER_CACHE_DIRECTORY
@@ -399,7 +403,6 @@ spec:
           volumeMounts:
             - name: artifacts
               mountPath: /var/lib/veoveo/simulation-view/artifacts
-              readOnly: true
             - name: shared-memory
               mountPath: /dev/shm
             - name: renderer-cache

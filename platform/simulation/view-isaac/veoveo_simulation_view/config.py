@@ -36,6 +36,7 @@ class RendererConfig:
     control_port: int
     control_token: str
     artifact_directory: Path
+    maximum_artifact_bytes: int
     pose_directory: Path
     cache_directory: Path
     maximum_render_slots: int
@@ -76,6 +77,12 @@ class RendererConfig:
             artifact_directory=_absolute_directory(
                 "SIMULATION_VIEW_ARTIFACT_DIRECTORY",
                 "/var/lib/veoveo/simulation-view/artifacts",
+            ),
+            maximum_artifact_bytes=_integer(
+                "SIMULATION_VIEW_MAXIMUM_ARTIFACT_BYTES",
+                4 * 1024 * 1024 * 1024,
+                1,
+                16 * 1024 * 1024 * 1024,
             ),
             pose_directory=_absolute_directory(
                 "SIMULATION_VIEW_POSE_DIRECTORY",
