@@ -33,11 +33,11 @@ google-chrome \
 This command must open a visible X11 window. Do not add `--headless`,
 SwiftShader, or software-WebGL flags. Complete the normal enterprise login in
 that window. Every Console and Rerun recipe performs a fail-closed browser
-preflight before navigation and again before capture. The preflight requires a
-hardware high-performance WebGPU adapter and a working hardware WebGL context.
-A missing or lost context aborts the run; API reachability does not substitute
-for visual verification. Install the pinned capture dependency without
-downloading another browser, then list or run the recipes:
+preflight before navigation and again before capture. The preflight requires
+hardware-backed high-performance WebGPU or WebGL. It probes both APIs when
+available and aborts if neither reaches NVIDIA hardware; API reachability does
+not substitute for visual verification. Install the pinned capture dependency
+without downloading another browser, then list or run the recipes:
 
 ```bash
 cd tools/screenshots
@@ -123,9 +123,9 @@ SCREENSHOT_MCP_APP_VIEW_CLAUDE_URL_PATTERN=claude.ai/ \
 npm run capture -- --ids mcp-app-view-claude
 ```
 
-The tool aborts if the tab lacks hardware WebGPU or WebGL. Publication review
-must also verify that the external conversation contains no account identity,
-private prompt content, or unrelated history.
+The tool aborts if the tab lacks both hardware WebGPU and hardware WebGL.
+Publication review must also verify that the external conversation contains no
+account identity, private prompt content, or unrelated history.
 
 ## Isaac Sim captures
 
@@ -231,11 +231,11 @@ selected. Record the exact launch and port-forward commands in the catalog
 whenever a profile changes; the image is not a substitute for a repeatable
 runbook.
 
-Every capture performs a hardware preflight against the browser's
-high-performance WebGPU adapter and WebGL renderer. It rejects headless Chrome,
-missing graphics contexts, SwiftShader, llvmpipe, software adapters, and any
-viewer that exposes Rerun's software rasterizer warning. It also rejects the
-standalone SUMO viewer unless Rerun's persisted theme is explicitly Dark.
+Every capture probes the browser's high-performance WebGPU adapter and WebGL
+renderer, then requires at least one NVIDIA-backed result. It rejects headless
+Chrome, browsers with no hardware graphics API, and any viewer that exposes
+Rerun's software rasterizer warning. It also rejects the standalone SUMO
+viewer unless Rerun's persisted theme is explicitly Dark.
 
 ## Capture policy
 

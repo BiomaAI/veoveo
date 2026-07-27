@@ -819,12 +819,28 @@ struct HardwareIdentity {
     webgl_renderer: String,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum BrowserGpuApi {
+    WebGpu,
+    WebGl,
+}
+
 impl HardwareIdentity {
     fn validate(&self) -> Result<()> {
         ensure!(
             !self.user_agent.contains("HeadlessChrome"),
             "attached Chrome is headless"
         );
+        let (hardware_apis, webgpu, webgl) = self.hardware_apis();
+        ensure!(
+            !hardware_apis.is_empty(),
+            "headed Chrome requires hardware-backed NVIDIA WebGPU or WebGL; \
+             received WebGPU {webgpu:?} and WebGL {webgl:?}"
+        );
+        Ok(())
+    }
+
+    fn hardware_apis(&self) -> (Vec<BrowserGpuApi>, String, String) {
         let webgpu = format!(
             "{} {} {} {}",
             self.webgpu_vendor,
@@ -833,18 +849,18 @@ impl HardwareIdentity {
             self.webgpu_description
         )
         .to_ascii_lowercase();
-        ensure!(
-            !self.webgpu_vendor.is_empty()
-                && webgpu.contains("nvidia")
-                && !software_renderer(&webgpu),
-            "headed Chrome requires its high-performance NVIDIA WebGPU adapter; received {webgpu:?}"
-        );
         let webgl = format!("{} {}", self.webgl_vendor, self.webgl_renderer).to_ascii_lowercase();
-        ensure!(
-            self.webgl_available && webgl.contains("nvidia") && !software_renderer(&webgl),
-            "headed Chrome requires a hardware NVIDIA WebGL context; received {webgl:?}"
-        );
-        Ok(())
+        let mut hardware_apis = Vec::with_capacity(2);
+        if !self.webgpu_vendor.is_empty()
+            && webgpu.contains("nvidia")
+            && !software_renderer(&webgpu)
+        {
+            hardware_apis.push(BrowserGpuApi::WebGpu);
+        }
+        if self.webgl_available && webgl.contains("nvidia") && !software_renderer(&webgl) {
+            hardware_apis.push(BrowserGpuApi::WebGl);
+        }
+        (hardware_apis, webgpu, webgl)
     }
 }
 
@@ -1355,7 +1371,12 @@ fn software_renderer(value: &str) -> bool {
 }
 
 const HARDWARE_PREFLIGHT: &str = r#"(async () => {
-  const adapter = await navigator.gpu?.requestAdapter({powerPreference:"high-performance"});
+  let adapter;
+  try {
+    adapter = await navigator.gpu?.requestAdapter({powerPreference:"high-performance"});
+  } catch {
+    adapter = undefined;
+  }
   const canvas = document.createElement("canvas");
   const webgl = canvas.getContext("webgl2",{failIfMajorPerformanceCaveat:true})
     ?? canvas.getContext("webgl",{failIfMajorPerformanceCaveat:true});
@@ -1566,6 +1587,51 @@ mod tests {
         assert!(software_renderer("mesa llvmpipe"));
         assert!(software_renderer("software rasterizer warning"));
         assert!(!software_renderer("nvidia geforce rtx 4090"));
+    }
+
+    #[test]
+    fn either_hardware_browser_api_satisfies_preflight() {
+        let webgl_only = HardwareIdentity {
+            user_agent: "Chrome".to_owned(),
+            webgpu_vendor: "Google".to_owned(),
+            webgpu_architecture: "SwiftShader".to_owned(),
+            webgpu_device: String::new(),
+            webgpu_description: String::new(),
+            webgl_available: true,
+            webgl_vendor: "Google Inc. (NVIDIA Corporation)".to_owned(),
+            webgl_renderer: "ANGLE (NVIDIA GeForce RTX 4090)".to_owned(),
+        };
+        assert_eq!(webgl_only.hardware_apis().0, vec![BrowserGpuApi::WebGl]);
+        webgl_only.validate().unwrap();
+
+        let webgpu_only = HardwareIdentity {
+            user_agent: "Chrome".to_owned(),
+            webgpu_vendor: "NVIDIA".to_owned(),
+            webgpu_architecture: "Lovelace".to_owned(),
+            webgpu_device: "RTX 4090".to_owned(),
+            webgpu_description: String::new(),
+            webgl_available: false,
+            webgl_vendor: String::new(),
+            webgl_renderer: String::new(),
+        };
+        assert_eq!(webgpu_only.hardware_apis().0, vec![BrowserGpuApi::WebGpu]);
+        webgpu_only.validate().unwrap();
+    }
+
+    #[test]
+    fn browser_preflight_rejects_two_software_apis() {
+        let software_only = HardwareIdentity {
+            user_agent: "Chrome".to_owned(),
+            webgpu_vendor: "Google".to_owned(),
+            webgpu_architecture: "SwiftShader".to_owned(),
+            webgpu_device: String::new(),
+            webgpu_description: String::new(),
+            webgl_available: true,
+            webgl_vendor: "Google".to_owned(),
+            webgl_renderer: "ANGLE (SwiftShader)".to_owned(),
+        };
+        assert!(software_only.hardware_apis().0.is_empty());
+        assert!(software_only.validate().is_err());
     }
 
     #[test]

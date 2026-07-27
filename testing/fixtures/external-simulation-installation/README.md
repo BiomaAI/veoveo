@@ -69,8 +69,8 @@ one workstation may host several independent k3d clusters. Fielded hosts set an
 equivalent persistent ceiling through their normal node configuration.
 
 Start a separate headed Chrome instance on the active X11 display. The
-acceptance command rejects HeadlessChrome, software WebGPU, and software
-WebGL before it loads the App.
+acceptance command rejects HeadlessChrome and requires at least one
+NVIDIA-backed WebGPU or WebGL path before it loads the App.
 
 ```sh
 google-chrome-stable \

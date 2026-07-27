@@ -382,8 +382,9 @@ workloads request an NVIDIA device and fail closed when CUDA, Vulkan, WebGPU, or
 WebGL cannot reach hardware. Software rendering is not a supported fallback.
 
 The local cluster applies the same `nvidia.com/gpu` scheduling contract used by
-fielded installations. Browser verification proves hardware WebGPU and WebGL
-before interacting with a visual surface and stops if either context is lost.
+fielded installations. Browser verification proves that at least one of WebGPU
+or WebGL reaches hardware before interacting with a visual surface and stops if
+no hardware-backed browser graphics API remains.
 
 ## Roadmap
 
