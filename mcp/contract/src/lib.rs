@@ -83,7 +83,8 @@ pub use duckdb::{
     duckdb_quote_literal, duckdb_read_function_sql, duckdb_read_options_sql,
 };
 pub use gateway::{
-    AccessTokenSubject, ArtifactAudience, AuditEvent, AuthAuditEvent, AuthMethod, AuthMode,
+    APP_RESOURCE_DEPENDENCIES_META_KEY, AccessTokenSubject, AppResourceDependency,
+    AppResourceOperation, ArtifactAudience, AuditEvent, AuthAuditEvent, AuthMethod, AuthMode,
     AuthOutcome, AuthReasonCode, AuthorizationServerEndpoint, AuthorizationServerId,
     CanonicalTaskId, CertificateAuthorityFilePath, CertificateAuthoritySource,
     CompatibilityHelperId, CompletionExposure, ComposedGatewayControlPlane, CompositionDigest,

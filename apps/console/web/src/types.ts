@@ -339,6 +339,17 @@ export interface AppDescriptor {
   description?: string;
   icons?: string[];
   tools: AppToolDescriptor[];
+  resourceDependencies: AppResourceDependency[];
+}
+
+export interface AppResourceDependency {
+  app_resource: string;
+  server: string;
+  scheme: string;
+  uri_prefix: string;
+  required_scope: string;
+  operations: Array<"read">;
+  data_labels?: string[];
 }
 
 export interface AppCatalog {

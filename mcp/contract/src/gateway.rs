@@ -6,9 +6,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use validation::{
-    validate_oauth_client_registration, validate_oidc_client_registration, validate_policy_set,
-    validate_profile_auth_modes, validate_profile_server_exposure, validate_server_apps,
-    validate_server_capabilities, validate_server_compatibility_helpers, validate_server_upstream,
+    validate_app_resource_dependencies, validate_oauth_client_registration,
+    validate_oidc_client_registration, validate_policy_set, validate_profile_auth_modes,
+    validate_profile_server_exposure, validate_server_apps, validate_server_capabilities,
+    validate_server_compatibility_helpers, validate_server_upstream,
     validate_server_upstream_tls_material,
 };
 use wire::{
@@ -215,6 +216,9 @@ impl GatewayControlPlane {
                     data_label.id.clone(),
                 ));
             }
+        }
+        for server in &self.servers {
+            validate_app_resource_dependencies(server, &servers, &data_labels)?;
         }
 
         let mut tenants = BTreeSet::new();
