@@ -54,7 +54,7 @@ paths resolve inside that source's exact checkout. The fields are:
 | name | Stable local environment identity |
 | registry.address | OCI host and port |
 | registry.localConfig | Shared k3d registry definition |
-| sources | Named repositories with independent revisions, image groups, and releases |
+| sources | Named repositories with explicit platform or extension ownership, independent revisions, image groups, and releases |
 | kubernetes.context | Explicit kubectl and Helm context |
 | kubernetes.localCluster | k3d configuration and node bootstrap manifests |
 | namespace | Namespace for local resources |
@@ -66,7 +66,9 @@ paths resolve inside that source's exact checkout. The fields are:
 | waitForDeployments | Extra rollout gates |
 
 `cargo xtask release images --profile` resolves every source revision independently.
-It publishes each source's Bake groups under that revision and writes one
+It resolves the complete source-qualified image plan before pushing, rejects duplicate
+repository/tag references, and accepts platform-image closure only from the single
+`platform` source. It then publishes each source's Bake groups under that revision and writes one
 `veoveo.io/deployment-lock/v2` document with source repositories, exact revisions,
 image manifest digests, chart-content digests, and the expanded platform graph.
 

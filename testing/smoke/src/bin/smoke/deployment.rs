@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     env, fs,
     io::Write,
     path::{Path, PathBuf},
@@ -12,9 +12,9 @@ use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
 use serde_json::Value;
 use veoveo_deploy_contract::{
-    ConfigMapSpec, DeploymentSource, FirstPartyMcpServer, LoadedProfile, PlatformComponent,
-    ReleaseSpec, ReleaseValuesContract, SecretFormat, SecretSpec, SourceRepository,
-    load_local_registry,
+    ConfigMapSpec, DeploymentSource, FirstPartyMcpServer, LoadedProfile, PlannedImage,
+    PlatformComponent, ReleaseSpec, ReleaseValuesContract, SecretFormat, SecretSpec,
+    SourceRepository, load_local_registry,
 };
 use veoveo_mcp_contract::GatewayInternalTrustBundle;
 
@@ -44,6 +44,16 @@ struct K3dRegistrySummary {
     state: K3dRegistryState,
 }
 
+#[derive(Debug, Deserialize)]
+struct BakePrint {
+    target: BTreeMap<String, BakeImageTarget>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BakeImageTarget {
+    tags: Vec<String>,
+}
+
 #[derive(Debug)]
 struct ResolvedSource {
     definition: DeploymentSource,
@@ -56,17 +66,7 @@ pub(crate) fn profile_validate(path: &Path) -> Result<()> {
     let profile = load_profile(path)?;
     let sources = resolve_sources(&profile)?;
     let selected_images = validate_bake_groups(&profile, &sources)?;
-    let required_images = profile.required_platform_images()?;
-    let missing_images = required_images
-        .difference(&selected_images)
-        .cloned()
-        .collect::<Vec<_>>();
-    ensure!(
-        missing_images.is_empty(),
-        "deployment profile {} omits required Veoveo image targets from its Bake groups: {}",
-        profile.definition.name,
-        missing_images.join(", ")
-    );
+    profile.validate_image_plan(&selected_images)?;
     validate_helm_releases(&profile, &sources)?;
     let platform = profile.resolved_platform()?;
     println!(
@@ -457,27 +457,52 @@ fn cluster_gpu_capacity(context: &str) -> Result<u64> {
 fn validate_bake_groups(
     profile: &LoadedProfile,
     sources: &[ResolvedSource],
-) -> Result<BTreeSet<String>> {
-    let mut selected_images = BTreeSet::new();
+) -> Result<Vec<PlannedImage>> {
+    let mut selected_images = Vec::new();
     for source in sources {
         for group in &source.definition.image_groups {
-            let output = output_checked(
-                "docker",
-                ["buildx", "bake", group.as_str(), "--print"],
-                Some(&source.repository),
-            )
-            .with_context(|| {
-                format!(
-                    "validating Docker Bake group {group} from source {} in profile {}",
-                    source.definition.name, profile.definition.name
-                )
-            })?;
-            let definition = serde_json::from_slice::<Value>(&output)
-                .with_context(|| format!("decoding Docker Bake group {group}"))?;
-            let targets = definition["target"]
-                .as_object()
-                .with_context(|| format!("Docker Bake group {group} has no target object"))?;
-            selected_images.extend(targets.keys().cloned());
+            let output = Command::new("docker")
+                .args(["buildx", "bake", group.as_str(), "--print"])
+                .current_dir(&source.repository)
+                .env("VEOVEO_REGISTRY", &profile.definition.registry.address)
+                .env("VEOVEO_IMAGE_TAG", &source.revision)
+                .output()
+                .with_context(|| {
+                    format!(
+                        "running Docker Bake group {group} from source {} in profile {}",
+                        source.definition.name, profile.definition.name
+                    )
+                })?;
+            ensure!(
+                output.status.success(),
+                "validating Docker Bake group {group} from source {} in profile {} failed:\n{}",
+                source.definition.name,
+                profile.definition.name,
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let definition =
+                serde_json::from_slice::<BakePrint>(&output.stdout).with_context(|| {
+                    format!(
+                        "decoding Docker Bake group {group} from source {}",
+                        source.definition.name
+                    )
+                })?;
+            for (target, definition) in definition.target {
+                ensure!(
+                    definition.tags.len() == 1,
+                    "image target {target} from source {} must resolve exactly one OCI reference",
+                    source.definition.name
+                );
+                selected_images.push(PlannedImage {
+                    source: source.definition.name.clone(),
+                    target,
+                    reference: definition
+                        .tags
+                        .into_iter()
+                        .next()
+                        .expect("one image tag was required"),
+                });
+            }
         }
     }
     Ok(selected_images)
