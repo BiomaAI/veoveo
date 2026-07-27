@@ -131,7 +131,7 @@ is the browser edition of the harness document.
 | `testing/fixtures/external-simulation-installation/` | independent platform/extension source composition, exact Simulation View image closure, installation-owned gateway binding, and exclusive renderer GPU placement |
 | `deploy/contract/tests/multi_repository.rs` | anonymous acceptance using independent platform, extension, and installation Git histories with one combined deployment lock |
 | `testing/fixtures/simulation-overlay/` | repository-neutral overlay identity and CUDA probe for canonical simulation-base acceptance |
-| `tools/image-build/` | managed BuildKit configuration and shared Rust image-builder inputs |
+| `tools/image-build/` | managed BuildKit configuration, shared Rust builder inputs, and the source-locked first-party Datasheet image environment |
 | `tools/xtask/` | compiled repository command, enforcement, image planning, and release orchestration |
 
 ## Placement Rules

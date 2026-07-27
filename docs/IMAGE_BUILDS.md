@@ -27,6 +27,14 @@ custom remote-execution service are outside this design. They would add another 
 and cache authority without addressing a requirement that Cargo, Bake, and the typed
 planner leave unmet.
 
+The Python Datasheet example has two deliberate package boundaries. Its template
+Dockerfile consumes an extension-owned lock and a released SDK from the configured
+private index. Veoveo's own `datasheet-mcp` Bake target instead uses the checked-in
+environment under `tools/image-build/datasheet/`. That environment locks the same
+template and SDK as non-editable path distributions from the exact source revision.
+First-party publication therefore remains reproducible without weakening the external
+template or requiring an operator's package-index configuration.
+
 ## Command Surface
 
 `docker-bake.hcl` is the image catalog. Rust image builds go through `xtask`, which
