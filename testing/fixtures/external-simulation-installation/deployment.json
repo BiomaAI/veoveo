@@ -21,7 +21,9 @@
         {
           "name": "veoveo",
           "chart": "deploy/helm/veoveo",
-          "values": [],
+          "values": [
+            "testing/fixtures/external-simulation-installation/platform-values.yaml"
+          ],
           "valuesContract": "platform",
           "createNamespace": true,
           "timeoutSeconds": 1200

@@ -1,0 +1,7 @@
+simulationView:
+  signaling:
+    exposure: ClusterIP
+  poseIngress:
+    exposure: ClusterIP
+  media:
+    exposure: ClusterIP
