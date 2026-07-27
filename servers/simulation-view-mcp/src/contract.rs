@@ -820,3 +820,21 @@ pub enum SimulationViewError {
     #[error("system time overflow")]
     Time,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn python_scene_fixture_uses_the_rust_canonical_digest() {
+        let body: SceneDeclarationBody = serde_json::from_str(include_str!(
+            "../../../platform/simulation/fixtures/anonymous-scene-body.json"
+        ))
+        .unwrap();
+        let declaration = SceneDeclaration::from_body(body).unwrap();
+        assert_eq!(
+            declaration.digest.as_str(),
+            "sha256:67291c10c39898b2ea11ac9bbe12643148b0112bd868ed44579aaa818fea48e4"
+        );
+    }
+}

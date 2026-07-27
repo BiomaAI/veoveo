@@ -15,6 +15,7 @@ __all__ = [
     "pagination",
     "schema",
     "simulation_pose",
+    "simulation_view",
     "task_extension",
     "tasks",
     "telemetry",
