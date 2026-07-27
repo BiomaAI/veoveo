@@ -13,7 +13,7 @@ external repositories derive thin overlays from its immutable OCI digest.
 | `veoveo.io/simulation-runtime-lock/v1` | exact build-input lock for the supported runtime tuple and pod contract |
 | `veoveo.io/simulation-runtime-conformance/v1` | hardware result tied to one image digest and qualified node |
 | NVIDIA Container Runtime | one visible NVIDIA RTX GPU through `nvidia.com/gpu` and RuntimeClass `nvidia` |
-| CUDA | CUDA 13.0 user-space selected by Torch 2.12.0 and the Isaac Sim 6.0.1 renderer |
+| CUDA | Torch CUDA 13.0 plus the Isaac RTX extension's pinned NVRTC 12.8.61 builtins |
 | NVIDIA NVENC API | driver-provided encode API required by live-view profiles |
 | USD | render and simulation scene representation supplied by Isaac Sim 6.0.1 |
 | SHA-256 | image, archive, wheel, lock, SBOM, provenance, and conformance identity |
@@ -37,6 +37,7 @@ boundary is the compatibility profile and immutable image digest.
 | MuJoCo | `3.10.0`, revision `28009f9105cd92784b7b0b30c0605a5e29107a77` |
 | MuJoCo Warp | `3.10.0.3`, revision `710c34ca96745a44bfb701cdbda89e1434845728` |
 | Torch | `2.12.0+cu130` |
+| Isaac RTX NVRTC builtins | `12.8.61`, retained from the pinned Isaac Sim image |
 | NVIDIA AOV live stream | `10.2.0+110.1.2.lx64.r.cp312` |
 | NVIDIA WebRTC live stream | `10.3.2+110.0.0.lx64.r.cp312` from Isaac Sim |
 
@@ -62,12 +63,15 @@ when Kit later loads an older package or native dependency from its extension.
 
 The image replaces each package inside its Kit-owned extension root and updates the
 Warp extension version. Torch 2.12 and its CUDA 13.0, NCCL, Triton, and Python support
-packages replace the complete Kit ML archive graph. The bundled TorchVision and
-TorchAudio payloads are removed because they are outside the supported subset and do
-not have a stable Torch 2.12 pair. `PYTHONPATH` selects the same roots before Kit
-starts. The identity probe rejects loaded Torch, Warp, or Newton file modules outside
-their selected root. An overlay may add compatible packages, but it cannot replace
-Isaac Sim, Isaac Lab, Warp, Newton, MuJoCo, Torch, Python, CUDA, or core Kit versions.
+packages replace the complete Kit ML archive graph. The Isaac RTX Hydra extension
+retains its upstream NVRTC 12.8.61 builtins at the immutable path referenced by its
+own symlinks; those files are renderer dependencies and do not enter Torch's CUDA 13
+module graph. The bundled TorchVision and TorchAudio payloads are removed because
+they are outside the supported subset and do not have a stable Torch 2.12 pair.
+`PYTHONPATH` selects the same roots before Kit starts. The identity probe rejects
+loaded Torch, Warp, or Newton file modules outside their selected root. An overlay
+may add compatible packages, but it cannot replace Isaac Sim, Isaac Lab, Warp,
+Newton, MuJoCo, Torch, Python, CUDA, or core Kit versions.
 
 ## Runtime Contract
 
