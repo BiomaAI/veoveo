@@ -15,6 +15,8 @@ mod upstream_cache;
 mod upstream_http;
 pub use upstream_http::GatewayUpstreamHttpClientPool;
 
+use std::future::Future;
+
 use chrono::{DateTime, TimeDelta, Utc};
 use rmcp::{
     ServiceExt,
@@ -28,7 +30,7 @@ use rmcp::{
         PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult, ServerInfo,
         SubscribeRequestParams, UnsubscribeRequestParams,
     },
-    service::{Peer, RequestContext, RoleClient, RoleServer},
+    service::{Peer, RequestContext, RoleClient, RoleServer, ServiceError},
     transport::{
         StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
     },
@@ -54,6 +56,11 @@ pub use task_extension::GatewayTaskExtension;
 
 pub(super) const GATEWAY_PAGE_SIZE: usize = 100;
 const INTERNAL_TOKEN_TTL_SECONDS: i64 = 15 * 60;
+
+struct CachedUpstream {
+    key: UpstreamCacheKey,
+    peer: Peer<RoleClient>,
+}
 
 #[derive(Debug)]
 pub struct GatewayMcp {
@@ -93,7 +100,7 @@ impl GatewayMcp {
         server_slug: &ServerSlug,
         downstream: Peer<RoleServer>,
         subject: &AuthenticatedSubject,
-    ) -> Result<Peer<RoleClient>, McpError> {
+    ) -> Result<CachedUpstream, McpError> {
         let snapshot = self.catalog.snapshot();
         let catalog_generation = snapshot.generation();
         let authorization_fingerprint =
@@ -106,7 +113,7 @@ impl GatewayMcp {
         };
         self.upstreams.close_stale(catalog_generation).await;
         if let Some(peer) = self.upstreams.reusable_peer(&key).await {
-            return Ok(peer);
+            return Ok(CachedUpstream { key, peer });
         }
 
         let server = snapshot
@@ -121,7 +128,7 @@ impl GatewayMcp {
         }
 
         if let Some(peer) = self.upstreams.reusable_peer(&key).await {
-            return Ok(peer);
+            return Ok(CachedUpstream { key, peer });
         }
 
         let http_client = self
@@ -152,10 +159,49 @@ impl GatewayMcp {
             .serve(transport)
             .await
             .map_err(|err| mcp_internal(format!("failed to initialize upstream MCP: {err}")))?;
-        Ok(self
+        let peer = self
             .upstreams
-            .insert_or_reuse(key, UpstreamConnection { running })
-            .await)
+            .insert_or_reuse(key.clone(), UpstreamConnection { running })
+            .await;
+        Ok(CachedUpstream { key, peer })
+    }
+
+    async fn idempotent_upstream_request<T, F, Fut>(
+        &self,
+        server_slug: &ServerSlug,
+        downstream: Peer<RoleServer>,
+        subject: &AuthenticatedSubject,
+        request: F,
+    ) -> Result<T, McpError>
+    where
+        F: Fn(Peer<RoleClient>) -> Fut,
+        Fut: Future<Output = Result<T, ServiceError>>,
+    {
+        let upstream = self
+            .upstream(server_slug, downstream.clone(), subject)
+            .await?;
+        match request(upstream.peer).await {
+            Ok(result) => Ok(result),
+            Err(error) if recoverable_upstream_session_error(&error) => {
+                tracing::warn!(
+                    server = %server_slug,
+                    principal = %subject.actor.id,
+                    %error,
+                    "evicting broken upstream MCP session before one idempotent retry"
+                );
+                self.upstreams
+                    .invalidate(
+                        &upstream.key,
+                        "recoverable idempotent upstream request failure",
+                    )
+                    .await;
+                let retry = self.upstream(server_slug, downstream, subject).await?;
+                request(retry.peer)
+                    .await
+                    .map_err(crate::mcp_support::upstream_error)
+            }
+            Err(error) => Err(crate::mcp_support::upstream_error(error)),
+        }
     }
 
     async fn final_task_client(
@@ -202,6 +248,17 @@ fn upstream_transport_config(uri: &str) -> StreamableHttpClientTransportConfig {
     // initialize handshake. The request was not dispatched without a live
     // session, so this does not create a polling or general retry path.
     StreamableHttpClientTransportConfig::with_uri(uri.to_owned()).reinit_on_expired_session(true)
+}
+
+fn recoverable_upstream_session_error(error: &ServiceError) -> bool {
+    match error {
+        ServiceError::TransportSend(_) | ServiceError::TransportClosed => true,
+        // RMCP currently maps an abruptly terminated Streamable HTTP response
+        // (including "no close frame received or sent") to its transport-level
+        // pseudo JSON-RPC code 0. No conforming MCP application error uses 0.
+        ServiceError::McpError(error) => error.code.0 == 0,
+        _ => false,
+    }
 }
 
 fn invocation_authorization_fingerprint(
@@ -433,5 +490,21 @@ mod tests {
     fn upstream_transport_recovers_one_expired_mcp_session() {
         let config = upstream_transport_config("http://view-mcp:8788/view/mcp");
         assert!(config.reinit_on_expired_session);
+    }
+
+    #[test]
+    fn abrupt_upstream_transport_error_is_recoverable_for_idempotent_requests() {
+        let error = ServiceError::McpError(McpError::new(
+            rmcp::model::ErrorCode(0),
+            "no close frame received or sent",
+            None,
+        ));
+        assert!(recoverable_upstream_session_error(&error));
+    }
+
+    #[test]
+    fn application_upstream_error_is_not_retried() {
+        let error = ServiceError::McpError(McpError::internal_error("application failure", None));
+        assert!(!recoverable_upstream_session_error(&error));
     }
 }

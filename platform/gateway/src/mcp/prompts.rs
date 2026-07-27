@@ -7,7 +7,7 @@ use rmcp::{
 };
 use veoveo_mcp_contract::{GatewayAction, PromptName, paginate};
 
-use crate::mcp_support::{ensure_unique_prompts, mcp_internal, mcp_invalid_params, upstream_error};
+use crate::mcp_support::{ensure_unique_prompts, mcp_internal, mcp_invalid_params};
 
 use super::{GATEWAY_PAGE_SIZE, GatewayMcp};
 
@@ -20,10 +20,15 @@ impl GatewayMcp {
         let subject = self.authenticated(&context)?;
         let mut prompts = Vec::new();
         for server_slug in self.profile_servers() {
-            let upstream = self
-                .upstream(&server_slug, context.peer.clone(), &subject)
+            let upstream_prompts = self
+                .idempotent_upstream_request(
+                    &server_slug,
+                    context.peer.clone(),
+                    &subject,
+                    |upstream| async move { upstream.list_all_prompts().await },
+                )
                 .await?;
-            for prompt in upstream.list_all_prompts().await.map_err(upstream_error)? {
+            for prompt in upstream_prompts {
                 let prompt_name = PromptName::new(prompt.name.clone()).map_err(|err| {
                     mcp_internal(format!("upstream exposed invalid prompt name: {err}"))
                 })?;
@@ -63,9 +68,10 @@ impl GatewayMcp {
         let subject = self
             .authorize_prompt(&context, GatewayAction::PromptsGet, server.clone(), prompt)
             .await?;
-        let upstream = self
-            .upstream(&server, context.peer.clone(), &subject)
-            .await?;
-        upstream.get_prompt(request).await.map_err(upstream_error)
+        self.idempotent_upstream_request(&server, context.peer.clone(), &subject, |upstream| {
+            let request = request.clone();
+            async move { upstream.get_prompt(request).await }
+        })
+        .await
     }
 }

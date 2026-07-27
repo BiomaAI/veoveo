@@ -36,14 +36,15 @@ impl GatewayMcp {
             let manifest = catalog
                 .server(&server_slug)
                 .ok_or_else(|| mcp_internal(format!("unknown profile server `{server_slug}`")))?;
-            let upstream = self
-                .upstream(&server_slug, context.peer.clone(), &subject)
+            let upstream_resources = self
+                .idempotent_upstream_request(
+                    &server_slug,
+                    context.peer.clone(),
+                    &subject,
+                    |upstream| async move { upstream.list_all_resources().await },
+                )
                 .await?;
-            for mut resource in upstream
-                .list_all_resources()
-                .await
-                .map_err(upstream_error)?
-            {
+            for mut resource in upstream_resources {
                 let projection = self.project_upstream_resource(&server_slug, &resource.uri)?;
                 project_listed_resource_uri(manifest, &mut resource)?;
                 project_listed_resource(&mut resource, &projection);
@@ -90,14 +91,15 @@ impl GatewayMcp {
             let manifest = catalog
                 .server(&server_slug)
                 .ok_or_else(|| mcp_internal(format!("unknown profile server `{server_slug}`")))?;
-            let upstream = self
-                .upstream(&server_slug, context.peer.clone(), &subject)
+            let upstream_templates = self
+                .idempotent_upstream_request(
+                    &server_slug,
+                    context.peer.clone(),
+                    &subject,
+                    |upstream| async move { upstream.list_all_resource_templates().await },
+                )
                 .await?;
-            for mut template in upstream
-                .list_all_resource_templates()
-                .await
-                .map_err(upstream_error)?
-            {
+            for mut template in upstream_templates {
                 project_resource_template_uri(manifest, &mut template)?;
                 if !self
                     .allows_resource(
@@ -133,17 +135,18 @@ impl GatewayMcp {
         let subject = self
             .authorize_projected_resource(&context, resource_read_action(&request.uri), &projection)
             .await?;
-        let upstream = self
-            .upstream(&server, context.peer.clone(), &subject)
-            .await?;
         let catalog = self.catalog.current();
         let manifest = catalog
             .server(&server)
             .ok_or_else(|| mcp_internal(format!("unknown resource server `{server}`")))?;
-        let upstream_resources = upstream
-            .list_all_resources()
-            .await
-            .map_err(upstream_error)?;
+        let upstream_resources = self
+            .idempotent_upstream_request(
+                &server,
+                context.peer.clone(),
+                &subject,
+                |upstream| async move { upstream.list_all_resources().await },
+            )
+            .await?;
         let Some(upstream_uri) =
             project_gateway_resource_uri_for_upstream(manifest, &request.uri, &upstream_resources)?
         else {
@@ -158,10 +161,17 @@ impl GatewayMcp {
             upstream_uri,
         };
         request.uri = projection.upstream_uri.to_string();
-        let mut result = upstream
-            .read_resource(request)
-            .await
-            .map_err(upstream_error)?;
+        let mut result = self
+            .idempotent_upstream_request(
+                &projection.server,
+                context.peer.clone(),
+                &subject,
+                |upstream| {
+                    let request = request.clone();
+                    async move { upstream.read_resource(request).await }
+                },
+            )
+            .await?;
         project_read_resource_result(&mut result, &projection)?;
         Ok(result)
     }
@@ -181,7 +191,11 @@ impl GatewayMcp {
         let upstream = self
             .upstream(&projection.server, context.peer.clone(), &subject)
             .await?;
-        upstream.subscribe(request).await.map_err(upstream_error)?;
+        upstream
+            .peer
+            .subscribe(request)
+            .await
+            .map_err(upstream_error)?;
         let now = Utc::now();
         self.state
             .record_resource_subscription(&GatewayResourceSubscription {
@@ -247,6 +261,7 @@ impl GatewayMcp {
             .upstream(&server, context.peer.clone(), &subject)
             .await?;
         upstream
+            .peer
             .unsubscribe(request)
             .await
             .map_err(upstream_error)?;
