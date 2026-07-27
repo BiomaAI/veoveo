@@ -11341,6 +11341,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-simulation-scene"
+version = "0.1.0"
+dependencies = [
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "thiserror 2.0.18",
+ "veoveo-mcp-contract",
+ "veoveo-simulation-pose",
+]
+
+[[package]]
 name = "veoveo-simulation-view-mcp"
 version = "0.1.0"
 dependencies = [
@@ -11374,6 +11387,7 @@ dependencies = [
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-simulation-pose",
+ "veoveo-simulation-scene",
 ]
 
 [[package]]

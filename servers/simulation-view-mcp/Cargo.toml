@@ -41,6 +41,7 @@ veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension" }
 veoveo-artifact-client = { path = "../../platform/artifacts/client" }
 veoveo-mcp-contract.workspace = true
 veoveo-simulation-pose.workspace = true
+veoveo-simulation-scene.workspace = true
 
 [build-dependencies]
 sha2.workspace = true

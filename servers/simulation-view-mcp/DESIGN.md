@@ -71,6 +71,11 @@ simulator, dynamics loop, control adapter, or extension-code loader.
 
 ## Scene Contract
 
+`veoveo-simulation-scene` owns the provider-neutral typed declaration shared
+with producers. It contains no renderer session, camera, lease, transport, or
+simulator implementation. Simulation View re-exports that vocabulary as part
+of its MCP schemas and retains all lifecycle and rendering behavior.
+
 `bind_scene` binds once. A declaration identifies the session and epoch, an
 immutable Frames world revision, the exact simulation frame, one governed
 environment artifact, content-addressed visual prototypes, stable entities,

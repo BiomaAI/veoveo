@@ -48,6 +48,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`mcp/composer/DESIGN.md`](../mcp/composer/DESIGN.md) | offline external gateway fragment/binding composition, requirements, and deterministic provenance |
 | [`platform/runtimes/simulation/DESIGN.md`](../platform/runtimes/simulation/DESIGN.md) | canonical hardware-GPU Isaac Sim and Isaac Lab runtime, selected extension profile, and conformance probes |
 | [`platform/simulation/pose/DESIGN.md`](../platform/simulation/pose/DESIGN.md) | provider-neutral binary latest-pose schema, freshness rules, shared memory, and streaming framing |
+| [`platform/simulation/scene/DESIGN.md`](../platform/simulation/scene/DESIGN.md) | provider-neutral governed scene declaration shared by simulation producers and Simulation View |
 | [`servers/simulation-view-mcp/DESIGN.md`](../servers/simulation-view-mcp/DESIGN.md) | renderer-only scene mirroring, logical cameras, capacity, live-view leases, signaling, and the generic App |
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and bounded transformations |
@@ -498,7 +499,8 @@ Simulation View data-plane ownership:
 
 | Path | Responsibility |
 |---|---|
-| `servers/simulation-view-mcp/src/contract.rs` | governed scene declarations, renderer sessions, generic camera rigs, explicit capacity, and direct MCP requests and results |
+| `platform/simulation/scene/` | typed governed scene body, visual assets, entity bindings, transforms, quality, attribution, validation, and canonical digest |
+| `servers/simulation-view-mcp/src/contract.rs` | renderer sessions, generic camera rigs, explicit capacity, direct MCP requests and results, and public re-export of the shared scene contract |
 | `servers/simulation-view-mcp/src/state.rs` | owner-scoped scene, camera, and lease transitions with optimistic revisions and typed admission |
 | `servers/simulation-view-mcp/src/artifacts.rs` | caller-authorized Artifact-plane streaming into the private renderer digest-ingest boundary |
 | `servers/simulation-view-mcp/src/mcp.rs` | canonical tools, resources, subscriptions, well-known surface, and App declarations |
