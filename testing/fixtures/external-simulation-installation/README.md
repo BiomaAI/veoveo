@@ -86,9 +86,9 @@ Then run:
 
 ```sh
 just simulation-view-verify \
-  context=k3d-anonymous-simulation \
-  public_base_url=http://localhost:8782 \
-  chrome_cdp_url=http://127.0.0.1:9227
+  k3d-anonymous-simulation \
+  http://localhost:8782 \
+  http://127.0.0.1:9227
 ```
 
 The command drives the anonymous producer through the core Simulation View
