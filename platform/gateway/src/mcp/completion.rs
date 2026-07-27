@@ -6,7 +6,7 @@ use veoveo_mcp_contract::{
     CompletionExposure, GatewayAction, PolicyTarget, PromptName, ResourceUri,
 };
 
-use crate::mcp_support::{mcp_invalid_params, mcp_invalid_request, upstream_error};
+use crate::mcp_support::{mcp_invalid_params, mcp_invalid_request};
 
 use super::GatewayMcp;
 
@@ -52,9 +52,10 @@ impl GatewayMcp {
         let subject = self
             .authorize(&context, GatewayAction::CompletionComplete, target)
             .await?;
-        let upstream = self
-            .upstream(&server, context.peer.clone(), &subject)
-            .await?;
-        upstream.complete(request).await.map_err(upstream_error)
+        self.idempotent_upstream_request(&server, context.peer.clone(), &subject, |upstream| {
+            let request = request.clone();
+            async move { upstream.complete(request).await }
+        })
+        .await
     }
 }

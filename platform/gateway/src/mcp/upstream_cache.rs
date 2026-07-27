@@ -75,6 +75,13 @@ impl UpstreamConnectionCache {
         }
         peer
     }
+
+    pub(super) async fn invalidate(&self, key: &UpstreamCacheKey, reason: &'static str) {
+        let connection = self.connections.write().await.remove(key);
+        if let Some(connection) = connection {
+            close_upstream_connection(key.clone(), connection, reason).await;
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

@@ -45,10 +45,15 @@ impl GatewayMcp {
             } else {
                 false
             };
-            let upstream = self
-                .upstream(&server_slug, context.peer.clone(), &subject)
+            let upstream_tools = self
+                .idempotent_upstream_request(
+                    &server_slug,
+                    context.peer.clone(),
+                    &subject,
+                    |upstream| async move { upstream.list_all_tools().await },
+                )
                 .await?;
-            for mut tool in upstream.list_all_tools().await.map_err(upstream_error)? {
+            for mut tool in upstream_tools {
                 let local_tool =
                     LocalToolName::new(tool.name.as_ref().to_owned()).map_err(|err| {
                         mcp_internal(format!("upstream exposed invalid tool name: {err}"))
@@ -127,6 +132,7 @@ impl GatewayMcp {
             .upstream(&projection.server, context.peer.clone(), &subject)
             .await?;
         let handle = upstream
+            .peer
             .send_cancellable_request(
                 ClientRequest::CallToolRequest(CallToolRequest::new(request)),
                 PeerRequestOptions::no_options(),
