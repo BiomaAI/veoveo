@@ -21,6 +21,10 @@ pub struct ServerManifest {
     /// `server_owned` projection namespaces this server's App and vendor resources.
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub referenced_resource_schemes: BTreeSet<ResourceScheme>,
+    /// Installation-validated cross-server resource families available to
+    /// one exact App resource owned by this server.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub app_resource_dependencies: Vec<AppResourceDependency>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<LocalToolName>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -33,6 +37,33 @@ pub struct ServerManifest {
     pub owned_routes: Vec<OwnedRoute>,
     #[serde(default)]
     pub metadata: Value,
+}
+
+pub const APP_RESOURCE_DEPENDENCIES_META_KEY: &str = "io.veoveo/app-resource-dependencies";
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum AppResourceOperation {
+    Read,
+}
+
+/// One exact cross-server resource family admitted to one owning MCP App.
+///
+/// The gateway filters these declarations by the active profile, scopes, and
+/// data labels before projecting them to a host. The eventual resource read
+/// still passes through ordinary gateway resource exposure and policy.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+pub struct AppResourceDependency {
+    pub app_resource: ResourceUri,
+    pub server: ServerSlug,
+    pub scheme: ResourceScheme,
+    pub uri_prefix: ResourceUriPrefix,
+    pub required_scope: ScopeName,
+    pub operations: BTreeSet<AppResourceOperation>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub data_labels: BTreeSet<DataLabelId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
