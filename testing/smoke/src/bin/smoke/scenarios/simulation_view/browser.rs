@@ -143,6 +143,13 @@ async fn verify_browser_inner(
         hardware.validate()?;
 
         wait_for_app_ready(&mut cdp, &session_id).await?;
+        let diagnostics_installed: bool = cdp
+            .evaluate(&session_id, INSTALL_RTC_DIAGNOSTICS, false)
+            .await?;
+        ensure!(
+            diagnostics_installed,
+            "generic App peer-connection diagnostics could not be installed"
+        );
         let selected: bool = cdp
             .evaluate(
                 &session_id,
@@ -307,6 +314,7 @@ struct AppVideoState {
     status: String,
     error: String,
     body_text: String,
+    rtc_states: Vec<String>,
 }
 
 impl AppVideoState {
@@ -440,8 +448,9 @@ async fn wait_for_video(
         }
         ensure!(
             state.error.is_empty(),
-            "generic App failed while opening the real stream: {}",
-            state.error
+            "generic App failed while opening the real stream: {}; peer states: {:?}",
+            state.error,
+            state.rtc_states
         );
         ensure!(
             tokio::time::Instant::now() < deadline,
@@ -794,8 +803,51 @@ const HARDWARE_PREFLIGHT: &str = r#"(async () => {
   };
 })()"#;
 
+const INSTALL_RTC_DIAGNOSTICS: &str = r#"(() => {
+  const frame = document.getElementById("app-frame");
+  const app = frame?.contentWindow;
+  const Native = app?.RTCPeerConnection;
+  if (!app || !Native) return false;
+  app.__veoveoRtcStates = [];
+  let sequence = 0;
+  const snapshot = (peer, event) => {
+    const value = [
+      `${++sequence}:${event}`,
+      `signaling=${peer.signalingState}`,
+      `gathering=${peer.iceGatheringState}`,
+      `ice=${peer.iceConnectionState}`,
+      `connection=${peer.connectionState}`,
+      `local=${peer.localDescription?.type ?? "none"}`,
+      `remote=${peer.remoteDescription?.type ?? "none"}`,
+      `receivers=${peer.getReceivers().length}`
+    ].join(",");
+    app.__veoveoRtcStates.push(value);
+    if (app.__veoveoRtcStates.length > 128) app.__veoveoRtcStates.shift();
+  };
+  app.RTCPeerConnection = class extends Native {
+    constructor(...args) {
+      super(...args);
+      snapshot(this, "created");
+      for (const event of [
+        "signalingstatechange",
+        "icegatheringstatechange",
+        "iceconnectionstatechange",
+        "connectionstatechange",
+        "track"
+      ]) {
+        this.addEventListener(event, () => snapshot(this, event));
+      }
+      this.addEventListener("icecandidate", ({candidate}) => {
+        snapshot(this, candidate ? "local-candidate" : "gathering-complete");
+      });
+    }
+  };
+  return true;
+})()"#;
+
 const VIDEO_STATE: &str = r#"(() => {
   const doc=document.getElementById("app-frame")?.contentDocument;
+  const app=document.getElementById("app-frame")?.contentWindow;
   const video=doc?.querySelector("video");
   const camera=doc?.querySelector(`#cameras input[type="checkbox"]:checked`);
   return {
@@ -808,7 +860,8 @@ const VIDEO_STATE: &str = r#"(() => {
     status:doc?.getElementById("status")?.textContent ?? "",
     error:doc?.getElementById("error")?.hidden === false
       ? doc.getElementById("error").textContent : "",
-    bodyText:doc?.body?.innerText ?? ""
+    bodyText:doc?.body?.innerText ?? "",
+    rtcStates:app?.__veoveoRtcStates ?? []
   };
 })()"#;
 
