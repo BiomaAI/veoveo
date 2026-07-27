@@ -12,7 +12,9 @@ high-rate state through the Veoveo gateway.
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Strict typed session, world, vehicle, mission, command, recording, and pose-publication health shapes. |
 | [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; scenarios, missions, and dataset captures use `interrupted_indeterminate` recovery. |
 | Veoveo Frames contract | One immutable ECEF-rooted world revision and one revision-scoped ENU simulation frame bind each session. |
+| `veoveo.io/simulation-view-scene/v1` | Strongly typed governed scene declaration prepared from the authoritative UAV session and shared through `veoveo-simulation-scene`. |
 | `veoveo.io/simulation-view-pose/v1` | Complete newest-value entity snapshots in local ENU metres with FLU entity axes and XYZW quaternions. This server reports publication health; snapshots travel on the private data plane. |
+| Veoveo Artifact plane | Caller-authorized publication of self-contained declarative OpenUSD environment and UAV prototype assets. |
 | SPIFFE and TLS 1.3 | Installation-issued producer identity and mutually authenticated private transport to Simulation View pose ingress. No certificate, private key, or ingress endpoint appears in MCP state. |
 | [MAVLink 2](https://mavlink.io/en/) | Pod-local PX4 command, acknowledgement, heartbeat, mission-position, and vehicle-state transport. |
 | ROS 2 | Optional private simulator data plane. High-rate topics are not MCP tools or resources. |
@@ -118,6 +120,25 @@ Runtime readiness requires at least one sent snapshot and a currently ready
 publisher. Missing pose authorization or transport is an operational failure,
 not a reason to run an embedded viewer.
 
+## View Scene Declaration
+
+`prepare_view_scene` publishes the UAV server's self-contained OpenUSD
+environment and vehicle prototype through the caller-authorized Artifact
+plane. It derives the scene session, epoch, Frames revision, simulation frame,
+producer identity, SPIFFE identity, entity-table revision, and entity-table
+digest from current simulator state. A caller cannot provide contradictory
+values.
+
+The resulting `PreparedViewScene` uses the provider-neutral
+`veoveo-simulation-scene` contract. Repeating the request for the same caller
+and unchanged session returns the same prepared declaration. The prepared
+resource is owner-scoped and never exposes the caller's bearer or the private
+pose endpoint.
+
+Scene declaration does not transfer renderer ownership. The UAV server
+publishes no camera, stream, lease, signaling, or App tool. Simulation View
+decides whether to admit, materialize, and render the declaration.
+
 ## Domain Runtime
 
 Google Photorealistic 3D Tiles rendered through Cesium ion are part of this
@@ -161,6 +182,7 @@ Raw JSON is not used for shapes controlled by Veoveo.
 |---|---|
 | `configure_world` | Binds the session once to a verified Frames revision and static simulation frame. |
 | `get_simulation_state` | Reads domain lifecycle, world, tiles, sensors, pose-publication health, recordings, and vehicles. |
+| `prepare_view_scene` | Publishes governed UAV visual assets and returns the authoritative typed scene and pose-producer binding. |
 | `pause_simulation` | Pauses one running session. |
 | `resume_simulation` | Resumes one paused session. |
 | `reset_simulation` | Resets domain dynamics without resetting the renderer epoch. |
@@ -192,14 +214,15 @@ uav-sim://session/{session_id}/tiles
 uav-sim://session/{session_id}/vehicles
 uav-sim://session/{session_id}/vehicle/{vehicle_id}
 uav-sim://session/{session_id}/recordings
+uav-sim://session/{session_id}/view-scene
 uav-sim://mission/{mission_id}
 uav-sim://usage
 uav-sim://usage/task/{task_id}
 ```
 
-Session, world, tile, vehicle, mission, and recording resources support the
-contract's subscriptions and notifications. Task usage reuses the shared
-usage model.
+Session, world, tile, vehicle, mission, recording, and prepared view-scene
+resources support the contract's subscriptions and notifications. Task usage
+reuses the shared usage model.
 
 ## Recording Integration
 

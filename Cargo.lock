@@ -11638,6 +11638,7 @@ dependencies = [
  "veoveo-mcp-task-extension",
  "veoveo-platform-store",
  "veoveo-simulation-pose",
+ "veoveo-simulation-scene",
  "veoveo-task-runtime",
 ]
 

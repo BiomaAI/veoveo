@@ -10,6 +10,7 @@ pub const TILES_TEMPLATE: &str = "uav-sim://session/{session_id}/tiles";
 pub const VEHICLES_TEMPLATE: &str = "uav-sim://session/{session_id}/vehicles";
 pub const VEHICLE_TEMPLATE: &str = "uav-sim://session/{session_id}/vehicle/{vehicle_id}";
 pub const RECORDINGS_TEMPLATE: &str = "uav-sim://session/{session_id}/recordings";
+pub const VIEW_SCENE_TEMPLATE: &str = "uav-sim://session/{session_id}/view-scene";
 pub const MISSION_TEMPLATE: &str = "uav-sim://mission/{mission_id}";
 pub const USAGE_TASK_TEMPLATE: &str = "uav-sim://usage/task/{task_id}";
 
@@ -35,6 +36,10 @@ pub fn vehicle(session_id: &SessionId, vehicle_id: &VehicleId) -> String {
 
 pub fn recordings(session_id: &SessionId) -> String {
     format!("{}/recordings", session(session_id))
+}
+
+pub fn view_scene(session_id: &SessionId) -> String {
+    format!("{}/view-scene", session(session_id))
 }
 
 pub fn mission(mission_id: &MissionId) -> String {
@@ -63,6 +68,10 @@ pub fn parse_vehicles(uri: &str) -> Option<&str> {
 
 pub fn parse_recordings(uri: &str) -> Option<&str> {
     parse_session_suffix(uri, "/recordings")
+}
+
+pub fn parse_view_scene(uri: &str) -> Option<&str> {
+    parse_session_suffix(uri, "/view-scene")
 }
 
 pub fn parse_vehicle(uri: &str) -> Option<(&str, &str)> {
@@ -114,6 +123,7 @@ mod tests {
         );
         assert_eq!(parse_session(&session(&session_id)), Some("alpha"));
         assert_eq!(parse_world(&world(&session_id)), Some("alpha"));
+        assert_eq!(parse_view_scene(&view_scene(&session_id)), Some("alpha"));
         assert_eq!(
             parse_vehicle(&vehicle(&session_id, &vehicle_id)),
             Some(("alpha", "uav-1"))

@@ -44,11 +44,13 @@ use crate::contract::{
     CameraLifecycle, CameraState, CaptureDatasetRequest, CommandAcknowledgement,
     ConfigureWorldOutput, ConfigureWorldRequest, DurableOperation, ExecuteMissionRequest,
     PoseProducerId, PoseProtocolSchema, PosePublicationLifecycle, PosePublicationState,
-    RunScenarioRequest, SessionId, SessionRequest, SimulationCommand, SimulationLifecycle,
-    SimulationState, SpiffeId, StepSimulationRequest, TakeoffRequest, TileLifecycle, TileState,
-    VehicleId, VehicleRequest, VehicleState, Wgs84Position,
+    PrepareViewSceneRequest, PreparedViewScene, RunScenarioRequest, SessionId, SessionRequest,
+    SimulationCommand, SimulationLifecycle, SimulationState, SpiffeId, StepSimulationRequest,
+    TakeoffRequest, TileLifecycle, TileState, VehicleId, VehicleRequest, VehicleState,
+    Wgs84Position,
 };
 use crate::uris;
+use crate::view_scene::ViewSceneService;
 
 use super::auth::{InternalMcpAuthState, authenticate_internal_mcp};
 use super::config::{AdapterKind, Args};
@@ -169,6 +171,35 @@ impl UavSimMcp {
     ) -> Result<CallToolResult, McpError> {
         let state = self.state_for(&request.session_id).await?;
         structured_result("current UAV simulation state".to_owned(), &state)
+    }
+
+    #[tool(
+        title = "Prepare UAV Simulation View scene",
+        description = "Publish this session's governed declarative visual assets and return a typed scene bound to its authoritative Frames world, pose epoch, producer identity, and entity table.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<PreparedViewScene>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn prepare_view_scene(
+        &self,
+        Parameters(request): Parameters<PrepareViewSceneRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let state = self.state_for(&request.session_id).await?;
+        let caller = internal_caller(&context)?;
+        let prepared = self
+            .state
+            .view_scenes
+            .prepare(&caller, &state)
+            .await
+            .map_err(internal)?;
+        self.state
+            .subscribers
+            .notify_resource_updated(uris::view_scene(&request.session_id))
+            .await;
+        structured_result(
+            "prepared governed UAV Simulation View scene".to_owned(),
+            &prepared,
+        )
     }
 
     #[tool(
@@ -363,6 +394,7 @@ impl ServerHandler for UavSimMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         let state = self.current_state().await?;
+        let caller = internal_caller(&context)?;
         let owner = runtime_owner(&internal_identity(&context)?);
         let tasks = self
             .state
@@ -371,6 +403,19 @@ impl ServerHandler for UavSimMcp {
             .await
             .map_err(internal)?;
         let mut resources = session_resources(&state);
+        for session_id in self
+            .state
+            .view_scenes
+            .sessions_for(&caller)
+            .await
+            .map_err(internal)?
+        {
+            resources.push(descriptor(
+                uris::view_scene(&session_id),
+                format!("Simulation View scene {session_id}"),
+                "Prepared governed scene and exact pose-producer binding for this UAV session.",
+            ));
+        }
         resources.push(descriptor(
             uris::USAGE.to_owned(),
             "UAV simulation task usage".to_owned(),
@@ -437,6 +482,11 @@ impl ServerHandler for UavSimMcp {
                 "Governed recording identities emitted by one session.",
             ),
             template(
+                uris::VIEW_SCENE_TEMPLATE,
+                "Simulation View scene",
+                "Prepared governed scene and exact pose-producer binding for one session.",
+            ),
+            template(
                 uris::MISSION_TEMPLATE,
                 "Simulation mission",
                 "Authorized durable mission task state.",
@@ -462,6 +512,7 @@ impl ServerHandler for UavSimMcp {
     ) -> Result<ReadResourceResult, McpError> {
         let uri = request.uri.as_str();
         let state = self.current_state().await?;
+        let caller = internal_caller(&context)?;
         if uri == uris::SESSIONS {
             return json_resource(uri, &vec![session_summary(&state)]);
         }
@@ -493,6 +544,19 @@ impl ServerHandler for UavSimMcp {
         if let Some(session_id) = uris::parse_recordings(uri) {
             require_session(&state, session_id)?;
             return json_resource(uri, &state.recordings);
+        }
+        if let Some(session_id) = uris::parse_view_scene(uri) {
+            require_session(&state, session_id)?;
+            let prepared = self
+                .state
+                .view_scenes
+                .get(&caller, &state.session_id)
+                .await
+                .map_err(internal)?
+                .ok_or_else(|| {
+                    McpError::resource_not_found("UAV view scene has not been prepared", None)
+                })?;
+            return json_resource(uri, &prepared);
         }
         let owner = runtime_owner(&internal_identity(&context)?);
         let tasks = self
@@ -603,6 +667,7 @@ impl ServerHandler for UavSimMcp {
             | (uris::TILES_TEMPLATE, "session_id")
             | (uris::VEHICLES_TEMPLATE, "session_id")
             | (uris::RECORDINGS_TEMPLATE, "session_id")
+            | (uris::VIEW_SCENE_TEMPLATE, "session_id")
             | (uris::VEHICLE_TEMPLATE, "session_id") => vec![state.session_id.to_string()],
             (uris::VEHICLE_TEMPLATE, "vehicle_id") => state
                 .vehicles
@@ -630,6 +695,24 @@ impl UavSimMcp {
         context: &RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
         let state = self.current_state().await?;
+        if let Some(session_id) = uris::parse_view_scene(uri) {
+            require_session(&state, session_id)?;
+            let caller = internal_caller(context)?;
+            if self
+                .state
+                .view_scenes
+                .get(&caller, &state.session_id)
+                .await
+                .map_err(internal)?
+                .is_some()
+            {
+                return Ok(());
+            }
+            return Err(McpError::resource_not_found(
+                "UAV view scene has not been prepared",
+                None,
+            ));
+        }
         if let Some(session_id) = session_from_subscribable(uri) {
             require_session(&state, session_id)?;
             if let Some((_, vehicle_id)) = uris::parse_vehicle(uri)
@@ -701,6 +784,7 @@ pub(super) async fn serve() -> anyhow::Result<()> {
         adapter,
         tasks,
         subscribers: SubscriptionHub::new(),
+        view_scenes: ViewSceneService::new(args.artifact_service_url),
     });
     for snapshot in recovery.resumable {
         resume_queued_operation(state.clone(), snapshot)
@@ -795,7 +879,7 @@ async fn ready(State(state): State<Arc<AppState>>) -> StatusCode {
     }
 }
 
-pub(super) fn fake_state() -> anyhow::Result<SimulationState> {
+pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
     let revision_uri = veoveo_mcp_contract::FrameWorldRevisionUri::new(
         &veoveo_mcp_contract::FrameWorldId::new("test-world")?,
         &veoveo_mcp_contract::FrameWorldRevisionId::new("revision-1")?,
@@ -845,10 +929,10 @@ pub(super) fn fake_state() -> anyhow::Result<SimulationState> {
             producer_spiffe_id: SpiffeId::new("spiffe://veoveo.local/simulation/uav-sim")?,
             epoch_id: veoveo_simulation_pose::EpochId::new("epoch-1")?,
             entity_table_revision: 1,
-            entity_table_digest: veoveo_simulation_pose::Sha256Digest::new(format!(
-                "sha256:{}",
-                "1".repeat(64)
-            ))?,
+            entity_table_digest: veoveo_simulation_pose::entity_identity_table_digest(
+                1,
+                [&veoveo_simulation_pose::EntityId::new("uav-1")?],
+            ),
             cadence_hz: 20,
             lifecycle: PosePublicationLifecycle::Ready,
             offered_snapshots: 10,
@@ -1111,6 +1195,13 @@ mod tests {
         let tools = UavSimMcp::tool_router().list_all();
         assert!(!tools.is_empty());
         assert!(tools.iter().any(|tool| tool.name == "configure_world"));
+        assert!(tools.iter().any(|tool| tool.name == "prepare_view_scene"));
+        for forbidden in ["create_camera", "open_live_view", "renew_live_view"] {
+            assert!(
+                tools.iter().all(|tool| tool.name != forbidden),
+                "UAV server must not own Simulation View tool {forbidden}"
+            );
+        }
     }
 
     #[test]

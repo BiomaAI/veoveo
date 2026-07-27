@@ -38,6 +38,7 @@ veoveo-mcp-contract.workspace = true
 veoveo-artifact-client = { path = "../../platform/artifacts/client" }
 veoveo-mcp-task-extension = { path = "../../mcp/task-extension" }
 veoveo-platform-store = { path = "../../platform/store" }
+veoveo-simulation-scene.workspace = true
 veoveo-simulation-pose.workspace = true
 veoveo-task-runtime = { path = "../../platform/task-runtime" }
 

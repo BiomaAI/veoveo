@@ -9,4 +9,6 @@ pub mod contract;
 pub mod uris;
 pub mod world;
 
+mod view_scene;
+
 pub mod server;
