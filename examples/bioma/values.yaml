@@ -6,6 +6,22 @@ objectStore:
   rustfs:
     publicEndpoint: https://objects-veoveo.bioma.ai
 
+artifactService:
+  allowedAudiences:
+    - artifact
+    - media
+    - timeseries
+    - optimization
+    - duckdb
+    - frames
+    - map
+    - recording
+    - perception
+    - reason
+    - simulation-view
+    - datasheet
+    - uav-sim
+
 gateway:
   existingControlPlaneConfigMap: bioma-gateway-control-plane
   controlPlaneRevision: 6b1ed35eae1f81eef0bf69e4cc5bd659b2b3b867603ab2236d0b76c982640d55
