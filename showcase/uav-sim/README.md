@@ -195,10 +195,13 @@ just uav-showcase-verify <kube-context> https://installation.example
 ```
 
 Chrome must be visible and authenticated through the installation's ordinary
-Console login. The composed command asks the UAV server for its governed,
-digest-bound scene and pose identity, then asks Simulation View to bind that
-scene and admit one follow camera. The UAV server still owns no camera,
-renderer, stream, or App.
+Console login. `--chrome-cdp-url` accepts the HTTP discovery origin shown above
+or Chrome's direct local `ws://` browser endpoint when runtime debugging does
+not expose `/json/version`. Both paths query `Browser.getVersion` before the
+in-page hardware checks. The composed command asks the UAV server for its
+governed, digest-bound scene and pose identity, then asks Simulation View to
+bind that scene and admit one follow camera. The UAV server still owns no
+camera, renderer, stream, or App.
 
 The run verifies the actual Console at takeoff, during the mission, and after
 landing. Each checkpoint requires an advancing pose sequence and a healthy

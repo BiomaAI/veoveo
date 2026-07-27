@@ -511,7 +511,7 @@ enum Cmd {
         /// Public installation base URL used by MCP and the authenticated Console.
         #[arg(long)]
         public_base_url: String,
-        /// DevTools endpoint of an already-running headed hardware-backed Chrome.
+        /// HTTP discovery or direct ws:// browser endpoint for headed hardware-backed Chrome.
         #[arg(long, default_value = "http://127.0.0.1:9227")]
         chrome_cdp_url: String,
         /// Root for revision- and run-qualified JSON and PNG evidence.
@@ -534,7 +534,7 @@ enum Cmd {
         /// Work Context selected for the automated operator identity.
         #[arg(long, default_value = "operations")]
         work_context: String,
-        /// DevTools endpoint of an already-running headed hardware-backed Chrome.
+        /// HTTP discovery or direct ws:// browser endpoint for headed hardware-backed Chrome.
         #[arg(long, default_value = "http://127.0.0.1:9227")]
         chrome_cdp_url: String,
         /// Maximum time for Isaac, poses, render products, NVENC, WebRTC, and video playback.
