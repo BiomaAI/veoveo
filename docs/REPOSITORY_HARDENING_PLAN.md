@@ -29,8 +29,8 @@ profiles:
 | `veoveo.io/image-build-run/v1` | internal immutable record of an image execution, its output mode, elapsed time, result, and Buildx metadata reference |
 | Model Context Protocol | public server protocol governed by `mcp/contract/DESIGN.md`; the current Streamable HTTP verification uses protocol version `2025-11-25` and only claims the repository profile defined there |
 | JSON Schema 2020-12 | canonical MCP tool-input and controlled configuration schemas |
-| `veoveo.io/deployment/v2` | named-source installation schema for independently resolved revisions, source-owned images and charts, gateway requirements, and typed platform selection |
-| `veoveo.io/deployment-lock/v2` | immutable combined source, revision, image-manifest, chart-content, and resolved-platform record |
+| `veoveo.io/deployment/v2` | repository-development profile for independently resolved source revisions, source-owned images and charts, gateway requirements, and typed platform selection |
+| `veoveo.io/deployment-lock/v2` | immutable combined evidence emitted by repository-development source publication |
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned declaration of one hosted server's protocol surface and platform requirements |
 | `veoveo.io/gateway-binding/v1` | installation-owned declaration of exposure, authorization, tenant, policy, and producer bindings |
 | Offline bundle schema version 1 | repository-owned image and payload integrity contract |
@@ -106,7 +106,7 @@ their hard-cut boundary:
 | P0.2 xtask foundation | delivered for `doctor`, canonical Rust enforcement, image planning, builder management, and image release; later smoke, deployment, bundle, documentation, and hook commands remain planned |
 | P0.4 publication inputs | delivered through a locked persistent worktree, exact commit resolution, source-local profile loading, metadata-preservation tests, and the `docs/` context exclusion |
 | P1.5 internal image graph | delivered for the initial `linux/amd64` families, including consolidated trixie and bookworm Cargo actions, typed cache identities, managed Buildx and BuildKit, reproducible output timestamps, and immutable execution evidence |
-| External repository flow | Python SDK distributions, domain-neutral native/OCI conformance and gateway composition, typed artifact contracts, the private extension Helm library, compatibility bundle generation, deployment v2, immutable deployment locks, typed platform selection, source-role-qualified platform-image closure, collision-free publication preflight, anonymous multi-repository contract acceptance, and canonical simulation-overlay certification are delivered |
+| External repository flow | Python SDK distributions, domain-neutral native/OCI conformance and gateway composition, typed artifact contracts, the private extension Helm library, compatibility bundle generation, an agent-run external integration procedure, typed platform selection, source-role-qualified local publication, anonymous multi-repository contract acceptance, and canonical simulation-overlay certification are delivered |
 
 The normative operating contract is
 [`IMAGE_BUILDS.md`](IMAGE_BUILDS.md). Measured acceptance belongs in
@@ -438,9 +438,10 @@ The supported external workflow was implemented through coherent vertical slices
    configuration, and a reference consumer chart.
 4. Added typed server fragments and installation bindings, canonical path collision
    validation, deterministic composition, and composition provenance.
-5. Hard-cut deployment profiles to v2 with named sources, independent revisions,
-   source-owned image and chart locks, structured rendered-image inspection, and
-   source-specific status.
+5. Hard-cut repository-development profiles to v2 with named source roles, independent
+   revisions, collision-free image and chart locks, structured rendered-image
+   inspection, and source-specific status. Fielded installations consume published
+   extension releases through ordinary digest-pinned Helm or GitOps inputs.
 6. Resolved the typed minimal platform graph, beginning with the platform foundation,
    Artifact MCP, Frames MCP, and Recording MCP. Disabled components disappear from
    workloads, services, storage, policy, bootstrap, gateway inventory, and digest
@@ -452,9 +453,11 @@ The supported external workflow was implemented through coherent vertical slices
 The delivered workflow keeps a clean external checkout outside the Veoveo workspace.
 It consumes released artifacts, builds and publishes its own image and chart, runs
 standalone conformance, contributes a server fragment, and joins an installation
-without editing Veoveo or hand-authoring a complete gateway document. Deployment
-validation and image publication now reject a selected platform whose Bake groups omit
-Artifact, Frames, Map, Media, Recording, or RRD transport images.
+without editing Veoveo or hand-authoring a complete gateway document. A coding-agent
+runbook coordinates those existing artifacts and standard tools without adding a
+Veoveo deployment wrapper. Repository-development validation and image publication
+reject a selected platform whose Bake groups omit Artifact, Frames, Map, Media,
+Recording, or RRD transport images.
 
 ## Enforcement Layers
 

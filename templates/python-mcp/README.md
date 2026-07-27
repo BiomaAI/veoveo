@@ -44,9 +44,13 @@ listed next to each obligation is where this template satisfies it.
 5. Package the workload with the private `veoveo-extension` Helm library. Publish an
    extension-owned gateway server fragment, image, application chart, domain smoke
    evidence, and extension release manifest. The installation repository owns the
-   gateway binding, authorization, registry coordinates, and deployment source lock.
+   gateway binding, authorization, registry coordinates, selected release, and
+   digest-pinned Helm or GitOps values.
 
 The extension never edits the Veoveo chart or a complete Veoveo gateway document.
+Follow the coding-agent runbook in
+[`docs/EXTERNAL_REPOSITORY_INTEGRATION.md`](../../docs/EXTERNAL_REPOSITORY_INTEGRATION.md)
+when publishing and integrating a repository created from this template.
 
 ## Running locally
 
