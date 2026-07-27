@@ -675,7 +675,10 @@ pub(crate) async fn helm_config() -> Result<()> {
         "COPY --from=veoveo-rust-artifacts /bin/gateway",
     )?;
     let uav_mcp_dockerfile = fs::read_to_string("servers/uav-sim-mcp/Dockerfile")?;
-    contains(&uav_mcp_dockerfile, "--bin uav-sim-mcp")?;
+    contains(
+        &uav_mcp_dockerfile,
+        "--from=veoveo-rust-artifacts /bin/uav-sim-mcp",
+    )?;
     for forbidden in ["@nvidia/ov-web-rtc", "WEBRTC_CLIENT_BUNDLE"] {
         not_contains(&uav_mcp_dockerfile, forbidden)?;
     }
@@ -687,7 +690,7 @@ pub(crate) async fn helm_config() -> Result<()> {
     )?;
     let workspace_builder = fs::read_to_string("tools/image-build/rust-workspace.Dockerfile")?;
     for expected in [
-        "@nvidia/ov-web-rtc@6.6.0",
+        "@nvidia/ov-web-rtc-6.6.0.tgz",
         "77be78cd4799f797d320d386461834737f5a8368deacfb3b27ae26612f39c9a5",
         "SIMULATION_VIEW_WEBRTC_CLIENT_BUNDLE=",
     ] {
@@ -699,6 +702,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "group \"platform-full\"",
         "group \"external-extension-platform\"",
         "group \"external-simulation-platform\"",
+        "group \"external-simulation-extension-fixture\"",
         "group \"showcase-sumo-base\"",
         "group \"showcase-sumo\"",
         "group \"simulation-runtime\"",
