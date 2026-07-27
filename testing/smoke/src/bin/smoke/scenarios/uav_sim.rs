@@ -800,10 +800,7 @@ async fn verify_published_world(
     );
     let frame: FrameNode = serde_json::from_str(
         &operator
-            .conformance(
-                &["resource", &simulation_frame_uri],
-                Duration::from_secs(60),
-            )
+            .conformance(&["resource", simulation_frame_uri], Duration::from_secs(60))
             .await?,
     )
     .context("decoding the published simulation frame resource")?;
@@ -820,7 +817,7 @@ async fn verify_published_world(
     );
     let published_revision: FrameWorldRevision = serde_json::from_str(
         &operator
-            .conformance(&["resource", &revision_uri], Duration::from_secs(60))
+            .conformance(&["resource", revision_uri], Duration::from_secs(60))
             .await?,
     )
     .context("decoding the published Frames world revision resource")?;
