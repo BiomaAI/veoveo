@@ -82,10 +82,11 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
   policy. The opaque origin has no cookies, storage, or same-origin privilege.
 - **Bridge** — the host declares `serverTools` and `serverResources`
   capabilities. `tools/call` from a view is proxied only to app-visible
-  tools linked to that exact view on that view's server. `resources/read`
-  from a view is proxied only to URIs owned by the view's server: scheme
-  `{server}:` or prefix `ui://{server}/`. Gateway policy remains the
-  authoritative second wall behind both proxies.
+  tools linked to that exact view on that view's server. Own-server resource
+  reads remain implicit. A foreign `resources/read` must match one exact
+  gateway-projected App dependency that names the owning App URI, target
+  server, URI scheme and prefix, required scope, operation, and optional data
+  labels. Gateway policy remains the authoritative second wall.
 - **Tasks** — task-based tools stay task-based inside apps. A view may send
   `tools/call` with a `task` augmentation plus `tasks/get`, `tasks/result`,
   and `tasks/cancel`; the console host intercepts these ahead of the
@@ -99,6 +100,32 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
   entry per discovered app (label from the resource title, icon from the
   resource icons). Catalog failures degrade the menu to platform views only;
   they never block the shell.
+
+## Governed Cross-Server Resources
+
+Cross-server requirements are typed control-plane declarations, not
+App-authored metadata. An extension may declare them in
+`ServerManifest.app_resource_dependencies`; installation bindings still
+decide whether the owner and target are exposed and which policy applies.
+Each declaration binds one projected `ui://{owner}/...` App resource to one
+registered target server and one non-root URI prefix under that server's
+canonical scheme. The initial operation profile is `read`.
+
+Control-plane validation rejects an unknown target server, a scheme not owned
+by that server, an invalid App owner, a root or mismatched prefix, an unknown
+data label, an empty operation set, and duplicate declarations. The gateway
+filters valid declarations against the active profile, actor scopes, and actor
+data labels before adding
+`_meta["io.veoveo/app-resource-dependencies"]` to the listed App resource.
+Dependencies are sorted for deterministic projection.
+
+The Console trusts only that gateway projection. It re-lists the exact App
+resource before each cross-server read and accepts the URI only when it matches
+the projected scheme, prefix, and `read` operation. A browser-supplied server,
+App URI, or resource URI cannot enlarge the declaration. The eventual
+`resources/read` runs through the gateway under the same session and Work
+Context, where profile exposure and resource policy authorize the exact
+target.
 
 ## View obligations
 

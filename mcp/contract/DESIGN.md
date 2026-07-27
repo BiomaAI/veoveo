@@ -23,6 +23,7 @@ complies with in its crate documents and in its contract resource.
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned server capabilities and platform requirements |
 | `veoveo.io/gateway-binding/v1` | installation-owned exposure, policy, artifact audience, and recording producer declarations |
 | `veoveo.io/gateway-composition-provenance/v1` | exact input/output SHA-256 identities and contributed-object summaries |
+| `io.veoveo/app-resource-dependencies` | deterministic gateway projection of exact cross-server App resource-read requirements admitted under active profile and actor authority |
 
 ## Scope And Discovery
 
@@ -39,6 +40,15 @@ hand:
 
 Adding a server means the checks find it. No conformance manifest, Console
 page, or documentation index requires editing when a server is added.
+
+Hosted server manifests may declare exact cross-server App resource
+dependencies. Each declaration binds one server-owned `ui://` App resource
+to a registered target server, that server's canonical URI scheme, a
+non-root prefix, a required scope, permitted operations, and optional data
+labels. Validation rejects incomplete or mismatched declarations. The
+gateway projects only dependencies admitted by the caller's active profile,
+scopes, and labels; the eventual resource read remains subject to ordinary
+Work Context and resource authority.
 
 ## Protocol Surface
 

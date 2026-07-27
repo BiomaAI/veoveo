@@ -11,6 +11,7 @@
       "security": "cluster_internal_http"
     },
     "capabilities": {
+      "apps": true,
       "tools": true,
       "resources": true,
       "resource_templates": false,
@@ -19,6 +20,19 @@
       "completions": false,
       "tasks": true
     },
+    "resource_projection": "server_owned",
+    "app_resource_dependencies": [
+      {
+        "app_resource": "ui://anonymous/operations.html",
+        "server": "view",
+        "scheme": "view",
+        "uri_prefix": "view://frame/",
+        "required_scope": "view:read",
+        "operations": [
+          "read"
+        ]
+      }
+    ],
     "tools": [
       "run"
     ],
@@ -33,7 +47,8 @@
     "map",
     "media",
     "recording",
-    "rrd"
+    "rrd",
+    "view"
   ],
   "requiredArtifactAudiences": [
     "anonymous"

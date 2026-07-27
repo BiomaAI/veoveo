@@ -13,9 +13,10 @@ use veoveo_mcp_contract::{
 };
 
 use crate::mcp_support::{
-    mcp_internal, mcp_invalid_params, project_gateway_resource_uri_for_upstream,
-    project_listed_resource, project_listed_resource_uri, project_read_resource_result,
-    project_resource_template_uri, resource_policy_target, resource_read_action, upstream_error,
+    mcp_internal, mcp_invalid_params, project_app_resource_dependencies,
+    project_gateway_resource_uri_for_upstream, project_listed_resource,
+    project_listed_resource_uri, project_read_resource_result, project_resource_template_uri,
+    resource_policy_target, resource_read_action, upstream_error,
 };
 
 use super::{GATEWAY_PAGE_SIZE, GatewayMcp};
@@ -27,8 +28,10 @@ impl GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         let subject = self.authenticated(&context)?;
+        let profile_server_list = self.profile_servers();
+        let profile_servers = profile_server_list.iter().cloned().collect();
         let mut resources = Vec::new();
-        for server_slug in self.profile_servers() {
+        for server_slug in profile_server_list {
             let catalog = self.catalog.current();
             let manifest = catalog
                 .server(&server_slug)
@@ -44,6 +47,13 @@ impl GatewayMcp {
                 let projection = self.project_upstream_resource(&server_slug, &resource.uri)?;
                 project_listed_resource_uri(manifest, &mut resource)?;
                 project_listed_resource(&mut resource, &projection);
+                project_app_resource_dependencies(
+                    manifest,
+                    &mut resource,
+                    &profile_servers,
+                    &subject.actor.scopes,
+                    &subject.actor.data_labels,
+                )?;
                 if !self
                     .allows_resource(
                         &context,
