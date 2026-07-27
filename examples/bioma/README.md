@@ -65,7 +65,8 @@ Production workloads use the repository and digest map in images.lock.yaml. The
 Application manifests select chart version 0.1.0-08d766cff999. That chart set was
 published from commit 08d766cff999. The platform and composed UAV acceptance
 images were published from commit 3e5d78cb904b; the selected image digests
-identify that separate immutable image release.
+identify that immutable image release. The Rerun stdio bridge image was republished
+from commit 4ac2d26e164d after its NVIDIA Vulkan runtime dependency correction.
 
 Publish a new local release directly to the shared registry:
 
