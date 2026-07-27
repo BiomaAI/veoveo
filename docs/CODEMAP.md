@@ -55,7 +55,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`servers/reason-mcp/DESIGN.md`](../servers/reason-mcp/DESIGN.md) | governed video reasoning, grounding, and audited world-model output |
 | [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) | temporal authority, operational calendars, clock quality, and events |
 | [`servers/timeseries-mcp/DESIGN.md`](../servers/timeseries-mcp/DESIGN.md) | timeseries forecasting, preview contract, and the forecast MCP App view |
-| [`servers/view-mcp/DESIGN.md`](../servers/view-mcp/DESIGN.md) | governed static scene compositions, 3D Tiles residency, declarative overlays, and GPU frame capture |
+| [`servers/view-mcp/DESIGN.md`](../servers/view-mcp/DESIGN.md) | headless geospatial points of view, 3D Tiles residency, and GPU frame capture |
 | [`servers/uav-sim-mcp/DESIGN.md`](../servers/uav-sim-mcp/DESIGN.md) | governed UAV simulation sessions, missions, vehicles, tiles, recordings, and the owner-scoped live follow-camera App |
 
 Deployment, examples, templates, and fixtures keep their instructions beside the
@@ -378,7 +378,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/recording-mcp` | governed recording catalog, queries, subscriptions, and sealing |
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifacts |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
-| `servers/view-mcp` | immutable governed scene compositions, owner and Work Context scoped geospatial views, shared 3D Tiles streaming, GPU overlays, and captured frames |
+| `servers/view-mcp` | owner-scoped geospatial views, shared 3D Tiles streaming, offscreen Bevy rendering, and captured frames |
 | `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, missions, vehicles, tasks, subscriptions, recording references, and the typed live-stream App lifecycle |
 
 ### UAV Simulation Integration
@@ -399,18 +399,10 @@ The geospatial hard cut has three canonical servers:
 |---|---|
 | `servers/map-mcp` | Earth geography, governed authored GeoJSON/JSON-FG layers, source acquisition, release activation, DuckDB Spatial analytics, CRS and geodesic work, geofences, restrictions, Valhalla land routing, governed network routing, matrices, and reachable areas |
 | `servers/frames-mcp` | ECEF-rooted world trees, geodetic/static/dynamic transforms, immutable revisions, bounded coordinate conversion, durable batch work, operation provenance, artifacts, and usage |
-| `servers/view-mcp` | governed static scene compositions, configured 3D scene layers, camera rigs, exact Map/Frames/Artifact inputs, bounded overlays, NVIDIA-accelerated rendering, and frame resources |
+| `servers/view-mcp` | configured 3D scene layers, camera poses and target rigs, shared tile caching, NVIDIA-accelerated offscreen rendering, and frame resources |
 
 The crate-local design documents own their protocol, administration, persistence, and
 deployment details.
-
-View composition work starts in `src/contract/composition.rs`, which owns
-strong identities, governed inputs, Frames bindings, overlay geometry, styles,
-validity, and bounds. `src/composition.rs` resolves exact artifact bytes and
-converts validated overlays into GPU render products. `src/state.rs` owns
-principal and Work Context scoped composition, view, capture snapshot, and
-frame state. `src/mcp.rs` publishes the canonical tools and resources, while
-`src/server/tasks.rs` persists recoverable capture snapshots.
 
 Map authoring is split by responsibility. `src/contract/features.rs` owns feature wire
 types and bounds, while `src/contract/compositions.rs` owns publication products and
