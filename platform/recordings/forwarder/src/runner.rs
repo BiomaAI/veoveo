@@ -30,6 +30,7 @@ use crate::{
 pub async fn run(config: ForwarderConfig) -> Result<()> {
     config.validate()?;
     let _ = rustls::crypto::ring::default_provider().install_default();
+    let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
     let mut headers = HeaderMap::new();
     headers.insert(
         HOST,
