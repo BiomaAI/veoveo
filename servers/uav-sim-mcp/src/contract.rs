@@ -5,6 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 pub use veoveo_mcp_contract::Wgs84Position;
 use veoveo_mcp_contract::{FrameWorldRevision, FrameWorldRevisionUri, WorldFrameUri};
+use veoveo_simulation_scene::SceneDeclaration;
 
 fn validate_id(value: &str) -> Result<(), IdentityError> {
     if value.is_empty() || value.len() > 128 {
@@ -370,6 +371,22 @@ pub struct SimulationWorldBinding {
     pub spec_sha256: String,
     pub simulation_frame_uri: WorldFrameUri,
     pub georeference_origin: Wgs84Position,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PrepareViewSceneRequest {
+    pub session_id: SessionId,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PreparedViewScene {
+    pub scene: SceneDeclaration,
+    pub producer_id: PoseProducerId,
+    pub producer_spiffe_id: SpiffeId,
+    pub entity_table_revision: u64,
+    pub entity_table_digest: veoveo_simulation_pose::Sha256Digest,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]

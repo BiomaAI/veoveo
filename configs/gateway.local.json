@@ -123,6 +123,7 @@
       "tools": [
         "configure_world",
         "get_simulation_state",
+        "prepare_view_scene",
         "pause_simulation",
         "resume_simulation",
         "reset_simulation",
@@ -4001,6 +4002,7 @@
           "tools": [
             "configure_world",
             "get_simulation_state",
+            "prepare_view_scene",
             "pause_simulation",
             "resume_simulation",
             "reset_simulation",
@@ -4062,6 +4064,7 @@
           "tools": [
             "configure_world",
             "get_simulation_state",
+            "prepare_view_scene",
             "pause_simulation",
             "resume_simulation",
             "reset_simulation",

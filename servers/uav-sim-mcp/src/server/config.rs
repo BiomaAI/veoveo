@@ -19,6 +19,12 @@ pub(super) struct Args {
     pub(super) port: u16,
     #[arg(long, env = "PUBLIC_BASE_URL")]
     pub(super) public_base_url: String,
+    #[arg(
+        long,
+        env = "ARTIFACT_SERVICE_URL",
+        default_value = "http://artifact-service:8790"
+    )]
+    pub(super) artifact_service_url: String,
     #[arg(long, default_value_t = false)]
     pub(super) allow_loopback_hosts: bool,
     #[arg(long = "allowed-host", value_parser = parse_allowed_host)]

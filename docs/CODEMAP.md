@@ -388,12 +388,14 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifacts |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | immutable governed scene compositions, owner and Work Context scoped geospatial views, shared 3D Tiles streaming, GPU overlays, and captured frames |
-| `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, missions, vehicles, tasks, subscriptions, recording references, and typed pose-publication health |
+| `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, missions, vehicles, tasks, subscriptions, recording references, governed Simulation View scene preparation, and typed pose-publication health |
 
 ### UAV Simulation Integration
 
 | Path | Responsibility |
 |---|---|
+| `servers/uav-sim-mcp/src/view_scene.rs` | caller-authorized publication of UAV-owned OpenUSD assets and authoritative typed scene/pose binding without camera or renderer ownership |
+| `servers/uav-sim-mcp/assets/view/` | self-contained declarative reference environment and UAV visual prototype |
 | `showcase/uav-sim/runtime/` | thin domain overlay on the canonical Isaac runtime with Cesium/Pegasus compatibility, PX4 lifecycle, RTX domain sensors, Rerun publication, and a UAV telemetry adapter over the shared Simulation View pose SDK |
 | `showcase/uav-sim/deploy/` | commit-addressed OCI publication, MCP-configured GPU simulator workload, private pose-producer TLS, versioned persistent cache, typed sensor configuration, and network policy; operator media remains in Simulation View |
 | `showcase/uav-sim/scenarios/` | reusable world trees plus strongly typed live mission and acceptance parameters outside the Isaac image context |
