@@ -3,14 +3,17 @@ use std::{fmt, str::FromStr};
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
     LiveCameraHealth, LiveCameraId, LiveCameraSource, LiveSessionId, LiveViewConnection,
-    LiveViewId, LiveViewOwner, LiveViewState, WorldFrameUri, parse_artifact_plane_uri,
+    LiveViewId, LiveViewOwner, LiveViewState,
 };
-use veoveo_simulation_pose::{EntityId, EpochId, FrameRevision, Sha256Digest};
-
-pub const SCENE_SCHEMA: &str = "veoveo.io/simulation-view-scene/v1";
+use veoveo_simulation_pose::{EntityId, EpochId};
+pub use veoveo_simulation_scene::{
+    GovernedArtifact, InterpolationPolicy, LocalTransform, PrototypeId, QuaternionXyzw,
+    RendererMode, SCENE_SCHEMA, SceneAttribution, SceneContractError, SceneDeclaration,
+    SceneDeclarationBody, SceneEntity, SceneLighting, SceneQualityPolicy, Vector3,
+    VisualAssetFormat, VisualPrototype,
+};
 
 fn validate_id(value: &str) -> Result<(), SimulationViewError> {
     if value.is_empty()
@@ -74,297 +77,7 @@ macro_rules! id_type {
     };
 }
 
-id_type!(PrototypeId);
 id_type!(ProducerId);
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct Vector3 {
-    pub x: f64,
-    pub y: f64,
-    pub z: f64,
-}
-
-impl Vector3 {
-    fn finite(self) -> bool {
-        self.x.is_finite() && self.y.is_finite() && self.z.is_finite()
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct QuaternionXyzw {
-    pub x: f64,
-    pub y: f64,
-    pub z: f64,
-    pub w: f64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct LocalTransform {
-    pub translation_m: Vector3,
-    pub orientation_xyzw: QuaternionXyzw,
-    pub scale: Vector3,
-}
-
-impl LocalTransform {
-    pub fn validate(&self) -> Result<(), SimulationViewError> {
-        let quaternion = [
-            self.orientation_xyzw.x,
-            self.orientation_xyzw.y,
-            self.orientation_xyzw.z,
-            self.orientation_xyzw.w,
-        ];
-        let norm = quaternion
-            .into_iter()
-            .map(|value| value * value)
-            .sum::<f64>();
-        if !self.translation_m.finite()
-            || !self.scale.finite()
-            || self.scale.x <= 0.0
-            || self.scale.y <= 0.0
-            || self.scale.z <= 0.0
-            || quaternion.into_iter().any(|value| !value.is_finite())
-            || (norm - 1.0).abs() > 1.0e-3
-        {
-            return Err(SimulationViewError::InvalidTransform);
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum VisualAssetFormat {
-    Usd,
-    Usdz,
-    Glb,
-    Gltf,
-    Ktx2,
-    Png,
-    Jpeg,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct GovernedArtifact {
-    pub artifact_uri: String,
-    pub digest: Sha256Digest,
-    pub format: VisualAssetFormat,
-    pub byte_length: u64,
-}
-
-impl GovernedArtifact {
-    pub fn validate(&self) -> Result<(), SimulationViewError> {
-        if self.artifact_uri.len() > 512
-            || parse_artifact_plane_uri(&self.artifact_uri).is_none()
-            || self.byte_length == 0
-        {
-            return Err(SimulationViewError::InvalidArtifact);
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct VisualPrototype {
-    pub prototype_id: PrototypeId,
-    pub asset: GovernedArtifact,
-    pub local_alignment: LocalTransform,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct SceneEntity {
-    pub entity_id: EntityId,
-    pub prototype_id: PrototypeId,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub static_transform: Option<LocalTransform>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct SceneAttribution {
-    pub source: String,
-    pub license: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub attribution_url: Option<String>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct SceneLighting {
-    pub intensity_lux: f32,
-    pub color_temperature_kelvin: u32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum RendererMode {
-    RaytracedLighting,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum InterpolationPolicy {
-    HoldLatest,
-    Linear,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct SceneQualityPolicy {
-    pub renderer: RendererMode,
-    pub maximum_texture_dimension: u32,
-    pub maximum_asset_bytes: u64,
-    pub interpolation: InterpolationPolicy,
-    pub maximum_pose_age_ms: u32,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct SceneDeclarationBody {
-    pub schema_version: String,
-    pub session_id: LiveSessionId,
-    pub epoch_id: EpochId,
-    pub frame_revision: FrameRevision,
-    pub simulation_frame: WorldFrameUri,
-    pub environment: GovernedArtifact,
-    pub prototypes: Vec<VisualPrototype>,
-    pub entities: Vec<SceneEntity>,
-    pub allowed_camera_kinds: Vec<LiveCameraSource>,
-    pub lighting: SceneLighting,
-    pub quality: SceneQualityPolicy,
-    pub attribution: Vec<SceneAttribution>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct SceneDeclaration {
-    pub body: SceneDeclarationBody,
-    pub digest: Sha256Digest,
-}
-
-impl SceneDeclaration {
-    pub fn validate(
-        &self,
-        maximum_entities: u32,
-        maximum_asset_bytes: u64,
-    ) -> Result<(), SimulationViewError> {
-        if self.body.schema_version != SCENE_SCHEMA
-            || self.body.prototypes.is_empty()
-            || self.body.entities.is_empty()
-            || self.body.entities.len() > maximum_entities as usize
-            || self.body.allowed_camera_kinds.is_empty()
-            || self.body.attribution.is_empty()
-            || self.body.lighting.intensity_lux <= 0.0
-            || !self.body.lighting.intensity_lux.is_finite()
-            || !(1_000..=20_000).contains(&self.body.lighting.color_temperature_kelvin)
-            || self.body.quality.maximum_pose_age_ms == 0
-            || self.body.quality.maximum_texture_dimension == 0
-            || self.body.quality.maximum_asset_bytes == 0
-            || self.body.quality.maximum_asset_bytes > maximum_asset_bytes
-        {
-            return Err(SimulationViewError::InvalidScene);
-        }
-        self.body
-            .frame_revision
-            .validate()
-            .map_err(|_| SimulationViewError::InvalidScene)?;
-        if self.body.simulation_frame.revision_uri().as_str() != self.body.frame_revision.uri {
-            return Err(SimulationViewError::InvalidScene);
-        }
-        self.body.environment.validate()?;
-        if !matches!(
-            self.body.environment.format,
-            VisualAssetFormat::Usd
-                | VisualAssetFormat::Usdz
-                | VisualAssetFormat::Glb
-                | VisualAssetFormat::Gltf
-        ) {
-            return Err(SimulationViewError::InvalidArtifact);
-        }
-        let mut camera_kinds = std::collections::BTreeSet::new();
-        if self
-            .body
-            .allowed_camera_kinds
-            .iter()
-            .any(|kind| !camera_kinds.insert(*kind))
-        {
-            return Err(SimulationViewError::InvalidScene);
-        }
-        for attribution in &self.body.attribution {
-            if attribution.source.trim().is_empty()
-                || attribution.license.trim().is_empty()
-                || attribution
-                    .attribution_url
-                    .as_ref()
-                    .is_some_and(|url| !is_https_url(url))
-            {
-                return Err(SimulationViewError::InvalidScene);
-            }
-        }
-        let mut prototypes = std::collections::BTreeSet::new();
-        let mut total_bytes = self.body.environment.byte_length;
-        for prototype in &self.body.prototypes {
-            if !prototypes.insert(prototype.prototype_id.clone()) {
-                return Err(SimulationViewError::DuplicatePrototype);
-            }
-            prototype.asset.validate()?;
-            if !matches!(
-                prototype.asset.format,
-                VisualAssetFormat::Usd
-                    | VisualAssetFormat::Usdz
-                    | VisualAssetFormat::Glb
-                    | VisualAssetFormat::Gltf
-            ) {
-                return Err(SimulationViewError::InvalidArtifact);
-            }
-            prototype.local_alignment.validate()?;
-            total_bytes = total_bytes
-                .checked_add(prototype.asset.byte_length)
-                .ok_or(SimulationViewError::InvalidArtifact)?;
-        }
-        if total_bytes > self.body.quality.maximum_asset_bytes || total_bytes > maximum_asset_bytes
-        {
-            return Err(SimulationViewError::InvalidArtifact);
-        }
-        let mut entities = std::collections::BTreeSet::new();
-        for entity in &self.body.entities {
-            if !entities.insert(entity.entity_id.clone())
-                || !prototypes.contains(&entity.prototype_id)
-            {
-                return Err(SimulationViewError::InvalidEntity);
-            }
-            if let Some(transform) = entity.static_transform {
-                transform.validate()?;
-            }
-        }
-        let canonical =
-            serde_json::to_vec(&self.body).map_err(|_| SimulationViewError::InvalidScene)?;
-        let computed = Sha256Digest::from_bytes(Sha256::digest(canonical).into());
-        if computed != self.digest {
-            return Err(SimulationViewError::SceneDigest);
-        }
-        Ok(())
-    }
-
-    pub fn from_body(body: SceneDeclarationBody) -> Result<Self, SimulationViewError> {
-        let canonical = serde_json::to_vec(&body).map_err(|_| SimulationViewError::InvalidScene)?;
-        Ok(Self {
-            body,
-            digest: Sha256Digest::from_bytes(Sha256::digest(canonical).into()),
-        })
-    }
-}
-
-fn is_https_url(value: &str) -> bool {
-    value.strip_prefix("https://").is_some_and(|authority| {
-        !authority.is_empty() && !authority.chars().any(char::is_whitespace)
-    }) && value.len() <= 2048
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -825,6 +538,20 @@ pub enum SimulationViewError {
     Time,
 }
 
+impl From<SceneContractError> for SimulationViewError {
+    fn from(error: SceneContractError) -> Self {
+        match error {
+            SceneContractError::InvalidIdentifier(value) => Self::InvalidIdentifier(value),
+            SceneContractError::InvalidTransform => Self::InvalidTransform,
+            SceneContractError::InvalidArtifact => Self::InvalidArtifact,
+            SceneContractError::InvalidScene => Self::InvalidScene,
+            SceneContractError::DuplicatePrototype => Self::DuplicatePrototype,
+            SceneContractError::InvalidEntity => Self::InvalidEntity,
+            SceneContractError::SceneDigest => Self::SceneDigest,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
@@ -893,18 +620,5 @@ mod tests {
         ] {
             assert!(!schema.contains(&format!("\"{field}\"")));
         }
-    }
-
-    #[test]
-    fn python_scene_fixture_uses_the_rust_canonical_digest() {
-        let body: SceneDeclarationBody = serde_json::from_str(include_str!(
-            "../../../platform/simulation/fixtures/anonymous-scene-body.json"
-        ))
-        .unwrap();
-        let declaration = SceneDeclaration::from_body(body).unwrap();
-        assert_eq!(
-            declaration.digest.as_str(),
-            "sha256:67291c10c39898b2ea11ac9bbe12643148b0112bd868ed44579aaa818fea48e4"
-        );
     }
 }
