@@ -324,7 +324,9 @@ impl SimulationViewService {
         state
             .cameras
             .insert(camera.camera_id.clone(), camera.clone());
-        Ok(CameraAdmission::Admitted { camera })
+        Ok(CameraAdmission::Admitted {
+            camera: Box::new(camera),
+        })
     }
 
     pub fn set_camera(
@@ -368,7 +370,7 @@ impl SimulationViewService {
         camera.health = LiveCameraHealth::Warming;
         camera.updated_at = Utc::now();
         Ok(CameraAdmission::Admitted {
-            camera: camera.clone(),
+            camera: Box::new(camera.clone()),
         })
     }
 

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "veoveo.io/upstream-dependency-lock/v1",
+  "verifiedAt": "2026-07-26",
+  "components": {
+    "nvidiaOvWebRtc": {
+      "package": "@nvidia/ov-web-rtc",
+      "version": "6.6.0",
+      "registry": "https://edge.urm.nvidia.com/artifactory/api/npm/omniverse-client-npm/",
+      "tarball": "https://edge.urm.nvidia.com/artifactory/api/npm/omniverse-client-npm/@nvidia/ov-web-rtc/-/@nvidia/ov-web-rtc-6.6.0.tgz",
+      "tarballSha256": "77be78cd4799f797d320d386461834737f5a8368deacfb3b27ae26612f39c9a5",
+      "umdPath": "package/dist/ov-web-rtc.umd.cjs",
+      "umdSha256": "ef2bab07d13bee861c30922100f9c98fd61982826fdc8cedc6e43f032d8fa70d",
+      "source": "https://docs.omniverse.nvidia.com/ov-web-sdk/latest/web-streaming-library/overview.html"
+    }
+  }
+}

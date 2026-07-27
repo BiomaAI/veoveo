@@ -30,7 +30,7 @@ signaling   /simulation-view/signaling
 | `veoveo.io/simulation-view-pose/v1` | Private latest-value binary snapshots in local ENU metres, FLU entity axes, and XYZW quaternions. |
 | `veoveo.io/live-view/v1` | Owner-scoped H.264 WebRTC lease state with NVIDIA NVENC, BT.709 metadata, redacted access tokens, and exact endpoints. |
 | OpenUSD | Render-only stage, content-addressed visual prototypes, instances, and transform mirroring. Executable scene content and physics authority are rejected. |
-| NVIDIA RTX, HydraTexture AOV, NVENC, and WebRTC | Isaac Sim 6.0.1 implementation profile from the canonical `2026.07.0` simulation runtime. These are private renderer mechanisms, not the provider-neutral MCP identity. |
+| NVIDIA RTX, HydraTexture AOV, NVENC, and WebRTC | Isaac Sim 6.0.1 implementation profile from the canonical `2026.07.0` simulation runtime; browser client `@nvidia/ov-web-rtc` 6.6.0. These are private renderer mechanisms, not the provider-neutral MCP identity. |
 | SPIFFE and TLS 1.3 | Installation-issued workload identities and mutually authenticated pose transport. MCP authorizes the producer identity but does not carry certificates or pose messages. |
 | SHA-256 | Scene bodies, Frames revisions, visual artifacts, entity tables, runtime images, browser dependencies, and evidence. |
 
@@ -186,6 +186,12 @@ an independent lease and health state. The App can change authorized camera
 rigs, reports requested resolution and cadence, measures frame age, identifies
 NVIDIA NVENC, and uses Media Capabilities to distinguish hardware from
 supported smooth software H.264 decode.
+
+The production MCP image embeds the exact NVIDIA 6.6.0 UMD client recorded in
+`dependencies.lock.json`. Image construction verifies the published package
+archive and the extracted UMD digest before Cargo runs, while the build script
+verifies the UMD digest again before embedding it. Ordinary local test builds
+use the diagnostic stub and cannot serve as production streaming evidence.
 
 ## Readiness And Deployment
 

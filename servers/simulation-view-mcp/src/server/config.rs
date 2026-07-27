@@ -134,7 +134,7 @@ impl Args {
     }
 
     pub fn public_deployment(&self) -> anyhow::Result<PublicDeployment> {
-        Ok(PublicDeployment::new(&self.public_base_url)?)
+        PublicDeployment::new(&self.public_base_url)
     }
 
     pub fn service_config(&self) -> anyhow::Result<SimulationViewConfig> {

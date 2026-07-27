@@ -705,7 +705,7 @@ pub struct CapacityRejection {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum CameraAdmission {
-    Admitted { camera: CameraRecord },
+    Admitted { camera: Box<CameraRecord> },
     Rejected { rejection: CapacityRejection },
 }
 
