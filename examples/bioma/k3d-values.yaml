@@ -14,6 +14,11 @@ recording:
 perception:
   modelCache:
     size: 5Gi
+reason:
+  engine:
+    # Keep the six-frame world-model pass resident beside the other GPU
+    # workloads on this shared 24 GiB device.
+    gpuMemoryUtilization: 0.5
 consoleBff:
   replicas: 1
 telemetry:
