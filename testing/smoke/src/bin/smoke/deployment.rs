@@ -512,8 +512,7 @@ fn validate_bake_groups(
                     target: target.clone(),
                     reference: image
                         .tags
-                        .iter()
-                        .next()
+                        .first()
                         .expect("one image tag was required")
                         .clone(),
                 });
