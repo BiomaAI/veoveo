@@ -119,6 +119,9 @@ snapshot immediately. Renderer disconnection cannot block the producer.
 
 The pose resource contains identity, expiry, sequence, heartbeat, and stale
 state. It never contains a socket path, certificate, or bearer credential.
+Resource reads refresh this state from the authenticated pose ingress. An
+unavailable ingress marks the public source stale rather than preserving an
+old healthy sample.
 
 ## Cameras And Capacity
 
@@ -201,6 +204,10 @@ rigs, reports requested resolution and cadence, measures frame age, identifies
 NVIDIA NVENC, and uses Media Capabilities to distinguish hardware from
 supported smooth software H.264 decode.
 
+Camera and stream resource reads refresh the bounded camera collection from
+the authenticated Isaac control boundary concurrently. A failed refresh
+marks that camera stale without exposing the private runtime response.
+
 The production MCP image embeds the exact NVIDIA 6.6.0 UMD client recorded in
 `dependencies.lock.json`. Image construction verifies the published package
 archive and the extracted UMD digest before Cargo runs, while the build script
@@ -235,3 +242,24 @@ path. It is not the media data plane.
 Production uses a separate GPU from a GPU simulation workload. A shared GPU
 profile is invalid without measured memory, cadence, context-contention,
 freshness, and isolation evidence.
+
+## Acceptance
+
+`smoke simulation-view-verify` owns the generic integrated acceptance path.
+It composes Frames, the anonymous external simulation fixture, and Simulation
+View without any UAV implementation dependency. The scenario binds a
+declarative scene, authorizes the external pose identity, advances real pose
+snapshots, fills the rendered-camera budget with several follow cameras, and
+requires an exact typed capacity rejection for one additional camera.
+
+The same run opens and renews a real live-view lease, proves token rotation
+and resource redaction, then loads the production App in headed Chrome. It
+requires NVIDIA-backed high-performance WebGPU and WebGL before proceeding.
+The App must play an advancing 640-by-360 H.264/NVENC stream, label browser
+decode according to the exact Media Capabilities result, and close the lease
+on teardown. Headless browsers, software adapters, fake media, screenshots,
+and API-only substitutes are rejected as acceptance evidence.
+
+The UAV showcase retains its PX4, domain sensor, recording, scene-declaration,
+and pose-producer checks. It consumes Simulation View but does not own generic
+sessions, cameras, render products, leases, signaling, or App acceptance.
