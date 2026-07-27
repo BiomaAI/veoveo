@@ -128,13 +128,9 @@ pub(crate) fn profile_cluster_up(path: &Path) -> Result<()> {
             )?;
         }
         None => {
-            let config = profile.resolve(&cluster.config);
-            status_checked(
-                "k3d",
-                ["cluster", "create", "--config", path_str(&config)?],
-                &[],
-                None,
-            )?;
+            let arguments = local_cluster_create_arguments(&profile)?;
+            let arguments = arguments.iter().map(String::as_str).collect::<Vec<_>>();
+            status_checked("k3d", arguments, &[], None)?;
         }
     }
     apply_local_cluster_bootstrap(&profile)?;
@@ -424,6 +420,45 @@ fn apply_local_cluster_bootstrap(profile: &LoadedProfile) -> Result<()> {
         )?;
     }
     Ok(())
+}
+
+fn local_cluster_create_arguments(profile: &LoadedProfile) -> Result<Vec<String>> {
+    let cluster = profile
+        .definition
+        .kubernetes
+        .local_cluster
+        .as_ref()
+        .context("deployment profile does not manage a local k3d cluster")?;
+    let config = profile.resolve(&cluster.config);
+    let mut arguments = vec![
+        "cluster".to_owned(),
+        "create".to_owned(),
+        "--config".to_owned(),
+        path_str(&config)?.to_owned(),
+    ];
+    let mut destinations = std::collections::BTreeSet::new();
+    for manifest in &cluster.node_bootstrap_manifests {
+        let source = profile.resolve(manifest);
+        let filename = source
+            .file_name()
+            .and_then(std::ffi::OsStr::to_str)
+            .with_context(|| {
+                format!(
+                    "node bootstrap manifest has no UTF-8 file name: {}",
+                    source.display()
+                )
+            })?;
+        ensure!(
+            destinations.insert(filename.to_owned()),
+            "node bootstrap manifests must have unique file names; duplicate `{filename}`"
+        );
+        arguments.push("--volume".to_owned());
+        arguments.push(format!(
+            "{}:/var/lib/rancher/k3s/server/manifests/{filename}@server:*",
+            path_str(&source)?
+        ));
+    }
+    Ok(arguments)
 }
 
 fn wait_for_cluster_gpu(context: &str, timeout: Duration) -> Result<()> {
