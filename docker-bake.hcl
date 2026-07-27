@@ -556,8 +556,8 @@ target "simulation-view-isaac" {
 }
 
 target "anonymous-simulation-mcp" {
-  context    = "testing/fixtures/external-simulation-extension"
-  dockerfile = "Dockerfile"
+  context    = "."
+  dockerfile = "testing/fixtures/external-simulation-installation/Dockerfile.anonymous-simulation-mcp"
   platforms  = ["linux/amd64"]
   tags = [
     format(
