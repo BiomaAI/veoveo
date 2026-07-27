@@ -590,7 +590,12 @@ async function captureGovernedUavRecording(context, shot, defaults) {
 
 async function assertHardwareCaptureBrowser(page, shotId) {
   const renderer = await page.evaluate(async () => {
-    const adapter = await navigator.gpu?.requestAdapter({ powerPreference: "high-performance" });
+    let adapter;
+    try {
+      adapter = await navigator.gpu?.requestAdapter({ powerPreference: "high-performance" });
+    } catch {
+      adapter = undefined;
+    }
     const canvas = document.createElement("canvas");
     const webgl = canvas.getContext("webgl2", { failIfMajorPerformanceCaveat: true })
       ?? canvas.getContext("webgl", { failIfMajorPerformanceCaveat: true });
@@ -622,16 +627,24 @@ async function assertHardwareCaptureBrowser(page, shotId) {
     renderer.device,
     renderer.description,
   ].join(" ").toLowerCase();
-  if (!renderer.vendor || /(swiftshader|llvmpipe|software)/.test(fingerprint)) {
-    throw new Error(`${shotId} requires a hardware WebGPU adapter; received ${fingerprint || "none"}`);
-  }
   const webglFingerprint = `${renderer.webglVendor} ${renderer.webglRenderer}`.trim().toLowerCase();
-  if (!renderer.webglAvailable || /(swiftshader|llvmpipe|software)/.test(webglFingerprint)) {
+  const hardwareWebGpu = Boolean(renderer.vendor)
+    && fingerprint.includes("nvidia")
+    && !/(swiftshader|llvmpipe|software)/.test(fingerprint);
+  const hardwareWebGl = renderer.webglAvailable
+    && webglFingerprint.includes("nvidia")
+    && !/(swiftshader|llvmpipe|software)/.test(webglFingerprint);
+  if (!hardwareWebGpu && !hardwareWebGl) {
     throw new Error(
-      `${shotId} requires a hardware WebGL context; received ${webglFingerprint || "none"}`,
+      `${shotId} requires hardware-backed NVIDIA WebGPU or WebGL; `
+        + `received WebGPU ${fingerprint || "none"} and WebGL ${webglFingerprint || "none"}`,
     );
   }
+  const acceptedApis = [
+    hardwareWebGpu ? `WebGPU ${renderer.vendor} ${renderer.architecture}`.trim() : "",
+    hardwareWebGl ? `WebGL ${renderer.webglRenderer}`.trim() : "",
+  ].filter(Boolean);
   console.log(
-    `hardware renderer for ${shotId}: WebGPU ${renderer.vendor} ${renderer.architecture}; WebGL ${renderer.webglRenderer}`.trim(),
+    `hardware renderer for ${shotId}: ${acceptedApis.join("; ")}`,
   );
 }

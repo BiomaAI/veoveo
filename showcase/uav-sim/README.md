@@ -163,7 +163,7 @@ delivery, scene mirroring, camera admission, RTX/NVENC streaming through the
 Simulation View App, domain recording, perception, and mission completion.
 
 Browser evidence is valid only after a headed browser proves hardware-backed
-high-performance WebGPU and WebGL. The browser-side H.264 software-decode
+high-performance WebGPU or WebGL. The browser-side H.264 software-decode
 exception does not relax either GPU workload.
 
 The two live commands preserve the ownership boundary:
@@ -206,9 +206,10 @@ camera, renderer, stream, or App.
 The run verifies the actual Console at takeoff, during the mission, and after
 landing. Each checkpoint requires an advancing pose sequence and a healthy
 640-by-360 NVIDIA NVENC H.264 stream. It then opens the same flight's governed
-recording in the Console Rerun viewer. Headless Chrome, software WebGPU,
-software WebGL, missing Console APIs, a synthetic App host, a static frame, or
-a software-renderer warning fails the run.
+recording in the Console Rerun viewer. Headless Chrome, a browser with neither
+hardware WebGPU nor hardware WebGL, missing Console APIs, a synthetic App host,
+a static frame, or a software-renderer warning from the active visual surface
+fails the run.
 
 Evidence is written beneath
 `output/acceptance/uav/{source-revision}/{run-id}/`. The typed

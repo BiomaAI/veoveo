@@ -74,18 +74,21 @@ replacement. A TODO records migration debt; it does not authorize a new CPU fall
 allow the unaccelerated path to become acceptance evidence.
 
 Before browser automation, an interactive demo, or a screenshot run, prove that the
-browser is headed and that both its high-performance WebGPU adapter and WebGL context
-are hardware-backed. Reject missing contexts, SwiftShader, llvmpipe, software adapters,
-and software rasterizer warnings. If a browser loses WebGL or WebGPU, stop the workflow
-immediately. Do not keep using that browser, replace visual verification with an API-only
-check, capture an image, or report the visual workflow as verified.
+browser is headed and that at least one of its high-performance WebGPU adapter or WebGL
+context is hardware-backed. Probe both APIs when the browser exposes them. Reject the
+browser when neither API reaches hardware, and reject SwiftShader, llvmpipe, software
+adapters, and software rasterizer warnings as hardware evidence. If a browser loses its
+last hardware-backed graphics API, stop the workflow immediately. Do not keep using that
+browser, replace visual verification with an API-only check, capture an image, or report
+the visual workflow as verified.
 
 Browser-side H.264 playback is the only software exception. A client may decode a
 stream in software when Media Capabilities reports the exact configuration as
 `supported` and `smooth` but not `powerEfficient`. The UI must identify that path as
 software H.264 decode and may claim hardware decode only when `powerEfficient` is true.
-This exception does not relax headed hardware WebGPU and WebGL verification, server-side
-NVENC, GPU rendering, simulation, perception, or any other accelerated workload.
+This exception does not relax the headed hardware WebGPU-or-WebGL requirement,
+server-side NVENC, GPU rendering, simulation, perception, or any other accelerated
+workload.
 
 GPU containers must request the required Kubernetes GPU resource and fail closed when
 the NVIDIA device, driver capability, or hardware rendering backend is unavailable. Do

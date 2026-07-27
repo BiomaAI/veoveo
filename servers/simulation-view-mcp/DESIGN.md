@@ -283,7 +283,7 @@ requires an exact typed capacity rejection for one additional camera.
 
 The same run opens and renews a real live-view lease, proves token rotation
 and resource redaction, then loads the production App in headed Chrome. It
-requires NVIDIA-backed high-performance WebGPU and WebGL before proceeding.
+requires NVIDIA-backed high-performance WebGPU or WebGL before proceeding.
 The App must play an advancing 640-by-360 H.264/NVENC stream, label browser
 decode according to the exact Media Capabilities result, and close the lease
 on teardown. Headless browsers, software adapters, fake media, screenshots,

@@ -474,7 +474,7 @@ appropriate guarantee at each boundary.
 | `cargo xtask enforce` | resolved metadata and external tools satisfy policy | Clippy, rustfmt, Cargo graph, npm, uv, Docker, Helm, Kubernetes, security scanners |
 | Component smoke | a production binary or image satisfies its black-box contract | MCP auth, task flow, artifact publication, GPU rendering |
 | Composition acceptance | selected real components work together | Bioma, SUMO, UAV simulation, agent missions |
-| Live operational proof | hardware and external services are actually available | NVIDIA, headed WebGPU/WebGL, billed provider calls, cluster deployment |
+| Live operational proof | hardware and external services are actually available | NVIDIA, a headed hardware WebGPU-or-WebGL browser path, billed provider calls, cluster deployment |
 
 Build scripts remain deterministic and local. They validate repository-owned static
 files and never perform network access, install tools, launch containers, or mutate
@@ -827,7 +827,7 @@ billed service, and required secret needs. A shared macro generates `describe`, 
 
 The generated launcher performs declared preflight before scenario code runs. A GPU
 scenario cannot continue without an NVIDIA-backed path. A browser scenario cannot
-continue without headed, hardware-backed WebGPU and WebGL.
+continue unless headed Chrome exposes hardware-backed WebGPU or WebGL.
 
 The internal descriptor and result protocol uses shared versioned Rust types serialized
 as JSON across the process boundary.
