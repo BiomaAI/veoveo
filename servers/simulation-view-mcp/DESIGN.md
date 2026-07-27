@@ -243,6 +243,10 @@ filesystem remains read-only.
 `simulation-view-isaac` starts with a built-in declarative diagnostic scene
 and one RTX health render product. Readiness stays false until CUDA and NVENC
 driver APIs succeed and that product produces a visible, non-stale frame.
+Each admitted logical camera reconfigures a bounded physical HydraTexture
+slot. Closing a camera pauses that slot without destroying its RTX/NVENC
+product, which keeps session teardown independent from Kit renderer
+lifecycle.
 Media travels from the RTX AOV to NVIDIA's WebRTC extension without CPU
 readback. A low-cadence frame-health probe currently copies a diagnostic AOV
 for visibility reduction and is marked `TODO(GPU)` at the exact migration
