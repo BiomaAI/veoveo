@@ -7,54 +7,54 @@
       "name": "veoveo",
       "role": "platform",
       "repository": "ssh://git@github.com/BiomaAI/veoveo",
-      "revision": "100bd820b225c688d8e3ec6c33e97c2fe88f2680",
+      "revision": "11c21ac59f6ffefb56d9b340cfeb8d6e03f29451",
       "images": [
         {
           "name": "artifact-mcp",
           "repository": "k3d-veoveo-registry.localhost:5001/veoveo/artifact-mcp",
-          "digest": "sha256:079fd618f491f128a3d3b1a05dbf2ccee5a9cc2f5fe6301dc807669c8666b712"
+          "digest": "sha256:20c03bd9d7ee23de9ab43ef2bc9394c065d95a96ee9e9055f7c674a59cf85272"
         },
         {
           "name": "artifact-service",
           "repository": "k3d-veoveo-registry.localhost:5001/veoveo/artifact-service",
-          "digest": "sha256:dad962e7949e6ff854483a2e44c00a264a2936aefcf64dc5eb0063534e757cac"
+          "digest": "sha256:d0af5e4889b24c92ad5543328df9236a20f2c77f088b9914fd52d5eccdf66c73"
         },
         {
           "name": "frames-mcp",
           "repository": "k3d-veoveo-registry.localhost:5001/veoveo/frames-mcp",
-          "digest": "sha256:b81b2ed4f31e0d0015a9aa4111e31d9f76a8791b71e9d120d00a9e79f121c25a"
+          "digest": "sha256:7353167c006ff088bc13753f4a1eb6c722f1f52e71c5bb6310c5248f41323699"
         },
         {
           "name": "mcp-gateway",
           "repository": "k3d-veoveo-registry.localhost:5001/veoveo/mcp-gateway",
-          "digest": "sha256:b60edba7927cf9673f192793db61a73f3d918c0ea5faf61fa34a5d0fa00b2a8f"
+          "digest": "sha256:6a97be4f0485f0539ea8c1b6587608833fd462a1b5466393e8fc146318e0a2e9"
         },
         {
           "name": "simulation-runtime",
           "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-runtime",
-          "digest": "sha256:c95ebe8a0c25adfc73e3ab7e201c2fa2b673327bad5e21eca41309c52ced249d"
+          "digest": "sha256:61b3044663996d71317e92906733bc6de7fbef512234ffa62ee3b862b0e0edcc"
         },
         {
           "name": "simulation-view-isaac",
           "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-view-isaac",
-          "digest": "sha256:76a51454d7d27f3ebb7eb13db62332f416f50174d4b563e905dadb242ee08d0a"
+          "digest": "sha256:cac39cef0419881f15640ba9b5bb06beae3539140a1ce64df4494214531975f4"
         },
         {
           "name": "simulation-view-mcp",
           "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-view-mcp",
-          "digest": "sha256:77e2a87a3da0565c6b201503b086dd5f9ab6e5d48580dfc2d1d6a91a226e6037"
+          "digest": "sha256:aba9caa3be3f59c425b5398b61250f72bf87febcb434bd4e40fdbabffdc582db"
         },
         {
           "name": "simulation-view-pose",
           "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-view-pose",
-          "digest": "sha256:1b2e46874a880809624040f0c44f1dafcb13abaf9a2c0fe123e8a21b1ce58ead"
+          "digest": "sha256:ab8751ca3c8f94474517855c82c7ccd6d5208953f66f37149cabc268f426d167"
         }
       ],
       "charts": [
         {
           "release": "veoveo",
           "coordinate": "source://veoveo/deploy/helm/veoveo",
-          "digest": "sha256:63be0fd78babc30d1f3ec008a72f7ddacaa2942679e6ba25b4dace678f225bed"
+          "digest": "sha256:799b607bb9b7ce273c818c6486c1e3f84c09aa71b20d094d50e406391892f6f2"
         }
       ]
     },
@@ -62,19 +62,19 @@
       "name": "anonymous-simulation",
       "role": "extension",
       "repository": "ssh://git@github.com/BiomaAI/veoveo",
-      "revision": "100bd820b225c688d8e3ec6c33e97c2fe88f2680",
+      "revision": "11c21ac59f6ffefb56d9b340cfeb8d6e03f29451",
       "images": [
         {
           "name": "anonymous-simulation-mcp",
           "repository": "k3d-veoveo-registry.localhost:5001/extensions/anonymous-simulation-mcp",
-          "digest": "sha256:e6f099d4a17ace214103f541a397cec8f83573f65898174d1deaa3686eb486de"
+          "digest": "sha256:f8d9282fe2fe88840992e16b3da2dec946a9cb7b31346e027e850a57e886f13f"
         }
       ],
       "charts": [
         {
           "release": "anonymous-simulation",
           "coordinate": "source://anonymous-simulation/testing/fixtures/external-simulation-extension/deploy/helm",
-          "digest": "sha256:b24dffe380e2a2897b44be29e10dcce24cf1a71906325f5c3e0755842901ce1a"
+          "digest": "sha256:666f69bf22af8a2031eb32b6681f982f59ed61228be3ffd166f065a749d29a69"
         }
       ]
     }
@@ -95,7 +95,8 @@
       "simulation-view"
     ],
     "artifactAudiences": [
-      "anonymous-simulation"
+      "anonymous-simulation",
+      "simulation-view"
     ],
     "externalWorkloads": [
       "anonymous-simulation-mcp"
