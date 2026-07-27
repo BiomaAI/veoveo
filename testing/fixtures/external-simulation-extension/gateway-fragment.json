@@ -24,6 +24,10 @@
       "resources_list_changed": false
     },
     "resource_projection": "server_owned",
+    "referenced_resource_schemes": [
+      "artifact",
+      "frames"
+    ],
     "tools": [
       "prepare_scene",
       "start_pose_producer",

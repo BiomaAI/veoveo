@@ -2,7 +2,7 @@ use std::path::Path;
 
 use serde_json::json;
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayBinding, GatewayControlPlane, GatewayServerFragment,
+    GatewayAction, GatewayBinding, GatewayControlPlane, GatewayServerFragment, ResourceScheme,
     compose_gateway_control_plane,
 };
 
@@ -49,6 +49,21 @@ fn external_simulation_fragment_composes_with_installation_owned_authority() {
             .servers
             .iter()
             .any(|server| server.slug.as_str() == "anonymous-simulation")
+    );
+    let anonymous = composed
+        .control_plane
+        .servers
+        .iter()
+        .find(|server| server.slug.as_str() == "anonymous-simulation")
+        .expect("composed anonymous simulation server");
+    assert_eq!(
+        anonymous.referenced_resource_schemes,
+        [
+            ResourceScheme::new("artifact").expect("artifact scheme"),
+            ResourceScheme::new("frames").expect("frames scheme"),
+        ]
+        .into_iter()
+        .collect()
     );
     for rule_id in [
         "allow_simulation_view_surface_read",
