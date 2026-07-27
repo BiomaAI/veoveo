@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, fmt, str::FromStr};
+use std::{collections::BTreeSet, fmt, net::IpAddr, str::FromStr};
 
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
@@ -271,7 +271,7 @@ pub enum LiveMediaTransport {
 pub struct LiveMediaEndpoint {
     pub transport: LiveMediaTransport,
     pub signaling_url: String,
-    pub media_host: String,
+    pub media_host: IpAddr,
     pub media_port: u16,
 }
 
@@ -298,8 +298,8 @@ pub fn is_valid_live_signaling_url(value: &str) -> bool {
 impl LiveMediaEndpoint {
     pub fn validate(&self) -> Result<(), LiveViewStateError> {
         if !is_valid_live_signaling_url(&self.signaling_url)
-            || self.media_host.trim().is_empty()
-            || self.media_host.chars().any(char::is_whitespace)
+            || self.media_host.is_unspecified()
+            || self.media_host.is_multicast()
             || self.media_port == 0
         {
             return Err(LiveViewStateError::Endpoint);
@@ -441,6 +441,31 @@ mod tests {
             "not a URL",
         ] {
             assert!(!is_valid_live_signaling_url(url), "{url}");
+        }
+    }
+
+    #[test]
+    fn media_endpoint_requires_a_numeric_unicast_address() {
+        let endpoint: LiveMediaEndpoint = serde_json::from_value(serde_json::json!({
+            "transport": "web_rtc",
+            "signalingUrl": "wss://views.example.test/signaling",
+            "mediaHost": "192.0.2.10",
+            "mediaPort": 47998
+        }))
+        .unwrap();
+        assert!(endpoint.validate().is_ok());
+
+        for host in ["media.example.test", "0.0.0.0", "224.0.0.1", "::"] {
+            let result = serde_json::from_value::<LiveMediaEndpoint>(serde_json::json!({
+                "transport": "web_rtc",
+                "signalingUrl": "wss://views.example.test/signaling",
+                "mediaHost": host,
+                "mediaPort": 47998
+            }));
+            match result {
+                Ok(endpoint) => assert!(endpoint.validate().is_err(), "{host}"),
+                Err(_) => assert_eq!(host, "media.example.test"),
+            }
         }
     }
 }

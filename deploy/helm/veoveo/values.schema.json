@@ -585,7 +585,6 @@
         "rendererImage",
         "poseImage",
         "publicSignalingUrl",
-        "publicMediaHost",
         "publicMediaIp",
         "ports",
         "signaling",
@@ -617,11 +616,6 @@
         "publicSignalingUrl": {
           "type": "string",
           "pattern": "^((wss|https)://[^/?#]+|ws://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?)/[^?#]*$"
-        },
-        "publicMediaHost": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^[A-Za-z0-9.-]+$"
         },
         "publicMediaIp": {
           "type": "string",

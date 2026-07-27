@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{net::IpAddr, time::Duration};
 
 use clap::Parser;
 use url::Url;
@@ -62,8 +62,8 @@ pub(super) struct Args {
     pub renderer_signaling_url: String,
     #[arg(long, env = "SIMULATION_VIEW_PUBLIC_SIGNALING_URL")]
     pub public_signaling_url: String,
-    #[arg(long, env = "SIMULATION_VIEW_PUBLIC_MEDIA_HOST")]
-    pub public_media_host: String,
+    #[arg(long, env = "SIMULATION_VIEW_PUBLIC_MEDIA_IP")]
+    pub public_media_ip: IpAddr,
     #[arg(
         long,
         env = "SIMULATION_VIEW_PUBLIC_MEDIA_PORT",
@@ -162,7 +162,7 @@ impl Args {
             endpoint: LiveMediaEndpoint {
                 transport: LiveMediaTransport::WebRtc,
                 signaling_url: self.public_signaling_url.clone(),
-                media_host: self.public_media_host.clone(),
+                media_host: self.public_media_ip,
                 media_port: self.public_media_port,
             },
             maximum_frame_age_ms: self.maximum_frame_age_ms,

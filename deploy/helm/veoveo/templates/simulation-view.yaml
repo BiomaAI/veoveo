@@ -214,8 +214,8 @@ spec:
               value: {{ printf "ws://simulation-view-renderer:%v" $view.ports.signalingBase | quote }}
             - name: SIMULATION_VIEW_PUBLIC_SIGNALING_URL
               value: {{ $view.publicSignalingUrl | quote }}
-            - name: SIMULATION_VIEW_PUBLIC_MEDIA_HOST
-              value: {{ $view.publicMediaHost | quote }}
+            - name: SIMULATION_VIEW_PUBLIC_MEDIA_IP
+              value: {{ required "simulationView.publicMediaIp is required" $view.publicMediaIp | quote }}
             - name: SIMULATION_VIEW_PUBLIC_MEDIA_PORT
               value: {{ $view.ports.mediaBase | quote }}
             - name: SIMULATION_VIEW_RENDERER_CONTROL_TOKEN

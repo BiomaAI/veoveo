@@ -178,8 +178,11 @@ not grant media access.
 NVIDIA AOV streams require a unique TCP signaling port and UDP media port per
 physical slot. The MCP proxy derives the private signaling port from the
 authorized stream's slot. The public endpoint reports the corresponding
-installation-exposed UDP media port. Chart validation and component-profile
-validation treat both ranges as one bounded unit. A second camera never
+installation-exposed numeric unicast media address and UDP port. NVIDIA's
+browser client writes this value into an ICE candidate, where a DNS hostname
+is not a valid substitute. The renderer and MCP receive the same
+installation-owned public media IP. Chart validation and component-profile
+validation treat both port ranges as one bounded unit. A second camera never
 silently shares or replaces another camera's renderer port.
 
 Lease ownership includes principal, tenant, gateway profile, data labels,
