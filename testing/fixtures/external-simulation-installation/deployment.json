@@ -2,8 +2,8 @@
   "schemaVersion": "veoveo.io/deployment/v2",
   "name": "anonymous-simulation-extension",
   "registry": {
-    "address": "registry.example.internal",
-    "localConfig": null
+    "address": "k3d-veoveo-registry.localhost:5001",
+    "localConfig": "../../../deploy/local/k3d/registry.json"
   },
   "sources": [
     {
@@ -22,6 +22,7 @@
           "name": "veoveo",
           "chart": "deploy/helm/veoveo",
           "values": [
+            "deploy/local/k3d/values.yaml",
             "testing/fixtures/external-simulation-installation/platform-values.yaml"
           ],
           "valuesContract": "platform",
@@ -54,13 +55,30 @@
     }
   ],
   "kubernetes": {
-    "context": "anonymous-simulation",
-    "localCluster": null
+    "context": "k3d-anonymous-simulation",
+    "localCluster": {
+      "name": "anonymous-simulation",
+      "config": "cluster.yaml",
+      "nodeBootstrapManifests": [
+        "nvidia-device-plugin-exclusive.yaml"
+      ]
+    }
   },
   "namespace": "veoveo",
   "resources": {
-    "manifests": [],
-    "configMaps": [],
+    "manifests": [
+      "../../../deploy/local/k3d/development-resources.yaml",
+      "pose-tls.development.yaml"
+    ],
+    "configMaps": [
+      {
+        "name": "veoveo-gateway-control-plane",
+        "files": {
+          "gateway.json": "gateway.json",
+          "jwks.json": "../../../showcase/sumo/deploy/jwks.json"
+        }
+      }
+    ],
     "secrets": []
   },
   "platform": {

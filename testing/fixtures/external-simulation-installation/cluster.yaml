@@ -1,0 +1,44 @@
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: anonymous-simulation
+servers: 1
+agents: 0
+image: veoveo/k3s-gpu:v1.36.2-k3s1-cuda13.3.0
+kubeAPI:
+  hostIP: 127.0.0.1
+ports:
+  - port: 127.0.0.1:8782:80
+    nodeFilters:
+      - loadbalancer
+  - port: 127.0.0.1:47998:30998/udp
+    nodeFilters:
+      - loadbalancer
+  - port: 127.0.0.1:47999:30999/udp
+    nodeFilters:
+      - loadbalancer
+  - port: 127.0.0.1:48000:31000/udp
+    nodeFilters:
+      - loadbalancer
+  - port: 127.0.0.1:48001:31001/udp
+    nodeFilters:
+      - loadbalancer
+registries:
+  use:
+    - k3d-veoveo-registry.localhost:5001
+env:
+  - envVar: NVIDIA_VISIBLE_DEVICES=all
+    nodeFilters:
+      - server:*
+  - envVar: NVIDIA_DRIVER_CAPABILITIES=graphics,compute,utility,video
+    nodeFilters:
+      - server:*
+options:
+  k3d:
+    wait: true
+    timeout: 180s
+  kubeconfig:
+    updateDefaultKubeconfig: true
+    switchCurrentContext: true
+  runtime:
+    gpuRequest: all

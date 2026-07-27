@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "veoveo.io/gateway-composition-provenance/v1",
+  "outputSha256": "sha256:be6fa6e8f85623b1b63d2144572069da88b9f0867f3bbee79ae377c205030e4d",
+  "inputs": [
+    {
+      "kind": "base_control_plane",
+      "identity": "base-control-plane",
+      "schemaVersion": "veoveo.io/gateway-control-plane/v1",
+      "sha256": "sha256:e9725e68aebbf0bec51da568f5dd7804c91a1007f8d0b32054892ce6fda16cbe"
+    },
+    {
+      "kind": "server_fragment",
+      "identity": "anonymous-simulation",
+      "schemaVersion": "veoveo.io/gateway-server-fragment/v1",
+      "sha256": "sha256:5202175b81c615990d9410f38bcf2248a481b6fe432ed1ab6b6d3b55e2db7c6f"
+    },
+    {
+      "kind": "binding",
+      "identity": "anonymous-simulation",
+      "schemaVersion": "veoveo.io/gateway-binding/v1",
+      "sha256": "sha256:f1ebd2edd2266d788b3aef0c922645c0d2e6a2b1a0cebe3ac60bfd2aca57ca38"
+    }
+  ],
+  "contributions": [
+    {
+      "server": "anonymous-simulation",
+      "profiles": [
+        "operator"
+      ],
+      "policies": [
+        "2026-07-02"
+      ],
+      "recordingProducers": [],
+      "platformCapabilities": [
+        "artifact",
+        "frames",
+        "simulation_view"
+      ],
+      "artifactAudiences": [
+        "anonymous-simulation"
+      ]
+    }
+  ],
+  "requirements": {
+    "platformCapabilities": [
+      "artifact",
+      "frames",
+      "simulation_view"
+    ],
+    "artifactAudiences": [
+      "anonymous-simulation"
+    ]
+  }
+}
