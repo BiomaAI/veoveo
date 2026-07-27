@@ -1171,7 +1171,11 @@ entrypoints, and ports.
 
 Frames moves to the slim trixie contract. Its native build dependencies become part of
 that family. The UAV, DeepStream, vLLM, and SUMO families remain standalone in the first
-delivery, although their cache identities become explicit and source-aware.
+delivery, although their cache identities become explicit and source-aware. Each
+standalone family reads the complete workspace through the same read-only source-mount
+boundary. The typed planner rejects handwritten builder-stage workspace `COPY` lists,
+so adding a workspace member cannot leave one isolated image with an incomplete Cargo
+graph.
 
 #### Cache Contract
 

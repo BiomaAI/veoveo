@@ -250,6 +250,8 @@ struct BakeTarget {
     #[serde(default)]
     args: BTreeMap<String, String>,
     #[serde(default)]
+    context: String,
+    #[serde(default)]
     dockerfile: String,
     #[serde(default)]
     labels: BTreeMap<String, String>,
@@ -375,6 +377,9 @@ pub(crate) fn prepare(
         );
         let rust = parse_rust_unit(&name, target, &package_index)?;
         if let Some(unit) = &rust {
+            if unit.mode == BuildMode::RustStandalone {
+                validate_standalone_source_boundary(repository.root(), &name, target)?;
+            }
             family_units
                 .entry(unit.family)
                 .or_default()
@@ -837,6 +842,57 @@ fn validate_family_modes(family: BuilderFamily, units: &[(String, RustBuildUnit)
     Ok(())
 }
 
+fn validate_standalone_source_boundary(
+    repository: &Path,
+    name: &str,
+    target: &BakeTarget,
+) -> Result<()> {
+    ensure!(
+        target.context == ".",
+        "standalone Rust target {name} must use the repository root as its build context"
+    );
+    ensure!(
+        !target.dockerfile.is_empty(),
+        "standalone Rust target {name} has no Dockerfile"
+    );
+    let dockerfile_path = repository.join(&target.dockerfile);
+    let dockerfile = fs::read_to_string(&dockerfile_path)
+        .with_context(|| format!("reading {}", dockerfile_path.display()))?;
+    validate_standalone_builder_stage(&dockerfile)
+        .with_context(|| format!("standalone Rust target {name} source boundary"))?;
+    Ok(())
+}
+
+fn validate_standalone_builder_stage(dockerfile: &str) -> Result<()> {
+    let mut builder = Vec::new();
+    let mut in_builder = false;
+    for line in dockerfile.lines() {
+        let line = line.trim();
+        if line.starts_with("FROM ") {
+            if in_builder {
+                break;
+            }
+            in_builder = true;
+            continue;
+        }
+        if in_builder {
+            builder.push(line);
+        }
+    }
+    ensure!(!builder.is_empty(), "Dockerfile has no builder stage");
+    ensure!(
+        builder
+            .iter()
+            .any(|line| line.contains("--mount=type=bind,source=.,target=/src,readonly")),
+        "builder must read the complete workspace through the canonical read-only source mount"
+    );
+    ensure!(
+        !builder.iter().any(|line| line.starts_with("COPY ")),
+        "builder must not maintain a second handwritten workspace COPY list"
+    );
+    Ok(())
+}
+
 fn family_fingerprint(
     repository: &Path,
     family: BuilderFamily,
@@ -1075,7 +1131,7 @@ fn validate_identifier(kind: &str, value: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_published_image_digests;
+    use super::{parse_published_image_digests, validate_standalone_builder_stage};
     use std::collections::BTreeMap;
 
     #[test]
@@ -1118,6 +1174,32 @@ mod tests {
             error
                 .to_string()
                 .contains("does not contain expected image")
+        );
+    }
+
+    #[test]
+    fn standalone_builder_requires_the_complete_workspace_source_mount() {
+        validate_standalone_builder_stage(
+            "FROM rust:1 AS builder\n\
+             WORKDIR /src\n\
+             RUN --mount=type=bind,source=.,target=/src,readonly cargo build\n\
+             FROM scratch\n\
+             COPY --from=builder /out/bin /bin\n",
+        )
+        .unwrap();
+
+        let error = validate_standalone_builder_stage(
+            "FROM rust:1 AS builder\n\
+             COPY Cargo.toml Cargo.lock ./\n\
+             COPY servers ./servers\n\
+             RUN cargo build\n\
+             FROM scratch\n",
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("complete workspace through the canonical read-only source mount")
         );
     }
 }

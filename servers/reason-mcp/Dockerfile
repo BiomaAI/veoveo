@@ -16,25 +16,18 @@ RUN apt-get update \
     && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
         | sh -s -- -y --profile minimal --default-toolchain 1.97.1
 
-WORKDIR /app
+WORKDIR /src
 ARG VEOVEO_TARGET_CACHE_ID
-COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
-COPY .cargo ./.cargo
-COPY agents ./agents
-COPY apps/console/bff ./apps/console/bff
-COPY mcp ./mcp
-COPY platform ./platform
-COPY servers ./servers
-COPY testing ./testing
-COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
-RUN --mount=type=cache,id=veoveo-cargo-registry-v1,target=/usr/local/cargo/registry \
+RUN --mount=type=bind,source=.,target=/src,readonly \
+    --mount=type=cache,id=veoveo-cargo-registry-v1,target=/usr/local/cargo/registry \
     --mount=type=cache,id=veoveo-cargo-git-v1,target=/usr/local/cargo/git \
-    --mount=type=cache,id=${VEOVEO_TARGET_CACHE_ID},target=/app/target,sharing=locked \
+    --mount=type=cache,id=${VEOVEO_TARGET_CACHE_ID},target=/target,sharing=locked \
     toolchain="$(rustup default | awk 'NR == 1 { print $1 }')" \
     && test -n "${toolchain}" \
-    && RUSTUP_TOOLCHAIN="${toolchain}" \
+    && RUSTUP_TOOLCHAIN="${toolchain}" CARGO_TARGET_DIR=/target \
         cargo build --release --locked -p veoveo-reason-mcp --bin reason-mcp \
-    && cp /app/target/release/reason-mcp /tmp/reason-mcp
+    && mkdir -p /out/bin \
+    && install -m 0755 /target/release/reason-mcp /out/bin/reason-mcp
 
 FROM vllm/vllm-openai:${VLLM_VERSION}@sha256:e4f88a835143cd22aee2397a26ec6bb80b3a4a6fe0c882bcbc63822904766089
 
@@ -48,7 +41,7 @@ COPY servers/reason-mcp/runner /opt/veoveo/reason-runner
 RUN pip install --no-cache-dir /opt/veoveo/reason-runner \
     && test -x /usr/local/bin/reason-runner
 
-COPY --from=builder /tmp/reason-mcp /usr/local/bin/reason-mcp
+COPY --from=builder /out/bin/reason-mcp /usr/local/bin/reason-mcp
 
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
 USER veoveo

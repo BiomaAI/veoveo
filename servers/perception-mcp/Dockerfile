@@ -16,30 +16,25 @@ RUN apt-get update \
     && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
         | sh -s -- -y --profile minimal --default-toolchain 1.97.1
 
-WORKDIR /app
+WORKDIR /src
 ARG VEOVEO_TARGET_CACHE_ID
-COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
-COPY .cargo ./.cargo
-COPY agents ./agents
-COPY apps/console/bff ./apps/console/bff
-COPY mcp ./mcp
-COPY platform ./platform
-COPY servers ./servers
-COPY testing ./testing
-COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
-RUN --mount=type=cache,id=veoveo-cargo-registry-v1,target=/usr/local/cargo/registry \
+RUN --mount=type=bind,source=.,target=/src,readonly \
+    --mount=type=cache,id=veoveo-cargo-registry-v1,target=/usr/local/cargo/registry \
     --mount=type=cache,id=veoveo-cargo-git-v1,target=/usr/local/cargo/git \
-    --mount=type=cache,id=${VEOVEO_TARGET_CACHE_ID},target=/app/target,sharing=locked \
+    --mount=type=cache,id=${VEOVEO_TARGET_CACHE_ID},target=/target,sharing=locked \
     toolchain="$(rustup default | awk 'NR == 1 { print $1 }')" \
     && test -n "${toolchain}" \
-    && RUSTUP_TOOLCHAIN="${toolchain}" \
+    && RUSTUP_TOOLCHAIN="${toolchain}" CARGO_TARGET_DIR=/target \
         cargo build --release --locked -p veoveo-perception-mcp --bin perception-mcp \
-    && cp /app/target/release/perception-mcp /tmp/perception-mcp
-RUN cmake -S servers/perception-mcp/deepstream-runner \
+    && mkdir -p /out/bin \
+    && install -m 0755 /target/release/perception-mcp /out/bin/perception-mcp
+RUN --mount=type=bind,source=.,target=/src,readonly \
+    cmake -S /src/servers/perception-mcp/deepstream-runner \
         -B /tmp/perception-runner-build \
         -DCMAKE_BUILD_TYPE=Release \
     && cmake --build /tmp/perception-runner-build --parallel \
-    && cp /tmp/perception-runner-build/perception-deepstream-runner /tmp/
+    && install -m 0755 /tmp/perception-runner-build/perception-deepstream-runner \
+        /out/bin/perception-deepstream-runner
 
 FROM nvcr.io/nvidia/deepstream:${DEEPSTREAM_VERSION}-samples-multiarch@sha256:f28592681ec863f9bd90c39a1759b93ec34eb00e2348d70e659fd98aaa1eb87b
 
@@ -68,8 +63,8 @@ RUN mkdir -p /opt/veoveo \
     esac \
     && ln -s "${driver_lib_dir}" /opt/veoveo/host-libraries
 
-COPY --from=builder /tmp/perception-mcp /usr/local/bin/perception-mcp
-COPY --from=builder /tmp/perception-deepstream-runner \
+COPY --from=builder /out/bin/perception-mcp /usr/local/bin/perception-mcp
+COPY --from=builder /out/bin/perception-deepstream-runner \
     /usr/local/bin/perception-deepstream-runner
 
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,video \
