@@ -128,7 +128,12 @@ async fn verify_browser_inner(
     let session_id = value_string(&attached, "/sessionId")?.to_owned();
 
     let acceptance = async {
-        for method in ["Runtime.enable", "Page.enable", "Log.enable"] {
+        for method in [
+            "Runtime.enable",
+            "Page.enable",
+            "Log.enable",
+            "Network.enable",
+        ] {
             cdp.command(method, serde_json::json!({}), Some(&session_id))
                 .await?;
         }
@@ -158,7 +163,10 @@ async fn verify_browser_inner(
             "generic Simulation View App exposed no camera selector"
         );
 
-        let first = wait_for_video(&mut cdp, &session_id, expected_camera_id).await?;
+        let first = match wait_for_video(&mut cdp, &session_id, expected_camera_id).await {
+            Ok(state) => state,
+            Err(error) => return Err(error.context(cdp.stream_diagnostics()?)),
+        };
         tokio::time::sleep(Duration::from_secs(2)).await;
         let second: AppVideoState = cdp.evaluate(&session_id, VIDEO_STATE, false).await?;
         second.validate(expected_camera_id)?;
@@ -577,6 +585,59 @@ impl Cdp {
         }
         Ok(())
     }
+
+    fn stream_diagnostics(&self) -> Result<String> {
+        let events = self
+            .events
+            .iter()
+            .filter_map(stream_event_summary)
+            .collect::<Vec<_>>();
+        Ok(if events.is_empty() {
+            "Chrome reported no WebSocket response or transport error".to_owned()
+        } else {
+            format!("Chrome WebSocket diagnostics: {}", events.join("; "))
+        })
+    }
+}
+
+fn stream_event_summary(event: &Value) -> Option<String> {
+    match event.get("method").and_then(Value::as_str)? {
+        "Network.webSocketCreated" => event
+            .pointer("/params/url")
+            .and_then(Value::as_str)
+            .map(redacted_network_url)
+            .map(|url| format!("created {url}")),
+        "Network.webSocketHandshakeResponseReceived" => {
+            let status = event.pointer("/params/response/status")?.as_u64()?;
+            let status_text = event
+                .pointer("/params/response/statusText")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            Some(
+                format!("handshake HTTP {status} {status_text}")
+                    .trim()
+                    .to_owned(),
+            )
+        }
+        "Network.webSocketFrameError" => event
+            .pointer("/params/errorMessage")
+            .and_then(Value::as_str)
+            .map(|error| format!("frame error {error}")),
+        "Network.loadingFailed" => event
+            .pointer("/params/errorText")
+            .and_then(Value::as_str)
+            .map(|error| format!("load failed {error}")),
+        _ => None,
+    }
+}
+
+fn redacted_network_url(value: &str) -> String {
+    let Ok(mut url) = Url::parse(value) else {
+        return "unparseable WebSocket URL".to_owned();
+    };
+    url.set_query(None);
+    url.set_fragment(None);
+    url.to_string()
 }
 
 async fn serve_request(mut stream: TcpStream, parent: Arc<str>, app: Arc<str>) -> Result<()> {
@@ -768,6 +829,45 @@ mod tests {
             version.web_socket_debugger_url,
             "ws://127.0.0.1:9227/devtools/browser/id"
         );
+    }
+
+    #[test]
+    fn stream_diagnostics_omit_request_headers_and_url_queries() {
+        let created = serde_json::json!({
+            "method": "Network.webSocketCreated",
+            "params": {
+                "url": "ws://localhost:8782/simulation-view/signaling/sign_in?peer_id=peer",
+                "initiator": {
+                    "requestHeaders": {
+                        "Sec-WebSocket-Protocol": "authorization.bearer.secret"
+                    }
+                }
+            }
+        });
+        let response = serde_json::json!({
+            "method": "Network.webSocketHandshakeResponseReceived",
+            "params": {
+                "response": {
+                    "status": 403,
+                    "statusText": "Forbidden",
+                    "headers": {
+                        "Sec-WebSocket-Protocol": "authorization.bearer.secret"
+                    }
+                }
+            }
+        });
+        let summaries = [&created, &response]
+            .into_iter()
+            .filter_map(stream_event_summary)
+            .collect::<Vec<_>>()
+            .join("; ");
+        assert_eq!(
+            summaries,
+            "created ws://localhost:8782/simulation-view/signaling/sign_in; \
+             handshake HTTP 403 Forbidden"
+        );
+        assert!(!summaries.contains("secret"));
+        assert!(!summaries.contains("peer"));
     }
 
     #[test]
