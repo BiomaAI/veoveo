@@ -40,10 +40,10 @@ workload, its device count, and its isolation. Exclusive requests consume physic
 devices directly. NVIDIA MIG and time-slicing require a digest-addressed measurement
 record; configuration alone never makes sharing valid.
 
-Simulation View selects Frames MCP, its provider-neutral MCP server, the canonical
-runtime support component, and one renderer GPU. A profile that also places an external
-simulator on an ordinary one-GPU node with both workloads marked exclusive fails during
-pure profile resolution.
+Simulation View selects Frames MCP, its provider-neutral MCP server, the Artifact
+service with the `simulation-view` audience, the canonical runtime support component,
+and one renderer GPU. A profile that also places an external simulator on an ordinary
+one-GPU node with both workloads marked exclusive fails during pure profile resolution.
 
 The same resolution produces the exact Veoveo-owned OCI image closure. Platform
 components contribute their runtime images, each selected MCP server contributes its
