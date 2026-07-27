@@ -112,6 +112,7 @@ artifactService:
     - recording
     - perception
     - reason
+    - simulation-view
     - datasheet
   resources:
     requests:

@@ -70,6 +70,10 @@ where
             get(download_artifact::<R, S>),
         )
         .route(
+            "/artifacts/{artifact_id}/proxy-download",
+            get(proxy_download_artifact::<R, S>),
+        )
+        .route(
             "/artifacts/{artifact_id}/grants",
             get(list_grants::<R, S>)
                 .post(add_grant::<R, S>)
@@ -349,6 +353,20 @@ async fn download_artifact<R: ArtifactRepository, S: BlobStore>(
         state
             .service
             .download(&caller, parse_artifact_id(&artifact_id)?)
+            .await?,
+    )
+}
+
+async fn proxy_download_artifact<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Path(artifact_id): Path<String>,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
+    let caller = caller(&state, &headers)?;
+    download_response(
+        state
+            .service
+            .proxy_download(&caller, parse_artifact_id(&artifact_id)?)
             .await?,
     )
 }

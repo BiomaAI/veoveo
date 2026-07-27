@@ -16,8 +16,18 @@ use veoveo_mcp_contract::{
     CreateArtifactShareLinkRequest, DecideArtifactAccessRequest, GrantList,
     IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, ListArtifactAccessRequests,
     ListArtifactsRequest, PlaneCaller, PutArtifactRequest, PutGrantRequest,
-    RedeemArtifactWriteCapabilityRequest,
+    RedeemArtifactWriteCapabilityRequest, parse_artifact_plane_uri,
 };
+
+/// One authorized bulk artifact download.
+///
+/// Metadata is fetched through the policy-gated artifact endpoint before the
+/// body request begins. The response body remains streaming through
+/// artifact-service and never exposes a signed object-store URL.
+pub struct AuthorizedArtifactDownload {
+    pub metadata: ArtifactMetadata,
+    pub response: reqwest::Response,
+}
 
 /// A plane client bound to one artifact-service base URL.
 #[derive(Clone)]
@@ -43,6 +53,38 @@ impl HttpArtifactPlane {
 
     fn url(&self, path: &str) -> String {
         format!("{}{path}", self.base_url)
+    }
+
+    /// Open an authorized, streaming download for a neutral artifact URI.
+    ///
+    /// This path is intended for large internal consumers that cannot use the
+    /// bounded in-memory [`ArtifactPlane::resolve`] operation.
+    pub async fn download(
+        &self,
+        caller: &PlaneCaller,
+        uri: &str,
+    ) -> Result<AuthorizedArtifactDownload, ArtifactPlaneError> {
+        let artifact_id = parse_artifact_plane_uri(uri).ok_or_else(|| {
+            ArtifactPlaneError::InvalidRequest(format!("invalid artifact URI `{uri}`"))
+        })?;
+        let metadata = <Self as ArtifactPlane>::head(self, caller, &artifact_id).await?;
+        if metadata.artifact_id != artifact_id || metadata.artifact_uri != artifact_id.plane_uri() {
+            return Err(ArtifactPlaneError::Transport(
+                "artifact metadata identity does not match the requested occurrence".into(),
+            ));
+        }
+        let response = self
+            .http
+            .get(self.url(&format!("/artifacts/{artifact_id}/proxy-download")))
+            .bearer_auth(&caller.bearer_token)
+            .send()
+            .await
+            .map_err(transport)?;
+        if response.status().is_success() {
+            Ok(AuthorizedArtifactDownload { metadata, response })
+        } else {
+            response_error(response).await
+        }
     }
 
     /// Issue a task-bound capability while a live gateway identity is

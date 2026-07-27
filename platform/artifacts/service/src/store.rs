@@ -38,6 +38,13 @@ pub trait BlobStore: Send + Sync {
         object_key: &str,
     ) -> impl std::future::Future<Output = Result<BlobDownload, BlobStoreError>> + Send;
 
+    /// Stream bytes through artifact-service even when the backing store can
+    /// issue a signed public redirect.
+    fn stream(
+        &self,
+        object_key: &str,
+    ) -> impl std::future::Future<Output = Result<BlobStream, BlobStoreError>> + Send;
+
     fn delete(
         &self,
         object_key: &str,
@@ -154,6 +161,11 @@ impl BlobStore for ArtifactObjectStore {
                 .map_err(map_store_error)?;
             return Ok(BlobDownload::SignedRedirect(url.to_string()));
         }
+        Ok(BlobDownload::Stream(self.stream(object_key).await?))
+    }
+
+    async fn stream(&self, object_key: &str) -> Result<BlobStream, BlobStoreError> {
+        let path = Self::path(object_key)?;
         let stream = self
             .inner
             .get(&path)
@@ -161,7 +173,7 @@ impl BlobStore for ArtifactObjectStore {
             .map_err(map_store_error)?
             .into_stream()
             .map(|result| result.map_err(map_store_error));
-        Ok(BlobDownload::Stream(Box::pin(stream)))
+        Ok(Box::pin(stream))
     }
 
     async fn delete(&self, object_key: &str) -> Result<(), BlobStoreError> {
@@ -209,6 +221,10 @@ pub(crate) mod testing {
 
         async fn download(&self, object_key: &str) -> Result<BlobDownload, BlobStoreError> {
             self.inner.download(object_key).await
+        }
+
+        async fn stream(&self, object_key: &str) -> Result<BlobStream, BlobStoreError> {
+            self.inner.stream(object_key).await
         }
 
         async fn delete(&self, object_key: &str) -> Result<(), BlobStoreError> {

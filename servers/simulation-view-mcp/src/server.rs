@@ -10,6 +10,7 @@ use anyhow::Result;
 use axum::{Json, Router, http::StatusCode, middleware, routing::get};
 use clap::Parser;
 use rmcp::transport::streamable_http_server::StreamableHttpService;
+use serde::Serialize;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
@@ -17,17 +18,27 @@ use veoveo_mcp_contract::{
 };
 
 use crate::{
+    artifacts::SceneArtifactMaterializer,
     mcp::{SimulationViewMcp, SimulationViewMcpState},
     runtime::RuntimeClients,
     state::SimulationViewService,
 };
 
+pub(crate) use auth::ForwardedBearer;
 use auth::{InternalAuthState, authenticate_internal};
 use config::Args;
 use host::validate_host;
 use signaling::SignalingState;
 
 pub(crate) const SERVER_SLUG: &str = "simulation-view";
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Readiness {
+    ready: bool,
+    artifact_plane_ready: bool,
+    runtime: crate::runtime::SimulationViewReadiness,
+}
 
 pub async fn run() -> Result<()> {
     install_rustls_provider();
@@ -54,9 +65,15 @@ pub async fn run() -> Result<()> {
         &args.renderer_signaling_url,
         args.public_media_port,
     )?);
+    let artifacts = SceneArtifactMaterializer::new(
+        &args.artifact_service_url,
+        &args.renderer_endpoint,
+        &args.renderer_control_token,
+    )?;
     let mcp_state = SimulationViewMcpState::new(
         service.clone(),
         runtimes.clone(),
+        artifacts.clone(),
         &args.public_signaling_url,
     )?;
     let signaling = SignalingState::new(
@@ -94,14 +111,22 @@ pub async fn run() -> Result<()> {
     ));
 
     let readiness = runtimes.clone();
+    let readiness_artifacts = artifacts;
     let service_router = Router::new()
         .route("/healthz", get(|| async { StatusCode::OK }))
         .route(
             "/readyz",
             get(move || {
                 let readiness = readiness.clone();
+                let artifacts = readiness_artifacts.clone();
                 async move {
-                    let report = readiness.readiness().await;
+                    let (runtime, artifact_plane_ready) =
+                        tokio::join!(readiness.readiness(), artifacts.ready());
+                    let report = Readiness {
+                        ready: runtime.ready && artifact_plane_ready,
+                        artifact_plane_ready,
+                        runtime,
+                    };
                     let status = if report.ready {
                         StatusCode::OK
                     } else {

@@ -20,6 +20,7 @@ from .contracts import (
     SessionBinding,
     StreamBinding,
 )
+from .scene import ArtifactMaterializer
 
 
 LOGGER = logging.getLogger("veoveo.simulation_view.control")
@@ -27,6 +28,10 @@ MAXIMUM_BODY_BYTES = 4 * 1024 * 1024
 SESSION = r"(?P<session>[A-Za-z0-9_.-]{1,128})"
 CAMERA = r"(?P<camera>[A-Za-z0-9_.-]{1,128})"
 STREAM = r"(?P<stream>[A-Za-z0-9_.-]{1,128})"
+ARTIFACT_PATH = re.compile(
+    r"^/v1/artifacts/sha256/"
+    r"(?P<digest>[0-9a-f]{64})\.(?P<format>usd|usdz|glb|gltf)$"
+)
 
 SESSION_PATH = re.compile(rf"^/v1/sessions/{SESSION}$")
 SCENE_PATH = re.compile(rf"^/v1/sessions/{SESSION}/scene$")
@@ -117,6 +122,9 @@ class ControlServer:
         self._config = config
         self._commands = commands
         self._readiness = readiness
+        self._artifacts = ArtifactMaterializer(
+            config.artifact_directory, config.maximum_artifact_bytes
+        )
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
 
@@ -143,6 +151,9 @@ class ControlServer:
                 self.send_error(HTTPStatus.NOT_FOUND)
 
             def do_PUT(self) -> None:
+                if match := ARTIFACT_PATH.fullmatch(self.path):
+                    self._materialize_artifact(match)
+                    return
                 self._mutation("PUT")
 
             def do_DELETE(self) -> None:
@@ -165,6 +176,46 @@ class ControlServer:
                 except TimeoutError as error:
                     self.send_error(HTTPStatus.GATEWAY_TIMEOUT, str(error))
                 except (ContractError, ValueError) as error:
+                    self.send_error(HTTPStatus.BAD_REQUEST, str(error))
+
+            def _materialize_artifact(self, match: re.Match[str]) -> None:
+                if not self._authorized():
+                    self.send_error(HTTPStatus.UNAUTHORIZED)
+                    return
+                try:
+                    if self.headers.get("Transfer-Encoding") is not None:
+                        raise ContractError(
+                            "chunked artifact uploads are unsupported"
+                        )
+                    raw_length = self.headers.get("Content-Length")
+                    if raw_length is None:
+                        raise ContractError(
+                            "artifact Content-Length is required"
+                        )
+                    try:
+                        length = int(raw_length)
+                    except ValueError as error:
+                        raise ContractError(
+                            "artifact Content-Length is invalid"
+                        ) from error
+                    content_type = self.headers.get(
+                        "Content-Type", ""
+                    ).split(";", 1)[0]
+                    if content_type.strip().lower() != (
+                        "application/octet-stream"
+                    ):
+                        raise ContractError(
+                            "artifact upload must use application/octet-stream"
+                        )
+                    outer._artifacts.materialize(
+                        match.group("digest"),
+                        match.group("format"),
+                        length,
+                        self.rfile,
+                    )
+                    self._json(HTTPStatus.NO_CONTENT, None)
+                except (ContractError, ValueError) as error:
+                    self.close_connection = True
                     self.send_error(HTTPStatus.BAD_REQUEST, str(error))
 
             def _command(self, method: str) -> ControlCommand:

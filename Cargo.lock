@@ -11369,6 +11369,7 @@ dependencies = [
  "tracing",
  "url",
  "uuid",
+ "veoveo-artifact-client",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-simulation-pose",

@@ -593,6 +593,30 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
         self.delivery(stored).await
     }
 
+    pub async fn proxy_download(
+        &self,
+        caller: &PlaneCaller,
+        artifact_id: ArtifactId,
+    ) -> Result<ArtifactDownload, ArtifactPlaneError> {
+        let stored = self.load(artifact_id).await?;
+        self.authorize(
+            caller,
+            &stored,
+            "artifact.download.proxy",
+            AccessLevel::Read,
+        )
+        .await?;
+        let stream = self
+            .store
+            .stream(&stored.object_key)
+            .await
+            .map_err(transport)?;
+        Ok(ArtifactDownload {
+            metadata: stored.metadata,
+            delivery: DownloadDelivery::Stream(stream),
+        })
+    }
+
     pub async fn redeem_public_share(
         &self,
         token: &str,
@@ -1227,6 +1251,7 @@ mod tests {
     use std::num::{NonZeroU32, NonZeroU64};
 
     use chrono::{TimeDelta, Utc};
+    use futures::TryStreamExt;
     use veoveo_mcp_contract::gateway::{
         GatewayProfileId, PrincipalId, PrincipalKind, ServerSlug, TenantId, TokenIssuer,
         TokenSubject,
@@ -1367,6 +1392,33 @@ mod tests {
             Err(ArtifactPlaneError::Denied(AccessDecision::DenyTenant))
         );
         assert!(repository.audit_count() >= 4);
+    }
+
+    #[tokio::test]
+    async fn proxy_download_streams_authorized_bytes_without_a_redirect() {
+        let (service, _) = service();
+        let alice = caller("alice", "acme", &[]);
+        let payload = vec![7_u8; 32];
+        let artifact = service
+            .put(&alice, PutArtifactRequest::default(), payload.clone())
+            .await
+            .unwrap();
+        let download = service
+            .proxy_download(&alice, artifact.artifact_id)
+            .await
+            .unwrap();
+        assert_eq!(download.metadata, artifact);
+        let DownloadDelivery::Stream(stream) = download.delivery else {
+            panic!("proxy download must stream through artifact-service")
+        };
+        let bytes = stream
+            .try_fold(Vec::new(), |mut bytes, chunk| async move {
+                bytes.extend_from_slice(&chunk);
+                Ok(bytes)
+            })
+            .await
+            .unwrap();
+        assert_eq!(bytes, payload);
     }
 
     #[tokio::test]

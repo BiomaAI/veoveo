@@ -121,10 +121,24 @@ impl SimulationViewService {
         owner: LiveViewOwner,
         request: CreateSessionRequest,
     ) -> Result<SimulationViewSession, SimulationViewError> {
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        if let Some(existing) = state.sessions.get(&request.session_id) {
+            if existing.owner != owner {
+                return Err(SimulationViewError::Ownership);
+            }
+            if existing.epoch_id != request.epoch_id {
+                return Err(SimulationViewError::SessionAlreadyExists(
+                    request.session_id,
+                ));
+            }
+            return Ok(existing.clone());
+        }
         let now = Utc::now();
         let session = SimulationViewSession {
-            session_id: LiveSessionId::new(format!("sv-{}", Uuid::now_v7()))
-                .map_err(|_| SimulationViewError::InvalidIdentifier("session".to_owned()))?,
+            session_id: request.session_id,
             epoch_id: request.epoch_id,
             owner,
             lifecycle: SessionLifecycle::Created,
@@ -134,12 +148,22 @@ impl SimulationViewService {
             created_at: now,
             updated_at: now,
         };
-        self.state
-            .lock()
-            .expect("simulation-view state lock poisoned")
+        state
             .sessions
             .insert(session.session_id.clone(), session.clone());
         Ok(session)
+    }
+
+    pub fn validate_bind_scene(
+        &self,
+        owner: &LiveViewOwner,
+        request: &BindSceneRequest,
+    ) -> Result<(), SimulationViewError> {
+        let state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        self.validate_scene_binding(&state, owner, request)
     }
 
     pub fn bind_scene(
@@ -151,13 +175,30 @@ impl SimulationViewService {
             .state
             .lock()
             .expect("simulation-view state lock poisoned");
+        self.validate_scene_binding(&state, owner, &request)?;
+        let session = owned_session_mut(&mut state, owner, &request.session_id)?;
+        if session.scene.is_some() {
+            return Ok(session.clone());
+        }
+        session.scene = Some(request.scene);
+        session.lifecycle = SessionLifecycle::SceneBound;
+        advance_session(session);
+        Ok(session.clone())
+    }
+
+    fn validate_scene_binding(
+        &self,
+        state: &ServiceState,
+        owner: &LiveViewOwner,
+        request: &BindSceneRequest,
+    ) -> Result<(), SimulationViewError> {
         let current_entities = state
             .sessions
             .values()
             .filter_map(|session| session.scene.as_ref())
             .map(|scene| scene.body.entities.len() as u64)
             .sum::<u64>();
-        let session = owned_session_mut(&mut state, owner, &request.session_id)?;
+        let session = owned_session(state, owner, &request.session_id)?;
         check_revision(session.revision, request.expected_revision)?;
         if request.scene.body.session_id != session.session_id
             || request.scene.body.epoch_id != session.epoch_id
@@ -166,7 +207,7 @@ impl SimulationViewService {
         }
         if let Some(scene) = &session.scene {
             if scene.digest == request.scene.digest {
-                return Ok(session.clone());
+                return Ok(());
             }
             return Err(SimulationViewError::SceneAlreadyBound);
         }
@@ -179,10 +220,7 @@ impl SimulationViewService {
         {
             return Err(SimulationViewError::InvalidScene);
         }
-        session.scene = Some(request.scene);
-        session.lifecycle = SessionLifecycle::SceneBound;
-        advance_session(session);
-        Ok(session.clone())
+        Ok(())
     }
 
     pub fn authorize_pose_producer(
@@ -943,6 +981,21 @@ impl SimulationViewService {
     }
 }
 
+fn owned_session<'a>(
+    state: &'a ServiceState,
+    owner: &LiveViewOwner,
+    id: &LiveSessionId,
+) -> Result<&'a SimulationViewSession, SimulationViewError> {
+    let session = state
+        .sessions
+        .get(id)
+        .ok_or_else(|| SimulationViewError::SessionNotFound(id.clone()))?;
+    if &session.owner != owner {
+        return Err(SimulationViewError::Ownership);
+    }
+    Ok(session)
+}
+
 fn owned_session_mut<'a>(
     state: &'a mut ServiceState,
     owner: &LiveViewOwner,
@@ -1156,10 +1209,10 @@ mod tests {
     use std::collections::BTreeSet;
 
     use veoveo_mcp_contract::{
-        AccessSubject, FrameId, FrameWorldId, FrameWorldRevisionId, FrameWorldRevisionUri,
-        GatewayProfileId, InvocationAuthority, InvocationProvenance, PolicyVersion, PrincipalId,
-        TenantId, WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
-        WorldFrameUri,
+        AccessSubject, ArtifactId, FrameId, FrameWorldId, FrameWorldRevisionId,
+        FrameWorldRevisionUri, GatewayProfileId, InvocationAuthority, InvocationProvenance,
+        PolicyVersion, PrincipalId, TenantId, WorkContextId, WorkContextMembershipLevel,
+        WorkContextOutputPolicy, WorldFrameUri,
     };
     use veoveo_simulation_pose::{EntityId, EpochId, FrameRevision, Sha256Digest};
 
@@ -1237,7 +1290,7 @@ mod tests {
             },
             simulation_frame,
             environment: GovernedArtifact {
-                artifact_uri: "artifact://artifact/environment".to_owned(),
+                artifact_uri: ArtifactId::new().plane_uri(),
                 digest: digest.clone(),
                 format: VisualAssetFormat::Usd,
                 byte_length: 1024,
@@ -1245,7 +1298,7 @@ mod tests {
             prototypes: vec![VisualPrototype {
                 prototype_id: PrototypeId::new("marker").unwrap(),
                 asset: GovernedArtifact {
-                    artifact_uri: "artifact://artifact/marker".to_owned(),
+                    artifact_uri: ArtifactId::new().plane_uri(),
                     digest,
                     format: VisualAssetFormat::Glb,
                     byte_length: 512,
@@ -1312,6 +1365,7 @@ mod tests {
             .create_session(
                 owner.clone(),
                 CreateSessionRequest {
+                    session_id: LiveSessionId::new("simulation-session-1").unwrap(),
                     epoch_id: epoch_id.clone(),
                 },
             )
@@ -1326,6 +1380,39 @@ mod tests {
                 },
             )
             .unwrap()
+    }
+
+    #[test]
+    fn caller_selected_session_identity_is_idempotent_and_owner_scoped() {
+        let service = SimulationViewService::new(SimulationViewConfig::default()).unwrap();
+        let owner = view_owner("issuer#operator");
+        let request = CreateSessionRequest {
+            session_id: LiveSessionId::new("external-session-1").unwrap(),
+            epoch_id: EpochId::new("epoch-1").unwrap(),
+        };
+        let created = service
+            .create_session(owner.clone(), request.clone())
+            .unwrap();
+        let repeated = service
+            .create_session(owner.clone(), request.clone())
+            .unwrap();
+        assert_eq!(created, repeated);
+
+        assert!(matches!(
+            service.create_session(
+                owner,
+                CreateSessionRequest {
+                    session_id: request.session_id.clone(),
+                    epoch_id: EpochId::new("epoch-2").unwrap(),
+                },
+            ),
+            Err(SimulationViewError::SessionAlreadyExists(session_id))
+                if session_id == request.session_id
+        ));
+        assert!(matches!(
+            service.create_session(view_owner("issuer#other"), request),
+            Err(SimulationViewError::Ownership)
+        ));
     }
 
     #[test]
