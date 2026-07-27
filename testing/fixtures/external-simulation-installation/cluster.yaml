@@ -11,16 +11,16 @@ ports:
   - port: 127.0.0.1:8782:80
     nodeFilters:
       - loadbalancer
-  - port: 127.0.0.1:47998:30998/udp
+  - port: 127.0.0.1:48010:31010/udp
     nodeFilters:
       - loadbalancer
-  - port: 127.0.0.1:47999:30999/udp
+  - port: 127.0.0.1:48011:31011/udp
     nodeFilters:
       - loadbalancer
-  - port: 127.0.0.1:48000:31000/udp
+  - port: 127.0.0.1:48012:31012/udp
     nodeFilters:
       - loadbalancer
-  - port: 127.0.0.1:48001:31001/udp
+  - port: 127.0.0.1:48013:31013/udp
     nodeFilters:
       - loadbalancer
 registries:
