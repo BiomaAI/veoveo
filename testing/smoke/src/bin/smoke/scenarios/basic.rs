@@ -861,6 +861,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "servers/recording-mcp/Dockerfile",
         "servers/timeseries-mcp/Dockerfile",
         "servers/time-mcp/Dockerfile",
+        "servers/uav-sim-mcp/Dockerfile",
         "servers/view-mcp/Dockerfile",
         "servers/simulation-view-mcp/Dockerfile",
         "platform/simulation/pose-ingress/Dockerfile",
@@ -888,7 +889,6 @@ pub(crate) async fn helm_config() -> Result<()> {
     for dockerfile in [
         "servers/perception-mcp/Dockerfile",
         "servers/reason-mcp/Dockerfile",
-        "servers/uav-sim-mcp/Dockerfile",
         "showcase/sumo/sumo-mcp/Dockerfile",
     ] {
         let contents = fs::read_to_string(dockerfile)?;
