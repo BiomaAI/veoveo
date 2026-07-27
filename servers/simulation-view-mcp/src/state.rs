@@ -131,12 +131,14 @@ impl SimulationViewService {
             if existing.owner != owner {
                 return Err(SimulationViewError::Ownership);
             }
-            if existing.epoch_id != request.epoch_id {
-                return Err(SimulationViewError::SessionAlreadyExists(
-                    request.session_id,
-                ));
+            if existing.lifecycle != SessionLifecycle::Closed {
+                if existing.epoch_id != request.epoch_id {
+                    return Err(SimulationViewError::SessionAlreadyExists(
+                        request.session_id,
+                    ));
+                }
+                return Ok(existing.clone());
             }
-            return Ok(existing.clone());
         }
         let now = Utc::now();
         let session = SimulationViewSession {
@@ -1074,7 +1076,7 @@ impl SimulationViewService {
             .cameras
             .values()
             .filter(|camera| {
-                camera.owner.authority.work_context == owner.authority.work_context
+                camera.owner.work_context == owner.work_context
                     && excluding.is_none_or(|excluded| &camera.camera_id != excluded)
             })
             .count() as u64
@@ -1319,9 +1321,8 @@ mod tests {
 
     use veoveo_mcp_contract::{
         AccessSubject, ArtifactId, FrameId, FrameWorldId, FrameWorldRevisionId,
-        FrameWorldRevisionUri, GatewayProfileId, InvocationAuthority, InvocationProvenance,
-        PolicyVersion, PrincipalId, TenantId, WorkContextId, WorkContextMembershipLevel,
-        WorkContextOutputPolicy, WorldFrameUri,
+        FrameWorldRevisionUri, GroupId, PolicyVersion, PrincipalId, TenantId, WorkContextId,
+        WorldFrameUri,
     };
     use veoveo_simulation_pose::{
         EntityId, EpochId, FrameRevision, POSE_INGRESS_CONTROL_SCHEMA, PoseIngressStatus,
@@ -1339,28 +1340,19 @@ mod tests {
 
     fn view_owner(principal: &str) -> LiveViewOwner {
         let principal = PrincipalId::new(principal).unwrap();
-        let tenant = TenantId::new("tenant-a").unwrap();
         LiveViewOwner {
-            principal: principal.clone(),
-            tenant: tenant.clone(),
-            profile: GatewayProfileId::new("simulation").unwrap(),
+            subject: AccessSubject::Principal(principal),
+            tenant: TenantId::new("tenant-a").unwrap(),
+            work_context: WorkContextId::new("exercise-a").unwrap(),
+            policy_revision: PolicyVersion::new("2026-07-26").unwrap(),
             data_labels: BTreeSet::new(),
-            authority: InvocationAuthority {
-                work_context: WorkContextId::new("exercise-a").unwrap(),
-                tenant,
-                membership: WorkContextMembershipLevel::Contributor,
-                policy_revision: PolicyVersion::new("2026-07-26").unwrap(),
-                output_policy: WorkContextOutputPolicy {
-                    owner: AccessSubject::Principal(principal.clone()),
-                    initial_grants: Vec::new(),
-                    classification: None,
-                    data_labels: BTreeSet::new(),
-                },
-                provenance: InvocationProvenance::Direct {
-                    initiator: principal,
-                },
-            },
         }
+    }
+
+    fn shared_view_owner(principal: &str) -> LiveViewOwner {
+        let mut owner = view_owner(principal);
+        owner.subject = AccessSubject::Group(GroupId::new("flight").unwrap());
+        owner
     }
 
     fn identity_transform() -> LocalTransform {
@@ -1526,6 +1518,69 @@ mod tests {
             service.create_session(view_owner("issuer#other"), request),
             Err(SimulationViewError::Ownership)
         ));
+    }
+
+    #[test]
+    fn work_context_output_owner_shares_state_without_crossing_contexts() {
+        let service = SimulationViewService::new(SimulationViewConfig::default()).unwrap();
+        let automated = shared_view_owner("issuer#automation");
+        let console_member = shared_view_owner("issuer#operator");
+        let request = CreateSessionRequest {
+            session_id: LiveSessionId::new("shared-session-1").unwrap(),
+            epoch_id: EpochId::new("epoch-1").unwrap(),
+        };
+        let created = service.create_session(automated, request.clone()).unwrap();
+        assert_eq!(
+            service
+                .get_session(&console_member, &request.session_id)
+                .unwrap(),
+            created
+        );
+
+        let mut other_context = console_member;
+        other_context.work_context = WorkContextId::new("exercise-b").unwrap();
+        assert!(matches!(
+            service.get_session(&other_context, &request.session_id),
+            Err(SimulationViewError::Ownership)
+        ));
+    }
+
+    #[test]
+    fn closed_session_identity_can_start_a_new_epoch() {
+        let service = SimulationViewService::new(SimulationViewConfig::default()).unwrap();
+        let owner = view_owner("issuer#operator");
+        let first = service
+            .create_session(
+                owner.clone(),
+                CreateSessionRequest {
+                    session_id: LiveSessionId::new("repeatable-session").unwrap(),
+                    epoch_id: EpochId::new("epoch-1").unwrap(),
+                },
+            )
+            .unwrap();
+        service
+            .close_session(
+                &owner,
+                CloseSessionRequest {
+                    session_id: first.session_id.clone(),
+                    expected_revision: first.revision,
+                },
+            )
+            .unwrap();
+        let restarted = service
+            .create_session(
+                owner,
+                CreateSessionRequest {
+                    session_id: first.session_id,
+                    epoch_id: EpochId::new("epoch-2").unwrap(),
+                },
+            )
+            .unwrap();
+        assert_eq!(restarted.epoch_id.as_str(), "epoch-2");
+        assert_eq!(restarted.lifecycle, SessionLifecycle::Created);
+        assert_eq!(restarted.revision, 1);
+        assert!(restarted.scene.is_none());
+        assert!(restarted.pose_source.is_none());
     }
 
     #[test]
