@@ -329,25 +329,7 @@ async fn capture_console_recording_inner(
 }
 
 async fn open_headed_target(cdp_base: &str, page_url: &str) -> Result<(Cdp, String, String)> {
-    let version_url = Url::parse(cdp_base)?
-        .join("json/version")
-        .context("Chrome CDP URL cannot resolve /json/version")?;
-    let version: ChromeVersion = reqwest::Client::builder()
-        .timeout(Duration::from_secs(5))
-        .build()?
-        .get(version_url)
-        .send()
-        .await
-        .context("headed Chrome DevTools endpoint is unavailable")?
-        .error_for_status()?
-        .json()
-        .await?;
-    ensure!(
-        !version.browser.to_ascii_lowercase().contains("headless"),
-        "visual acceptance requires headed Chrome; endpoint reported {}",
-        version.browser
-    );
-    let mut cdp = Cdp::connect(&version.web_socket_debugger_url).await?;
+    let mut cdp = connect_headed_browser(cdp_base, "visual acceptance").await?;
     let target = cdp
         .command(
             "Target.createTarget",
@@ -638,26 +620,7 @@ async fn verify_browser_inner(
     page_url: &str,
     expected_camera_id: &str,
 ) -> Result<()> {
-    let version_url = Url::parse(cdp_base)?
-        .join("json/version")
-        .context("Chrome CDP URL cannot resolve /json/version")?;
-    let version: ChromeVersion = reqwest::Client::builder()
-        .timeout(Duration::from_secs(5))
-        .build()?
-        .get(version_url)
-        .send()
-        .await
-        .context("headed Chrome DevTools endpoint is unavailable")?
-        .error_for_status()?
-        .json()
-        .await?;
-    ensure!(
-        !version.browser.to_ascii_lowercase().contains("headless"),
-        "Simulation View acceptance requires headed Chrome; endpoint reported {}",
-        version.browser
-    );
-
-    let mut cdp = Cdp::connect(&version.web_socket_debugger_url).await?;
+    let mut cdp = connect_headed_browser(cdp_base, "Simulation View acceptance").await?;
     let target = cdp
         .command(
             "Target.createTarget",
@@ -803,9 +766,44 @@ async fn verify_browser_inner(
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ChromeVersion {
-    #[serde(rename = "Browser")]
-    browser: String,
     web_socket_debugger_url: String,
+}
+
+async fn connect_headed_browser(endpoint: &str, acceptance: &str) -> Result<Cdp> {
+    let endpoint = Url::parse(endpoint).context("parsing Chrome DevTools endpoint")?;
+    let browser_web_socket = match endpoint.scheme() {
+        "ws" => endpoint.to_string(),
+        "http" | "https" => {
+            let version_url = endpoint
+                .join("json/version")
+                .context("Chrome CDP URL cannot resolve /json/version")?;
+            let version: ChromeVersion = reqwest::Client::builder()
+                .timeout(Duration::from_secs(5))
+                .build()?
+                .get(version_url)
+                .send()
+                .await
+                .context("headed Chrome DevTools endpoint is unavailable")?
+                .error_for_status()?
+                .json()
+                .await?;
+            version.web_socket_debugger_url
+        }
+        scheme => bail!(
+            "Chrome DevTools endpoint must use http:// discovery or a direct ws:// browser endpoint, received {scheme:?}"
+        ),
+    };
+    let mut cdp = Cdp::connect(&browser_web_socket).await?;
+    let version = cdp
+        .command("Browser.getVersion", serde_json::json!({}), None)
+        .await
+        .context("querying the attached Chrome identity")?;
+    let product = value_string(&version, "/product")?;
+    ensure!(
+        !product.to_ascii_lowercase().contains("headless"),
+        "{acceptance} requires headed Chrome; endpoint reported {product}"
+    );
+    Ok(cdp)
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -1486,14 +1484,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn chrome_version_uses_the_cdp_wire_casing() {
+    fn chrome_version_uses_the_cdp_websocket_wire_casing() {
         let version: ChromeVersion = serde_json::from_value(serde_json::json!({
             "Browser": "Chrome/150.0.7871.186",
             "Protocol-Version": "1.3",
             "webSocketDebuggerUrl": "ws://127.0.0.1:9227/devtools/browser/id"
         }))
         .unwrap();
-        assert_eq!(version.browser, "Chrome/150.0.7871.186");
         assert_eq!(
             version.web_socket_debugger_url,
             "ws://127.0.0.1:9227/devtools/browser/id"
