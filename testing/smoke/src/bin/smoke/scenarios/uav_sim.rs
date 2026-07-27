@@ -357,11 +357,6 @@ pub(crate) async fn uav_sim_verify(
         "uav-sim__configure_world",
         "uav-sim__get_simulation_state",
         "uav-sim__execute_mission",
-        "simulation-view__create_session",
-        "simulation-view__bind_scene",
-        "simulation-view__authorize_pose_producer",
-        "simulation-view__create_camera",
-        "simulation-view__open_live_view",
         "perception__analyze_recording",
         "reason__analyze_recording",
         "recording__query_recording",
@@ -1196,7 +1191,7 @@ mod tests {
         assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v6");
         assert_eq!(scenario.session_id, "uav-showcase");
         assert_eq!(scenario.world.world_id.as_str(), "uav-showcase-new-york");
-        assert_eq!(scenario.world.tree.frames.len(), 7);
+        assert_eq!(scenario.world.tree.frames.len(), 6);
         let origin = scenario.world.origin().unwrap();
         assert_eq!(origin.latitude_degrees, 40.758);
         assert_eq!(origin.longitude_degrees, -73.9855);
