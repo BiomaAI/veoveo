@@ -29,7 +29,7 @@ spec:
       labels:
         app.kubernetes.io/name: nvidia-device-plugin
       annotations:
-        veoveo.ai/device-plugin-config: exclusive
+        veoveo.ai/device-plugin-config: exclusive-bootstrap
     spec:
       runtimeClassName: nvidia
       priorityClassName: system-node-critical

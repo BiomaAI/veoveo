@@ -60,7 +60,7 @@
       "name": "anonymous-simulation",
       "config": "cluster.yaml",
       "nodeBootstrapManifests": [
-        "nvidia-device-plugin-exclusive.yaml"
+        "nvidia-device-plugin.yaml"
       ]
     }
   },
@@ -85,6 +85,7 @@
     "installationPreset": "custom",
     "components": [
       "gateway",
+      "ingress",
       "platform-store",
       "object-store",
       "artifact-service",

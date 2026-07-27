@@ -616,7 +616,7 @@
         },
         "publicSignalingUrl": {
           "type": "string",
-          "pattern": "^(wss|https)://[^/?#]+/[^?#]*$"
+          "pattern": "^((wss|https)://[^/?#]+|ws://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?)/[^?#]*$"
         },
         "publicMediaHost": {
           "type": "string",
