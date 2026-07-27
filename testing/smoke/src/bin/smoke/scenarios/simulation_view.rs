@@ -31,6 +31,7 @@ pub(crate) async fn simulation_view_verify(
     context: &str,
     namespace: &str,
     public_base_url: &str,
+    work_context: &str,
     chrome_cdp_url: &str,
     timeout: Duration,
 ) -> Result<()> {
@@ -40,7 +41,8 @@ pub(crate) async fn simulation_view_verify(
     );
     verify_workloads_and_gpu(context, namespace, timeout)?;
 
-    let token = gateway_token_for_simulation_view(conformance, public_base_url).await?;
+    let token =
+        gateway_token_for_simulation_view(conformance, public_base_url, work_context).await?;
     let mcp_url = format!("{public_base_url}/mcp/operator");
     let session = connect_mcp_session(&mcp_url, &token).await?;
     verify_surface(&session).await?;
@@ -889,7 +891,11 @@ fn verify_workloads_and_gpu(context: &str, namespace: &str, timeout: Duration) -
     Ok(())
 }
 
-async fn gateway_token_for_simulation_view(conformance: &Path, base: &str) -> Result<String> {
+async fn gateway_token_for_simulation_view(
+    conformance: &Path,
+    base: &str,
+    work_context: &str,
+) -> Result<String> {
     let token_url = format!("{base}/oauth/token");
     let resource = format!("{base}/mcp/operator");
     let mut command = tokio::process::Command::new(conformance);
@@ -905,7 +911,7 @@ async fn gateway_token_for_simulation_view(conformance: &Path, base: &str) -> Re
             "--resource",
             &resource,
             "--work-context",
-            "simulation-view-acceptance",
+            work_context,
         ])
         .args(
             SIMULATION_VIEW_SCOPES

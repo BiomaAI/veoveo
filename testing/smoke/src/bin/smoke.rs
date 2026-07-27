@@ -506,6 +506,9 @@ enum Cmd {
         /// Public gateway and signaling origin.
         #[arg(long, default_value = "https://veoveo.bioma.ai")]
         public_base_url: String,
+        /// Work Context selected for the automated operator identity.
+        #[arg(long, default_value = "operations")]
+        work_context: String,
         /// DevTools endpoint of an already-running headed hardware-backed Chrome.
         #[arg(long, default_value = "http://127.0.0.1:9227")]
         chrome_cdp_url: String,
@@ -820,6 +823,7 @@ async fn main() -> Result<()> {
             context,
             namespace,
             public_base_url,
+            work_context,
             chrome_cdp_url,
             timeout_seconds,
         } => {
@@ -828,6 +832,7 @@ async fn main() -> Result<()> {
                 &context,
                 &namespace,
                 &public_base_url,
+                &work_context,
                 &chrome_cdp_url,
                 Duration::from_secs(timeout_seconds),
             )
