@@ -35,8 +35,8 @@ pub(crate) async fn simulation_view_verify(
     timeout: Duration,
 ) -> Result<()> {
     ensure!(
-        public_base_url.starts_with("https://"),
-        "Simulation View live acceptance requires public HTTPS"
+        secure_or_loopback_origin(public_base_url)?,
+        "Simulation View live acceptance requires public HTTPS or an exact loopback HTTP origin"
     );
     verify_workloads_and_gpu(context, namespace, timeout)?;
 
@@ -957,4 +957,43 @@ fn object_u64(value: &serde_json::Map<String, Value>, key: &str) -> Result<u64> 
         .get(key)
         .and_then(Value::as_u64)
         .with_context(|| format!("JSON object omitted integer `{key}`"))
+}
+
+fn secure_or_loopback_origin(value: &str) -> Result<bool> {
+    let origin = url::Url::parse(value).context("parsing Simulation View public origin")?;
+    ensure!(
+        origin.username().is_empty()
+            && origin.password().is_none()
+            && origin.path() == "/"
+            && origin.query().is_none()
+            && origin.fragment().is_none(),
+        "Simulation View public origin must not contain credentials, a path, query, or fragment"
+    );
+    if origin.scheme() == "https" {
+        return Ok(true);
+    }
+    if origin.scheme() != "http" {
+        return Ok(false);
+    }
+    Ok(match origin.host() {
+        Some(url::Host::Domain(host)) => host.eq_ignore_ascii_case("localhost"),
+        Some(url::Host::Ipv4(address)) => address.is_loopback(),
+        Some(url::Host::Ipv6(address)) => address.is_loopback(),
+        None => false,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::secure_or_loopback_origin;
+
+    #[test]
+    fn public_origin_is_https_or_exact_loopback_http() {
+        assert!(secure_or_loopback_origin("https://simulation.example").unwrap());
+        assert!(secure_or_loopback_origin("http://localhost:8782").unwrap());
+        assert!(secure_or_loopback_origin("http://127.0.0.1:8782").unwrap());
+        assert!(secure_or_loopback_origin("http://[::1]:8782").unwrap());
+        assert!(!secure_or_loopback_origin("http://simulation.example").unwrap());
+        assert!(secure_or_loopback_origin("http://localhost/path").is_err());
+    }
 }
