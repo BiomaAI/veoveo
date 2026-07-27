@@ -1,5 +1,6 @@
 use std::{
     collections::BTreeMap,
+    net::{IpAddr, Ipv4Addr},
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -58,7 +59,7 @@ impl Default for SimulationViewConfig {
             endpoint: LiveMediaEndpoint {
                 transport: LiveMediaTransport::WebRtc,
                 signaling_url: "https://simulation-view.invalid/signaling".to_owned(),
-                media_host: "simulation-view.invalid".to_owned(),
+                media_host: IpAddr::V4(Ipv4Addr::new(192, 0, 2, 10)),
                 media_port: 47998,
             },
             maximum_frame_age_ms: 500,

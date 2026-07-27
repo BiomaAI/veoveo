@@ -7,7 +7,6 @@ objectStore:
 
 simulationView:
   publicSignalingUrl: ws://localhost:8782/simulation-view/signaling
-  publicMediaHost: localhost
   publicMediaIp: 127.0.0.1
   ports:
     mediaBase: 48010

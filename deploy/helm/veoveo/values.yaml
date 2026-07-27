@@ -223,7 +223,6 @@ simulationView:
     tag: 0.1.0
     digest: ""
   publicSignalingUrl: wss://veoveo.enterprise.example/simulation-view/signaling
-  publicMediaHost: media.veoveo.enterprise.example
   publicMediaIp: 192.0.2.10
   ports:
     mcp: 8808
