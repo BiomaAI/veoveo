@@ -24,7 +24,7 @@ use crate::{
     contract::SimulationViewError, mcp::SimulationViewMcpState, state::SimulationViewService, uris,
 };
 
-const TOKEN_PROTOCOL_PREFIX: &str = "veoveo-live-token.";
+const TOKEN_PROTOCOL_PREFIX: &str = "authorization.bearer.";
 const SESSION_PROTOCOL_PREFIX: &str = "x-nv-sessionid.";
 const MAX_SIGNALING_MESSAGE_BYTES: usize = 16 * 1024 * 1024;
 
@@ -310,5 +310,25 @@ mod tests {
         );
         let traversal: axum::http::Uri = "/simulation-view/signaling/../admin".parse().unwrap();
         assert!(upstream_url(&base, &traversal, 0).is_err());
+    }
+
+    #[test]
+    fn nvidia_client_protocols_carry_the_live_token_and_session() {
+        let protocols = parse_protocols(
+            "authorization.bearer.secret-token, \
+             x-nv-sessionid.stream-019fa2fa-a651-7ba2-ac7a-927e95101e5b",
+        );
+        assert_eq!(
+            protocols
+                .iter()
+                .find_map(|protocol| protocol.strip_prefix(TOKEN_PROTOCOL_PREFIX)),
+            Some("secret-token")
+        );
+        assert_eq!(
+            protocols
+                .iter()
+                .find_map(|protocol| protocol.strip_prefix(SESSION_PROTOCOL_PREFIX)),
+            Some("stream-019fa2fa-a651-7ba2-ac7a-927e95101e5b")
+        );
     }
 }

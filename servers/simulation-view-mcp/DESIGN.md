@@ -168,8 +168,8 @@ exact `localhost` domain, an address in `127.0.0.0/8`, or `::1`. Credentials,
 queries, fragments, public WS hosts, and lookalike localhost domains are
 rejected by the shared live-view contract.
 
-The WebSocket proxy accepts the token in the
-`veoveo-live-token.{token}` subprotocol and the live-view identity in the
+The WebSocket proxy accepts NVIDIA OV WebRTC 6.6.0's
+`authorization.bearer.{token}` subprotocol and the live-view identity in the
 `x-nv-sessionid.{id}` subprotocol. It removes the token before opening the
 private renderer connection, preserves the renderer signaling path, and
 disconnects when the lease closes or expires. One URI or camera identity does
