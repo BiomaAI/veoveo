@@ -644,6 +644,7 @@
           "id": "allow_simulation_view_streams",
           "effect": "allow",
           "actions": [
+            "tools_list",
             "tools_call",
             "resources_read"
           ],
@@ -718,6 +719,7 @@
           "id": "allow_simulation_view_write_tools",
           "effect": "allow",
           "actions": [
+            "tools_list",
             "tools_call"
           ],
           "profiles": [
