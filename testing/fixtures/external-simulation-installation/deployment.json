@@ -33,16 +33,16 @@
       "role": "extension",
       "repository": {
         "kind": "local",
-        "path": "../external-simulation-extension"
+        "path": "../../.."
       },
       "revision": "HEAD",
       "imageGroups": [
-        "anonymous-simulation-extension"
+        "external-simulation-extension-fixture"
       ],
       "releases": [
         {
           "name": "anonymous-simulation",
-          "chart": "deploy/helm",
+          "chart": "testing/fixtures/external-simulation-extension/deploy/helm",
           "values": [],
           "valuesContract": "extension",
           "createNamespace": false,

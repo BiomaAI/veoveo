@@ -95,6 +95,10 @@ group "external-simulation-platform" {
   ]
 }
 
+group "external-simulation-extension-fixture" {
+  targets = ["anonymous-simulation-mcp"]
+}
+
 group "showcase-sumo" {
   targets = ["sumo-sim", "sumo-mcp"]
 }
@@ -548,6 +552,23 @@ target "simulation-view-isaac" {
   }
   args = {
     SIMULATION_RUNTIME_IMAGE = "simulation-runtime"
+  }
+}
+
+target "anonymous-simulation-mcp" {
+  context    = "testing/fixtures/external-simulation-extension"
+  dockerfile = "Dockerfile"
+  platforms  = ["linux/amd64"]
+  tags = [
+    format(
+      "%sextensions/anonymous-simulation-mcp:%s",
+      VEOVEO_REGISTRY != "" ? format("%s/", VEOVEO_REGISTRY) : "",
+      VEOVEO_IMAGE_TAG,
+    ),
+  ]
+  labels = {
+    "org.opencontainers.image.title" = "Anonymous external Simulation View producer fixture"
+    "io.veoveo.extension.role"       = "simulation-producer"
   }
 }
 
