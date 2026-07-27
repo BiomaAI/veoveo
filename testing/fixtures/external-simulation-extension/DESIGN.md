@@ -37,9 +37,12 @@ fragment, and configures package, image, chart, and certificate credentials.
 ## MCP Surface
 
 `prepare_scene` publishes fixture-owned USDA bytes through the Artifact data
-plane and returns a typed immutable scene declaration. `start_pose_producer`
-and `stop_pose_producer` control only the fixture's private publisher.
-`get_fixture_state` reports lifecycle and redacted counters.
+plane and returns a typed immutable scene declaration that retains canonical
+Artifact and Frames resource identifiers. The gateway fragment declares both
+cross-server schemes, while its own resources remain under
+`anonymous-simulation://`. `start_pose_producer` and `stop_pose_producer`
+control only the fixture's private publisher. `get_fixture_state` reports
+lifecycle and redacted counters.
 
 The resource surface contains the current producer state, embedded design and
 agent documents, and the hosted-server contract declaration. No resource
