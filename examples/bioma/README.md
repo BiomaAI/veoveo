@@ -126,6 +126,13 @@ Each required workload still requests nvidia.com/gpu: 1 and the nvidia runtime
 class. The shares make all six render and GPU-compute workloads schedulable
 together; they are not a CPU fallback.
 
+The local fixture advertises Simulation View signaling through
+`wss://veoveo.bioma.ai/simulation-view/signaling` and its first UDP media slot
+through `127.0.0.1:47998`. The k3d port binding makes that endpoint reachable
+from the headed Chrome session on the same workstation. An installation on a
+different network must advertise its routable signaling origin and UDP media
+address instead.
+
 Install the local platform fixture separately:
 
 ~~~bash

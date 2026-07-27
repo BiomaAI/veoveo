@@ -18,6 +18,9 @@ consoleBff:
   replicas: 1
 telemetry:
   enabled: false
+simulationView:
+  publicSignalingUrl: wss://veoveo.bioma.ai/simulation-view/signaling
+  publicMediaIp: 127.0.0.1
 networkPolicy:
   enabled: false
 podDisruptionBudget:
