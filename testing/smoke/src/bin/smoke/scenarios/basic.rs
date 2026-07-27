@@ -214,6 +214,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: artifact-service",
         "name: recording-hub",
         "name: console-bff",
+        "name: render-control",
         "port: 9878",
         "host: localhost",
         "path: /s",
@@ -223,7 +224,11 @@ pub(crate) async fn helm_config() -> Result<()> {
     ] {
         contains(&platform, expected)?;
     }
-    for forbidden in ["OTEL_EXPORTER_OTLP_ENDPOINT", "port: 9876"] {
+    for forbidden in [
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "name: renderer-control",
+        "port: 9876",
+    ] {
         if platform.contains(forbidden) {
             bail!("canonical Helm render must not contain `{forbidden}`");
         }
