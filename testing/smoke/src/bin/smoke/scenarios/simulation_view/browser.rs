@@ -7,7 +7,10 @@ use tokio::{
     net::{TcpListener, TcpStream},
     sync::oneshot,
 };
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async, tungstenite::Message};
+use tokio_tungstenite::{
+    MaybeTlsStream, WebSocketStream, connect_async,
+    tungstenite::{Message, http::StatusCode},
+};
 use url::Url;
 
 use super::*;
@@ -480,7 +483,7 @@ impl Cdp {
         );
         let (socket, response) = connect_async(url).await?;
         ensure!(
-            response.status().is_success(),
+            response.status() == StatusCode::SWITCHING_PROTOCOLS,
             "Chrome DevTools WebSocket returned {}",
             response.status()
         );
