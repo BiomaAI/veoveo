@@ -5,6 +5,7 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     process::Command,
+    sync::Arc,
 };
 
 use anyhow::{Context, Result, bail, ensure};
@@ -38,7 +39,7 @@ struct PreparedSourceRelease {
     phases: Vec<PreparedImagePhase>,
     images: Vec<PlannedImage>,
     charts: Vec<LockedChart>,
-    _publication: PublicationSource,
+    _publication: Arc<PublicationSource>,
 }
 
 use crate::{
@@ -271,12 +272,14 @@ fn release_profile_images(
     let registry = committed_profile.definition.registry.address.clone();
     validate_registry(&registry)?;
     let mut prepared_sources = Vec::new();
+    let mut publications = BTreeMap::new();
     for source in &committed_profile.definition.sources {
         prepared_sources.push(prepare_profile_source(
             repository,
             &working_profile,
             source,
             &registry,
+            &mut publications,
         )?);
     }
     let planned_images = prepared_sources
@@ -314,6 +317,7 @@ fn prepare_profile_source(
     working_profile: &LoadedProfile,
     source: &DeploymentSource,
     registry: &str,
+    publications: &mut BTreeMap<(PathBuf, String), Arc<PublicationSource>>,
 ) -> Result<PreparedSourceRelease> {
     let source_root = match &source.repository {
         SourceRepository::Local { .. } => working_profile.local_source_root(source)?,
@@ -326,7 +330,23 @@ fn prepare_profile_source(
         )
     })?;
     let origin = source_repository.origin()?;
-    let publication = PublicationSource::prepare(&source_repository, &source.revision)?;
+    let revision = super::source::resolve_revision(source_repository.root(), &source.revision)?;
+    let identity = (
+        fs::canonicalize(source_repository.root()).with_context(|| {
+            format!(
+                "resolving deployment source repository {}",
+                source_repository.root().display()
+            )
+        })?,
+        revision.clone(),
+    );
+    let publication = if let Some(publication) = publications.get(&identity) {
+        publication.clone()
+    } else {
+        let publication = Arc::new(PublicationSource::prepare(&source_repository, &revision)?);
+        publications.insert(identity, publication.clone());
+        publication
+    };
     let revision = publication.revision().to_owned();
     let selected_repository = RepositoryContext::discover(publication.path())?;
     let environment = publication_environment(registry, &revision);

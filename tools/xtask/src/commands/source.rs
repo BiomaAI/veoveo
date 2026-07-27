@@ -153,7 +153,7 @@ pub(crate) fn source_hash(repository: &RepositoryContext) -> Result<String> {
     Ok(PublicationLayout::discover(repository)?.source_id)
 }
 
-fn resolve_revision(repository: &Path, revision: &str) -> Result<String> {
+pub(crate) fn resolve_revision(repository: &Path, revision: &str) -> Result<String> {
     ensure!(!revision.trim().is_empty(), "revision cannot be empty");
     let expression = format!("{revision}^{{commit}}");
     let resolved = process::output_text(
