@@ -143,6 +143,20 @@ spec:
             - name: XDG_CACHE_HOME
               value: /tmp/wgpu-cache
             {{- end }}
+            {{- if eq $service.name "rerun-bridge" }}
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: graphics,compute,utility
+            - name: WGPU_BACKEND
+              value: vulkan
+            - name: WGPU_POWER_PREF
+              value: high
+            - name: HOME
+              value: /var/lib/veoveo/runtime
+            - name: XDG_CACHE_HOME
+              value: /tmp/wgpu-cache
+            {{- end }}
           ports:
             - name: http
               containerPort: {{ $service.port }}
