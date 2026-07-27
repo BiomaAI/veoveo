@@ -823,10 +823,62 @@ fn verify_workloads_and_gpu(context: &str, namespace: &str, timeout: Duration) -
             })
             .sum::<u64>();
         match name {
-            "simulation-view-renderer" => ensure!(
-                gpu_limits == 1,
-                "Simulation View renderer must request exactly one NVIDIA GPU"
-            ),
+            "simulation-view-renderer" => {
+                ensure!(
+                    gpu_limits == 1,
+                    "Simulation View renderer must request exactly one NVIDIA GPU"
+                );
+                let renderer = item
+                    .pointer("/spec/template/spec/containers")
+                    .and_then(Value::as_array)
+                    .and_then(|containers| {
+                        containers.iter().find(|container| {
+                            container.get("name").and_then(Value::as_str)
+                                == Some("simulation-view-isaac")
+                        })
+                    })
+                    .context("Simulation View deployment omitted the Isaac container")?;
+                ensure!(
+                    renderer
+                        .pointer("/securityContext/readOnlyRootFilesystem")
+                        .and_then(Value::as_bool)
+                        == Some(true),
+                    "Simulation View Isaac root filesystem must remain read-only"
+                );
+                let environment = renderer
+                    .get("env")
+                    .and_then(Value::as_array)
+                    .context("Simulation View Isaac container omitted its environment")?;
+                for (variable, expected) in [
+                    ("HOME", "/var/lib/veoveo/runtime-cache/simulation-view/home"),
+                    (
+                        "MPLCONFIGDIR",
+                        "/var/lib/veoveo/runtime-cache/simulation-view/matplotlib",
+                    ),
+                    (
+                        "WARP_CACHE_PATH",
+                        "/var/lib/veoveo/runtime-cache/simulation-view/warp",
+                    ),
+                    (
+                        "XDG_CACHE_HOME",
+                        "/var/lib/veoveo/runtime-cache/simulation-view/xdg-cache",
+                    ),
+                    (
+                        "XDG_DATA_HOME",
+                        "/var/lib/veoveo/runtime-cache/simulation-view/xdg-data",
+                    ),
+                ] {
+                    let actual = environment.iter().find_map(|entry| {
+                        (entry.get("name").and_then(Value::as_str) == Some(variable))
+                            .then(|| entry.get("value").and_then(Value::as_str))
+                            .flatten()
+                    });
+                    ensure!(
+                        actual == Some(expected),
+                        "Simulation View Isaac {variable} must resolve beneath its writable runtime cache"
+                    );
+                }
+            }
             "anonymous-simulation-mcp" => ensure!(
                 gpu_limits == 0,
                 "anonymous pose producer must remain CPU-only"

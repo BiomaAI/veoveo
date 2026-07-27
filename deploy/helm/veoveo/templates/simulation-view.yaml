@@ -354,6 +354,16 @@ spec:
               value: /dev/shm/veoveo/simulation-view
             - name: SIMULATION_VIEW_RENDERER_CACHE_DIRECTORY
               value: /var/lib/veoveo/runtime-cache/simulation-view
+            - name: HOME
+              value: /var/lib/veoveo/runtime-cache/simulation-view/home
+            - name: MPLCONFIGDIR
+              value: /var/lib/veoveo/runtime-cache/simulation-view/matplotlib
+            - name: WARP_CACHE_PATH
+              value: /var/lib/veoveo/runtime-cache/simulation-view/warp
+            - name: XDG_CACHE_HOME
+              value: /var/lib/veoveo/runtime-cache/simulation-view/xdg-cache
+            - name: XDG_DATA_HOME
+              value: /var/lib/veoveo/runtime-cache/simulation-view/xdg-data
             - name: SIMULATION_VIEW_RENDERER_CONTROL_PORT
               value: {{ $view.ports.rendererControl | quote }}
             - name: SIMULATION_VIEW_MAXIMUM_RENDER_SLOTS
