@@ -23,6 +23,15 @@ RESULT_MARKER = "VEOVEO_SIMULATION_PROBE_RESULT="
 STEP_MARKER = "VEOVEO_SIMULATION_PROBE_STEP="
 OVERLAY_IDENTITY_PATH = Path("/opt/veoveo/simulation-overlay/identity.json")
 ISAAC_LAB_REVISION_PATH = Path("/opt/veoveo/isaaclab/.veoveo-source-revision")
+RTX_NVRTC_ROOT = (
+    Path("/isaac-sim")
+    / "extsDeprecated/omni.isaac.ml_archive/pip_prebundle"
+    / "nvidia/cuda_nvrtc/lib"
+)
+RTX_NVRTC_BUILTINS = (
+    "libnvrtc-builtins.so.12.8",
+    "libnvrtc-builtins.alt.so.12.8",
+)
 SYNTHETIC_TORCH_MODULES = {
     ("torch.classes", "_classes.py"),
     ("torch.ops", "_ops.py"),
@@ -98,6 +107,14 @@ def _verify_tuple(
     observed["python"] = ".".join(str(part) for part in sys.version_info[:3])
     observed["torch"] = torch.__version__
     observed["cuda"] = str(torch.version.cuda)
+    missing_rtx_nvrtc = [
+        library for library in RTX_NVRTC_BUILTINS if not (RTX_NVRTC_ROOT / library).is_file()
+    ]
+    if missing_rtx_nvrtc:
+        raise RuntimeError(
+            f"Isaac RTX NVRTC builtins are missing: {missing_rtx_nvrtc}"
+        )
+    observed["isaac_rtx_nvrtc"] = expected["isaac_rtx_nvrtc"]["version"]
     observed["kit"] = expected["kit"]["version"]
     for name, value in observed.items():
         if value != expected[name]["version"]:

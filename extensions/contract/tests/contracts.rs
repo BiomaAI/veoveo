@@ -209,7 +209,9 @@ fn simulation_components() -> Vec<RuntimeComponentVersion> {
         (RuntimeComponent::Mujoco, "3.10.0", None),
         (RuntimeComponent::MujocoWarp, "3.10.0.3", None),
         (RuntimeComponent::Python, "3.12.13", None),
-        (RuntimeComponent::Cuda, "12.9", None),
+        (RuntimeComponent::Torch, "2.12.0+cu130", None),
+        (RuntimeComponent::Cuda, "13.0", None),
+        (RuntimeComponent::IsaacRtxNvrtc, "12.8.61", None),
         (RuntimeComponent::Kit, "110.1.2", None),
     ]
     .into_iter()
@@ -254,7 +256,11 @@ fn simulation_build_lock_requires_complete_immutable_tuple() {
             filename: "warp_lang-1.15.0-py3-none-manylinux_2_28_x86_64.whl".to_owned(),
             digest: digest('b'),
         }],
-        authoritative_package_roots: vec!["newton".to_owned(), "warp".to_owned()],
+        authoritative_package_roots: vec![
+            "newton".to_owned(),
+            "torch".to_owned(),
+            "warp".to_owned(),
+        ],
         overlay_immutable_components: immutable,
         gpu: SimulationGpuRequirement {
             runtime: GpuRuntimeRequirement {

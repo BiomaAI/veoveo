@@ -37,7 +37,9 @@ struct ObservedComponents {
     mujoco: String,
     mujoco_warp: String,
     python: String,
+    torch: String,
     cuda: String,
+    isaac_rtx_nvrtc: String,
     kit: String,
 }
 
@@ -52,7 +54,9 @@ impl ObservedComponents {
             ("mujoco_warp", self.mujoco_warp.as_str()),
             ("newton", self.newton.as_str()),
             ("python", self.python.as_str()),
+            ("torch", self.torch.as_str()),
             ("warp", self.warp.as_str()),
+            ("isaac_rtx_nvrtc", self.isaac_rtx_nvrtc.as_str()),
         ])
     }
 }
@@ -70,6 +74,7 @@ struct ProbeHardware {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ModuleRoots {
+    torch: String,
     warp: String,
     newton: String,
 }
@@ -350,9 +355,13 @@ fn validate_probe(
         "independent RTX camera evidence is incomplete"
     );
     ensure!(
-        payload.module_roots.warp.contains("omni.warp.core")
+        payload
+            .module_roots
+            .torch
+            .contains("omni.isaac.ml_archive/pip_prebundle/torch")
+            && payload.module_roots.warp.contains("omni.warp.core")
             && payload.module_roots.newton.contains("isaacsim.pip.newton"),
-        "Warp and Newton did not load from Kit's authoritative roots"
+        "Torch, Warp, and Newton did not load from their authoritative roots"
     );
     ensure!(
         payload.overlay.kind == expected_overlay
