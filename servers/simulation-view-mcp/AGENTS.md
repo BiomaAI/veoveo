@@ -56,9 +56,9 @@ Contract revision: 2
 - C12: met
 - C13: met
 - C14: met
-- C15: pending — OCI image and Helm chart are not yet committed
-- C16: pending — typed gateway registration is not yet committed
-- C17: pending — registration does not yet state contract revision 2
+- C15: met
+- C16: met
+- C17: met
 - C18: met
 - C19: met
 - C20: met
@@ -70,5 +70,5 @@ Contract revision: 2
 - C26: met
 - C27: met
 - C28: met
-- C29: pending — deployment replacement strategy is not yet declared
+- C29: met
 - C30: met

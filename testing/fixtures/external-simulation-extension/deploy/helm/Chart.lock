@@ -1,0 +1,6 @@
+dependencies:
+- name: veoveo-extension
+  repository: oci://registry.example.internal/veoveo/charts
+  version: 0.1.0
+digest: sha256:c22275f698e5d1361568f4633b8494691022dc2d830e305a79d23a74204dbf8f
+generated: "2026-07-26T20:00:00Z"

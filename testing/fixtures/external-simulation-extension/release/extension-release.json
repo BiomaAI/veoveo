@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "veoveo.io/extension-release/v1",
+  "extension": "anonymous-simulation.example",
+  "version": "0.1.0",
+  "source": {
+    "name": "anonymous-simulation-source",
+    "revision": "2222222222222222222222222222222222222222"
+  },
+  "compatibilityRelease": "0.1.0",
+  "artifacts": [
+    {
+      "name": "anonymous-simulation-image",
+      "kind": "oci_image",
+      "version": "0.1.0",
+      "coordinate": "oci://registry.example.internal/extensions/anonymous-simulation-mcp@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "platform": {
+        "operatingSystem": "linux",
+        "architecture": "amd64"
+      },
+      "mediaType": "application/vnd.oci.image.manifest.v1+json"
+    },
+    {
+      "name": "anonymous-simulation-sbom",
+      "kind": "sbom",
+      "version": "0.1.0",
+      "coordinate": "oci://registry.example.internal/extensions/anonymous-simulation-mcp-sbom@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "mediaType": "application/spdx+json"
+    },
+    {
+      "name": "anonymous-simulation-provenance",
+      "kind": "provenance",
+      "version": "0.1.0",
+      "coordinate": "oci://registry.example.internal/extensions/anonymous-simulation-mcp-provenance@sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "mediaType": "application/vnd.in-toto+json"
+    }
+  ],
+  "helmChart": {
+    "name": "anonymous-simulation-chart",
+    "kind": "helm_chart",
+    "version": "0.1.0",
+    "coordinate": "oci://registry.example.internal/extensions/charts/anonymous-simulation:0.1.0",
+    "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+  },
+  "gatewayFragment": {
+    "name": "anonymous-simulation-fragment",
+    "kind": "gateway_server_fragment",
+    "version": "0.1.0",
+    "coordinate": "https://artifacts.example.internal/extensions/anonymous-simulation/0.1.0/gateway-fragment.json",
+    "digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555"
+  },
+  "conformanceResults": [
+    {
+      "name": "anonymous-simulation-conformance",
+      "kind": "conformance_result",
+      "version": "0.1.0",
+      "coordinate": "https://artifacts.example.internal/extensions/anonymous-simulation/0.1.0/conformance-result.json",
+      "digest": "sha256:6666666666666666666666666666666666666666666666666666666666666666"
+    }
+  ],
+  "simulationOverlay": null
+}

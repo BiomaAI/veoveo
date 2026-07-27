@@ -155,6 +155,47 @@ fn anonymous_extension_release_example_is_valid() {
     assert!(Validator::new(&schema).expect("schema").is_valid(&value));
 }
 
+#[test]
+fn external_simulation_fixture_selects_valid_compatibility_and_release_contracts() {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let compatibility_path = repository
+        .join("testing/fixtures/external-simulation-extension/compatibility/manifest.json");
+    let compatibility = serde_json::from_slice::<CompatibilityManifest>(
+        &std::fs::read(compatibility_path).expect("read fixture compatibility manifest"),
+    )
+    .expect("decode fixture compatibility manifest");
+    compatibility
+        .validate()
+        .expect("validate fixture compatibility manifest");
+    let compatibility_value =
+        serde_json::to_value(compatibility).expect("serialize fixture compatibility manifest");
+    let compatibility_schema =
+        serde_json::to_value(compatibility_manifest_schema()).expect("serialize schema");
+    assert!(
+        Validator::new(&compatibility_schema)
+            .expect("compatibility schema")
+            .is_valid(&compatibility_value)
+    );
+
+    let release_path = repository
+        .join("testing/fixtures/external-simulation-extension/release/extension-release.json");
+    let release = serde_json::from_slice::<ExtensionReleaseManifest>(
+        &std::fs::read(release_path).expect("read fixture release manifest"),
+    )
+    .expect("decode fixture release manifest");
+    release
+        .validate()
+        .expect("validate fixture release manifest");
+    let release_value = serde_json::to_value(release).expect("serialize fixture release manifest");
+    let release_schema =
+        serde_json::to_value(extension_release_schema()).expect("serialize schema");
+    assert!(
+        Validator::new(&release_schema)
+            .expect("extension release schema")
+            .is_valid(&release_value)
+    );
+}
+
 fn simulation_components() -> Vec<RuntimeComponentVersion> {
     [
         (RuntimeComponent::IsaacSim, "6.0.1", None),

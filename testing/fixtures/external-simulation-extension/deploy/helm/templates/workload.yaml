@@ -1,0 +1,109 @@
+{{- $labels := dict
+    "name" "anonymous-simulation"
+    "releaseName" .Release.Name
+    "managedBy" .Release.Service
+    "chart" (printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_")
+    "installation" .Values.veoveo.installationId
+    "component" "anonymous-simulation-mcp"
+-}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: anonymous-simulation-mcp
+  labels:
+    {{- include "veoveo-extension.labels" $labels | nindent 4 }}
+spec:
+  selector:
+    {{- include "veoveo-extension.selectorLabels" $labels | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: anonymous-simulation-mcp
+  labels:
+    {{- include "veoveo-extension.labels" $labels | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "veoveo-extension.selectorLabels" $labels | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "veoveo-extension.selectorLabels" $labels | nindent 8 }}
+        veoveo.ai/simulation-view-pose-producer: "true"
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "veoveo-extension.podSecurityContext" . | nindent 8 }}
+      imagePullSecrets:
+        {{- toYaml .Values.veoveo.imagePullSecrets | nindent 8 }}
+      containers:
+        - name: anonymous-simulation-mcp
+          image: {{ include "veoveo-extension.image" (dict
+              "image" .Values.image
+              "registry" .Values.veoveo.registry
+              "production" .Values.veoveo.production
+              "sourceTag" .Values.veoveo.sourceTag
+              "imageDigests" .Values.veoveo.imageDigests
+            ) }}
+          imagePullPolicy: IfNotPresent
+          args:
+            - --allowed-host
+            - {{ printf "anonymous-simulation-mcp:%d" (int .Values.service.port) | quote }}
+          env:
+            - name: VEOVEO_INTERNAL_TRUST_JWKS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.veoveo.installationSecret | quote }}
+                  key: internal-trust-jwks
+            - name: ARTIFACT_SERVICE_URL
+              value: {{ .Values.artifactServiceUrl | quote }}
+            - name: ANONYMOUS_SIMULATION_PRODUCER_ID
+              value: {{ .Values.pose.producerId | quote }}
+            - name: ANONYMOUS_SIMULATION_PRODUCER_SPIFFE_ID
+              value: {{ .Values.pose.producerSpiffeId | quote }}
+            - name: ANONYMOUS_SIMULATION_POSE_HOST
+              value: {{ .Values.pose.endpointHost | quote }}
+            - name: ANONYMOUS_SIMULATION_POSE_PORT
+              value: {{ .Values.pose.endpointPort | quote }}
+            - name: ANONYMOUS_SIMULATION_POSE_SERVER_HOSTNAME
+              value: {{ .Values.pose.serverHostname | quote }}
+            - name: ANONYMOUS_SIMULATION_POSE_CA_CERTIFICATE
+              value: /run/secrets/simulation-view-pose/ca.crt
+            - name: ANONYMOUS_SIMULATION_POSE_CLIENT_CERTIFICATE
+              value: /run/secrets/simulation-view-pose/tls.crt
+            - name: ANONYMOUS_SIMULATION_POSE_CLIENT_PRIVATE_KEY
+              value: /run/secrets/simulation-view-pose/tls.key
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+          {{- include "veoveo-extension.httpProbes" (dict
+              "startupPath" "/anonymous-simulation/healthz"
+              "readinessPath" "/anonymous-simulation/readyz"
+              "livenessPath" "/anonymous-simulation/healthz"
+              "host" (printf "anonymous-simulation-mcp:%d" (int .Values.service.port))
+            ) | nindent 10 }}
+          securityContext:
+            {{- include "veoveo-extension.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: pose-client-tls
+              mountPath: /run/secrets/simulation-view-pose
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: pose-client-tls
+          secret:
+            secretName: {{ .Values.pose.existingClientTlsSecret | quote }}
+            defaultMode: 0440
+        - name: tmp
+          emptyDir: {}

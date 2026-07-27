@@ -1,0 +1,39 @@
+[project]
+name = "anonymous-simulation-mcp"
+version = "0.1.0"
+description = "Anonymous external Simulation View producer acceptance fixture"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "veoveo-mcp==0.1.0",
+    "mcp==1.28.1",
+    "pydantic==2.13.4",
+    "uvicorn==0.51.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+]
+
+[project.scripts]
+anonymous-simulation-mcp = "anonymous_simulation_mcp.main:main"
+
+[build-system]
+requires = ["hatchling==1.31.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/anonymous_simulation_mcp"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.uv.sources]
+veoveo-mcp = {index = "veoveo"}
+
+[[tool.uv.index]]
+name = "veoveo"
+url = "https://packages.example.internal/veoveo/simple"
+explicit = true

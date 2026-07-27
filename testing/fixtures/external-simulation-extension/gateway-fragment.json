@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "veoveo.io/gateway-server-fragment/v1",
+  "server": {
+    "slug": "anonymous-simulation",
+    "uri_scheme": "anonymous-simulation",
+    "mount_path": "/anonymous-simulation",
+    "mcp_path": "/anonymous-simulation/mcp",
+    "upstream": {
+      "transport": "streamable_http",
+      "url": "http://anonymous-simulation-mcp:8812/anonymous-simulation/mcp",
+      "security": "cluster_internal_http"
+    },
+    "capabilities": {
+      "tools": true,
+      "resources": true,
+      "apps": false,
+      "resource_templates": false,
+      "resource_subscriptions": false,
+      "prompts": false,
+      "completions": false,
+      "tasks": false,
+      "tools_list_changed": false,
+      "prompts_list_changed": false,
+      "resources_list_changed": false
+    },
+    "resource_projection": "server_owned",
+    "tools": [
+      "prepare_scene",
+      "start_pose_producer",
+      "stop_pose_producer",
+      "get_fixture_state"
+    ],
+    "required_scopes": [
+      "operator:use"
+    ],
+    "metadata": {
+      "contract_revision": 2,
+      "role": "simulation_view_pose_producer"
+    }
+  },
+  "requiredPlatformCapabilities": [
+    "artifact",
+    "frames",
+    "simulation_view"
+  ],
+  "requiredArtifactAudiences": [
+    "anonymous-simulation"
+  ],
+  "recordingProducerRequired": false,
+  "metadata": {
+    "fixture": "anonymous_external_simulation"
+  }
+}

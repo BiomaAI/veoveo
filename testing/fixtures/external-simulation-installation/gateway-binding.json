@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "veoveo.io/gateway-binding/v1",
+  "server": "anonymous-simulation",
+  "profiles": [
+    {
+      "profile": "operator",
+      "tools": {
+        "mode": "listed",
+        "items": [
+          "prepare_scene",
+          "start_pose_producer",
+          "stop_pose_producer",
+          "get_fixture_state"
+        ]
+      },
+      "resources": {
+        "mode": "listed",
+        "items": [
+          {
+            "kind": "scheme",
+            "scheme": "anonymous-simulation"
+          }
+        ]
+      },
+      "prompts": {
+        "mode": "none"
+      },
+      "completions": "disabled",
+      "tasks": "disabled"
+    }
+  ],
+  "policyRules": [
+    {
+      "policyVersion": "2026-07-02",
+      "rules": [
+        {
+          "id": "allow_anonymous_simulation_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "anonymous-simulation"
+          ],
+          "tools": [
+            "prepare_scene",
+            "start_pose_producer",
+            "stop_pose_producer",
+            "get_fixture_state"
+          ],
+          "resource_schemes": [
+            "anonymous-simulation"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        }
+      ]
+    }
+  ],
+  "allowedArtifactAudiences": [
+    "anonymous-simulation"
+  ],
+  "metadata": {
+    "owner": "installation"
+  }
+}

@@ -82,6 +82,19 @@ group "external-extension-platform" {
   ]
 }
 
+group "external-simulation-platform" {
+  targets = [
+    "mcp-gateway",
+    "artifact-service",
+    "artifact-mcp",
+    "frames-mcp",
+    "simulation-runtime",
+    "simulation-view-mcp",
+    "simulation-view-pose",
+    "simulation-view-isaac",
+  ]
+}
+
 group "showcase-sumo" {
   targets = ["sumo-sim", "sumo-mcp"]
 }
