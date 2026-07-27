@@ -1043,7 +1043,21 @@ fn secure_or_loopback_origin(value: &str) -> Result<bool> {
 
 #[cfg(test)]
 mod tests {
-    use super::secure_or_loopback_origin;
+    use super::{follow_camera_definition, secure_or_loopback_origin};
+
+    #[test]
+    fn follow_camera_uses_the_tagged_rig_wire_shape() {
+        let definition = follow_camera_definition(0);
+        assert_eq!(
+            definition
+                .pointer("/rig/targetEntity")
+                .and_then(|v| v.as_str()),
+            Some("entity-1")
+        );
+        assert!(definition.pointer("/rig/target_entity").is_none());
+        assert!(definition.pointer("/rig/offsetFluM").is_some());
+        assert!(definition.pointer("/rig/smoothingSeconds").is_some());
+    }
 
     #[test]
     fn public_origin_is_https_or_exact_loopback_http() {
