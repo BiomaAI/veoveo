@@ -449,6 +449,54 @@
       "resource_projection": "server_owned"
     },
     {
+      "slug": "simulation-view",
+      "uri_scheme": "simulation-view",
+      "mount_path": "/simulation-view",
+      "mcp_path": "/simulation-view/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://simulation-view-mcp:8820/simulation-view/mcp",
+        "security": "cluster_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": true,
+        "prompts": false,
+        "completions": false,
+        "tasks": false,
+        "resources_list_changed": true,
+        "apps": true
+      },
+      "tools": [
+        "authorize_pose_producer",
+        "bind_scene",
+        "close_camera",
+        "close_live_view",
+        "close_session",
+        "create_camera",
+        "create_session",
+        "get_capacity",
+        "get_session_state",
+        "open_live_view",
+        "renew_live_view",
+        "revoke_pose_producer",
+        "set_camera"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {
+        "renderer_profile": "isaac_rtx"
+      },
+      "resource_projection": "server_owned",
+      "referenced_resource_schemes": [
+        "artifact",
+        "frames"
+      ]
+    },
+    {
       "slug": "time",
       "uri_scheme": "time",
       "mount_path": "/time",
@@ -682,6 +730,9 @@
       ],
       "required_scopes": [
         "operator:use",
+        "simulation-view:read",
+        "simulation-view:write",
+        "simulation-view:stream",
         "view:read",
         "view:write",
         "view:capture",
@@ -960,6 +1011,30 @@
           "tasks": "enabled"
         },
         {
+          "server": "simulation-view",
+          "tools": {
+            "mode": "all"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "simulation-view"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://simulation-view/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
+        },
+        {
           "server": "time",
           "tools": {
             "mode": "all"
@@ -1136,6 +1211,30 @@
           },
           "completions": "enabled",
           "tasks": "enabled"
+        },
+        {
+          "server": "simulation-view",
+          "tools": {
+            "mode": "all"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "simulation-view"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://simulation-view/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
         },
         {
           "server": "uav-sim",
@@ -2831,6 +2930,95 @@
           "metadata": {}
         },
         {
+          "id": "allow_simulation_view_surface_read",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "simulation-view"
+          ],
+          "tools": [
+            "get_capacity",
+            "get_session_state"
+          ],
+          "resource_schemes": [
+            "simulation-view"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "simulation-view:read"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_simulation_view_write_tools",
+          "effect": "allow",
+          "actions": [
+            "tools_call"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "simulation-view"
+          ],
+          "tools": [
+            "authorize_pose_producer",
+            "bind_scene",
+            "close_camera",
+            "close_session",
+            "create_camera",
+            "create_session",
+            "revoke_pose_producer",
+            "set_camera"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "simulation-view:write"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_simulation_view_streams",
+          "effect": "allow",
+          "actions": [
+            "tools_call",
+            "resources_read"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "simulation-view"
+          ],
+          "tools": [
+            "close_live_view",
+            "open_live_view",
+            "renew_live_view"
+          ],
+          "resource_schemes": [
+            "ui"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "simulation-view:stream"
+          ],
+          "metadata": {}
+        },
+        {
           "id": "allow_map_surface_read",
           "effect": "allow",
           "actions": [
@@ -4063,6 +4251,9 @@
       ],
       "allowed_scopes": [
         "operator:use",
+        "simulation-view:read",
+        "simulation-view:write",
+        "simulation-view:stream",
         "view:read",
         "view:write",
         "view:capture",
@@ -4123,6 +4314,9 @@
       ],
       "allowed_scopes": [
         "operator:use",
+        "simulation-view:read",
+        "simulation-view:write",
+        "simulation-view:stream",
         "view:read",
         "view:write",
         "view:capture",
@@ -4173,6 +4367,9 @@
       "allowed_scopes": [
         "operator:use",
         "admin:manage",
+        "simulation-view:read",
+        "simulation-view:write",
+        "simulation-view:stream",
         "view:read",
         "view:write",
         "view:capture",
@@ -4223,6 +4420,9 @@
       ],
       "allowed_scopes": [
         "operator:use",
+        "simulation-view:read",
+        "simulation-view:write",
+        "simulation-view:stream",
         "view:read",
         "view:write",
         "view:capture",
@@ -4267,6 +4467,9 @@
       "allowed_scopes": [
         "operator:use",
         "admin:manage",
+        "simulation-view:read",
+        "simulation-view:write",
+        "simulation-view:stream",
         "view:read",
         "view:write",
         "view:capture",
@@ -4314,6 +4517,9 @@
       ],
       "allowed_scopes": [
         "operator:use",
+        "simulation-view:read",
+        "simulation-view:write",
+        "simulation-view:stream",
         "view:read",
         "view:write",
         "view:capture",
