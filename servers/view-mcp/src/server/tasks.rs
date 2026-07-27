@@ -3,7 +3,7 @@ use std::{collections::BTreeSet, sync::Arc, time::Duration};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
-use veoveo_mcp_contract::{GatewayInternalIdentity, PrincipalKind};
+use veoveo_mcp_contract::{GatewayInternalIdentity, PrincipalId, PrincipalKind};
 use veoveo_mcp_task_extension::{
     AcknowledgeTaskResult, AdapterError, CancelTaskParams, CreateTaskResult, GetTaskParams,
     GetTaskResult, ProtocolTaskId, TaskExtensionHandler, TaskSubscription, ToolCallParams,
@@ -15,9 +15,10 @@ use veoveo_task_runtime::{
 };
 
 use crate::{
-    contract::{CaptureFrameRequest, ViewRecord},
+    contract::CaptureFrameRequest,
     mcp::frame_tool_result,
     server::{AppState, SERVER_SLUG, auth::ForwardedBearer},
+    state::{ResourceOwner, ViewCaptureSnapshot},
     uris,
 };
 
@@ -40,7 +41,7 @@ pub(super) struct AuthenticatedCaller {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct ViewCaptureTaskRequest {
     request: CaptureFrameRequest,
-    view_snapshot: ViewRecord,
+    view_snapshot: ViewCaptureSnapshot,
 }
 
 impl ViewTaskExtension {
@@ -66,7 +67,8 @@ impl ViewTaskExtension {
             &owner.profile,
             owner.tenant_key.as_deref(),
             &owner.data_labels,
-        ) {
+        ) && snapshot.owner.authority.work_context == owner.authority.work_context
+        {
             Ok(snapshot)
         } else {
             Err(AdapterError::invalid_params("unknown task id"))
@@ -103,7 +105,7 @@ impl TaskExtensionHandler for ViewTaskExtension {
         let arguments = serde_json::Value::Object(request.arguments.into_iter().collect());
         let capture_request: CaptureFrameRequest = serde_json::from_value(arguments)
             .map_err(|error| AdapterError::invalid_params(error.to_string()))?;
-        let owner = caller.identity.actor.id.to_string();
+        let owner = ResourceOwner::from_identity(&caller.identity);
         let view_snapshot = self
             .state
             .views
@@ -202,6 +204,7 @@ impl TaskExtensionHandler for ViewTaskExtension {
                         owner.tenant_key.as_deref(),
                         &owner.data_labels,
                     )
+                    || snapshot.owner.authority.work_context != owner.authority.work_context
                 {
                     return None;
                 }
@@ -353,12 +356,30 @@ async fn run_capture_task_inner(
             }
         }
     };
+    let resource_owner = match PrincipalId::new(owner.principal_key.clone()) {
+        Ok(principal_id) => ResourceOwner {
+            principal_id,
+            work_context: owner.authority.work_context.clone(),
+        },
+        Err(error) => {
+            drop(permit);
+            fail_task(
+                &state,
+                &task_id,
+                "invalid_task_owner",
+                format!("stored task principal is invalid: {error}"),
+            )
+            .await;
+            return;
+        }
+    };
     let result = if recovered {
         state
             .views
             .capture_recoverable_frame(
-                &owner.principal_key,
+                &resource_owner,
                 request.view_snapshot,
+                request.request.scene_time,
                 request.request.policy,
                 cancellation.clone(),
             )
@@ -367,8 +388,9 @@ async fn run_capture_task_inner(
         state
             .views
             .capture_live_snapshot_frame(
-                &owner.principal_key,
+                &resource_owner,
                 request.view_snapshot,
+                request.request.scene_time,
                 request.request.policy,
                 cancellation.clone(),
             )

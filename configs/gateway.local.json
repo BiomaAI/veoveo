@@ -441,6 +441,7 @@
       "tools": [
         "capture_frame",
         "close_view",
+        "create_scene_composition",
         "create_view",
         "set_camera"
       ],
@@ -2807,6 +2808,7 @@
             "view"
           ],
           "tools": [
+            "create_scene_composition",
             "create_view",
             "set_camera",
             "close_view"

@@ -1290,13 +1290,14 @@ flowchart LR
           <div class="server-head">
             <span class="scheme">view://</span>
             <h4><span class="dot" style="background:var(--hue-viewer)"></span>Geospatial View</h4>
-            <p>Owner-scoped camera views over configured 3D Tiles, with bounded network, CPU, and
-               GPU residency and reproducible offscreen rendering on NVIDIA Vulkan.</p>
+            <p>Governed static scene compositions over configured 3D Tiles, with exact inputs,
+               bounded overlays, and reproducible offscreen rendering on NVIDIA Vulkan.</p>
           </div>
           <div class="tools"><table>
+            <tr><td class="tn">create_scene_composition</td><td>Bind exact governed inputs and bounded overlays into one immutable scene.</td></tr>
             <tr><td class="tn">create_view</td><td>Create a logical view and its initial geodetic camera revision.</td></tr>
             <tr><td class="tn">set_camera</td><td>Replace the exact pose under optimistic revision control.</td></tr>
-            <tr><td class="tn">capture_frame</td><td>Render a bounded frame task with image content, achieved detail, and attribution.</td></tr>
+            <tr><td class="tn">capture_frame</td><td>Render a bounded scene-time frame with exact composition provenance and output digest.</td></tr>
             <tr><td class="tn">close_view</td><td>Close the owner-scoped view and cancel unfinished captures.</td></tr>
           </table></div>
           <div class="server-foot">

@@ -19,6 +19,9 @@ pub(super) struct Args {
     pub public_base_url: String,
     #[arg(long, default_value = "/etc/veoveo/view/layers.json")]
     pub layer_catalog: PathBuf,
+    /// Base URL of the shared artifact-plane service.
+    #[arg(long, default_value = "http://artifact-service:8790")]
+    pub artifact_service_url: String,
     #[arg(long, env = "VIEW_REQUIRE_NVIDIA", default_value_t = true, action = clap::ArgAction::Set)]
     pub require_nvidia: bool,
     #[arg(long, default_value_t = 2_147_483_648)]
@@ -43,6 +46,10 @@ pub(super) struct Args {
     pub max_views: usize,
     #[arg(long, default_value_t = 32)]
     pub max_views_per_owner: usize,
+    #[arg(long, default_value_t = 512)]
+    pub max_compositions: usize,
+    #[arg(long, default_value_t = 64)]
+    pub max_compositions_per_owner: usize,
     #[arg(long, default_value_t = 128)]
     pub max_frames: usize,
     #[arg(long, default_value_t = 268_435_456)]
@@ -125,6 +132,16 @@ impl Args {
             "view limits are invalid"
         );
         anyhow::ensure!(
+            self.max_compositions > 0
+                && self.max_compositions_per_owner > 0
+                && self.max_compositions_per_owner <= self.max_compositions,
+            "scene composition limits are invalid"
+        );
+        anyhow::ensure!(
+            !self.artifact_service_url.trim().is_empty(),
+            "artifact service URL must not be empty"
+        );
+        anyhow::ensure!(
             self.max_frames > 0
                 && self.max_frame_bytes > 0
                 && self.max_single_frame_bytes > 0
@@ -177,6 +194,8 @@ impl Args {
             },
             max_views: self.max_views,
             max_views_per_owner: self.max_views_per_owner,
+            max_compositions: self.max_compositions,
+            max_compositions_per_owner: self.max_compositions_per_owner,
             max_frames: self.max_frames,
             max_frame_bytes: self.max_frame_bytes,
             max_single_frame_bytes: self.max_single_frame_bytes,

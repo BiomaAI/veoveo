@@ -43,7 +43,13 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
     let session_a = connect_mcp_session(&format!("{}/view/mcp", running.base), &token_a).await?;
     let session_b = connect_mcp_session(&format!("{}/view/mcp", running.base), &token_b).await?;
     let tools = session_a.list_tools(Default::default()).await?;
-    for name in ["create_view", "set_camera", "capture_frame", "close_view"] {
+    for name in [
+        "create_scene_composition",
+        "create_view",
+        "set_camera",
+        "capture_frame",
+        "close_view",
+    ] {
         let tool = tools
             .tools
             .iter()
@@ -74,10 +80,24 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
     }
     assert_preview_app_resource(&session_a).await?;
 
+    let first_composition = create_composition(&session_a, LOCAL_LAYER, true).await?;
+    let second_composition = create_composition(&session_b, LOCAL_LAYER, false).await?;
+    ensure!(
+        read_mcp_resource_json(
+            &session_b,
+            json_string(&first_composition, "/composition_uri")?,
+        )
+        .await
+        .is_err(),
+        "one owner read another owner's scene composition"
+    );
     let first = call_structured(
         &session_a,
         "create_view",
-        json!({"scene_layer": LOCAL_LAYER, "camera": local_camera()}),
+        json!({
+            "composition_id": first_composition["composition_id"],
+            "camera": local_camera()
+        }),
     )
     .await?;
     let second_camera = local_camera();
@@ -85,7 +105,7 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
         &session_b,
         "create_view",
         json!({
-            "scene_layer": LOCAL_LAYER,
+            "composition_id": second_composition["composition_id"],
             "camera": serde_json::to_string(&second_camera)?
         }),
     )
@@ -174,6 +194,25 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
             .context("capture task omitted frame metadata")?;
         let bytes = image_bytes(&payload, "image/png")?;
         assert_local_frame(record, &bytes)?;
+        let expected_composition = if index == 0 {
+            &first_composition
+        } else {
+            &second_composition
+        };
+        ensure!(
+            record["composition_id"] == expected_composition["composition_id"]
+                && record["composition_digest_sha256"]
+                    == expected_composition["composition_digest_sha256"],
+            "capture did not retain exact composition provenance: {record}"
+        );
+        ensure!(
+            record["output_digest_sha256"] == hex::encode(Sha256::digest(&bytes)),
+            "capture output digest does not match image bytes"
+        );
+        ensure!(
+            record["rendered_overlay_count"] == if index == 0 { 4 } else { 0 },
+            "capture overlay count is wrong: {record}"
+        );
         if index == 0 {
             let resource_bytes =
                 read_blob_resource(session, json_string(record, "/frame_uri")?, "image/png")
@@ -213,11 +252,12 @@ pub(crate) async fn view_google_live(view_image: &str, output: &Path) -> Result<
     let running = start_view_container(view_image, &catalog, None, &platform, true).await?;
     let token = issue_view_token("view-google-live")?;
     let session = connect_mcp_session(&format!("{}/view/mcp", running.base), &token).await?;
+    let composition = create_composition(&session, GOOGLE_LAYER, false).await?;
     let view = call_structured(
         &session,
         "create_view",
         json!({
-            "scene_layer": GOOGLE_LAYER,
+            "composition_id": composition["composition_id"],
             "camera": {
                 "kind": "orbit_target",
                 "target": {
@@ -562,6 +602,7 @@ fn capture_request(view_id: &str, revision: u64, google: bool) -> Value {
     json!({
         "view_id": view_id,
         "expected_revision": revision,
+        "scene_time": "2026-07-26T12:00:00Z",
         "policy": {
             "width_px": if google { 1280 } else { 256 },
             "height_px": if google { 720 } else { 256 },
@@ -571,6 +612,104 @@ fn capture_request(view_id: &str, revision: u64, google: bool) -> Value {
             "encoding": if google { "jpeg" } else { "png" }
         }
     })
+}
+
+async fn create_composition(
+    session: &SmokeMcpSession,
+    base_layer: &str,
+    with_overlays: bool,
+) -> Result<Value> {
+    let governed_inputs = if with_overlays {
+        vec![json!({
+                "input_id": "smoke-route",
+                "resource_uri": "map://route/smoke-route",
+                "digest_sha256": "0".repeat(64),
+                "license": "CC0-1.0",
+                "attribution": "Veoveo governed overlay smoke fixture"
+        })]
+    } else {
+        Vec::new()
+    };
+    let position = |latitude_degrees: f64, longitude_degrees: f64| {
+        json!({
+            "kind": "wgs84",
+            "position": {
+                "latitude_degrees": latitude_degrees,
+                "longitude_degrees": longitude_degrees,
+                "ellipsoidal_height_meters": 1.0
+            }
+        })
+    };
+    let overlays = if with_overlays {
+        vec![
+            json!({
+                "overlay_id": "marker",
+                "governed_input_ids": ["smoke-route"],
+                "geometry": {
+                    "kind": "inline",
+                    "geometry": {"kind": "marker", "position": position(0.00004, 0.0)}
+                }
+            }),
+            json!({
+                "overlay_id": "line",
+                "governed_input_ids": ["smoke-route"],
+                "geometry": {
+                    "kind": "inline",
+                    "geometry": {
+                        "kind": "polyline",
+                        "positions": [position(0.00003, -0.00001), position(0.00006, 0.00001)]
+                    }
+                }
+            }),
+            json!({
+                "overlay_id": "area",
+                "governed_input_ids": ["smoke-route"],
+                "geometry": {
+                    "kind": "inline",
+                    "geometry": {
+                        "kind": "polygon",
+                        "positions": [
+                            position(0.00005, -0.00001),
+                            position(0.00007, 0.0),
+                            position(0.00005, 0.00001)
+                        ],
+                        "triangle_indices": [0, 1, 2]
+                    }
+                }
+            }),
+            json!({
+                "overlay_id": "label",
+                "governed_input_ids": ["smoke-route"],
+                "geometry": {
+                    "kind": "inline",
+                    "geometry": {
+                        "kind": "label",
+                        "position": position(0.00008, 0.0),
+                        "text": "PLAN 1"
+                    }
+                }
+            }),
+        ]
+    } else {
+        Vec::new()
+    };
+    call_structured(
+        session,
+        "create_scene_composition",
+        json!({
+            "schema_version": 1,
+            "base_layer": base_layer,
+            "map_releases": if with_overlays {
+                vec!["map://dataset/smoke/release/r1"]
+            } else {
+                Vec::<&str>::new()
+            },
+            "style_id": "smoke:1",
+            "governed_inputs": governed_inputs,
+            "overlays": overlays
+        }),
+    )
+    .await
 }
 
 fn assert_local_frame(record: &Value, bytes: &[u8]) -> Result<()> {

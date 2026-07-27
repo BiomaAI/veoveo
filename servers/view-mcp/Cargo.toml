@@ -32,6 +32,7 @@ draco-gltf.workspace = true
 futures.workspace = true
 glam.workspace = true
 gltf.workspace = true
+hex.workspace = true
 image.workspace = true
 parking_lot.workspace = true
 reqwest = { workspace = true, features = ["json", "rustls-no-provider", "stream"] }
@@ -49,6 +50,7 @@ tower-http.workspace = true
 tracing.workspace = true
 url.workspace = true
 uuid.workspace = true
+veoveo-artifact-client = { path = "../../platform/artifacts/client" }
 veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension" }
 veoveo-mcp-contract.workspace = true
 veoveo-mcp-task-extension = { path = "../../mcp/task-extension" }

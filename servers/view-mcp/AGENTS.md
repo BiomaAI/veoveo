@@ -5,29 +5,37 @@ Delta over the repository root `AGENTS.md`. The normative server contract is
 
 ## Purpose
 
-Captures reproducible points of view over georeferenced 3D Tiles. Runs Bevy
-without a window, keeps bounded tile and GPU residency across captures, and
-returns images with resolved pose, layer identity, and attribution. Several
-callers own independent views while the service shares immutable source
-content.
+Captures reproducible points of view over governed static scene compositions.
+Runs Bevy without a window, keeps bounded tile and GPU residency across
+captures, and returns images with resolved pose, exact composition provenance,
+and attribution.
 
 ## Invariants
 
 - Owns the `view://` URI scheme plus the `ui://view/preview.html` app view.
   Identity: slug `view`, MCP `/view/mcp`. Map owns geographic source truth;
-  View adds no routing, search, overlays, or feature identities.
+  View derives no routing or search products. It renders exact governed inputs
+  through bounded declarative overlays and preserves their identities.
+- Every view binds one immutable composition. Compositions, views, frames, and
+  capture tasks are scoped by principal and Work Context. Local metre
+  positions require one exact Frames revision and operation input.
+- Overlay geometry accepts only bounded typed primitives. Large geometry and
+  oriented meshes resolve through the shared artifact plane under the
+  forwarded caller token. Executable content, arbitrary URLs, credentials, and
+  ungoverned mesh bytes are invalid.
 - The canonical camera state is the exact geodetic pose; target rigs resolve
   to it before selection or capture. Geodetic and ECEF math stays `f64` until
   local transforms cast to Bevy `f32`.
-- `capture_frame` is task only on the shared task runtime; a capture
-  snapshots one camera revision and ignores later updates. Camera replacement
-  uses an expected revision.
+- `capture_frame` is task only on the shared task runtime. A capture snapshots
+  one camera revision, composition, resolved artifacts, and explicit scene
+  time. Camera replacement uses an expected revision.
 - API keys never enter MCP requests or resource identities; credentials,
   redirects, and request caps live in the server side layer catalog, and
   cache keys are credential free.
-- Views, frames, and tile keys are in process state that does not survive
-  restart; there is no persistent disk cache and no database. Raw, decoded,
-  and GPU caches keep independent byte budgets.
+- Compositions, views, frames, and tile keys are in-process state. The shared
+  task database persists recoverable capture snapshots, but no View catalog or
+  disk cache survives restart. Raw, decoded, and GPU caches keep independent
+  byte budgets.
 - Production readiness requires a hardware Vulkan adapter (NVIDIA in the
   production profile); CPU and fallback adapters fail readiness. The preview
   app stays self contained (vendored three.js and draco, at most 2 MiB) and
@@ -40,8 +48,8 @@ content.
   run without a GPU)
 - `just smoke-view-mcp` builds the NVIDIA image and runs the renderer smoke:
   requires Docker and an NVIDIA GPU with the container toolkit, verifies a
-  hardware Vulkan adapter, and captures a deterministic local tileset through
-  the production task boundary.
+  hardware Vulkan adapter, and captures a deterministic local tileset plus
+  governed overlays through the production task boundary.
 - `just smoke-view-google <output>` is the billed live acceptance against
   Google Photorealistic 3D Tiles: requires `GOOGLE_MAPS_API_KEY` (passed by
   name) and an NVIDIA adapter.

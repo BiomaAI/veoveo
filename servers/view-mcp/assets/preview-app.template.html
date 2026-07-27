@@ -1405,10 +1405,13 @@ const PRESETS = [
     distance_meters: 1200, azimuth_degrees: 135, elevation_degrees: 25, vertical_fov_degrees: 50 }],
 ];
 
-const APP_TOOL_NAMES = new Set(["create_view", "set_camera", "capture_frame", "close_view"]);
+const APP_TOOL_NAMES = new Set([
+  "create_scene_composition", "create_view", "set_camera", "capture_frame", "close_view"
+]);
 
 const app = {
   layers: [],
+  composition: null,
   view: null,          // ViewRecord from the server
   manifest: null,      // PreviewSceneRecord
   localFromEcef: null, // Float64Array(16)
@@ -1462,10 +1465,10 @@ function applyInitialToolInput(params) {
   if (!args || !form) return;
   const camera = structuredArgument(args.camera);
   if (camera && typeof camera === "object") form.setDefinition(camera);
-  if (typeof args.scene_layer === "string") {
+  if (typeof args.base_layer === "string") {
     const layer = el("layer-select");
-    if ([...layer.options].some((option) => option.value === args.scene_layer)) {
-      layer.value = args.scene_layer;
+    if ([...layer.options].some((option) => option.value === args.base_layer)) {
+      layer.value = args.base_layer;
     }
   }
 }
@@ -1583,8 +1586,17 @@ async function createView() {
   const camera = form.value();
   setStatus("creating view…", true);
   try {
+    const composition = await callTool("create_scene_composition", {
+      schema_version: 1,
+      base_layer: el("layer-select").value,
+      map_releases: [],
+      style_id: "view-preview:1",
+      governed_inputs: [],
+      overlays: [],
+    });
+    app.composition = composition;
     const record = await callTool("create_view", {
-      scene_layer: el("layer-select").value,
+      composition_id: composition.composition_id,
       camera,
     });
     applyViewRecord(record);
@@ -1693,6 +1705,7 @@ async function captureFrame() {
       {
         view_id: app.view.view_id,
         expected_revision: app.view.revision,
+        scene_time: new Date().toISOString(),
         policy: capturePolicy(),
       },
       { ttl: 600000 }

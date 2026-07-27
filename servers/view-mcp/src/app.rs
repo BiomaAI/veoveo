@@ -98,6 +98,8 @@ mod tests {
             "\"orbit_target\"",
             "vertical_fov_degrees",
             "view://layers",
+            "create_scene_composition",
+            "scene_time",
         ] {
             assert!(html.contains(needle), "app must contain {needle}");
         }

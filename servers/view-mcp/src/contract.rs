@@ -4,6 +4,10 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+mod composition;
+
+pub use composition::*;
+
 fn validate_id(value: &str) -> Result<(), ContractError> {
     if value.is_empty()
         || value.len() > 128
@@ -297,7 +301,7 @@ pub struct AttributionSet {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CreateViewRequest {
-    pub scene_layer: LayerId,
+    pub composition_id: SceneCompositionId,
     pub camera: CameraDefinition,
 }
 
@@ -312,6 +316,7 @@ pub struct SetCameraRequest {
 pub struct CaptureFrameRequest {
     pub view_id: ViewId,
     pub expected_revision: u64,
+    pub scene_time: DateTime<Utc>,
     pub policy: CapturePolicy,
 }
 
@@ -325,6 +330,9 @@ pub struct CloseViewRequest {
 pub struct ViewRecord {
     pub view_id: ViewId,
     pub view_uri: String,
+    pub composition_id: SceneCompositionId,
+    pub composition_uri: String,
+    pub composition_digest_sha256: Sha256Digest,
     pub scene_layer: LayerId,
     pub revision: u64,
     pub camera: CameraDefinition,
@@ -345,8 +353,17 @@ pub struct FrameRecord {
     pub frame_uri: String,
     pub view_id: ViewId,
     pub view_revision: u64,
+    pub composition_id: SceneCompositionId,
+    pub composition_uri: String,
+    pub composition_revision: u64,
+    pub composition_digest_sha256: Sha256Digest,
+    pub style_id: SceneStyleId,
+    pub governed_inputs: Vec<GovernedSceneInput>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frame_world_revision: Option<veoveo_mcp_contract::FrameWorldRevisionUri>,
     pub scene_layer: LayerId,
     pub captured_at: DateTime<Utc>,
+    pub scene_time: DateTime<Utc>,
     pub resolved_camera: GeodeticCameraPose,
     pub width_px: u32,
     pub height_px: u32,
@@ -356,7 +373,10 @@ pub struct FrameRecord {
     pub actual_max_screen_error_px: f32,
     pub visible_tile_count: u32,
     pub pending_tile_count: u32,
+    pub rendered_overlay_count: u32,
+    pub overlay_truncated: bool,
     pub attribution: AttributionSet,
+    pub output_digest_sha256: Sha256Digest,
 }
 
 #[derive(Debug, Clone)]
@@ -397,6 +417,8 @@ pub struct SceneTileRecord {
 pub struct PreviewSceneRecord {
     pub view_id: ViewId,
     pub view_revision: u64,
+    pub composition_id: SceneCompositionId,
+    pub composition_digest_sha256: Sha256Digest,
     pub scene_layer: LayerId,
     pub resolved_camera: GeodeticCameraPose,
     pub local_origin: Wgs84Position3d,
@@ -532,7 +554,7 @@ mod tests {
     fn canonical_structured_arguments_validate_against_mcp_schemas() {
         let create_schema = mcp_input_schema::<CreateViewRequest>();
         let create = json!({
-            "scene_layer": "google-photorealistic",
+            "composition_id": SceneCompositionId::from_stable_key(b"schema-test"),
             "camera": orbit_camera()
         });
         assert!(jsonschema::is_valid(&create_schema, &create));
@@ -541,6 +563,7 @@ mod tests {
         let capture = json!({
             "view_id": "view-1",
             "expected_revision": 1,
+            "scene_time": "2026-07-26T12:00:00Z",
             "policy": capture_policy()
         });
         assert!(jsonschema::is_valid(&capture_schema, &capture));

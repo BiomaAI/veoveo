@@ -1,4 +1,4 @@
-mod auth;
+pub(crate) mod auth;
 mod config;
 mod host;
 mod tasks;
@@ -12,6 +12,7 @@ use rmcp::transport::streamable_http_server::StreamableHttpService;
 use serde_json::json;
 use tokio::sync::Semaphore;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
+use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
     ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry,
@@ -68,7 +69,13 @@ pub async fn run() -> Result<()> {
         device_type = renderer.adapter().device_type,
         "hardware renderer initialized"
     );
-    let views = Arc::new(ViewService::new(args.view_config(), catalog, renderer));
+    let artifacts = HttpArtifactPlane::new(&args.artifact_service_url);
+    let views = Arc::new(ViewService::new(
+        args.view_config(),
+        catalog,
+        renderer,
+        artifacts,
+    ));
 
     let tasks = TaskRuntime::connect(
         TaskRuntimeConfig::new(
