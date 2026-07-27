@@ -15,6 +15,7 @@ use veoveo_mcp_contract::{
     LiveSessionId, LiveViewAccessToken, LiveViewCodec, LiveViewConnection, LiveViewHardwareEncoder,
     LiveViewId, LiveViewLifecycle, LiveViewOwner, LiveViewState, LiveViewUri,
 };
+use veoveo_simulation_pose::PoseIngressStatus;
 
 use crate::{
     contract::{
@@ -749,6 +750,113 @@ impl SimulationViewService {
         }
     }
 
+    pub(crate) fn refresh_camera_status(
+        &self,
+        camera_id: &LiveCameraId,
+        ready: bool,
+        last_pose_sequence: Option<u64>,
+        last_frame_at: Option<DateTime<Utc>>,
+    ) {
+        let health = if ready {
+            LiveCameraHealth::Healthy
+        } else if last_pose_sequence.is_some() || last_frame_at.is_some() {
+            LiveCameraHealth::Stale
+        } else {
+            LiveCameraHealth::Warming
+        };
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        if let Some(camera) = state.cameras.get_mut(camera_id) {
+            camera.health = health;
+            camera.last_pose_sequence = last_pose_sequence;
+            camera.last_frame_at = last_frame_at;
+            camera.updated_at = Utc::now();
+        }
+        for lease in state
+            .leases
+            .values_mut()
+            .filter(|lease| lease.state.camera_id == *camera_id)
+        {
+            lease.state.camera_health = health;
+            lease.state.last_frame_at = last_frame_at;
+        }
+    }
+
+    pub(crate) fn mark_camera_stale(&self, camera_id: &LiveCameraId) {
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        if let Some(camera) = state.cameras.get_mut(camera_id) {
+            camera.health = if camera.last_pose_sequence.is_some() || camera.last_frame_at.is_some()
+            {
+                LiveCameraHealth::Stale
+            } else {
+                LiveCameraHealth::Warming
+            };
+            camera.updated_at = Utc::now();
+        }
+        let health = state
+            .cameras
+            .get(camera_id)
+            .map(|camera| camera.health)
+            .unwrap_or(LiveCameraHealth::Stale);
+        for lease in state
+            .leases
+            .values_mut()
+            .filter(|lease| lease.state.camera_id == *camera_id)
+        {
+            lease.state.camera_health = health;
+        }
+    }
+
+    pub(crate) fn apply_pose_status(
+        &self,
+        session_id: &LiveSessionId,
+        status: &PoseIngressStatus,
+    ) -> Result<(), SimulationViewError> {
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        let session = state
+            .sessions
+            .get_mut(session_id)
+            .ok_or_else(|| SimulationViewError::SessionNotFound(session_id.clone()))?;
+        let source = session
+            .pose_source
+            .as_mut()
+            .ok_or(SimulationViewError::Lifecycle)?;
+        if status.session_id.as_str() != session_id.as_str()
+            || status.epoch_id != session.epoch_id
+            || status.producer_id != source.producer_id.as_str()
+            || status.producer_spiffe_id != source.spiffe_id
+            || status.authorized_until != source.expires_at
+        {
+            return Err(SimulationViewError::Producer);
+        }
+        source.last_sequence = status.last_sequence;
+        source.last_snapshot_at = status.last_snapshot_at;
+        source.stale = status.stale;
+        Ok(())
+    }
+
+    pub(crate) fn mark_pose_stale(&self, session_id: &LiveSessionId) {
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        if let Some(source) = state
+            .sessions
+            .get_mut(session_id)
+            .and_then(|session| session.pose_source.as_mut())
+        {
+            source.stale = true;
+        }
+    }
+
     pub(crate) fn mark_stream_ready(&self, stream_id: &LiveViewId) {
         let mut state = self
             .state
@@ -1214,14 +1322,18 @@ mod tests {
         PolicyVersion, PrincipalId, TenantId, WorkContextId, WorkContextMembershipLevel,
         WorkContextOutputPolicy, WorldFrameUri,
     };
-    use veoveo_simulation_pose::{EntityId, EpochId, FrameRevision, Sha256Digest};
+    use veoveo_simulation_pose::{
+        EntityId, EpochId, FrameRevision, POSE_INGRESS_CONTROL_SCHEMA, PoseIngressStatus,
+        SessionId, Sha256Digest,
+    };
 
     use super::*;
     use crate::contract::{
-        BindSceneRequest, CameraAdmission, CameraRecordingPolicy, CameraRig, GovernedArtifact,
-        InterpolationPolicy, LocalTransform, PrototypeId, QuaternionXyzw, RendererMode,
-        SCENE_SCHEMA, SceneAttribution, SceneDeclaration, SceneDeclarationBody, SceneEntity,
-        SceneLighting, SceneQualityPolicy, Vector3, VisualAssetFormat, VisualPrototype,
+        AuthorizePoseProducerRequest, BindSceneRequest, CameraAdmission, CameraRecordingPolicy,
+        CameraRig, GovernedArtifact, InterpolationPolicy, LocalTransform, ProducerId, PrototypeId,
+        QuaternionXyzw, RendererMode, SCENE_SCHEMA, SceneAttribution, SceneDeclaration,
+        SceneDeclarationBody, SceneEntity, SceneLighting, SceneQualityPolicy, Vector3,
+        VisualAssetFormat, VisualPrototype,
     };
 
     fn view_owner(principal: &str) -> LiveViewOwner {
@@ -1459,6 +1571,50 @@ mod tests {
                 }
             }
         ));
+    }
+
+    #[test]
+    fn runtime_pose_status_refreshes_the_public_health_without_exposing_transport() {
+        let service = SimulationViewService::new(SimulationViewConfig::default()).unwrap();
+        let owner = view_owner("issuer#operator");
+        let session = bound_session(&service, &owner);
+        let expires_at = Utc::now() + chrono::Duration::minutes(10);
+        let source = service
+            .authorize_pose_producer(
+                &owner,
+                AuthorizePoseProducerRequest {
+                    session_id: session.session_id.clone(),
+                    expected_revision: session.revision,
+                    producer_id: ProducerId::new("anonymous-producer").unwrap(),
+                    spiffe_id: "spiffe://veoveo.test/anonymous-producer".to_owned(),
+                    expires_at,
+                },
+            )
+            .unwrap();
+        assert!(source.stale);
+
+        service
+            .apply_pose_status(
+                &session.session_id,
+                &PoseIngressStatus {
+                    schema_version: POSE_INGRESS_CONTROL_SCHEMA.to_owned(),
+                    session_id: SessionId::new(session.session_id.as_str()).unwrap(),
+                    epoch_id: session.epoch_id.clone(),
+                    producer_id: source.producer_id.to_string(),
+                    producer_spiffe_id: source.spiffe_id,
+                    authorized_until: expires_at,
+                    stale: false,
+                    last_sequence: Some(42),
+                    last_snapshot_at: Some(Utc::now()),
+                },
+            )
+            .unwrap();
+
+        let refreshed = service.get_session(&owner, &session.session_id).unwrap();
+        let source = refreshed.pose_source.unwrap();
+        assert!(!source.stale);
+        assert_eq!(source.last_sequence, Some(42));
+        assert!(source.last_snapshot_at.is_some());
     }
 
     #[test]
