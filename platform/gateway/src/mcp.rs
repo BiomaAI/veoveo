@@ -138,8 +138,7 @@ impl GatewayMcp {
         );
         let transport = StreamableHttpClientTransport::<GatewayAuthorizedHttpClient>::with_client(
             authorized_http_client,
-            StreamableHttpClientTransportConfig::with_uri(server.upstream.url.as_str().to_string())
-                .reinit_on_expired_session(false),
+            upstream_transport_config(server.upstream.url.as_str()),
         );
         let handler = GatewayUpstreamHandler::new(
             self.catalog.clone(),
@@ -194,6 +193,15 @@ impl GatewayMcp {
         )
         .await
     }
+}
+
+fn upstream_transport_config(uri: &str) -> StreamableHttpClientTransportConfig {
+    // An upstream server may discard its in-memory MCP session after a pod restart
+    // while this gateway-owned connection remains cached. RMCP recovers only from
+    // the authoritative HTTP 404 and retries the request once after a new
+    // initialize handshake. The request was not dispatched without a live
+    // session, so this does not create a polling or general retry path.
+    StreamableHttpClientTransportConfig::with_uri(uri.to_owned()).reinit_on_expired_session(true)
 }
 
 fn invocation_authorization_fingerprint(
@@ -419,5 +427,11 @@ mod tests {
             invocation_authorization_fingerprint(&baseline, &authority()).unwrap(),
             invocation_authorization_fingerprint(&changed, &authority()).unwrap()
         );
+    }
+
+    #[test]
+    fn upstream_transport_recovers_one_expired_mcp_session() {
+        let config = upstream_transport_config("http://view-mcp:8788/view/mcp");
+        assert!(config.reinit_on_expired_session);
     }
 }
