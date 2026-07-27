@@ -2,6 +2,7 @@ use std::process::Stdio;
 
 use anyhow::ensure;
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
     FrameBasis, FrameId, FrameNode, FrameParentTransform, FrameWorldId, FrameWorldRevision,
     FrameWorldTree, Wgs84Position,
@@ -663,18 +664,41 @@ async fn ensure_world_configured(
     scenario: &UavAcceptanceScenario,
 ) -> Result<WorldBinding> {
     let initial_state = simulation_state(operator, scenario).await?;
+    if initial_state
+        .pointer("/world")
+        .is_some_and(Value::is_object)
+    {
+        let revision_uri = json_string(&initial_state, "/world/revision_uri")?.to_owned();
+        let simulation_frame_uri =
+            json_string(&initial_state, "/world/simulation_frame_uri")?.to_owned();
+        verify_published_world(
+            operator,
+            scenario,
+            &revision_uri,
+            &simulation_frame_uri,
+            None,
+        )
+        .await?;
+        return Ok(WorldBinding {
+            revision_uri,
+            simulation_frame_uri,
+        });
+    }
     ensure!(
-        json_string(&initial_state, "/lifecycle")? == "unconfigured"
-            || initial_state
-                .pointer("/world")
-                .is_some_and(Value::is_object),
+        json_string(&initial_state, "/lifecycle")? == "unconfigured",
         "UAV session must begin unconfigured or retain the same immutable binding: {initial_state}"
     );
+    let tree_digest = hex::encode(Sha256::digest(serde_json::to_vec(&scenario.world.tree)?));
+    let world_id = FrameWorldId::new(format!(
+        "{}-{}",
+        scenario.world.world_id,
+        &tree_digest[..16]
+    ))?;
     operator
         .call_tool(
             "frames__create_world",
             serde_json::json!({
-                "world_id": scenario.world.world_id,
+                "world_id": world_id,
                 "display_name": scenario.world.display_name,
                 "description": scenario.world.description,
             }),
@@ -684,7 +708,7 @@ async fn ensure_world_configured(
         .call_tool(
             "frames__publish_world",
             serde_json::json!({
-                "world_id": scenario.world.world_id,
+                "world_id": world_id,
                 "tree": scenario.world.tree,
             }),
         )
@@ -708,6 +732,35 @@ async fn ensure_world_configured(
             }),
         )
         .await?;
+    verify_published_world(
+        operator,
+        scenario,
+        &revision_uri,
+        &simulation_frame_uri,
+        Some(&world_id),
+    )
+    .await?;
+    Ok(WorldBinding {
+        revision_uri,
+        simulation_frame_uri,
+    })
+}
+
+async fn verify_published_world(
+    operator: &OperatorClient<'_>,
+    scenario: &UavAcceptanceScenario,
+    revision_uri: &str,
+    simulation_frame_uri: &str,
+    expected_world_id: Option<&FrameWorldId>,
+) -> Result<()> {
+    ensure!(
+        simulation_frame_uri
+            == format!(
+                "{revision_uri}/frame/{}",
+                scenario.world.simulation_frame_id
+            ),
+        "UAV immutable binding selects the wrong simulation frame: {simulation_frame_uri}"
+    );
     let frame: FrameNode = serde_json::from_str(
         &operator
             .conformance(
@@ -740,15 +793,18 @@ async fn ensure_world_configured(
     published_frames.sort_by(|left, right| left.frame_id.cmp(&right.frame_id));
     ensure!(
         published_revision.revision_uri.as_str() == revision_uri
-            && published_revision.world_id == scenario.world.world_id
             && published_frames == expected_frames,
         "published Frames world revision disagrees with the complete scenario hierarchy: \
          {published_revision:?}"
     );
-    Ok(WorldBinding {
-        revision_uri,
-        simulation_frame_uri,
-    })
+    if let Some(expected_world_id) = expected_world_id {
+        ensure!(
+            &published_revision.world_id == expected_world_id,
+            "published Frames world revision changed its run-scoped identity: \
+             {published_revision:?}"
+        );
+    }
+    Ok(())
 }
 
 async fn assert_governed_artifact_access(
