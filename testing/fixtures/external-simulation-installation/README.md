@@ -6,17 +6,21 @@ contains Artifact, Frames, the canonical simulation runtime, and Simulation
 View. Only `simulation-view-renderer` receives an NVIDIA GPU.
 
 The installation owns `gateway-binding.json`, the composed `gateway.json`,
-composition provenance, package and OCI credentials, trust roots, the
-pose-producer certificate, public media coordinates, and the combined
+composition provenance, OCI credentials, trust roots, the pose-producer
+certificate, public media coordinates, GPU placement, and the combined
 deployment lock. The extension source owns its server fragment, application
 chart, image, and release manifest.
 
 Because this acceptance fixture is checked into the Veoveo test tree, both
 local source declarations resolve the surrounding Git repository. The
-`external-simulation-extension-fixture` Bake group is only a repository-local
-adapter to that subtree. `smoke external-simulation-fixture` separately copies
-the subtree into an isolated checkout and exercises its native Bake graph,
-private package lock, tests, and package build.
+`external-simulation-extension-fixture` Bake group uses the adjacent repository
+adapter Dockerfile. That adapter installs the dependency closure from the
+extension's exact lock, then copies the selected SDK and fixture modules from
+the same committed source. It neither needs private package credentials nor
+changes the external repository's native release path. `smoke
+external-simulation-fixture` separately copies the subtree into an isolated
+checkout and exercises its native Bake graph, authenticated private package
+lock, tests, and package build.
 
 The checked-in cluster profile is loopback-only. Its control tokens and mTLS
 private keys are public development credentials, and its NVIDIA device plugin

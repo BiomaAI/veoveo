@@ -688,6 +688,19 @@ pub(crate) async fn helm_config() -> Result<()> {
         &simulation_view_mcp_dockerfile,
         "--from=veoveo-rust-artifacts /bin/simulation-view-mcp",
     )?;
+    let anonymous_simulation_adapter = fs::read_to_string(
+        "testing/fixtures/external-simulation-installation/Dockerfile.anonymous-simulation-mcp",
+    )?;
+    for expected in [
+        "--locked",
+        "--no-emit-package veoveo-mcp",
+        "--require-hashes",
+        "sdk/python/src/veoveo_mcp",
+        "external-simulation-extension/src/anonymous_simulation_mcp",
+    ] {
+        contains(&anonymous_simulation_adapter, expected)?;
+    }
+    not_contains(&anonymous_simulation_adapter, "veoveo-python-index")?;
     let workspace_builder = fs::read_to_string("tools/image-build/rust-workspace.Dockerfile")?;
     for expected in [
         "@nvidia/ov-web-rtc-6.6.0.tgz",
