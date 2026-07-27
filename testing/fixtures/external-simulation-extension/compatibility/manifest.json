@@ -124,8 +124,16 @@
           "version": "3.12.13"
         },
         {
+          "component": "torch",
+          "version": "2.12.0+cu130"
+        },
+        {
           "component": "cuda",
-          "version": "12.9"
+          "version": "13.0"
+        },
+        {
+          "component": "isaac_rtx_nvrtc",
+          "version": "12.8.61"
         },
         {
           "component": "kit",

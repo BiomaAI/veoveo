@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::compatibility::canonical_runtime_components;
 use crate::{
     ArtifactCoordinate, ArtifactDescriptor, ArtifactDigest, ArtifactKind, ArtifactName,
     ExtensionContractError, GpuRuntimeRequirement, RuntimeComponent, RuntimeComponentVersion,
@@ -133,17 +134,7 @@ pub struct SimulationRuntimeBuildLock {
 impl SimulationRuntimeBuildLock {
     /// Validates the complete canonical build-input contract.
     pub fn validate(&self) -> Result<(), ExtensionContractError> {
-        let required_components = BTreeSet::from([
-            RuntimeComponent::IsaacSim,
-            RuntimeComponent::IsaacLab,
-            RuntimeComponent::Warp,
-            RuntimeComponent::Newton,
-            RuntimeComponent::Mujoco,
-            RuntimeComponent::MujocoWarp,
-            RuntimeComponent::Python,
-            RuntimeComponent::Cuda,
-            RuntimeComponent::Kit,
-        ]);
+        let required_components = canonical_runtime_components();
         let components = unique_components(&self.components)?;
         if components != required_components {
             return Err(ExtensionContractError::RuntimeComponents {
@@ -214,9 +205,9 @@ impl SimulationRuntimeBuildLock {
             .iter()
             .map(|root| root.as_str())
             .collect::<BTreeSet<_>>();
-        if roots != BTreeSet::from(["newton", "warp"]) {
+        if roots != BTreeSet::from(["newton", "torch", "warp"]) {
             return Err(ExtensionContractError::Empty {
-                field: "authoritative Warp and Newton package roots",
+                field: "authoritative Torch, Warp, and Newton package roots",
             });
         }
         if self.gpu.runtime.count == 0
@@ -344,17 +335,7 @@ impl SimulationConformanceResult {
     /// Rejects incomplete or software-backed acceptance evidence.
     pub fn validate(&self) -> Result<(), ExtensionContractError> {
         let components = unique_components(&self.components)?;
-        let required_components = BTreeSet::from([
-            RuntimeComponent::IsaacSim,
-            RuntimeComponent::IsaacLab,
-            RuntimeComponent::Warp,
-            RuntimeComponent::Newton,
-            RuntimeComponent::Mujoco,
-            RuntimeComponent::MujocoWarp,
-            RuntimeComponent::Python,
-            RuntimeComponent::Cuda,
-            RuntimeComponent::Kit,
-        ]);
+        let required_components = canonical_runtime_components();
         if components != required_components {
             return Err(ExtensionContractError::RuntimeComponents {
                 expected: required_components,

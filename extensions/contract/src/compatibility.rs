@@ -95,10 +95,30 @@ pub enum RuntimeComponent {
     MujocoWarp,
     /// CPython ABI.
     Python,
+    /// PyTorch build and CUDA module graph.
+    Torch,
     /// CUDA runtime.
     Cuda,
+    /// Isaac RTX NVRTC builtins retained from the upstream image.
+    IsaacRtxNvrtc,
     /// NVIDIA Kit runtime.
     Kit,
+}
+
+pub(crate) fn canonical_runtime_components() -> BTreeSet<RuntimeComponent> {
+    BTreeSet::from([
+        RuntimeComponent::IsaacSim,
+        RuntimeComponent::IsaacLab,
+        RuntimeComponent::Warp,
+        RuntimeComponent::Newton,
+        RuntimeComponent::Mujoco,
+        RuntimeComponent::MujocoWarp,
+        RuntimeComponent::Python,
+        RuntimeComponent::Torch,
+        RuntimeComponent::Cuda,
+        RuntimeComponent::IsaacRtxNvrtc,
+        RuntimeComponent::Kit,
+    ])
 }
 
 /// Exact component version in a simulation profile.
@@ -275,6 +295,13 @@ impl CompatibilityManifest {
                         field: "simulation component version",
                     });
                 }
+            }
+            let required_components = canonical_runtime_components();
+            if components != required_components {
+                return Err(ExtensionContractError::RuntimeComponents {
+                    expected: required_components,
+                    actual: components,
+                });
             }
         }
         Ok(())
