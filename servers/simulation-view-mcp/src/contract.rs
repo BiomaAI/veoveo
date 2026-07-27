@@ -466,7 +466,11 @@ pub struct LocalPose {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 pub enum CameraRig {
     Fixed {
         pose: LocalPose,
@@ -823,7 +827,73 @@ pub enum SimulationViewError {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
+
+    #[test]
+    fn camera_rig_uses_camel_case_fields_in_json_and_schema() {
+        let rig = CameraRig::FollowEntity {
+            target_entity: EntityId::new("entity-1").unwrap(),
+            offset_flu_m: Vector3 {
+                x: -6.0,
+                y: 0.0,
+                z: 2.5,
+            },
+            smoothing_seconds: 0.15,
+        };
+        let value = serde_json::to_value(&rig).unwrap();
+        assert_eq!(
+            value
+                .as_object()
+                .unwrap()
+                .keys()
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from(["kind", "offsetFluM", "smoothingSeconds", "targetEntity",])
+        );
+        assert_eq!(value["kind"], "follow_entity");
+        assert_eq!(value["targetEntity"], "entity-1");
+        assert_eq!(
+            value["offsetFluM"],
+            serde_json::json!({"x": -6.0, "y": 0.0, "z": 2.5})
+        );
+        assert_eq!(serde_json::from_value::<CameraRig>(value).unwrap(), rig);
+
+        let schema = serde_json::to_string(&schemars::schema_for!(CameraRig)).unwrap();
+        for field in [
+            "eyeM",
+            "targetM",
+            "targetEntity",
+            "radiusM",
+            "azimuthDegrees",
+            "elevationDegrees",
+            "offsetFluM",
+            "smoothingSeconds",
+            "distanceM",
+            "heightM",
+            "targetEntities",
+            "paddingM",
+        ] {
+            assert!(schema.contains(&format!("\"{field}\"")));
+        }
+        for field in [
+            "eye_m",
+            "target_m",
+            "target_entity",
+            "radius_m",
+            "azimuth_degrees",
+            "elevation_degrees",
+            "offset_flu_m",
+            "smoothing_seconds",
+            "distance_m",
+            "height_m",
+            "target_entities",
+            "padding_m",
+        ] {
+            assert!(!schema.contains(&format!("\"{field}\"")));
+        }
+    }
 
     #[test]
     fn python_scene_fixture_uses_the_rust_canonical_digest() {
