@@ -649,6 +649,9 @@ pub(crate) async fn helm_config() -> Result<()> {
         &stdio_bridge_dockerfile,
         r#"rerun --version | grep -F "rerun-cli ${RERUN_VERSION} ""#,
     )?;
+    for required in ["libegl1", "libvulkan1", "libx11-6", "libxext6"] {
+        contains(&stdio_bridge_dockerfile, required)?;
+    }
     not_contains(&stdio_bridge_dockerfile, "mesa-vulkan-drivers")?;
     not_contains(&stdio_bridge_dockerfile, "lavapipe")?;
     let cesium_patch = fs::read_to_string(
