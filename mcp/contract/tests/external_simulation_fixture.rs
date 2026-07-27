@@ -2,7 +2,8 @@ use std::path::Path;
 
 use serde_json::json;
 use veoveo_mcp_contract::{
-    GatewayBinding, GatewayControlPlane, GatewayServerFragment, compose_gateway_control_plane,
+    GatewayAction, GatewayBinding, GatewayControlPlane, GatewayServerFragment,
+    compose_gateway_control_plane,
 };
 
 #[test]
@@ -49,5 +50,22 @@ fn external_simulation_fragment_composes_with_installation_owned_authority() {
             .iter()
             .any(|server| server.slug.as_str() == "anonymous-simulation")
     );
+    for rule_id in [
+        "allow_simulation_view_surface_read",
+        "allow_simulation_view_write_tools",
+        "allow_simulation_view_streams",
+    ] {
+        let rule = composed
+            .control_plane
+            .policies
+            .iter()
+            .flat_map(|policy| &policy.rules)
+            .find(|rule| rule.id.as_str() == rule_id)
+            .unwrap_or_else(|| panic!("missing Simulation View policy rule `{rule_id}`"));
+        assert!(
+            rule.actions.contains(&GatewayAction::ToolsList),
+            "Simulation View policy rule `{rule_id}` must expose its tools through tools/list"
+        );
+    }
     assert_eq!(composed.contributions.len(), 1);
 }
