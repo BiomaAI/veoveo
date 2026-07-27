@@ -493,6 +493,26 @@ enum Cmd {
         #[arg(long, default_value = "https://veoveo.bioma.ai")]
         public_base_url: String,
     },
+    /// Verify the independent Simulation View renderer with an anonymous pose producer and headed hardware browser.
+    SimulationViewVerify {
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        /// Kubernetes context containing the composed platform and external fixture.
+        #[arg(long, default_value = "k3d-veoveo-bioma")]
+        context: String,
+        /// Namespace containing Simulation View and the anonymous fixture.
+        #[arg(long, default_value = "veoveo")]
+        namespace: String,
+        /// Public gateway and signaling origin.
+        #[arg(long, default_value = "https://veoveo.bioma.ai")]
+        public_base_url: String,
+        /// DevTools endpoint of an already-running headed hardware-backed Chrome.
+        #[arg(long, default_value = "http://127.0.0.1:9227")]
+        chrome_cdp_url: String,
+        /// Maximum time for Isaac, poses, render products, NVENC, WebRTC, and video playback.
+        #[arg(long, default_value_t = 300)]
+        timeout_seconds: u64,
+    },
     /// Certify an immutable simulation overlay and base on NVIDIA hardware.
     SimulationCertify {
         /// Canonical base image using repository@sha256 identity.
@@ -795,6 +815,24 @@ async fn main() -> Result<()> {
             context,
             public_base_url,
         } => uav_sim_verify(&conformance_bin, &scenario, &context, &public_base_url).await,
+        Cmd::SimulationViewVerify {
+            conformance_bin,
+            context,
+            namespace,
+            public_base_url,
+            chrome_cdp_url,
+            timeout_seconds,
+        } => {
+            simulation_view_verify(
+                &conformance_bin,
+                &context,
+                &namespace,
+                &public_base_url,
+                &chrome_cdp_url,
+                Duration::from_secs(timeout_seconds),
+            )
+            .await
+        }
         Cmd::SimulationCertify {
             base_image,
             overlay_image,

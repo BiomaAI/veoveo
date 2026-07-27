@@ -11434,6 +11434,7 @@ dependencies = [
  "sha2 0.11.0",
  "tempfile",
  "tokio",
+ "tokio-tungstenite 0.30.0",
  "url",
  "uuid",
  "veoveo-deploy-contract",

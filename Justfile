@@ -358,6 +358,11 @@ bioma-uav-sim-verify scenario='showcase/uav-sim/scenarios/new-york-aerial.json':
     cargo build -p veoveo-smoke --bin smoke -p veoveo-mcp-conformance --bin conformance
     {{smoke}} uav-sim-verify --context {{bioma-kube-context}} --scenario '{{scenario}}'
 
+# Run the anonymous producer through core Simulation View and its real App in headed Chrome.
+simulation-view-verify context=bioma-kube-context public_base_url='https://veoveo.bioma.ai' chrome_cdp_url='http://127.0.0.1:9227':
+    cargo build -p veoveo-smoke --bin smoke -p veoveo-mcp-conformance --bin conformance
+    {{smoke}} simulation-view-verify --context '{{context}}' --public-base-url '{{public_base_url}}' --chrome-cdp-url '{{chrome_cdp_url}}'
+
 # Check local health and, optionally, the operator-owned public edge.
 health public_base_url='':
     curl -fsS http://localhost:8780/healthz
