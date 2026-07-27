@@ -614,8 +614,10 @@ fn ensure_live_connection(connection: &Value, session_id: &str, camera_id: &str)
             && json_pointer_string(connection, "/stream/codec")? == "h264"
             && json_pointer_string(connection, "/stream/hardwareEncoder")? == "nvidia_nvenc"
             && json_pointer_string(connection, "/stream/endpoint/transport")? == "web_rtc"
-            && json_pointer_string(connection, "/stream/endpoint/signalingUrl")?
-                .starts_with("wss://")
+            && veoveo_mcp_contract::is_valid_live_signaling_url(json_pointer_string(
+                connection,
+                "/stream/endpoint/signalingUrl",
+            )?)
             && json_pointer_u64(connection, "/stream/endpoint/mediaPort")? > 0,
         "live-view connection does not identify ready NVIDIA H.264 WebRTC: {connection}"
     );
