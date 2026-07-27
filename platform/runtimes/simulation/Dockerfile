@@ -42,6 +42,11 @@ RUN /isaac-sim/kit/python/bin/python3 -m pip install \
 # TorchAudio are outside the supported runtime subset and have no stable
 # Torch 2.12 pair, so their incompatible bundled payloads are removed.
 RUN ml_prebundle=/isaac-sim/extsDeprecated/omni.isaac.ml_archive/pip_prebundle \
+    && rtx_nvrtc_builtins=/tmp/veoveo-isaac-rtx-nvrtc-builtins \
+    && mkdir -p "${rtx_nvrtc_builtins}" \
+    && cp -a \
+      "${ml_prebundle}"/nvidia/cuda_nvrtc/lib/libnvrtc-builtins*.so* \
+      "${rtx_nvrtc_builtins}/" \
     && rm -rf \
       "${ml_prebundle}/torch" \
       "${ml_prebundle}/torchgen" \
@@ -65,7 +70,12 @@ RUN ml_prebundle=/isaac-sim/extsDeprecated/omni.isaac.ml_archive/pip_prebundle \
       /opt/veoveo/python/torch-*.dist-info \
       /opt/veoveo/python/triton-*.dist-info \
       /opt/veoveo/python/nvidia_*.dist-info \
-      "${ml_prebundle}/"
+      "${ml_prebundle}/" \
+    && mkdir -p "${ml_prebundle}/nvidia/cuda_nvrtc/lib" \
+    && mv \
+      "${rtx_nvrtc_builtins}"/* \
+      "${ml_prebundle}/nvidia/cuda_nvrtc/lib/" \
+    && rmdir "${rtx_nvrtc_builtins}"
 
 # Isaac Sim discovers Warp and Newton through Kit extension roots. Replace
 # those payloads atomically so Kit-first and pre-Kit imports resolve the same
@@ -179,6 +189,7 @@ RUN groupadd --gid 10001 veoveo \
       /isaac-sim/kit/cache \
       /isaac-sim/kit/data \
       /var/lib/veoveo/.cache/nvidia/GLCache \
+      /var/lib/veoveo/.cache/matplotlib \
       /var/lib/veoveo/.cache/ov \
       /var/lib/veoveo/.cache/pip \
       /var/lib/veoveo/.local/share/ov/data \
@@ -194,15 +205,16 @@ RUN groupadd --gid 10001 veoveo \
 COPY --chmod=0555 probes/ /opt/veoveo/simulation-runtime/probes/
 COPY simulation-runtime.lock.json /opt/veoveo/simulation-base/simulation-runtime.lock.json
 COPY veoveo_simulation_base/ /opt/veoveo/simulation-base/veoveo_simulation_base/
-RUN echo "f6e3b61e3b039b3813a7a478f914d3dd083cbc1d65a15fc4f716236ddde966bd  /opt/veoveo/simulation-base/simulation-runtime.lock.json" \
+RUN echo "73b6d5e8f8d8d263d63c42ba3c708738fcf886d6b398ee9df2c0013733d419c0  /opt/veoveo/simulation-base/simulation-runtime.lock.json" \
       | sha256sum --check --strict \
     && printf '%s\n' \
-      "f6e3b61e3b039b3813a7a478f914d3dd083cbc1d65a15fc4f716236ddde966bd" \
+      "73b6d5e8f8d8d263d63c42ba3c708738fcf886d6b398ee9df2c0013733d419c0" \
       > /opt/veoveo/simulation-base/simulation-runtime.lock.sha256
 
 ENV ACCEPT_EULA=Y \
     HOME=/var/lib/veoveo \
     ISAACLAB_PATH=/opt/veoveo/isaaclab \
+    MPLCONFIGDIR=/var/lib/veoveo/.cache/matplotlib \
     PYTHONPATH=/isaac-sim/extsDeprecated/omni.isaac.ml_archive/pip_prebundle:/isaac-sim/extscache/omni.warp.core-1.13.0+lx64:/isaac-sim/exts/isaacsim.pip.newton/pip_prebundle:/opt/veoveo/simulation-base:/opt/veoveo/python:/opt/veoveo/isaaclab/source/isaaclab:/opt/veoveo/isaaclab/source/isaaclab_newton:/opt/veoveo/isaaclab/source/isaaclab_physx:/opt/veoveo/isaaclab/source/isaaclab_ov:/opt/veoveo/isaaclab/source/isaaclab_ovphysx \
     VEOVEO_SIMULATION_RUNTIME_PROFILE=isaac-6.0.1-lab-3.0.0-beta2.patch1-warp-1.15.0-newton-1.4.0 \
     XDG_CACHE_HOME=/var/lib/veoveo/.cache \

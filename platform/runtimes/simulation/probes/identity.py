@@ -17,6 +17,7 @@ ML_PREBUNDLE_ROOT = (
     ISAAC_ROOT / "extsDeprecated/omni.isaac.ml_archive/pip_prebundle"
 )
 TORCH_ROOT = ML_PREBUNDLE_ROOT / "torch"
+RTX_NVRTC_ROOT = ML_PREBUNDLE_ROOT / "nvidia/cuda_nvrtc/lib"
 WARP_ROOT = ISAAC_ROOT / "extscache/omni.warp.core-1.13.0+lx64/warp"
 NEWTON_ROOT = ISAAC_ROOT / "exts/isaacsim.pip.newton/pip_prebundle/newton"
 EXPECTED_ISAAC_LAB_PACKAGES = {
@@ -81,6 +82,14 @@ def inspect_identity() -> dict[str, object]:
         if (ML_PREBUNDLE_ROOT / unsupported).exists():
             raise RuntimeError(
                 f"unsupported bundled package remains in Torch root: {unsupported}"
+            )
+    for library in (
+        "libnvrtc-builtins.so.12.8",
+        "libnvrtc-builtins.alt.so.12.8",
+    ):
+        if not (RTX_NVRTC_ROOT / library).exists():
+            raise RuntimeError(
+                f"Isaac RTX NVRTC builtin {library} is missing from {RTX_NVRTC_ROOT}"
             )
 
     isaac_lab: dict[str, dict[str, str]] = {}
