@@ -163,6 +163,13 @@ while separate clones and incompatible SDK or libc families cannot mix target ou
 The target mount remains `sharing=locked` because a family now has one Cargo writer.
 There is no cross-image lock convoy and no fixed `--jobs` throttle.
 
+Every Rust family, including the isolated DeepStream, vLLM, UAV, and SUMO families,
+reads the complete workspace through the canonical read-only BuildKit source mount.
+Standalone Dockerfiles do not copy a handwritten subset of workspace members. The
+planner rejects a standalone builder that omits the source mount or introduces a
+builder-stage `COPY`, which prevents a new workspace crate from breaking an otherwise
+unrelated image late in a release.
+
 ## Adding An Image
 
 A Rust image target declares these labels in `docker-bake.hcl`:
