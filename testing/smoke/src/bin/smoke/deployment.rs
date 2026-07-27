@@ -46,11 +46,18 @@ struct K3dRegistrySummary {
 
 #[derive(Debug, Deserialize)]
 struct BakePrint {
+    group: BTreeMap<String, BakeGroup>,
     target: BTreeMap<String, BakeImageTarget>,
 }
 
 #[derive(Debug, Deserialize)]
+struct BakeGroup {
+    targets: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
 struct BakeImageTarget {
+    #[serde(default)]
     tags: Vec<String>,
 }
 
@@ -487,20 +494,28 @@ fn validate_bake_groups(
                         source.definition.name
                     )
                 })?;
-            for (target, definition) in definition.target {
+            let targets = definition
+                .group
+                .get(group)
+                .with_context(|| format!("Docker Bake output omitted selected group {group}"))?;
+            for target in &targets.targets {
+                let image = definition.target.get(target).with_context(|| {
+                    format!("Docker Bake group {group} references missing target {target}")
+                })?;
                 ensure!(
-                    definition.tags.len() == 1,
+                    image.tags.len() == 1,
                     "image target {target} from source {} must resolve exactly one OCI reference",
                     source.definition.name
                 );
                 selected_images.push(PlannedImage {
                     source: source.definition.name.clone(),
-                    target,
-                    reference: definition
+                    target: target.clone(),
+                    reference: image
                         .tags
-                        .into_iter()
+                        .iter()
                         .next()
-                        .expect("one image tag was required"),
+                        .expect("one image tag was required")
+                        .clone(),
                 });
             }
         }
