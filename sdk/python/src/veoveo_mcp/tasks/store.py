@@ -10,10 +10,12 @@ the existing schema with the database-level runtime user.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import uuid
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator
+from typing import Any
 
 from surrealdb import AsyncSurreal, RecordID
 
@@ -31,6 +33,8 @@ from .types import (
 MAX_OUTBOX_LIMIT = 1_000
 MAX_TRANSACTION_ATTEMPTS = 8
 DOMAIN_USAGE_EVENT_SCHEMA_VERSION = 1
+
+ConnectionFactory = Callable[[], Awaitable[Any]]
 
 
 class StoreError(Exception):
@@ -87,8 +91,13 @@ def outbox_draft(
 class SurrealStore:
     """One authenticated SurrealDB connection with fully checked queries."""
 
-    def __init__(self, connection: Any) -> None:
+    def __init__(
+        self,
+        connection: Any,
+        connection_factory: ConnectionFactory | None = None,
+    ) -> None:
         self._db = connection
+        self._connection_factory = connection_factory
         self._lock = asyncio.Lock()
 
     @classmethod
@@ -100,24 +109,28 @@ class SurrealStore:
         username: str,
         password: str,
     ) -> "SurrealStore":
-        db = AsyncSurreal(endpoint)
-        await db.signin(
-            {
-                "namespace": namespace,
-                "database": database,
-                "username": username,
-                "password": password,
-            }
-        )
-        await db.use(namespace, database)
-        return cls(db)
+        async def open_connection() -> Any:
+            db = AsyncSurreal(endpoint)
+            await db.signin(
+                {
+                    "namespace": namespace,
+                    "database": database,
+                    "username": username,
+                    "password": password,
+                }
+            )
+            await db.use(namespace, database)
+            return db
+
+        return cls(await open_connection(), open_connection)
 
     @property
     def connection(self) -> Any:
         return self._db
 
     async def close(self) -> None:
-        await self._db.close()
+        async with self._lock:
+            await self._db.close()
 
     async def query(self, sql: str, vars: dict[str, Any] | None = None) -> list[Any]:
         """Run a query and check EVERY statement result.
@@ -126,7 +139,26 @@ class SurrealStore:
         swallows transaction failures; the Rust SDK's `.check()` checks all.
         """
         async with self._lock:
-            response = await self._db.query_raw(sql, vars or {})
+            await self._replace_stale_connection()
+            try:
+                response = await self._db.query_raw(sql, vars or {})
+            except asyncio.CancelledError as error:
+                current = asyncio.current_task()
+                if current is not None and current.cancelling():
+                    raise
+                await self._restore_connection()
+                raise StoreError(
+                    "SurrealDB connection closed; connection restored for the "
+                    "next request"
+                ) from error
+            except Exception as error:
+                if not self._connection_is_stale():
+                    raise
+                await self._restore_connection()
+                raise StoreError(
+                    "SurrealDB connection closed; connection restored for the "
+                    "next request"
+                ) from error
         if "error" in response and response["error"]:
             message = str(response["error"])
             raise StoreError(message, retryable=is_retryable_message(message))
@@ -271,9 +303,30 @@ class SurrealStore:
         return values[0] if values else 0
 
     async def outbox_wake(self) -> "OutboxWake":
-        live_id = await self._db.live("outbox_event")
-        stream = await self._db.subscribe_live(live_id)
-        return OutboxWake(self._db, live_id, stream)
+        async with self._lock:
+            await self._replace_stale_connection()
+            live_id = await self._db.live("outbox_event")
+            stream = await self._db.subscribe_live(live_id)
+            return OutboxWake(self._db, live_id, stream)
+
+    def _connection_is_stale(self) -> bool:
+        if not hasattr(self._db, "socket"):
+            return False
+        receive_task = getattr(self._db, "recv_task", None)
+        socket = getattr(self._db, "socket", None)
+        return socket is None or (receive_task is not None and receive_task.done())
+
+    async def _replace_stale_connection(self) -> None:
+        if self._connection_is_stale():
+            await self._restore_connection()
+
+    async def _restore_connection(self) -> None:
+        if self._connection_factory is None:
+            raise StoreError("SurrealDB connection closed and cannot be restored")
+        previous = self._db
+        self._db = await self._connection_factory()
+        with contextlib.suppress(Exception):
+            await previous.close()
 
     async def upsert_domain_usage(
         self,
@@ -299,7 +352,14 @@ class SurrealStore:
         if _record_key(task["server"]) != server:
             raise StoreError(f"task `{task_id}` does not belong to server `{server}`")
         usage_key = "|".join(
-            [server, str(task_id), kind, model_id, source_id or "", provider_job_id or ""]
+            [
+                server,
+                str(task_id),
+                kind,
+                model_id,
+                source_id or "",
+                provider_job_id or "",
+            ]
         )
         usage_id = RecordID("domain_usage", uuid.uuid5(uuid.NAMESPACE_OID, usage_key))
         now = recorded_at or _now()

@@ -12,16 +12,21 @@ pub(crate) async fn datasheet_mcp(conformance: &Path, artifact_service: &Path) -
     if !template_dir.is_dir() {
         bail!("datasheet smoke must run from the repository root");
     }
+    let image_project_dir = Path::new("tools/image-build/datasheet");
+    if !image_project_dir.is_dir() {
+        bail!("datasheet image-build project is missing");
+    }
     run_checked(
         Path::new("uv"),
         [
             "sync".into(),
             "--project".into(),
-            template_dir.as_os_str().to_os_string(),
+            image_project_dir.as_os_str().to_os_string(),
+            "--locked".into(),
         ],
         [],
     )?;
-    let datasheet_bin = template_dir.join(".venv/bin/datasheet-mcp");
+    let datasheet_bin = image_project_dir.join(".venv/bin/datasheet-mcp");
     assert_executable(&datasheet_bin)?;
 
     let tmpdir = smoke_tmpdir()?;
