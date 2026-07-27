@@ -23,6 +23,10 @@ RESULT_MARKER = "VEOVEO_SIMULATION_PROBE_RESULT="
 STEP_MARKER = "VEOVEO_SIMULATION_PROBE_STEP="
 OVERLAY_IDENTITY_PATH = Path("/opt/veoveo/simulation-overlay/identity.json")
 ISAAC_LAB_REVISION_PATH = Path("/opt/veoveo/isaaclab/.veoveo-source-revision")
+SYNTHETIC_TORCH_MODULES = {
+    ("torch.classes", "_classes.py"),
+    ("torch.ops", "_ops.py"),
+}
 
 
 def _duration(started: float) -> int:
@@ -138,6 +142,8 @@ def _verify_module_graph(
             continue
         module_path = getattr(module, "__file__", None)
         if not module_path:
+            continue
+        if (name, module_path) in SYNTHETIC_TORCH_MODULES:
             continue
         loaded += 1
         if not _is_below(module_path, roots[package]):

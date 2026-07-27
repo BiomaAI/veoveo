@@ -26,6 +26,10 @@ EXPECTED_ISAAC_LAB_PACKAGES = {
     "isaaclab_ovphysx": "3.0.2",
     "isaaclab_physx": "1.1.3",
 }
+SYNTHETIC_TORCH_MODULES = {
+    ("torch.classes", "_classes.py"),
+    ("torch.ops", "_ops.py"),
+}
 
 
 def _under(path: Path, root: Path) -> bool:
@@ -116,6 +120,8 @@ def inspect_identity() -> dict[str, object]:
             continue
         module_file = getattr(module, "__file__", None)
         if not module_file:
+            continue
+        if (name, module_file) in SYNTHETIC_TORCH_MODULES:
             continue
         inspected_modules += 1
         if not _under(Path(module_file), root):
