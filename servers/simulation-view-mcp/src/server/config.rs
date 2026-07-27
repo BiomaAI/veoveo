@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use clap::Parser;
-use url::Url;
+use url::{Host, Url};
 use veoveo_mcp_contract::{
     LiveMediaEndpoint, LiveMediaTransport, PublicDeployment, parse_allowed_host_authority,
 };
@@ -106,13 +106,8 @@ impl Args {
         self.public_deployment()?;
         let signaling = Url::parse(&self.public_signaling_url)?;
         anyhow::ensure!(
-            matches!(signaling.scheme(), "https" | "wss")
-                && signaling.host_str().is_some()
-                && signaling.username().is_empty()
-                && signaling.password().is_none()
-                && signaling.query().is_none()
-                && signaling.fragment().is_none(),
-            "public signaling URL must be a credential-free HTTPS or WSS URL"
+            is_valid_public_signaling_url(&signaling),
+            "public signaling URL must be credential-free HTTPS/WSS or exact-loopback WS"
         );
         let upstream = Url::parse(&self.renderer_signaling_url)?;
         anyhow::ensure!(
@@ -175,6 +170,24 @@ impl Args {
     }
 }
 
+fn is_valid_public_signaling_url(url: &Url) -> bool {
+    (matches!(url.scheme(), "https" | "wss") || (url.scheme() == "ws" && is_loopback_host(url)))
+        && url.host_str().is_some()
+        && url.username().is_empty()
+        && url.password().is_none()
+        && url.query().is_none()
+        && url.fragment().is_none()
+}
+
+fn is_loopback_host(url: &Url) -> bool {
+    match url.host() {
+        Some(Host::Domain(host)) => host.eq_ignore_ascii_case("localhost"),
+        Some(Host::Ipv4(address)) => address.is_loopback(),
+        Some(Host::Ipv6(address)) => address.is_loopback(),
+        None => false,
+    }
+}
+
 fn validate_control_token(value: &str) -> anyhow::Result<()> {
     anyhow::ensure!(
         (32..=512).contains(&value.len()) && !value.chars().any(char::is_whitespace),
@@ -188,4 +201,57 @@ fn parse_allowed_host(value: &str) -> Result<String, String> {
     parse_allowed_host_authority(value)
         .map(|_| value.to_owned())
         .ok_or_else(|| "expected a host authority such as simulation-view-mcp:8808".to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_loopback_host, is_valid_public_signaling_url};
+
+    #[test]
+    fn recognizes_only_exact_loopback_hosts() {
+        for url in [
+            "ws://localhost:8782/signaling",
+            "ws://LOCALHOST:8782/signaling",
+            "ws://127.0.0.1:8782/signaling",
+            "ws://[::1]:8782/signaling",
+        ] {
+            assert!(is_loopback_host(&url::Url::parse(url).unwrap()), "{url}");
+        }
+        for url in [
+            "ws://localhost.example:8782/signaling",
+            "ws://128.0.0.1:8782/signaling",
+            "ws://192.0.2.1:8782/signaling",
+        ] {
+            assert!(!is_loopback_host(&url::Url::parse(url).unwrap()), "{url}");
+        }
+    }
+
+    #[test]
+    fn accepts_secure_or_exact_loopback_public_signaling() {
+        for url in [
+            "https://views.example.test/signaling",
+            "wss://views.example.test/signaling",
+            "ws://localhost:8782/signaling",
+            "ws://127.0.0.1:8782/signaling",
+            "ws://[::1]:8782/signaling",
+        ] {
+            assert!(
+                is_valid_public_signaling_url(&url::Url::parse(url).unwrap()),
+                "{url}"
+            );
+        }
+        for url in [
+            "http://localhost:8782/signaling",
+            "ws://localhost.example:8782/signaling",
+            "ws://192.0.2.1:8782/signaling",
+            "ws://user@localhost:8782/signaling",
+            "ws://localhost:8782/signaling?token=secret",
+            "ws://localhost:8782/signaling#fragment",
+        ] {
+            assert!(
+                !is_valid_public_signaling_url(&url::Url::parse(url).unwrap()),
+                "{url}"
+            );
+        }
+    }
 }
