@@ -1,4 +1,5 @@
 global:
+  production: true
   publicBaseUrl: https://veoveo.bioma.ai
 
 objectStore:
