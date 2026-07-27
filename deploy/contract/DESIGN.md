@@ -4,8 +4,8 @@
 
 | Standard or protocol | Supported profile |
 |---|---|
-| `veoveo.io/deployment/v2` | named-source deployment profile with independent Git revisions |
-| `veoveo.io/deployment-lock/v2` | immutable source, OCI image, chart, and platform resolution |
+| `veoveo.io/deployment/v2` | named-source deployment profile with one explicit platform source and independently versioned extension sources |
+| `veoveo.io/deployment-lock/v2` | immutable source-role, OCI image, chart, and platform resolution |
 | `veoveo.io/local-registry/v1` | repository-owned loopback registry declaration |
 | Docker Buildx Bake | image-group names selected by a deployment profile |
 | Kubernetes and Helm | typed destination and ordered release inputs; process execution remains outside this crate |
@@ -18,8 +18,10 @@ pure validation used by operational tooling. It does not execute Git, Docker, Bu
 k3d, Kubernetes, or Helm commands.
 
 Each named source owns its repository, independently resolved revision, Bake phases,
-and Helm releases. The lock records the resolved repository and revision with image
-manifest digests and chart-content digests. Local development may use source charts;
+and Helm releases. Exactly one source has the `platform` role. Every other source has
+the `extension` role and can use only the extension chart-values contract. The lock
+retains that ownership boundary with the resolved repository and revision, image
+manifest digests, and chart-content digests. Local development may use source charts;
 production composition replaces source coordinates with digest-addressed private OCI
 chart coordinates.
 
@@ -32,6 +34,17 @@ implementations.
 The same resolution produces the exact Veoveo-owned OCI image closure. Platform
 components contribute their runtime images, each selected MCP server contributes its
 image, Recording contributes the hub and MCP images, and an RRD requirement contributes
-the producer-side recording forwarder. Operational tools compare this closure with the
-resolved Bake targets before validation or publication. A profile cannot select a
-service while omitting the image that implements it.
+the producer-side recording forwarder. Only targets from the explicit platform source
+can satisfy this closure.
+
+Operational tools resolve every source-qualified target and final repository/tag
+reference before publication begins. Pure contract validation rejects a target selected
+twice by one source, an OCI reference claimed by two sources, or an omitted platform
+target. The immutable lock also rejects repositories and Helm release identities owned
+by more than one source. An extension cannot satisfy platform closure by copying a
+first-party target name.
+
+The acceptance test creates independent platform, extension, and installation Git
+repositories, resolves distinct commits, validates the source-qualified image plan, and
+produces one combined lock. It does not introduce an installation coordinator or
+prescribe the extension's build system.

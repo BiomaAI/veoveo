@@ -8,6 +8,7 @@
   "sources": [
     {
       "name": "veoveo",
+      "role": "platform",
       "repository": {
         "kind": "local",
         "path": "../../.."

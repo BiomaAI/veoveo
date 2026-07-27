@@ -11,7 +11,7 @@ use anyhow::{Context, Result, bail, ensure};
 use sha2::{Digest, Sha256};
 use veoveo_deploy_contract::{
     DEPLOYMENT_LOCK_SCHEMA, DeploymentLock, DeploymentSource, LoadedProfile, LockedChart,
-    LockedImage, LockedSource, SourceRepository,
+    LockedImage, LockedSource, PlannedImage, SourceRepository,
 };
 
 const IMAGE_RELEASE_EVIDENCE_SCHEMA: &str = "veoveo.io/image-release-evidence/v1";
@@ -23,6 +23,22 @@ struct ImageReleaseEvidence<'a> {
     source_revision: &'a str,
     registry: &'a str,
     images: &'a [LockedImage],
+}
+
+struct PreparedImagePhase {
+    name: String,
+    plan: image::PreparedPlan,
+}
+
+struct PreparedSourceRelease {
+    definition: DeploymentSource,
+    origin: String,
+    revision: String,
+    repository: RepositoryContext,
+    phases: Vec<PreparedImagePhase>,
+    images: Vec<PlannedImage>,
+    charts: Vec<LockedChart>,
+    _publication: PublicationSource,
 }
 
 use crate::{
@@ -254,42 +270,24 @@ fn release_profile_images(
     };
     let registry = committed_profile.definition.registry.address.clone();
     validate_registry(&registry)?;
-    validate_profile_image_closure(repository, &working_profile, &committed_profile, &registry)?;
-    let mut locked_sources = Vec::new();
+    let mut prepared_sources = Vec::new();
     for source in &committed_profile.definition.sources {
-        let source_root = match &source.repository {
-            SourceRepository::Local { .. } => working_profile.local_source_root(source)?,
-            SourceRepository::Git { url } => prepare_remote_repository(repository, url)?,
-        };
-        let source_repository = RepositoryContext::discover(&source_root).with_context(|| {
-            format!(
-                "discovering repository for deployment source {}",
-                source.name
-            )
-        })?;
-        let publication = PublicationSource::prepare(&source_repository, &source.revision)?;
-        let selected_repository = RepositoryContext::discover(publication.path())?;
-        let selections = source
-            .image_groups
-            .iter()
-            .map(|group| Selection::group(group))
-            .collect::<Result<Vec<_>>>()?;
-        let images = publish_image_selections(
+        prepared_sources.push(prepare_profile_source(
             repository,
-            &selected_repository,
-            publication.revision(),
+            &working_profile,
+            source,
             &registry,
-            selections,
-        )?;
-        let charts = lock_source_charts(source, publication.path(), publication.revision())?;
-        locked_sources.push(LockedSource {
-            name: source.name.clone(),
-            repository: source_repository.origin()?,
-            revision: publication.revision().to_owned(),
-            images,
-            charts,
-        });
+        )?);
     }
+    let planned_images = prepared_sources
+        .iter()
+        .flat_map(|source| source.images.iter().cloned())
+        .collect::<Vec<_>>();
+    committed_profile.validate_image_plan(&planned_images)?;
+    let locked_sources = prepared_sources
+        .into_iter()
+        .map(|source| publish_prepared_source(repository, &registry, source))
+        .collect::<Result<Vec<_>>>()?;
     let lock = DeploymentLock {
         schema_version: DEPLOYMENT_LOCK_SCHEMA.to_owned(),
         profile: committed_profile.definition.name.clone(),
@@ -311,60 +309,112 @@ fn release_profile_images(
     Ok(())
 }
 
-fn validate_profile_image_closure(
+fn prepare_profile_source(
     repository: &RepositoryContext,
     working_profile: &LoadedProfile,
-    committed_profile: &LoadedProfile,
+    source: &DeploymentSource,
     registry: &str,
-) -> Result<()> {
-    let environment = BTreeMap::from([
-        ("VEOVEO_REGISTRY".to_owned(), registry.to_owned()),
-        (
-            "VEOVEO_IMAGE_TAG".to_owned(),
-            "closure-validation".to_owned(),
-        ),
-    ]);
-    let mut selected = BTreeSet::new();
-    for source in &committed_profile.definition.sources {
-        let source_root = match &source.repository {
-            SourceRepository::Local { .. } => working_profile.local_source_root(source)?,
-            SourceRepository::Git { url } => prepare_remote_repository(repository, url)?,
-        };
-        let source_repository = RepositoryContext::discover(&source_root).with_context(|| {
-            format!(
-                "discovering repository for deployment source {}",
-                source.name
-            )
-        })?;
-        let publication = PublicationSource::prepare(&source_repository, &source.revision)?;
-        let selected_repository = RepositoryContext::discover(publication.path())?;
-        for group in &source.image_groups {
-            let prepared =
-                image::prepare(&selected_repository, Selection::group(group)?, &environment)
-                    .with_context(|| {
-                        format!(
-                            "resolving image group {group} from deployment source {}",
-                            source.name
-                        )
-                    })?;
-            selected.extend(
-                prepared
-                    .image_references()
-                    .into_iter()
-                    .map(|(name, _)| name),
+) -> Result<PreparedSourceRelease> {
+    let source_root = match &source.repository {
+        SourceRepository::Local { .. } => working_profile.local_source_root(source)?,
+        SourceRepository::Git { url } => prepare_remote_repository(repository, url)?,
+    };
+    let source_repository = RepositoryContext::discover(&source_root).with_context(|| {
+        format!(
+            "discovering repository for deployment source {}",
+            source.name
+        )
+    })?;
+    let origin = source_repository.origin()?;
+    let publication = PublicationSource::prepare(&source_repository, &source.revision)?;
+    let revision = publication.revision().to_owned();
+    let selected_repository = RepositoryContext::discover(publication.path())?;
+    let environment = publication_environment(registry, &revision);
+    let mut phases = Vec::with_capacity(source.image_groups.len());
+    let mut images = Vec::new();
+    for group in &source.image_groups {
+        let plan = image::prepare(&selected_repository, Selection::group(group)?, &environment)
+            .with_context(|| {
+                format!(
+                    "resolving image group {group} from deployment source {}",
+                    source.name
+                )
+            })?;
+        for (target, reference) in plan.image_references() {
+            validate_revision_reference(&reference, registry, &revision)?;
+            images.push(PlannedImage {
+                source: source.name.clone(),
+                target,
+                reference,
+            });
+        }
+        phases.push(PreparedImagePhase {
+            name: group.clone(),
+            plan,
+        });
+    }
+    let charts = lock_source_charts(source, publication.path(), &revision)?;
+    Ok(PreparedSourceRelease {
+        definition: source.clone(),
+        origin,
+        revision,
+        repository: selected_repository,
+        phases,
+        images,
+        charts,
+        _publication: publication,
+    })
+}
+
+fn publish_prepared_source(
+    evidence_repository: &RepositoryContext,
+    registry: &str,
+    source: PreparedSourceRelease,
+) -> Result<LockedSource> {
+    let environment = publication_environment(registry, &source.revision);
+    let phase_count = source.phases.len();
+    let mut references = BTreeMap::new();
+    for (index, phase) in source.phases.iter().enumerate() {
+        println!(
+            "Publishing source {} image phase {}/{}: {}",
+            source.definition.name,
+            index + 1,
+            phase_count,
+            phase.name
+        );
+        let evidence = image::evidence_run(evidence_repository, &phase.plan.plan, "release")?;
+        image::execute(
+            &source.repository,
+            &phase.plan,
+            &environment,
+            OutputMode::Push,
+            &evidence,
+        )?;
+        let digests = evidence.published_image_digests(&phase.plan)?;
+        for (name, reference) in phase.plan.image_references() {
+            let digest = digests
+                .get(&name)
+                .with_context(|| format!("Buildx metadata omitted published image {name}"))?;
+            ensure!(
+                references
+                    .insert(name.clone(), (reference, digest.clone()))
+                    .is_none(),
+                "deployment source {} published image target {} more than once",
+                source.definition.name,
+                name
             );
         }
+        println!("Release evidence: {}", evidence.directory().display());
     }
-
-    let required = committed_profile.required_platform_images()?;
-    let missing = required.difference(&selected).cloned().collect::<Vec<_>>();
-    ensure!(
-        missing.is_empty(),
-        "deployment profile {} omits required Veoveo image targets from its Bake groups: {}",
-        committed_profile.definition.name,
-        missing.join(", ")
-    );
-    Ok(())
+    let images = lock_published_images(references, &source.revision)?;
+    Ok(LockedSource {
+        name: source.definition.name,
+        role: source.definition.role,
+        repository: source.origin,
+        revision: source.revision,
+        images,
+        charts: source.charts,
+    })
 }
 
 fn publish_image_selections(
@@ -374,37 +424,71 @@ fn publish_image_selections(
     registry: &str,
     selections: Vec<Selection>,
 ) -> Result<Vec<LockedImage>> {
-    let environment = BTreeMap::from([
-        ("VEOVEO_REGISTRY".to_owned(), registry.to_owned()),
-        ("VEOVEO_IMAGE_TAG".to_owned(), revision.to_owned()),
-    ]);
+    let environment = publication_environment(registry, revision);
     let phase_count = selections.len();
+    let phases = selections
+        .into_iter()
+        .map(|selection| {
+            let name = selection.name.clone();
+            let plan = image::prepare(source_repository, selection, &environment)?;
+            for (_, reference) in plan.image_references() {
+                validate_revision_reference(&reference, registry, revision)?;
+            }
+            Ok(PreparedImagePhase { name, plan })
+        })
+        .collect::<Result<Vec<_>>>()?;
     let mut references = BTreeMap::new();
-    for (index, selection) in selections.into_iter().enumerate() {
+    let mut published_references = BTreeSet::new();
+    for phase in &phases {
+        for (name, reference) in phase.plan.image_references() {
+            ensure!(
+                !references.contains_key(&name),
+                "image target {name} is selected more than once"
+            );
+            ensure!(
+                published_references.insert(reference.clone()),
+                "image reference {reference} is selected more than once"
+            );
+            references.insert(name, (reference, String::new()));
+        }
+    }
+    references.clear();
+    for (index, phase) in phases.iter().enumerate() {
         println!(
             "Publishing image phase {}/{}: {}",
             index + 1,
             phase_count,
-            selection.name
+            phase.name
         );
-        let prepared = image::prepare(source_repository, selection, &environment)?;
-        let evidence = image::evidence_run(evidence_repository, &prepared.plan, "release")?;
+        let evidence = image::evidence_run(evidence_repository, &phase.plan.plan, "release")?;
         image::execute(
             source_repository,
-            &prepared,
+            &phase.plan,
             &environment,
             OutputMode::Push,
             &evidence,
         )?;
-        let digests = evidence.published_image_digests(&prepared)?;
-        for (name, reference) in prepared.image_references() {
+        let digests = evidence.published_image_digests(&phase.plan)?;
+        for (name, reference) in phase.plan.image_references() {
             let digest = digests
                 .get(&name)
                 .with_context(|| format!("Buildx metadata omitted published image {name}"))?;
-            references.insert(name, (reference, digest.clone()));
+            ensure!(
+                references
+                    .insert(name.clone(), (reference, digest.clone()))
+                    .is_none(),
+                "image target {name} was published more than once"
+            );
         }
         println!("Release evidence: {}", evidence.directory().display());
     }
+    lock_published_images(references, revision)
+}
+
+fn lock_published_images(
+    references: BTreeMap<String, (String, String)>,
+    revision: &str,
+) -> Result<Vec<LockedImage>> {
     references
         .into_iter()
         .map(|(name, (reference, digest))| {
@@ -421,6 +505,25 @@ fn publish_image_selections(
             })
         })
         .collect()
+}
+
+fn publication_environment(registry: &str, revision: &str) -> BTreeMap<String, String> {
+    BTreeMap::from([
+        ("VEOVEO_REGISTRY".to_owned(), registry.to_owned()),
+        ("VEOVEO_IMAGE_TAG".to_owned(), revision.to_owned()),
+    ])
+}
+
+fn validate_revision_reference(reference: &str, registry: &str, revision: &str) -> Result<()> {
+    ensure!(
+        reference.starts_with(&format!("{registry}/")),
+        "published image reference {reference} is outside selected registry {registry}"
+    );
+    ensure!(
+        reference.ends_with(&format!(":{revision}")),
+        "published image reference {reference} does not use source revision tag {revision}"
+    );
+    Ok(())
 }
 
 fn profile_relative_path(repository: &RepositoryContext, profile: &PathBuf) -> Result<PathBuf> {

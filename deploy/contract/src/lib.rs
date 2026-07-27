@@ -63,6 +63,8 @@ pub struct RegistryReference {
 pub struct DeploymentSource {
     /// Installation-local source identity.
     pub name: String,
+    /// Artifact ownership boundary used for platform-image closure.
+    pub role: DeploymentSourceRole,
     /// Source repository location.
     pub repository: SourceRepository,
     /// Independently resolved Git revision or ref.
@@ -73,6 +75,16 @@ pub struct DeploymentSource {
     /// Ordered Helm releases owned by this source.
     #[serde(default)]
     pub releases: Vec<ReleaseSpec>,
+}
+
+/// Ownership role for one independently versioned deployment source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum DeploymentSourceRole {
+    /// The sole Veoveo platform source in this deployment.
+    Platform,
+    /// An independently owned extension source.
+    Extension,
 }
 
 /// Repository location for one deployment source.
@@ -333,10 +345,19 @@ pub struct DeploymentLock {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LockedSource {
     pub name: String,
+    pub role: DeploymentSourceRole,
     pub repository: String,
     pub revision: String,
     pub images: Vec<LockedImage>,
     pub charts: Vec<LockedChart>,
+}
+
+/// One source-qualified OCI image reference resolved before publication.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlannedImage {
+    pub source: String,
+    pub target: String,
+    pub reference: String,
 }
 
 /// One source-owned OCI image in a deployment lock.
@@ -466,6 +487,12 @@ impl LoadedProfile {
         Ok(images)
     }
 
+    /// Validates the complete source-qualified image plan before execution.
+    pub fn validate_image_plan(&self, images: &[PlannedImage]) -> Result<()> {
+        let required = self.required_platform_images()?;
+        self.definition.validate_image_plan(images, &required)
+    }
+
     fn validate(&self) -> Result<()> {
         let profile = &self.definition;
         ensure!(
@@ -480,6 +507,15 @@ impl LoadedProfile {
             "deployment source",
             profile.sources.iter().map(|item| &item.name),
         )?;
+        let platform_sources = profile
+            .sources
+            .iter()
+            .filter(|source| source.role == DeploymentSourceRole::Platform)
+            .count();
+        ensure!(
+            platform_sources == 1,
+            "deployment profile must contain exactly one platform source, found {platform_sources}"
+        );
         let mut release_names = BTreeSet::new();
         for source in &profile.sources {
             validate_name("deployment source", &source.name)?;
@@ -601,6 +637,93 @@ impl LoadedProfile {
         for deployment in &profile.wait_for_deployments {
             validate_name("deployment wait target", deployment)?;
         }
+        Ok(())
+    }
+}
+
+impl DeploymentProfile {
+    /// Returns the single source that owns Veoveo platform artifacts.
+    pub fn platform_source(&self) -> Result<&DeploymentSource> {
+        let mut sources = self
+            .sources
+            .iter()
+            .filter(|source| source.role == DeploymentSourceRole::Platform);
+        let source = sources
+            .next()
+            .context("deployment profile contains no platform source")?;
+        ensure!(
+            sources.next().is_none(),
+            "deployment profile contains more than one platform source"
+        );
+        Ok(source)
+    }
+
+    /// Validates image ownership, collision freedom, and platform closure.
+    pub fn validate_image_plan(
+        &self,
+        images: &[PlannedImage],
+        required_platform_images: &BTreeSet<String>,
+    ) -> Result<()> {
+        let platform_source = self.platform_source()?;
+        let source_names = self
+            .sources
+            .iter()
+            .map(|source| source.name.as_str())
+            .collect::<BTreeSet<_>>();
+        let mut source_targets = BTreeSet::new();
+        let mut references = BTreeMap::new();
+        let mut platform_targets = BTreeSet::new();
+
+        for image in images {
+            ensure!(
+                source_names.contains(image.source.as_str()),
+                "image target {} references unknown deployment source {}",
+                image.target,
+                image.source
+            );
+            validate_name("image target", &image.target)?;
+            ensure!(
+                !image.reference.trim().is_empty()
+                    && !image.reference.chars().any(char::is_whitespace),
+                "image target {} from source {} has an invalid OCI reference",
+                image.target,
+                image.source
+            );
+            ensure!(
+                source_targets.insert((image.source.clone(), image.target.clone())),
+                "deployment source {} selects image target {} more than once",
+                image.source,
+                image.target
+            );
+            if let Some((owner_source, owner_target)) = references.insert(
+                image.reference.clone(),
+                (image.source.clone(), image.target.clone()),
+            ) {
+                anyhow::bail!(
+                    "image reference {} collides between {}:{} and {}:{}",
+                    image.reference,
+                    owner_source,
+                    owner_target,
+                    image.source,
+                    image.target
+                );
+            }
+            if image.source == platform_source.name {
+                platform_targets.insert(image.target.clone());
+            }
+        }
+
+        let missing = required_platform_images
+            .difference(&platform_targets)
+            .cloned()
+            .collect::<Vec<_>>();
+        ensure!(
+            missing.is_empty(),
+            "deployment profile {} omits required Veoveo image targets from platform source {}: {}",
+            self.name,
+            platform_source.name,
+            missing.join(", ")
+        );
         Ok(())
     }
 }
@@ -927,6 +1050,17 @@ impl DeploymentLock {
         self.platform.validate_dependencies()?;
         ensure!(!self.sources.is_empty(), "locked sources cannot be empty");
         ensure_unique("locked source", self.sources.iter().map(|item| &item.name))?;
+        let platform_sources = self
+            .sources
+            .iter()
+            .filter(|source| source.role == DeploymentSourceRole::Platform)
+            .count();
+        ensure!(
+            platform_sources == 1,
+            "deployment lock must contain exactly one platform source, found {platform_sources}"
+        );
+        let mut image_repositories = BTreeMap::new();
+        let mut release_names = BTreeMap::new();
         for source in &self.sources {
             validate_name("locked source", &source.name)?;
             ensure!(
@@ -952,9 +1086,32 @@ impl DeploymentLock {
                     "locked image repository must not carry a mutable tag or digest"
                 );
                 validate_digest(&image.digest)?;
+                if let Some((owner_source, owner_image)) = image_repositories.insert(
+                    image.repository.clone(),
+                    (source.name.clone(), image.name.clone()),
+                ) {
+                    anyhow::bail!(
+                        "locked image repository {} is owned by both {}:{} and {}:{}",
+                        image.repository,
+                        owner_source,
+                        owner_image,
+                        source.name,
+                        image.name
+                    );
+                }
             }
             for chart in &source.charts {
                 validate_name("locked Helm release", &chart.release)?;
+                if let Some(owner_source) =
+                    release_names.insert(chart.release.clone(), source.name.clone())
+                {
+                    anyhow::bail!(
+                        "locked Helm release {} is owned by both {} and {}",
+                        chart.release,
+                        owner_source,
+                        source.name
+                    );
+                }
                 ensure!(
                     chart.coordinate.starts_with("oci://")
                         || chart.coordinate.starts_with("source://"),
@@ -1053,6 +1210,20 @@ fn validate_release_metadata(
     release_names: &mut BTreeSet<String>,
 ) -> Result<()> {
     for release in &source.releases {
+        match source.role {
+            DeploymentSourceRole::Platform => ensure!(
+                release.values_contract != ReleaseValuesContract::Extension,
+                "platform source {} cannot own extension Helm release {}",
+                source.name,
+                release.name
+            ),
+            DeploymentSourceRole::Extension => ensure!(
+                release.values_contract == ReleaseValuesContract::Extension,
+                "extension source {} must use the extension values contract for Helm release {}",
+                source.name,
+                release.name
+            ),
+        }
         validate_name("Helm release", &release.name)?;
         ensure!(
             release_names.insert(release.name.clone()),
@@ -1186,9 +1357,9 @@ mod tests {
     use jsonschema::Validator;
 
     use super::{
-        FirstPartyMcpServer, GatewayDeploymentRequirements, InstallationPreset, LoadedProfile,
-        PlatformCapability, PlatformComponent, PlatformSelection, deployment_lock_schema,
-        deployment_profile_schema,
+        DeploymentSourceRole, FirstPartyMcpServer, GatewayDeploymentRequirements,
+        InstallationPreset, LoadedProfile, PlannedImage, PlatformCapability, PlatformComponent,
+        PlatformSelection, deployment_lock_schema, deployment_profile_schema,
     };
 
     #[test]
@@ -1224,6 +1395,85 @@ mod tests {
                 "recording-hub".to_owned(),
                 "recording-mcp".to_owned(),
             ])
+        );
+    }
+
+    #[test]
+    fn extension_targets_cannot_satisfy_platform_image_closure() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let profile =
+            repository.join("testing/fixtures/external-extension-installation/deployment.json");
+        let loaded =
+            LoadedProfile::load(&profile, &repository).expect("load external extension profile");
+        let required = loaded
+            .required_platform_images()
+            .expect("resolve platform image closure");
+        let mut definition = loaded.definition.clone();
+        let mut extension = definition.sources[0].clone();
+        extension.name = "anonymous-extension".to_owned();
+        extension.role = DeploymentSourceRole::Extension;
+        definition.sources.push(extension);
+        let images = required
+            .iter()
+            .map(|target| PlannedImage {
+                source: if target == "frames-mcp" {
+                    "anonymous-extension"
+                } else {
+                    "veoveo"
+                }
+                .to_owned(),
+                target: target.clone(),
+                reference: format!("registry.example.internal/{target}:revision"),
+            })
+            .collect::<Vec<_>>();
+
+        let error = definition
+            .validate_image_plan(&images, &required)
+            .expect_err("extension target cannot satisfy platform closure");
+
+        assert!(error.to_string().contains("frames-mcp"));
+    }
+
+    #[test]
+    fn image_plan_rejects_duplicate_targets_and_references() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let profile =
+            repository.join("testing/fixtures/external-extension-installation/deployment.json");
+        let loaded =
+            LoadedProfile::load(&profile, &repository).expect("load external extension profile");
+        let required = loaded
+            .required_platform_images()
+            .expect("resolve platform image closure");
+        let mut images = required
+            .iter()
+            .map(|target| PlannedImage {
+                source: "veoveo".to_owned(),
+                target: target.clone(),
+                reference: format!("registry.example.internal/veoveo/{target}:revision"),
+            })
+            .collect::<Vec<_>>();
+        images.push(images[0].clone());
+        assert!(
+            loaded
+                .validate_image_plan(&images)
+                .expect_err("duplicate target must fail")
+                .to_string()
+                .contains("selects image target")
+        );
+
+        images.pop();
+        let collision = images[0].reference.clone();
+        images.push(PlannedImage {
+            source: "veoveo".to_owned(),
+            target: "different-target".to_owned(),
+            reference: collision,
+        });
+        assert!(
+            loaded
+                .validate_image_plan(&images)
+                .expect_err("duplicate reference must fail")
+                .to_string()
+                .contains("collides between")
         );
     }
 

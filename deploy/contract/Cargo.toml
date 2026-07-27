@@ -13,3 +13,4 @@ url.workspace = true
 
 [dev-dependencies]
 jsonschema.workspace = true
+tempfile = "=3.27.0"
