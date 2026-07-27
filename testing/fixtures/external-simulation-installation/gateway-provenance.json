@@ -1,12 +1,12 @@
 {
   "schemaVersion": "veoveo.io/gateway-composition-provenance/v1",
-  "outputSha256": "sha256:be6fa6e8f85623b1b63d2144572069da88b9f0867f3bbee79ae377c205030e4d",
+  "outputSha256": "sha256:c982c349e3996d3481cc205d2f7f53f6b5aae4464d65ac505af3050cec8ae4e9",
   "inputs": [
     {
       "kind": "base_control_plane",
       "identity": "base-control-plane",
       "schemaVersion": "veoveo.io/gateway-control-plane/v1",
-      "sha256": "sha256:e9725e68aebbf0bec51da568f5dd7804c91a1007f8d0b32054892ce6fda16cbe"
+      "sha256": "sha256:eccf9d9553a8ab914f80a14307b5747b8e549cccf2aaf7702f165e2f76545344"
     },
     {
       "kind": "server_fragment",

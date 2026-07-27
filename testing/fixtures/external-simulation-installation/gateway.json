@@ -173,7 +173,7 @@
       "mcp_path": "/simulation-view/mcp",
       "upstream": {
         "transport": "streamable_http",
-        "url": "http://simulation-view-mcp:8820/simulation-view/mcp",
+        "url": "http://simulation-view-mcp:8808/simulation-view/mcp",
         "security": "cluster_internal_http"
       },
       "capabilities": {
