@@ -162,6 +162,12 @@ access token. Stored resources contain the stream state without the token.
 The service stores only SHA-256 token hashes and compares supplied hashes in
 constant time.
 
+Public signaling uses credential-free HTTPS or WSS. The checked-in local
+development profile may use WS only when URL parsing proves the host is the
+exact `localhost` domain, an address in `127.0.0.0/8`, or `::1`. Credentials,
+queries, fragments, public WS hosts, and lookalike localhost domains are
+rejected by the shared live-view contract.
+
 The WebSocket proxy accepts the token in the
 `veoveo-live-token.{token}` subprotocol and the live-view identity in the
 `x-nv-sessionid.{id}` subprotocol. It removes the token before opening the

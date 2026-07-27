@@ -142,7 +142,7 @@ pub use live_view::{
     LiveColorMetadata, LiveColorPrimaries, LiveColorRange, LiveColorTransfer, LiveMediaEndpoint,
     LiveMediaTransport, LiveSessionId, LiveViewAccessToken, LiveViewCodec, LiveViewConnection,
     LiveViewHardwareEncoder, LiveViewId, LiveViewLifecycle, LiveViewOwner, LiveViewState,
-    LiveViewUri,
+    LiveViewUri, is_valid_live_signaling_url,
 };
 pub use pagination::{Page, PaginationError, paginate};
 pub use provider::Provider;
