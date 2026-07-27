@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, path::Path};
 
 use jsonschema::Validator;
 use serde_json::json;
@@ -139,6 +139,20 @@ fn extension_release_round_trips_through_generated_schema() {
     let schema = serde_json::to_value(extension_release_schema()).expect("serialize schema");
     let validator = Validator::new(&schema).expect("compile schema");
     assert!(validator.is_valid(&value));
+}
+
+#[test]
+fn anonymous_extension_release_example_is_valid() {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples/anonymous.extension-release.json");
+    let manifest = serde_json::from_slice::<ExtensionReleaseManifest>(
+        &std::fs::read(path).expect("read anonymous release example"),
+    )
+    .expect("decode anonymous release example");
+    manifest.validate().expect("validate anonymous release");
+    let value = serde_json::to_value(manifest).expect("serialize anonymous release");
+    let schema = serde_json::to_value(extension_release_schema()).expect("serialize schema");
+    assert!(Validator::new(&schema).expect("schema").is_valid(&value));
 }
 
 fn simulation_components() -> Vec<RuntimeComponentVersion> {

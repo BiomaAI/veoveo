@@ -17,8 +17,8 @@ It joins an installation through versioned artifacts and installation-owned comp
 | `veoveo.io/extension-release/v1` | immutable extension source, artifact, fragment, chart, conformance, and optional runtime-overlay declaration |
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned hosted-server declaration |
 | `veoveo.io/gateway-binding/v1` | installation-owned exposure and authorization declaration |
-| `veoveo.io/deployment/v2` | named-source installation composition with independent revisions and locks |
-| `veoveo.io/deployment-lock/v2` | immutable combined source, image, chart, and resolved-platform lock |
+| `veoveo.io/deployment/v2` | repository-development profile for source-qualified local publication and platform selection |
+| `veoveo.io/deployment-lock/v2` | immutable evidence emitted by that repository-development publication flow |
 | `veoveo.io/simulation-runtime-build-lock/v1` | exact canonical Isaac simulation-base inputs and GPU requirements |
 | `veoveo.io/simulation-conformance-result/v1` | hardware result for one immutable simulator overlay and base |
 | `veoveo.io/simulation-runtime-release-evidence/v1` | paired first-party and anonymous-overlay evidence published through private OCI |
@@ -38,12 +38,17 @@ release manifest.
 
 The installation owns its client-facing origin, registry and package-source
 coordinates, trust roots, credentials, tenant bindings, authorization policies,
-Secrets, selected revisions, and combined artifact lock. An extension cannot register
-itself at runtime or grant itself installation authority.
+Secrets, selected release manifests, and digest-pinned desired state. An extension
+cannot register itself at runtime or grant itself installation authority.
 
 No supported workflow requires the extension to join the Veoveo Cargo workspace, run
 `veoveo-xtask`, edit the Veoveo chart, edit a complete gateway control-plane document,
 or share a Git revision with Veoveo.
+
+The coding-agent procedure is
+[`EXTERNAL_REPOSITORY_INTEGRATION.md`](EXTERNAL_REPOSITORY_INTEGRATION.md). It uses the
+published contracts and ordinary repository or GitOps tools. A Veoveo-specific
+installation coordinator is not part of the external contract.
 
 ## Private Distribution
 
@@ -130,7 +135,7 @@ installation.
 | Test | unit, integration, schema, and policy tests | compatibility manifest |
 | Smoke | domain lifecycle scenarios | standalone conformance artifact |
 | Package | extension image, application chart, fragment, and release manifest | extension Helm library and artifact schemas |
-| Integrate | immutable source lock selected by the installation | gateway and deployment composition |
+| Integrate | extension release and digest-pinned chart values selected by the installation | gateway composition and typed platform requirements |
 
 An extension may use Cargo, npm, uv, another build tool, or its own compiled task
 runner. Veoveo does not prescribe an external build system.
@@ -187,14 +192,16 @@ gateway-compose \
 `extensions/examples` prove the same workflow without a source dependency or a
 customer identity.
 
-Deployment v2 accepts named sources. Each source owns its repository, independently
-resolved revision, Bake groups, and Helm releases. `cargo xtask release images
---profile <path> --profile-revision <revision>` materializes persistent exact
-publication worktrees, publishes source-owned images, and writes a combined
-`veoveo.io/deployment-lock/v2`. The lock records source repositories and revisions,
-OCI manifest digests, chart-content digests, and the expanded platform graph.
-Production composition replaces source-chart coordinates with immutable private OCI
-coordinates.
+Deployment v2 remains a Veoveo repository-development facility. It accepts one explicit
+platform source and independently versioned extension sources, resolves the complete
+source-qualified Bake plan, and rejects target or repository/tag collisions before
+publication. `cargo xtask release images --profile` emits a combined lock for that
+source-publication workflow.
+
+A fielded installation does not clone those sources or run Veoveo `xtask`. Its coding
+agent verifies the published compatibility and extension-release manifests, pins image
+and chart digests in the installation's ordinary Helm or GitOps inputs, composes the
+gateway, renders the releases, and commits the desired state.
 
 ## Minimal Platform
 
@@ -225,6 +232,13 @@ The anonymous installation fixture exercises this closure without a customer ide
 ```sh
 cargo run -p veoveo-smoke --bin smoke -- profile-validate \
   --profile testing/fixtures/external-extension-installation/deployment.json
+```
+
+The contract acceptance creates independent platform, extension, and installation Git
+repositories and produces one validated combined development lock:
+
+```sh
+cargo test -p veoveo-deploy-contract --test multi_repository
 ```
 
 ## Simulation Overlays
@@ -297,8 +311,8 @@ The workflow is supported when a clean anonymous external checkout can:
 3. Run standalone conformance without compiling Veoveo server crates.
 4. Publish its own digest-addressed image, chart, gateway fragment, and release
    manifest.
-5. Join a deployment v2 installation through an installation-owned binding and source
-   lock.
+5. Join an installation through an installation-owned binding, selected extension
+   release, and digest-pinned chart values.
 6. Reach the extension through the configured Veoveo origin without editing the
    Veoveo repository.
 7. Upgrade or remove the extension without rebuilding the platform.
