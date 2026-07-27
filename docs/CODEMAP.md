@@ -499,6 +499,7 @@ Simulation View data-plane ownership:
 | `servers/simulation-view-mcp/src/mcp.rs` | canonical tools, resources, subscriptions, well-known surface, and App declarations |
 | `servers/simulation-view-mcp/src/server/` | signed gateway auth, public host checks, fail-closed runtime readiness, administrative docs, and authenticated signaling |
 | `servers/simulation-view-mcp/assets/live.html` | self-contained selected-view and bounded multi-camera MCP App |
+| `servers/simulation-view-mcp/dependencies.lock.json` | verified NVIDIA browser client release and byte identities |
 | `platform/simulation/pose/src/contract.rs` | session, epoch, Frames, entity-table, coordinate, limit, and pose types |
 | `platform/simulation/pose/src/codec.rs` | deterministic `simulation-view-pose/v1` binary encoding |
 | `platform/simulation/pose/src/store.rs` | nonblocking latest-value admission, epoch reset, heartbeat, and staleness |

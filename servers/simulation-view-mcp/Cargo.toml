@@ -41,6 +41,9 @@ veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension" }
 veoveo-mcp-contract.workspace = true
 veoveo-simulation-pose.workspace = true
 
+[build-dependencies]
+sha2.workspace = true
+
 [dev-dependencies]
 jsonschema.workspace = true
 tower = { workspace = true, features = ["util"] }

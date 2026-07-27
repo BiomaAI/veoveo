@@ -111,9 +111,9 @@ pub(super) async fn upgrade(
     };
     let upstream_url = match upstream_url(&state.upstream, &uri, render_slot) {
         Ok(url) => url,
-        Err(response) => {
+        Err(status) => {
             state.service.disconnect_signaling(&live_view_id);
-            return response;
+            return status.into_response();
         }
     };
     upgrade
@@ -228,7 +228,7 @@ fn to_upstream(message: DownstreamMessage) -> Option<UpstreamMessage> {
         DownstreamMessage::Pong(value) => Some(UpstreamMessage::Pong(value.to_vec().into())),
         DownstreamMessage::Close(frame) => Some(UpstreamMessage::Close(frame.map(|frame| {
             tokio_tungstenite::tungstenite::protocol::CloseFrame {
-                code: u16::from(frame.code).into(),
+                code: frame.code.into(),
                 reason: frame.reason.to_string().into(),
             }
         }))),
@@ -255,22 +255,22 @@ fn upstream_url(
     base: &Url,
     public_uri: &axum::http::Uri,
     render_slot: u16,
-) -> Result<Url, Response> {
+) -> Result<Url, StatusCode> {
     let path = public_uri.path();
     let suffix = path
         .split_once("/signaling")
         .map(|(_, suffix)| suffix)
         .unwrap_or_default();
     if suffix.contains("..") {
-        return Err(StatusCode::NOT_FOUND.into_response());
+        return Err(StatusCode::NOT_FOUND);
     }
     let mut url = base.clone();
     let port = base
         .port()
         .and_then(|port| port.checked_add(render_slot))
-        .ok_or_else(|| StatusCode::SERVICE_UNAVAILABLE.into_response())?;
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
     url.set_port(Some(port))
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE.into_response())?;
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
     let base_path = base.path().trim_end_matches('/');
     url.set_path(&format!("{base_path}{suffix}"));
     url.set_query(public_uri.query());
