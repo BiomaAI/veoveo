@@ -358,10 +358,6 @@ bioma-uav-sim-verify scenario='showcase/uav-sim/scenarios/new-york-aerial.json':
     cargo build -p veoveo-smoke --bin smoke -p veoveo-mcp-conformance --bin conformance
     {{smoke}} uav-sim-verify --context {{bioma-kube-context}} --scenario '{{scenario}}'
 
-showcase-uav-sim-aov-smoke image:
-    cargo build -p veoveo-smoke --bin smoke
-    {{smoke}} uav-sim-aov-probe --image '{{image}}'
-
 # Check local health and, optionally, the operator-owned public edge.
 health public_base_url='':
     curl -fsS http://localhost:8780/healthz
@@ -417,7 +413,7 @@ showcase-sumo-test:
 # Test the UAV MCP contract and pod-private Python adapter without a GPU.
 showcase-uav-sim-test:
     cargo test -p veoveo-uav-sim-mcp --all-targets
-    PYTHONPATH=showcase/uav-sim/runtime uv run --with aiohttp==3.14.1 --with numpy==2.5.1 --python python3 python -m unittest discover -s showcase/uav-sim/runtime/tests -v
+    PYTHONPATH=showcase/uav-sim/runtime:sdk/python/src uv run --with numpy==2.5.1 --python python3 python -m unittest discover -s showcase/uav-sim/runtime/tests -v
 
 # Push smoke: SUMO sim (fake driver) pushes world state into the real hub.
 showcase-sumo-smoke:

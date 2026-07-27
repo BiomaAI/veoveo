@@ -9,7 +9,8 @@ Governs interactive and durable work against UAV simulation sessions without
 exposing simulator native control ports through the gateway. The server owns
 the typed simulation protocol, caller ownership, task state, resource
 identities, subscriptions, and recording references; the simulator adapter
-owns Isaac stage mutation, Cesium tiles, Pegasus vehicles, and PX4 transport.
+owns Isaac stage mutation, Cesium tiles, Pegasus vehicles, PX4 transport, and
+the thin telemetry adapter that uses the shared Simulation View pose SDK.
 
 ## Invariants
 
@@ -26,9 +27,13 @@ owns Isaac stage mutation, Cesium tiles, Pegasus vehicles, and PX4 transport.
   to an immutable Frames world revision and a static simulation frame from that
   revision. The adapter derives Cesium and Pegasus georeferencing from that
   binding, converts ENU/NED locally, and makes no MCP calls in the physics loop.
-- NVIDIA NVENC remains mandatory at the server. Browser playback may use the
-  root policy's single software H.264 decode exception, with truthful UI
-  labeling, when the exact configuration is supported and smooth.
+- Operator cameras, RTX rendering, NVIDIA NVENC, WebRTC, stream leases, and
+  the live App belong only to the independent Simulation View service. This
+  server does not implement, alias, or retain those surfaces.
+- The simulator publishes complete newest-value snapshots through
+  `veoveo.io/simulation-view-pose/v1`. DNS, TLS, and socket I/O stay on the
+  shared SDK worker and never block physics. Readiness requires one delivered
+  snapshot and a currently ready publisher.
 - `CESIUM_ION_ACCESS_TOKEN` comes only from the dedicated Kubernetes Secret.
   It is never a tool argument, ConfigMap value, resource field, log field, or
   exported USD content.

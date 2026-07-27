@@ -6,7 +6,6 @@
 
 pub mod adapter;
 pub mod contract;
-mod live_app;
 pub mod uris;
 pub mod world;
 

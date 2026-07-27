@@ -93,45 +93,19 @@ session:
         x: 0.0
         "y": 0.0
         z: -0.7071067811865476
-  followCamera:
-    width: 1280
-    height: 720
-    fps: 20
-    focalLengthMm: 45.0
-    eyeOffsetM:
-      x: -2.2
-      "y": -2.2
-      z: 1.2
-    targetOffsetM:
-      x: 0.0
-      "y": 0.0
-      z: 0.2
-  screenshot:
-    enabled: false
-    outputPath: /tmp/isaac-uav.png
-    minimumRelativeAltitudeM: 250.0
-    settleRenderedFrames: 30
 
-liveStream:
-  signalingUrl: ws://127.0.0.1:49101/webrtc
-  signalingPath: /webrtc
-  privateSignalPort: 49100
-  proxyPort: 49101
-  publicMediaServer: 127.0.0.1
-  mediaPort: 47998
-  publicIp: 127.0.0.1
-  leaseTtlSeconds: 300
-  service:
-    type: NodePort
-    signalNodePort: 30910
-    mediaNodePort: 30998
-  ingress:
-    enabled: false
-    className: ""
-    host: ""
-    path: /webrtc
-    tlsSecret: ""
-    annotations: {}
+posePublication:
+  producerId: uav-sim
+  producerSpiffeId: spiffe://veoveo.local/simulation/uav-sim
+  epochId: epoch-1
+  endpointHost: simulation-view-pose
+  endpointPort: 7443
+  serverHostname: simulation-view-pose
+  entityTableRevision: 1
+  existingTlsSecret: uav-sim-pose-producer-tls
+  caCertificateKey: ca.crt
+  clientCertificateKey: tls.crt
+  clientPrivateKeyKey: tls.key
 
 interactive:
   enabled: true

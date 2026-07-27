@@ -89,46 +89,26 @@
   value: {{ .root.Values.session.camera.mount.orientationWxyz.y | quote }}
 - name: UAV_SIM_CAMERA_ORIENTATION_Z
   value: {{ .root.Values.session.camera.mount.orientationWxyz.z | quote }}
-- name: UAV_SIM_FOLLOW_CAMERA_WIDTH
-  value: {{ .root.Values.session.followCamera.width | quote }}
-- name: UAV_SIM_FOLLOW_CAMERA_HEIGHT
-  value: {{ .root.Values.session.followCamera.height | quote }}
-- name: UAV_SIM_FOLLOW_CAMERA_FPS
-  value: {{ .root.Values.session.followCamera.fps | quote }}
-- name: UAV_SIM_FOLLOW_CAMERA_FOCAL_LENGTH_MM
-  value: {{ .root.Values.session.followCamera.focalLengthMm | quote }}
-- name: UAV_SIM_FOLLOW_CAMERA_EYE_OFFSET_X_M
-  value: {{ .root.Values.session.followCamera.eyeOffsetM.x | quote }}
-- name: UAV_SIM_FOLLOW_CAMERA_EYE_OFFSET_Y_M
-  value: {{ .root.Values.session.followCamera.eyeOffsetM.y | quote }}
-- name: UAV_SIM_FOLLOW_CAMERA_EYE_OFFSET_Z_M
-  value: {{ .root.Values.session.followCamera.eyeOffsetM.z | quote }}
-- name: UAV_SIM_FOLLOW_CAMERA_TARGET_OFFSET_X_M
-  value: {{ .root.Values.session.followCamera.targetOffsetM.x | quote }}
-- name: UAV_SIM_FOLLOW_CAMERA_TARGET_OFFSET_Y_M
-  value: {{ .root.Values.session.followCamera.targetOffsetM.y | quote }}
-- name: UAV_SIM_FOLLOW_CAMERA_TARGET_OFFSET_Z_M
-  value: {{ .root.Values.session.followCamera.targetOffsetM.z | quote }}
-- name: UAV_SIM_LIVE_STREAM_SIGNAL_PORT
-  value: {{ .root.Values.liveStream.privateSignalPort | quote }}
-- name: UAV_SIM_LIVE_STREAM_PROXY_PORT
-  value: {{ .root.Values.liveStream.proxyPort | quote }}
-- name: UAV_SIM_LIVE_STREAM_MEDIA_PORT
-  value: {{ .root.Values.liveStream.mediaPort | quote }}
-- name: UAV_SIM_LIVE_STREAM_PUBLIC_IP
-  value: {{ .root.Values.liveStream.publicIp | quote }}
-- name: UAV_SIM_LIVE_STREAM_SIGNALING_PATH
-  value: {{ .root.Values.liveStream.signalingPath | quote }}
-- name: UAV_SIM_LIVE_STREAM_LEASE_TTL_SECONDS
-  value: {{ .root.Values.liveStream.leaseTtlSeconds | quote }}
-{{- if .root.Values.session.screenshot.enabled }}
-- name: UAV_SIM_SCREENSHOT_PATH
-  value: {{ .root.Values.session.screenshot.outputPath | quote }}
-- name: UAV_SIM_SCREENSHOT_MINIMUM_RELATIVE_ALTITUDE_M
-  value: {{ .root.Values.session.screenshot.minimumRelativeAltitudeM | quote }}
-- name: UAV_SIM_SCREENSHOT_SETTLE_RENDERED_FRAMES
-  value: {{ .root.Values.session.screenshot.settleRenderedFrames | quote }}
-{{- end }}
+- name: UAV_SIM_POSE_PRODUCER_ID
+  value: {{ .root.Values.posePublication.producerId | quote }}
+- name: UAV_SIM_POSE_PRODUCER_SPIFFE_ID
+  value: {{ .root.Values.posePublication.producerSpiffeId | quote }}
+- name: UAV_SIM_POSE_EPOCH_ID
+  value: {{ .root.Values.posePublication.epochId | quote }}
+- name: UAV_SIM_POSE_INGRESS_HOST
+  value: {{ .root.Values.posePublication.endpointHost | quote }}
+- name: UAV_SIM_POSE_INGRESS_PORT
+  value: {{ .root.Values.posePublication.endpointPort | quote }}
+- name: UAV_SIM_POSE_SERVER_HOSTNAME
+  value: {{ .root.Values.posePublication.serverHostname | quote }}
+- name: UAV_SIM_POSE_CA_CERTIFICATE
+  value: /run/secrets/simulation-view-pose/ca.crt
+- name: UAV_SIM_POSE_CLIENT_CERTIFICATE
+  value: /run/secrets/simulation-view-pose/tls.crt
+- name: UAV_SIM_POSE_CLIENT_PRIVATE_KEY
+  value: /run/secrets/simulation-view-pose/tls.key
+- name: UAV_SIM_POSE_ENTITY_TABLE_REVISION
+  value: {{ .root.Values.posePublication.entityTableRevision | quote }}
 - name: UAV_SIM_RECORDING_KEY
   valueFrom:
     fieldRef:

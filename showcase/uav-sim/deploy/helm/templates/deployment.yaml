@@ -18,6 +18,7 @@ spec:
       labels:
         {{- include "uav-sim.selectorLabels" . | nindent 8 }}
         veoveo.ai/mcp-server: "true"
+        veoveo.ai/simulation-view-pose-producer: "true"
       annotations:
         veoveo.ai/chart-revision: {{ .Chart.Version | quote }}
     spec:
@@ -52,12 +53,6 @@ spec:
           ports:
             - name: adapter
               containerPort: 8810
-            - name: stream-signal
-              containerPort: {{ .Values.liveStream.proxyPort }}
-              protocol: TCP
-            - name: stream-media
-              containerPort: {{ .Values.liveStream.mediaPort }}
-              protocol: UDP
           startupProbe:
             exec:
               command:
@@ -97,6 +92,9 @@ spec:
               mountPath: /isaac-sim/kit/data
             - name: tmp
               mountPath: /tmp
+            - name: simulation-view-pose-tls
+              mountPath: /run/secrets/simulation-view-pose
+              readOnly: true
         - name: uav-sim-mcp
           image: {{ include "uav-sim.image" (list . .Values.images.mcp) }}
           imagePullPolicy: {{ .Values.images.pullPolicy }}
@@ -114,12 +112,6 @@ spec:
               value: "3600"
             - name: UAV_SIM_RECORDING_TENANT_KEY
               value: {{ .Values.platform.recordingTenantKey | quote }}
-            - name: UAV_SIM_LIVE_STREAM_SIGNALING_URL
-              value: {{ .Values.liveStream.signalingUrl | quote }}
-            - name: UAV_SIM_LIVE_STREAM_MEDIA_SERVER
-              value: {{ .Values.liveStream.publicMediaServer | quote }}
-            - name: UAV_SIM_LIVE_STREAM_MEDIA_PORT
-              value: {{ .Values.liveStream.mediaPort | quote }}
             - name: VEOVEO_SURREAL_ENDPOINT
               value: {{ printf "ws://%s:8000" .Values.platform.surrealService | quote }}
             - name: VEOVEO_SURREAL_NAMESPACE
@@ -191,6 +183,17 @@ spec:
             items:
               - key: {{ .Values.recordingForwarder.privateKey.key }}
                 path: private-key.pem
+        - name: simulation-view-pose-tls
+          secret:
+            secretName: {{ required "posePublication.existingTlsSecret is required" .Values.posePublication.existingTlsSecret }}
+            defaultMode: 0440
+            items:
+              - key: {{ .Values.posePublication.caCertificateKey }}
+                path: ca.crt
+              - key: {{ .Values.posePublication.clientCertificateKey }}
+                path: tls.crt
+              - key: {{ .Values.posePublication.clientPrivateKeyKey }}
+                path: tls.key
         - name: tmp
           emptyDir: {}
 {{- end }}

@@ -87,6 +87,8 @@ RUN /isaac-sim/python.sh -m pip install \
 
 COPY --from=uav-upstream --chown=10001:10001 /src/pegasus/extensions/pegasus.simulator/ /opt/veoveo/extensions/pegasus.simulator/
 COPY --from=uav-upstream --chown=10001:10001 /src/px4/ /opt/veoveo/px4/
+COPY --from=simulation-pose-sdk --chown=10001:10001 __init__.py /opt/veoveo/uav-python/veoveo_mcp/__init__.py
+COPY --from=simulation-pose-sdk --chown=10001:10001 simulation_pose.py /opt/veoveo/uav-python/veoveo_mcp/simulation_pose.py
 
 ENV MAVLINK20=1 \
     PYTHONPATH=/opt/veoveo/uav-sim:/opt/veoveo/uav-python:/opt/veoveo/simulation-overlay:/opt/veoveo/simulation-base:/isaac-sim/extscache/omni.warp.core-1.13.0+lx64:/isaac-sim/exts/isaacsim.pip.newton/pip_prebundle:/opt/veoveo/python:/opt/veoveo/isaaclab/source/isaaclab:/opt/veoveo/isaaclab/source/isaaclab_newton:/opt/veoveo/isaaclab/source/isaaclab_physx:/opt/veoveo/isaaclab/source/isaaclab_ov:/opt/veoveo/isaaclab/source/isaaclab_ovphysx \

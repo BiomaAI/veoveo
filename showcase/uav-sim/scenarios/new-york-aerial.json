@@ -82,19 +82,6 @@
             "rotation_xyzw": [0.0, 0.0, -0.7071067811865476, 0.7071067811865476]
           },
           "description": "RTX nadir camera optical frame."
-        },
-        {
-          "frame_id": "follow-camera",
-          "basis": {
-            "kind": "optical_rdf"
-          },
-          "parent_frame_id": "isaac-world",
-          "parent_transform": {
-            "kind": "dynamic_stream",
-            "stream_uri": "uav-sim://session/uav-showcase",
-            "entity_path": "/world/uav-sim/uav-showcase/camera/follow"
-          },
-          "description": "Live operator follow-camera frame."
         }
       ]
     }
