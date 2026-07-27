@@ -6,7 +6,13 @@ ARG TARGETARCH
 
 # The Vulkan loader resolves the hardware driver mounted by the GPU runtime.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl libvulkan1 \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        libegl1 \
+        libvulkan1 \
+        libx11-6 \
+        libxext6 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN case "${TARGETARCH}" in \
