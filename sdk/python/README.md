@@ -4,7 +4,14 @@
 hosted by a Veoveo installation. It provides the hosted-server contract, internal
 identity verification, task-extension transport, durable task runtime, artifact
 client, schema helpers, pagination, host validation, telemetry boundary, and the
-provider-neutral Simulation View pose producer.
+provider-neutral Simulation View scene declaration and pose-producer contracts.
+
+`veoveo_mcp.simulation_view` owns the strongly typed
+`veoveo.io/simulation-view-scene/v1` declaration. It validates governed visual
+artifacts, frame bindings, entity and prototype identities, camera policy, and
+the exact canonical digest accepted by the Rust control plane. External
+extensions publish their own assets and construct this declaration without
+copying Veoveo server types.
 
 `veoveo_mcp.simulation_pose` implements the exact
 `veoveo.io/simulation-view-pose/v1` binary schema. Its newest-value publisher
