@@ -98,7 +98,8 @@
       "simulation-view"
     ],
     "artifactAudiences": [
-      "anonymous-simulation"
+      "anonymous-simulation",
+      "simulation-view"
     ],
     "externalWorkloads": [
       "anonymous-simulation-mcp"

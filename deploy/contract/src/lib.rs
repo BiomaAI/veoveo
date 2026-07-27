@@ -956,12 +956,20 @@ impl ResolvedPlatformSelection {
             .contains(&FirstPartyMcpServer::SimulationView)
         {
             self.require_component(
+                PlatformComponent::ArtifactService,
+                "Simulation View scene materialization requires the artifact service",
+            )?;
+            self.require_component(
                 PlatformComponent::GpuRenderer,
                 "Simulation View MCP requires the GPU renderer",
             )?;
             self.require_server(
                 FirstPartyMcpServer::Frames,
                 "Simulation View scene declarations require Frames MCP",
+            )?;
+            self.require_artifact_audience(
+                "simulation-view",
+                "Simulation View scene materialization requires its Artifact data-plane audience",
             )?;
         }
 
@@ -1184,6 +1192,14 @@ impl ResolvedPlatformSelection {
         ensure!(
             self.mcp_servers.contains(&server),
             "{reason}; missing mcpServer {server:?}"
+        );
+        Ok(())
+    }
+
+    fn require_artifact_audience(&self, audience: &str, reason: &str) -> Result<()> {
+        ensure!(
+            self.artifact_audiences.contains(audience),
+            "{reason}; missing artifactAudience {audience}"
         );
         Ok(())
     }
@@ -1828,7 +1844,7 @@ mod tests {
                 FirstPartyMcpServer::Frames,
                 FirstPartyMcpServer::SimulationView,
             ]),
-            artifact_audiences: BTreeSet::new(),
+            artifact_audiences: BTreeSet::from(["simulation-view".to_owned()]),
             external_workloads: BTreeSet::new(),
             gpu_scheduling: Some(GpuSchedulingProfile {
                 runtime_class_name: "nvidia".to_owned(),
@@ -1855,6 +1871,16 @@ mod tests {
                 "simulation-view-pose".to_owned(),
             ])
         );
+        let mut missing_artifact_audience = selection;
+        missing_artifact_audience.artifact_audiences.clear();
+        let error = missing_artifact_audience
+            .validate_dependencies()
+            .expect_err("Simulation View cannot materialize scenes without its Artifact audience");
+        assert!(
+            error
+                .to_string()
+                .contains("missing artifactAudience simulation-view")
+        );
     }
 
     #[test]
@@ -1873,7 +1899,7 @@ mod tests {
                 FirstPartyMcpServer::Frames,
                 FirstPartyMcpServer::SimulationView,
             ]),
-            artifact_audiences: BTreeSet::new(),
+            artifact_audiences: BTreeSet::from(["simulation-view".to_owned()]),
             external_workloads: BTreeSet::from(["external-simulator".to_owned()]),
             gpu_scheduling: Some(GpuSchedulingProfile {
                 runtime_class_name: "nvidia".to_owned(),

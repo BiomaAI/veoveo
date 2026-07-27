@@ -43,6 +43,13 @@ fn external_simulation_profile_selects_only_core_renderer_gpu_images() {
         .expect("validate source-qualified platform and extension plan");
 
     let platform = loaded.resolved_platform().expect("resolve platform");
+    assert_eq!(
+        platform.artifact_audiences,
+        BTreeSet::from([
+            "anonymous-simulation".to_owned(),
+            "simulation-view".to_owned(),
+        ])
+    );
     let scheduling = platform
         .gpu_scheduling
         .expect("Simulation View requires explicit GPU scheduling");
