@@ -6,7 +6,7 @@ edition.workspace = true
 [dependencies]
 chrono.workspace = true
 memmap2.workspace = true
-schemars.workspace = true
+schemars = { workspace = true, features = ["chrono04"] }
 serde.workspace = true
 sha2.workspace = true
 thiserror.workspace = true

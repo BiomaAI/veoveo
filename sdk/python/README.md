@@ -3,7 +3,16 @@
 `veoveo-mcp` is the supported Python package for an independently owned MCP server
 hosted by a Veoveo installation. It provides the hosted-server contract, internal
 identity verification, task-extension transport, durable task runtime, artifact
-client, schema helpers, pagination, host validation, and telemetry boundary.
+client, schema helpers, pagination, host validation, telemetry boundary, and the
+provider-neutral Simulation View pose producer.
+
+`veoveo_mcp.simulation_pose` implements the exact
+`veoveo.io/simulation-view-pose/v1` binary schema. Its newest-value publisher
+performs TLS 1.3 mutual authentication on a worker thread and replaces unsent
+snapshots, which keeps connection loss and renderer backpressure out of a
+simulator loop. The installation binds the producer certificate identity,
+session, epoch, immutable Frames revision, and ordered entity table before the
+producer connects.
 
 ## Supported release
 

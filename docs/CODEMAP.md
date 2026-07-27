@@ -618,6 +618,7 @@ stays the source of truth for every wire shape and schema.
 | `host.py` | host-authority validation and 421 rejection |
 | `deployment.py`, `pagination.py` | mount identities and cursor pagination |
 | `schema.py` | self-contained JSON Schema 2020-12 generation for MCP tool inputs |
+| `simulation_pose.py` | exact Simulation View pose encoding and bounded newest-value TLS 1.3 mTLS producer |
 | `task_extension/` | final task extension models, ASGI middleware, projection |
 | `tasks/` | durable SurrealDB task runtime port: leases, CAS transitions, outbox, recovery, prune |
 | `artifacts.py` | artifact-plane HTTP client and capability redemption |
