@@ -667,33 +667,53 @@ async fn ensure_vehicle_landed(
     scenario: &UavAcceptanceScenario,
     phase: &str,
 ) -> Result<()> {
-    let state = simulation_state(operator, scenario).await?;
-    let flight_state = json_string(&state, "/vehicles/0/flight_state")?;
-    if matches!(flight_state, "landed" | "standby") {
-        return Ok(());
+    let timeout = Duration::from_secs(scenario.landing_timeout_seconds);
+    let deadline = tokio::time::Instant::now() + timeout;
+    loop {
+        let access_error = match simulation_state(operator, scenario).await {
+            Ok(state) => {
+                let flight_state = json_string(&state, "/vehicles/0/flight_state")?;
+                if matches!(flight_state, "landed" | "standby") {
+                    return Ok(());
+                }
+                ensure!(
+                    flight_state != "failed",
+                    "PX4 entered the failed state during {phase}: {state}"
+                );
+                if flight_state != "landing" {
+                    eprintln!("{phase}: landing UAV from `{flight_state}`");
+                    operator
+                        .call_tool(
+                            "uav-sim__land_vehicle",
+                            serde_json::json!({
+                                "session_id": scenario.session_id,
+                                "vehicle_id": scenario.vehicle_id
+                            }),
+                        )
+                        .await
+                        .err()
+                } else {
+                    None
+                }
+            }
+            Err(error) => {
+                eprintln!(
+                    "{phase}: UAV control plane is temporarily unavailable while ensuring \
+                     landing: {error:#}"
+                );
+                Some(error)
+            }
+        };
+        if tokio::time::Instant::now() >= deadline {
+            if let Some(error) = access_error {
+                return Err(error.context(format!(
+                    "{phase} could not reach the UAV control plane within {timeout:?}"
+                )));
+            }
+            bail!("PX4 did not reach landed or standby during {phase} within {timeout:?}");
+        }
+        tokio::time::sleep(Duration::from_secs(2)).await;
     }
-    ensure!(
-        flight_state != "failed",
-        "PX4 entered the failed state during {phase}: {state}"
-    );
-    eprintln!("{phase}: landing UAV from `{flight_state}`");
-    operator
-        .call_tool(
-            "uav-sim__land_vehicle",
-            serde_json::json!({
-                "session_id": scenario.session_id,
-                "vehicle_id": scenario.vehicle_id
-            }),
-        )
-        .await?;
-    wait_for_flight_state(
-        operator,
-        &["landed", "standby"],
-        Duration::from_secs(scenario.landing_timeout_seconds),
-        scenario,
-    )
-    .await?;
-    Ok(())
 }
 
 async fn ensure_world_configured(

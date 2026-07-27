@@ -177,21 +177,25 @@ pub(crate) async fn uav_showcase_verify(
         (Ok(()), Ok(flight)) => flight,
         (Err(domain_error), Ok(_)) => {
             let cleanup = cleanup_view(&operator, &mut resources).await;
-            cleanup?;
-            return Err(domain_error.context("composed UAV domain acceptance failed"));
+            return Err(with_cleanup_error(
+                domain_error.context("composed UAV domain acceptance failed"),
+                cleanup,
+            ));
         }
         (Ok(()), Err(visual_error)) => {
             let cleanup = cleanup_view(&operator, &mut resources).await;
-            cleanup?;
-            return Err(visual_error.context("composed UAV visual acceptance failed"));
+            return Err(with_cleanup_error(
+                visual_error.context("composed UAV visual acceptance failed"),
+                cleanup,
+            ));
         }
         (Err(domain_error), Err(visual_error)) => {
             let cleanup = cleanup_view(&operator, &mut resources).await;
-            cleanup?;
-            bail!(
+            let acceptance_error = anyhow!(
                 "composed UAV domain acceptance failed: {domain_error:#}; visual acceptance also \
                  failed: {visual_error:#}"
             );
+            return Err(with_cleanup_error(acceptance_error, cleanup));
         }
     };
 
@@ -204,8 +208,18 @@ pub(crate) async fn uav_showcase_verify(
     )
     .await;
     let cleanup = cleanup_view(&operator, &mut resources).await;
-    let recording = recording?;
-    cleanup?;
+    let recording = match recording {
+        Ok(recording) => {
+            cleanup?;
+            recording
+        }
+        Err(error) => {
+            return Err(with_cleanup_error(
+                error.context("capturing composed UAV Rerun evidence"),
+                cleanup,
+            ));
+        }
+    };
 
     let evidence = ShowcaseEvidence {
         schema: EVIDENCE_SCHEMA,
@@ -609,6 +623,15 @@ async fn cleanup_view(operator: &OperatorClient<'_>, resources: &mut ViewResourc
         return Err(error.context("cleaning composed Simulation View state"));
     }
     Ok(())
+}
+
+fn with_cleanup_error(primary: anyhow::Error, cleanup: Result<()>) -> anyhow::Error {
+    match cleanup {
+        Ok(()) => primary,
+        Err(cleanup_error) => {
+            anyhow!("{primary:#}; composed Simulation View cleanup also failed: {cleanup_error:#}")
+        }
+    }
 }
 
 fn assert_showcase_gpu_workloads(context: &str, namespace: &str) -> Result<()> {
