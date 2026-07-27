@@ -5,10 +5,11 @@ independently built external simulation source. The platform selection
 contains Artifact, Frames, the canonical simulation runtime, and Simulation
 View. Only `simulation-view-renderer` receives an NVIDIA GPU.
 
-The installation owns `gateway-binding.json`, package and OCI credentials,
-trust roots, the pose-producer certificate, public media coordinates, and the
-combined deployment lock. The extension source owns its server fragment,
-application chart, image, and release manifest.
+The installation owns `gateway-binding.json`, the composed `gateway.json`,
+composition provenance, package and OCI credentials, trust roots, the
+pose-producer certificate, public media coordinates, and the combined
+deployment lock. The extension source owns its server fragment, application
+chart, image, and release manifest.
 
 Because this acceptance fixture is checked into the Veoveo test tree, both
 local source declarations resolve the surrounding Git repository. The
@@ -17,14 +18,66 @@ adapter to that subtree. `smoke external-simulation-fixture` separately copies
 the subtree into an isolated checkout and exercises its native Bake graph,
 private package lock, tests, and package build.
 
-After the installation has issued its pose-producer TLS identity, locked the
-exact platform and extension images, and exposed the declared WebRTC
-signaling and media ports, run:
+The checked-in cluster profile is loopback-only. Its control tokens and mTLS
+private keys are public development credentials, and its NVIDIA device plugin
+advertises one exclusive GPU allocation. Four host UDP ports map exactly to
+the four declared media slots. Fielded installations replace the PKI, tokens,
+origins, media addresses, and registry.
+
+Regenerate the deterministic gateway outputs after changing a fragment,
+binding, or base selection:
+
+```sh
+jq -f testing/fixtures/external-simulation-installation/gateway-base.jq \
+  configs/gateway.local.json \
+  > testing/fixtures/external-simulation-installation/gateway-base.json
+
+cargo build -p veoveo-gateway-composer --bin gateway-compose
+target/debug/gateway-compose \
+  --base testing/fixtures/external-simulation-installation/gateway-base.json \
+  --fragment testing/fixtures/external-simulation-extension/gateway-fragment.json \
+  --binding testing/fixtures/external-simulation-installation/gateway-binding.json \
+  --output testing/fixtures/external-simulation-installation/gateway.json \
+  --requirements testing/fixtures/external-simulation-installation/gateway-requirements.json \
+  --provenance testing/fixtures/external-simulation-installation/gateway-provenance.json
+```
+
+Publish and install one exact committed revision:
+
+```sh
+PROFILE=testing/fixtures/external-simulation-installation/deployment.json
+REVISION=$(git rev-parse HEAD)
+
+just profile-validate "$PROFILE"
+just profile-cluster-up "$PROFILE"
+cargo xtask image builder ensure
+cargo xtask release images \
+  --profile "$PROFILE" \
+  --profile-revision "$REVISION" \
+  --lock-output testing/fixtures/external-simulation-installation/deployment.lock.json
+just profile-up "$PROFILE"
+```
+
+Start a separate headed Chrome instance on the active X11 display. The
+acceptance command rejects HeadlessChrome, software WebGPU, and software
+WebGL before it loads the App.
+
+```sh
+google-chrome-stable \
+  --user-data-dir=/tmp/veoveo-simulation-view-chrome \
+  --remote-debugging-address=127.0.0.1 \
+  --remote-debugging-port=9227 \
+  --enable-unsafe-webgpu \
+  --ozone-platform=x11 \
+  about:blank
+```
+
+Then run:
 
 ```sh
 just simulation-view-verify \
-  context=<installation-context> \
-  public_base_url=https://<installation-host> \
+  context=k3d-anonymous-simulation \
+  public_base_url=http://localhost:8782 \
   chrome_cdp_url=http://127.0.0.1:9227
 ```
 
