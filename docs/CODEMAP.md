@@ -17,6 +17,7 @@ component:
 | [`WORK_CONTEXT_GOVERNANCE.md`](WORK_CONTEXT_GOVERNANCE.md) | invocation authority, output ownership, effective access, and rollout |
 | [`ENTERPRISE_DEPLOYMENT.md`](ENTERPRISE_DEPLOYMENT.md) | OCI release, enterprise configuration, secrets, GitOps, extensions, and acceptance |
 | [`EXTERNAL_EXTENSIONS.md`](EXTERNAL_EXTENSIONS.md) | supported private external-repository contract, artifact ownership, compatibility manifests, and installation composition |
+| [`EXTERNAL_REPOSITORY_INTEGRATION.md`](EXTERNAL_REPOSITORY_INTEGRATION.md) | coding-agent runbook for native external build, conformance, private publication, gateway composition, and digest-pinned GitOps integration |
 | [`LOCAL_DEPLOYMENT_PROFILES.md`](LOCAL_DEPLOYMENT_PROFILES.md) | disposable k3d showcase profile contract |
 | [`CODEMAP.md`](CODEMAP.md) | documentation index, code ownership, and change routing |
 | [`RECORDINGS.md`](RECORDINGS.md) | recording ingest, catalog, sealing, and governed read path |
@@ -100,7 +101,7 @@ is the browser edition of the harness document.
 | `configs/perception/` | TensorRT/DeepStream perception catalog example and deployment contract |
 | `configs/reason/` | world-model checkpoint reason catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
-| `deploy/contract/` | multi-source deployment v2 profiles and locks, typed platform selection, required-image closure, local registry declarations, schema generation, and pure validation |
+| `deploy/contract/` | multi-source deployment v2 profiles and locks, explicit platform/extension source ownership, source-qualified image closure, collision-free publication preflight, local registry declarations, schema generation, and pure validation |
 | `extensions/contract/` | typed external artifact, compatibility-manifest, extension-release, simulation build-lock/result/evidence, and schema contracts |
 | `extensions/examples/` | anonymous external fragment and installation-binding examples |
 | `deploy/local/k3d/` | GPU-capable local Kubernetes cluster and values |
@@ -125,6 +126,7 @@ is the browser edition of the harness document.
 | `templates/python-mcp/` | canonical Python server template (`datasheet`) |
 | `testing/fixtures/extension-helm-consumer/` | anonymous cross-release Helm library acceptance fixture |
 | `testing/fixtures/external-extension-installation/` | anonymous deployment v2 platform selection and exact Artifact/Frames/Map/Media/Recording/RRD image-closure acceptance |
+| `deploy/contract/tests/multi_repository.rs` | anonymous acceptance using independent platform, extension, and installation Git histories with one combined deployment lock |
 | `testing/fixtures/simulation-overlay/` | repository-neutral overlay identity and CUDA probe for canonical simulation-base acceptance |
 | `tools/image-build/` | managed BuildKit configuration and shared Rust image-builder inputs |
 | `tools/xtask/` | compiled repository command, enforcement, image planning, and release orchestration |

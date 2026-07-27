@@ -8,6 +8,7 @@
   "sources": [
     {
       "name": "veoveo",
+      "role": "platform",
       "repository": {
         "kind": "local",
         "path": "../../.."
@@ -44,7 +45,8 @@
       "gateway",
       "platform-store",
       "object-store",
-      "artifact-service"
+      "artifact-service",
+      "recording-data-plane"
     ],
     "mcpServers": [
       "artifact",
