@@ -458,7 +458,7 @@ target "reason-mcp" {
 
 target "datasheet-mcp" {
   inherits   = ["base"]
-  dockerfile = "templates/python-mcp/Dockerfile"
+  dockerfile = "tools/image-build/datasheet/Dockerfile"
   tags       = [image_ref("datasheet-mcp")]
 }
 
