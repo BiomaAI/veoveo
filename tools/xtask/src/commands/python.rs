@@ -370,7 +370,7 @@ fn only_file_with_suffix(directory: &Path, suffix: &str) -> Result<PathBuf> {
 
 fn sha256_file(path: &Path) -> Result<String> {
     let bytes = fs::read(path).with_context(|| format!("reading {}", path.display()))?;
-    Ok(hex::encode(Sha256::digest(bytes)))
+    Ok(format!("sha256:{}", hex::encode(Sha256::digest(bytes))))
 }
 
 fn copy_immutable(source: &Path, target: &Path, expected_sha256: &str) -> Result<()> {
@@ -427,7 +427,9 @@ fn path_text(path: &Path) -> Result<&str> {
 
 #[cfg(test)]
 mod tests {
-    use super::{quoted_value, validate_index_url};
+    use std::fs;
+
+    use super::{quoted_value, sha256_file, validate_index_url};
 
     #[test]
     fn reads_exact_toml_string_values() {
@@ -443,5 +445,17 @@ mod tests {
         assert!(validate_index_url("https://packages.example/simple").is_ok());
         assert!(validate_index_url("http://packages.example/simple").is_err());
         assert!(validate_index_url("https://token@packages.example/simple").is_err());
+    }
+
+    #[test]
+    fn release_hashes_use_canonical_artifact_digest_syntax() {
+        let workspace = tempfile::tempdir().expect("temporary workspace");
+        let artifact = workspace.path().join("artifact");
+        fs::write(&artifact, b"abc").expect("write artifact");
+
+        assert_eq!(
+            sha256_file(&artifact).expect("hash artifact"),
+            "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
     }
 }
