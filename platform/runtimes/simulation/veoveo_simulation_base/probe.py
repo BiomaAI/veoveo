@@ -58,13 +58,16 @@ def _driver_version() -> str:
     return versions.pop()
 
 
-def _verify_tuple(lock: dict[str, Any]) -> tuple[dict[str, str], object, object]:
+def _verify_tuple(
+    lock: dict[str, Any],
+) -> tuple[dict[str, str], object, object, object]:
     import mujoco
     import mujoco_warp
     print(STEP_MARKER + "component_tuple.mujoco", flush=True)
     import newton
     print(STEP_MARKER + "component_tuple.newton", flush=True)
     import omni.kit.app
+    import torch
     import warp as wp
     print(STEP_MARKER + "component_tuple.warp", flush=True)
 
@@ -89,7 +92,8 @@ def _verify_tuple(lock: dict[str, Any]) -> tuple[dict[str, str], object, object]
     observed["mujoco_warp"] = importlib.metadata.version("mujoco-warp")
     print(STEP_MARKER + "component_tuple.version.mujoco_warp", flush=True)
     observed["python"] = ".".join(str(part) for part in sys.version_info[:3])
-    observed["cuda"] = "12.9"
+    observed["torch"] = torch.__version__
+    observed["cuda"] = str(torch.version.cuda)
     observed["kit"] = expected["kit"]["version"]
     for name, value in observed.items():
         if value != expected[name]["version"]:
@@ -115,11 +119,14 @@ def _verify_tuple(lock: dict[str, Any]) -> tuple[dict[str, str], object, object]
     if not wp.get_device("cuda:0").is_cuda:
         raise RuntimeError("Warp did not expose cuda:0")
     print(STEP_MARKER + "component_tuple.cuda", flush=True)
-    return observed, wp, newton
+    return observed, wp, newton, torch
 
 
-def _verify_module_graph(wp: object, newton: object) -> dict[str, str]:
+def _verify_module_graph(
+    wp: object, newton: object, torch: object
+) -> dict[str, str]:
     roots = {
+        "torch": Path(torch.__file__).resolve().parent,
         "warp": Path(wp.__file__).resolve().parent,
         "newton": Path(newton.__file__).resolve().parent,
     }
@@ -136,7 +143,7 @@ def _verify_module_graph(wp: object, newton: object) -> dict[str, str]:
         if not _is_below(module_path, roots[package]):
             outside.append((name, module_path))
     if loaded == 0 or outside:
-        raise RuntimeError(f"mixed Warp/Newton module graph detected: {outside}")
+        raise RuntimeError(f"mixed Torch/Warp/Newton module graph detected: {outside}")
     return {name: str(root) for name, root in roots.items()}
 
 
@@ -314,12 +321,12 @@ def main() -> int:
         lock = read_build_lock()
         print(STEP_MARKER + "component_tuple", flush=True)
         started = time.perf_counter()
-        components, wp, newton = _verify_tuple(lock)
+        components, wp, newton, torch = _verify_tuple(lock)
         tuple_duration = _duration(started)
 
         print(STEP_MARKER + "module_graph", flush=True)
         started = time.perf_counter()
-        module_roots = _verify_module_graph(wp, newton)
+        module_roots = _verify_module_graph(wp, newton, torch)
         module_duration = _duration(started)
 
         print(STEP_MARKER + "newton_tiled_camera", flush=True)

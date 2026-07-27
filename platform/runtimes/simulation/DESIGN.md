@@ -13,7 +13,7 @@ external repositories derive thin overlays from its immutable OCI digest.
 | `veoveo.io/simulation-runtime-lock/v1` | exact build-input lock for the supported runtime tuple and pod contract |
 | `veoveo.io/simulation-runtime-conformance/v1` | hardware result tied to one image digest and qualified node |
 | NVIDIA Container Runtime | one visible NVIDIA RTX GPU through `nvidia.com/gpu` and RuntimeClass `nvidia` |
-| CUDA | CUDA 12.8 user-space selected by Torch 2.10.0 and the Isaac Sim 6.0.1 renderer |
+| CUDA | CUDA 13.0 user-space selected by Torch 2.12.0 and the Isaac Sim 6.0.1 renderer |
 | NVIDIA NVENC API | driver-provided encode API required by live-view profiles |
 | USD | render and simulation scene representation supplied by Isaac Sim 6.0.1 |
 | SHA-256 | image, archive, wheel, lock, SBOM, provenance, and conformance identity |
@@ -36,7 +36,7 @@ boundary is the compatibility profile and immutable image digest.
 | Newton | `1.4.0`, revision `0597c719e345b4457bf698ca24faad3fd418452d` |
 | MuJoCo | `3.10.0`, revision `28009f9105cd92784b7b0b30c0605a5e29107a77` |
 | MuJoCo Warp | `3.10.0.3`, revision `710c34ca96745a44bfb701cdbda89e1434845728` |
-| Torch | `2.10.0+cu128` |
+| Torch | `2.12.0+cu130` |
 | NVIDIA AOV live stream | `10.2.0+110.1.2.lx64.r.cp312` |
 | NVIDIA WebRTC live stream | `10.3.2+110.0.0.lx64.r.cp312` from Isaac Sim |
 
@@ -55,16 +55,19 @@ application.
 
 ## Authoritative Module Roots
 
-Isaac Sim registers Warp and Newton as Kit extension payloads. Installing newer
-packages only in ordinary site-packages leaves the bundled versions authoritative
-after Kit starts. Importing the newer packages first creates a mixed graph when Kit
-later loads internal Warp modules.
+Isaac Sim registers Torch, Warp, and Newton as Kit extension payloads. Installing
+newer packages only in ordinary site-packages leaves the bundled versions
+authoritative after Kit starts. Importing a newer package first creates a mixed graph
+when Kit later loads an older package or native dependency from its extension.
 
-The image replaces the packages inside the Kit-owned extension roots and updates the
-Warp extension version. `PYTHONPATH` selects those same roots before Kit starts. The
-identity probe rejects every loaded Warp or Newton file module outside its one selected
-root. An overlay may add compatible packages, but it cannot replace Isaac Sim, Isaac
-Lab, Warp, Newton, MuJoCo, Torch, Python, CUDA, or core Kit versions.
+The image replaces each package inside its Kit-owned extension root and updates the
+Warp extension version. Torch 2.12 and its CUDA 13.0, NCCL, Triton, and Python support
+packages replace the complete Kit ML archive graph. The bundled TorchVision and
+TorchAudio payloads are removed because they are outside the supported subset and do
+not have a stable Torch 2.12 pair. `PYTHONPATH` selects the same roots before Kit
+starts. The identity probe rejects loaded Torch, Warp, or Newton file modules outside
+their selected root. An overlay may add compatible packages, but it cannot replace
+Isaac Sim, Isaac Lab, Warp, Newton, MuJoCo, Torch, Python, CUDA, or core Kit versions.
 
 ## Runtime Contract
 
@@ -112,7 +115,7 @@ acceptance.
 - the NVENC API version and session entrypoint;
 - Torch and Warp kernels on `cuda:0`;
 - Newton `SensorTiledCamera` output resident on `cuda:0`;
-- one authoritative Warp, Newton, and Isaac Lab module graph after Kit startup;
+- one authoritative Torch, Warp, Newton, and Isaac Lab module graph after Kit startup;
 - a CUDA-resident Isaac Lab RTX RGB batch with nonblank, distinct cameras.
 
 The canonical invocation is:

@@ -33,8 +33,39 @@ RUN /isaac-sim/kit/python/bin/python3 -m pip install \
       --require-hashes \
       --target /opt/veoveo/python \
       --index-url https://pypi.org/simple \
-      --extra-index-url https://download.pytorch.org/whl/cu128 \
+      --extra-index-url https://download.pytorch.org/whl/cu130 \
       --requirement /opt/veoveo/simulation-runtime/requirements.lock
+
+# Kit prepends its ML archive when Isaac starts. Replace the complete bundled
+# Torch graph with the selected stable CUDA graph so Python modules and native
+# NCCL/CUDA libraries resolve from one authoritative root. TorchVision and
+# TorchAudio are outside the supported runtime subset and have no stable
+# Torch 2.12 pair, so their incompatible bundled payloads are removed.
+RUN ml_prebundle=/isaac-sim/extsDeprecated/omni.isaac.ml_archive/pip_prebundle \
+    && rm -rf \
+      "${ml_prebundle}/torch" \
+      "${ml_prebundle}/torchgen" \
+      "${ml_prebundle}/functorch" \
+      "${ml_prebundle}/triton" \
+      "${ml_prebundle}/nvidia" \
+      "${ml_prebundle}/torchaudio" \
+      "${ml_prebundle}/torchvision" \
+      "${ml_prebundle}/torchvision.libs" \
+      "${ml_prebundle}"/torch-*.dist-info \
+      "${ml_prebundle}"/triton-*.dist-info \
+      "${ml_prebundle}"/nvidia_*.dist-info \
+      "${ml_prebundle}"/torchaudio-*.dist-info \
+      "${ml_prebundle}"/torchvision-*.dist-info \
+    && mv \
+      /opt/veoveo/python/torch \
+      /opt/veoveo/python/torchgen \
+      /opt/veoveo/python/functorch \
+      /opt/veoveo/python/triton \
+      /opt/veoveo/python/nvidia \
+      /opt/veoveo/python/torch-*.dist-info \
+      /opt/veoveo/python/triton-*.dist-info \
+      /opt/veoveo/python/nvidia_*.dist-info \
+      "${ml_prebundle}/"
 
 # Isaac Sim discovers Warp and Newton through Kit extension roots. Replace
 # those payloads atomically so Kit-first and pre-Kit imports resolve the same
@@ -163,16 +194,16 @@ RUN groupadd --gid 10001 veoveo \
 COPY --chmod=0555 probes/ /opt/veoveo/simulation-runtime/probes/
 COPY simulation-runtime.lock.json /opt/veoveo/simulation-base/simulation-runtime.lock.json
 COPY veoveo_simulation_base/ /opt/veoveo/simulation-base/veoveo_simulation_base/
-RUN echo "a4d6870c0c748ea1804feb06c24decf11c4d05ff154ae0fb0811e9073816545c  /opt/veoveo/simulation-base/simulation-runtime.lock.json" \
+RUN echo "f6e3b61e3b039b3813a7a478f914d3dd083cbc1d65a15fc4f716236ddde966bd  /opt/veoveo/simulation-base/simulation-runtime.lock.json" \
       | sha256sum --check --strict \
     && printf '%s\n' \
-      "a4d6870c0c748ea1804feb06c24decf11c4d05ff154ae0fb0811e9073816545c" \
+      "f6e3b61e3b039b3813a7a478f914d3dd083cbc1d65a15fc4f716236ddde966bd" \
       > /opt/veoveo/simulation-base/simulation-runtime.lock.sha256
 
 ENV ACCEPT_EULA=Y \
     HOME=/var/lib/veoveo \
     ISAACLAB_PATH=/opt/veoveo/isaaclab \
-    PYTHONPATH=/isaac-sim/extscache/omni.warp.core-1.13.0+lx64:/isaac-sim/exts/isaacsim.pip.newton/pip_prebundle:/opt/veoveo/simulation-base:/opt/veoveo/python:/opt/veoveo/isaaclab/source/isaaclab:/opt/veoveo/isaaclab/source/isaaclab_newton:/opt/veoveo/isaaclab/source/isaaclab_physx:/opt/veoveo/isaaclab/source/isaaclab_ov:/opt/veoveo/isaaclab/source/isaaclab_ovphysx \
+    PYTHONPATH=/isaac-sim/extsDeprecated/omni.isaac.ml_archive/pip_prebundle:/isaac-sim/extscache/omni.warp.core-1.13.0+lx64:/isaac-sim/exts/isaacsim.pip.newton/pip_prebundle:/opt/veoveo/simulation-base:/opt/veoveo/python:/opt/veoveo/isaaclab/source/isaaclab:/opt/veoveo/isaaclab/source/isaaclab_newton:/opt/veoveo/isaaclab/source/isaaclab_physx:/opt/veoveo/isaaclab/source/isaaclab_ov:/opt/veoveo/isaaclab/source/isaaclab_ovphysx \
     VEOVEO_SIMULATION_RUNTIME_PROFILE=isaac-6.0.1-lab-3.0.0-beta2.patch1-warp-1.15.0-newton-1.4.0 \
     XDG_CACHE_HOME=/var/lib/veoveo/.cache \
     XDG_DATA_HOME=/var/lib/veoveo/.local/share
@@ -186,6 +217,7 @@ LABEL org.opencontainers.image.title="Veoveo canonical GPU simulation runtime" \
       veoveo.io/compatibility-release="${COMPATIBILITY_RELEASE}" \
       veoveo.io/isaac-sim-version="6.0.1" \
       veoveo.io/isaac-lab-revision="${ISAAC_LAB_REVISION}" \
+      veoveo.io/torch-version="2.12.0+cu130" \
       veoveo.io/warp-version="1.15.0" \
       veoveo.io/newton-version="1.4.0"
 
