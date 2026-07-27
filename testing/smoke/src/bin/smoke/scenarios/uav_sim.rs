@@ -455,6 +455,7 @@ pub(crate) async fn uav_sim_verify(
     );
     let camera_entity = json_string(&state, "/recordings/0/camera_streams/0")?.to_owned();
 
+    ensure_vehicle_landed(&operator, &scenario, "preflight recovery").await?;
     operator
         .call_tool(
             "uav-sim__arm_vehicle",
@@ -464,188 +465,190 @@ pub(crate) async fn uav_sim_verify(
             }),
         )
         .await?;
-    wait_for_flight_state(&operator, &["armed"], Duration::from_secs(60), &scenario).await?;
-    operator
-        .call_tool(
-            "uav-sim__takeoff_vehicle",
-            serde_json::json!({
-                "session_id": scenario.session_id,
+    let flight_result: Result<String> = async {
+        wait_for_flight_state(&operator, &["armed"], Duration::from_secs(60), &scenario).await?;
+        operator
+            .call_tool(
+                "uav-sim__takeoff_vehicle",
+                serde_json::json!({
+                    "session_id": scenario.session_id,
+                    "vehicle_id": scenario.vehicle_id,
+                    "relative_altitude_m": scenario.takeoff.relative_altitude_m
+                }),
+            )
+            .await?;
+        state = wait_for_flight_state(
+            &operator,
+            &["flying"],
+            Duration::from_secs(scenario.takeoff.state_timeout_seconds),
+            &scenario,
+        )
+        .await?;
+        ensure!(
+            state
+                .pointer("/vehicles/0/enu/up_m")
+                .and_then(Value::as_f64)
+                .is_some_and(|up_m| up_m >= scenario.takeoff.minimum_reached_altitude_m),
+            "UAV did not reach the configured aerial-tiles acceptance altitude: {state}"
+        );
+        state = wait_for_aerial_camera_content(
+            &operator,
+            Duration::from_secs(scenario.camera.detail_timeout_seconds),
+            &scenario,
+        )
+        .await?;
+
+        let origin = state
+            .pointer("/world/georeference_origin")
+            .and_then(Value::as_object)
+            .context("UAV state omitted georeference_origin")?;
+        let latitude = json_number(origin, "latitude_degrees")?;
+        let longitude = json_number(origin, "longitude_degrees")?;
+        let height = json_number(origin, "ellipsoid_height_m")?;
+        let mission = serde_json::json!({
+            "session_id": scenario.session_id,
+            "mission_id": format!("acceptance-{}", uuid::Uuid::now_v7()),
+            "expected_world_revision_uri": revision_uri,
+            "vehicles": [{
                 "vehicle_id": scenario.vehicle_id,
-                "relative_altitude_m": scenario.takeoff.relative_altitude_m
-            }),
-        )
-        .await?;
-    state = wait_for_flight_state(
-        &operator,
-        &["flying"],
-        Duration::from_secs(scenario.takeoff.state_timeout_seconds),
-        &scenario,
-    )
-    .await?;
-    ensure!(
-        state
-            .pointer("/vehicles/0/enu/up_m")
-            .and_then(Value::as_f64)
-            .is_some_and(|up_m| up_m >= scenario.takeoff.minimum_reached_altitude_m),
-        "UAV did not reach the configured aerial-tiles acceptance altitude: {state}"
-    );
-    state = wait_for_aerial_camera_content(
-        &operator,
-        Duration::from_secs(scenario.camera.detail_timeout_seconds),
-        &scenario,
-    )
-    .await?;
-
-    let origin = state
-        .pointer("/world/georeference_origin")
-        .and_then(Value::as_object)
-        .context("UAV state omitted georeference_origin")?;
-    let latitude = json_number(origin, "latitude_degrees")?;
-    let longitude = json_number(origin, "longitude_degrees")?;
-    let height = json_number(origin, "ellipsoid_height_m")?;
-    let mission = serde_json::json!({
-        "session_id": scenario.session_id,
-        "mission_id": format!("acceptance-{}", uuid::Uuid::now_v7()),
-        "expected_world_revision_uri": revision_uri,
-        "vehicles": [{
-            "vehicle_id": scenario.vehicle_id,
-            "waypoints": [{
-                "position": {
-                    "latitude_degrees": latitude,
-                    "longitude_degrees": longitude
-                        + scenario.mission.longitude_offset_degrees,
-                    "ellipsoid_height_m": height
-                        + scenario.mission.relative_altitude_m
-                },
-                "speed_mps": scenario.mission.speed_mps,
-                "hold_seconds": scenario.mission.hold_seconds
+                "waypoints": [{
+                    "position": {
+                        "latitude_degrees": latitude,
+                        "longitude_degrees": longitude
+                            + scenario.mission.longitude_offset_degrees,
+                        "ellipsoid_height_m": height
+                            + scenario.mission.relative_altitude_m
+                    },
+                    "speed_mps": scenario.mission.speed_mps,
+                    "hold_seconds": scenario.mission.hold_seconds
+                }]
             }]
-        }]
-    });
-    let mission_output = operator
-        .task_tool(
-            "uav-sim__execute_mission",
-            mission,
-            Duration::from_secs(scenario.mission.task_timeout_seconds),
+        });
+        let mission_output = operator
+            .task_tool(
+                "uav-sim__execute_mission",
+                mission,
+                Duration::from_secs(scenario.mission.task_timeout_seconds),
+            )
+            .await?;
+        ensure!(
+            json_string(&mission_output, "/lifecycle")? == "completed"
+                && mission_output
+                    .get("completed_waypoints")
+                    .and_then(Value::as_u64)
+                    .is_some_and(|count| count >= 1),
+            "UAV mission did not complete a waypoint: {mission_output}"
+        );
+
+        state = simulation_state(&operator, &scenario).await?;
+        let simulation_time_s = state
+            .get("simulation_time_s")
+            .and_then(Value::as_f64)
+            .context("UAV state omitted simulation_time_s")?;
+        let range_end_s = simulation_time_s - scenario.perception.range_lag_seconds;
+        let range_start_s = range_end_s - scenario.perception.range_duration_seconds;
+        ensure!(
+            range_start_s >= 0.0,
+            "UAV recording has not accumulated enough stable aerial camera history"
+        );
+        let range_start = (range_start_s * 1_000_000_000.0) as i64;
+        let range_end = (range_end_s * 1_000_000_000.0) as i64;
+
+        wait_for_recording_camera_range(
+            &operator,
+            recording_id,
+            &camera_entity,
+            range_start,
+            range_end,
+            Duration::from_secs(scenario.recording.frozen_rows_timeout_seconds),
         )
         .await?;
-    ensure!(
-        json_string(&mission_output, "/lifecycle")? == "completed"
-            && mission_output
-                .get("completed_waypoints")
+        let perception = operator
+            .task_tool(
+                "perception__analyze_recording",
+                serde_json::json!({
+                    "video": {
+                        "recording_uri": recording_uri,
+                        "entity_path": camera_entity,
+                        "timeline": "simulation_time",
+                        "range": {"start": range_start, "end": range_end}
+                    },
+                    "pipeline_id": "traffic-object-detection",
+                    "sampling": {
+                        "mode": "maximum_frames",
+                        "count": scenario.perception.maximum_frames
+                    },
+                    "include_source_clip": true
+                }),
+                Duration::from_secs(scenario.perception.task_timeout_seconds),
+            )
+            .await?;
+        ensure!(
+            perception
+                .pointer("/summary/processed_frames")
                 .and_then(Value::as_u64)
-                .is_some_and(|count| count >= 1),
-        "UAV mission did not complete a waypoint: {mission_output}"
-    );
+                .is_some_and(|count| count > 0),
+            "Perception processed no Isaac camera frames: {perception}"
+        );
+        let governed_artifact_id =
+            json_string(&perception, "/results_artifact/artifact_id")?.to_owned();
+        ensure!(
+            uuid::Uuid::parse_str(&governed_artifact_id)?.get_version_num() == 7,
+            "Perception result artifact identity must be UUIDv7"
+        );
+        let grounding_uri = json_string(&perception, "/results_artifact/artifact_uri")?.to_owned();
 
-    state = simulation_state(&operator, &scenario).await?;
-    let simulation_time_s = state
-        .get("simulation_time_s")
-        .and_then(Value::as_f64)
-        .context("UAV state omitted simulation_time_s")?;
-    let range_end_s = simulation_time_s - scenario.perception.range_lag_seconds;
-    let range_start_s = range_end_s - scenario.perception.range_duration_seconds;
-    ensure!(
-        range_start_s >= 0.0,
-        "UAV recording has not accumulated enough stable aerial camera history"
-    );
-    let range_start = (range_start_s * 1_000_000_000.0) as i64;
-    let range_end = (range_end_s * 1_000_000_000.0) as i64;
+        let reason = operator
+            .task_tool(
+                "reason__analyze_recording",
+                serde_json::json!({
+                    "video": {
+                        "recording_uri": recording_uri,
+                        "entity_path": camera_entity,
+                        "timeline": "simulation_time",
+                        "range": {"start": range_start, "end": range_end}
+                    },
+                    "pipeline_id": "video-reasoning",
+                    "task": {
+                        "kind": "describe_segment",
+                        "prompt": scenario.reason.prompt
+                    },
+                    "sampling": {"max_frames": scenario.reason.maximum_frames},
+                    "grounding": {"results_artifact_uri": grounding_uri}
+                }),
+                Duration::from_secs(scenario.reason.task_timeout_seconds),
+            )
+            .await?;
+        ensure!(
+            reason
+                .pointer("/summary/observed_frames")
+                .and_then(Value::as_u64)
+                .is_some_and(|count| count > 0),
+            "Reason observed no Isaac camera frames: {reason}"
+        );
+        let reason_artifact_id = json_string(&reason, "/results_artifact/artifact_id")?.to_owned();
+        ensure!(
+            uuid::Uuid::parse_str(&reason_artifact_id)?.get_version_num() == 7,
+            "Reason result artifact identity must be UUIDv7"
+        );
 
-    wait_for_recording_camera_range(
-        &operator,
-        recording_id,
-        &camera_entity,
-        range_start,
-        range_end,
-        Duration::from_secs(scenario.recording.frozen_rows_timeout_seconds),
-    )
-    .await?;
-    let perception = operator
-        .task_tool(
-            "perception__analyze_recording",
-            serde_json::json!({
-                "video": {
-                    "recording_uri": recording_uri,
-                    "entity_path": camera_entity,
-                    "timeline": "simulation_time",
-                    "range": {"start": range_start, "end": range_end}
-                },
-                "pipeline_id": "traffic-object-detection",
-                "sampling": {
-                    "mode": "maximum_frames",
-                    "count": scenario.perception.maximum_frames
-                },
-                "include_source_clip": true
-            }),
-            Duration::from_secs(scenario.perception.task_timeout_seconds),
-        )
-        .await?;
-    ensure!(
-        perception
-            .pointer("/summary/processed_frames")
-            .and_then(Value::as_u64)
-            .is_some_and(|count| count > 0),
-        "Perception processed no Isaac camera frames: {perception}"
-    );
-    let governed_artifact_id =
-        json_string(&perception, "/results_artifact/artifact_id")?.to_owned();
-    ensure!(
-        uuid::Uuid::parse_str(&governed_artifact_id)?.get_version_num() == 7,
-        "Perception result artifact identity must be UUIDv7"
-    );
-    let grounding_uri = json_string(&perception, "/results_artifact/artifact_uri")?.to_owned();
-
-    let reason = operator
-        .task_tool(
-            "reason__analyze_recording",
-            serde_json::json!({
-                "video": {
-                    "recording_uri": recording_uri,
-                    "entity_path": camera_entity,
-                    "timeline": "simulation_time",
-                    "range": {"start": range_start, "end": range_end}
-                },
-                "pipeline_id": "video-reasoning",
-                "task": {
-                    "kind": "describe_segment",
-                    "prompt": scenario.reason.prompt
-                },
-                "sampling": {"max_frames": scenario.reason.maximum_frames},
-                "grounding": {"results_artifact_uri": grounding_uri}
-            }),
-            Duration::from_secs(scenario.reason.task_timeout_seconds),
-        )
-        .await?;
-    ensure!(
-        reason
-            .pointer("/summary/observed_frames")
-            .and_then(Value::as_u64)
-            .is_some_and(|count| count > 0),
-        "Reason observed no Isaac camera frames: {reason}"
-    );
-    let reason_artifact_id = json_string(&reason, "/results_artifact/artifact_id")?.to_owned();
-    ensure!(
-        uuid::Uuid::parse_str(&reason_artifact_id)?.get_version_num() == 7,
-        "Reason result artifact identity must be UUIDv7"
-    );
-
-    operator
-        .call_tool(
-            "uav-sim__land_vehicle",
-            serde_json::json!({
-                "session_id": scenario.session_id,
-                "vehicle_id": scenario.vehicle_id
-            }),
-        )
-        .await?;
-    wait_for_flight_state(
-        &operator,
-        &["landed", "standby"],
-        Duration::from_secs(scenario.landing_timeout_seconds),
-        &scenario,
-    )
-    .await?;
+        Ok(governed_artifact_id)
+    }
+    .await;
+    let landing_result = ensure_vehicle_landed(&operator, &scenario, "postflight recovery").await;
+    let governed_artifact_id = match (flight_result, landing_result) {
+        (Ok(artifact_id), Ok(())) => artifact_id,
+        (Err(flight_error), Ok(())) => return Err(flight_error),
+        (Ok(_), Err(landing_error)) => {
+            return Err(landing_error.context("UAV postflight landing failed"));
+        }
+        (Err(flight_error), Err(landing_error)) => {
+            bail!(
+                "UAV flight acceptance failed: {flight_error:#}; postflight landing also failed: \
+                 {landing_error:#}"
+            );
+        }
+    };
     assert_concurrent_gpu_workloads(context)?;
     assert_governed_artifact_access(conformance, public_base_url, &governed_artifact_id).await?;
 
@@ -656,6 +659,40 @@ pub(crate) async fn uav_sim_verify(
          segment grounded in those detections, an authorized context member previewed it, and an \
          independent context was denied"
     );
+    Ok(())
+}
+
+async fn ensure_vehicle_landed(
+    operator: &OperatorClient<'_>,
+    scenario: &UavAcceptanceScenario,
+    phase: &str,
+) -> Result<()> {
+    let state = simulation_state(operator, scenario).await?;
+    let flight_state = json_string(&state, "/vehicles/0/flight_state")?;
+    if matches!(flight_state, "landed" | "standby") {
+        return Ok(());
+    }
+    ensure!(
+        flight_state != "failed",
+        "PX4 entered the failed state during {phase}: {state}"
+    );
+    eprintln!("{phase}: landing UAV from `{flight_state}`");
+    operator
+        .call_tool(
+            "uav-sim__land_vehicle",
+            serde_json::json!({
+                "session_id": scenario.session_id,
+                "vehicle_id": scenario.vehicle_id
+            }),
+        )
+        .await?;
+    wait_for_flight_state(
+        operator,
+        &["landed", "standby"],
+        Duration::from_secs(scenario.landing_timeout_seconds),
+        scenario,
+    )
+    .await?;
     Ok(())
 }
 
