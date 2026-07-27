@@ -60,10 +60,10 @@ spec:
     {{- include "veoveo.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: simulation-view-renderer
   ports:
-    - name: renderer-control
+    - name: render-control
       protocol: TCP
       port: {{ $view.ports.rendererControl }}
-      targetPort: renderer-control
+      targetPort: render-control
     - name: pose-control
       protocol: TCP
       port: {{ $view.ports.poseControl }}
@@ -369,7 +369,7 @@ spec:
             - name: NVIDIA_DRIVER_CAPABILITIES
               value: compute,graphics,utility,video
           ports:
-            - name: renderer-control
+            - name: render-control
               containerPort: {{ $view.ports.rendererControl }}
             {{- range $slot := until $slots }}
             - name: {{ printf "signal-%d" $slot }}
@@ -382,20 +382,20 @@ spec:
           startupProbe:
             httpGet:
               path: /readyz
-              port: renderer-control
+              port: render-control
             failureThreshold: 120
             periodSeconds: 5
             timeoutSeconds: 3
           readinessProbe:
             httpGet:
               path: /readyz
-              port: renderer-control
+              port: render-control
             periodSeconds: 5
             timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /healthz
-              port: renderer-control
+              port: render-control
             initialDelaySeconds: 30
             periodSeconds: 10
           securityContext:
