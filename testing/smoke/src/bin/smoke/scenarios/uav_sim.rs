@@ -1,4 +1,4 @@
-use std::{net::IpAddr, process::Stdio};
+use std::process::Stdio;
 
 use anyhow::ensure;
 use serde::Deserialize;
@@ -68,135 +68,6 @@ struct TakeoffScenario {
     state_timeout_seconds: u64,
 }
 
-pub(crate) async fn uav_sim_aov_probe(
-    image: &str,
-    frames: u32,
-    cache_directory: &Path,
-    timeout: Duration,
-) -> Result<()> {
-    ensure!(frames > 0, "AOV probe frame count must be positive");
-    ensure!(
-        timeout >= Duration::from_secs(60),
-        "AOV probe timeout must allow at least 60 seconds"
-    );
-    run_checked(
-        Path::new("docker"),
-        ["image".into(), "inspect".into(), image.into()],
-        [],
-    )
-    .with_context(|| format!("AOV probe image is unavailable: {image}"))?;
-
-    fs::create_dir_all(cache_directory).with_context(|| {
-        format!(
-            "creating persistent AOV probe cache {}",
-            cache_directory.display()
-        )
-    })?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-
-        fs::set_permissions(cache_directory, fs::Permissions::from_mode(0o777)).with_context(
-            || {
-                format!(
-                    "making AOV probe cache writable by the runtime container: {}",
-                    cache_directory.display()
-                )
-            },
-        )?;
-    }
-    let cache_directory = cache_directory.canonicalize()?;
-    let signal_port = reserve_local_port()?;
-    let media_port = reserve_local_port()?;
-    ensure!(
-        signal_port != media_port,
-        "AOV probe reserved the same signaling and media port"
-    );
-
-    let container_name = format!("veoveo-uav-aov-probe-{}", uuid::Uuid::new_v4());
-    let _container = ContainerGuard::new(container_name.clone());
-    let mut command = tokio::process::Command::new("docker");
-    command
-        .args([
-            "run",
-            "--rm",
-            "--name",
-            &container_name,
-            "--gpus",
-            "all",
-            "--network",
-            "host",
-            "--shm-size",
-            "2g",
-            "-e",
-            "NVIDIA_VISIBLE_DEVICES=all",
-            "-e",
-            "NVIDIA_DRIVER_CAPABILITIES=all",
-            "-e",
-            "XDG_CACHE_HOME=/var/lib/veoveo/runtime-cache/aov-probe",
-            "-v",
-            &format!(
-                "{}:/var/lib/veoveo/runtime-cache",
-                cache_directory.display()
-            ),
-            "--entrypoint",
-            "/isaac-sim/python.sh",
-            image,
-            "-m",
-            "veoveo_uav_sim.aov_probe",
-            "--frames",
-            &frames.to_string(),
-            "--signal-port",
-            &signal_port.to_string(),
-            "--media-port",
-            &media_port.to_string(),
-        ])
-        .kill_on_drop(true)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    let output = tokio::time::timeout(timeout, command.output())
-        .await
-        .with_context(|| format!("NVIDIA AOV probe exceeded {timeout:?}"))??;
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let transcript = format!("{stdout}\n{stderr}");
-    ensure!(
-        output.status.success(),
-        "NVIDIA AOV probe failed with {}\n{}",
-        output.status,
-        transcript
-    );
-    for marker in [
-        "Graphics API: Vulkan",
-        "NVIDIA ",
-        "AOV_PROBE_CONFIG explicit_streams=1",
-        "AOV_PROBE_AUX_SENSOR_STREAMING frames=",
-        "shape=(480, 640, 3)",
-        concat!(
-            "AOV_PROBE_RENDER_PRODUCT ",
-            "path=/Render/OmniverseKit/HydraTextures/uav_follow_camera"
-        ),
-        "AOV_PROBE_READY",
-        &format!("AOV_PROBE_PASS frames={frames}"),
-    ] {
-        ensure!(
-            transcript.contains(marker),
-            "NVIDIA AOV probe omitted marker {marker:?}\n{transcript}"
-        );
-    }
-    for software_renderer in ["SwiftShader", "llvmpipe", "Software Rasterizer"] {
-        ensure!(
-            !transcript.contains(software_renderer),
-            "NVIDIA AOV probe selected forbidden renderer {software_renderer}"
-        );
-    }
-    println!(
-        "NVIDIA AOV probe passed: image={image} frames={frames} cache={}",
-        cache_directory.display()
-    );
-    Ok(())
-}
-
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CameraAcceptance {
@@ -251,25 +122,6 @@ struct ReasonScenario {
     prompt: String,
     maximum_frames: u64,
     task_timeout_seconds: u64,
-}
-
-#[derive(Debug, Deserialize)]
-struct KubernetesService {
-    spec: KubernetesServiceSpec,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct KubernetesServiceSpec {
-    ports: Vec<KubernetesServicePort>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct KubernetesServicePort {
-    name: String,
-    protocol: String,
-    node_port: u16,
 }
 
 struct OperatorClient<'a> {
@@ -504,10 +356,12 @@ pub(crate) async fn uav_sim_verify(
         "frames__publish_world",
         "uav-sim__configure_world",
         "uav-sim__get_simulation_state",
-        "uav-sim__open_live_stream",
-        "uav-sim__renew_live_stream",
-        "uav-sim__close_live_stream",
         "uav-sim__execute_mission",
+        "simulation-view__create_session",
+        "simulation-view__bind_scene",
+        "simulation-view__authorize_pose_producer",
+        "simulation-view__create_camera",
+        "simulation-view__open_live_view",
         "perception__analyze_recording",
         "reason__analyze_recording",
         "recording__query_recording",
@@ -608,39 +462,6 @@ pub(crate) async fn uav_sim_verify(
     )
     .await?;
     assert_georeference_origin(&state, &scenario)?;
-    let live = operator
-        .call_tool(
-            "uav-sim__open_live_stream",
-            serde_json::json!({"session_id": scenario.session_id}),
-        )
-        .await?;
-    ensure!(
-        json_string(&live, "/stream/hardware_encoder")? == "nvidia_nvenc"
-            && json_string(&live, "/stream/codec")? == "h264"
-            && json_string(&live, "/stream/source")? == "follow_camera"
-            && !json_string(&live, "/access_token")?.is_empty(),
-        "UAV live-stream lease is not NVIDIA accelerated: {live}"
-    );
-    ensure!(
-        live.pointer("/endpoint/signaling_port")
-            .and_then(Value::as_u64)
-            .is_some_and(|port| port > 0)
-            && live
-                .pointer("/endpoint/media_port")
-                .and_then(Value::as_u64)
-                .is_some_and(|port| port > 0),
-        "UAV live-stream endpoint is incomplete: {live}"
-    );
-    assert_local_k3d_media_binding(context, &live)?;
-    operator
-        .call_tool(
-            "uav-sim__close_live_stream",
-            serde_json::json!({
-                "session_id": scenario.session_id,
-                "stream_id": json_string(&live, "/stream/stream_id")?,
-            }),
-        )
-        .await?;
     let recording_uri = json_string(&state, "/recordings/0/recording_uri")?.to_owned();
     let recording_id = recording_uri
         .strip_prefix("recording://recordings/")
@@ -846,63 +667,7 @@ pub(crate) async fn uav_sim_verify(
     assert_governed_artifact_access(conformance, public_base_url, &governed_artifact_id).await?;
 
     println!(
-        "UAV simulation acceptance ok: Google Photorealistic 3D Tiles were resident in Isaac, PX4 completed a mission, Recording Hub retained the world, Perception produced a governed artifact, Reason described the flight segment grounded in those detections, an authorized context member previewed it, an independent context was denied, and View remained available"
-    );
-    Ok(())
-}
-
-fn assert_local_k3d_media_binding(context: &str, live: &Value) -> Result<()> {
-    let media_server = json_string(live, "/endpoint/media_server")?;
-    let Ok(media_ip) = media_server.parse::<IpAddr>() else {
-        return Ok(());
-    };
-    if !media_ip.is_loopback() {
-        return Ok(());
-    }
-    let cluster = context.strip_prefix("k3d-").with_context(|| {
-        format!("loopback UAV media endpoint {media_server} requires a k3d context, got {context}")
-    })?;
-    let media_port = live
-        .pointer("/endpoint/media_port")
-        .and_then(Value::as_u64)
-        .and_then(|port| u16::try_from(port).ok())
-        .context("UAV live-stream endpoint returned an invalid media port")?;
-    let service: KubernetesService = serde_json::from_str(&run_checked(
-        Path::new("kubectl"),
-        [
-            "--context",
-            context,
-            "-n",
-            NAMESPACE,
-            "get",
-            "service",
-            "uav-sim-live",
-            "-o",
-            "json",
-        ]
-        .map(OsString::from),
-        [],
-    )?)
-    .context("decoding the UAV live-stream Service")?;
-    let node_port = service
-        .spec
-        .ports
-        .iter()
-        .find(|port| port.name == "media" && port.protocol == "UDP")
-        .map(|port| port.node_port)
-        .context("UAV live-stream Service omitted its UDP media NodePort")?;
-    let load_balancer = format!("k3d-{cluster}-serverlb");
-    let bindings = run_checked(
-        Path::new("docker"),
-        ["port".into(), load_balancer.clone().into()],
-        [],
-    )
-    .with_context(|| format!("reading host ports from {load_balancer}"))?;
-    let expected = format!("{node_port}/udp -> {media_ip}:{media_port}");
-    ensure!(
-        bindings.lines().any(|binding| binding.trim() == expected),
-        "{load_balancer} does not expose the UAV media binding {expected}; \
-         apply examples/bioma/k3d.yaml before browser acceptance"
+        "UAV simulation acceptance ok: Google Photorealistic 3D Tiles were resident in Isaac, the showcase published complete poses through the independent Simulation View protocol, PX4 completed a mission, Recording Hub retained the world, Perception produced a governed artifact, Reason described the flight segment grounded in those detections, an authorized context member previewed it, and an independent context was denied"
     );
     Ok(())
 }
@@ -1156,21 +921,15 @@ fn assert_world_ready(
         "Isaac nadir camera is not operational: {state}"
     );
     ensure!(
-        matches!(
-            json_string(state, "/live_stream/lifecycle")?,
-            "ready" | "live"
-        ) && json_string(state, "/live_stream/source")? == "follow_camera"
-            && json_string(state, "/live_stream/codec")? == "h264"
-            && json_string(state, "/live_stream/hardware_encoder")? == "nvidia_nvenc"
+        json_string(state, "/pose_publication/protocol_schema")?
+            == "veoveo.io/simulation-view-pose/v1"
+            && json_string(state, "/pose_publication/lifecycle")? == "ready"
+            && json_string(state, "/pose_publication/entity_table_digest")?.starts_with("sha256:")
             && state
-                .pointer("/live_stream/width")
+                .pointer("/pose_publication/sent_snapshots")
                 .and_then(Value::as_u64)
-                .is_some_and(|width| width >= 1280)
-            && state
-                .pointer("/live_stream/fps")
-                .and_then(Value::as_u64)
-                .is_some_and(|fps| fps >= 20),
-        "NVIDIA follow-camera live streaming is not ready: {state}"
+                .is_some_and(|count| count > 0),
+        "Simulation View pose publication is not ready: {state}"
     );
     Ok(())
 }

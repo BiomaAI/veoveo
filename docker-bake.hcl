@@ -546,6 +546,7 @@ target "uav-sim-runtime" {
   tags       = [image_ref("uav-sim-runtime")]
   contexts = {
     simulation-runtime = "target:simulation-runtime"
+    simulation-pose-sdk = "./sdk/python/src/veoveo_mcp"
   }
   args = {
     SIMULATION_RUNTIME_IMAGE = "simulation-runtime"
@@ -566,17 +567,14 @@ target "simulation-overlay-acceptance" {
 }
 
 target "uav-sim-mcp" {
-  inherits   = ["base"]
+  inherits   = ["_rust-trixie-runtime"]
   dockerfile = "servers/uav-sim-mcp/Dockerfile"
   tags       = [image_ref("uav-sim-mcp")]
-  args = {
-    VEOVEO_TARGET_CACHE_ID = ""
-  }
   labels = {
-    "io.veoveo.build.mode"      = "rust-standalone"
+    "io.veoveo.build.mode"      = "rust-shared"
     "io.veoveo.build.package"   = "veoveo-uav-sim-mcp"
     "io.veoveo.build.binaries"  = "uav-sim-mcp"
-    "io.veoveo.build.family"    = "rust-uav-bookworm-v1"
+    "io.veoveo.build.family"    = "rust-trixie-v1"
     "io.veoveo.build.auxiliary" = ""
   }
 }

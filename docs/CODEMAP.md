@@ -58,7 +58,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) | temporal authority, operational calendars, clock quality, and events |
 | [`servers/timeseries-mcp/DESIGN.md`](../servers/timeseries-mcp/DESIGN.md) | timeseries forecasting, preview contract, and the forecast MCP App view |
 | [`servers/view-mcp/DESIGN.md`](../servers/view-mcp/DESIGN.md) | governed static scene compositions, 3D Tiles residency, declarative overlays, and GPU frame capture |
-| [`servers/uav-sim-mcp/DESIGN.md`](../servers/uav-sim-mcp/DESIGN.md) | governed UAV simulation sessions, missions, vehicles, tiles, recordings, and the owner-scoped live follow-camera App |
+| [`servers/uav-sim-mcp/DESIGN.md`](../servers/uav-sim-mcp/DESIGN.md) | governed UAV simulation sessions, missions, vehicles, tiles, recordings, and independent Simulation View pose publication |
 
 Deployment, examples, templates, and fixtures keep their instructions beside the
 material they operate:
@@ -383,16 +383,16 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifacts |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | immutable governed scene compositions, owner and Work Context scoped geospatial views, shared 3D Tiles streaming, GPU overlays, and captured frames |
-| `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, missions, vehicles, tasks, subscriptions, recording references, and the typed live-stream App lifecycle |
+| `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, missions, vehicles, tasks, subscriptions, recording references, and typed pose-publication health |
 
 ### UAV Simulation Integration
 
 | Path | Responsibility |
 |---|---|
-| `showcase/uav-sim/runtime/` | in-place canonical Isaac Sim 6.0.1 base with the exact Isaac Lab/Warp/Newton/MuJoCo lock, authoritative module graph, hardware base probe, thin UAV overlay, Cesium/Pegasus compatibility, PX4 lifecycle, RTX HydraTexture cameras, NVIDIA AOV/WebRTC/NVENC, pod-private adapter, and Rerun publication |
-| `showcase/uav-sim/deploy/` | commit-addressed OCI publication, MCP-configured interactive Helm workload, authenticated signaling and WebRTC media services, versioned persistent cache, typed camera configuration, GPU request, and network policy |
+| `showcase/uav-sim/runtime/` | thin domain overlay on the canonical Isaac runtime with Cesium/Pegasus compatibility, PX4 lifecycle, RTX domain sensors, Rerun publication, and a UAV telemetry adapter over the shared Simulation View pose SDK |
+| `showcase/uav-sim/deploy/` | commit-addressed OCI publication, MCP-configured GPU simulator workload, private pose-producer TLS, versioned persistent cache, typed sensor configuration, and network policy; operator media remains in Simulation View |
 | `showcase/uav-sim/scenarios/` | reusable world trees plus strongly typed live mission and acceptance parameters outside the Isaac image context |
-| `examples/bioma/uav-sim-values.yaml` | Bioma reference camera configuration, public gateway origin, and recording tenant binding |
+| `examples/bioma/uav-sim-values.yaml` | Bioma reference sensor, pose-producer, public gateway origin, and recording tenant binding |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | runtime world publication and binding plus credentialed Google tiles, PX4, Recording Hub, Perception, and concurrent GPU acceptance |
 
 ### Geospatial Domains

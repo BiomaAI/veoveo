@@ -123,144 +123,69 @@ class CameraConfig:
 
 
 @dataclass(frozen=True, slots=True)
-class FollowCameraConfig:
-    width: int
-    height: int
-    fps: int
-    focal_length_mm: float
-    eye_offset_xyz_m: tuple[float, float, float]
-    target_offset_xyz_m: tuple[float, float, float]
-
-    @classmethod
-    def from_environment(cls) -> "FollowCameraConfig":
-        return cls(
-            width=_int("UAV_SIM_FOLLOW_CAMERA_WIDTH", "1280", 64, 3_840),
-            height=_int("UAV_SIM_FOLLOW_CAMERA_HEIGHT", "720", 64, 2_160),
-            fps=_int("UAV_SIM_FOLLOW_CAMERA_FPS", "20", 1, 60),
-            focal_length_mm=_float(
-                "UAV_SIM_FOLLOW_CAMERA_FOCAL_LENGTH_MM", "45.0", 0.1, 1_000.0
-            ),
-            eye_offset_xyz_m=(
-                _float(
-                    "UAV_SIM_FOLLOW_CAMERA_EYE_OFFSET_X_M",
-                    "-2.2",
-                    -1_000.0,
-                    1_000.0,
-                ),
-                _float(
-                    "UAV_SIM_FOLLOW_CAMERA_EYE_OFFSET_Y_M",
-                    "-2.2",
-                    -1_000.0,
-                    1_000.0,
-                ),
-                _float(
-                    "UAV_SIM_FOLLOW_CAMERA_EYE_OFFSET_Z_M",
-                    "1.2",
-                    -1_000.0,
-                    1_000.0,
-                ),
-            ),
-            target_offset_xyz_m=(
-                _float(
-                    "UAV_SIM_FOLLOW_CAMERA_TARGET_OFFSET_X_M",
-                    "0.0",
-                    -1_000.0,
-                    1_000.0,
-                ),
-                _float(
-                    "UAV_SIM_FOLLOW_CAMERA_TARGET_OFFSET_Y_M",
-                    "0.0",
-                    -1_000.0,
-                    1_000.0,
-                ),
-                _float(
-                    "UAV_SIM_FOLLOW_CAMERA_TARGET_OFFSET_Z_M",
-                    "0.2",
-                    -1_000.0,
-                    1_000.0,
-                ),
-            ),
-        )
-
-
-@dataclass(frozen=True, slots=True)
-class LiveStreamConfig:
-    signal_port: int
-    media_port: int
-    public_ip: str
-    proxy_host: str
-    proxy_port: int
-    signaling_path: str
-    lease_ttl_seconds: int
+class PosePublisherConfig:
+    producer_id: str
+    producer_spiffe_id: str
+    epoch_id: str
+    ingress_host: str
+    ingress_port: int
+    server_hostname: str
+    ca_certificate: Path
+    client_certificate: Path
+    client_private_key: Path
+    entity_table_revision: int
 
     def __post_init__(self) -> None:
-        if not self.public_ip:
-            raise ValueError("UAV_SIM_LIVE_STREAM_PUBLIC_IP must not be empty")
-        if not self.proxy_host:
-            raise ValueError("UAV_SIM_LIVE_STREAM_PROXY_HOST must not be empty")
-
-    @classmethod
-    def from_environment(cls) -> "LiveStreamConfig":
-        signaling_path = os.environ.get(
-            "UAV_SIM_LIVE_STREAM_SIGNALING_PATH", "/webrtc"
-        ).strip()
-        if not signaling_path.startswith("/") or ".." in signaling_path:
-            raise ValueError(
-                "UAV_SIM_LIVE_STREAM_SIGNALING_PATH must be an absolute normalized path"
-            )
-        return cls(
-            signal_port=_int(
-                "UAV_SIM_LIVE_STREAM_SIGNAL_PORT", "49100", 1, 65_535
-            ),
-            media_port=_int(
-                "UAV_SIM_LIVE_STREAM_MEDIA_PORT", "47998", 1, 65_535
-            ),
-            public_ip=os.environ.get(
-                "UAV_SIM_LIVE_STREAM_PUBLIC_IP", "127.0.0.1"
-            ).strip(),
-            proxy_host=os.environ.get(
-                "UAV_SIM_LIVE_STREAM_PROXY_HOST", "0.0.0.0"
-            ),
-            proxy_port=_int(
-                "UAV_SIM_LIVE_STREAM_PROXY_PORT", "49101", 1, 65_535
-            ),
-            signaling_path=signaling_path,
-            lease_ttl_seconds=_int(
-                "UAV_SIM_LIVE_STREAM_LEASE_TTL_SECONDS", "300", 30, 3_600
-            ),
-        )
-
-
-@dataclass(frozen=True, slots=True)
-class ScreenshotConfig:
-    output_path: Path
-    minimum_relative_altitude_m: float
-    settle_rendered_frames: int
-
-    @classmethod
-    def from_environment(cls) -> "ScreenshotConfig | None":
-        raw_output_path = os.environ.get("UAV_SIM_SCREENSHOT_PATH", "").strip()
-        if not raw_output_path:
-            return None
-        output_path = Path(raw_output_path)
+        _identity("UAV_SIM_POSE_PRODUCER_ID", self.producer_id)
+        _identity("UAV_SIM_POSE_EPOCH_ID", self.epoch_id)
+        spiffe_remainder = self.producer_spiffe_id.removeprefix("spiffe://")
         if (
-            not output_path.is_absolute()
-            or ".." in output_path.parts
-            or output_path.suffix.lower() != ".png"
+            spiffe_remainder == self.producer_spiffe_id
+            or not spiffe_remainder
+            or spiffe_remainder.startswith("/")
+            or len(self.producer_spiffe_id) > 512
+            or any(character.isspace() for character in self.producer_spiffe_id)
         ):
             raise ValueError(
-                "UAV_SIM_SCREENSHOT_PATH must be an absolute normalized PNG path"
+                "UAV_SIM_POSE_PRODUCER_SPIFFE_ID must be a normalized SPIFFE URI"
             )
+        for name, value in (
+            ("UAV_SIM_POSE_INGRESS_HOST", self.ingress_host),
+            ("UAV_SIM_POSE_SERVER_HOSTNAME", self.server_hostname),
+        ):
+            if not value or "/" in value or any(character.isspace() for character in value):
+                raise ValueError(f"{name} must be a DNS name or IP address")
+        for name, path in (
+            ("UAV_SIM_POSE_CA_CERTIFICATE", self.ca_certificate),
+            ("UAV_SIM_POSE_CLIENT_CERTIFICATE", self.client_certificate),
+            ("UAV_SIM_POSE_CLIENT_PRIVATE_KEY", self.client_private_key),
+        ):
+            if not path.is_absolute() or ".." in path.parts:
+                raise ValueError(f"{name} must be an absolute normalized path")
+
+    @classmethod
+    def from_environment(cls) -> "PosePublisherConfig":
         return cls(
-            output_path=output_path,
-            minimum_relative_altitude_m=_float(
-                "UAV_SIM_SCREENSHOT_MINIMUM_RELATIVE_ALTITUDE_M",
-                "250.0",
-                0.0,
-                100_000.0,
+            producer_id=_required("UAV_SIM_POSE_PRODUCER_ID"),
+            producer_spiffe_id=_required("UAV_SIM_POSE_PRODUCER_SPIFFE_ID"),
+            epoch_id=_required("UAV_SIM_POSE_EPOCH_ID"),
+            ingress_host=_required("UAV_SIM_POSE_INGRESS_HOST"),
+            ingress_port=_int(
+                "UAV_SIM_POSE_INGRESS_PORT", "7443", 1, 65_535
             ),
-            settle_rendered_frames=_int(
-                "UAV_SIM_SCREENSHOT_SETTLE_RENDERED_FRAMES", "30", 1, 600
+            server_hostname=_required("UAV_SIM_POSE_SERVER_HOSTNAME"),
+            ca_certificate=Path(_required("UAV_SIM_POSE_CA_CERTIFICATE")),
+            client_certificate=Path(
+                _required("UAV_SIM_POSE_CLIENT_CERTIFICATE")
+            ),
+            client_private_key=Path(
+                _required("UAV_SIM_POSE_CLIENT_PRIVATE_KEY")
+            ),
+            entity_table_revision=_int(
+                "UAV_SIM_POSE_ENTITY_TABLE_REVISION",
+                "1",
+                1,
+                2**63 - 1,
             ),
         )
 
@@ -282,18 +207,12 @@ class RuntimeConfig:
     recording_proxy: str
     recording_key: uuid.UUID
     camera: CameraConfig
-    follow_camera: FollowCameraConfig
-    live_stream: LiveStreamConfig
-    screenshot: ScreenshotConfig | None
+    pose_publication: PosePublisherConfig
     extension_directory: str
 
     def __post_init__(self) -> None:
         if self.rendering_hz != self.camera.fps:
             raise ValueError("UAV_SIM_RENDERING_HZ must match UAV_SIM_CAMERA_FPS")
-        if self.rendering_hz != self.follow_camera.fps:
-            raise ValueError(
-                "UAV_SIM_RENDERING_HZ must match UAV_SIM_FOLLOW_CAMERA_FPS"
-            )
 
     @classmethod
     def from_environment(cls) -> "RuntimeConfig":
@@ -345,9 +264,7 @@ class RuntimeConfig:
             ),
             recording_key=recording_key,
             camera=CameraConfig.from_environment(),
-            follow_camera=FollowCameraConfig.from_environment(),
-            live_stream=LiveStreamConfig.from_environment(),
-            screenshot=ScreenshotConfig.from_environment(),
+            pose_publication=PosePublisherConfig.from_environment(),
             extension_directory=os.environ.get(
                 "UAV_SIM_EXTENSION_DIRECTORY", "/opt/veoveo/extensions"
             ),

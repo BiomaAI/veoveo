@@ -11618,10 +11618,10 @@ dependencies = [
  "url",
  "uuid",
  "veoveo-artifact-client",
- "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",
  "veoveo-platform-store",
+ "veoveo-simulation-pose",
  "veoveo-task-runtime",
 ]
 

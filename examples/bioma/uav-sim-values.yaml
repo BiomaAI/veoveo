@@ -27,37 +27,15 @@ session:
         x: 0.0
         "y": 0.0
         z: -0.7071067811865476
-  followCamera:
-    width: 1280
-    height: 720
-    fps: 20
-    focalLengthMm: 32.0
-    eyeOffsetM:
-      x: -8.0
-      "y": -8.0
-      z: 4.0
-    targetOffsetM:
-      x: 0.0
-      "y": 0.0
-      z: 0.2
-
-liveStream:
-  signalingUrl: wss://veoveo.bioma.ai/webrtc
-  signalingPath: /webrtc
-  privateSignalPort: 49100
-  proxyPort: 49101
-  publicMediaServer: 127.0.0.1
-  mediaPort: 47998
-  publicIp: 127.0.0.1
-  leaseTtlSeconds: 300
-  service:
-    type: NodePort
-    signalNodePort: 30910
-    mediaNodePort: 30998
-  ingress:
-    enabled: true
-    className: traefik
-    host: veoveo.bioma.ai
-    path: /webrtc
-    tlsSecret: ""
-    annotations: {}
+posePublication:
+  producerId: uav-sim
+  producerSpiffeId: spiffe://veoveo.local/simulation/uav-sim
+  epochId: epoch-1
+  endpointHost: simulation-view-pose
+  endpointPort: 7443
+  serverHostname: simulation-view-pose
+  entityTableRevision: 1
+  existingTlsSecret: uav-sim-pose-producer-tls
+  caCertificateKey: ca.crt
+  clientCertificateKey: tls.crt
+  clientPrivateKeyKey: tls.key

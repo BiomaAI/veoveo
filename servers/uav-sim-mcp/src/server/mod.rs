@@ -2,7 +2,6 @@
 mod auth;
 mod config;
 mod host;
-mod live_stream;
 mod ownership;
 mod prompts;
 mod service;

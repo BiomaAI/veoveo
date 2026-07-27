@@ -491,21 +491,6 @@ enum Cmd {
         #[arg(long, default_value = "https://veoveo.bioma.ai")]
         public_base_url: String,
     },
-    /// Exercise the NVIDIA AOV follow-camera render product in one local GPU container.
-    UavSimAovProbe {
-        /// Runtime image containing the isolated Isaac AOV probe.
-        #[arg(long)]
-        image: String,
-        /// Rendered frames after the AOV extension becomes active.
-        #[arg(long, default_value_t = 600)]
-        frames: u32,
-        /// Persistent host cache used to avoid recompiling RTX shaders.
-        #[arg(long, default_value = "output/uav-sim/aov-probe-cache")]
-        cache_directory: PathBuf,
-        /// Hard upper bound including an uncached first Kit launch.
-        #[arg(long, default_value_t = 900)]
-        timeout_seconds: u64,
-    },
     /// Certify an immutable simulation overlay and base on NVIDIA hardware.
     SimulationCertify {
         /// Canonical base image using repository@sha256 identity.
@@ -807,20 +792,6 @@ async fn main() -> Result<()> {
             context,
             public_base_url,
         } => uav_sim_verify(&conformance_bin, &scenario, &context, &public_base_url).await,
-        Cmd::UavSimAovProbe {
-            image,
-            frames,
-            cache_directory,
-            timeout_seconds,
-        } => {
-            uav_sim_aov_probe(
-                &image,
-                frames,
-                &cache_directory,
-                Duration::from_secs(timeout_seconds),
-            )
-            .await
-        }
         Cmd::SimulationCertify {
             base_image,
             overlay_image,

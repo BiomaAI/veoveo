@@ -1,26 +1,26 @@
 # UAV simulation MCP server
 
-This document is the normative contract for the `uav-sim-mcp` server. The
-server governs interactive and durable work against one or more UAV simulation
-sessions without exposing simulator-native control ports through the Veoveo
-gateway.
+This document is the normative design for `uav-sim-mcp`. The server governs
+one UAV domain simulation without exposing simulator-native control or
+high-rate state through the Veoveo gateway.
 
 ## Standards And Protocols
 
 | Standard or protocol | Implemented profile |
 |---|---|
-| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with direct controls, task-only scenarios and missions, resources and templates, prompts, completions, subscriptions, and notifications. |
-| [MCP Apps](https://apps.extensions.modelcontextprotocol.io/) | Version `2026-01-26`; `ui://uav-sim/live.html` drives the canonical stream tools and reads the same typed resources as every other client. |
-| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Session, world, vehicle, mission, command, recording, and structured-result contracts. |
-| [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; live scenarios, missions, and dataset captures are durable tasks with `interrupted_indeterminate` recovery. |
-| [MAVLink 2](https://mavlink.io/en/) | Pod-local PX4 command, acknowledgement, heartbeat, mission-position, and vehicle-state transport. The adapter uses `COMMAND_INT` and `MAV_FRAME_GLOBAL_INT` for repositioning. |
-| ROS 2 | Private simulator data plane. High-rate topics are not projected into MCP tools. |
-| OGC 3D Tiles | Google Photorealistic 3D Tiles streamed through Cesium ion into the simulator; tile readiness and residency are typed session state. |
-| WGS 84, ECEF, ENU, and NED | Immutable ECEF-rooted Frames world, local simulator stage, Pegasus body state, and PX4 navigation frame. Axis and handedness mappings remain explicit. |
-| [Rerun 0.35.0](https://rerun.io/docs/) RRD and `VideoStream` | Vehicle, sensor, transform, mission, tile, and camera evidence. Camera samples use H.264 Annex B with simulation timestamps. |
-| Veoveo recording ingest | Version `2026-07-24`; a producer-local forwarder carries the simulator's native Rerun messages to the gateway and Recording Hub. |
-| [NVIDIA Kit AOV streaming](https://docs.omniverse.nvidia.com/kit/docs/omni.kit.livestream.aov/latest/Overview.html) and [WebRTC](https://docs.omniverse.nvidia.com/kit/docs/omni.kit.livestream.webrtc/latest/Overview.html) | The named `/Render/OmniverseKit/HydraTextures/uav_follow_camera` `LdrColor` product stays in the GPU render graph through NVIDIA NVENC and H.264 WebRTC. The AOV extension is pinned to `10.2.0+110.1.2.lx64.r.cp312`. The browser client is pinned to `@nvidia/ov-web-rtc` `6.6.0`. |
-| Cluster-private HTTP/JSON | Typed MCP-server-to-simulator adapter boundary. Simulator, MAVLink, ROS 2, and the private Kit signaling port never become public gateway routes. |
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with direct controls, task-only operations, resources, prompts, completions, subscriptions, and notifications. The server has no MCP App. |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Strict typed session, world, vehicle, mission, command, recording, and pose-publication health shapes. |
+| [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; scenarios, missions, and dataset captures use `interrupted_indeterminate` recovery. |
+| Veoveo Frames contract | One immutable ECEF-rooted world revision and one revision-scoped ENU simulation frame bind each session. |
+| `veoveo.io/simulation-view-pose/v1` | Complete newest-value entity snapshots in local ENU metres with FLU entity axes and XYZW quaternions. This server reports publication health; snapshots travel on the private data plane. |
+| SPIFFE and TLS 1.3 | Installation-issued producer identity and mutually authenticated private transport to Simulation View pose ingress. No certificate, private key, or ingress endpoint appears in MCP state. |
+| [MAVLink 2](https://mavlink.io/en/) | Pod-local PX4 command, acknowledgement, heartbeat, mission-position, and vehicle-state transport. |
+| ROS 2 | Optional private simulator data plane. High-rate topics are not MCP tools or resources. |
+| OGC 3D Tiles | Google Photorealistic 3D Tiles stream through Cesium ion into the domain simulator. Tile readiness and residency are session state. |
+| WGS 84, ECEF, ENU, NED, FRD, and FLU | Immutable world identity, local simulation, PX4 navigation, vehicle telemetry, and renderer pose publication use explicit mappings. |
+| [Rerun 0.35.0](https://rerun.io/docs/) RRD and `VideoStream` | Vehicle, sensor, transform, mission, tile, and nadir-camera evidence. |
+| Veoveo recording ingest | Version `2026-07-24`; a producer-local forwarder carries native Rerun messages to Recording Hub. |
+| Cluster-private HTTP/JSON | Typed MCP-server-to-simulator adapter boundary. Simulator, MAVLink, ROS 2, pose TLS, and recording ports are not public gateway routes. |
 
 ## Identity
 
@@ -35,170 +35,154 @@ ready       /uav-sim/readyz
 port        8802
 ```
 
-The public name is provider-neutral. Isaac Sim, Cesium for Omniverse, Pegasus,
-and PX4 implement the first adapter, but their names do not enter canonical
-tool or resource identities.
+The public surface is provider-neutral. Isaac Sim, Cesium for Omniverse,
+Pegasus, and PX4 implement the first adapter but do not enter canonical tool
+or resource names.
 
-## Ownership boundary
+## Ownership Boundary
 
-The server owns the typed simulation protocol, caller ownership, task state,
-policy-visible operations, resource identities, subscriptions, prompts, audit
-context, and recording references. It serializes mutations for each session.
+The UAV extension owns domain dynamics, controls, sensors, recordings, its
+private adapter, scene declarations, and its pose publisher. The MCP server
+owns the typed domain protocol, caller ownership, task state, resource
+identities, subscriptions, prompts, audit context, and governed recording
+references.
 
-The simulator adapter owns Isaac stage mutation, timeline stepping, Cesium tile
-residency, Pegasus vehicles, PX4 process lifecycle, MAVLink transport, sensor
-capture, and the translation between simulator-native state and this contract.
-Its HTTP endpoint is cluster-private and accepts only typed requests from the
-MCP server.
+Simulation View is an independent Veoveo service. It owns the render-only
+OpenUSD mirror, logical follow, chase, mounted, orbit, fixed, look-at, and
+formation-overview cameras, RTX render products, capacity admission, NVIDIA
+NVENC, WebRTC, leases, and the live-view App. The UAV runtime does not create
+operator cameras, load the NVIDIA live-stream extensions, expose signaling or
+media ports, or implement a domain live-view App.
 
-MAVLink and ROS 2 remain data-plane protocols. They are never projected as
-high-rate MCP tools. Autonomous workloads may use private Kubernetes Services
-for those protocols while MCP governs missions, scenarios, inspection, and
-bounded actuation.
+The UAV runtime publishes poses through the reusable Python SDK. Its adapter
+only maps UAV telemetry into SDK types and reports publisher status. Encoding,
+framing, bounded newest-value buffering, TLS 1.3, and reconnect behavior live
+in the SDK. DNS, certificate loading, TLS handshakes, and socket writes run on
+the SDK worker and never block physics or rendering.
 
-## Core world contract
+## World And Frame Binding
 
-Google Photorealistic 3D Tiles rendered inside Isaac Sim through Cesium ion are
-part of the core delivery. A healthy session reports the configured ion asset,
-Cesium connection state, tile load progress, resident tile count, and the
-georeference used by the stage. View MCP's direct Google source is an
-independent capability and cannot satisfy UAV simulation acceptance.
+Every session starts `unconfigured`. `configure_world` accepts one immutable
+Frames world revision and one static simulation frame within it. The server
+verifies the tree digest, revision membership, and static ancestry to a
+geodetic tangent anchor.
 
-The Isaac container receives `CESIUM_ION_ACCESS_TOKEN` from a Kubernetes
-Secret dedicated to the UAV runtime, under the key
-`cesium-ion-access-token`. The value is never accepted as a tool argument,
-stored in a ConfigMap, returned by a resource, or included in a log field.
-Cesium requires the token on its tileset schema. The adapter authors it only
-into the anonymous session layer, clears the attribute during shutdown, and
-never exports that layer.
+The binding is write-once. Repeating the same request is idempotent; a
+different revision or frame is rejected. The runtime derives the Cesium
+georeference, Pegasus origin, WGS84 conversion, recording metadata, and
+Simulation View frame-revision identity from that binding. Helm carries no
+frame URI or geographic origin.
 
-Headless startup authors Cesium's typed `IonOfficial` server prim before the
-tileset and binds asset `2275207` to that server. Interactive Kit normally does
-this from a stage-opened UI callback, but Isaac enables the extension after its
-stage is open. The runtime then reloads Cesium's native stage registry and
-feeds the active UAV camera through the native viewport contract on every Kit
-update.
-
-Cesium's streamed mesh is not the simulator's collision authority. Isaac adds
-a bounded, invisible launch and landing surface at the typed local origin so a
-PX4 vehicle has deterministic physical support before arming. This surface is
-an initialization mechanism; Google Photorealistic 3D Tiles remain the core
-rendered world and their product use is not narrowed by this contract.
-
-## Spatial frames
-
-Every session starts in the `unconfigured` lifecycle. `configure_world` accepts
-one immutable Frames world revision and one revision-scoped simulation frame.
-The server verifies the tree digest, confirms that the frame belongs to the
-revision, and resolves its static ancestors to a geodetic tangent anchor.
-
-The binding is write-once. An identical request is idempotent; a different
-revision or frame is rejected. The runtime derives the Cesium georeference,
-Pegasus origin, local vehicle conversion, and recording metadata from that one
-binding. Helm carries no frame URI or geodetic origin.
-
-The published tree also describes the ECEF root, local tangent frame, Isaac
-stage, PX4 body, IMU, nadir camera, and follow camera. Dynamic vehicle and camera
-nodes name their live stream and entity path. The adapter performs high-rate
-ENU/NED conversion locally and makes no MCP calls in the physics loop.
-
-The canonical chain is:
+The canonical transform chain is:
 
 ```text
-WGS84/ECEF -- immutable Frames world revision --> local ENU stage
-local ENU  -- typed adapter mapping --> Pegasus body state
-local ENU  -- explicit axis mapping --> PX4 NED
+WGS84/ECEF -- immutable Frames revision --> local ENU stage
+local ENU  -- typed adapter mapping --> Pegasus vehicle state
+local ENU  -- explicit axis mapping --> PX4 NED and body FRD
+local ENU  -- complete pose snapshots --> Simulation View entity FLU
 ```
 
-Axes, handedness, units, ellipsoid height, origin, frame tree, and revision
-digest are recorded. Missing or incompatible information fails configuration.
+The pose producer publishes the exact Frames revision URI and
+`sha256:<digest>`. The entity table is deterministic for the configured
+vehicle count. A changed entity set requires a new entity-table revision and
+digest.
 
-## PX4 control link
+## Pose Publication
 
-The pod-local GCS link binds `14550 + instance` and seeds the matching PX4
-endpoint at `18570 + instance`. This preserves one bidirectional MAVLink peer
-for heartbeat, command acknowledgement, waypoint control, and vehicle state.
-The adapter sends each WGS84 waypoint as `MAV_CMD_DO_REPOSITION` through
-`COMMAND_INT` with `MAV_FRAME_GLOBAL_INT`, then verifies horizontal position,
-absolute altitude, and the requested hold interval from PX4 telemetry. This
-keeps an already-airborne vehicle out of PX4 AUTO Mission mode. The adapter
-maintains a one-second GCS heartbeat while the vehicle is live. Commands fail
-unless PX4 returns an explicit accepted acknowledgement. Arm completion also
-requires the subsequent PX4 heartbeat to report the armed state, which makes
-an immediate takeoff command deterministic. A land command interrupts an
+One snapshot contains every declared UAV entity. Entity order is canonical,
+identities are stable, and sequence numbers are strictly increasing within
+the configured renderer epoch. The renderer timestamp advances at render
+cadence independently of a domain timeline reset. This prevents a reset from
+moving the Simulation View epoch backward.
+
+Each entity includes local ENU position and normalized XYZW orientation. FLU
+velocity is optional. The first adapter omits velocity because its source
+velocity is expressed in world ENU; it does not mislabel ENU components as
+body FLU.
+
+The publisher keeps one unsent value. A new offer replaces an older pending
+snapshot, while the simulation thread performs only validation, deterministic
+encoding, and a bounded lock acquisition. A disconnected renderer causes
+newest-value replacement rather than backpressure.
+
+`PosePublicationState` exposes:
+
+- the exact protocol schema;
+- producer, SPIFFE, epoch, entity-table, and cadence identity;
+- `starting`, `connecting`, `ready`, `degraded`, `failed`, or `stopped`;
+- offered, sent, and replaced counters;
+- the last sent sequence and a redacted transport diagnostic.
+
+It never exposes an address, certificate path, credential, or access token.
+Runtime readiness requires at least one sent snapshot and a currently ready
+publisher. Missing pose authorization or transport is an operational failure,
+not a reason to run an embedded viewer.
+
+## Domain Runtime
+
+Google Photorealistic 3D Tiles rendered through Cesium ion are part of this
+showcase's domain evidence. A healthy session reports the configured asset,
+load progress, resident tiles, failed tiles, and the accepted georeference.
+Simulation View may render a separately declared environment; that does not
+replace domain-simulator tile acceptance.
+
+`CESIUM_ION_ACCESS_TOKEN` comes from a dedicated Secret. The runtime authors it
+only into the anonymous USD session layer required by Cesium, clears the
+attribute during shutdown, and never exports that layer.
+
+The active viewport follows the primary nadir sensor because Cesium performs
+tile selection from a Kit viewport. Nadir cameras remain domain sensors and
+recording inputs. They are not operator views.
+
+The pod-local GCS link binds `14550 + instance` and the matching PX4 endpoint
+at `18570 + instance`. Commands require explicit accepted acknowledgements.
+Arm completion also requires an armed heartbeat. A land command interrupts an
 active waypoint loop before acquiring the MAVLink command channel.
 
-The HTTP adapter is concurrency-safe. A durable operation does not hold the MCP
-server's adapter boundary, so task reads, readiness probes, state resources,
-and emergency land commands remain available throughout a mission. The fake
-adapter keeps its own narrow mutex because its in-memory state is mutable.
+## Typed Domain Model
 
-## Typed domain model
+Controlled types include:
 
-The controlled vocabulary includes:
+- `SessionId`, `VehicleId`, `MissionId`, `RecordingId`, `PoseProducerId`,
+  `SpiffeId`, `EpochId`, `FrameWorldRevisionUri`, and `WorldFrameUri`;
+- `SimulationLifecycle`, `TileLifecycle`, `CameraLifecycle`,
+  `PosePublicationLifecycle`, `VehicleFlightState`, and `MissionLifecycle`;
+- WGS84, ENU, NED, quaternion, vehicle, sensor, recording, and publication
+  records;
+- tagged `SimulationCommand` and `DurableOperation` enums.
 
-- `SessionId`, `VehicleId`, `MissionId`, `RecordingId`, `StreamId`,
-  `FrameWorldRevisionUri`, and `WorldFrameUri` validated identity types.
-- `SimulationLifecycle`: `unconfigured`, `starting`, `ready`, `running`,
-  `paused`, `stopping`, `stopped`, or `failed`.
-- `TileLoadState`: `connecting`, `streaming`, `ready`, or `failed` with counts
-  and a redacted diagnostic.
-- `CameraLifecycle`: `warming`, `ready`, `degraded`, or `failed`, accompanied by
-  frame count, mean luma, dynamic range, and non-black-pixel fraction measured
-  from the exact RGB8 image delivered to the H.264 encoder.
-- `LiveStreamCapability` fixes the public source to `follow_camera`, codec to
-  `h264`, and hardware encoder to `nvidia_nvenc`. Resolution, frame rate,
-  lifecycle, and connected-viewer count remain typed state.
-- `LiveStreamState` records one owner-scoped lease without its credential.
-  `LiveStreamConnection` adds the short-lived redacted access-token type only
-  to open and renew results.
-- `VehicleFlightState`: `initializing`, `standby`, `armed`, `taking_off`,
-  `flying`, `landing`, `landed`, or `failed`.
-- WGS84, local ENU, PX4 NED, velocity, attitude, battery, collision, sensor, and
-  mission progress records.
-- `SimulationCommand` and `MissionCommand` tagged enums for the private adapter
-  boundary.
+Raw JSON is not used for shapes controlled by Veoveo.
 
-Raw JSON is not used for shapes controlled by Veoveo. Opaque upstream payloads
-may appear only as bounded, explicitly labeled diagnostic metadata.
+## MCP Surface
 
-## MCP surface
-
-### Direct tools
+### Direct Tools
 
 | Tool | Behavior |
 |---|---|
-| `configure_world` | Binds an unconfigured session once to a verified immutable Frames revision and static simulation frame. |
-| `get_simulation_state` | Reads the current session, tile, camera-content, recording, and vehicle summary. |
+| `configure_world` | Binds the session once to a verified Frames revision and static simulation frame. |
+| `get_simulation_state` | Reads domain lifecycle, world, tiles, sensors, pose-publication health, recordings, and vehicles. |
 | `pause_simulation` | Pauses one running session. |
 | `resume_simulation` | Resumes one paused session. |
-| `reset_simulation` | Resets the stage and vehicles to the declared scenario start. |
+| `reset_simulation` | Resets domain dynamics without resetting the renderer epoch. |
 | `step_simulation` | Advances a paused session by a bounded number of physics steps. |
-| `arm_vehicle` | Arms one PX4-backed vehicle after adapter safety checks. |
+| `arm_vehicle` | Arms one PX4-backed vehicle after adapter checks. |
 | `takeoff_vehicle` | Starts a bounded takeoff to a typed relative altitude. |
 | `land_vehicle` | Commands one vehicle to land. |
-| `open_live_stream` | Opens the single owner-scoped follow-camera lease and returns its authenticated WebRTC endpoint. |
-| `renew_live_stream` | Extends the active owner-scoped lease without changing the credential used by the connected client. |
-| `close_live_stream` | Revokes the lease and disconnects its authenticated signaling path. |
 
-The state read is read-only. Mutations are marked destructive where they alter
-live vehicle or world state. A direct result returns a typed acknowledgement
-and the affected resource URI.
+Simulation View tools create and govern operator cameras and streams. They are
+not duplicated or aliased by this server.
 
-### Durable tools
+### Durable Tools
 
 | Tool | Recovery | Behavior |
 |---|---|---|
-| `run_scenario` | `interrupted_indeterminate` | Runs a bounded live scenario against the loaded Google 3D Tiles world. |
-| `execute_mission` | `interrupted_indeterminate` | Executes typed waypoints and actions for one or more vehicles. |
+| `run_scenario` | `interrupted_indeterminate` | Runs a bounded live scenario. |
+| `execute_mission` | `interrupted_indeterminate` | Executes typed waypoints and actions. |
 | `capture_dataset` | `interrupted_indeterminate` | Captures a bounded sensor interval and returns governed recording identities. |
 
-Live simulator work is not replayed after an unclean interruption because the
-external physical state cannot be inferred safely. Resumption marks such tasks
-interrupted and requires an operator decision. The task extension remains the
-canonical task protocol; compatibility task tools are not added.
+Live work is not replayed after an unclean interruption.
 
-### Resources and templates
+### Resources
 
 ```text
 uav-sim://sessions
@@ -208,192 +192,79 @@ uav-sim://session/{session_id}/tiles
 uav-sim://session/{session_id}/vehicles
 uav-sim://session/{session_id}/vehicle/{vehicle_id}
 uav-sim://session/{session_id}/recordings
-uav-sim://session/{session_id}/streams
-uav-sim://session/{session_id}/stream/{stream_id}
 uav-sim://mission/{mission_id}
 uav-sim://usage
 uav-sim://usage/task/{task_id}
-ui://uav-sim/live.html
 ```
 
-Session, world, tiles, vehicles, individual vehicles, mission, and recording
-resources support subscriptions. Mutations publish resource-update
-notifications after the adapter acknowledges the new state. Task usage reuses
-the shared usage model. Stream list and item resources are filtered by the
-complete caller owner, which includes principal, tenant, profile, data labels,
-and invocation authority. They never serialize the WebRTC access token.
+Session, world, tile, vehicle, mission, and recording resources support the
+contract's subscriptions and notifications. Task usage reuses the shared
+usage model.
 
-### Live follow-camera App
+## Recording Integration
 
-The App is one clean, single-purpose follow-camera tile. It opens the same typed
-stream tools advertised to model clients automatically after initialization,
-without a play action. It reads the session index once per second for low-rate
-flight context, renders the NVIDIA WebRTC video in a view-only element, reports
-transport statistics, and renews the lease halfway to expiry. Teardown
-terminates the client and closes the lease before acknowledging the host.
+The simulator emits vehicle poses, transforms, IMU samples, vehicle state,
+mission state, collision events, tile diagnostics, and nadir camera samples.
+The adapter publishes native Rerun messages and reports only its private
+application and recording keys. The MCP server resolves those keys through
+the recording catalog and returns canonical
+`recording://recordings/{recording_id}` identities.
 
-The App has no outer padding or dashboard controls. Its stage owns a `16:9`
-aspect ratio, displays the complete frame with `object-fit: contain`, and
-reports every intrinsic size change to the host. This keeps the video and stats
-strip inside the App frame without a nested scrollbar. A broader simulation
-dashboard is a separate App and cannot accrete controls into this tile.
+`TODO(GPU)` marks the existing NumPy sensor readback, camera-quality
+reductions, and PyAV `libx264` recording path. Those paths must move to a
+canonical CUDA/NVENC recording fan-out. They are domain recording debt and are
+not evidence for Simulation View, whose renderer and encoder remain fully
+GPU-backed.
 
-The exact H.264 configuration must be `supported` and `smooth` according to
-Media Capabilities. A `powerEfficient` result is labeled hardware H.264 decode.
-When `powerEfficient` is false, the App may continue under the repository's
-single browser software-decode exception and labels the path software H.264
-decode. Headed hardware WebGPU and WebGL remain mandatory visual-verification
-preconditions. Kit rendering and NVIDIA NVENC remain mandatory server paths.
-The server streams the named follow camera's `LdrColor` AOV directly rather
-than capturing the complete application framebuffer. The runtime creates that
-product and each nadir RGB product through Kit's RTX HydraTexture API in
-asynchronous low-latency mode. No Replicator render product, annotator, or
-Orchestrator graph participates in the live runtime. NVIDIA AOV and an active
-Replicator annotator graph contend during native render-product construction in
-Isaac Sim 6.0.1; the direct products remove that competing graph instead of
-depending on startup timing.
+## Deployment
 
-The runtime image removes the AOV package's two implicit viewport stream
-declarations. One explicit configuration names
-`Render.OmniverseKit.HydraTextures.uav_follow_camera.LdrColor`, so the extension
-cannot attach NVENC streams to UI-era default viewports. The runtime enables
-AOV only after the immutable world, named RTX products, Cesium viewport, and
-nadir RGB capture have produced stable frames. Stream leases remain unavailable
-until that attachment succeeds, and the App's automatic retry continues until
-the canonical stream reports ready.
+The chart under `showcase/uav-sim/deploy/helm` renders one GPU-required domain
+simulator pod with the UAV MCP sidecar and recording forwarder. It mounts a
+producer-only PEM TLS Secret and sends poses to the installation-selected
+Simulation View pose service. A pod label admits that private connection under
+the platform NetworkPolicy.
 
-The source tree carries a diagnostic client stub for ordinary Rust tests. The
-production MCP image downloads `@nvidia/ov-web-rtc` `6.6.0` from NVIDIA's
-registry, verifies the tarball and UMD bundle hashes, and embeds that exact
-bundle during the Rust build. NVIDIA client files are not copied into the
-repository.
-
-### Prompts and completions
-
-`uav-sim-mission-plan` prepares a typed mission request against declared
-vehicles and frames. `uav-sim-session-review` inspects tile, camera-content,
-vehicle, collision, mission, recording, and task evidence. Completions resolve visible session,
-vehicle, mission, and task identities without crossing tenant ownership.
-
-## Recording integration
-
-The simulator emits a nadir `camera/down` stream, camera-content health, poses,
-transforms, IMU values, vehicle state, mission state, collision events, and
-tile-loading diagnostics. The nadir camera uses its own direct RTX HydraTexture
-and reads the rendered `LdrColor` resource into an RGB8 frame without creating a
-Replicator graph. Image up follows vehicle forward, which keeps aerial
-recordings oriented with the flight path. The co-located recording adapter
-converts these values into typed Rerun entities under:
-
-```text
-/world/uav-sim/{session_id}/...
-```
-
-It pushes to the private Recording Hub endpoint using the repository-pinned
-Rerun SDK. Camera output is H.264 Annex B with simulation timestamps. The
-encoder emits a decoder-reentrant IDR with repeated SPS/PPS once per second of
-simulation time, which gives Perception's bounded recent-proxy capture a stable
-preroll point under GPU load. The adapter reports only its private application
-and recording keys. The UAV MCP resolves those keys through the platform
-recording catalog and publishes only the canonical UUIDv7
-`recording://recordings/{recording_id}` identity. That URI becomes the input to
-Perception MCP. The runtime publishes video samples only when the measured RGB8
-frame contains visible content. Runtime and MCP readiness require three
-consecutive visible frames, and a camera that remains black for 30 seconds
-after Google tiles become resident fails the simulation. Native Recording Hub
-ports are not exposed publicly.
-
-`TODO(GPU)` marks the remaining NumPy readback, camera-quality reductions, and
-PyAV `libx264` recording path. They must converge on the canonical NVENC packet
-fan-out when Recording Hub accepts pre-encoded packets. This debt does not sit
-on the live-view path, which stays on the GPU from Kit rendering through
-NVENC.
-
-## Kubernetes deployment
-
-The deployment is `showcase/uav-sim/deploy/helm`. One session is one pod
-containing the Isaac runtime, UAV MCP server, and recording adapter.
-Independent worlds never share an Isaac process. The old batch Job was removed
-because it had no authenticated MCP path for a write-once world binding.
-
-Isaac requests `nvidia.com/gpu: 1`. The chart does not disable, scale down, or
-replace View or Perception. Acceptance runs Isaac, View, and Perception
-concurrently, and Kubernetes places every declared request on available cluster
-capacity.
-Optional affinity and tolerations select capable nodes without imposing an
-exclusive node topology.
-
-GPU discovery remains a cluster concern. Fielded installations provide the
-standard resource and runtime class with the pinned NVIDIA GPU Operator;
-development k3d provides the same contract through its device-plugin manifest.
-The UAV chart does not install or own node-level drivers.
-
-Simulator, MAVLink, ROS 2, and Kit's native signaling port remain pod-local.
-The chart exposes only the authenticated signaling proxy over TCP and encrypted
-WebRTC media over UDP. Local k3d maps those ports to `49101` and `47998`.
-Fielded deployments set an exact public signaling URL and media host; an
-optional Ingress terminates WSS while the media endpoint remains a directly
-reachable UDP address. The live stream is the canonical browser path. Durable
-recording remains a separate governed sensor product.
-
-The configured public signaling path is a prefix. The Ingress and proxy admit
-NVIDIA's signaling subtree, including `/sign_in`; the proxy strips the public
-prefix and preserves the remaining path and query when forwarding to Kit. It
-accepts the canonical `authorization.bearer.<token>` WebSocket subprotocol,
-removes that credential before forwarding, and retains NVIDIA's session
-subprotocol end to end. The relay preserves valid WebSocket close codes and
-reasons in both directions because NVIDIA uses an application close code to
-hand its sign-in socket over to the persistent signaling connection.
+The chart exposes only the MCP Service. It has no public signaling Service,
+media Service, live-view Ingress, or media port. Simulation View is selected
+as a separate GPU renderer component and has its own deployment, capacity,
+security, and public media composition. Production therefore schedules the
+domain simulator and renderer as separate GPU workloads.
 
 ## Security
 
 Gateway internal assertions are mandatory. Every task carries principal,
 tenant, profile, and data-label ownership. The pod disables service-account
-token mounting, drops Linux capabilities where the NVIDIA runtime permits it,
-uses the Isaac image's non-root user, and accepts only Secret references for
-credentials.
+token mounting, uses the NVIDIA runtime class, requests `nvidia.com/gpu: 1`,
+and accepts credentials only through Secret references.
 
-NetworkPolicy permits Cesium ion and required NVIDIA asset egress, internal
-SurrealDB and recording traffic, the gateway-to-MCP path, authenticated
-WebSocket signaling, and SRTP media. The signaling proxy admits one logical
-viewer only after a constant-time comparison against the MCP-issued lease
-token and an exact match with NVIDIA's stream-session subprotocol. A viewer
-lease may own overlapping authenticated WebSockets because NVIDIA hands
-signaling from its sign-in socket to a persistent socket. Those sockets share
-one lease lifecycle and still project one connected viewer. Closing or expiry
-tears down every signaling connection owned by the lease. The MCP App declares
-its exact signaling origin through `_meta.ui.csp`; the Console rejects
-wildcard, credential-bearing, path-bearing, or unsupported origins before
-constructing the iframe CSP. The MCP server never proxies arbitrary URLs.
+NetworkPolicy permits the gateway-to-MCP path, installation-internal services,
+DNS, and public TLS needed by Cesium. Simulation View pose ingress separately
+admits only labeled producers and authenticates their SPIFFE identities with
+TLS 1.3 mutual authentication.
 
 ## Acceptance
 
-Unit tests use a deterministic fake adapter. Helm and gateway checks are local
-and credential-free. The live acceptance is a separately invoked, billed test
-that requires `CESIUM_ION_ACCESS_TOKEN` and NVIDIA registry access.
+Credential-free acceptance covers strict contract serialization, fake adapter
+behavior, exact cross-language pose encoding, complete entity snapshots,
+monotonic renderer sequencing, gateway registration, Helm schema validation,
+and rendered NetworkPolicy and Secret wiring.
 
-The live test passes only when all of the following are true at once:
+Live acceptance requires all of the following:
 
-1. Isaac Sim, View, and Perception deployments remain available.
-2. Cesium authenticates and Google Photorealistic 3D Tiles become resident in
-   the Isaac stage.
-3. Frames creates and publishes the complete New York world tree, and the UAV
-   session binds its immutable revision before Isaac constructs the stage.
-4. Pegasus spawns a PX4-backed UAV, which arms, climbs to the 300 m aerial
-   acceptance altitude, follows a
-   bounded mission, and lands.
-5. MCP resources, mutations, tasks, ownership, and notifications work through
-   the gateway.
-6. The typed follow-camera capability reports H.264 through NVIDIA NVENC, and
-   an owner-scoped stream lease opens and closes through the gateway.
-7. Camera, pose, telemetry, mission, and tile state reach Recording Hub.
-8. Camera content passes the RGB8 luma, dynamic-range, and non-black-pixel
-   acceptance gate before the session becomes ready.
-9. Perception reads the governed H.264 recording and publishes derived output.
-10. No credential appears in a rendered manifest, resource, task result, log,
-   USD layer, or retained artifact.
+1. The UAV simulator and independent Simulation View renderer each receive an
+   NVIDIA GPU and reject software rendering.
+2. Frames publishes the complete immutable world, and the UAV session binds it
+   before stage construction.
+3. Cesium tiles, PX4 vehicles, nadir sensors, recording, and pose publication
+   become ready.
+4. The authorized SPIFFE producer delivers exact pose snapshots to Simulation
+   View without blocking domain physics.
+5. Simulation View mirrors the scene, admits logical cameras, renders through
+   RTX, encodes through NVENC, and serves its own provider-neutral live App.
+6. Recording and perception consume governed domain evidence.
+7. No credential appears in a manifest value, MCP resource, task result, log,
+   USD export, or retained artifact.
 
-Missing credentials, unavailable tiles, unsupported Pegasus APIs, PX4 startup
-failure, frame disagreement, and recording failure all fail explicitly. No
-older Isaac, Cesium, Pegasus, PX4, variable name, or protocol path is retained
-as a fallback.
+Missing authorization, frame disagreement, unavailable NVIDIA hardware,
+unavailable tiles, PX4 failure, recording failure, or pose transport failure
+fails explicitly. No UAV-owned live-view compatibility path remains.

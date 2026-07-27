@@ -5,11 +5,6 @@ import logging
 import time
 from collections.abc import Callable
 
-from .aov import (
-    FOLLOW_CAMERA_RENDER_PRODUCT_NAME,
-    FOLLOW_CAMERA_RENDER_PRODUCT_PATH,
-    livestream_aov_arguments,
-)
 from .config import RuntimeConfig
 
 
@@ -24,15 +19,11 @@ def _cleanup(name: str, action: Callable[[], None]) -> None:
 
 
 def run(config: RuntimeConfig) -> None:
-    from .live_stream import verify_nvidia_video_stack
-
-    verify_nvidia_video_stack()
-
     # Isaac requires SimulationApp to exist before importing Kit or simulator modules.
     from isaacsim import SimulationApp
 
-    viewport_width = config.follow_camera.width
-    viewport_height = config.follow_camera.height
+    viewport_width = config.camera.width
+    viewport_height = config.camera.height
     simulation_app = SimulationApp(
         {
             "headless": True,
@@ -50,14 +41,6 @@ def run(config: RuntimeConfig) -> None:
                 config.extension_directory,
                 "--enable",
                 "cesium.usd.plugins",
-                "--enable",
-                "omni.kit.livestream.webrtc",
-                *livestream_aov_arguments(
-                    signal_port=config.live_stream.signal_port,
-                    media_port=config.live_stream.media_port,
-                    public_ip=config.live_stream.public_ip,
-                    target_fps=config.follow_camera.fps,
-                ),
                 "--portable-root",
                 str(config.cache_directory / "kit-portable"),
             ],
@@ -82,7 +65,6 @@ def run(config: RuntimeConfig) -> None:
         "cesium.omniverse",
         "isaacsim.core.experimental.prims",
         "isaacsim.sensors.experimental.rtx",
-        "omni.kit.livestream.webrtc",
         "pegasus.simulator",
     ):
         extension_manager.set_extension_enabled_immediate(extension, True)
@@ -117,11 +99,9 @@ def run(config: RuntimeConfig) -> None:
         should_record_camera_frame,
     )
     from .px4 import Px4Commander
-    from .follow_camera import FollowCamera
-    from .hydra_camera import HydraRgbCameraSensor, RtxHydraRenderProduct
-    from .live_stream import LiveStreamLeaseManager, LiveStreamSignalingProxy
+    from .hydra_camera import HydraRgbCameraSensor
+    from .pose import PoseProducer
     from .recording import RecordingPublisher
-    from .screenshot import ShowcaseScreenshotCapture
     from .server import (
         AdapterApplication,
         AdapterServer,
@@ -153,11 +133,7 @@ def run(config: RuntimeConfig) -> None:
     camera_black_streaks_after_tiles: dict[str, int] = {}
     camera_was_ready: set[str] = set()
     primary_camera_path: str | None = None
-    primary_camera_content_visible = False
-    screenshot_capture: ShowcaseScreenshotCapture | None = None
-    follow_camera: FollowCamera | None = None
-    follow_camera_render_product: RtxHydraRenderProduct | None = None
-    live_stream_proxy: LiveStreamSignalingProxy | None = None
+    pose_producer: PoseProducer | None = None
 
     try:
         preconfiguration = PreconfigurationApplication(config, world_slot)
@@ -175,6 +151,14 @@ def run(config: RuntimeConfig) -> None:
                 "Isaac SimulationApp stopped before a frame world was configured"
             )
         state = RuntimeState(config, world_config)
+        pose_producer = PoseProducer(
+            config=config.pose_publication,
+            session_id=config.session_id,
+            world=world_config,
+            vehicle_count=config.vehicle_count,
+            cadence_hz=config.rendering_hz,
+            update_state=state.update_pose_publication,
+        )
         recording = RecordingPublisher(config, world_config)
         world = World(
             physics_dt=1.0 / config.physics_hz,
@@ -334,23 +318,6 @@ def run(config: RuntimeConfig) -> None:
         # Cesium for Omniverse drives tile selection from Kit viewports. The
         # RTX sensor render product alone is not a Cesium streaming camera.
         viewport.set_active_camera(primary_camera_path)
-        follow_camera = FollowCamera.create(config.follow_camera, stage, viewport)
-        follow_camera_render_product = RtxHydraRenderProduct(
-            name=FOLLOW_CAMERA_RENDER_PRODUCT_NAME,
-            camera_path=FollowCamera.CAMERA_PATH,
-            width=config.follow_camera.width,
-            height=config.follow_camera.height,
-            fps=config.follow_camera.fps,
-        )
-        if follow_camera_render_product.path != FOLLOW_CAMERA_RENDER_PRODUCT_PATH:
-            raise RuntimeError(
-                "RTX HydraTexture created an unexpected follow-camera render "
-                f"product: {follow_camera_render_product.path}"
-            )
-        if config.screenshot is not None:
-            screenshot_capture = ShowcaseScreenshotCapture.create(
-                config.screenshot, viewport
-            )
 
         world.reset()
 
@@ -420,23 +387,12 @@ def run(config: RuntimeConfig) -> None:
 
             command_queue.submit(action)
 
-        live_stream_leases = LiveStreamLeaseManager(
-            config.live_stream.lease_ttl_seconds,
-            state.update_live_stream,
-        )
-        live_stream_proxy = LiveStreamSignalingProxy(
-            config.live_stream,
-            live_stream_leases,
-        )
-        live_stream_proxy.start()
-
         application = AdapterApplication(
             config,
             state,
             TimelineControls(pause=pause, resume=resume, reset=reset, step=step),
             commanders,
             recording,
-            live_stream_leases,
             world_slot,
         )
         assert server is not None
@@ -501,10 +457,6 @@ def run(config: RuntimeConfig) -> None:
 
         while simulation_app.is_running():
             command_queue.drain()
-            assert follow_camera is not None
-            follow_camera.update(
-                tuple(float(value) for value in vehicles["uav-1"].state.position)
-            )
             if timeline.is_playing():
                 render = physics_step % render_interval == 0
                 world.step(render=render)
@@ -515,6 +467,8 @@ def run(config: RuntimeConfig) -> None:
             else:
                 simulation_app.update()
                 update_cesium_viewport()
+                assert pose_producer is not None
+                pose_producer.poll()
                 time.sleep(0.005)
                 continue
 
@@ -535,6 +489,10 @@ def run(config: RuntimeConfig) -> None:
                         px4_connected=px4_status.connected,
                     )
                 )
+
+            if render:
+                assert pose_producer is not None
+                pose_producer.offer(telemetry)
 
             if physics_step % 5 == 0:
                 state.update_vehicles(telemetry)
@@ -561,8 +519,6 @@ def run(config: RuntimeConfig) -> None:
                         # accepts the canonical NVENC packet fan-out.
                         rgb = normalize_rgb_frame(frame.pixels)
                         quality = measure_camera_frame(rgb)
-                        if vehicle_id == "uav-1":
-                            primary_camera_content_visible = quality.visible
                         camera_frames_observed[vehicle_id] += 1
                         camera_operational_streaks[vehicle_id] = (
                             camera_operational_streaks[vehicle_id] + 1
@@ -652,15 +608,6 @@ def run(config: RuntimeConfig) -> None:
                     )
                     raise RuntimeError("Google Photorealistic 3D Tiles readiness timed out")
 
-            if screenshot_capture is not None and telemetry:
-                screenshot_capture.observe(
-                    rendered=render,
-                    tiles_ready=state.snapshot()["tiles"]["lifecycle"] == "ready",
-                    camera_content_visible=primary_camera_content_visible,
-                    vehicle_relative_altitude_m=telemetry[0].position_enu[2],
-                )
-                screenshot_capture.poll()
-
             for vehicle_id, future in connection_futures.items():
                 if future.done() and future.exception() is not None:
                     raise RuntimeError(f"PX4 connection failed for {vehicle_id}") from future.exception()
@@ -676,25 +623,13 @@ def run(config: RuntimeConfig) -> None:
                 )
                 and snapshot["vehicles"]
                 and all(vehicle["px4_connected"] for vehicle in snapshot["vehicles"])
+                and snapshot["pose_publication"]["lifecycle"] == "ready"
+                and snapshot["pose_publication"]["sent_snapshots"] > 0
             ):
-                # AOV capture subscribes to the dedicated follow-camera
-                # HydraTexture. Attach it only after the direct RTX products,
-                # Cesium viewport, and RGB camera have produced stable frames.
-                extension_manager.set_extension_enabled_immediate(
-                    "omni.kit.livestream.aov", True
-                )
-                if not extension_manager.is_extension_enabled(
-                    "omni.kit.livestream.aov"
-                ):
-                    raise RuntimeError(
-                        "failed to enable required extension "
-                        "omni.kit.livestream.aov"
-                    )
-                live_stream_leases.mark_ready()
                 state.set_lifecycle("running")
                 LOGGER.info(
                     (
-                        "UAV simulation and NVIDIA AOV stream ready: "
+                        "UAV simulation and Simulation View pose publication ready: "
                         "session=%s vehicles=%d "
                         "resident_tiles=%d camera_mean_luma=%.2f"
                     ),
@@ -732,17 +667,10 @@ def run(config: RuntimeConfig) -> None:
             )
         if server is not None:
             _cleanup("adapter server", server.close)
-        if live_stream_proxy is not None:
-            _cleanup("NVIDIA WebRTC signaling proxy", live_stream_proxy.close)
+        if pose_producer is not None:
+            _cleanup("Simulation View pose publisher", pose_producer.close)
         for camera_sensor in camera_sensors.values():
             _cleanup("RTX Hydra RGB camera sensor", camera_sensor.close)
-        if follow_camera_render_product is not None:
-            _cleanup(
-                "follow-camera render product",
-                follow_camera_render_product.close,
-            )
-        if follow_camera is not None:
-            _cleanup("follow camera", follow_camera.close)
         if timeline.is_playing():
             _cleanup("timeline", timeline.stop)
         for commander in commanders.values():

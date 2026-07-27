@@ -119,7 +119,7 @@
         "completions": true,
         "tasks": true,
         "resources_list_changed": true,
-        "apps": true
+        "apps": false
       },
       "tools": [
         "configure_world",
@@ -133,10 +133,7 @@
         "land_vehicle",
         "run_scenario",
         "execute_mission",
-        "capture_dataset",
-        "open_live_stream",
-        "renew_live_stream",
-        "close_live_stream"
+        "capture_dataset"
       ],
       "prompts": [
         "uav-sim-mission-plan",
@@ -729,10 +726,6 @@
               {
                 "kind": "scheme",
                 "scheme": "uav-sim"
-              },
-              {
-                "kind": "uri_prefix",
-                "prefix": "ui://uav-sim/"
               }
             ]
           },
@@ -1155,10 +1148,6 @@
               {
                 "kind": "scheme",
                 "scheme": "uav-sim"
-              },
-              {
-                "kind": "uri_prefix",
-                "prefix": "ui://uav-sim/"
               }
             ]
           },
@@ -3804,14 +3793,10 @@
             "land_vehicle",
             "run_scenario",
             "execute_mission",
-            "capture_dataset",
-            "open_live_stream",
-            "renew_live_stream",
-            "close_live_stream"
+            "capture_dataset"
           ],
           "resource_schemes": [
-            "uav-sim",
-            "ui"
+            "uav-sim"
           ],
           "prompts": [
             "uav-sim-mission-plan",
@@ -3869,14 +3854,10 @@
             "land_vehicle",
             "run_scenario",
             "execute_mission",
-            "capture_dataset",
-            "open_live_stream",
-            "renew_live_stream",
-            "close_live_stream"
+            "capture_dataset"
           ],
           "resource_schemes": [
-            "uav-sim",
-            "ui"
+            "uav-sim"
           ],
           "prompts": [
             "uav-sim-mission-plan",

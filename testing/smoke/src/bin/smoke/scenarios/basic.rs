@@ -331,22 +331,19 @@ pub(crate) async fn helm_config() -> Result<()> {
         "value: \"0.7071067811865476\"",
         "name: UAV_SIM_RECORDING_TENANT_KEY",
         "value: \"bioma\"",
-        "name: UAV_SIM_FOLLOW_CAMERA_WIDTH",
-        "value: \"1280\"",
-        "name: UAV_SIM_LIVE_STREAM_SIGNALING_URL",
-        "value: \"wss://veoveo.bioma.ai/webrtc\"",
-        "name: UAV_SIM_LIVE_STREAM_PUBLIC_IP",
-        "name: uav-sim-live",
-        "host: veoveo.bioma.ai",
-        "path: /webrtc",
-        "pathType: Prefix",
-        "ingressClassName: traefik",
-        "name: stream-signal",
-        "containerPort: 49101",
-        "name: stream-media",
-        "containerPort: 47998",
-        "nodePort: 30910",
-        "nodePort: 30998",
+        "veoveo.ai/simulation-view-pose-producer: \"true\"",
+        "name: UAV_SIM_POSE_PRODUCER_ID",
+        "value: \"uav-sim\"",
+        "name: UAV_SIM_POSE_PRODUCER_SPIFFE_ID",
+        "value: \"spiffe://veoveo.local/simulation/uav-sim\"",
+        "name: UAV_SIM_POSE_INGRESS_HOST",
+        "value: \"simulation-view-pose\"",
+        "name: UAV_SIM_POSE_INGRESS_PORT",
+        "value: \"7443\"",
+        "name: UAV_SIM_POSE_CA_CERTIFICATE",
+        "value: /run/secrets/simulation-view-pose/ca.crt",
+        "name: simulation-view-pose-tls",
+        "secretName: uav-sim-pose-producer-tls",
         "name: ROS_DISTRO",
         "value: jazzy",
         "name: RMW_IMPLEMENTATION",
@@ -360,7 +357,15 @@ pub(crate) async fn helm_config() -> Result<()> {
     ] {
         contains(&uav_sim, expected)?;
     }
-    for forbidden in ["GOOGLE_MAPS_API_KEY"] {
+    for forbidden in [
+        "GOOGLE_MAPS_API_KEY",
+        "UAV_SIM_FOLLOW_CAMERA",
+        "UAV_SIM_LIVE_STREAM",
+        "name: uav-sim-live",
+        "path: /webrtc",
+        "name: stream-signal",
+        "name: stream-media",
+    ] {
         if uav_sim.contains(forbidden) {
             bail!("UAV simulation render must not contain `{forbidden}`");
         }

@@ -11,7 +11,7 @@ from aiohttp import web
 
 from .config import RuntimeConfig
 from .contracts import ContractError, DirectCommand, DurableOperation, parse_command, parse_operation
-from .live_stream import LiveStreamLeaseManager
+from .pose import initial_pose_publication
 from .px4 import Px4Commander
 from .recording import RecordingPublisher
 from .state import RuntimeState
@@ -93,16 +93,11 @@ class PreconfigurationApplication:
                     "failed_tiles": 0,
                 },
                 "cameras": [],
-                "live_stream": {
-                    "lifecycle": "starting",
-                    "source": "follow_camera",
-                    "codec": "h264",
-                    "hardware_encoder": "nvidia_nvenc",
-                    "width": self._config.follow_camera.width,
-                    "height": self._config.follow_camera.height,
-                    "fps": self._config.follow_camera.fps,
-                    "connected_viewers": 0,
-                },
+                "pose_publication": initial_pose_publication(
+                    self._config.pose_publication,
+                    self._config.vehicle_count,
+                    self._config.rendering_hz,
+                ),
                 "vehicles": [],
                 "recordings": [],
                 "updated_at": now,
@@ -133,7 +128,6 @@ class AdapterApplication:
         timeline: TimelineControls,
         commanders: dict[str, Px4Commander],
         recording: RecordingPublisher,
-        live_stream_leases: LiveStreamLeaseManager,
         world_slot: WorldConfigurationSlot,
     ) -> None:
         self._config = config
@@ -141,7 +135,6 @@ class AdapterApplication:
         self._timeline = timeline
         self._commanders = commanders
         self._recording = recording
-        self._live_stream_leases = live_stream_leases
         self._world_slot = world_slot
         self._app = web.Application(client_max_size=2 * 1024 * 1024)
         self._app.add_routes(
@@ -152,15 +145,6 @@ class AdapterApplication:
                 web.post("/v1/world", self._configure_world),
                 web.post("/v1/commands", self._command),
                 web.post("/v1/operations", self._operation),
-                web.post("/v1/live-streams", self._open_live_stream),
-                web.post(
-                    "/v1/live-streams/{stream_id}/renew",
-                    self._renew_live_stream,
-                ),
-                web.delete(
-                    "/v1/live-streams/{stream_id}",
-                    self._close_live_stream,
-                ),
             ]
         )
 
@@ -180,7 +164,8 @@ class AdapterApplication:
             and snapshot["tiles"]["lifecycle"] == "ready"
             and bool(snapshot["cameras"])
             and all(camera["lifecycle"] == "ready" for camera in snapshot["cameras"])
-            and snapshot["live_stream"]["lifecycle"] in {"ready", "live"}
+            and snapshot["pose_publication"]["lifecycle"] == "ready"
+            and snapshot["pose_publication"]["sent_snapshots"] > 0
             and bool(snapshot["vehicles"])
             and all(vehicle["px4_connected"] for vehicle in snapshot["vehicles"])
             and snapshot["recordings"][0]["active"]
@@ -231,46 +216,6 @@ class AdapterApplication:
             return web.json_response({"error": str(error)}, status=400)
         except (RuntimeError, TimeoutError) as error:
             return web.json_response({"error": str(error)}, status=409)
-
-    async def _open_live_stream(self, request: web.Request) -> web.Response:
-        try:
-            body = await request.json()
-            if not isinstance(body, dict) or set(body) != {"session_id", "stream_id"}:
-                raise ValueError(
-                    "live stream open requires exactly session_id and stream_id"
-                )
-            session_id = _identity("session_id", body["session_id"])
-            stream_id = _identity("stream_id", body["stream_id"])
-            self._state.require_session(session_id)
-            return web.json_response(self._live_stream_leases.open(stream_id))
-        except (TypeError, ValueError) as error:
-            return web.json_response({"error": str(error)}, status=400)
-        except RuntimeError as error:
-            return web.json_response({"error": str(error)}, status=409)
-
-    async def _renew_live_stream(self, request: web.Request) -> web.Response:
-        try:
-            stream_id = _identity("stream_id", request.match_info["stream_id"])
-            return web.json_response(self._live_stream_leases.renew(stream_id))
-        except (TypeError, ValueError) as error:
-            return web.json_response({"error": str(error)}, status=404)
-
-    async def _close_live_stream(self, request: web.Request) -> web.Response:
-        try:
-            stream_id = _identity("stream_id", request.match_info["stream_id"])
-            self._live_stream_leases.close(stream_id)
-            return web.json_response(
-                {
-                    "accepted": True,
-                    "detail": "live stream closed",
-                    "resource_uri": (
-                        f"uav-sim://session/{self._config.session_id}/stream/"
-                        f"{stream_id}"
-                    ),
-                }
-            )
-        except (TypeError, ValueError) as error:
-            return web.json_response({"error": str(error)}, status=404)
 
     def _execute_command(self, command: DirectCommand) -> dict[str, object]:
         self._state.require_session(command.session_id)

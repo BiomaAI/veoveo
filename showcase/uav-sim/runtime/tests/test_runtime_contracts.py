@@ -1,37 +1,27 @@
 from __future__ import annotations
 
-import asyncio
 import os
-import socket
 import unittest
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
-from aiohttp import ClientSession, WSMsgType, web
 
-from veoveo_uav_sim.aov import (
-    FOLLOW_CAMERA_LDR_COLOR_AOV,
-    FOLLOW_CAMERA_RENDER_PRODUCT_PATH,
-    livestream_aov_arguments,
+from veoveo_mcp.simulation_pose import (
+    POSE_PROTOCOL_SCHEMA,
+    PosePublisherStatus,
+    entity_table_digest,
 )
 from veoveo_uav_sim.camera_quality import (
     measure_camera_frame,
     normalize_rgb_frame,
     should_record_camera_frame,
 )
-from veoveo_uav_sim.config import LiveStreamConfig, RuntimeConfig
+from veoveo_uav_sim.config import RuntimeConfig
 from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operation
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
-from veoveo_uav_sim.hydra_camera import render_product_path
-from veoveo_uav_sim.live_stream import (
-    LiveStreamLeaseManager,
-    LiveStreamSignalingProxy,
-    _authorization_token,
-)
-from veoveo_uav_sim.screenshot import ScreenshotGate
-from veoveo_uav_sim.state import RuntimeState
+from veoveo_uav_sim.pose import PoseProducer, entity_ids
+from veoveo_uav_sim.state import RuntimeState, VehicleTelemetry
 from veoveo_uav_sim.world_config import (
     GeoreferenceOrigin,
     WorldConfiguration,
@@ -47,6 +37,21 @@ VALID_ENVIRONMENT = {
     "UAV_SIM_SESSION_ID": "uav-showcase",
     "UAV_SIM_TILE_CACHE_POLICY": "persistent",
     "UAV_SIM_WORLD_SOURCE": "google_photorealistic_3d_tiles",
+    "UAV_SIM_POSE_PRODUCER_ID": "uav-sim",
+    "UAV_SIM_POSE_PRODUCER_SPIFFE_ID": (
+        "spiffe://veoveo.local/simulation/uav-sim"
+    ),
+    "UAV_SIM_POSE_EPOCH_ID": "epoch-1",
+    "UAV_SIM_POSE_INGRESS_HOST": "simulation-view-pose",
+    "UAV_SIM_POSE_INGRESS_PORT": "7443",
+    "UAV_SIM_POSE_SERVER_HOSTNAME": "simulation-view-pose.veoveo.svc",
+    "UAV_SIM_POSE_CA_CERTIFICATE": "/run/secrets/simulation-view-pose/ca.crt",
+    "UAV_SIM_POSE_CLIENT_CERTIFICATE": (
+        "/run/secrets/simulation-view-pose/tls.crt"
+    ),
+    "UAV_SIM_POSE_CLIENT_PRIVATE_KEY": (
+        "/run/secrets/simulation-view-pose/tls.key"
+    ),
 }
 
 WORLD = WorldConfiguration(
@@ -87,48 +92,6 @@ class RuntimeConfigTests(unittest.TestCase):
             config = RuntimeConfig.from_environment()
         self.assertEqual(config.rendering_hz, 20)
         self.assertEqual(config.rendering_hz, config.camera.fps)
-        self.assertEqual(config.rendering_hz, config.follow_camera.fps)
-
-    def test_follow_camera_is_the_gpu_live_view(self) -> None:
-        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
-            config = RuntimeConfig.from_environment()
-            state = RuntimeState(config, WORLD).snapshot()
-        self.assertEqual(
-            (config.follow_camera.width, config.follow_camera.height),
-            (1280, 720),
-        )
-        self.assertEqual(state["live_stream"]["source"], "follow_camera")
-        self.assertEqual(state["live_stream"]["hardware_encoder"], "nvidia_nvenc")
-        self.assertEqual(state["live_stream"]["codec"], "h264")
-
-    def test_follow_camera_aov_has_one_named_render_product(self) -> None:
-        self.assertEqual(
-            FOLLOW_CAMERA_RENDER_PRODUCT_PATH,
-            "/Render/OmniverseKit/HydraTextures/uav_follow_camera",
-        )
-        self.assertEqual(
-            FOLLOW_CAMERA_LDR_COLOR_AOV,
-            "Render.OmniverseKit.HydraTextures.uav_follow_camera.LdrColor",
-        )
-        arguments = livestream_aov_arguments(
-            signal_port=49100,
-            media_port=47998,
-            public_ip="127.0.0.1",
-            target_fps=20,
-        )
-        self.assertEqual(len(arguments), 6)
-        self.assertTrue(all(FOLLOW_CAMERA_LDR_COLOR_AOV in arg for arg in arguments))
-        self.assertFalse(any("ViewportTexture" in arg for arg in arguments))
-
-    def test_live_runtime_uses_only_direct_rtx_hydra_products(self) -> None:
-        self.assertEqual(
-            render_product_path("uav_follow_camera"),
-            FOLLOW_CAMERA_RENDER_PRODUCT_PATH,
-        )
-        for invalid_name in ("", "uav/follow", "uav.follow", "uav follow"):
-            with self.subTest(name=invalid_name):
-                with self.assertRaisesRegex(ValueError, "render-product names"):
-                    render_product_path(invalid_name)
 
         app_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py"
@@ -136,12 +99,32 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertNotIn("omni.replicator", app_source)
         self.assertNotIn("import CameraSensor", app_source)
         self.assertIn("HydraRgbCameraSensor", app_source)
-        self.assertIn("RtxHydraRenderProduct", app_source)
+        self.assertIn("PoseProducer", app_source)
+        self.assertNotIn("livestream", app_source.lower())
+        self.assertNotIn("follow_camera", app_source)
 
-    def test_live_stream_fails_closed_on_invalid_gpu_stream_configuration(self) -> None:
+    def test_pose_publication_is_mandatory_and_strongly_identified(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            config = RuntimeConfig.from_environment()
+            state = RuntimeState(config, WORLD).snapshot()
+        publication = state["pose_publication"]
+        self.assertEqual(publication["protocol_schema"], POSE_PROTOCOL_SCHEMA)
+        self.assertEqual(publication["producer_id"], "uav-sim")
+        self.assertEqual(
+            publication["producer_spiffe_id"],
+            "spiffe://veoveo.local/simulation/uav-sim",
+        )
+        self.assertEqual(publication["epoch_id"], "epoch-1")
+        self.assertEqual(publication["cadence_hz"], config.rendering_hz)
+        self.assertEqual(
+            publication["entity_table_digest"],
+            str(entity_table_digest(1, entity_ids(config.vehicle_count))),
+        )
+
+    def test_pose_publication_rejects_invalid_spiffe_or_secret_paths(self) -> None:
         for override, message in (
-            ({"UAV_SIM_LIVE_STREAM_PUBLIC_IP": ""}, "PUBLIC_IP"),
-            ({"UAV_SIM_FOLLOW_CAMERA_FPS": "30"}, "must match"),
+            ({"UAV_SIM_POSE_PRODUCER_SPIFFE_ID": "https://example.test"}, "SPIFFE"),
+            ({"UAV_SIM_POSE_CLIENT_PRIVATE_KEY": "tls.key"}, "absolute"),
         ):
             with self.subTest(override=override):
                 with patch.dict(
@@ -198,48 +181,106 @@ class RuntimeConfigTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "must be less than"):
                 RuntimeConfig.from_environment()
 
-    def test_showcase_screenshot_is_opt_in_and_typed(self) -> None:
+
+class PoseProducerTests(unittest.TestCase):
+    def test_complete_snapshots_keep_a_monotonic_renderer_timeline(self) -> None:
+        publishers: list[_FakePosePublisher] = []
+
+        def create_publisher(*args: object, **kwargs: object) -> _FakePosePublisher:
+            publisher = _FakePosePublisher(*args, **kwargs)
+            publishers.append(publisher)
+            return publisher
+
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
-            self.assertIsNone(RuntimeConfig.from_environment().screenshot)
-
-        environment = {
-            **VALID_ENVIRONMENT,
-            "UAV_SIM_SCREENSHOT_PATH": "/tmp/isaac-uav.png",
-            "UAV_SIM_SCREENSHOT_MINIMUM_RELATIVE_ALTITUDE_M": "295",
-            "UAV_SIM_SCREENSHOT_SETTLE_RENDERED_FRAMES": "45",
-            "UAV_SIM_FOLLOW_CAMERA_WIDTH": "1920",
-            "UAV_SIM_FOLLOW_CAMERA_HEIGHT": "1080",
-            "UAV_SIM_FOLLOW_CAMERA_EYE_OFFSET_X_M": "-6",
-        }
-        with patch.dict(os.environ, environment, clear=True):
             config = RuntimeConfig.from_environment()
-            screenshot = config.screenshot
-        self.assertIsNotNone(screenshot)
-        assert screenshot is not None
-        self.assertEqual(screenshot.output_path.as_posix(), "/tmp/isaac-uav.png")
-        self.assertEqual(screenshot.minimum_relative_altitude_m, 295.0)
-        self.assertEqual(screenshot.settle_rendered_frames, 45)
+        updates: list[dict[str, object]] = []
+        with patch(
+            "veoveo_uav_sim.pose.LatestPosePublisher",
+            side_effect=create_publisher,
+        ):
+            producer = PoseProducer(
+                config=config.pose_publication,
+                session_id=config.session_id,
+                world=WORLD,
+                vehicle_count=1,
+                cadence_hz=20,
+                update_state=updates.append,
+            )
+            telemetry = VehicleTelemetry(
+                vehicle_id="uav-1",
+                position_enu=(1.0, 2.0, 3.0),
+                attitude_xyzw=(0.0, 0.0, 0.0, 1.0),
+                linear_velocity_enu_mps=(4.0, 5.0, 6.0),
+                flight_state="flying",
+                battery_percent=90.0,
+                px4_connected=True,
+            )
+            producer.offer([telemetry])
+            producer.offer([telemetry])
+            producer.close()
+
+        snapshots = publishers[0].snapshots
+        self.assertEqual([snapshot.sequence for snapshot in snapshots], [1, 2])
         self.assertEqual(
-            (config.follow_camera.width, config.follow_camera.height),
-            (1920, 1080),
+            [snapshot.simulation_timestamp_ns for snapshot in snapshots],
+            [50_000_000, 100_000_000],
         )
+        self.assertEqual(len(snapshots[0].entities), 1)
+        self.assertIsNone(snapshots[0].entities[0].velocity)
         self.assertEqual(
-            config.follow_camera.eye_offset_xyz_m,
-            (-6.0, -2.2, 1.2),
+            snapshots[0].entity_table_digest,
+            entity_table_digest(1, entity_ids(1)),
+        )
+        self.assertTrue(
+            any(update["lifecycle"] == "ready" for update in updates)
+        )
+        self.assertEqual(updates[-1]["lifecycle"], "stopped")
+
+    def test_incomplete_entity_snapshots_are_rejected(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            config = RuntimeConfig.from_environment()
+        with patch(
+            "veoveo_uav_sim.pose.LatestPosePublisher",
+            _FakePosePublisher,
+        ):
+            producer = PoseProducer(
+                config=config.pose_publication,
+                session_id=config.session_id,
+                world=WORLD,
+                vehicle_count=1,
+                cadence_hz=20,
+                update_state=lambda _publication: None,
+            )
+            with self.assertRaisesRegex(RuntimeError, "complete snapshot"):
+                producer.offer([])
+            producer.close()
+
+
+class _FakePosePublisher:
+    def __init__(self, *_args: object, **_kwargs: object) -> None:
+        self.snapshots: list[object] = []
+        self.closed = False
+
+    def offer(self, snapshot: object) -> None:
+        self.snapshots.append(snapshot)
+
+    def status(self) -> PosePublisherStatus:
+        sent = len(self.snapshots)
+        last_sequence = (
+            getattr(self.snapshots[-1], "sequence") if self.snapshots else None
+        )
+        return PosePublisherStatus(
+            running=not self.closed,
+            connected=not self.closed,
+            offered_snapshots=sent,
+            sent_snapshots=sent,
+            replaced_snapshots=0,
+            last_sent_sequence=last_sequence,
+            last_error=None,
         )
 
-    def test_showcase_screenshot_rejects_a_relative_or_non_png_path(self) -> None:
-        for path in ("isaac-uav.png", "/tmp/isaac-uav.jpg"):
-            with self.subTest(path=path):
-                environment = {
-                    **VALID_ENVIRONMENT,
-                    "UAV_SIM_SCREENSHOT_PATH": path,
-                }
-                with patch.dict(os.environ, environment, clear=True):
-                    with self.assertRaisesRegex(
-                        ValueError, "absolute normalized PNG path"
-                    ):
-                        RuntimeConfig.from_environment()
+    def close(self) -> None:
+        self.closed = True
 
 
 class AdapterContractTests(unittest.TestCase):
@@ -380,187 +421,6 @@ class CameraQualityTests(unittest.TestCase):
         normalized = normalize_rgb_frame(frame)
         self.assertEqual(normalized.dtype, np.uint8)
         self.assertEqual(int(normalized[0, 0, 0]), 128)
-
-
-class ScreenshotGateTests(unittest.TestCase):
-    def test_capture_requires_consecutive_ready_rendered_frames(self) -> None:
-        gate = ScreenshotGate(settle_rendered_frames=3)
-        self.assertFalse(gate.observe(rendered=True, ready=True))
-        self.assertFalse(gate.observe(rendered=False, ready=True))
-        self.assertFalse(gate.observe(rendered=True, ready=False))
-        self.assertFalse(gate.observe(rendered=True, ready=True))
-        self.assertFalse(gate.observe(rendered=True, ready=True))
-        self.assertTrue(gate.observe(rendered=True, ready=True))
-        self.assertFalse(gate.observe(rendered=True, ready=True))
-
-
-class LiveStreamLeaseTests(unittest.TestCase):
-    def test_bearer_protocol_accepts_the_nvidia_client_shape(self) -> None:
-        self.assertEqual(
-            _authorization_token(
-                [
-                    "x-nv-sessionid.stream-1",
-                    "authorization.bearer.secret-token",
-                ]
-            ),
-            "secret-token",
-        )
-        self.assertIsNone(_authorization_token(["x-nv-sessionid.stream-1"]))
-        self.assertIsNone(
-            _authorization_token(["Authorization.Bearer.secret-token"])
-        )
-
-    def test_one_short_lived_stream_lease_is_enforced(self) -> None:
-        changes: list[tuple[str, int]] = []
-        manager = LiveStreamLeaseManager(
-            300,
-            lambda lifecycle, viewers: changes.append((lifecycle, viewers)),
-        )
-        with self.assertRaisesRegex(RuntimeError, "not ready"):
-            manager.open("stream-1")
-        manager.mark_ready()
-        opened = manager.open("stream-1")
-        self.assertEqual(opened["stream_id"], "stream-1")
-        self.assertGreater(
-            datetime.fromisoformat(opened["expires_at"].replace("Z", "+00:00")),
-            datetime.now().astimezone(),
-        )
-        with self.assertRaisesRegex(RuntimeError, "already leased"):
-            manager.open("stream-2")
-        sign_in = manager.authorize(opened["access_token"])
-        handoff = manager.authorize(opened["access_token"])
-        self.assertEqual(sign_in.stream_id, "stream-1")
-        self.assertEqual(handoff.stream_id, "stream-1")
-        self.assertNotEqual(sign_in.connection_id, handoff.connection_id)
-        self.assertEqual(manager.public_state(), ("live", 1))
-        manager.disconnect(sign_in)
-        self.assertEqual(manager.public_state(), ("live", 1))
-        manager.disconnect(handoff)
-        self.assertEqual(manager.public_state(), ("ready", 0))
-        renewed = manager.renew("stream-1")
-        self.assertEqual(renewed["access_token"], opened["access_token"])
-        self.assertGreater(renewed["expires_at"], opened["expires_at"])
-        manager.close("stream-1")
-        self.assertFalse(manager.active("stream-1"))
-        self.assertEqual(changes[-1], ("ready", 0))
-
-
-class LiveStreamSignalingTests(unittest.IsolatedAsyncioTestCase):
-    async def test_authenticated_proxy_bridges_only_the_leased_viewer(self) -> None:
-        signal_port = _free_port()
-        proxy_port = _free_port()
-        upstream_requests: list[str] = []
-        upstream_close_codes: list[int | None] = []
-
-        async def echo(request: web.Request) -> web.WebSocketResponse:
-            upstream_requests.append(str(request.rel_url))
-            websocket = web.WebSocketResponse(
-                protocols=["x-nv-sessionid.stream-1"]
-            )
-            await websocket.prepare(request)
-            async for message in websocket:
-                if message.type == WSMsgType.TEXT:
-                    await websocket.send_str(message.data)
-            upstream_close_codes.append(websocket.close_code)
-            return websocket
-
-        application = web.Application()
-        application.add_routes([web.get("/sign_in", echo)])
-        upstream = web.AppRunner(application)
-        await upstream.setup()
-        await web.TCPSite(upstream, "127.0.0.1", signal_port).start()
-
-        leases = LiveStreamLeaseManager(300, lambda _state, _viewers: None)
-        leases.mark_ready()
-        opened = leases.open("stream-1")
-        proxy = LiveStreamSignalingProxy(
-            LiveStreamConfig(
-                signal_port=signal_port,
-                media_port=47998,
-                public_ip="127.0.0.1",
-                proxy_host="127.0.0.1",
-                proxy_port=proxy_port,
-                signaling_path="/webrtc",
-                lease_ttl_seconds=300,
-            ),
-            leases,
-        )
-        proxy.start()
-        try:
-            async with ClientSession() as client:
-                with self.assertRaisesRegex(Exception, "401"):
-                    await client.ws_connect(
-                        (
-                            f"ws://127.0.0.1:{proxy_port}/webrtc/sign_in"
-                            "?pairing_id=stream-1"
-                        ),
-                        protocols=["x-nv-sessionid.stream-1"],
-                    )
-                async with client.ws_connect(
-                    (
-                        f"ws://127.0.0.1:{proxy_port}/webrtc/sign_in"
-                        "?pairing_id=stream-1"
-                    ),
-                    protocols=[
-                        "x-nv-sessionid.stream-1",
-                        f"authorization.bearer.{opened['access_token']}",
-                    ],
-                ) as websocket:
-                    await websocket.send_str("offer")
-                    message = await websocket.receive(timeout=5)
-                    self.assertEqual(message.type, WSMsgType.TEXT)
-                    self.assertEqual(message.data, "offer")
-                    self.assertEqual(leases.public_state(), ("live", 1))
-                    async with client.ws_connect(
-                        (
-                            f"ws://127.0.0.1:{proxy_port}/webrtc/sign_in"
-                            "?pairing_id=stream-1"
-                        ),
-                        protocols=[
-                            "x-nv-sessionid.stream-1",
-                            f"authorization.bearer.{opened['access_token']}",
-                        ],
-                    ) as handoff:
-                        await handoff.send_str("handoff")
-                        handoff_message = await handoff.receive(timeout=5)
-                        self.assertEqual(handoff_message.type, WSMsgType.TEXT)
-                        self.assertEqual(handoff_message.data, "handoff")
-                        self.assertEqual(leases.public_state(), ("live", 1))
-                        await websocket.close(code=4001, message=b"sign-in complete")
-                        self.assertEqual(leases.public_state(), ("live", 1))
-                    self.assertEqual(
-                        upstream_requests,
-                        [
-                            "/sign_in?pairing_id=stream-1",
-                            "/sign_in?pairing_id=stream-1",
-                        ],
-                    )
-                for _ in range(50):
-                    if 4001 in upstream_close_codes:
-                        break
-                    await asyncio.sleep(0.01)
-                self.assertIn(4001, upstream_close_codes)
-                self.assertEqual(leases.public_state(), ("ready", 0))
-                with self.assertRaisesRegex(Exception, "403"):
-                    await client.ws_connect(
-                        (
-                            f"ws://127.0.0.1:{proxy_port}/webrtc/sign_in"
-                            "?pairing_id=another-stream"
-                        ),
-                        protocols=[
-                            "x-nv-sessionid.another-stream",
-                            f"authorization.bearer.{opened['access_token']}",
-                        ],
-                    )
-        finally:
-            proxy.close()
-            await upstream.cleanup()
-
-
-def _free_port() -> int:
-    with socket.socket() as listener:
-        listener.bind(("127.0.0.1", 0))
-        return listener.getsockname()[1]
 
 
 if __name__ == "__main__":
