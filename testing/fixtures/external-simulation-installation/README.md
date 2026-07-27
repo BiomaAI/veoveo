@@ -54,6 +54,8 @@ REVISION=$(git rev-parse HEAD)
 
 just profile-validate "$PROFILE"
 just profile-cluster-up "$PROFILE"
+docker exec k3d-anonymous-simulation-server-0 \
+  sysctl -w fs.inotify.max_user_instances=1024
 cargo xtask image builder ensure
 cargo xtask release images \
   --profile "$PROFILE" \
@@ -61,6 +63,10 @@ cargo xtask release images \
   --lock-output testing/fixtures/external-simulation-installation/deployment.lock.json
 just profile-up "$PROFILE"
 ```
+
+The fixture raises the running node's nonpersistent inotify instance ceiling because
+one workstation may host several independent k3d clusters. Fielded hosts set an
+equivalent persistent ceiling through their normal node configuration.
 
 Start a separate headed Chrome instance on the active X11 display. The
 acceptance command rejects HeadlessChrome, software WebGPU, and software
