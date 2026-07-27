@@ -235,7 +235,10 @@ private workloads and Artifact Service, then fails unless:
 
 There is no CPU renderer or software encoder fallback. The Isaac workload
 requests an NVIDIA RuntimeClass, one `nvidia.com/gpu`, writable runtime
-caches, and at least 2 GiB of memory-backed `/dev/shm`.
+caches, and at least 2 GiB of memory-backed `/dev/shm`. Isaac Kit portable
+state, the renderer user's home, Warp kernels, Matplotlib state, and XDG cache
+and data all resolve beneath that runtime-cache mount while the container root
+filesystem remains read-only.
 
 `simulation-view-isaac` starts with a built-in declarative diagnostic scene
 and one RTX health render product. Readiness stays false until CUDA and NVENC
