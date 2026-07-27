@@ -19,7 +19,7 @@ spec:
           - $configuration/examples/bioma/uav-sim-values.yaml
           - $configuration/examples/bioma/images.lock.yaml
     - repoURL: https://github.com/BiomaAI/veoveo.git
-      targetRevision: 4a0859387053b0aaebc71b650e32f593cce6e59f
+      targetRevision: ed846aa00d955a3fb738ba823b06fdad9ea90f80
       ref: configuration
   destination:
     server: https://kubernetes.default.svc
