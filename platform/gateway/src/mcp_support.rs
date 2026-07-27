@@ -74,7 +74,7 @@ pub(crate) fn project_upstream_resource_uri_for_gateway(
             server.slug.as_str(),
             projected_ui_resource_path(path)
         )
-    } else if matches!(scheme, "http" | "https" | "ws" | "wss" | "data")
+    } else if matches!(scheme, "http" | "https" | "ws" | "wss" | "data" | "spiffe")
         || preserves_canonical_scheme(server, scheme)
     {
         upstream_uri.to_string()
@@ -577,6 +577,7 @@ mod tests {
                 )
             },
             "recording_uri": "recording://recordings/019f92d9-6837-79f1-82fa-aeea6385108e",
+            "producer_spiffe_id": "spiffe://veoveo.test/simulation/anonymous",
             "vendor_resource": "vendor://session/alpha",
             "app_resource": "ui://vendor/live.html"
         }));
@@ -597,12 +598,16 @@ mod tests {
             Some("recording://recordings/019f92d9-6837-79f1-82fa-aeea6385108e")
         );
         assert_eq!(
+            structured["producer_spiffe_id"].as_str(),
+            Some("spiffe://veoveo.test/simulation/anonymous")
+        );
+        assert_eq!(
             structured["vendor_resource"].as_str(),
             Some("uav-sim://session/alpha")
         );
         assert_eq!(
             structured["app_resource"].as_str(),
-            Some("ui://simulation-view/live.html")
+            Some("ui://uav-sim/live.html")
         );
     }
 
