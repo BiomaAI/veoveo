@@ -1,0 +1,116 @@
+{
+  "schemaVersion": "veoveo.io/deployment-lock/v2",
+  "profile": "anonymous-simulation-extension",
+  "registry": "k3d-veoveo-registry.localhost:5001",
+  "sources": [
+    {
+      "name": "veoveo",
+      "role": "platform",
+      "repository": "ssh://git@github.com/BiomaAI/veoveo",
+      "revision": "100bd820b225c688d8e3ec6c33e97c2fe88f2680",
+      "images": [
+        {
+          "name": "artifact-mcp",
+          "repository": "k3d-veoveo-registry.localhost:5001/veoveo/artifact-mcp",
+          "digest": "sha256:079fd618f491f128a3d3b1a05dbf2ccee5a9cc2f5fe6301dc807669c8666b712"
+        },
+        {
+          "name": "artifact-service",
+          "repository": "k3d-veoveo-registry.localhost:5001/veoveo/artifact-service",
+          "digest": "sha256:dad962e7949e6ff854483a2e44c00a264a2936aefcf64dc5eb0063534e757cac"
+        },
+        {
+          "name": "frames-mcp",
+          "repository": "k3d-veoveo-registry.localhost:5001/veoveo/frames-mcp",
+          "digest": "sha256:b81b2ed4f31e0d0015a9aa4111e31d9f76a8791b71e9d120d00a9e79f121c25a"
+        },
+        {
+          "name": "mcp-gateway",
+          "repository": "k3d-veoveo-registry.localhost:5001/veoveo/mcp-gateway",
+          "digest": "sha256:b60edba7927cf9673f192793db61a73f3d918c0ea5faf61fa34a5d0fa00b2a8f"
+        },
+        {
+          "name": "simulation-runtime",
+          "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-runtime",
+          "digest": "sha256:c95ebe8a0c25adfc73e3ab7e201c2fa2b673327bad5e21eca41309c52ced249d"
+        },
+        {
+          "name": "simulation-view-isaac",
+          "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-view-isaac",
+          "digest": "sha256:76a51454d7d27f3ebb7eb13db62332f416f50174d4b563e905dadb242ee08d0a"
+        },
+        {
+          "name": "simulation-view-mcp",
+          "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-view-mcp",
+          "digest": "sha256:77e2a87a3da0565c6b201503b086dd5f9ab6e5d48580dfc2d1d6a91a226e6037"
+        },
+        {
+          "name": "simulation-view-pose",
+          "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-view-pose",
+          "digest": "sha256:1b2e46874a880809624040f0c44f1dafcb13abaf9a2c0fe123e8a21b1ce58ead"
+        }
+      ],
+      "charts": [
+        {
+          "release": "veoveo",
+          "coordinate": "source://veoveo/deploy/helm/veoveo",
+          "digest": "sha256:63be0fd78babc30d1f3ec008a72f7ddacaa2942679e6ba25b4dace678f225bed"
+        }
+      ]
+    },
+    {
+      "name": "anonymous-simulation",
+      "role": "extension",
+      "repository": "ssh://git@github.com/BiomaAI/veoveo",
+      "revision": "100bd820b225c688d8e3ec6c33e97c2fe88f2680",
+      "images": [
+        {
+          "name": "anonymous-simulation-mcp",
+          "repository": "k3d-veoveo-registry.localhost:5001/extensions/anonymous-simulation-mcp",
+          "digest": "sha256:e6f099d4a17ace214103f541a397cec8f83573f65898174d1deaa3686eb486de"
+        }
+      ],
+      "charts": [
+        {
+          "release": "anonymous-simulation",
+          "coordinate": "source://anonymous-simulation/testing/fixtures/external-simulation-extension/deploy/helm",
+          "digest": "sha256:b24dffe380e2a2897b44be29e10dcce24cf1a71906325f5c3e0755842901ce1a"
+        }
+      ]
+    }
+  ],
+  "platform": {
+    "components": [
+      "gateway",
+      "platform-store",
+      "object-store",
+      "artifact-service",
+      "gpu-renderer",
+      "simulation-runtime-support",
+      "ingress"
+    ],
+    "mcpServers": [
+      "artifact",
+      "frames",
+      "simulation-view"
+    ],
+    "artifactAudiences": [
+      "anonymous-simulation"
+    ],
+    "externalWorkloads": [
+      "anonymous-simulation-mcp"
+    ],
+    "gpuScheduling": {
+      "runtimeClassName": "nvidia",
+      "allocatableDevices": 1,
+      "workloads": [
+        {
+          "workload": "simulation-view-renderer",
+          "devices": 1,
+          "isolation": "exclusive",
+          "evidenceDigest": null
+        }
+      ]
+    }
+  }
+}
