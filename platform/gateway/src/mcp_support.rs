@@ -561,7 +561,14 @@ mod tests {
 
     #[test]
     fn server_owned_projection_preserves_declared_cross_server_resource_uris() {
-        let mut server = test_server("uav-sim", "uav-sim", ResourceProjectionMode::ServerOwned);
+        let mut server = test_server(
+            "simulation-extension",
+            "simulation-extension",
+            ResourceProjectionMode::ServerOwned,
+        );
+        server
+            .referenced_resource_schemes
+            .insert(ResourceScheme::new("artifact").unwrap());
         server
             .referenced_resource_schemes
             .insert(ResourceScheme::new("frames").unwrap());
@@ -577,6 +584,7 @@ mod tests {
                 )
             },
             "recording_uri": "recording://recordings/019f92d9-6837-79f1-82fa-aeea6385108e",
+            "scene_asset": "artifact://019fa5c6-5070-7850-a4d0-d22dbbe8f6a1",
             "producer_spiffe_id": "spiffe://veoveo.test/simulation/anonymous",
             "vendor_resource": "vendor://session/alpha",
             "app_resource": "ui://vendor/live.html"
@@ -598,16 +606,20 @@ mod tests {
             Some("recording://recordings/019f92d9-6837-79f1-82fa-aeea6385108e")
         );
         assert_eq!(
+            structured["scene_asset"].as_str(),
+            Some("artifact://019fa5c6-5070-7850-a4d0-d22dbbe8f6a1")
+        );
+        assert_eq!(
             structured["producer_spiffe_id"].as_str(),
             Some("spiffe://veoveo.test/simulation/anonymous")
         );
         assert_eq!(
             structured["vendor_resource"].as_str(),
-            Some("uav-sim://session/alpha")
+            Some("simulation-extension://session/alpha")
         );
         assert_eq!(
             structured["app_resource"].as_str(),
-            Some("ui://uav-sim/live.html")
+            Some("ui://simulation-extension/live.html")
         );
     }
 
