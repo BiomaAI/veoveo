@@ -29,6 +29,9 @@ fn local_control_plane_exposes_the_view_preview_app() {
 fn local_operator_profile_challenges_for_the_complete_view_scope_bundle() {
     let expected_scopes = [
         "operator:use",
+        "simulation-view:read",
+        "simulation-view:write",
+        "simulation-view:stream",
         "view:read",
         "view:write",
         "view:capture",
@@ -54,7 +57,7 @@ fn local_operator_profile_challenges_for_the_complete_view_scope_bundle() {
     );
     assert_eq!(
         challenge,
-        "Bearer resource_metadata=\"https://veoveo.example/.well-known/oauth-protected-resource/mcp/operator\", scope=\"operator:use view:read view:write view:capture map:dataset:read time:read\"",
+        "Bearer resource_metadata=\"https://veoveo.example/.well-known/oauth-protected-resource/mcp/operator\", scope=\"operator:use simulation-view:read simulation-view:write simulation-view:stream view:read view:write view:capture map:dataset:read time:read\"",
         "operator authorization challenge"
     );
 }
