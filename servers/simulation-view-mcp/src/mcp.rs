@@ -99,6 +99,57 @@ impl SimulationViewMcp {
         }
     }
 
+    async fn refresh_pose_status(
+        &self,
+        owner: &LiveViewOwner,
+        session_id: &veoveo_mcp_contract::LiveSessionId,
+    ) -> Result<(), McpError> {
+        let session = self
+            .state
+            .service
+            .get_session(owner, session_id)
+            .map_err(service_error)?;
+        if session.pose_source.is_none() {
+            return Ok(());
+        }
+        match self.state.runtimes.pose_status(session_id).await {
+            Ok(status) => self
+                .state
+                .service
+                .apply_pose_status(session_id, &status)
+                .map_err(service_error),
+            Err(_) => {
+                self.state.service.mark_pose_stale(session_id);
+                Ok(())
+            }
+        }
+    }
+
+    async fn refresh_camera_statuses(
+        &self,
+        owner: &LiveViewOwner,
+        session_id: &veoveo_mcp_contract::LiveSessionId,
+    ) {
+        let cameras = self.state.service.list_cameras(owner, session_id);
+        let statuses = futures::future::join_all(cameras.iter().map(|camera| {
+            self.state
+                .runtimes
+                .camera_status(session_id, &camera.camera_id)
+        }))
+        .await;
+        for (camera, status) in cameras.iter().zip(statuses) {
+            match status {
+                Ok(status) => self.state.service.refresh_camera_status(
+                    &camera.camera_id,
+                    status.ready,
+                    status.last_pose_sequence,
+                    status.last_frame_at,
+                ),
+                Err(_) => self.state.service.mark_camera_stale(&camera.camera_id),
+            }
+        }
+    }
+
     fn capability_inventory() -> CapabilityInventory {
         CapabilityInventory {
             tools: Self::tool_router()
@@ -168,6 +219,8 @@ impl SimulationViewMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let owner = require_owner(&context, "simulation-view:read")?;
+        self.refresh_pose_status(&owner, &request.session_id)
+            .await?;
         let session = self
             .state
             .service
@@ -889,6 +942,16 @@ impl ServerHandler for SimulationViewMcp {
         let owner = LiveViewOwner::from_identity(&identity);
         match uri {
             uris::SESSIONS => {
+                let session_ids = self
+                    .state
+                    .service
+                    .list_sessions(&owner)
+                    .into_iter()
+                    .map(|session| session.session_id)
+                    .collect::<Vec<_>>();
+                for session_id in session_ids {
+                    self.refresh_pose_status(&owner, &session_id).await?;
+                }
                 return json_resource(uri, &self.state.service.list_sessions(&owner));
             }
             uris::CAPACITY => return json_resource(uri, &self.state.service.capacity()),
@@ -908,6 +971,7 @@ impl ServerHandler for SimulationViewMcp {
             ]));
         }
         if let Some(session_id) = uris::parse_session(uri) {
+            self.refresh_pose_status(&owner, &session_id).await?;
             return json_resource(
                 uri,
                 &self
@@ -926,6 +990,7 @@ impl ServerHandler for SimulationViewMcp {
             return json_resource(uri, session.scene.as_ref().ok_or_else(not_found)?);
         }
         if let Some(session_id) = uris::parse_pose_source(uri) {
+            self.refresh_pose_status(&owner, &session_id).await?;
             let session = self
                 .state
                 .service
@@ -938,9 +1003,11 @@ impl ServerHandler for SimulationViewMcp {
                 .service
                 .get_session(&owner, &session_id)
                 .map_err(resource_error)?;
+            self.refresh_camera_statuses(&owner, &session_id).await;
             return json_resource(uri, &self.state.service.list_cameras(&owner, &session_id));
         }
         if let Some((session_id, camera_id)) = uris::parse_camera(uri) {
+            self.refresh_camera_statuses(&owner, &session_id).await;
             let camera = self
                 .state
                 .service
@@ -956,9 +1023,11 @@ impl ServerHandler for SimulationViewMcp {
                 .service
                 .get_session(&owner, &session_id)
                 .map_err(resource_error)?;
+            self.refresh_camera_statuses(&owner, &session_id).await;
             return json_resource(uri, &self.state.service.list_streams(&owner, &session_id));
         }
         if let Some((session_id, stream_id)) = uris::parse_stream(uri) {
+            self.refresh_camera_statuses(&owner, &session_id).await;
             let stream = self
                 .state
                 .service

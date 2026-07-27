@@ -172,6 +172,12 @@ class Renderer:
             return CommandResult(
                 HTTPStatus.OK, self._cameras.upsert(command.value)
             )
+        if operation == "get_camera":
+            assert command.resource_id is not None
+            return CommandResult(
+                HTTPStatus.OK,
+                self._cameras.status(command.resource_id),
+            )
         if operation == "delete_camera":
             assert command.resource_id is not None
             self._cameras.close(command.resource_id)

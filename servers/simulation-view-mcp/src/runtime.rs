@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 use veoveo_simulation_pose::{
     POSE_INGRESS_CONTROL_SCHEMA, POSE_PROTOCOL_SCHEMA, PoseIngressBinding, PoseIngressLimits,
-    PoseIngressReadiness, PoseProducerAuthorization, SessionId, entity_identity_table_digest,
+    PoseIngressReadiness, PoseIngressStatus, PoseProducerAuthorization, SessionId,
+    entity_identity_table_digest,
 };
 
 use crate::contract::{CameraDefinition, CameraRecord, PoseSourceState, SimulationViewSession};
@@ -285,6 +286,25 @@ impl RuntimeClients {
         pose.and(renderer)
     }
 
+    pub async fn pose_status(
+        &self,
+        session_id: &veoveo_mcp_contract::LiveSessionId,
+    ) -> anyhow::Result<PoseIngressStatus> {
+        let status: PoseIngressStatus = self
+            .get_json_authenticated(
+                &self.pose_endpoint,
+                &self.pose_control_token,
+                &format!("v1/bindings/{session_id}"),
+            )
+            .await?;
+        anyhow::ensure!(
+            status.schema_version == POSE_INGRESS_CONTROL_SCHEMA
+                && status.session_id.as_str() == session_id.as_str(),
+            "pose ingress returned status for a different session"
+        );
+        Ok(status)
+    }
+
     pub async fn upsert_camera(
         &self,
         camera: &CameraRecord,
@@ -307,6 +327,25 @@ impl RuntimeClients {
             .await?;
         anyhow::ensure!(
             status.camera_id == camera.camera_id,
+            "renderer returned status for a different camera"
+        );
+        Ok(status)
+    }
+
+    pub async fn camera_status(
+        &self,
+        session_id: &veoveo_mcp_contract::LiveSessionId,
+        camera_id: &veoveo_mcp_contract::LiveCameraId,
+    ) -> anyhow::Result<RendererCameraStatus> {
+        let status: RendererCameraStatus = self
+            .get_json_authenticated(
+                &self.renderer_endpoint,
+                &self.renderer_control_token,
+                &format!("v1/sessions/{session_id}/cameras/{camera_id}"),
+            )
+            .await?;
+        anyhow::ensure!(
+            status.camera_id == *camera_id,
             "renderer returned status for a different camera"
         );
         Ok(status)
@@ -399,6 +438,22 @@ impl RuntimeClients {
         let response = tokio::time::timeout(
             std::time::Duration::from_secs(2),
             self.client.get(endpoint).send(),
+        )
+        .await??
+        .error_for_status()?;
+        Ok(response.json().await?)
+    }
+
+    async fn get_json_authenticated<T: serde::de::DeserializeOwned>(
+        &self,
+        base: &Url,
+        token: &str,
+        path: &str,
+    ) -> anyhow::Result<T> {
+        let endpoint = base.join(path)?;
+        let response = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            self.client.get(endpoint).bearer_auth(token).send(),
         )
         .await??
         .error_for_status()?;

@@ -148,6 +148,9 @@ class ControlServer:
                         value.response(),
                     )
                     return
+                if match := CAMERA_PATH.fullmatch(self.path):
+                    self._query_camera(match)
+                    return
                 self.send_error(HTTPStatus.NOT_FOUND)
 
             def do_PUT(self) -> None:
@@ -165,6 +168,30 @@ class ControlServer:
                     return
                 try:
                     command = self._command(method)
+                    outer._commands.put_nowait(command)
+                    result = command.wait(120.0)
+                    self._json(result.status, result.body)
+                except queue.Full:
+                    self.send_error(
+                        HTTPStatus.SERVICE_UNAVAILABLE,
+                        "renderer command queue is full",
+                    )
+                except TimeoutError as error:
+                    self.send_error(HTTPStatus.GATEWAY_TIMEOUT, str(error))
+                except (ContractError, ValueError) as error:
+                    self.send_error(HTTPStatus.BAD_REQUEST, str(error))
+
+            def _query_camera(self, match: re.Match[str]) -> None:
+                if not self._authorized():
+                    self.send_error(HTTPStatus.UNAUTHORIZED)
+                    return
+                try:
+                    command = ControlCommand(
+                        "get_camera",
+                        match.group("session"),
+                        match.group("camera"),
+                        None,
+                    )
                     outer._commands.put_nowait(command)
                     result = command.wait(120.0)
                     self._json(result.status, result.body)
