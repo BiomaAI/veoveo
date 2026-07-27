@@ -102,7 +102,7 @@ impl Sha256Digest {
 
     pub fn as_bytes(&self) -> [u8; 32] {
         let mut bytes = [0_u8; 32];
-        for (index, pair) in self.0[7..].as_bytes().chunks_exact(2).enumerate() {
+        for (index, pair) in self.0.as_bytes()[7..].chunks_exact(2).enumerate() {
             bytes[index] = (hex_nibble(pair[0]) << 4) | hex_nibble(pair[1]);
         }
         bytes

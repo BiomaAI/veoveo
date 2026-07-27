@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use sha2::{Digest, Sha256};
 use veoveo_simulation_pose::{
     CoordinateConvention, EntityId, EntityPose, EnuPosition, EpochId, FluVelocity, FrameRevision,
     LatestPoseStore, POSE_PROTOCOL_VERSION, PoseBinding, PoseError, PoseLimits, PoseSnapshot,
@@ -107,6 +108,12 @@ fn binding(epoch: &str) -> PoseBinding {
 fn binary_round_trip_and_fragmented_stream_are_deterministic() {
     let snapshot = snapshot(7, 70_000_000, "epoch-a");
     let encoded = encode_snapshot(&snapshot, &limits()).unwrap();
+    assert_eq!(encoded.len(), 335);
+    let encoded_digest = Sha256Digest::from_bytes(Sha256::digest(&encoded).into());
+    assert_eq!(
+        encoded_digest.as_str(),
+        "sha256:cf08001e5d89c7a72918ac42b1a63a954df66bb3e5ae91c117fe2981c5327407"
+    );
     assert_eq!(decode_snapshot(&encoded, &limits()).unwrap(), snapshot);
     assert_eq!(encode_snapshot(&snapshot, &limits()).unwrap(), encoded);
 

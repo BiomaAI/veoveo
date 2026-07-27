@@ -54,7 +54,6 @@ impl SharedPoseWriter {
             })?)
             .ok_or_else(|| PoseError::SharedSlot("shared pose slot size overflow".to_owned()))?;
         let file = OpenOptions::new()
-            .create(true)
             .create_new(true)
             .read(true)
             .write(true)
@@ -119,7 +118,7 @@ impl SharedPoseReader {
         let file = File::open(path)?;
         let length = usize::try_from(file.metadata()?.len())
             .map_err(|_| PoseError::SharedSlot("shared pose file is too large".to_owned()))?;
-        if length < HEADER_BYTES || (length - HEADER_BYTES) % 2 != 0 {
+        if length < HEADER_BYTES || !(length - HEADER_BYTES).is_multiple_of(2) {
             return Err(PoseError::SharedSlot(
                 "shared pose file has an invalid length".to_owned(),
             ));
