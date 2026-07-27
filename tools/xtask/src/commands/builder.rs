@@ -23,7 +23,7 @@ const BUILDER_CONTAINER: &str = "buildx_buildkit_veoveo0";
 #[derive(Debug, Eq, PartialEq)]
 struct BuilderInspection {
     driver: String,
-    buildkit_version: String,
+    buildkit_version: Option<String>,
 }
 
 pub(crate) fn status(repository: &RepositoryContext) -> Result<()> {
@@ -37,7 +37,10 @@ pub(crate) fn status(repository: &RepositoryContext) -> Result<()> {
         Some(inspection) => {
             println!("Builder {BUILDER_NAME}: present");
             println!("Driver: {}", inspection.driver);
-            println!("BuildKit: {}", inspection.buildkit_version);
+            println!(
+                "BuildKit: {}",
+                inspection.buildkit_version.as_deref().unwrap_or("inactive")
+            );
             validate(repository, &inspection)
         }
     }
@@ -329,9 +332,9 @@ fn validate(repository: &RepositoryContext, inspection: &BuilderInspection) -> R
         inspection.driver
     );
     ensure!(
-        inspection.buildkit_version == BUILDKIT_VERSION,
+        inspection.buildkit_version.as_deref() == Some(BUILDKIT_VERSION),
         "builder {BUILDER_NAME} runs BuildKit {}; expected {BUILDKIT_VERSION}",
-        inspection.buildkit_version
+        inspection.buildkit_version.as_deref().unwrap_or("inactive")
     );
 
     let image = process::output_text(
@@ -390,11 +393,9 @@ fn parse_buildx_version(output: &str) -> Option<String> {
 
 fn parse_inspection(output: &str) -> Result<BuilderInspection> {
     let driver = field(output, "Driver:").context("builder inspection has no Driver field")?;
-    let buildkit_version =
-        field(output, "BuildKit version:").context("builder inspection has no BuildKit version")?;
     Ok(BuilderInspection {
         driver: driver.to_owned(),
-        buildkit_version: buildkit_version.to_owned(),
+        buildkit_version: field(output, "BuildKit version:").map(ToOwned::to_owned),
     })
 }
 
@@ -447,7 +448,21 @@ mod tests {
             inspection,
             BuilderInspection {
                 driver: "docker-container".to_owned(),
-                buildkit_version: "v0.31.2".to_owned(),
+                buildkit_version: Some("v0.31.2".to_owned()),
+            }
+        );
+    }
+
+    #[test]
+    fn reads_inactive_builder_contract() {
+        let inspection =
+            parse_inspection("Name: veoveo\nDriver: docker-container\n\nNodes:\nName: veoveo0\n")
+                .expect("parse inactive builder");
+        assert_eq!(
+            inspection,
+            BuilderInspection {
+                driver: "docker-container".to_owned(),
+                buildkit_version: None,
             }
         );
     }
