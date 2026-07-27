@@ -3,882 +3,417 @@
 This document is the canonical design and operational contract for the
 `optimization-mcp` crate.
 
-This document describes the hosted Veoveo MCP server for high-level
-optimization planning. The first implementation is intentionally in the middle:
-it is not a raw LP/MILP interface, and it is not drone-specific. It models one
-or many agents selecting options to complete one or more tasks under typed
-constraints.
-
-The central design choice is that Rerun `.rrd` recordings are the canonical
-mission worldline: the append-only, temporal record of observations, fused
-state, plans, predictions, validation, and simulation. DuckDB indexes and
-summarizes that worldline, but it is not the source of truth for how the world
-evolves over time.
+Optimization accepts compact spatial work declarations and produces governed
+multi-agent plans. It expands assignment candidates inside the service, solves
+the bounded model, and records complete assignment evidence. Callers do not
+construct a static option matrix.
 
 ## Status
 
-Initial implementation exists in this workspace.
+The compact spatial assignment contract is implemented. The hosted server owns
+the `optimization` slug, the `optimization://` URI scheme, and the
+`/optimization/mcp` endpoint.
 
-The target crate name is `veoveo-optimization-mcp`, with a concise folder name:
-
-```text
-servers/optimization-mcp
-```
-
-The hosted server slug and URI scheme are both `optimization`. The canonical
-local tool name is `plan`; through the gateway it is exposed under the mounted
-server namespace.
+The public planning surface is a hard cut. Static `PlanningOption` input,
+`inline` and `duck_db_options` modes, and source-URI option loading are not
+supported.
 
 ## Standards And Protocols
 
-| Standard or protocol | Design profile |
+| Standard or protocol | Implemented profile |
 |---|---|
-| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with task-required planning, canonical resources, structured results, notifications, and usage records. |
-| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Typed agents, tasks, options, constraints, objectives, plans, and artifact metadata. Raw JSON is reserved for explicitly opaque solver diagnostics. |
-| [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; planning uses durable creation, progress, cancellation, results, and subscriptions rather than a second job protocol. |
-| [Rerun 0.35.0](https://rerun.io/docs/) RRD | Canonical append-only mission worldline and immutable plan evidence. A shared application id and recording id compose rotated segments into one logical recording. |
-| DuckDB SQL, CSV, and Apache Parquet | Analytical indexes, snapshots, diagnostics, and governed derived exports. These projections do not replace the RRD worldline. |
-| WGS 84, EPSG identities, ECEF, ENU, and NED | Reused through the shared coordinate contract. Frames performs frame conversion and Map owns projected CRS, geodesic, routing, and geofence semantics. |
-| OAuth bearer and signed JWT identity | Gateway policy fixes principal, tenant, Work Context, scopes, and labels before the server derives task and artifact ownership. |
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP. The server exposes tools, resources, resource templates, tasks, and structured results. |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Generated schemas describe compact agents, groups, tasks, constraints, objectives, assignments, findings, and artifacts. Controlled fields use Rust structs and enums. |
+| [Veoveo MCP server contract](../../mcp/contract/DESIGN.md) | Hosted-server contract revision 2, including gateway-signed invocation authority, canonical pagination, artifact-plane access, and usage evidence. |
+| [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`. Planning always uses the shared durable task runtime. |
+| `good_lp` 1.15.2 and `microlp` 0.4.0 | Pure-Rust binary linear assignment solver. The only public backend value is `micro_lp`. |
+| [Rerun](https://rerun.io/) 0.35.0 RRD | Optional immutable plan evidence containing the governed plan, assignments, and summary metrics. |
+| DuckDB SQL | Optional immutable analytical projection containing assignment, requirement, and governed-plan tables. |
+| SHA-256 | Request and governed-plan digests. |
+| UUID version 5 | Stable plan and assignment identifiers derived from governed inputs. |
+| Map and Frames repository contracts | Optimization retains immutable Map releases, Map resource references, mobility-profile revisions, and one Frames world revision. It performs no coordinate conversion or route construction. |
+| OAuth bearer and signed JWT identity | Gateway policy fixes principal, tenant, profile, labels, Work Context, and invocation authority before task creation. |
 
-## Goals
+DuckDB and RRD are evidence projections. The mandatory canonical plan is the
+typed JSON artifact and the corresponding `optimization://plan/{plan_id}`
+resource.
 
-- Expose high-level agent/task/option planning as a task-required MCP tool.
-- Keep transform fusion, scenario analysis, validation, and simulation as future
-  extensions over the same RRD/DuckDB artifact model.
-- Keep agents lightweight by centralizing solver execution, state management,
-  audit evidence, and RRD-backed temporal context.
-- Preserve the current Veoveo gateway model: external clients talk to gateway
-  profiles, and the gateway talks to hosted Veoveo MCP servers over internal MCP.
-- Use strong Rust domain types for mission state, poses, assignments,
-  constraints, solver options, plans, and artifacts.
-- Make long-running compute task-based by default so clients get immediate task
-  ids, progress notifications, cancellation, durable results, and resource links.
-- Make each mission session a Rerun recording that agents can scrub, search,
-  slice, summarize, and use as prediction context.
-- Provide deterministic smoke fixtures before adding real solver complexity.
+## Responsibilities
+
+Optimization owns:
+
+- bounded validation of compact planning declarations;
+- candidate expansion for agents and declared groups;
+- capability and mobility-profile admission;
+- shared and per-agent resource constraints;
+- lane and resource-band assignment;
+- fixed-window collision constraints;
+- task dependency and mutual-exclusion constraints;
+- weighted objective compilation;
+- deterministic tie breaking;
+- complete assignment and requirement results;
+- plan provenance, digests, artifact publication, and usage records.
+
+Map owns source features, spatial derivations, route construction, terrain,
+restriction checks, projected CRS behavior, geodesics, and mobility-envelope
+validation. Frames owns world revisions and coordinate conversion.
+
+The consuming extension owns plan admission, session binding, final dynamic
+validation, bounded runtime-buffer compilation, and execution.
 
 ## Non-Goals
 
-- No client-facing REST API for optimization calls.
-- No public gRPC API in the first version.
-- No separate WebSocket job protocol.
-- No ad hoc JSON blob contract for controlled mission data.
-- No second canonical world-state database competing with RRD.
-- No treating Rerun as visualization-only output.
-- No autonomous execution path. This server produces plans, evidence,
-  confidence, and validation output for agents and operators.
-- No provider status polling fallback if a future external provider is added.
-  Provider-backed completion must remain webhook-only.
+- No physics-rate stepping or waypoint advancement.
+- No controller, actuator, or collision authority.
+- No route generation, CRS conversion, geodesic calculation, or terrain query.
+- No dynamic feasibility claim.
+- No raw LP or MILP request model.
+- No provider job protocol or provider status polling.
+- No client REST, gRPC, or WebSocket job surface.
+- No autonomous plan execution.
 
-## Fit With Veoveo
+## MCP Surface
 
-The existing platform already has the shape this server needs:
-
-```text
-MCP client
-  |
-  | MCP over streamable HTTP
-  v
-mcp-gateway profile (/mcp/{profile})
-  |-- media-mcp
-  |-- optimization-mcp
-```
-
-The optimization server should be mounted internally at:
+The internal endpoint is:
 
 ```text
 /optimization/mcp
 ```
 
-The gateway should expose it through profiles with a namespaced tool name:
+The gateway exposes the local `plan` tool under the configured server
+namespace, normally `optimization__plan`.
+
+The server advertises tools, resources, resource templates, and final tasks.
+Resources are not subscription-enabled.
+
+### Tool
 
 ```text
-optimization__plan
+plan(PlanRequest) -> PlanOutput
 ```
 
-Resource URIs remain server-owned and are not renamed by the gateway:
+The tool always creates a durable task. A client that negotiates the final task
+extension receives the task handle immediately. A direct call waits on the same
+durable execution and returns its result.
+
+Planning reserves artifact-plane authority before task creation. One write is
+mandatory for the plan JSON. Optional DuckDB and RRD outputs reserve one
+additional write each.
+
+### Resources
 
 ```text
-optimization://artifact/{artifact_id}
-artifact://{artifact_id}
-optimization://usage/task/{task_id}
-```
-
-`optimization://artifact/{artifact_id}` is the optimization server's presentation
-URI for a shared-plane occurrence. The neutral `artifact://{artifact_id}` form is the
-cross-server identity accepted by the artifact plane and by servers that resolve
-artifact inputs.
-
-## Server Surface
-
-The server binds one Axum listener. MCP is the client contract. HTTP routes below
-the mount path are limited to protocol and health.
-
-```text
-/optimization/mcp                 internal MCP over streamable HTTP
-/optimization/healthz             ops health
-```
-
-`/optimization/mcp` requires the same gateway-signed internal identity assertion
-used by `media-mcp`. External clients normally access this server only through a
-gateway profile such as `/mcp/default`, `/mcp/research`, or `/mcp/ops`.
-
-Artifact bytes are stored in `artifact-service`, not a private optimization
-bucket. The optimization server passes the caller's `PlaneCaller` to the shared
-artifact plane and presents returned metadata as `optimization://artifact/{artifact_id}`.
-Large authorized bytes use the gateway artifact download route; the domain server has
-no byte route. The MCP resource and result identity remains the
-server-presented artifact URI; the neutral plane URI remains valid for
-cross-server inputs.
-
-## MCP Capabilities
-
-The first production version advertises:
-
-- tools
-- resources
-- resource templates
-- tasks
-- notifications
-
-Resource subscriptions, completions, and prompts are not part of v1.
-
-## Tool Model
-
-All compute tools should be task-required in the first version. This gives one
-canonical execution model and avoids guessing which optimization will finish
-inside a transport timeout.
-
-| Tool | Purpose | Result |
-|---|---|---|
-| `plan` | Select task-completion options for one or many agents under typed constraints. | `PlanOutput` plus optional `optimization://artifact/{artifact_id}` DuckDB and Rerun RRD artifacts. |
-
-`PlanRequest` supports two input modes:
-
-- `inline`: typed agents, tasks, options, and constraints.
-- `duck_db_options`: typed agents/tasks/constraints plus option rows loaded from
-  the shared `DuckDbSource` contract.
-
-`DuckDbSource::Artifact` is intentionally not materialized inside the
-optimization solver path. Cross-server artifact inputs are resolved by the
-DuckDB server through the shared artifact plane; optimization should consume
-typed inline rows, allowlisted URI sources, or a DuckDB-materialized export.
-
-The v1 solver uses `good_lp` with the pure-Rust `microlp` backend. Each
-`PlanningOption` becomes a binary decision variable. Constraints cover task
-requirements, resource limits, mutual exclusion, dependencies, explicit min/max
-groups, agent max options, capability feasibility, and fixed-window no-overlap.
-
-The server may later add read-only tools only if MCP resources cannot represent
-the workflow cleanly. Discovery and state reads should default to resources.
-
-## Canonical Resource Model
-
-Resources are the stable nouns in the system. The canonical temporal noun is a
-Rerun recording. Session, snapshot, plan, scenario, and solve resources are
-typed indexes and views over recording data.
-
-```text
-optimization://sessions
-```
-
-List visible sessions for the principal.
-
-```text
-optimization://session/{session_id}
-```
-
-Session metadata, owner, retention, active recording id, current time cursor,
-current snapshot id, current active plan id, and visible child resources.
-
-```text
-optimization://recording/{recording_id}
-```
-
-Canonical logical RRD worldline for a session. The resource body contains
-recording metadata, application id, recording id, segment list, time ranges,
-indexed timelines, entity path prefixes, and query hints. The actual `.rrd`
-bytes are exposed through segment resources or artifact links.
-
-```text
-optimization://segment/{segment_id}
-```
-
-Immutable RRD segment bytes plus metadata. A long mission may have multiple
-segments under one logical recording so append, retention, replication, and
-random access stay manageable. Segments with the same Rerun recording id and
-application id compose into the session worldline.
-
-```text
-optimization://context/{context_id}
-```
-
-Typed agent context window produced from a worldline query. Contains the source
-recording id, timelines, time range, selected entity paths, component filters,
-query summary, and compact typed facts suitable for planning or prediction.
-
-```text
-optimization://snapshot/{snapshot_id}
-```
-
-Typed view of the recording at a specific time or time range. Contains the
-query that produced the snapshot, source recording id, time cursor, entity
-paths, frames, transforms, covariance, source observations, version, and
-consistency score. It is reproducible from the RRD worldline.
-
-```text
+optimization://plans
 optimization://plan/{plan_id}
-```
-
-Typed view of plan components appended to the recording. Contains assignments,
-trajectories, solver summary, objective values, infeasible constraints,
-confidence fields, validation links, and the recording time at which the plan
-was produced.
-
-```text
-optimization://scenario/{scenario_id}
-```
-
-What-if scenario definition, base recording/time range, forked prediction
-timeline, deltas, produced plans, and delta summary against the baseline.
-
-```text
-optimization://solve/{solve_id}
-```
-
-Solver job detail: backend, model kind, status, objective, bounds, timing,
-termination reason, and diagnostic summary. This is not a provider status path;
-it is local durable solver evidence indexed back to recording events.
-
-```text
 optimization://artifact/{artifact_id}
-```
-
-Large immutable bytes. This includes canonical RRD segments when addressed by
-content hash, plus derived exports such as CSV diagnostics or compact plan
-bundles. The recording and segment resources remain the semantic access path
-for worldline data.
-
-```text
+optimization://usage
 optimization://usage/task/{task_id}
 ```
 
-Usage estimate and actual compute records for the MCP task.
+`optimization://plans` lists at most 100 visible completed plans and reports
+whether the result was truncated. The exact plan resource returns `PlanOutput`,
+including the governed plan and every artifact identity.
 
-## RRD Worldline
+Plan visibility is reconstructed from durable completed task results. A caller
+must match the recorded principal, profile, tenant, data-label authority, and
+Work Context. The gateway independently authorizes the resource operation
+under the caller's current profile.
 
-Each mission session owns one logical Rerun recording. That recording is the
-canonical worldline: all sensor observations, fused state, derived tracks,
-operator annotations, agent hypotheses, solver inputs, solver outputs,
-validation reports, and simulation rollouts are logged as time-indexed Rerun
-entities and components.
+`optimization://artifact/{artifact_id}` is the Optimization presentation URI
+for bytes in the shared artifact plane. The neutral
+`artifact://{artifact_id}` identity remains the cross-server form.
 
-Rerun's data model is a good fit for this because `.rrd` is its native recording
-format and current Rerun architecture represents recording data as column
-chunks with entity paths, time columns, component columns, and semantic
-metadata. The server should pin a Rerun SDK version and maintain a migration
-policy because `.rrd` compatibility is versioned by Rerun.
+## Compact Request Contract
 
-The RRD worldline should use multiple timelines:
+`PlanRequest.schema_version` is `1`. Every request declares at least one
+immutable Map release, one Frames world revision, one agent, and one spatial
+task.
 
-```text
-mission_time       physical or simulated event time
-ingest_time        server ingestion time
-solve_time         solver job phase time
-prediction_time    forecast horizon for simulated or predicted state
-operator_time      approval, annotation, and review time
-```
+### Agents And Groups
 
-The core entity path conventions should be stable:
+An agent declares:
 
-```text
-/world/frames/{frame_id}
-/world/entities/{entity_id}/pose
-/world/entities/{entity_id}/track
-/world/entities/{entity_id}/classification
-/world/observations/{observation_id}
-/world/constraints/{constraint_id}
-/plans/{plan_id}/assignments/{assignment_id}
-/plans/{plan_id}/trajectories/{trajectory_id}
-/solves/{solve_id}
-/scenarios/{scenario_id}
-/predictions/{prediction_id}/entities/{entity_id}
-```
+- a controlled agent identifier;
+- exactly one immutable Map mobility-profile URI;
+- a capability set;
+- resource capacities;
+- a positive maximum assignment count;
+- assignment cost, risk, and confidence values.
 
-Typed Rust structures remain the boundary contract for tools and resource
-summaries. The durable temporal payload for those structures is logged into the
-RRD recording as Rerun components. DuckDB stores indexes, ownership rows, and
-materialized summaries that let MCP handlers find the relevant recording
-segments quickly.
+A group declares its controlled identifier, member agents, and group
+capabilities. Group candidate cost and risk are the sums of member values.
+Group confidence is the least member confidence. The group consumes the
+assignment capacity and overlapping time of every member.
 
-## Agent Context
+### Spatial Tasks
 
-The agent's operational context is not a static JSON snapshot. It is a
-time-addressable view over the session RRD worldline.
+A task declares:
 
-Agents need four canonical context operations:
+- minimum and desired quantity;
+- required or optional admission;
+- agent, group, or agent-or-group assignment;
+- positive priority;
+- a Map source-feature or spatial-derivation target;
+- a Map route, Map spatial derivation, or artifact trajectory execution
+  reference;
+- required capabilities and allowed mobility profiles;
+- optional eligible agents and groups;
+- dependencies;
+- shared-resource and per-agent demand;
+- allowed lanes and resource bands;
+- an unscheduled or fixed time window;
+- once, loop, or periodic recurrence;
+- assignment cost and risk.
 
-- Scrub: move a time cursor across `mission_time`, inspect the world state, and
-  compare it to the state known at `ingest_time`.
-- Find: query entities, observations, constraints, plans, anomalies, and
-  decisions by time range, entity path, component type, label, confidence, or
-  solver status.
-- Slice: build a compact typed context window from selected entities,
-  timelines, and time ranges for a planning or prediction call.
-- Predict: append forecast state on `prediction_time` without mutating the
-  observed `mission_time` history.
+Every source-feature target must belong to a release identifier declared in
+`source_map_releases`. References are identities only. Optimization never
+dereferences them to duplicate Map or Frames computation.
 
-The MCP server should expose these operations through resources first and tools
-only when computation is required. For example, reading
-`optimization://snapshot/{snapshot_id}` returns a typed summary of one slice,
-while `simulate_execution` computes and appends a future prediction timeline.
+### Global Policies
 
-Prediction output must be distinguishable from observation and fused state. A
-forecast is logged under `/predictions/{prediction_id}/...` and linked to the
-plan, scenario, source snapshot, and solver job that produced it.
+Requests may declare:
 
-The canonical query shape should be typed:
+- shared resources with positive capacities;
+- lanes with positive assignment capacities and optional Map geometry;
+- resource bands with positive assignment capacities;
+- mutual-exclusion sets with a maximum active-task count;
+- weights for priority, cost, risk, confidence, and resource use;
+- a deterministic seed;
+- a maximum generated-candidate count;
+- optional DuckDB and RRD evidence.
 
-```text
-WorldlineQuery
-  session_id: SessionId
-  recording_id: RecordingId
-  timelines: Vec<TimelineName>
-  time_range: TimeRange
-  entity_paths: Vec<EntityPathPattern>
-  component_kinds: Vec<ComponentKind>
-  labels: Vec<DataLabelId>
-  confidence: Option<ConfidenceRange>
-  limit: Option<NonZeroU32>
+All identifiers are unique within their declared kind. Every reference must
+resolve inside the request, and task dependencies must form an acyclic graph.
 
-ContextWindow
-  context_id: ContextId
-  recording_id: RecordingId
-  query: WorldlineQuery
-  facts: Vec<ContextFact>
-  source_segments: Vec<SegmentId>
-  time_coverage: Vec<TimelineCoverage>
-  created_at: DateTime<Utc>
-```
+## Bounds
 
-## Core Domain Types
+The schema and runtime enforce these service limits:
 
-The server should introduce typed ids instead of plain strings:
+| Input | Maximum |
+|---|---:|
+| Agents | 512 |
+| Groups | 128 |
+| Tasks | 512 |
+| Shared resources | 256 |
+| Lanes | 256 |
+| Resource bands | 256 |
+| Mutual-exclusion sets | 256 |
+| Source Map releases | 64 |
+| Generated candidates | 50,000 |
 
-- `SessionId`
-- `RecordingId`
-- `SegmentId`
-- `ContextId`
-- `TimelineName`
-- `EntityPath`
-- `SnapshotId`
-- `EntityId`
-- `FrameId`
-- `ObservationId`
-- `PlanId`
-- `AssignmentId`
-- `TrajectoryId`
-- `ScenarioId`
-- `SolveId`
-- `ConstraintId`
+The request may lower the candidate limit. Expansion fails before solver
+construction when the compact declaration exceeds that bound.
 
-Controlled request shapes should be modeled with Rust structs and enums. Raw
-JSON is only acceptable at genuinely open-ended extension points, such as an
-opaque solver debug export or externally defined scenario metadata.
+## Candidate Expansion
 
-### Shared Spatial Contract
+The service builds individual units from agents and collective units from
+declared groups. It removes units that fail capability, mobility-profile, or
+explicit eligibility checks.
 
-Optimization should not define its own coordinate, frame, pose, trajectory, or
-geofence schema. Controlled cross-domain types live in the shared spatial
-contract:
+Each eligible unit expands across the task's allowed lane and resource-band
+choices. An empty lane or band set creates one unassigned choice. Candidate
+keys contain the task, unit, lane, and band identities, which gives a stable
+ordering independent of map iteration order.
 
-```text
-veoveo_mcp_contract::coordinates
-```
+The deterministic seed feeds a SHA-256 tie break smaller than
+`1e-9`. The tie break chooses consistently among otherwise equivalent
+candidates without materially changing declared objective weights.
 
-That module is the official source for Veoveo MCP servers and
-services that accept, persist, transform, or return controlled spatial data.
-Optimization should import and reuse shared types such as:
+## Solver Model
 
-- `FrameId`
-- `CrsId`
-- `Pose3`
-- `Trajectory3`
-- `GeofenceGeometry`
-- `CoordinateOperationId`
-- `CoordinateOperationRef`
-- `CoordinateOperationProvenance`
+Each generated candidate has one binary variable. Each task has one binary
+active variable.
 
-`frames-mcp` owns WGS84, ECEF, ENU, and NED frame conversion. `map-mcp` owns
-projected CRS transforms, geodesics, geofence validation, transport networks,
-route feasibility, and route matrices. `optimization-mcp` consumes their typed
-facts, operation refs, resource URIs, costs, durations, risk scores, and
-validation evidence. The solver does not perform CRS, datum, frame, or routing
-work internally.
+The model enforces:
 
-The merged artifact-plane work changes where coordinate evidence should live:
-optimization outputs already store DuckDB snapshots and Rerun RRD files through
-`artifact-service`. Coordinate operation refs, validation report refs, frame
-ids, and CRS ids should be preserved in `PlanOutput` and in
-`ArtifactMetadata.metadata` for those plan artifacts. Do not add a second
-optimization-only provenance store for coordinate facts.
+- assigned quantity no greater than desired quantity;
+- active tasks meeting their minimum quantity;
+- required tasks remaining active;
+- one lane-band variant for a task and unit;
+- per-agent maximum assignments;
+- per-agent resource capacities;
+- no simultaneous fixed-window assignments for one agent;
+- shared-resource capacities;
+- lane and resource-band capacities;
+- an active dependent task requiring its prerequisite to reach desired
+  quantity;
+- mutual-exclusion active-task limits.
 
-The first integration should be additive over the existing option planner:
+The objective maximizes weighted priority and confidence while penalizing
+cost, risk, and declared resource demand. `good_lp` expresses the model and
+the pinned pure-Rust `microlp` backend solves it.
 
-- optional spatial fields on agents, tasks, and options
-- optional coordinate operation refs on selected options and plan outputs
-- validation refs linking a plan to `frames://operation/{operation_id}` or a
-  `map://route/{route_id}` resource
-- RRD worldline entries that use the same shared frame ids and pose types as
-  every other Veoveo server
+Solver infeasibility is a governed result, not a transport failure. Contract
+validation errors fail the tool result before a model is solved.
 
-Spatial constraints and objectives consume implemented Map routes, matrices,
-geofence results, and Frames operations. Optimization retains those identities
-instead of copying their calculations.
+## Governed Plan
 
-### Geometry and Registry
+`GovernedPlan` records:
 
-```text
-WorldlineEvent
-  recording_id: RecordingId
-  timeline: TimelineName
-  time: TimePoint
-  entity_path: EntityPath
-  component_kind: ComponentKind
-  source: EventSource
+- schema version, stable plan identifier, resource URI, and status;
+- ordered complete assignments;
+- complete, partial, unmet, or inactive requirement results;
+- typed findings;
+- exact source Map releases and Frames world revision;
+- every declared mobility-profile revision;
+- objective components and aggregate metrics;
+- solver backend, seed, variable count, constraint count, candidate count, and
+  termination;
+- algorithm revision;
+- request and plan SHA-256 digests;
+- submitting principal, Work Context, policy revision, and time.
 
-Pose3
-  translation_m: Vec3
-  rotation: UnitQuaternion
-  covariance: Option<Covariance6>
+An assignment includes all agents in the unit, the optional group, target,
+execution reference, mobility profiles, lane, resource band, timing,
+recurrence, shared-resource demand, cost, risk, and confidence.
 
-TransformEdge
-  from_frame: FrameId
-  to_frame: FrameId
-  pose: Pose3
-  observed_at: DateTime<Utc>
-  source: ObservationSource
-  confidence: Confidence
+The status is:
 
-RegistrySnapshotView
-  snapshot_id: SnapshotId
-  session_id: SessionId
-  recording_id: RecordingId
-  time_cursor: TimeCursor
-  entities: Vec<EntityState>
-  frames: Vec<Frame>
-  transforms: Vec<TransformEdge>
-  created_at: DateTime<Utc>
-  consistency: ConsistencyScore
-```
+- `optimal` when every active requirement reaches desired quantity;
+- `partial` when a solved model leaves a requirement below desired quantity;
+- `infeasible` when the hard model has no solution.
 
-The concrete Rust definitions for `Pose3`, frame definitions, and operation
-provenance come from `veoveo_mcp_contract::coordinates`. Geographic geofence
-and route contracts come from Map. The sketch above describes how Optimization
-uses shared frame data in the worldline registry.
+Findings distinguish missing eligible units, insufficient eligible units,
+unsatisfied desired quantity, unsatisfied hard minima, and solver
+infeasibility.
 
-Transforms are logged into the RRD worldline first. A snapshot is an immutable
-materialized view over a recording id plus time cursor or time range. A session
-may have a mutable current snapshot pointer, but plan results must reference the
-source recording id, snapshot id, and coordinate operation refs for
-reproducibility.
+## Identity And Digest Profile
 
-### Assignment Planning
+The request digest is lowercase hexadecimal SHA-256 over the UTF-8 JSON bytes
+emitted by the typed `PlanRequest` serializer.
+
+The plan identifier is UUIDv5 over:
 
 ```text
-OptimizeAssignmentRequest
-  session_id: SessionId
-  snapshot: SnapshotInput
-  context_window: Option<ContextWindowSpec>
-  assets: Vec<AssetState>
-  targets: Vec<TargetState>
-  protected_assets: Vec<ProtectedAsset>
-  constraints: Vec<AssignmentConstraint>
-  objective: AssignmentObjective
-  solver: SolverOptions
-
-AssignmentPlan
-  plan_id: PlanId
-  recording_id: RecordingId
-  snapshot_id: SnapshotId
-  assignments: Vec<Assignment>
-  unassigned_assets: Vec<EntityId>
-  unassigned_targets: Vec<EntityId>
-  objective_value: f64
-  risk_score: RiskScore
-  solver_summary: SolverSummary
-  worldline_time: TimePoint
-  validation_uri: Option<String>
-  recording_uri: String
+{durable_task_id}:{request_digest_sha256}
 ```
 
-Constraint examples should be typed enum variants:
+Assignment identifiers are UUIDv5 over the plan identifier and stable
+candidate key.
+
+The plan digest is lowercase hexadecimal SHA-256 over the typed governed-plan
+JSON object with `plan_digest_sha256` omitted. Ordered Rust collections make
+maps and sets deterministic. The plan identifier, authority, and submission
+time are part of the governed bytes.
+
+## Artifact Profile
+
+The canonical artifact is always:
 
 ```text
-AssignmentConstraint
-  MaxAssignmentsPerAsset { limit: NonZeroU32 }
-  MaxTargetsPerSector { sector: SectorId, limit: NonZeroU32 }
-  ResourceBudget { resource: ResourceKind, limit: f64 }
-  TimeWindow { entity: EntityId, earliest: DateTime<Utc>, latest: DateTime<Utc> }
-  Exclusion { asset: EntityId, target: EntityId, reason: String }
-  RequiredCoverage { protected_asset: EntityId, minimum_score: f64 }
+filename    plan.json
+media type  application/vnd.veoveo.optimization-plan+json
 ```
 
-The schema should not use free-form strings like `"max 2 interceptors in sector
-A"` as the primary contract. Natural language can be accepted only by a separate
-future interpretation tool that emits typed constraints for review.
+The optional DuckDB artifact is `plan.duckdb` with media type
+`application/vnd.duckdb`. It contains:
 
-## Solver Architecture
+- `plan_assignment`;
+- `plan_requirement`;
+- `governed_plan`.
 
-`good_lp` should be used as the modeling layer for linear and mixed-integer
-problems. The solver backend should be explicit configuration.
+The optional RRD artifact is `plan.rrd` with media type
+`application/vnd.veoveo.rerun-rrd`. It records the canonical plan document,
+summary metrics, and one ordered entity per assignment.
 
-Recommended initial backend:
+Artifact metadata repeats the plan identifier and URI, request and plan
+digests, algorithm revision, Map releases, Frames revision, and mobility
+profiles. The shared artifact plane stamps ownership and returns immutable
+artifact identities. Download URLs are removed from durable task results.
+
+## Durable Execution
+
+The task request persists the compact input, submission time, and issued
+artifact-write capability. Recovery class `resume` allows an interrupted
+server process to claim and run the same task.
+
+The runtime:
+
+1. validates and solves in a blocking worker;
+2. writes the mandatory and selected optional artifacts;
+3. records actual usage in generated candidates;
+4. stores the structured `PlanOutput` as the durable result.
+
+The worker renews its lease during execution and observes cancellation before
+and after artifact publication. Task ownership is stored in the installation
+SurrealDB.
+
+## Gateway And Deployment
+
+The gateway catalog registers:
 
 ```text
-highs
+slug        optimization
+scheme      optimization
+mount       /optimization
+MCP         /optimization/mcp
+scope       operator:use
 ```
 
-Reasons:
+The catalog declares the `plan` tool, task support, the
+`optimization://plan/{plan_id}` and artifact resource families, and usage
+resources. The Helm workload receives SurrealDB and artifact-service
+configuration through installation-owned values.
 
-- Suitable for linear and mixed-integer optimization.
-- Runs in-process, avoiding an external solver binary per request.
-- Has parallel solver behavior, so the server must control concurrency at the
-  job queue level.
+No Map or Frames credentials are present because Optimization consumes exact
+resource identities and does not fetch cross-server data.
 
-Optional later backends:
-
-- `coin_cbc` for MILP comparison or environments where it is easier to package.
-- `clarabel` for convex optimization cases where it matches the model.
-- An explicit deterministic fixture backend for tests only, never selected by
-  production configuration.
-
-The solver module should not expose backend-specific raw request JSON. It should
-take typed domain requests and compile them into solver variables, constraints,
-and objectives internally.
-
-## Job Execution
-
-The server should keep Tokio for I/O and MCP orchestration. CPU-heavy solver and
-simulation work should run through a bounded compute queue.
-
-Recommended first version:
-
-- `enqueue_task` records a task and persists ownership.
-- A bounded `tokio::sync::Semaphore` limits concurrent solves.
-- Solver execution runs via `tokio::task::spawn_blocking`.
-- Each task records progress phases:
-  - accepted
-  - input validated
-  - RRD context window resolved
-  - snapshot view materialized
-  - solver model built
-  - solving
-  - result appended to RRD
-  - indexes updated
-  - completed
-- Cancellation aborts queued work when possible and marks in-flight work
-  cancelled once control returns from the blocking solve.
-
-Do not add `rayon` first. HiGHS already uses parallelism internally, and nested
-parallel pools can create poor tail latency. Add a dedicated thread pool only
-after measuring actual solver contention.
-
-## Persistence
-
-Use RRD first for mission world state. Use DuckDB for indexes, ownership,
-runtime state, materialized summaries, usage analytics, and audit evidence.
-
-Canonical bytes:
-
-- RRD segments are written through the shared artifact plane and presented as
-  server-owned artifact resources.
-- Each segment is immutable and content-addressed.
-- A session's logical recording is the ordered set of visible segments sharing
-  the same Rerun application id and recording id.
-- New observations, fused state, plans, validation results, and predictions
-  append new RRD data; they do not update old RRD data in place.
-
-DuckDB tables should index the RRD worldline:
-
-```text
-sessions
-recordings
-recording_segments
-entity_index
-component_index
-timeline_index
-contexts
-snapshots
-plans
-solves
-scenarios
-task_owners
-artifacts
-usage_records
-```
-
-DuckDB rows should include enough information to answer lists and policy checks
-without reading every segment:
-
-- owner and tenant fields
-- data labels
-- retention timestamps
-- recording id
-- segment id
-- content hash
-- byte length
-- time range by timeline
-- entity path prefixes
-- component kinds
-- linked task id
-- linked context, plan, solve, scenario, or snapshot id
-
-Typed JSON summaries may be stored in DuckDB for fast MCP resource reads, but
-they are materialized views. If a summary conflicts with the RRD segment data,
-the RRD segment is canonical and the summary must be rebuilt.
-
-## Rerun Integration
-
-Rerun is both the canonical temporal data format and the visualization/query
-substrate for this server.
-
-Recommended first version:
-
-- Create a Rerun recording for each mission session.
-- Append all observations, fused transforms, plans, validations, and
-  simulations to that recording.
-- Rotate the recording into immutable `.rrd` segments for storage and
-  retention.
-- Store segment bytes as `optimization://segment/{segment_id}` and
-  `optimization://artifact/{artifact_id}`.
-- Return recording and time cursor metadata in every plan, snapshot, scenario,
-  validation, and simulation result.
-
-The server should treat visualization as one consumer of the recording, not the
-reason the recording exists. The same `.rrd` data drives:
-
-- human timeline scrubbing in Rerun Viewer
-- agent context slicing
-- search/index materialization
-- simulation replay
-- prediction comparison against later observations
-- audit reconstruction
-
-Optional later version:
-
-- Add an operator-only live Rerun stream per session.
-- Surface the live stream URL as session metadata when enabled.
-- Keep live stream loss non-fatal as long as the server continues writing
-  canonical RRD segments.
-
-## Gateway Integration
-
-Add an `optimization` server manifest to gateway control data:
-
-```json
-{
-  "slug": "optimization",
-  "uri_scheme": "optimization",
-  "mount_path": "/optimization",
-  "mcp_path": "/optimization/mcp",
-  "upstream": {
-    "transport": "streamable_http",
-    "url": "http://optimization-mcp:8792/optimization/mcp",
-    "security": "cluster_internal_http"
-  },
-  "capabilities": {
-    "tools": true,
-    "resources": true,
-    "resource_templates": true,
-    "resource_subscriptions": false,
-    "prompts": false,
-    "completions": false,
-    "tasks": true,
-    "resources_list_changed": false
-  },
-  "tools": [
-    "plan"
-  ],
-  "required_scopes": ["operator:use"],
-  "owned_routes": [],
-  "metadata": {}
-}
-```
-
-Policy should grant only the actions a profile needs:
-
-- `tools_list`
-- `tools_call`
-- `resources_list`
-- `resources_templates_list`
-- `resources_read`
-- `tasks_get`
-- `tasks_update`
-- `tasks_result`
-- `tasks_cancel`
-- `tasks_subscribe`
-- `artifact_read`
-- `usage_read`
-
-Use the existing `operator:use` scope for normal agent and operator planning.
-Introduce optimization-specific scopes only when there are real admin
-operations.
-
-## Server Layout
-
-The server should start modular. Avoid growing one large `server.rs`.
+## Source Layout
 
 ```text
 servers/optimization-mcp/
-  Cargo.toml
+  DESIGN.md
+  AGENTS.md
   src/
-    lib.rs
-    artifacts.rs
+    contract.rs
+    planning.rs
+    plan_artifacts.rs
     state.rs
     uris.rs
-    planning/
-      plan model, DuckDBSource materialization, good_lp solve, artifacts
     bin/
       server.rs
       server/
         app_state.rs
         config.rs
+        host.rs
         internal_auth.rs
+        outputs.rs
         ownership.rs
+        task_extension.rs
 ```
 
-Binary entrypoint responsibilities:
+`contract.rs` owns wire types and bounds. `planning.rs` validates requests,
+expands candidates, builds the solver model, and constructs the governed plan.
+`plan_artifacts.rs` owns canonical JSON, DuckDB, and RRD encoding. The binary
+modules own task orchestration, authority, artifact publication, and MCP
+projection.
 
-- parse CLI/config
-- initialize telemetry
-- open state
-- initialize the shared artifact-plane client
-- build shared `AppState`
-- wire routes
-- start graceful shutdown
+## Testing
 
-Real behavior belongs in modules.
+Unit coverage proves:
 
-## Testing Strategy
+- strong URI and identifier validation;
+- stable UUIDv5 identities;
+- fixed-window overlap semantics;
+- internal candidate generation and deterministic selection;
+- required-capacity infeasibility;
+- optional partial plans;
+- dependency and mutual-exclusion behavior;
+- canonical JSON round trips;
+- DuckDB and RRD evidence encoding;
+- plan, artifact, and usage URI parsing;
+- canonical MCP tool schemas.
 
-All smoke behavior should be in Rust, not shell-heavy Justfile recipes.
+Repository integration tests exercise the hosted task and gateway projection.
+The first-party agent-kernel smoke uses the compact request profile.
 
-First tests:
+## Security And Safety
 
-- Unit tests for URI parsing.
-- Unit tests for typed planning validation.
-- Unit tests for inline and DuckDBSource option materialization.
-- Unit tests for `good_lp` selection behavior.
-- Contract schema export includes optimization request/result types.
-- Direct hosted MCP smoke: internal auth required, task lifecycle works.
-- Gateway smoke: `optimization__plan` routes through gateway,
-  task id is projected, resources read through `optimization://...`, and a
-  principal without `operator:use` is denied.
-- Artifact smoke: DuckDB and RRD outputs are written through
-  `artifact-service`, returned as `optimization://artifact/{artifact_id}`, readable
-  only by an authorized principal, and resolvable from the neutral
-  `artifact://{artifact_id}` form for cross-server workflows.
+The gateway remains the public authorization boundary. Optimization verifies
+gateway-signed internal identity and persists task ownership. Resource reads
+must match the recorded principal, profile, tenant, labels, and Work Context.
+Artifact reads pass the verified caller and bearer to the shared plane.
 
-The first implementation uses the pure-Rust `microlp` backend so local checks do
-not depend on native solver libraries.
-
-## Security and Safety
-
-The gateway remains the public auth boundary. The server still enforces durable
-task, recording, segment, plan, snapshot, usage, and artifact ownership from
-gateway-signed internal identity.
-
-Audit records should include:
-
-- principal
-- tenant
-- profile
-- action
-- server
-- tool or resource target
-- task id
-- recording id, segment id, plan id, or snapshot id where applicable
-- policy decision
-- solver backend
-- termination reason
-- timing
-- high-level objective and constraint counts
-
-Audit records must not include:
-
-- raw mission payloads
-- bearer tokens
-- secrets
-- raw RRD or artifact bytes
-- full solver models unless explicitly stored as controlled artifacts
-
-Planning output is advisory. Execution should require an external, explicit
-operator or system approval path outside this server.
-
-## Phased Implementation
-
-### Phase 1: Task Option Planner
-
-- Add `optimization-mcp` crate.
-- Add `PlanRequest` / `PlanOutput` as `optimization-mcp` server-local contract types.
-- Add typed agents, tasks, options, objectives, constraints, and DuckDB option
-  row mapping.
-- Implement `plan` with `good_lp` and the pure-Rust `microlp` backend.
-- Emit structured output plus optional DuckDB and Rerun RRD artifacts.
-- Wire the Helm workload, gateway server manifest, profiles, and policies.
-
-### Phase 2: Solver Hardening
-
-- Add configurable solver backends if native CBC/HiGHS is available.
-- Add solver time limits, concurrency limits, infeasible diagnostics, and
-  objective summaries.
-- Keep deterministic fixture mode for tests.
-
-### Phase 3: Transform Fusion
-
-- Depend on shared coordinate contract types from
-  `veoveo_mcp_contract::coordinates` instead of local optimization-only frame
-  shapes.
-- Add typed registry snapshots, observation deltas, and consistency scoring.
-- Implement `fuse_transforms`.
-- Append fused transforms to the RRD worldline.
-- Add snapshot resources, subscriptions, and rebuild-from-RRD tests.
-
-### Phase 4: Validation and Simulation
-
-- Implement `validate_plan`.
-- Implement lightweight forward `simulate_execution`.
-- Append validation reports and simulation rollouts to the recording.
-- Keep prediction timeline data separate from observed mission history.
-
-### Phase 5: RRD Query and Viewer Workflows
-
-- Add context slicing over entity path, component kind, label, confidence, and
-  time range.
-- Add Rerun Viewer links or live streams for sessions where operators need
-  timeline scrubbing.
-- Add prediction-vs-observation comparison views.
-
-### Phase 6: What-If Scenarios
-
-- Implement typed scenario deltas.
-- Fork a prediction timeline from a base recording slice.
-- Re-run selected planning tools against that forked context.
-- Return baseline-vs-scenario deltas and recording cursors.
-
-## Open Decisions
-
-- Exact first solver backend feature flags and packaging path for local k3d and
-  fielded Kubernetes images.
-- Whether trajectory planning is MILP-based in version one or starts with a
-  simpler bounded waypoint validator.
-- Whether plan approvals belong in this server as resources or in a separate
-  control-plane service.
-- RRD segment size, rotation policy, and retention policy.
-- Rerun SDK/version pinning and `.rrd` migration policy.
-- Exact agent context query surface for find/slice operations.
-- Whether live Rerun streams are needed in addition to stored RRD segments.
-- Whether `optimization` belongs in the default gateway profile or only in an
-  `ops` or `research` profile initially.
+Plans are advisory. They contain no access token, credential, arbitrary
+network URL, executable content, actuator instruction, or hidden compatibility
+behavior.

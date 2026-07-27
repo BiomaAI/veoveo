@@ -1,11 +1,9 @@
-use veoveo_duckdb_runtime::HttpsSourcePolicy;
 use veoveo_optimization_mcp::artifacts::ArtifactRepository;
 use veoveo_task_runtime::{TaskRuntime, TaskTransition};
 
 pub(super) struct AppState {
     pub(super) tasks: TaskRuntime,
     pub(super) artifacts: ArtifactRepository,
-    pub(super) source_policy: HttpsSourcePolicy,
     pub(super) max_artifact_bytes: u64,
 }
 

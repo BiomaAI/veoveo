@@ -33,7 +33,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
-use veoveo_duckdb_runtime::HttpsSourcePolicy;
 use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
@@ -47,8 +46,8 @@ use veoveo_mcp_task_extension::{
 };
 use veoveo_optimization_mcp::{
     artifacts::ArtifactRepository,
-    contract::{PlanOutput, PlanRequest},
-    planning::{RRD_MIME_TYPE, run_plan},
+    contract::{PlanAuthority, PlanOutput, PlanRequest},
+    planning::{PLAN_JSON_MIME_TYPE, run_plan},
     uris,
 };
 use veoveo_platform_store::{DomainUsageKind as StoreUsageKind, DomainUsageRecord};
@@ -94,6 +93,7 @@ const LIST_PAGE_SIZE: usize = 100;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct PlanTaskRequest {
     input: PlanRequest,
+    submitted_at: chrono::DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     artifact_write_capability: Option<IssuedArtifactWriteCapability>,
 }
@@ -119,14 +119,14 @@ impl OptimizationMcp {
     }
 
     #[tool(
-        title = "Plan task options",
-        description = "Solve a high-level task-option planning problem for one or many agents. Inputs are typed planning objects or DuckDB-readable option rows using the shared DuckDbSource contract. Returns a structured plan plus optional optimization://artifact/{artifact_id} DuckDB and Rerun RRD artifacts. Clients declaring the task extension receive a durable task; direct calls wait for the same durable execution.",
+        title = "Plan spatial assignments",
+        description = "Generate a governed spatial multi-agent plan from compact typed agents, groups, task quantities, immutable Map geometry and mobility references, Frames revision, capacities, lanes, resource bands, dependencies, timing, objective weights, and deterministic solver policy. The result always includes a canonical optimization://plan/{plan_id} JSON artifact; DuckDB and Rerun RRD evidence are optional. Clients declaring the task extension receive a durable task; direct calls wait for that same durable execution.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<PlanOutput>(),
         annotations(
             read_only_hint = false,
             destructive_hint = false,
             idempotent_hint = false,
-            open_world_hint = true
+            open_world_hint = false
         )
     )]
     async fn plan(
@@ -207,6 +207,37 @@ fn usage_record(task_id: &str, record: DomainUsageRecord) -> UsageRecord {
     }
 }
 
+fn plan_output_from_snapshot(snapshot: &TaskSnapshot) -> Option<PlanOutput> {
+    let result = snapshot.result.as_ref()?;
+    let structured = result
+        .get("structuredContent")
+        .or_else(|| result.get("structured_content"))?;
+    serde_json::from_value(structured.clone()).ok()
+}
+
+async fn visible_plan_outputs(
+    state: &AppState,
+    identity: &veoveo_mcp_contract::GatewayInternalIdentity,
+) -> Result<Vec<PlanOutput>, McpError> {
+    let mut plans = Vec::new();
+    for snapshot in state
+        .tasks
+        .list()
+        .await
+        .map_err(|error| McpError::internal_error(error.to_string(), None))?
+    {
+        let owner = task_owner_from_runtime(&snapshot.task_id.to_string(), &snapshot.owner)
+            .map_err(|error| McpError::internal_error(error, None))?;
+        if task_owner_allows(&owner, identity)
+            && let Some(output) = plan_output_from_snapshot(&snapshot)
+        {
+            plans.push(output);
+        }
+    }
+    plans.sort_by(|left, right| left.plan.plan_id.cmp(&right.plan.plan_id));
+    Ok(plans)
+}
+
 #[tool_handler]
 impl ServerHandler for OptimizationMcp {
     fn get_info(&self) -> ServerInfo {
@@ -219,10 +250,11 @@ impl ServerHandler for OptimizationMcp {
         info.server_info =
             rmcp::model::Implementation::new("optimization", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Optimization planning server. Workflow: call `plan` as a task with typed agents, \
-             tasks, options, and constraints, or with typed agents/tasks plus DuckDbSource option \
-             rows. Clients that declare the final task extension receive a durable task; direct \
-             calls wait for that same task. Read optimization://artifact/{artifact_id} outputs."
+            "Optimization planning server. Call `plan` with compact typed agents, groups, spatial \
+             tasks, immutable Map inputs, one Frames revision, capacity policies, and a \
+             deterministic solver policy. The server expands candidates internally and returns \
+             one governed optimization://plan/{plan_id}. Clients that declare the final task \
+             extension receive a durable task; direct calls wait for that same task."
                 .into(),
         );
         info
@@ -250,11 +282,29 @@ impl ServerHandler for OptimizationMcp {
     ) -> Result<ListResourcesResult, McpError> {
         let identity = internal_identity(&context)?;
         let mut resources = vec![
+            Resource::new(uris::PLANS_ROOT_URI, "plans")
+                .with_title("Governed spatial plans")
+                .with_description("Index of visible immutable Optimization plans.")
+                .with_mime_type("application/json"),
             Resource::new(uris::USAGE_ROOT_URI, "usage")
                 .with_title("Optimization usage ledger")
                 .with_description("Index of task usage resources.")
                 .with_mime_type("application/json"),
         ];
+        for output in visible_plan_outputs(&self.state, &identity).await? {
+            resources.push(
+                Resource::new(
+                    output.plan.resource_uri.clone(),
+                    format!("plan {}", output.plan.plan_id),
+                )
+                .with_title(format!("Plan {}", output.plan.plan_id))
+                .with_description(format!(
+                    "{:?} spatial plan with {} assignments",
+                    output.plan.status, output.plan.metrics.assignments
+                ))
+                .with_mime_type("application/json"),
+            );
+        }
         // Artifacts live on the shared plane now; this server keeps no local
         // artifact index to enumerate. They remain readable by their
         // artifact URI through resources/read, which resolves against the plane.
@@ -297,6 +347,12 @@ impl ServerHandler for OptimizationMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
         let templates = vec![
+            ResourceTemplate::new(uris::PLAN_TEMPLATE, "plan")
+                .with_title("Governed spatial plan")
+                .with_description(
+                    "Immutable plan, assignments, findings, exact inputs, metrics, and artifact identity.",
+                )
+                .with_mime_type("application/json"),
             ResourceTemplate::new(uris::ARTIFACT_TEMPLATE, "artifact")
                 .with_title("Optimization artifact")
                 .with_description(
@@ -322,6 +378,47 @@ impl ServerHandler for OptimizationMcp {
     ) -> Result<ReadResourceResult, McpError> {
         let identity = internal_identity(&context)?;
         let uri = request.uri.as_str();
+        if uri == uris::PLANS_ROOT_URI {
+            let mut plans = visible_plan_outputs(&self.state, &identity).await?;
+            let truncated = plans.len() > LIST_PAGE_SIZE;
+            plans.truncate(LIST_PAGE_SIZE);
+            let entries = plans
+                .into_iter()
+                .map(|output| {
+                    json!({
+                        "plan_id": output.plan.plan_id,
+                        "plan_uri": output.plan.resource_uri,
+                        "status": output.plan.status,
+                        "plan_digest_sha256": output.plan.plan_digest_sha256,
+                        "plan_artifact_uri": output.plan_artifact.artifact_uri,
+                    })
+                })
+                .collect::<Vec<_>>();
+            return Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(
+                    serde_json::to_string(&json!({
+                        "plans": entries,
+                        "truncated": truncated,
+                    }))
+                    .unwrap_or_default(),
+                    uri,
+                )
+                .with_mime_type("application/json"),
+            ]));
+        }
+        if let Some(plan_id) = uris::parse_plan_uri(uri) {
+            let output = visible_plan_outputs(&self.state, &identity)
+                .await?
+                .into_iter()
+                .find(|output| output.plan.plan_id == plan_id)
+                .ok_or_else(|| {
+                    McpError::resource_not_found(format!("unknown plan '{plan_id}'"), None)
+                })?;
+            return Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(serde_json::to_string(&output).unwrap_or_default(), uri)
+                    .with_mime_type("application/json"),
+            ]));
+        }
         if uri == uris::USAGE_ROOT_URI {
             let mut entries = Vec::new();
             for task_id in self
@@ -397,7 +494,7 @@ impl ServerHandler for OptimizationMcp {
                 artifact
                     .metadata
                     .mime_type
-                    .unwrap_or_else(|| RRD_MIME_TYPE.to_string()),
+                    .unwrap_or_else(|| PLAN_JSON_MIME_TYPE.to_string()),
             );
             return Ok(ReadResourceResult::new(vec![content]));
         }
@@ -423,30 +520,28 @@ async fn start_plan_task(
     max_artifact_bytes: u64,
 ) -> Result<TaskSnapshot, String> {
     let task_id = TaskId::new();
-    let artifact_count = u32::from(input.artifacts.duckdb) + u32::from(input.artifacts.rerun_rrd);
-    let artifact_write_capability = if artifact_count == 0 {
-        None
-    } else {
-        Some(
-            state
-                .artifacts
-                .issue_write_capability(
-                    &caller,
-                    &IssueArtifactWriteCapabilityRequest {
-                        task_id: task_id.to_string(),
-                        expires_at: Utc::now() + ARTIFACT_CAPABILITY_TTL,
-                        max_artifact_count: NonZeroU32::new(artifact_count)
-                            .ok_or_else(|| "artifact count must be non-zero".to_owned())?,
-                        max_total_bytes: NonZeroU64::new(max_artifact_bytes)
-                            .ok_or_else(|| "max artifact bytes must be non-zero".to_owned())?,
-                    },
-                )
-                .await
-                .map_err(|error| error.to_string())?,
-        )
-    };
+    let artifact_count =
+        1 + u32::from(input.artifacts.duckdb) + u32::from(input.artifacts.rerun_rrd);
+    let artifact_write_capability = Some(
+        state
+            .artifacts
+            .issue_write_capability(
+                &caller,
+                &IssueArtifactWriteCapabilityRequest {
+                    task_id: task_id.to_string(),
+                    expires_at: Utc::now() + ARTIFACT_CAPABILITY_TTL,
+                    max_artifact_count: NonZeroU32::new(artifact_count)
+                        .ok_or_else(|| "artifact count must be non-zero".to_owned())?,
+                    max_total_bytes: NonZeroU64::new(max_artifact_bytes)
+                        .ok_or_else(|| "max artifact bytes must be non-zero".to_owned())?,
+                },
+            )
+            .await
+            .map_err(|error| error.to_string())?,
+    );
     let request = PlanTaskRequest {
         input,
+        submitted_at: Utc::now(),
         artifact_write_capability,
     };
     let created = state
@@ -602,8 +697,13 @@ async fn run_task_inner(
     let run = match tokio::task::spawn_blocking({
         let task_id = task_id.clone();
         let input = request.input.clone();
-        let source_policy = state.source_policy.clone();
-        move || run_plan(&task_id, &input, &source_policy)
+        let authority = PlanAuthority {
+            principal_id: owner.principal_id.clone(),
+            work_context: owner.authority.work_context.clone(),
+            policy_revision: owner.authority.policy_revision.clone(),
+            submitted_at: request.submitted_at,
+        };
+        move || run_plan(&task_id, &input, &authority)
     })
     .await
     {
@@ -678,12 +778,9 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
     let recovery = tasks.recover().await?;
-    let mut source_policy = HttpsSourcePolicy::new(args.allow_source_hosts.clone());
-    source_policy.max_bytes = args.max_source_bytes;
     let state = Arc::new(AppState {
         tasks,
         artifacts,
-        source_policy,
         max_artifact_bytes: args.max_artifact_bytes,
     });
     for snapshot in recovery.resumable {

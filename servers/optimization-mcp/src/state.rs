@@ -1,6 +1,8 @@
 use std::collections::BTreeSet;
 
-use veoveo_mcp_contract::{DataLabelId, GatewayProfileId, PrincipalId, TenantId};
+use veoveo_mcp_contract::{
+    DataLabelId, GatewayProfileId, InvocationAuthority, PrincipalId, TenantId,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaskOwner {
@@ -9,4 +11,5 @@ pub struct TaskOwner {
     pub profile: GatewayProfileId,
     pub tenant: Option<TenantId>,
     pub data_labels: BTreeSet<DataLabelId>,
+    pub authority: InvocationAuthority,
 }

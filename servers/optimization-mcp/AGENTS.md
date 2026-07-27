@@ -5,23 +5,24 @@ Delta over the repository root `AGENTS.md`. The normative server contract is
 
 ## Purpose
 
-Owns high level optimization planning: one or many agents selecting options to
-complete tasks under typed constraints, solved through `good_lp`. Rerun RRD
-recordings are the canonical mission worldline; DuckDB holds indexes and
-summaries over that worldline and never replaces it.
+Owns compact spatial multi-agent planning. The server expands assignment
+candidates from typed agents, groups, tasks, Map identities, capacities,
+timing, and policy, then solves the bounded model through `good_lp`. The
+canonical governed plan is a mandatory immutable JSON artifact. DuckDB and
+Rerun RRD are optional evidence projections.
 
 ## Invariants
 
-- Owns the `optimization://` scheme: sessions, recordings, segments, contexts,
-  snapshots, plans, scenarios, solves, artifacts, and usage records.
-- The RRD worldline is canonical and append only. DuckDB rows and stored JSON
-  summaries are materialized views; when they conflict with segment data the
-  segment wins and the view is rebuilt.
+- Owns the implemented `optimization://` scheme for plans, artifacts, and usage
+  records.
+- The typed plan JSON and its recorded digest are canonical. DuckDB and RRD
+  outputs are derived evidence and never replace the plan.
 - Planning is task required on the shared task runtime. No client REST, gRPC,
   or WebSocket job surface, and no provider status polling.
-- Spatial types come from `veoveo_mcp_contract::coordinates`. Frames owns
-  frame conversion; Map owns projected CRS, geodesics, routing, and geofences.
-  The solver performs no CRS, datum, or routing work internally.
+- Frames owns frame conversion. Map owns source features, spatial derivations,
+  projected CRS, geodesics, routing, restrictions, terrain, and mobility
+  envelopes. The solver retains exact immutable references and performs none
+  of that work internally.
 - Artifact bytes go through the shared artifact plane with the caller's
   `PlaneCaller`; the server has no byte route. Durable ownership state lives
   in the installation SurrealDB.
