@@ -16,14 +16,15 @@ use rmcp::{
 };
 use serde::Serialize;
 use veoveo_mcp_contract::tool;
-use veoveo_mcp_contract::{GatewayInternalIdentity, Page, paginate};
+use veoveo_mcp_contract::{GatewayInternalIdentity, Page, PlaneCaller, paginate};
 
 use crate::{
     contract::{
-        CaptureFrameRequest, CloseViewRequest, CloseViewResult, CreateViewRequest, FrameRecord,
-        SetCameraRequest, ViewRecord,
+        CaptureFrameRequest, CloseViewRequest, CloseViewResult, CreateSceneCompositionRequest,
+        CreateViewRequest, FrameRecord, SceneComposition, SetCameraRequest, ViewRecord,
     },
-    server::AppState,
+    server::{AppState, auth::ForwardedBearer},
+    state::ResourceOwner,
     uris,
 };
 
@@ -32,7 +33,13 @@ const LIST_PAGE_SIZE: usize = 100;
 /// The real view lifecycle tools double as the preview app's surface; the
 /// app drives them end-to-end (revision control and task-based capture
 /// included) rather than any parallel convenience tools.
-const PREVIEW_APP_TOOLS: &[&str] = &["create_view", "set_camera", "capture_frame", "close_view"];
+const PREVIEW_APP_TOOLS: &[&str] = &[
+    "create_scene_composition",
+    "create_view",
+    "set_camera",
+    "capture_frame",
+    "close_view",
+];
 
 const PREVIEW_APP_ICON: &str = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM0YTdkZDYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJtMTQgMTAgNy0zdjEwbC03LTMiLz48cmVjdCB4PSIyIiB5PSI3IiB3aWR0aD0iMTIiIGhlaWdodD0iMTAiIHJ4PSIyIi8+PC9zdmc+";
 
@@ -53,8 +60,38 @@ impl ViewMcp {
     }
 
     #[tool(
+        title = "Create scene composition",
+        description = "Create an immutable owner-scoped scene composition from one configured 3D Tiles base layer, exact governed inputs, an optional Frames revision binding, and bounded ordered overlays.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<SceneComposition>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = true)
+    )]
+    async fn create_scene_composition(
+        &self,
+        Parameters(request): Parameters<CreateSceneCompositionRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let identity = require_scope(&context, "view:write")?;
+        let caller = plane_caller(&context, identity.clone())?;
+        let composition = self
+            .state
+            .views
+            .create_scene_composition(&identity, &caller, request)
+            .await
+            .map_err(invalid_params)?;
+        self.state
+            .subscriptions
+            .notify_resource_updated(uris::COMPOSITIONS)
+            .await;
+        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
+        structured_result(
+            format!("created {}", composition.composition_uri),
+            &composition,
+        )
+    }
+
+    #[tool(
         title = "Create map view",
-        description = "Create an owner-scoped point of view over one configured complete 3D Tiles layer. Pose, look-at, and orbit-target cameras all resolve to an exact geodetic pose.",
+        description = "Create an owner-scoped point of view over one immutable scene composition. Pose, look-at, and orbit-target cameras all resolve to an exact geodetic pose.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ViewRecord>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -64,10 +101,11 @@ impl ViewMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let identity = require_scope(&context, "view:write")?;
+        let owner = ResourceOwner::from_identity(&identity);
         let view = self
             .state
             .views
-            .create_view(identity.actor.id.as_str(), request)
+            .create_view(&owner, request)
             .await
             .map_err(invalid_params)?;
         self.state
@@ -90,10 +128,11 @@ impl ViewMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let identity = require_scope(&context, "view:write")?;
+        let owner = ResourceOwner::from_identity(&identity);
         let view = self
             .state
             .views
-            .set_camera(identity.actor.id.as_str(), request)
+            .set_camera(&owner, request)
             .await
             .map_err(invalid_params)?;
         self.state
@@ -136,11 +175,12 @@ impl ViewMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let identity = require_scope(&context, "view:write")?;
+        let owner = ResourceOwner::from_identity(&identity);
         let uri = uris::view(&request.view_id);
         let result = self
             .state
             .views
-            .close_view(identity.actor.id.as_str(), request)
+            .close_view(&owner, request)
             .await
             .map_err(invalid_params)?;
         self.state.subscriptions.notify_resource_updated(uri).await;
@@ -168,7 +208,7 @@ impl ServerHandler for ViewMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("view", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Create an owner-scoped view with an exact pose or target camera, replace its camera under revision control, and invoke capture_frame through the Task API. A successful capture returns a directly displayable image and view://frame metadata. The ui://view/preview.html app drives the same lifecycle interactively; its parameterized view-scene manifests reference view://tile/... draco GLB resources selected for the requested viewport and screen-space error. The renderer has no input, picking, overlays, or feature-query behavior."
+            "Create an immutable scene composition from a configured 3D Tiles base layer and exact governed overlay inputs, then create an owner-scoped view with an exact pose or target camera. Replace its camera under revision control and invoke capture_frame through the Task API with an explicit scene time. A successful capture returns a directly displayable hardware-rendered image plus view://frame provenance. The ui://view/preview.html app drives the same lifecycle interactively; its parameterized view-scene manifests reference view://tile/... draco GLB resources selected for the requested viewport and screen-space error."
                 .to_owned(),
         );
         info
@@ -213,9 +253,14 @@ impl ServerHandler for ViewMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         let identity = require_scope(&context, "view:read")?;
-        let owner = identity.actor.id.as_str();
+        let owner = ResourceOwner::from_identity(&identity);
         let mut resources = vec![
             json_descriptor(uris::LAYERS, "View layers", "Configured 3D scene layers."),
+            json_descriptor(
+                uris::COMPOSITIONS,
+                "Scene compositions",
+                "Owner-scoped immutable governed scene compositions.",
+            ),
             json_descriptor(uris::VIEWS, "Views", "Owner-scoped camera views."),
             json_descriptor(uris::FRAMES, "Frames", "Owner-scoped captured frames."),
         ];
@@ -241,7 +286,21 @@ impl ServerHandler for ViewMcp {
         resources.extend(
             self.state
                 .views
-                .list_views(owner)
+                .list_scene_compositions(&owner)
+                .await
+                .into_iter()
+                .map(|composition| {
+                    json_descriptor(
+                        &composition.composition_uri,
+                        "Scene composition",
+                        "Immutable governed scene composition.",
+                    )
+                }),
+        );
+        resources.extend(
+            self.state
+                .views
+                .list_views(&owner)
                 .await
                 .into_iter()
                 .map(|view| json_descriptor(&view.view_uri, "View", "Camera view state.")),
@@ -249,7 +308,7 @@ impl ServerHandler for ViewMcp {
         resources.extend(
             self.state
                 .views
-                .list_frames(owner)
+                .list_frames(&owner)
                 .into_iter()
                 .map(|frame| {
                     Resource::new(frame.frame_uri.clone(), format!("Frame {}", frame.frame_id))
@@ -277,6 +336,11 @@ impl ServerHandler for ViewMcp {
                 uris::LAYER_TEMPLATE,
                 "View layer",
                 "Configured scene layer.",
+            ),
+            template(
+                uris::COMPOSITION_TEMPLATE,
+                "Scene composition",
+                "Owner-scoped immutable governed scene composition.",
             ),
             template(uris::VIEW_TEMPLATE, "View", "Owner-scoped camera view."),
             template(
@@ -317,13 +381,16 @@ impl ServerHandler for ViewMcp {
             ]));
         }
         let identity = require_scope(&context, "view:read")?;
-        let owner = identity.actor.id.as_str();
+        let owner = ResourceOwner::from_identity(&identity);
         match uri {
             uris::LAYERS => return json_resource(uri, self.state.views.layers()),
-            uris::VIEWS => {
-                return json_resource(uri, &self.state.views.list_views(owner).await);
+            uris::COMPOSITIONS => {
+                return json_resource(uri, &self.state.views.list_scene_compositions(&owner).await);
             }
-            uris::FRAMES => return json_resource(uri, &self.state.views.list_frames(owner)),
+            uris::VIEWS => {
+                return json_resource(uri, &self.state.views.list_views(&owner).await);
+            }
+            uris::FRAMES => return json_resource(uri, &self.state.views.list_frames(&owner)),
             _ => {}
         }
         if let Some(layer_id) = uris::parse_layer(uri) {
@@ -342,7 +409,7 @@ impl ServerHandler for ViewMcp {
             let record = self
                 .state
                 .views
-                .preview_scene(owner, &view_id, policy, context.ct.child_token())
+                .preview_scene(&owner, &view_id, policy, context.ct.child_token())
                 .await
                 .map_err(read_error)?;
             return json_resource(uri, &record);
@@ -362,16 +429,25 @@ impl ServerHandler for ViewMcp {
             let view = self
                 .state
                 .views
-                .get_view(owner, &view_id)
+                .get_view(&owner, &view_id)
                 .await
                 .map_err(|_| not_found())?;
             return json_resource(uri, &view);
+        }
+        if let Some(composition_id) = uris::parse_composition(uri) {
+            let composition = self
+                .state
+                .views
+                .get_scene_composition(&owner, &composition_id)
+                .await
+                .map_err(|_| not_found())?;
+            return json_resource(uri, &composition);
         }
         if let Some(frame_id) = uris::parse_frame(uri) {
             let frame = self
                 .state
                 .views
-                .get_frame(owner, &frame_id)
+                .get_frame(&owner, &frame_id)
                 .map_err(|_| not_found())?;
             let content = ResourceContents::blob(BASE64_STANDARD.encode(&frame.bytes), uri)
                 .with_mime_type(frame.record.mime_type.clone());
@@ -389,7 +465,7 @@ impl ServerHandler for ViewMcp {
             return Ok(CompleteResult::default());
         };
         let identity = require_scope(&context, "view:read")?;
-        let owner = identity.actor.id.as_str();
+        let owner = ResourceOwner::from_identity(&identity);
         let values: Vec<String> = match (reference.uri.as_str(), request.argument.name.as_str()) {
             (uris::LAYER_TEMPLATE, "layer_id") => self
                 .state
@@ -401,15 +477,23 @@ impl ServerHandler for ViewMcp {
             (uris::VIEW_TEMPLATE, "view_id") => self
                 .state
                 .views
-                .list_views(owner)
+                .list_views(&owner)
                 .await
                 .into_iter()
                 .map(|view| view.view_id.to_string())
                 .collect(),
+            (uris::COMPOSITION_TEMPLATE, "composition_id") => self
+                .state
+                .views
+                .list_scene_compositions(&owner)
+                .await
+                .into_iter()
+                .map(|composition| composition.composition_id.to_string())
+                .collect(),
             (uris::FRAME_TEMPLATE, "frame_id") => self
                 .state
                 .views
-                .list_frames(owner)
+                .list_frames(&owner)
                 .into_iter()
                 .map(|frame| frame.frame_id.to_string())
                 .collect(),
@@ -441,6 +525,7 @@ impl ServerHandler for ViewMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
         let identity = require_scope(&context, "view:read")?;
+        let owner = ResourceOwner::from_identity(&identity);
         if !is_subscribable(&request.uri) {
             return Err(McpError::invalid_params(
                 "resource is immutable or not subscribable",
@@ -450,13 +535,17 @@ impl ServerHandler for ViewMcp {
         if let Some(view_id) = uris::parse_view(&request.uri) {
             self.state
                 .views
-                .get_view(identity.actor.id.as_str(), &view_id)
+                .get_view(&owner, &view_id)
                 .await
                 .map_err(|_| not_found())?;
         }
         self.state
             .subscriptions
-            .subscribe(request.uri, identity.actor.id, context.peer.clone())
+            .subscribe(
+                request.uri,
+                owner.subscription_principal(),
+                context.peer.clone(),
+            )
             .await;
         Ok(())
     }
@@ -467,9 +556,10 @@ impl ServerHandler for ViewMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
         let identity = require_scope(&context, "view:read")?;
+        let owner = ResourceOwner::from_identity(&identity);
         self.state
             .subscriptions
-            .unsubscribe(&request.uri, &identity.actor.id)
+            .unsubscribe(&request.uri, &owner.subscription_principal())
             .await;
         Ok(())
     }
@@ -500,6 +590,24 @@ fn internal_identity(
         .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))
 }
 
+fn plane_caller(
+    context: &RequestContext<RoleServer>,
+    identity: GatewayInternalIdentity,
+) -> Result<PlaneCaller, McpError> {
+    let bearer_token = context
+        .extensions
+        .get::<axum::http::request::Parts>()
+        .and_then(|parts| parts.extensions.get::<ForwardedBearer>())
+        .map(|bearer| bearer.0.clone())
+        .ok_or_else(|| McpError::invalid_request("forwarded bearer missing", None))?;
+    let memberships = identity.actor.group_memberships();
+    Ok(PlaneCaller {
+        bearer_token,
+        identity,
+        memberships,
+    })
+}
+
 fn require_scope(
     context: &RequestContext<RoleServer>,
     required: &str,
@@ -528,7 +636,8 @@ fn read_error(error: crate::state::ServiceError) -> McpError {
 }
 
 fn is_subscribable(uri: &str) -> bool {
-    matches!(uri, uris::VIEWS | uris::FRAMES) || uris::parse_view(uri).is_some()
+    matches!(uri, uris::COMPOSITIONS | uris::VIEWS | uris::FRAMES)
+        || uris::parse_view(uri).is_some()
 }
 
 fn structured_result<T: Serialize>(text: String, value: &T) -> Result<CallToolResult, McpError> {

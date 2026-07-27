@@ -1,4 +1,5 @@
 pub mod cache;
+pub mod composition;
 pub mod contract;
 pub mod decode;
 pub mod geodesy;

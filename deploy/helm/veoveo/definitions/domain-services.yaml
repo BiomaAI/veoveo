@@ -151,6 +151,8 @@
     - view-mcp:8801
     - --layer-catalog
     - /etc/veoveo/view/layers.json
+    - --artifact-service-url
+    - http://artifact-service:8790
   resources:
     requests:
       cpu: "1"

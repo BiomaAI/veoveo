@@ -1,9 +1,11 @@
-use crate::contract::{ContractError, FrameId, PreviewScenePolicy, ViewId};
+use crate::contract::{ContractError, FrameId, PreviewScenePolicy, SceneCompositionId, ViewId};
 
 pub const LAYERS: &str = "view://layers";
+pub const COMPOSITIONS: &str = "view://compositions";
 pub const VIEWS: &str = "view://views";
 pub const FRAMES: &str = "view://frames";
 pub const LAYER_TEMPLATE: &str = "view://layer/{layer_id}";
+pub const COMPOSITION_TEMPLATE: &str = "view://composition/{composition_id}";
 pub const VIEW_TEMPLATE: &str = "view://view/{view_id}";
 pub const FRAME_TEMPLATE: &str = "view://frame/{frame_id}";
 pub const VIEW_SCENE_TEMPLATE: &str =
@@ -19,6 +21,10 @@ pub fn layer(layer_id: &crate::contract::LayerId) -> String {
 
 pub fn view(view_id: &ViewId) -> String {
     format!("view://view/{view_id}")
+}
+
+pub fn composition(composition_id: &SceneCompositionId) -> String {
+    format!("view://composition/{composition_id}")
 }
 
 pub fn frame(frame_id: &FrameId) -> String {
@@ -38,6 +44,10 @@ pub fn tile(tile_key: &str) -> String {
 
 pub fn parse_view(uri: &str) -> Option<ViewId> {
     ViewId::new(uri.strip_prefix("view://view/")?).ok()
+}
+
+pub fn parse_composition(uri: &str) -> Option<SceneCompositionId> {
+    SceneCompositionId::parse(uri.strip_prefix("view://composition/")?).ok()
 }
 
 pub fn parse_view_scene(uri: &str) -> Result<Option<(ViewId, PreviewScenePolicy)>, ContractError> {
@@ -139,5 +149,14 @@ mod tests {
             parse_tile(&format!("view://tile/{}/x", "a".repeat(64))),
             None
         );
+    }
+
+    #[test]
+    fn composition_uris_round_trip() {
+        let id =
+            SceneCompositionId::parse("composition-7a8ed02e-d576-548f-aa5b-4e10f5bfd179").unwrap();
+        let uri = composition(&id);
+        assert_eq!(parse_composition(&uri), Some(id));
+        assert_eq!(parse_composition("view://composition/not-canonical"), None);
     }
 }

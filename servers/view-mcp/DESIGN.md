@@ -3,10 +3,12 @@
 This document is the canonical design and operational contract for the
 `view-mcp` crate.
 
-`view-mcp` captures reproducible points of view over georeferenced 3D Tiles.
-It runs Bevy without a window, keeps bounded tile and GPU residency across
-captures, and returns images that dashboards can display. Several callers can
-own independent views while the service shares immutable source content.
+`view-mcp` captures reproducible points of view over governed static scene
+compositions. Each composition binds one configured georeferenced 3D Tiles
+layer to exact Map, Frames, Artifact, Recording, or Simulation View inputs and
+bounded declarative overlays. The service runs Bevy without a window, keeps
+bounded tile and GPU residency across captures, and returns images with exact
+composition provenance.
 
 ## Status
 
@@ -32,7 +34,7 @@ identities keep the `view://` scheme.
 | Standard or protocol | Implemented profile |
 |---|---|
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with view tools, task-only capture, resources and templates, completions, subscriptions, notifications, image content, and structured results. |
-| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Camera, scene, capture policy, layer, tile, frame, and structured-result contracts. |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Camera, immutable scene composition, overlay geometry, capture policy, layer, tile, frame, and structured-result contracts. |
 | [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; frame capture uses durable creation, progress, cancellation, results, and subscriptions. |
 | [MCP Apps SEP-1865](../../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; `ui://view/preview.html` drives canonical resources, direct view tools, and task-based capture. |
 | OGC 3D Tiles 1.0 and 1.1 | Explicit tile trees, external tilesets, bounding boxes/spheres/regions, transforms, geometric error, and `REPLACE`/`ADD` refinement. Implicit tiling and legacy payloads are rejected. |
@@ -40,18 +42,21 @@ identities keep the `view://` scheme.
 | Draco glTF geometry compression | Native decode of Draco-compressed GLB geometry. Preview resources preserve the original compressed bytes. |
 | WGS 84 and ECEF | Exact geodetic camera definitions and `f64` planetary transforms resolved into a local east-up-north rendering frame. |
 | HTTPS | External tilesets and content follow configured credential, host, redirect, deadline, and byte policies. API keys never enter MCP requests or resource identities. |
+| [Veoveo shared artifact plane](../../platform/artifacts/service) | Exact governed overlay geometry and oriented GLB mesh inputs are resolved under the caller's forwarded gateway authority. |
+| [Veoveo Frames contract](../frames-mcp/DESIGN.md) | A composition with local metre coordinates binds one exact world revision, frame URI, transform, and Frames operation input. |
 | PNG and JPEG | Bounded captured-frame encodings returned as MCP image content and governed frame resources. |
 
 ## Boundary
 
-Map owns geographic source truth, releases, coverage, licensing metadata, and
-the `map://` identities that select a scene. View owns camera state, 3D Tiles
-traversal, source sessions, request scheduling, decoded residency, Bevy assets,
-offscreen rendering, and captured frames.
+Map owns geographic source truth, immutable releases, derived geometry, and
+the `map://` identities supplied to a composition. Frames owns local coordinate
+authority. Artifact owns governed large bytes. View validates and snapshots
+those exact inputs, then owns declarative visual styling, visibility, camera
+state, 3D Tiles traversal, GPU rendering, and captured-frame provenance.
 
-View does not add routing, location search, overlays, feature identities, or
-interaction semantics to Map. It consumes a configured scene layer and emits a
-visual result.
+View does not derive routes, reinterpret geographic features, ingest
+physics-rate poses, or execute caller code. It renders the geometry declared by
+the governed input and preserves the upstream identity and digest.
 
 ```text
 caller
@@ -63,6 +68,7 @@ gateway
   | signed internal identity
   v
 view-mcp
+  |-- immutable owner and Work Context scoped compositions
   |-- owner-scoped logical views
   |-- shared 3D Tiles source runtimes
   |-- raw and decoded byte-budgeted caches
@@ -83,7 +89,7 @@ The initial source kinds are:
 - an HTTPS `tileset.json` with relative content;
 - a mounted local `tileset.json` for deterministic tests and private data.
 
-The public view contract refers to a configured layer id. It never accepts an
+The composition contract refers to a configured layer id. It never accepts an
 API key. Redirects, credentials, local roots, request caps, and cache behavior
 belong to the server-side layer catalog.
 
@@ -91,6 +97,41 @@ The first implementation supports explicit 3D Tiles trees, external tilesets,
 GLB content, standard glTF materials and textures, and native Draco geometry.
 It rejects implicit tiling and legacy `b3dm`, `i3dm`, and `pnts` content with a
 typed unsupported-content failure.
+
+## Static Scene Composition
+
+`create_scene_composition` is the only path from a base layer to a view. A
+base-only request is valid and produces an immutable composition. The stable
+composition identity is UUIDv5-derived from the canonical request digest,
+algorithm revision, and complete invocation authority. Repeating the same
+request under the same Work Context authority returns the same record.
+
+A composition records its schema version, one base layer, immutable Map
+release identities, a style identity, ordered overlays, exact governed inputs,
+authority, Work Context, algorithm revision, request digest, and composition
+digest. Every governed input carries an exact resource URI, SHA-256 digest,
+license, attribution, and an exact media type when bytes are resolved.
+
+Supported overlay geometry is marker, polyline, explicitly triangulated
+polygon, oriented GLB mesh instance, and bounded label. Positions are WGS 84
+or local metres. Local positions require one Frames binding that names the
+world revision, exact frame, affine ECEF transform, and a governed
+`frames://operation/...` input. View does not triangulate geographic polygons
+or infer a coordinate transform.
+
+Styles contain finite bounded colors and physical dimensions. Visibility is
+explicit and can apply minimum or maximum camera distance. An overlay can
+carry one timestamp or a validity interval. `capture_frame.scene_time`
+determines the visible set.
+
+Inline geometry is limited to 4,096 points and 256 KiB for the complete
+overlay declaration. Larger geometry uses the
+`application/vnd.veoveo.view-overlay-geometry+json` artifact profile. Each
+artifact is limited to 16 MiB, while retained artifact bytes for one
+composition are limited to 64 MiB. The server resolves artifact bytes with the
+forwarded caller token, validates their declared media type and SHA-256 digest,
+and snapshots them into the recoverable capture task. No composition accepts
+executable content, credentials, arbitrary URLs, or an ungoverned mesh.
 
 ## Camera Contract
 
@@ -126,10 +167,12 @@ viewport, and achieved detail.
 
 ## Views And Concurrency
 
-A view is owner-scoped logical state, not a Bevy window or renderer process.
-It survives an MCP transport reconnect until explicit close.
-Camera replacement uses an expected revision. A capture snapshots one revision
-and is not changed by later camera updates.
+A view is principal and Work Context scoped logical state, not a Bevy window
+or renderer process. It binds one immutable composition and survives an MCP
+transport reconnect until explicit close. Camera replacement uses an expected
+revision. A capture snapshots one camera revision, the resolved composition,
+exact artifact bytes, and one scene time. Later camera or external artifact
+changes cannot alter a queued or recovered capture.
 
 Views sharing a configured layer share its root session, flattened tree, raw
 bytes, CPU tile content, and Bevy assets. They retain independent cameras,
@@ -146,15 +189,19 @@ pool before the single externally driven Bevy renderer.
 
 | Tool | Invocation | Required scope | Result |
 |---|---|---|---|
+| `create_scene_composition` | direct | `view:write` | immutable governed composition |
 | `create_view` | direct | `view:write` | owner-scoped view and initial revision |
 | `set_camera` | direct | `view:write` | replaced camera and next revision |
 | `capture_frame` | task only | `view:capture` | image content and captured-frame metadata |
 | `close_view` | direct | `view:write` | closed view identity |
 
-`capture_frame` accepts physical pixel dimensions, a maximum screen-space
-error, a deadline, and a typed deadline behavior. Returning the best available
-frame reports whether the requested detail was reached. The terminal tool
-result carries a bounded MCP image block plus typed structured content.
+`capture_frame` accepts an explicit scene time, physical pixel dimensions, a
+maximum screen-space error, a deadline, and a typed deadline behavior.
+Returning the best available frame reports whether the requested detail was
+reached. Metadata contains the composition identity and digest, every governed
+input, camera revision, capture and scene timestamps, style identity, Frames
+revision when present, truncation and detail state, attribution, and output
+SHA-256 digest.
 
 ### Resources
 
@@ -162,6 +209,7 @@ Root resources are:
 
 ```text
 view://layers
+view://compositions
 view://views
 view://frames
 ```
@@ -170,15 +218,18 @@ Resource templates are:
 
 ```text
 view://layer/{layer_id}
+view://composition/{composition_id}
 view://view/{view_id}
 view://frame/{frame_id}
 view://view/{view_id}/scene{?width_px,height_px,max_screen_error_px}
 view://tile/{tile_key}
 ```
 
-Views and frames are owner scoped. Resource lists are paginated. The server
-emits list-change notifications after view creation and close, root-resource
-updates after captures, and view-resource updates after camera replacement.
+Compositions, views, and frames are principal and Work Context scoped.
+Composition records are immutable. Resource lists are paginated. The server
+emits list-change notifications after composition or view creation and close,
+root-resource updates after captures, and view-resource updates after camera
+replacement.
 
 Completion applies to visible view ids, frame ids, and configured layer ids.
 No prompt belongs in the initial capture-only domain.
@@ -187,7 +238,7 @@ No prompt belongs in the initial capture-only domain.
 
 `ui://view/preview.html` is a self-contained MCP App (gated on `view:capture`
 like the capture surface it drives) that exercises the real tool lifecycle:
-`create_view`, `set_camera` under revision control, task-based
+`create_scene_composition`, `create_view`, `set_camera` under revision control, task-based
 `capture_frame` through the host's task proxy, and `close_view` on teardown.
 It never gets parallel convenience tools. The document is composed at serve
 time from `assets/preview-app.template.html` plus the vendored three.js/draco
@@ -295,17 +346,18 @@ requests one `nvidia.com/gpu` resource for each renderer replica.
 
 ## Attribution
 
-Each decoded glTF can carry `asset.copyright`. A captured render cut collects,
-sorts, and deduplicates the strings from its visible content into an
-`AttributionSet`. The frame result returns that set for display beside the
-image. Attribution is presentation metadata, not feature analysis.
+Each decoded glTF can carry `asset.copyright`. Governed composition inputs
+carry required attribution. A captured render cut collects, sorts, and
+deduplicates both sources into an `AttributionSet`. The frame result returns
+that set for display beside the image.
 
 ## Limits And Failure
 
-Configuration bounds active views per owner, total views, captures in flight,
-tile load concurrency, response bytes, tree nodes, viewport dimensions, frame
-retention, cache bytes, and Google source requests. Limits fail closed with
-typed MCP errors.
+Configuration bounds compositions per owner and globally, active views,
+captures in flight, tile load concurrency, response bytes, tree nodes,
+viewport dimensions, overlay counts and geometry, retained artifact bytes,
+frame retention, cache bytes, and Google source requests. Limits fail closed
+with typed MCP errors.
 
 Closing a view cancels unfinished captures for that view. Renderer startup
 fails before readiness when Vulkan selects a CPU, fallback, or non-NVIDIA
@@ -322,9 +374,10 @@ Rust tests cover camera resolution, ECEF cancellation, tree construction, SSE
 selection, weighted eviction, freshness, credential-free cache keys, GLB
 preprocessing, and typed unsupported content. The Rust smoke path starts the
 renderer inside the NVIDIA container, verifies a non-CPU Vulkan adapter,
-captures a deterministic local tileset through source, traversal, decode, and
-Bevy through the production MCP task and frame-resource boundaries, then checks
-that two owner-scoped views remain revision-isolated. The production image
+captures a deterministic local tileset and governed marker, polyline, polygon,
+and label overlays through source, traversal, decode, and Bevy through the
+production MCP task and frame-resource boundaries. It verifies composition
+provenance, output digest, and owner isolation. The production image
 contains only the View MCP server. `just smoke-view-mcp` builds the image and
 dispatches the central Rust smoke harness.
 
