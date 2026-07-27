@@ -237,6 +237,7 @@ async fn verify_browser_inner(
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ChromeVersion {
+    #[serde(rename = "Browser")]
     browser: String,
     web_socket_debugger_url: String,
 }
@@ -750,6 +751,21 @@ const VIDEO_STATE: &str = r#"(() => {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn chrome_version_uses_the_cdp_wire_casing() {
+        let version: ChromeVersion = serde_json::from_value(serde_json::json!({
+            "Browser": "Chrome/150.0.7871.186",
+            "Protocol-Version": "1.3",
+            "webSocketDebuggerUrl": "ws://127.0.0.1:9227/devtools/browser/id"
+        }))
+        .unwrap();
+        assert_eq!(version.browser, "Chrome/150.0.7871.186");
+        assert_eq!(
+            version.web_socket_debugger_url,
+            "ws://127.0.0.1:9227/devtools/browser/id"
+        );
+    }
 
     #[test]
     fn parent_bridge_never_places_tokens_in_resource_payloads() {
