@@ -6,8 +6,7 @@ use serde::{Deserialize, Serialize};
 use url::{Host, Url};
 
 use crate::{
-    DataLabelId, GatewayInternalIdentity, GatewayProfileId, InvocationAuthority, PrincipalId,
-    TenantId,
+    AccessSubject, DataLabelId, GatewayInternalIdentity, PolicyVersion, TenantId, WorkContextId,
 };
 
 pub const LIVE_VIEW_SCHEMA: &str = "veoveo.io/live-view/v1";
@@ -169,22 +168,24 @@ impl From<LiveViewAccessToken> for String {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LiveViewOwner {
-    pub principal: PrincipalId,
+    pub subject: AccessSubject,
     pub tenant: TenantId,
-    pub profile: GatewayProfileId,
+    pub work_context: WorkContextId,
+    pub policy_revision: PolicyVersion,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub data_labels: BTreeSet<DataLabelId>,
-    pub authority: InvocationAuthority,
 }
 
 impl LiveViewOwner {
     pub fn from_identity(identity: &GatewayInternalIdentity) -> Self {
+        let mut data_labels = identity.authority.output_policy.data_labels.clone();
+        data_labels.extend(identity.authority.output_policy.classification.clone());
         Self {
-            principal: identity.actor.id.clone(),
+            subject: identity.authority.output_policy.owner.clone(),
             tenant: identity.authority.tenant.clone(),
-            profile: identity.profile.clone(),
-            data_labels: identity.actor.data_labels.clone(),
-            authority: identity.authority.clone(),
+            work_context: identity.authority.work_context.clone(),
+            policy_revision: identity.authority.policy_revision.clone(),
+            data_labels,
         }
     }
 }

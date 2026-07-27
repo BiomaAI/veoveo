@@ -84,7 +84,11 @@ metadata, and attribution.
 
 `create_session` takes the caller-selected session identity that the scene and
 external pose producer already share. Repeating the same owner, session, and
-epoch is idempotent. Reusing that identity for another owner or epoch fails.
+epoch is idempotent. Reusing a live identity for another owner or epoch fails.
+After explicit close removes its cameras and revokes its streams, the same
+owner may begin a new epoch under that session identity at revision one. This
+makes stable domain session names repeatable without making a live scene
+mutable.
 
 Artifacts use `artifact://` identities plus exact SHA-256 digests and byte
 lengths. Environment and prototype roots accept USD, USDZ, GLB, or glTF.
@@ -130,9 +134,10 @@ old healthy sample.
 
 ## Cameras And Capacity
 
-Logical cameras are owner-scoped records with optimistic revisions. Rig kinds
-are fixed, look-at, orbit, follow entity, chase entity, mounted entity, and
-formation overview. Target identities must exist in the bound scene.
+Logical cameras are Work Context output-owner-scoped records with optimistic
+revisions. Rig kinds are fixed, look-at, orbit, follow entity, chase entity,
+mounted entity, and formation overview. Target identities must exist in the
+bound scene.
 
 Admission considers:
 
@@ -190,10 +195,13 @@ installation-owned public media IP. Chart validation and component-profile
 validation treat both port ranges as one bounded unit. A second camera never
 silently shares or replaces another camera's renderer port.
 
-Lease ownership includes principal, tenant, gateway profile, data labels,
-Work Context, policy revision, output policy, and invocation provenance.
-Close, expiry, camera replacement, session close, App teardown, and explicit
-authority revocation remove access.
+Lease ownership includes the typed Work Context output owner, tenant, Work
+Context, policy revision, and output data labels. Authorized automation and
+Console members compose over the same view state when the gateway resolves the
+same output owner. Gateway profiles remain authorization projections and do
+not partition governed state. Another Work Context, tenant, policy revision,
+or output label set remains isolated. Close, expiry, camera replacement,
+session close, App teardown, and explicit authority revocation remove access.
 
 ## MCP Surface
 
@@ -284,3 +292,7 @@ and API-only substitutes are rejected as acceptance evidence.
 The UAV showcase retains its PX4, domain sensor, recording, scene-declaration,
 and pose-producer checks. It consumes Simulation View but does not own generic
 sessions, cameras, render products, leases, signaling, or App acceptance.
+`smoke uav-showcase-verify` is a separate showcase-level composition proof.
+It requires the actual authenticated Console and records takeoff, mission,
+landing, and governed Rerun evidence without adding UAV behavior to this
+server.
