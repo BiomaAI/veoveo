@@ -53,7 +53,7 @@ helm-check:
     {{helm}} lint showcase/sumo/deploy/helm
     {{helm}} lint showcase/uav-sim/deploy/helm
     {{helm}} template veoveo deploy/helm/veoveo -f deploy/local/k3d/values.yaml >/dev/null
-    {{helm}} template bioma deploy/helm/veoveo -f examples/bioma/values.yaml -f examples/bioma/k3d-values.yaml >/dev/null
+    {{helm}} template bioma deploy/helm/veoveo -f examples/bioma/values.yaml -f examples/bioma/k3d-values.yaml -f examples/bioma/images.lock.yaml >/dev/null
     {{helm}} template sumo showcase/sumo/deploy/helm >/dev/null
     {{helm}} template uav-sim showcase/uav-sim/deploy/helm -f examples/bioma/uav-sim-values.yaml -f examples/bioma/images.lock.yaml >/dev/null
 
