@@ -169,13 +169,29 @@ pub(crate) async fn uav_showcase_verify(
         &resources.camera_id,
         &evidence_directory,
     );
-    let acceptance = tokio::try_join!(domain, visual);
+    // Do not cancel domain acceptance when visual acceptance fails after
+    // takeoff. The domain future owns postflight landing recovery and must run
+    // to completion on every composed path.
+    let acceptance = tokio::join!(domain, visual);
     let flight = match acceptance {
-        Ok(((), flight)) => flight,
-        Err(error) => {
+        (Ok(()), Ok(flight)) => flight,
+        (Err(domain_error), Ok(_)) => {
             let cleanup = cleanup_view(&operator, &mut resources).await;
             cleanup?;
-            return Err(error.context("composed UAV showcase acceptance failed"));
+            return Err(domain_error.context("composed UAV domain acceptance failed"));
+        }
+        (Ok(()), Err(visual_error)) => {
+            let cleanup = cleanup_view(&operator, &mut resources).await;
+            cleanup?;
+            return Err(visual_error.context("composed UAV visual acceptance failed"));
+        }
+        (Err(domain_error), Err(visual_error)) => {
+            let cleanup = cleanup_view(&operator, &mut resources).await;
+            cleanup?;
+            bail!(
+                "composed UAV domain acceptance failed: {domain_error:#}; visual acceptance also \
+                 failed: {visual_error:#}"
+            );
         }
     };
 
