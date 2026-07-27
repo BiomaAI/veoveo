@@ -4,11 +4,14 @@ import hashlib
 import os
 import struct
 import tempfile
+import threading
 import unittest
 from io import BytesIO
 from pathlib import Path
-from unittest.mock import patch
+from types import ModuleType
+from unittest.mock import Mock, patch
 
+from veoveo_simulation_view.camera import CameraPool, HydraRenderProductProbe
 from veoveo_simulation_view.config import RendererConfig
 from veoveo_simulation_view.contracts import (
     CameraBinding,
@@ -21,6 +24,125 @@ from veoveo_simulation_view.scene import ArtifactMaterializer, ArtifactStore
 
 
 class RendererContractsTest(unittest.TestCase):
+    def test_render_product_is_reconfigured_without_recreation(self) -> None:
+        class FakeHydraTexture:
+            def __init__(self) -> None:
+                self.camera_path = "/old-camera"
+                self.width = 320
+                self.height = 180
+                self.update_history: list[bool] = []
+
+            @property
+            def updates_enabled(self) -> bool:
+                return self.update_history[-1]
+
+            @updates_enabled.setter
+            def updates_enabled(self, value: bool) -> None:
+                self.update_history.append(value)
+
+            def get_settings_path(self) -> str:
+                return "/hydra/slot/"
+
+        texture = FakeHydraTexture()
+        probe = HydraRenderProductProbe.__new__(HydraRenderProductProbe)
+        probe._width = 320
+        probe._height = 180
+        probe._lock = threading.Lock()
+        probe._capture_pending = True
+        probe._last_capture_requested = 4.0
+        probe._closed = False
+        probe._generation = 3
+        probe._health = None
+        probe._failure = RuntimeError("stale")
+        probe._subscription = object()
+        probe._hydra_texture = texture
+
+        settings = Mock()
+        carb = ModuleType("carb")
+        carb.__path__ = []
+        carb_settings = ModuleType("carb.settings")
+        carb_settings.get_settings = lambda: settings
+        carb.settings = carb_settings
+        with patch.dict(
+            "sys.modules",
+            {"carb": carb, "carb.settings": carb_settings},
+        ):
+            probe.reconfigure(
+                camera_path="/World/SimulationView/Cameras/slot_2",
+                width=640,
+                height=360,
+                fps=30,
+            )
+
+        self.assertIs(probe._hydra_texture, texture)
+        self.assertEqual(texture.camera_path, "/World/SimulationView/Cameras/slot_2")
+        self.assertEqual((texture.width, texture.height), (640, 360))
+        self.assertEqual(texture.update_history, [False, True])
+        self.assertEqual(probe._generation, 4)
+        self.assertFalse(probe._closed)
+        self.assertIsNone(probe._failure)
+        settings.set.assert_called_once_with("/hydra/slot/hydraTickRate", 30)
+
+    def test_idle_physical_slot_is_reused_by_the_next_logical_camera(
+        self,
+    ) -> None:
+        class FakeRuntime:
+            def __init__(self, binding: CameraBinding) -> None:
+                self.binding = binding
+                self.probe = Mock()
+                self.smoothed_eye = (1.0, 2.0, 3.0)
+                self.last_update = 4.0
+                self.last_pose_sequence = 5
+                self.pose_stale = True
+
+            def status(self) -> dict[str, object]:
+                return {"cameraId": self.binding.camera_id}
+
+        first = CameraBinding(
+            session_id="session-1",
+            camera_id="camera-1",
+            revision=1,
+            render_slot=2,
+            definition={},
+        )
+        second = CameraBinding(
+            session_id="session-2",
+            camera_id="camera-2",
+            revision=1,
+            render_slot=2,
+            definition={},
+        )
+        runtime = FakeRuntime(first)
+        pool = CameraPool.__new__(CameraPool)
+        pool._cameras = {first.camera_id: runtime}
+        pool._slots = {first.render_slot: first.camera_id}
+        pool._idle = {}
+        pool._probe = None
+
+        pool.close(first.camera_id)
+        runtime.probe.pause.assert_called_once_with()
+        self.assertIs(pool._idle[first.render_slot], runtime)
+
+        def configure(
+            reused: FakeRuntime, binding: CameraBinding
+        ) -> None:
+            reused.binding = binding
+
+        with (
+            patch.object(
+                pool,
+                "_configure_camera",
+                side_effect=configure,
+            ) as configure_camera,
+            patch.object(pool, "_create_camera") as create_camera,
+        ):
+            status = pool.upsert(second)
+
+        configure_camera.assert_called_once_with(runtime, second)
+        create_camera.assert_not_called()
+        self.assertEqual(status, {"cameraId": "camera-2"})
+        self.assertIs(pool._cameras[second.camera_id], runtime)
+
     def test_config_requires_disjoint_bounded_port_ranges(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             values = {

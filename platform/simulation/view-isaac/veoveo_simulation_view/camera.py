@@ -85,6 +85,7 @@ class HydraRenderProductProbe:
         self._capture_pending = False
         self._last_capture_requested = 0.0
         self._closed = False
+        self._generation = 0
         self._health: FrameHealth | None = None
         self._failure: BaseException | None = None
         name = render_product_name(slot)
@@ -124,12 +125,47 @@ class HydraRenderProductProbe:
         return health
 
     def close(self) -> None:
-        with self._lock:
-            self._closed = True
+        self.pause()
         if hasattr(self, "_subscription"):
             self._subscription = None
-        if hasattr(self, "_hydra_texture"):
-            self._hydra_texture.updates_enabled = False
+
+    def pause(self) -> None:
+        with self._lock:
+            self._closed = True
+            self._generation += 1
+            self._capture_pending = False
+            self._health = None
+            self._failure = None
+        self._hydra_texture.updates_enabled = False
+
+    def reconfigure(
+        self,
+        *,
+        camera_path: str,
+        width: int,
+        height: int,
+        fps: int,
+    ) -> None:
+        import carb.settings
+
+        if width < 1 or height < 1 or fps < 1:
+            raise ValueError(
+                "RTX render-product width, height, and fps must be positive"
+            )
+        self.pause()
+        self._hydra_texture.camera_path = camera_path
+        self._hydra_texture.width = width
+        self._hydra_texture.height = height
+        carb.settings.get_settings().set(
+            f"{self._hydra_texture.get_settings_path()}hydraTickRate",
+            fps,
+        )
+        with self._lock:
+            self._width = width
+            self._height = height
+            self._closed = False
+            self._last_capture_requested = 0.0
+        self._hydra_texture.updates_enabled = True
 
     def _on_drawable(self, event: Any) -> None:
         try:
@@ -156,14 +192,26 @@ class HydraRenderProductProbe:
                     return
                 self._capture_pending = True
                 self._last_capture_requested = now
+                generation = self._generation
             self._capture.capture_next_frame_rp_resource_callback(
-                self._on_capture, resource
+                lambda buffer, buffer_size, width, height, pixel_format: (
+                    self._on_capture(
+                        generation,
+                        buffer,
+                        buffer_size,
+                        width,
+                        height,
+                        pixel_format,
+                    )
+                ),
+                resource,
             )
         except BaseException as error:
             self._record_failure(error)
 
     def _on_capture(
         self,
+        generation: int,
         buffer: Any,
         buffer_size: int,
         width: int,
@@ -171,10 +219,15 @@ class HydraRenderProductProbe:
         pixel_format: Any,
     ) -> None:
         try:
-            expected = self._width * self._height * 4
+            with self._lock:
+                if generation != self._generation or self._closed:
+                    return
+                expected_width = self._width
+                expected_height = self._height
+            expected = expected_width * expected_height * 4
             if (
-                width != self._width
-                or height != self._height
+                width != expected_width
+                or height != expected_height
                 or buffer_size != expected
                 or str(pixel_format) != RGBA8_TEXTURE_FORMAT
             ):
@@ -199,6 +252,8 @@ class HydraRenderProductProbe:
                 >= width * height * 0.02
             )
             with self._lock:
+                if generation != self._generation or self._closed:
+                    return
                 previous = self._health
                 self._health = FrameHealth(
                     sequence=1 if previous is None else previous.sequence + 1,
@@ -208,10 +263,14 @@ class HydraRenderProductProbe:
                 )
                 self._capture_pending = False
         except BaseException as error:
-            self._record_failure(error)
+            self._record_failure(error, generation)
 
-    def _record_failure(self, error: BaseException) -> None:
+    def _record_failure(
+        self, error: BaseException, generation: int | None = None
+    ) -> None:
         with self._lock:
+            if generation is not None and generation != self._generation:
+                return
             self._capture_pending = False
             if self._failure is None:
                 self._failure = error
@@ -250,6 +309,7 @@ class CameraPool:
         self._config = config
         self._cameras: dict[str, CameraRuntime] = {}
         self._slots: dict[int, str] = {}
+        self._idle: dict[int, CameraRuntime] = {}
         self._probe: CameraRuntime | None = self._create_diagnostic_probe()
 
     def upsert(self, binding: CameraBinding) -> dict[str, object]:
@@ -259,15 +319,21 @@ class CameraPool:
             and existing_camera != binding.camera_id
         ):
             raise ContractError("renderer slot is already assigned")
-        existing = self._cameras.pop(binding.camera_id, None)
+        existing = self._cameras.get(binding.camera_id)
         if existing is not None:
-            existing.probe.close()
-            self._stage.RemovePrim(existing.camera_path)
-        if binding.render_slot == 0 and self._probe is not None:
-            self._probe.probe.close()
-            self._stage.RemovePrim(self._probe.camera_path)
+            if existing.binding.render_slot != binding.render_slot:
+                raise ContractError("renderer camera slot is immutable")
+            self._configure_camera(existing, binding)
+            return existing.status()
+        if binding.render_slot == 0:
+            runtime = self._probe
             self._probe = None
-        runtime = self._create_camera(binding)
+        else:
+            runtime = self._idle.pop(binding.render_slot, None)
+        if runtime is None:
+            runtime = self._create_camera(binding)
+        else:
+            self._configure_camera(runtime, binding)
         self._cameras[binding.camera_id] = runtime
         self._slots[binding.render_slot] = binding.camera_id
         return runtime.status()
@@ -276,11 +342,17 @@ class CameraPool:
         runtime = self._cameras.pop(camera_id, None)
         if runtime is None:
             return
-        runtime.probe.close()
-        self._stage.RemovePrim(runtime.camera_path)
         self._slots.pop(runtime.binding.render_slot, None)
-        if runtime.binding.render_slot == 0 and self._probe is None:
-            self._probe = self._create_diagnostic_probe()
+        if runtime.binding.render_slot == 0:
+            self._configure_diagnostic(runtime)
+            self._probe = runtime
+        else:
+            runtime.probe.pause()
+            runtime.smoothed_eye = None
+            runtime.last_update = 0.0
+            runtime.last_pose_sequence = None
+            runtime.pose_stale = False
+            self._idle[runtime.binding.render_slot] = runtime
 
     def close_session(self, session_id: str) -> None:
         for camera_id in [
@@ -333,11 +405,98 @@ class CameraPool:
     def close_all(self) -> None:
         for runtime in self._cameras.values():
             runtime.probe.close()
+        for runtime in self._idle.values():
+            runtime.probe.close()
         self._cameras.clear()
         self._slots.clear()
+        self._idle.clear()
         if self._probe is not None:
             self._probe.probe.close()
             self._probe = None
+
+    def _configure_camera(
+        self, runtime: CameraRuntime, binding: CameraBinding
+    ) -> None:
+        from pxr import Gf, UsdGeom
+
+        definition = binding.definition
+        camera = UsdGeom.Camera.Define(self._stage, runtime.camera_path)
+        aspect = float(definition["widthPx"]) / float(
+            definition["heightPx"]
+        )
+        vertical_aperture = 24.0
+        focal = vertical_aperture / (
+            2.0
+            * math.tan(
+                math.radians(float(definition["verticalFovDegrees"])) / 2.0
+            )
+        )
+        camera.CreateVerticalApertureAttr().Set(vertical_aperture)
+        camera.CreateHorizontalApertureAttr().Set(
+            vertical_aperture * aspect
+        )
+        camera.CreateFocalLengthAttr().Set(focal)
+        camera.CreateClippingRangeAttr().Set(
+            Gf.Vec2f(
+                float(definition["nearClipM"]),
+                float(definition["farClipM"]),
+            )
+        )
+        runtime.binding = binding
+        runtime.smoothed_eye = None
+        runtime.last_update = 0.0
+        runtime.last_pose_sequence = None
+        runtime.pose_stale = False
+        runtime.probe.reconfigure(
+            camera_path=runtime.camera_path,
+            width=int(definition["widthPx"]),
+            height=int(definition["heightPx"]),
+            fps=max(
+                1,
+                int(definition["frameRateMillihertz"]) // 1000,
+            ),
+        )
+        self._update_camera(runtime, None)
+
+    def _configure_diagnostic(self, runtime: CameraRuntime) -> None:
+        from pxr import Gf, UsdGeom
+
+        camera = UsdGeom.Camera.Define(self._stage, runtime.camera_path)
+        camera.CreateFocalLengthAttr().Set(35.0)
+        camera.CreateVerticalApertureAttr().Set(24.0)
+        camera.CreateHorizontalApertureAttr().Set(36.0)
+        camera.CreateClippingRangeAttr().Set(Gf.Vec2f(0.1, 1_000.0))
+        runtime.transform_operation.Set(
+            Gf.Matrix4d()
+            .SetLookAt(
+                Gf.Vec3d(6.0, -6.0, 4.0),
+                Gf.Vec3d(0.0, 0.0, 0.5),
+                Gf.Vec3d(0.0, 0.0, 1.0),
+            )
+            .GetInverse()
+        )
+        runtime.binding = CameraBinding(
+            session_id="diagnostic",
+            camera_id="diagnostic",
+            revision=1,
+            render_slot=0,
+            definition={
+                "rig": {"kind": "look_at"},
+                "widthPx": self._config.probe_width,
+                "heightPx": self._config.probe_height,
+                "frameRateMillihertz": self._config.probe_fps * 1000,
+            },
+        )
+        runtime.smoothed_eye = None
+        runtime.last_update = 0.0
+        runtime.last_pose_sequence = None
+        runtime.pose_stale = False
+        runtime.probe.reconfigure(
+            camera_path=runtime.camera_path,
+            width=self._config.probe_width,
+            height=self._config.probe_height,
+            fps=self._config.probe_fps,
+        )
 
     def _create_camera(self, binding: CameraBinding) -> CameraRuntime:
         from pxr import Gf, UsdGeom
@@ -393,9 +552,10 @@ class CameraPool:
     def _create_diagnostic_probe(self) -> CameraRuntime:
         from pxr import Gf, UsdGeom
 
-        path = "/World/SimulationView/Diagnostics/Camera"
+        path = "/World/SimulationView/Cameras/slot_0"
         camera = UsdGeom.Camera.Define(self._stage, path)
         camera.CreateFocalLengthAttr(35.0)
+        camera.CreateVerticalApertureAttr(24.0)
         camera.CreateHorizontalApertureAttr(36.0)
         camera.CreateClippingRangeAttr(Gf.Vec2f(0.1, 1_000.0))
         xform = UsdGeom.Xformable(camera.GetPrim())
