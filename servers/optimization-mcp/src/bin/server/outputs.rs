@@ -5,7 +5,9 @@ use veoveo_mcp_contract::{
     ArtifactMetadata, ArtifactPut, ArtifactWriteIdempotencyKey, ComplianceMetadata,
     IssuedArtifactWriteCapability, now_utc,
 };
-use veoveo_optimization_mcp::{contract::PlanOutput, planning::PlanRun, state::TaskOwner};
+use veoveo_optimization_mcp::{
+    contract::PlanOutput, plan_artifacts::PlanArtifactBytes, planning::PlanRun, state::TaskOwner,
+};
 use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, OpenObject};
 use veoveo_task_runtime::TaskId;
 
@@ -18,8 +20,23 @@ pub(super) async fn plan_result(
     owner: &TaskOwner,
     mut run: PlanRun,
 ) -> anyhow::Result<CallToolResult> {
+    let plan_artifact = store_artifact(
+        state,
+        require_capability(capability)?,
+        owner,
+        run.plan_json,
+        "plan-json",
+        "canonical governed plan",
+    )
+    .await?;
+    let mut output = PlanOutput {
+        plan: run.plan,
+        plan_artifact,
+        duckdb_artifact: None,
+        rrd_artifact: None,
+    };
     if let Some(artifact) = run.duckdb.take() {
-        run.output.duckdb_artifact = Some(
+        output.duckdb_artifact = Some(
             store_artifact(
                 state,
                 require_capability(capability)?,
@@ -32,7 +49,7 @@ pub(super) async fn plan_result(
         );
     }
     if let Some(artifact) = run.rrd.take() {
-        run.output.rrd_artifact = Some(
+        output.rrd_artifact = Some(
             store_artifact(
                 state,
                 require_capability(capability)?,
@@ -44,29 +61,46 @@ pub(super) async fn plan_result(
             .await?,
         );
     }
-    record_usage(state, task_id, &run.output).await?;
+    record_usage(state, task_id, &output).await?;
 
     let mut blocks = vec![ContentBlock::text(format!(
-        "plan completed with status {:?}; selected {} of {} option(s)",
-        run.output.status, run.output.summary.selected, run.output.summary.options
+        "plan {} completed with status {:?}; produced {} assignment(s) from {} generated candidate(s)",
+        output.plan.plan_id,
+        output.plan.status,
+        output.plan.metrics.assignments,
+        output.plan.metrics.generated_candidates
     ))];
-    if let Some(artifact) = &run.output.duckdb_artifact {
+    blocks.push(ContentBlock::ResourceLink(
+        Resource::new(
+            output.plan.resource_uri.clone(),
+            format!("plan {}", output.plan.plan_id),
+        )
+        .with_title("Governed spatial plan")
+        .with_description("Typed immutable plan, assignments, findings, metrics, and provenance.")
+        .with_mime_type("application/json"),
+    ));
+    blocks.push(artifact_link(
+        &output.plan_artifact,
+        "canonical plan JSON",
+        "Canonical immutable plan artifact with the recorded plan digest.",
+    ));
+    if let Some(artifact) = &output.duckdb_artifact {
         blocks.push(artifact_link(
             artifact,
             "plan DuckDB",
-            "DuckDB snapshot containing selected options and plan summary.",
+            "DuckDB snapshot containing assignments, requirements, and the governed plan.",
         ));
     }
-    if let Some(artifact) = &run.output.rrd_artifact {
+    if let Some(artifact) = &output.rrd_artifact {
         blocks.push(artifact_link(
             artifact,
             "plan RRD",
-            "Rerun recording containing plan metrics, selections, and provenance.",
+            "Rerun recording containing plan assignments, metrics, and provenance.",
         ));
     }
 
     let mut result = CallToolResult::success(blocks);
-    result.structured_content = Some(serde_json::to_value(&run.output)?);
+    result.structured_content = Some(serde_json::to_value(&output)?);
     Ok(result)
 }
 
@@ -74,7 +108,7 @@ async fn store_artifact(
     state: &AppState,
     capability: &IssuedArtifactWriteCapability,
     owner: &TaskOwner,
-    artifact: veoveo_optimization_mcp::planning::PlanArtifactBytes,
+    artifact: PlanArtifactBytes,
     idempotency_suffix: &str,
     title: &str,
 ) -> anyhow::Result<ArtifactMetadata> {
@@ -131,20 +165,28 @@ async fn record_usage(state: &AppState, task_id: &str, output: &PlanOutput) -> a
             provider_job_id: None,
             model_id: "optimization/good_lp-microlp".to_owned(),
             kind: DomainUsageKind::Actual,
-            quantity: Some(output.summary.options as f64),
-            unit: Some("option".to_owned()),
+            quantity: Some(output.plan.metrics.generated_candidates as f64),
+            unit: Some("candidate".to_owned()),
             amount: None,
             currency: None,
             recorded_at: now_utc(),
             metadata: OpenObject::new(BTreeMap::from([
                 (
                     "selected".into(),
-                    serde_json::json!(output.summary.selected),
+                    serde_json::json!(output.plan.metrics.assignments),
                 ),
-                ("tasks".into(), serde_json::json!(output.summary.tasks)),
-                ("agents".into(), serde_json::json!(output.summary.agents)),
-                ("status".into(), serde_json::json!(output.status)),
-                ("solver".into(), serde_json::json!(output.solver)),
+                ("tasks".into(), serde_json::json!(output.plan.metrics.tasks)),
+                (
+                    "agents".into(),
+                    serde_json::json!(output.plan.metrics.agents),
+                ),
+                ("status".into(), serde_json::json!(output.plan.status)),
+                ("solver".into(), serde_json::json!(output.plan.solver)),
+                ("plan_id".into(), serde_json::json!(output.plan.plan_id)),
+                (
+                    "plan_digest_sha256".into(),
+                    serde_json::json!(output.plan.plan_digest_sha256),
+                ),
             ])),
         })
         .await?;

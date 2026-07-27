@@ -22,7 +22,6 @@ duckdb.workspace = true
 futures.workspace = true
 good_lp.workspace = true
 hex.workspace = true
-object_store.workspace = true
 re_sdk.workspace = true
 re_sdk_types.workspace = true
 reqwest = { workspace = true, features = ["rustls-no-provider"] }
@@ -39,7 +38,6 @@ tower-http.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 veoveo-artifact-client = { path = "../../platform/artifacts/client" }
-veoveo-duckdb-runtime = { path = "../../platform/runtimes/duckdb" }
 veoveo-mcp-contract = { workspace = true, features = ["analytics"] }
 veoveo-mcp-task-extension = { path = "../../mcp/task-extension" }
 veoveo-platform-store = { path = "../../platform/store" }

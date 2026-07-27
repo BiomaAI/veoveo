@@ -243,15 +243,27 @@ async fn fake_llm_completion(AxumJson(request): AxumJson<Value>) -> AxumJson<Val
             2 => fake_llm_tool_call_choice(
                 "optimization__plan",
                 json!({
-                    "input": {
-                        "kind": "inline",
-                        "agents": [{ "id": "pilot-1" }],
-                        "tasks": [{ "id": "visit-alpha" }],
-                        "options": [{
-                            "id": "opt-1", "task_id": "visit-alpha",
-                            "agent_ids": ["pilot-1"], "cost": 1.0
-                        }]
-                    }
+                    "schema_version": 1,
+                    "source_map_releases": [
+                        "map://dataset/pilot-smoke/release/release-smoke"
+                    ],
+                    "frame_world_revision": "frames://world/pilot-smoke/revision/revision-1",
+                    "agents": [{
+                        "agent_id": "pilot-1",
+                        "mobility_profile": "map://mobility-profile/pilot-aircraft/1"
+                    }],
+                    "tasks": [{
+                        "task_id": "visit-alpha",
+                        "quantity": { "minimum": 1, "desired": 1 },
+                        "target": {
+                            "kind": "source_feature",
+                            "uri": "map://source-feature/release-smoke/source-feature-alpha"
+                        },
+                        "execution": {
+                            "kind": "map_route",
+                            "uri": "map://route/route-alpha"
+                        }
+                    }]
                 }),
             ),
             _ => return AxumJson(fake_llm_stop_response(&request, "AWAITING PLAN.")),

@@ -52,7 +52,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and bounded transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration |
 | [`servers/map-mcp/DESIGN.md`](../servers/map-mcp/DESIGN.md) | Earth geography, map data administration, and logistics routing |
-| [`servers/optimization-mcp/DESIGN.md`](../servers/optimization-mcp/DESIGN.md) | planning problem models and optimization |
+| [`servers/optimization-mcp/DESIGN.md`](../servers/optimization-mcp/DESIGN.md) | compact spatial multi-agent assignment, governed plan identity, and evidence artifacts |
 | [`servers/perception-mcp/DESIGN.md`](../servers/perception-mcp/DESIGN.md) | governed local sensor inference and derived annotations |
 | [`servers/reason-mcp/DESIGN.md`](../servers/reason-mcp/DESIGN.md) | governed video reasoning, grounding, and audited world-model output |
 | [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) | temporal authority, operational calendars, clock quality, and events |
@@ -353,6 +353,7 @@ The Rust MCP server pattern is intentionally consistent:
 |---|---|
 | `contract.rs` | tool/resource request and result types owned by the domain |
 | `engine.rs`, `forecast.rs`, or `planning.rs` | pure domain computation |
+| `plan_artifacts.rs` | canonical governed-plan JSON plus optional DuckDB and RRD evidence encoding |
 | `state.rs` | server-local provider and domain models, not task persistence |
 | `uris.rs` | canonical server resource identities |
 | `artifacts.rs` | task-bound capability preparation/redemption |
@@ -374,7 +375,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/frames-mcp` | complete rooted frame worlds, immutable revisions, coordinate conversion, and operation provenance |
 | `servers/map-mcp` | Earth geography, governed feature authoring and products, source and raster releases, reusable spatial derivation, mobility validation, and logistics routing |
 | `servers/media-mcp` | webhook-completed provider media work and governed outputs |
-| `servers/optimization-mcp` | planning problem models, solver execution, validation, and mission outputs |
+| `servers/optimization-mcp` | compact typed spatial assignments, internal candidate generation, bounded solver execution, immutable plan resources, and governed evidence |
 | `servers/perception-mcp` | local recorded-sensor inference and Rerun annotations |
 | `servers/reason-mcp` | local recorded-video reasoning, grounding, and Rerun annotations |
 | `servers/recording-mcp` | governed recording catalog, queries, subscriptions, and sealing |

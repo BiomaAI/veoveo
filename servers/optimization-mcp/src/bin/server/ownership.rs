@@ -61,6 +61,7 @@ pub(super) fn task_owner_from_identity(
         profile: identity.profile.clone(),
         tenant: identity.actor.tenant.clone(),
         data_labels: identity.actor.data_labels.clone(),
+        authority: identity.authority.clone(),
     }
 }
 
@@ -87,6 +88,7 @@ pub(super) fn task_owner_from_runtime(
             .map(veoveo_mcp_contract::DataLabelId::new)
             .collect::<Result<_, _>>()
             .map_err(|error| error.to_string())?,
+        authority: owner.authority.clone(),
     })
 }
 
@@ -119,6 +121,7 @@ pub(super) async fn optional_task_owner(
             .map(veoveo_mcp_contract::DataLabelId::new)
             .collect::<Result<_, _>>()
             .map_err(|err| McpError::internal_error(err.to_string(), None))?,
+        authority: owner.authority,
     }))
 }
 
@@ -169,4 +172,5 @@ pub(super) fn task_owner_allows(owner: &TaskOwner, identity: &GatewayInternalIde
         && owner.profile == identity.profile
         && owner.tenant == identity.actor.tenant
         && owner.data_labels.is_subset(&identity.actor.data_labels)
+        && owner.authority.work_context == identity.authority.work_context
 }

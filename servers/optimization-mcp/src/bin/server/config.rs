@@ -17,12 +17,6 @@ pub(super) struct Args {
     pub(super) allow_loopback_hosts: bool,
     #[arg(long = "allowed-host", value_name = "HOST", value_parser = parse_allowed_host)]
     pub(super) allowed_hosts: Vec<String>,
-    /// Exact HTTPS hosts accepted for governed DuckDB source materialization.
-    /// Empty disables remote sources; inline sources remain available.
-    #[arg(long = "allow-source-host", value_name = "HOST")]
-    pub(super) allow_source_hosts: Vec<String>,
-    #[arg(long, default_value_t = 268_435_456)]
-    pub(super) max_source_bytes: u64,
     #[arg(long, default_value_t = 536_870_912)]
     pub(super) max_artifact_bytes: u64,
     #[arg(long = "surreal-endpoint", env = "VEOVEO_SURREAL_ENDPOINT")]
