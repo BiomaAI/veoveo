@@ -1,0 +1,8 @@
+veoveo:
+  production: true
+  registry: registry.example.internal
+  imageDigests:
+    extensions/anonymous-simulation-mcp: sha256:1111111111111111111111111111111111111111111111111111111111111111
+
+pose:
+  existingClientTlsSecret: anonymous-simulation-pose-tls

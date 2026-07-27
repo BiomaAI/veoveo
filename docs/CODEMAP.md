@@ -126,6 +126,8 @@ is the browser edition of the harness document.
 | `templates/python-mcp/` | canonical Python server template (`datasheet`) |
 | `testing/fixtures/extension-helm-consumer/` | anonymous cross-release Helm library acceptance fixture |
 | `testing/fixtures/external-extension-installation/` | anonymous deployment v2 platform selection and exact Artifact/Frames/Map/Media/Recording/RRD image-closure acceptance |
+| `testing/fixtures/external-simulation-extension/` | isolated Python extension fixture that publishes governed OpenUSD assets and typed latest poses while consuming core Simulation View |
+| `testing/fixtures/external-simulation-installation/` | independent platform/extension source composition, exact Simulation View image closure, installation-owned gateway binding, and exclusive renderer GPU placement |
 | `deploy/contract/tests/multi_repository.rs` | anonymous acceptance using independent platform, extension, and installation Git histories with one combined deployment lock |
 | `testing/fixtures/simulation-overlay/` | repository-neutral overlay identity and CUDA probe for canonical simulation-base acceptance |
 | `tools/image-build/` | managed BuildKit configuration and shared Rust image-builder inputs |

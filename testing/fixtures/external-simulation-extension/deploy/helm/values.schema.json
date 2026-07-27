@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "veoveo",
+    "image",
+    "service",
+    "artifactServiceUrl",
+    "pose",
+    "resources",
+    "networkPolicy"
+  ],
+  "properties": {
+    "veoveo-extension": {"type": "object"},
+    "veoveo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "installationId",
+        "production",
+        "registry",
+        "sourceTag",
+        "imageDigests",
+        "imagePullSecrets",
+        "installationSecret"
+      ],
+      "properties": {
+        "installationId": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+        },
+        "production": {"type": "boolean"},
+        "registry": {"type": "string"},
+        "sourceTag": {
+          "type": "string",
+          "not": {"const": "latest"}
+        },
+        "imageDigests": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          }
+        },
+        "imagePullSecrets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "installationSecret": {"type": "string", "minLength": 1}
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "tag", "digest"],
+      "properties": {
+        "repository": {"type": "string", "minLength": 1},
+        "tag": {
+          "type": "string",
+          "minLength": 1,
+          "not": {"const": "latest"}
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^$|^sha256:[a-f0-9]{64}$"
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["port"],
+      "properties": {
+        "port": {"type": "integer", "minimum": 1024, "maximum": 65535}
+      }
+    },
+    "artifactServiceUrl": {
+      "type": "string",
+      "pattern": "^https?://"
+    },
+    "pose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "producerId",
+        "producerSpiffeId",
+        "endpointHost",
+        "endpointPort",
+        "serverHostname",
+        "existingClientTlsSecret"
+      ],
+      "properties": {
+        "producerId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]{1,128}$"
+        },
+        "producerSpiffeId": {
+          "type": "string",
+          "pattern": "^spiffe://\\S{1,500}$"
+        },
+        "endpointHost": {"type": "string", "minLength": 1},
+        "endpointPort": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "serverHostname": {"type": "string", "minLength": 1},
+        "existingClientTlsSecret": {"type": "string", "minLength": 1}
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requests", "limits"],
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cpu", "memory"],
+          "properties": {
+            "cpu": {"type": "string", "minLength": 1},
+            "memory": {"type": "string", "minLength": 1}
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cpu", "memory"],
+          "properties": {
+            "cpu": {"type": "string", "minLength": 1},
+            "memory": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dnsNamespaceSelector"],
+      "properties": {
+        "dnsNamespaceSelector": {
+          "type": "object",
+          "minProperties": 1
+        }
+      }
+    }
+  }
+}

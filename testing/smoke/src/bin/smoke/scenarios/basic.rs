@@ -91,6 +91,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "showcase/sumo/deploy/helm",
         "showcase/uav-sim/deploy/helm",
         "testing/fixtures/extension-helm-consumer",
+        "testing/fixtures/external-simulation-extension/deploy/helm",
     ] {
         run_checked(Path::new("helm"), ["lint".into(), chart.into()], [])
             .with_context(|| format!("linting Helm chart {chart}"))?;
@@ -134,6 +135,60 @@ pub(crate) async fn helm_config() -> Result<()> {
     ensure!(
         !production_extension.status.success(),
         "production extension render must reject mutable image tags"
+    );
+
+    let external_simulation = run_checked(
+        Path::new("helm"),
+        [
+            "template".into(),
+            "anonymous-simulation".into(),
+            "testing/fixtures/external-simulation-extension/deploy/helm".into(),
+            "--namespace".into(),
+            "veoveo".into(),
+            "--values".into(),
+            "testing/fixtures/external-simulation-extension/deploy/helm/values.test.yaml".into(),
+        ],
+        [],
+    )?;
+    for expected in [
+        "name: anonymous-simulation-mcp",
+        "registry.example.internal/extensions/anonymous-simulation-mcp@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "veoveo.ai/simulation-view-pose-producer: \"true\"",
+        "name: ANONYMOUS_SIMULATION_POSE_HOST",
+        "value: \"simulation-view-pose\"",
+        "name: pose-client-tls",
+        "secretName: \"anonymous-simulation-pose-tls\"",
+        "runAsUser: 10001",
+        "readOnlyRootFilesystem: true",
+        "port: 8790",
+        "port: 7443",
+    ] {
+        contains(&external_simulation, expected)?;
+    }
+    for forbidden in [
+        "nvidia.com/gpu",
+        "runtimeClassName:",
+        "simulation-view-isaac",
+        "SIMULATION_VIEW_WEBRTC",
+        "stream-media",
+        "stream-signal",
+        "name: camera",
+    ] {
+        not_contains(&external_simulation, forbidden)?;
+    }
+    let external_simulation_without_digest = Command::new("helm")
+        .args([
+            "template",
+            "anonymous-simulation",
+            "testing/fixtures/external-simulation-extension/deploy/helm",
+            "--set",
+            "veoveo.production=true",
+        ])
+        .output()
+        .context("rendering the external simulation chart without an image digest")?;
+    ensure!(
+        !external_simulation_without_digest.status.success(),
+        "production external simulation render must reject mutable image tags"
     );
 
     let platform = run_checked(
@@ -200,7 +255,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: view-mcp",
         "name: perception-mcp",
         "name: reason-mcp",
-        "value: \"artifact,media,timeseries,optimization,duckdb,frames,map,recording,perception,reason,datasheet\"",
+        "value: \"artifact,media,timeseries,optimization,duckdb,frames,map,recording,perception,reason,simulation-view,datasheet\"",
         "checksum/reason-runtime:",
     ] {
         contains(&bioma, expected)?;
@@ -238,6 +293,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         "map-mcp",
         "view-mcp",
         "time-mcp",
+        "simulation-view-mcp",
+        "simulation-view-renderer",
         "datasheet-mcp",
         "chart-mcp",
         "rerun-bridge",
@@ -618,19 +675,30 @@ pub(crate) async fn helm_config() -> Result<()> {
         "COPY --from=veoveo-rust-artifacts /bin/gateway",
     )?;
     let uav_mcp_dockerfile = fs::read_to_string("servers/uav-sim-mcp/Dockerfile")?;
+    contains(&uav_mcp_dockerfile, "--bin uav-sim-mcp")?;
+    for forbidden in ["@nvidia/ov-web-rtc", "WEBRTC_CLIENT_BUNDLE"] {
+        not_contains(&uav_mcp_dockerfile, forbidden)?;
+    }
+    let simulation_view_mcp_dockerfile =
+        fs::read_to_string("servers/simulation-view-mcp/Dockerfile")?;
+    contains(
+        &simulation_view_mcp_dockerfile,
+        "--from=veoveo-rust-artifacts /bin/simulation-view-mcp",
+    )?;
+    let workspace_builder = fs::read_to_string("tools/image-build/rust-workspace.Dockerfile")?;
     for expected in [
-        "--bin uav-sim-mcp",
         "@nvidia/ov-web-rtc@6.6.0",
         "77be78cd4799f797d320d386461834737f5a8368deacfb3b27ae26612f39c9a5",
-        "UAV_SIM_WEBRTC_CLIENT_BUNDLE=/tmp/ov-web-rtc.umd.cjs",
+        "SIMULATION_VIEW_WEBRTC_CLIENT_BUNDLE=",
     ] {
-        contains(&uav_mcp_dockerfile, expected)?;
+        contains(&workspace_builder, expected)?;
     }
     let bake = fs::read_to_string("docker-bake.hcl")?;
     for expected in [
         "group \"platform-core\"",
         "group \"platform-full\"",
         "group \"external-extension-platform\"",
+        "group \"external-simulation-platform\"",
         "group \"showcase-sumo-base\"",
         "group \"showcase-sumo\"",
         "group \"simulation-runtime\"",
@@ -678,6 +746,9 @@ pub(crate) async fn helm_config() -> Result<()> {
         "Bioma must use its enterprise GitOps contract rather than a deployment profile"
     );
     crate::deployment::profile_validate(Path::new("showcase/sumo/deploy/deployment.json"))?;
+    crate::deployment::profile_validate(Path::new(
+        "testing/fixtures/external-simulation-installation/deployment.json",
+    ))?;
     let bioma_root = fs::read_to_string("examples/bioma/gitops/bootstrap.yaml")?;
     for expected in [
         "kind: Application",
@@ -787,6 +858,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         "servers/timeseries-mcp/Dockerfile",
         "servers/time-mcp/Dockerfile",
         "servers/view-mcp/Dockerfile",
+        "servers/simulation-view-mcp/Dockerfile",
+        "platform/simulation/pose-ingress/Dockerfile",
     ] {
         let contents = fs::read_to_string(dockerfile)?;
         contains(&contents, "--from=veoveo-rust-artifacts")
@@ -796,7 +869,6 @@ pub(crate) async fn helm_config() -> Result<()> {
         not_contains(&contents, "COPY agents ./agents")
             .with_context(|| format!("{dockerfile} must not copy the Cargo workspace"))?;
     }
-    let workspace_builder = fs::read_to_string("tools/image-build/rust-workspace.Dockerfile")?;
     for expected in [
         "type=bind,source=.,target=/src,readonly",
         "id=veoveo-cargo-registry-v1",

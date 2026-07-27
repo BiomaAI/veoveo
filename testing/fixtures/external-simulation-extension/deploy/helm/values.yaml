@@ -1,0 +1,38 @@
+veoveo:
+  installationId: veoveo
+  production: false
+  registry: ""
+  sourceTag: ""
+  imageDigests: {}
+  imagePullSecrets: []
+  installationSecret: veoveo-installation-secrets
+
+image:
+  repository: extensions/anonymous-simulation-mcp
+  tag: 0.1.0
+  digest: ""
+
+service:
+  port: 8812
+
+artifactServiceUrl: http://artifact-service:8790
+
+pose:
+  producerId: anonymous-synthetic
+  producerSpiffeId: spiffe://veoveo.local/simulation/anonymous-synthetic
+  endpointHost: simulation-view-pose
+  endpointPort: 7443
+  serverHostname: simulation-view-pose.veoveo.svc
+  existingClientTlsSecret: anonymous-simulation-pose-tls
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 96Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+networkPolicy:
+  dnsNamespaceSelector:
+    kubernetes.io/metadata.name: kube-system

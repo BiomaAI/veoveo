@@ -1,0 +1,10 @@
+{
+  "platformCapabilities": [
+    "artifact",
+    "frames",
+    "simulation_view"
+  ],
+  "artifactAudiences": [
+    "anonymous-simulation"
+  ]
+}

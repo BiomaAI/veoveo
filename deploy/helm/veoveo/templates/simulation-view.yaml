@@ -140,6 +140,8 @@ metadata:
     app.kubernetes.io/component: simulation-view-mcp
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "veoveo.selectorLabels" . | nindent 6 }}

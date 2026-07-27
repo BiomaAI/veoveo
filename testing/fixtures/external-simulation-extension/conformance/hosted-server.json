@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "veoveo.io/mcp-conformance-profile/v1",
+  "profileId": "anonymous-simulation-extension-ci",
+  "contractRevision": "2",
+  "endpoint": "http://anonymous-simulation-mcp:8812/anonymous-simulation/mcp",
+  "serverSlug": "anonymous-simulation",
+  "ownedResourceSchemes": [
+    "anonymous-simulation"
+  ],
+  "http": {
+    "requireAuthenticationRejection": true,
+    "rejectedHost": "untrusted.invalid",
+    "healthUrl": "http://anonymous-simulation-mcp:8812/anonymous-simulation/healthz",
+    "readinessUrl": "http://anonymous-simulation-mcp:8812/anonymous-simulation/readyz"
+  },
+  "surfaces": {
+    "tools": "required",
+    "resources": "required",
+    "resourceTemplates": "forbidden",
+    "prompts": "forbidden",
+    "completions": "forbidden",
+    "tasks": "forbidden",
+    "subscriptions": "forbidden",
+    "requiredTools": [
+      "prepare_scene",
+      "start_pose_producer",
+      "stop_pose_producer",
+      "get_fixture_state"
+    ],
+    "requiredResources": [
+      "anonymous-simulation://state",
+      "anonymous-simulation://docs",
+      "anonymous-simulation://docs/design",
+      "anonymous-simulation://docs/agents",
+      "anonymous-simulation://contract"
+    ],
+    "requiredResourceTemplates": [],
+    "requiredPrompts": []
+  }
+}

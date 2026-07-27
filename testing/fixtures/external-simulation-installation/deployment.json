@@ -1,0 +1,106 @@
+{
+  "schemaVersion": "veoveo.io/deployment/v2",
+  "name": "anonymous-simulation-extension",
+  "registry": {
+    "address": "registry.example.internal",
+    "localConfig": null
+  },
+  "sources": [
+    {
+      "name": "veoveo",
+      "role": "platform",
+      "repository": {
+        "kind": "local",
+        "path": "../../.."
+      },
+      "revision": "HEAD",
+      "imageGroups": [
+        "external-simulation-platform"
+      ],
+      "releases": [
+        {
+          "name": "veoveo",
+          "chart": "deploy/helm/veoveo",
+          "values": [],
+          "valuesContract": "platform",
+          "createNamespace": true,
+          "timeoutSeconds": 1200
+        }
+      ]
+    },
+    {
+      "name": "anonymous-simulation",
+      "role": "extension",
+      "repository": {
+        "kind": "local",
+        "path": "../external-simulation-extension"
+      },
+      "revision": "HEAD",
+      "imageGroups": [
+        "anonymous-simulation-extension"
+      ],
+      "releases": [
+        {
+          "name": "anonymous-simulation",
+          "chart": "deploy/helm",
+          "values": [],
+          "valuesContract": "extension",
+          "createNamespace": false,
+          "timeoutSeconds": 600
+        }
+      ]
+    }
+  ],
+  "kubernetes": {
+    "context": "anonymous-simulation",
+    "localCluster": null
+  },
+  "namespace": "veoveo",
+  "resources": {
+    "manifests": [],
+    "configMaps": [],
+    "secrets": []
+  },
+  "platform": {
+    "installationPreset": "custom",
+    "components": [
+      "gateway",
+      "platform-store",
+      "object-store",
+      "artifact-service",
+      "gpu-renderer",
+      "simulation-runtime-support"
+    ],
+    "mcpServers": [
+      "artifact",
+      "frames",
+      "simulation-view"
+    ],
+    "artifactAudiences": [
+      "anonymous-simulation"
+    ],
+    "externalWorkloads": [
+      "anonymous-simulation-mcp"
+    ],
+    "gpuScheduling": {
+      "runtimeClassName": "nvidia",
+      "allocatableDevices": 1,
+      "workloads": [
+        {
+          "workload": "simulation-view-renderer",
+          "devices": 1,
+          "isolation": "exclusive",
+          "evidenceDigest": null
+        }
+      ]
+    }
+  },
+  "gatewayRequirements": [
+    "gateway-requirements.json"
+  ],
+  "waitForDeployments": [
+    "simulation-view-mcp",
+    "simulation-view-renderer",
+    "anonymous-simulation-mcp"
+  ]
+}

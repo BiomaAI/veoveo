@@ -490,6 +490,7 @@
         "operator:use"
       ],
       "metadata": {
+        "contract_revision": 2,
         "renderer_profile": "isaac_rtx"
       },
       "resource_projection": "server_owned",

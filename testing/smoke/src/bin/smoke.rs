@@ -68,6 +68,8 @@ enum Cmd {
     },
     /// Smoke-test Helm and k3d local deployment rendering.
     HelmConfig,
+    /// Build and test the external simulation fixture from an authenticated published SDK wheel.
+    ExternalSimulationFixture,
     /// Validate one typed deployment profile and every selected build and Helm surface.
     ProfileValidate {
         /// Deployment profile JSON.
@@ -560,6 +562,7 @@ async fn main() -> Result<()> {
             smoke_control_plane,
         } => gateway_suite(&control_plane, &smoke_control_plane).await,
         Cmd::HelmConfig => helm_config().await,
+        Cmd::ExternalSimulationFixture => external_simulation_fixture(),
         Cmd::ProfileValidate { profile } => profile_validate(&profile),
         Cmd::ProfileRegistryUp { profile } => profile_registry_up(&profile),
         Cmd::ProfileClusterUp { profile } => profile_cluster_up(&profile),
