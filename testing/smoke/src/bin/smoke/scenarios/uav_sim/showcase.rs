@@ -563,8 +563,8 @@ async fn read_json_resource(operator: &OperatorClient<'_>, uri: &str) -> Result<
 
 async fn cleanup_view(operator: &OperatorClient<'_>, resources: &mut ViewResources) -> Result<()> {
     let mut first_error = None;
-    if !resources.camera_id.is_empty() {
-        if let Err(error) = operator
+    if !resources.camera_id.is_empty()
+        && let Err(error) = operator
             .call_tool(
                 "simulation-view__close_camera",
                 serde_json::json!({
@@ -574,9 +574,8 @@ async fn cleanup_view(operator: &OperatorClient<'_>, resources: &mut ViewResourc
                 }),
             )
             .await
-        {
-            first_error = Some(error);
-        }
+    {
+        first_error = Some(error);
     }
     if let Err(error) = operator
         .call_tool(
