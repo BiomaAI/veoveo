@@ -214,6 +214,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: artifact-service",
         "name: recording-hub",
         "name: console-bff",
+        "value: \"operator:use admin:manage simulation-view:read simulation-view:write simulation-view:stream",
         "name: render-control",
         "port: 9878",
         "host: localhost",
@@ -664,10 +665,10 @@ pub(crate) async fn helm_config() -> Result<()> {
         contains(&px4_commander, expected)?;
     }
     let gpu_device_plugin = fs::read_to_string("deploy/local/k3d/node/nvidia-device-plugin.yaml")?;
-    contains(&gpu_device_plugin, "replicas: 4")?;
+    contains(&gpu_device_plugin, "replicas: 5")?;
     contains(
         &gpu_device_plugin,
-        "veoveo.ai/device-plugin-config: time-slicing-4",
+        "veoveo.ai/device-plugin-config: time-slicing-5",
     )?;
 
     let gateway_dockerfile = fs::read_to_string("platform/gateway/Dockerfile")?;
@@ -839,7 +840,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "showcase/uav-sim/scenarios/new-york-aerial.json",
     )?)?;
     ensure!(
-        uav_scenario.get("schema").and_then(Value::as_str) == Some("veoveo.uav-sim-acceptance/v6")
+        uav_scenario.get("schema").and_then(Value::as_str) == Some("veoveo.uav-sim-acceptance/v7")
             && uav_scenario
                 .pointer("/world/tree/frames/1/parent_transform/origin/latitude_degrees")
                 .and_then(Value::as_f64)

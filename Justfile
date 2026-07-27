@@ -353,13 +353,18 @@ bioma-verify:
     cargo build -p veoveo-smoke --bin smoke
     {{smoke}} bioma-verify --context {{bioma-kube-context}}
 
-# Run the live Isaac/PX4/Google 3D Tiles/Recording/Perception acceptance path.
-bioma-uav-sim-verify scenario='showcase/uav-sim/scenarios/new-york-aerial.json':
+# Run the independent Isaac/PX4/Google 3D Tiles/Recording/Perception/Reason path.
+uav-domain-verify context public_base_url scenario='showcase/uav-sim/scenarios/new-york-aerial.json':
     cargo build -p veoveo-smoke --bin smoke -p veoveo-mcp-conformance --bin conformance
-    {{smoke}} uav-sim-verify --context {{bioma-kube-context}} --scenario '{{scenario}}'
+    {{smoke}} uav-domain-verify --context '{{context}}' --public-base-url '{{public_base_url}}' --scenario '{{scenario}}'
+
+# Run UAV flight through its governed scene, independent Simulation View, and the real Console.
+uav-showcase-verify context public_base_url scenario='showcase/uav-sim/scenarios/new-york-aerial.json' chrome_cdp_url='http://127.0.0.1:9227' evidence_root='output/acceptance/uav':
+    cargo build -p veoveo-smoke --bin smoke -p veoveo-mcp-conformance --bin conformance
+    {{smoke}} uav-showcase-verify --context '{{context}}' --public-base-url '{{public_base_url}}' --scenario '{{scenario}}' --chrome-cdp-url '{{chrome_cdp_url}}' --evidence-root '{{evidence_root}}'
 
 # Run the anonymous producer through core Simulation View and its real App in headed Chrome.
-simulation-view-verify context=bioma-kube-context public_base_url='https://veoveo.bioma.ai' chrome_cdp_url='http://127.0.0.1:9227' work_context='operations':
+simulation-view-verify context public_base_url chrome_cdp_url='http://127.0.0.1:9227' work_context='operations':
     cargo build -p veoveo-smoke --bin smoke -p veoveo-mcp-conformance --bin conformance
     {{smoke}} simulation-view-verify --context '{{context}}' --public-base-url '{{public_base_url}}' --chrome-cdp-url '{{chrome_cdp_url}}' --work-context '{{work_context}}'
 

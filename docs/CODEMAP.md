@@ -401,6 +401,7 @@ Current MCP crates under `servers/` are indexed here:
 | `showcase/uav-sim/scenarios/` | reusable world trees plus strongly typed live mission and acceptance parameters outside the Isaac image context |
 | `examples/bioma/uav-sim-values.yaml` | Bioma reference sensor, pose-producer, public gateway origin, and recording tenant binding |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | runtime world publication and binding plus credentialed Google tiles, PX4, Recording Hub, Perception, and concurrent GPU acceptance |
+| `testing/smoke/src/bin/smoke/scenarios/uav_sim/showcase.rs` | showcase-owned UAV scene composition with independent Simulation View, real authenticated Console follow-camera checkpoints, governed Rerun playback, and revision-qualified evidence |
 
 ### Geospatial Domains
 

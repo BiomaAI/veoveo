@@ -9,10 +9,18 @@ use veoveo_mcp_contract::{
 
 use super::*;
 
+#[path = "uav_sim/showcase.rs"]
+mod showcase;
+
+pub(crate) use showcase::uav_showcase_verify;
+
 const NAMESPACE: &str = "veoveo";
 const GOOGLE_PHOTOREALISTIC_3D_TILES_ASSET_ID: u64 = 2_275_207;
 const OPERATOR_PROFILE_SCOPES: &[&str] = &[
     "operator:use",
+    "simulation-view:read",
+    "simulation-view:write",
+    "simulation-view:stream",
     "view:read",
     "view:write",
     "view:capture",
@@ -34,6 +42,7 @@ struct UavAcceptanceScenario {
     recording: RecordingAcceptance,
     perception: PerceptionScenario,
     reason: ReasonScenario,
+    view: ViewAcceptance,
     landing_timeout_seconds: u64,
 }
 
@@ -124,6 +133,35 @@ struct ReasonScenario {
     task_timeout_seconds: u64,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ViewAcceptance {
+    timeout_seconds: u64,
+    minimum_mission_pose_delta: u64,
+    camera: ViewCameraAcceptance,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ViewCameraAcceptance {
+    width_px: u32,
+    height_px: u32,
+    frame_rate_millihertz: u32,
+    vertical_fov_degrees: f64,
+    near_clip_m: f64,
+    far_clip_m: f64,
+    offset_flu_m: ViewOffset,
+    smoothing_seconds: f64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ViewOffset {
+    x: f64,
+    y: f64,
+    z: f64,
+}
+
 struct OperatorClient<'a> {
     conformance: &'a Path,
     base: &'a str,
@@ -181,7 +219,7 @@ impl UavAcceptanceScenario {
 
     fn validate(&self) -> Result<()> {
         ensure!(
-            self.schema == "veoveo.uav-sim-acceptance/v6",
+            self.schema == "veoveo.uav-sim-acceptance/v7",
             "unsupported UAV acceptance scenario schema {:?}",
             self.schema
         );
@@ -243,6 +281,7 @@ impl UavAcceptanceScenario {
                 && self.mission.task_timeout_seconds > 0
                 && self.recording.frozen_rows_timeout_seconds > 0
                 && self.perception.task_timeout_seconds > 0
+                && self.view.timeout_seconds > 0
                 && self.landing_timeout_seconds > 0,
             "scenario timeouts must be positive"
         );
@@ -293,8 +332,36 @@ impl UavAcceptanceScenario {
                 && self.reason.task_timeout_seconds > 0,
             "reason parameters must define a bounded prompted observation"
         );
+        let view = &self.view.camera;
+        ensure!(
+            (64..=7680).contains(&view.width_px)
+                && (64..=4320).contains(&view.height_px)
+                && (1_000..=240_000).contains(&view.frame_rate_millihertz)
+                && view.vertical_fov_degrees.is_finite()
+                && (1.0..179.0).contains(&view.vertical_fov_degrees)
+                && view.near_clip_m.is_finite()
+                && view.near_clip_m > 0.0
+                && view.far_clip_m.is_finite()
+                && view.far_clip_m > view.near_clip_m
+                && [
+                    view.offset_flu_m.x,
+                    view.offset_flu_m.y,
+                    view.offset_flu_m.z
+                ]
+                .into_iter()
+                .all(f64::is_finite)
+                && view.smoothing_seconds.is_finite()
+                && (0.0..=60.0).contains(&view.smoothing_seconds)
+                && self.view.minimum_mission_pose_delta > 0,
+            "view parameters must define one bounded follow camera and advancing mission checkpoint"
+        );
         Ok(())
     }
+}
+
+struct WorldBinding {
+    revision_uri: String,
+    simulation_frame_uri: String,
 }
 
 fn validate_identity(name: &str, value: &str) -> Result<()> {
@@ -330,7 +397,7 @@ pub(crate) async fn uav_sim_verify(
     }
     assert_executable(conformance)?;
     let public_base_url = public_base_url.trim_end_matches('/');
-    let public = url::Url::parse(public_base_url).context("parsing public Bioma URL")?;
+    let public = url::Url::parse(public_base_url).context("parsing public installation URL")?;
     ensure!(
         public.scheme() == "https",
         "UAV live acceptance requires public HTTPS"
@@ -341,7 +408,7 @@ pub(crate) async fn uav_sim_verify(
         ["--context", context, "cluster-info"].map(OsString::from),
         [],
     )
-    .context("UAV live acceptance requires the Bioma Kubernetes cluster")?;
+    .context("UAV live acceptance requires its Kubernetes cluster")?;
     assert_concurrent_gpu_workloads(context)?;
 
     let operator = OperatorClient {
@@ -364,89 +431,9 @@ pub(crate) async fn uav_sim_verify(
         contains(&info, tool)?;
     }
 
-    let initial_state = simulation_state(&operator, &scenario).await?;
-    ensure!(
-        json_string(&initial_state, "/lifecycle")? == "unconfigured"
-            || initial_state
-                .pointer("/world")
-                .is_some_and(Value::is_object),
-        "UAV session must begin unconfigured or retain the same immutable binding: {initial_state}"
-    );
-    operator
-        .call_tool(
-            "frames__create_world",
-            serde_json::json!({
-                "world_id": scenario.world.world_id,
-                "display_name": scenario.world.display_name,
-                "description": scenario.world.description,
-            }),
-        )
-        .await?;
-    let publication = operator
-        .call_tool(
-            "frames__publish_world",
-            serde_json::json!({
-                "world_id": scenario.world.world_id,
-                "tree": scenario.world.tree,
-            }),
-        )
-        .await?;
-    let revision = publication
-        .get("revision")
-        .cloned()
-        .context("Frames publication omitted its immutable revision")?;
-    let revision_uri = json_string(&publication, "/revision/revision_uri")?.to_owned();
-    let simulation_frame_uri = format!(
-        "{revision_uri}/frame/{}",
-        scenario.world.simulation_frame_id
-    );
-    operator
-        .call_tool(
-            "uav-sim__configure_world",
-            serde_json::json!({
-                "session_id": scenario.session_id,
-                "world_revision": revision,
-                "simulation_frame_uri": simulation_frame_uri,
-            }),
-        )
-        .await?;
-    let frame: FrameNode = serde_json::from_str(
-        &operator
-            .conformance(
-                &["resource", &simulation_frame_uri],
-                Duration::from_secs(60),
-            )
-            .await?,
-    )
-    .context("decoding the published simulation frame resource")?;
-    let expected_frame = scenario
-        .world
-        .tree
-        .frames
-        .iter()
-        .find(|candidate| candidate.frame_id == scenario.world.simulation_frame_id)
-        .expect("validated simulation frame");
-    ensure!(
-        &frame == expected_frame,
-        "published simulation frame disagrees with the scenario: {frame:?}"
-    );
-    let published_revision: FrameWorldRevision = serde_json::from_str(
-        &operator
-            .conformance(&["resource", &revision_uri], Duration::from_secs(60))
-            .await?,
-    )
-    .context("decoding the published Frames world revision resource")?;
-    let mut expected_frames = scenario.world.tree.frames.clone();
-    expected_frames.sort_by(|left, right| left.frame_id.cmp(&right.frame_id));
-    let mut published_frames = published_revision.tree.frames.clone();
-    published_frames.sort_by(|left, right| left.frame_id.cmp(&right.frame_id));
-    ensure!(
-        published_revision.revision_uri.as_str() == revision_uri
-            && published_revision.world_id == scenario.world.world_id
-            && published_frames == expected_frames,
-        "published Frames world revision disagrees with the complete scenario hierarchy: \
-         {published_revision:?}"
-    );
+    let binding = ensure_world_configured(&operator, &scenario).await?;
+    let revision_uri = binding.revision_uri;
+    let simulation_frame_uri = binding.simulation_frame_uri;
 
     let mut state = wait_for_world_ready(
         &operator,
@@ -662,9 +649,106 @@ pub(crate) async fn uav_sim_verify(
     assert_governed_artifact_access(conformance, public_base_url, &governed_artifact_id).await?;
 
     println!(
-        "UAV simulation acceptance ok: Google Photorealistic 3D Tiles were resident in Isaac, the showcase published complete poses through the independent Simulation View protocol, PX4 completed a mission, Recording Hub retained the world, Perception produced a governed artifact, Reason described the flight segment grounded in those detections, an authorized context member previewed it, and an independent context was denied"
+        "UAV domain acceptance ok: Google Photorealistic 3D Tiles were resident in Isaac, the \
+         showcase pose producer reached ready state, PX4 completed a mission, Recording Hub \
+         retained the world, Perception produced a governed artifact, Reason described the flight \
+         segment grounded in those detections, an authorized context member previewed it, and an \
+         independent context was denied"
     );
     Ok(())
+}
+
+async fn ensure_world_configured(
+    operator: &OperatorClient<'_>,
+    scenario: &UavAcceptanceScenario,
+) -> Result<WorldBinding> {
+    let initial_state = simulation_state(operator, scenario).await?;
+    ensure!(
+        json_string(&initial_state, "/lifecycle")? == "unconfigured"
+            || initial_state
+                .pointer("/world")
+                .is_some_and(Value::is_object),
+        "UAV session must begin unconfigured or retain the same immutable binding: {initial_state}"
+    );
+    operator
+        .call_tool(
+            "frames__create_world",
+            serde_json::json!({
+                "world_id": scenario.world.world_id,
+                "display_name": scenario.world.display_name,
+                "description": scenario.world.description,
+            }),
+        )
+        .await?;
+    let publication = operator
+        .call_tool(
+            "frames__publish_world",
+            serde_json::json!({
+                "world_id": scenario.world.world_id,
+                "tree": scenario.world.tree,
+            }),
+        )
+        .await?;
+    let revision = publication
+        .get("revision")
+        .cloned()
+        .context("Frames publication omitted its immutable revision")?;
+    let revision_uri = json_string(&publication, "/revision/revision_uri")?.to_owned();
+    let simulation_frame_uri = format!(
+        "{revision_uri}/frame/{}",
+        scenario.world.simulation_frame_id
+    );
+    operator
+        .call_tool(
+            "uav-sim__configure_world",
+            serde_json::json!({
+                "session_id": scenario.session_id,
+                "world_revision": revision,
+                "simulation_frame_uri": simulation_frame_uri,
+            }),
+        )
+        .await?;
+    let frame: FrameNode = serde_json::from_str(
+        &operator
+            .conformance(
+                &["resource", &simulation_frame_uri],
+                Duration::from_secs(60),
+            )
+            .await?,
+    )
+    .context("decoding the published simulation frame resource")?;
+    let expected_frame = scenario
+        .world
+        .tree
+        .frames
+        .iter()
+        .find(|candidate| candidate.frame_id == scenario.world.simulation_frame_id)
+        .expect("validated simulation frame");
+    ensure!(
+        &frame == expected_frame,
+        "published simulation frame disagrees with the scenario: {frame:?}"
+    );
+    let published_revision: FrameWorldRevision = serde_json::from_str(
+        &operator
+            .conformance(&["resource", &revision_uri], Duration::from_secs(60))
+            .await?,
+    )
+    .context("decoding the published Frames world revision resource")?;
+    let mut expected_frames = scenario.world.tree.frames.clone();
+    expected_frames.sort_by(|left, right| left.frame_id.cmp(&right.frame_id));
+    let mut published_frames = published_revision.tree.frames.clone();
+    published_frames.sort_by(|left, right| left.frame_id.cmp(&right.frame_id));
+    ensure!(
+        published_revision.revision_uri.as_str() == revision_uri
+            && published_revision.world_id == scenario.world.world_id
+            && published_frames == expected_frames,
+        "published Frames world revision disagrees with the complete scenario hierarchy: \
+         {published_revision:?}"
+    );
+    Ok(WorldBinding {
+        revision_uri,
+        simulation_frame_uri,
+    })
 }
 
 async fn assert_governed_artifact_access(
@@ -1188,7 +1272,7 @@ mod tests {
     #[test]
     fn canonical_mission_is_runtime_loaded_and_validated() {
         let scenario = UavAcceptanceScenario::load(&canonical_scenario()).unwrap();
-        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v6");
+        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v7");
         assert_eq!(scenario.session_id, "uav-showcase");
         assert_eq!(scenario.world.world_id.as_str(), "uav-showcase-new-york");
         assert_eq!(scenario.world.tree.frames.len(), 6);
@@ -1203,6 +1287,8 @@ mod tests {
         assert_eq!(scenario.perception.range_lag_seconds, 10.0);
         assert!(!scenario.reason.prompt.is_empty());
         assert_eq!(scenario.reason.maximum_frames, 8);
+        assert_eq!(scenario.view.camera.width_px, 640);
+        assert_eq!(scenario.view.minimum_mission_pose_delta, 30);
     }
 
     #[test]

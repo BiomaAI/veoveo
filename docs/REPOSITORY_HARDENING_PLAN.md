@@ -410,10 +410,12 @@ verifiable.
 
 Static UAV registration checks now live with `servers/uav-sim-mcp`. SUMO deployment
 checks live with the SUMO crate, and Bioma control-plane and cross-surface checks live
-under `examples/bioma/acceptance`. The existing central live Bioma and UAV lifecycle
-commands remain migration inputs for the smoke-kit sequence below; they do not justify
-adding another example-specific assertion to `testing/smoke`, generic gateway tests, or
-MCP conformance.
+under `examples/bioma/acceptance`. UAV domain acceptance and generic Simulation View
+acceptance remain independent. A showcase-owned composed command consumes both and
+captures the real Console follow camera at takeoff, mission, and landing plus the
+governed Rerun recording. Its revision-qualified evidence is a migration input for the
+smoke-kit sequence below; it does not justify adding example-specific assertions to
+generic gateway tests or MCP conformance.
 
 ### Consumer-Generic Helm Enforcement
 

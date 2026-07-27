@@ -115,10 +115,14 @@ kubectl --context k3d-veoveo-bioma -n kube-system rollout status   daemonset/nvi
 kubectl --context k3d-veoveo-bioma get nodes   -o 'custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\.com/gpu'
 ~~~
 
-The node must report four allocatable GPU shares before application bootstrap.
+The node must report five allocatable GPU shares before application bootstrap.
+The local time-slicing profile keeps the UAV simulator, Simulation View
+renderer, View, Perception, and Reason in separate GPU-requesting workloads.
+Fielded installations use their measured exclusive, MIG, or time-slicing
+placement instead of inheriting this development profile.
 Each required workload still requests nvidia.com/gpu: 1 and the nvidia runtime
-class. The shares make Isaac Sim, View, Perception, and Reason schedulable together;
-they are not a CPU fallback.
+class. The shares make UAV Isaac Sim, Simulation View, View, Perception, and
+Reason schedulable together; they are not a CPU fallback.
 
 Install the local platform fixture separately:
 
@@ -356,7 +360,8 @@ just bioma-verify
 Then run the full GPU delivery proof:
 
 ~~~bash
-just bioma-uav-sim-verify
+just uav-domain-verify k3d-veoveo-bioma https://veoveo.bioma.ai
+just uav-showcase-verify k3d-veoveo-bioma https://veoveo.bioma.ai
 ~~~
 
 The UAV acceptance requires Google Photorealistic 3D Tiles resident in Isaac, flies a

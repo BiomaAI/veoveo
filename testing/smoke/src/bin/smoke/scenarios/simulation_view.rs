@@ -6,7 +6,7 @@ use chrono::{SecondsFormat, Utc};
 use super::*;
 
 #[path = "simulation_view/browser.rs"]
-mod browser;
+pub(super) mod browser;
 
 use browser::{BrowserFixture, verify_live_app_in_hardware_browser};
 

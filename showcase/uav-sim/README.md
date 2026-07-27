@@ -165,3 +165,51 @@ Simulation View App, domain recording, perception, and mission completion.
 Browser evidence is valid only after a headed browser proves hardware-backed
 high-performance WebGPU and WebGL. The browser-side H.264 software-decode
 exception does not relax either GPU workload.
+
+The two live commands preserve the ownership boundary:
+
+```sh
+just uav-domain-verify <kube-context> https://installation.example
+just simulation-view-verify <kube-context> https://installation.example
+```
+
+The first command owns UAV flight, tiles, PX4, domain sensors, Recording Hub,
+Perception, and Reason. The second owns the anonymous-producer proof for
+Simulation View, camera capacity, RTX/NVENC, WebRTC, and its generic App.
+Neither command substitutes for the other.
+
+Run the composed showcase only after both independent paths pass:
+
+```sh
+google-chrome \
+  --remote-debugging-address=127.0.0.1 \
+  --remote-debugging-port=9227 \
+  --user-data-dir=/tmp/veoveo-uav-acceptance \
+  --window-size=1920,1080 \
+  --ozone-platform=x11 \
+  --use-angle=vulkan \
+  --enable-features=Vulkan \
+  https://installation.example/console/
+
+just uav-showcase-verify <kube-context> https://installation.example
+```
+
+Chrome must be visible and authenticated through the installation's ordinary
+Console login. The composed command asks the UAV server for its governed,
+digest-bound scene and pose identity, then asks Simulation View to bind that
+scene and admit one follow camera. The UAV server still owns no camera,
+renderer, stream, or App.
+
+The run verifies the actual Console at takeoff, during the mission, and after
+landing. Each checkpoint requires an advancing pose sequence and a healthy
+640-by-360 NVIDIA NVENC H.264 stream. It then opens the same flight's governed
+recording in the Console Rerun viewer. Headless Chrome, software WebGPU,
+software WebGL, missing Console APIs, a synthetic App host, a static frame, or
+a software-renderer warning fails the run.
+
+Evidence is written beneath
+`output/acceptance/uav/{source-revision}/{run-id}/`. The typed
+`veoveo.io/uav-showcase-acceptance-evidence/v1` manifest records the scene,
+producer, camera, recording, pose sequences, flight states, hardware identity,
+decode result, screenshot paths, and SHA-256 image digests. The directory is a
+run artifact and remains outside source control.
