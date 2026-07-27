@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "veoveo.io/extension-release/v1",
+  "extension": "anonymous.example",
+  "version": "0.1.0",
+  "source": {
+    "name": "anonymous-source",
+    "revision": "1111111111111111111111111111111111111111"
+  },
+  "compatibilityRelease": "0.1.0",
+  "artifacts": [
+    {
+      "name": "anonymous-image",
+      "kind": "oci_image",
+      "version": "0.1.0",
+      "coordinate": "oci://registry.example.internal/extensions/anonymous@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "platform": {
+        "operatingSystem": "linux",
+        "architecture": "amd64"
+      }
+    }
+  ],
+  "helmChart": {
+    "name": "anonymous-chart",
+    "kind": "helm_chart",
+    "version": "0.1.0",
+    "coordinate": "oci://registry.example.internal/charts/anonymous:0.1.0",
+    "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "gatewayFragment": {
+    "name": "anonymous-fragment",
+    "kind": "gateway_server_fragment",
+    "version": "0.1.0",
+    "coordinate": "https://artifacts.example.internal/extensions/anonymous/0.1.0/gateway-fragment.json",
+    "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "conformanceResults": [
+    {
+      "name": "anonymous-conformance",
+      "kind": "conformance_result",
+      "version": "0.1.0",
+      "coordinate": "https://artifacts.example.internal/extensions/anonymous/0.1.0/conformance-result.json",
+      "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+  ],
+  "simulationOverlay": null
+}

@@ -216,7 +216,7 @@ compiling, but it does not invoke `veoveo-xtask` or copy Veoveo's builder famili
 | Test | unit, integration, schema, and policy tests in the extension repository | pinned compatibility manifest and schema revision |
 | Smoke | black-box lifecycle and domain scenarios owned beside the extension | standalone Veoveo conformance artifact and smoke descriptor |
 | Package | extension OCI image and consumer-owned chart | extension manifest, immutable image digest, chart API, and provenance |
-| Integrate | installation-owned fragment and artifact lock | validated gateway, deployment, and bundle composition |
+| Integrate | installation-owned binding, selected extension release, and digest-pinned values | validated gateway requirements and ordinary Helm or GitOps composition |
 
 Published describes an immutable distribution state, not public visibility. SDKs,
 images, charts, conformance artifacts, and provenance may resolve from an authenticated

@@ -16,8 +16,9 @@ changing the chart, image, configuration, or Secret contracts.
 |---|---|
 | OCI Distribution Specification | authenticated private image, chart, SBOM, provenance, schema, and evidence distribution |
 | Helm and Kubernetes | separately reconciled platform and extension application charts |
-| `veoveo.io/deployment/v2` | installation-owned named sources, independent revisions, Bake groups, chart releases, and typed platform selection |
-| `veoveo.io/deployment-lock/v2` | immutable source, image manifest, chart content, and resolved-platform record |
+| `veoveo.io/extension-release/v1` | independently published extension image, chart, fragment, conformance, and source identity |
+| `veoveo.io/deployment/v2` | repository-development source publication and typed platform-selection profile |
+| `veoveo.io/deployment-lock/v2` | immutable evidence from the repository-development publication flow |
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned hosted-server contribution |
 | `veoveo.io/gateway-binding/v1` | installation-owned exposure, tenant, producer, and authorization policy |
 | `veoveo.io/compatibility-manifest/v1` | supported SDK, chart library, standalone tools, schemas, and optional simulation tuple |
@@ -56,23 +57,21 @@ public Veoveo control plane.
 
 ## Release artifacts
 
-One installation release may combine several independently versioned sources.
+One installation release may combine several independently published sources.
 Production Helm values address images by digest; a mutable tag is not a production
-identity. Each source publishes its own images and application chart. The combined
-deployment lock records source revisions, image manifest digests, chart-content
-digests, and the fully expanded platform selection.
+identity. Each source builds, tests, certifies, and publishes its own image, chart,
+gateway fragment, and release manifest.
 
-A release pipeline follows this sequence:
+The installation release procedure follows the
+[external-repository runbook](EXTERNAL_REPOSITORY_INTEGRATION.md):
 
-1. Resolve the installation's deployment v2 profile from one exact configuration
-   revision.
-2. Resolve each named source to its independent full revision.
-3. Verify that selected Bake targets cover every typed platform and gateway-required
-   image, including producer-side RRD transport.
-4. Build and push each source-owned image graph with SBOM and provenance attestations.
-5. Package and publish each source-owned Helm chart, retaining its registry digest.
-6. Write one immutable deployment v2 lock and update the installation repository to
-   select it.
+1. Verify the selected Veoveo compatibility manifest and extension-release manifests.
+2. Check that every extension selects the installed compatibility release.
+3. Pin image and chart digests in the installation's ordinary Helm values and GitOps
+   Applications.
+4. Compose installation-owned bindings with the selected gateway fragments.
+5. Satisfy the generated typed platform requirements and render every chart.
+6. Commit the complete desired-state change for normal reconciliation.
 
 The Veoveo source provides a conventional private chart publisher:
 
@@ -90,25 +89,17 @@ An internal development registry may explicitly enable plain HTTP. A fielded reg
 uses TLS, authentication, immutable tags, retention policy, and vulnerability scanning
 supplied by the installation owner.
 
-The profile release command resolves each source-local Bake graph, moves its persistent
-publication worktree to the selected commit without resetting unchanged file metadata,
-and publishes without loading images into the host Docker store:
+Veoveo's repository-local profile publisher remains available for development and
+source-publication acceptance. It is documented in
+[`LOCAL_DEPLOYMENT_PROFILES.md`](LOCAL_DEPLOYMENT_PROFILES.md) and is not required in an
+installation repository.
 
-~~~bash
-REVISION=$(git rev-parse HEAD)
-
-cargo xtask image builder ensure
-cargo xtask release images \
-  --profile path/to/deployment.json \
-  --profile-revision "$REVISION" \
-  --lock-output output/deployment.lock.json
-~~~
-
-Direct group publication remains available for source-owned release pipelines. A
-Veoveo-backed extension platform uses `external-extension-platform`; the canonical
-simulation base and overlays use their dedicated groups. The simulation image group is
-an ABI and GPU certification boundary, not proof that Frames, Map, Media, or RRD
-services were installed. Deployment profile closure supplies that proof.
+Direct group publication remains available to Veoveo release pipelines. A Veoveo-backed
+extension platform uses `external-extension-platform`; the canonical simulation base
+and overlays use their dedicated groups. The simulation image group is an ABI and GPU
+certification boundary, not proof that Frames, Map, Media, or RRD services were
+installed. The installation's typed chart selection and composed gateway requirements
+supply that proof.
 
 The canonical simulation runtime is a separate build dependency because UAV and
 external simulator overlays consume it as a named build context. The deployment
@@ -127,8 +118,9 @@ clusters/
     values/
       veoveo.yaml             installation identity, capacity, storage, ingress
       extension.yaml          independently deployed domain extension values
-      deployment.lock.json    named sources, charts, images, and digests
-      images.generated.yaml   Helm digest values projected from the deployment lock
+      images.yaml             reviewed image repositories and manifest digests
+    releases/
+      extension.json          selected immutable extension-release manifest
     gateway/
       base.json               installation-owned platform control plane
       bindings/               installation-owned extension exposure and policy
@@ -197,10 +189,10 @@ composer registers routes and capabilities in the complete control plane. This
 separates scheduling and rollout while preserving one MCP authority and one
 authorization boundary.
 
-An extension application normally selects two sources:
+An extension application normally selects two artifacts:
 
 - the immutable OCI chart version;
-- the installation Git repository containing values, bindings, and the deployment lock.
+- the installation Git repository containing values, bindings, and digest pins.
 
 Private MCP servers follow the same pattern. They use their repository's native build
 system and do not join the Veoveo workspace. Their chart consumes the versioned
@@ -217,7 +209,14 @@ Argo CD is not a runtime dependency of Veoveo. An enterprise with another releas
 controller can render or install the same packages directly:
 
 ~~~bash
-helm upgrade --install veoveo   oci://registry.example.com/veoveo/charts/veoveo   --version "$CHART_VERSION"   --namespace veoveo   --create-namespace   --values values/veoveo.yaml   --values values/images.generated.yaml   --wait
+helm upgrade --install veoveo \
+  oci://registry.example.com/veoveo/charts/veoveo \
+  --version "$CHART_VERSION" \
+  --namespace veoveo \
+  --create-namespace \
+  --values values/veoveo.yaml \
+  --values values/images.yaml \
+  --wait
 ~~~
 
 The operator must apply the gateway ConfigMap and provision every referenced Secret
@@ -227,11 +226,12 @@ orchestrator.
 
 ## Upgrade and rollback
 
-A release change updates chart versions and image digests in one reviewed commit.
+A release change updates selected release manifests, chart versions, and image digests
+in one reviewed commit.
 Automated reconciliation may self-heal configuration drift, but promotion between
 environments remains an explicit Git change. Rollback restores the previous known-good
-versions and locks. Database migration compatibility belongs to release notes and must
-be evaluated before promotion.
+manifests and digests. Database migration compatibility belongs to release notes and
+must be evaluated before promotion.
 
 A production gate checks controller health, application sync, pod readiness, persistent
 storage, ingress, OAuth discovery, MCP capability discovery, and required GPU capacity.

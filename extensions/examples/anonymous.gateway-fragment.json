@@ -24,10 +24,10 @@
     "app_resource_dependencies": [
       {
         "app_resource": "ui://anonymous/operations.html",
-        "server": "view",
-        "scheme": "view",
-        "uri_prefix": "view://frame/",
-        "required_scope": "view:read",
+        "server": "frames",
+        "scheme": "frames",
+        "uri_prefix": "frames://world/",
+        "required_scope": "frames:read",
         "operations": [
           "read"
         ]
@@ -47,8 +47,7 @@
     "map",
     "media",
     "recording",
-    "rrd",
-    "view"
+    "rrd"
   ],
   "requiredArtifactAudiences": [
     "anonymous"
