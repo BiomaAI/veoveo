@@ -12,6 +12,9 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_apps_extension::{APP_MIME_TYPE, is_app_resource, resource_ui_meta, tool_app_link};
+use veoveo_mcp_contract::{
+    APP_RESOURCE_DEPENDENCIES_META_KEY, AppResourceDependency, AppResourceOperation,
+};
 
 use crate::{AppState, api, mcp_client::McpSession};
 
@@ -47,6 +50,7 @@ struct AppDescriptor {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     icons: Vec<String>,
     tools: Vec<AppToolDescriptor>,
+    resource_dependencies: Vec<AppResourceDependency>,
 }
 
 #[derive(Serialize)]
@@ -84,6 +88,31 @@ fn app_resource_uri_allowed(server: &str, uri: &str) -> bool {
         .and_then(|rest| rest.strip_prefix("://"))
         .is_some_and(|rest| !rest.is_empty());
     own_scheme || app_uri_server(uri) == Some(server)
+}
+
+fn app_resource_dependencies(resource: &rmcp::model::Resource) -> Vec<AppResourceDependency> {
+    resource
+        .meta
+        .as_ref()
+        .and_then(|meta| meta.0.get(APP_RESOURCE_DEPENDENCIES_META_KEY))
+        .and_then(|value| serde_json::from_value(value.clone()).ok())
+        .unwrap_or_default()
+}
+
+fn app_dependency_allows_resource(resource: &rmcp::model::Resource, uri: &str) -> bool {
+    if uri.contains("..") {
+        return false;
+    }
+    app_resource_dependencies(resource)
+        .iter()
+        .any(|dependency| {
+            dependency.operations.contains(&AppResourceOperation::Read)
+                && uri.starts_with(dependency.uri_prefix.as_str())
+                && uri
+                    .strip_prefix(dependency.scheme.as_str())
+                    .and_then(|rest| rest.strip_prefix("://"))
+                    .is_some_and(|rest| !rest.is_empty())
+        })
 }
 
 struct AppTaskOwner {
@@ -286,6 +315,7 @@ pub(crate) async fn list_apps(
                 .map(|icon| icon.src.clone())
                 .collect(),
             tools,
+            resource_dependencies: app_resource_dependencies(resource),
         });
     }
     with_session_headers(Json(AppCatalog { apps }).into_response(), response_headers)
@@ -450,9 +480,9 @@ pub(crate) struct ReadAppResourceRequest {
     uri: String,
 }
 
-/// `resources/read` proxied for an app view. The allowlist mirrors
-/// `call_app_tool`: the view must belong to the named server and may only
-/// read that server's own resources.
+/// `resources/read` proxied for an app view. Own-server resources remain
+/// implicit. A foreign resource must match one gateway-projected dependency
+/// on the exact App resource under the active profile and authority.
 pub(crate) async fn read_app_resource(
     State(state): State<AppState>,
     request_headers: HeaderMap,
@@ -464,16 +494,34 @@ pub(crate) async fn read_app_resource(
             "app uri does not belong to the server",
         );
     }
-    if !app_resource_uri_allowed(&request.server, &request.uri) {
-        return call_error(
-            StatusCode::FORBIDDEN,
-            "resource is not owned by this app's server",
-        );
+    if request.uri.contains("..") {
+        return call_error(StatusCode::FORBIDDEN, "resource URI is not admitted");
     }
+    let server = request.server.clone();
+    let app_uri = request.app_uri.clone();
     let uri = request.uri.as_str();
-    let read = with_apps_session(&state, &request_headers, |mcp| async move {
-        mcp.read_resource(rmcp::model::ReadResourceRequestParams::new(uri))
-            .await
+    let read = with_apps_session(&state, &request_headers, |mcp| {
+        let server = server.clone();
+        let app_uri = app_uri.clone();
+        async move {
+            let resources = mcp.list_all_resources().await?;
+            let app_resource = resources.into_iter().find(|resource| {
+                resource.uri == app_uri
+                    && is_app_resource(resource)
+                    && app_uri_server(&resource.uri) == Some(server.as_str())
+            });
+            let Some(app_resource) = app_resource else {
+                return Ok(None);
+            };
+            if !app_resource_uri_allowed(&server, uri)
+                && !app_dependency_allows_resource(&app_resource, uri)
+            {
+                return Ok(None);
+            }
+            mcp.read_resource(rmcp::model::ReadResourceRequestParams::new(uri))
+                .await
+                .map(Some)
+        }
     })
     .await;
     let AppsSessionOutcome {
@@ -485,7 +533,16 @@ pub(crate) async fn read_app_resource(
         Err(response) => return response,
     };
     let result = match read {
-        Ok(result) => result,
+        Ok(Some(result)) => result,
+        Ok(None) => {
+            return with_session_headers(
+                call_error(
+                    StatusCode::FORBIDDEN,
+                    "resource is not declared for this App",
+                ),
+                response_headers,
+            );
+        }
         Err(error) => {
             return with_session_headers(
                 call_error(
@@ -916,7 +973,7 @@ mod tests {
     }
 
     #[test]
-    fn app_resource_reads_are_limited_to_the_owning_server() {
+    fn app_resource_reads_are_implicit_only_for_the_owning_server() {
         assert!(app_resource_uri_allowed("map", "map://sources"));
         assert!(app_resource_uri_allowed("map", "map://acquisition/acq-1"));
         assert!(app_resource_uri_allowed("map", "ui://map/admin.html"));
@@ -928,6 +985,46 @@ mod tests {
         ));
         assert!(!app_resource_uri_allowed("map", "map://../escape"));
         assert!(!app_resource_uri_allowed("time", "timeseries://usage"));
+    }
+
+    #[test]
+    fn projected_dependency_admits_only_its_exact_resource_family() {
+        let mut resource =
+            veoveo_mcp_apps_extension::app_resource("ui://mission/operations.html", "operations");
+        resource
+            .meta
+            .get_or_insert_with(rmcp::model::Meta::new)
+            .0
+            .insert(
+                APP_RESOURCE_DEPENDENCIES_META_KEY.to_owned(),
+                serde_json::to_value(vec![AppResourceDependency {
+                    app_resource: veoveo_mcp_contract::ResourceUri::new(
+                        "ui://mission/operations.html",
+                    )
+                    .unwrap(),
+                    server: veoveo_mcp_contract::ServerSlug::new("view").unwrap(),
+                    scheme: veoveo_mcp_contract::ResourceScheme::new("view").unwrap(),
+                    uri_prefix: veoveo_mcp_contract::ResourceUriPrefix::new("view://frame/")
+                        .unwrap(),
+                    required_scope: veoveo_mcp_contract::ScopeName::new("view:read").unwrap(),
+                    operations: std::collections::BTreeSet::from([AppResourceOperation::Read]),
+                    data_labels: std::collections::BTreeSet::new(),
+                }])
+                .unwrap(),
+            );
+        assert!(app_dependency_allows_resource(
+            &resource,
+            "view://frame/frame-1"
+        ));
+        assert!(!app_dependency_allows_resource(&resource, "view://frames"));
+        assert!(!app_dependency_allows_resource(
+            &resource,
+            "recording://frame/frame-1"
+        ));
+        assert!(!app_dependency_allows_resource(
+            &resource,
+            "view://frame/../views"
+        ));
     }
 
     #[test]

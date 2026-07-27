@@ -41,6 +41,11 @@ pub enum GatewayControlPlaneError {
         reason: String,
     },
     ServerAppsRequireOwnedResources(ServerSlug),
+    InvalidAppResourceDependency {
+        server: ServerSlug,
+        app_resource: ResourceUri,
+        reason: String,
+    },
     InvalidServerCapabilities {
         server: ServerSlug,
         reason: &'static str,
@@ -455,6 +460,14 @@ impl fmt::Display for GatewayControlPlaneError {
                 f,
                 "server `{server}` declares apps but requires resources and server_owned \
                  resource projection"
+            ),
+            Self::InvalidAppResourceDependency {
+                server,
+                app_resource,
+                reason,
+            } => write!(
+                f,
+                "server `{server}` has an invalid dependency for App `{app_resource}`: {reason}"
             ),
             Self::InvalidServerCapabilities { server, reason } => {
                 write!(

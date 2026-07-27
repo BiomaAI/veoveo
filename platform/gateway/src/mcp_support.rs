@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{collections::BTreeSet, fmt};
 
 use rmcp::model::{
     CallToolResult, ContentBlock, ErrorData as McpError, ReadResourceResult, Resource,
@@ -6,8 +6,9 @@ use rmcp::model::{
 };
 use serde_json::Value;
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayResourceProjection, GatewayToolName, McpMethodName, PolicyTarget,
-    ResourceProjectionMode, ResourceUri, ServerManifest, ServerResourceUri, ServerSlug,
+    APP_RESOURCE_DEPENDENCIES_META_KEY, DataLabelId, GatewayAction, GatewayResourceProjection,
+    GatewayToolName, McpMethodName, PolicyTarget, ResourceProjectionMode, ResourceUri, ScopeName,
+    ServerManifest, ServerResourceUri, ServerSlug,
 };
 
 use crate::GatewayCatalog;
@@ -124,6 +125,40 @@ pub(crate) fn project_listed_resource_uri(
             meta.0 = projected;
         }
     }
+    Ok(())
+}
+
+pub(crate) fn project_app_resource_dependencies(
+    server: &ServerManifest,
+    resource: &mut Resource,
+    profile_servers: &BTreeSet<ServerSlug>,
+    scopes: &BTreeSet<ScopeName>,
+    data_labels: &BTreeSet<DataLabelId>,
+) -> Result<(), McpError> {
+    if let Some(meta) = &mut resource.meta {
+        meta.0.remove(APP_RESOURCE_DEPENDENCIES_META_KEY);
+    }
+    let mut dependencies = server
+        .app_resource_dependencies
+        .iter()
+        .filter(|dependency| {
+            dependency.app_resource.as_str() == resource.uri
+                && profile_servers.contains(&dependency.server)
+                && scopes.contains(&dependency.required_scope)
+                && dependency.data_labels.is_subset(data_labels)
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    dependencies.sort();
+    if dependencies.is_empty() {
+        return Ok(());
+    }
+    let metadata = resource.meta.get_or_insert_with(rmcp::model::Meta::new);
+    metadata.0.insert(
+        APP_RESOURCE_DEPENDENCIES_META_KEY.to_owned(),
+        serde_json::to_value(dependencies)
+            .map_err(|error| mcp_internal(format!("project App dependencies: {error}")))?,
+    );
     Ok(())
 }
 
@@ -386,8 +421,9 @@ mod tests {
     use super::*;
     use rmcp::model::Resource;
     use veoveo_mcp_contract::{
-        LocalToolName, McpSurfaceCapabilities, MountPath, ResourceScheme, ScopeName,
-        UpstreamEndpoint, UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
+        AppResourceDependency, AppResourceOperation, DataLabelId, LocalToolName,
+        McpSurfaceCapabilities, MountPath, ResourceScheme, ResourceUri, ResourceUriPrefix,
+        ScopeName, UpstreamEndpoint, UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
     };
 
     fn test_server(
@@ -423,6 +459,7 @@ mod tests {
             },
             resource_projection,
             referenced_resource_schemes: std::collections::BTreeSet::new(),
+            app_resource_dependencies: Vec::new(),
             tools: vec![LocalToolName::new("run").unwrap()],
             compatibility_helpers: Vec::new(),
             prompts: Vec::new(),
@@ -594,6 +631,55 @@ mod tests {
         assert_eq!(
             connect_domains,
             &serde_json::json!(["wss://stream.example", "ws://127.0.0.1:49101"])
+        );
+    }
+
+    #[test]
+    fn app_dependencies_are_projected_only_under_matching_authority() {
+        let mut server = test_server("mission", "mission", ResourceProjectionMode::ServerOwned);
+        server.capabilities.apps = true;
+        server.app_resource_dependencies = vec![AppResourceDependency {
+            app_resource: ResourceUri::new("ui://mission/operations.html").unwrap(),
+            server: ServerSlug::new("view").unwrap(),
+            scheme: ResourceScheme::new("view").unwrap(),
+            uri_prefix: ResourceUriPrefix::new("view://frame/").unwrap(),
+            required_scope: ScopeName::new("view:read").unwrap(),
+            operations: BTreeSet::from([AppResourceOperation::Read]),
+            data_labels: BTreeSet::from([DataLabelId::new("cui").unwrap()]),
+        }];
+        let mut resource = Resource::new("ui://mission/operations.html", "mission-operations");
+        let profile_servers = BTreeSet::from([
+            ServerSlug::new("mission").unwrap(),
+            ServerSlug::new("view").unwrap(),
+        ]);
+        project_app_resource_dependencies(
+            &server,
+            &mut resource,
+            &profile_servers,
+            &BTreeSet::from([ScopeName::new("view:read").unwrap()]),
+            &BTreeSet::from([DataLabelId::new("cui").unwrap()]),
+        )
+        .unwrap();
+        let projected =
+            resource.meta.as_ref().unwrap().0[APP_RESOURCE_DEPENDENCIES_META_KEY].clone();
+        assert_eq!(
+            projected[0]["uri_prefix"],
+            serde_json::json!("view://frame/")
+        );
+
+        project_app_resource_dependencies(
+            &server,
+            &mut resource,
+            &profile_servers,
+            &BTreeSet::new(),
+            &BTreeSet::from([DataLabelId::new("cui").unwrap()]),
+        )
+        .unwrap();
+        assert!(
+            resource
+                .meta
+                .as_ref()
+                .is_none_or(|meta| !meta.0.contains_key(APP_RESOURCE_DEPENDENCIES_META_KEY))
         );
     }
 }

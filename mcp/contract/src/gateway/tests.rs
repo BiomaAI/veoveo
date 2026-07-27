@@ -122,6 +122,7 @@ fn media_manifest() -> ServerManifest {
         },
         resource_projection: ResourceProjectionMode::Identity,
         referenced_resource_schemes: BTreeSet::new(),
+        app_resource_dependencies: Vec::new(),
         tools: vec![LocalToolName::new("run").unwrap()],
         compatibility_helpers: Vec::new(),
         prompts: vec![PromptName::new("model_help").unwrap()],
@@ -2054,4 +2055,44 @@ fn refresh_tokens_are_redacted_from_diagnostics_but_serialize_on_the_wire() {
     assert_eq!(token.to_string(), "[REDACTED]");
     assert!(!format!("{token:?}").contains(&raw));
     assert_eq!(serde_json::to_value(token).unwrap(), serde_json::json!(raw));
+}
+
+#[test]
+fn app_resource_dependencies_bind_exact_apps_to_registered_resource_families() {
+    let target = media_manifest();
+    let mut owner = media_manifest();
+    owner.slug = ServerSlug::new("mission").unwrap();
+    owner.uri_scheme = ResourceScheme::new("mission").unwrap();
+    owner.capabilities.apps = true;
+    owner.resource_projection = ResourceProjectionMode::ServerOwned;
+    owner.app_resource_dependencies = vec![AppResourceDependency {
+        app_resource: ResourceUri::new("ui://mission/operations.html").unwrap(),
+        server: target.slug.clone(),
+        scheme: target.uri_scheme.clone(),
+        uri_prefix: ResourceUriPrefix::new("media://artifact/").unwrap(),
+        required_scope: ScopeName::new("media:read").unwrap(),
+        operations: BTreeSet::from([AppResourceOperation::Read]),
+        data_labels: BTreeSet::from([DataLabelId::new("cui").unwrap()]),
+    }];
+    let servers = std::collections::BTreeMap::from([
+        (owner.slug.clone(), &owner),
+        (target.slug.clone(), &target),
+    ]);
+    let labels = BTreeSet::from([DataLabelId::new("cui").unwrap()]);
+    super::validation::validate_app_resource_dependencies(&owner, &servers, &labels)
+        .expect("exact registered dependency should validate");
+
+    drop(servers);
+    owner.app_resource_dependencies[0].uri_prefix =
+        ResourceUriPrefix::new("recording://artifact/").unwrap();
+    let servers = std::collections::BTreeMap::from([
+        (owner.slug.clone(), &owner),
+        (target.slug.clone(), &target),
+    ]);
+    let error = super::validation::validate_app_resource_dependencies(&owner, &servers, &labels)
+        .expect_err("scheme and prefix mismatch must fail");
+    assert!(matches!(
+        error,
+        GatewayControlPlaneError::InvalidAppResourceDependency { .. }
+    ));
 }

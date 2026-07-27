@@ -16,6 +16,10 @@
           {
             "kind": "scheme",
             "scheme": "anonymous"
+          },
+          {
+            "kind": "uri_prefix",
+            "prefix": "ui://anonymous/"
           }
         ]
       },
@@ -56,7 +60,8 @@
             "run"
           ],
           "resource_schemes": [
-            "anonymous"
+            "anonymous",
+            "ui"
           ],
           "required_scopes": [
             "operator:use"

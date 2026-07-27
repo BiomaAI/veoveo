@@ -255,6 +255,74 @@ pub(super) fn validate_server_apps(
     Ok(())
 }
 
+pub(super) fn validate_app_resource_dependencies(
+    server: &ServerManifest,
+    servers: &BTreeMap<ServerSlug, &ServerManifest>,
+    known_data_labels: &BTreeSet<DataLabelId>,
+) -> Result<(), GatewayControlPlaneError> {
+    let mut unique = BTreeSet::new();
+    for dependency in &server.app_resource_dependencies {
+        let invalid = |reason: &str| GatewayControlPlaneError::InvalidAppResourceDependency {
+            server: server.slug.clone(),
+            app_resource: dependency.app_resource.clone(),
+            reason: reason.to_owned(),
+        };
+        if !server.capabilities.apps {
+            return Err(invalid("the owning server does not declare Apps"));
+        }
+        let expected_app_prefix = format!("ui://{}/", server.slug);
+        let app_suffix = dependency
+            .app_resource
+            .as_str()
+            .strip_prefix(&expected_app_prefix);
+        if !app_suffix.is_some_and(|suffix| {
+            !suffix.is_empty() && !suffix.contains(['?', '#']) && !suffix.contains("..")
+        }) {
+            return Err(invalid(
+                "the App resource must be one exact projected ui:// URI owned by the server",
+            ));
+        }
+        if dependency.server == server.slug {
+            return Err(invalid(
+                "cross-server dependencies cannot target the owning server",
+            ));
+        }
+        let Some(target) = servers.get(&dependency.server) else {
+            return Err(invalid("the target server is not registered"));
+        };
+        if target.uri_scheme != dependency.scheme {
+            return Err(invalid(
+                "the target server does not own the declared URI scheme",
+            ));
+        }
+        let expected_resource_prefix = format!("{}://", dependency.scheme);
+        if !dependency
+            .uri_prefix
+            .as_str()
+            .strip_prefix(&expected_resource_prefix)
+            .is_some_and(|suffix| !suffix.is_empty() && !suffix.contains(".."))
+        {
+            return Err(invalid(
+                "the URI prefix must be a non-root family under the declared scheme",
+            ));
+        }
+        if dependency.operations.is_empty()
+            || !dependency.operations.contains(&AppResourceOperation::Read)
+        {
+            return Err(invalid(
+                "resources/read must be an explicitly permitted operation",
+            ));
+        }
+        if !dependency.data_labels.is_subset(known_data_labels) {
+            return Err(invalid("the dependency references an unknown data label"));
+        }
+        if !unique.insert(dependency) {
+            return Err(invalid("the dependency is declared more than once"));
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn validate_server_capabilities(
     server: &ServerManifest,
 ) -> Result<(), GatewayControlPlaneError> {
