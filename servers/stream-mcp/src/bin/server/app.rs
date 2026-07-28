@@ -21,6 +21,7 @@ mod tests {
             "hardwareAcceleration",
             "software H.264 decode",
             "hardware H.264 decode",
+            "#empty[hidden]{display:none}",
             "recording route off",
             "Live stream session",
             "ui/resource-teardown",
