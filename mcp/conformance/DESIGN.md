@@ -40,6 +40,13 @@ evidence. The report records the negotiated protocol, implementation identity,
 advertised capabilities, selected contract revision, and execution interval. A failed
 requirement produces a report and a non-zero CLI exit.
 
+## CLI Output
+
+Each CLI command reserves standard output for its requested result. Structured resources
+therefore remain parseable even when the server emits notifications while the command is
+running. Unsolicited progress, task-status, resource-update, and list-change notifications
+are operator diagnostics on standard error.
+
 ## Distribution
 
 The thin `certify` binary is copied into the digest-addressed

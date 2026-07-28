@@ -28,7 +28,7 @@ impl ClientHandler for CliHandler {
         params: ProgressNotificationParam,
         _context: NotificationContext<rmcp::RoleClient>,
     ) {
-        println!(
+        eprintln!(
             "  [progress] {:.0}%{}",
             params.progress * 100.0 / params.total.unwrap_or(1.0),
             params
@@ -43,7 +43,7 @@ impl ClientHandler for CliHandler {
         params: TaskStatusNotificationParam,
         _context: NotificationContext<rmcp::RoleClient>,
     ) {
-        println!(
+        eprintln!(
             "  [task {}] {:?}: {}",
             params.task.task_id,
             params.task.status,
@@ -56,11 +56,11 @@ impl ClientHandler for CliHandler {
         params: ResourceUpdatedNotificationParam,
         _context: NotificationContext<rmcp::RoleClient>,
     ) {
-        println!("  [resource updated] {}", params.uri);
+        eprintln!("  [resource updated] {}", params.uri);
     }
 
     async fn on_resource_list_changed(&self, _context: NotificationContext<rmcp::RoleClient>) {
-        println!("  [resource list changed]");
+        eprintln!("  [resource list changed]");
     }
 }
 
