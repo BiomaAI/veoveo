@@ -61,7 +61,14 @@ not a supported Rust build command.
 The managed builder is named `veoveo`. Commands always pass that name explicitly and do
 not change Docker's globally selected builder. `ensure` creates a missing builder and
 fails when an existing one has a different driver, BuildKit image, daemon version, or
-configuration. Cache deletion requires the explicit destructive command:
+configuration. A checked-in configuration change is applied while retaining the
+builder's state:
+
+```bash
+cargo xtask image builder reconfigure --confirm veoveo
+```
+
+Cache deletion requires the separate destructive command:
 
 ```bash
 cargo xtask image builder recreate --confirm veoveo
@@ -75,10 +82,13 @@ Buildx state through Git's common directory. Docker credentials remain in the
 operator's ordinary Docker configuration.
 
 The builder runs the digest-pinned BuildKit 0.31.2 image. Its checked-in daemon
-configuration preserves source-local and Cargo cache mounts for seven days, reserves
-20 GB for cache, and applies explicit space limits. `status` verifies the driver,
-daemon version, image digest, and configuration digest. A configuration change fails
-closed until the operator invokes the explicit recreation command.
+configuration preserves source-local and Cargo cache mounts for seven days. The
+general cache policy retains at least 240 GB, begins collection above 320 GB, and
+protects 80 GB of host free space. These bounds accommodate the simultaneous Isaac,
+DeepStream, and ordinary Rust image lineages used by the acceptance suite. `status`
+verifies the driver, daemon version, image digest, and configuration digest. A
+configuration change fails closed until the operator invokes the state-preserving
+reconfiguration command or the destructive recreation command.
 
 ## Release Publication
 

@@ -133,12 +133,24 @@ garbage-collection policy. The policy placed a 488 MiB limit on source-local and
 execution-cache mounts, while the Rust target mount occupied about 2.93 GiB. BuildKit
 reclaimed that mount, and the next gateway-only build recompiled the family.
 
-The checked-in daemon policy now keeps source-local, Git checkout, and execution cache
-mounts for seven days, reserves 20 GB, and applies explicit maximum-used and
-minimum-free-space limits. The builder was deliberately recreated after that change,
-which removed the previous builder cache. The accepted runs above used the corrected
-policy, and BuildKit retained the 2.93 GiB target cache across the warm and gateway
+That first daemon-policy correction kept source-local, Git checkout, and execution
+cache mounts for seven days, reserved 20 GB, and applied explicit maximum-used and
+minimum-free-space limits. The builder was deliberately recreated after the change,
+which removed the previous builder cache. The accepted runs above used that policy,
+and BuildKit retained the 2.93 GiB target cache across the warm and gateway
 experiments.
+
+A later composed GPU acceptance cycle exposed a wider-lineage limit. The managed cache
+held 170.13 GB while the general policy allowed only 160 GB, even though the host had
+593 GB free. Consecutive Stream releases therefore discarded and downloaded the
+DeepStream Triton builder lineage again; a two-line MCP App edit paid more than five
+minutes to extract that unchanged base before compiling the crate in 17 seconds.
+
+The general policy now retains 240 GB and begins collection above 320 GB while
+preserving 80 GB of host free space. Source and execution cache mounts have a separate
+160 GB ceiling. `cargo xtask image builder reconfigure --confirm veoveo` applies a
+policy revision with Buildx `--keep-state`, which avoids deleting warm lineages merely
+to correct their retention policy.
 
 ## Acceptance Matrix
 

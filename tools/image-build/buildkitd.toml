@@ -4,15 +4,15 @@
 [[worker.oci.gcpolicy]]
   filters = ["type==source.local", "type==exec.cachemount", "type==source.git.checkout"]
   keepDuration = "168h"
-  reservedSpace = "20GB"
-  maxUsedSpace = "80GB"
-  minFreeSpace = "40GB"
+  reservedSpace = "40GB"
+  maxUsedSpace = "160GB"
+  minFreeSpace = "80GB"
 
 [[worker.oci.gcpolicy]]
   all = true
-  reservedSpace = "20GB"
-  maxUsedSpace = "160GB"
-  minFreeSpace = "40GB"
+  reservedSpace = "240GB"
+  maxUsedSpace = "320GB"
+  minFreeSpace = "80GB"
 
 [registry."k3d-veoveo-registry.localhost:5001"]
   http = true
