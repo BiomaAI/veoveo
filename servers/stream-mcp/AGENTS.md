@@ -47,7 +47,33 @@ compiled for the deployment GPU.
 
 Contract revision: 2
 
-- C01-C16: met
-- C17: pending — gateway registration does not state the contract revision
-- C18-C21: pending — well-known docs and contract resources are not wired
-- C22-C30: met
+- C01: met
+- C02: met
+- C03: met
+- C04: met
+- C05: met
+- C06: met
+- C07: met
+- C08: met
+- C09: met
+- C10: met
+- C11: met
+- C12: met
+- C13: met
+- C14: met
+- C15: met
+- C16: met
+- C17: met
+- C18: pending — the well-known documentation resources are not wired
+- C19: pending — the contract declaration resource is not wired
+- C20: pending — the administrative documentation routes are not wired
+- C21: pending — the server does not yet embed its crate documents
+- C22: met
+- C23: met
+- C24: met
+- C25: met
+- C26: met
+- C27: met
+- C28: met
+- C29: met
+- C30: met
