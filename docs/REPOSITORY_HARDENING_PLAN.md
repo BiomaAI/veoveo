@@ -760,8 +760,11 @@ against a registered extension.
 
 The conformance artifact publishes independently of the Veoveo workspace. Its
 hosted-server profile selects applicable checks from a typed declaration and includes
-authentication rejection, valid internal assertions, Host handling, advertised
-surfaces, schemas, tasks, subscriptions, and URI ownership where declared.
+authentication rejection, Host handling, advertised surfaces, schemas, tasks,
+subscriptions, and URI ownership where declared. Verifying that a server accepts a
+valid gateway assertion and rejects a forged, expired, or misaddressed one belongs to
+the extension's own tests against the profile in
+[`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md).
 
 Generic conformance depends on MCP contracts and protocol infrastructure only. Direct
 dependencies on Frames, Map, Media, another server, a showcase, or an example are
