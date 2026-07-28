@@ -144,6 +144,23 @@ pub(crate) async fn capture_console_live_app(
     .with_context(|| format!("Console live-App capture exceeded {timeout:?}"))?
 }
 
+pub(crate) async fn preflight_console_live_app(
+    cdp_base: &str,
+    public_base_url: &str,
+    timeout: Duration,
+) -> Result<()> {
+    let page_url = format!(
+        "{}/console/#/apps/simulation-view/live.html",
+        public_base_url.trim_end_matches('/')
+    );
+    tokio::time::timeout(
+        timeout,
+        preflight_console_live_app_inner(cdp_base, &page_url),
+    )
+    .await
+    .with_context(|| format!("Console live-App preflight exceeded {timeout:?}"))?
+}
+
 pub(crate) async fn capture_console_recording(
     cdp_base: &str,
     public_base_url: &str,
@@ -180,6 +197,44 @@ pub(crate) async fn capture_console_stream_app(
     )
     .await
     .with_context(|| format!("Console Stream-App capture exceeded {timeout:?}"))?
+}
+
+async fn preflight_console_live_app_inner(cdp_base: &str, page_url: &str) -> Result<()> {
+    let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, page_url).await?;
+    let acceptance = async {
+        wait_for_document(&mut cdp, &session_id).await?;
+        assert_page_visible(&mut cdp, &session_id).await?;
+        let hardware: HardwareIdentity =
+            cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
+        hardware.validate()?;
+        let app: Value = evaluate_console_app(
+            &mut cdp,
+            &target_id,
+            &session_id,
+            "simulation-view",
+            r#"({
+              readyState: document.readyState,
+              body: document.body?.innerText ?? ""
+            })"#,
+            false,
+        )
+        .await?;
+        ensure!(
+            app.get("readyState").and_then(Value::as_str) == Some("complete")
+                && app
+                    .get("body")
+                    .and_then(Value::as_str)
+                    .is_some_and(|body| body.contains("Simulation View")),
+            "authenticated Console did not finish loading the Simulation View App: {app}"
+        );
+        cdp.assert_no_software_renderer_events()?;
+        Ok(())
+    }
+    .await;
+    let close = close_target(&mut cdp, &target_id).await;
+    acceptance?;
+    close?;
+    Ok(())
 }
 
 async fn capture_console_live_app_inner(

@@ -5,6 +5,7 @@ use super::*;
 use crate::scenarios::simulation_view::browser::{
     ConsoleLiveCaptureEvidence, ConsoleRecordingCaptureEvidence, ConsoleStreamCaptureEvidence,
     capture_console_live_app, capture_console_recording, capture_console_stream_app,
+    preflight_console_live_app,
 };
 
 const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-acceptance-evidence/v2";
@@ -129,6 +130,19 @@ pub(crate) async fn uav_showcase_verify(
         &producer_spiffe_id,
     )
     .await?;
+    if let Err(error) = preflight_console_live_app(
+        chrome_cdp_url,
+        public_base_url,
+        Duration::from_secs(scenario.view.timeout_seconds),
+    )
+    .await
+    {
+        let cleanup = cleanup_view(&operator, &mut resources).await;
+        return Err(with_cleanup_error(
+            error.context("preflighting the authenticated Console Simulation View App"),
+            cleanup,
+        ));
+    }
     let source_revision = run_checked(
         Path::new("git"),
         ["rev-parse", "HEAD"].map(OsString::from),
