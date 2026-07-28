@@ -67,8 +67,9 @@ Applications select chart set 0.1.0-8d43b975bf85, published from commit
 from commit 20aa16e5215d6e12eb18cbe7ff785cbb3c9ba952.
 The UAV MCP image was published from the chart-set commit. The Stream and Reason
 MCP images were published from commit 49df5b36742316e0fc81bb09f72641a88a5a7f5a,
-and the UAV runtime was published from commit
-b2c1df19dff4a90532ff18664e0d0a19b4ddf6d1.
+the Console image was published from commit
+569686400dd79f21aa638fc2e9bfdf51de0ed614, and the UAV runtime was published
+from commit b2c1df19dff4a90532ff18664e0d0a19b4ddf6d1.
 The selected digests identify each immutable image release.
 
 Publish a new local release directly to the shared registry:
