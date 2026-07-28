@@ -166,8 +166,9 @@ Controlled types include:
 
 - `SessionId`, `VehicleId`, `MissionId`, `RecordingId`, `PoseProducerId`,
   `SpiffeId`, `EpochId`, `FrameWorldRevisionUri`, and `WorldFrameUri`;
-- `SimulationLifecycle`, `TileLifecycle`, `CameraLifecycle`,
-  `PosePublicationLifecycle`, `VehicleFlightState`, and `MissionLifecycle`;
+- `SimulationLifecycle`, `TileLifecycle`, `CameraLifecycle`, `CameraCodec`,
+  `CameraEncoder`, `PosePublicationLifecycle`, `VehicleFlightState`, and
+  `MissionLifecycle`;
 - WGS84, ENU, NED, quaternion, vehicle, sensor, recording, and publication
   records;
 - tagged `SimulationCommand` and `DurableOperation` enums.

@@ -205,6 +205,18 @@ pub enum CameraLifecycle {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CameraCodec {
+    H264,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CameraEncoder {
+    NvidiaNvenc,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub enum PoseProtocolSchema {
     #[serde(rename = "veoveo.io/simulation-view-pose/v1")]
     SimulationViewPoseV1,
@@ -327,6 +339,8 @@ pub struct CameraState {
     pub lifecycle: CameraLifecycle,
     pub width: u32,
     pub height: u32,
+    pub codec: CameraCodec,
+    pub encoder: CameraEncoder,
     pub frames_observed: u64,
     #[schemars(range(min = 0.0, max = 255.0))]
     pub mean_luma: f32,

@@ -41,13 +41,13 @@ use veoveo_task_runtime::{
 
 use crate::adapter::{Adapter, FakeAdapter, HttpAdapter};
 use crate::contract::{
-    CameraLifecycle, CameraState, CaptureDatasetRequest, CommandAcknowledgement,
-    ConfigureWorldOutput, ConfigureWorldRequest, DurableOperation, ExecuteMissionRequest,
-    PoseProducerId, PoseProtocolSchema, PosePublicationLifecycle, PosePublicationState,
-    PrepareViewSceneRequest, PreparedViewScene, RunScenarioRequest, SessionId, SessionRequest,
-    SimulationCommand, SimulationLifecycle, SimulationState, SpiffeId, StepSimulationRequest,
-    TakeoffRequest, TileLifecycle, TileState, VehicleId, VehicleRequest, VehicleState,
-    Wgs84Position,
+    CameraCodec, CameraEncoder, CameraLifecycle, CameraState, CaptureDatasetRequest,
+    CommandAcknowledgement, ConfigureWorldOutput, ConfigureWorldRequest, DurableOperation,
+    ExecuteMissionRequest, PoseProducerId, PoseProtocolSchema, PosePublicationLifecycle,
+    PosePublicationState, PrepareViewSceneRequest, PreparedViewScene, RunScenarioRequest,
+    SessionId, SessionRequest, SimulationCommand, SimulationLifecycle, SimulationState, SpiffeId,
+    StepSimulationRequest, TakeoffRequest, TileLifecycle, TileState, VehicleId, VehicleRequest,
+    VehicleState, Wgs84Position,
 };
 use crate::uris;
 use crate::view_scene::ViewSceneService;
@@ -920,6 +920,8 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             lifecycle: CameraLifecycle::Ready,
             width: 640,
             height: 480,
+            codec: CameraCodec::H264,
+            encoder: CameraEncoder::NvidiaNvenc,
             frames_observed: 10,
             mean_luma: 96.0,
             dynamic_range: 224,
