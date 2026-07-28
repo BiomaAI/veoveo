@@ -120,6 +120,11 @@ stream://session/{session_id}/preview
 Preview data is the admitted H.264 access unit stream copied after parsing. It
 is not a JPEG fallback and does not trigger a second encode. WebCodecs draws
 decoded frames while a separate overlay canvas renders typed bounding boxes.
+The App selects `prefer-hardware` when Media Capabilities reports the exact
+stream as power efficient. When the exact stream is supported and smooth but
+not power efficient, it selects `prefer-software` and identifies software
+H.264 decode in the UI. This browser-only decode exception does not change the
+hardware GPU requirement for Stream processing or visual acceptance.
 The App waits for a retained keyframe before decoding and discards already
 observed sequence numbers. Its session selector switches among live streams
 visible to the operator's Work Context without changing their pipelines or
@@ -271,6 +276,8 @@ must prove:
 - NVDEC, DeepStream, and TensorRT process non-zero frames;
 - the result freshness bound is met;
 - the App decodes actual H.264 and displays typed overlays;
+- the App's hardware or software H.264 label agrees with Media Capabilities
+  for the exact codec, dimensions, bitrate, and frame rate;
 - recording replay still publishes governed artifacts when Recording is
   selected.
 
