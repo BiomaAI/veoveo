@@ -91,19 +91,6 @@ pub(crate) async fn sumo_push(steps: u32) -> Result<()> {
 }
 
 pub(crate) async fn sumo_verify(conformance: &Path, context: &str) -> Result<()> {
-    if conformance == Path::new("target/debug/conformance") {
-        run_checked(
-            Path::new("cargo"),
-            [
-                "build".into(),
-                "-p".into(),
-                "veoveo-mcp-conformance".into(),
-                "--bin".into(),
-                "conformance".into(),
-            ],
-            [],
-        )?;
-    }
     assert_executable(conformance)?;
 
     run_checked(

@@ -2,13 +2,13 @@ mod commands;
 mod context;
 mod process;
 
-use std::path::PathBuf;
+use std::{ffi::OsString, path::PathBuf};
 
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
 use crate::{
-    commands::{builder, doctor, enforce, image, release},
+    commands::{builder, doctor, enforce, image, release, smoke},
     context::RepositoryContext,
 };
 
@@ -38,6 +38,8 @@ enum Command {
         #[command(subcommand)]
         command: ReleaseCommand,
     },
+    /// Build and dispatch the typed Rust smoke harness.
+    Smoke(SmokeArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -83,6 +85,13 @@ enum BuilderCommand {
     Ensure,
     /// Remove and recreate the managed builder.
     Recreate(RecreateArgs),
+}
+
+#[derive(Debug, Args)]
+struct SmokeArgs {
+    /// Smoke scenario and its typed arguments.
+    #[arg(required = true, trailing_var_arg = true, allow_hyphen_values = true)]
+    arguments: Vec<OsString>,
 }
 
 #[derive(Debug, Args)]
@@ -265,5 +274,6 @@ fn main() -> Result<()> {
             }
             ReleaseCommand::Compatibility(args) => release::compatibility(&repository, &args),
         },
+        Command::Smoke(args) => smoke::run(&repository, &args.arguments),
     }
 }
