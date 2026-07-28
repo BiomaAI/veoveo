@@ -197,6 +197,7 @@ async fn capture_console_live_app_inner(
         hardware.validate()?;
         let ready = wait_for_console_app_camera(
             &mut cdp,
+            &target_id,
             &session_id,
             expected_camera_id,
         )
@@ -206,9 +207,10 @@ async fn capture_console_live_app_inner(
             "Console Simulation View App exposed no camera {expected_camera_id:?}"
         );
         let first =
-            wait_for_console_video(&mut cdp, &session_id, expected_camera_id).await?;
+            wait_for_console_video(&mut cdp, &target_id, &session_id, expected_camera_id).await?;
         let second = wait_for_console_video_advance(
             &mut cdp,
+            &target_id,
             &session_id,
             expected_camera_id,
             first,
@@ -216,6 +218,7 @@ async fn capture_console_live_app_inner(
         .await?;
         let decode: DecodeIdentity = evaluate_console_app(
             &mut cdp,
+            &target_id,
             &session_id,
             "simulation-view",
             APP_FRAME_DECODE_IDENTITY,
@@ -255,7 +258,7 @@ async fn capture_console_live_app_inner(
         );
         let screenshot_sha256 =
             capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
-        close_console_live_view(&mut cdp, &session_id, expected_camera_id).await?;
+        close_console_live_view(&mut cdp, &target_id, &session_id, expected_camera_id).await?;
         cdp.assert_no_software_renderer_events()?;
         Ok(ConsoleLiveCaptureEvidence {
             schema: "veoveo.io/uav-console-live-capture/v1",
@@ -287,11 +290,12 @@ async fn capture_console_stream_app_inner(
         let hardware: HardwareIdentity =
             cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
         hardware.validate()?;
-        let first = wait_for_console_stream_video(&mut cdp, &session_id).await?;
+        let first = wait_for_console_stream_video(&mut cdp, &target_id, &session_id).await?;
         let second =
-            wait_for_console_stream_advance(&mut cdp, &session_id, first).await?;
+            wait_for_console_stream_advance(&mut cdp, &target_id, &session_id, first).await?;
         let decode: StreamDecodeIdentity = evaluate_console_app(
             &mut cdp,
+            &target_id,
             &session_id,
             "stream",
             STREAM_APP_DECODE_IDENTITY,
@@ -485,13 +489,81 @@ async fn close_target(cdp: &mut Cdp, target_id: &str) -> Result<()> {
     Ok(())
 }
 
-async fn wait_for_console_app_context(
+enum ConsoleAppExecution {
+    ParentWorld(u64),
+    TargetSession(String),
+}
+
+async fn wait_for_console_app_execution(
     cdp: &mut Cdp,
+    parent_target_id: &str,
     session_id: &str,
     app_server: &str,
-) -> Result<u64> {
+) -> Result<ConsoleAppExecution> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
     loop {
+        let targets = cdp
+            .command("Target.getTargets", serde_json::json!({}), None)
+            .await?;
+        if let Some(app_target_id) =
+            find_app_target_id(&targets, parent_target_id, app_server).map(str::to_owned)
+        {
+            let attached = match cdp
+                .command(
+                    "Target.attachToTarget",
+                    serde_json::json!({"targetId": app_target_id, "flatten": true}),
+                    None,
+                )
+                .await
+            {
+                Ok(attached) => attached,
+                Err(error)
+                    if stale_app_target(&error) && tokio::time::Instant::now() < deadline =>
+                {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    continue;
+                }
+                Err(error) => {
+                    return Err(error).with_context(|| {
+                        format!("attaching to the {app_server} Console App target")
+                    });
+                }
+            };
+            let app_session_id = attached
+                .get("sessionId")
+                .and_then(Value::as_str)
+                .with_context(|| {
+                    format!("Chrome did not attach a session to the {app_server} Console App")
+                })?
+                .to_owned();
+            let runtime = cdp
+                .command(
+                    "Runtime.enable",
+                    serde_json::json!({}),
+                    Some(&app_session_id),
+                )
+                .await;
+            match runtime {
+                Ok(_) => return Ok(ConsoleAppExecution::TargetSession(app_session_id)),
+                Err(error) => {
+                    let _ = cdp
+                        .command(
+                            "Target.detachFromTarget",
+                            serde_json::json!({"sessionId": app_session_id}),
+                            None,
+                        )
+                        .await;
+                    if stale_app_target(&error) && tokio::time::Instant::now() < deadline {
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        continue;
+                    }
+                    return Err(error).with_context(|| {
+                        format!("enabling the {app_server} Console App target runtime")
+                    });
+                }
+            }
+        }
+
         let tree = cdp
             .command("Page.getFrameTree", serde_json::json!({}), Some(session_id))
             .await?;
@@ -509,7 +581,7 @@ async fn wait_for_console_app_context(
                     serde_json::json!({
                         "frameId": frame_id,
                         "worldName": "veoveo-uav-acceptance",
-                        "grantUniveralAccess": false
+                        "grantUniversalAccess": false
                     }),
                     Some(session_id),
                 )
@@ -526,10 +598,11 @@ async fn wait_for_console_app_context(
                     });
                 }
             };
-            return isolated
+            let context_id = isolated
                 .get("executionContextId")
                 .and_then(Value::as_u64)
-                .context("Chrome did not create an App-frame execution context");
+                .context("Chrome did not create an App-frame execution context")?;
+            return Ok(ConsoleAppExecution::ParentWorld(context_id));
         }
         let state: Value = cdp
             .evaluate(
@@ -548,6 +621,7 @@ async fn wait_for_console_app_context(
 
 async fn evaluate_console_app<T: serde::de::DeserializeOwned>(
     cdp: &mut Cdp,
+    parent_target_id: &str,
     session_id: &str,
     app_server: &str,
     expression: &str,
@@ -555,12 +629,39 @@ async fn evaluate_console_app<T: serde::de::DeserializeOwned>(
 ) -> Result<T> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
     loop {
-        let context_id = wait_for_console_app_context(cdp, session_id, app_server).await?;
-        match cdp
-            .evaluate_context(session_id, context_id, expression, await_promise)
-            .await
-        {
-            Ok(value) => return Ok(value),
+        let execution =
+            wait_for_console_app_execution(cdp, parent_target_id, session_id, app_server).await?;
+        let (evaluated, detach) = match execution {
+            ConsoleAppExecution::ParentWorld(context_id) => (
+                cdp.evaluate_context(session_id, context_id, expression, await_promise)
+                    .await,
+                None,
+            ),
+            ConsoleAppExecution::TargetSession(app_session_id) => {
+                let evaluated = cdp
+                    .evaluate(&app_session_id, expression, await_promise)
+                    .await;
+                let detach = cdp
+                    .command(
+                        "Target.detachFromTarget",
+                        serde_json::json!({"sessionId": app_session_id}),
+                        None,
+                    )
+                    .await;
+                (evaluated, Some(detach))
+            }
+        };
+        match evaluated {
+            Ok(value) => {
+                if let Some(Err(error)) = detach
+                    && !stale_app_target(&error)
+                {
+                    return Err(error).with_context(|| {
+                        format!("detaching from the {app_server} Console App target")
+                    });
+                }
+                return Ok(value);
+            }
             Err(error)
                 if stale_execution_context(&error) && tokio::time::Instant::now() < deadline =>
             {
@@ -579,10 +680,20 @@ fn stale_execution_context(error: &anyhow::Error) -> bool {
     let message = format!("{error:#}");
     message.contains("Cannot find context with specified id")
         || message.contains("Execution context was destroyed")
+        || stale_app_target(error)
 }
 
 fn stale_app_frame(error: &anyhow::Error) -> bool {
     format!("{error:#}").contains("No frame for given id found")
+}
+
+fn stale_app_target(error: &anyhow::Error) -> bool {
+    let message = format!("{error:#}");
+    message.contains("No target with given id found")
+        || message.contains("No session with given id")
+        || message.contains("Session closed")
+        || message.contains("Target closed")
+        || message.contains("Inspected target navigated or closed")
 }
 
 async fn find_app_frame_id_from_dom(
@@ -643,7 +754,7 @@ fn app_frame_id_from_dom_node<'a>(node: &'a Value, app_server: &str) -> Option<&
 fn find_app_frame_id<'a>(frame_tree: &'a Value, app_server: &str) -> Option<&'a str> {
     let frame = frame_tree.get("frame")?;
     let url = frame.get("url").and_then(Value::as_str).unwrap_or_default();
-    if url.contains("/console/api/apps/frame") && url.contains(app_server) {
+    if is_app_frame_url(url, app_server) {
         return frame.get("id").and_then(Value::as_str);
     }
     frame_tree
@@ -653,8 +764,34 @@ fn find_app_frame_id<'a>(frame_tree: &'a Value, app_server: &str) -> Option<&'a 
         .find_map(|child| find_app_frame_id(child, app_server))
 }
 
+fn find_app_target_id<'a>(
+    targets: &'a Value,
+    parent_target_id: &str,
+    app_server: &str,
+) -> Option<&'a str> {
+    targets
+        .get("targetInfos")
+        .and_then(Value::as_array)?
+        .iter()
+        .find(|target| {
+            target.get("type").and_then(Value::as_str) == Some("iframe")
+                && target.get("parentId").and_then(Value::as_str) == Some(parent_target_id)
+                && target
+                    .get("url")
+                    .and_then(Value::as_str)
+                    .is_some_and(|url| is_app_frame_url(url, app_server))
+        })
+        .and_then(|target| target.get("targetId"))
+        .and_then(Value::as_str)
+}
+
+fn is_app_frame_url(url: &str, app_server: &str) -> bool {
+    url.contains("/console/api/apps/frame") && url.contains(app_server)
+}
+
 async fn wait_for_console_app_camera(
     cdp: &mut Cdp,
+    target_id: &str,
     session_id: &str,
     expected_camera_id: &str,
 ) -> Result<bool> {
@@ -671,8 +808,15 @@ async fn wait_for_console_app_camera(
               return {{found:true,error:"",body:document.body?.innerText ?? ""}};
             }})()"#
         );
-        let state: Value =
-            evaluate_console_app(cdp, session_id, "simulation-view", &expression, false).await?;
+        let state: Value = evaluate_console_app(
+            cdp,
+            target_id,
+            session_id,
+            "simulation-view",
+            &expression,
+            false,
+        )
+        .await?;
         if state.get("found").and_then(Value::as_bool) == Some(true) {
             return Ok(true);
         }
@@ -696,14 +840,16 @@ async fn wait_for_console_app_camera(
 
 async fn wait_for_console_video(
     cdp: &mut Cdp,
+    target_id: &str,
     session_id: &str,
     expected_camera_id: &str,
 ) -> Result<AppVideoState> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
     loop {
-        wait_for_console_app_camera(cdp, session_id, expected_camera_id).await?;
+        wait_for_console_app_camera(cdp, target_id, session_id, expected_camera_id).await?;
         let state: AppVideoState = evaluate_console_app(
             cdp,
+            target_id,
             session_id,
             "simulation-view",
             APP_FRAME_VIDEO_STATE,
@@ -730,6 +876,7 @@ async fn wait_for_console_video(
 
 async fn wait_for_console_video_advance(
     cdp: &mut Cdp,
+    target_id: &str,
     session_id: &str,
     expected_camera_id: &str,
     mut first: AppVideoState,
@@ -737,7 +884,7 @@ async fn wait_for_console_video_advance(
     let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
     loop {
         tokio::time::sleep(Duration::from_secs(2)).await;
-        let second = wait_for_console_video(cdp, session_id, expected_camera_id).await?;
+        let second = wait_for_console_video(cdp, target_id, session_id, expected_camera_id).await?;
         if second.document_epoch_ms == first.document_epoch_ms
             && second.current_time > first.current_time + 0.25
         {
@@ -753,11 +900,22 @@ async fn wait_for_console_video_advance(
     }
 }
 
-async fn wait_for_console_stream_video(cdp: &mut Cdp, session_id: &str) -> Result<StreamAppState> {
+async fn wait_for_console_stream_video(
+    cdp: &mut Cdp,
+    target_id: &str,
+    session_id: &str,
+) -> Result<StreamAppState> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
     loop {
-        let state: StreamAppState =
-            evaluate_console_app(cdp, session_id, "stream", STREAM_APP_STATE, false).await?;
+        let state: StreamAppState = evaluate_console_app(
+            cdp,
+            target_id,
+            session_id,
+            "stream",
+            STREAM_APP_STATE,
+            false,
+        )
+        .await?;
         if state.is_ready() {
             state.validate()?;
             return Ok(state);
@@ -778,13 +936,14 @@ async fn wait_for_console_stream_video(cdp: &mut Cdp, session_id: &str) -> Resul
 
 async fn wait_for_console_stream_advance(
     cdp: &mut Cdp,
+    target_id: &str,
     session_id: &str,
     mut first: StreamAppState,
 ) -> Result<StreamAppState> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
     loop {
         tokio::time::sleep(Duration::from_secs(2)).await;
-        let second = wait_for_console_stream_video(cdp, session_id).await?;
+        let second = wait_for_console_stream_video(cdp, target_id, session_id).await?;
         if second.document_epoch_ms == first.document_epoch_ms
             && second.session_id == first.session_id
             && second.decoded_frames > first.decoded_frames
@@ -816,12 +975,14 @@ async fn assert_page_visible(cdp: &mut Cdp, session_id: &str) -> Result<()> {
 
 async fn close_console_live_view(
     cdp: &mut Cdp,
+    target_id: &str,
     session_id: &str,
     expected_camera_id: &str,
 ) -> Result<()> {
     let expected = serde_json::to_string(expected_camera_id)?;
     let requested: bool = evaluate_console_app(
         cdp,
+        target_id,
         session_id,
         "simulation-view",
         &format!(
@@ -844,6 +1005,7 @@ async fn close_console_live_view(
     loop {
         let state: Value = evaluate_console_app(
             cdp,
+            target_id,
             session_id,
             "simulation-view",
             r#"(() => ({
@@ -2014,6 +2176,10 @@ mod tests {
             "Chrome DevTools `Page.createIsolatedWorld` failed: \
              {{\"code\":-32602,\"message\":\"No frame for given id found\"}}"
         )));
+        assert!(stale_execution_context(&anyhow!(
+            "Chrome DevTools `Runtime.evaluate` failed: \
+             {{\"code\":-32001,\"message\":\"Session closed. Most likely the target has been closed.\"}}"
+        )));
         assert!(!stale_app_frame(&anyhow!(
             "Chrome frame tree omitted its root"
         )));
@@ -2108,6 +2274,36 @@ mod tests {
             }]
         });
         assert_eq!(find_app_frame_id(&tree, "simulation-view"), Some("app"));
+    }
+
+    #[test]
+    fn finds_only_the_console_tabs_swapped_simulation_view_target() {
+        let targets = serde_json::json!({
+            "targetInfos": [
+                {
+                    "targetId": "other-app",
+                    "type": "iframe",
+                    "parentId": "other-console",
+                    "url": "https://installation.example/console/api/apps/frame?uri=ui%3A%2F%2Fsimulation-view%2Flive.html"
+                },
+                {
+                    "targetId": "stream-app",
+                    "type": "iframe",
+                    "parentId": "console",
+                    "url": "https://installation.example/console/api/apps/frame?uri=ui%3A%2F%2Fstream%2Flive.html"
+                },
+                {
+                    "targetId": "simulation-app",
+                    "type": "iframe",
+                    "parentId": "console",
+                    "url": "https://installation.example/console/api/apps/frame?uri=ui%3A%2F%2Fsimulation-view%2Flive.html"
+                }
+            ]
+        });
+        assert_eq!(
+            find_app_target_id(&targets, "console", "simulation-view"),
+            Some("simulation-app")
+        );
     }
 
     #[test]
