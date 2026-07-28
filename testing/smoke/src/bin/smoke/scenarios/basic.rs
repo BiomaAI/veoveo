@@ -285,6 +285,23 @@ pub(crate) async fn helm_config() -> Result<()> {
     )?;
     contains(&bioma, "veoveo.ai/bootstrap-revision:")?;
     not_contains(&bioma, "bootstrap-1")?;
+    let simulation_view_media = bioma
+        .split("\n---\n")
+        .find(|document| {
+            document.contains("kind: Service") && document.contains("name: simulation-view-media\n")
+        })
+        .context("finding rendered Simulation View media Service")?;
+    contains(simulation_view_media, "type: NodePort")?;
+    for node_port in 30998..=31001 {
+        contains(simulation_view_media, &format!("nodePort: {node_port}"))?;
+    }
+    let bioma_cluster = fs::read_to_string("examples/bioma/k3d.yaml")?;
+    for (public_port, node_port) in (47998..=48001).zip(30998..=31001) {
+        contains(
+            &bioma_cluster,
+            &format!("port: 127.0.0.1:{public_port}:{node_port}/udp"),
+        )?;
+    }
     for forbidden in ["name: otel-collector", "secretName: bioma-ingress-tls"] {
         if bioma.contains(forbidden) {
             bail!("Bioma k3d render must not contain `{forbidden}`");
