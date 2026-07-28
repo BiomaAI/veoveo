@@ -9,18 +9,24 @@ use veoveo_mcp_task_extension::{
 };
 
 pub(super) async fn read_resource_json(client: &Client, uri: &str) -> Result<Value> {
+    let (text, _) = read_resource_text(client, uri).await?;
+    Ok(serde_json::from_str(&text)?)
+}
+
+async fn read_resource_text(client: &Client, uri: &str) -> Result<(String, Option<String>)> {
     let result = client
         .read_resource(ReadResourceRequestParams::new(uri))
         .await?;
-    let text = result
+    result
         .contents
         .iter()
         .find_map(|c| match c {
-            rmcp::model::ResourceContents::TextResourceContents { text, .. } => Some(text.clone()),
+            rmcp::model::ResourceContents::TextResourceContents {
+                text, mime_type, ..
+            } => Some((text.clone(), mime_type.clone())),
             _ => None,
         })
-        .ok_or_else(|| anyhow!("resource {uri} returned no text contents"))?;
-    Ok(serde_json::from_str(&text)?)
+        .ok_or_else(|| anyhow!("resource {uri} returned no text contents"))
 }
 
 async fn read_resource_blob(client: &Client, uri: &str) -> Result<(Vec<u8>, Option<String>)> {
@@ -436,9 +442,26 @@ fn assert_self_contained_html(uri: &str, html: &str) -> Result<()> {
 }
 
 pub(super) async fn cmd_resource(client: &Client, uri: String) -> Result<()> {
-    let value = read_resource_json(client, &uri).await?;
-    println!("{}", serde_json::to_string_pretty(&value)?);
+    let (text, mime_type) = read_resource_text(client, &uri).await?;
+    println!("{}", format_text_resource(&text, mime_type.as_deref())?);
     Ok(())
+}
+
+fn format_text_resource(text: &str, mime_type: Option<&str>) -> Result<String> {
+    let json = mime_type.is_none_or(|mime_type| {
+        let essence = mime_type
+            .split_once(';')
+            .map_or(mime_type, |(essence, _)| essence)
+            .trim()
+            .to_ascii_lowercase();
+        essence == "application/json" || essence.ends_with("+json")
+    });
+    if json {
+        return Ok(serde_json::to_string_pretty(
+            &serde_json::from_str::<Value>(text)?,
+        )?);
+    }
+    Ok(text.to_owned())
 }
 
 pub(super) async fn cmd_prompt(
@@ -920,6 +943,27 @@ pub(super) async fn cmd_run(
 #[cfg(test)]
 mod schema_validation_tests {
     use super::*;
+
+    #[test]
+    fn generic_resource_output_preserves_typed_html() {
+        let html = "<!doctype html><p>live stream</p>";
+        assert_eq!(
+            format_text_resource(html, Some("text/html;profile=mcp-app")).unwrap(),
+            html
+        );
+    }
+
+    #[test]
+    fn generic_resource_output_pretty_prints_json_media_types() {
+        assert_eq!(
+            format_text_resource(
+                "{\"frames\":1}",
+                Some("application/vnd.veoveo.stream-results+json"),
+            )
+            .unwrap(),
+            "{\n  \"frames\": 1\n}"
+        );
+    }
 
     #[test]
     fn property_type_validation_accepts_a_field_named_properties() {
