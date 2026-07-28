@@ -649,10 +649,10 @@ mod tests {
 
     use super::*;
     use crate::contract::{
-        CameraLifecycle, CameraState, EnuVector, NedVector, PoseProducerId, PoseProtocolSchema,
-        PosePublicationLifecycle, PosePublicationState, QuaternionXyzw, SessionId,
-        SimulationWorldBinding, SpiffeId, StepSimulationRequest, TileLifecycle, TileState,
-        VehicleId, VehicleState, Wgs84Position,
+        CameraCodec, CameraEncoder, CameraLifecycle, CameraState, EnuVector, NedVector,
+        PoseProducerId, PoseProtocolSchema, PosePublicationLifecycle, PosePublicationState,
+        QuaternionXyzw, SessionId, SimulationWorldBinding, SpiffeId, StepSimulationRequest,
+        TileLifecycle, TileState, VehicleId, VehicleState, Wgs84Position,
     };
     use veoveo_mcp_contract::{
         FrameId, FrameWorldId, FrameWorldRevisionId, FrameWorldRevisionUri, WorldFrameUri,
@@ -700,6 +700,8 @@ mod tests {
                 lifecycle: CameraLifecycle::Ready,
                 width: 640,
                 height: 480,
+                codec: CameraCodec::H264,
+                encoder: CameraEncoder::NvidiaNvenc,
                 frames_observed: 10,
                 mean_luma: 96.0,
                 dynamic_range: 224,
@@ -815,6 +817,27 @@ mod tests {
             recording.recording_key,
             "019f7122-3d89-7d21-8312-8940d1e0f510"
         );
+    }
+
+    #[test]
+    fn private_adapter_camera_wire_requires_exact_h264_nvenc_identity() {
+        let camera: CameraState = serde_json::from_value(serde_json::json!({
+            "vehicle_id": "uav-1",
+            "entity_path": "/world/uav-sim/session-alpha/vehicle/uav-1/camera/down",
+            "lifecycle": "ready",
+            "width": 640,
+            "height": 480,
+            "codec": "h264",
+            "encoder": "nvidia_nvenc",
+            "frames_observed": 10,
+            "mean_luma": 96.0,
+            "dynamic_range": 224,
+            "non_black_fraction": 0.95
+        }))
+        .unwrap();
+
+        assert_eq!(camera.codec, CameraCodec::H264);
+        assert_eq!(camera.encoder, CameraEncoder::NvidiaNvenc);
     }
 
     #[test]
