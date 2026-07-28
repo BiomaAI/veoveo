@@ -19,6 +19,12 @@ use veoveo_recording_hub::{
 };
 use veoveo_recording_mcp::{RecordingReadAuthority, RecordingReadSnapshot, RecordingService};
 
+mod source_snapshot;
+
+pub use source_snapshot::{
+    RecordingSourceIdentity, RecordingSourceIdentityKind, RecordingSourceSnapshot,
+};
+
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RecordingVideoSelection {

@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Context, Result};
 use rmcp::model::{CallToolResult, ContentBlock, Resource};
+use serde::Serialize;
 use veoveo_mcp_contract::{
     ArtifactPut, ArtifactWriteIdempotencyKey, ComplianceMetadata, DataLabelId,
     IssuedArtifactWriteCapability, now_utc,
@@ -31,7 +32,7 @@ pub(super) async fn publish_analysis(
     products: AnalysisProducts,
 ) -> Result<CallToolResult> {
     let compliance = compliance(&products.source.classification, &products.source.labels)?;
-    let source_snapshot = products.source.source_snapshot.clone();
+    let source_snapshot_sha256 = products.results.source_snapshot.digest_sha256()?;
     let results_bytes = serde_json::to_vec_pretty(&products.results)?;
     let results_artifact = put(
         state,
@@ -42,18 +43,15 @@ pub(super) async fn publish_analysis(
         RESULTS_MIME_TYPE,
         format!("{task_id}.reason.json"),
         compliance.clone(),
-        serde_json::json!({
-            "provenance": {
-                "kind": "reason_results",
-                "analysis_id": task_id,
-                "recording_id": products.source.recording_id,
-                "pipeline_id": products.results.pipeline_id,
-                "model_id": products.results.model_id,
-                "prompt_revision": products.results.prompt_revision,
-                "task_kind": products.results.task.kind(),
-                "source_snapshot": source_snapshot,
-            }
-        }),
+        artifact_metadata(ReasonArtifactProvenance::Results {
+            analysis_id: task_id.to_owned(),
+            recording_id: products.source.recording_id.to_string(),
+            pipeline_id: products.results.pipeline_id.clone(),
+            model_id: products.results.model_id.clone(),
+            prompt_revision: products.results.prompt_revision.clone(),
+            task_kind: products.results.task.kind().to_owned(),
+            source_snapshot_sha256: source_snapshot_sha256.clone(),
+        })?,
     )
     .await?;
     let annotations_artifact = put(
@@ -65,15 +63,12 @@ pub(super) async fn publish_analysis(
         RRD_MIME_TYPE,
         format!("{task_id}.annotations.rrd"),
         compliance.clone(),
-        serde_json::json!({
-            "provenance": {
-                "kind": "reason_annotation_layer",
-                "analysis_id": task_id,
-                "recording_id": products.source.recording_id,
-                "results_artifact_uri": results_artifact.artifact_uri,
-                "source_snapshot": source_snapshot,
-            }
-        }),
+        artifact_metadata(ReasonArtifactProvenance::AnnotationLayer {
+            analysis_id: task_id.to_owned(),
+            recording_id: products.source.recording_id.to_string(),
+            results_artifact_uri: results_artifact.artifact_uri.clone(),
+            source_snapshot_sha256: source_snapshot_sha256.clone(),
+        })?,
     )
     .await?;
     let source_clip_artifact = if products.include_source_clip {
@@ -87,17 +82,14 @@ pub(super) async fn publish_analysis(
                 MP4_MIME_TYPE,
                 format!("{task_id}.source.mp4"),
                 compliance,
-                serde_json::json!({
-                    "provenance": {
-                        "kind": "reason_source_clip",
-                        "analysis_id": task_id,
-                        "recording_id": products.source.recording_id,
-                        "entity_path": products.results.entity_path,
-                        "timeline": products.results.timeline,
-                        "decode_start_index": products.source.clip.decode_start_index,
-                        "source_snapshot": source_snapshot,
-                    }
-                }),
+                artifact_metadata(ReasonArtifactProvenance::SourceClip {
+                    analysis_id: task_id.to_owned(),
+                    recording_id: products.source.recording_id.to_string(),
+                    entity_path: products.results.entity_path.clone(),
+                    timeline: products.results.timeline.clone(),
+                    decode_start_index: products.source.clip.decode_start_index,
+                    source_snapshot_sha256,
+                })?,
             )
             .await?,
         )
@@ -151,6 +143,47 @@ pub(super) async fn publish_analysis(
     Ok(result)
 }
 
+#[derive(Debug, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ReasonArtifactMetadata {
+    provenance: ReasonArtifactProvenance,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum ReasonArtifactProvenance {
+    #[serde(rename = "reason_results")]
+    Results {
+        analysis_id: String,
+        recording_id: String,
+        pipeline_id: String,
+        model_id: String,
+        prompt_revision: String,
+        task_kind: String,
+        source_snapshot_sha256: String,
+    },
+    #[serde(rename = "reason_annotation_layer")]
+    AnnotationLayer {
+        analysis_id: String,
+        recording_id: String,
+        results_artifact_uri: String,
+        source_snapshot_sha256: String,
+    },
+    #[serde(rename = "reason_source_clip")]
+    SourceClip {
+        analysis_id: String,
+        recording_id: String,
+        entity_path: String,
+        timeline: String,
+        decode_start_index: i64,
+        source_snapshot_sha256: String,
+    },
+}
+
+fn artifact_metadata(provenance: ReasonArtifactProvenance) -> Result<serde_json::Value> {
+    Ok(serde_json::to_value(ReasonArtifactMetadata { provenance })?)
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn put(
     state: &AppState,
@@ -176,6 +209,7 @@ async fn put(
             artifact,
         )
         .await
+        .with_context(|| format!("publishing `{kind}` Reason artifact"))
 }
 
 fn compliance(classification: &str, labels: &[String]) -> Result<ComplianceMetadata> {
@@ -230,4 +264,60 @@ async fn record_usage(state: &AppState, task_id: &str, results: &ReasoningResult
         .await
         .context("recording reason usage")?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use super::*;
+    use veoveo_mcp_contract::{MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES, PutArtifactRequest};
+
+    #[test]
+    fn artifact_descriptors_reference_bounded_snapshot_digests() {
+        let digest = "a".repeat(64);
+        let variants = [
+            artifact_metadata(ReasonArtifactProvenance::Results {
+                analysis_id: "019fa7ee-4191-73e1-b084-2341d4900a06".to_owned(),
+                recording_id: "019fa7e9-d7c6-7fe1-bdff-0a5313586c3c".to_owned(),
+                pipeline_id: "video-reasoning".to_owned(),
+                model_id: "world-model".to_owned(),
+                prompt_revision: "v1".to_owned(),
+                task_kind: "describe_segment".to_owned(),
+                source_snapshot_sha256: digest.clone(),
+            })
+            .unwrap(),
+            artifact_metadata(ReasonArtifactProvenance::AnnotationLayer {
+                analysis_id: "019fa7ee-4191-73e1-b084-2341d4900a06".to_owned(),
+                recording_id: "019fa7e9-d7c6-7fe1-bdff-0a5313586c3c".to_owned(),
+                results_artifact_uri: "reason://artifact/019fa7ee-4191-73e1-b084-2341d4900a07"
+                    .to_owned(),
+                source_snapshot_sha256: digest.clone(),
+            })
+            .unwrap(),
+            artifact_metadata(ReasonArtifactProvenance::SourceClip {
+                analysis_id: "019fa7ee-4191-73e1-b084-2341d4900a06".to_owned(),
+                recording_id: "019fa7e9-d7c6-7fe1-bdff-0a5313586c3c".to_owned(),
+                entity_path: "/uav/camera/primary".to_owned(),
+                timeline: "simulation_time".to_owned(),
+                decode_start_index: 41_296_000_000,
+                source_snapshot_sha256: digest,
+            })
+            .unwrap(),
+        ];
+
+        for metadata in variants {
+            let request = PutArtifactRequest {
+                mime_type: Some("application/octet-stream".to_owned()),
+                filename: Some("artifact.bin".to_owned()),
+                classification: None,
+                data_labels: BTreeSet::new(),
+                retention_expires_at: None,
+                metadata,
+            };
+            assert!(
+                serde_json::to_vec(&request).unwrap().len() < MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES
+            );
+        }
+    }
 }

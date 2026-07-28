@@ -9,8 +9,8 @@ use tokio::process::Command;
 use crate::catalog::{EngineConfig, ModelConfig, ObservationConfig, PipelineConfig};
 use crate::contract::{
     ConfidenceBasis, DecodePolicy, GroundingDetections, IndexRange, ObservationSampling,
-    ReasonedEvent, ReasoningAnswer, ReasoningResults, ReasoningTask, RecordingVideoSelection,
-    VideoTimelineKind,
+    ReasonedEvent, ReasoningAnswer, ReasoningResults, ReasoningTask, RecordingSourceSnapshot,
+    RecordingVideoSelection, VideoTimelineKind,
 };
 use crate::grounding::grounded_track_ids;
 
@@ -39,6 +39,7 @@ pub struct ReasonAnalysisRequest<'a> {
     pub input_height: u16,
     pub timeline_kind: VideoTimelineKind,
     pub video: &'a RecordingVideoSelection,
+    pub source_snapshot: &'a RecordingSourceSnapshot,
     pub pipeline: &'a PipelineConfig,
     pub model: &'a ModelConfig,
     pub task: &'a ReasoningTask,
@@ -178,6 +179,7 @@ impl ReasonExecutor {
             timeline: analysis.video.timeline.clone(),
             timeline_kind: analysis.timeline_kind,
             requested_range: analysis.video.range,
+            source_snapshot: analysis.source_snapshot.clone(),
             task: analysis.task.clone(),
             answer: response.answer,
             observed_frames: response.observed_frames,
@@ -378,6 +380,14 @@ mod tests {
         }
     }
 
+    fn source_snapshot() -> RecordingSourceSnapshot {
+        RecordingSourceSnapshot {
+            recording_id: "01983da0-0000-7000-8000-000000000000".to_owned(),
+            captured_at: chrono::Utc::now(),
+            sources: Vec::new(),
+        }
+    }
+
     fn model() -> ModelConfig {
         ModelConfig {
             id: "world-model".to_owned(),
@@ -486,6 +496,7 @@ mod tests {
         std::fs::write(&input, []).unwrap();
         let executor = executor(runner);
         let video = selection();
+        let source_snapshot = source_snapshot();
         let task = ReasoningTask::DescribeSegment { prompt: None };
         let results = executor
             .analyze(ReasonAnalysisRequest {
@@ -496,6 +507,7 @@ mod tests {
                 input_height: 1080,
                 timeline_kind: VideoTimelineKind::DurationNanoseconds,
                 video: &video,
+                source_snapshot: &source_snapshot,
                 pipeline: &pipeline(),
                 model: &model(),
                 task: &task,
@@ -506,6 +518,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(results.observed_frames, 3);
+        assert_eq!(results.source_snapshot, source_snapshot);
         assert_eq!(results.prompt_revision, "v1");
         assert_eq!(results.model_digest.as_deref(), Some("sha256:test"));
         assert_eq!(results.confidence_basis, ConfidenceBasis::ModelReported);

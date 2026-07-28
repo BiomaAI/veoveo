@@ -11268,8 +11268,12 @@ name = "veoveo-recording-video"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
+ "hex",
  "schemars",
  "serde",
+ "serde_json",
+ "sha2 0.11.0",
  "tokio",
  "uuid",
  "veoveo-platform-store",
@@ -11440,7 +11444,6 @@ dependencies = [
  "clap",
  "dotenvy",
  "futures",
- "hex",
  "re_log_types",
  "re_sdk",
  "re_sdk_types",
@@ -11450,7 +11453,6 @@ dependencies = [
  "secrecy",
  "serde",
  "serde_json",
- "sha2 0.11.0",
  "tempfile",
  "tokio",
  "tokio-util",

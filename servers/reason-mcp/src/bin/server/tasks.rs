@@ -21,7 +21,8 @@ use veoveo_reason_mcp::{
     grounding::extract_grounding,
 };
 use veoveo_recording_video::{
-    materialize_video, recording_id_from_uri, timeline_kind, validate_video_selection,
+    RecordingSourceSnapshot, materialize_video, recording_id_from_uri, timeline_kind,
+    validate_video_selection,
 };
 use veoveo_task_runtime::{
     CreateTask as DurableCreateTask, RecoveryClass, TaskFailure, TaskId, TaskPayloadState,
@@ -312,6 +313,7 @@ async fn run_task_inner(
         Ok(kind) => kind,
         Err(error) => fail!(format!("{error:#}")),
     };
+    let source_snapshot = RecordingSourceSnapshot::from(&source.source_snapshot);
     let execute = state
         .executor
         .analyze(veoveo_reason_mcp::executor::ReasonAnalysisRequest {
@@ -322,6 +324,7 @@ async fn run_task_inner(
             input_height: source.clip.height,
             timeline_kind,
             video: &input.video,
+            source_snapshot: &source_snapshot,
             pipeline: &pipeline,
             model: &model,
             task: &input.task,
