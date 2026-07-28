@@ -50,14 +50,14 @@
 </text>
 <rect x="390" y="600" width="390" height="180" rx="9" fill="#eee5d8" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="390" y="600" width="7" height="180" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="408" y="623" class="node-id" text-anchor="start">VV-CMP-016..027/049/050/054</text>
+<text x="408" y="623" class="node-id" text-anchor="start">VV-CMP-016..027/049/050/054/057/069</text>
 <text x="408" y="647" class="node-title" text-anchor="start">
 <tspan x="408" dy="0">Hosted domain servers</tspan>
 </text>
 <text x="408" y="670" class="small" text-anchor="start">
 <tspan x="408" dy="0">Artifact, frames, analytics, media, map,</tspan>
-<tspan x="408" dy="16">perception, recording, time, view, UAV</tspan>
-<tspan x="408" dy="16">simulation, and other governed domains.</tspan>
+<tspan x="408" dy="16">stream processing, recording, time, view,</tspan>
+<tspan x="408" dy="16">UAV simulation, and other governed domains.</tspan>
 </text>
 <rect x="920" y="600" width="390" height="180" rx="9" fill="#e7e1ef" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="920" y="600" width="7" height="180" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
@@ -155,5 +155,5 @@
 <path d="M 845 830 L 585 780" class="edge-muted"/>
 <rect x="28" y="1045" width="1644" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1066" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="1670" y="1066" class="tiny" text-anchor="end">Revision 2026-07-25 | VV-VIEW-01</text>
+<text x="1670" y="1066" class="tiny" text-anchor="end">Revision 2026-07-27 | VV-VIEW-01</text>
 </svg>

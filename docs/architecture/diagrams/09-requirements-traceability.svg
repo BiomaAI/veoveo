@@ -72,8 +72,8 @@
 <tspan x="1465" dy="13">VV-CMP-052, VV-CMP-054</tspan>
 </text>
 <text x="2005" y="268" class="tiny" text-anchor="start">
-<tspan x="2005" dy="0">configs/gateway.local.json;</tspan>
-<tspan x="2005" dy="13">testing/mcp-conformance; testing/smoke</tspan>
+<tspan x="2005" dy="0">configs/gateway.local.json; mcp/conformance;</tspan>
+<tspan x="2005" dy="13">testing/smoke</tspan>
 </text>
 <rect x="35" y="313" width="150" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
 <rect x="190" y="313" width="690" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
@@ -198,18 +198,19 @@
 <rect x="1995" y="653" width="370" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
 <text x="45" y="680" class="node-id" text-anchor="start">VV-REQ-008</text>
 <text x="200" y="676" class="tiny" text-anchor="start">
-<tspan x="200" dy="0">Perception shall run locally over authorized recorded data with bounded GPU execution</tspan>
-<tspan x="200" dy="13">and shall publish governed derived results.</tspan>
+<tspan x="200" dy="0">Stream shall process arriving encoded media directly through operator-admitted live</tspan>
+<tspan x="200" dy="13">graphs and shall run reproducible replay profiles over authorized recordings with</tspan>
+<tspan x="200" dy="13">bounded GPU execution.</tspan>
 </text>
 <text x="895" y="682" class="small" text-anchor="start">VV-CAP-006</text>
 <text x="1085" y="682" class="small" text-anchor="start">VV-OPA-007</text>
 <text x="1275" y="682" class="small" text-anchor="start">VV-SVC-012</text>
 <text x="1465" y="676" class="tiny" text-anchor="start">
-<tspan x="1465" dy="0">VV-CMP-022, VV-CMP-032, VV-CMP-044, VV-CMP-004, VV-CMP-005</tspan>
+<tspan x="1465" dy="0">VV-CMP-022, VV-CMP-032, VV-CMP-044, VV-CMP-004, VV-CMP-005, VV-CMP-051</tspan>
 </text>
 <text x="2005" y="676" class="tiny" text-anchor="start">
-<tspan x="2005" dy="0">servers/perception-mcp tests and GPU smoke;</tspan>
-<tspan x="2005" dy="13">servers/perception-mcp/DESIGN.md</tspan>
+<tspan x="2005" dy="0">servers/stream-mcp tests and GPU smoke; UAV live</tspan>
+<tspan x="2005" dy="13">acceptance; servers/stream-mcp/DESIGN.md</tspan>
 </text>
 <rect x="35" y="721" width="150" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
 <rect x="190" y="721" width="690" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
@@ -432,9 +433,9 @@
 </text>
 <text x="2005" y="1356" class="tiny" text-anchor="start">
 <tspan x="2005" dy="0">templates/python-mcp tests; gateway catalog</tspan>
-<tspan x="2005" dy="13">validation; testing/mcp-conformance</tspan>
+<tspan x="2005" dy="13">validation; mcp/conformance</tspan>
 </text>
 <rect x="28" y="1465" width="2344" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1486" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="2370" y="1486" class="tiny" text-anchor="end">Revision 2026-07-25 | VV-VIEW-09</text>
+<text x="2370" y="1486" class="tiny" text-anchor="end">Revision 2026-07-27 | VV-VIEW-09</text>
 </svg>

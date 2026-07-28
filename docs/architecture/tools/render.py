@@ -19,8 +19,8 @@ CATALOGS = ARCH / "catalogs"
 DIAGRAMS = ARCH / "diagrams"
 MODEL = ARCH / "model"
 VERSION = "0.1.0"
-REVISION_DATE = "2026-07-25"
-SOURCE_COMMIT = "7d7693aa0c97a1685729126020820c0243ccdd36"
+REVISION_DATE = "2026-07-27"
+SOURCE_COMMIT = "429379faaf329650797cf230895a23b23901e863"
 
 
 def read_csv(name: str) -> list[dict[str, str]]:
@@ -524,7 +524,7 @@ def diagram_context() -> None:
         600,
         390,
         180,
-        "VV-CMP-016..027/049/050/054",
+        "VV-CMP-016..027/049/050/054/057/069",
         "Hosted domain servers",
         "Artifact, frames, analytics, media, map, stream processing, recording, time, view, UAV simulation, and other governed domains.",
         fill="#eee5d8",
@@ -752,9 +752,12 @@ def diagram_services() -> None:
         y += h + 22
     mappings = [
         ("VV-SVC-001/002", "VV-CMP-001, 011, 041, 052"),
-        ("VV-SVC-003", "VV-CMP-008, 009, 012, 038"),
+        ("VV-SVC-003", "VV-CMP-008, 009, 012, 038, 065"),
         ("VV-SVC-004/005", "VV-CMP-001, 004, 005, 014-016, 023, 039, 047, 051, 053"),
-        ("VV-SVC-006/011/012", "VV-CMP-017-022, 024-026, 031, 032, 044-046, 049, 050, 054-056"),
+        (
+            "VV-SVC-006/011/012",
+            "VV-CMP-017-022, 024-026, 031, 032, 044-046, 049, 050, 054-057, 063, 064, 066-069",
+        ),
         ("VV-SVC-007/008/009/010", "VV-CMP-002, 003, 006, 007, 033-037, 040, 042, 048, 060, 061"),
     ]
     svg.text(42, 1080, "Principal realization allocations", cls="label")
@@ -781,33 +784,57 @@ def diagram_resource_structure() -> None:
         ("User and control surfaces", ["VV-CMP-001", "VV-CMP-002", "VV-CMP-003"], "#d9ebe7", 4),
         (
             "Core platform libraries and services",
-            [f"VV-CMP-{i:03d}" for i in range(4, 16)] + ["VV-CMP-051", "VV-CMP-052", "VV-CMP-053"],
+            [f"VV-CMP-{i:03d}" for i in range(4, 16)]
+            + [
+                "VV-CMP-051",
+                "VV-CMP-052",
+                "VV-CMP-053",
+                "VV-CMP-058",
+                "VV-CMP-059",
+                "VV-CMP-063",
+                "VV-CMP-065",
+                "VV-CMP-066",
+                "VV-CMP-068",
+            ],
             "#deebf2",
-            5,
-        ),
-        (
-            "Hosted MCP domains",
-            [f"VV-CMP-{i:03d}" for i in range(16, 28)] + ["VV-CMP-049", "VV-CMP-050", "VV-CMP-054"],
-            "#eee5d8",
-            4,
-        ),
-        (
-            "Showcase and internal executors",
-            [f"VV-CMP-{i:03d}" for i in range(28, 33)] + ["VV-CMP-055"],
-            "#e7e1ef",
             6,
         ),
         (
+            "Hosted MCP domains",
+            [f"VV-CMP-{i:03d}" for i in range(16, 28)]
+            + [
+                "VV-CMP-049",
+                "VV-CMP-050",
+                "VV-CMP-054",
+                "VV-CMP-057",
+                "VV-CMP-069",
+            ],
+            "#eee5d8",
+            6,
+        ),
+        (
+            "Showcase and internal executors",
+            [f"VV-CMP-{i:03d}" for i in range(28, 33)] + ["VV-CMP-055", "VV-CMP-067"],
+            "#e7e1ef",
+            7,
+        ),
+        (
             "Verification and deployment",
-            [f"VV-CMP-{i:03d}" for i in range(33, 38)] + ["VV-CMP-060", "VV-CMP-061", "VV-CMP-062"],
+            [f"VV-CMP-{i:03d}" for i in range(33, 38)]
+            + [
+                "VV-CMP-060",
+                "VV-CMP-061",
+                "VV-CMP-062",
+                "VV-CMP-064",
+            ],
             "#e9e7db",
-            4,
+            5,
         ),
         (
             "External platform and execution resources",
             [f"VV-CMP-{i:03d}" for i in range(38, 49)] + ["VV-CMP-056"],
             "#f0dfdc",
-            4,
+            6,
         ),
     ]
     y = 110
@@ -924,6 +951,7 @@ def diagram_connectivity() -> None:
         ("VV-CMP-049", "Time"),
         ("VV-CMP-050", "View"),
         ("VV-CMP-054", "UAV Simulation"),
+        ("VV-CMP-069", "Simulation View"),
     ]
     for index, (ident, title) in enumerate(hosted):
         col, row = index % 4, index // 4
@@ -1832,7 +1860,7 @@ def generate_html() -> None:
 <nav><a href="#control">Control</a><a href="#method">Method</a><a href="#view-00">Views</a><a href="#components">Components</a><a href="#interfaces">Interfaces</a><a href="#requirements">Requirements</a><a href="#glossary">Glossary</a><a href="#references">References</a></nav>
 <main>
 <section id="control"><h2>Document control</h2>
-<table class="doc-control"><tbody><tr><td>Title</td><td>Veoveo UAF 1.3 / SysML 1.6 Reference Architecture</td></tr><tr><td>Architecture identity</td><td>VV-MODEL-001</td></tr><tr><td>Purpose</td><td>Generic reference architecture for formal client review and model exchange.</td></tr><tr><td>Scope</td><td>All 38 Rust workspace packages, the React console, Python SDK and server template, internal Python/C++ executors, deployment and verification components, and external runtime resources in the canonical architecture.</td></tr><tr><td>Exclusions</td><td>Source-code modules within a component, transient permission/init jobs, test fixtures, customer-specific configuration, personnel structure, facilities, and classified mission content.</td></tr><tr><td>Handling</td><td>Reference baseline with no client-specific data. Apply contract, export-control, CUI, distribution, and classification markings before client release.</td></tr><tr><td>Authority</td><td>The repository implementation and executable verification remain product evidence. The model organizes and traces that evidence; it does not replace tests.</td></tr></tbody></table>
+<table class="doc-control"><tbody><tr><td>Title</td><td>Veoveo UAF 1.3 / SysML 1.6 Reference Architecture</td></tr><tr><td>Architecture identity</td><td>VV-MODEL-001</td></tr><tr><td>Purpose</td><td>Generic reference architecture for formal client review and model exchange.</td></tr><tr><td>Scope</td><td>All 45 Rust workspace packages, the React console, Python SDK and server template, internal Python/C++ executors, deployment and verification components, and external runtime resources in the canonical architecture.</td></tr><tr><td>Exclusions</td><td>Source-code modules within a component, transient permission/init jobs, test fixtures, customer-specific configuration, personnel structure, facilities, and classified mission content.</td></tr><tr><td>Handling</td><td>Reference baseline with no client-specific data. Apply contract, export-control, CUI, distribution, and classification markings before client release.</td></tr><tr><td>Authority</td><td>The repository implementation and executable verification remain product evidence. The model organizes and traces that evidence; it does not replace tests.</td></tr></tbody></table>
 <div class="summary-grid"><div class="summary"><strong>{len(CAPABILITIES)}</strong>UAF capabilities</div><div class="summary"><strong>{len(ACTIVITIES)}</strong>operational activities</div><div class="summary"><strong>{len(SERVICES)}</strong>services</div><div class="summary"><strong>{len(COMPONENTS)}</strong>software resources</div><div class="summary"><strong>{len(ACTUAL_RESOURCES)}</strong>actual configurations</div></div></section>
 <section id="method"><h2>Architecture method and conformance posture</h2><p>UAF 1.3 governs the enterprise and mission architecture. SysML 1.6 supplies detailed software blocks, requirement semantics, connectivity, and lifecycle behavior beneath it. Stable identifiers preserve traceability across diagrams, catalogs, XMI, repository evidence, and future client overlays.</p>
 <div class="notice"><strong>Model-exchange posture.</strong> The included XMI applies the official OMG UAF 1.3 and SysML 1.6 profile URIs and carries the semantic elements and trace relationships used by this report. The release validates XML structure, identifiers, references, catalog coverage, and rendered outputs. Vendor-specific diagram notation and profile OCL validation require import into a UAF 1.3-capable modeling tool; the package does not claim a vendor-native project or tool-certified UAF conformance.</div>

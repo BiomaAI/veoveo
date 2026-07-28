@@ -61,10 +61,10 @@ def main() -> None:
     interfaces = rows("interfaces-and-protocols.csv")
     requirements = rows("requirements-traceability.csv")
     glossary = rows("model-glossary.csv")
-    if len(components) != 62:
-        fail(f"expected 62 components, found {len(components)}")
-    if len(interfaces) != 38:
-        fail(f"expected 38 interfaces, found {len(interfaces)}")
+    if len(components) != 69:
+        fail(f"expected 69 components, found {len(components)}")
+    if len(interfaces) != 39:
+        fail(f"expected 39 interfaces, found {len(interfaces)}")
     if len(requirements) != 18:
         fail(f"expected 18 requirements, found {len(requirements)}")
     if len(glossary) < 25:
@@ -94,8 +94,8 @@ def main() -> None:
     missing_workspace_paths = sorted(workspace_paths - catalog_paths)
     if missing_workspace_paths:
         fail(f"workspace packages missing from component catalog: {missing_workspace_paths}")
-    if len(workspace_paths) != 38:
-        fail(f"expected 38 Rust workspace packages, found {len(workspace_paths)}")
+    if len(workspace_paths) != 45:
+        fail(f"expected 45 Rust workspace packages, found {len(workspace_paths)}")
 
     gateway = json.loads((REPO / "configs/gateway.local.json").read_text(encoding="utf-8"))
     slugs = {server["slug"] for server in gateway["servers"]}
@@ -112,6 +112,7 @@ def main() -> None:
         "reason",
         "recording",
         "rerun",
+        "simulation-view",
         "time",
         "timeseries",
         "uav-sim",

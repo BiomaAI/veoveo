@@ -140,7 +140,7 @@
 <rect x="964" y="300" width="7" height="92" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="982" y="323" class="node-id" text-anchor="start">VV-CMP-022</text>
 <text x="982" y="347" class="node-title" text-anchor="start">
-<tspan x="982" dy="0">Perception</tspan>
+<tspan x="982" dy="0">Stream</tspan>
 </text>
 <rect x="1096" y="300" width="122" height="92" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="1096" y="300" width="7" height="92" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
@@ -190,6 +190,13 @@
 <text x="982" y="597" class="node-title" text-anchor="start">
 <tspan x="982" dy="0">UAV</tspan>
 <tspan x="982" dy="18">Simulation</tspan>
+</text>
+<rect x="1096" y="550" width="122" height="92" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1096" y="550" width="7" height="92" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1114" y="573" class="node-id" text-anchor="start">VV-CMP-069</text>
+<text x="1114" y="597" class="node-title" text-anchor="start">
+<tspan x="1114" dy="0">Simulation</tspan>
+<tspan x="1114" dy="18">View</tspan>
 </text>
 <rect x="705" y="790" width="250" height="135" rx="9" fill="#eee5d8" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="705" y="790" width="7" height="135" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
@@ -316,5 +323,5 @@
 <path d="M 1130 500 L 1585 477" class="edge-muted"/>
 <rect x="28" y="1185" width="1844" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1206" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="1870" y="1206" class="tiny" text-anchor="end">Revision 2026-07-25 | VV-VIEW-06</text>
+<text x="1870" y="1206" class="tiny" text-anchor="end">Revision 2026-07-27 | VV-VIEW-06</text>
 </svg>

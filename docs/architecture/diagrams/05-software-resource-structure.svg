@@ -38,414 +38,487 @@
 <tspan x="1125.0" dy="0">Operations console web application</tspan>
 </text>
 <text x="1608.5" y="179" class="tiny" text-anchor="end">React and TypeScript</text>
-<rect x="30" y="296" width="2140" height="352" rx="12" fill="#deebf2" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
+<rect x="30" y="296" width="2140" height="444" rx="12" fill="#deebf2" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
 <text x="48" y="322" class="label" text-anchor="start">Core platform libraries and services</text>
-<text x="2152" y="322" class="small" text-anchor="end">15 components</text>
-<rect x="50.0" y="344" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<text x="2152" y="322" class="small" text-anchor="end">21 components</text>
+<rect x="50.0" y="344" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="50.0" y="344" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="66.0" y="365" class="node-id" text-anchor="start">VV-CMP-004</text>
 <text x="66.0" y="390" class="body" text-anchor="start">
 <tspan x="66.0" dy="0">Artifact service</tspan>
 </text>
-<text x="443.6" y="365" class="tiny" text-anchor="end">Rust</text>
-<rect x="473.6" y="344" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="473.6" y="344" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="489.6" y="365" class="node-id" text-anchor="start">VV-CMP-005</text>
-<text x="489.6" y="390" class="body" text-anchor="start">
-<tspan x="489.6" dy="0">Recording Hub</tspan>
+<text x="373.0" y="365" class="tiny" text-anchor="end">Rust</text>
+<rect x="403.0" y="344" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="403.0" y="344" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="419.0" y="365" class="node-id" text-anchor="start">VV-CMP-005</text>
+<text x="419.0" y="390" class="body" text-anchor="start">
+<tspan x="419.0" dy="0">Recording Hub</tspan>
 </text>
-<text x="867.2" y="365" class="tiny" text-anchor="end">Rust</text>
-<rect x="897.2" y="344" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="897.2" y="344" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="913.2" y="365" class="node-id" text-anchor="start">VV-CMP-006</text>
-<text x="913.2" y="390" class="body" text-anchor="start">
-<tspan x="913.2" dy="0">Agent kernel</tspan>
+<text x="726.0" y="365" class="tiny" text-anchor="end">Rust</text>
+<rect x="756.0" y="344" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="756.0" y="344" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="772.0" y="365" class="node-id" text-anchor="start">VV-CMP-006</text>
+<text x="772.0" y="390" class="body" text-anchor="start">
+<tspan x="772.0" dy="0">Agent kernel</tspan>
 </text>
-<text x="1290.8000000000002" y="365" class="tiny" text-anchor="end">Rust</text>
-<rect x="1320.8000000000002" y="344" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1320.8000000000002" y="344" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1336.8000000000002" y="365" class="node-id" text-anchor="start">VV-CMP-007</text>
-<text x="1336.8000000000002" y="390" class="body" text-anchor="start">
-<tspan x="1336.8000000000002" dy="0">Agent runtime</tspan>
+<text x="1079.0" y="365" class="tiny" text-anchor="end">Rust</text>
+<rect x="1109.0" y="344" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1109.0" y="344" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1125.0" y="365" class="node-id" text-anchor="start">VV-CMP-007</text>
+<text x="1125.0" y="390" class="body" text-anchor="start">
+<tspan x="1125.0" dy="0">Agent runtime</tspan>
 </text>
-<text x="1714.4" y="365" class="tiny" text-anchor="end">Rust</text>
-<rect x="1744.4" y="344" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1744.4" y="344" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1760.4" y="365" class="node-id" text-anchor="start">VV-CMP-008</text>
-<text x="1760.4" y="390" class="body" text-anchor="start">
-<tspan x="1760.4" dy="0">Platform store</tspan>
+<text x="1432.0" y="365" class="tiny" text-anchor="end">Rust</text>
+<rect x="1462.0" y="344" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1462.0" y="344" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1478.0" y="365" class="node-id" text-anchor="start">VV-CMP-008</text>
+<text x="1478.0" y="390" class="body" text-anchor="start">
+<tspan x="1478.0" dy="0">Platform store</tspan>
+</text>
+<text x="1785.0" y="365" class="tiny" text-anchor="end">Rust</text>
+<rect x="1815.0" y="344" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1815.0" y="344" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1831.0" y="365" class="node-id" text-anchor="start">VV-CMP-009</text>
+<text x="1831.0" y="390" class="body" text-anchor="start">
+<tspan x="1831.0" dy="0">Durable task runtime</tspan>
 </text>
 <text x="2138.0" y="365" class="tiny" text-anchor="end">Rust</text>
-<rect x="50.0" y="436" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="50.0" y="436" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="50.0" y="436" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="66.0" y="457" class="node-id" text-anchor="start">VV-CMP-009</text>
+<text x="66.0" y="457" class="node-id" text-anchor="start">VV-CMP-010</text>
 <text x="66.0" y="482" class="body" text-anchor="start">
-<tspan x="66.0" dy="0">Durable task runtime</tspan>
+<tspan x="66.0" dy="0">DuckDB runtime</tspan>
 </text>
-<text x="443.6" y="457" class="tiny" text-anchor="end">Rust</text>
-<rect x="473.6" y="436" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="473.6" y="436" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="489.6" y="457" class="node-id" text-anchor="start">VV-CMP-010</text>
-<text x="489.6" y="482" class="body" text-anchor="start">
-<tspan x="489.6" dy="0">DuckDB runtime</tspan>
+<text x="373.0" y="457" class="tiny" text-anchor="end">Rust</text>
+<rect x="403.0" y="436" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="403.0" y="436" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="419.0" y="457" class="node-id" text-anchor="start">VV-CMP-011</text>
+<text x="419.0" y="482" class="body" text-anchor="start">
+<tspan x="419.0" dy="0">Shared MCP contract</tspan>
 </text>
-<text x="867.2" y="457" class="tiny" text-anchor="end">Rust</text>
-<rect x="897.2" y="436" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="897.2" y="436" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="913.2" y="457" class="node-id" text-anchor="start">VV-CMP-011</text>
-<text x="913.2" y="482" class="body" text-anchor="start">
-<tspan x="913.2" dy="0">Shared MCP contract</tspan>
+<text x="726.0" y="457" class="tiny" text-anchor="end">Rust</text>
+<rect x="756.0" y="436" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="756.0" y="436" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="772.0" y="457" class="node-id" text-anchor="start">VV-CMP-012</text>
+<text x="772.0" y="482" class="body" text-anchor="start">
+<tspan x="772.0" dy="0">Final MCP task extension</tspan>
 </text>
-<text x="1290.8000000000002" y="457" class="tiny" text-anchor="end">Rust</text>
-<rect x="1320.8000000000002" y="436" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1320.8000000000002" y="436" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1336.8000000000002" y="457" class="node-id" text-anchor="start">VV-CMP-012</text>
-<text x="1336.8000000000002" y="482" class="body" text-anchor="start">
-<tspan x="1336.8000000000002" dy="0">Final MCP task extension</tspan>
+<text x="1079.0" y="457" class="tiny" text-anchor="end">Rust</text>
+<rect x="1109.0" y="436" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1109.0" y="436" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1125.0" y="457" class="node-id" text-anchor="start">VV-CMP-013</text>
+<text x="1125.0" y="482" class="body" text-anchor="start">
+<tspan x="1125.0" dy="0">MCP stdio bridge</tspan>
 </text>
-<text x="1714.4" y="457" class="tiny" text-anchor="end">Rust</text>
-<rect x="1744.4" y="436" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1744.4" y="436" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1760.4" y="457" class="node-id" text-anchor="start">VV-CMP-013</text>
-<text x="1760.4" y="482" class="body" text-anchor="start">
-<tspan x="1760.4" dy="0">MCP stdio bridge</tspan>
+<text x="1432.0" y="457" class="tiny" text-anchor="end">Rust</text>
+<rect x="1462.0" y="436" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1462.0" y="436" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1478.0" y="457" class="node-id" text-anchor="start">VV-CMP-014</text>
+<text x="1478.0" y="482" class="body" text-anchor="start">
+<tspan x="1478.0" dy="0">Artifact client</tspan>
+</text>
+<text x="1785.0" y="457" class="tiny" text-anchor="end">Rust</text>
+<rect x="1815.0" y="436" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1815.0" y="436" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1831.0" y="457" class="node-id" text-anchor="start">VV-CMP-015</text>
+<text x="1831.0" y="482" class="body" text-anchor="start">
+<tspan x="1831.0" dy="0">RRD library</tspan>
 </text>
 <text x="2138.0" y="457" class="tiny" text-anchor="end">Rust</text>
-<rect x="50.0" y="528" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="50.0" y="528" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="50.0" y="528" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="66.0" y="549" class="node-id" text-anchor="start">VV-CMP-014</text>
+<text x="66.0" y="549" class="node-id" text-anchor="start">VV-CMP-051</text>
 <text x="66.0" y="574" class="body" text-anchor="start">
-<tspan x="66.0" dy="0">Artifact client</tspan>
+<tspan x="66.0" dy="0">Recording forwarder</tspan>
 </text>
-<text x="443.6" y="549" class="tiny" text-anchor="end">Rust</text>
-<rect x="473.6" y="528" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="473.6" y="528" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="489.6" y="549" class="node-id" text-anchor="start">VV-CMP-015</text>
-<text x="489.6" y="574" class="body" text-anchor="start">
-<tspan x="489.6" dy="0">RRD library</tspan>
+<text x="373.0" y="549" class="tiny" text-anchor="end">Rust</text>
+<rect x="403.0" y="528" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="403.0" y="528" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="419.0" y="549" class="node-id" text-anchor="start">VV-CMP-052</text>
+<text x="419.0" y="574" class="body" text-anchor="start">
+<tspan x="419.0" dy="0">MCP Apps extension</tspan>
 </text>
-<text x="867.2" y="549" class="tiny" text-anchor="end">Rust</text>
-<rect x="897.2" y="528" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="897.2" y="528" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="913.2" y="549" class="node-id" text-anchor="start">VV-CMP-051</text>
-<text x="913.2" y="574" class="body" text-anchor="start">
-<tspan x="913.2" dy="0">Recording forwarder</tspan>
+<text x="726.0" y="549" class="tiny" text-anchor="end">Rust</text>
+<rect x="756.0" y="528" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="756.0" y="528" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="772.0" y="549" class="node-id" text-anchor="start">VV-CMP-053</text>
+<text x="772.0" y="574" class="body" text-anchor="start">
+<tspan x="772.0" dy="0">Recording ingest protocol</tspan>
 </text>
-<text x="1290.8000000000002" y="549" class="tiny" text-anchor="end">Rust</text>
-<rect x="1320.8000000000002" y="528" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1320.8000000000002" y="528" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1336.8000000000002" y="549" class="node-id" text-anchor="start">VV-CMP-052</text>
-<text x="1336.8000000000002" y="574" class="body" text-anchor="start">
-<tspan x="1336.8000000000002" dy="0">MCP Apps extension</tspan>
+<text x="1079.0" y="549" class="tiny" text-anchor="end">Rust</text>
+<rect x="1109.0" y="528" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1109.0" y="528" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1125.0" y="549" class="node-id" text-anchor="start">VV-CMP-058</text>
+<text x="1125.0" y="574" class="body" text-anchor="start">
+<tspan x="1125.0" dy="0">Recorded video materialization</tspan>
 </text>
-<text x="1714.4" y="549" class="tiny" text-anchor="end">Rust</text>
-<rect x="1744.4" y="528" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1744.4" y="528" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1760.4" y="549" class="node-id" text-anchor="start">VV-CMP-053</text>
-<text x="1760.4" y="574" class="body" text-anchor="start">
-<tspan x="1760.4" dy="0">Recording ingest protocol</tspan>
+<text x="1432.0" y="549" class="tiny" text-anchor="end">Rust</text>
+<rect x="1462.0" y="528" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1462.0" y="528" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1478.0" y="549" class="node-id" text-anchor="start">VV-CMP-059</text>
+<text x="1478.0" y="574" class="body" text-anchor="start">
+<tspan x="1478.0" dy="0">MCP schema macro</tspan>
+</text>
+<text x="1785.0" y="549" class="tiny" text-anchor="end">Rust procedural macro</text>
+<rect x="1815.0" y="528" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1815.0" y="528" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1831.0" y="549" class="node-id" text-anchor="start">VV-CMP-063</text>
+<text x="1831.0" y="574" class="body" text-anchor="start">
+<tspan x="1831.0" dy="0">External extension contract</tspan>
 </text>
 <text x="2138.0" y="549" class="tiny" text-anchor="end">Rust</text>
-<rect x="30" y="666" width="2140" height="444" rx="12" fill="#eee5d8" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
-<text x="48" y="692" class="label" text-anchor="start">Hosted MCP domains</text>
-<text x="2152" y="692" class="small" text-anchor="end">15 components</text>
-<rect x="50.0" y="714" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="50.0" y="714" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="66.0" y="735" class="node-id" text-anchor="start">VV-CMP-016</text>
-<text x="66.0" y="760" class="body" text-anchor="start">
+<rect x="50.0" y="620" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="50.0" y="620" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="66.0" y="641" class="node-id" text-anchor="start">VV-CMP-065</text>
+<text x="66.0" y="666" class="body" text-anchor="start">
+<tspan x="66.0" dy="0">MCP task wire contract</tspan>
+</text>
+<text x="373.0" y="641" class="tiny" text-anchor="end">Rust</text>
+<rect x="403.0" y="620" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="403.0" y="620" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="419.0" y="641" class="node-id" text-anchor="start">VV-CMP-066</text>
+<text x="419.0" y="666" class="body" text-anchor="start">
+<tspan x="419.0" dy="0">Simulation pose protocol</tspan>
+</text>
+<text x="726.0" y="641" class="tiny" text-anchor="end">Rust</text>
+<rect x="756.0" y="620" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="756.0" y="620" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="772.0" y="641" class="node-id" text-anchor="start">VV-CMP-068</text>
+<text x="772.0" y="666" class="body" text-anchor="start">
+<tspan x="772.0" dy="0">Simulation scene contract</tspan>
+</text>
+<text x="1079.0" y="641" class="tiny" text-anchor="end">Rust</text>
+<rect x="30" y="758" width="2140" height="352" rx="12" fill="#eee5d8" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
+<text x="48" y="784" class="label" text-anchor="start">Hosted MCP domains</text>
+<text x="2152" y="784" class="small" text-anchor="end">17 components</text>
+<rect x="50.0" y="806" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="50.0" y="806" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="66.0" y="827" class="node-id" text-anchor="start">VV-CMP-016</text>
+<text x="66.0" y="852" class="body" text-anchor="start">
 <tspan x="66.0" dy="0">Artifact MCP server</tspan>
 </text>
-<text x="549.5" y="735" class="tiny" text-anchor="end">Rust</text>
-<rect x="579.5" y="714" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="579.5" y="714" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="595.5" y="735" class="node-id" text-anchor="start">VV-CMP-017</text>
-<text x="595.5" y="760" class="body" text-anchor="start">
-<tspan x="595.5" dy="0">Frames MCP server</tspan>
+<text x="373.0" y="827" class="tiny" text-anchor="end">Rust</text>
+<rect x="403.0" y="806" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="403.0" y="806" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="419.0" y="827" class="node-id" text-anchor="start">VV-CMP-017</text>
+<text x="419.0" y="852" class="body" text-anchor="start">
+<tspan x="419.0" dy="0">Frames MCP server</tspan>
 </text>
-<text x="1079.0" y="735" class="tiny" text-anchor="end">Rust</text>
-<rect x="1109.0" y="714" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1109.0" y="714" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1125.0" y="735" class="node-id" text-anchor="start">VV-CMP-018</text>
-<text x="1125.0" y="760" class="body" text-anchor="start">
-<tspan x="1125.0" dy="0">DuckDB MCP server</tspan>
-</text>
-<text x="1608.5" y="735" class="tiny" text-anchor="end">Rust</text>
-<rect x="1638.5" y="714" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1638.5" y="714" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1654.5" y="735" class="node-id" text-anchor="start">VV-CMP-019</text>
-<text x="1654.5" y="760" class="body" text-anchor="start">
-<tspan x="1654.5" dy="0">Media MCP server</tspan>
-</text>
-<text x="2138.0" y="735" class="tiny" text-anchor="end">Rust</text>
-<rect x="50.0" y="806" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="50.0" y="806" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="66.0" y="827" class="node-id" text-anchor="start">VV-CMP-020</text>
-<text x="66.0" y="852" class="body" text-anchor="start">
-<tspan x="66.0" dy="0">Map MCP server</tspan>
-</text>
-<text x="549.5" y="827" class="tiny" text-anchor="end">Rust</text>
-<rect x="579.5" y="806" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="579.5" y="806" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="595.5" y="827" class="node-id" text-anchor="start">VV-CMP-021</text>
-<text x="595.5" y="852" class="body" text-anchor="start">
-<tspan x="595.5" dy="0">Optimization MCP server</tspan>
+<text x="726.0" y="827" class="tiny" text-anchor="end">Rust</text>
+<rect x="756.0" y="806" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="756.0" y="806" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="772.0" y="827" class="node-id" text-anchor="start">VV-CMP-018</text>
+<text x="772.0" y="852" class="body" text-anchor="start">
+<tspan x="772.0" dy="0">DuckDB MCP server</tspan>
 </text>
 <text x="1079.0" y="827" class="tiny" text-anchor="end">Rust</text>
-<rect x="1109.0" y="806" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1109.0" y="806" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="1109.0" y="806" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1125.0" y="827" class="node-id" text-anchor="start">VV-CMP-022</text>
+<text x="1125.0" y="827" class="node-id" text-anchor="start">VV-CMP-019</text>
 <text x="1125.0" y="852" class="body" text-anchor="start">
-<tspan x="1125.0" dy="0">Perception MCP server</tspan>
+<tspan x="1125.0" dy="0">Media MCP server</tspan>
 </text>
-<text x="1608.5" y="827" class="tiny" text-anchor="end">Rust</text>
-<rect x="1638.5" y="806" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1638.5" y="806" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1654.5" y="827" class="node-id" text-anchor="start">VV-CMP-023</text>
-<text x="1654.5" y="852" class="body" text-anchor="start">
-<tspan x="1654.5" dy="0">Recording MCP server</tspan>
+<text x="1432.0" y="827" class="tiny" text-anchor="end">Rust</text>
+<rect x="1462.0" y="806" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1462.0" y="806" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1478.0" y="827" class="node-id" text-anchor="start">VV-CMP-020</text>
+<text x="1478.0" y="852" class="body" text-anchor="start">
+<tspan x="1478.0" dy="0">Map MCP server</tspan>
+</text>
+<text x="1785.0" y="827" class="tiny" text-anchor="end">Rust</text>
+<rect x="1815.0" y="806" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1815.0" y="806" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1831.0" y="827" class="node-id" text-anchor="start">VV-CMP-021</text>
+<text x="1831.0" y="852" class="body" text-anchor="start">
+<tspan x="1831.0" dy="0">Optimization MCP server</tspan>
 </text>
 <text x="2138.0" y="827" class="tiny" text-anchor="end">Rust</text>
-<rect x="50.0" y="898" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="50.0" y="898" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="50.0" y="898" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="66.0" y="919" class="node-id" text-anchor="start">VV-CMP-024</text>
+<text x="66.0" y="919" class="node-id" text-anchor="start">VV-CMP-022</text>
 <text x="66.0" y="944" class="body" text-anchor="start">
-<tspan x="66.0" dy="0">Timeseries MCP server</tspan>
+<tspan x="66.0" dy="0">Stream MCP server</tspan>
 </text>
-<text x="549.5" y="919" class="tiny" text-anchor="end">Rust</text>
-<rect x="579.5" y="898" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="579.5" y="898" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="595.5" y="919" class="node-id" text-anchor="start">VV-CMP-025</text>
-<text x="595.5" y="944" class="body" text-anchor="start">
-<tspan x="595.5" dy="0">Datasheet MCP server</tspan>
+<text x="373.0" y="919" class="tiny" text-anchor="end">Rust</text>
+<rect x="403.0" y="898" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="403.0" y="898" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="419.0" y="919" class="node-id" text-anchor="start">VV-CMP-023</text>
+<text x="419.0" y="944" class="body" text-anchor="start">
+<tspan x="419.0" dy="0">Recording MCP server</tspan>
 </text>
-<text x="1079.0" y="919" class="tiny" text-anchor="end">Python</text>
-<rect x="1109.0" y="898" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<text x="726.0" y="919" class="tiny" text-anchor="end">Rust</text>
+<rect x="756.0" y="898" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="756.0" y="898" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="772.0" y="919" class="node-id" text-anchor="start">VV-CMP-024</text>
+<text x="772.0" y="944" class="body" text-anchor="start">
+<tspan x="772.0" dy="0">Timeseries MCP server</tspan>
+</text>
+<text x="1079.0" y="919" class="tiny" text-anchor="end">Rust</text>
+<rect x="1109.0" y="898" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="1109.0" y="898" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1125.0" y="919" class="node-id" text-anchor="start">VV-CMP-026</text>
+<text x="1125.0" y="919" class="node-id" text-anchor="start">VV-CMP-025</text>
 <text x="1125.0" y="944" class="body" text-anchor="start">
-<tspan x="1125.0" dy="0">Chart MCP packaged service</tspan>
+<tspan x="1125.0" dy="0">Datasheet MCP server</tspan>
 </text>
-<text x="1608.5" y="919" class="tiny" text-anchor="end">Node.js and flint-chart-mcp</text>
-<rect x="1638.5" y="898" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1638.5" y="898" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1654.5" y="919" class="node-id" text-anchor="start">VV-CMP-027</text>
-<text x="1654.5" y="944" class="body" text-anchor="start">
-<tspan x="1654.5" dy="0">Rerun viewer MCP child</tspan>
+<text x="1432.0" y="919" class="tiny" text-anchor="end">Python</text>
+<rect x="1462.0" y="898" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1462.0" y="898" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1478.0" y="919" class="node-id" text-anchor="start">VV-CMP-026</text>
+<text x="1478.0" y="944" class="body" text-anchor="start">
+<tspan x="1478.0" dy="0">Chart MCP packaged service</tspan>
+</text>
+<text x="1785.0" y="919" class="tiny" text-anchor="end">Node.js and flint-chart-mcp</text>
+<rect x="1815.0" y="898" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1815.0" y="898" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1831.0" y="919" class="node-id" text-anchor="start">VV-CMP-027</text>
+<text x="1831.0" y="944" class="body" text-anchor="start">
+<tspan x="1831.0" dy="0">Rerun viewer MCP child</tspan>
 </text>
 <text x="2138.0" y="919" class="tiny" text-anchor="end">Rerun viewer MCP process</text>
-<rect x="50.0" y="990" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="50.0" y="990" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="50.0" y="990" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="66.0" y="1011" class="node-id" text-anchor="start">VV-CMP-049</text>
 <text x="66.0" y="1036" class="body" text-anchor="start">
 <tspan x="66.0" dy="0">Time MCP server</tspan>
 </text>
-<text x="549.5" y="1011" class="tiny" text-anchor="end">Rust</text>
-<rect x="579.5" y="990" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="579.5" y="990" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="595.5" y="1011" class="node-id" text-anchor="start">VV-CMP-050</text>
-<text x="595.5" y="1036" class="body" text-anchor="start">
-<tspan x="595.5" dy="0">View MCP server</tspan>
+<text x="373.0" y="1011" class="tiny" text-anchor="end">Rust</text>
+<rect x="403.0" y="990" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="403.0" y="990" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="419.0" y="1011" class="node-id" text-anchor="start">VV-CMP-050</text>
+<text x="419.0" y="1036" class="body" text-anchor="start">
+<tspan x="419.0" dy="0">View MCP server</tspan>
+</text>
+<text x="726.0" y="1011" class="tiny" text-anchor="end">Rust</text>
+<rect x="756.0" y="990" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="756.0" y="990" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="772.0" y="1011" class="node-id" text-anchor="start">VV-CMP-054</text>
+<text x="772.0" y="1036" class="body" text-anchor="start">
+<tspan x="772.0" dy="0">UAV Simulation MCP server</tspan>
 </text>
 <text x="1079.0" y="1011" class="tiny" text-anchor="end">Rust</text>
-<rect x="1109.0" y="990" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1109.0" y="990" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="1109.0" y="990" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1125.0" y="1011" class="node-id" text-anchor="start">VV-CMP-054</text>
+<text x="1125.0" y="1011" class="node-id" text-anchor="start">VV-CMP-057</text>
 <text x="1125.0" y="1036" class="body" text-anchor="start">
-<tspan x="1125.0" dy="0">UAV Simulation MCP server</tspan>
+<tspan x="1125.0" dy="0">Reason MCP server</tspan>
 </text>
-<text x="1608.5" y="1011" class="tiny" text-anchor="end">Rust</text>
+<text x="1432.0" y="1011" class="tiny" text-anchor="end">Rust</text>
+<rect x="1462.0" y="990" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1462.0" y="990" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1478.0" y="1011" class="node-id" text-anchor="start">VV-CMP-069</text>
+<text x="1478.0" y="1036" class="body" text-anchor="start">
+<tspan x="1478.0" dy="0">Simulation View MCP server</tspan>
+</text>
+<text x="1785.0" y="1011" class="tiny" text-anchor="end">Rust</text>
 <rect x="30" y="1128" width="2140" height="168" rx="12" fill="#e7e1ef" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
 <text x="48" y="1154" class="label" text-anchor="start">Showcase and internal executors</text>
-<text x="2152" y="1154" class="small" text-anchor="end">6 components</text>
-<rect x="50.0" y="1176" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<text x="2152" y="1154" class="small" text-anchor="end">7 components</text>
+<rect x="50.0" y="1176" width="284.57142857142856" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="50.0" y="1176" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="66.0" y="1197" class="node-id" text-anchor="start">VV-CMP-028</text>
 <text x="66.0" y="1222" class="body" text-anchor="start">
 <tspan x="66.0" dy="0">SUMO MCP server</tspan>
 </text>
-<text x="373.0" y="1197" class="tiny" text-anchor="end">Rust</text>
-<rect x="403.0" y="1176" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="403.0" y="1176" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="419.0" y="1197" class="node-id" text-anchor="start">VV-CMP-029</text>
-<text x="419.0" y="1222" class="body" text-anchor="start">
-<tspan x="419.0" dy="0">SUMO simulator and LuST world</tspan>
+<text x="322.57142857142856" y="1197" class="tiny" text-anchor="end">Rust</text>
+<rect x="352.57142857142856" y="1176" width="284.57142857142856" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="352.57142857142856" y="1176" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="368.57142857142856" y="1197" class="node-id" text-anchor="start">VV-CMP-029</text>
+<text x="368.57142857142856" y="1222" class="body" text-anchor="start">
+<tspan x="368.57142857142856" dy="0">SUMO simulator and LuST world</tspan>
 </text>
-<text x="726.0" y="1197" class="tiny" text-anchor="end">SUMO 1.27.1</text>
-<rect x="756.0" y="1176" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="756.0" y="1176" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="772.0" y="1197" class="node-id" text-anchor="start">VV-CMP-030</text>
-<text x="772.0" y="1222" class="body" text-anchor="start">
-<tspan x="772.0" dy="0">Python hosted-server SDK</tspan>
+<text x="625.1428571428571" y="1197" class="tiny" text-anchor="end">SUMO 1.27.1</text>
+<rect x="655.1428571428571" y="1176" width="284.57142857142856" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="655.1428571428571" y="1176" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="671.1428571428571" y="1197" class="node-id" text-anchor="start">VV-CMP-030</text>
+<text x="671.1428571428571" y="1222" class="body" text-anchor="start">
+<tspan x="671.1428571428571" dy="0">Python hosted-server SDK</tspan>
 </text>
-<text x="1079.0" y="1197" class="tiny" text-anchor="end">Python</text>
-<rect x="1109.0" y="1176" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1109.0" y="1176" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1125.0" y="1197" class="node-id" text-anchor="start">VV-CMP-031</text>
-<text x="1125.0" y="1222" class="body" text-anchor="start">
-<tspan x="1125.0" dy="0">Map data acquisition helper</tspan>
+<text x="927.7142857142857" y="1197" class="tiny" text-anchor="end">Python</text>
+<rect x="957.7142857142857" y="1176" width="284.57142857142856" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="957.7142857142857" y="1176" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="973.7142857142857" y="1197" class="node-id" text-anchor="start">VV-CMP-031</text>
+<text x="973.7142857142857" y="1222" class="body" text-anchor="start">
+<tspan x="973.7142857142857" dy="0">Map data acquisition helper</tspan>
 </text>
-<text x="1432.0" y="1197" class="tiny" text-anchor="end">Python</text>
-<rect x="1462.0" y="1176" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1462.0" y="1176" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1478.0" y="1197" class="node-id" text-anchor="start">VV-CMP-032</text>
-<text x="1478.0" y="1222" class="body" text-anchor="start">
-<tspan x="1478.0" dy="0">Perception DeepStream runner</tspan>
+<text x="1230.2857142857142" y="1197" class="tiny" text-anchor="end">Python</text>
+<rect x="1260.2857142857142" y="1176" width="284.57142857142856" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1260.2857142857142" y="1176" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1276.2857142857142" y="1197" class="node-id" text-anchor="start">VV-CMP-032</text>
+<text x="1276.2857142857142" y="1222" class="body" text-anchor="start">
+<tspan x="1276.2857142857142" dy="0">Stream GStreamer runner</tspan>
 </text>
-<text x="1785.0" y="1197" class="tiny" text-anchor="end">C++</text>
-<rect x="1815.0" y="1176" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1815.0" y="1176" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1831.0" y="1197" class="node-id" text-anchor="start">VV-CMP-055</text>
-<text x="1831.0" y="1222" class="body" text-anchor="start">
-<tspan x="1831.0" dy="0">UAV simulation runtime and adapter</tspan>
+<text x="1532.8571428571427" y="1197" class="tiny" text-anchor="end">C++</text>
+<rect x="1562.8571428571427" y="1176" width="284.57142857142856" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1562.8571428571427" y="1176" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1578.8571428571427" y="1197" class="node-id" text-anchor="start">VV-CMP-055</text>
+<text x="1578.8571428571427" y="1222" class="body" text-anchor="start">
+<tspan x="1578.8571428571427" dy="0">UAV simulation runtime and</tspan>
+<tspan x="1578.8571428571427" dy="16">adapter</tspan>
 </text>
-<text x="2138.0" y="1197" class="tiny" text-anchor="end">Python</text>
+<text x="1835.428571428571" y="1197" class="tiny" text-anchor="end">Python</text>
+<rect x="1865.4285714285713" y="1176" width="284.57142857142856" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1865.4285714285713" y="1176" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1881.4285714285713" y="1197" class="node-id" text-anchor="start">VV-CMP-067</text>
+<text x="1881.4285714285713" y="1222" class="body" text-anchor="start">
+<tspan x="1881.4285714285713" dy="0">Simulation View pose ingress</tspan>
+</text>
+<text x="2138.0" y="1197" class="tiny" text-anchor="end">Rust</text>
 <rect x="30" y="1314" width="2140" height="260" rx="12" fill="#e9e7db" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
 <text x="48" y="1340" class="label" text-anchor="start">Verification and deployment</text>
-<text x="2152" y="1340" class="small" text-anchor="end">8 components</text>
-<rect x="50.0" y="1362" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<text x="2152" y="1340" class="small" text-anchor="end">9 components</text>
+<rect x="50.0" y="1362" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="50.0" y="1362" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="66.0" y="1383" class="node-id" text-anchor="start">VV-CMP-033</text>
 <text x="66.0" y="1408" class="body" text-anchor="start">
 <tspan x="66.0" dy="0">MCP conformance client</tspan>
 </text>
-<text x="549.5" y="1383" class="tiny" text-anchor="end">Rust</text>
-<rect x="579.5" y="1362" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="579.5" y="1362" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="595.5" y="1383" class="node-id" text-anchor="start">VV-CMP-034</text>
-<text x="595.5" y="1408" class="body" text-anchor="start">
-<tspan x="595.5" dy="0">Rust smoke harness</tspan>
+<text x="443.6" y="1383" class="tiny" text-anchor="end">Rust</text>
+<rect x="473.6" y="1362" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="473.6" y="1362" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="489.6" y="1383" class="node-id" text-anchor="start">VV-CMP-034</text>
+<text x="489.6" y="1408" class="body" text-anchor="start">
+<tspan x="489.6" dy="0">Rust smoke harness</tspan>
 </text>
-<text x="1079.0" y="1383" class="tiny" text-anchor="end">Rust</text>
-<rect x="1109.0" y="1362" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1109.0" y="1362" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1125.0" y="1383" class="node-id" text-anchor="start">VV-CMP-035</text>
-<text x="1125.0" y="1408" class="body" text-anchor="start">
-<tspan x="1125.0" dy="0">k3d local development environment</tspan>
+<text x="867.2" y="1383" class="tiny" text-anchor="end">Rust</text>
+<rect x="897.2" y="1362" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="897.2" y="1362" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="913.2" y="1383" class="node-id" text-anchor="start">VV-CMP-035</text>
+<text x="913.2" y="1408" class="body" text-anchor="start">
+<tspan x="913.2" dy="0">k3d local development environment</tspan>
 </text>
-<text x="1608.5" y="1383" class="tiny" text-anchor="end">k3d and Kubernetes YAML</text>
-<rect x="1638.5" y="1362" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1638.5" y="1362" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1654.5" y="1383" class="node-id" text-anchor="start">VV-CMP-036</text>
-<text x="1654.5" y="1408" class="body" text-anchor="start">
-<tspan x="1654.5" dy="0">Helm deployment chart</tspan>
+<text x="1290.8000000000002" y="1383" class="tiny" text-anchor="end">k3d and Kubernetes YAML</text>
+<rect x="1320.8000000000002" y="1362" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1320.8000000000002" y="1362" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1336.8000000000002" y="1383" class="node-id" text-anchor="start">VV-CMP-036</text>
+<text x="1336.8000000000002" y="1408" class="body" text-anchor="start">
+<tspan x="1336.8000000000002" dy="0">Helm deployment chart</tspan>
 </text>
-<text x="2138.0" y="1383" class="tiny" text-anchor="end">Helm and Kubernetes YAML</text>
-<rect x="50.0" y="1454" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<text x="1714.4" y="1383" class="tiny" text-anchor="end">Helm and Kubernetes YAML</text>
+<rect x="1744.4" y="1362" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1744.4" y="1362" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1760.4" y="1383" class="node-id" text-anchor="start">VV-CMP-037</text>
+<text x="1760.4" y="1408" class="body" text-anchor="start">
+<tspan x="1760.4" dy="0">Offline bundle builder and loader</tspan>
+</text>
+<text x="2138.0" y="1383" class="tiny" text-anchor="end">Shell dispatch plus verified manifests</text>
+<rect x="50.0" y="1454" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="50.0" y="1454" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="66.0" y="1475" class="node-id" text-anchor="start">VV-CMP-037</text>
+<text x="66.0" y="1475" class="node-id" text-anchor="start">VV-CMP-060</text>
 <text x="66.0" y="1500" class="body" text-anchor="start">
-<tspan x="66.0" dy="0">Offline bundle builder and loader</tspan>
+<tspan x="66.0" dy="0">Deployment profile contract</tspan>
 </text>
-<text x="549.5" y="1475" class="tiny" text-anchor="end">Shell dispatch plus verified manifests</text>
-<rect x="579.5" y="1454" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="579.5" y="1454" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="595.5" y="1475" class="node-id" text-anchor="start">VV-CMP-060</text>
-<text x="595.5" y="1500" class="body" text-anchor="start">
-<tspan x="595.5" dy="0">Deployment profile contract</tspan>
+<text x="443.6" y="1475" class="tiny" text-anchor="end">Rust</text>
+<rect x="473.6" y="1454" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="473.6" y="1454" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="489.6" y="1475" class="node-id" text-anchor="start">VV-CMP-061</text>
+<text x="489.6" y="1500" class="body" text-anchor="start">
+<tspan x="489.6" dy="0">Repository build and release orchestrator</tspan>
 </text>
-<text x="1079.0" y="1475" class="tiny" text-anchor="end">Rust</text>
-<rect x="1109.0" y="1454" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1109.0" y="1454" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1125.0" y="1475" class="node-id" text-anchor="start">VV-CMP-061</text>
-<text x="1125.0" y="1500" class="body" text-anchor="start">
-<tspan x="1125.0" dy="0">Repository build and release orchestrator</tspan>
+<text x="867.2" y="1475" class="tiny" text-anchor="end">Rust</text>
+<rect x="897.2" y="1454" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="897.2" y="1454" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="913.2" y="1475" class="node-id" text-anchor="start">VV-CMP-062</text>
+<text x="913.2" y="1500" class="body" text-anchor="start">
+<tspan x="913.2" dy="0">Bioma composition acceptance</tspan>
 </text>
-<text x="1608.5" y="1475" class="tiny" text-anchor="end">Rust</text>
-<rect x="1638.5" y="1454" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1638.5" y="1454" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1654.5" y="1475" class="node-id" text-anchor="start">VV-CMP-062</text>
-<text x="1654.5" y="1500" class="body" text-anchor="start">
-<tspan x="1654.5" dy="0">Bioma composition acceptance</tspan>
+<text x="1290.8000000000002" y="1475" class="tiny" text-anchor="end">Rust</text>
+<rect x="1320.8000000000002" y="1454" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1320.8000000000002" y="1454" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1336.8000000000002" y="1475" class="node-id" text-anchor="start">VV-CMP-064</text>
+<text x="1336.8000000000002" y="1500" class="body" text-anchor="start">
+<tspan x="1336.8000000000002" dy="0">Gateway composer</tspan>
 </text>
-<text x="2138.0" y="1475" class="tiny" text-anchor="end">Rust</text>
-<rect x="30" y="1592" width="2140" height="352" rx="12" fill="#f0dfdc" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
+<text x="1714.4" y="1475" class="tiny" text-anchor="end">Rust</text>
+<rect x="30" y="1592" width="2140" height="260" rx="12" fill="#f0dfdc" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
 <text x="48" y="1618" class="label" text-anchor="start">External platform and execution resources</text>
 <text x="2152" y="1618" class="small" text-anchor="end">12 components</text>
-<rect x="50.0" y="1640" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="50.0" y="1640" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="50.0" y="1640" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="66.0" y="1661" class="node-id" text-anchor="start">VV-CMP-038</text>
 <text x="66.0" y="1686" class="body" text-anchor="start">
 <tspan x="66.0" dy="0">SurrealDB platform database</tspan>
 </text>
-<text x="549.5" y="1661" class="tiny" text-anchor="end">SurrealDB 3.2.1</text>
-<rect x="579.5" y="1640" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="579.5" y="1640" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="595.5" y="1661" class="node-id" text-anchor="start">VV-CMP-039</text>
-<text x="595.5" y="1686" class="body" text-anchor="start">
-<tspan x="595.5" dy="0">S3-compatible object store</tspan>
+<text x="373.0" y="1661" class="tiny" text-anchor="end">SurrealDB 3.2.1</text>
+<rect x="403.0" y="1640" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="403.0" y="1640" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="419.0" y="1661" class="node-id" text-anchor="start">VV-CMP-039</text>
+<text x="419.0" y="1686" class="body" text-anchor="start">
+<tspan x="419.0" dy="0">S3-compatible object store</tspan>
 </text>
-<text x="1079.0" y="1661" class="tiny" text-anchor="end">RustFS or installation-owned S3-compatible service</text>
-<rect x="1109.0" y="1640" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<text x="726.0" y="1661" class="tiny" text-anchor="end">RustFS or installation-owned S3-compatible service</text>
+<rect x="756.0" y="1640" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="756.0" y="1640" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="772.0" y="1661" class="node-id" text-anchor="start">VV-CMP-040</text>
+<text x="772.0" y="1686" class="body" text-anchor="start">
+<tspan x="772.0" dy="0">Installation edge and ingress</tspan>
+</text>
+<text x="1079.0" y="1661" class="tiny" text-anchor="end">Kubernetes ingress controller</text>
+<rect x="1109.0" y="1640" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="1109.0" y="1640" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1125.0" y="1661" class="node-id" text-anchor="start">VV-CMP-040</text>
+<text x="1125.0" y="1661" class="node-id" text-anchor="start">VV-CMP-041</text>
 <text x="1125.0" y="1686" class="body" text-anchor="start">
-<tspan x="1125.0" dy="0">Installation edge and ingress</tspan>
+<tspan x="1125.0" dy="0">Enterprise identity provider</tspan>
 </text>
-<text x="1608.5" y="1661" class="tiny" text-anchor="end">Kubernetes ingress controller</text>
-<rect x="1638.5" y="1640" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1638.5" y="1640" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1654.5" y="1661" class="node-id" text-anchor="start">VV-CMP-041</text>
-<text x="1654.5" y="1686" class="body" text-anchor="start">
-<tspan x="1654.5" dy="0">Enterprise identity provider</tspan>
+<text x="1432.0" y="1661" class="tiny" text-anchor="end">OIDC provider</text>
+<rect x="1462.0" y="1640" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1462.0" y="1640" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1478.0" y="1661" class="node-id" text-anchor="start">VV-CMP-042</text>
+<text x="1478.0" y="1686" class="body" text-anchor="start">
+<tspan x="1478.0" dy="0">OpenTelemetry collector and SIEM</tspan>
+<tspan x="1478.0" dy="16">export</tspan>
 </text>
-<text x="2138.0" y="1661" class="tiny" text-anchor="end">OIDC provider</text>
-<rect x="50.0" y="1732" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<text x="1785.0" y="1661" class="tiny" text-anchor="end">OpenTelemetry Collector 0.156.0 and optional SIEM</text>
+<rect x="1815.0" y="1640" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1815.0" y="1640" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1831.0" y="1661" class="node-id" text-anchor="start">VV-CMP-043</text>
+<text x="1831.0" y="1686" class="body" text-anchor="start">
+<tspan x="1831.0" dy="0">Media generation provider</tspan>
+</text>
+<text x="2138.0" y="1661" class="tiny" text-anchor="end">provider-neutral HTTPS API</text>
+<rect x="50.0" y="1732" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="50.0" y="1732" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="66.0" y="1753" class="node-id" text-anchor="start">VV-CMP-042</text>
+<text x="66.0" y="1753" class="node-id" text-anchor="start">VV-CMP-044</text>
 <text x="66.0" y="1778" class="body" text-anchor="start">
-<tspan x="66.0" dy="0">OpenTelemetry collector and SIEM export</tspan>
+<tspan x="66.0" dy="0">NVIDIA DeepStream and TensorRT</tspan>
+<tspan x="66.0" dy="16">runtime</tspan>
 </text>
-<text x="549.5" y="1753" class="tiny" text-anchor="end">OpenTelemetry Collector 0.156.0 and optional SIEM</text>
-<rect x="579.5" y="1732" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="579.5" y="1732" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="595.5" y="1753" class="node-id" text-anchor="start">VV-CMP-043</text>
-<text x="595.5" y="1778" class="body" text-anchor="start">
-<tspan x="595.5" dy="0">Media generation provider</tspan>
+<text x="373.0" y="1753" class="tiny" text-anchor="end">DeepStream 9.1 and TensorRT</text>
+<rect x="403.0" y="1732" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="403.0" y="1732" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="419.0" y="1753" class="node-id" text-anchor="start">VV-CMP-045</text>
+<text x="419.0" y="1778" class="body" text-anchor="start">
+<tspan x="419.0" dy="0">DuckDB and Spatial runtime</tspan>
 </text>
-<text x="1079.0" y="1753" class="tiny" text-anchor="end">provider-neutral HTTPS API</text>
-<rect x="1109.0" y="1732" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<text x="726.0" y="1753" class="tiny" text-anchor="end">DuckDB 1.5.5 and pinned Spatial extension</text>
+<rect x="756.0" y="1732" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="756.0" y="1732" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="772.0" y="1753" class="node-id" text-anchor="start">VV-CMP-046</text>
+<text x="772.0" y="1778" class="body" text-anchor="start">
+<tspan x="772.0" dy="0">Map processing and routing toolchain</tspan>
+</text>
+<text x="1079.0" y="1753" class="tiny" text-anchor="end">Valhalla 3.8.3 GDAL 3.13.2 and GTFS Validator 8.0.1</text>
+<rect x="1109.0" y="1732" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="1109.0" y="1732" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1125.0" y="1753" class="node-id" text-anchor="start">VV-CMP-044</text>
+<text x="1125.0" y="1753" class="node-id" text-anchor="start">VV-CMP-047</text>
 <text x="1125.0" y="1778" class="body" text-anchor="start">
-<tspan x="1125.0" dy="0">NVIDIA DeepStream and TensorRT runtime</tspan>
+<tspan x="1125.0" dy="0">Rerun data model and transport</tspan>
 </text>
-<text x="1608.5" y="1753" class="tiny" text-anchor="end">DeepStream 9 and TensorRT</text>
-<rect x="1638.5" y="1732" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1638.5" y="1732" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1654.5" y="1753" class="node-id" text-anchor="start">VV-CMP-045</text>
-<text x="1654.5" y="1778" class="body" text-anchor="start">
-<tspan x="1654.5" dy="0">DuckDB and Spatial runtime</tspan>
+<text x="1432.0" y="1753" class="tiny" text-anchor="end">Rerun 0.35.0 libraries and proxy protocol</text>
+<rect x="1462.0" y="1732" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1462.0" y="1732" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1478.0" y="1753" class="node-id" text-anchor="start">VV-CMP-048</text>
+<text x="1478.0" y="1778" class="body" text-anchor="start">
+<tspan x="1478.0" dy="0">Container execution environment</tspan>
 </text>
-<text x="2138.0" y="1753" class="tiny" text-anchor="end">DuckDB 1.5.5 and pinned Spatial extension</text>
-<rect x="50.0" y="1824" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="50.0" y="1824" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="66.0" y="1845" class="node-id" text-anchor="start">VV-CMP-046</text>
-<text x="66.0" y="1870" class="body" text-anchor="start">
-<tspan x="66.0" dy="0">Map processing and routing toolchain</tspan>
+<text x="1785.0" y="1753" class="tiny" text-anchor="end">Kubernetes with an OCI container runtime</text>
+<rect x="1815.0" y="1732" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
+<rect x="1815.0" y="1732" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1831.0" y="1753" class="node-id" text-anchor="start">VV-CMP-056</text>
+<text x="1831.0" y="1778" class="body" text-anchor="start">
+<tspan x="1831.0" dy="0">UAV simulation execution stack</tspan>
 </text>
-<text x="549.5" y="1845" class="tiny" text-anchor="end">Valhalla 3.8.3 GDAL 3.13.2 and GTFS Validator 8.0.1</text>
-<rect x="579.5" y="1824" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="579.5" y="1824" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="595.5" y="1845" class="node-id" text-anchor="start">VV-CMP-047</text>
-<text x="595.5" y="1870" class="body" text-anchor="start">
-<tspan x="595.5" dy="0">Rerun data model and transport</tspan>
-</text>
-<text x="1079.0" y="1845" class="tiny" text-anchor="end">Rerun 0.35.0 libraries and proxy protocol</text>
-<rect x="1109.0" y="1824" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1109.0" y="1824" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1125.0" y="1845" class="node-id" text-anchor="start">VV-CMP-048</text>
-<text x="1125.0" y="1870" class="body" text-anchor="start">
-<tspan x="1125.0" dy="0">Container execution environment</tspan>
-</text>
-<text x="1608.5" y="1845" class="tiny" text-anchor="end">Kubernetes with an OCI container runtime</text>
-<rect x="1638.5" y="1824" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
-<rect x="1638.5" y="1824" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1654.5" y="1845" class="node-id" text-anchor="start">VV-CMP-056</text>
-<text x="1654.5" y="1870" class="body" text-anchor="start">
-<tspan x="1654.5" dy="0">UAV simulation execution stack</tspan>
-</text>
-<text x="2138.0" y="1845" class="tiny" text-anchor="end">Isaac Sim 6.0.1, Cesium for Omniverse 0.29.0, Pegasus 5.1.0, PX4 1.17.0</text>
+<text x="2138.0" y="1753" class="tiny" text-anchor="end">Isaac Sim 6.0.1, Cesium for Omniverse 0.29.0, Pegasus 5.1.0, PX4 1.17.0</text>
 <rect x="28" y="1865" width="2144" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1886" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="2170" y="1886" class="tiny" text-anchor="end">Revision 2026-07-25 | VV-VIEW-05</text>
+<text x="2170" y="1886" class="tiny" text-anchor="end">Revision 2026-07-27 | VV-VIEW-05</text>
 </svg>

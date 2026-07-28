@@ -6,7 +6,7 @@ into the whitepaper or a white-label publication.
 
 The architecture covers every buildable first-party component and every
 external runtime that participates in the stated platform architecture. The
-component catalog includes all 38 Rust workspace packages, the React console,
+component catalog includes all 45 Rust workspace packages, the React console,
 the Python SDK and hosted-server template, internal Python and C++ executors,
 deployment and verification components, and required or optional external
 runtimes.
@@ -16,7 +16,7 @@ runtimes.
 - `index.html` is the offline browser portal and canonical report source.
 - `veoveo-reference-architecture.pdf` is the fixed-layout formal review copy.
 - `diagrams/*.svg` contains eleven individually reusable vector views.
-- `catalogs/software-components.csv` enumerates 62 scoped software resources.
+- `catalogs/software-components.csv` enumerates 69 scoped software resources.
 - `catalogs/interfaces-and-protocols.csv` defines 39 canonical interfaces.
 - `catalogs/requirements-traceability.csv` traces 18 requirements to capability,
   activity, service, resource, and evidence.
@@ -104,7 +104,7 @@ modules in this directory.
 
 - Architecture: `VV-MODEL-001`
 - Version: `0.1.0`
-- Revision: `2026-07-25`
-- Source commit: `7d7693aa0c97a1685729126020820c0243ccdd36`
+- Revision: `2026-07-27`
+- Source commit: `429379faaf329650797cf230895a23b23901e863`
 - Governing framework: OMG UAF 1.3
 - Detailed systems language: OMG SysML 1.6

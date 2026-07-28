@@ -75,11 +75,11 @@
 <rect x="594.0" y="415" width="7" height="157" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="612.0" y="438" class="node-id" text-anchor="start">VV-CAP-006</text>
 <text x="612.0" y="462" class="node-title" text-anchor="start">
-<tspan x="612.0" dy="0">Local perception</tspan>
+<tspan x="612.0" dy="0">Local stream processing</tspan>
 </text>
 <text x="612.0" y="485" class="small" text-anchor="start">
-<tspan x="612.0" dy="0">Recorded video is decoded, detected, tracked, and</tspan>
-<tspan x="612.0" dy="16">published inside the installation.</tspan>
+<tspan x="612.0" dy="0">Admitted live media graphs and reproducible recording</tspan>
+<tspan x="612.0" dy="16">replays execute inside the installation.</tspan>
 </text>
 <rect x="1128.0" y="415" width="512.0" height="157" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="1128.0" y="415" width="7" height="157" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
@@ -152,5 +152,5 @@
 <text x="62" y="1101" class="body inverse" text-anchor="start">Every capability traces through at least one operational activity and service to named software resources and verification evidence.</text>
 <rect x="28" y="1145" width="1644" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1166" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="1670" y="1166" class="tiny" text-anchor="end">Revision 2026-07-25 | VV-VIEW-02</text>
+<text x="1670" y="1166" class="tiny" text-anchor="end">Revision 2026-07-27 | VV-VIEW-02</text>
 </svg>
