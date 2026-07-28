@@ -450,7 +450,9 @@ operation.
 ## Verification
 
 All smoke orchestration is Rust. The harness owns child/container lifecycle, readiness,
-timeouts, cleanup, MCP and HTTP calls, and assertions. The Justfile only dispatches it.
+timeouts, cleanup, MCP and HTTP calls, assertions, and evidence. `cargo xtask smoke`
+only builds the harness and its scenario-specific local binary prerequisites, then
+dispatches the typed scenario.
 
 Coverage includes:
 

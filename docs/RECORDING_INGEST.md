@@ -152,5 +152,5 @@ batch, resumes at the durable checkpoint, finishes the stream, then inspects the
 immutable segment digest.
 
 ```sh
-just smoke-recording-ingest
+cargo xtask smoke recording-ingest
 ```

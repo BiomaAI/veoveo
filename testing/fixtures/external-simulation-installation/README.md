@@ -52,8 +52,8 @@ Publish and install one exact committed revision:
 PROFILE=testing/fixtures/external-simulation-installation/deployment.json
 REVISION=$(git rev-parse HEAD)
 
-just profile-validate "$PROFILE"
-just profile-cluster-up "$PROFILE"
+cargo xtask smoke profile-validate --profile "$PROFILE"
+cargo xtask smoke profile-cluster-up --profile "$PROFILE"
 docker exec k3d-anonymous-simulation-server-0 \
   sysctl -w fs.inotify.max_user_instances=1024
 cargo xtask image builder ensure
@@ -61,34 +61,33 @@ cargo xtask release images \
   --profile "$PROFILE" \
   --profile-revision "$REVISION" \
   --lock-output testing/fixtures/external-simulation-installation/deployment.lock.json
-just profile-up "$PROFILE"
+cargo xtask smoke profile-up --profile "$PROFILE"
 ```
 
 The fixture raises the running node's nonpersistent inotify instance ceiling because
 one workstation may host several independent k3d clusters. Fielded hosts set an
 equivalent persistent ceiling through their normal node configuration.
 
-Start a separate headed Chrome instance on the active X11 display. The
-acceptance command rejects HeadlessChrome and requires at least one
-NVIDIA-backed WebGPU or WebGL path before it loads the App.
+Use the operator's persistent, authenticated headed Chrome profile on the
+active X11 display. The acceptance command rejects HeadlessChrome and requires
+at least one NVIDIA-backed WebGPU or WebGL path before it loads the App.
 
 ```sh
 google-chrome-stable \
-  --user-data-dir=/tmp/veoveo-simulation-view-chrome \
+  --user-data-dir="$HOME/.config/veoveo-acceptance-chrome" \
   --remote-debugging-address=127.0.0.1 \
-  --remote-debugging-port=9227 \
-  --enable-unsafe-webgpu \
+  --remote-debugging-port=9222 \
   --ozone-platform=x11 \
-  about:blank
+  http://localhost:8782/console/
 ```
 
 Then run:
 
 ```sh
-just simulation-view-verify \
-  k3d-anonymous-simulation \
-  http://localhost:8782 \
-  http://127.0.0.1:9227
+cargo xtask smoke simulation-view-verify \
+  --context k3d-anonymous-simulation \
+  --public-base-url http://localhost:8782 \
+  --chrome-cdp-url http://127.0.0.1:9222
 ```
 
 The command drives the anonymous producer through the core Simulation View

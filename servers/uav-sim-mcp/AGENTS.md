@@ -46,8 +46,14 @@ the thin telemetry adapter that uses the shared Simulation View pose SDK.
 - `cargo check -p veoveo-uav-sim-mcp`
 - `cargo test -p veoveo-uav-sim-mcp` (deterministic fake adapter, credential
   free)
-- `just showcase-uav-sim-test` runs the crate tests plus the Python runtime
-  tests under `showcase/uav-sim/runtime/`.
+- The following command runs the Python runtime tests:
+
+  ```sh
+  PYTHONPATH=showcase/uav-sim/runtime:sdk/python/src \
+    uv run --with numpy==2.5.1 --python python3 \
+    python -m unittest discover -s showcase/uav-sim/runtime/tests -v
+  ```
+
 - Helm lint and template checks cover `showcase/uav-sim/deploy/helm`; the
   container builds from `servers/uav-sim-mcp/Dockerfile` (needs Docker).
 - Live acceptance is a separately invoked, installation-owned billed test. It

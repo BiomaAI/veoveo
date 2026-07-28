@@ -149,15 +149,16 @@ The gateway is expected to support many hosted MCP servers, profiles, and auth p
 That scale alone is not a refactor trigger. Refactor when the code stops composing cleanly
 or when server-specific behavior leaks into generic gateway modules.
 
-## Justfile Discipline
+## Repository Command Discipline
 
-Do not abuse the Justfile as a smoke-test framework or scripting language. Keep recipes as
-short, memorable dispatch commands for humans. Complex orchestration, process lifecycle,
-assertions, retries, JSON parsing, and cleanup belong in Rust smoke harnesses.
+The repository has no Justfile. One-step Cargo, Helm, uv, Docker, and Kubernetes
+commands remain native. Repository-specific policy and multi-step coordination belong
+in `cargo xtask`.
 
-All smoke tests for this repository must be implemented in Rust. The Justfile may build
-and dispatch those Rust smoke commands, but it must not contain shell-based smoke-test
-logic.
+All smoke tests for this repository must be implemented in Rust. `cargo xtask smoke`
+may build the harness and its scenario-specific local binaries, then dispatch the
+typed Rust smoke harness. It must not own service lifecycle, assertions, retries,
+JSON parsing, evidence, or cleanup.
 
 Only add smoke-test helper crates when they are current, maintained, and remove concrete
 complexity from our actual multi-process smoke tests. Do not add a crate just because it

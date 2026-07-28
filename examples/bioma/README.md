@@ -82,7 +82,9 @@ cargo xtask release images --group simulation-runtime \
 cargo xtask release images --group showcase-uav-sim \
   --registry localhost:5001 --revision "$REVISION"
 
-just charts-publish localhost:5001/charts   "$CHART_VERSION" "$REVISION" true
+cargo xtask release helm-charts \
+  --revision "$REVISION" --version "$CHART_VERSION" \
+  --registry localhost:5001/charts --plain-http
 ~~~
 
 BuildKit pushes only missing layers and does not load release images into the host
@@ -106,8 +108,13 @@ registry when it is absent, and create the Bioma cluster:
 
 ~~~bash
 nvidia-smi
-just k3d-node-build
 source deploy/local/k3d/versions.env
+docker build \
+  --build-arg K3S_VERSION="$K3S_VERSION" \
+  --build-arg CUDA_VERSION="$CUDA_VERSION" \
+  --build-arg NVIDIA_CONTAINER_TOOLKIT_VERSION="$NVIDIA_CONTAINER_TOOLKIT_VERSION" \
+  --tag "$VEOVEO_K3D_NODE_IMAGE" \
+  deploy/local/k3d/node
 
 k3d registry create veoveo-registry.localhost   --port 127.0.0.1:5001   --image "$OCI_DISTRIBUTION_IMAGE"   --volume veoveo-registry:/var/lib/registry   --delete-enabled
 
@@ -370,14 +377,19 @@ Only the route differs.
 Verify the reconciled installation and public edge:
 
 ~~~bash
-just bioma-verify
+cargo xtask smoke bioma-verify
 ~~~
 
 Then run the full GPU delivery proof:
 
 ~~~bash
-just uav-domain-verify k3d-veoveo-bioma https://veoveo.bioma.ai
-just uav-showcase-verify k3d-veoveo-bioma https://veoveo.bioma.ai
+cargo xtask smoke uav-domain-verify \
+  --context k3d-veoveo-bioma \
+  --public-base-url https://veoveo.bioma.ai
+cargo xtask smoke uav-showcase-verify \
+  --context k3d-veoveo-bioma \
+  --public-base-url https://veoveo.bioma.ai \
+  --chrome-cdp-url http://127.0.0.1:9222
 ~~~
 
 The UAV acceptance requires Google Photorealistic 3D Tiles resident in Isaac, flies a

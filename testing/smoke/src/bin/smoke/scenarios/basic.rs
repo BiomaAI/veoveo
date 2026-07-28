@@ -761,16 +761,47 @@ pub(crate) async fn helm_config() -> Result<()> {
     let image_orchestration = fs::read_to_string("tools/xtask/src/commands/image.rs")?;
     contains(&image_orchestration, "type=provenance,mode=max")?;
     contains(&image_orchestration, "type=sbom")?;
-    let justfile = fs::read_to_string("Justfile")?;
+    ensure!(
+        !Path::new("Justfile").exists(),
+        "the retired Justfile command surface must not return"
+    );
+    let xtask = fs::read_to_string("tools/xtask/src/main.rs")?;
     for expected in [
-        "profile-validate profile:",
-        "profile-up profile:",
-        "profile-cluster-up profile:",
-        "charts-publish registry version revision='HEAD' plain_http='false':",
-        "cargo xtask image build --target map-mcp",
-        "cargo xtask image build --target view-mcp",
+        "Command::Smoke(args)",
+        "ReleaseCommand::HelmCharts(args)",
+        "ImageCommand::Build(selection)",
     ] {
-        contains(&justfile, expected)?;
+        contains(&xtask, expected)?;
+    }
+    let smoke_dispatch = fs::read_to_string("tools/xtask/src/commands/smoke.rs")?;
+    for expected in [
+        "veoveo-smoke",
+        "veoveo-mcp-conformance",
+        "veoveo-duckdb-mcp",
+        "veoveo-recording-hub",
+        "veoveo-artifact-service",
+        "scenario_binaries",
+        ".args(arguments)",
+    ] {
+        contains(&smoke_dispatch, expected)?;
+    }
+    for forbidden in [
+        "process::status(\"kubectl\"",
+        "process::status(\"helm\"",
+        "process::status(\"k3d\"",
+        "process::status(\"docker\"",
+        "Command::new(\"kubectl\"",
+        "Command::new(\"helm\"",
+        "Command::new(\"k3d\"",
+        "Command::new(\"docker\"",
+        "reqwest",
+        "serde_json",
+        "tokio",
+        "retry",
+        "evidence",
+        "cleanup",
+    ] {
+        not_contains(&smoke_dispatch, forbidden)?;
     }
     for forbidden in [
         "k3d image import",
@@ -779,7 +810,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         "profile-publish",
         "docker build -f servers/",
     ] {
-        not_contains(&justfile, forbidden)?;
+        not_contains(&xtask, forbidden)?;
+        not_contains(&smoke_dispatch, forbidden)?;
     }
     ensure!(
         !Path::new("examples/bioma/deployment.json").exists(),

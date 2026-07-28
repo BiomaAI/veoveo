@@ -385,8 +385,8 @@ WebGL cannot reach hardware. Software rendering is not a supported fallback.
 
 The local cluster applies the same `nvidia.com/gpu` scheduling contract used by
 fielded installations. Browser verification proves that high-performance
-WebGPU and WebGL both reach hardware before interacting with a visual surface
-and stops if either hardware-backed context is lost.
+WebGPU or WebGL reaches hardware before interacting with a visual surface. It
+probes both APIs when available and stops if neither remains hardware-backed.
 
 ## Roadmap
 
@@ -483,19 +483,23 @@ builds also need a C/C++ toolchain, CMake, pkg-config, SQLite development files,
 and PROJ's build dependencies.
 
 ```bash
-just fmt
-just check
-just test
-just test-python
-just helm-check
-just showcase-sumo-smoke
-just showcase-uav-sim-test
+cargo fmt --all
+cargo xtask enforce rust
+cargo test --workspace
+cargo xtask enforce python
+cargo xtask smoke helm-config
+cargo xtask smoke sumo-push
+cargo test -p veoveo-uav-sim-mcp --all-targets
+PYTHONPATH=showcase/uav-sim/runtime:sdk/python/src \
+  uv run --with numpy==2.5.1 --python python3 \
+  python -m unittest discover -s showcase/uav-sim/runtime/tests -v
 ```
 
 Smoke orchestration is platform code, held to the same review and testing bar
-as everything it verifies. The `Justfile` keeps short dispatch commands for
-humans. Local deployment profiles use the current tool versions
-pinned in [`deploy/local/k3d/versions.env`](deploy/local/k3d/versions.env).
+as everything it verifies. `cargo xtask smoke` builds the typed harness and
+its scenario-specific local binary prerequisites, then dispatches it. Local
+deployment profiles use the current tool versions pinned in
+[`deploy/local/k3d/versions.env`](deploy/local/k3d/versions.env).
 
 ## Repository Guide
 

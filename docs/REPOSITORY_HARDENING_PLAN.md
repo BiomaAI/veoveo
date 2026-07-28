@@ -103,7 +103,8 @@ their hard-cut boundary:
 
 | Plan concern | Current state |
 |---|---|
-| P0.2 xtask foundation | delivered for `doctor`, canonical Rust enforcement, image planning, builder management, and image release; later smoke, deployment, bundle, documentation, and hook commands remain planned |
+| P0.2 xtask foundation | delivered for `doctor`, canonical Rust enforcement, typed Rust smoke dispatch, image planning, builder management, and image release; later deployment, bundle, documentation, and hook commands remain planned |
+| Justfile hard cut | delivered; documented workflows use `cargo xtask`, the typed Rust smoke harness, or a clear one-step native command, with no compatibility aliases |
 | P0.4 publication inputs | delivered through a locked persistent worktree, exact commit resolution, source-local profile loading, metadata-preservation tests, and the `docs/` context exclusion |
 | P1.5 internal image graph | delivered for the initial `linux/amd64` families, including consolidated trixie and bookworm Cargo actions, typed cache identities, managed Buildx and BuildKit, reproducible output timestamps, and immutable execution evidence |
 | External repository flow | Python SDK distributions, domain-neutral native/OCI conformance and gateway composition, typed artifact contracts, the private extension Helm library, compatibility bundle generation, an agent-run external integration procedure, typed platform selection, source-role-qualified local publication, anonymous multi-repository contract acceptance, and canonical simulation-overlay certification are delivered |
@@ -708,9 +709,9 @@ updates a developer tool automatically.
 
 ### Justfile Removal
 
-The Justfile is removed when its remaining commands have typed replacements or clear
-native commands. Complex release and deployment recipes move to Rust. Existing Rust
-smoke binaries continue to own service lifecycle while `xtask` dispatches them.
+The Justfile is removed. Its supported commands have typed replacements or clear native
+commands. Existing Rust smoke binaries continue to own service lifecycle while
+`cargo xtask smoke` dispatches them.
 
 CODEMAP, README, CI, and component documentation move to the new command in the same
 hard-cut change.

@@ -83,8 +83,9 @@ material they operate:
 
 The canonical long-form sources are
 [`veoveo-whitepaper-print.html`](veoveo-whitepaper-print.html) and
-[`autonomy-harness-print.html`](autonomy-harness-print.html). `just docs-pdf` produces
-the [`whitepaper PDF`](veoveo-whitepaper.pdf) and
+[`autonomy-harness-print.html`](autonomy-harness-print.html). Their source headers carry
+the headed Chrome `Page.printToPDF` contract that produces the
+[`whitepaper PDF`](veoveo-whitepaper.pdf) and
 [`harness PDF`](autonomy-harness.pdf). [`autonomy-harness.html`](autonomy-harness.html)
 is the browser edition of the harness document.
 
@@ -106,7 +107,6 @@ is the browser edition of the harness document.
 | `extensions/contract/` | typed external artifact, compatibility-manifest, extension-release, simulation build-lock/result/evidence, and schema contracts |
 | `extensions/examples/` | anonymous external fragment and installation-binding examples |
 | `deploy/local/k3d/` | GPU-capable local Kubernetes cluster and values |
-| `Justfile` | short human dispatch commands only |
 | `AGENTS.md` | hard-cut, task, type, module, and smoke-test rules |
 | `docs/` | general architecture, code index, recording design, and rendered publications |
 | `agents/` | agent kernel and durable agent runtime |
@@ -132,7 +132,7 @@ is the browser edition of the harness document.
 | `deploy/contract/tests/multi_repository.rs` | anonymous acceptance using independent platform, extension, and installation Git histories with one combined deployment lock |
 | `testing/fixtures/simulation-overlay/` | repository-neutral overlay identity and CUDA probe for canonical simulation-base acceptance |
 | `tools/image-build/` | managed BuildKit configuration, shared Rust builder inputs, and the source-locked first-party Datasheet image environment |
-| `tools/xtask/` | compiled repository command, enforcement, image planning, and release orchestration |
+| `tools/xtask/` | compiled repository command, enforcement, typed smoke prerequisite builds and dispatch, image planning, and release orchestration |
 
 ## Placement Rules
 

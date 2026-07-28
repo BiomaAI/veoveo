@@ -37,14 +37,14 @@ Veoveo's final task extension and shared task runtime.
 The deterministic driver unit tests need only the pinned Rust toolchain:
 
 ```bash
-just showcase-sumo-test
+cargo test -p veoveo-sumo-mcp
 ```
 
 The in-process push smoke writes fake-driver frames through the real Recording Hub
 durability boundary and queries the resulting RRD segments:
 
 ```bash
-just showcase-sumo-smoke
+cargo xtask smoke sumo-push
 ```
 
 The live verification targets the active k3d profile. It checks the unauthenticated
@@ -52,7 +52,7 @@ boundary, reads the live world, changes an edge speed, advances a durable batch,
 and proves that Recording Hub retained the world:
 
 ```bash
-just showcase-sumo-verify
+cargo xtask smoke sumo-verify --context k3d-veoveo-sumo
 ```
 
 ## Run in k3d
@@ -64,19 +64,19 @@ same local cluster. Startup applies the profile's NVIDIA device-plugin manifest 
 waits for allocatable GPU capacity before deployment.
 
 ```bash
-just k3d-node-build
 PROFILE=showcase/sumo/deploy/deployment.json
 REVISION=$(git rev-parse HEAD)
-just profile-validate "$PROFILE"
-just profile-cluster-up "$PROFILE"
+cargo xtask smoke profile-validate --profile "$PROFILE"
+cargo xtask smoke profile-cluster-up --profile "$PROFILE"
 cargo xtask image builder ensure
 cargo xtask release images --profile "$PROFILE" --profile-revision "$REVISION"
-just profile-up "$PROFILE" "$REVISION"
+cargo xtask smoke profile-up --profile "$PROFILE"
 ```
 
 Normal clients use the `operator` gateway profile at
-`http://localhost:8780/mcp/operator`. Run `just info` to mint the local service
-token and inspect the namespaced SUMO surface through that gateway. The direct
+`http://localhost:8780/mcp/operator`. They mint a scoped service token through
+the configured OAuth token endpoint before inspecting the namespaced SUMO
+surface through that gateway. The direct
 authenticated verification endpoint is `http://127.0.0.1:8895/sumo/mcp`; it
 exists for the Rust acceptance harness.
 
@@ -117,6 +117,7 @@ showcase/sumo/
 ```
 
 Remove the composed platform and showcase releases with
-`just profile-down showcase/sumo/deploy/deployment.json`. The shared registry
-remains available for another profile. Local deployment mechanics are documented in
+`cargo xtask smoke profile-down --profile showcase/sumo/deploy/deployment.json`.
+The shared registry remains available for another profile. Local deployment mechanics
+are documented in
 [`../../docs/LOCAL_DEPLOYMENT_PROFILES.md`](../../docs/LOCAL_DEPLOYMENT_PROFILES.md).
