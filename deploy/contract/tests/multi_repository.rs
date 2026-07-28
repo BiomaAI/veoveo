@@ -158,6 +158,7 @@ fn independent_git_sources_produce_one_validated_installation_lock() {
                         repository: format!("registry.example.internal/platform/{name}"),
                         name,
                         digest: DIGEST_A.to_owned(),
+                        publication_digest: DIGEST_B.to_owned(),
                     })
                     .collect(),
                 charts: vec![LockedChart {
@@ -175,6 +176,7 @@ fn independent_git_sources_produce_one_validated_installation_lock() {
                     name: "anonymous-extension".to_owned(),
                     repository: "registry.example.internal/extensions/anonymous".to_owned(),
                     digest: DIGEST_B.to_owned(),
+                    publication_digest: DIGEST_A.to_owned(),
                 }],
                 charts: vec![LockedChart {
                     release: "extension".to_owned(),

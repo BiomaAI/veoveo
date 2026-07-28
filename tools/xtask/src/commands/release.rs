@@ -31,6 +31,12 @@ struct PreparedImagePhase {
     plan: image::PreparedPlan,
 }
 
+struct PublishedImageOutput {
+    reference: String,
+    publication_digest: String,
+    platform: String,
+}
+
 struct PreparedSourceRelease {
     definition: DeploymentSource,
     origin: String,
@@ -48,7 +54,7 @@ use crate::{
     commands::{
         builder, compatibility as compatibility_release, helm,
         image::{self, OutputMode, Selection},
-        python, simulation,
+        image_manifest, python, simulation,
         source::PublicationSource,
     },
     context::RepositoryContext,
@@ -197,12 +203,14 @@ fn release_direct_images(repository: &RepositoryContext, args: &ReleaseImagesArg
         .as_deref()
         .context("a direct target or group release requires --registry")?;
     validate_registry(registry)?;
+    let allow_insecure_registry = registry_is_loopback(registry)?;
     let images = publish_image_selections(
         repository,
         &selected_repository,
         publication.revision(),
         registry,
         vec![selection],
+        allow_insecure_registry,
     )?;
     let output = args.evidence_output.clone().unwrap_or_else(|| {
         repository
@@ -271,6 +279,7 @@ fn release_profile_images(
     };
     let registry = committed_profile.definition.registry.address.clone();
     validate_registry(&registry)?;
+    let allow_insecure_registry = committed_profile.definition.registry.local_config.is_some();
     let mut prepared_sources = Vec::new();
     let mut publications = BTreeMap::new();
     for source in &committed_profile.definition.sources {
@@ -289,7 +298,9 @@ fn release_profile_images(
     committed_profile.validate_image_plan(&planned_images)?;
     let locked_sources = prepared_sources
         .into_iter()
-        .map(|source| publish_prepared_source(repository, &registry, source))
+        .map(|source| {
+            publish_prepared_source(repository, &registry, source, allow_insecure_registry)
+        })
         .collect::<Result<Vec<_>>>()?;
     let lock = DeploymentLock {
         schema_version: DEPLOYMENT_LOCK_SCHEMA.to_owned(),
@@ -390,6 +401,7 @@ fn publish_prepared_source(
     evidence_repository: &RepositoryContext,
     registry: &str,
     source: PreparedSourceRelease,
+    allow_insecure_registry: bool,
 ) -> Result<LockedSource> {
     let environment = publication_environment(registry, &source.revision);
     let phase_count = source.phases.len();
@@ -410,23 +422,30 @@ fn publish_prepared_source(
             OutputMode::Push,
             &evidence,
         )?;
-        let digests = evidence.published_image_digests(&phase.plan)?;
-        for (name, reference) in phase.plan.image_references() {
-            let digest = digests
-                .get(&name)
-                .with_context(|| format!("Buildx metadata omitted published image {name}"))?;
+        let digests = evidence.publication_index_digests(&phase.plan)?;
+        for output in phase.plan.image_outputs() {
+            let digest = digests.get(&output.target).with_context(|| {
+                format!("Buildx metadata omitted published image {}", output.target)
+            })?;
             ensure!(
                 references
-                    .insert(name.clone(), (reference, digest.clone()))
+                    .insert(
+                        output.target.clone(),
+                        PublishedImageOutput {
+                            reference: output.reference,
+                            publication_digest: digest.clone(),
+                            platform: output.platform,
+                        },
+                    )
                     .is_none(),
                 "deployment source {} published image target {} more than once",
                 source.definition.name,
-                name
+                output.target
             );
         }
         println!("Release evidence: {}", evidence.directory().display());
     }
-    let images = lock_published_images(references, &source.revision)?;
+    let images = lock_published_images(references, &source.revision, allow_insecure_registry)?;
     Ok(LockedSource {
         name: source.definition.name,
         role: source.definition.role,
@@ -443,6 +462,7 @@ fn publish_image_selections(
     revision: &str,
     registry: &str,
     selections: Vec<Selection>,
+    allow_insecure_registry: bool,
 ) -> Result<Vec<LockedImage>> {
     let environment = publication_environment(registry, revision);
     let phase_count = selections.len();
@@ -457,22 +477,23 @@ fn publish_image_selections(
             Ok(PreparedImagePhase { name, plan })
         })
         .collect::<Result<Vec<_>>>()?;
-    let mut references = BTreeMap::new();
+    let mut selected_targets = BTreeSet::new();
     let mut published_references = BTreeSet::new();
     for phase in &phases {
-        for (name, reference) in phase.plan.image_references() {
+        for output in phase.plan.image_outputs() {
             ensure!(
-                !references.contains_key(&name),
-                "image target {name} is selected more than once"
+                selected_targets.insert(output.target.clone()),
+                "image target {} is selected more than once",
+                output.target
             );
             ensure!(
-                published_references.insert(reference.clone()),
-                "image reference {reference} is selected more than once"
+                published_references.insert(output.reference.clone()),
+                "image reference {} is selected more than once",
+                output.reference
             );
-            references.insert(name, (reference, String::new()));
         }
     }
-    references.clear();
+    let mut references = BTreeMap::new();
     for (index, phase) in phases.iter().enumerate() {
         println!(
             "Publishing image phase {}/{}: {}",
@@ -488,40 +509,61 @@ fn publish_image_selections(
             OutputMode::Push,
             &evidence,
         )?;
-        let digests = evidence.published_image_digests(&phase.plan)?;
-        for (name, reference) in phase.plan.image_references() {
-            let digest = digests
-                .get(&name)
-                .with_context(|| format!("Buildx metadata omitted published image {name}"))?;
+        let digests = evidence.publication_index_digests(&phase.plan)?;
+        for output in phase.plan.image_outputs() {
+            let digest = digests.get(&output.target).with_context(|| {
+                format!("Buildx metadata omitted published image {}", output.target)
+            })?;
             ensure!(
                 references
-                    .insert(name.clone(), (reference, digest.clone()))
+                    .insert(
+                        output.target.clone(),
+                        PublishedImageOutput {
+                            reference: output.reference,
+                            publication_digest: digest.clone(),
+                            platform: output.platform,
+                        },
+                    )
                     .is_none(),
-                "image target {name} was published more than once"
+                "image target {} was published more than once",
+                output.target
             );
         }
         println!("Release evidence: {}", evidence.directory().display());
     }
-    lock_published_images(references, revision)
+    lock_published_images(references, revision, allow_insecure_registry)
 }
 
 fn lock_published_images(
-    references: BTreeMap<String, (String, String)>,
+    references: BTreeMap<String, PublishedImageOutput>,
     revision: &str,
+    allow_insecure_registry: bool,
 ) -> Result<Vec<LockedImage>> {
     references
         .into_iter()
-        .map(|(name, (reference, digest))| {
+        .map(|(name, output)| {
+            let PublishedImageOutput {
+                reference,
+                publication_digest,
+                platform,
+            } = output;
             let repository = reference
                 .strip_suffix(&format!(":{revision}"))
                 .with_context(|| {
                     format!("published image {reference} does not use source revision tag")
                 })?
                 .to_owned();
+            let digests = image_manifest::inspect(
+                &repository,
+                &publication_digest,
+                &platform,
+                allow_insecure_registry,
+            )?;
             Ok(LockedImage {
                 name,
                 repository,
-                digest,
+                digest: digests.runtime,
+                publication_digest: digests.publication,
             })
         })
         .collect()
@@ -699,4 +741,17 @@ fn validate_registry(registry: &str) -> Result<()> {
         "registry must not contain whitespace"
     );
     Ok(())
+}
+
+fn registry_is_loopback(registry: &str) -> Result<bool> {
+    let parsed = url::Url::parse(&format!("http://{registry}"))
+        .with_context(|| format!("parsing registry address {registry}"))?;
+    let host = parsed
+        .host_str()
+        .context("registry address must contain a host")?;
+    Ok(host == "localhost"
+        || host.ends_with(".localhost")
+        || host
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|address| address.is_loopback()))
 }

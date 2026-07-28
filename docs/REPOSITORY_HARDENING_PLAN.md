@@ -203,7 +203,9 @@ projection, generated section, image digest, or compliance profile blocks the ga
 
 Build caches improve performance and never establish correctness. Every build works from
 an empty cache and from a cache containing any state permitted by its declared namespace.
-Cold and warm builds of one source revision produce equivalent artifacts and evidence.
+Cold and warm builds of one source revision produce the same runnable artifacts. Each
+publication retains its own complete attestation envelope because SLSA provenance
+records invocation identity and time.
 
 Compiled artifact caches cannot cross incompatible source, toolchain, target-platform,
 native SDK, feature, profile, or compile-environment boundaries. Cargo registry and Git
@@ -1218,11 +1220,11 @@ each unique local evidence directory. Builder recreation is explicit because it
 removes the builder's cache.
 
 Acceptance requires one Cargo action for each selected compatible family, identical
-image digests for cold and warm builds of the same inputs, and no unrelated workspace
-compilation after a gateway-only change. The measurement report records the available
-elapsed time, Cargo actions, crates compiled, BuildKit cache hits, image digests, source
-state, and Buildx metadata. It identifies a structural baseline when a comparable old
-timing does not exist.
+runnable platform-manifest digests for cold and warm builds of the same inputs, and no
+unrelated workspace compilation after a gateway-only change. The measurement report
+records the available elapsed time, Cargo actions, crates compiled, BuildKit cache hits,
+runnable and publication digests, source state, and Buildx metadata. It identifies a
+structural baseline when a comparable old timing does not exist.
 
 Shared CI runners do not enforce a percentage or elapsed-time threshold. Graph
 invariants, cold-cache correctness, reproducible image identity, and single-crate
@@ -1494,7 +1496,8 @@ The plan is complete when all of the following statements hold:
   source-local builder family, target platform, and profile.
 - Rust target caches are explicit, source-aware, platform-aware, and isolated across
   incompatible builder contracts.
-- Cold-cache and warm-cache builds produce equivalent artifacts and release evidence.
+- Cold-cache and warm-cache builds produce identical runnable artifacts and independent
+  complete release-attestation envelopes.
 - Core, extension, and installation-composed offline artifacts retain explicit owners.
 - An external extension can consume published verification contracts without joining the
   Veoveo workspace or core image builder.

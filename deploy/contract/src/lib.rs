@@ -422,7 +422,10 @@ pub struct PlannedImage {
 pub struct LockedImage {
     pub name: String,
     pub repository: String,
+    /// Stable runnable platform-manifest digest consumed by Helm.
     pub digest: String,
+    /// Attested OCI image-index digest emitted by this publication run.
+    pub publication_digest: String,
 }
 
 /// One source-owned Helm chart in a deployment lock.
@@ -1302,6 +1305,12 @@ impl DeploymentLock {
                     "locked image repository must not carry a mutable tag or digest"
                 );
                 validate_digest(&image.digest)?;
+                validate_digest(&image.publication_digest)?;
+                ensure!(
+                    image.digest != image.publication_digest,
+                    "locked image {} must distinguish its runnable manifest digest from its attested publication digest",
+                    image.name
+                );
                 if let Some((owner_source, owner_image)) = image_repositories.insert(
                     image.repository.clone(),
                     (source.name.clone(), image.name.clone()),
@@ -1568,14 +1577,14 @@ fn require_directory(path: &Path, kind: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeSet, path::Path};
+    use std::{collections::BTreeSet, fs, path::Path};
 
     use jsonschema::Validator;
 
     use super::{
-        DeploymentSourceRole, FirstPartyMcpServer, GatewayDeploymentRequirements, GpuIsolation,
-        GpuSchedulingProfile, GpuWorkloadPlacement, InstallationPreset, LoadedProfile,
-        PlannedImage, PlatformCapability, PlatformComponent, PlatformSelection,
+        DeploymentLock, DeploymentSourceRole, FirstPartyMcpServer, GatewayDeploymentRequirements,
+        GpuIsolation, GpuSchedulingProfile, GpuWorkloadPlacement, InstallationPreset,
+        LoadedProfile, PlannedImage, PlatformCapability, PlatformComponent, PlatformSelection,
         deployment_lock_schema, deployment_profile_schema,
     };
 
@@ -1612,6 +1621,24 @@ mod tests {
                 "recording-hub".to_owned(),
                 "recording-mcp".to_owned(),
             ])
+        );
+    }
+
+    #[test]
+    fn loads_checked_multi_source_deployment_lock() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let path = repository
+            .join("testing/fixtures/external-simulation-installation/deployment.lock.json");
+        let bytes = fs::read(&path).expect("read checked deployment lock");
+        let lock = serde_json::from_slice::<DeploymentLock>(&bytes)
+            .expect("decode checked deployment lock");
+
+        lock.validate().expect("validate checked deployment lock");
+        assert!(
+            lock.sources
+                .iter()
+                .flat_map(|source| &source.images)
+                .all(|image| image.digest != image.publication_digest)
         );
     }
 

@@ -72,7 +72,9 @@ equivalent persistent ceiling through their normal node configuration.
 `profile-up` consumes the combined lock explicitly. It checks out every source at the
 locked revision, verifies the source-owned image and chart closure, and supplies only
 digest-addressed images to Helm. It never resolves the profile's moving source
-expressions again during installation.
+expressions again during installation. Each image entry separates the stable runnable
+platform-manifest `digest` from the `publicationDigest` whose OCI index carries that
+release invocation's SPDX SBOM and SLSA provenance.
 
 Use the operator's persistent, authenticated headed Chrome profile on the
 active X11 display. The acceptance command rejects HeadlessChrome and requires
