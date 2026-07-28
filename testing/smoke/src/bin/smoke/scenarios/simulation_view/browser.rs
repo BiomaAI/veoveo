@@ -503,7 +503,7 @@ async fn wait_for_console_app_context(
         .map(str::to_owned)
         .or(find_app_frame_id_from_dom(cdp, session_id, app_server).await?);
         if let Some(frame_id) = frame_id {
-            let isolated = cdp
+            let isolated = match cdp
                 .command(
                     "Page.createIsolatedWorld",
                     serde_json::json!({
@@ -513,7 +513,19 @@ async fn wait_for_console_app_context(
                     }),
                     Some(session_id),
                 )
-                .await?;
+                .await
+            {
+                Ok(isolated) => isolated,
+                Err(error) if stale_app_frame(&error) && tokio::time::Instant::now() < deadline => {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    continue;
+                }
+                Err(error) => {
+                    return Err(error).with_context(|| {
+                        format!("creating an isolated world in the {app_server} Console App frame")
+                    });
+                }
+            };
             return isolated
                 .get("executionContextId")
                 .and_then(Value::as_u64)
@@ -567,6 +579,10 @@ fn stale_execution_context(error: &anyhow::Error) -> bool {
     let message = format!("{error:#}");
     message.contains("Cannot find context with specified id")
         || message.contains("Execution context was destroyed")
+}
+
+fn stale_app_frame(error: &anyhow::Error) -> bool {
+    format!("{error:#}").contains("No frame for given id found")
 }
 
 async fn find_app_frame_id_from_dom(
@@ -1993,6 +2009,13 @@ mod tests {
         )));
         assert!(!stale_execution_context(&anyhow!(
             "browser App-frame evaluation failed"
+        )));
+        assert!(stale_app_frame(&anyhow!(
+            "Chrome DevTools `Page.createIsolatedWorld` failed: \
+             {{\"code\":-32602,\"message\":\"No frame for given id found\"}}"
+        )));
+        assert!(!stale_app_frame(&anyhow!(
+            "Chrome frame tree omitted its root"
         )));
     }
 
