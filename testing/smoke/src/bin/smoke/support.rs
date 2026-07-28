@@ -4,6 +4,8 @@ use super::*;
 mod assertions;
 #[path = "support/control_plane.rs"]
 mod control_plane;
+#[path = "support/duckdb.rs"]
+mod duckdb;
 #[path = "support/final_tasks.rs"]
 mod final_tasks;
 #[path = "support/gateway_auth.rs"]
@@ -23,6 +25,7 @@ mod usage;
 
 pub(crate) use assertions::*;
 pub(crate) use control_plane::*;
+pub(crate) use duckdb::*;
 pub(crate) use final_tasks::*;
 pub(crate) use gateway_auth::*;
 pub(crate) use http::*;

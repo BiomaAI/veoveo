@@ -35,12 +35,14 @@ pub(crate) async fn agent_gateway(
     let duckdb_data_dir = tmpdir.join("duckdb");
     let duckdb_log = tmpdir.join("duckdb.log");
     let gateway_log = tmpdir.join("gateway.log");
+    let spatial_extension = provision_duckdb_spatial_extension().await?;
 
     let plane =
         spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
             .await?;
     let mut duckdb_child = spawn_duckdb_smoke(
         duckdb,
+        &spatial_extension,
         duckdb_port,
         &duckdb_base,
         &duckdb_data_dir,
@@ -75,10 +77,10 @@ pub(crate) async fn agent_gateway(
     contains(&validation, "ok: 1 server(s)")?;
 
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
-    let platform_store = spawn_gateway_platform_store(gateway, &generated_control_plane).await?;
+    bootstrap_gateway_platform_store(gateway, &generated_control_plane, &plane.platform).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(gateway_port, &platform_store),
+        gateway_serve_args(gateway_port, &plane.platform),
         [
             (
                 "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",

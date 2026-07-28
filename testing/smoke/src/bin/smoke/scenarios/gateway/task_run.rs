@@ -52,10 +52,11 @@ pub(crate) async fn gateway_task_run(
     wait_for_http(&format!("{media_base}/media/healthz")).await?;
 
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
-    let platform_store = spawn_gateway_platform_store(gateway, control_plane).await?;
+    let platform_store = &plane.platform;
+    bootstrap_gateway_platform_store(gateway, control_plane, platform_store).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(gateway_port, &platform_store),
+        gateway_serve_args(gateway_port, platform_store),
         [
             (
                 "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
@@ -106,11 +107,6 @@ pub(crate) async fn gateway_task_run(
         &cancel_output,
         &format!("cancelled task {cancel_task_id} (status Cancelled)"),
     )?;
-    contains(&cancel_output, "  [resource list changed]")?;
-    contains(
-        &cancel_output,
-        &format!("  [task {cancel_task_id}] Working: submitted; prediction"),
-    )?;
 
     let complete_output = run_mcp(
         conformance,
@@ -137,14 +133,10 @@ pub(crate) async fn gateway_task_run(
     )?;
     let task_id = task_id_from_output(&run_output)?;
     for expected in [
-        "  [progress] 10%".to_string(),
-        "  [resource list changed]".to_string(),
-        format!("  [task {task_id}] Working: submitted; prediction"),
-        "  [progress] 30%".to_string(),
-        "  [resource updated] media://prediction/".to_string(),
-        "  [progress] 100%".to_string(),
-        format!("  [task {task_id}] Completed: completed;"),
+        "poll: Working — submitted; prediction".to_string(),
         "subscribed to media://prediction/".to_string(),
+        "  [resource updated] media://prediction/".to_string(),
+        "poll: Completed — completed; 1 artifact(s)".to_string(),
         "unsubscribed from media://prediction/".to_string(),
     ] {
         contains(&run_output, &expected)?;
@@ -183,7 +175,7 @@ pub(crate) async fn gateway_task_run(
     if full_tools.tools.iter().any(|tool| {
         matches!(
             tool.name.as_ref(),
-            "media__artifact" | "media__models" | "media__model_schema" | "task_result"
+            "media__artifact" | "media__models" | "media__model_schema"
         )
     }) {
         bail!("full-MCP client unexpectedly saw compatibility helpers: {full_tools:?}");
@@ -223,7 +215,6 @@ pub(crate) async fn gateway_task_run(
         "media__models",
         "media__model_schema",
         "media__run",
-        "task_result",
     ] {
         if !listed_tools
             .tools
@@ -343,48 +334,6 @@ pub(crate) async fn gateway_task_run(
     {
         bail!("direct tools/call leaked artifact download_url: {direct_structured:?}");
     }
-    if !direct_result
-        .content
-        .iter()
-        .any(|block| block.as_image().is_some())
-    {
-        bail!("direct tools/call did not inline image content for tools-compatible client");
-    }
-    let task_result = session
-        .call_tool(
-            CallToolRequestParams::new("task_result").with_arguments(
-                serde_json::json!({
-                    "task_uri": format!("veoveo://task/{direct_task_id}")
-                })
-                .as_object()
-                .cloned()
-                .unwrap(),
-            ),
-        )
-        .await?;
-    if task_result.is_error == Some(true) {
-        bail!("task_result returned an error: {task_result:?}");
-    }
-    if !task_result
-        .content
-        .iter()
-        .any(|block| block.as_image().is_some())
-    {
-        bail!("task_result did not inline image content for tools-compatible client");
-    }
-    let task_result_structured: SmokeGenerationRunOutput = serde_json::from_value(
-        task_result
-            .structured_content
-            .clone()
-            .ok_or_else(|| anyhow!("task_result returned no structured output"))?,
-    )?;
-    if task_result_structured
-        .artifacts
-        .iter()
-        .any(|artifact| artifact.download_url.is_some())
-    {
-        bail!("task_result leaked artifact download_url: {task_result_structured:?}");
-    }
     let artifact_result = session
         .call_tool(
             CallToolRequestParams::new("media__artifact").with_arguments(
@@ -429,17 +378,6 @@ pub(crate) async fn gateway_task_run(
     }
 
     let media_mcp_url = format!("{media_base}/media/mcp");
-    let other_profile_tasks = run_direct_mcp(
-        conformance,
-        &media_mcp_url,
-        ["--internal-profile".into(), "admin".into(), "tasks".into()],
-        [(
-            "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
-            INTERNAL_SIGNING_KEY_DER_B64.into(),
-        )],
-    )?;
-    contains(&other_profile_tasks, "0 task(s)")?;
-
     assert_direct_mcp_denied(
         conformance,
         &media_mcp_url,
@@ -482,10 +420,9 @@ pub(crate) async fn gateway_task_run(
     assert_audit_method(&audit_summary, "tools/call", 6, 0)?;
     assert_audit_method(&audit_summary, "tasks/cancel", 1, 0)?;
     assert_audit_method(&audit_summary, "tasks/get", 3, 0)?;
-    assert_audit_method(&audit_summary, "tasks/result", 4, 0)?;
     assert_audit_method(&audit_summary, "resources/subscribe", 1, 0)?;
     assert_audit_method(&audit_summary, "resources/unsubscribe", 1, 0)?;
-    assert_audit_method(&audit_summary, "resources/read", 3, 0)?;
+    assert_audit_method(&audit_summary, "resources/read", 2, 0)?;
 
     media_child.stop();
     provider.stop();

@@ -17,6 +17,7 @@ chrono.workspace = true
 clap.workspace = true
 dotenvy.workspace = true
 duckdb.workspace = true
+flate2.workspace = true
 glam.workspace = true
 hex.workspace = true
 image.workspace = true
