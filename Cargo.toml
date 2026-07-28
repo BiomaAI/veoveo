@@ -70,7 +70,7 @@ draco-gltf = { version = "0.1.0", default-features = false, features = ["image"]
 flate2 = "1.1.9"
 duckdb = { git = "https://github.com/rozgo/duckdb-rs.git", rev = "da17df169062515d648a13e8c1d9eb2d7a1f3859", features = ["chrono"] }
 futures = "0.3.32"
-glam = { version = "0.32.0", features = ["serde"] }
+glam = { version = "0.33.2", features = ["serde"] }
 gltf = { version = "1.4.1", default-features = false, features = ["extensions", "import", "KHR_materials_unlit", "names", "utils"] }
 geo = { version = "0.32.0", features = ["serde"] }
 geo-types = { version = "0.7.19", features = ["serde"] }
