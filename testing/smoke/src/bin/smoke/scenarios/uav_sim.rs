@@ -532,8 +532,10 @@ async fn uav_sim_verify_with_visual_hold(
     );
     let live_session_id = live.session_id;
     let live_preview_uri = live.preview_uri;
+    let mut live_session_stopped = false;
+    let mut visual_stream_capture = visual_stream_capture;
 
-    let mut flight_result: Result<String> = async {
+    let flight_result: Result<String> = async {
         ensure_vehicle_landed(&operator, &scenario, "preflight recovery").await?;
         operator
             .call_tool(
@@ -632,6 +634,28 @@ async fn uav_sim_verify_with_visual_hold(
                 .is_some_and(|count| count >= scenario.stream.minimum_live_frames),
             "Stream did not process enough direct live frames: {live_result}"
         );
+
+        // The direct live graph has already proved fresh inference. Composed
+        // acceptance keeps it open only until the browser captures that same
+        // live session, then releases its DeepStream/TensorRT working set
+        // before the independent recording-replay graph starts.
+        if let Some(captured) = visual_stream_capture.take() {
+            let timeout = Duration::from_secs(
+                scenario
+                    .takeoff
+                    .state_timeout_seconds
+                    .saturating_add(scenario.mission.task_timeout_seconds)
+                    .saturating_add(scenario.view.timeout_seconds.saturating_mul(3)),
+            );
+            if tokio::time::timeout(timeout, captured).await.is_err() {
+                bail!(
+                    "composed visual acceptance did not release the live Stream cleanup hold \
+                     within {timeout:?}"
+                );
+            }
+        }
+        stop_live_stream_session(&operator, &live_session_id, "live acceptance").await?;
+        live_session_stopped = true;
 
         state = simulation_state(&operator, &scenario).await?;
         let simulation_time_s = state
@@ -742,29 +766,12 @@ async fn uav_sim_verify_with_visual_hold(
         Ok(governed_artifact_id)
     }
     .await;
-    // Composed visual acceptance gets a bounded chance to observe the still-running
-    // direct Stream session. A dropped sender means the visual verifier already
-    // exited, so cleanup proceeds and its own result reports the visual failure.
-    if flight_result.is_ok()
-        && let Some(captured) = visual_stream_capture
-    {
-        let timeout = Duration::from_secs(
-            scenario
-                .takeoff
-                .state_timeout_seconds
-                .saturating_add(scenario.mission.task_timeout_seconds)
-                .saturating_add(scenario.view.timeout_seconds.saturating_mul(3)),
-        );
-        if tokio::time::timeout(timeout, captured).await.is_err() {
-            flight_result = Err(anyhow!(
-                "composed visual acceptance did not release the live Stream cleanup hold within \
-                 {timeout:?}"
-            ));
-        }
-    }
     let landing_result = ensure_vehicle_landed(&operator, &scenario, "postflight recovery").await;
-    let stream_stop_result =
-        stop_live_stream_session(&operator, &live_session_id, "postflight cleanup").await;
+    let stream_stop_result = if live_session_stopped {
+        Ok(())
+    } else {
+        stop_live_stream_session(&operator, &live_session_id, "postflight cleanup").await
+    };
     let governed_artifact_id = match (flight_result, landing_result, stream_stop_result) {
         (Ok(artifact_id), Ok(()), Ok(())) => artifact_id,
         (Err(flight_error), Ok(()), Ok(())) => return Err(flight_error),
