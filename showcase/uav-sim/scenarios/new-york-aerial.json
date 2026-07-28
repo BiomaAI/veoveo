@@ -1,5 +1,5 @@
 {
-  "schema": "veoveo.uav-sim-acceptance/v7",
+  "schema": "veoveo.uav-sim-acceptance/v8",
   "session_id": "uav-showcase",
   "world": {
     "world_id": "uav-showcase-new-york",
@@ -113,7 +113,7 @@
     "task_timeout_seconds": 1200
   },
   "recording": {
-    "frozen_rows_timeout_seconds": 1200
+    "live_rows_timeout_seconds": 120
   },
   "perception": {
     "range_lag_seconds": 10.0,
@@ -123,7 +123,7 @@
   },
   "reason": {
     "prompt": "Describe the terrain, structures, and any moving objects visible during this aerial pass.",
-    "maximum_frames": 8,
+    "maximum_frames": 6,
     "task_timeout_seconds": 900
   },
   "view": {

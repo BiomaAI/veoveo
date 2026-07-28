@@ -349,6 +349,7 @@ async fn open_headed_target(cdp_base: &str, page_url: &str) -> Result<(Cdp, Stri
     for method in [
         "Runtime.enable",
         "Page.enable",
+        "DOM.enable",
         "Log.enable",
         "Network.enable",
     ] {
@@ -391,10 +392,13 @@ async fn wait_for_console_app_context(cdp: &mut Cdp, session_id: &str) -> Result
         let tree = cdp
             .command("Page.getFrameTree", serde_json::json!({}), Some(session_id))
             .await?;
-        if let Some(frame_id) = find_app_frame_id(
+        let frame_id = find_app_frame_id(
             tree.get("frameTree")
                 .context("Chrome frame tree omitted its root")?,
-        ) {
+        )
+        .map(str::to_owned)
+        .or(find_app_frame_id_from_dom(cdp, session_id).await?);
+        if let Some(frame_id) = frame_id {
             let isolated = cdp
                 .command(
                     "Page.createIsolatedWorld",
@@ -424,6 +428,59 @@ async fn wait_for_console_app_context(cdp: &mut Cdp, session_id: &str) -> Result
         );
         tokio::time::sleep(Duration::from_millis(250)).await;
     }
+}
+
+async fn find_app_frame_id_from_dom(cdp: &mut Cdp, session_id: &str) -> Result<Option<String>> {
+    let document = cdp
+        .command(
+            "DOM.getDocument",
+            serde_json::json!({"depth": 0}),
+            Some(session_id),
+        )
+        .await?;
+    let root = document
+        .pointer("/root/nodeId")
+        .and_then(Value::as_u64)
+        .context("Chrome DOM document omitted its root node")?;
+    let selected = cdp
+        .command(
+            "DOM.querySelector",
+            serde_json::json!({"nodeId": root, "selector": "iframe.app-frame"}),
+            Some(session_id),
+        )
+        .await?;
+    let Some(node_id) = selected
+        .get("nodeId")
+        .and_then(Value::as_u64)
+        .filter(|node_id| *node_id != 0)
+    else {
+        return Ok(None);
+    };
+    let described = cdp
+        .command(
+            "DOM.describeNode",
+            serde_json::json!({"nodeId": node_id, "depth": 0}),
+            Some(session_id),
+        )
+        .await?;
+    let node = described
+        .get("node")
+        .context("Chrome omitted the Simulation View iframe node")?;
+    Ok(simulation_view_frame_id_from_dom_node(node).map(str::to_owned))
+}
+
+fn simulation_view_frame_id_from_dom_node(node: &Value) -> Option<&str> {
+    let attributes = node.get("attributes").and_then(Value::as_array)?;
+    let is_simulation_view = attributes.windows(2).any(|pair| {
+        pair[0].as_str() == Some("src")
+            && pair[1]
+                .as_str()
+                .is_some_and(|src| src.contains("simulation-view"))
+    });
+    if !is_simulation_view {
+        return None;
+    }
+    node.get("frameId").and_then(Value::as_str)
 }
 
 fn find_app_frame_id(frame_tree: &Value) -> Option<&str> {
@@ -1646,5 +1703,20 @@ mod tests {
             }]
         });
         assert_eq!(find_app_frame_id(&tree), Some("app"));
+    }
+
+    #[test]
+    fn finds_the_sandboxed_simulation_view_frame_in_a_dom_node() {
+        let node = serde_json::json!({
+            "nodeName": "IFRAME",
+            "attributes": [
+                "class",
+                "app-frame",
+                "src",
+                "/console/api/apps/frame?uri=ui%3A%2F%2Fsimulation-view%2Flive.html"
+            ],
+            "frameId": "app"
+        });
+        assert_eq!(simulation_view_frame_id_from_dom_node(&node), Some("app"));
     }
 }
