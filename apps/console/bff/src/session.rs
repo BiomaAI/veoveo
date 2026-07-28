@@ -11,13 +11,17 @@ use chacha20poly1305::{
     aead::{Aead, KeyInit, Payload},
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use url::Url;
 use veoveo_mcp_contract::ScopeName;
 
 const NONCE_BYTES: usize = 24;
+const MAX_CONSOLE_RETURN_PATH_BYTES: usize = 4096;
+const CONSOLE_RETURN_ORIGIN: &str = "https://console.invalid/";
+const CONSOLE_ROOT: &str = "/console/";
 const SESSION_COOKIE: &str = "veoveo_console";
 const AUTHORIZATION_COOKIE: &str = "veoveo_console_authorization";
 pub(crate) const SESSION_AAD: &[u8] = b"veoveo-console-session-v1";
-pub(crate) const AUTHORIZATION_AAD: &[u8] = b"veoveo-console-authorization-v1";
+pub(crate) const AUTHORIZATION_AAD: &[u8] = b"veoveo-console-authorization-v2";
 
 #[derive(Clone)]
 pub(crate) struct SessionCipher(Arc<XChaCha20Poly1305>);
@@ -81,6 +85,49 @@ pub(crate) struct PendingAuthorization {
     pub(crate) state: String,
     pub(crate) code_verifier: String,
     pub(crate) expires_at: i64,
+    pub(crate) return_path: ConsoleReturnPath,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub(crate) struct ConsoleReturnPath(String);
+
+impl ConsoleReturnPath {
+    pub(crate) fn from_untrusted(candidate: Option<&str>) -> Self {
+        let Some(candidate) = candidate
+            .filter(|value| !value.is_empty() && value.len() <= MAX_CONSOLE_RETURN_PATH_BYTES)
+        else {
+            return Self::root();
+        };
+        let Ok(base) = Url::parse(CONSOLE_RETURN_ORIGIN) else {
+            return Self::root();
+        };
+        let Ok(parsed) = base.join(candidate) else {
+            return Self::root();
+        };
+        if parsed.origin() != base.origin() || !parsed.path().starts_with(CONSOLE_ROOT) {
+            return Self::root();
+        }
+
+        let mut return_path = parsed.path().to_owned();
+        if let Some(query) = parsed.query() {
+            return_path.push('?');
+            return_path.push_str(query);
+        }
+        if let Some(fragment) = parsed.fragment() {
+            return_path.push('#');
+            return_path.push_str(fragment);
+        }
+        Self(return_path)
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    fn root() -> Self {
+        Self(CONSOLE_ROOT.to_owned())
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -237,5 +284,35 @@ mod tests {
         assert!(session.should_refresh(70));
         assert!(!session.is_expired(199));
         assert!(session.is_expired(200));
+    }
+
+    #[test]
+    fn console_return_path_preserves_local_routes_and_rejects_redirects() {
+        assert_eq!(
+            ConsoleReturnPath::from_untrusted(Some("/console/#/apps/simulation-view/live.html"))
+                .as_str(),
+            "/console/#/apps/simulation-view/live.html"
+        );
+        assert_eq!(
+            ConsoleReturnPath::from_untrusted(Some("/console/?theme=dark#/recordings/019fa8b0"))
+                .as_str(),
+            "/console/?theme=dark#/recordings/019fa8b0"
+        );
+        for rejected in [
+            "https://attacker.example/console/",
+            "//attacker.example/console/",
+            "/admin",
+            "/console/../../admin",
+        ] {
+            assert_eq!(
+                ConsoleReturnPath::from_untrusted(Some(rejected)).as_str(),
+                CONSOLE_ROOT
+            );
+        }
+        let oversized = format!("/console/#/{}", "a".repeat(MAX_CONSOLE_RETURN_PATH_BYTES));
+        assert_eq!(
+            ConsoleReturnPath::from_untrusted(Some(&oversized)).as_str(),
+            CONSOLE_ROOT
+        );
     }
 }
