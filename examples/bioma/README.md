@@ -61,12 +61,13 @@ published and its server contract is registered in the gateway control plane.
 
 ## Release publication
 
-Production workloads use the repository and digest map in images.lock.yaml. The
-Both Applications select chart set 0.1.0-8d43b975bf85, published from commit
+Production workloads use the repository and digest map in images.lock.yaml. Both
+Applications select chart set 0.1.0-8d43b975bf85, published from commit
 8d43b975bf856787563a9b0493efabd2d5a62c75. The platform images and UAV runtime
 were published from commit 20aa16e5215d6e12eb18cbe7ff785cbb3c9ba952; the UAV
-MCP image was published from the chart-set commit. The selected digests identify
-each immutable image release.
+MCP image was published from the chart-set commit. The Stream MCP image was
+published from commit 7e2144fecc679b6709a53c20cb4321268f531efa. The selected
+digests identify each immutable image release.
 
 Publish a new local release directly to the shared registry:
 
