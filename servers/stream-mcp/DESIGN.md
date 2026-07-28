@@ -242,7 +242,10 @@ Completed recording runs publish typed JSON results, an immutable RRD
 annotation layer, and an optional remuxed source clip through the Artifact
 plane. Derived artifacts inherit source classification and labels. Large
 artifacts use governed Artifact downloads rather than a server-local file
-route.
+route. The JSON results carry the complete immutable recording-source snapshot.
+Each artifact descriptor carries only that snapshot's SHA-256 digest and the
+essential run identity, which keeps Artifact control-plane metadata bounded
+regardless of the number of acknowledged recording parts.
 
 ## GPU Deployment
 
