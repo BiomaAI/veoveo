@@ -23,8 +23,8 @@
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CAP-005" name="Bounded analytics and decisions">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-005-COMMENT" body="Arbitrary SQL, forecasting, planning, and charts execute inside owned limits." />
       </packagedElement>
-      <packagedElement xmi:type="uml:Class" xmi:id="VV-CAP-006" name="Local perception">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-006-COMMENT" body="Recorded video is decoded, detected, tracked, and published inside the installation." />
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CAP-006" name="Local stream processing">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-006-COMMENT" body="Admitted live media graphs and reproducible recording replays execute inside the installation." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CAP-007" name="Autonomous agent operation">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-007-COMMENT" body="Bounded episodes persist scheduling, wakes, work, memory, and evidence." />
@@ -64,8 +64,8 @@
       <packagedElement xmi:type="uml:Activity" xmi:id="VV-OPA-006" name="Analyze, route, and plan">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-OPA-006-COMMENT" body="Transform governed inputs into analytical, logistical, or planning products." />
       </packagedElement>
-      <packagedElement xmi:type="uml:Activity" xmi:id="VV-OPA-007" name="Detect and track recorded objects">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-OPA-007-COMMENT" body="Extract authorized video, execute local inference, and publish annotations." />
+      <packagedElement xmi:type="uml:Activity" xmi:id="VV-OPA-007" name="Process live and recorded media">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-OPA-007-COMMENT" body="Run admitted live graphs immediately or replay authorized video and publish governed results." />
       </packagedElement>
       <packagedElement xmi:type="uml:Activity" xmi:id="VV-OPA-008" name="Run bounded agent episode">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-OPA-008-COMMENT" body="Wake, assemble context, reason, invoke work, detach, persist, and record evidence." />
@@ -111,8 +111,8 @@
       <packagedElement xmi:type="uml:Class" xmi:id="VV-SVC-011" name="Geospatial logistics service">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-SVC-011-COMMENT" body="Governs map releases and serves routing and spatial operations." />
       </packagedElement>
-      <packagedElement xmi:type="uml:Class" xmi:id="VV-SVC-012" name="Recorded perception service">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-SVC-012-COMMENT" body="Runs local bounded detection and tracking over governed recordings." />
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-SVC-012" name="Stream processing service">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-SVC-012-COMMENT" body="Runs local bounded GStreamer graphs over arriving media or governed recordings." />
       </packagedElement>
     </packagedElement>
     <packagedElement xmi:type="uml:Package" xmi:id="VV-PKG-RESOURCES" name="Resources">
@@ -179,8 +179,8 @@
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-021" name="Optimization MCP server">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-021-COMMENT" body="Builds deterministic planning options, records durable task state, and publishes plan artifacts." />
       </packagedElement>
-      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-022" name="Perception MCP server">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-022-COMMENT" body="Authorizes recorded sensor data, extracts bounded clips, runs local detection and tracking, and publishes detection and tracking results plus derived RRD annotations." />
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-022" name="Stream MCP server">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-022-COMMENT" body="Runs operator-admitted GStreamer graphs directly over live encoded media or authorized recording ranges; exposes an MCP App for encoded preview and typed overlays; publishes governed replay results; and may route existing encoded live output to Recording Hub without delaying processing." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-023" name="Recording MCP server">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-023-COMMENT" body="Applies tenant and label authorization to recording discovery, query, sealing, subscriptions, artifact publication, range-capable archive windows, and bounded-history live following." />
@@ -209,11 +209,11 @@
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-031" name="Map data acquisition helper">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-031-COMMENT" body="Normalizes authoritative OSM, GTFS, maritime, aviation, and authority datasets into bounded acquisition products." />
       </packagedElement>
-      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-032" name="Perception DeepStream runner">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-032-COMMENT" body="Executes the bounded GStreamer and DeepStream pipeline and returns detections and tracks that match the owning server's contract." />
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-032" name="Stream GStreamer runner">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-032-COMMENT" body="Executes one admitted GStreamer graph; emits existing encoded access units for the Stream App and optional recording route; and converts native DeepStream metadata into typed detections for perception profiles." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-033" name="MCP conformance client">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-033-COMMENT" body="Exercises external MCP surfaces and configuration against real or fake services." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-033-COMMENT" body="Certifies a running hosted server through a typed domain-neutral profile and machine-readable report." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-034" name="Rust smoke harness">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-034-COMMENT" body="Owns multi-process and container lifecycle, readiness, timeouts, cleanup, MCP and HTTP calls, assertions, and deployment contract verification." />
@@ -302,6 +302,27 @@
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-062" name="Bioma composition acceptance">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-062-COMMENT" body="Owns static contract and cross-surface acceptance for the Bioma enterprise composition without making core gateway conformance depend on example configuration." />
       </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-063" name="External extension contract">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-063-COMMENT" body="Defines and validates versioned compatibility manifests extension releases private artifact coordinates simulation build locks and immutable conformance evidence for independently owned repositories." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-064" name="Gateway composer">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-064-COMMENT" body="Deterministically joins extension-owned server fragments with installation-owned bindings and emits a canonically validated gateway control plane requirements closure and provenance." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-065" name="MCP task wire contract">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-065-COMMENT" body="Owns storage-independent UUIDv7 task identities and bounded retention pins shared by the final MCP task extension and durable runtime." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-066" name="Simulation pose protocol">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-066-COMMENT" body="Defines deterministic complete latest-pose snapshots stable entity tables freshness admission and shared-memory or length-delimited streaming transports without carrying dynamics authority." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-067" name="Simulation View pose ingress">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-067-COMMENT" body="Authenticates one authorized simulation producer over mutual TLS validates bounded pose snapshots and publishes the newest complete value to renderer-private shared memory without backpressuring the simulator." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-068" name="Simulation scene contract">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-068-COMMENT" body="Defines the provider-neutral immutable scene declaration for governed visual assets Frames identity entity prototypes admitted camera kinds lighting and renderer bounds without owning renderer lifecycle." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-069" name="Simulation View MCP server">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-069-COMMENT" body="Owns renderer-independent scene binding logical cameras admission leases signaling and a live MCP App while keeping domain simulation dynamics and controls outside the service." />
+      </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-SYS-001" name="Veoveo Installation System">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-SYS-001-COMMENT" body="Aggregate resource performer composed from the canonical Veoveo software and infrastructure service graph." />
       </packagedElement>
@@ -340,7 +361,7 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-REQ-007-COMMENT" body="World and sensor producers shall push Rerun log streams through an authenticated gateway boundary that preserves durable checkpoints and crash-decodable evidence." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-REQ-008" name="VV-REQ-008">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-REQ-008-COMMENT" body="Perception shall run locally over authorized recorded data with bounded GPU execution and shall publish governed derived results." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-REQ-008-COMMENT" body="Stream shall process arriving encoded media directly through operator-admitted live graphs and shall run reproducible replay profiles over authorized recordings with bounded GPU execution." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-REQ-009" name="VV-REQ-009">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-REQ-009-COMMENT" body="Autonomous agents shall persist wakes, episodes, task descriptors, retries, results, and retention pins across process restart." />
@@ -455,6 +476,7 @@
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-08-03" name="satisfy" client="VV-CMP-044" supplier="VV-REQ-008" />
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-08-04" name="satisfy" client="VV-CMP-004" supplier="VV-REQ-008" />
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-08-05" name="satisfy" client="VV-CMP-005" supplier="VV-REQ-008" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-08-06" name="satisfy" client="VV-CMP-051" supplier="VV-REQ-008" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-09-1" name="tracesTo" client="VV-REQ-009" supplier="VV-CAP-007" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-09-2" name="tracesTo" client="VV-CAP-007" supplier="VV-OPA-008" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-09-3" name="tracesTo" client="VV-OPA-008" supplier="VV-SVC-007" />
@@ -684,6 +706,20 @@
   <SysML:Block xmi:id="VV-CMP-061-SYSML" base_Class="VV-CMP-061" isEncapsulated="true" />
   <UAF:Software xmi:id="VV-CMP-062-UAF" base_Class="VV-CMP-062" />
   <SysML:Block xmi:id="VV-CMP-062-SYSML" base_Class="VV-CMP-062" isEncapsulated="true" />
+  <UAF:Software xmi:id="VV-CMP-063-UAF" base_Class="VV-CMP-063" />
+  <SysML:Block xmi:id="VV-CMP-063-SYSML" base_Class="VV-CMP-063" isEncapsulated="true" />
+  <UAF:Software xmi:id="VV-CMP-064-UAF" base_Class="VV-CMP-064" />
+  <SysML:Block xmi:id="VV-CMP-064-SYSML" base_Class="VV-CMP-064" isEncapsulated="true" />
+  <UAF:Software xmi:id="VV-CMP-065-UAF" base_Class="VV-CMP-065" />
+  <SysML:Block xmi:id="VV-CMP-065-SYSML" base_Class="VV-CMP-065" isEncapsulated="true" />
+  <UAF:Software xmi:id="VV-CMP-066-UAF" base_Class="VV-CMP-066" />
+  <SysML:Block xmi:id="VV-CMP-066-SYSML" base_Class="VV-CMP-066" isEncapsulated="true" />
+  <UAF:Software xmi:id="VV-CMP-067-UAF" base_Class="VV-CMP-067" />
+  <SysML:Block xmi:id="VV-CMP-067-SYSML" base_Class="VV-CMP-067" isEncapsulated="true" />
+  <UAF:Software xmi:id="VV-CMP-068-UAF" base_Class="VV-CMP-068" />
+  <SysML:Block xmi:id="VV-CMP-068-SYSML" base_Class="VV-CMP-068" isEncapsulated="true" />
+  <UAF:Software xmi:id="VV-CMP-069-UAF" base_Class="VV-CMP-069" />
+  <SysML:Block xmi:id="VV-CMP-069-SYSML" base_Class="VV-CMP-069" isEncapsulated="true" />
   <UAF:System xmi:id="VV-SYS-001-UAF" base_Class="VV-SYS-001" />
   <SysML:Block xmi:id="VV-SYS-001-SYSML" base_Class="VV-SYS-001" isEncapsulated="true" />
   <UAF:ActualResource xmi:id="VV-AR-001-UAF" base_InstanceSpecification="VV-AR-001" />
@@ -704,7 +740,7 @@
   <SysML:Requirement xmi:id="VV-REQ-005-SYSML" base_Class="VV-REQ-005" id="VV-REQ-005" text="Long-running operations shall use one durable task authority with explicit idempotency, leases, recovery class, cancellation, results, retention, and ordered event delivery." />
   <SysML:Requirement xmi:id="VV-REQ-006-SYSML" base_Class="VV-REQ-006" id="VV-REQ-006" text="Artifact occurrences and bytes shall remain tenant-isolated and shall enforce labels, grants, release state, retention, and bounded sharing." />
   <SysML:Requirement xmi:id="VV-REQ-007-SYSML" base_Class="VV-REQ-007" id="VV-REQ-007" text="World and sensor producers shall push Rerun log streams through an authenticated gateway boundary that preserves durable checkpoints and crash-decodable evidence." />
-  <SysML:Requirement xmi:id="VV-REQ-008-SYSML" base_Class="VV-REQ-008" id="VV-REQ-008" text="Perception shall run locally over authorized recorded data with bounded GPU execution and shall publish governed derived results." />
+  <SysML:Requirement xmi:id="VV-REQ-008-SYSML" base_Class="VV-REQ-008" id="VV-REQ-008" text="Stream shall process arriving encoded media directly through operator-admitted live graphs and shall run reproducible replay profiles over authorized recordings with bounded GPU execution." />
   <SysML:Requirement xmi:id="VV-REQ-009-SYSML" base_Class="VV-REQ-009" id="VV-REQ-009" text="Autonomous agents shall persist wakes, episodes, task descriptors, retries, results, and retention pins across process restart." />
   <SysML:Requirement xmi:id="VV-REQ-010-SYSML" base_Class="VV-REQ-010" id="VV-REQ-010" text="Browser JavaScript shall never receive the gateway bearer and every unsafe console request shall enforce CSRF." />
   <SysML:Requirement xmi:id="VV-REQ-011-SYSML" base_Class="VV-REQ-011" id="VV-REQ-011" text="An offline installation shall verify all transferred files and images and shall not require network access during loading or operation of provider-independent capabilities." />
@@ -759,6 +795,7 @@
   <SysML:Satisfy xmi:id="VV-SAT-08-03-SYSML" base_Abstraction="VV-SAT-08-03" />
   <SysML:Satisfy xmi:id="VV-SAT-08-04-SYSML" base_Abstraction="VV-SAT-08-04" />
   <SysML:Satisfy xmi:id="VV-SAT-08-05-SYSML" base_Abstraction="VV-SAT-08-05" />
+  <SysML:Satisfy xmi:id="VV-SAT-08-06-SYSML" base_Abstraction="VV-SAT-08-06" />
   <SysML:Satisfy xmi:id="VV-SAT-09-01-SYSML" base_Abstraction="VV-SAT-09-01" />
   <SysML:Satisfy xmi:id="VV-SAT-09-02-SYSML" base_Abstraction="VV-SAT-09-02" />
   <SysML:Satisfy xmi:id="VV-SAT-09-03-SYSML" base_Abstraction="VV-SAT-09-03" />

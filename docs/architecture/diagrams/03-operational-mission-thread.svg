@@ -22,7 +22,7 @@
 <text x="55" y="389" class="small" text-anchor="start">Identity, profile, policy, audit, routing</text>
 <rect x="35" y="535" width="1730" height="155" rx="8" fill="#ffffff" stroke="#c1cdd2" stroke-width="1" opacity="1"/>
 <text x="55" y="565" class="label" text-anchor="start">Domain services</text>
-<text x="55" y="589" class="small" text-anchor="start">Recording, map, frames, analytics, optimization, perception</text>
+<text x="55" y="589" class="small" text-anchor="start">Recording, map, frames, analytics, optimization, stream</text>
 <rect x="35" y="735" width="1730" height="155" rx="8" fill="#ffffff" stroke="#c1cdd2" stroke-width="1" opacity="1"/>
 <text x="55" y="765" class="label" text-anchor="start">Durable work and evidence</text>
 <text x="55" y="789" class="small" text-anchor="start">Tasks, outbox, artifacts, RRD recordings</text>
@@ -106,5 +106,5 @@
 <text x="58" y="990" class="body inverse" text-anchor="start">Every transition carries canonical identity and policy context; durable work and outputs remain addressable after the initiating episode ends.</text>
 <rect x="28" y="1045" width="1744" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1066" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="1770" y="1066" class="tiny" text-anchor="end">Revision 2026-07-25 | VV-VIEW-03</text>
+<text x="1770" y="1066" class="tiny" text-anchor="end">Revision 2026-07-27 | VV-VIEW-03</text>
 </svg>
