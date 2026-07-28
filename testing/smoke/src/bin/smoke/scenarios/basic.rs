@@ -857,7 +857,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "showcase/uav-sim/scenarios/new-york-aerial.json",
     )?)?;
     ensure!(
-        uav_scenario.get("schema").and_then(Value::as_str) == Some("veoveo.uav-sim-acceptance/v7")
+        uav_scenario.get("schema").and_then(Value::as_str) == Some("veoveo.uav-sim-acceptance/v8")
             && uav_scenario
                 .pointer("/world/tree/frames/1/parent_transform/origin/latitude_degrees")
                 .and_then(Value::as_f64)
@@ -877,7 +877,7 @@ pub(crate) async fn helm_config() -> Result<()> {
             && uav_scenario
                 .pointer("/reason/maximum_frames")
                 .and_then(Value::as_u64)
-                == Some(8),
+                == Some(6),
         "runtime-loaded UAV scenario omitted the canonical mission"
     );
     for dockerfile in [

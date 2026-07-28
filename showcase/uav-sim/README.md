@@ -111,6 +111,10 @@ A producer-local forwarder carries those messages to Recording Hub. Public
 resources contain only canonical
 `recording://recordings/{recording_id}` identities.
 
+The domain acceptance runs Perception and Reason against acknowledged live
+parts before archive rollover. Each task records the exact source snapshot and
+uses the preceding H.264 IDR for decoder preroll.
+
 ## Configuration
 
 The chart requires:
@@ -174,7 +178,7 @@ just simulation-view-verify <kube-context> https://installation.example
 ```
 
 The first command owns UAV flight, tiles, PX4, domain sensors, Recording Hub,
-Perception, and Reason. The second owns the anonymous-producer proof for
+live Perception, and live Reason. The second owns the anonymous-producer proof for
 Simulation View, camera capacity, RTX/NVENC, WebRTC, and its generic App.
 Neither command substitutes for the other.
 
@@ -183,8 +187,8 @@ Run the composed showcase only after both independent paths pass:
 ```sh
 google-chrome \
   --remote-debugging-address=127.0.0.1 \
-  --remote-debugging-port=9227 \
-  --user-data-dir=/tmp/veoveo-uav-acceptance \
+  --remote-debugging-port=9222 \
+  --user-data-dir="$HOME/.config/veoveo-acceptance-chrome" \
   --window-size=1920,1080 \
   --ozone-platform=x11 \
   --use-angle=vulkan \
@@ -195,7 +199,9 @@ just uav-showcase-verify <kube-context> https://installation.example
 ```
 
 Chrome must be visible and authenticated through the installation's ordinary
-Console login. `--chrome-cdp-url` accepts the HTTP discovery origin shown above
+Console login. Keep this user-data directory between runs and authenticate it
+once; a temporary or newly created profile is not an acceptable substitute for
+the operator's authenticated session. `--chrome-cdp-url` accepts the HTTP discovery origin shown above
 or Chrome's direct local `ws://` browser endpoint when runtime debugging does
 not expose `/json/version`. Both paths query `Browser.getVersion` before the
 in-page hardware checks. The composed command asks the UAV server for its

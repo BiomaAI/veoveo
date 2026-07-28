@@ -114,7 +114,7 @@ struct MissionScenario {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RecordingAcceptance {
-    frozen_rows_timeout_seconds: u64,
+    live_rows_timeout_seconds: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -220,7 +220,7 @@ impl UavAcceptanceScenario {
 
     fn validate(&self) -> Result<()> {
         ensure!(
-            self.schema == "veoveo.uav-sim-acceptance/v7",
+            self.schema == "veoveo.uav-sim-acceptance/v8",
             "unsupported UAV acceptance scenario schema {:?}",
             self.schema
         );
@@ -280,7 +280,7 @@ impl UavAcceptanceScenario {
                 && self.takeoff.state_timeout_seconds > 0
                 && self.camera.detail_timeout_seconds > 0
                 && self.mission.task_timeout_seconds > 0
-                && self.recording.frozen_rows_timeout_seconds > 0
+                && self.recording.live_rows_timeout_seconds > 0
                 && self.perception.task_timeout_seconds > 0
                 && self.view.timeout_seconds > 0
                 && self.landing_timeout_seconds > 0,
@@ -560,7 +560,7 @@ pub(crate) async fn uav_sim_verify(
             &camera_entity,
             range_start,
             range_end,
-            Duration::from_secs(scenario.recording.frozen_rows_timeout_seconds),
+            Duration::from_secs(scenario.recording.live_rows_timeout_seconds),
         )
         .await?;
         let perception = operator
@@ -590,6 +590,7 @@ pub(crate) async fn uav_sim_verify(
                 .is_some_and(|count| count > 0),
             "Perception processed no Isaac camera frames: {perception}"
         );
+        assert_live_recording_snapshot(&perception, "Perception")?;
         let governed_artifact_id =
             json_string(&perception, "/results_artifact/artifact_id")?.to_owned();
         ensure!(
@@ -626,6 +627,7 @@ pub(crate) async fn uav_sim_verify(
                 .is_some_and(|count| count > 0),
             "Reason observed no Isaac camera frames: {reason}"
         );
+        assert_live_recording_snapshot(&reason, "Reason")?;
         let reason_artifact_id = json_string(&reason, "/results_artifact/artifact_id")?.to_owned();
         ensure!(
             uuid::Uuid::parse_str(&reason_artifact_id)?.get_version_num() == 7,
@@ -1026,11 +1028,27 @@ async fn wait_for_recording_camera_range(
         }
         if tokio::time::Instant::now() >= deadline {
             bail!(
-                "Recording Hub froze no UAV camera samples in range {range_start}..={range_end} within {timeout:?}: {recording}"
+                "Recording Hub exposed no durable live UAV camera samples in range \
+                 {range_start}..={range_end} within {timeout:?}: {recording}"
             );
         }
         tokio::time::sleep(Duration::from_secs(5)).await;
     }
+}
+
+fn assert_live_recording_snapshot(output: &Value, domain: &str) -> Result<()> {
+    let sources = output
+        .pointer("/results_artifact/metadata/provenance/source_snapshot/sources")
+        .and_then(Value::as_array)
+        .with_context(|| format!("{domain} omitted its governed recording source snapshot"))?;
+    ensure!(
+        sources.iter().any(|source| {
+            source.get("kind").and_then(Value::as_str) == Some("live_ingest_part")
+        }),
+        "{domain} did not analyze an acknowledged live ingest part before archive rollover: \
+         {output}"
+    );
+    Ok(())
 }
 
 fn assert_concurrent_gpu_workloads(context: &str) -> Result<()> {
@@ -1382,7 +1400,7 @@ mod tests {
     #[test]
     fn canonical_mission_is_runtime_loaded_and_validated() {
         let scenario = UavAcceptanceScenario::load(&canonical_scenario()).unwrap();
-        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v7");
+        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v8");
         assert_eq!(scenario.session_id, "uav-showcase");
         assert_eq!(scenario.world.world_id.as_str(), "uav-showcase-new-york");
         assert_eq!(scenario.world.tree.frames.len(), 6);
@@ -1392,11 +1410,11 @@ mod tests {
         assert_eq!(origin.ellipsoid_height_m, -17.0);
         assert_eq!(scenario.takeoff.relative_altitude_m, 300.0);
         assert_eq!(scenario.mission.speed_mps, 3.0);
-        assert_eq!(scenario.recording.frozen_rows_timeout_seconds, 1_200);
+        assert_eq!(scenario.recording.live_rows_timeout_seconds, 120);
         assert_eq!(scenario.camera.aerial_detail.minimum_dynamic_range, 8);
         assert_eq!(scenario.perception.range_lag_seconds, 10.0);
         assert!(!scenario.reason.prompt.is_empty());
-        assert_eq!(scenario.reason.maximum_frames, 8);
+        assert_eq!(scenario.reason.maximum_frames, 6);
         assert_eq!(scenario.view.camera.width_px, 640);
         assert_eq!(scenario.view.minimum_mission_pose_delta, 30);
     }
