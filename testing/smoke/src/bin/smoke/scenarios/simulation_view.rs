@@ -8,7 +8,7 @@ use super::*;
 #[path = "simulation_view/browser.rs"]
 pub(super) mod browser;
 
-use browser::{BrowserFixture, verify_live_app_in_hardware_browser};
+use browser::{BrowserFixture, GenericAppCaptureEvidence, verify_live_app_in_hardware_browser};
 
 const SIMULATION_VIEW_SCOPES: &[&str] = &[
     "operator:use",
@@ -26,6 +26,19 @@ struct AcceptanceResources {
     producer_started: bool,
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SimulationViewAcceptanceEvidence {
+    schema: &'static str,
+    completed_at: chrono::DateTime<chrono::Utc>,
+    run_id: String,
+    context: String,
+    namespace: String,
+    session_id: String,
+    camera_id: String,
+    capture: GenericAppCaptureEvidence,
+}
+
 pub(crate) async fn simulation_view_verify(
     conformance: &Path,
     context: &str,
@@ -33,6 +46,7 @@ pub(crate) async fn simulation_view_verify(
     public_base_url: &str,
     work_context: &str,
     chrome_cdp_url: &str,
+    evidence_root: &Path,
     timeout: Duration,
 ) -> Result<()> {
     ensure!(
@@ -53,6 +67,7 @@ pub(crate) async fn simulation_view_verify(
         context,
         namespace,
         chrome_cdp_url,
+        evidence_root,
         timeout,
         &mut resources,
     )
@@ -75,6 +90,7 @@ async fn run_acceptance(
     context: &str,
     namespace: &str,
     chrome_cdp_url: &str,
+    evidence_root: &Path,
     timeout: Duration,
     cleanup: &mut AcceptanceResources,
 ) -> Result<()> {
@@ -320,7 +336,21 @@ async fn run_acceptance(
         renewed.clone(),
     )
     .await?;
-    verify_live_app_in_hardware_browser(chrome_cdp_url, host_fixture, timeout).await?;
+    let run_id = uuid::Uuid::now_v7().to_string();
+    let evidence_directory = evidence_root.join(&run_id);
+    fs::create_dir_all(&evidence_directory).with_context(|| {
+        format!(
+            "creating Simulation View acceptance evidence directory {}",
+            evidence_directory.display()
+        )
+    })?;
+    let capture = verify_live_app_in_hardware_browser(
+        chrome_cdp_url,
+        host_fixture,
+        &evidence_directory.join("simulation-view-app.png"),
+        timeout,
+    )
+    .await?;
 
     let closed = mcp_call(
         session,
@@ -384,6 +414,24 @@ async fn run_acceptance(
     );
     cleanup.session_id = None;
     cleanup.cameras.clear();
+    let evidence = SimulationViewAcceptanceEvidence {
+        schema: "veoveo.io/simulation-view-acceptance/v1",
+        completed_at: Utc::now(),
+        run_id,
+        context: context.to_owned(),
+        namespace: namespace.to_owned(),
+        session_id: session_id.clone(),
+        camera_id: primary_camera,
+        capture,
+    };
+    let evidence_path = evidence_directory.join("evidence.json");
+    fs::write(&evidence_path, serde_json::to_vec_pretty(&evidence)?).with_context(|| {
+        format!(
+            "writing Simulation View acceptance evidence {}",
+            evidence_path.display()
+        )
+    })?;
+    println!("Simulation View evidence: {}", evidence_path.display());
     Ok(())
 }
 

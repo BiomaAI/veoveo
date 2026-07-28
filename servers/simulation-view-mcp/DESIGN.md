@@ -255,6 +255,14 @@ private workloads and Artifact Service, then fails unless:
 - pose ingress implements the exact pose schema and requires mutual
   authentication.
 
+Kubernetes traffic admission uses the process-health endpoints for the MCP and
+renderer containers. The renderer health server does not start until Kit has
+initialized and the NVIDIA GPU and NVENC driver checks have passed. This lets
+an installation admit the producer and acceptance client that create the first
+governed scene and camera. The public `/simulation-view/readyz` contract remains
+the stronger runtime gate above, and visual acceptance must prove it with a
+real non-stale frame before the installation is accepted.
+
 There is no CPU renderer or software encoder fallback. The Isaac workload
 requests an NVIDIA RuntimeClass, one `nvidia.com/gpu`, writable runtime
 caches, and at least 2 GiB of memory-backed `/dev/shm`. Isaac Kit portable

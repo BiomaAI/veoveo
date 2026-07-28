@@ -58,6 +58,13 @@ target. The immutable lock also rejects repositories and Helm release identities
 by more than one source. An extension cannot satisfy platform closure by copying a
 first-party target name.
 
+Local installation consumes that lock as an explicit input. The installer checks out
+each recorded source revision, confirms the normalized source origin, recomputes every
+source-chart archive digest, and compares the locked image repositories with the
+source's selected Bake groups. Helm receives a source-owned image-digest map with
+production enforcement enabled. It does not resolve the profile's source revision
+expressions during installation.
+
 The acceptance test creates independent platform, extension, and installation Git
 repositories, resolves distinct commits, validates the source-qualified image plan, and
 produces one combined lock. It does not introduce an installation coordinator or

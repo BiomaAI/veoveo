@@ -68,6 +68,19 @@ struct AppHost {
     task: tokio::task::JoinHandle<Result<()>>,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct GenericAppCaptureEvidence {
+    schema: &'static str,
+    captured_at: chrono::DateTime<chrono::Utc>,
+    page_url: String,
+    screenshot_path: String,
+    screenshot_sha256: String,
+    hardware: HardwareIdentity,
+    video: AppVideoState,
+    decode: DecodeIdentity,
+}
+
 impl AppHost {
     async fn start(fixture: BrowserFixture) -> Result<Self> {
         let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
@@ -110,19 +123,21 @@ impl AppHost {
 pub(super) async fn verify_live_app_in_hardware_browser(
     cdp_base: &str,
     fixture: BrowserFixture,
+    screenshot_path: &Path,
     timeout: Duration,
-) -> Result<()> {
+) -> Result<GenericAppCaptureEvidence> {
     let expected_camera_id = fixture.expected_camera_id.clone();
     let host = AppHost::start(fixture).await?;
     let result = tokio::time::timeout(
         timeout,
-        verify_browser_inner(cdp_base, &host.url, &expected_camera_id),
+        verify_browser_inner(cdp_base, &host.url, &expected_camera_id, screenshot_path),
     )
     .await
     .with_context(|| format!("hardware browser acceptance exceeded {timeout:?}"))?;
     let host_result = host.close().await;
-    result?;
-    host_result
+    let evidence = result?;
+    host_result?;
+    Ok(evidence)
 }
 
 pub(crate) async fn capture_console_live_app(
@@ -1150,7 +1165,8 @@ async fn verify_browser_inner(
     cdp_base: &str,
     page_url: &str,
     expected_camera_id: &str,
-) -> Result<()> {
+    screenshot_path: &Path,
+) -> Result<GenericAppCaptureEvidence> {
     let mut cdp = connect_headed_browser(cdp_base, "Simulation View acceptance").await?;
     let target = cdp
         .command(
@@ -1179,7 +1195,14 @@ async fn verify_browser_inner(
             cdp.command(method, serde_json::json!({}), Some(&session_id))
                 .await?;
         }
+        cdp.command(
+            "Page.bringToFront",
+            serde_json::json!({}),
+            Some(&session_id),
+        )
+        .await?;
         wait_for_document(&mut cdp, &session_id).await?;
+        assert_page_visible(&mut cdp, &session_id).await?;
         let hardware: HardwareIdentity =
             cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
         hardware.validate()?;
@@ -1254,6 +1277,7 @@ async fn verify_browser_inner(
             )
             .await?;
         decode.validate()?;
+        let screenshot_sha256 = capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
 
         let teardown_started: bool = cdp
             .evaluate(
@@ -1278,7 +1302,16 @@ async fn verify_browser_inner(
         );
         wait_for_teardown(&mut cdp, &session_id).await?;
         cdp.assert_no_software_renderer_events()?;
-        Ok(())
+        Ok(GenericAppCaptureEvidence {
+            schema: "veoveo.io/simulation-view-app-capture/v1",
+            captured_at: chrono::Utc::now(),
+            page_url: page_url.to_owned(),
+            screenshot_path: screenshot_path.display().to_string(),
+            screenshot_sha256,
+            hardware,
+            video: second,
+            decode,
+        })
     }
     .await;
 
@@ -1289,9 +1322,9 @@ async fn verify_browser_inner(
             None,
         )
         .await;
-    acceptance?;
+    let evidence = acceptance?;
     close?;
-    Ok(())
+    Ok(evidence)
 }
 
 #[derive(Debug, Deserialize)]
