@@ -254,7 +254,7 @@ struct RunnerPipeline {
 }
 
 #[derive(Clone, Debug, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename = "perception")]
 struct RunnerPerceptionProfile {
     operation: crate::contract::PerceptionOperation,
     inference_config_path: PathBuf,
@@ -471,5 +471,14 @@ mod tests {
         assert_eq!(request["input_height"], 32);
         assert_eq!(request["requested_range"]["start"], 120);
         assert_eq!(request["max_response_bytes"], 1_000_000);
+        assert_eq!(request["pipeline"]["profile"]["kind"], "perception");
+        assert_eq!(
+            request["pipeline"]["profile"]["operation"],
+            "object_detection"
+        );
+        assert_eq!(
+            request["pipeline"]["profile"]["inference_config_path"],
+            "/etc/stream/detect.txt"
+        );
     }
 }
