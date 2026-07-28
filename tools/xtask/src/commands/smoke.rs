@@ -106,7 +106,7 @@ fn cargo_build_arguments(arguments: &[OsString]) -> Result<Vec<&'static str>> {
         }
     }
 
-    let mut build_arguments = vec!["build", "--quiet", "--locked"];
+    let mut build_arguments = vec!["build", "--locked"];
     for binary in binaries {
         build_arguments.extend(["--package", binary.package, "--bin", binary.binary]);
     }
@@ -245,7 +245,6 @@ mod tests {
             cargo_build_arguments(&arguments).unwrap(),
             [
                 "build",
-                "--quiet",
                 "--locked",
                 "--package",
                 "veoveo-smoke",
@@ -274,7 +273,6 @@ mod tests {
             cargo_build_arguments(&arguments).unwrap(),
             [
                 "build",
-                "--quiet",
                 "--locked",
                 "--package",
                 "veoveo-smoke",
