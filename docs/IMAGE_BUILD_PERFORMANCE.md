@@ -146,11 +146,13 @@ held 170.13 GB while the general policy allowed only 160 GB, even though the hos
 DeepStream Triton builder lineage again; a two-line MCP App edit paid more than five
 minutes to extract that unchanged base before compiling the crate in 17 seconds.
 
-The general policy now retains 240 GB and begins collection above 320 GB while
-preserving 80 GB of host free space. Source and execution cache mounts have a separate
-160 GB ceiling. `cargo xtask image builder reconfigure --confirm veoveo` applies a
-policy revision with Buildx `--keep-state`, which avoids deleting warm lineages merely
-to correct their retention policy.
+Both policies now retain 240 GB and begin collection above 320 GB while preserving
+80 GB of host free space. BuildKit compares a filtered policy's threshold with total
+worker usage, so the source and execution-cache rule must use the same envelope; a
+lower filtered threshold purges Cargo mounts even when those mounts are individually
+small. `cargo xtask image builder reconfigure --confirm veoveo` applies a policy
+revision with Buildx `--keep-state`, which avoids deleting warm lineages merely to
+correct their retention policy.
 
 ## Acceptance Matrix
 
