@@ -154,6 +154,27 @@ small. `cargo xtask image builder reconfigure --confirm veoveo` applies a policy
 revision with Buildx `--keep-state`, which avoids deleting warm lineages merely to
 correct their retention policy.
 
+The corrected-policy Stream release confirmed both cache classes:
+
+| Case | Wall time | Cargo result | DeepStream bases |
+|---|---:|---|---|
+| Refill after the erroneous purge | 707.47 s | 5m23s full dependency compile | 9.66 GB runtime lineage downloaded and extracted |
+| Corrected-policy warm release | 24.63 s | freshness check finished in 1.55 s | builder and runtime lineages fully cached |
+
+The warm release was 96.5% faster. It changed only the committed cache-policy
+documentation between source revisions, which forced the source-bound Cargo action to
+run while leaving the Stream dependency closure unchanged. No Rust crate compiled, no
+base blob transferred, the apt and toolchain layers remained cached, and every registry
+layer was reused. The release evidence is under:
+
+```text
+target/veoveo-xtask/evidence/
+  a6ea5ea0b01660845b1959eafed828b72e650430/
+    release-target-stream-mcp-1785264085414316426-4147999/
+  7556ad2bd3f0dc90e8875f6f7ac683e8fd21ddc2/
+    release-target-stream-mcp-1785264826837254158-21199/
+```
+
 ## Acceptance Matrix
 
 | Requirement | Evidence | Result |
