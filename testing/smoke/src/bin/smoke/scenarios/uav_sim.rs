@@ -1643,7 +1643,7 @@ mod tests {
     #[test]
     fn canonical_mission_is_runtime_loaded_and_validated() {
         let scenario = UavAcceptanceScenario::load(&canonical_scenario()).unwrap();
-        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v8");
+        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v9");
         assert_eq!(scenario.session_id, "uav-showcase");
         assert_eq!(scenario.world.world_id.as_str(), "uav-showcase-new-york");
         assert_eq!(scenario.world.tree.frames.len(), 6);
@@ -1655,8 +1655,14 @@ mod tests {
         assert_eq!(scenario.mission.speed_mps, 3.0);
         assert_eq!(scenario.recording.live_rows_timeout_seconds, 120);
         assert_eq!(scenario.camera.aerial_detail.minimum_dynamic_range, 8);
-        assert_eq!(scenario.stream.range_lag_seconds, 1.0);
-        assert_eq!(scenario.stream.freshness_probe_duration_seconds, 1.0);
+        assert_eq!(scenario.stream.recording_replay.range_lag_seconds, 1.0);
+        assert_eq!(
+            scenario
+                .stream
+                .recording_replay
+                .freshness_probe_duration_seconds,
+            1.0
+        );
         assert!(!scenario.reason.prompt.is_empty());
         assert_eq!(scenario.reason.maximum_frames, 6);
         assert_eq!(scenario.view.camera.width_px, 640);
