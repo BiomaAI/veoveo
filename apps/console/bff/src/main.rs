@@ -195,6 +195,7 @@ fn console_assets<S>(asset_dir: &Path) -> Router<S>
 where
     S: Clone + Send + Sync + 'static,
 {
+    let index = asset_dir.join("index.html");
     let immutable_assets = Router::<S>::new()
         .fallback_service(ServeDir::new(asset_dir.join("assets")))
         .layer(SetResponseHeaderLayer::overriding(
@@ -203,13 +204,14 @@ where
         ));
     let shell = ServeDir::new(asset_dir)
         .append_index_html_on_directories(true)
-        .fallback(ServeFile::new(asset_dir.join("index.html")));
+        .fallback(ServeFile::new(index.clone()));
 
     Router::<S>::new()
         // Hashed Vite assets are the only immutable Console surface. Keeping
         // this route outside the SPA fallback also makes a missing bundle a
         // real 404 instead of serving index.html as JavaScript.
         .nest("/assets", immutable_assets)
+        .route_service("/", ServeFile::new(index))
         .fallback_service(shell)
         // The entry document names the current content-addressed bundles and
         // must be reloaded across a deployment. This also covers favicon and
@@ -253,6 +255,14 @@ mod static_asset_tests {
     async fn shell_is_not_cached_and_hashed_assets_are_immutable() {
         let root = fixture();
         let router = console_assets(&root);
+
+        let root_shell = router
+            .clone()
+            .oneshot(Request::get("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(root_shell.status(), StatusCode::OK);
+        assert_eq!(root_shell.headers()[CACHE_CONTROL], "no-store");
 
         let shell = router
             .clone()
