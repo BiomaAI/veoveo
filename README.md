@@ -309,28 +309,12 @@ their respective owners.*
 
 ## How It Fits Together
 
-```text
-MCP hosts and Operations Console
-               |
-               v
-     Gateway identity, profiles,
-        policy, and audit boundary
-               |
-        +------+-------+
-        |              |
-  Hosted MCP       Autonomous
-    servers          agents
-        |              |
-        +------+-------+
-               |
-     Durable tasks, artifacts,
-       recordings, and events
-               |
-     +---------+----------+
-     |                    |
-Platform metadata   Object storage,
- and coordination   GPU worlds, media
-```
+<a href="docs/images/system-map.png">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/system-map-dark.png">
+    <img src="docs/images/system-map.png" alt="Sensors, simulation, and agents publish recordings through the Recording Hub while agents and the Operations Console reach hosted servers through the governed gateway; the platform store retains durable state and audit evidence">
+  </picture>
+</a>
 
 SurrealDB is the required coordination store. It owns durable identity,
 policy, task, artifact, recording, agent, audit, and outbox records.

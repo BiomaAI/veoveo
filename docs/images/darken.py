@@ -24,6 +24,7 @@ OUT = os.path.dirname(os.path.abspath(__file__))
 
 FIGURES = [
     "harness-poster",
+    "system-map",
     "operations-loop",
     "task-sleepwake",
     "agent-loop",
