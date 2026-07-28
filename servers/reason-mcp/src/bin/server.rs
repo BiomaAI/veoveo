@@ -106,6 +106,7 @@ impl ReasonMcp {
         title = "Reason over recorded video",
         description = "Resolve an authorized Rerun VideoStream range, run a configured world-model reasoning pipeline to describe the segment, detect events, or answer a question, and publish typed results plus an immutable Rerun annotation layer.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<AnalyzeRecordingOutput>(),
+        execution(task_support = "optional"),
         annotations(
             read_only_hint = false,
             destructive_hint = false,

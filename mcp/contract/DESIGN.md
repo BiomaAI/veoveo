@@ -74,6 +74,16 @@ same typed models, policy checks, audit paths, task state, artifact
 identities, and resource URIs. Hidden fallbacks, alternate completion paths,
 unaudited content URLs, and second sources of truth are prohibited.
 
+Every tool declares its exact MCP task support as `required`, `optional`, or
+`forbidden`. A full-MCP client receives that declaration unchanged. A
+`tools_compat` registration may explicitly enable the direct task-call
+adapter. For that registration alone, the gateway projects `required` as
+`optional`; it leaves `optional` and `forbidden` unchanged. A direct call to
+the projected tool starts the same final-extension task, waits on its canonical
+subscription, returns the terminal tool result, and attaches the canonical
+task ID. The typed `veoveo://task/{task_id}` resource exposes its current
+status and terminal result without introducing another task store.
+
 ## Transport And Sessions
 
 Every network endpoint uses MCP Streamable HTTP. The server creates a session
@@ -262,8 +272,12 @@ rules:
   sections and a parseable `Contract Compliance` declaration.
 - **Protocol conformance** — the conformance client validates advertised
   schemas (C07) and the client-facing protocol shape against a running
-  server, and reads `{scheme}://contract` (C19) to compare the declaration
-  with observed behavior as servers adopt the well-known surface.
+  server. C18–C20 are checked only when a profile names the well-known
+  resources in its required tools, resources, and prompts; the client does
+  not fetch `{scheme}://contract` or compare its declaration with observed
+  behavior. Internal-assertion verification is likewise outside the current
+  profile: the client proves that an unauthenticated request is rejected,
+  not that a forged, expired, or misaddressed assertion is.
 - **Construction** — C03, C08, C10, C18–C21 are inherited by consuming
   `veoveo_mcp_contract`; avoiding them requires bypassing the shared crate,
   which review treats as a contract change.

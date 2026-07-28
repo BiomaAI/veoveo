@@ -4,13 +4,14 @@ use rmcp::{
     service::{RequestContext, RoleServer},
 };
 use veoveo_mcp_contract::{
-    AuditEvent, CanonicalTaskId, CompatibilityHelperId, GatewayAction, GatewayResourceProjection,
-    LocalToolName, OAuthClientRegistration, OAuthClientSurface, PolicyDecision, PolicyEffect,
-    PolicyReasonCode, PolicyTarget, PrincipalAuditAttributes, PromptName, ServerSlug, TenantId,
-    TraceId,
+    AuditEvent, CanonicalTaskId, CompatibilityHelperId, GatewayAction, GatewayProfileId,
+    GatewayResourceProjection, LocalToolName, OAuthClientRegistration, OAuthClientSurface,
+    PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget, Principal,
+    PrincipalAuditAttributes, PromptName, ServerSlug, TenantId, TraceId,
 };
 use veoveo_mcp_task_extension::ProtocolTaskId;
 use veoveo_platform_store::TaskRecord;
+use veoveo_task_runtime::TaskOwner;
 use veoveo_task_runtime::TaskSnapshot;
 
 use crate::{
@@ -66,20 +67,23 @@ impl GatewayMcp {
         let snapshot = record
             .map(TaskSnapshot::try_from)
             .transpose()
-            .map_err(|error| mcp_internal(format!("invalid canonical task record: {error}")))?
-            .ok_or_else(|| mcp_invalid_params("unknown task id"))?;
-        let labels = subject
-            .principal
-            .data_labels
-            .iter()
-            .map(ToString::to_string)
-            .collect();
-        if !snapshot.owner.allows(
-            subject.principal.id.as_str(),
-            self.profile_id.as_str(),
-            subject.principal.tenant.as_ref().map(TenantId::as_str),
-            &labels,
-        ) {
+            .map_err(|error| mcp_internal(format!("invalid canonical task record: {error}")))?;
+        let Some(snapshot) = snapshot else {
+            tracing::warn!(%task_id, "canonical task record was not found");
+            return Err(mcp_invalid_params("unknown task id"));
+        };
+        if !task_owner_allows_actor(&snapshot.owner, &subject.actor, &self.profile_id) {
+            tracing::warn!(
+                %task_id,
+                task_owner = %snapshot.owner.principal_key,
+                caller_actor = %subject.actor.id,
+                caller_initiator = %subject.principal.id,
+                task_profile = %snapshot.owner.profile,
+                caller_profile = %self.profile_id,
+                task_tenant = ?snapshot.owner.tenant_key,
+                caller_tenant = ?subject.actor.tenant,
+                "canonical task ownership did not match the authenticated subject"
+            );
             return Err(mcp_invalid_params("unknown task id"));
         }
         let server = ServerSlug::new(snapshot.server)
@@ -95,6 +99,12 @@ impl GatewayMcp {
                     && manifest.capabilities.tasks
             });
         if !exposed {
+            tracing::warn!(
+                %task_id,
+                %server,
+                profile = %self.profile_id,
+                "canonical task server is not exposed with tasks enabled"
+            );
             return Err(mcp_invalid_params("unknown task id"));
         }
         let canonical_task_id = CanonicalTaskId::new(task_id.to_string())
@@ -178,6 +188,15 @@ impl GatewayMcp {
             client.client_surface,
             client.direct_task_call_adapter,
         ))
+    }
+
+    pub(super) fn client_uses_direct_task_call_adapter(
+        &self,
+        subject: &AuthenticatedSubject,
+    ) -> Result<bool, McpError> {
+        let client = self.authenticated_oauth_client(subject)?;
+        Ok(client.client_surface == OAuthClientSurface::ToolsCompat
+            && client.direct_task_call_adapter)
     }
 
     pub(super) async fn authorize(
@@ -470,6 +489,20 @@ impl GatewayMcp {
     }
 }
 
+fn task_owner_allows_actor(
+    owner: &TaskOwner,
+    actor: &Principal,
+    profile: &GatewayProfileId,
+) -> bool {
+    let labels = actor.data_labels.iter().map(ToString::to_string).collect();
+    owner.allows(
+        actor.id.as_str(),
+        profile.as_str(),
+        actor.tenant.as_ref().map(TenantId::as_str),
+        &labels,
+    )
+}
+
 fn client_surface_allows_task_projection(
     surface: OAuthClientSurface,
     direct_task_call_adapter: bool,
@@ -482,9 +515,18 @@ fn client_surface_allows_task_projection(
 
 #[cfg(test)]
 mod tests {
-    use veoveo_mcp_contract::OAuthClientSurface;
+    use std::collections::BTreeSet;
 
-    use super::client_surface_allows_task_projection;
+    use chrono::Utc;
+    use veoveo_mcp_contract::{
+        AccessSubject, DataLabelId, GatewayProfileId, InvocationAuthority, InvocationProvenance,
+        OAuthClientSurface, PolicyVersion, Principal, PrincipalId, PrincipalKind, TenantId,
+        TokenIssuer, TokenSubject, WorkContextId, WorkContextMembershipLevel,
+        WorkContextOutputPolicy,
+    };
+    use veoveo_task_runtime::TaskOwner;
+
+    use super::{client_surface_allows_task_projection, task_owner_allows_actor};
 
     #[test]
     fn full_mcp_always_receives_canonical_tasks() {
@@ -496,6 +538,64 @@ mod tests {
             OAuthClientSurface::FullMcp,
             true
         ));
+    }
+
+    #[test]
+    fn delegated_task_ownership_uses_the_effective_actor() {
+        let initiator = principal("https://idp.example.com", "user-1", PrincipalKind::User);
+        let actor = principal(
+            "https://veoveo.example/oauth",
+            "operator-delegated",
+            PrincipalKind::Service,
+        );
+        let profile = GatewayProfileId::new("operator").unwrap();
+        let owner = TaskOwner {
+            principal_key: actor.id.to_string(),
+            principal_kind: veoveo_task_runtime::PrincipalKind::Service,
+            issuer: actor.issuer.to_string(),
+            subject: actor.subject.to_string(),
+            profile: profile.to_string(),
+            tenant_key: actor.tenant.as_ref().map(ToString::to_string),
+            data_labels: actor.data_labels.iter().map(ToString::to_string).collect(),
+            authority: InvocationAuthority {
+                work_context: WorkContextId::new("operations").unwrap(),
+                tenant: TenantId::new("tenant-a").unwrap(),
+                membership: WorkContextMembershipLevel::Contributor,
+                policy_revision: PolicyVersion::new("r1").unwrap(),
+                output_policy: WorkContextOutputPolicy {
+                    owner: AccessSubject::Principal(initiator.id.clone()),
+                    initial_grants: Vec::new(),
+                    classification: None,
+                    data_labels: BTreeSet::new(),
+                },
+                provenance: InvocationProvenance::Delegated {
+                    initiator: initiator.id.clone(),
+                    delegation_id: veoveo_mcp_contract::DelegationId::new("delegation-1").unwrap(),
+                },
+            },
+        };
+
+        assert!(task_owner_allows_actor(&owner, &actor, &profile));
+        assert!(!task_owner_allows_actor(&owner, &initiator, &profile));
+    }
+
+    fn principal(issuer: &str, subject: &str, kind: PrincipalKind) -> Principal {
+        let issuer = TokenIssuer::new(issuer).unwrap();
+        let subject = TokenSubject::new(subject).unwrap();
+        Principal {
+            id: PrincipalId::new(format!("{issuer}#{subject}")).unwrap(),
+            kind,
+            issuer,
+            subject,
+            tenant: Some(TenantId::new("tenant-a").unwrap()),
+            groups: BTreeSet::new(),
+            group_roles: BTreeSet::new(),
+            roles: BTreeSet::new(),
+            scopes: BTreeSet::new(),
+            data_labels: BTreeSet::from([DataLabelId::new("cui").unwrap()]),
+            assurances: BTreeSet::new(),
+            authenticated_at: Some(Utc::now()),
+        }
     }
 
     #[test]

@@ -298,6 +298,7 @@ impl UavSimMcp {
         title = "Run UAV scenario",
         description = "Run a bounded live scenario as a durable non-replayable task in the loaded Google Photorealistic 3D Tiles world.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::ScenarioResult>(),
+        execution(task_support = "optional"),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
     async fn run_scenario(
@@ -313,6 +314,7 @@ impl UavSimMcp {
         title = "Execute UAV mission",
         description = "Execute typed multi-vehicle waypoints as a durable non-replayable task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::MissionResult>(),
+        execution(task_support = "optional"),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
     async fn execute_mission(
@@ -341,6 +343,7 @@ impl UavSimMcp {
         title = "Capture UAV dataset",
         description = "Capture a bounded sensor interval as a durable non-replayable task and return governed recording identities.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::CaptureDatasetResult>(),
+        execution(task_support = "optional"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn capture_dataset(

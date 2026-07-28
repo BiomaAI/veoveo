@@ -2,14 +2,15 @@ use chrono::Utc;
 use rmcp::{
     model::{
         ErrorData as McpError, ListResourceTemplatesResult, ListResourcesResult,
-        PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult,
-        SubscribeRequestParams, UnsubscribeRequestParams,
+        PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult, ResourceContents,
+        ResourceTemplate, SubscribeRequestParams, UnsubscribeRequestParams,
     },
     service::{RequestContext, RoleServer},
 };
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayResourceProjection, GatewayResourceSubscription, PolicyReasonCode,
-    paginate,
+    GATEWAY_TASK_RESOURCE_TEMPLATE, GatewayAction, GatewayResourceProjection,
+    GatewayResourceSubscription, GatewayTaskStatus, GatewayTaskStatusDocument, PolicyReasonCode,
+    paginate, parse_gateway_task_resource_uri,
 };
 
 use crate::mcp_support::{
@@ -19,6 +20,7 @@ use crate::mcp_support::{
     resource_policy_target, resource_read_action, upstream_error,
 };
 
+use super::tools::{project_detailed_task_resource_uris, project_task_from_detailed};
 use super::{GATEWAY_PAGE_SIZE, GatewayMcp};
 
 impl GatewayMcp {
@@ -115,6 +117,16 @@ impl GatewayMcp {
                 templates.push(template);
             }
         }
+        if self.client_allows_task_projection(&subject)? {
+            templates.push(
+                ResourceTemplate::new(GATEWAY_TASK_RESOURCE_TEMPLATE, "task status")
+                    .with_title("Gateway task status")
+                    .with_description(
+                        "Current status and terminal result for one authorized canonical task.",
+                    )
+                    .with_mime_type("application/json"),
+            );
+        }
         templates.sort_by(|left, right| left.uri_template.cmp(&right.uri_template));
         let page = paginate(templates, request.as_ref(), GATEWAY_PAGE_SIZE)
             .map_err(|err| mcp_invalid_params(err.to_string()))?;
@@ -130,6 +142,11 @@ impl GatewayMcp {
         mut request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, McpError> {
+        if let Some(task_id) = parse_gateway_task_resource_uri(&request.uri) {
+            return self
+                .read_task_status_resource(task_id, &request.uri, &context)
+                .await;
+        }
         let server = self.server_for_resource(&request.uri)?;
         let projection = self.project_resource_for_upstream(&request.uri)?;
         let subject = self
@@ -174,6 +191,50 @@ impl GatewayMcp {
             .await?;
         project_read_resource_result(&mut result, &projection)?;
         Ok(result)
+    }
+
+    async fn read_task_status_resource(
+        &self,
+        task_id: &str,
+        uri: &str,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResult, McpError> {
+        let subject = self.authenticated(context)?;
+        if !self.client_allows_task_projection(&subject)? {
+            return Err(mcp_invalid_params(format!(
+                "resource URI is not exposed: {uri}"
+            )));
+        }
+        let route = self
+            .authorize_canonical_task_for_subject(&subject, GatewayAction::TasksGet, task_id)
+            .await?;
+        let client = self
+            .final_task_client(&route.server, &route.subject)
+            .await?;
+        let mut detailed = client.get(route.task_id).await?;
+        let catalog = self.catalog.current();
+        let manifest = catalog
+            .server(&route.server)
+            .ok_or_else(|| mcp_internal(format!("unknown task server `{}`", route.server)))?;
+        project_detailed_task_resource_uris(manifest, &mut detailed)?;
+        let task = project_task_from_detailed(&detailed);
+        let status = GatewayTaskStatus::from_task(&task)
+            .map_err(|error| mcp_internal(format!("failed to project task status: {error}")))?;
+        let result = match detailed {
+            veoveo_mcp_task_extension::DetailedTask::Completed { result, .. } => {
+                Some(serde_json::Value::Object(result.into_iter().collect()))
+            }
+            _ => None,
+        };
+        let document = GatewayTaskStatusDocument {
+            task: status,
+            result,
+        };
+        let text = serde_json::to_string(&document)
+            .map_err(|error| mcp_internal(format!("failed to encode task status: {error}")))?;
+        Ok(ReadResourceResult::new(vec![
+            ResourceContents::text(text, uri.to_owned()).with_mime_type("application/json"),
+        ]))
     }
 
     pub(super) async fn handle_subscribe(

@@ -117,6 +117,7 @@ impl StreamMcp {
         title = "Run a pipeline over recorded video",
         description = "Resolve an authorized Rerun VideoStream range, run an admitted Stream pipeline, and publish typed results plus an immutable Rerun annotation layer.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RunRecordingOutput>(),
+        execution(task_support = "optional"),
         annotations(
             read_only_hint = false,
             destructive_hint = false,

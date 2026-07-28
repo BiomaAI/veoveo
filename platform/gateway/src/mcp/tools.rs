@@ -33,15 +33,19 @@ impl GatewayMcp {
     ) -> Result<ListToolsResult, McpError> {
         let subject = self.authenticated(&context)?;
         let project_tasks = self.client_allows_task_projection(&subject)?;
+        let adapt_required_tasks = self.client_uses_direct_task_call_adapter(&subject)?;
         let mut tools = Vec::new();
         for server_slug in self.profile_servers() {
             let catalog = self.catalog.current();
-            let manifest = catalog
-                .server(&server_slug)
+            let (_, exposure, manifest) = catalog
+                .profile_server(&self.profile_id, &server_slug)
                 .ok_or_else(|| mcp_internal(format!("unknown profile server `{server_slug}`")))?;
-            let final_tasks = if project_tasks && manifest.capabilities.tasks {
+            let tasks_exposed = exposure.tasks == veoveo_mcp_contract::TaskExposure::Enabled;
+            let manifest = manifest.clone();
+            let final_tasks = if project_tasks && tasks_exposed && manifest.capabilities.tasks {
                 let client = self.final_task_client(&server_slug, &subject).await?;
-                client.discover().await.is_ok()
+                client.discover().await?;
+                true
             } else {
                 false
             };
@@ -72,13 +76,13 @@ impl GatewayMcp {
                 {
                     continue;
                 }
-                project_tool_resource_metadata(manifest, &mut tool)?;
+                project_tool_resource_metadata(&manifest, &mut tool)?;
                 let gateway_name = catalog
                     .project_tool_name(&server_slug, &local_tool)
                     .map_err(|err| mcp_internal(format!("failed to project tool name: {err}")))?;
                 tool.name = Cow::Owned(gateway_name.to_string());
-                if final_tasks {
-                    adapt_task_tool(&mut tool);
+                if final_tasks && adapt_required_tasks {
+                    adapt_required_task_tool(&mut tool);
                 }
                 tools.push(tool);
             }
@@ -127,10 +131,36 @@ impl GatewayMcp {
             )
             .await?;
         request.name = Cow::Owned(projection.tool.to_string());
+        let direct_task_call_adapter = self.client_uses_direct_task_call_adapter(&subject)?;
         let downstream_progress_token = context.meta.get_progress_token();
         let upstream = self
             .upstream(&projection.server, context.peer.clone(), &subject)
             .await?;
+        if direct_task_call_adapter {
+            let upstream_tools = upstream
+                .peer
+                .list_all_tools()
+                .await
+                .map_err(upstream_error)?;
+            let upstream_tool = upstream_tools
+                .iter()
+                .find(|tool| tool.name.as_ref() == projection.tool.as_str())
+                .ok_or_else(|| mcp_invalid_params("unknown tool"))?;
+            if upstream_tool.task_support() == TaskSupport::Required {
+                let final_request = final_tool_request(request, projection.tool.as_str())?;
+                let client = self.final_task_client(&projection.server, &subject).await?;
+                let created = client.start_tool(final_request).await?;
+                let task_id = created.task.task_id;
+                let task = client.await_terminal(task_id).await?;
+                let mut result = completed_tool_result(task)?;
+                let manifest = catalog.server(&projection.server).ok_or_else(|| {
+                    mcp_internal(format!("unknown tool server `{}`", projection.server))
+                })?;
+                project_call_tool_resource_uris(manifest, &mut result)?;
+                result.meta = Some(related_task_meta(task_id.to_string()));
+                return Ok(result);
+            }
+        }
         let handle = upstream
             .peer
             .send_cancellable_request(
@@ -269,13 +299,15 @@ fn final_tool_request(
     })
 }
 
-fn adapt_task_tool(tool: &mut Tool) {
-    tool.execution = Some(
-        tool.execution
-            .take()
-            .unwrap_or_default()
-            .with_task_support(TaskSupport::Optional),
-    );
+fn adapt_required_task_tool(tool: &mut Tool) {
+    if tool.task_support() == TaskSupport::Required {
+        tool.execution = Some(
+            tool.execution
+                .take()
+                .unwrap_or_default()
+                .with_task_support(TaskSupport::Optional),
+        );
+    }
 }
 
 pub(super) fn project_task_from_seed(task: FinalTask) -> Task {
@@ -381,11 +413,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn final_task_tool_is_optional_only_at_the_rig_projection() {
+    fn direct_call_adapter_downgrades_required_task_tool() {
         let mut tool = Tool::new("forecast", "Forecast.", JsonObject::new())
-            .with_execution(ToolExecution::new());
-        adapt_task_tool(&mut tool);
+            .with_execution(ToolExecution::new().with_task_support(TaskSupport::Required));
+        adapt_required_task_tool(&mut tool);
         assert_eq!(tool.task_support(), TaskSupport::Optional);
+    }
+
+    #[test]
+    fn direct_call_adapter_preserves_optional_task_tool() {
+        let mut tool = Tool::new("forecast", "Forecast.", JsonObject::new())
+            .with_execution(ToolExecution::new().with_task_support(TaskSupport::Optional));
+        adapt_required_task_tool(&mut tool);
+        assert_eq!(tool.task_support(), TaskSupport::Optional);
+    }
+
+    #[test]
+    fn direct_call_adapter_preserves_forbidden_task_tool() {
+        let mut tool = Tool::new("forecast", "Forecast.", JsonObject::new())
+            .with_execution(ToolExecution::new().with_task_support(TaskSupport::Forbidden));
+        adapt_required_task_tool(&mut tool);
+        assert_eq!(tool.task_support(), TaskSupport::Forbidden);
     }
 
     #[test]

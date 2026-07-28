@@ -120,6 +120,7 @@ impl TimeseriesMcp {
         title = "Forecast timeseries",
         description = "Ingest a DuckDB-readable time-series source, compute a forecast, and return one timeseries://artifact/{artifact_id} Rerun RRD artifact.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<TimeseriesForecastOutput>(),
+        execution(task_support = "optional"),
         annotations(
             read_only_hint = false,
             destructive_hint = false,

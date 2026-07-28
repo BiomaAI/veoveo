@@ -195,6 +195,27 @@ impl FinalTaskClient {
         }))
     }
 
+    pub(super) async fn await_terminal(
+        &self,
+        task_id: ProtocolTaskId,
+    ) -> Result<DetailedTask, McpError> {
+        let current = self.get(task_id).await?;
+        if task_is_terminal(&current) {
+            return Ok(current);
+        }
+        let mut updates = self.subscribe(vec![task_id]).await?;
+        while let Some(update) = updates.next().await {
+            let update = update?;
+            if task_is_terminal(&update) {
+                return Ok(update);
+            }
+        }
+        Err(McpError::internal_error(
+            "upstream task subscription ended before task completion",
+            None,
+        ))
+    }
+
     async fn request<T, P>(
         &self,
         method: &str,
@@ -253,6 +274,15 @@ impl FinalTaskClient {
     fn next_request_id(&self) -> u64 {
         self.request_ids.fetch_add(1, Ordering::Relaxed)
     }
+}
+
+fn task_is_terminal(task: &DetailedTask) -> bool {
+    matches!(
+        task,
+        DetailedTask::Completed { .. }
+            | DetailedTask::Failed { .. }
+            | DetailedTask::Cancelled { .. }
+    )
 }
 
 fn task_meta() -> RequestMeta {

@@ -150,6 +150,7 @@ impl ViewMcp {
         title = "Capture map view frame",
         description = "Render one hardware-accelerated offscreen image from a fixed view revision. This operation requires task-based invocation and returns image content plus typed frame metadata.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<FrameRecord>(),
+        execution(task_support = "required"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = true)
     )]
     async fn capture_frame(
