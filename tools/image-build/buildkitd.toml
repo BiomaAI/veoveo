@@ -4,8 +4,8 @@
 [[worker.oci.gcpolicy]]
   filters = ["type==source.local", "type==exec.cachemount", "type==source.git.checkout"]
   keepDuration = "168h"
-  reservedSpace = "40GB"
-  maxUsedSpace = "160GB"
+  reservedSpace = "240GB"
+  maxUsedSpace = "320GB"
   minFreeSpace = "80GB"
 
 [[worker.oci.gcpolicy]]

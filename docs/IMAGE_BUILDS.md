@@ -83,12 +83,15 @@ operator's ordinary Docker configuration.
 
 The builder runs the digest-pinned BuildKit 0.31.2 image. Its checked-in daemon
 configuration preserves source-local and Cargo cache mounts for seven days. The
-general cache policy retains at least 240 GB, begins collection above 320 GB, and
-protects 80 GB of host free space. These bounds accommodate the simultaneous Isaac,
-DeepStream, and ordinary Rust image lineages used by the acceptance suite. `status`
-verifies the driver, daemon version, image digest, and configuration digest. A
-configuration change fails closed until the operator invokes the state-preserving
-reconfiguration command or the destructive recreation command.
+filtered and general policies both retain at least 240 GB, begin collection above
+320 GB, and protect 80 GB of host free space. A filtered policy's space trigger applies
+to total worker usage, not merely the records selected by its filter; using a lower
+trigger there would evict Cargo cache mounts before the general image-lineage limit.
+These bounds accommodate the simultaneous Isaac, DeepStream, and ordinary Rust image
+lineages used by the acceptance suite. `status` verifies the driver, daemon version,
+image digest, and configuration digest. A configuration change fails closed until the
+operator invokes the state-preserving reconfiguration command or the destructive
+recreation command.
 
 ## Release Publication
 
