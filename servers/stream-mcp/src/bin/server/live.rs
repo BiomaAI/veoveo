@@ -12,7 +12,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::UnixListener;
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
-use veoveo_mcp_contract::SubscriptionHub;
+use veoveo_mcp_contract::{SubscriptionHub, WorkContextMembershipLevel};
 use veoveo_stream_mcp::catalog::{
     GStreamerGraphConfig, ModelConfig, PipelineCatalog, PipelineProfileConfig, TrackerConfig,
 };
@@ -569,7 +569,7 @@ impl LiveSessionManager {
         session_id: &str,
         caller: &TaskOwner,
     ) -> Result<Option<StopLiveSessionOutput>> {
-        let Some(session) = self.authorized(session_id, caller).await else {
+        let Some(session) = self.owned(session_id, caller).await else {
             return Ok(None);
         };
         let mut state = session.state.lock().await;
@@ -610,7 +610,7 @@ impl LiveSessionManager {
             .collect::<Vec<_>>();
         let mut views = Vec::new();
         for session in sessions {
-            if owner_allows(&session.owner, caller) {
+            if reader_allows(&session.owner, caller) {
                 let state = session.state.lock().await;
                 views.push(session_view(&session, &state));
             }
@@ -624,7 +624,7 @@ impl LiveSessionManager {
         session_id: &str,
         caller: &TaskOwner,
     ) -> Option<LiveSessionView> {
-        let session = self.authorized(session_id, caller).await?;
+        let session = self.readable(session_id, caller).await?;
         let state = session.state.lock().await;
         Some(session_view(&session, &state))
     }
@@ -634,7 +634,7 @@ impl LiveSessionManager {
         session_id: &str,
         caller: &TaskOwner,
     ) -> Option<LiveResultsView> {
-        let session = self.authorized(session_id, caller).await?;
+        let session = self.readable(session_id, caller).await?;
         let state = session.state.lock().await;
         Some(LiveResultsView {
             schema: LIVE_RESULTS_SCHEMA.to_owned(),
@@ -651,7 +651,7 @@ impl LiveSessionManager {
         session_id: &str,
         caller: &TaskOwner,
     ) -> Option<LivePreviewView> {
-        let session = self.authorized(session_id, caller).await?;
+        let session = self.readable(session_id, caller).await?;
         let state = session.state.lock().await;
         let first_keyframe = state
             .video_chunks
@@ -673,14 +673,30 @@ impl LiveSessionManager {
         })
     }
 
-    pub(super) async fn owns(&self, session_id: &str, caller: &TaskOwner) -> bool {
-        self.authorized(session_id, caller).await.is_some()
+    pub(super) async fn readable_by(&self, session_id: &str, caller: &TaskOwner) -> bool {
+        self.readable(session_id, caller).await.is_some()
     }
 
-    async fn authorized(&self, session_id: &str, caller: &TaskOwner) -> Option<Arc<LiveSession>> {
+    async fn readable(&self, session_id: &str, caller: &TaskOwner) -> Option<Arc<LiveSession>> {
+        let session = self.sessions.lock().await.get(session_id).cloned()?;
+        reader_allows(&session.owner, caller).then_some(session)
+    }
+
+    async fn owned(&self, session_id: &str, caller: &TaskOwner) -> Option<Arc<LiveSession>> {
         let session = self.sessions.lock().await.get(session_id).cloned()?;
         owner_allows(&session.owner, caller).then_some(session)
     }
+}
+
+fn reader_allows(owner: &TaskOwner, caller: &TaskOwner) -> bool {
+    owner.tenant_key() == caller.tenant_key()
+        && owner.authority.tenant == caller.authority.tenant
+        && owner.authority.work_context == caller.authority.work_context
+        && caller
+            .authority
+            .membership
+            .allows(WorkContextMembershipLevel::Viewer)
+        && owner.data_labels.is_subset(&caller.data_labels)
 }
 
 fn owner_allows(owner: &TaskOwner, caller: &TaskOwner) -> bool {
@@ -727,5 +743,87 @@ fn stop_output(session: &LiveSession, state: &LiveSessionState) -> StopLiveSessi
             .as_ref()
             .map(LiveRecordingOutput::view),
         stopped_at: state.stopped_at.unwrap_or_else(Utc::now).to_rfc3339(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use veoveo_mcp_contract::{
+        AccessSubject, InvocationAuthority, InvocationProvenance, PolicyVersion, PrincipalId,
+        TenantId, WorkContextId, WorkContextOutputPolicy,
+    };
+    use veoveo_task_runtime::PrincipalKind;
+
+    fn task_owner(
+        principal: &str,
+        work_context: &str,
+        membership: WorkContextMembershipLevel,
+        data_labels: &[&str],
+    ) -> TaskOwner {
+        let principal_id = PrincipalId::new(principal).unwrap();
+        TaskOwner {
+            principal_key: principal.to_owned(),
+            principal_kind: PrincipalKind::Service,
+            issuer: "https://issuer.example".to_owned(),
+            subject: principal.to_owned(),
+            profile: "operator".to_owned(),
+            tenant_key: Some("tenant".to_owned()),
+            data_labels: data_labels
+                .iter()
+                .map(|label| (*label).to_owned())
+                .collect(),
+            authority: InvocationAuthority {
+                work_context: WorkContextId::new(work_context).unwrap(),
+                tenant: TenantId::new("tenant").unwrap(),
+                membership,
+                policy_revision: PolicyVersion::new("r1").unwrap(),
+                output_policy: WorkContextOutputPolicy {
+                    owner: AccessSubject::Principal(principal_id),
+                    initial_grants: Vec::new(),
+                    classification: None,
+                    data_labels: BTreeSet::new(),
+                },
+                provenance: InvocationProvenance::Automated,
+            },
+        }
+    }
+
+    #[test]
+    fn work_context_viewer_can_read_but_not_control_an_automation_stream() {
+        let automation = task_owner(
+            "automation",
+            "flight",
+            WorkContextMembershipLevel::Contributor,
+            &["operations"],
+        );
+        let operator = task_owner(
+            "operator",
+            "flight",
+            WorkContextMembershipLevel::Viewer,
+            &["operations", "reviewed"],
+        );
+        assert!(reader_allows(&automation, &operator));
+        assert!(!owner_allows(&automation, &operator));
+    }
+
+    #[test]
+    fn stream_reads_fail_closed_across_contexts_and_labels() {
+        let automation = task_owner(
+            "automation",
+            "flight",
+            WorkContextMembershipLevel::Contributor,
+            &["operations"],
+        );
+        let other_context = task_owner(
+            "operator",
+            "maintenance",
+            WorkContextMembershipLevel::Owner,
+            &["operations"],
+        );
+        let missing_label =
+            task_owner("operator", "flight", WorkContextMembershipLevel::Owner, &[]);
+        assert!(!reader_allows(&automation, &other_context));
+        assert!(!reader_allows(&automation, &missing_label));
     }
 }

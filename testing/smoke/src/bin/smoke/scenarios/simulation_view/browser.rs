@@ -49,6 +49,19 @@ pub(crate) struct ConsoleRecordingCaptureEvidence {
     hardware: HardwareIdentity,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ConsoleStreamCaptureEvidence {
+    schema: &'static str,
+    captured_at: chrono::DateTime<chrono::Utc>,
+    page_url: String,
+    screenshot_path: String,
+    screenshot_sha256: String,
+    hardware: HardwareIdentity,
+    stream: StreamAppState,
+    decode: StreamDecodeIdentity,
+}
+
 struct AppHost {
     url: String,
     shutdown: Option<oneshot::Sender<()>>,
@@ -151,6 +164,24 @@ pub(crate) async fn capture_console_recording(
     .with_context(|| format!("Console Rerun capture exceeded {timeout:?}"))?
 }
 
+pub(crate) async fn capture_console_stream_app(
+    cdp_base: &str,
+    public_base_url: &str,
+    screenshot_path: &Path,
+    timeout: Duration,
+) -> Result<ConsoleStreamCaptureEvidence> {
+    let page_url = format!(
+        "{}/console/#/apps/stream/live.html",
+        public_base_url.trim_end_matches('/')
+    );
+    tokio::time::timeout(
+        timeout,
+        capture_console_stream_app_inner(cdp_base, &page_url, screenshot_path),
+    )
+    .await
+    .with_context(|| format!("Console Stream-App capture exceeded {timeout:?}"))?
+}
+
 async fn capture_console_live_app_inner(
     cdp_base: &str,
     page_url: &str,
@@ -164,7 +195,8 @@ async fn capture_console_live_app_inner(
         let hardware: HardwareIdentity =
             cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
         hardware.validate()?;
-        let app_context = wait_for_console_app_context(&mut cdp, &session_id).await?;
+        let app_context =
+            wait_for_console_app_context(&mut cdp, &session_id, "simulation-view").await?;
         let ready = wait_for_console_app_camera(
             &mut cdp,
             &session_id,
@@ -240,6 +272,99 @@ async fn capture_console_live_app_inner(
             screenshot_sha256,
             hardware,
             video: second,
+            decode,
+        })
+    }
+    .await;
+    let close = close_target(&mut cdp, &target_id).await;
+    let evidence = acceptance?;
+    close?;
+    Ok(evidence)
+}
+
+async fn capture_console_stream_app_inner(
+    cdp_base: &str,
+    page_url: &str,
+    screenshot_path: &Path,
+) -> Result<ConsoleStreamCaptureEvidence> {
+    let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, page_url).await?;
+    let acceptance = async {
+        wait_for_document(&mut cdp, &session_id).await?;
+        assert_page_visible(&mut cdp, &session_id).await?;
+        let hardware: HardwareIdentity =
+            cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
+        hardware.validate()?;
+        let app_context =
+            wait_for_console_app_context(&mut cdp, &session_id, "stream").await?;
+        let first =
+            wait_for_console_stream_video(&mut cdp, &session_id, app_context).await?;
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        let second: StreamAppState = cdp
+            .evaluate_context(&session_id, app_context, STREAM_APP_STATE, false)
+            .await?;
+        second.validate()?;
+        ensure!(
+            second.session_id == first.session_id,
+            "Console Stream App changed sessions during capture: {} -> {}",
+            first.session_id,
+            second.session_id
+        );
+        ensure!(
+            second.decoded_frames > first.decoded_frames,
+            "Console Stream App video did not advance: {} -> {} decoded frames",
+            first.decoded_frames,
+            second.decoded_frames
+        );
+        ensure!(
+            second.processed_frames > first.processed_frames,
+            "Console Stream App did not process newly arrived live frames: {} -> {}",
+            first.processed_frames,
+            second.processed_frames
+        );
+        let decode: StreamDecodeIdentity = cdp
+            .evaluate_context(&session_id, app_context, STREAM_APP_DECODE_IDENTITY, true)
+            .await?;
+        decode.validate(&second.decode_label)?;
+        let console: Value = cdp
+            .evaluate(
+                &session_id,
+                r#"(async () => {
+                  const snapshot = await fetch("/console/api/snapshot", {credentials:"same-origin"});
+                  const apps = await fetch("/console/api/apps", {credentials:"same-origin"});
+                  return {
+                    snapshotStatus:snapshot.status,
+                    appsStatus:apps.status,
+                    appFrameTitle:document.querySelector("iframe.app-frame")?.title ?? "",
+                    bodyText:document.body?.innerText ?? ""
+                  };
+                })()"#,
+                true,
+            )
+            .await?;
+        ensure!(
+            console.get("snapshotStatus").and_then(Value::as_u64) == Some(200)
+                && console.get("appsStatus").and_then(Value::as_u64) == Some(200)
+                && console
+                    .get("appFrameTitle")
+                    .and_then(Value::as_str)
+                    .is_some_and(|title| title.contains("Stream"))
+                && console
+                    .get("bodyText")
+                    .and_then(Value::as_str)
+                    .is_some_and(|body| body.contains("Stream")),
+            "real Console did not load its snapshot, App catalog, and Stream frame: {console}"
+        );
+        let screenshot_sha256 =
+            capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
+        cdp.assert_no_software_renderer_events()?;
+        Ok(ConsoleStreamCaptureEvidence {
+            schema: "veoveo.io/uav-console-stream-capture/v1",
+            captured_at: chrono::Utc::now(),
+            page_url: page_url.to_owned(),
+            screenshot_path: screenshot_path.display().to_string(),
+            screenshot_sha256,
+            hardware,
+            stream: second,
             decode,
         })
     }
@@ -386,7 +511,11 @@ async fn close_target(cdp: &mut Cdp, target_id: &str) -> Result<()> {
     Ok(())
 }
 
-async fn wait_for_console_app_context(cdp: &mut Cdp, session_id: &str) -> Result<u64> {
+async fn wait_for_console_app_context(
+    cdp: &mut Cdp,
+    session_id: &str,
+    app_server: &str,
+) -> Result<u64> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
     loop {
         let tree = cdp
@@ -395,9 +524,10 @@ async fn wait_for_console_app_context(cdp: &mut Cdp, session_id: &str) -> Result
         let frame_id = find_app_frame_id(
             tree.get("frameTree")
                 .context("Chrome frame tree omitted its root")?,
+            app_server,
         )
         .map(str::to_owned)
-        .or(find_app_frame_id_from_dom(cdp, session_id).await?);
+        .or(find_app_frame_id_from_dom(cdp, session_id, app_server).await?);
         if let Some(frame_id) = frame_id {
             let isolated = cdp
                 .command(
@@ -424,13 +554,17 @@ async fn wait_for_console_app_context(cdp: &mut Cdp, session_id: &str) -> Result
             .await?;
         ensure!(
             tokio::time::Instant::now() < deadline,
-            "authenticated Console did not load the Simulation View App frame: {state}"
+            "authenticated Console did not load the {app_server} App frame: {state}"
         );
         tokio::time::sleep(Duration::from_millis(250)).await;
     }
 }
 
-async fn find_app_frame_id_from_dom(cdp: &mut Cdp, session_id: &str) -> Result<Option<String>> {
+async fn find_app_frame_id_from_dom(
+    cdp: &mut Cdp,
+    session_id: &str,
+    app_server: &str,
+) -> Result<Option<String>> {
     let document = cdp
         .command(
             "DOM.getDocument",
@@ -465,35 +599,33 @@ async fn find_app_frame_id_from_dom(cdp: &mut Cdp, session_id: &str) -> Result<O
         .await?;
     let node = described
         .get("node")
-        .context("Chrome omitted the Simulation View iframe node")?;
-    Ok(simulation_view_frame_id_from_dom_node(node).map(str::to_owned))
+        .with_context(|| format!("Chrome omitted the {app_server} iframe node"))?;
+    Ok(app_frame_id_from_dom_node(node, app_server).map(str::to_owned))
 }
 
-fn simulation_view_frame_id_from_dom_node(node: &Value) -> Option<&str> {
+fn app_frame_id_from_dom_node<'a>(node: &'a Value, app_server: &str) -> Option<&'a str> {
     let attributes = node.get("attributes").and_then(Value::as_array)?;
-    let is_simulation_view = attributes.windows(2).any(|pair| {
+    let is_expected_app = attributes.windows(2).any(|pair| {
         pair[0].as_str() == Some("src")
-            && pair[1]
-                .as_str()
-                .is_some_and(|src| src.contains("simulation-view"))
+            && pair[1].as_str().is_some_and(|src| src.contains(app_server))
     });
-    if !is_simulation_view {
+    if !is_expected_app {
         return None;
     }
     node.get("frameId").and_then(Value::as_str)
 }
 
-fn find_app_frame_id(frame_tree: &Value) -> Option<&str> {
+fn find_app_frame_id<'a>(frame_tree: &'a Value, app_server: &str) -> Option<&'a str> {
     let frame = frame_tree.get("frame")?;
     let url = frame.get("url").and_then(Value::as_str).unwrap_or_default();
-    if url.contains("/console/api/apps/frame") && url.contains("simulation-view") {
+    if url.contains("/console/api/apps/frame") && url.contains(app_server) {
         return frame.get("id").and_then(Value::as_str);
     }
     frame_tree
         .get("childFrames")
         .and_then(Value::as_array)?
         .iter()
-        .find_map(find_app_frame_id)
+        .find_map(|child| find_app_frame_id(child, app_server))
 }
 
 async fn wait_for_console_app_camera(
@@ -561,6 +693,34 @@ async fn wait_for_console_video(
         ensure!(
             tokio::time::Instant::now() < deadline,
             "Console Simulation View App did not display real H.264 video: {state:?}"
+        );
+        cdp.assert_no_software_renderer_events()?;
+        assert_page_visible(cdp, session_id).await?;
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+}
+
+async fn wait_for_console_stream_video(
+    cdp: &mut Cdp,
+    session_id: &str,
+    context_id: u64,
+) -> Result<StreamAppState> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
+    loop {
+        let state: StreamAppState = cdp
+            .evaluate_context(session_id, context_id, STREAM_APP_STATE, false)
+            .await?;
+        if state.is_ready() {
+            state.validate()?;
+            return Ok(state);
+        }
+        ensure!(
+            state.error.is_empty(),
+            "Console Stream App failed while opening live encoded video: {state:?}"
+        );
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "Console Stream App did not display advancing live H.264 and typed results: {state:?}"
         );
         cdp.assert_no_software_renderer_events()?;
         assert_page_visible(cdp, session_id).await?;
@@ -976,6 +1136,102 @@ struct DecodeIdentity {
     smooth: bool,
     power_efficient: bool,
     label: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StreamAppState {
+    session_id: String,
+    lifecycle: String,
+    status: String,
+    decode_label: String,
+    video_width: u32,
+    video_height: u32,
+    decoded_frames: u64,
+    processed_frames: u64,
+    detections: u64,
+    dropped_results: u64,
+    overlay_width: u32,
+    overlay_height: u32,
+    observed_at: String,
+    freshness_label: String,
+    error: String,
+    body_text: String,
+}
+
+impl StreamAppState {
+    fn is_ready(&self) -> bool {
+        self.lifecycle == "running"
+            && self.status == "running"
+            && self.video_width > 0
+            && self.video_height > 0
+            && self.decoded_frames > 0
+            && self.processed_frames > 0
+            && self.overlay_width > 0
+            && self.overlay_height > 0
+            && !self.observed_at.is_empty()
+    }
+
+    fn validate(&self) -> Result<()> {
+        ensure!(
+            self.is_ready() && self.error.is_empty(),
+            "Stream App did not display a running live session with video and typed results: \
+             {self:?}"
+        );
+        ensure!(
+            uuid::Uuid::parse_str(&self.session_id)?.get_version_num() == 7,
+            "Stream App session identity must be UUIDv7"
+        );
+        ensure!(
+            self.decode_label == "hardware H.264 decode"
+                || self.decode_label == "software H.264 decode",
+            "Stream App made an invalid decode-path claim: {:?}",
+            self.decode_label
+        );
+        let observed_at = chrono::DateTime::parse_from_rfc3339(&self.observed_at)?;
+        let result_age = chrono::Utc::now()
+            .signed_duration_since(observed_at.with_timezone(&chrono::Utc))
+            .num_milliseconds();
+        ensure!(
+            (0..=5_000).contains(&result_age),
+            "Stream App typed overlay result is stale by {result_age} ms: {self:?}"
+        );
+        ensure!(
+            self.freshness_label.starts_with("frame age ")
+                && !software_renderer(&self.body_text.to_ascii_lowercase()),
+            "Stream App did not expose fresh results or exposed a software-renderer warning"
+        );
+        Ok(())
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StreamDecodeIdentity {
+    supported: bool,
+    smooth: bool,
+    power_efficient: bool,
+    label: String,
+}
+
+impl StreamDecodeIdentity {
+    fn validate(&self, app_label: &str) -> Result<()> {
+        ensure!(
+            self.supported && self.smooth,
+            "browser does not report supported, smooth H.264 Stream decode: {self:?}"
+        );
+        let expected = if self.power_efficient {
+            "hardware H.264 decode"
+        } else {
+            "software H.264 decode"
+        };
+        ensure!(
+            self.label == expected && app_label == expected,
+            "Stream App decode label disagrees with exact MediaCapabilities result \
+             ({expected:?}): {self:?}"
+        );
+        Ok(())
+    }
 }
 
 impl DecodeIdentity {
@@ -1557,6 +1813,53 @@ const APP_FRAME_DECODE_IDENTITY: &str = r#"(async () => {
   };
 })()"#;
 
+const STREAM_APP_STATE: &str = r#"(() => {
+  const video=document.getElementById("video");
+  const overlay=document.getElementById("overlay");
+  const sessionText=document.getElementById("session")?.textContent ?? "";
+  const [sessionId,lifecycle]=sessionText.split(" · ");
+  return {
+    sessionId:sessionId === "no session" ? "" : sessionId,
+    lifecycle:lifecycle ?? "",
+    status:document.getElementById("status")?.textContent ?? "",
+    decodeLabel:document.getElementById("decode")?.textContent ?? "",
+    videoWidth:video?.width ?? 0,
+    videoHeight:video?.height ?? 0,
+    decodedFrames:Number(video?.dataset.decodedFrames ?? 0),
+    processedFrames:Number(document.getElementById("frames")?.textContent ?? 0),
+    detections:Number(document.getElementById("objects")?.textContent ?? 0),
+    droppedResults:Number(document.getElementById("dropped")?.textContent ?? 0),
+    overlayWidth:overlay?.width ?? 0,
+    overlayHeight:overlay?.height ?? 0,
+    observedAt:overlay?.dataset.observedAt ?? "",
+    freshnessLabel:document.getElementById("freshness")?.textContent ?? "",
+    error:document.getElementById("error")?.hidden === false
+      ? document.getElementById("error").textContent : "",
+    bodyText:document.body?.innerText ?? ""
+  };
+})()"#;
+
+const STREAM_APP_DECODE_IDENTITY: &str = r#"(async () => {
+  const video=document.getElementById("video");
+  const codec=video.dataset.codec;
+  const result=await navigator.mediaCapabilities.decodingInfo({
+    type:"file",
+    video:{
+      contentType:`video/mp4; codecs="${codec}"`,
+      width:Number(video.dataset.sourceWidth),
+      height:Number(video.dataset.sourceHeight),
+      bitrate:Number(video.dataset.expectedBitrateBps),
+      framerate:Number(video.dataset.frameRate)
+    }
+  });
+  return {
+    supported:result.supported,
+    smooth:result.smooth,
+    powerEfficient:result.powerEfficient,
+    label:document.getElementById("decode")?.textContent ?? ""
+  };
+})()"#;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1702,7 +2005,7 @@ mod tests {
                 }
             }]
         });
-        assert_eq!(find_app_frame_id(&tree), Some("app"));
+        assert_eq!(find_app_frame_id(&tree, "simulation-view"), Some("app"));
     }
 
     #[test]
@@ -1717,6 +2020,9 @@ mod tests {
             ],
             "frameId": "app"
         });
-        assert_eq!(simulation_view_frame_id_from_dom_node(&node), Some("app"));
+        assert_eq!(
+            app_frame_id_from_dom_node(&node, "simulation-view"),
+            Some("app")
+        );
     }
 }
