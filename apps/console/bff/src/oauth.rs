@@ -18,17 +18,25 @@ use veoveo_mcp_contract::ScopeName;
 use crate::{
     AppState,
     session::{
-        AUTHORIZATION_AAD, ConsoleSession, PendingAuthorization, clear_authorization_cookie,
-        clear_session_cookie, random_token, read_authorization, set_authorization_cookie,
-        set_session_cookie,
+        AUTHORIZATION_AAD, ConsoleReturnPath, ConsoleSession, PendingAuthorization,
+        clear_authorization_cookie, clear_session_cookie, random_token, read_authorization,
+        set_authorization_cookie, set_session_cookie,
     },
 };
 
 const MAX_CONSOLE_SESSION_SECONDS: u64 = 30 * 24 * 60 * 60;
 const MAX_ACCESS_TOKEN_SECONDS: u64 = 24 * 60 * 60;
 
-pub(crate) async fn login(State(state): State<AppState>) -> Response {
-    match begin_login(&state) {
+#[derive(Debug, Default, Deserialize)]
+pub(crate) struct LoginQuery {
+    return_to: Option<String>,
+}
+
+pub(crate) async fn login(
+    State(state): State<AppState>,
+    Query(query): Query<LoginQuery>,
+) -> Response {
+    match begin_login(&state, query.return_to.as_deref()) {
         Ok(response) => response,
         Err(error) => {
             tracing::error!(%error, "failed to begin console login");
@@ -37,7 +45,7 @@ pub(crate) async fn login(State(state): State<AppState>) -> Response {
     }
 }
 
-fn begin_login(state: &AppState) -> anyhow::Result<Response> {
+fn begin_login(state: &AppState, return_to: Option<&str>) -> anyhow::Result<Response> {
     let oauth_state = random_value()?;
     let code_verifier = random_value()?;
     let code_challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(code_verifier.as_bytes()));
@@ -45,6 +53,7 @@ fn begin_login(state: &AppState) -> anyhow::Result<Response> {
         state: oauth_state.clone(),
         code_verifier,
         expires_at: Utc::now().timestamp() + 600,
+        return_path: ConsoleReturnPath::from_untrusted(return_to),
     };
     let encrypted = state.sessions.seal(&pending, AUTHORIZATION_AAD)?;
     let mut authorize = state.config.authorize_url();
@@ -179,7 +188,7 @@ pub(crate) async fn callback(
     {
         return callback_error(&state, StatusCode::INTERNAL_SERVER_ERROR);
     }
-    (response_headers, Redirect::to("/console/")).into_response()
+    (response_headers, Redirect::to(pending.return_path.as_str())).into_response()
 }
 
 pub(crate) async fn logout(State(state): State<AppState>, request_headers: HeaderMap) -> Response {
