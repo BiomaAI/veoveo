@@ -61,6 +61,19 @@ pub(crate) fn ensure(repository: &RepositoryContext) -> Result<()> {
     Ok(())
 }
 
+pub(crate) fn reconfigure(repository: &RepositoryContext, confirmation: &str) -> Result<()> {
+    ensure!(
+        confirmation == BUILDER_NAME,
+        "refusing to reconfigure builder: pass --confirm {BUILDER_NAME}"
+    );
+    ensure_buildx(repository)?;
+    if let Some(inspection) = inspect(repository)? {
+        validate_identity(repository, &inspection)?;
+        buildx_status(repository, ["rm", "--keep-state", BUILDER_NAME])?;
+    }
+    ensure(repository)
+}
+
 pub(crate) fn recreate(repository: &RepositoryContext, confirmation: &str) -> Result<()> {
     ensure!(
         confirmation == BUILDER_NAME,
@@ -325,6 +338,30 @@ fn install_managed_buildx(managed: &ManagedBuildx) -> Result<()> {
 }
 
 fn validate(repository: &RepositoryContext, inspection: &BuilderInspection) -> Result<()> {
+    validate_identity(repository, inspection)?;
+
+    let expected_digest =
+        config_digest(&repository.root().join("tools/image-build/buildkitd.toml"))?;
+    let environment = process::output_text(
+        "docker",
+        [
+            "inspect",
+            BUILDER_CONTAINER,
+            "--format",
+            "{{range .Config.Env}}{{println .}}{{end}}",
+        ],
+        Some(repository.root()),
+    )?;
+    ensure!(
+        environment
+            .lines()
+            .any(|line| line == format!("VEOVEO_BUILDER_CONFIG_SHA256={expected_digest}")),
+        "builder {BUILDER_NAME} was created with a different BuildKit configuration"
+    );
+    Ok(())
+}
+
+fn validate_identity(repository: &RepositoryContext, inspection: &BuilderInspection) -> Result<()> {
     require_buildx(repository)?;
     ensure!(
         inspection.driver == "docker-container",
@@ -351,25 +388,6 @@ fn validate(repository: &RepositoryContext, inspection: &BuilderInspection) -> R
         image.trim() == BUILDKIT_IMAGE,
         "builder {BUILDER_NAME} uses image {}; expected {BUILDKIT_IMAGE}",
         image.trim()
-    );
-
-    let expected_digest =
-        config_digest(&repository.root().join("tools/image-build/buildkitd.toml"))?;
-    let environment = process::output_text(
-        "docker",
-        [
-            "inspect",
-            BUILDER_CONTAINER,
-            "--format",
-            "{{range .Config.Env}}{{println .}}{{end}}",
-        ],
-        Some(repository.root()),
-    )?;
-    ensure!(
-        environment
-            .lines()
-            .any(|line| line == format!("VEOVEO_BUILDER_CONFIG_SHA256={expected_digest}")),
-        "builder {BUILDER_NAME} was created with a different BuildKit configuration"
     );
     Ok(())
 }

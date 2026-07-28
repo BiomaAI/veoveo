@@ -1087,6 +1087,7 @@ The repository image surface is:
 ```sh
 cargo xtask image builder status
 cargo xtask image builder ensure
+cargo xtask image builder reconfigure --confirm veoveo
 cargo xtask image builder recreate --confirm veoveo
 
 cargo xtask image plan --target <target>
@@ -1125,8 +1126,10 @@ The command creates and bootstraps a missing builder. An existing builder with t
 wrong driver, image, daemon version, or configuration fails validation. The checked-in
 BuildKit garbage-collection policy retains source-local and Cargo cache mounts long
 enough for the incremental workflow and applies explicit reserved, maximum, and
-free-space bounds. Only `image builder recreate --confirm veoveo` may remove an
-incompatible builder and its cache.
+free-space bounds. `image builder reconfigure --confirm veoveo` applies a checked-in
+configuration revision while retaining BuildKit state. Only
+`image builder recreate --confirm veoveo` may remove an incompatible builder and its
+cache.
 
 The implementation verified Buildx 0.35.0 and BuildKit 0.31.2 on 2026-07-25.
 Execution rechecks their authoritative release pages before pinning. A newer stable

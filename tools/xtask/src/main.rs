@@ -83,8 +83,10 @@ enum BuilderCommand {
     Status,
     /// Create a missing builder and verify its complete contract.
     Ensure,
+    /// Apply the checked-in builder configuration without deleting build state.
+    Reconfigure(BuilderConfirmationArgs),
     /// Remove and recreate the managed builder.
-    Recreate(RecreateArgs),
+    Recreate(BuilderConfirmationArgs),
 }
 
 #[derive(Debug, Args)]
@@ -95,8 +97,8 @@ struct SmokeArgs {
 }
 
 #[derive(Debug, Args)]
-struct RecreateArgs {
-    /// Required destructive-action confirmation.
+struct BuilderConfirmationArgs {
+    /// Required builder-name confirmation.
     #[arg(long)]
     confirm: String,
 }
@@ -258,6 +260,9 @@ fn main() -> Result<()> {
             ImageCommand::Builder { command } => match command {
                 BuilderCommand::Status => builder::status(&repository),
                 BuilderCommand::Ensure => builder::ensure(&repository),
+                BuilderCommand::Reconfigure(args) => {
+                    builder::reconfigure(&repository, &args.confirm)
+                }
                 BuilderCommand::Recreate(args) => builder::recreate(&repository, &args.confirm),
             },
             ImageCommand::Plan(args) => {
