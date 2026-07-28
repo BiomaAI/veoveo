@@ -179,9 +179,19 @@ altitude. [Run the UAV showcase](showcase/uav-sim/README.md).
 Every capability above reaches agents and operators through the
 [Model Context Protocol](https://modelcontextprotocol.io/specification/):
 tools, resources, prompts, completions, durable tasks, subscriptions, and
-notifications behind one identity and policy boundary. Any compatible MCP
-host can drive the platform, and the Console speaks the same protocol that
-agents use.
+notifications behind one identity and policy boundary. A client connects
+once and reaches every capability; a system joins once and reaches every
+client. Any compatible MCP host can drive the platform, and the Console
+speaks the same protocol that agents use.
+
+<a href="docs/images/integration-matrix.png">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/integration-matrix-dark.png">
+    <img src="docs/images/integration-matrix.png" alt="Point-to-point wiring costs N times M integrations; one protocol and harness costs N plus M contracts">
+  </picture>
+</a>
+
+*From N × M integrations to N + M contracts.*
 
 ### Apps travel with the server
 
