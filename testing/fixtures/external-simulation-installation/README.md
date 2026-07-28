@@ -94,3 +94,15 @@ The command drives the anonymous producer through the core Simulation View
 contract. It exercises several cameras, capacity admission, live leases, and
 the real MCP App in headed hardware-backed Chrome. The fixture has no UAV
 runtime or UAV-owned rendering behavior.
+
+Stop the fixture cluster after acceptance:
+
+```sh
+cargo xtask smoke profile-cluster-stop \
+  --profile testing/fixtures/external-simulation-installation/deployment.json
+```
+
+The stopped cluster retains its deployment state for the next independent
+run. Its renderer must not remain active while another local profile performs
+GPU acceptance because separate k3d schedulers cannot coordinate allocation
+of the same host GPU.

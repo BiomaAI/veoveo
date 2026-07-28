@@ -197,6 +197,12 @@ second owns the anonymous-producer proof for Simulation View, camera capacity,
 RTX/NVENC, WebRTC, and its generic App.
 Neither command substitutes for the other.
 
+When the independent Simulation View proof uses another local k3d profile on
+the same workstation, stop that profile before the composed showcase. Each
+k3d scheduler advertises the same host GPU independently. Concurrent local
+GPU clusters can therefore overcommit it without either scheduler reporting
+pressure. Keep every required workload enabled in the active profile.
+
 Run the composed showcase only after both independent paths pass:
 
 ```sh

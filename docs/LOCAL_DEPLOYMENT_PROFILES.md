@@ -95,6 +95,11 @@ A profile applies the NVIDIA device-plugin bootstrap and waits for allocatable
 nvidia.com/gpu capacity. The local workflow fails before application installation
 when the GPU contract is unavailable.
 
+Local k3d schedulers do not share GPU allocation state. A single-GPU
+workstation therefore runs one GPU-bearing profile cluster at a time. Stop a
+completed profile before starting GPU acceptance in another profile; do not
+remove required workloads from either profile to make them overlap.
+
 Use the profile lifecycle commands for the SUMO environment:
 
 ~~~bash
