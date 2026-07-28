@@ -36,7 +36,7 @@ const selected = catalog.screenshots.filter((shot) => requestedIds.has(shot.id))
 const missingIds = [...requestedIds].filter((id) => !selected.some((shot) => shot.id === id));
 if (missingIds.length > 0) throw new Error(`unknown screenshot id(s): ${missingIds.join(", ")}`);
 
-const cdpUrl = process.env.CHROME_CDP_URL ?? "http://127.0.0.1:9227";
+const cdpUrl = process.env.CHROME_CDP_URL ?? "http://127.0.0.1:9222";
 const browser = await chromium.connectOverCDP(cdpUrl);
 
 try {

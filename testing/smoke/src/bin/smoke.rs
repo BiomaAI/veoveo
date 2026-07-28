@@ -512,7 +512,7 @@ enum Cmd {
         #[arg(long)]
         public_base_url: String,
         /// HTTP discovery or direct ws:// browser endpoint for headed hardware-backed Chrome.
-        #[arg(long, default_value = "http://127.0.0.1:9227")]
+        #[arg(long, default_value = "http://127.0.0.1:9222")]
         chrome_cdp_url: String,
         /// Root for revision- and run-qualified JSON and PNG evidence.
         #[arg(long, default_value = "output/acceptance/uav")]
@@ -535,7 +535,7 @@ enum Cmd {
         #[arg(long, default_value = "operations")]
         work_context: String,
         /// HTTP discovery or direct ws:// browser endpoint for headed hardware-backed Chrome.
-        #[arg(long, default_value = "http://127.0.0.1:9227")]
+        #[arg(long, default_value = "http://127.0.0.1:9222")]
         chrome_cdp_url: String,
         /// Maximum time for Isaac, poses, render products, NVENC, WebRTC, and video playback.
         #[arg(long, default_value_t = 300)]

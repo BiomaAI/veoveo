@@ -149,7 +149,7 @@ impl StreamMcp {
 
     #[tool(
         title = "Start a live Stream session",
-        description = "Start one admitted live GStreamer pipeline and return its typed RTP/H.264 ingress plus owner-scoped session resources immediately.",
+        description = "Start one admitted live GStreamer pipeline and return its typed RTP/H.264 ingress plus Work-Context-readable, owner-controlled session resources immediately.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_stream_mcp::contract::StartLiveSessionOutput>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -271,7 +271,9 @@ impl ServerHandler for StreamMcp {
                 .with_mime_type("application/json"),
             Resource::new(uris::SESSIONS_URI, "stream live sessions")
                 .with_title("Stream live sessions")
-                .with_description("Owner-scoped live pipeline session index.")
+                .with_description(
+                    "Work-Context-readable live pipeline sessions with owner-scoped control.",
+                )
                 .with_mime_type("application/json"),
         ];
         for pipeline in self.state.catalog.pipeline_views() {
@@ -529,7 +531,7 @@ impl ServerHandler for StreamMcp {
         let identity = internal_identity(&context)?;
         if let Some(session_id) = subscribable_session_id(&request.uri) {
             let owner = runtime_owner(&identity);
-            if !self.state.live.owns(session_id, &owner).await {
+            if !self.state.live.readable_by(session_id, &owner).await {
                 return Err(McpError::resource_not_found(
                     "Stream session not found",
                     None,
@@ -554,7 +556,7 @@ impl ServerHandler for StreamMcp {
         let identity = internal_identity(&context)?;
         if let Some(session_id) = subscribable_session_id(&request.uri) {
             let owner = runtime_owner(&identity);
-            if !self.state.live.owns(session_id, &owner).await {
+            if !self.state.live.readable_by(session_id, &owner).await {
                 return Err(McpError::resource_not_found(
                     "Stream session not found",
                     None,

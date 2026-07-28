@@ -3,11 +3,11 @@ use serde::Serialize;
 
 use super::*;
 use crate::scenarios::simulation_view::browser::{
-    ConsoleLiveCaptureEvidence, ConsoleRecordingCaptureEvidence, capture_console_live_app,
-    capture_console_recording,
+    ConsoleLiveCaptureEvidence, ConsoleRecordingCaptureEvidence, ConsoleStreamCaptureEvidence,
+    capture_console_live_app, capture_console_recording, capture_console_stream_app,
 };
 
-const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-acceptance-evidence/v1";
+const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-acceptance-evidence/v2";
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -44,6 +44,7 @@ struct ShowcaseEvidence {
     camera_rig: &'static str,
     recording_id: String,
     checkpoints: Vec<FlightCheckpointEvidence>,
+    stream: ConsoleStreamCaptureEvidence,
     recording: ConsoleRecordingCaptureEvidence,
 }
 
@@ -58,6 +59,7 @@ struct ViewResources {
 struct FlightEvidence {
     recording_id: String,
     checkpoints: Vec<FlightCheckpointEvidence>,
+    stream: ConsoleStreamCaptureEvidence,
 }
 
 pub(crate) async fn uav_showcase_verify(
@@ -160,7 +162,14 @@ pub(crate) async fn uav_showcase_verify(
         )
     })?;
 
-    let domain = uav_sim_verify(conformance, scenario_path, context, public_base_url);
+    let (stream_capture_complete, hold_live_stream) = tokio::sync::oneshot::channel();
+    let domain = uav_sim_verify_with_visual_hold(
+        conformance,
+        scenario_path,
+        context,
+        public_base_url,
+        Some(hold_live_stream),
+    );
     let visual = monitor_flight(
         &operator,
         &scenario,
@@ -168,6 +177,7 @@ pub(crate) async fn uav_showcase_verify(
         public_base_url,
         &resources.camera_id,
         &evidence_directory,
+        stream_capture_complete,
     );
     // Do not cancel domain acceptance when visual acceptance fails after
     // takeoff. The domain future owns postflight landing recovery and must run
@@ -235,6 +245,7 @@ pub(crate) async fn uav_showcase_verify(
         camera_rig: "follow_entity",
         recording_id: flight.recording_id,
         checkpoints: flight.checkpoints,
+        stream: flight.stream,
         recording,
     };
     let manifest_path = evidence_directory.join("evidence.json");
@@ -243,7 +254,8 @@ pub(crate) async fn uav_showcase_verify(
     println!(
         "UAV showcase acceptance ok: the UAV-owned governed scene drove an independent Simulation \
          View follow camera through takeoff, mission, and landing; the authenticated Console \
-         displayed advancing NVIDIA NVENC H.264 at every checkpoint and opened the governed Rerun \
+         displayed advancing NVIDIA NVENC H.264 at every checkpoint, the Stream App displayed the \
+         direct live feed with fresh typed overlays, and Console opened the governed Rerun \
          recording. Evidence: {}",
         manifest_path.display()
     );
@@ -407,6 +419,7 @@ async fn monitor_flight(
     public_base_url: &str,
     camera_id: &str,
     evidence_directory: &Path,
+    stream_capture_complete: tokio::sync::oneshot::Sender<()>,
 ) -> Result<FlightEvidence> {
     let timeout = Duration::from_secs(scenario.view.timeout_seconds);
     let takeoff = wait_for_checkpoint(
@@ -461,6 +474,14 @@ async fn monitor_flight(
         mission.1,
         mission_capture,
     )?;
+    let stream = capture_console_stream_app(
+        chrome_cdp_url,
+        public_base_url,
+        &evidence_directory.join("mission-stream-live.png"),
+        timeout,
+    )
+    .await?;
+    let _ = stream_capture_complete.send(());
 
     let landing = wait_for_checkpoint(
         operator,
@@ -495,6 +516,7 @@ async fn monitor_flight(
     Ok(FlightEvidence {
         recording_id,
         checkpoints: vec![takeoff_evidence, mission_evidence, landing_evidence],
+        stream,
     })
 }
 

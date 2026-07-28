@@ -94,9 +94,12 @@ state, forwarded-frame count, and error. Recording Hub remains the durable
 authority after it accepts those bytes.
 
 One pipeline has at most one active live session because its admitted UDP port
-is exclusive. Session state is owner-scoped by principal, profile, tenant, and
-data labels. Stopping a session terminates its native runner and retains the
-bounded result history for inspection.
+is exclusive. The creating principal controls session shutdown. Read access is
+shared with authorized viewers in the same tenant and Work Context when the
+session's data labels are a subset of the viewer's labels. Cross-context,
+cross-tenant, and under-labeled reads fail closed. Stopping a session
+terminates its native runner and retains the bounded result history for
+inspection.
 
 ## Stream MCP App
 
@@ -118,8 +121,11 @@ Preview data is the admitted H.264 access unit stream copied after parsing. It
 is not a JPEG fallback and does not trigger a second encode. WebCodecs draws
 decoded frames while a separate overlay canvas renders typed bounding boxes.
 The App waits for a retained keyframe before decoding and discards already
-observed sequence numbers. Its session selector switches among owner-visible
-live streams without changing their pipelines or transport.
+observed sequence numbers. Its session selector switches among live streams
+visible to the operator's Work Context without changing their pipelines or
+transport. This permits a logged-in human to inspect a stream started by an
+authorized automation principal without granting that human ownership of the
+pipeline.
 
 The preview resource is meant for an operator view, not bulk media
 distribution. It keeps the MCP boundary portable across Console and external
@@ -268,7 +274,9 @@ must prove:
 The UAV showcase starts the live Stream session before flight, sends the
 already encoded nadir-camera access units to Stream before logging them to
 Rerun, and retains its independent Recording and Simulation View evidence.
-Visual acceptance uses headed Chrome with hardware-backed WebGPU and WebGL.
+Visual acceptance uses headed Chrome with hardware-backed WebGPU or WebGL. The
+harness probes both APIs when available and fails only when neither reaches
+hardware.
 
 ## Deliberate Limits
 

@@ -5,6 +5,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
+use tokio::sync::oneshot;
 use veoveo_mcp_contract::{
     FrameBasis, FrameId, FrameNode, FrameParentTransform, FrameWorldId, FrameWorldRevision,
     FrameWorldTree, Wgs84Position,
@@ -419,6 +420,17 @@ pub(crate) async fn uav_sim_verify(
     context: &str,
     public_base_url: &str,
 ) -> Result<()> {
+    uav_sim_verify_with_visual_hold(conformance, scenario_path, context, public_base_url, None)
+        .await
+}
+
+async fn uav_sim_verify_with_visual_hold(
+    conformance: &Path,
+    scenario_path: &Path,
+    context: &str,
+    public_base_url: &str,
+    visual_stream_capture: Option<oneshot::Receiver<()>>,
+) -> Result<()> {
     let scenario = UavAcceptanceScenario::load(scenario_path)?;
     if conformance == Path::new("target/debug/conformance") {
         run_checked(
@@ -528,7 +540,7 @@ pub(crate) async fn uav_sim_verify(
         "Stream MCP App does not expose video decoding, preview, and decode-path status"
     );
 
-    let flight_result: Result<String> = async {
+    let mut flight_result: Result<String> = async {
         ensure_vehicle_landed(&operator, &scenario, "preflight recovery").await?;
         operator
             .call_tool(
@@ -731,6 +743,26 @@ pub(crate) async fn uav_sim_verify(
         Ok(governed_artifact_id)
     }
     .await;
+    // Composed visual acceptance gets a bounded chance to observe the still-running
+    // direct Stream session. A dropped sender means the visual verifier already
+    // exited, so cleanup proceeds and its own result reports the visual failure.
+    if flight_result.is_ok()
+        && let Some(captured) = visual_stream_capture
+    {
+        let timeout = Duration::from_secs(
+            scenario
+                .takeoff
+                .state_timeout_seconds
+                .saturating_add(scenario.mission.task_timeout_seconds)
+                .saturating_add(scenario.view.timeout_seconds.saturating_mul(3)),
+        );
+        if tokio::time::timeout(timeout, captured).await.is_err() {
+            flight_result = Err(anyhow!(
+                "composed visual acceptance did not release the live Stream cleanup hold within \
+                 {timeout:?}"
+            ));
+        }
+    }
     let landing_result = ensure_vehicle_landed(&operator, &scenario, "postflight recovery").await;
     let stream_stop_result = operator
         .call_tool(
