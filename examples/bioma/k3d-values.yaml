@@ -27,6 +27,9 @@ telemetry:
 simulationView:
   publicSignalingUrl: wss://veoveo.bioma.ai/simulation-view/signaling
   publicMediaIp: 127.0.0.1
+  media:
+    exposure: NodePort
+    nodePortBase: 30998
 networkPolicy:
   enabled: false
 podDisruptionBudget:

@@ -144,11 +144,13 @@ capacity size `reason.engine.gpuMemoryUtilization` against their concurrently
 resident workloads.
 
 The local fixture advertises Simulation View signaling through
-`wss://veoveo.bioma.ai/simulation-view/signaling` and its first UDP media slot
-through `127.0.0.1:47998`. The k3d port binding makes that endpoint reachable
-from the headed Chrome session on the same workstation. An installation on a
-different network must advertise its routable signaling origin and UDP media
-address instead.
+`wss://veoveo.bioma.ai/simulation-view/signaling` and its bounded UDP media
+range through `127.0.0.1:47998-48001`. The chart assigns those four slots to
+the explicit NodePort range `30998-31001`, and the k3d bindings forward each
+public port to its matching NodePort. The fixed mapping is part of the
+acceptance contract because a Kubernetes-assigned NodePort cannot satisfy a
+predeclared browser media endpoint. An installation on a different network
+must advertise its routable signaling origin and UDP media address instead.
 
 Install the local platform fixture separately:
 
