@@ -378,8 +378,9 @@ captures a deterministic local tileset and governed marker, polyline, polygon,
 and label overlays through source, traversal, decode, and Bevy through the
 production MCP task and frame-resource boundaries. It verifies composition
 provenance, output digest, and owner isolation. The production image
-contains only the View MCP server. `just smoke-view-mcp` builds the image and
-dispatches the central Rust smoke harness.
+contains only the View MCP server. Build it with `cargo xtask image build
+--target view-mcp`, then dispatch the Rust harness with `cargo xtask smoke
+view-mcp`.
 
 The billed live acceptance scenario captures Google Photorealistic 3D Tiles
 from a camera orbiting the Statue of Liberty at 40.6892494, -74.0445004. It
@@ -388,6 +389,7 @@ rather than putting its value in the command line, drives the production MCP
 task interface, requires an NVIDIA adapter, and retains only the rendered JPEG:
 
 ```sh
-just smoke-view-google \
-  /tmp/veoveo-view-proof/statue-of-liberty.jpg
+cargo xtask image build --target view-mcp
+cargo xtask smoke view-google-live \
+  --output /tmp/veoveo-view-proof/statue-of-liberty.jpg
 ```

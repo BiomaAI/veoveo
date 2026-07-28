@@ -15,13 +15,14 @@ data. Generated PNG files live under [`gallery/`](gallery/).
 
 Console recipes attach to an existing Chrome DevTools session. They reuse its
 authenticated browser context; credentials and cookies are neither copied to
-disk nor printed. A dedicated Chrome profile is the cleanest repeatable setup:
+disk nor printed. Use the operator's persistent authenticated acceptance
+profile:
 
 ```bash
 google-chrome \
   --remote-debugging-address=127.0.0.1 \
-  --remote-debugging-port=9227 \
-  --user-data-dir=/tmp/veoveo-screenshot-chrome \
+  --remote-debugging-port=9222 \
+  --user-data-dir="$HOME/.config/veoveo-acceptance-chrome" \
   --window-size=1920,1080 \
   --force-dark-mode \
   --ozone-platform=x11 \
@@ -43,7 +44,7 @@ without downloading another browser, then list or run the recipes:
 cd tools/screenshots
 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci
 npm run list
-CHROME_CDP_URL=http://127.0.0.1:9227 \
+CHROME_CDP_URL=http://127.0.0.1:9222 \
 CONSOLE_URL=https://your-installation.example/console/ \
 npm run capture -- --ids console-overview,console-mcp-reason
 ```
@@ -90,7 +91,7 @@ run:
 
 ```bash
 cd tools/screenshots
-CHROME_CDP_URL=http://127.0.0.1:9227 \
+CHROME_CDP_URL=http://127.0.0.1:9222 \
 npm run capture -- --ids console-app-view
 ```
 
@@ -108,7 +109,7 @@ CDP-enabled Chrome profile, then run:
 
 ```bash
 cd tools/screenshots
-CHROME_CDP_URL=http://127.0.0.1:9227 \
+CHROME_CDP_URL=http://127.0.0.1:9222 \
 npm run capture -- --ids mcp-app-view-claude
 ```
 
@@ -123,7 +124,9 @@ SCREENSHOT_MCP_APP_VIEW_CLAUDE_URL_PATTERN=claude.ai/ \
 npm run capture -- --ids mcp-app-view-claude
 ```
 
-The tool aborts if the tab lacks both hardware WebGPU and hardware WebGL.
+The tool aborts only when the tab has neither a hardware WebGPU path nor a
+hardware WebGL path. Either API is sufficient; WebGL-only browser environments
+remain valid when their renderer is hardware-backed.
 Publication review must also verify that the external conversation contains no
 account identity, private prompt content, or unrelated history.
 
@@ -197,11 +200,11 @@ separate web viewer:
 ```bash
 PROFILE=showcase/sumo/deploy/deployment.json
 REVISION=$(git rev-parse HEAD)
-just profile-cluster-up "$PROFILE"
+cargo xtask smoke profile-cluster-up --profile "$PROFILE"
 cargo xtask image builder ensure
 cargo xtask release images --profile "$PROFILE" --profile-revision "$REVISION"
-just profile-up "$PROFILE" "$REVISION"
-just showcase-sumo-verify
+cargo xtask smoke profile-up --profile "$PROFILE"
+cargo xtask smoke sumo-verify --context k3d-veoveo-sumo
 
 kubectl --context k3d-veoveo-sumo -n veoveo \
   port-forward deploy/sumo-mcp 9889:9876
@@ -222,7 +225,7 @@ then record both browser viewports:
 
 ```bash
 cd tools/screenshots
-CHROME_CDP_URL=http://127.0.0.1:9227 \
+CHROME_CDP_URL=http://127.0.0.1:9222 \
 npm run capture -- --ids rerun-uav,rerun-sumo
 ```
 

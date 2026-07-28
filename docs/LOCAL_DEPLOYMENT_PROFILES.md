@@ -27,11 +27,11 @@ published under another revision.
 PROFILE=showcase/sumo/deploy/deployment.json
 REVISION=$(git rev-parse HEAD)
 
-just profile-validate "$PROFILE"
-just profile-cluster-up "$PROFILE"
+cargo xtask smoke profile-validate --profile "$PROFILE"
+cargo xtask smoke profile-cluster-up --profile "$PROFILE"
 cargo xtask image builder ensure
 cargo xtask release images --profile "$PROFILE" --profile-revision "$REVISION"
-just profile-up "$PROFILE"
+cargo xtask smoke profile-up --profile "$PROFILE"
 ~~~
 
 BuildKit pushes images directly to the shared local OCI registry. It does not load
@@ -98,10 +98,10 @@ when the GPU contract is unavailable.
 Use the profile lifecycle commands for the SUMO environment:
 
 ~~~bash
-just profile-cluster-stop "$PROFILE"
-just profile-cluster-up "$PROFILE"
-just profile-down "$PROFILE"
-just profile-cluster-delete "$PROFILE"
+cargo xtask smoke profile-cluster-stop --profile "$PROFILE"
+cargo xtask smoke profile-cluster-up --profile "$PROFILE"
+cargo xtask smoke profile-down --profile "$PROFILE"
+cargo xtask smoke profile-cluster-delete --profile "$PROFILE"
 ~~~
 
 A new local showcase may add an image group and adjacent Helm chart, then select those

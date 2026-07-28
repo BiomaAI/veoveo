@@ -64,8 +64,15 @@ operator-selected partitioning policy.
 
 ```bash
 nvidia-smi
-just k3d-node-build
-just profile-cluster-up showcase/sumo/deploy/deployment.json
+source deploy/local/k3d/versions.env
+docker build \
+  --build-arg K3S_VERSION="$K3S_VERSION" \
+  --build-arg CUDA_VERSION="$CUDA_VERSION" \
+  --build-arg NVIDIA_CONTAINER_TOOLKIT_VERSION="$NVIDIA_CONTAINER_TOOLKIT_VERSION" \
+  --tag "$VEOVEO_K3D_NODE_IMAGE" \
+  deploy/local/k3d/node
+cargo xtask smoke profile-cluster-up \
+  --profile showcase/sumo/deploy/deployment.json
 
 kubectl --context k3d-veoveo-sumo get node -o 'custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\.com/gpu'
 kubectl --context k3d-veoveo-sumo delete job veoveo-gpu-probe --ignore-not-found
@@ -92,12 +99,12 @@ Validate the profile, create the cluster, and publish one committed revision:
 ```bash
 PROFILE=showcase/sumo/deploy/deployment.json
 REVISION=$(git rev-parse HEAD)
-just profile-validate "$PROFILE"
-just profile-cluster-up "$PROFILE"
+cargo xtask smoke profile-validate --profile "$PROFILE"
+cargo xtask smoke profile-cluster-up --profile "$PROFILE"
 cargo xtask image builder ensure
 cargo xtask release images --profile "$PROFILE" --profile-revision "$REVISION"
-just profile-up "$PROFILE" "$REVISION"
-just showcase-sumo-verify
+cargo xtask smoke profile-up --profile "$PROFILE"
+cargo xtask smoke sumo-verify --context k3d-veoveo-sumo
 ```
 
 BuildKit pushes image layers directly to the registry. The SUMO images share
@@ -123,13 +130,15 @@ helm --kube-context k3d-veoveo-sumo -n veoveo list
 Remove the profile's Helm releases:
 
 ```bash
-just profile-down showcase/sumo/deploy/deployment.json
+cargo xtask smoke profile-down \
+  --profile showcase/sumo/deploy/deployment.json
 ```
 
 Delete the cluster to remove all local Kubernetes state and persistent volumes:
 
 ```bash
-just profile-cluster-delete showcase/sumo/deploy/deployment.json
+cargo xtask smoke profile-cluster-delete \
+  --profile showcase/sumo/deploy/deployment.json
 ```
 
 The standalone registry remains available to other profiles after cluster

@@ -36,8 +36,8 @@ provider-neutral.
 
 - `cargo check -p veoveo-stream-mcp`
 - `cargo test -p veoveo-stream-mcp --all-targets`
-- `docker buildx bake stream-mcp --load`
-- `just smoke-stream-gpu`
+- `cargo xtask image build --target stream-mcp`
+- `cargo xtask smoke stream-gpu`
 
 The C++ runner lives in `gst-runner/` and builds inside the exact DeepStream
 image. GPU acceptance requires NVIDIA Container Toolkit and a model engine

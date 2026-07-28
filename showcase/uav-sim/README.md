@@ -142,7 +142,10 @@ and media deployment belongs to the platform Simulation View component.
 Run credential-free checks:
 
 ```sh
-just showcase-uav-sim-test
+cargo test -p veoveo-uav-sim-mcp --all-targets
+PYTHONPATH=showcase/uav-sim/runtime:sdk/python/src \
+  uv run --with numpy==2.5.1 --python python3 \
+  python -m unittest discover -s showcase/uav-sim/runtime/tests -v
 helm lint showcase/uav-sim/deploy/helm
 cargo test -p veoveo-smoke --bin smoke
 ```
@@ -179,8 +182,13 @@ exception does not relax either GPU workload.
 The two live commands preserve the ownership boundary:
 
 ```sh
-just uav-domain-verify <kube-context> https://installation.example
-just simulation-view-verify <kube-context> https://installation.example
+cargo xtask smoke uav-domain-verify \
+  --context <kube-context> \
+  --public-base-url https://installation.example
+cargo xtask smoke simulation-view-verify \
+  --context <kube-context> \
+  --public-base-url https://installation.example \
+  --chrome-cdp-url http://127.0.0.1:9222
 ```
 
 The first command owns UAV flight, tiles, PX4, domain sensors, direct live
@@ -202,7 +210,10 @@ google-chrome \
   --enable-features=Vulkan \
   https://installation.example/console/
 
-just uav-showcase-verify <kube-context> https://installation.example
+cargo xtask smoke uav-showcase-verify \
+  --context <kube-context> \
+  --public-base-url https://installation.example \
+  --chrome-cdp-url http://127.0.0.1:9222
 ```
 
 Chrome must be visible and authenticated through the installation's ordinary
@@ -218,15 +229,17 @@ camera, renderer, stream, or App.
 
 The run verifies the actual Console at takeoff, during the mission, and after
 landing. Each checkpoint requires an advancing pose sequence and a healthy
-640-by-360 NVIDIA NVENC H.264 stream. It then opens the same flight's governed
-recording in the Console Rerun viewer. Headless Chrome, a browser with neither
-hardware WebGPU nor hardware WebGL, missing Console APIs, a synthetic App host,
-a static frame, or a software-renderer warning from the active visual surface
-fails the run.
+640-by-360 NVIDIA NVENC H.264 stream. During the mission it opens the Stream
+MCP App and requires advancing direct-live H.264, fresh typed results, the
+overlay canvas, and an exact Media Capabilities decode result. It then opens
+the same flight's governed recording in the Console Rerun viewer. Headless
+Chrome, a browser with neither hardware WebGPU nor hardware WebGL, missing
+Console APIs, a synthetic App host, a static frame, stale Stream results, or a
+software-renderer warning from the active visual surface fails the run.
 
 Evidence is written beneath
 `output/acceptance/uav/{source-revision}/{run-id}/`. The typed
-`veoveo.io/uav-showcase-acceptance-evidence/v1` manifest records the scene,
-producer, camera, recording, pose sequences, flight states, hardware identity,
-decode result, screenshot paths, and SHA-256 image digests. The directory is a
-run artifact and remains outside source control.
+`veoveo.io/uav-showcase-acceptance-evidence/v2` manifest records the scene,
+producer, camera, Stream session, recording, pose sequences, flight states,
+hardware identities, decode results, screenshot paths, and SHA-256 image
+digests. The directory is a run artifact and remains outside source control.

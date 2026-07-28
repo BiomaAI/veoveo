@@ -46,13 +46,14 @@ and attribution.
 - `cargo check -p veoveo-view-mcp`
 - `cargo test -p veoveo-view-mcp` (camera, traversal, cache, and decode tests
   run without a GPU)
-- `just smoke-view-mcp` builds the NVIDIA image and runs the renderer smoke:
+- `cargo xtask image build --target view-mcp` followed by `cargo xtask smoke
+  view-mcp` runs the renderer smoke:
   requires Docker and an NVIDIA GPU with the container toolkit, verifies a
   hardware Vulkan adapter, and captures a deterministic local tileset plus
   governed overlays through the production task boundary.
-- `just smoke-view-google <output>` is the billed live acceptance against
-  Google Photorealistic 3D Tiles: requires `GOOGLE_MAPS_API_KEY` (passed by
-  name) and an NVIDIA adapter.
+- `cargo xtask smoke view-google-live --output <output>` is the billed live
+  acceptance against Google Photorealistic 3D Tiles: requires
+  `GOOGLE_MAPS_API_KEY` (passed by name) and an NVIDIA adapter.
 
 ## Contract Compliance
 

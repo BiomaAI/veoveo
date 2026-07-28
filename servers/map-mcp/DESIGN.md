@@ -1087,8 +1087,8 @@ cargo test -p veoveo-map-mcp --lib
 cargo test -p veoveo-platform-store --lib
 uv run --project servers/map-mcp/data --frozen python -m unittest discover -s servers/map-mcp/data/tests -v
 npm --prefix apps/console/web run build
-docker build -f servers/map-mcp/Dockerfile -t veoveo/map-mcp:0.1.0 .
-just smoke-map-mcp
+cargo xtask image build --target map-mcp
+cargo xtask smoke map-mcp
 ```
 
 The risk-based suite targets representative acquisition, land routing,

@@ -10,11 +10,11 @@ That boundary keeps simulators independent and lets new ones arrive as siblings.
 | [`sumo/`](sumo/README.md) | The [SUMO](https://eclipse.dev/sumo/) traffic simulator as a live world: a task-native Rust MCP server owns the one TraCI connection, pushes `/world/sumo/**` into the Recording Hub as typed Rerun streams (map + 3D views of real Luxembourg), and exposes SUMO control as governed `sumo__*` tools. |
 | [`uav-sim/`](uav-sim/README.md) | Isaac Sim renders Google Photorealistic 3D Tiles through Cesium ion while Pegasus and PX4 operate UAVs; a provider-neutral MCP server governs sessions and missions, the encoded camera feeds Stream directly, and typed world state enters Recording Hub independently. |
 
-Task entry points for every showcase live in the root `Justfile`, namespaced
-`showcase-<name>-*` for domain tests and acceptance. Deployment uses the same
-typed profile commands as every installation. For SUMO, run
-`just showcase-sumo-test`, `showcase-sumo-smoke`, and `showcase-sumo-verify`;
-its composition lives in `sumo/deploy/deployment.json`.
+Component tests remain native Cargo commands. Cross-component acceptance lives
+in the typed Rust smoke harness and is dispatched through `cargo xtask smoke`.
+Deployment uses the same typed profile scenarios as every installation. SUMO's
+composition lives in `sumo/deploy/deployment.json`.
 
-The UAV runtime uses `just showcase-uav-sim-test`. Its installation-owned live
-proof requires NVIDIA registry access plus `CESIUM_ION_ACCESS_TOKEN`.
+The UAV runtime uses its Rust crate tests and the colocated Python adapter
+tests. Its installation-owned live proof requires NVIDIA registry access plus
+`CESIUM_ION_ACCESS_TOKEN`.

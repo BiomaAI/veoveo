@@ -32,7 +32,8 @@ remains upstream.
 
 - No Rust crate exists, so `cargo check` and `cargo test` do not apply.
 - Build the image: `docker build servers/chart-mcp`.
-- `just helm-check` validates the chart material that registers the server.
+- `cargo xtask smoke helm-config` validates the chart material that registers
+  the server.
 - Upstream behavior is verified against the running container, never from
   source in this repository.
 

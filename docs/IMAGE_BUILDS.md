@@ -19,7 +19,8 @@ Veoveo keeps the build engines that already own their domains. Cargo compiles, t
 lints, and documents Rust. Bake declares the OCI target graph and delegates execution
 to BuildKit. `xtask` resolves repository policy, validates Cargo and Bake agreement,
 selects compatible builder families, manages source materialization, and records
-evidence. The Justfile remains a short human-facing dispatcher.
+evidence. `cargo xtask smoke` dispatches the typed Rust acceptance harness; one-step
+native tool commands remain native.
 
 `xtask` is not a replacement compiler or a second image graph. It contains no fixed
 package list and does not interpret Dockerfiles. Bazel, Buck2, Pants, Earthly, and a
