@@ -612,10 +612,23 @@
     or remote endpoint registers in the validated catalog and immediately answers to the same
     task, artifact, identity, policy, and audit contracts. The gateway discovers the declared
     surface, prefixes tool names only at aggregation, and preserves each resource URI scheme.
+    A client connects once and reaches every capability; a system joins once and reaches
+    every client.
   </p>
   <figure class="art" style="text-align:center">
+    <img src="images/integration-matrix.png" alt="" style="width:auto;max-height:3.7in;margin:0 auto">
+    <figcaption>Figure 5 — From N × M integrations to N + M contracts.</figcaption>
+  </figure>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">12</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+
+<!-- 7. CAPABILITY PLANE · CATALOG -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
+  <figure class="art" style="text-align:center;margin-top:0">
     <img src="images/capability-map.png" alt="" style="width:auto;max-height:1.55in;margin:0 auto">
-    <figcaption style="text-align:left">Figure 5 — Fourteen hosted servers and remote endpoints; full MCP, contract-defined administration, durable tasks, artifacts, and policy remain one governed system.</figcaption>
+    <figcaption style="text-align:left">Figure 6 — Fourteen hosted servers and remote endpoints; full MCP, contract-defined administration, durable tasks, artifacts, and policy remain one governed system.</figcaption>
   </figure>
   <table class="data tight capability-table">
     <thead><tr><td>Server</td><td>Capability</td><td>Representative tools</td></tr></thead>
@@ -636,7 +649,7 @@
       <tr><td>3D View<br><code>view</code></td><td>Governed static scene compositions with exact inputs and bounded overlays, rendered offscreen on NVIDIA Vulkan.</td><td class="mono">create_scene_composition · create_view · set_camera · capture_frame · close_view</td></tr>
     </tbody>
   </table>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">12</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">13</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 
@@ -666,7 +679,7 @@
     <img src="images/stream-flow.png" alt="" style="height:2.9in;object-fit:contain">
     <figcaption>The agent asks, the record answers: detections for SQL, annotations for the viewer, a clip for sharing — and everything joins the record.</figcaption>
   </figure>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">13</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">14</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <div class="page">
@@ -715,7 +728,7 @@
       <tr><td>7</td><td class="mono">wake — task result</td><td>Delay −23%; every step already in the record.</td></tr>
     </tbody>
   </table>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">14</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">15</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- 8. DURABLE WORK -->
@@ -757,7 +770,7 @@
        by tenant and label policy; and read-only anyone-with-link bearers for artifacts explicitly
        marked releasable — expiring, download-limited, and revocable.</p>
   </div>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">15</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">16</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 
@@ -777,9 +790,9 @@
   </p>
   <figure class="art">
     <img src="images/capture-pipeline.png" alt="">
-    <figcaption>Figure 6 — Durable capture: a crash leaves a readable record · a restart never overwrites · ~225k msgs/s lossless.</figcaption>
+    <figcaption>Figure 7 — Durable capture: a crash leaves a readable record · a restart never overwrites · ~225k msgs/s lossless.</figcaption>
   </figure>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">16</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">17</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 
@@ -798,7 +811,7 @@
   </p>
   <figure class="art">
     <img src="images/sumo-loop.png" alt="">
-    <figcaption>Figure 7 — The closed loop on a live city: perceive from the record, decide, act on signals and routes.</figcaption>
+    <figcaption>Figure 8 — The closed loop on a live city: perceive from the record, decide, act on signals and routes.</figcaption>
   </figure>
   <table class="data tight">
     <thead><tr><td>Surface</td><td>Detail</td></tr></thead>
@@ -809,7 +822,7 @@
       <tr><td>Outputs</td><td>Successful task outputs upload through a task-bound write capability to the shared artifact plane.</td></tr>
     </tbody>
   </table>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">17</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">18</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 
@@ -824,7 +837,7 @@
   </p>
   <figure class="art">
     <img src="images/task-sleepwake.png" alt="" style="height:2.7in;object-fit:contain">
-    <figcaption>Figure 8 — Detach → sleep → wake: zero connections held, zero episodes burned waiting.</figcaption>
+    <figcaption>Figure 9 — Detach → sleep → wake: zero connections held, zero episodes burned waiting.</figcaption>
   </figure>
   <table class="data">
     <thead><tr><td>Property</td><td>Measured behavior</td></tr></thead>
@@ -847,7 +860,7 @@
         suites, the datasheet reference server, the console build, the IdP integration path, and
         deployment contract checks on every change.</li>
   </ul>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">18</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">19</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 
@@ -885,7 +898,7 @@
        and rollout governable. Learning is designed on top — and the primitives it needs are
        already in place.</p>
   </div>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">19</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">20</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- 11. DEPLOYMENT -->
@@ -901,7 +914,7 @@
   </p>
   <figure class="art" style="text-align:center">
     <img src="images/deployment-map.png" alt="" style="width:auto;max-height:2.7in;margin:0 auto">
-    <figcaption style="text-align:left">Figure 9 — Same platform, same cognition — edge, cluster, air-gap, or hybrid; only hybrid reaches out, and on the operator's terms.</figcaption>
+    <figcaption style="text-align:left">Figure 10 — Same platform, same cognition — edge, cluster, air-gap, or hybrid; only hybrid reaches out, and on the operator's terms.</figcaption>
   </figure>
   <table class="data tight">
     <thead><tr><td>Form</td><td>Shape</td></tr></thead>
@@ -912,7 +925,7 @@
       <tr><td>Hybrid</td><td>An edge installation that registers remote MCP endpoints and provider-backed servers. The reach is governed like everything else — same policy, same audit, same task contract.</td></tr>
     </tbody>
   </table>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">20</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">21</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 
@@ -942,7 +955,7 @@
        record before anything reads it. One operator owns all of it, anywhere the mission
        runs.</p>
   </div>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">21</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">22</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 
@@ -974,7 +987,7 @@
       <tr><td class="mono">resource · subscribe</td><td>concept</td><td>A condition that wakes you: subscribing to a resource means the agent is notified the moment it changes.</td></tr>
     </tbody>
   </table>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">22</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">23</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 </body>
