@@ -134,12 +134,13 @@ Each required workload still requests nvidia.com/gpu: 1 and the nvidia runtime
 class. The shares make all six render and GPU-compute workloads schedulable
 together; they are not a CPU fallback.
 
-The local Reason profile reserves 50% of the 24 GiB NVIDIA device for vLLM.
-That measured bound leaves enough device memory for its six-frame multimodal
-pass while Isaac Sim, Simulation View, Rerun, and the other GPU services remain
-resident. Installations with different checkpoints or GPU capacity size
-`reason.engine.gpuMemoryUtilization` against their concurrently resident
-workloads.
+The local Reason profile reserves 35% of the 24 GiB NVIDIA device for vLLM.
+The concurrently resident GPU workloads consume about 10.2 GiB before Reason
+starts. This bound preserves device-memory headroom for the six-frame
+multimodal pass while Isaac Sim, Simulation View, Rerun, and the other GPU
+services remain resident. Installations with different checkpoints or GPU
+capacity size `reason.engine.gpuMemoryUtilization` against their concurrently
+resident workloads.
 
 The local fixture advertises Simulation View signaling through
 `wss://veoveo.bioma.ai/simulation-view/signaling` and its first UDP media slot
