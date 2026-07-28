@@ -11,7 +11,13 @@ from pathlib import Path
 from types import ModuleType
 from unittest.mock import Mock, patch
 
-from veoveo_simulation_view.camera import CameraPool, HydraRenderProductProbe
+from veoveo_simulation_view.camera import (
+    READINESS_RENDER_PRODUCT_NAME,
+    CameraPool,
+    HydraRenderProductProbe,
+    livestream_aov_arguments,
+    render_product_name,
+)
 from veoveo_simulation_view.config import RendererConfig
 from veoveo_simulation_view.contracts import (
     CameraBinding,
@@ -24,6 +30,23 @@ from veoveo_simulation_view.scene import ArtifactMaterializer, ArtifactStore
 
 
 class RendererContractsTest(unittest.TestCase):
+    def test_readiness_product_is_not_a_streamed_media_slot(self) -> None:
+        config = Mock(
+            maximum_render_slots=4,
+            signaling_port_base=49100,
+            media_port_base=47998,
+            public_media_ip="192.0.2.42",
+        )
+
+        arguments = livestream_aov_arguments(config)
+
+        self.assertEqual(len(arguments), 4 * 7)
+        self.assertNotIn(READINESS_RENDER_PRODUCT_NAME, " ".join(arguments))
+        self.assertNotIn(
+            READINESS_RENDER_PRODUCT_NAME,
+            {render_product_name(slot) for slot in range(4)},
+        )
+
     def test_render_product_is_reconfigured_without_recreation(self) -> None:
         class FakeHydraTexture:
             def __init__(self) -> None:
@@ -142,6 +165,41 @@ class RendererContractsTest(unittest.TestCase):
         create_camera.assert_not_called()
         self.assertEqual(status, {"cameraId": "camera-2"})
         self.assertIs(pool._cameras[second.camera_id], runtime)
+
+    def test_slot_zero_is_idle_without_reconfiguring_readiness_probe(
+        self,
+    ) -> None:
+        class FakeRuntime:
+            def __init__(self, binding: CameraBinding) -> None:
+                self.binding = binding
+                self.probe = Mock()
+                self.smoothed_eye = None
+                self.last_update = 0.0
+                self.last_pose_sequence = None
+                self.pose_stale = False
+
+        binding = CameraBinding(
+            session_id="session-1",
+            camera_id="camera-1",
+            revision=1,
+            render_slot=0,
+            definition={},
+        )
+        readiness_probe = object()
+        runtime = FakeRuntime(binding)
+        pool = CameraPool.__new__(CameraPool)
+        pool._cameras = {binding.camera_id: runtime}
+        pool._slots = {0: binding.camera_id}
+        pool._idle = {}
+        pool._probe = readiness_probe
+
+        pool.close(binding.camera_id)
+
+        runtime.probe.pause.assert_called_once_with()
+        self.assertIs(pool._idle[0], runtime)
+        self.assertIs(pool._probe, readiness_probe)
+        self.assertEqual(pool._cameras, {})
+        self.assertEqual(pool._slots, {})
 
     def test_config_requires_disjoint_bounded_port_ranges(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

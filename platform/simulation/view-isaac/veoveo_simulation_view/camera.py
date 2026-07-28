@@ -17,6 +17,7 @@ from .pose import EntityPose, PoseSnapshot
 
 RENDER_PRODUCT_PREFIX = "/Render/OmniverseKit/HydraTextures"
 RGBA8_TEXTURE_FORMAT = "TextureFormat.RGBA8_UNORM"
+READINESS_RENDER_PRODUCT_NAME = "simulation_view_readiness"
 
 _capsule_pointer = ctypes.pythonapi.PyCapsule_GetPointer
 _capsule_pointer.argtypes = [ctypes.py_object, ctypes.c_char_p]
@@ -27,8 +28,8 @@ def render_product_name(slot: int) -> str:
     return f"simulation_view_slot_{slot}"
 
 
-def render_product_path(slot: int) -> str:
-    return f"{RENDER_PRODUCT_PREFIX}/{render_product_name(slot)}"
+def render_product_path(name: str) -> str:
+    return f"{RENDER_PRODUCT_PREFIX}/{name}"
 
 
 def livestream_aov_arguments(config: RendererConfig) -> list[str]:
@@ -68,7 +69,7 @@ class HydraRenderProductProbe:
     def __init__(
         self,
         *,
-        slot: int,
+        name: str,
         camera_path: str,
         width: int,
         height: int,
@@ -88,7 +89,6 @@ class HydraRenderProductProbe:
         self._generation = 0
         self._health: FrameHealth | None = None
         self._failure: BaseException | None = None
-        name = render_product_name(slot)
         self._hydra_texture = create_hydra_texture(
             name,
             width,
@@ -100,7 +100,7 @@ class HydraRenderProductProbe:
             hydra_tick_rate=fps,
         )
         actual = self._hydra_texture.get_render_product_path()
-        if actual != render_product_path(slot):
+        if actual != render_product_path(name):
             self.close()
             raise RuntimeError(
                 f"RTX HydraTexture returned unexpected path {actual!r}"
@@ -303,6 +303,11 @@ class CameraRuntime:
         }
 
 
+@dataclass(slots=True)
+class ReadinessProbeRuntime:
+    probe: HydraRenderProductProbe
+
+
 class CameraPool:
     def __init__(self, stage: Any, config: RendererConfig) -> None:
         self._stage = stage
@@ -310,7 +315,12 @@ class CameraPool:
         self._cameras: dict[str, CameraRuntime] = {}
         self._slots: dict[int, str] = {}
         self._idle: dict[int, CameraRuntime] = {}
-        self._probe: CameraRuntime | None = self._create_diagnostic_probe()
+        # Readiness owns a low-resolution RTX product outside the admitted
+        # media slots. A live slot must never be reconfigured back into a
+        # diagnostic product during teardown: Kit applies that transition on
+        # its next update and can block the renderer control loop while the
+        # AOV encoder is draining.
+        self._probe = self._create_diagnostic_probe()
 
     def upsert(self, binding: CameraBinding) -> dict[str, object]:
         existing_camera = self._slots.get(binding.render_slot)
@@ -325,11 +335,7 @@ class CameraPool:
                 raise ContractError("renderer camera slot is immutable")
             self._configure_camera(existing, binding)
             return existing.status()
-        if binding.render_slot == 0:
-            runtime = self._probe
-            self._probe = None
-        else:
-            runtime = self._idle.pop(binding.render_slot, None)
+        runtime = self._idle.pop(binding.render_slot, None)
         if runtime is None:
             runtime = self._create_camera(binding)
         else:
@@ -343,16 +349,12 @@ class CameraPool:
         if runtime is None:
             return
         self._slots.pop(runtime.binding.render_slot, None)
-        if runtime.binding.render_slot == 0:
-            self._configure_diagnostic(runtime)
-            self._probe = runtime
-        else:
-            runtime.probe.pause()
-            runtime.smoothed_eye = None
-            runtime.last_update = 0.0
-            runtime.last_pose_sequence = None
-            runtime.pose_stale = False
-            self._idle[runtime.binding.render_slot] = runtime
+        runtime.probe.pause()
+        runtime.smoothed_eye = None
+        runtime.last_update = 0.0
+        runtime.last_pose_sequence = None
+        runtime.pose_stale = False
+        self._idle[runtime.binding.render_slot] = runtime
 
     def close_session(self, session_id: str) -> None:
         for camera_id in [
@@ -388,9 +390,7 @@ class CameraPool:
         return runtime.status()
 
     def readiness(self) -> tuple[bool, bool]:
-        runtimes = list(self._cameras.values())
-        if self._probe is not None:
-            runtimes.append(self._probe)
+        runtimes = [*self._cameras.values(), self._probe]
         now = time.monotonic()
         product_ready = bool(runtimes)
         visible = any(
@@ -410,9 +410,7 @@ class CameraPool:
         self._cameras.clear()
         self._slots.clear()
         self._idle.clear()
-        if self._probe is not None:
-            self._probe.probe.close()
-            self._probe = None
+        self._probe.probe.close()
 
     def _configure_camera(
         self, runtime: CameraRuntime, binding: CameraBinding
@@ -458,46 +456,6 @@ class CameraPool:
         )
         self._update_camera(runtime, None)
 
-    def _configure_diagnostic(self, runtime: CameraRuntime) -> None:
-        from pxr import Gf, UsdGeom
-
-        camera = UsdGeom.Camera.Define(self._stage, runtime.camera_path)
-        camera.CreateFocalLengthAttr().Set(35.0)
-        camera.CreateVerticalApertureAttr().Set(24.0)
-        camera.CreateHorizontalApertureAttr().Set(36.0)
-        camera.CreateClippingRangeAttr().Set(Gf.Vec2f(0.1, 1_000.0))
-        runtime.transform_operation.Set(
-            Gf.Matrix4d()
-            .SetLookAt(
-                Gf.Vec3d(6.0, -6.0, 4.0),
-                Gf.Vec3d(0.0, 0.0, 0.5),
-                Gf.Vec3d(0.0, 0.0, 1.0),
-            )
-            .GetInverse()
-        )
-        runtime.binding = CameraBinding(
-            session_id="diagnostic",
-            camera_id="diagnostic",
-            revision=1,
-            render_slot=0,
-            definition={
-                "rig": {"kind": "look_at"},
-                "widthPx": self._config.probe_width,
-                "heightPx": self._config.probe_height,
-                "frameRateMillihertz": self._config.probe_fps * 1000,
-            },
-        )
-        runtime.smoothed_eye = None
-        runtime.last_update = 0.0
-        runtime.last_pose_sequence = None
-        runtime.pose_stale = False
-        runtime.probe.reconfigure(
-            camera_path=runtime.camera_path,
-            width=self._config.probe_width,
-            height=self._config.probe_height,
-            fps=self._config.probe_fps,
-        )
-
     def _create_camera(self, binding: CameraBinding) -> CameraRuntime:
         from pxr import Gf, UsdGeom
 
@@ -536,7 +494,7 @@ class CameraPool:
             camera_path=path,
             transform_operation=operation,
             probe=HydraRenderProductProbe(
-                slot=binding.render_slot,
+                name=render_product_name(binding.render_slot),
                 camera_path=path,
                 width=int(definition["widthPx"]),
                 height=int(definition["heightPx"]),
@@ -549,10 +507,10 @@ class CameraPool:
         self._update_camera(runtime, None)
         return runtime
 
-    def _create_diagnostic_probe(self) -> CameraRuntime:
+    def _create_diagnostic_probe(self) -> ReadinessProbeRuntime:
         from pxr import Gf, UsdGeom
 
-        path = "/World/SimulationView/Cameras/slot_0"
+        path = "/World/SimulationView/Cameras/diagnostic"
         camera = UsdGeom.Camera.Define(self._stage, path)
         camera.CreateFocalLengthAttr(35.0)
         camera.CreateVerticalApertureAttr(24.0)
@@ -571,24 +529,9 @@ class CameraPool:
             )
             .GetInverse()
         )
-        binding = CameraBinding(
-            session_id="diagnostic",
-            camera_id="diagnostic",
-            revision=1,
-            render_slot=0,
-            definition={
-                "rig": {"kind": "look_at"},
-                "widthPx": self._config.probe_width,
-                "heightPx": self._config.probe_height,
-                "frameRateMillihertz": self._config.probe_fps * 1000,
-            },
-        )
-        return CameraRuntime(
-            binding=binding,
-            camera_path=path,
-            transform_operation=operation,
+        return ReadinessProbeRuntime(
             probe=HydraRenderProductProbe(
-                slot=0,
+                name=READINESS_RENDER_PRODUCT_NAME,
                 camera_path=path,
                 width=self._config.probe_width,
                 height=self._config.probe_height,
