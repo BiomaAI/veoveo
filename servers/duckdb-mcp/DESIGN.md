@@ -927,9 +927,11 @@ Server tests cover:
 
 The Rust multi-process smoke harness covers gateway projection of DuckDB tools,
 task-capable execution, durable task completion, and result continuity across
-MCP sessions with a fresh token for the same principal. Deployment checks cover
-the image, shared library packaging, edge-route denial, persistent singleton
-shape, and container configuration.
+MCP sessions with a fresh token for the same principal. Its native path fetches
+the same versioned Spatial archive as the image, verifies both the archive and
+installed extension digests, and keeps the verified file in the Cargo target
+cache. Deployment checks cover the image, shared library packaging, edge-route
+denial, persistent singleton shape, and container configuration.
 
 Spatial release validation should always include the real pinned extension.
 Mocks cannot prove extension ABI compatibility, geometry execution, or R-tree

@@ -171,6 +171,7 @@ pub(crate) fn spawn_datasheet_smoke(
 
 pub(crate) fn spawn_duckdb_smoke(
     duckdb: &Path,
+    spatial_extension: &Path,
     port: u16,
     public_base_url: &str,
     data_dir: &Path,
@@ -194,6 +195,8 @@ pub(crate) fn spawn_duckdb_smoke(
             data_dir.join("exchange").as_os_str().to_os_string(),
             "--spill-dir".into(),
             data_dir.join("spill").as_os_str().to_os_string(),
+            "--spatial-extension".into(),
+            spatial_extension.as_os_str().to_os_string(),
             "--artifact-service-url".into(),
             artifact_service_url.into(),
         ],
@@ -335,6 +338,15 @@ pub(crate) async fn spawn_gateway_platform_store(
     control_plane: &Path,
 ) -> Result<PlatformStoreSmoke> {
     let platform = spawn_surreal_platform().await?;
+    bootstrap_gateway_platform_store(gateway, control_plane, &platform).await?;
+    Ok(platform)
+}
+
+pub(crate) async fn bootstrap_gateway_platform_store(
+    gateway: &Path,
+    control_plane: &Path,
+    platform: &PlatformStoreSmoke,
+) -> Result<()> {
     let mut bootstrap_env = platform.root_env();
     bootstrap_env.extend([
         (
@@ -363,7 +375,7 @@ pub(crate) async fn spawn_gateway_platform_store(
         platform.runtime_env(),
     )?;
     contains(&validation, "ok: revision")?;
-    Ok(platform)
+    Ok(())
 }
 
 pub(crate) fn gateway_serve_args(port: u16, platform: &PlatformStoreSmoke) -> Vec<OsString> {

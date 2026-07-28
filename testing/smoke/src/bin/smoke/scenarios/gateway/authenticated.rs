@@ -59,10 +59,11 @@ pub(crate) async fn gateway_authenticated(
     )?;
 
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
-    let platform_store = spawn_gateway_platform_store(gateway, control_plane).await?;
+    let platform_store = &plane.platform;
+    bootstrap_gateway_platform_store(gateway, control_plane, platform_store).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(gateway_port, &platform_store),
+        gateway_serve_args(gateway_port, platform_store),
         [
             (
                 "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",

@@ -39,6 +39,9 @@ engine rather than by narrowing SQL.
   the upstream `comfy-table ~7.1` pin so it composes with Rerun 0.35.
 - Docker is required for SurrealDB backed integration and smoke tests (root
   README, Develop And Verify).
+- `cargo xtask smoke agent-gateway` downloads the same pinned Spatial archive
+  used by the image, verifies its compressed and installed digests,
+  and caches it under `target/smoke-assets`.
 - The image build pins the DuckDB C API and verifies the Spatial extension
   digest (`servers/duckdb-mcp/Dockerfile`).
 

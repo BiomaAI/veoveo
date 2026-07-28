@@ -82,10 +82,11 @@ pub(crate) async fn agent_kernel_detach_resume(
 
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
     let auth_private_key = auth_private_key.trim().to_string();
-    let platform_store = spawn_gateway_platform_store(gateway, control_plane).await?;
+    let platform_store = &plane.platform;
+    bootstrap_gateway_platform_store(gateway, control_plane, platform_store).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(gateway_port, &platform_store),
+        gateway_serve_args(gateway_port, platform_store),
         [
             (
                 "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
@@ -357,10 +358,11 @@ pub(crate) async fn agent_kernel_scheduler(
     wait_for_http(&format!("{media_base}/media/healthz")).await?;
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
     let auth_private_key = auth_private_key.trim().to_string();
-    let platform_store = spawn_gateway_platform_store(gateway, control_plane).await?;
+    let platform_store = &plane.platform;
+    bootstrap_gateway_platform_store(gateway, control_plane, platform_store).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(gateway_port, &platform_store),
+        gateway_serve_args(gateway_port, platform_store),
         [
             (
                 "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
@@ -672,10 +674,11 @@ pub(crate) async fn agent_pilot_mission(
     )?;
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
     let auth_private_key = auth_private_key.trim().to_string();
-    let platform_store = spawn_gateway_platform_store(gateway, &generated_control_plane).await?;
+    let platform_store = &plane.platform;
+    bootstrap_gateway_platform_store(gateway, &generated_control_plane, platform_store).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(gateway_port, &platform_store),
+        gateway_serve_args(gateway_port, platform_store),
         [
             (
                 "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
@@ -957,10 +960,11 @@ pub(crate) async fn agent_sleep_wake(
     wait_for_http(&format!("{media_base}/media/healthz")).await?;
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
     let auth_private_key = auth_private_key.trim().to_string();
-    let platform_store = spawn_gateway_platform_store(gateway, control_plane).await?;
+    let platform_store = &plane.platform;
+    bootstrap_gateway_platform_store(gateway, control_plane, platform_store).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(gateway_port, &platform_store),
+        gateway_serve_args(gateway_port, platform_store),
         [
             (
                 "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
