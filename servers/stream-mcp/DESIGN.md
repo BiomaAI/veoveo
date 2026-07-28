@@ -212,6 +212,14 @@ The pod requests an NVIDIA GPU. NVDEC, inference, and tracking have no CPU
 fallback. Missing plugins, model engines, driver capabilities, runner binary,
 or GPU access are deployment failures.
 
+The canonical chart requests 8 GiB and limits Stream to 24 GiB of host memory.
+The admitted DeepStream 9.1 traffic-detection graph crossed the former 16 GiB
+limit during live UAV acceptance even when no replay graph overlapped it. The
+request reserves realistic node capacity while the limit covers TensorRT,
+GStreamer, encoded-preview retention, and bounded result state for one admitted
+graph. Operators may raise both values for a heavier catalog, but a production
+profile must not reduce them below the measured canonical graph.
+
 ## MCP Surface
 
 Tools:
