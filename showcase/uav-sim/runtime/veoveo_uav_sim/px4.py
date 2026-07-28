@@ -36,6 +36,8 @@ class Px4Commander:
         self._armed = False
         self._has_flown = False
         self._landed_state = mavutil.mavlink.MAV_LANDED_STATE_UNDEFINED
+        self._px4_main_mode: int | None = None
+        self._px4_sub_mode: int | None = None
         self._battery_percent = 100.0
         self._latitude_degrees: float | None = None
         self._longitude_degrees: float | None = None
@@ -106,10 +108,12 @@ class Px4Commander:
                 == mavutil.mavlink.MAV_LANDED_STATE_ON_GROUND
             ):
                 # PX4 remains in AUTO_LAND after a successful landing, and
-                # AUTO_LAND intentionally rejects a later arm request. Return
-                # the landed vehicle to position control before re-arming.
+                # AUTO_LAND intentionally rejects a later arm request. This
+                # headless showcase has no manual-control input, so POSCTL is
+                # also unarmable. AUTO_LOITER provides the stationary,
+                # autonomous landed state required before re-arming.
                 base_mode, custom_mode, custom_sub_mode = mavutil.px4_map[
-                    "POSCTL"
+                    "LOITER"
                 ]
                 self._send_command_locked(
                     mavutil.mavlink.MAV_CMD_DO_SET_MODE,
@@ -117,6 +121,7 @@ class Px4Commander:
                     custom_mode,
                     custom_sub_mode,
                 )
+                self._await_px4_mode_locked(custom_mode, custom_sub_mode)
             self._send_command_locked(
                 mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 1.0
             )
@@ -252,6 +257,25 @@ class Px4Commander:
             return
         raise TimeoutError(f"PX4 did not acknowledge MAVLink command {command}")
 
+    def _await_px4_mode_locked(
+        self, custom_mode: int, custom_sub_mode: int
+    ) -> None:
+        deadline = time.monotonic() + 15.0
+        while time.monotonic() < deadline:
+            if (
+                self._px4_main_mode == custom_mode
+                and self._px4_sub_mode == custom_sub_mode
+            ):
+                return
+            self._send_gcs_heartbeat_locked_if_due()
+            message = self._connection.recv_match(blocking=True, timeout=1.0)
+            if message is not None:
+                self._consume(message)
+        raise TimeoutError(
+            f"PX4 did not enter main mode {custom_mode} "
+            f"sub-mode {custom_sub_mode}"
+        )
+
     def _waypoint_reached_locked(self, waypoint: Waypoint) -> bool:
         if self._latitude_degrees is None or self._longitude_degrees is None:
             return False
@@ -270,9 +294,14 @@ class Px4Commander:
     def _consume(self, message) -> None:
         message_type = message.get_type()
         if message_type == "HEARTBEAT" and message.get_srcSystem() == self._target_system:
+            base_mode = int(message.base_mode)
             self._armed = bool(
-                int(message.base_mode) & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
+                base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
             )
+            if base_mode & mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED:
+                packed_mode = int(message.custom_mode)
+                self._px4_main_mode = (packed_mode >> 16) & 0xFF
+                self._px4_sub_mode = (packed_mode >> 24) & 0xFF
             self._connected = True
         elif message_type == "EXTENDED_SYS_STATE":
             self._landed_state = int(message.landed_state)

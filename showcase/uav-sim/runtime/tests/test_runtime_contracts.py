@@ -419,8 +419,9 @@ class _MavlinkMessage:
 
 
 class _MavlinkSender:
-    def __init__(self) -> None:
+    def __init__(self, events: list[str]) -> None:
         self.commands: list[tuple[int, tuple[float, ...]]] = []
+        self._events = events
 
     def heartbeat_send(self, *_args: object) -> None:
         pass
@@ -434,28 +435,49 @@ class _MavlinkSender:
         *parameters: float,
     ) -> None:
         self.commands.append((command, parameters))
+        self._events.append(f"send:{command}")
 
 
 class _MavlinkConnection:
     def __init__(self, acknowledgements: list[int]) -> None:
-        self.mav = _MavlinkSender()
-        self._messages = [
-            _MavlinkMessage(
-                "COMMAND_ACK",
-                command=command,
-                result=mavutil.mavlink.MAV_RESULT_ACCEPTED,
+        self.events: list[str] = []
+        self.mav = _MavlinkSender(self.events)
+        self._messages: list[_MavlinkMessage] = []
+        for command in acknowledgements:
+            self._messages.append(
+                _MavlinkMessage(
+                    "COMMAND_ACK",
+                    command=command,
+                    result=mavutil.mavlink.MAV_RESULT_ACCEPTED,
+                )
             )
-            for command in acknowledgements
-        ]
+            if command == mavutil.mavlink.MAV_CMD_DO_SET_MODE:
+                _base_mode, custom_mode, custom_sub_mode = mavutil.px4_map[
+                    "LOITER"
+                ]
+                self._messages.append(
+                    _MavlinkMessage(
+                        "HEARTBEAT",
+                        base_mode=(
+                            mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED
+                        ),
+                        custom_mode=(
+                            custom_mode << 16 | custom_sub_mode << 24
+                        ),
+                    )
+                )
         self._messages.append(
             _MavlinkMessage(
                 "HEARTBEAT",
                 base_mode=mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED,
+                custom_mode=0,
             )
         )
 
     def recv_match(self, **_kwargs: object) -> _MavlinkMessage:
-        return self._messages.pop(0)
+        message = self._messages.pop(0)
+        self.events.append(f"receive:{message.get_type()}")
+        return message
 
 
 class Px4CommanderTests(unittest.TestCase):
@@ -483,10 +505,16 @@ class Px4CommanderTests(unittest.TestCase):
                 mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
             ],
         )
-        position_mode = mavutil.px4_map["POSCTL"]
+        loiter_mode = mavutil.px4_map["LOITER"]
         self.assertEqual(
             connection.mav.commands[0][1][:3],
-            position_mode,
+            loiter_mode,
+        )
+        self.assertLess(
+            connection.events.index("receive:HEARTBEAT"),
+            connection.events.index(
+                f"send:{mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM}"
+            ),
         )
 
     def test_initial_arm_does_not_change_flight_mode(self) -> None:
