@@ -279,7 +279,7 @@ pub(crate) async fn gateway_authenticated(
     gateway_child.stop();
     gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(gateway_port, &platform_store),
+        gateway_serve_args(gateway_port, platform_store),
         [
             (
                 "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
@@ -513,11 +513,11 @@ pub(crate) async fn gateway_authenticated(
 
     edge.stop();
     gateway_child.stop();
-    let audit_counts = run_gateway_json(gateway, "audit-counts", &platform_store)?;
+    let audit_counts = run_gateway_json(gateway, "audit-counts", platform_store)?;
     assert_json_u64_at_least(&audit_counts, "auth_events", 1)?;
     assert_json_u64_at_least(&audit_counts, "policy_events", 1)?;
     let auth_method_summary =
-        run_gateway_json(gateway, "auth-audit-method-summary", &platform_store)?;
+        run_gateway_json(gateway, "auth-audit-method-summary", platform_store)?;
     assert_audit_method(&auth_method_summary, "bearer_jwt", 10, 2)?;
     assert_audit_method(
         &auth_method_summary,
@@ -527,7 +527,7 @@ pub(crate) async fn gateway_authenticated(
     )?;
     assert_audit_method(&auth_method_summary, "enterprise_managed_id_jag", 5, 1)?;
     let auth_reason_summary =
-        run_gateway_json(gateway, "auth-audit-reason-summary", &platform_store)?;
+        run_gateway_json(gateway, "auth-audit-reason-summary", platform_store)?;
     assert_reason_summary_at_least(&auth_reason_summary, "auth_allow", 10)?;
     assert_reason_summary_at_least(&auth_reason_summary, "missing_authorization_header", 1)?;
     assert_reason_summary_at_least(&auth_reason_summary, "invalid_bearer_token", 3)?;
@@ -535,15 +535,15 @@ pub(crate) async fn gateway_authenticated(
     assert_reason_summary_at_least(&auth_reason_summary, "identity_assertion_replay", 1)?;
     assert_reason_summary_at_least(&auth_reason_summary, "token_revoked", 1)?;
     let auth_principal_kind_summary =
-        run_gateway_auth_metadata_summary(gateway, &platform_store, "principal_kind")?;
+        run_gateway_auth_metadata_summary(gateway, platform_store, "principal_kind")?;
     assert_metadata_summary_at_least(&auth_principal_kind_summary, "user", 1)?;
     let auth_principal_label_summary =
-        run_gateway_auth_metadata_summary(gateway, &platform_store, "principal_data_labels")?;
+        run_gateway_auth_metadata_summary(gateway, platform_store, "principal_data_labels")?;
     assert_metadata_summary_at_least(&auth_principal_label_summary, "cui", 1)?;
     let auth_principal_assurance_summary =
-        run_gateway_auth_metadata_summary(gateway, &platform_store, "principal_assurances")?;
+        run_gateway_auth_metadata_summary(gateway, platform_store, "principal_assurances")?;
     assert_metadata_summary_at_least(&auth_principal_assurance_summary, "us_person", 1)?;
-    let audit_summary = run_gateway_json(gateway, "audit-method-summary", &platform_store)?;
+    let audit_summary = run_gateway_json(gateway, "audit-method-summary", platform_store)?;
     assert_audit_method(&audit_summary, "tools/list", 1, 0)?;
     assert_audit_method(&audit_summary, "resources/list", 1, 0)?;
     assert_audit_method(&audit_summary, "resources/templates/list", 1, 0)?;
@@ -553,19 +553,19 @@ pub(crate) async fn gateway_authenticated(
     assert_audit_method(&audit_summary, "completion/complete", 0, 1)?;
     assert_audit_method(&audit_summary, "admin/control-plane", 1, 0)?;
     assert_audit_method(&audit_summary, "admin/control-plane/result", 1, 0)?;
-    let audit_reasons = run_gateway_json(gateway, "audit-reason-summary", &platform_store)?;
+    let audit_reasons = run_gateway_json(gateway, "audit-reason-summary", platform_store)?;
     assert_reason_summary_at_least(&audit_reasons, "missing_data_label", 1)?;
     assert_reason_summary_at_least(&audit_reasons, "missing_principal_assurance", 1)?;
     assert_reason_summary_at_least(&audit_reasons, "missing_group", 1)?;
     assert_reason_summary_at_least(&audit_reasons, "missing_role", 1)?;
     let principal_kind_summary =
-        run_gateway_metadata_summary(gateway, &platform_store, "principal_kind")?;
+        run_gateway_metadata_summary(gateway, platform_store, "principal_kind")?;
     assert_metadata_summary_at_least(&principal_kind_summary, "user", 1)?;
     let principal_label_summary =
-        run_gateway_metadata_summary(gateway, &platform_store, "principal_data_labels")?;
+        run_gateway_metadata_summary(gateway, platform_store, "principal_data_labels")?;
     assert_metadata_summary_at_least(&principal_label_summary, "cui", 1)?;
     let principal_assurance_summary =
-        run_gateway_metadata_summary(gateway, &platform_store, "principal_assurances")?;
+        run_gateway_metadata_summary(gateway, platform_store, "principal_assurances")?;
     assert_metadata_summary_at_least(&principal_assurance_summary, "us_person", 1)?;
 
     media_child.stop();

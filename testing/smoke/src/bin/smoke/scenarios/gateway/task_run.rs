@@ -414,7 +414,7 @@ pub(crate) async fn gateway_task_run(
     )?;
 
     gateway_child.stop();
-    let audit_summary = run_gateway_json(gateway, "audit-method-summary", &platform_store)?;
+    let audit_summary = run_gateway_json(gateway, "audit-method-summary", platform_store)?;
     assert_no_audit_denies(&audit_summary)?;
     assert_audit_method(&audit_summary, "completion/complete", 1, 0)?;
     assert_audit_method(&audit_summary, "tools/call", 6, 0)?;
