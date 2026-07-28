@@ -255,9 +255,53 @@ satellite tasking to incident response. The
 [connector catalog](docs/connectors/README.md) records the verified install
 surface, auth model, and status for every platform.
 
-<p align="center"><a href="https://www.databricks.com/"><img src="docs/assets/connectors/databricks.svg" height="36" alt="Databricks" title="Databricks"></a>&nbsp;&nbsp;&nbsp;<a href="https://www.snowflake.com/"><img src="docs/assets/connectors/snowflake.svg" height="36" alt="Snowflake" title="Snowflake"></a>&nbsp;&nbsp;&nbsp;<a href="https://clickhouse.com/"><img src="docs/assets/connectors/clickhouse.svg" height="36" alt="ClickHouse" title="ClickHouse"></a>&nbsp;&nbsp;&nbsp;<a href="https://motherduck.com/"><img src="docs/assets/connectors/duckdb.png" height="36" alt="MotherDuck DuckDB" title="MotherDuck / DuckDB"></a>&nbsp;&nbsp;&nbsp;<a href="https://grafana.com/"><img src="docs/assets/connectors/grafana.svg" height="36" alt="Grafana" title="Grafana"></a>&nbsp;&nbsp;&nbsp;<a href="https://www.datadoghq.com/"><img src="docs/assets/connectors/datadog.svg" height="36" alt="Datadog" title="Datadog"></a>&nbsp;&nbsp;&nbsp;<a href="https://www.dynatrace.com/"><img src="docs/assets/connectors/dynatrace.svg" height="36" alt="Dynatrace" title="Dynatrace"></a>&nbsp;&nbsp;&nbsp;<a href="https://www.splunk.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/connectors/splunk-dark.svg"><img src="docs/assets/connectors/splunk.svg" height="36" alt="Splunk" title="Splunk"></picture></a></p>
-<p align="center"><a href="https://www.mapbox.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/connectors/mapbox-dark.svg"><img src="docs/assets/connectors/mapbox.svg" height="36" alt="Mapbox" title="Mapbox"></picture></a>&nbsp;&nbsp;&nbsp;<a href="https://www.tomtom.com/"><img src="docs/assets/connectors/tomtom.svg" height="36" alt="TomTom" title="TomTom"></a>&nbsp;&nbsp;&nbsp;<a href="https://carto.com/"><img src="docs/assets/connectors/carto.svg" height="36" alt="CARTO" title="CARTO"></a>&nbsp;&nbsp;&nbsp;<a href="https://www.openstreetmap.org/"><img src="docs/assets/connectors/openstreetmap.svg" height="36" alt="OpenStreetMap" title="OpenStreetMap"></a>&nbsp;&nbsp;&nbsp;<a href="https://www.planet.com/"><img src="docs/assets/connectors/planet.svg" height="36" alt="Planet" title="Planet"></a>&nbsp;&nbsp;&nbsp;<a href="https://www.earthdata.nasa.gov/"><img src="docs/assets/connectors/nasa.svg" height="36" alt="NASA Earthdata" title="NASA Earthdata"></a>&nbsp;&nbsp;&nbsp;<a href="https://www.palantir.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/connectors/palantir-dark.svg"><img src="docs/assets/connectors/palantir.svg" height="36" alt="Palantir" title="Palantir Foundry"></picture></a>&nbsp;&nbsp;&nbsp;<a href="https://www.crowdstrike.com/"><img src="docs/assets/connectors/crowdstrike.svg" height="36" alt="CrowdStrike" title="CrowdStrike Falcon"></a></p>
-<p align="center"><a href="https://www.ros.org/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/connectors/ros-dark.svg"><img src="docs/assets/connectors/ros.svg" height="36" alt="ROS" title="ROS"></picture></a>&nbsp;&nbsp;&nbsp;<a href="https://www.autodesk.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/connectors/autodesk-dark.svg"><img src="docs/assets/connectors/autodesk.svg" height="36" alt="Autodesk" title="Autodesk"></picture></a>&nbsp;&nbsp;&nbsp;<a href="https://www.pagerduty.com/"><img src="docs/assets/connectors/pagerduty.svg" height="36" alt="PagerDuty" title="PagerDuty"></a>&nbsp;&nbsp;&nbsp;<a href="https://slack.com/"><img src="docs/assets/connectors/slack.svg" height="36" alt="Slack" title="Slack"></a>&nbsp;&nbsp;&nbsp;<a href="https://www.atlassian.com/"><img src="docs/assets/connectors/atlassian.svg" height="36" alt="Atlassian" title="Atlassian"></a>&nbsp;&nbsp;&nbsp;<a href="https://linear.app/"><img src="docs/assets/connectors/linear.svg" height="36" alt="Linear" title="Linear"></a>&nbsp;&nbsp;&nbsp;<a href="https://github.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/connectors/github-dark.svg"><img src="docs/assets/connectors/github.svg" height="36" alt="GitHub" title="GitHub"></picture></a></p>
+<table align="center" aria-label="Enterprise connector logos">
+  <tbody>
+    <tr>
+      <td align="center" width="72"><a href="https://www.databricks.com/"><img src="docs/assets/connectors/databricks.svg" height="36" alt="Databricks" title="Databricks"></a></td>
+      <td align="center" width="72"><a href="https://www.snowflake.com/"><img src="docs/assets/connectors/snowflake.svg" height="36" alt="Snowflake" title="Snowflake"></a></td>
+      <td align="center" width="72"><a href="https://clickhouse.com/"><img src="docs/assets/connectors/clickhouse.svg" height="36" alt="ClickHouse" title="ClickHouse"></a></td>
+      <td align="center" width="72"><a href="https://motherduck.com/"><img src="docs/assets/connectors/duckdb.png" height="36" alt="MotherDuck DuckDB" title="MotherDuck / DuckDB"></a></td>
+      <td align="center" width="72"><a href="https://grafana.com/"><img src="docs/assets/connectors/grafana.svg" height="36" alt="Grafana" title="Grafana"></a></td>
+      <td align="center" width="72"><a href="https://www.datadoghq.com/"><img src="docs/assets/connectors/datadog.svg" height="36" alt="Datadog" title="Datadog"></a></td>
+    </tr>
+  </tbody>
+</table>
+<table align="center" aria-label="Enterprise connector logos">
+  <tbody>
+    <tr>
+      <td align="center" width="72"><a href="https://www.dynatrace.com/"><img src="docs/assets/connectors/dynatrace.svg" height="36" alt="Dynatrace" title="Dynatrace"></a></td>
+      <td align="center" width="72"><a href="https://www.splunk.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/connectors/splunk-dark.svg"><img src="docs/assets/connectors/splunk.svg" height="36" alt="Splunk" title="Splunk"></picture></a></td>
+      <td align="center" width="72"><a href="https://www.mapbox.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/connectors/mapbox-dark.svg"><img src="docs/assets/connectors/mapbox.svg" height="36" alt="Mapbox" title="Mapbox"></picture></a></td>
+      <td align="center" width="72"><a href="https://www.tomtom.com/"><img src="docs/assets/connectors/tomtom.svg" height="36" alt="TomTom" title="TomTom"></a></td>
+      <td align="center" width="72"><a href="https://carto.com/"><img src="docs/assets/connectors/carto.svg" height="36" alt="CARTO" title="CARTO"></a></td>
+      <td align="center" width="72"><a href="https://www.openstreetmap.org/"><img src="docs/assets/connectors/openstreetmap.svg" height="36" alt="OpenStreetMap" title="OpenStreetMap"></a></td>
+    </tr>
+  </tbody>
+</table>
+<table align="center" aria-label="Enterprise connector logos">
+  <tbody>
+    <tr>
+      <td align="center" width="72"><a href="https://www.planet.com/"><img src="docs/assets/connectors/planet.svg" height="36" alt="Planet" title="Planet"></a></td>
+      <td align="center" width="72"><a href="https://www.earthdata.nasa.gov/"><img src="docs/assets/connectors/nasa.svg" height="36" alt="NASA Earthdata" title="NASA Earthdata"></a></td>
+      <td align="center" width="72"><a href="https://www.palantir.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/connectors/palantir-dark.svg"><img src="docs/assets/connectors/palantir.svg" height="36" alt="Palantir" title="Palantir Foundry"></picture></a></td>
+      <td align="center" width="72"><a href="https://www.ros.org/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/connectors/ros-dark.svg"><img src="docs/assets/connectors/ros.svg" height="36" alt="ROS" title="ROS"></picture></a></td>
+      <td align="center" width="72"><a href="https://www.autodesk.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/connectors/autodesk-dark.svg"><img src="docs/assets/connectors/autodesk.svg" height="36" alt="Autodesk" title="Autodesk"></picture></a></td>
+      <td align="center" width="72"><a href="https://www.pagerduty.com/"><img src="docs/assets/connectors/pagerduty.svg" height="36" alt="PagerDuty" title="PagerDuty"></a></td>
+    </tr>
+  </tbody>
+</table>
+<table align="center" aria-label="Enterprise connector logos">
+  <tbody>
+    <tr>
+      <td align="center" width="72"><a href="https://slack.com/"><img src="docs/assets/connectors/slack.svg" height="36" alt="Slack" title="Slack"></a></td>
+      <td align="center" width="72"><a href="https://www.atlassian.com/"><img src="docs/assets/connectors/atlassian.svg" height="36" alt="Atlassian" title="Atlassian"></a></td>
+      <td align="center" width="72"><a href="https://linear.app/"><img src="docs/assets/connectors/linear.svg" height="36" alt="Linear" title="Linear"></a></td>
+      <td align="center" width="72"><a href="https://github.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/connectors/github-dark.svg"><img src="docs/assets/connectors/github.svg" height="36" alt="GitHub" title="GitHub"></picture></a></td>
+      <td align="center" width="144"><a href="https://www.crowdstrike.com/"><img src="docs/assets/connectors/crowdstrike.svg" height="36" alt="CrowdStrike" title="CrowdStrike Falcon"></a></td>
+    </tr>
+  </tbody>
+</table>
 
 *The catalog spans geospatial, Earth observation, weather, data, observability,
 industrial operations, defense, and incident platforms. All logos belong to
@@ -400,26 +444,40 @@ browser, Kubernetes and Helm underneath, SurrealDB for coordination, DuckDB
 for analysis, Rerun for recordings, and NVIDIA runtimes for simulation and
 perception. If these tools feel like home, so will this repository.
 
-<p align="center">
-  <a href="https://www.rust-lang.org/"><img src="docs/assets/stack/rust.svg" height="40" alt="Rust" title="Rust"></a>&nbsp;&nbsp;&nbsp;
-  <a href="https://www.python.org/"><img src="docs/assets/stack/python.svg" height="40" alt="Python" title="Python"></a>&nbsp;&nbsp;&nbsp;
-  <a href="https://www.typescriptlang.org/"><img src="docs/assets/stack/typescript.svg" height="40" alt="TypeScript" title="TypeScript"></a>&nbsp;&nbsp;&nbsp;
-  <a href="https://react.dev/"><img src="docs/assets/stack/react.svg" height="40" alt="React" title="React"></a>&nbsp;&nbsp;&nbsp;
-  <a href="https://kubernetes.io/"><img src="docs/assets/stack/kubernetes.svg" height="40" alt="Kubernetes" title="Kubernetes"></a>&nbsp;&nbsp;&nbsp;
-  <a href="https://helm.sh/"><img src="docs/assets/stack/helm.svg" height="40" alt="Helm" title="Helm"></a>&nbsp;&nbsp;&nbsp;
-  <a href="https://www.docker.com/"><img src="docs/assets/stack/docker.svg" height="40" alt="Docker" title="Docker"></a>&nbsp;&nbsp;&nbsp;
-  <a href="https://opentelemetry.io/"><img src="docs/assets/stack/opentelemetry.svg" height="40" alt="OpenTelemetry" title="OpenTelemetry"></a>
-</p>
-<p align="center">
-  <a href="https://surrealdb.com/"><img src="docs/assets/stack/surrealdb.svg" height="40" alt="SurrealDB" title="SurrealDB"></a>&nbsp;&nbsp;&nbsp;
-  <a href="https://duckdb.org/"><img src="docs/assets/stack/duckdb.png" height="40" alt="DuckDB" title="DuckDB"></a>&nbsp;&nbsp;&nbsp;
-  <a href="https://rerun.io/"><img src="docs/assets/stack/rerun.png" height="40" alt="Rerun" title="Rerun"></a>&nbsp;&nbsp;&nbsp;
-  <a href="https://developer.nvidia.com/isaac/sim"><img src="docs/assets/stack/nvidia.svg" height="40" alt="NVIDIA Isaac Sim" title="NVIDIA Isaac Sim"></a>&nbsp;&nbsp;&nbsp;
-  <a href="https://px4.io/"><img src="docs/assets/stack/px4.png" height="40" alt="PX4 Autopilot" title="PX4 Autopilot"></a>&nbsp;&nbsp;&nbsp;
-  <a href="https://eclipse.dev/sumo/"><img src="docs/assets/stack/sumo.png" height="40" alt="Eclipse SUMO" title="Eclipse SUMO"></a>&nbsp;&nbsp;&nbsp;
-  <a href="https://cesium.com/"><img src="docs/assets/stack/cesium.svg" height="40" alt="Cesium" title="Cesium"></a>&nbsp;&nbsp;&nbsp;
-  <a href="https://maplibre.org/"><img src="docs/assets/stack/maplibre.svg" height="40" alt="MapLibre" title="MapLibre"></a>
-</p>
+<table align="center" aria-label="Technology stack logos">
+  <tbody>
+    <tr>
+      <td align="center" width="72"><a href="https://www.rust-lang.org/"><img src="docs/assets/stack/rust.svg" height="40" alt="Rust" title="Rust"></a></td>
+      <td align="center" width="72"><a href="https://www.python.org/"><img src="docs/assets/stack/python.svg" height="40" alt="Python" title="Python"></a></td>
+      <td align="center" width="72"><a href="https://www.typescriptlang.org/"><img src="docs/assets/stack/typescript.svg" height="40" alt="TypeScript" title="TypeScript"></a></td>
+      <td align="center" width="72"><a href="https://react.dev/"><img src="docs/assets/stack/react.svg" height="40" alt="React" title="React"></a></td>
+      <td align="center" width="72"><a href="https://kubernetes.io/"><img src="docs/assets/stack/kubernetes.svg" height="40" alt="Kubernetes" title="Kubernetes"></a></td>
+      <td align="center" width="72"><a href="https://helm.sh/"><img src="docs/assets/stack/helm.svg" height="40" alt="Helm" title="Helm"></a></td>
+    </tr>
+  </tbody>
+</table>
+<table align="center" aria-label="Technology stack logos">
+  <tbody>
+    <tr>
+      <td align="center" width="72"><a href="https://www.docker.com/"><img src="docs/assets/stack/docker.svg" height="40" alt="Docker" title="Docker"></a></td>
+      <td align="center" width="72"><a href="https://opentelemetry.io/"><img src="docs/assets/stack/opentelemetry.svg" height="40" alt="OpenTelemetry" title="OpenTelemetry"></a></td>
+      <td align="center" width="72"><a href="https://surrealdb.com/"><img src="docs/assets/stack/surrealdb.svg" height="40" alt="SurrealDB" title="SurrealDB"></a></td>
+      <td align="center" width="72"><a href="https://duckdb.org/"><img src="docs/assets/stack/duckdb.png" height="40" alt="DuckDB" title="DuckDB"></a></td>
+      <td align="center" width="72"><a href="https://rerun.io/"><img src="docs/assets/stack/rerun.png" height="40" alt="Rerun" title="Rerun"></a></td>
+      <td align="center" width="72"><a href="https://developer.nvidia.com/isaac/sim"><img src="docs/assets/stack/nvidia.svg" height="40" alt="NVIDIA Isaac Sim" title="NVIDIA Isaac Sim"></a></td>
+    </tr>
+  </tbody>
+</table>
+<table align="center" aria-label="Technology stack logos">
+  <tbody>
+    <tr>
+      <td align="center" width="72"><a href="https://px4.io/"><img src="docs/assets/stack/px4.png" height="40" alt="PX4 Autopilot" title="PX4 Autopilot"></a></td>
+      <td align="center" width="72"><a href="https://eclipse.dev/sumo/"><img src="docs/assets/stack/sumo.png" height="40" alt="Eclipse SUMO" title="Eclipse SUMO"></a></td>
+      <td align="center" width="72"><a href="https://cesium.com/"><img src="docs/assets/stack/cesium.svg" height="40" alt="Cesium" title="Cesium"></a></td>
+      <td align="center" width="72"><a href="https://maplibre.org/"><img src="docs/assets/stack/maplibre.svg" height="40" alt="MapLibre" title="MapLibre"></a></td>
+    </tr>
+  </tbody>
+</table>
 
 *All logos belong to their respective projects.*
 
