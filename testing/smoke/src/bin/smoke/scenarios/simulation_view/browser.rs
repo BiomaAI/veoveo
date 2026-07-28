@@ -195,12 +195,9 @@ async fn capture_console_live_app_inner(
         let hardware: HardwareIdentity =
             cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
         hardware.validate()?;
-        let app_context =
-            wait_for_console_app_context(&mut cdp, &session_id, "simulation-view").await?;
         let ready = wait_for_console_app_camera(
             &mut cdp,
             &session_id,
-            app_context,
             expected_camera_id,
         )
         .await?;
@@ -208,27 +205,23 @@ async fn capture_console_live_app_inner(
             ready,
             "Console Simulation View App exposed no camera {expected_camera_id:?}"
         );
-        let first = wait_for_console_video(
+        let first =
+            wait_for_console_video(&mut cdp, &session_id, expected_camera_id).await?;
+        let second = wait_for_console_video_advance(
             &mut cdp,
             &session_id,
-            app_context,
             expected_camera_id,
+            first,
         )
         .await?;
-        tokio::time::sleep(Duration::from_secs(2)).await;
-        let second: AppVideoState = cdp
-            .evaluate_context(&session_id, app_context, APP_FRAME_VIDEO_STATE, false)
-            .await?;
-        second.validate(expected_camera_id)?;
-        ensure!(
-            second.current_time > first.current_time + 0.25,
-            "Console H.264 video did not advance: {} -> {}",
-            first.current_time,
-            second.current_time
-        );
-        let decode: DecodeIdentity = cdp
-            .evaluate_context(&session_id, app_context, APP_FRAME_DECODE_IDENTITY, true)
-            .await?;
+        let decode: DecodeIdentity = evaluate_console_app(
+            &mut cdp,
+            &session_id,
+            "simulation-view",
+            APP_FRAME_DECODE_IDENTITY,
+            true,
+        )
+        .await?;
         decode.validate()?;
         let snapshot: Value = cdp
             .evaluate(
@@ -262,7 +255,7 @@ async fn capture_console_live_app_inner(
         );
         let screenshot_sha256 =
             capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
-        close_console_live_view(&mut cdp, &session_id, app_context, expected_camera_id).await?;
+        close_console_live_view(&mut cdp, &session_id, expected_camera_id).await?;
         cdp.assert_no_software_renderer_events()?;
         Ok(ConsoleLiveCaptureEvidence {
             schema: "veoveo.io/uav-console-live-capture/v1",
@@ -294,36 +287,17 @@ async fn capture_console_stream_app_inner(
         let hardware: HardwareIdentity =
             cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
         hardware.validate()?;
-        let app_context =
-            wait_for_console_app_context(&mut cdp, &session_id, "stream").await?;
-        let first =
-            wait_for_console_stream_video(&mut cdp, &session_id, app_context).await?;
-        tokio::time::sleep(Duration::from_secs(2)).await;
-        let second: StreamAppState = cdp
-            .evaluate_context(&session_id, app_context, STREAM_APP_STATE, false)
-            .await?;
-        second.validate()?;
-        ensure!(
-            second.session_id == first.session_id,
-            "Console Stream App changed sessions during capture: {} -> {}",
-            first.session_id,
-            second.session_id
-        );
-        ensure!(
-            second.decoded_frames > first.decoded_frames,
-            "Console Stream App video did not advance: {} -> {} decoded frames",
-            first.decoded_frames,
-            second.decoded_frames
-        );
-        ensure!(
-            second.processed_frames > first.processed_frames,
-            "Console Stream App did not process newly arrived live frames: {} -> {}",
-            first.processed_frames,
-            second.processed_frames
-        );
-        let decode: StreamDecodeIdentity = cdp
-            .evaluate_context(&session_id, app_context, STREAM_APP_DECODE_IDENTITY, true)
-            .await?;
+        let first = wait_for_console_stream_video(&mut cdp, &session_id).await?;
+        let second =
+            wait_for_console_stream_advance(&mut cdp, &session_id, first).await?;
+        let decode: StreamDecodeIdentity = evaluate_console_app(
+            &mut cdp,
+            &session_id,
+            "stream",
+            STREAM_APP_DECODE_IDENTITY,
+            true,
+        )
+        .await?;
         decode.validate(&second.decode_label)?;
         let console: Value = cdp
             .evaluate(
@@ -560,6 +534,41 @@ async fn wait_for_console_app_context(
     }
 }
 
+async fn evaluate_console_app<T: serde::de::DeserializeOwned>(
+    cdp: &mut Cdp,
+    session_id: &str,
+    app_server: &str,
+    expression: &str,
+    await_promise: bool,
+) -> Result<T> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+    loop {
+        let context_id = wait_for_console_app_context(cdp, session_id, app_server).await?;
+        match cdp
+            .evaluate_context(session_id, context_id, expression, await_promise)
+            .await
+        {
+            Ok(value) => return Ok(value),
+            Err(error)
+                if stale_execution_context(&error) && tokio::time::Instant::now() < deadline =>
+            {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            Err(error) => {
+                return Err(error).with_context(|| {
+                    format!("evaluating the current {app_server} Console App frame")
+                });
+            }
+        }
+    }
+}
+
+fn stale_execution_context(error: &anyhow::Error) -> bool {
+    let message = format!("{error:#}");
+    message.contains("Cannot find context with specified id")
+        || message.contains("Execution context was destroyed")
+}
+
 async fn find_app_frame_id_from_dom(
     cdp: &mut Cdp,
     session_id: &str,
@@ -631,7 +640,6 @@ fn find_app_frame_id<'a>(frame_tree: &'a Value, app_server: &str) -> Option<&'a 
 async fn wait_for_console_app_camera(
     cdp: &mut Cdp,
     session_id: &str,
-    context_id: u64,
     expected_camera_id: &str,
 ) -> Result<bool> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
@@ -647,9 +655,8 @@ async fn wait_for_console_app_camera(
               return {{found:true,error:"",body:document.body?.innerText ?? ""}};
             }})()"#
         );
-        let state: Value = cdp
-            .evaluate_context(session_id, context_id, &expression, false)
-            .await?;
+        let state: Value =
+            evaluate_console_app(cdp, session_id, "simulation-view", &expression, false).await?;
         if state.get("found").and_then(Value::as_bool) == Some(true) {
             return Ok(true);
         }
@@ -674,14 +681,19 @@ async fn wait_for_console_app_camera(
 async fn wait_for_console_video(
     cdp: &mut Cdp,
     session_id: &str,
-    context_id: u64,
     expected_camera_id: &str,
 ) -> Result<AppVideoState> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
     loop {
-        let state: AppVideoState = cdp
-            .evaluate_context(session_id, context_id, APP_FRAME_VIDEO_STATE, false)
-            .await?;
+        wait_for_console_app_camera(cdp, session_id, expected_camera_id).await?;
+        let state: AppVideoState = evaluate_console_app(
+            cdp,
+            session_id,
+            "simulation-view",
+            APP_FRAME_VIDEO_STATE,
+            false,
+        )
+        .await?;
         if state.ready_state >= 2 && state.video_width > 0 && state.current_time > 0.0 {
             state.validate(expected_camera_id)?;
             return Ok(state);
@@ -700,16 +712,36 @@ async fn wait_for_console_video(
     }
 }
 
-async fn wait_for_console_stream_video(
+async fn wait_for_console_video_advance(
     cdp: &mut Cdp,
     session_id: &str,
-    context_id: u64,
-) -> Result<StreamAppState> {
+    expected_camera_id: &str,
+    mut first: AppVideoState,
+) -> Result<AppVideoState> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
     loop {
-        let state: StreamAppState = cdp
-            .evaluate_context(session_id, context_id, STREAM_APP_STATE, false)
-            .await?;
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        let second = wait_for_console_video(cdp, session_id, expected_camera_id).await?;
+        if second.document_epoch_ms == first.document_epoch_ms
+            && second.current_time > first.current_time + 0.25
+        {
+            return Ok(second);
+        }
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "Console H.264 video did not remain mounted and advance: {:?} -> {:?}",
+            first,
+            second
+        );
+        first = second;
+    }
+}
+
+async fn wait_for_console_stream_video(cdp: &mut Cdp, session_id: &str) -> Result<StreamAppState> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
+    loop {
+        let state: StreamAppState =
+            evaluate_console_app(cdp, session_id, "stream", STREAM_APP_STATE, false).await?;
         if state.is_ready() {
             state.validate()?;
             return Ok(state);
@@ -728,6 +760,33 @@ async fn wait_for_console_stream_video(
     }
 }
 
+async fn wait_for_console_stream_advance(
+    cdp: &mut Cdp,
+    session_id: &str,
+    mut first: StreamAppState,
+) -> Result<StreamAppState> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
+    loop {
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        let second = wait_for_console_stream_video(cdp, session_id).await?;
+        if second.document_epoch_ms == first.document_epoch_ms
+            && second.session_id == first.session_id
+            && second.decoded_frames > first.decoded_frames
+            && second.processed_frames > first.processed_frames
+        {
+            return Ok(second);
+        }
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "Console Stream App did not remain mounted and process advancing live frames: \
+             {:?} -> {:?}",
+            first,
+            second
+        );
+        first = second;
+    }
+}
+
 async fn assert_page_visible(cdp: &mut Cdp, session_id: &str) -> Result<()> {
     let visible: bool = cdp
         .evaluate(session_id, "document.visibilityState === 'visible'", false)
@@ -742,46 +801,45 @@ async fn assert_page_visible(cdp: &mut Cdp, session_id: &str) -> Result<()> {
 async fn close_console_live_view(
     cdp: &mut Cdp,
     session_id: &str,
-    context_id: u64,
     expected_camera_id: &str,
 ) -> Result<()> {
     let expected = serde_json::to_string(expected_camera_id)?;
-    let requested: bool = cdp
-        .evaluate_context(
-            session_id,
-            context_id,
-            &format!(
-                r#"(() => {{
+    let requested: bool = evaluate_console_app(
+        cdp,
+        session_id,
+        "simulation-view",
+        &format!(
+            r#"(() => {{
                   const input=[...document.querySelectorAll('#cameras input[type="checkbox"]')]
                     .find((candidate)=>candidate.parentElement?.textContent?.trim().startsWith({expected}));
                   if (!input) return false;
                   if (input.checked) input.click();
                   return true;
                 }})()"#
-            ),
-            false,
-        )
-        .await?;
+        ),
+        false,
+    )
+    .await?;
     ensure!(
         requested,
         "Console could not close follow-camera stream {expected_camera_id}"
     );
     let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
     loop {
-        let state: Value = cdp
-            .evaluate_context(
-                session_id,
-                context_id,
-                r#"(() => ({
+        let state: Value = evaluate_console_app(
+            cdp,
+            session_id,
+            "simulation-view",
+            r#"(() => ({
                   checked:document.querySelector('#cameras input[type="checkbox"]:checked') !== null,
                   videoCount:document.querySelectorAll("video").length,
                   status:document.getElementById("status")?.textContent ?? "",
                   error:document.getElementById("error")?.hidden === false
                     ? document.getElementById("error").textContent : ""
                 }))()"#,
-                false,
-            )
-            .await?;
+            false,
+        )
+        .await?;
         ensure!(
             state
                 .get("error")
@@ -1084,6 +1142,8 @@ impl HardwareIdentity {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct AppVideoState {
+    #[serde(skip_serializing)]
+    document_epoch_ms: f64,
     camera_id: String,
     ready_state: u16,
     video_width: u32,
@@ -1141,6 +1201,8 @@ struct DecodeIdentity {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct StreamAppState {
+    #[serde(skip_serializing)]
+    document_epoch_ms: f64,
     session_id: String,
     lifecycle: String,
     status: String,
@@ -1761,6 +1823,7 @@ const VIDEO_STATE: &str = r#"(() => {
   const video=doc?.querySelector("video");
   const camera=doc?.querySelector(`#cameras input[type="checkbox"]:checked`);
   return {
+    documentEpochMs:app?.performance?.timeOrigin ?? 0,
     cameraId:camera?.parentElement?.textContent?.split(" · ")[0]?.trim() ?? "",
     readyState:video?.readyState ?? 0,
     videoWidth:video?.videoWidth ?? 0,
@@ -1779,6 +1842,7 @@ const APP_FRAME_VIDEO_STATE: &str = r#"(() => {
   const video=document.querySelector("video");
   const camera=document.querySelector(`#cameras input[type="checkbox"]:checked`);
   return {
+    documentEpochMs:performance.timeOrigin,
     cameraId:camera?.parentElement?.textContent?.split(" · ")[0]?.trim() ?? "",
     readyState:video?.readyState ?? 0,
     videoWidth:video?.videoWidth ?? 0,
@@ -1819,6 +1883,7 @@ const STREAM_APP_STATE: &str = r#"(() => {
   const sessionText=document.getElementById("session")?.textContent ?? "";
   const [sessionId,lifecycle]=sessionText.split(" · ");
   return {
+    documentEpochMs:performance.timeOrigin,
     sessionId:sessionId === "no session" ? "" : sessionId,
     lifecycle:lifecycle ?? "",
     status:document.getElementById("status")?.textContent ?? "",
@@ -1915,6 +1980,20 @@ mod tests {
         );
         assert!(!summaries.contains("secret"));
         assert!(!summaries.contains("peer"));
+    }
+
+    #[test]
+    fn only_destroyed_app_execution_contexts_are_reacquired() {
+        assert!(stale_execution_context(&anyhow!(
+            "Chrome DevTools `Runtime.evaluate` failed: \
+             {{\"code\":-32000,\"message\":\"Cannot find context with specified id\"}}"
+        )));
+        assert!(stale_execution_context(&anyhow!(
+            "Execution context was destroyed."
+        )));
+        assert!(!stale_execution_context(&anyhow!(
+            "browser App-frame evaluation failed"
+        )));
     }
 
     #[test]
