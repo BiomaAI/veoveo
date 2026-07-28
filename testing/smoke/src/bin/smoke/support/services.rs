@@ -169,6 +169,10 @@ pub(crate) fn spawn_datasheet_smoke(
     )
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the smoke process boundary keeps each executable path and runtime input explicit"
+)]
 pub(crate) fn spawn_duckdb_smoke(
     duckdb: &Path,
     spatial_extension: &Path,
