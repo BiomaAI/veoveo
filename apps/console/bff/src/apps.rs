@@ -255,7 +255,7 @@ pub(crate) async fn list_apps(
     request_headers: HeaderMap,
 ) -> Response {
     let listing = with_apps_session(&state, &request_headers, |mcp| async move {
-        mcp.refresh_app_catalog().await
+        mcp.app_catalog().await
     })
     .await;
     let AppsSessionOutcome {

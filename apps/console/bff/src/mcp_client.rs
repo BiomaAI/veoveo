@@ -39,8 +39,7 @@ type RunningMcpSession = RunningService<rmcp::RoleClient, ConsoleHostHandler>;
 
 /// The App authorization surface projected by one initialized gateway
 /// session. Resources and tools are immutable for that authority/profile
-/// snapshot; an explicit Apps listing refreshes the snapshot for the same
-/// session, while token rotation or transport invalidation drops it.
+/// snapshot. Token rotation or transport invalidation drops it.
 #[derive(Debug)]
 pub(crate) struct McpAppCatalog {
     resources: Vec<rmcp::model::Resource>,
@@ -72,20 +71,7 @@ impl Deref for McpSessionContext {
 
 impl McpSessionContext {
     pub(crate) async fn app_catalog(&self) -> Result<Arc<McpAppCatalog>, rmcp::ServiceError> {
-        self.load_app_catalog(false).await
-    }
-
-    pub(crate) async fn refresh_app_catalog(
-        &self,
-    ) -> Result<Arc<McpAppCatalog>, rmcp::ServiceError> {
-        self.load_app_catalog(true).await
-    }
-
-    async fn load_app_catalog(
-        &self,
-        refresh: bool,
-    ) -> Result<Arc<McpAppCatalog>, rmcp::ServiceError> {
-        cached_or_refresh(&self.app_catalog, refresh, || async {
+        cached_or_load(&self.app_catalog, || async {
             let resources = self.service.list_all_resources().await?;
             let tools = self.service.list_all_tools().await?;
             Ok(McpAppCatalog { resources, tools })
@@ -191,17 +177,13 @@ impl McpSessionPool {
     }
 }
 
-async fn cached_or_refresh<T, E, F, Fut>(
-    cache: &Mutex<Option<Arc<T>>>,
-    refresh: bool,
-    load: F,
-) -> Result<Arc<T>, E>
+async fn cached_or_load<T, E, F, Fut>(cache: &Mutex<Option<Arc<T>>>, load: F) -> Result<Arc<T>, E>
 where
     F: FnOnce() -> Fut,
     Fut: Future<Output = Result<T, E>>,
 {
     let mut cached = cache.lock().await;
-    if !refresh && let Some(value) = cached.as_ref() {
+    if let Some(value) = cached.as_ref() {
         return Ok(value.clone());
     }
     let value = Arc::new(load().await?);
@@ -226,32 +208,26 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn session_cache_loads_once_until_explicit_refresh() {
+    async fn session_cache_loads_once() {
         let cache = Mutex::new(None);
         let loads = AtomicUsize::new(0);
 
-        let first = cached_or_refresh(&cache, false, || async {
+        let first = cached_or_load(&cache, || async {
             loads.fetch_add(1, Ordering::SeqCst);
             Ok::<_, ()>(41)
         })
         .await
         .unwrap();
-        let cached = cached_or_refresh(&cache, false, || async {
+        let cached = cached_or_load(&cache, || async {
             loads.fetch_add(1, Ordering::SeqCst);
             Ok::<_, ()>(42)
         })
         .await
         .unwrap();
-        let refreshed = cached_or_refresh(&cache, true, || async {
-            loads.fetch_add(1, Ordering::SeqCst);
-            Ok::<_, ()>(43)
-        })
-        .await
-        .unwrap();
 
         assert!(Arc::ptr_eq(&first, &cached));
-        assert_eq!(*refreshed, 43);
-        assert_eq!(loads.load(Ordering::SeqCst), 2);
+        assert_eq!(*cached, 41);
+        assert_eq!(loads.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]
@@ -259,15 +235,13 @@ mod tests {
         let cache = Mutex::new(None);
 
         assert_eq!(
-            cached_or_refresh(&cache, false, || async {
-                Err::<usize, _>("catalog unavailable")
-            })
-            .await
-            .unwrap_err(),
+            cached_or_load(&cache, || async { Err::<usize, _>("catalog unavailable") })
+                .await
+                .unwrap_err(),
             "catalog unavailable"
         );
         assert_eq!(
-            *cached_or_refresh(&cache, false, || async { Ok::<_, &str>(7) })
+            *cached_or_load(&cache, || async { Ok::<_, &str>(7) })
                 .await
                 .unwrap(),
             7
