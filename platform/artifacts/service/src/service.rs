@@ -19,9 +19,9 @@ use veoveo_mcp_contract::{
     ArtifactShareLinkId, ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret,
     CreateArtifactAccessRequest, CreateArtifactShareLinkRequest, DecideArtifactAccessRequest,
     InvocationAuthority, InvocationProvenance, IssueArtifactWriteCapabilityRequest,
-    IssuedArtifactWriteCapability, ListArtifactAccessRequests, ListArtifactsRequest, PlaneCaller,
-    PutArtifactRequest, RedeemArtifactWriteCapabilityRequest, WorkContextMembershipLevel,
-    parse_artifact_plane_uri,
+    IssuedArtifactWriteCapability, ListArtifactAccessRequests, ListArtifactsRequest,
+    MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES, PlaneCaller, PutArtifactRequest,
+    RedeemArtifactWriteCapabilityRequest, WorkContextMembershipLevel, parse_artifact_plane_uri,
 };
 
 use crate::ledger::{
@@ -38,7 +38,6 @@ const DEFAULT_REDIRECT_THRESHOLD: u64 = 8 * 1024 * 1024;
 const CAPABILITY_MAX_TTL: TimeDelta = TimeDelta::hours(24);
 const SHARE_DEFAULT_TTL: TimeDelta = TimeDelta::days(7);
 const SHARE_MAX_TTL: TimeDelta = TimeDelta::days(30);
-const MAX_ARTIFACT_PUT_JSON_BYTES: usize = 4 * 1024;
 const MAX_ARTIFACT_PRESENTATION_FIELD_BYTES: usize = 255;
 const DEFAULT_LIST_LIMIT: usize = 50;
 const MAX_LIST_LIMIT: usize = 100;
@@ -207,9 +206,9 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
                 "artifact put descriptor is not serializable: {error}"
             ))
         })?;
-        if request_bytes.len() > MAX_ARTIFACT_PUT_JSON_BYTES {
+        if request_bytes.len() > MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES {
             return Err(ArtifactPlaneError::InvalidRequest(format!(
-                "artifact put descriptor exceeds {MAX_ARTIFACT_PUT_JSON_BYTES} bytes"
+                "artifact put descriptor exceeds {MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES} bytes"
             )));
         }
         if let Some(mime_type) = &request.mime_type

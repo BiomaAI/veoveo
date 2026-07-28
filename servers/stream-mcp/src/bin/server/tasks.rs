@@ -302,6 +302,8 @@ async fn run_task_inner(
                 Ok(kind) => kind,
                 Err(error) => fail!(format!("{error:#}")),
             };
+            let source_snapshot =
+                veoveo_stream_mcp::contract::RecordingSourceSnapshot::from(&source.source_snapshot);
             let execute =
                 state
                     .executor
@@ -313,6 +315,7 @@ async fn run_task_inner(
                         input_height: source.clip.height,
                         timeline_kind,
                         video: &input.video,
+                        source_snapshot: &source_snapshot,
                         pipeline: &pipeline,
                         model: &model,
                         sampling: input.sampling,

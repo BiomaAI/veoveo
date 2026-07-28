@@ -10,7 +10,7 @@ use crate::catalog::{
 };
 use crate::contract::{
     AnalysisResults, BoundingBox2D, Detection, FrameDetections, IndexRange,
-    RecordingVideoSelection, SamplingPolicy, VideoTimelineKind,
+    RecordingSourceSnapshot, RecordingVideoSelection, SamplingPolicy, VideoTimelineKind,
 };
 
 pub const RUNNER_REQUEST_SCHEMA: &str = "veoveo.stream-recording-runner-request/v1";
@@ -34,6 +34,7 @@ pub struct StreamAnalysisRequest<'a> {
     pub input_height: u16,
     pub timeline_kind: VideoTimelineKind,
     pub video: &'a RecordingVideoSelection,
+    pub source_snapshot: &'a RecordingSourceSnapshot,
     pub pipeline: &'a PipelineConfig,
     pub model: &'a ModelConfig,
     pub sampling: SamplingPolicy,
@@ -177,6 +178,7 @@ impl StreamExecutor {
             timeline: analysis.video.timeline.clone(),
             timeline_kind: analysis.timeline_kind,
             requested_range: analysis.video.range,
+            source_snapshot: analysis.source_snapshot.clone(),
             frames: response.frames,
             processed_frames: response.processed_frames,
             elapsed_ms: response.elapsed_ms,
@@ -393,7 +395,9 @@ mod tests {
         use std::os::unix::fs::PermissionsExt as _;
 
         use crate::catalog::{GStreamerGraphConfig, PipelineProfileConfig};
-        use crate::contract::{ModelFormat, PerceptionOperation, VideoTimelineKind};
+        use crate::contract::{
+            ModelFormat, PerceptionOperation, RecordingSourceSnapshot, VideoTimelineKind,
+        };
 
         let workspace = tempfile::tempdir().unwrap();
         let runner = workspace.path().join("runner.sh");
@@ -448,6 +452,11 @@ mod tests {
             format: ModelFormat::TensorRtEngine,
             model_path: "/models/detector.engine".into(),
         };
+        let source_snapshot = RecordingSourceSnapshot {
+            recording_id: "01983da0-0000-7000-8000-000000000000".to_owned(),
+            captured_at: chrono::Utc::now(),
+            sources: Vec::new(),
+        };
         let results = executor
             .analyze(StreamAnalysisRequest {
                 task_id: "01983da0-0000-7000-8000-000000000001",
@@ -457,6 +466,7 @@ mod tests {
                 input_height: 32,
                 timeline_kind: VideoTimelineKind::DurationNanoseconds,
                 video: &video,
+                source_snapshot: &source_snapshot,
                 pipeline: &pipeline,
                 model: &model,
                 sampling: SamplingPolicy::EveryFrame,
@@ -464,6 +474,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(results.frames[0].index, 120);
+        assert_eq!(results.source_snapshot, source_snapshot);
         let request: serde_json::Value =
             serde_json::from_slice(&std::fs::read(captured).unwrap()).unwrap();
         assert_eq!(request["decode_start_index"], 100);

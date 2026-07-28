@@ -50,8 +50,9 @@ pub use artifact_service::{
     ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, ArtifactWriteIdempotencyKey,
     CreateArtifactAccessRequest, CreateArtifactShareLinkRequest, DecideArtifactAccessRequest,
     GrantList, IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability,
-    ListArtifactAccessRequests, ListArtifactsRequest, PlaneCaller, PutArtifactRequest,
-    PutGrantRequest, RedeemArtifactWriteCapabilityRequest, SetArtifactReleaseStateRequest,
+    ListArtifactAccessRequests, ListArtifactsRequest, MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES,
+    PlaneCaller, PutArtifactRequest, PutGrantRequest, RedeemArtifactWriteCapabilityRequest,
+    SetArtifactReleaseStateRequest,
 };
 pub use bootstrap::{
     SERVER_BOOTSTRAP_FLAG, SERVER_BOOTSTRAP_ISSUER, SERVER_BOOTSTRAP_MOUNT_PATH,

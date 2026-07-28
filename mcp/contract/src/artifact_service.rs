@@ -42,6 +42,12 @@ use crate::gateway::{DataLabelId, PrincipalId, TenantId, WorkContextId};
 use crate::internal_auth::GatewayInternalIdentity;
 use crate::storage::{ArtifactMetadata, ArtifactObject, ArtifactReleaseState};
 
+/// Maximum serialized size of [`PutArtifactRequest`].
+///
+/// Artifact bytes belong in the data plane. This bound keeps presentation,
+/// compliance, and provenance descriptors small enough for the control plane.
+pub const MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES: usize = 4 * 1024;
+
 macro_rules! artifact_uuid_id {
     ($name:ident, $label:literal) => {
         #[derive(
