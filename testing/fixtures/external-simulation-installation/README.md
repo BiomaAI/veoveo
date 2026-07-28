@@ -73,13 +73,23 @@ active X11 display. The acceptance command rejects HeadlessChrome and requires
 at least one NVIDIA-backed WebGPU or WebGL path before it loads the App.
 
 ```sh
+CHROME_PROFILE_DIR="${CHROME_PROFILE_DIR:-$HOME/.config/google-chrome-veoveo-dev}"
+test -d "$CHROME_PROFILE_DIR"
+
 google-chrome-stable \
-  --user-data-dir="$HOME/.config/veoveo-acceptance-chrome" \
+  --user-data-dir="$CHROME_PROFILE_DIR" \
   --remote-debugging-address=127.0.0.1 \
   --remote-debugging-port=9222 \
   --ozone-platform=x11 \
   http://localhost:8782/console/
 ```
+
+The local development workstation already authenticates that persistent
+profile. Another workstation sets `CHROME_PROFILE_DIR` to its existing
+authenticated Chrome user-data directory. Never remove the existence check:
+without it Chrome creates an empty profile and the visual proof no longer
+exercises the operator's Console session. Do not force a graphics backend;
+hardware-backed WebGPU or WebGL satisfies the browser preflight.
 
 Then run:
 

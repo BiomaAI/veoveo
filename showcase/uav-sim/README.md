@@ -206,14 +206,15 @@ pressure. Keep every required workload enabled in the active profile.
 Run the composed showcase only after both independent paths pass:
 
 ```sh
-google-chrome \
+CHROME_PROFILE_DIR="${CHROME_PROFILE_DIR:-$HOME/.config/google-chrome-veoveo-dev}"
+test -d "$CHROME_PROFILE_DIR"
+
+google-chrome-stable \
   --remote-debugging-address=127.0.0.1 \
   --remote-debugging-port=9222 \
-  --user-data-dir="$HOME/.config/veoveo-acceptance-chrome" \
+  --user-data-dir="$CHROME_PROFILE_DIR" \
   --window-size=1920,1080 \
   --ozone-platform=x11 \
-  --use-angle=vulkan \
-  --enable-features=Vulkan \
   https://installation.example/console/
 
 cargo xtask smoke uav-showcase-verify \
@@ -223,9 +224,14 @@ cargo xtask smoke uav-showcase-verify \
 ```
 
 Chrome must be visible and authenticated through the installation's ordinary
-Console login. Keep this user-data directory between runs and authenticate it
-once; a temporary or newly created profile is not an acceptable substitute for
-the operator's authenticated session. `--chrome-cdp-url` accepts the HTTP discovery origin shown above
+Console login. The local development workstation keeps that session in
+`$HOME/.config/google-chrome-veoveo-dev`; another workstation sets
+`CHROME_PROFILE_DIR` to its existing authenticated profile. The directory
+existence check is intentional because Chrome would otherwise create an empty,
+logged-out profile. A temporary or newly created profile is not an acceptable
+substitute for the operator's authenticated session. Do not force a particular
+ANGLE or WebGPU backend: acceptance probes both APIs and requires hardware-backed
+WebGPU or WebGL. `--chrome-cdp-url` accepts the HTTP discovery origin shown above
 or Chrome's direct local `ws://` browser endpoint when runtime debugging does
 not expose `/json/version`. Both paths query `Browser.getVersion` before the
 in-page hardware checks. The composed command asks the UAV server for its

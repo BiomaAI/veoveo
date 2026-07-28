@@ -19,21 +19,27 @@ disk nor printed. Use the operator's persistent authenticated acceptance
 profile:
 
 ```bash
-google-chrome \
+CHROME_PROFILE_DIR="${CHROME_PROFILE_DIR:-$HOME/.config/google-chrome-veoveo-dev}"
+test -d "$CHROME_PROFILE_DIR"
+
+google-chrome-stable \
   --remote-debugging-address=127.0.0.1 \
   --remote-debugging-port=9222 \
-  --user-data-dir="$HOME/.config/veoveo-acceptance-chrome" \
+  --user-data-dir="$CHROME_PROFILE_DIR" \
   --window-size=1920,1080 \
   --force-dark-mode \
   --ozone-platform=x11 \
-  --use-angle=vulkan \
-  --enable-features=Vulkan \
   https://your-installation.example/console/
 ```
 
 This command must open a visible X11 window. Do not add `--headless`,
 SwiftShader, or software-WebGL flags. Complete the normal enterprise login in
-that window. Every Console and Rerun recipe performs a fail-closed browser
+that window. The local development workstation uses the existing
+`$HOME/.config/google-chrome-veoveo-dev` session. Other workstations set
+`CHROME_PROFILE_DIR` to an existing authenticated user-data directory; the
+directory guard prevents Chrome from silently creating a logged-out profile.
+Do not force ANGLE, Vulkan, or WebGPU flags because hardware-backed WebGL is a
+complete accepted graphics path. Every Console and Rerun recipe performs a fail-closed browser
 preflight before navigation and again before capture. The preflight requires
 hardware-backed high-performance WebGPU or WebGL. It probes both APIs when
 available and aborts if neither reaches NVIDIA hardware; API reachability does
