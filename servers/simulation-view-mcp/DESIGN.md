@@ -161,6 +161,12 @@ runtime control boundary. This initial profile renders every logical camera;
 it does not claim cadence virtualization that the implementation has not
 measured.
 
+The renderer owns one additional low-resolution, non-streamed RTX product for
+hardware readiness. It is outside the admitted media-slot range and is never
+reassigned to a logical camera. Closing a camera pauses and retains its
+physical media product for later reuse after encoder teardown; cleanup never
+reconfigures a live AOV into the readiness product.
+
 `rtx4090-development-v1` is a conservative development profile, not release
 qualification. A production profile requires measured renderer and encoder
 evidence tied to the image and GPU.
