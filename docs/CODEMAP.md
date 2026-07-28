@@ -224,6 +224,13 @@ Owns cross-domain Rerun/RRD spacetime types, adapters, and encoded-video boundar
 inspection. Domain results that do not overlap Rerun concepts stay local to their MCP
 crate.
 
+### `platform/recordings/video`
+
+Owns governed video selection and task-start materialization shared by Perception and
+Reason. It consumes Recording MCP read plans, combines immutable archive shards with
+complete acknowledged live ingest parts, and remuxes the bounded H.264 range without
+re-encoding.
+
 ### `platform/recordings/protocol`
 
 Owns the versioned protobuf contract for authenticated recording streams, batches,

@@ -28,7 +28,7 @@ inference service, and no agent framework.
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with task-only reasoning, resources and templates, typed structured results, notifications, and usage records. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Video selection, reasoning request, model and pipeline catalog, event, grounding, provenance, and artifact contracts. |
 | [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; every reasoning invocation is a durable, cancellable, result-addressable task. |
-| [Rerun 0.35.0](https://rerun.io/docs/) RRD and `VideoStream` | Frozen or sealed source recordings preserve exact time; derived semantic events are published as RRD annotations. |
+| [Rerun 0.35.0](https://rerun.io/docs/) RRD and `VideoStream` | Frozen or sealed sources and task-start snapshots of complete acknowledged ingest parts preserve exact time; derived semantic events are published as RRD annotations. |
 | H.264/AVC Annex B | The source profile matches Perception: no B-frames and decoder-reentrant IDRs marked in the Rerun stream. |
 | ISO Base Media File Format / MP4 | A bounded source range is remuxed without re-encoding for the task-local decoder and world-model runner. |
 | Typed JSON process protocol | One schema-controlled request and response per isolated runner process. This boundary is private and does not replace MCP. |
@@ -37,9 +37,9 @@ inference service, and no agent framework.
 ## Data path
 
 ```text
-recording-hub frozen/sealed segments
+recording-hub acknowledged live parts and frozen/sealed segments
         |
-        | authorized logical-recording read plan
+        | authorized task-start source snapshot
         v
    reason task
         |
@@ -54,13 +54,12 @@ typed reasoning results + derived RRD annotations + artifacts
 
 The recording authorization contract is identical to perception's. A task
 first authorizes the canonical `recording://recordings/{uuidv7}` identity
-against its tenant and labels, then re-resolves that identity inside the
-durable task and reads only frozen or sealed segments. No filesystem path and
-no bearer token is ever persisted. The canonical video ingest profile is the
-one documented in `servers/perception-mcp/DESIGN.md`: H.264 Annex B
-`VideoStream` samples, nanosecond duration or timestamp timelines, no
-B-frames, and sparse `is_keyframe=true` markers on decoder-reentrant
-keyframes.
+against its tenant and labels. It then re-resolves that identity and captures
+the complete acknowledged parts visible at task start with prior frozen or
+sealed segments. Live parts are copied into bounded task-local storage and
+checked against their captured byte length and SHA-256 identity before decode.
+No filesystem path or bearer token is persisted. The canonical video ingest
+profile is the one documented in `servers/perception-mcp/DESIGN.md`.
 
 ## Reasoning contract
 
@@ -235,5 +234,6 @@ only on a deployment whose checkpoint is present in the model cache.
 - The runner ships with the deployable image. This repository defines the
   runner contract and the server enforces it fail-closed; a deployment
   without the checkpoint in its model cache keeps the workload disabled.
-- There is no live-proxy read mode and no attachment to a live camera. Reason
-  tasks operate only on frozen or sealed segments.
+- There is no live-proxy read mode and no attachment to a camera. Reason tasks
+  can analyze just-arrived batches only after Recording Hub durably
+  acknowledges them.

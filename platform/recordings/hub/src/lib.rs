@@ -22,7 +22,7 @@ pub use archive::{ArchiveMaterialization, materialize_archive_shard};
 pub use catalog::{CatalogPolicy, PlatformCatalog, SegmentInspection, inspect_segment};
 pub use config::{DatasetName, DatasetRoute, QUARANTINE_DATASET, SpoolerConfig};
 pub use ingest::{
-    RecordingIngestService, RecordingIngestServiceConfig, ingest_part_sequence,
+    RecordingIngestService, RecordingIngestServiceConfig, ingest_part_paths, ingest_part_sequence,
     ingest_segment_parts_directory, ingest_stream_static_context_path, live_segment_byte_len,
 };
 pub use ingest_http::recording_ingest_internal_router;

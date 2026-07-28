@@ -6,5 +6,7 @@ pub mod service;
 pub mod uris;
 
 pub use service::{
-    RecordingReadAuthority, RecordingReadPlan, RecordingReadSegment, RecordingService,
+    MaterializedRecordingReadSnapshot, RecordingReadAuthority, RecordingReadPlan,
+    RecordingReadSegment, RecordingReadSnapshot, RecordingReadSource, RecordingReadSourceKind,
+    RecordingService,
 };

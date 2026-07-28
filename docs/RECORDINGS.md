@@ -88,6 +88,14 @@ attaches the newly frozen
 archive and successor live source before detaching the old live receiver. The
 persistent viewer retains its layout, selection, and timeline state.
 
+Governed queries and bounded analysis use the same acknowledged writing data
+without waiting for rollover. Recording MCP captures one ordered snapshot of
+the complete ingest parts visible at request or task start. Perception and
+Reason copy those live parts into bounded task-local storage, verify their byte
+length and SHA-256 identity, and load them with prior immutable shards as one
+logical Rerun store. Later batches remain outside that task. This path never
+reads the producer proxy or an incomplete part.
+
 Recording UUIDv7 values and artifact UUIDv7 values are occurrence identities.
 Filesystem paths are always tenant-internal implementation details and are not
 returned by MCP. Classification is descriptive. Non-empty labels enforce
@@ -104,11 +112,12 @@ Encoded camera streams use the canonical H.264 `VideoStream` profile documented
 in [`servers/perception-mcp/DESIGN.md`](../servers/perception-mcp/DESIGN.md).
 Keyframes use sparse `is_keyframe=true` markers; non-keyframe samples omit the
 component. This shape is required by Rerun's video cache and GoP rebatching.
-Frozen or sealed RRD segments are the only Perception source. Video readers
-merge authorized shards only when a requested clip crosses a shard boundary.
-The authenticated production path carries static context into every shard and
-begins rollover shards at a keyframe, which keeps normal archive-shard decoder
-initialization local to that shard.
+Perception and Reason accept frozen or sealed RRD segments and task-start
+snapshots of complete acknowledged ingest parts. Video readers merge authorized
+sources when a requested clip crosses a source boundary. The authenticated
+production path carries static context into every shard and begins rollover
+shards at a keyframe, while the one-second producer GoP supplies decoder
+preroll for just-arrived live ranges.
 
 ## Representative archive measurement
 
