@@ -62,11 +62,10 @@ published and its server contract is registered in the gateway control plane.
 ## Release publication
 
 Production workloads use the repository and digest map in images.lock.yaml. The
-Application manifests select chart version 0.1.0-08d766cff999. That chart set was
-published from commit 08d766cff999. The platform and composed UAV acceptance
-images were published from commit 3e5d78cb904b; the selected image digests
-identify that immutable image release. The Rerun stdio bridge image was republished
-from commit 4ac2d26e164d after its NVIDIA Vulkan runtime dependency correction.
+Application manifests select chart version 0.1.0-20aa16e5215d. The charts and all
+platform and composed UAV acceptance images were published from commit
+20aa16e5215d6e12eb18cbe7ff785cbb3c9ba952. The selected image digests identify
+that immutable release.
 
 Publish a new local release directly to the shared registry:
 
@@ -76,8 +75,6 @@ CHART_VERSION=0.1.0-$(git rev-parse --short=12 HEAD)
 
 cargo xtask image builder ensure
 cargo xtask release images --group platform-full \
-  --registry localhost:5001 --revision "$REVISION"
-cargo xtask release images --group simulation-runtime \
   --registry localhost:5001 --revision "$REVISION"
 cargo xtask release images --group showcase-uav-sim \
   --registry localhost:5001 --revision "$REVISION"
