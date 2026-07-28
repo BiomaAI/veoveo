@@ -7,11 +7,13 @@ mod oauth;
 mod recording_playback;
 mod session;
 
-use std::{sync::Arc, time::Duration};
+use std::{path::Path, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use axum::{
-    Router, middleware,
+    Router,
+    http::{HeaderValue, header::CACHE_CONTROL},
+    middleware,
     response::Redirect,
     routing::{delete, get, post, put},
 };
@@ -76,9 +78,6 @@ async fn main() -> anyhow::Result<()> {
     };
     let csrf_state = state.clone();
 
-    let assets = ServeDir::new(config.asset_dir())
-        .append_index_html_on_directories(true)
-        .fallback(ServeFile::new(config.asset_dir().join("index.html")));
     let router = Router::new()
         .route("/", get(|| async { Redirect::permanent("/console/") }))
         .route("/healthz", get(|| async { "ok" }))
@@ -154,7 +153,7 @@ async fn main() -> anyhow::Result<()> {
             "/console/api/recordings/{recording_id}/playback-sessions/{playback_session}/segments/{segment_id}/live.rrd",
             get(recording_playback::live_segment),
         )
-        .nest_service("/console", assets)
+        .nest("/console", console_assets(config.asset_dir()))
         .fallback(get(|| async { axum::http::StatusCode::NOT_FOUND }))
         .with_state(state)
         .layer(middleware::from_fn_with_state(csrf_state, api::enforce_csrf))
@@ -190,4 +189,110 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!(address = %config.bind(), "console BFF listening");
     axum::serve(listener, router).await?;
     Ok(())
+}
+
+fn console_assets<S>(asset_dir: &Path) -> Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    let immutable_assets = Router::<S>::new()
+        .fallback_service(ServeDir::new(asset_dir.join("assets")))
+        .layer(SetResponseHeaderLayer::overriding(
+            CACHE_CONTROL,
+            HeaderValue::from_static("public, max-age=31536000, immutable"),
+        ));
+    let shell = ServeDir::new(asset_dir)
+        .append_index_html_on_directories(true)
+        .fallback(ServeFile::new(asset_dir.join("index.html")));
+
+    Router::<S>::new()
+        // Hashed Vite assets are the only immutable Console surface. Keeping
+        // this route outside the SPA fallback also makes a missing bundle a
+        // real 404 instead of serving index.html as JavaScript.
+        .nest("/assets", immutable_assets)
+        .fallback_service(shell)
+        // The entry document names the current content-addressed bundles and
+        // must be reloaded across a deployment. This also covers favicon and
+        // client-side routes served through the entry-document fallback.
+        .layer(SetResponseHeaderLayer::if_not_present(
+            CACHE_CONTROL,
+            HeaderValue::from_static("no-store"),
+        ))
+}
+
+#[cfg(test)]
+mod static_asset_tests {
+    use std::fs;
+
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use tower::ServiceExt as _;
+    use uuid::Uuid;
+
+    use super::*;
+
+    fn fixture() -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!("veoveo-console-assets-{}", Uuid::now_v7()));
+        fs::create_dir_all(root.join("assets")).unwrap();
+        fs::write(
+            root.join("index.html"),
+            r#"<script type="module" src="/console/assets/index-content.js"></script>"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("assets/index-content.js"),
+            "document.body.textContent='ready';",
+        )
+        .unwrap();
+        root
+    }
+
+    #[tokio::test]
+    async fn shell_is_not_cached_and_hashed_assets_are_immutable() {
+        let root = fixture();
+        let router = console_assets(&root);
+
+        let shell = router
+            .clone()
+            .oneshot(Request::get("/apps/example").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(shell.status(), StatusCode::OK);
+        assert_eq!(shell.headers()[CACHE_CONTROL], "no-store");
+
+        let asset = router
+            .oneshot(
+                Request::get("/assets/index-content.js")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(asset.status(), StatusCode::OK);
+        assert_eq!(
+            asset.headers()[CACHE_CONTROL],
+            "public, max-age=31536000, immutable"
+        );
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn missing_hashed_asset_does_not_fall_back_to_html() {
+        let root = fixture();
+        let response = console_assets(&root)
+            .oneshot(
+                Request::get("/assets/index-missing.js")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        fs::remove_dir_all(root).unwrap();
+    }
 }

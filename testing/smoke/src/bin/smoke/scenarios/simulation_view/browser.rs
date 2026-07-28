@@ -132,10 +132,7 @@ pub(crate) async fn capture_console_live_app(
     screenshot_path: &Path,
     timeout: Duration,
 ) -> Result<ConsoleLiveCaptureEvidence> {
-    let page_url = format!(
-        "{}/console/#/apps/simulation-view/live.html",
-        public_base_url.trim_end_matches('/')
-    );
+    let page_url = console_acceptance_url(public_base_url, "/apps/simulation-view/live.html");
     tokio::time::timeout(
         timeout,
         capture_console_live_app_inner(cdp_base, &page_url, expected_camera_id, screenshot_path),
@@ -149,10 +146,7 @@ pub(crate) async fn preflight_console_live_app(
     public_base_url: &str,
     timeout: Duration,
 ) -> Result<()> {
-    let page_url = format!(
-        "{}/console/#/apps/simulation-view/live.html",
-        public_base_url.trim_end_matches('/')
-    );
+    let page_url = console_acceptance_url(public_base_url, "/apps/simulation-view/live.html");
     tokio::time::timeout(
         timeout,
         preflight_console_live_app_inner(cdp_base, &page_url),
@@ -168,11 +162,7 @@ pub(crate) async fn capture_console_recording(
     screenshot_path: &Path,
     timeout: Duration,
 ) -> Result<ConsoleRecordingCaptureEvidence> {
-    let page_url = format!(
-        "{}/console/#/recordings/{}",
-        public_base_url.trim_end_matches('/'),
-        recording_id
-    );
+    let page_url = console_acceptance_url(public_base_url, &format!("/recordings/{recording_id}"));
     tokio::time::timeout(
         timeout,
         capture_console_recording_inner(cdp_base, &page_url, recording_id, screenshot_path),
@@ -187,16 +177,21 @@ pub(crate) async fn capture_console_stream_app(
     screenshot_path: &Path,
     timeout: Duration,
 ) -> Result<ConsoleStreamCaptureEvidence> {
-    let page_url = format!(
-        "{}/console/#/apps/stream/live.html",
-        public_base_url.trim_end_matches('/')
-    );
+    let page_url = console_acceptance_url(public_base_url, "/apps/stream/live.html");
     tokio::time::timeout(
         timeout,
         capture_console_stream_app_inner(cdp_base, &page_url, screenshot_path),
     )
     .await
     .with_context(|| format!("Console Stream-App capture exceeded {timeout:?}"))?
+}
+
+fn console_acceptance_url(public_base_url: &str, route: &str) -> String {
+    format!(
+        "{}/console/?veoveo-acceptance={}#{route}",
+        public_base_url.trim_end_matches('/'),
+        uuid::Uuid::now_v7(),
+    )
 }
 
 async fn preflight_console_live_app_inner(cdp_base: &str, page_url: &str) -> Result<()> {
@@ -2161,6 +2156,23 @@ const STREAM_APP_DECODE_IDENTITY: &str = r#"(async () => {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn console_acceptance_url_bypasses_stale_entry_documents() {
+        let page = Url::parse(&console_acceptance_url(
+            "https://installation.example/",
+            "/apps/simulation-view/live.html",
+        ))
+        .unwrap();
+        let nonce = page
+            .query_pairs()
+            .find_map(|(key, value)| (key == "veoveo-acceptance").then_some(value.into_owned()))
+            .unwrap();
+
+        assert_eq!(page.path(), "/console/");
+        assert_eq!(page.fragment(), Some("/apps/simulation-view/live.html"));
+        assert!(uuid::Uuid::parse_str(&nonce).is_ok());
+    }
 
     #[test]
     fn chrome_version_uses_the_cdp_websocket_wire_casing() {

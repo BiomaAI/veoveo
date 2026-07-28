@@ -30,3 +30,6 @@ rmcp = { workspace = true, features = ["client", "transport-streamable-http-clie
 veoveo-mcp-apps-extension = { path = "../../../mcp/apps-extension" }
 veoveo-mcp-contract = { workspace = true }
 veoveo-mcp-task-extension = { path = "../../../mcp/task-extension" }
+
+[dev-dependencies]
+tower.workspace = true
