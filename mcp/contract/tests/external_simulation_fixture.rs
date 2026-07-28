@@ -81,6 +81,13 @@ fn external_simulation_fragment_composes_with_installation_owned_authority() {
             rule.actions.contains(&GatewayAction::ToolsList),
             "Simulation View policy rule `{rule_id}` must expose its tools through tools/list"
         );
+        if rule_id == "allow_simulation_view_streams" {
+            assert!(
+                rule.actions.contains(&GatewayAction::ResourcesList),
+                "Simulation View stream policy must make its App discoverable through \
+                 resources/list"
+            );
+        }
     }
     assert_eq!(composed.contributions.len(), 1);
 }

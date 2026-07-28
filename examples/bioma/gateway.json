@@ -3006,6 +3006,7 @@
           "actions": [
             "tools_list",
             "tools_call",
+            "resources_list",
             "resources_read"
           ],
           "profiles": [
