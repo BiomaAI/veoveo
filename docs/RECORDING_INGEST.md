@@ -72,6 +72,13 @@ footer; the Console then selects the next writing segment from the governed
 manifest. Batch boundaries never appear as catalog segments or independent
 recordings.
 
+The writing row also supports bounded live queries and analysis. Recording MCP
+captures only complete materialized parts whose append response has advanced
+the durable checkpoint. A Perception or Reason task copies that ordered source
+snapshot before decode, so rollover may remove the Hub's parts directory
+without changing the task input. The snapshot provenance records segment
+identity, part sequence, byte length, and SHA-256 without exposing paths.
+
 ## Network routes
 
 The external and local-network origin uses HTTPS. Bioma's public DNS reaches Cloudflare

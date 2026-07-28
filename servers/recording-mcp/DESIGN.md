@@ -37,6 +37,13 @@ refreshes the manifest every five seconds. Rollover attaches the newly frozen
 archive and successor live source before detaching the prior live receiver, so
 the viewer instance and operator state remain intact.
 
+Governed query and analysis plans include complete acknowledged ingest parts
+from the current writing shard. An analysis consumer captures one ordered
+snapshot, copies its live parts into bounded task-local storage, and verifies
+each copy against its captured byte length and SHA-256 identity. Frozen and
+sealed sources remain zero-copy. Source provenance contains recording,
+segment, and part identities without filesystem paths.
+
 `contract.rs` owns the typed manifest. `service/read.rs` resolves a fresh
 authorized filesystem plan from durable identities. `live_playback.rs` owns the
 bounded follow projection. `bin/server.rs` owns HTTP framing and byte-range

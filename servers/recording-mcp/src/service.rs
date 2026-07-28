@@ -24,7 +24,10 @@ use crate::contract::{
 };
 
 mod read;
-pub use read::{RecordingReadAuthority, RecordingReadPlan, RecordingReadSegment};
+pub use read::{
+    MaterializedRecordingReadSnapshot, RecordingReadAuthority, RecordingReadPlan,
+    RecordingReadSegment, RecordingReadSnapshot, RecordingReadSource, RecordingReadSourceKind,
+};
 
 const MAX_QUERY_ROWS: u64 = 10_000;
 const MAX_SEGMENTS: u32 = 10_000;
@@ -298,24 +301,16 @@ impl RecordingService {
             .map(|range| QueryIndexRange::new(range.start, range.end))
             .transpose()?;
         let recording_id = parse_recording_id(&request.recording_id)?;
-        let Some((platform_identity, _)) = self.visible_recording(identity, recording_id).await?
-        else {
+        let authority = RecordingReadAuthority::from_gateway(identity);
+        let Some(plan) = self.read_plan(&authority, recording_id).await? else {
             anyhow::bail!("recording not found");
         };
-        let segments = self
-            .store
-            .recording_segments(platform_identity.tenant_id, recording_id, MAX_SEGMENTS)
-            .await?;
-        let paths = segments
-            .iter()
-            .filter(|segment| matches!(segment.state, SegmentState::Frozen | SegmentState::Sealed))
-            .map(|segment| self.segment_path(&segment.relative_path))
-            .collect::<Result<Vec<_>>>()?;
         let entities = request.entities.clone();
         let timeline = request.timeline.clone();
         let max_rows = request.max_rows;
         let result = tokio::task::spawn_blocking(move || {
-            query_segments_in_range(&paths, &entities, &timeline, max_rows, range)
+            let materialized = plan.materialize_analysis_snapshot()?;
+            query_segments_in_range(materialized.paths(), &entities, &timeline, max_rows, range)
         })
         .await
         .context("recording query worker panicked")??;

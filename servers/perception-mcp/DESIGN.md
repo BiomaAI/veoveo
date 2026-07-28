@@ -21,7 +21,7 @@ or provider API.
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Video selection, pipeline, detection, tracking, provenance, and artifact contracts. |
 | [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; analysis is durable, cancellable, resumable from governed recording identity, and result-addressable. |
 | Veoveo recording ingest | Version `2026-07-24`; authenticated protobuf batches carry producer Rerun messages into Recording Hub before perception begins. |
-| [Rerun 0.35.0](https://rerun.io/docs/) RRD and `VideoStream` | Frozen and sealed source recordings, exact timeline indices, and derived annotation recordings. |
+| [Rerun 0.35.0](https://rerun.io/docs/) RRD and `VideoStream` | Frozen and sealed source recordings plus task-start snapshots of complete acknowledged ingest parts, exact timeline indices, and derived annotation recordings. |
 | H.264/AVC Annex B | One access unit per Rerun sample, strictly increasing indices, no B-frames, sparse keyframe markers, and decoder-reentrant IDRs with SPS/PPS. |
 | ISO Base Media File Format / MP4 | Selected Annex B samples are remuxed without re-encoding. The runner receives a zero-based presentation timeline plus the original Rerun decode-start index. |
 | GStreamer / NVIDIA DeepStream metadata | Process-local GPU runner boundary for decode, batching, inference, and optional tracking. It is not exposed as an MCP or public network protocol. |
@@ -38,9 +38,12 @@ recording-forwarder:9876/proxy  (producer loopback only)
         |
         | authenticated versioned protobuf batches
         v
-gateway -> recording-hub -> frozen .rrd -> sealed artifacts
+gateway -> recording-hub -> acknowledged immutable parts
+                                |                 |
+                                |                 v
+                                |           frozen .rrd -> sealed artifacts
                                 |
-                                | authorized logical-recording read plan
+                                | authorized task-start source snapshot
                                 v
                          perception task
                                 |
@@ -56,18 +59,24 @@ gateway -> recording-hub -> frozen .rrd -> sealed artifacts
 The Rerun receiver is a producer-local transport, not durable storage or an
 authorization boundary. The forwarder authenticates to the gateway and sends
 versioned protobuf batches. Recording Hub materializes each accepted batch as
-an immutable RRD segment and catalogs it in SurrealDB. A logical Rerun recording
-is identified by application ID plus recording ID and may span multiple
-segments.
+an immutable RRD part beneath the cataloged writing segment before it
+acknowledges the batch. A logical Rerun recording is identified by application
+ID plus recording ID and may span live parts and archive segments.
 
 Perception first authorizes the canonical
 `recording://recordings/{uuidv7}` identity against its tenant and labels. A
-durable task then re-resolves that identity and reads only frozen or sealed
-segments; it never persists a filesystem path or bearer token. All authorized
-physical segments are loaded as one logical Rerun store before video is
-selected, so an IDR in one segment can decode a requested P-frame in the next.
-There is no live-proxy read mode. Perception tasks have one resumable source
-contract and operate only on frozen or sealed segments.
+durable task re-resolves that identity and captures the complete acknowledged
+parts visible at task start together with prior frozen or sealed segments. It
+copies live parts into bounded task-local storage before extraction because Hub
+may replace their directory during rollover. Every copied source is checked
+against its captured byte length and SHA-256 identity. The task persists the
+recording identity and source provenance, never a filesystem path or bearer
+token.
+
+The snapshot is one logical Rerun store. An IDR in an earlier source can decode
+a requested P-frame in a later live part. Later batches do not enter a running
+task. This is live bounded analysis over durable input, not an attachment to
+the producer's loopback proxy and not a permanent per-frame inference stream.
 
 Video ranges use inclusive timeline bounds. A decoder-reentrant keyframe may
 precede the requested start as preroll or fall just after it when the requested
@@ -272,7 +281,7 @@ dispatch surface.
 - The runner supports object detection and object detection plus tracking.
   Segmentation and pose require new typed result contracts before they can be
   enabled.
-- Recent proxy replay is bounded convenience over an already cataloged
-  recording, not the durable source of truth.
+- A live task sees only complete batches acknowledged by Recording Hub. Data
+  still in the producer queue is not an analysis source.
 - macOS can build and test the Rust protocol/extraction layers but cannot run
   the NVIDIA container. End-to-end GPU validation runs on the Ubuntu target.

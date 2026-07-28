@@ -31,6 +31,7 @@ pub(super) async fn publish_analysis(
     products: AnalysisProducts,
 ) -> Result<CallToolResult> {
     let compliance = compliance(&products.source.classification, &products.source.labels)?;
+    let source_snapshot = products.source.source_snapshot.clone();
     let results_bytes = serde_json::to_vec_pretty(&products.results)?;
     let results_artifact = put(
         state,
@@ -50,6 +51,7 @@ pub(super) async fn publish_analysis(
                 "model_id": products.results.model_id,
                 "prompt_revision": products.results.prompt_revision,
                 "task_kind": products.results.task.kind(),
+                "source_snapshot": source_snapshot,
             }
         }),
     )
@@ -69,6 +71,7 @@ pub(super) async fn publish_analysis(
                 "analysis_id": task_id,
                 "recording_id": products.source.recording_id,
                 "results_artifact_uri": results_artifact.artifact_uri,
+                "source_snapshot": source_snapshot,
             }
         }),
     )
@@ -92,6 +95,7 @@ pub(super) async fn publish_analysis(
                         "entity_path": products.results.entity_path,
                         "timeline": products.results.timeline,
                         "decode_start_index": products.source.clip.decode_start_index,
+                        "source_snapshot": source_snapshot,
                     }
                 }),
             )

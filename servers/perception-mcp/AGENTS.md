@@ -6,7 +6,8 @@ Delta over the repository root `AGENTS.md`. The normative server contract is
 ## Purpose
 
 Provider neutral local perception: bounded, durable inference tasks (object
-detection, optional tracking) over frozen or sealed Recording Hub video.
+detection, optional tracking) over governed Recording Hub video, including
+just-arrived acknowledged ingest parts.
 Production execution uses NVIDIA DeepStream and TensorRT, and NVIDIA names
 never appear in its public MCP identities.
 
@@ -15,8 +16,10 @@ never appear in its public MCP identities.
 - Owns the `perception://` scheme: pipelines, models, analyses, results, and
   artifacts.
 - A task first authorizes the canonical `recording://recordings/{uuidv7}`
-  identity, re-resolves it inside the durable task, and reads only frozen or
-  sealed segments. It never persists a filesystem path or bearer token.
+  identity, re-resolves it inside the durable task, and captures one bounded
+  source snapshot. The snapshot may contain frozen or sealed segments and
+  complete acknowledged parts from the writing segment. It never contains a
+  mutable native file, persisted filesystem path, or bearer token.
 - The ingest profile is pinned: H.264 Annex B `VideoStream` samples,
   nanosecond timelines, no B-frames, sparse keyframe markers, and
   decoder-reentrant IDRs. Other codecs and frame series timelines are

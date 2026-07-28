@@ -844,7 +844,7 @@ fn publish_segment(path: &Path, bytes: &[u8]) -> Result<()> {
     sync_directory(directory)
 }
 
-fn ingest_part_paths(parts_directory: &Path) -> Result<Vec<PathBuf>> {
+pub fn ingest_part_paths(parts_directory: &Path) -> Result<Vec<PathBuf>> {
     if !parts_directory.exists() {
         return Ok(Vec::new());
     }

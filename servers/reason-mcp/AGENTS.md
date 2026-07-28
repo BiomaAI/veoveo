@@ -17,9 +17,10 @@ appear in its public MCP identities.
   artifacts.
 - Recording authorization matches perception: authorize the canonical
   `recording://recordings/{uuidv7}` identity, re-resolve it inside the
-  durable task, read only frozen or sealed segments, and persist no
-  filesystem path or bearer token. The video ingest profile is the one pinned
-  in `servers/perception-mcp/DESIGN.md`.
+  durable task, and capture one bounded source snapshot. The snapshot may
+  contain frozen or sealed segments and complete acknowledged parts from the
+  writing segment. It persists no filesystem path or bearer token. The video
+  ingest profile is the one pinned in `servers/perception-mcp/DESIGN.md`.
 - Every result carries its audit identity (model, engine digest, prompt
   template revision, decode parameters) and states
   `confidence_basis: model_reported`. Never present reasoning output as

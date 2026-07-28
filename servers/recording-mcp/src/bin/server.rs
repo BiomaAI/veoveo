@@ -161,7 +161,7 @@ impl ServerHandler for RecordingMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new(SERVER_SLUG, env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Governed access to the installation recording catalog. Discover recordings through resources, query bounded temporal rows with query_recording, and seal only frozen recordings when the caller has admin:manage scope. Sealing returns artifact:// occurrence URIs; artifact policy controls subsequent reads and sharing."
+            "Governed access to the installation recording catalog. Discover recordings through resources, query bounded temporal rows from frozen shards or acknowledged live parts with query_recording, and seal only frozen recordings when the caller has admin:manage scope. Sealing returns artifact:// occurrence URIs; artifact policy controls subsequent reads and sharing."
                 .to_owned(),
         );
         info

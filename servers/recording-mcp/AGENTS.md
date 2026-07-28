@@ -25,6 +25,9 @@ storage, and playback contract is normative in
   bounds, length, and digest. Do not add routes outside this governed set.
 - Live playback is bound to one writing segment identity and ends at
   rollover; the follow projection keeps a bounded row ID history window.
+- Governed queries and analysis snapshots may include complete acknowledged
+  ingest parts from a writing segment. A task-local copy binds the exact part
+  sequence, byte length, and SHA-256 before Hub rollover can replace it.
 - Module boundaries are pinned by DESIGN.md: `contract.rs` owns the typed
   manifest, `service/read.rs` resolves authorized filesystem plans from
   durable identities, `live_playback.rs` owns the follow projection,

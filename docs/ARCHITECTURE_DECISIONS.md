@@ -120,6 +120,11 @@ segment after each Hub flush. Completed playback attaches the ordered, range-cap
 archive sources to one persistent Rerun viewer, where their shared store identity presents
 one recording timeline. No request path rebuilds or concatenates the whole recording.
 
+Bounded Perception and Reason tasks may analyze the writing recording before rollover.
+Their governed read plan captures only complete acknowledged ingest parts, copies those
+parts into task-local storage, and records their immutable identities in output
+provenance. A task never reads an incomplete Hub write or attaches to a producer proxy.
+
 ## Task execution and provider completion
 
 Long-running work uses the shared durable task runtime. Task IDs are UUIDv7 and

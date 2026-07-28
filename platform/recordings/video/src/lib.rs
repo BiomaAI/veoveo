@@ -2,11 +2,11 @@
 //! `VideoStream` recordings.
 //!
 //! One selection contract, one bounded materialization path: authorize the
-//! canonical recording identity, read only frozen or sealed segments through
-//! the recording read plan, extract the requested range from the preceding
-//! decoder-reentrant keyframe, and remux to MP4 without re-encoding. Servers
-//! own what happens to the materialized clip; this crate owns how recorded
-//! video is reached.
+//! canonical recording identity, capture the immutable archive segments and
+//! acknowledged live ingest parts visible at task start, extract the requested
+//! range from the preceding decoder-reentrant keyframe, and remux to MP4
+//! without re-encoding. Servers own what happens to the materialized clip;
+//! this crate owns how recorded video is reached.
 
 use std::sync::Arc;
 
@@ -17,7 +17,7 @@ use veoveo_platform_store::RecordingId;
 use veoveo_recording_hub::{
     EncodedVideoClip, VideoClipRequest, VideoIndexKind, extract_video_clip, remux_h264_mp4,
 };
-use veoveo_recording_mcp::{RecordingReadAuthority, RecordingService};
+use veoveo_recording_mcp::{RecordingReadAuthority, RecordingReadSnapshot, RecordingService};
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -92,6 +92,7 @@ pub struct MaterializedVideo {
     pub recording_key: String,
     pub classification: String,
     pub labels: Vec<String>,
+    pub source_snapshot: RecordingReadSnapshot,
     pub clip: EncodedVideoClip,
     pub mp4: Vec<u8>,
 }
@@ -109,9 +110,13 @@ pub async fn materialize_video(
         .read_plan(&authority, recording_id)
         .await?
         .context("recording not found")?;
+    let application_id = plan.application_id.clone();
+    let recording_key = plan.recording_key.clone();
+    let classification = plan.classification.clone();
+    let labels = plan.labels.clone();
     let request = VideoClipRequest {
-        application_id: plan.application_id.clone(),
-        recording_key: plan.recording_key.clone(),
+        application_id: application_id.clone(),
+        recording_key: recording_key.clone(),
         entity_path: selection.entity_path.clone(),
         timeline: selection.timeline.clone(),
         start_index: selection.range.start,
@@ -119,44 +124,40 @@ pub async fn materialize_video(
         max_samples: limits.max_samples,
         max_encoded_bytes: limits.max_encoded_bytes,
     };
-    let segment_bytes = plan
-        .segments
-        .iter()
-        .filter(|segment| {
-            matches!(
-                segment.state,
-                veoveo_platform_store::SegmentState::Frozen
-                    | veoveo_platform_store::SegmentState::Sealed
-            )
-        })
-        .try_fold(0_u64, |total, segment| {
-            total
-                .checked_add(segment.byte_len)
-                .context("recording segment byte count overflow")
-        })?;
-    ensure!(
-        segment_bytes <= limits.max_segment_bytes,
-        "authorized recording exceeds max_segment_bytes ({})",
-        limits.max_segment_bytes
-    );
-    let paths = plan.stable_segment_paths();
-    ensure!(
-        !paths.is_empty(),
-        "recording has no frozen or sealed segments"
-    );
-    let clip = tokio::task::spawn_blocking(move || extract_video_clip(&paths, &request))
-        .await
-        .context("video extraction worker panicked")??;
-    let clip_for_remux = clip.clone();
-    let mp4 = tokio::task::spawn_blocking(move || remux_h264_mp4(&clip_for_remux))
-        .await
-        .context("video remux worker panicked")??;
+    let (source_snapshot, clip, mp4) = tokio::task::spawn_blocking(move || {
+        let materialized = plan.materialize_analysis_snapshot()?;
+        let source_bytes =
+            materialized
+                .snapshot
+                .sources
+                .iter()
+                .try_fold(0_u64, |total, source| {
+                    total
+                        .checked_add(source.byte_len)
+                        .context("recording source byte count overflow")
+                })?;
+        ensure!(
+            source_bytes <= limits.max_segment_bytes,
+            "authorized recording snapshot exceeds max_segment_bytes ({})",
+            limits.max_segment_bytes
+        );
+        ensure!(
+            !materialized.paths().is_empty(),
+            "recording has no durable analysis sources"
+        );
+        let clip = extract_video_clip(materialized.paths(), &request)?;
+        let mp4 = remux_h264_mp4(&clip)?;
+        Ok::<_, anyhow::Error>((materialized.snapshot.clone(), clip, mp4))
+    })
+    .await
+    .context("video materialization worker panicked")??;
     Ok(MaterializedVideo {
         recording_id,
-        application_id: plan.application_id,
-        recording_key: plan.recording_key,
-        classification: plan.classification,
-        labels: plan.labels,
+        application_id,
+        recording_key,
+        classification,
+        labels,
+        source_snapshot,
         clip,
         mp4,
     })
