@@ -382,8 +382,8 @@ just uav-showcase-verify k3d-veoveo-bioma https://veoveo.bioma.ai
 
 The UAV acceptance requires Google Photorealistic 3D Tiles resident in Isaac, flies a
 PX4 mission, verifies the governed recording, runs Perception and Reason over
-acknowledged live camera parts before archive rollover, and confirms the
-concurrent GPU deployments remain available. Its runtime inputs come from
+acknowledged camera parts no more than two seconds behind the live edge before
+archive rollover, and confirms the concurrent GPU deployments remain available. Its runtime inputs come from
 showcase/uav-sim/scenarios/new-york-aerial.json. The acceptance client creates
 the complete world through Frames MCP and binds the returned immutable revision
 to the simulator before Isaac constructs its stage.

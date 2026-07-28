@@ -111,9 +111,10 @@ A producer-local forwarder carries those messages to Recording Hub. Public
 resources contain only canonical
 `recording://recordings/{recording_id}` identities.
 
-The domain acceptance runs Perception and Reason against acknowledged live
-parts before archive rollover. Each task records the exact source snapshot and
-uses the preceding H.264 IDR for decoder preroll.
+The domain acceptance requires a camera sample no more than two seconds behind
+the live simulation edge, then runs Perception and Reason against acknowledged
+live parts before archive rollover. Each task records the exact requested range
+and source snapshot and uses the preceding H.264 IDR for decoder preroll.
 
 ## Configuration
 
