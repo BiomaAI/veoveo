@@ -13,7 +13,7 @@ const BIOMA_DEPLOYMENTS: &[&str] = &[
     "recording",
     "artifact-mcp",
     "media-mcp",
-    "perception-mcp",
+    "stream-mcp",
     "reason-mcp",
     "timeseries-mcp",
     "duckdb-mcp",
@@ -107,7 +107,7 @@ pub(crate) async fn bioma_verify(
     );
 
     println!(
-        "Bioma verify ok: the full server catalog is available, Isaac Sim, View, Perception, and Reason are concurrently schedulable, console assets and Entra authorization are public, object TLS is valid, and the Bioma JWKS is authoritative"
+        "Bioma verify ok: the full server catalog is available, Isaac Sim, View, Stream, and Reason are concurrently schedulable, console assets and Entra authorization are public, object TLS is valid, and the Bioma JWKS is authoritative"
     );
     Ok(())
 }

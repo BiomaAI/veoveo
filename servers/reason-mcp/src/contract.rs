@@ -81,7 +81,7 @@ pub enum DecodePolicy {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GroundingReference {
-    /// `perception://artifact/{uuidv7}` identity of a typed perception
+    /// `stream://artifact/{uuidv7}` identity of a typed perception
     /// results artifact, exactly as a completed perception analysis
     /// presents it.
     pub results_artifact_uri: String,

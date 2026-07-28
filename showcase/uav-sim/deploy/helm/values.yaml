@@ -107,6 +107,13 @@ posePublication:
   clientCertificateKey: tls.crt
   clientPrivateKeyKey: tls.key
 
+streamPublication:
+  enabled: true
+  endpointHost: stream-mcp
+  endpointPort: 9000
+  payloadType: 96
+  sourceVehicleId: uav-1
+
 interactive:
   enabled: true
   progressDeadlineSeconds: 1800

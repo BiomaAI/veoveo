@@ -4,7 +4,7 @@ use std::time::Duration;
 use anyhow::{Context, Result, bail, ensure};
 use serde_json::{Value, json};
 
-use super::perception::{
+use super::stream::{
     PortForwardGuard, RECORDING_FORWARDER, issue_internal_token, kubernetes_logs, load_environment,
     optional_environment, prepare_sample_h264, publish_h264_recording, required_environment,
     wait_for_recording_catalog, wait_for_recording_forwarder,

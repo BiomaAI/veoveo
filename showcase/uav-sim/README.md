@@ -78,10 +78,12 @@ not live operator views. The runtime fails closed when NVIDIA rendering,
 required extensions, tiles, PX4, recording, or visible sensor content is
 unavailable.
 
-The remaining sensor pipeline has explicit GPU migration debt.
-`TODO(GPU)` identifies NumPy readback, CPU quality reductions, and PyAV
-`libx264` recording. These paths must converge on a canonical CUDA/NVENC
-recording fan-out and cannot serve as visual acceptance evidence.
+The sensor encoder fails closed on PyAV's NVIDIA `h264_nvenc` implementation.
+One Annex B packet stream feeds live Stream publication and Rerun recording
+without a second encode. `TODO(GPU)` still identifies the NumPy readback and
+CPU quality reduction that precede that encoder. Those paths must move to a
+direct CUDA render-product handoff and cannot serve as rendering-quality
+acceptance evidence.
 
 ## Pose Publication
 
@@ -111,10 +113,12 @@ A producer-local forwarder carries those messages to Recording Hub. Public
 resources contain only canonical
 `recording://recordings/{recording_id}` identities.
 
-The domain acceptance requires a camera sample no more than two seconds behind
-the live simulation edge, then runs Perception and Reason against acknowledged
-live parts before archive rollover. Each task records the exact requested range
-and source snapshot and uses the preceding H.264 IDR for decoder preroll.
+The domain acceptance starts a Stream live session before flight and sends each
+newly encoded camera access unit directly to its admitted RTP/H.264 ingress.
+Typed results must remain within the configured freshness bound while the
+mission is flying. Recording Hub receives the sensor recording independently.
+After the mission, Stream replay and Reason use an exact acknowledged source
+snapshot and the preceding H.264 IDR for decoder preroll.
 
 ## Configuration
 
@@ -165,7 +169,8 @@ cargo run -p veoveo-smoke --bin smoke -- simulation-certify \
 The installation-owned live acceptance deploys the UAV simulator and
 Simulation View independently. It verifies two GPU workloads, exact pose
 delivery, scene mirroring, camera admission, RTX/NVENC streaming through the
-Simulation View App, domain recording, perception, and mission completion.
+Simulation View App, the Stream App with live encoded video and typed overlays,
+domain recording, and mission completion.
 
 Browser evidence is valid only after a headed browser proves hardware-backed
 high-performance WebGPU or WebGL. The browser-side H.264 software-decode
@@ -178,9 +183,10 @@ just uav-domain-verify <kube-context> https://installation.example
 just simulation-view-verify <kube-context> https://installation.example
 ```
 
-The first command owns UAV flight, tiles, PX4, domain sensors, Recording Hub,
-live Perception, and live Reason. The second owns the anonymous-producer proof for
-Simulation View, camera capacity, RTX/NVENC, WebRTC, and its generic App.
+The first command owns UAV flight, tiles, PX4, domain sensors, direct live
+Stream processing, independent Recording Hub evidence, replay, and Reason. The
+second owns the anonymous-producer proof for Simulation View, camera capacity,
+RTX/NVENC, WebRTC, and its generic App.
 Neither command substitutes for the other.
 
 Run the composed showcase only after both independent paths pass:

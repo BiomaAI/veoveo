@@ -49,7 +49,7 @@ group "platform-full" {
     "console-bff",
     "artifact-mcp",
     "media-mcp",
-    "perception-mcp",
+    "stream-mcp",
     "reason-mcp",
     "timeseries-mcp",
     "duckdb-mcp",
@@ -146,7 +146,7 @@ target "rust-trixie-artifacts" {
     VEOVEO_CARGO_PACKAGES  = ""
     VEOVEO_CARGO_BINARIES  = ""
     VEOVEO_AUXILIARY       = ""
-    VEOVEO_TARGET_CACHE_ID = ""
+    VEOVEO_TARGET_CACHE_ID = "veoveo-target-direct-rust-trixie-v1-linux-amd64-release"
   }
 }
 
@@ -159,7 +159,7 @@ target "rust-bookworm-artifacts" {
     VEOVEO_CARGO_PACKAGES  = ""
     VEOVEO_CARGO_BINARIES  = ""
     VEOVEO_AUXILIARY       = ""
-    VEOVEO_TARGET_CACHE_ID = ""
+    VEOVEO_TARGET_CACHE_ID = "veoveo-target-direct-rust-bookworm-v1-linux-amd64-release"
   }
 }
 
@@ -424,17 +424,17 @@ target "view-mcp" {
   }
 }
 
-target "perception-mcp" {
+target "stream-mcp" {
   inherits   = ["base"]
-  dockerfile = "servers/perception-mcp/Dockerfile"
-  tags       = [image_ref("perception-mcp")]
+  dockerfile = "servers/stream-mcp/Dockerfile"
+  tags       = [image_ref("stream-mcp")]
   args = {
-    VEOVEO_TARGET_CACHE_ID = ""
+    VEOVEO_TARGET_CACHE_ID = "veoveo-target-direct-rust-deepstream-v1-linux-amd64-release"
   }
   labels = {
     "io.veoveo.build.mode"      = "rust-standalone"
-    "io.veoveo.build.package"   = "veoveo-perception-mcp"
-    "io.veoveo.build.binaries"  = "perception-mcp"
+    "io.veoveo.build.package"   = "veoveo-stream-mcp"
+    "io.veoveo.build.binaries"  = "stream-mcp"
     "io.veoveo.build.family"    = "rust-deepstream-v1"
     "io.veoveo.build.auxiliary" = ""
   }
@@ -445,7 +445,7 @@ target "reason-mcp" {
   dockerfile = "servers/reason-mcp/Dockerfile"
   tags       = [image_ref("reason-mcp")]
   args = {
-    VEOVEO_TARGET_CACHE_ID = ""
+    VEOVEO_TARGET_CACHE_ID = "veoveo-target-direct-rust-vllm-v1-linux-amd64-release"
   }
   labels = {
     "io.veoveo.build.mode"      = "rust-standalone"
@@ -491,7 +491,7 @@ target "sumo-mcp" {
   }
   args = {
     SUMO_BASE_IMAGE         = "sumo-base"
-    VEOVEO_TARGET_CACHE_ID = ""
+    VEOVEO_TARGET_CACHE_ID = "veoveo-target-direct-rust-sumo-bullseye-v1-linux-amd64-release"
   }
   labels = {
     "io.veoveo.build.mode"      = "rust-standalone"

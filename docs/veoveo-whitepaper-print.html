@@ -253,7 +253,7 @@
     <div class="gap"></div>
     <div class="row"><span class="t">07:00:00</span><span class="ch">wake</span><span class="tx">timer · survey window open</span></div>
     <div class="row"><span class="t">07:00:03</span><span class="ch">act</span><span class="tx"><b>query_recording</b> latest-at → 61 vehicles in boundary · edge N-14 densest</span></div>
-    <div class="row"><span class="t">07:00:05</span><span class="ch">act</span><span class="tx"><b>perception__analyze_recording</b> /world/camera/n14 · task t-2211 · sleeping</span></div>
+    <div class="row"><span class="t">07:00:05</span><span class="ch">act</span><span class="tx"><b>stream__run_recording</b> /world/camera/n14 · task t-2211 · sleeping</span></div>
     <div class="row"><span class="t">07:11:40</span><span class="ch">wake</span><span class="tx">task result · 1,204 detections · 87 tracks · northbound queue +9%/min</span></div>
     <div class="row"><span class="t">07:11:43</span><span class="ch">act</span><span class="tx"><b>duckdb__ingest</b> detections → demand per approach</span></div>
     <div class="row"><span class="t">07:11:44</span><span class="ch">act</span><span class="tx"><b>optimization__plan</b> · minimize delay · options: ops_priorities ⨯ demand</span></div>
@@ -620,7 +620,7 @@
     <thead><tr><td>Server</td><td>Capability</td><td>Representative tools</td></tr></thead>
     <tbody>
       <tr><td>Media<br><code>media</code></td><td>Provider-backed generative media with webhook-driven completion, a model catalog, and pricing.</td><td class="mono">run · models · model_schema · artifact</td></tr>
-      <tr><td>Perception<br><code>perception</code></td><td>Bounded GPU inference over the record's video: detection and tracking against governed recording identities, executed locally.</td><td class="mono">analyze_recording · extract_clip</td></tr>
+      <tr><td>Stream<br><code>stream</code></td><td>Admitted live GStreamer graphs over arriving media and reproducible GPU perception profiles over governed recordings, executed locally.</td><td class="mono">start_live_session · run_recording</td></tr>
       <tr><td>Forecasting<br><code>timeseries</code></td><td>Forecasting over any SQL-readable time-series source, visualized as recordings.</td><td class="mono">forecast</td></tr>
       <tr><td>Time<br><code>time</code></td><td>Authority-bound civil, military, GNSS, and mission time; calendars, timelines, clock quality, and temporal events.</td><td class="mono">resolve_time · convert_time · assess_clock · evaluate_windows</td></tr>
       <tr><td>SQL<br><code>duckdb</code></td><td>Arbitrary SQL over principal-owned databases inside a locked, resource-bounded sandbox.</td><td class="mono">query · execute · ingest · export</td></tr>
@@ -642,7 +642,7 @@
 <!-- 7.1 PERCEPTION + PLANNING -->
 <div class="page">
   <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
-  <h2 class="sub" style="margin-top:0">6.1 In Depth: Perception</h2>
+  <h2 class="sub" style="margin-top:0">6.1 In Depth: Stream Perception Profiles</h2>
   <p class="body">
     Every camera the operation records becomes something an agent can question. An analysis runs
     a detection or detection-plus-tracking model over a chosen stretch of recorded video and
@@ -662,7 +662,7 @@
     hardware — recorded video stays inside, and results inherit the source's classification.
   </p>
   <figure class="art">
-    <img src="images/perception-flow.png" alt="" style="height:2.9in;object-fit:contain">
+    <img src="images/stream-flow.png" alt="" style="height:2.9in;object-fit:contain">
     <figcaption>The agent asks, the record answers: detections for SQL, annotations for the viewer, a clip for sharing — and everything joins the record.</figcaption>
   </figure>
   <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">13</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
@@ -707,7 +707,7 @@
     <tbody>
       <tr><td>1</td><td class="mono">wake — resources/updated: sumo://congestion</td><td>A jam forming is a wake, the moment it happens.</td></tr>
       <tr><td>2</td><td class="mono">query_recording · latest-at</td><td>World snapshot: edge E14 saturated.</td></tr>
-      <tr><td>3</td><td class="mono">perception__analyze_recording /world/camera/e14 · 10 min</td><td>1,204 detections · 87 tracks — cars, buses, trucks, counted per approach.</td></tr>
+      <tr><td>3</td><td class="mono">stream__run_recording /world/camera/e14 · 10 min</td><td>1,204 detections · 87 tracks — cars, buses, trucks, counted per approach.</td></tr>
       <tr><td>4</td><td class="mono">duckdb__ingest → query</td><td>Demand per approach, as SQL rows.</td></tr>
       <tr><td>5</td><td class="mono">optimization__plan · minimize total delay · options from SQL</td><td>The winning signal-timing plan, as structured data.</td></tr>
       <tr><td>6</td><td class="mono">sumo__set_signal_phase · run_batch(500)</td><td>Applied; the agent sleeps through the batch.</td></tr>

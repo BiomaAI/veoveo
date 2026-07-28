@@ -123,6 +123,55 @@ class CameraConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class StreamPublicationConfig:
+    host: str
+    port: int
+    payload_type: int
+    source_vehicle_id: str
+
+    def __post_init__(self) -> None:
+        if (
+            not self.host
+            or "/" in self.host
+            or any(character.isspace() for character in self.host)
+        ):
+            raise ValueError("UAV_SIM_STREAM_HOST must be a DNS name or IP address")
+        if not 96 <= self.payload_type <= 127:
+            raise ValueError(
+                "UAV_SIM_STREAM_PAYLOAD_TYPE must be a dynamic RTP payload type"
+            )
+        _identity("UAV_SIM_STREAM_SOURCE_VEHICLE_ID", self.source_vehicle_id)
+
+    @classmethod
+    def from_environment(cls) -> "StreamPublicationConfig | None":
+        host = os.environ.get("UAV_SIM_STREAM_HOST", "").strip()
+        if not host:
+            for name in (
+                "UAV_SIM_STREAM_PORT",
+                "UAV_SIM_STREAM_PAYLOAD_TYPE",
+                "UAV_SIM_STREAM_SOURCE_VEHICLE_ID",
+            ):
+                if os.environ.get(name, "").strip():
+                    raise ValueError(
+                        f"{name} requires UAV_SIM_STREAM_HOST"
+                    )
+            return None
+        return cls(
+            host=host,
+            port=_int("UAV_SIM_STREAM_PORT", "9000", 1, 65_535),
+            payload_type=_int(
+                "UAV_SIM_STREAM_PAYLOAD_TYPE", "96", 96, 127
+            ),
+            source_vehicle_id=_identity(
+                "UAV_SIM_STREAM_SOURCE_VEHICLE_ID",
+                os.environ.get(
+                    "UAV_SIM_STREAM_SOURCE_VEHICLE_ID", "uav-1"
+                ),
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class PosePublisherConfig:
     producer_id: str
     producer_spiffe_id: str
@@ -207,6 +256,7 @@ class RuntimeConfig:
     recording_proxy: str
     recording_key: uuid.UUID
     camera: CameraConfig
+    stream_publication: StreamPublicationConfig | None
     pose_publication: PosePublisherConfig
     extension_directory: str
 
@@ -264,6 +314,7 @@ class RuntimeConfig:
             ),
             recording_key=recording_key,
             camera=CameraConfig.from_environment(),
+            stream_publication=StreamPublicationConfig.from_environment(),
             pose_publication=PosePublisherConfig.from_environment(),
             extension_directory=os.environ.get(
                 "UAV_SIM_EXTENSION_DIRECTORY", "/opt/veoveo/extensions"

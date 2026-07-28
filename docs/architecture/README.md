@@ -17,7 +17,7 @@ runtimes.
 - `veoveo-reference-architecture.pdf` is the fixed-layout formal review copy.
 - `diagrams/*.svg` contains eleven individually reusable vector views.
 - `catalogs/software-components.csv` enumerates 62 scoped software resources.
-- `catalogs/interfaces-and-protocols.csv` defines 38 canonical interfaces.
+- `catalogs/interfaces-and-protocols.csv` defines 39 canonical interfaces.
 - `catalogs/requirements-traceability.csv` traces 18 requirements to capability,
   activity, service, resource, and evidence.
 - `catalogs/model-glossary.csv` fixes the terms used across the package.

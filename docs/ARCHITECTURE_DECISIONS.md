@@ -120,7 +120,7 @@ segment after each Hub flush. Completed playback attaches the ordered, range-cap
 archive sources to one persistent Rerun viewer, where their shared store identity presents
 one recording timeline. No request path rebuilds or concatenates the whole recording.
 
-Bounded Perception and Reason tasks may analyze the writing recording before rollover.
+Bounded Stream replay and Reason tasks may analyze the writing recording before rollover.
 Their governed read plan captures only complete acknowledged ingest parts, copies those
 parts into task-local storage, and records their immutable identities in output
 provenance. A task never reads an incomplete Hub write or attaches to a producer proxy.
@@ -261,10 +261,11 @@ Frames MCP supplies the durable WGS84 origin and local frame identity. The UAV
 adapter materializes that definition before starting physics and performs
 high-rate ENU/NED conversion locally. Camera, transform, vehicle, mission,
 collision, and tile state enter Recording Hub as typed Rerun streams, and
-Perception consumes the governed recording rather than a simulator-private
-media URL.
+Stream consumes newly encoded simulator camera frames directly for live
+processing. Its reproducible replay profile consumes governed recording
+identities rather than a simulator-private media URL.
 
-Bioma runs Isaac Sim, View, and Perception concurrently. Their Helm workloads
+Bioma runs Isaac Sim, View, and Stream concurrently. Their Helm workloads
 declare ordinary GPU requests and remain independently schedulable. No
 application profile disables one GPU service to admit another; cluster capacity
 must satisfy the complete declared workload.

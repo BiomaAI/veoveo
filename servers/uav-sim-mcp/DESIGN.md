@@ -233,10 +233,12 @@ application and recording keys. The MCP server resolves those keys through
 the recording catalog and returns canonical
 `recording://recordings/{recording_id}` identities.
 
-`TODO(GPU)` marks the existing NumPy sensor readback, camera-quality
-reductions, and PyAV `libx264` recording path. Those paths must move to a
-canonical CUDA/NVENC recording fan-out. They are domain recording debt and are
-not evidence for Simulation View, whose renderer and encoder remain fully
+The camera encoder fails closed on PyAV's NVIDIA `h264_nvenc`
+implementation. Its one Annex B packet stream feeds live Stream publication
+and Rerun recording without re-encoding. `TODO(GPU)` marks the remaining
+NumPy sensor readback and camera-quality reductions that must move to a direct
+CUDA render-product handoff. They are domain recording debt and are not
+evidence for Simulation View, whose renderer and encoder remain fully
 GPU-backed.
 
 ## Deployment
@@ -284,7 +286,8 @@ Live acceptance requires all of the following:
    View without blocking domain physics.
 5. Simulation View mirrors the scene, admits logical cameras, renders through
    RTX, encodes through NVENC, and serves its own provider-neutral live App.
-6. Recording and perception consume governed domain evidence.
+6. Stream processes new encoded camera frames directly, while Recording and
+   Stream replay consume governed domain evidence independently.
 7. No credential appears in a manifest value, MCP resource, task result, log,
    USD export, or retained artifact.
 

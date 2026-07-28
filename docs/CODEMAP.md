@@ -55,7 +55,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration |
 | [`servers/map-mcp/DESIGN.md`](../servers/map-mcp/DESIGN.md) | Earth geography, map data administration, and logistics routing |
 | [`servers/optimization-mcp/DESIGN.md`](../servers/optimization-mcp/DESIGN.md) | compact spatial multi-agent assignment, governed plan identity, and evidence artifacts |
-| [`servers/perception-mcp/DESIGN.md`](../servers/perception-mcp/DESIGN.md) | governed local sensor inference and derived annotations |
+| [`servers/stream-mcp/DESIGN.md`](../servers/stream-mcp/DESIGN.md) | admitted live and replay GStreamer graphs, typed pipeline profiles, live results, and the Stream MCP App |
 | [`servers/reason-mcp/DESIGN.md`](../servers/reason-mcp/DESIGN.md) | governed video reasoning, grounding, and audited world-model output |
 | [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) | temporal authority, operational calendars, clock quality, and events |
 | [`servers/timeseries-mcp/DESIGN.md`](../servers/timeseries-mcp/DESIGN.md) | timeseries forecasting, preview contract, and the forecast MCP App view |
@@ -67,7 +67,7 @@ material they operate:
 
 | Document | Purpose |
 |---|---|
-| [`configs/perception/README.md`](../configs/perception/README.md) | perception catalog and runtime configuration |
+| [`configs/stream/README.md`](../configs/stream/README.md) | operator-admitted Stream graph, profile, model, and live-ingress configuration |
 | [`configs/reason/README.md`](../configs/reason/README.md) | reason catalog and runtime configuration |
 | [`deploy/contract/DESIGN.md`](../deploy/contract/DESIGN.md) | typed development profile and local registry declarations shared by operational tools |
 | [`deploy/helm/veoveo/README.md`](../deploy/helm/veoveo/README.md) | Kubernetes installation contract |
@@ -99,7 +99,7 @@ is the browser edition of the harness document.
 | `configs/gateway.local.json` | generic gateway control-plane configuration |
 | `configs/gateway.smoke.json` | isolated smoke control plane |
 | `configs/deployments.json` | deployment contract examples |
-| `configs/perception/` | TensorRT/DeepStream perception catalog example and deployment contract |
+| `configs/stream/` | admitted GStreamer graph, typed profile, TensorRT model, and live-ingress catalog example |
 | `configs/reason/` | world-model checkpoint reason catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
 | `deploy/contract/` | multi-source deployment v2 profiles and locks, explicit platform/extension source ownership, source-qualified image closure, collision-free publication preflight, local registry declarations, schema generation, and pure validation |
@@ -226,7 +226,7 @@ crate.
 
 ### `platform/recordings/video`
 
-Owns governed video selection and task-start materialization shared by Perception and
+Owns governed video selection and task-start materialization shared by Stream replay and
 Reason. It consumes Recording MCP read plans, combines immutable archive shards with
 complete acknowledged live ingest parts, and remuxes the bounded H.264 range without
 re-encoding.
@@ -388,7 +388,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/map-mcp` | Earth geography, governed feature authoring and products, source and raster releases, reusable spatial derivation, mobility validation, and logistics routing |
 | `servers/media-mcp` | webhook-completed provider media work and governed outputs |
 | `servers/optimization-mcp` | compact typed spatial assignments, internal candidate generation, bounded solver execution, immutable plan resources, and governed evidence |
-| `servers/perception-mcp` | local recorded-sensor inference and Rerun annotations |
+| `servers/stream-mcp` | admitted live and replay GStreamer execution, typed pipeline profiles and results, encoded preview, and the Stream MCP App |
 | `servers/reason-mcp` | local recorded-video reasoning, grounding, and Rerun annotations |
 | `servers/recording-mcp` | governed recording catalog, queries, subscriptions, and sealing |
 | `servers/simulation-view-mcp` | governed renderer sessions, streamed Artifact-plane scene materialization, immutable visual scenes, pose-producer authorization, logical camera admission, live-view leases, authenticated signaling, and the generic live-view App |
@@ -403,11 +403,11 @@ Current MCP crates under `servers/` are indexed here:
 |---|---|
 | `servers/uav-sim-mcp/src/view_scene.rs` | caller-authorized publication of UAV-owned OpenUSD assets and authoritative typed scene/pose binding without camera or renderer ownership |
 | `servers/uav-sim-mcp/assets/view/` | self-contained declarative reference environment and UAV visual prototype |
-| `showcase/uav-sim/runtime/` | thin domain overlay on the canonical Isaac runtime with Cesium/Pegasus compatibility, PX4 lifecycle, RTX domain sensors, Rerun publication, and a UAV telemetry adapter over the shared Simulation View pose SDK |
+| `showcase/uav-sim/runtime/` | thin domain overlay on the canonical Isaac runtime with Cesium/Pegasus compatibility, PX4 lifecycle, RTX domain sensors, direct encoded Stream publication, Rerun publication, and a UAV telemetry adapter over the shared Simulation View pose SDK |
 | `showcase/uav-sim/deploy/` | commit-addressed OCI publication, MCP-configured GPU simulator workload, private pose-producer TLS, versioned persistent cache, typed sensor configuration, and network policy; operator media remains in Simulation View |
 | `showcase/uav-sim/scenarios/` | reusable world trees plus strongly typed live mission and acceptance parameters outside the Isaac image context |
 | `examples/bioma/uav-sim-values.yaml` | Bioma reference sensor, pose-producer, public gateway origin, and recording tenant binding |
-| `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | runtime world publication and binding plus credentialed Google tiles, PX4, Recording Hub, Perception, and concurrent GPU acceptance |
+| `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | runtime world publication and binding plus credentialed Google tiles, PX4, independent live Stream processing, Recording Hub replay, Reason, and concurrent GPU acceptance |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim/showcase.rs` | showcase-owned UAV scene composition with independent Simulation View, real authenticated Console follow-camera checkpoints, governed Rerun playback, and revision-qualified evidence |
 
 ### Geospatial Domains
@@ -568,7 +568,7 @@ The shared governed recorded-video access crate. `src/lib.rs` owns the
 `RecordingVideoSelection`/`IndexRange`/`VideoTimelineKind` selection contract,
 bounded `VideoSourceLimits`, read-plan-authorized clip materialization with
 no-transcode MP4 remux, and canonical recording-URI validation. Every server
-that consumes `VideoStream` recordings (perception, reason) uses this crate
+that consumes `VideoStream` recordings (Stream replay and Reason) uses this crate
 instead of a private video path.
 
 ### `servers/recording-mcp`
@@ -581,23 +581,27 @@ authenticated range-capable archive shards and live RRD bytes beside the MCP rou
 `bin/server/state.rs` composes platform store, spool access, subscriptions, and artifact
 publication.
 
-### `servers/perception-mcp`
+### `servers/stream-mcp`
 
 | Path | Responsibility |
 |---|---|
-| `src/contract.rs` | analysis, sampling, detection, timeline, and output types |
-| `src/catalog.rs` | validated TensorRT model and DeepStream pipeline catalog |
-| `src/executor.rs` | bounded C++ runner protocol and response validation |
+| `src/contract.rs` | live-session, replay, video, result, sampling, detection, timeline, and output types |
+| `src/catalog.rs` | validated admitted GStreamer graphs, typed profiles, live ingress, and immutable model catalog |
+| `src/executor.rs` | bounded native replay-runner protocol and response validation |
 | `src/annotation.rs` | derived Rerun bounding-box annotation layers |
 | `src/artifacts.rs` | shared artifact-plane adapter |
-| `src/uris.rs` | canonical `perception://` identities |
-| `src/bin/server/` | auth, tasks, prompts, resources, notifications, and composition |
-| `deepstream-runner/` | native DeepStream decode/infer/track metadata runner |
+| `src/uris.rs` | canonical `stream://` identities |
+| `src/bin/server/live.rs` | owner-scoped live runner lifecycle plus bounded result and encoded-preview rings |
+| `src/bin/server/recording_output.rs` | optional bounded non-blocking fan-out of existing H.264 units to the pod-local Recording forwarder |
+| `src/bin/server/app.rs`, `assets/live.html` | self-contained Stream MCP App resource for actual encoded video, typed overlays, and exact decode-path reporting |
+| `src/bin/server/` | auth, replay tasks, live sessions, prompts, resources, notifications, and composition |
+| `gst-runner/` | native operator-admitted GStreamer graph execution with NVIDIA decode/inference and typed event output |
 | `Dockerfile` | DeepStream 9 development/runtime multi-stage image |
 
 `recording-mcp::service::read` owns the reusable governed local read plan, and
 `platform/recordings/video` owns selection and materialization over it;
-perception persists recording identities rather than segment paths.
+Stream replay persists recording identities rather than segment paths. Live Stream
+sessions consume their admitted ingress directly and do not depend on Recording Hub.
 
 ### `servers/reason-mcp`
 
@@ -606,7 +610,7 @@ perception persists recording identities rather than segment paths.
 | `src/contract.rs` | reasoning tasks, decode policy, grounding, results, and output types |
 | `src/catalog.rs` | validated world-model checkpoint and reasoning pipeline catalog |
 | `src/executor.rs` | bounded world-model runner protocol and response validation |
-| `src/grounding.rs` | typed perception-results grounding subset extraction |
+| `src/grounding.rs` | typed Stream-results grounding subset extraction |
 | `src/annotation.rs` | derived Rerun provenance and event annotation layers |
 | `src/artifacts.rs` | shared artifact-plane adapter |
 | `src/uris.rs` | canonical `reason://` identities |
@@ -615,7 +619,7 @@ perception persists recording identities rather than segment paths.
 | `Dockerfile` | vLLM runtime image with the server binary and installed runner |
 
 Reason consumes governed video through `platform/recordings/video` exactly as
-perception does and embeds a bounded grounding subset in the durable request at
+Stream replay does and embeds a bounded grounding subset in the durable request at
 submission time; it persists neither segment paths, artifact URLs, nor caller
 bearers. The runner binary belongs to
 the deployable image and the engine is a site-compiled deployment input, so the

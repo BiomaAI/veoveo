@@ -82,14 +82,14 @@ smoke-surreal:
 test-hub:
     cargo test -p veoveo-recording-hub
 
-# Perception contracts, runner protocol, and task/server unit tests.
-test-perception:
-    cargo test -p veoveo-perception-mcp --all-targets
+# Stream contracts, runner protocol, App, and task/server unit tests.
+test-stream:
+    cargo test -p veoveo-stream-mcp --all-targets
 
-# DeepStream 9 / NVDEC / TensorRT / Recording Hub / final MCP task smoke.
-smoke-perception-gpu env_file='.env' work_dir='output/perception/work':
+# DeepStream 9 / NVDEC / TensorRT / live Stream / Recording Hub smoke.
+smoke-stream-gpu env_file='.env' work_dir='output/stream/work':
     cargo build -p veoveo-smoke --bin smoke -p veoveo-recording-forwarder --bin recording-forwarder
-    {{smoke}} perception-gpu --env-file '{{env_file}}' --work-dir '{{work_dir}}'
+    {{smoke}} stream-gpu --env-file '{{env_file}}' --work-dir '{{work_dir}}'
 
 # Reason contracts, runner protocol, and task/server unit tests.
 test-reason:
@@ -353,7 +353,7 @@ bioma-verify:
     cargo build -p veoveo-smoke --bin smoke
     {{smoke}} bioma-verify --context {{bioma-kube-context}}
 
-# Run the independent Isaac/PX4/Google 3D Tiles/Recording/Perception/Reason path.
+# Run the independent Isaac/PX4/Google 3D Tiles/Recording/Stream/Reason path.
 uav-domain-verify context public_base_url scenario='showcase/uav-sim/scenarios/new-york-aerial.json':
     cargo build -p veoveo-smoke --bin smoke -p veoveo-mcp-conformance --bin conformance
     {{smoke}} uav-domain-verify --context '{{context}}' --public-base-url '{{public_base_url}}' --scenario '{{scenario}}'

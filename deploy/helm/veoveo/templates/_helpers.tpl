@@ -104,6 +104,34 @@ veoveo.ai/installation: {{ required "global.installationId is required" .Values.
   value: {{ ternary "offline" "connected" .Values.global.offline | quote }}
 {{- end }}
 
+{{- define "veoveo.streamRecordingForwarder" -}}
+{{- $root := . -}}
+{{- $config := $root.Values.stream.recordingOutput.forwarder -}}
+{{- $image := $config.image -}}
+{{- $lockedDigest := get $root.Values.global.imageDigests $image.repository | default "" -}}
+{{- include "veoveo-extension.recordingForwarder" (dict
+    "image" (dict
+      "repository" $image.repository
+      "tag" (default $image.tag $root.Values.global.veoveoTag)
+      "digest" (default $lockedDigest $image.digest)
+    )
+    "registry" $root.Values.global.veoveoRegistry
+    "production" $root.Values.global.production
+    "imagePullPolicy" $root.Values.global.imagePullPolicy
+    "gatewayUrl" (printf "%s/" (trimSuffix "/" $root.Values.global.publicBaseUrl))
+    "gatewayTransportUrl" (printf "%s/" (trimSuffix "/" $config.gatewayTransportUrl))
+    "protectedResource" (printf "%s/ingest/recordings" (trimSuffix "/" $root.Values.global.publicBaseUrl))
+    "clientId" $config.clientId
+    "keyId" $config.keyId
+    "signingAlgorithm" $config.signingAlgorithm
+    "maximumQueueBytes" (printf "%.0f" $config.maximumQueueBytes)
+    "batchMessageLimit" $config.batchMessageLimit
+    "batchFlushMilliseconds" $config.batchFlushMilliseconds
+    "grpcMemoryLimitBytes" (printf "%.0f" $config.grpcMemoryLimitBytes)
+    "resources" $config.resources
+  ) -}}
+{{- end }}
+
 {{- define "veoveo.reasonRuntimeData" -}}
 catalog.json: |
   {

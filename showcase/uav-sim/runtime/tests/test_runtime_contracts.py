@@ -22,6 +22,7 @@ from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operati
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
 from veoveo_uav_sim.pose import PoseProducer, entity_ids
 from veoveo_uav_sim.state import RuntimeState, VehicleTelemetry
+from veoveo_uav_sim.stream_output import _annex_b_nals, _packetize_nal
 from veoveo_uav_sim.world_config import (
     GeoreferenceOrigin,
     WorldConfiguration,
@@ -103,6 +104,31 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertNotIn("livestream", app_source.lower())
         self.assertNotIn("follow_camera", app_source)
 
+    def test_stream_publication_is_explicit_and_typed(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            self.assertIsNone(RuntimeConfig.from_environment().stream_publication)
+        environment = {
+            **VALID_ENVIRONMENT,
+            "UAV_SIM_STREAM_HOST": "stream-mcp",
+            "UAV_SIM_STREAM_PORT": "9000",
+            "UAV_SIM_STREAM_PAYLOAD_TYPE": "96",
+            "UAV_SIM_STREAM_SOURCE_VEHICLE_ID": "uav-1",
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            publication = RuntimeConfig.from_environment().stream_publication
+        self.assertIsNotNone(publication)
+        assert publication is not None
+        self.assertEqual(publication.host, "stream-mcp")
+        self.assertEqual(publication.port, 9000)
+
+        with patch.dict(
+            os.environ,
+            {**VALID_ENVIRONMENT, "UAV_SIM_STREAM_PORT": "9000"},
+            clear=True,
+        ):
+            with self.assertRaisesRegex(ValueError, "requires UAV_SIM_STREAM_HOST"):
+                RuntimeConfig.from_environment()
+
     def test_pose_publication_is_mandatory_and_strongly_identified(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             config = RuntimeConfig.from_environment()
@@ -138,11 +164,22 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_nadir_camera_is_the_only_canonical_stream(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             state = RuntimeState(RuntimeConfig.from_environment(), WORLD).snapshot()
-        camera_path = state["cameras"][0]["entity_path"]
+        camera = state["cameras"][0]
+        camera_path = camera["entity_path"]
         recording_path = state["recordings"][0]["camera_streams"][0]
         self.assertTrue(camera_path.endswith("/camera/down"))
         self.assertEqual(recording_path, camera_path)
         self.assertNotIn("front", camera_path)
+        self.assertEqual(camera["codec"], "h264")
+        self.assertEqual(camera["encoder"], "nvidia_nvenc")
+
+        recording_source = (
+            Path(__file__).parents[1]
+            / "veoveo_uav_sim"
+            / "recording.py"
+        ).read_text()
+        self.assertIn('add_stream("h264_nvenc"', recording_source)
+        self.assertNotIn("libx264", recording_source)
 
     def test_camera_optics_and_mount_are_typed_runtime_inputs(self) -> None:
         environment = {
@@ -180,6 +217,31 @@ class RuntimeConfigTests(unittest.TestCase):
         with patch.dict(os.environ, environment, clear=True):
             with self.assertRaisesRegex(ValueError, "must be less than"):
                 RuntimeConfig.from_environment()
+
+
+class StreamOutputTests(unittest.TestCase):
+    def test_annex_b_access_units_preserve_each_nal(self) -> None:
+        access_unit = (
+            b"\x00\x00\x00\x01\x67\x01\x02"
+            b"\x00\x00\x01\x68\x03"
+            b"\x00\x00\x00\x01\x65\x04\x05"
+        )
+        self.assertEqual(
+            _annex_b_nals(access_unit),
+            [b"\x67\x01\x02", b"\x68\x03", b"\x65\x04\x05"],
+        )
+
+    def test_large_nal_uses_rfc_6184_fu_a_boundaries(self) -> None:
+        nal = bytes([0x65]) + bytes(range(1, 16))
+        fragments = _packetize_nal(nal, 8)
+        self.assertGreater(len(fragments), 1)
+        self.assertEqual(fragments[0][0], 0x7C)
+        self.assertEqual(fragments[0][1], 0x85)
+        self.assertEqual(fragments[-1][1], 0x45)
+        reconstructed = bytes([nal[0]]) + b"".join(
+            fragment[2:] for fragment in fragments
+        )
+        self.assertEqual(reconstructed, nal)
 
 
 class PoseProducerTests(unittest.TestCase):

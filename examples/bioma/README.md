@@ -119,7 +119,7 @@ kubectl --context k3d-veoveo-bioma get nodes   -o 'custom-columns=NAME:.metadata
 
 The node must report six allocatable GPU shares before application bootstrap.
 The local time-slicing profile keeps the UAV simulator, Simulation View
-renderer, View, Perception, Reason, and the Rerun viewer MCP in separate
+renderer, View, Stream, Reason, and the Rerun viewer MCP in separate
 GPU-requesting workloads. Fielded installations use their measured exclusive,
 MIG, or time-slicing placement instead of inheriting this development profile.
 Each required workload still requests nvidia.com/gpu: 1 and the nvidia runtime
@@ -381,9 +381,10 @@ just uav-showcase-verify k3d-veoveo-bioma https://veoveo.bioma.ai
 ~~~
 
 The UAV acceptance requires Google Photorealistic 3D Tiles resident in Isaac, flies a
-PX4 mission, verifies the governed recording, runs Perception and Reason over
-acknowledged camera parts no more than two seconds behind the live edge before
-archive rollover, and confirms the concurrent GPU deployments remain available. Its runtime inputs come from
+PX4 mission, verifies direct Stream results from newly arrived camera frames,
+then runs reproducible Stream replay and Reason over acknowledged recording
+parts before archive rollover. It confirms the concurrent GPU deployments
+remain available. Its runtime inputs come from
 showcase/uav-sim/scenarios/new-york-aerial.json. The acceptance client creates
 the complete world through Frames MCP and binds the returned immutable revision
 to the simulator before Isaac constructs its stage.

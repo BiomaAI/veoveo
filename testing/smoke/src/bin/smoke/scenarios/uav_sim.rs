@@ -1,6 +1,8 @@
 use std::process::Stdio;
 
 use anyhow::ensure;
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
@@ -41,7 +43,7 @@ struct UavAcceptanceScenario {
     camera: CameraAcceptance,
     mission: MissionScenario,
     recording: RecordingAcceptance,
-    perception: PerceptionScenario,
+    stream: StreamScenario,
     reason: ReasonScenario,
     view: ViewAcceptance,
     landing_timeout_seconds: u64,
@@ -119,7 +121,17 @@ struct RecordingAcceptance {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct PerceptionScenario {
+struct StreamScenario {
+    live_pipeline_id: String,
+    minimum_live_frames: u64,
+    maximum_result_age_ms: u64,
+    live_timeout_seconds: u64,
+    recording_replay: RecordingReplayAcceptance,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RecordingReplayAcceptance {
     range_lag_seconds: f64,
     freshness_probe_duration_seconds: f64,
     range_duration_seconds: f64,
@@ -207,6 +219,16 @@ impl OperatorClient<'_> {
         structured_output(&output)
             .with_context(|| format!("task tool {tool} returned invalid output"))
     }
+
+    async fn resource_text(&self, uri: &str, timeout: Duration) -> Result<String> {
+        self.conformance(&["resource", uri], timeout).await
+    }
+
+    async fn resource(&self, uri: &str, timeout: Duration) -> Result<Value> {
+        let output = self.resource_text(uri, timeout).await?;
+        serde_json::from_str(&output)
+            .with_context(|| format!("resource {uri} returned invalid JSON"))
+    }
 }
 
 impl UavAcceptanceScenario {
@@ -221,7 +243,7 @@ impl UavAcceptanceScenario {
 
     fn validate(&self) -> Result<()> {
         ensure!(
-            self.schema == "veoveo.uav-sim-acceptance/v8",
+            self.schema == "veoveo.uav-sim-acceptance/v9",
             "unsupported UAV acceptance scenario schema {:?}",
             self.schema
         );
@@ -282,7 +304,8 @@ impl UavAcceptanceScenario {
                 && self.camera.detail_timeout_seconds > 0
                 && self.mission.task_timeout_seconds > 0
                 && self.recording.live_rows_timeout_seconds > 0
-                && self.perception.task_timeout_seconds > 0
+                && self.stream.live_timeout_seconds > 0
+                && self.stream.recording_replay.task_timeout_seconds > 0
                 && self.view.timeout_seconds > 0
                 && self.landing_timeout_seconds > 0,
             "scenario timeouts must be positive"
@@ -320,17 +343,25 @@ impl UavAcceptanceScenario {
             "mission parameters are outside the accepted flight envelope"
         );
         ensure!(
-            self.perception.range_lag_seconds.is_finite()
-                && self.perception.range_lag_seconds >= 0.0
-                && self.perception.range_lag_seconds <= 2.0
-                && self.perception.freshness_probe_duration_seconds.is_finite()
-                && self.perception.freshness_probe_duration_seconds > 0.0
-                && self.perception.freshness_probe_duration_seconds
-                    <= self.perception.range_duration_seconds
-                && self.perception.range_duration_seconds.is_finite()
-                && self.perception.range_duration_seconds > 0.0
-                && (1..=10_000).contains(&self.perception.maximum_frames),
-            "Perception must probe a positive range no more than two seconds behind the live edge"
+            !self.stream.live_pipeline_id.trim().is_empty()
+                && self.stream.minimum_live_frames > 0
+                && self.stream.maximum_result_age_ms > 0
+                && self.stream.live_timeout_seconds > 0,
+            "Stream live acceptance must require a pipeline, frames, freshness, and timeout"
+        );
+        let replay = &self.stream.recording_replay;
+        ensure!(
+            replay.range_lag_seconds.is_finite()
+                && replay.range_lag_seconds >= 0.0
+                && replay.range_lag_seconds <= 2.0
+                && replay.freshness_probe_duration_seconds.is_finite()
+                && replay.freshness_probe_duration_seconds > 0.0
+                && replay.freshness_probe_duration_seconds <= replay.range_duration_seconds
+                && replay.range_duration_seconds.is_finite()
+                && replay.range_duration_seconds > 0.0
+                && (1..=10_000).contains(&replay.maximum_frames)
+                && replay.task_timeout_seconds > 0,
+            "Stream replay must probe a positive range no more than two seconds behind the live edge"
         );
         ensure!(
             !self.reason.prompt.trim().is_empty()
@@ -431,7 +462,9 @@ pub(crate) async fn uav_sim_verify(
         "uav-sim__configure_world",
         "uav-sim__get_simulation_state",
         "uav-sim__execute_mission",
-        "perception__analyze_recording",
+        "stream__start_live_session",
+        "stream__stop_live_session",
+        "stream__run_recording",
         "reason__analyze_recording",
         "recording__query_recording",
     ] {
@@ -451,6 +484,11 @@ pub(crate) async fn uav_sim_verify(
     )
     .await?;
     assert_georeference_origin(&state, &scenario)?;
+    ensure!(
+        json_string(&state, "/cameras/0/codec")? == "h264"
+            && json_string(&state, "/cameras/0/encoder")? == "nvidia_nvenc",
+        "UAV camera did not fail closed on the canonical NVIDIA NVENC H.264 path: {state}"
+    );
     let recording_uri = json_string(&state, "/recordings/0/recording_uri")?.to_owned();
     let recording_id = recording_uri
         .strip_prefix("recording://recordings/")
@@ -461,17 +499,46 @@ pub(crate) async fn uav_sim_verify(
     );
     let camera_entity = json_string(&state, "/recordings/0/camera_streams/0")?.to_owned();
 
-    ensure_vehicle_landed(&operator, &scenario, "preflight recovery").await?;
-    operator
+    let live = operator
         .call_tool(
-            "uav-sim__arm_vehicle",
+            "stream__start_live_session",
             serde_json::json!({
-                "session_id": scenario.session_id,
-                "vehicle_id": scenario.vehicle_id
+                "pipeline_id": scenario.stream.live_pipeline_id
             }),
         )
-        .await?;
+        .await
+        .context("starting the recording-independent live Stream session")?;
+    let live_session_id = json_string(&live, "/session_id")?.to_owned();
+    let live_preview_uri = json_string(&live, "/preview_uri")?.to_owned();
+    ensure!(
+        json_string(&live, "/results_uri")?
+            == format!("stream://session/{live_session_id}/results")
+            && live_preview_uri == format!("stream://session/{live_session_id}/preview"),
+        "Stream returned inconsistent live-session resources: {live}"
+    );
+    let stream_app = operator
+        .resource_text("ui://stream/live.html", Duration::from_secs(60))
+        .await
+        .context("reading the Stream MCP App through the gateway")?;
+    ensure!(
+        stream_app.contains("VideoDecoder")
+            && stream_app.contains("/preview")
+            && stream_app.contains("software H.264 decode")
+            && stream_app.contains("hardware H.264 decode"),
+        "Stream MCP App does not expose video decoding, preview, and decode-path status"
+    );
+
     let flight_result: Result<String> = async {
+        ensure_vehicle_landed(&operator, &scenario, "preflight recovery").await?;
+        operator
+            .call_tool(
+                "uav-sim__arm_vehicle",
+                serde_json::json!({
+                    "session_id": scenario.session_id,
+                    "vehicle_id": scenario.vehicle_id
+                }),
+            )
+            .await?;
         wait_for_flight_state(&operator, &["armed"], Duration::from_secs(60), &scenario).await?;
         operator
             .call_tool(
@@ -546,21 +613,37 @@ pub(crate) async fn uav_sim_verify(
             "UAV mission did not complete a waypoint: {mission_output}"
         );
 
+        let live_result = wait_for_live_stream(
+            &operator,
+            &live_session_id,
+            &live_preview_uri,
+            &scenario.stream,
+        )
+        .await?;
+        ensure!(
+            live_result
+                .pointer("/results/processed_frames")
+                .and_then(Value::as_u64)
+                .is_some_and(|count| count >= scenario.stream.minimum_live_frames),
+            "Stream did not process enough direct live frames: {live_result}"
+        );
+
         state = simulation_state(&operator, &scenario).await?;
         let simulation_time_s = state
             .get("simulation_time_s")
             .and_then(Value::as_f64)
             .context("UAV state omitted simulation_time_s")?;
-        let range_end_s = simulation_time_s - scenario.perception.range_lag_seconds;
-        let range_start_s = range_end_s - scenario.perception.range_duration_seconds;
+        let replay = &scenario.stream.recording_replay;
+        let range_end_s = simulation_time_s - replay.range_lag_seconds;
+        let range_start_s = range_end_s - replay.range_duration_seconds;
         ensure!(
             range_start_s >= 0.0,
             "UAV recording has not accumulated enough stable aerial camera history"
         );
         let range_start = (range_start_s * 1_000_000_000.0) as i64;
         let range_end = (range_end_s * 1_000_000_000.0) as i64;
-        let freshness_probe_start = range_end
-            - (scenario.perception.freshness_probe_duration_seconds * 1_000_000_000.0) as i64;
+        let freshness_probe_start =
+            range_end - (replay.freshness_probe_duration_seconds * 1_000_000_000.0) as i64;
 
         wait_for_recording_camera_range(
             &operator,
@@ -571,9 +654,9 @@ pub(crate) async fn uav_sim_verify(
             Duration::from_secs(scenario.recording.live_rows_timeout_seconds),
         )
         .await?;
-        let perception = operator
+        let stream_replay = operator
             .task_tool(
-                "perception__analyze_recording",
+                "stream__run_recording",
                 serde_json::json!({
                     "video": {
                         "recording_uri": recording_uri,
@@ -584,29 +667,30 @@ pub(crate) async fn uav_sim_verify(
                     "pipeline_id": "traffic-object-detection",
                     "sampling": {
                         "mode": "maximum_frames",
-                        "count": scenario.perception.maximum_frames
+                        "count": replay.maximum_frames
                     },
                     "include_source_clip": true
                 }),
-                Duration::from_secs(scenario.perception.task_timeout_seconds),
+                Duration::from_secs(replay.task_timeout_seconds),
             )
             .await?;
         ensure!(
-            perception
+            stream_replay
                 .pointer("/summary/processed_frames")
                 .and_then(Value::as_u64)
                 .is_some_and(|count| count > 0),
-            "Perception processed no Isaac camera frames: {perception}"
+            "Stream replay processed no Isaac camera frames: {stream_replay}"
         );
-        assert_requested_range(&perception, range_start, range_end, "Perception")?;
-        assert_live_recording_snapshot(&perception, "Perception")?;
+        assert_requested_range(&stream_replay, range_start, range_end, "Stream replay")?;
+        assert_live_recording_snapshot(&stream_replay, "Stream replay")?;
         let governed_artifact_id =
-            json_string(&perception, "/results_artifact/artifact_id")?.to_owned();
+            json_string(&stream_replay, "/results_artifact/artifact_id")?.to_owned();
         ensure!(
             uuid::Uuid::parse_str(&governed_artifact_id)?.get_version_num() == 7,
-            "Perception result artifact identity must be UUIDv7"
+            "Stream replay result artifact identity must be UUIDv7"
         );
-        let grounding_uri = json_string(&perception, "/results_artifact/artifact_uri")?.to_owned();
+        let grounding_uri =
+            json_string(&stream_replay, "/results_artifact/artifact_uri")?.to_owned();
 
         let reason = operator
             .task_tool(
@@ -648,16 +732,35 @@ pub(crate) async fn uav_sim_verify(
     }
     .await;
     let landing_result = ensure_vehicle_landed(&operator, &scenario, "postflight recovery").await;
-    let governed_artifact_id = match (flight_result, landing_result) {
-        (Ok(artifact_id), Ok(())) => artifact_id,
-        (Err(flight_error), Ok(())) => return Err(flight_error),
-        (Ok(_), Err(landing_error)) => {
+    let stream_stop_result = operator
+        .call_tool(
+            "stream__stop_live_session",
+            serde_json::json!({"session_id": live_session_id}),
+        )
+        .await
+        .and_then(|output| {
+            ensure!(
+                json_string(&output, "/lifecycle")? == "stopped",
+                "Stream live session did not stop cleanly: {output}"
+            );
+            Ok(())
+        });
+    let governed_artifact_id = match (flight_result, landing_result, stream_stop_result) {
+        (Ok(artifact_id), Ok(()), Ok(())) => artifact_id,
+        (Err(flight_error), Ok(()), Ok(())) => return Err(flight_error),
+        (Ok(_), Err(landing_error), Ok(())) => {
             return Err(landing_error.context("UAV postflight landing failed"));
         }
-        (Err(flight_error), Err(landing_error)) => {
+        (Ok(_), Ok(()), Err(stream_error)) => {
+            return Err(stream_error.context("live Stream cleanup failed"));
+        }
+        (flight, landing, stream) => {
             bail!(
-                "UAV flight acceptance failed: {flight_error:#}; postflight landing also failed: \
-                 {landing_error:#}"
+                "UAV acceptance and cleanup had multiple failures: flight={:?}; landing={:?}; \
+                 stream={:?}",
+                flight.err(),
+                landing.err(),
+                stream.err()
             );
         }
     };
@@ -666,11 +769,126 @@ pub(crate) async fn uav_sim_verify(
 
     println!(
         "UAV domain acceptance ok: Google Photorealistic 3D Tiles were resident in Isaac, the \
-         showcase pose producer reached ready state, PX4 completed a mission, Recording Hub \
-         retained the world, Perception produced a governed artifact, Reason described the flight \
-         segment grounded in those detections, an authorized context member previewed it, and an \
-         independent context was denied"
+         showcase pose producer reached ready state, PX4 completed a mission, Stream processed \
+         fresh live camera frames and exposed decodable App preview bytes without Recording Hub, \
+         Recording Hub retained the world, Stream replay produced a governed artifact, Reason \
+         described the flight segment grounded in those detections, an authorized context member \
+         previewed it, and an independent context was denied"
     );
+    Ok(())
+}
+
+async fn wait_for_live_stream(
+    operator: &OperatorClient<'_>,
+    session_id: &str,
+    preview_uri: &str,
+    acceptance: &StreamScenario,
+) -> Result<Value> {
+    let session_uri = format!("stream://session/{session_id}");
+    let results_uri = format!("{session_uri}/results");
+    let timeout = Duration::from_secs(acceptance.live_timeout_seconds);
+    let deadline = tokio::time::Instant::now() + timeout;
+    loop {
+        let session = operator
+            .resource(&session_uri, Duration::from_secs(60))
+            .await?;
+        ensure!(
+            json_string(&session, "/lifecycle")? != "failed",
+            "live Stream session failed: {session}"
+        );
+        let results = operator
+            .resource(&results_uri, Duration::from_secs(60))
+            .await?;
+        let preview = operator
+            .resource(preview_uri, Duration::from_secs(60))
+            .await?;
+        let current = serde_json::json!({
+            "session": session,
+            "results": results,
+            "preview": preview
+        });
+
+        let enough_frames = current
+            .pointer("/results/processed_frames")
+            .and_then(Value::as_u64)
+            .is_some_and(|count| count >= acceptance.minimum_live_frames);
+        let latest_frame = current
+            .pointer("/results/frames")
+            .and_then(Value::as_array)
+            .and_then(|frames| frames.last());
+        let fresh = latest_frame
+            .and_then(|frame| frame.get("observed_at"))
+            .and_then(Value::as_str)
+            .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+            .is_some_and(|observed_at| {
+                let age = Utc::now()
+                    .signed_duration_since(observed_at.with_timezone(&Utc))
+                    .num_milliseconds();
+                age >= 0
+                    && age <= i64::try_from(acceptance.maximum_result_age_ms).unwrap_or(i64::MAX)
+            });
+        let chunks = current
+            .pointer("/preview/chunks")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let decodable_preview = validate_live_preview(&chunks).is_ok();
+        if enough_frames && fresh && decodable_preview {
+            validate_live_preview(&chunks)?;
+            return Ok(current);
+        }
+        if tokio::time::Instant::now() >= deadline {
+            bail!(
+                "Stream produced no fresh typed results and decodable App preview within \
+                 {timeout:?}: {current}"
+            );
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+}
+
+fn validate_live_preview(chunks: &[Value]) -> Result<()> {
+    ensure!(
+        chunks.first().and_then(|chunk| chunk.get("keyframe")) == Some(&Value::Bool(true)),
+        "live preview must begin at a keyframe"
+    );
+    let mut last_sequence = None;
+    let mut last_timestamp = None;
+    for chunk in chunks {
+        let sequence = chunk
+            .get("sequence")
+            .and_then(Value::as_u64)
+            .context("live preview chunk omitted sequence")?;
+        let timestamp = chunk
+            .get("timestamp_us")
+            .and_then(Value::as_u64)
+            .context("live preview chunk omitted timestamp_us")?;
+        if let Some(previous) = last_sequence {
+            ensure!(
+                sequence == previous + 1,
+                "live preview sequence is not contiguous"
+            );
+        }
+        if let Some(previous) = last_timestamp {
+            ensure!(
+                timestamp >= previous,
+                "live preview timestamps moved backwards"
+            );
+        }
+        let encoded = chunk
+            .get("data_base64")
+            .and_then(Value::as_str)
+            .context("live preview chunk omitted data_base64")?;
+        let bytes = BASE64_STANDARD
+            .decode(encoded)
+            .context("live preview chunk is not valid base64")?;
+        ensure!(
+            bytes.starts_with(&[0, 0, 0, 1]) || bytes.starts_with(&[0, 0, 1]),
+            "live preview chunk is not Annex B H.264"
+        );
+        last_sequence = Some(sequence);
+        last_timestamp = Some(timestamp);
+    }
     Ok(())
 }
 
@@ -1077,7 +1295,7 @@ fn assert_requested_range(output: &Value, start: i64, end: i64, domain: &str) ->
 }
 
 fn assert_concurrent_gpu_workloads(context: &str) -> Result<()> {
-    for deployment in ["uav-sim", "view-mcp", "perception-mcp", "reason-mcp"] {
+    for deployment in ["uav-sim", "view-mcp", "stream-mcp", "reason-mcp"] {
         run_checked(
             Path::new("kubectl"),
             [
@@ -1437,8 +1655,8 @@ mod tests {
         assert_eq!(scenario.mission.speed_mps, 3.0);
         assert_eq!(scenario.recording.live_rows_timeout_seconds, 120);
         assert_eq!(scenario.camera.aerial_detail.minimum_dynamic_range, 8);
-        assert_eq!(scenario.perception.range_lag_seconds, 1.0);
-        assert_eq!(scenario.perception.freshness_probe_duration_seconds, 1.0);
+        assert_eq!(scenario.stream.range_lag_seconds, 1.0);
+        assert_eq!(scenario.stream.freshness_probe_duration_seconds, 1.0);
         assert!(!scenario.reason.prompt.is_empty());
         assert_eq!(scenario.reason.maximum_frames, 6);
         assert_eq!(scenario.view.camera.width_px, 640);

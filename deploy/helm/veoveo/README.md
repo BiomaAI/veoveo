@@ -29,8 +29,9 @@ requests on one ordinary GPU.
 
 The Rust deployment resolver applies the same dependency graph before rendering. A
 selected hosted server requires the gateway. Artifact-backed servers require the
-platform store, object store, and artifact service. Perception and Reason require
-Recording. Gateway composition requirements for Artifact, Frames, Map, Media,
+platform store, object store, and artifact service. Stream can run admitted live
+graphs without Recording; Stream replay and Reason use Recording. Gateway composition
+requirements for Artifact, Frames, Map, Media,
 Recording, and RRD fail when their corresponding runtime is absent.
 
 The recording workload is one pod with Recording Hub and the governed MCP
@@ -45,6 +46,12 @@ versioned protobuf protocol to the gateway. The producer chart's
 `recordingForwarder.gatewayTransportUrl` selects the internal gateway route
 without changing the public OAuth issuer, protected resource, token audience,
 or Host identity.
+
+Stream has no recording route by default. Setting
+`stream.recordingOutput.enabled=true` adds that standard forwarder as a native
+sidecar, admits its loopback output in the private Stream catalog, and requires
+the `recording-data-plane` component. Live graph execution never waits for this
+route. Its session resource reports forwarding, draining, and failure.
 
 `recording.idleTimeoutSeconds` closes a loopback-native Hub capture after its
 final message; the default is 15 seconds. Governed browser playback enters

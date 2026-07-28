@@ -34,7 +34,7 @@ def request_document() -> dict:
         "task": {"kind": "detect_events", "prompt": "vehicles entering the frame"},
         "grounding": {
             "schema": "veoveo.reason-grounding/v1",
-            "source_artifact_uri": "perception://artifact/test",
+            "source_artifact_uri": "stream://artifact/test",
             "frames": [
                 {"index": 10, "detections": [{"label": "car", "track_id": 7}]},
             ],

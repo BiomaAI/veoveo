@@ -16,7 +16,7 @@ artifactService:
     - frames
     - map
     - recording
-    - perception
+    - stream
     - reason
     - simulation-view
     - datasheet

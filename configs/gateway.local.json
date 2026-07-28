@@ -154,13 +154,13 @@
       }
     },
     {
-      "slug": "perception",
-      "uri_scheme": "perception",
-      "mount_path": "/perception",
-      "mcp_path": "/perception/mcp",
+      "slug": "stream",
+      "uri_scheme": "stream",
+      "mount_path": "/stream",
+      "mcp_path": "/stream/mcp",
       "upstream": {
         "transport": "streamable_http",
-        "url": "http://perception-mcp:8797/perception/mcp",
+        "url": "http://stream-mcp:8797/stream/mcp",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -171,20 +171,23 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": true
+        "resources_list_changed": true,
+        "apps": true
       },
       "tools": [
-        "analyze_recording",
-        "extract_clip"
+        "run_recording",
+        "start_live_session",
+        "stop_live_session"
       ],
       "prompts": [
-        "perception-analyze-recording",
-        "perception-extract-clip"
+        "stream-run-recording",
+        "stream-start-live-session"
       ],
       "required_scopes": [
         "operator:use"
       ],
-      "metadata": {}
+      "metadata": {},
+      "resource_projection": "server_owned"
     },
     {
       "slug": "reason",
@@ -776,15 +779,15 @@
           "tools": {
             "mode": "all"
           },
-            "resources": {
-              "mode": "listed",
-              "items": [
-                {
-                  "kind": "scheme",
-                  "scheme": "uav-sim"
-                }
-              ]
-            },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "uav-sim"
+              }
+            ]
+          },
           "prompts": {
             "mode": "all"
           },
@@ -792,12 +795,13 @@
           "tasks": "enabled"
         },
         {
-          "server": "perception",
+          "server": "stream",
           "tools": {
             "mode": "listed",
             "items": [
-              "analyze_recording",
-              "extract_clip"
+              "run_recording",
+              "start_live_session",
+              "stop_live_session"
             ]
           },
           "resources": {
@@ -805,7 +809,11 @@
             "items": [
               {
                 "kind": "scheme",
-                "scheme": "perception"
+                "scheme": "stream"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://stream/"
               }
             ]
           },
@@ -1249,15 +1257,15 @@
           "tools": {
             "mode": "all"
           },
-            "resources": {
-              "mode": "listed",
-              "items": [
-                {
-                  "kind": "scheme",
-                  "scheme": "uav-sim"
-                }
-              ]
-            },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "uav-sim"
+              }
+            ]
+          },
           "prompts": {
             "mode": "all"
           },
@@ -1265,12 +1273,13 @@
           "tasks": "enabled"
         },
         {
-          "server": "perception",
+          "server": "stream",
           "tools": {
             "mode": "listed",
             "items": [
-              "analyze_recording",
-              "extract_clip"
+              "run_recording",
+              "start_live_session",
+              "stop_live_session"
             ]
           },
           "resources": {
@@ -1278,7 +1287,11 @@
             "items": [
               {
                 "kind": "scheme",
-                "scheme": "perception"
+                "scheme": "stream"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://stream/"
               }
             ]
           },
@@ -3061,90 +3074,230 @@
         {
           "id": "allow_map_feature_surface",
           "effect": "allow",
-          "actions": ["tools_list", "resources_list", "resources_templates_list", "resources_read", "resources_subscribe", "resources_unsubscribe", "prompts_list", "prompts_get", "completion_complete", "artifact_read"],
-          "profiles": ["operator", "admin"],
-          "servers": ["map"],
-          "required_scopes": ["operator:use", "map:feature:read"],
+          "actions": [
+            "tools_list",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "artifact_read"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "map"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "map:feature:read"
+          ],
           "metadata": {}
         },
         {
           "id": "allow_map_feature_read_tools",
           "effect": "allow",
-          "actions": ["tools_call"],
-          "profiles": ["operator", "admin"],
-          "servers": ["map"],
-          "tools": ["query_features"],
-          "required_scopes": ["operator:use", "map:feature:read"],
+          "actions": [
+            "tools_call"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "map"
+          ],
+          "tools": [
+            "query_features"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "map:feature:read"
+          ],
           "metadata": {}
         },
         {
           "id": "allow_map_feature_write_tools",
           "effect": "allow",
-          "actions": ["tools_call"],
-          "profiles": ["operator", "admin"],
-          "servers": ["map"],
-          "tools": ["commit_feature_changes", "create_feature_layer", "create_map_composition", "restore_feature", "update_feature_layer", "update_map_composition", "validate_feature_changes"],
-          "required_scopes": ["operator:use", "map:feature:write"],
+          "actions": [
+            "tools_call"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "map"
+          ],
+          "tools": [
+            "commit_feature_changes",
+            "create_feature_layer",
+            "create_map_composition",
+            "restore_feature",
+            "update_feature_layer",
+            "update_map_composition",
+            "validate_feature_changes"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "map:feature:write"
+          ],
           "metadata": {}
         },
         {
           "id": "allow_map_feature_import_task",
           "effect": "allow",
-          "actions": ["tools_call", "tasks_get", "tasks_update", "tasks_result", "tasks_cancel", "tasks_subscribe"],
-          "profiles": ["operator", "admin"],
-          "servers": ["map"],
-          "tools": ["import_feature_layer"],
-          "required_scopes": ["operator:use", "map:feature:write"],
+          "actions": [
+            "tools_call",
+            "tasks_get",
+            "tasks_update",
+            "tasks_result",
+            "tasks_cancel",
+            "tasks_subscribe"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "map"
+          ],
+          "tools": [
+            "import_feature_layer"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "map:feature:write"
+          ],
           "metadata": {}
         },
         {
           "id": "allow_map_feature_publish",
           "effect": "allow",
-          "actions": ["tools_call"],
-          "profiles": ["operator", "admin"],
-          "servers": ["map"],
-          "tools": ["publish_feature_layer"],
-          "required_scopes": ["operator:use", "map:feature:publish"],
+          "actions": [
+            "tools_call"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "map"
+          ],
+          "tools": [
+            "publish_feature_layer"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "map:feature:publish"
+          ],
           "metadata": {}
         },
         {
           "id": "allow_map_feature_product_tasks",
           "effect": "allow",
-          "actions": ["tools_call", "tasks_get", "tasks_update", "tasks_result", "tasks_cancel", "tasks_subscribe"],
-          "profiles": ["operator", "admin"],
-          "servers": ["map"],
-          "tools": ["build_vector_tiles", "export_feature_layer"],
-          "required_scopes": ["operator:use", "map:feature:publish"],
+          "actions": [
+            "tools_call",
+            "tasks_get",
+            "tasks_update",
+            "tasks_result",
+            "tasks_cancel",
+            "tasks_subscribe"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "map"
+          ],
+          "tools": [
+            "build_vector_tiles",
+            "export_feature_layer"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "map:feature:publish"
+          ],
           "metadata": {}
         },
         {
           "id": "allow_map_feature_administration",
           "effect": "allow",
-          "actions": ["tools_call"],
-          "profiles": ["admin"],
-          "servers": ["map"],
-          "tools": ["archive_feature_layer", "archive_map_composition"],
-          "required_scopes": ["operator:use", "admin:manage", "map:feature:admin"],
+          "actions": [
+            "tools_call"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "map"
+          ],
+          "tools": [
+            "archive_feature_layer",
+            "archive_map_composition"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "admin:manage",
+            "map:feature:admin"
+          ],
           "metadata": {}
         },
         {
           "id": "allow_map_raster_derivation_tasks",
           "effect": "allow",
-          "actions": ["tools_call", "tasks_get", "tasks_update", "tasks_result", "tasks_cancel", "tasks_subscribe"],
-          "profiles": ["operator", "admin"],
-          "servers": ["map"],
-          "tools": ["derive_raster"],
-          "required_scopes": ["operator:use", "map:dataset:read", "map:raster:derive"],
+          "actions": [
+            "tools_call",
+            "tasks_get",
+            "tasks_update",
+            "tasks_result",
+            "tasks_cancel",
+            "tasks_subscribe"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "map"
+          ],
+          "tools": [
+            "derive_raster"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "map:dataset:read",
+            "map:raster:derive"
+          ],
           "metadata": {}
         },
         {
           "id": "allow_map_spatial_derivation",
           "effect": "allow",
-          "actions": ["tools_call"],
-          "profiles": ["operator", "admin"],
-          "servers": ["map"],
-          "tools": ["derive_spatial_geometry"],
-          "required_scopes": ["operator:use", "map:dataset:read", "map:spatial:derive"],
+          "actions": [
+            "tools_call"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "map"
+          ],
+          "tools": [
+            "derive_spatial_geometry"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "map:dataset:read",
+            "map:spatial:derive"
+          ],
           "metadata": {}
         },
         {
@@ -3774,7 +3927,7 @@
           "metadata": {}
         },
         {
-          "id": "allow_perception_use",
+          "id": "allow_stream_use",
           "effect": "allow",
           "actions": [
             "tools_list",
@@ -3800,18 +3953,20 @@
             "admin"
           ],
           "servers": [
-            "perception"
+            "stream"
           ],
           "tools": [
-            "analyze_recording",
-            "extract_clip"
+            "run_recording",
+            "start_live_session",
+            "stop_live_session"
           ],
           "resource_schemes": [
-            "perception"
+            "stream",
+            "ui"
           ],
           "prompts": [
-            "perception-analyze-recording",
-            "perception-extract-clip"
+            "stream-run-recording",
+            "stream-start-live-session"
           ],
           "required_scopes": [
             "operator:use"
@@ -3826,7 +3981,7 @@
           "metadata": {}
         },
         {
-          "id": "allow_service_perception_use",
+          "id": "allow_service_stream_use",
           "effect": "allow",
           "actions": [
             "tools_list",
@@ -3852,18 +4007,20 @@
             "admin"
           ],
           "servers": [
-            "perception"
+            "stream"
           ],
           "tools": [
-            "analyze_recording",
-            "extract_clip"
+            "run_recording",
+            "start_live_session",
+            "stop_live_session"
           ],
           "resource_schemes": [
-            "perception"
+            "stream",
+            "ui"
           ],
           "prompts": [
-            "perception-analyze-recording",
-            "perception-extract-clip"
+            "stream-run-recording",
+            "stream-start-live-session"
           ],
           "principal_ids": [
             "https://veoveo.example/oauth#operator-service",

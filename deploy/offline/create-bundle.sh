@@ -103,7 +103,7 @@ cp "$repo_root/configs/deployments.json" "$stage/payload/configs/deployments.jso
 cp "$repo_root/configs/gateway.local.json" "$stage/payload/configs/gateway.local.json"
 cp "$repo_root/configs/otel-collector.yaml" "$stage/payload/configs/otel-collector.yaml"
 cp "$repo_root/configs/otel-collector.siem.example.yaml" "$stage/payload/configs/otel-collector.siem.example.yaml"
-cp -R "$repo_root/configs/perception" "$stage/payload/configs/perception"
+cp -R "$repo_root/configs/stream" "$stage/payload/configs/stream"
 cp "$repo_root/.env.example" "$stage/payload/.env.example"
 cp -R "$repo_root/assets" "$stage/payload/assets"
 cp -R "$repo_root/deploy/helm" "$stage/payload/deploy/helm"

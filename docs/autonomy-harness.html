@@ -696,9 +696,9 @@ flowchart LR
         </ul>
       </div>
       <div>
-        <h5>Perception, on the record</h5>
+        <h5>Stream perception, live or on the record</h5>
         <ul>
-          <li>"How many vehicles, by class, passed E14 in the last hour?" — <code>perception__analyze_recording</code> on the camera's recording</li>
+          <li>"How many vehicles, by class, passed E14 in the last hour?" — <code>stream__run_recording</code> on the camera's recording</li>
           <li>→ detections as rows, boxes over the original video, a clip of the window that matters</li>
           <li><code>duckdb__ingest</code> the detections → demand per approach, as SQL</li>
         </ul>
@@ -721,7 +721,7 @@ sequenceDiagram
   autonumber
   participant W as World model
   participant A as Agent
-  participant P as Perception
+  participant P as Stream
   participant Q as SQL
   participant O as Planning
   participant S as SUMO
@@ -735,7 +735,7 @@ sequenceDiagram
   A->>S: set_signal_phase · run_batch(500) (task) — sleep
   S-->>A: wake — delay −23%, evidence in the record
       </div>
-      <figcaption><b>One governed loop.</b> record → perception → SQL → plan → act — every call policy-checked, every step in the record.</figcaption>
+      <figcaption><b>One governed loop.</b> record → Stream perception → SQL → plan → act — every call policy-checked, every step in the record.</figcaption>
     </figure>
   </section>
 
@@ -1084,8 +1084,8 @@ flowchart LR
 
         <div class="server">
           <div class="server-head">
-            <span class="scheme">perception://</span>
-            <h4><span class="dot" style="background:var(--hue-viewer)"></span>Perception</h4>
+            <span class="scheme">stream://</span>
+            <h4><span class="dot" style="background:var(--hue-viewer)"></span>Stream</h4>
             <p>Ask questions of recorded video: which objects, of which class, where, when —
                tracked over time. Answered locally, on the installation's own hardware; the video
                never leaves.</p>
@@ -1775,7 +1775,7 @@ sequenceDiagram
              what the agent intends. The agent's own acts feed the model the next episode reads.</p>
         </div>
         <div class="term">
-          <div class="term-head"><span class="term-name">Perception server</span><span class="term-kind k-ours">ours</span></div>
+          <div class="term-head"><span class="term-name">Stream server</span><span class="term-kind k-ours">ours</span></div>
           <p><b>Eyes on the record.</b> Ask recorded video which objects were where, when, and
              which are the same object over time — detection and tracking, executed locally.</p>
           <p>Results come back as detections, an annotation layer on the source timeline,

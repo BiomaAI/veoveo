@@ -110,7 +110,7 @@ artifactService:
     - frames
     - map
     - recording
-    - perception
+    - stream
     - reason
     - simulation-view
     - datasheet
@@ -152,12 +152,46 @@ recording:
       cpu: "2"
       memory: 4Gi
 
-perception:
+stream:
   runtimeClassName: nvidia
   image:
-    repository: veoveo/perception-mcp
+    repository: veoveo/stream-mcp
     tag: 0.1.0
     digest: ""
+  recordingOutput:
+    enabled: false
+    proxyUrl: rerun+http://127.0.0.1:9876/proxy
+    applicationId: veoveo-sensor
+    entityPath: /stream/live
+    timeline: stream-time
+    queueCapacity: 256
+    forwarder:
+      image:
+        repository: veoveo/recording-forwarder
+        tag: 0.1.0
+        digest: ""
+      gatewayTransportUrl: http://mcp-gateway:8788
+      clientId: recording-producer
+      keyId: recording-producer-2026
+      signingAlgorithm: rs256
+      privateKey:
+        existingSecret: veoveo-recording-producer
+        key: private-key.pem
+      maximumQueueBytes: 4294967296
+      batchMessageLimit: 4096
+      batchFlushMilliseconds: 1000
+      grpcMemoryLimitBytes: 268435456
+      persistence:
+        size: 5Gi
+        storageClass: ""
+        accessModes: [ReadWriteOnce]
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          cpu: "1"
+          memory: 2Gi
   modelCache:
     size: 5Gi
     storageClass: ""

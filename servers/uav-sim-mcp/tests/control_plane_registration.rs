@@ -26,7 +26,7 @@ fn local_registration_preserves_cross_server_resource_identities() {
     assert_eq!(uav["resource_projection"], "server_owned");
     assert_eq!(
         uav["referenced_resource_schemes"],
-        serde_json::json!(["frames", "recording"]),
-        "the registration must preserve frames:// world and recording:// capture identities"
+        serde_json::json!(["artifact", "frames", "recording"]),
+        "the registration must preserve artifact:// scene, frames:// world, and recording:// capture identities"
     );
 }

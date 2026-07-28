@@ -10,13 +10,14 @@ import rerun as rr
 from .config import RuntimeConfig
 from .camera_quality import CameraFrameQuality, normalize_rgb_frame
 from .state import VehicleTelemetry
+from .stream_output import RtpH264Publisher
 from .world_config import WorldConfiguration
 
 
 class H264CameraStream:
-    # TODO(GPU): Replace the NumPy/PyAV libx264 recording encoder with the
-    # canonical NVIDIA pre-encoded NVENC stream once Rerun packet fan-out is
-    # wired. The live viewer already bypasses this CPU path.
+    # TODO(GPU): Replace the existing RTX capture readback with a direct CUDA
+    # render-product handoff. Encoding already fails closed on NVIDIA NVENC,
+    # and its one Annex B packet stream fans out unchanged to Stream and Rerun.
     def __init__(
         self,
         recording: rr.RecordingStream,
@@ -24,25 +25,29 @@ class H264CameraStream:
         width: int,
         height: int,
         fps: int,
+        stream_output: RtpH264Publisher | None,
     ) -> None:
         self._recording = recording
         self._entity_path = entity_path
         self._width = width
         self._height = height
+        self._stream_output = stream_output
         self._container = av.open("/dev/null", "w", format="h264")
-        self._stream = self._container.add_stream("libx264", rate=fps)
+        self._stream = self._container.add_stream("h264_nvenc", rate=fps)
         self._stream.width = width
         self._stream.height = height
         self._stream.pix_fmt = "yuv420p"
         self._stream.max_b_frames = 0
         self._stream.codec_context.gop_size = fps
         self._stream.options = {
-            "preset": "ultrafast",
-            "tune": "zerolatency",
-            "x264-params": (
-                f"keyint={fps}:min-keyint={fps}:scenecut=0:repeat-headers=1"
-            ),
+            "profile": "baseline",
+            "preset": "p1",
+            "tune": "ull",
+            "zerolatency": "1",
+            "forced-idr": "1",
         }
+        if self._stream.codec_context.codec.name != "h264_nvenc":
+            raise RuntimeError("UAV camera H.264 encoder is not NVIDIA NVENC")
         self._recording.log(
             entity_path,
             rr.VideoStream(codec=rr.VideoCodec.H264),
@@ -53,9 +58,14 @@ class H264CameraStream:
     def encode(self, rgb: np.ndarray, simulation_time_s: float, physics_step: int) -> None:
         frame = av.VideoFrame.from_ndarray(normalize_rgb_frame(rgb), format="rgb24")
         for packet in self._stream.encode(frame):
+            sample = bytes(packet)
+            if self._stream_output is not None:
+                self._stream_output.publish(sample, simulation_time_s)
             self._set_time(simulation_time_s, physics_step)
             if packet.is_keyframe:
-                self._recording.log(self._entity_path, _video_packet(packet))
+                self._recording.log(
+                    self._entity_path, _video_packet(sample, is_keyframe=True)
+                )
                 self._recording.log(
                     self._entity_path,
                     rr.Pinhole(
@@ -64,25 +74,35 @@ class H264CameraStream:
                     ),
                 )
             else:
-                self._recording.log(self._entity_path, _video_packet(packet))
+                self._recording.log(self._entity_path, _video_packet(sample))
 
     def close(self, simulation_time_s: float, physics_step: int) -> None:
         for packet in self._stream.encode(None):
+            sample = bytes(packet)
+            if self._stream_output is not None:
+                self._stream_output.publish(sample, simulation_time_s)
             self._set_time(simulation_time_s, physics_step)
-            self._recording.log(self._entity_path, _video_packet(packet))
+            self._recording.log(
+                self._entity_path,
+                _video_packet(sample, is_keyframe=packet.is_keyframe),
+            )
         self._container.close()
+        if self._stream_output is not None:
+            self._stream_output.close()
 
     def _set_time(self, simulation_time_s: float, physics_step: int) -> None:
         self._recording.set_time("simulation_time", duration=simulation_time_s)
         self._recording.set_time("physics_step", sequence=physics_step)
 
 
-def _video_packet(packet: av.Packet) -> rr.VideoStream:
+def _video_packet(
+    sample: bytes, *, is_keyframe: bool = False
+) -> rr.VideoStream:
     fields: dict[str, object] = {
         "codec": rr.VideoCodec.H264,
-        "sample": bytes(packet),
+        "sample": sample,
     }
-    if packet.is_keyframe:
+    if is_keyframe:
         fields["is_keyframe"] = True
     return rr.VideoStream.from_fields(**fields)
 
@@ -117,12 +137,20 @@ class RecordingPublisher:
 
     def add_camera(self, vehicle_id: str) -> H264CameraStream:
         entity_path = f"{self._root}/vehicle/{vehicle_id}/camera/down"
+        stream_output = (
+            RtpH264Publisher(self._config.stream_publication)
+            if self._config.stream_publication is not None
+            and vehicle_id
+            == self._config.stream_publication.source_vehicle_id
+            else None
+        )
         camera = H264CameraStream(
             self._recording,
             entity_path,
             self._config.camera.width,
             self._config.camera.height,
             self._config.camera.fps,
+            stream_output,
         )
         self._cameras[vehicle_id] = camera
         return camera
