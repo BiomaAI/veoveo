@@ -175,6 +175,31 @@ target/veoveo-xtask/evidence/
     release-target-stream-mcp-1785264826837254158-21199/
 ```
 
+## Host Smoke Build Retention
+
+`cargo xtask smoke` originally launched nested Cargo with the package-scoped
+environment inherited from `cargo xtask`. In particular, the child saw
+`CARGO_MANIFEST_DIR=tools/xtask`, while an ordinary outer Cargo invocation saw that
+variable as absent. Build scripts that declared it through `rerun-if-env-changed`
+alternated fingerprints on every dispatch. Ring rebuilt first, then invalidated the
+TLS, MCP, DuckDB, SurrealDB, Rerun, and smoke graph.
+
+The command runner now removes the parent package's Cargo build environment before
+launching nested Cargo while preserving user configuration such as `CARGO_HOME`,
+`CARGO_TARGET_DIR`, `CARGO_NET_OFFLINE`, and `RUSTFLAGS`. Every real smoke scenario
+also keeps `veoveo-smoke` and `veoveo-mcp-conformance` in one stable base build unit;
+scenario-specific executable requirements remain additive.
+
+| Case | Cargo result | Wall time |
+|---|---|---:|
+| Defective immediate identical `helm-config` dispatch | repeated dependency compile, 1m57s Cargo | 146.19 s |
+| Corrected settled identical dispatch | freshness check only, 0.57 s | 4.88 s |
+
+The corrected command was 96.7% faster and still validated both deployment fixtures.
+The same sanitized nested-Cargo path is used by `cargo xtask enforce rust`, which
+prevents its format, Clippy, test, and documentation phases from alternating package
+fingerprints.
+
 ## Acceptance Matrix
 
 | Requirement | Evidence | Result |
