@@ -8,7 +8,8 @@ artifactService:
     - frames
     - map
     - recording
-    - stream    - sumo
+    - stream
+    - sumo
 
 recording:
   tenantKey: tenant-a
