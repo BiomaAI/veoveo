@@ -234,6 +234,7 @@ impl MapMcp {
         title = "Derive a governed raster product",
         description = "Run one bounded sample, terrain-corridor maximum, window, class-mask, contour, polygonize, skeletonize, or line-derivation operation against an immutable raster product. This operation requires durable task invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RasterDerivation>(),
+        execution(task_support = "required"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn derive_raster(
@@ -382,6 +383,7 @@ impl MapMcp {
         title = "Calculate logistics route",
         description = "Calculate a governed route for one versioned human or vehicle mobility profile through durable task invocation. The result pins releases, restrictions, a snapshot, costs, and validation state; unavailable coverage is never replaced by a straight line.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RoutePlan>(),
+        execution(task_support = "required"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn route(
@@ -399,6 +401,7 @@ impl MapMcp {
         title = "Calculate logistics route matrix",
         description = "Calculate a bounded many-to-many route matrix for one versioned mobility profile. Task-capable clients should invoke this as a durable task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RouteMatrix>(),
+        execution(task_support = "required"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn route_matrix(
@@ -416,6 +419,7 @@ impl MapMcp {
         title = "Calculate land reachable area",
         description = "Calculate a governed Valhalla network isochrone for a human or road-vehicle profile. This operation requires durable task invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ReachableArea>(),
+        execution(task_support = "required"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn reachable_area(

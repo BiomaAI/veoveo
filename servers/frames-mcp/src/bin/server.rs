@@ -216,6 +216,7 @@ impl FramesMcp {
         title = "Batch transform",
         description = "Run a batch frame conversion as an MCP task and optionally store the JSON output through the shared artifact plane.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<BatchTransformOutput>(),
+        execution(task_support = "required"),
         annotations(
             read_only_hint = false,
             destructive_hint = false,

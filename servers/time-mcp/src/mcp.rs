@@ -156,6 +156,7 @@ impl TimeMcp {
         title = "Expand operational calendar",
         description = "Expand a versioned civil-time operational calendar into authority-bound half-open windows. This bulk operation requires Task API invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ExpandScheduleOutput>(),
+        execution(task_support = "required"),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
     async fn expand_schedule(
@@ -173,6 +174,7 @@ impl TimeMcp {
         title = "Validate mission timeline",
         description = "Resolve named temporal points and validate precedence plus minimum and maximum separation constraints. This bulk operation requires Task API invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ValidateTimelineOutput>(),
+        execution(task_support = "required"),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
     async fn validate_timeline(

@@ -155,6 +155,7 @@ impl MediaMcp {
         title = "Run media model",
         description = "Run any media model as a durable asynchronous task. Read tasks/get for status and the terminal typed result. Discover models through media://models, schemas through media://model/{model_id}, and billing through media://usage/task/{task_id}.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<GenerationRunOutput>(),
+        execution(task_support = "required"),
         annotations(
             read_only_hint = false,
             destructive_hint = false,

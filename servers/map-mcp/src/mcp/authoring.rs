@@ -396,6 +396,7 @@ impl MapMcp {
         title = "Import feature layer artifact",
         description = "Validate and atomically import up to 10000 GeoJSON FeatureCollection or RFC 8142 GeoJSON text sequence features from an authorized artifact. This operation requires durable task invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ImportFeatureLayerOutput>(),
+        execution(task_support = "required"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
     async fn import_feature_layer(
@@ -413,6 +414,7 @@ impl MapMcp {
         title = "Export published feature layer",
         description = "Export an immutable layer publication as RFC 8142 GeoJSON text sequence or GeoParquet 1.0 WKB through a governed artifact. This operation requires durable task invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ExportFeatureLayerOutput>(),
+        execution(task_support = "required"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn export_feature_layer(
@@ -430,6 +432,7 @@ impl MapMcp {
         title = "Build published feature vector tiles",
         description = "Build a bounded sorted set of Mapbox Vector Tile 2.1 tiles and a MapLibre Style projection from an immutable layer publication. This operation requires durable task invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<BuildVectorTilesOutput>(),
+        execution(task_support = "required"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn build_vector_tiles(

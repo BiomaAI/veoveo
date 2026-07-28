@@ -1,4 +1,4 @@
-use futures::StreamExt;
+use crate::mcp_support::{mcp_internal, mcp_invalid_params, project_call_tool_resource_uris};
 use rmcp::{
     model::{
         CancelTaskParams, CancelTaskResult, ErrorData as McpError, GetTaskParams,
@@ -7,9 +7,6 @@ use rmcp::{
     service::{RequestContext, RoleServer},
 };
 use veoveo_mcp_contract::GatewayAction;
-use veoveo_mcp_task_extension::DetailedTask;
-
-use crate::mcp_support::{mcp_internal, mcp_invalid_params, project_call_tool_resource_uris};
 
 use super::{
     GatewayMcp,
@@ -51,21 +48,7 @@ impl GatewayMcp {
         let client = self
             .final_task_client(&route.server, &route.subject)
             .await?;
-        let mut task = client.get(route.task_id).await?;
-        if !is_terminal(&task) {
-            let mut updates = client.subscribe(vec![route.task_id]).await?;
-            while let Some(update) = updates.next().await {
-                task = update?;
-                if is_terminal(&task) {
-                    break;
-                }
-            }
-            if !is_terminal(&task) {
-                return Err(mcp_internal(
-                    "upstream task subscription ended before task completion",
-                ));
-            }
-        }
+        let task = client.await_terminal(route.task_id).await?;
         let mut result = completed_tool_result(task)?;
         let catalog = self.catalog.current();
         let manifest = catalog
@@ -99,13 +82,4 @@ impl GatewayMcp {
         let task = client.get(route.task_id).await?;
         Ok(CancelTaskResult::new(project_task_from_detailed(&task)))
     }
-}
-
-fn is_terminal(task: &DetailedTask) -> bool {
-    matches!(
-        task,
-        DetailedTask::Completed { .. }
-            | DetailedTask::Failed { .. }
-            | DetailedTask::Cancelled { .. }
-    )
 }

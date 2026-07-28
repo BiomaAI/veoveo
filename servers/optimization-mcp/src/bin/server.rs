@@ -122,6 +122,7 @@ impl OptimizationMcp {
         title = "Plan spatial assignments",
         description = "Generate a governed spatial multi-agent plan from compact typed agents, groups, task quantities, immutable Map geometry and mobility references, Frames revision, capacities, lanes, resource bands, dependencies, timing, objective weights, and deterministic solver policy. The result always includes a canonical optimization://plan/{plan_id} JSON artifact; DuckDB and Rerun RRD evidence are optional. Clients declaring the task extension receive a durable task; direct calls wait for that same durable execution.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<PlanOutput>(),
+        execution(task_support = "optional"),
         annotations(
             read_only_hint = false,
             destructive_hint = false,
