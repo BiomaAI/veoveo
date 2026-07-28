@@ -255,9 +255,7 @@ pub(crate) async fn list_apps(
     request_headers: HeaderMap,
 ) -> Response {
     let listing = with_apps_session(&state, &request_headers, |mcp| async move {
-        let resources = mcp.list_all_resources().await?;
-        let tools = mcp.list_all_tools().await?;
-        Ok((resources, tools))
+        mcp.refresh_app_catalog().await
     })
     .await;
     let AppsSessionOutcome {
@@ -268,7 +266,7 @@ pub(crate) async fn list_apps(
         Ok(outcome) => outcome,
         Err(response) => return response,
     };
-    let (resources, tools) = match result {
+    let catalog = match result {
         Ok(listing) => listing,
         Err(error) => {
             tracing::error!(%error, "console apps listing failed");
@@ -276,14 +274,16 @@ pub(crate) async fn list_apps(
         }
     };
     let mut apps = Vec::new();
-    for resource in resources
+    for resource in catalog
+        .resources()
         .iter()
         .filter(|resource| is_app_resource(resource))
     {
         let Some(server) = app_uri_server(&resource.uri) else {
             continue;
         };
-        let tools = tools
+        let tools = catalog
+            .tools()
             .iter()
             .filter_map(|tool| {
                 let link = tool_app_link(tool)?;
@@ -338,14 +338,15 @@ pub(crate) async fn app_frame(
     let read = with_apps_session(&state, &request_headers, |mcp| {
         let uri = uri.clone();
         async move {
-            let resources = mcp.list_all_resources().await?;
-            let resource = resources
-                .into_iter()
+            let catalog = mcp.app_catalog().await?;
+            let resource = catalog
+                .resources()
+                .iter()
                 .find(|resource| resource.uri == uri && is_app_resource(resource));
             let contents = mcp
                 .read_resource(rmcp::model::ReadResourceRequestParams::new(uri))
                 .await?;
-            Ok((resource, contents))
+            Ok((resource.cloned(), contents))
         }
     })
     .await;
@@ -504,8 +505,8 @@ pub(crate) async fn read_app_resource(
         let server = server.clone();
         let app_uri = app_uri.clone();
         async move {
-            let resources = mcp.list_all_resources().await?;
-            let app_resource = resources.into_iter().find(|resource| {
+            let catalog = mcp.app_catalog().await?;
+            let app_resource = catalog.resources().iter().find(|resource| {
                 resource.uri == app_uri
                     && is_app_resource(resource)
                     && app_uri_server(&resource.uri) == Some(server.as_str())
@@ -514,7 +515,7 @@ pub(crate) async fn read_app_resource(
                 return Ok(None);
             };
             if !app_resource_uri_allowed(&server, uri)
-                && !app_dependency_allows_resource(&app_resource, uri)
+                && !app_dependency_allows_resource(app_resource, uri)
             {
                 return Ok(None);
             }
@@ -636,7 +637,7 @@ pub(crate) async fn call_app_tool(
     }
     let gateway_tool = format!("{}__{}", request.server, request.tool);
     let listing = with_apps_session(&state, &request_headers, |mcp| async move {
-        mcp.list_all_tools().await
+        mcp.app_catalog().await
     })
     .await;
     // The tool call below deliberately stays single-shot on the session the
@@ -650,14 +651,18 @@ pub(crate) async fn call_app_tool(
         Ok(outcome) => outcome,
         Err(response) => return response,
     };
-    let tools = match listing {
-        Ok(tools) => tools,
+    let catalog = match listing {
+        Ok(catalog) => catalog,
         Err(error) => {
             tracing::error!(%error, "console apps tool listing failed");
             return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
         }
     };
-    let Some(tool) = tools.iter().find(|tool| tool.name.as_ref() == gateway_tool) else {
+    let Some(tool) = catalog
+        .tools()
+        .iter()
+        .find(|tool| tool.name.as_ref() == gateway_tool)
+    else {
         return with_session_headers(
             call_error(StatusCode::NOT_FOUND, "unknown tool for this app"),
             response_headers,

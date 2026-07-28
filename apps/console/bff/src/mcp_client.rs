@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, ops::Deref, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use chrono::Utc;
@@ -35,7 +35,66 @@ impl ClientHandler for ConsoleHostHandler {
     }
 }
 
-pub(crate) type McpSession = Arc<RunningService<rmcp::RoleClient, ConsoleHostHandler>>;
+type RunningMcpSession = RunningService<rmcp::RoleClient, ConsoleHostHandler>;
+
+/// The App authorization surface projected by one initialized gateway
+/// session. Resources and tools are immutable for that authority/profile
+/// snapshot; an explicit Apps listing refreshes the snapshot for the same
+/// session, while token rotation or transport invalidation drops it.
+#[derive(Debug)]
+pub(crate) struct McpAppCatalog {
+    resources: Vec<rmcp::model::Resource>,
+    tools: Vec<rmcp::model::Tool>,
+}
+
+impl McpAppCatalog {
+    pub(crate) fn resources(&self) -> &[rmcp::model::Resource] {
+        &self.resources
+    }
+
+    pub(crate) fn tools(&self) -> &[rmcp::model::Tool] {
+        &self.tools
+    }
+}
+
+pub(crate) struct McpSessionContext {
+    service: Arc<RunningMcpSession>,
+    app_catalog: Mutex<Option<Arc<McpAppCatalog>>>,
+}
+
+impl Deref for McpSessionContext {
+    type Target = RunningMcpSession;
+
+    fn deref(&self) -> &Self::Target {
+        &self.service
+    }
+}
+
+impl McpSessionContext {
+    pub(crate) async fn app_catalog(&self) -> Result<Arc<McpAppCatalog>, rmcp::ServiceError> {
+        self.load_app_catalog(false).await
+    }
+
+    pub(crate) async fn refresh_app_catalog(
+        &self,
+    ) -> Result<Arc<McpAppCatalog>, rmcp::ServiceError> {
+        self.load_app_catalog(true).await
+    }
+
+    async fn load_app_catalog(
+        &self,
+        refresh: bool,
+    ) -> Result<Arc<McpAppCatalog>, rmcp::ServiceError> {
+        cached_or_refresh(&self.app_catalog, refresh, || async {
+            let resources = self.service.list_all_resources().await?;
+            let tools = self.service.list_all_tools().await?;
+            Ok(McpAppCatalog { resources, tools })
+        })
+        .await
+    }
+}
+
+pub(crate) type McpSession = Arc<McpSessionContext>;
 
 struct CachedSession {
     session: McpSession,
@@ -96,12 +155,16 @@ impl McpSessionPool {
                 // access token rotates.
                 .reinit_on_expired_session(true),
         );
-        let session: McpSession = Arc::new(
+        let service = Arc::new(
             ConsoleHostHandler
                 .serve(transport)
                 .await
                 .context("initializing console MCP session to the gateway")?,
         );
+        let session = Arc::new(McpSessionContext {
+            service,
+            app_catalog: Mutex::new(None),
+        });
         sessions.insert(
             key,
             CachedSession {
@@ -128,6 +191,24 @@ impl McpSessionPool {
     }
 }
 
+async fn cached_or_refresh<T, E, F, Fut>(
+    cache: &Mutex<Option<Arc<T>>>,
+    refresh: bool,
+    load: F,
+) -> Result<Arc<T>, E>
+where
+    F: FnOnce() -> Fut,
+    Fut: Future<Output = Result<T, E>>,
+{
+    let mut cached = cache.lock().await;
+    if !refresh && let Some(value) = cached.as_ref() {
+        return Ok(value.clone());
+    }
+    let value = Arc::new(load().await?);
+    *cached = Some(value.clone());
+    Ok(value)
+}
+
 fn fingerprint(access_token: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(access_token.as_bytes());
@@ -136,4 +217,60 @@ fn fingerprint(access_token: &str) -> String {
 
 fn hex_encode(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::*;
+
+    #[tokio::test]
+    async fn session_cache_loads_once_until_explicit_refresh() {
+        let cache = Mutex::new(None);
+        let loads = AtomicUsize::new(0);
+
+        let first = cached_or_refresh(&cache, false, || async {
+            loads.fetch_add(1, Ordering::SeqCst);
+            Ok::<_, ()>(41)
+        })
+        .await
+        .unwrap();
+        let cached = cached_or_refresh(&cache, false, || async {
+            loads.fetch_add(1, Ordering::SeqCst);
+            Ok::<_, ()>(42)
+        })
+        .await
+        .unwrap();
+        let refreshed = cached_or_refresh(&cache, true, || async {
+            loads.fetch_add(1, Ordering::SeqCst);
+            Ok::<_, ()>(43)
+        })
+        .await
+        .unwrap();
+
+        assert!(Arc::ptr_eq(&first, &cached));
+        assert_eq!(*refreshed, 43);
+        assert_eq!(loads.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn failed_catalog_load_is_not_cached() {
+        let cache = Mutex::new(None);
+
+        assert_eq!(
+            cached_or_refresh(&cache, false, || async {
+                Err::<usize, _>("catalog unavailable")
+            })
+            .await
+            .unwrap_err(),
+            "catalog unavailable"
+        );
+        assert_eq!(
+            *cached_or_refresh(&cache, false, || async { Ok::<_, &str>(7) })
+                .await
+                .unwrap(),
+            7
+        );
+    }
 }
