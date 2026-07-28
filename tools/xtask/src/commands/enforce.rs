@@ -4,9 +4,8 @@ use crate::{commands::python as python_package, context::RepositoryContext, proc
 
 pub(crate) fn rust(repository: &RepositoryContext) -> Result<()> {
     let root = Some(repository.root());
-    process::status("cargo", ["fmt", "--all", "--", "--check"], root)?;
-    process::status(
-        "cargo",
+    process::cargo_status(["fmt", "--all", "--", "--check"], root)?;
+    process::cargo_status(
         [
             "clippy",
             "--workspace",
@@ -19,13 +18,8 @@ pub(crate) fn rust(repository: &RepositoryContext) -> Result<()> {
         ],
         root,
     )?;
-    process::status(
-        "cargo",
-        ["test", "--workspace", "--all-features", "--locked"],
-        root,
-    )?;
-    process::status_with_env(
-        "cargo",
+    process::cargo_status(["test", "--workspace", "--all-features", "--locked"], root)?;
+    process::cargo_status_with_env(
         [
             "doc",
             "--workspace",

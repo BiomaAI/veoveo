@@ -62,7 +62,7 @@ const AGENT: CargoBinary = CargoBinary {
 
 pub(crate) fn run(repository: &RepositoryContext, arguments: &[OsString]) -> Result<()> {
     let build_arguments = cargo_build_arguments(arguments)?;
-    process::status("cargo", &build_arguments, Some(repository.root()))?;
+    process::cargo_status(&build_arguments, Some(repository.root()))?;
     let target = env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| repository.root().join("target"));
@@ -94,6 +94,7 @@ pub(crate) fn run(repository: &RepositoryContext, arguments: &[OsString]) -> Res
 fn cargo_build_arguments(arguments: &[OsString]) -> Result<Vec<&'static str>> {
     let mut binaries = vec![SMOKE];
     if !requests_help(arguments) {
+        binaries.push(CONFORMANCE);
         let scenario = arguments
             .first()
             .context("smoke scenario is required")?
@@ -278,6 +279,26 @@ mod tests {
                 "veoveo-smoke",
                 "--bin",
                 "smoke",
+            ]
+        );
+    }
+
+    #[test]
+    fn real_scenarios_keep_the_smoke_conformance_build_unit_stable() {
+        let arguments = [OsString::from("helm-config")];
+        assert_eq!(
+            cargo_build_arguments(&arguments).unwrap(),
+            [
+                "build",
+                "--locked",
+                "--package",
+                "veoveo-smoke",
+                "--bin",
+                "smoke",
+                "--package",
+                "veoveo-mcp-conformance",
+                "--bin",
+                "conformance",
             ]
         );
     }
