@@ -65,9 +65,10 @@ Production workloads use the repository and digest map in images.lock.yaml. Both
 Applications select chart set 0.1.0-8d43b975bf85, published from commit
 8d43b975bf856787563a9b0493efabd2d5a62c75. The platform images were published
 from commit 20aa16e5215d6e12eb18cbe7ff785cbb3c9ba952.
-The UAV MCP image was published from the chart-set commit. The Stream and Reason
-MCP images were published from commit 49df5b36742316e0fc81bb09f72641a88a5a7f5a,
-the Console image was published from commit
+The UAV MCP image was published from the chart-set commit. The Stream MCP image
+was published from commit 481df26f0a1a9cff86423c19714b9141ba94ebd4,
+and the Reason MCP image was published from commit
+49df5b36742316e0fc81bb09f72641a88a5a7f5a. The Console image was published from commit
 c85547649ab93336f6718f4b71986f59055b1776, the Simulation View Isaac image was
 published from commit f0ff335161d3d7a66b50db265784f1ba26421b10, and the UAV
 runtime was published from commit b2c1df19dff4a90532ff18664e0d0a19b4ddf6d1.
