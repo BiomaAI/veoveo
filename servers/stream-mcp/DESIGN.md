@@ -284,6 +284,10 @@ must prove:
 The UAV showcase starts the live Stream session before flight, sends the
 already encoded nadir-camera access units to Stream before logging them to
 Rerun, and retains its independent Recording and Simulation View evidence.
+After fresh live inference and the authenticated App capture succeed, the
+acceptance stops that live session before starting the independent replay
+graph. This keeps each admitted DeepStream/TensorRT workload bounded without
+weakening the proof that newly arrived frames are processed live.
 Visual acceptance uses headed Chrome with hardware-backed WebGPU or WebGL. The
 harness probes both APIs when available and fails only when neither reaches
 hardware.
