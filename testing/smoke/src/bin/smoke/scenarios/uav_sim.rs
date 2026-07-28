@@ -10,6 +10,9 @@ use veoveo_mcp_contract::{
     FrameBasis, FrameId, FrameNode, FrameParentTransform, FrameWorldId, FrameWorldRevision,
     FrameWorldTree, Wgs84Position,
 };
+use veoveo_stream_mcp::contract::{
+    LiveSessionLifecycle, LiveSessionView, StartLiveSessionOutput, StopLiveSessionOutput,
+};
 
 use super::*;
 
@@ -498,23 +501,6 @@ async fn uav_sim_verify_with_visual_hold(
     );
     let camera_entity = json_string(&state, "/recordings/0/camera_streams/0")?.to_owned();
 
-    let live = operator
-        .call_tool(
-            "stream__start_live_session",
-            serde_json::json!({
-                "pipeline_id": scenario.stream.live_pipeline_id
-            }),
-        )
-        .await
-        .context("starting the recording-independent live Stream session")?;
-    let live_session_id = json_string(&live, "/session_id")?.to_owned();
-    let live_preview_uri = json_string(&live, "/preview_uri")?.to_owned();
-    ensure!(
-        json_string(&live, "/results_uri")?
-            == format!("stream://session/{live_session_id}/results")
-            && live_preview_uri == format!("stream://session/{live_session_id}/preview"),
-        "Stream returned inconsistent live-session resources: {live}"
-    );
     let stream_app = operator
         .resource_text("ui://stream/live.html", Duration::from_secs(60))
         .await
@@ -526,6 +512,26 @@ async fn uav_sim_verify_with_visual_hold(
             && stream_app.contains("hardware H.264 decode"),
         "Stream MCP App does not expose video decoding, preview, and decode-path status"
     );
+    recover_live_stream_pipeline(&operator, &scenario.stream.live_pipeline_id).await?;
+    let live: StartLiveSessionOutput = serde_json::from_value(
+        operator
+            .call_tool(
+                "stream__start_live_session",
+                serde_json::json!({
+                    "pipeline_id": scenario.stream.live_pipeline_id
+                }),
+            )
+            .await
+            .context("starting the recording-independent live Stream session")?,
+    )
+    .context("decoding the typed live Stream session")?;
+    ensure!(
+        live.results_uri == format!("stream://session/{}/results", live.session_id)
+            && live.preview_uri == format!("stream://session/{}/preview", live.session_id),
+        "Stream returned inconsistent live-session resources: {live:?}"
+    );
+    let live_session_id = live.session_id;
+    let live_preview_uri = live.preview_uri;
 
     let mut flight_result: Result<String> = async {
         ensure_vehicle_landed(&operator, &scenario, "preflight recovery").await?;
@@ -751,19 +757,8 @@ async fn uav_sim_verify_with_visual_hold(
         }
     }
     let landing_result = ensure_vehicle_landed(&operator, &scenario, "postflight recovery").await;
-    let stream_stop_result = operator
-        .call_tool(
-            "stream__stop_live_session",
-            serde_json::json!({"session_id": live_session_id}),
-        )
-        .await
-        .and_then(|output| {
-            ensure!(
-                json_string(&output, "/lifecycle")? == "stopped",
-                "Stream live session did not stop cleanly: {output}"
-            );
-            Ok(())
-        });
+    let stream_stop_result =
+        stop_live_stream_session(&operator, &live_session_id, "postflight cleanup").await;
     let governed_artifact_id = match (flight_result, landing_result, stream_stop_result) {
         (Ok(artifact_id), Ok(()), Ok(())) => artifact_id,
         (Err(flight_error), Ok(()), Ok(())) => return Err(flight_error),
@@ -793,6 +788,58 @@ async fn uav_sim_verify_with_visual_hold(
          Recording Hub retained the world, Stream replay produced a governed artifact, Reason \
          described the flight segment grounded in those detections, an authorized context member \
          previewed it, and an independent context was denied"
+    );
+    Ok(())
+}
+
+async fn recover_live_stream_pipeline(
+    operator: &OperatorClient<'_>,
+    pipeline_id: &str,
+) -> Result<()> {
+    let sessions: Vec<LiveSessionView> = serde_json::from_value(
+        operator
+            .resource("stream://sessions", Duration::from_secs(60))
+            .await?,
+    )
+    .context("decoding visible live Stream sessions")?;
+    for session in sessions {
+        if session.pipeline_id == pipeline_id && session.lifecycle != LiveSessionLifecycle::Stopped
+        {
+            eprintln!(
+                "preflight recovery: stopping {} live Stream session {} for pipeline {}",
+                match session.lifecycle {
+                    LiveSessionLifecycle::Starting => "starting",
+                    LiveSessionLifecycle::Running => "running",
+                    LiveSessionLifecycle::Failed => "failed",
+                    LiveSessionLifecycle::Stopped => "stopped",
+                },
+                session.session_id,
+                pipeline_id
+            );
+            stop_live_stream_session(operator, &session.session_id, "preflight recovery").await?;
+        }
+    }
+    Ok(())
+}
+
+async fn stop_live_stream_session(
+    operator: &OperatorClient<'_>,
+    session_id: &str,
+    phase: &str,
+) -> Result<()> {
+    let output: StopLiveSessionOutput = serde_json::from_value(
+        operator
+            .call_tool(
+                "stream__stop_live_session",
+                serde_json::json!({"session_id": session_id}),
+            )
+            .await
+            .with_context(|| format!("{phase}: stopping live Stream session {session_id}"))?,
+    )
+    .with_context(|| format!("{phase}: decoding stopped live Stream session {session_id}"))?;
+    ensure!(
+        output.lifecycle == LiveSessionLifecycle::Stopped,
+        "{phase}: live Stream session {session_id} did not stop cleanly: {output:?}"
     );
     Ok(())
 }

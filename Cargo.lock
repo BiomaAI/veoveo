@@ -11425,6 +11425,7 @@ dependencies = [
  "veoveo-recording-forwarder",
  "veoveo-recording-hub",
  "veoveo-recording-protocol",
+ "veoveo-stream-mcp",
  "veoveo-sumo-mcp",
 ]
 
