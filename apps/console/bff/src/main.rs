@@ -7,14 +7,14 @@ mod oauth;
 mod recording_playback;
 mod session;
 
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{fs, path::Path, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use axum::{
     Router,
     http::{HeaderValue, header::CACHE_CONTROL},
     middleware,
-    response::Redirect,
+    response::{Html, Redirect},
     routing::{delete, get, post, put},
 };
 use config::Config;
@@ -152,8 +152,8 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/console/api/recordings/{recording_id}/playback-sessions/{playback_session}/segments/{segment_id}/live.rrd",
             get(recording_playback::live_segment),
-        )
-        .nest("/console", console_assets(config.asset_dir()))
+        );
+    let router = with_console_static_routes(router, config.asset_dir())?
         .fallback(get(|| async { axum::http::StatusCode::NOT_FOUND }))
         .with_state(state)
         .layer(middleware::from_fn_with_state(csrf_state, api::enforce_csrf))
@@ -191,35 +191,49 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn console_assets<S>(asset_dir: &Path) -> Router<S>
+fn with_console_static_routes<S>(router: Router<S>, asset_dir: &Path) -> anyhow::Result<Router<S>>
 where
     S: Clone + Send + Sync + 'static,
 {
-    let index = asset_dir.join("index.html");
+    let index = Arc::<str>::from(
+        fs::read_to_string(asset_dir.join("index.html")).with_context(|| {
+            format!("reading Console entry document in {}", asset_dir.display())
+        })?,
+    );
     let immutable_assets = Router::<S>::new()
         .fallback_service(ServeDir::new(asset_dir.join("assets")))
         .layer(SetResponseHeaderLayer::overriding(
             CACHE_CONTROL,
             HeaderValue::from_static("public, max-age=31536000, immutable"),
         ));
-    let shell = ServeDir::new(asset_dir)
-        .append_index_html_on_directories(true)
-        .fallback(ServeFile::new(index.clone()));
+    let root_index = index;
 
-    Router::<S>::new()
-        // Hashed Vite assets are the only immutable Console surface. Keeping
-        // this route outside the SPA fallback also makes a missing bundle a
-        // real 404 instead of serving index.html as JavaScript.
-        .nest("/assets", immutable_assets)
-        .route_service("/", ServeFile::new(index))
-        .fallback_service(shell)
-        // The entry document names the current content-addressed bundles and
-        // must be reloaded across a deployment. This also covers favicon and
-        // client-side routes served through the entry-document fallback.
-        .layer(SetResponseHeaderLayer::if_not_present(
-            CACHE_CONTROL,
-            HeaderValue::from_static("no-store"),
+    Ok(router
+        // Hashed Vite assets are the only immutable Console surface. Their
+        // dedicated route makes a missing bundle a real 404 instead of
+        // serving index.html as JavaScript.
+        .nest("/console/assets", immutable_assets)
+        .route_service(
+            "/console/favicon.svg",
+            ServeFile::new(asset_dir.join("favicon.svg")),
+        )
+        .route(
+            "/console",
+            get(|| async { Redirect::permanent("/console/") }),
+        )
+        .route(
+            "/console/",
+            // The entry document names the current content-addressed bundles
+            // and must be reloaded across a deployment.
+            get(move || console_index(root_index.clone())),
         ))
+}
+
+async fn console_index(index: Arc<str>) -> impl axum::response::IntoResponse {
+    (
+        [(CACHE_CONTROL, HeaderValue::from_static("no-store"))],
+        Html(index.to_string()),
+    )
 }
 
 #[cfg(test)]
@@ -254,27 +268,30 @@ mod static_asset_tests {
     #[tokio::test]
     async fn shell_is_not_cached_and_hashed_assets_are_immutable() {
         let root = fixture();
-        let router = console_assets(&root);
+        let router = with_console_static_routes(Router::new(), &root).unwrap();
 
         let root_shell = router
             .clone()
-            .oneshot(Request::get("/").body(Body::empty()).unwrap())
+            .oneshot(Request::get("/console/").body(Body::empty()).unwrap())
             .await
             .unwrap();
         assert_eq!(root_shell.status(), StatusCode::OK);
         assert_eq!(root_shell.headers()[CACHE_CONTROL], "no-store");
 
-        let shell = router
+        let non_root = router
             .clone()
-            .oneshot(Request::get("/apps/example").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::get("/console/apps/example")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
-        assert_eq!(shell.status(), StatusCode::OK);
-        assert_eq!(shell.headers()[CACHE_CONTROL], "no-store");
+        assert_eq!(non_root.status(), StatusCode::NOT_FOUND);
 
         let asset = router
             .oneshot(
-                Request::get("/assets/index-content.js")
+                Request::get("/console/assets/index-content.js")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -292,9 +309,10 @@ mod static_asset_tests {
     #[tokio::test]
     async fn missing_hashed_asset_does_not_fall_back_to_html() {
         let root = fixture();
-        let response = console_assets(&root)
+        let response = with_console_static_routes(Router::new(), &root)
+            .unwrap()
             .oneshot(
-                Request::get("/assets/index-missing.js")
+                Request::get("/console/assets/index-missing.js")
                     .body(Body::empty())
                     .unwrap(),
             )
