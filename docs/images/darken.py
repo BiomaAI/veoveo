@@ -29,6 +29,7 @@ FIGURES = [
     "task-sleepwake",
     "agent-loop",
     "deployment-map",
+    "integration-matrix",
 ]
 
 DARK_CANVAS = np.array([13, 17, 23], np.float32)  # GitHub dark background

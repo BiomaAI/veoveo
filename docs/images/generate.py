@@ -259,6 +259,28 @@ IMAGES = {
         " used only for the descending SIGNALS arrow and the marked intersection — the intervention;"
         " everything else dark slate."
     ),
+    "integration-matrix": (
+        "1536*1024",
+        "Two-panel comparison schematic, left and right panels of equal size separated by generous"
+        " white space and one thin vertical divider line."
+        " HARD LAYOUT INVARIANT: each panel contains a top row of exactly four small outlined"
+        " squares and a bottom row of exactly six small outlined squares, never five, never seven;"
+        " the two panels have identical square counts and identical row spacing."
+        " Left panel: one small heading tag at top reads POINT-TO-POINT. Every one of the four top"
+        " squares is joined to every one of the six bottom squares by one thin dark straight line,"
+        " twenty-four lines in total, forming a dense crossing mesh; every line begins visibly"
+        " touching the bottom edge of a top square and ends visibly touching the top edge of a"
+        " bottom square. Beneath the left panel one small outlined tag reads N × M INTEGRATIONS."
+        " Right panel: one small heading tag at top reads ONE PROTOCOL. Between the two rows spans"
+        " one wide horizontal bar drawn as a thin amber outline with white interior, labeled"
+        " MCP + HARNESS. Each top square sends exactly one thin dark vertical line down whose ends"
+        " visibly touch the square and the top edge of the bar; each bottom square sends exactly"
+        " one thin dark vertical line up whose ends visibly touch the square and the bottom edge of"
+        " the bar; no line crosses another and no line stops short of the bar."
+        " Beneath the right panel one small outlined tag reads N + M CONTRACTS."
+        " Each specified label appears exactly once, no duplicates. The amber accent appears only"
+        " on the MCP + HARNESS bar outline in the right panel; every other line is dark slate."
+    ),
     "deployment-map": (
         "1536*1024",
         "Deployment spectrum schematic: four flat 2D installation islands in a row, each a large rounded outlined base, labeled beneath in order EDGE, CLUSTER, AIR-GAP, HYBRID. Every island carries the same stack drawn identically: one small amber diamond mark at the center of the base, and outlined agent hexagons floating above the diamond — exactly one hexagon above the EDGE island, three hexagons above the CLUSTER island, two hexagons above the AIR-GAP island, and two hexagons above the HYBRID island. The EDGE base contains a single small outlined box; the CLUSTER base contains a row of three small outlined boxes; the AIR-GAP base is drawn with a double-line sealed border and connects to nothing; the HYBRID base has one dashed line rising to a small outlined box at the upper right labeled REMOTE. One continuous baseline under all four islands labeled ONE PLATFORM. The amber accent appears only on the four identical diamond marks — the same platform in every form; everything else dark slate."
