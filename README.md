@@ -84,7 +84,7 @@ Console.
 <a href="docs/images/harness-poster.png">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/harness-poster-dark.png">
-    <img src="docs/images/harness-poster.png" alt="The operational loop: the world is recorded and perceived into a world model, an operator assigns a mission, an agent acts through the gateway's authentication, policy, and audit, and evidence feeds back">
+    <img src="docs/images/harness-poster.png" alt="The operational loop: live encoded media enters Stream directly, recording remains an independent governed evidence path, Reason grounds answers in Stream results and authorized recording snapshots, and agents act through the gateway's identity, policy, and audit boundary">
   </picture>
 </a>
 
@@ -132,7 +132,7 @@ through the gateway.
 | | |
 |---|---|
 | [![Operations overview](docs/screenshots/gallery/console-overview.png)](docs/screenshots/gallery/console-overview.png) | [![Durable work](docs/screenshots/gallery/console-work.png)](docs/screenshots/gallery/console-work.png) |
-| Installation health and recent activity | Durable work across reasoning, perception, and simulation |
+| Installation health and recent activity | Durable work across Reason, Stream, and simulation |
 | [![Work Context access](docs/screenshots/gallery/console-access.png)](docs/screenshots/gallery/console-access.png) | [![Paged audit trail](docs/screenshots/gallery/console-audit.png)](docs/screenshots/gallery/console-audit.png) |
 | Membership, authority, and access requests | Bounded policy decisions with trace context |
 | [![Kubernetes cluster inventory](docs/screenshots/gallery/console-cluster.png)](docs/screenshots/gallery/console-cluster.png) | <a href="docs/images/operations-loop.png"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/operations-loop-dark.png"><img src="docs/images/operations-loop.png" alt="Reactive and proactive operational loops running nonstop"></picture></a> |
@@ -149,8 +149,8 @@ plane with ownership, provenance, release state, and effective access.
 |---|---|
 | [![Governed artifact catalog](docs/screenshots/gallery/console-artifacts.png)](docs/screenshots/gallery/console-artifacts.png) | [![Reasoning artifact detail](docs/screenshots/gallery/console-artifact-reason.png)](docs/screenshots/gallery/console-artifact-reason.png) |
 | Immutable outputs and release state | Reasoning result with recording provenance |
-| [![Perception video artifact](docs/screenshots/gallery/console-artifact-video.png)](docs/screenshots/gallery/console-artifact-video.png) | [![Continuous recording playback](docs/screenshots/gallery/console-recordings.png)](docs/screenshots/gallery/console-recordings.png) |
-| Governed media preview and access | One authorized timeline in embedded Rerun |
+| [![Stream detection video artifact](docs/screenshots/gallery/console-artifact-video.png)](docs/screenshots/gallery/console-artifact-video.png) | [![Continuous recording playback](docs/screenshots/gallery/console-recordings.png)](docs/screenshots/gallery/console-recordings.png) |
+| Stream-derived media preview and access | One authorized timeline in embedded Rerun |
 
 ## Executable Showcases
 
@@ -234,6 +234,7 @@ without changing the underlying server identities.
 | `reason` | Semantic and temporal reasoning over recordings with grounded, audited output. |
 | `recording` | Recording discovery, bounded queries, subscriptions, publication, and viewer projection. |
 | `rerun` | The bridged Rerun viewer surface. |
+| `simulation-view` | Renderer-independent scenes, logical cameras, live-view leases, capacity, and a GPU-backed WebRTC App. |
 | `stream` | Operator-admitted live and replay GStreamer pipelines, typed detection profiles, and an MCP App for encoded video with overlays. |
 | `time` | Authority-bound civil time, calendars, clocks, timelines, and event operations. |
 | `timeseries` | Forecasting, uncertainty output, governed artifacts, and an interactive forecast app. |
@@ -322,7 +323,7 @@ their respective owners.*
 <a href="docs/images/system-map.png">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/system-map-dark.png">
-    <img src="docs/images/system-map.png" alt="Sensors, simulation, and agents publish recordings through the Recording Hub while agents and the Operations Console reach hosted servers through the governed gateway; the platform store retains durable state and audit evidence">
+    <img src="docs/images/system-map.png" alt="Live H.264 enters Stream directly while optional recording flows through a producer-local forwarder; Stream results and recording snapshots feed Reason, and agents reach 17 hosted servers through the governed gateway">
   </picture>
 </a>
 

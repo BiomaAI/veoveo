@@ -65,8 +65,8 @@ def main() -> None:
         fail(f"expected 69 components, found {len(components)}")
     if len(interfaces) != 39:
         fail(f"expected 39 interfaces, found {len(interfaces)}")
-    if len(requirements) != 18:
-        fail(f"expected 18 requirements, found {len(requirements)}")
+    if len(requirements) != 19:
+        fail(f"expected 19 requirements, found {len(requirements)}")
     if len(glossary) < 25:
         fail(f"expected at least 25 glossary terms, found {len(glossary)}")
 

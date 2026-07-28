@@ -87,7 +87,10 @@ The canonical long-form sources are
 the headed Chrome `Page.printToPDF` contract that produces the
 [`whitepaper PDF`](veoveo-whitepaper.pdf) and
 [`harness PDF`](autonomy-harness.pdf). [`autonomy-harness.html`](autonomy-harness.html)
-is the browser edition of the harness document.
+is the browser edition of the harness document. These three publication
+surfaces describe the same 17-server catalog and use the normative component
+designs above for Stream, Reason, UAV Simulation, Simulation View, Recording
+Hub, administration, and GPU policy.
 
 ## Root
 

@@ -16,7 +16,8 @@ Implemented in this workspace.
 The implementation includes typed temporal contracts, an authority-bound engine,
 SurrealDB records, controlled IANA data acquisition, atomic release activation,
 clock-quality observation, MCP discovery surfaces, durable Task API operations,
-administrative REST, gateway policy, Helm, and offline image registration.
+an explicitly declared administrative HTTP projection, gateway policy, Helm,
+and offline image registration.
 
 The canonical service identity is:
 
@@ -325,9 +326,12 @@ the local watcher.
 Reading, listing, completion, and notification scheduling enforce the authenticated
 owner boundary inside the tenant.
 
-## Administrative REST
+## Administrative HTTP Projection
 
-The gateway exposes this API through
+Time retains this accepted projection for installation authority workflows
+that do not yet use an equivalent MCP administration surface. It reuses the
+same typed temporal models, authorization, catalog, and task state, and it is
+not an alternate authority. The gateway exposes it through
 `/admin/{profile}/servers/time/{*path}`. The upstream server receives it at
 `/time/admin/{path}` and requires `time:admin` in the signed internal identity.
 

@@ -181,22 +181,27 @@ second implementation or a fallback completion path.
 
 ## Hosted server administration
 
-Agent operations use MCP and the shared Task API. A hosted MCP server may pair
-that protocol surface with contract-defined HTTP administration at its canonical
-`{mount}/admin/*` path when the domain has installation-managed catalogs,
-configuration, acquisition, or lifecycle workflows.
+Domain administration is part of the hosted server's MCP contract. Servers use
+scoped tools for mutations, resources for reads, durable tasks for long-running
+work, and MCP Apps when a browser view fits the domain. These surfaces retain the
+same typed models, policy checks, audit evidence, task state, artifact identities,
+and canonical resource URIs as every other operation.
 
-The gateway is the governed entry point for these APIs. Its canonical route is
-`/admin/{profile}/servers/{server}/{*path}`. The gateway resolves the server from
-the active profile, authorizes the read or write, records audit evidence, and
-forwards a short-lived internal identity assertion. The owning server validates
-that identity and its administrative scope before applying the operation through
-the same domain models and state used by MCP.
+A server may declare an additive HTTP administration projection at
+`{mount}/admin/*` when an accepted client or installation workflow cannot use the
+canonical MCP surface. The gateway exposes that projection at
+`/admin/{profile}/servers/{server}/{*path}`. It resolves the active catalog,
+authorizes the operation, records audit evidence, and forwards a short-lived
+internal identity assertion. The owning server validates that assertion and
+applies the request through its canonical domain models and state.
 
-Browser administration enters through explicit same-origin projections in the
-Console BFF. Administrative API clients may use the protected gateway route
-directly. Each server's design document owns its administrative resources,
-authorization scopes, persistence records, and Console integration.
+An HTTP projection never replaces MCP, invents alternate resource identities, or
+becomes a second source of truth. Generic server documentation under
+`{mount}/admin/docs/*` remains a read-only self-description projection. The
+Console uses installation-wide BFF routes for platform administration and hosts
+domain MCP Apps for server-owned workflows. Each server design document declares
+any accepted HTTP projection, its scopes, and its relationship to the canonical
+MCP resources and tools.
 
 ## Identity and internal trust
 
@@ -269,6 +274,18 @@ Bioma runs Isaac Sim, View, and Stream concurrently. Their Helm workloads
 declare ordinary GPU requests and remain independently schedulable. No
 application profile disables one GPU service to admit another; cluster capacity
 must satisfy the complete declared workload.
+
+Visual workflows fail closed without hardware acceleration. Browser automation,
+interactive demonstrations, screenshots, and publication rendering require a
+headed browser with hardware-backed WebGPU or WebGL. Both APIs are probed when
+available; SwiftShader, llvmpipe, and software rasterizers do not count as
+hardware evidence.
+
+Browser H.264 playback is the only software exception. The exact Media
+Capabilities configuration must report `supported` and `smooth`, and the UI
+labels the path as software decode unless it is also `powerEfficient`. This
+exception does not relax hardware-backed browser graphics, server-side NVENC,
+GPU rendering, simulation, Stream perception, or Reason execution.
 
 ## Offline operation
 

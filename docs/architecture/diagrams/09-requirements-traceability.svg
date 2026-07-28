@@ -435,7 +435,33 @@
 <tspan x="2005" dy="0">templates/python-mcp tests; gateway catalog</tspan>
 <tspan x="2005" dy="13">validation; mcp/conformance</tspan>
 </text>
+<rect x="35" y="1401" width="150" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="190" y="1401" width="690" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="885" y="1401" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1075" y="1401" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1265" y="1401" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1455" y="1401" width="535" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1995" y="1401" width="370" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<text x="45" y="1428" class="node-id" text-anchor="start">VV-REQ-019</text>
+<text x="200" y="1424" class="tiny" text-anchor="start">
+<tspan x="200" dy="0">Visual workflows shall use headed hardware-backed WebGPU or WebGL and GPU services shall</tspan>
+<tspan x="200" dy="13">fail closed without their declared accelerator; browser H.264 software decode is allowed</tspan>
+<tspan x="200" dy="13">only when the exact Media Capabilities configuration is supported and smooth and the UI</tspan>
+<tspan x="200" dy="13">labels it as software.</tspan>
+</text>
+<text x="895" y="1430" class="small" text-anchor="start">VV-CAP-006</text>
+<text x="1085" y="1430" class="small" text-anchor="start">VV-OPA-007</text>
+<text x="1275" y="1430" class="small" text-anchor="start">VV-SVC-012</text>
+<text x="1465" y="1424" class="tiny" text-anchor="start">
+<tspan x="1465" dy="0">VV-CMP-003, VV-CMP-022, VV-CMP-032, VV-CMP-044, VV-CMP-050,</tspan>
+<tspan x="1465" dy="13">VV-CMP-055, VV-CMP-069</tspan>
+</text>
+<text x="2005" y="1424" class="tiny" text-anchor="start">
+<tspan x="2005" dy="0">servers/stream-mcp GPU smoke and App acceptance;</tspan>
+<tspan x="2005" dy="13">View GPU smoke; UAV live acceptance; publication</tspan>
+<tspan x="2005" dy="13">browser preflight</tspan>
+</text>
 <rect x="28" y="1465" width="2344" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1486" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="2370" y="1486" class="tiny" text-anchor="end">Revision 2026-07-27 | VV-VIEW-09</text>
+<text x="2370" y="1486" class="tiny" text-anchor="end">Revision 2026-07-28 | VV-VIEW-09</text>
 </svg>

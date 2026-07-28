@@ -113,7 +113,8 @@ mcp-gateway
 hosted MCP server
   +-- server-local Rust models and declared schemas
   +-- shared task runtime when operations are durable
-  +-- optional contract-defined HTTP administration under its canonical mount
+  +-- canonical domain administration through MCP tools, resources, tasks, and Apps
+  +-- optional declared HTTP projection under its canonical mount
   +-- forwarded internal identity for artifact/recording operations
   +-- no private control database or byte route
 
@@ -140,40 +141,44 @@ tool schemas stay in the server that owns them.
 
 ## Hosted Server Administration
 
-A hosted server can expose an agent protocol surface and an administrative HTTP
-surface under the same catalog identity:
+A hosted server owns one domain contract under its catalog identity. MCP is the
+canonical surface for domain reads, mutations, durable work, and interactive App
+views:
 
 ```text
-MCP client
+MCP client or MCP App host
   -> gateway MCP profile
   -> {server mount}/mcp
+  -> typed tools, resources, tasks, and notifications
 
-administrative API client
+accepted administrative API client
   -> gateway /admin/{profile}/servers/{server}/{*path}
   -> {server mount}/admin/{path}
-
-browser
-  -> console-bff /console/api/{domain}/{path}
-  -> gateway admin route
-  -> {server mount}/admin/{path}
+  -> additive projection over the same domain models and state
 ```
 
-The gateway reads the active catalog revision and requires the selected profile to
-contain the requested server. It classifies safe methods as `AdminRead` and mutation
-methods as `AdminWrite`, evaluates profile policy, records the operation, and issues a
-short-lived internal assertion for the owning server. The proxy preserves the bounded
-request body and the HTTP headers needed for structured content, idempotency, conditional
-writes, caching, and retry guidance.
+Every domain administrative tool or resource enters through the normal gateway MCP
+profile. The gateway applies the selected server's method and target policy, records the
+operation, and forwards the caller's short-lived internal assertion. Long-running
+administrative work uses the shared Task API.
+
+An accepted HTTP projection is optional and explicit in the owning design. The gateway
+reads the active catalog revision, requires the selected profile to contain the server,
+classifies the projected method as `AdminRead` or `AdminWrite`, and applies the same
+policy and audit path. The proxy preserves the bounded request body and the headers
+needed for typed content, idempotency, conditional writes, caching, and retry guidance.
 
 The owning server validates the internal assertion and the domain's administrative
-scope. Its handlers use server-local request and response models and the same application
-state as its MCP implementation. Durable domain records live behind `veoveo-platform-store`;
-their ordered schema migrations remain part of installation bootstrap.
+scope. Projection handlers reuse the canonical MCP request and response models and the
+same application state. They do not introduce alternate identities or persistence.
+Durable domain records live behind `veoveo-platform-store`; their ordered schema
+migrations remain part of installation bootstrap.
 
-The Console publishes explicit BFF routes for the administrative workflows represented
-in its React application. The browser receives same-origin responses and never receives
-the gateway bearer. Server design documents specify their endpoint catalogs, request and
-response models, persistence records, authorization scopes, and Console projections.
+The Console publishes explicit BFF routes for installation-wide workflows. Server-owned
+browser workflows are MCP Apps discovered from their canonical resources. The browser
+never receives the gateway bearer. Server design documents specify their MCP
+administration, persistence records, authorization scopes, App resources, and any
+accepted HTTP projection.
 
 ## Durable Platform Store
 
@@ -447,6 +452,20 @@ checksums, and packages Helm configuration. The loader verifies all files before
 import, verifies image references after import, retains evidence, and performs no network
 operation.
 
+## Hardware-Backed Visual Execution
+
+GPU workloads request their required Kubernetes resources and fail readiness when the
+accelerator or coherent runtime is unavailable. Browser visual acceptance runs in a
+headed browser and probes both WebGPU and WebGL when they are exposed. At least one
+high-performance path must report hardware backing. SwiftShader, llvmpipe, software
+adapters, and software rasterizer warnings fail the visual workflow.
+
+The Stream App queries Media Capabilities for the exact H.264 codec, dimensions,
+bitrate, and frame rate. A supported and smooth configuration may use browser software
+decode when `powerEfficient` is false, but the App labels it as software H.264 decode.
+Hardware decode is claimed only when `powerEfficient` is true. Browser graphics and all
+server-side GPU work remain hardware-backed in either case.
+
 ## Verification
 
 All smoke orchestration is Rust. The harness owns child/container lifecycle, readiness,
@@ -463,7 +482,8 @@ Coverage includes:
 - task recovery classes, deterministic resume output, capability redemption, quotas;
 - arbitrary DuckDB SQL and interruption classification;
 - recording crash recovery, rollover, catalog rebuild, and SUMO push readback;
-- k3d/GPU, Helm/schema, offline manifest/loader, and console build contracts.
+- k3d/GPU, headed hardware browser, Helm/schema, offline manifest/loader, and console
+  build contracts.
 
 The complete behavior matrix is executable from `testing/smoke` and the focused crate
 tests; documentation is not used as evidence in place of those checks.

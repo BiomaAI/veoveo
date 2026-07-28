@@ -199,9 +199,10 @@ Every server is self-describing. Under its canonical URI scheme it serves:
 | `{scheme}://docs/{doc_id}` | a document body: at minimum `agents` (the crate `AGENTS.md`) and `design` (the crate `DESIGN.md`) |
 | `{scheme}://contract` | machine-readable contract declaration: contract revision, per-item compliance status, and the server's capability inventory |
 
-On its administrative mount the server serves the same material for REST
-consumers at `{mount}/admin/docs/llms.txt` (an index in llms.txt form) and
-`{mount}/admin/docs/{doc_id}`.
+On its administrative mount the server serves the same material as a read-only
+HTTP projection at `{mount}/admin/docs/llms.txt` (an index in llms.txt form) and
+`{mount}/admin/docs/{doc_id}`. This well-known projection does not establish an
+alternate domain administration API.
 
 Documents are embedded at build time from the crate, so a running server
 serves the manual for exactly the version deployed, including in offline

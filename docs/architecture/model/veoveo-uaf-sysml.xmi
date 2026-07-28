@@ -117,7 +117,7 @@
     </packagedElement>
     <packagedElement xmi:type="uml:Package" xmi:id="VV-PKG-RESOURCES" name="Resources">
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-001" name="MCP gateway">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-001-COMMENT" body="Aggregates policy-scoped MCP profiles; terminates OAuth; evaluates policy; records audit; issues short-lived internal identity; proxies hosted-server administration and governed artifact downloads." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-001-COMMENT" body="Aggregates policy-scoped MCP profiles; terminates OAuth; evaluates policy; records audit; issues short-lived internal identity; proxies declared hosted-server administration projections and governed artifact downloads." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-002" name="Console BFF">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-002-COMMENT" body="Owns the browser security boundary, PKCE login, encrypted HttpOnly sessions, CSRF enforcement, installation projections, and explicit administrative workflows." />
@@ -393,6 +393,9 @@
       <packagedElement xmi:type="uml:Class" xmi:id="VV-REQ-018" name="VV-REQ-018">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-REQ-018-COMMENT" body="New hosted servers shall compose through shared contracts and the gateway catalog without leaking server-specific behavior into generic gateway modules." />
       </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-REQ-019" name="VV-REQ-019">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-REQ-019-COMMENT" body="Visual workflows shall use headed hardware-backed WebGPU or WebGL and GPU services shall fail closed without their declared accelerator; browser H.264 software decode is allowed only when the exact Media Capabilities configuration is supported and smooth and the UI labels it as software." />
+      </packagedElement>
     </packagedElement>
     <packagedElement xmi:type="uml:Package" xmi:id="VV-PKG-ROLES" name="Operational Performers and Roles">
       <packagedElement xmi:type="uml:Class" xmi:id="VV-EXT-MCP-CLIENT" name="MCP client" />
@@ -546,6 +549,16 @@
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-18-03" name="satisfy" client="VV-CMP-012" supplier="VV-REQ-018" />
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-18-04" name="satisfy" client="VV-CMP-030" supplier="VV-REQ-018" />
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-18-05" name="satisfy" client="VV-CMP-025" supplier="VV-REQ-018" />
+      <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-19-1" name="tracesTo" client="VV-REQ-019" supplier="VV-CAP-006" />
+      <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-19-2" name="tracesTo" client="VV-CAP-006" supplier="VV-OPA-007" />
+      <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-19-3" name="tracesTo" client="VV-OPA-007" supplier="VV-SVC-012" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-19-01" name="satisfy" client="VV-CMP-003" supplier="VV-REQ-019" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-19-02" name="satisfy" client="VV-CMP-022" supplier="VV-REQ-019" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-19-03" name="satisfy" client="VV-CMP-032" supplier="VV-REQ-019" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-19-04" name="satisfy" client="VV-CMP-044" supplier="VV-REQ-019" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-19-05" name="satisfy" client="VV-CMP-050" supplier="VV-REQ-019" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-19-06" name="satisfy" client="VV-CMP-055" supplier="VV-REQ-019" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-19-07" name="satisfy" client="VV-CMP-069" supplier="VV-REQ-019" />
     </packagedElement>
   </uml:Model>
   <UAF:Capability xmi:id="VV-CAP-001-UAF" base_Class="VV-CAP-001" />
@@ -751,6 +764,7 @@
   <SysML:Requirement xmi:id="VV-REQ-016-SYSML" base_Class="VV-REQ-016" id="VV-REQ-016" text="Only the gateway shall sign short-lived internal identity assertions and hosted services shall validate the key identifier, audience, tenant, principal, labels, scopes, and expiry." />
   <SysML:Requirement xmi:id="VV-REQ-017-SYSML" base_Class="VV-REQ-017" id="VV-REQ-017" text="SurrealDB shall remain the sole platform coordination authority; transactional outbox replay shall remain authoritative over best-effort live delivery." />
   <SysML:Requirement xmi:id="VV-REQ-018-SYSML" base_Class="VV-REQ-018" id="VV-REQ-018" text="New hosted servers shall compose through shared contracts and the gateway catalog without leaking server-specific behavior into generic gateway modules." />
+  <SysML:Requirement xmi:id="VV-REQ-019-SYSML" base_Class="VV-REQ-019" id="VV-REQ-019" text="Visual workflows shall use headed hardware-backed WebGPU or WebGL and GPU services shall fail closed without their declared accelerator; browser H.264 software decode is allowed only when the exact Media Capabilities configuration is supported and smooth and the UI labels it as software." />
   <SysML:Satisfy xmi:id="VV-SAT-01-01-SYSML" base_Abstraction="VV-SAT-01-01" />
   <SysML:Satisfy xmi:id="VV-SAT-01-02-SYSML" base_Abstraction="VV-SAT-01-02" />
   <SysML:Satisfy xmi:id="VV-SAT-01-03-SYSML" base_Abstraction="VV-SAT-01-03" />
@@ -835,4 +849,11 @@
   <SysML:Satisfy xmi:id="VV-SAT-18-03-SYSML" base_Abstraction="VV-SAT-18-03" />
   <SysML:Satisfy xmi:id="VV-SAT-18-04-SYSML" base_Abstraction="VV-SAT-18-04" />
   <SysML:Satisfy xmi:id="VV-SAT-18-05-SYSML" base_Abstraction="VV-SAT-18-05" />
+  <SysML:Satisfy xmi:id="VV-SAT-19-01-SYSML" base_Abstraction="VV-SAT-19-01" />
+  <SysML:Satisfy xmi:id="VV-SAT-19-02-SYSML" base_Abstraction="VV-SAT-19-02" />
+  <SysML:Satisfy xmi:id="VV-SAT-19-03-SYSML" base_Abstraction="VV-SAT-19-03" />
+  <SysML:Satisfy xmi:id="VV-SAT-19-04-SYSML" base_Abstraction="VV-SAT-19-04" />
+  <SysML:Satisfy xmi:id="VV-SAT-19-05-SYSML" base_Abstraction="VV-SAT-19-05" />
+  <SysML:Satisfy xmi:id="VV-SAT-19-06-SYSML" base_Abstraction="VV-SAT-19-06" />
+  <SysML:Satisfy xmi:id="VV-SAT-19-07-SYSML" base_Abstraction="VV-SAT-19-07" />
 </xmi:XMI>
