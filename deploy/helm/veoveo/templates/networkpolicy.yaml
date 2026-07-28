@@ -253,6 +253,30 @@ spec:
           port: {{ .Values.simulationView.ports.poseTls }}
   egress: []
 {{- end }}
+{{- if include "veoveo.mcpServerEnabled" (list . "stream") }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "veoveo.fullname" . }}-stream-ingress
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: stream-mcp
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              veoveo.ai/stream-producer: "true"
+      ports:
+        - protocol: UDP
+          port: 9000
+{{- end }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

@@ -93,7 +93,7 @@ Console.
 Agentic apps are one way an installation delivers operational intelligence
 to its users. An agentic app pairs an agent that plans and acts with a live
 interface that people can see and steer: an operator types an instruction,
-the agent drives simulation, perception, or vehicles, and the interface
+the agent drives simulation, live stream processing, or vehicles, and the interface
 shows progress, results, and evidence as they land. The capabilities behind
 Veoveo's own charts, maps, forecasts, and 3D views are open to your teams.
 
@@ -116,7 +116,7 @@ extensions, and retain the same identity and policy boundary throughout.
 | Capability | What it provides |
 |---|---|
 | Real and simulated worlds | Governed recordings, spatial and time reference systems, traffic simulation, UAV simulation, camera streams, vehicle actuation, and 3D Tiles scenes. |
-| Analysis and planning | Sandboxed DuckDB SQL, forecasting, optimization, media processing, perception, and temporal reasoning. |
+| Analysis and planning | Sandboxed DuckDB SQL, forecasting, optimization, admitted live and replay stream processing, and temporal reasoning. |
 | Durable automation | Recoverable task execution, cancellation, budgets, agent wakes, and retained results for work that outlives one request. |
 | Interactive apps | Interfaces that ship with each server for charts, forecasts, maps, and 3D views rendered on cluster GPUs. The same app can run in the Console or a compatible external MCP host. |
 | Governed evidence | Work Context ownership, invocation provenance, immutable artifact identities, policy decisions, grants, release state, and revocable sharing. |
@@ -172,7 +172,7 @@ altitude. [Run the UAV showcase](showcase/uav-sim/README.md).
 | Governed UAV recording | SUMO traffic world |
 |---|---|
 | [![UAV simulation in Rerun](docs/screenshots/gallery/rerun-uav.png)](docs/screenshots/gallery/rerun-uav.png) | [![SUMO traffic simulation in Rerun](docs/screenshots/gallery/rerun-sumo.png)](docs/screenshots/gallery/rerun-sumo.png) |
-| Camera, pose, telemetry, perception, and reasoning share one governed recording path. | A pinned SUMO and LuST Luxembourg world exposes traffic reads, signal and vehicle control, network generation, durable batches, live subscriptions, and Rerun recording. [Run the SUMO showcase](showcase/sumo/README.md). |
+| Camera, pose, telemetry, Stream-derived detections, and reasoning share governed evidence without making live processing wait for recording. | A pinned SUMO and LuST Luxembourg world exposes traffic reads, signal and vehicle control, network generation, durable batches, live subscriptions, and Rerun recording. [Run the SUMO showcase](showcase/sumo/README.md). |
 
 ## Built On The Model Context Protocol
 
@@ -221,10 +221,10 @@ without changing the underlying server identities.
 | `map` | Authoritative geography, dataset acquisition and releases, restrictions, routing, and map apps. |
 | `media` | Provider-neutral model discovery, schemas, generation, artifact output, and webhook completion. |
 | `optimization` | Deterministic single- and multi-agent planning with retained results. |
-| `perception` | Local DeepStream and TensorRT detection and tracking over authorized Rerun video. |
 | `reason` | Semantic and temporal reasoning over recordings with grounded, audited output. |
 | `recording` | Recording discovery, bounded queries, subscriptions, publication, and viewer projection. |
 | `rerun` | The bridged Rerun viewer surface. |
+| `stream` | Operator-admitted live and replay GStreamer pipelines, typed detection profiles, and an MCP App for encoded video with overlays. |
 | `time` | Authority-bound civil time, calendars, clocks, timelines, and event operations. |
 | `timeseries` | Forecasting, uncertainty output, governed artifacts, and an interactive forecast app. |
 | `uav-sim` | Live sessions, multi-vehicle missions, bounded dataset capture, and provider-neutral vehicle control. |
@@ -384,9 +384,9 @@ workloads request an NVIDIA device and fail closed when CUDA, Vulkan, WebGPU, or
 WebGL cannot reach hardware. Software rendering is not a supported fallback.
 
 The local cluster applies the same `nvidia.com/gpu` scheduling contract used by
-fielded installations. Browser verification proves that at least one of WebGPU
-or WebGL reaches hardware before interacting with a visual surface and stops if
-no hardware-backed browser graphics API remains.
+fielded installations. Browser verification proves that high-performance
+WebGPU and WebGL both reach hardware before interacting with a visual surface
+and stops if either hardware-backed context is lost.
 
 ## Roadmap
 
@@ -426,7 +426,7 @@ services that share one ontology of work, evidence, and worlds, MCP servers
 in any language that speaks the protocol, a Console that runs in any modern
 browser, Kubernetes and Helm underneath, SurrealDB for coordination, DuckDB
 for analysis, Rerun for recordings, and NVIDIA runtimes for simulation and
-perception. If these tools feel like home, so will this repository.
+Stream perception profiles. If these tools feel like home, so will this repository.
 
 <table align="center" aria-label="Technology stack logos">
   <tbody>

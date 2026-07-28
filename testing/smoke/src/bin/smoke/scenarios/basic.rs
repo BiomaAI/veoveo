@@ -263,9 +263,9 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: bioma-gateway-control-plane",
         "name: recording-hub",
         "name: view-mcp",
-        "name: perception-mcp",
+        "name: stream-mcp",
         "name: reason-mcp",
-        "value: \"artifact,media,timeseries,optimization,duckdb,frames,map,recording,perception,reason,simulation-view,datasheet\"",
+        "value: \"artifact,media,timeseries,optimization,duckdb,frames,map,recording,stream,reason,simulation-view,datasheet\"",
         "checksum/reason-runtime:",
     ] {
         contains(&bioma, expected)?;
@@ -294,7 +294,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "mcp-gateway",
         "artifact-mcp",
         "media-mcp",
-        "perception-mcp",
+        "stream-mcp",
         "reason-mcp",
         "timeseries-mcp",
         "duckdb-mcp",
@@ -923,7 +923,7 @@ pub(crate) async fn helm_config() -> Result<()> {
     }
     not_contains(&workspace_builder, "--jobs 4")?;
     for dockerfile in [
-        "servers/perception-mcp/Dockerfile",
+        "servers/stream-mcp/Dockerfile",
         "servers/reason-mcp/Dockerfile",
         "showcase/sumo/sumo-mcp/Dockerfile",
     ] {

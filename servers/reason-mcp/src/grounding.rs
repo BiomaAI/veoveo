@@ -7,7 +7,7 @@ use serde::Deserialize;
 use crate::contract::{GroundingDetection, GroundingDetections, GroundingFrame};
 
 pub const GROUNDING_SCHEMA: &str = "veoveo.reason-grounding/v1";
-pub const PERCEPTION_RESULTS_SCHEMA: &str = "veoveo.perception-results/v1";
+pub const STREAM_RESULTS_SCHEMA: &str = "veoveo.stream-results/v1";
 pub const MAX_GROUNDING_DETECTIONS: usize = 100_000;
 
 /// Lenient read of the perception results contract. Only the fields the
@@ -15,29 +15,29 @@ pub const MAX_GROUNDING_DETECTIONS: usize = 100_000;
 /// forward-compatible perception results revision still grounds correctly as
 /// long as its schema identity matches.
 #[derive(Deserialize)]
-struct PerceptionResultsDocument {
+struct StreamResultsDocument {
     schema: String,
-    frames: Vec<PerceptionFrame>,
+    frames: Vec<StreamFrame>,
 }
 
 #[derive(Deserialize)]
-struct PerceptionFrame {
+struct StreamFrame {
     index: i64,
-    detections: Vec<PerceptionDetection>,
+    detections: Vec<StreamDetection>,
 }
 
 #[derive(Deserialize)]
-struct PerceptionDetection {
+struct StreamDetection {
     label: String,
     #[serde(default)]
     track_id: Option<u64>,
 }
 
 pub fn extract_grounding(source_artifact_uri: &str, bytes: &[u8]) -> Result<GroundingDetections> {
-    let document: PerceptionResultsDocument =
+    let document: StreamResultsDocument =
         serde_json::from_slice(bytes).context("parsing grounding results document")?;
     ensure!(
-        document.schema == PERCEPTION_RESULTS_SCHEMA,
+        document.schema == STREAM_RESULTS_SCHEMA,
         "grounding artifact schema `{}` is not the typed perception results contract",
         document.schema
     );
@@ -86,9 +86,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn typed_perception_results_ground_with_a_subset() {
+    fn typed_stream_results_ground_with_a_subset() {
         let document = serde_json::json!({
-            "schema": PERCEPTION_RESULTS_SCHEMA,
+            "schema": STREAM_RESULTS_SCHEMA,
             "pipeline_id": "detect-and-track",
             "model_id": "primary-detector",
             "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",

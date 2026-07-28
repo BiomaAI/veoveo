@@ -1,0 +1,320 @@
+{{- if include "veoveo.mcpServerEnabled" (list . "stream") }}
+{{- if and .Values.stream.recordingOutput.enabled (not (include "veoveo.componentEnabled" (list . "recording-data-plane"))) }}
+{{- fail "stream.recordingOutput.enabled requires the recording-data-plane component" }}
+{{- end }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: stream-model-cache
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: stream-mcp
+spec:
+  accessModes:
+    {{- toYaml .Values.stream.modelCache.accessModes | nindent 4 }}
+  {{- if .Values.stream.modelCache.storageClass }}
+  storageClassName: {{ .Values.stream.modelCache.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.stream.modelCache.size }}
+{{- if .Values.stream.recordingOutput.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: stream-recording-forwarder
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: stream-mcp
+spec:
+  accessModes:
+    {{- toYaml .Values.stream.recordingOutput.forwarder.persistence.accessModes | nindent 4 }}
+  {{- if .Values.stream.recordingOutput.forwarder.persistence.storageClass }}
+  storageClassName: {{ .Values.stream.recordingOutput.forwarder.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.stream.recordingOutput.forwarder.persistence.size }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stream-runtime
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: stream-mcp
+data:
+  catalog.json: |
+    {
+      "models": [
+        {
+          "id": "trafficcamnet",
+          "title": "TrafficCamNet",
+          "description": "NVIDIA sample traffic-camera object detector compiled locally for this GPU.",
+          "format": "tensor_rt_engine",
+          "model_path": "/models/trafficcamnet.engine"
+        }
+      ],
+      "pipelines": [
+        {
+          "id": "traffic-object-detection",
+          "title": "Traffic object detection",
+          "description": "Detect vehicles, people, road signs, and two-wheelers in live RTP/H.264 or governed recording video.",
+          "profile": {
+            "kind": "perception",
+            "operation": "object_detection",
+            "model_id": "trafficcamnet",
+            "inference_config_path": "/etc/veoveo/stream/inference.txt"
+          }
+          {{- if include "veoveo.mcpServerEnabled" (list . "recording") }},
+          "recording_replay": {
+            "launch": "filesrc name=source ! qtdemux name=demux demux.video_0 ! queue ! h264parse ! nvv4l2decoder ! mux.sink_0 nvstreammux name=mux batch-size=1 width=640 height=480 live-source=false batched-push-timeout=40000 ! nvinfer name=infer ! fakesink name=results sync=false async=false",
+            "source_element": "source",
+            "stream_muxer_element": "mux",
+            "inference_element": "infer",
+            "results_element": "results"
+          }
+          {{- end }},
+          "live": {
+            "input_width": 640,
+            "input_height": 480,
+            "codec": "avc1.42e01f",
+            "frame_rate": 20,
+            "expected_bitrate_bps": 4000000,
+            "ingress": {
+              "advertised_host": "stream-mcp",
+              "port": 9000,
+              "payload_type": 96,
+              "clock_rate": 90000
+            },
+            "graph": {
+              "launch": "udpsrc name=source port=9000 caps=\"application/x-rtp,media=video,encoding-name=H264,payload=96,clock-rate=90000\" ! rtpjitterbuffer latency=50 drop-on-latency=true ! rtph264depay ! h264parse config-interval=-1 ! video/x-h264,stream-format=byte-stream,alignment=au ! tee name=encoded encoded. ! queue leaky=downstream max-size-buffers=8 ! identity name=encoded-output ! fakesink sync=false async=false encoded. ! queue ! nvv4l2decoder ! mux.sink_0 nvstreammux name=mux batch-size=1 width=640 height=480 live-source=true batched-push-timeout=40000 ! nvinfer name=infer ! fakesink name=results sync=false async=false",
+              "source_element": "source",
+              "stream_muxer_element": "mux",
+              "inference_element": "infer",
+              "results_element": "results",
+              "encoded_output_element": "encoded-output"
+            }
+            {{- if .Values.stream.recordingOutput.enabled }},
+            "recording_output": {
+              "proxy_url": {{ .Values.stream.recordingOutput.proxyUrl | quote }},
+              "application_id": {{ .Values.stream.recordingOutput.applicationId | quote }},
+              "entity_path": {{ .Values.stream.recordingOutput.entityPath | quote }},
+              "timeline": {{ .Values.stream.recordingOutput.timeline | quote }},
+              "queue_capacity": {{ .Values.stream.recordingOutput.queueCapacity }}
+            }
+            {{- end }}
+          }
+        }
+      ]
+    }
+  inference.txt: |
+    [property]
+    gpu-id=0
+    net-scale-factor=0.00392156862745098
+    model-engine-file=/models/trafficcamnet.engine
+    labelfile-path=/opt/nvidia/deepstream/deepstream-9.1/samples/models/Primary_Detector/labels.txt
+    batch-size=1
+    process-mode=1
+    model-color-format=0
+    network-mode=2
+    num-detected-classes=4
+    interval=0
+    gie-unique-id=1
+    cluster-mode=2
+
+    [class-attrs-all]
+    topk=20
+    nms-iou-threshold=0.5
+    pre-cluster-threshold=0.2
+
+    [class-attrs-0]
+    topk=20
+    nms-iou-threshold=0.5
+    pre-cluster-threshold=0.4
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stream-mcp
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: stream-mcp
+spec:
+  selector:
+    {{- include "veoveo.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: stream-mcp
+  ports:
+    - name: http
+      port: 8797
+      targetPort: http
+    - name: rtp-h264
+      protocol: UDP
+      port: 9000
+      targetPort: rtp-h264
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stream-mcp
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: stream-mcp
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: stream-mcp
+  template:
+    metadata:
+      labels:
+        {{- include "veoveo.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: stream-mcp
+      annotations:
+        {{- include "veoveo.podAnnotations" . | nindent 8 }}
+        veoveo.ai/chart-revision: {{ .Chart.Version | quote }}
+    spec:
+      runtimeClassName: {{ .Values.stream.runtimeClassName }}
+      serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
+      securityContext:
+        {{- include "veoveo.podSecurityContext" . | nindent 8 }}
+      initContainers:
+        {{- if .Values.stream.recordingOutput.enabled }}
+        {{- include "veoveo.streamRecordingForwarder" . | nindent 8 }}
+        {{- end }}
+        - name: compile-model
+          image: {{ include "veoveo.ownedImage" (list . .Values.stream.image) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          command: [/bin/sh, -ec]
+          args:
+            - |
+              if [ -s /models/trafficcamnet.engine ]; then
+                exit 0
+              fi
+              rm -f /models/.trafficcamnet.engine
+              /usr/src/tensorrt/bin/trtexec \
+                --onnx=/opt/nvidia/deepstream/deepstream-9.1/samples/models/Primary_Detector/resnet18_trafficcamnet_pruned.onnx \
+                --saveEngine=/models/.trafficcamnet.engine \
+                --fp16 \
+                --skipInference
+              mv /models/.trafficcamnet.engine /models/trafficcamnet.engine
+          env:
+            - name: HOME
+              value: /tmp
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: compute,utility,video
+          securityContext:
+            {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.stream.builderResources | nindent 12 }}
+          volumeMounts:
+            - name: models
+              mountPath: /models
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: stream-mcp
+          image: {{ include "veoveo.ownedImage" (list . .Values.stream.image) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          args:
+            - --port
+            - "8797"
+            - --allowed-host
+            - stream-mcp:8797
+            - --artifact-service-url
+            - http://artifact-service:8790
+            - --spool-dir
+            - /recordings
+            - --pipeline-catalog
+            - /etc/veoveo/stream/catalog.json
+          env:
+            {{- include "veoveo.commonEnv" . | nindent 12 }}
+            - name: PUBLIC_BASE_URL
+              value: {{ .Values.global.publicBaseUrl | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: veoveo-stream-mcp
+            - name: HOME
+              value: /tmp
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: compute,utility,video
+          ports:
+            - name: http
+              containerPort: 8797
+            - name: rtp-h264
+              protocol: UDP
+              containerPort: 9000
+          readinessProbe:
+            httpGet:
+              path: /stream/readyz
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: stream-mcp:8797
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /stream/healthz
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: stream-mcp:8797
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          securityContext:
+            {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.stream.resources | nindent 12 }}
+          volumeMounts:
+            - name: models
+              mountPath: /models
+              readOnly: true
+            - name: runtime-config
+              mountPath: /etc/veoveo/stream
+              readOnly: true
+            - name: recordings
+              mountPath: /recordings
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: stream-model-cache
+        - name: runtime-config
+          configMap:
+            name: stream-runtime
+        - name: recordings
+          {{- if include "veoveo.componentEnabled" (list . "recording-data-plane") }}
+          persistentVolumeClaim:
+            claimName: recording-spool
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.stream.recordingOutput.enabled }}
+        - name: recording-forwarder-queue
+          persistentVolumeClaim:
+            claimName: stream-recording-forwarder
+        - name: recording-producer-key
+          secret:
+            secretName: {{ .Values.stream.recordingOutput.forwarder.privateKey.existingSecret }}
+            defaultMode: 0440
+            items:
+              - key: {{ .Values.stream.recordingOutput.forwarder.privateKey.key }}
+                path: private-key.pem
+        {{- end }}
+{{- end }}

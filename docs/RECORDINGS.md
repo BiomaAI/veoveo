@@ -90,7 +90,7 @@ persistent viewer retains its layout, selection, and timeline state.
 
 Governed queries and bounded analysis use the same acknowledged writing data
 without waiting for rollover. Recording MCP captures one ordered snapshot of
-the complete ingest parts visible at request or task start. Perception and
+the complete ingest parts visible at request or task start. Stream replay and
 Reason copy those live parts into bounded task-local storage, verify their byte
 length and SHA-256 identity, and load them with prior immutable shards as one
 logical Rerun store. Later batches remain outside that task. This path never
@@ -109,10 +109,10 @@ recording workload is intentionally one persistent spooler replica; SurrealDB
 HA and a distributed recording filesystem are outside the current contract.
 
 Encoded camera streams use the canonical H.264 `VideoStream` profile documented
-in [`servers/perception-mcp/DESIGN.md`](../servers/perception-mcp/DESIGN.md).
+in [`servers/stream-mcp/DESIGN.md`](../servers/stream-mcp/DESIGN.md).
 Keyframes use sparse `is_keyframe=true` markers; non-keyframe samples omit the
 component. This shape is required by Rerun's video cache and GoP rebatching.
-Perception and Reason accept frozen or sealed RRD segments and task-start
+Stream replay and Reason accept frozen or sealed RRD segments and task-start
 snapshots of complete acknowledged ingest parts. Video readers merge authorized
 sources when a requested clip crosses a source boundary. The authenticated
 production path carries static context into every shard and begins rollover

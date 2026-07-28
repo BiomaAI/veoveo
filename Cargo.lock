@@ -11087,41 +11087,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "veoveo-perception-mcp"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "base64 0.22.1",
- "chrono",
- "clap",
- "dotenvy",
- "futures",
- "re_log_types",
- "re_sdk",
- "re_sdk_types",
- "rmcp",
- "rustls",
- "schemars",
- "secrecy",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tokio-util",
- "tower-http 0.7.0",
- "tracing",
- "uuid",
- "veoveo-artifact-client",
- "veoveo-mcp-contract",
- "veoveo-mcp-task-extension",
- "veoveo-platform-store",
- "veoveo-recording-mcp",
- "veoveo-recording-video",
- "veoveo-task-runtime",
-]
-
-[[package]]
 name = "veoveo-platform-store"
 version = "0.1.0"
 dependencies = [
@@ -11460,6 +11425,42 @@ dependencies = [
  "veoveo-recording-hub",
  "veoveo-recording-protocol",
  "veoveo-sumo-mcp",
+]
+
+[[package]]
+name = "veoveo-stream-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.22.1",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "futures",
+ "re_log_types",
+ "re_sdk",
+ "re_sdk_types",
+ "rmcp",
+ "rustls",
+ "schemars",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tower-http 0.7.0",
+ "tracing",
+ "uuid",
+ "veoveo-artifact-client",
+ "veoveo-mcp-apps-extension",
+ "veoveo-mcp-contract",
+ "veoveo-mcp-task-extension",
+ "veoveo-platform-store",
+ "veoveo-recording-mcp",
+ "veoveo-recording-video",
+ "veoveo-task-runtime",
 ]
 
 [[package]]

@@ -19,8 +19,6 @@ mod gateway;
 mod map;
 #[path = "scenarios/media.rs"]
 mod media;
-#[path = "scenarios/perception.rs"]
-mod perception;
 #[path = "scenarios/reason.rs"]
 mod reason;
 #[path = "scenarios/recording_ingest.rs"]
@@ -31,6 +29,8 @@ mod secrets;
 mod simulation;
 #[path = "scenarios/simulation_view.rs"]
 mod simulation_view;
+#[path = "scenarios/stream.rs"]
+mod stream;
 #[path = "scenarios/sumo.rs"]
 mod sumo;
 #[path = "scenarios/uav_sim.rs"]
@@ -47,12 +47,12 @@ pub(crate) use frames::*;
 pub(crate) use gateway::*;
 pub(crate) use map::*;
 pub(crate) use media::*;
-pub(crate) use perception::*;
 pub(crate) use reason::*;
 pub(crate) use recording_ingest::*;
 pub(crate) use secrets::*;
 pub(crate) use simulation::*;
 pub(crate) use simulation_view::*;
+pub(crate) use stream::*;
 pub(crate) use sumo::*;
 pub(crate) use uav_sim::*;
 pub(crate) use view::*;

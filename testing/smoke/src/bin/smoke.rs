@@ -476,7 +476,7 @@ enum Cmd {
         #[arg(long, default_value = "k3d-veoveo-sumo")]
         context: String,
     },
-    /// Verify the independent UAV domain path through flight, recording, perception, and reason.
+    /// Verify the independent UAV domain path through flight, live Stream, recording replay, and Reason.
     UavDomainVerify {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
@@ -566,12 +566,12 @@ enum Cmd {
         timeout_seconds: u64,
     },
     /// Run the DeepStream GPU detector through Recording Hub and the final MCP task protocol.
-    PerceptionGpu {
+    StreamGpu {
         /// Environment file used by the active k3d profile and direct assertion signer.
         #[arg(long, default_value = ".env")]
         env_file: PathBuf,
         /// Host workspace for the generated DeepStream sample.
-        #[arg(long, default_value = "output/perception/work")]
+        #[arg(long, default_value = "output/stream/work")]
         work_dir: PathBuf,
     },
     /// Run the world-model GPU reasoner through Recording Hub and the final MCP task protocol.
@@ -903,7 +903,7 @@ async fn main() -> Result<()> {
             )
             .await
         }
-        Cmd::PerceptionGpu { env_file, work_dir } => perception_gpu(&env_file, &work_dir).await,
+        Cmd::StreamGpu { env_file, work_dir } => stream_gpu(&env_file, &work_dir).await,
         Cmd::ReasonGpu { env_file, work_dir } => reason_gpu(&env_file, &work_dir).await,
     }
 }

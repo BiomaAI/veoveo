@@ -59,6 +59,8 @@ class RuntimeState:
                     "lifecycle": "warming",
                     "width": config.camera.width,
                     "height": config.camera.height,
+                    "codec": "h264",
+                    "encoder": "nvidia_nvenc",
                     "frames_observed": 0,
                     "mean_luma": 0.0,
                     "dynamic_range": 0,

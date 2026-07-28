@@ -108,7 +108,7 @@ def main() -> None:
         "map",
         "media",
         "optimization",
-        "perception",
+        "stream",
         "reason",
         "recording",
         "rerun",

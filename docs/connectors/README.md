@@ -43,7 +43,7 @@ third-party server, named so the provenance stays visible.
 
 ### Geospatial and Earth observation
 
-These pair with the `map`, `frames`, `view`, and `perception` servers:
+These pair with the `map`, `frames`, `view`, and `stream` servers:
 imagery tasking follows a map release, and matched traces land as governed
 feature layers.
 
@@ -190,7 +190,7 @@ data.
 
 No recipe-grade MCP server exists for MAVLink or PX4 vehicle control, for
 Rerun recordings, for Foxglove, or for OPC UA data access. The `uav-sim`,
-`recording`, and `perception` servers are the governed answer to the first
+`recording`, and `stream` servers are the governed answer to the first
 three, which is worth stating plainly when a prospect asks how those systems
 connect.
 

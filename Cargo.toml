@@ -34,7 +34,7 @@ members = [
     "servers/media-mcp",
     "servers/map-mcp",
     "servers/optimization-mcp",
-    "servers/perception-mcp",
+    "servers/stream-mcp",
     "servers/reason-mcp",
     "servers/recording-mcp",
     "servers/simulation-view-mcp",

@@ -51,7 +51,7 @@ elapsed-time evidence, so this report does not reconstruct or estimate an old du
 The old `platform-core` path launched six independent Cargo commands. Twelve trixie
 images shared a locked target mount across the wider graph, and each command imposed
 `--jobs 4`. A fresh publication worktree reset source modification times on every run.
-Other Rust families used private or anonymous target caches; Frames and Perception
+Other Rust families used private or anonymous target caches; Frames and Stream
 shared one anonymous cache despite incompatible builder environments.
 
 The new planner proves the selected package set from Cargo metadata and Bake labels.

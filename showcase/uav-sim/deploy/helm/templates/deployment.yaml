@@ -19,6 +19,9 @@ spec:
         {{- include "uav-sim.selectorLabels" . | nindent 8 }}
         veoveo.ai/mcp-server: "true"
         veoveo.ai/simulation-view-pose-producer: "true"
+        {{- if .Values.streamPublication.enabled }}
+        veoveo.ai/stream-producer: "true"
+        {{- end }}
       annotations:
         veoveo.ai/chart-revision: {{ .Chart.Version | quote }}
     spec:

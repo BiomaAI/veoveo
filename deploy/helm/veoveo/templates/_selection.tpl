@@ -10,7 +10,7 @@
 
 {{- define "veoveo.selectedMcpServers" -}}
 {{- if eq .Values.installationPreset "full" -}}
-{{- toYaml (list "artifact" "media" "timeseries" "optimization" "frames" "map" "time" "view" "datasheet" "duckdb" "chart" "rerun" "recording" "perception" "reason" "simulation-view") -}}
+{{- toYaml (list "artifact" "media" "timeseries" "optimization" "frames" "map" "time" "view" "datasheet" "duckdb" "chart" "rerun" "recording" "stream" "reason" "simulation-view") -}}
 {{- else if eq .Values.installationPreset "extension-foundation" -}}
 {{- toYaml (list "artifact" "frames" "recording") -}}
 {{- else -}}
@@ -65,14 +65,14 @@
 {{- if and (has "simulation-view" $servers) (not (has "frames" $servers)) -}}
 {{- fail "mcpServer simulation-view requires mcpServer frames" -}}
 {{- end -}}
-{{- $artifactServers := list "artifact" "media" "timeseries" "optimization" "frames" "map" "datasheet" "duckdb" "recording" "perception" "reason" -}}
+{{- $artifactServers := list "artifact" "media" "timeseries" "optimization" "frames" "map" "datasheet" "duckdb" "recording" "stream" "reason" -}}
 {{- range $server := $servers -}}
 {{- if and (has $server $artifactServers) (not (has "artifact-service" $components)) -}}
 {{- fail (printf "mcpServer %s requires component artifact-service" $server) -}}
 {{- end -}}
 {{- end -}}
-{{- if and (or (has "perception" $servers) (has "reason" $servers)) (not (has "recording" $servers)) -}}
-{{- fail "mcpServers perception and reason require mcpServer recording" -}}
+{{- if and (has "reason" $servers) (not (has "recording" $servers)) -}}
+{{- fail "mcpServer reason requires mcpServer recording" -}}
 {{- end -}}
 {{- if and (has "recording" $servers) (not (has "recording-data-plane" $components)) -}}
 {{- fail "mcpServer recording requires component recording-data-plane" -}}

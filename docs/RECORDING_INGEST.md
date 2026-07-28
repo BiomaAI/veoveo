@@ -74,7 +74,7 @@ recordings.
 
 The writing row also supports bounded live queries and analysis. Recording MCP
 captures only complete materialized parts whose append response has advanced
-the durable checkpoint. A Perception or Reason task copies that ordered source
+the durable checkpoint. A Stream replay or Reason task copies that ordered source
 snapshot before decode, so rollover may remove the Hub's parts directory
 without changing the task input. The snapshot provenance records segment
 identity, part sequence, byte length, and SHA-256 without exposing paths.

@@ -242,7 +242,7 @@ fn validate_resource_uris(values: &[String]) -> Result<()> {
         let uri = url::Url::parse(value).context("feature resource identity must be a URI")?;
         if !matches!(
             uri.scheme(),
-            "map" | "artifact" | "recording" | "perception" | "reason" | "time" | "frames" | "view"
+            "map" | "artifact" | "recording" | "stream" | "reason" | "time" | "frames" | "view"
         ) {
             bail!("feature resource identities must use a governed Veoveo URI scheme");
         }

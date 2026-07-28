@@ -11,7 +11,7 @@ multimodal world-model checkpoint through the vLLM runtime shipped in the
 deployable image, but runtime and vendor names do not appear in its public MCP
 identities.
 
-This is deliberately not part of `perception-mcp`. Perception is bounded
+This is deliberately not part of `stream-mcp`. Perception is bounded
 deterministic inference: a site-approved detection engine whose calibrated
 per-frame output is reproducible byte for byte. Reasoning output comes from a
 generative model and carries model-reported rather than calibrated confidence.
@@ -59,7 +59,7 @@ the complete acknowledged parts visible at task start with prior frozen or
 sealed segments. Live parts are copied into bounded task-local storage and
 checked against their captured byte length and SHA-256 identity before decode.
 No filesystem path or bearer token is persisted. The canonical video ingest
-profile is the one documented in `servers/perception-mcp/DESIGN.md`.
+profile is the one documented in `servers/stream-mcp/DESIGN.md`.
 
 ## Reasoning contract
 

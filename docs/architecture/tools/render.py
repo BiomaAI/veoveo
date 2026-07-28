@@ -61,8 +61,8 @@ CAPABILITIES = [
     ),
     (
         "VV-CAP-006",
-        "Local perception",
-        "Recorded video is decoded, detected, tracked, and published inside the installation.",
+        "Local stream processing",
+        "Admitted live media graphs and reproducible recording replays execute inside the installation.",
     ),
     (
         "VV-CAP-007",
@@ -129,8 +129,8 @@ ACTIVITIES = [
     ),
     (
         "VV-OPA-007",
-        "Detect and track recorded objects",
-        "Extract authorized video, execute local inference, and publish annotations.",
+        "Process live and recorded media",
+        "Run admitted live graphs immediately or replay authorized video and publish governed results.",
     ),
     (
         "VV-OPA-008",
@@ -207,8 +207,8 @@ SERVICES = [
     ),
     (
         "VV-SVC-012",
-        "Recorded perception service",
-        "Runs local bounded detection and tracking over governed recordings.",
+        "Stream processing service",
+        "Runs local bounded GStreamer graphs over arriving media or governed recordings.",
     ),
 ]
 
@@ -526,7 +526,7 @@ def diagram_context() -> None:
         180,
         "VV-CMP-016..027/049/050/054",
         "Hosted domain servers",
-        "Artifact, frames, analytics, media, map, perception, recording, time, view, UAV simulation, and other governed domains.",
+        "Artifact, frames, analytics, media, map, stream processing, recording, time, view, UAV simulation, and other governed domains.",
         fill="#eee5d8",
         body_width=40,
     )
@@ -652,7 +652,7 @@ def diagram_mission_thread() -> None:
     lanes = [
         ("Mission operator / autonomous agent", "Intent, constraints, decision, authority"),
         ("Gateway and policy boundary", "Identity, profile, policy, audit, routing"),
-        ("Domain services", "Recording, map, frames, analytics, optimization, perception"),
+        ("Domain services", "Recording, map, frames, analytics, optimization, stream"),
         ("Durable work and evidence", "Tasks, outbox, artifacts, RRD recordings"),
     ]
     lane_y = [135, 335, 535, 735]
@@ -915,7 +915,7 @@ def diagram_connectivity() -> None:
         ("VV-CMP-019", "Media"),
         ("VV-CMP-020", "Map"),
         ("VV-CMP-021", "Optimization"),
-        ("VV-CMP-022", "Perception"),
+        ("VV-CMP-022", "Stream"),
         ("VV-CMP-023", "Recording"),
         ("VV-CMP-024", "Timeseries"),
         ("VV-CMP-025", "Datasheet"),

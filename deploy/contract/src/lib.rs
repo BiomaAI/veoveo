@@ -283,7 +283,7 @@ pub enum FirstPartyMcpServer {
     Chart,
     Rerun,
     Recording,
-    Perception,
+    Stream,
     Reason,
     SimulationView,
 }
@@ -871,7 +871,7 @@ impl FirstPartyMcpServer {
             Self::Chart,
             Self::Rerun,
             Self::Recording,
-            Self::Perception,
+            Self::Stream,
             Self::Reason,
             Self::SimulationView,
         ])
@@ -985,7 +985,7 @@ impl ResolvedPlatformSelection {
             FirstPartyMcpServer::Datasheet,
             FirstPartyMcpServer::Duckdb,
             FirstPartyMcpServer::Recording,
-            FirstPartyMcpServer::Perception,
+            FirstPartyMcpServer::Stream,
             FirstPartyMcpServer::Reason,
         ];
         if platform_store_servers
@@ -1008,7 +1008,7 @@ impl ResolvedPlatformSelection {
             FirstPartyMcpServer::Datasheet,
             FirstPartyMcpServer::Duckdb,
             FirstPartyMcpServer::Recording,
-            FirstPartyMcpServer::Perception,
+            FirstPartyMcpServer::Stream,
             FirstPartyMcpServer::Reason,
         ];
         if artifact_servers
@@ -1024,13 +1024,8 @@ impl ResolvedPlatformSelection {
                 "selected MCP servers require object store",
             )?;
         }
-        if self.mcp_servers.contains(&FirstPartyMcpServer::Perception)
-            || self.mcp_servers.contains(&FirstPartyMcpServer::Reason)
-        {
-            self.require_server(
-                FirstPartyMcpServer::Recording,
-                "perception and reason require recording",
-            )?;
+        if self.mcp_servers.contains(&FirstPartyMcpServer::Reason) {
+            self.require_server(FirstPartyMcpServer::Recording, "reason requires recording")?;
         }
         if self.mcp_servers.contains(&FirstPartyMcpServer::Recording) {
             self.require_component(
@@ -1101,8 +1096,8 @@ impl ResolvedPlatformSelection {
         if self.mcp_servers.contains(&FirstPartyMcpServer::View) {
             required.insert("view-renderer");
         }
-        if self.mcp_servers.contains(&FirstPartyMcpServer::Perception) {
-            required.insert("perception");
+        if self.mcp_servers.contains(&FirstPartyMcpServer::Stream) {
+            required.insert("stream");
         }
         if self.mcp_servers.contains(&FirstPartyMcpServer::Reason) {
             required.insert("reason");
@@ -1210,7 +1205,7 @@ impl PlatformComponent {
         match self {
             Self::Gateway => &["mcp-gateway"],
             Self::ArtifactService => &["artifact-service"],
-            Self::RecordingDataPlane => &["recording-hub"],
+            Self::RecordingDataPlane => &["recording-hub", "recording-forwarder"],
             Self::GpuRenderer => &["simulation-view-isaac", "simulation-view-pose"],
             Self::SimulationRuntimeSupport => &["simulation-runtime"],
             Self::Console => &["console-bff"],
@@ -1235,7 +1230,7 @@ impl FirstPartyMcpServer {
             Self::Chart => &["chart-mcp"],
             Self::Rerun => &["mcp-stdio-bridge"],
             Self::Recording => &["recording-mcp"],
-            Self::Perception => &["perception-mcp"],
+            Self::Stream => &["stream-mcp"],
             Self::Reason => &["reason-mcp"],
             Self::SimulationView => &["simulation-view-mcp"],
         }

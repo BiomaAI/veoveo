@@ -471,7 +471,8 @@ async fn monitor_flight(
         Duration::from_secs(
             scenario
                 .landing_timeout_seconds
-                .saturating_add(scenario.perception.task_timeout_seconds)
+                .saturating_add(scenario.stream.live_timeout_seconds)
+                .saturating_add(scenario.stream.recording_replay.task_timeout_seconds)
                 .saturating_add(scenario.reason.task_timeout_seconds),
         ),
     )
@@ -646,7 +647,7 @@ fn assert_showcase_gpu_workloads(context: &str, namespace: &str) -> Result<()> {
         "simulation-view-renderer",
         "simulation-view-mcp",
         "view-mcp",
-        "perception-mcp",
+        "stream-mcp",
         "reason-mcp",
     ] {
         run_checked(

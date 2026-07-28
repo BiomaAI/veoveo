@@ -11,6 +11,7 @@
     "cache",
     "session",
     "posePublication",
+    "streamPublication",
     "interactive",
     "service",
     "resources",
@@ -260,6 +261,24 @@
         "caCertificateKey": {"type": "string", "minLength": 1},
         "clientCertificateKey": {"type": "string", "minLength": 1},
         "clientPrivateKeyKey": {"type": "string", "minLength": 1}
+      }
+    },
+    "streamPublication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "endpointHost",
+        "endpointPort",
+        "payloadType",
+        "sourceVehicleId"
+      ],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "endpointHost": {"$ref": "#/definitions/dnsNameOrIp"},
+        "endpointPort": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "payloadType": {"type": "integer", "minimum": 96, "maximum": 127},
+        "sourceVehicleId": {"$ref": "#/definitions/identity"}
       }
     },
     "interactive": {

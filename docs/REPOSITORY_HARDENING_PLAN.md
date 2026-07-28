@@ -152,7 +152,7 @@ The same audit found enforcement drift:
   Cargo registry and Git cache mounts with `sharing=locked` for their complete Cargo
   commands, while twelve also shared one locked target cache and limited Cargo to four
   jobs.
-- Rust image builds used eight target-cache identities. Frames and Perception shared the
+- Rust image builds used eight target-cache identities. Frames and Stream shared the
   anonymous `/app/target` identity despite different builder environments, while Map,
   Time, and View duplicated registry and Git caches.
 - The root Docker context included about 64 MB under `docs/` that no Dockerfile copied.
@@ -876,7 +876,7 @@ collides.
 | Frames tools, tasks, and artifacts | `servers/frames-mcp/smoke` |
 | Map acquisition, activation, and routing | `servers/map-mcp/smoke` |
 | View local and live GPU rendering | `servers/view-mcp/smoke` |
-| Perception GPU workflow | `servers/perception-mcp/smoke` |
+| Perception GPU workflow | `servers/stream-mcp/smoke` |
 | Reason GPU workflow | `servers/reason-mcp/smoke` |
 | UAV server contract behavior | `servers/uav-sim-mcp/smoke` |
 | Full UAV runtime composition | `showcase/uav-sim/smoke` |
@@ -1159,7 +1159,7 @@ The first delivery supports one explicit target platform, `linux/amd64`.
 | `rust-trixie-v1` | gateway, artifact service, recording forwarder, recording hub, recording MCP, Console BFF, artifact MCP, media MCP, timeseries MCP, DuckDB MCP, optimization MCP, frames MCP, stdio bridge, and agent kernel when selected |
 | `rust-bookworm-v1` | map MCP, time MCP, and view MCP |
 | `rust-uav-bookworm-v1` | UAV MCP; standalone because the embedded WebRTC bundle changes its compile environment |
-| `rust-deepstream-v1` | perception MCP |
+| `rust-deepstream-v1` | Stream MCP |
 | `rust-vllm-v1` | reason MCP |
 | `rust-sumo-bullseye-v1` | SUMO MCP |
 

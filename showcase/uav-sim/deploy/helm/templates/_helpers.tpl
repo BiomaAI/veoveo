@@ -113,6 +113,16 @@
   valueFrom:
     fieldRef:
       fieldPath: metadata.uid
+{{- if .root.Values.streamPublication.enabled }}
+- name: UAV_SIM_STREAM_HOST
+  value: {{ .root.Values.streamPublication.endpointHost | quote }}
+- name: UAV_SIM_STREAM_PORT
+  value: {{ .root.Values.streamPublication.endpointPort | quote }}
+- name: UAV_SIM_STREAM_PAYLOAD_TYPE
+  value: {{ .root.Values.streamPublication.payloadType | quote }}
+- name: UAV_SIM_STREAM_SOURCE_VEHICLE_ID
+  value: {{ .root.Values.streamPublication.sourceVehicleId | quote }}
+{{- end }}
 - name: NVIDIA_DRIVER_CAPABILITIES
   value: all
 - name: ROS_DISTRO

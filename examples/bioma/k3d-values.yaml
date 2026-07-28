@@ -11,7 +11,7 @@ recording:
   tenantKey: bioma
   persistence:
     size: 20Gi
-perception:
+stream:
   modelCache:
     size: 5Gi
 reason:

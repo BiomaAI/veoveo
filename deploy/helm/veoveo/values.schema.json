@@ -13,7 +13,7 @@
     "gateway",
     "artifactService",
     "recording",
-    "perception",
+    "stream",
     "reason",
     "simulationView",
     "consoleBff",
@@ -70,7 +70,7 @@
           "chart",
           "rerun",
           "recording",
-          "perception",
+          "stream",
           "reason",
           "simulation-view"
         ]
@@ -472,11 +472,12 @@
         }
       }
     },
-    "perception": {
+    "stream": {
       "type": "object",
       "required": [
         "runtimeClassName",
         "image",
+        "recordingOutput",
         "modelCache",
         "builderResources",
         "resources"
@@ -488,6 +489,127 @@
         },
         "image": {
           "$ref": "#/definitions/image"
+        },
+        "recordingOutput": {
+          "type": "object",
+          "required": [
+            "enabled",
+            "proxyUrl",
+            "applicationId",
+            "entityPath",
+            "timeline",
+            "queueCapacity",
+            "forwarder"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "proxyUrl": {
+              "type": "string",
+              "pattern": "^rerun\\+http://(127\\.0\\.0\\.1|\\[::1\\]):[0-9]+/proxy$"
+            },
+            "applicationId": {
+              "type": "string",
+              "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+            },
+            "entityPath": {
+              "type": "string",
+              "pattern": "^/.*$",
+              "maxLength": 1024
+            },
+            "timeline": {
+              "type": "string",
+              "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+            },
+            "queueCapacity": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65536
+            },
+            "forwarder": {
+              "type": "object",
+              "required": [
+                "image",
+                "gatewayTransportUrl",
+                "clientId",
+                "keyId",
+                "signingAlgorithm",
+                "privateKey",
+                "maximumQueueBytes",
+                "batchMessageLimit",
+                "batchFlushMilliseconds",
+                "grpcMemoryLimitBytes",
+                "persistence",
+                "resources"
+              ],
+              "properties": {
+                "image": {
+                  "$ref": "#/definitions/image"
+                },
+                "gatewayTransportUrl": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "clientId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "keyId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "signingAlgorithm": {
+                  "enum": [
+                    "eddsa",
+                    "rs256"
+                  ]
+                },
+                "privateKey": {
+                  "type": "object",
+                  "required": [
+                    "existingSecret",
+                    "key"
+                  ],
+                  "properties": {
+                    "existingSecret": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "key": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "maximumQueueBytes": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "batchMessageLimit": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "batchFlushMilliseconds": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "grpcMemoryLimitBytes": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "persistence": {
+                  "$ref": "#/definitions/persistence"
+                },
+                "resources": {
+                  "type": "object"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
         },
         "modelCache": {
           "$ref": "#/definitions/persistence"
