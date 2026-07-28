@@ -18,7 +18,7 @@ runtimes.
 - `diagrams/*.svg` contains eleven individually reusable vector views.
 - `catalogs/software-components.csv` enumerates 69 scoped software resources.
 - `catalogs/interfaces-and-protocols.csv` defines 39 canonical interfaces.
-- `catalogs/requirements-traceability.csv` traces 18 requirements to capability,
+- `catalogs/requirements-traceability.csv` traces 19 requirements to capability,
   activity, service, resource, and evidence.
 - `catalogs/model-glossary.csv` fixes the terms used across the package.
 
@@ -104,7 +104,7 @@ modules in this directory.
 
 - Architecture: `VV-MODEL-001`
 - Version: `0.1.0`
-- Revision: `2026-07-27`
-- Source commit: `429379faaf329650797cf230895a23b23901e863`
+- Revision: `2026-07-28`
+- Source commit: `3af8f51d9361d59bbfb78ec997f70c86f46b219a`
 - Governing framework: OMG UAF 1.3
 - Detailed systems language: OMG SysML 1.6

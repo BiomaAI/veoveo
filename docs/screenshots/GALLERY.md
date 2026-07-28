@@ -13,8 +13,8 @@ how to reproduce every view.
 | Operations overview | Durable work across reasoning, perception, and simulation |
 | [![Governed artifact catalog](gallery/console-artifacts.png)](gallery/console-artifacts.png) | [![Continuous recording playback](gallery/console-recordings.png)](gallery/console-recordings.png) |
 | Governed artifact catalog | Continuous recording playback |
-| [![Reasoning artifact detail](gallery/console-artifact-reason.png)](gallery/console-artifact-reason.png) | [![Perception video artifact](gallery/console-artifact-video.png)](gallery/console-artifact-video.png) |
-| Reasoning artifact with provenance and access | Perception video preview |
+| [![Reasoning artifact detail](gallery/console-artifact-reason.png)](gallery/console-artifact-reason.png) | [![Stream detection video artifact](gallery/console-artifact-video.png)](gallery/console-artifact-video.png) |
+| Reasoning artifact with provenance and access | Stream-derived video preview |
 
 ## MCP and server-shipped apps
 

@@ -162,8 +162,15 @@
   table.toc tbody td { font-size: 10.5px; font-weight: 600; color: var(--ink); padding: 9px 10px; }
   table.toc tbody tr:nth-child(even) { background: var(--wash); }
   table.toc tbody td:first-child { width: 40px; font-weight: 400; color: var(--muted); }
-  table.capability-table thead td { font-size: 8px; padding: 2px 4px; }
-  table.capability-table tbody td { font-size: 7px; line-height: 1.12; padding: 1px 4px; }
+  .capability-page h1.section { margin-bottom: 12px; padding-bottom: 10px; }
+  .capability-page p.body { font-size: 9.5px; line-height: 1.42; margin-bottom: 6px; }
+  .capability-page figure.art { margin: 5px 0 7px; }
+  .capability-page figure.art figcaption { font-size: 6.8px; margin-top: 3px; }
+  .capability-page table.capability-table { margin: 4px 0 8px; }
+  table.data.capability-table thead td { font-size: 8px; padding: 2px 4px; }
+  table.data.capability-table tbody td { font-size: 8.5px; line-height: 1.22; padding: 2.5px 4px; }
+  table.data.capability-table tbody td.mono { font-size: 7.7px; line-height: 1.22; }
+  table.data.capability-table code { font-size: 7.5px; line-height: 1.08; }
 </style>
 </head>
 <body>
@@ -221,9 +228,9 @@
     engagement the operator sets.
   </p>
   <div class="stats">
-    <div class="stat"><b>14</b><span>Hosted Servers</span></div>
+    <div class="stat"><b>17</b><span>Hosted Servers</span></div>
     <div class="stat"><b>Full</b><span>MCP Surface</span></div>
-    <div class="stat"><b>~225k</b><span>Messages/s, Lossless</span></div>
+    <div class="stat"><b>2.56 s</b><span>Measured Archive Pass</span></div>
   </div>
   <h3 class="minor">Key Findings</h3>
   <ul class="bullets">
@@ -364,20 +371,21 @@
   <h1 class="section">4. Data Flow</h1>
   <p class="body">
     The decision cycle, engineered: Boyd's OODA loop, with orientation living durably in the
-    world model — and one stage Boyd never needed, Account. <b>Observe</b>: producers push into the Recording Hub, and
-    agents query the record back out through governed tools. <b>Act</b>: agents and operators call
+    world model — and one stage Boyd never needed, Account. <b>Observe</b>: live H.264 enters
+    Stream directly while an independent forwarder may publish governed recording evidence;
+    agents query immutable snapshots back out through Recording and Reason. <b>Act</b>: agents and operators call
     tools through the gateway; long work becomes a durable task whose completion wakes the
     sleeping agent. <b>Account</b>: every auth decision, tool call, task transition, artifact
     grant, and agent step lands in the platform store and the decision log.
   </p>
   <figure class="art">
     <img src="images/system-map.png" alt="">
-    <figcaption>The whole system: files are the record · the hub is the bus · the gateway is the door · the platform store is the memory.</figcaption>
+    <figcaption>The whole system: live Stream never waits for Recording Hub; Stream results and authorized recording snapshots ground Reason before evidence reaches the agent.</figcaption>
   </figure>
   <table class="data">
     <thead><tr><td>Flow</td><td>Path</td><td>Guarantee</td></tr></thead>
     <tbody>
-      <tr><td>Observe</td><td>Producers push Rerun log streams to one ingest point; segments become governed catalog records; agents read slices through the recording server.</td><td>The hub persists first; a crash mid-write leaves readable files.</td></tr>
+      <tr><td>Observe</td><td>Arriving H.264 enters Stream directly; a local forwarder uploads recording batches; Stream results and authorized snapshots feed Reason.</td><td>Live results never wait for Recording Hub; acknowledgement follows fsynced journal state and part materialization.</td></tr>
       <tr><td>Act</td><td>Every tool call enters through the gateway under one flat namespace; quick tools answer inline; long tools return a durable task handle immediately.</td><td>Task completion pushes a wake; the next episode assembles with the result.</td></tr>
       <tr><td>Account</td><td>Auth, policy, admin, and task transitions write audit evidence; every decision records what the agent saw, chose, and why.</td><td>Usage records meter provider spend and tool activity per principal.</td></tr>
     </tbody>
@@ -485,7 +493,7 @@
       <tr><td>Authentication</td><td>Browser OAuth with PKCE, client credentials with private-key JWT, identity-assertion grant (ID-JAG) exchange, JWKS, token issuance and revocation, durable refresh rotation — reuse revokes the family.</td></tr>
       <tr><td>Policy &amp; audit</td><td>Attribute- and role-based policy over tools, resources, tasks, and artifacts; tenant and data-label checks for regulated data; fail-closed decisions with reason codes; a durable audit trail for admin, auth, and policy operations.</td></tr>
       <tr><td>Control plane</td><td>Validated server / profile / policy catalog, authenticated live apply and reload, secret references with redaction, an admin API for the console, and policy-checked, audited artifact downloads.</td></tr>
-      <tr><td>Server administration</td><td><code>/admin/{profile}/servers/{server}/{path}</code> resolves the active catalog, authorizes read or write, audits the operation, and forwards a short-lived signed identity to the owning server's contract-defined <code>{mount}/admin/*</code> API.</td></tr>
+      <tr><td>Domain administration</td><td>Scoped MCP tools, resources, durable tasks, and Apps are canonical. A declared <code>/admin/{profile}/servers/{server}/{path}</code> route is an additive projection over the same typed models, policy, audit, identities, and state.</td></tr>
       <tr><td>Protocol surface</td><td>Tools, resources and templates, prompts, completions, tasks, subscriptions, notifications, structured content with declared schemas, artifacts, and usage. Tool names gain a prefix only at aggregation; resource URIs retain their owning scheme.</td></tr>
     </tbody>
   </table>
@@ -493,25 +501,26 @@
 </div>
 
 <!-- ======================= 6. SERVERS ======================= -->
-<div class="page">
+<div class="page capability-page">
   <span class="runhead">Veoveo · Autonomy Harness</span>
   <h1 class="section">7. Hosted Capabilities</h1>
   <p class="body">
-    The canonical control plane defines fourteen hosted server identities. Each server declares the
+    The canonical control plane defines seventeen hosted server identities. Each server declares the
     MCP surfaces its domain needs and runs behind gateway-signed identity; a new local, bridged,
     or <b>remote MCP endpoint</b> registers in the validated catalog and immediately answers to the
     same task, artifact, policy, and audit contracts. The gateway discovers the declared surface,
     prefixes tool names only at aggregation, and preserves each server's resource URI scheme.
   </p>
   <figure class="art" style="text-align:center">
-    <img src="images/capability-map.png" alt="" style="width:auto;max-height:1.55in;margin:0 auto">
-    <figcaption style="text-align:left">Fourteen hosted servers and remote endpoints — full MCP, contract-defined administration, durable tasks, artifacts, and policy remain one governed system.</figcaption>
+    <img src="images/capability-map.png" alt="" style="width:auto;max-height:1.35in;margin:0 auto">
+    <figcaption style="text-align:left">Seventeen hosted servers and remote endpoints — full MCP, canonical domain administration, durable tasks, artifacts, and policy remain one governed system.</figcaption>
   </figure>
   <table class="data tight capability-table">
     <thead><tr><td>Server</td><td>Capability</td><td>Representative tools</td></tr></thead>
     <tbody>
       <tr><td>Media<br><code>media</code></td><td>Provider-backed generative media with webhook-driven completion, a model catalog, and pricing.</td><td class="mono">run · models · model_schema · artifact</td></tr>
-      <tr><td>Stream<br><code>stream</code></td><td>Admitted live GStreamer graphs over arriving media and reproducible GPU perception profiles over governed recordings, executed locally.</td><td class="mono">start_live_session · run_recording</td></tr>
+      <tr><td>Stream<br><code>stream</code></td><td>Direct live RTP/H.264 processing plus reproducible replay over authorized task-start snapshots, with encoded App preview and typed results.</td><td class="mono">start_live_session · stop_live_session · run_recording</td></tr>
+      <tr><td>Reason<br><code>reason</code></td><td>Local world-model reasoning over recording snapshots, optionally grounded by governed Stream perception results.</td><td class="mono">analyze_recording</td></tr>
       <tr><td>Forecasting<br><code>timeseries</code></td><td>Forecasting over any SQL-readable time-series source, visualized as Rerun recordings.</td><td class="mono">forecast</td></tr>
       <tr><td>Time<br><code>time</code></td><td>Authority-bound civil, military, GNSS, and mission time; calendars, timelines, clock quality, and temporal events.</td><td class="mono">resolve_time · convert_time · assess_clock · evaluate_windows</td></tr>
       <tr><td>SQL<br><code>duckdb</code></td><td>Arbitrary SQL over principal-owned databases inside a locked, resource-bounded sandbox.</td><td class="mono">query · execute · ingest · export</td></tr>
@@ -524,6 +533,8 @@
       <tr><td>Charts<br><code>charts</code></td><td>Chart rendering projected through the gateway, turning query results into shareable visuals.</td><td class="mono">render_chart · compile_chart · validate_chart · list_chart_types · create_chart_view</td></tr>
       <tr><td>Viewer<br><code>rerun</code></td><td>A live Rerun viewer driven entirely over MCP — session, capture, inspection, and UI automation.</td><td class="mono">17 interactive tools (connect … batch)</td></tr>
       <tr><td>3D View<br><code>view</code></td><td>Governed static scene compositions with exact inputs and bounded overlays, rendered offscreen on NVIDIA Vulkan.</td><td class="mono">create_scene_composition · create_view · set_camera · capture_frame · close_view</td></tr>
+      <tr><td>UAV Simulation<br><code>uav-sim</code></td><td>Governed sessions, missions, vehicles, terrain, dataset capture, and provider-neutral simulator control.</td><td class="mono">configure_world · execute_mission · capture_dataset</td></tr>
+      <tr><td>Simulation View<br><code>simulation-view</code></td><td>Renderer-independent scenes, logical cameras, capacity, live-view leases, WebRTC, and a GPU-backed MCP App.</td><td class="mono">create_session · create_camera · open_live_view</td></tr>
     </tbody>
   </table>
   <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">11</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
@@ -532,28 +543,26 @@
 <!-- ======================= 7.1 PERCEPTION + PLANNING ======================= -->
 <div class="page">
   <span class="runhead">Veoveo · Autonomy Harness</span>
-  <h2 class="sub" style="margin-top:0">7.1 In Depth: Stream Perception Profiles</h2>
+  <h2 class="sub" style="margin-top:0">7.1 In Depth: Live Stream, Replay, and Grounded Reason</h2>
   <p class="body">
-    Every camera the operation records becomes something an agent can question. An analysis runs
-    a detection or detection-plus-tracking model over a chosen stretch of recorded video and
-    returns what was in it: which objects, of which class, where in the frame, when — and, with
-    tracking, which detections are the same object over time. The kinds of questions it answers:
+    Stream begins processing arriving RTP/H.264 frames immediately. Its encoded tee feeds a
+    bounded App preview and may feed the independent recording forwarder, but live results never
+    wait for Recording Hub. The same admitted pass-through or perception profile can run later
+    over one immutable task-start snapshot of complete acknowledged recording parts.
   </p>
   <ul class="bullets">
-    <li>How many vehicles, by class, passed intersection E14 between 06:00 and 07:00?</li>
-    <li>Did anything enter this zone overnight? Show me the frames.</li>
-    <li>Follow track 71 — where did it come from, where did it go?</li>
+    <li><b>Live:</b> start one owner-scoped session, process new frames on the GPU, and publish typed detections while the H.264 App draws overlays.</li>
+    <li><b>Replay:</b> run the same approved profile over an authorized recording range and publish immutable JSON and RRD results.</li>
+    <li><b>Reason:</b> combine an authorized recording snapshot with a bounded typed subset from <code>stream://artifact/{id}</code>; answers may cite Stream track identities.</li>
   </ul>
   <p class="body">
-    The answer comes back in three forms, one per consumer: <b>detections as data</b> — rows an
-    agent queries and joins immediately; <b>boxes over the original video</b>, on its own
-    timeline, for an operator scrubbing in the viewer; and <b>a clip of just the relevant
-    window</b>, for handing to someone. Analyses run as durable tasks on the installation's own
-    hardware — recorded video stays inside, and results inherit the source's classification.
+    Stream processing, Reason inference, and visual acceptance fail closed without their declared
+    hardware. Browser H.264 software decode is allowed only when Media Capabilities reports the
+    exact configuration as supported and smooth, and the App labels that path as software.
   </p>
   <figure class="art">
-    <img src="images/stream-flow.png" alt="" style="height:2.9in;object-fit:contain">
-    <figcaption>The agent asks, the record answers: detections for SQL, annotations for the viewer, a clip for sharing — and everything joins the record.</figcaption>
+    <img src="images/grounding-flow.png" alt="" style="height:2.9in;object-fit:contain">
+    <figcaption>Live Stream and authorized replay produce governed results; Reason combines an immutable recording snapshot with optional typed Stream grounding.</figcaption>
   </figure>
   <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">12</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
@@ -654,16 +663,16 @@
   <span class="runhead">Veoveo · Autonomy Harness</span>
   <h1 class="section">9. Recording Hub</h1>
   <p class="body">
-    Every sensor, estimator, and agent streams into one ingest point, and the hub persists
-    first: each message is written — fsynced — to day-partitioned segment files the moment it
-    arrives. Live files stay readable mid-write, so a crash leaves a decodable record, and every
-    segment is verified before its optimized replacement when it freezes. Every
-    recording and segment becomes a governed record in the platform store, and the recording
-    server answers authorized queries over the same bytes.
+    Each producer publishes native Rerun traffic to a loopback forwarder with a bounded
+    persistent queue. The forwarder authenticates through the gateway and resumes versioned
+    protobuf upload from the Hub checkpoint. Recording Hub fsyncs journal state and materializes
+    an immutable ordered RRD part before acknowledgement. One cataloged writing segment closes at
+    one hour or the 192 MiB precompaction safety limit, aligned to a decoder-reentrant IDR.
+    Archive publication is one verified footer-writing object-store pass.
   </p>
   <figure class="art">
     <img src="images/capture-pipeline.png" alt="">
-    <figcaption>Durable capture: a crash leaves a readable record · a restart never overwrites · ~225k msgs/s lossless.</figcaption>
+    <figcaption>Durable capture: fsynced journal → checkpoint → immutable parts → indexed shards. A representative 30,307-chunk corpus became 31 archive chunks in 2.56 seconds.</figcaption>
   </figure>
   <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">15</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
@@ -740,9 +749,9 @@
   <h3 class="minor">Operational intelligence, wherever it lands</h3>
   <ul class="bullets">
     <li><b>Command from the console.</b> The first screen is the live installation — health, tasks,
-        artifacts, agents, recordings, policy, and audit. Explicit domain projections manage Map
-        sources, acquisitions, releases, active pointers, and mobility profiles through the
-        gateway's governed server-admin route.</li>
+        artifacts, agents, recordings, policy, and audit. Map sources, acquisitions, releases,
+        active pointers, and mobility profiles are managed through canonical MCP tools,
+        resources, durable tasks, and the Map administration App.</li>
     <li><b>Cognition scales in place.</b> Agents are data: field another agent by adding a
         manifest. The same wake bus, budgets, and memory planes run one agent or a team.</li>
     <li><b>Evidence deploys with the platform.</b> The record, the audit trail, and usage metering
@@ -766,6 +775,9 @@
         restrictions and release changes invalidate dependent resources.</li>
     <li><b>CI.</b> Formatting, clippy, Rust and Python tests, the datasheet template, the console UI
         build, the Keycloak integration path, and deployment contract checks run on every change.</li>
+    <li><b>Hardware visual acceptance.</b> Headed browser checks probe WebGPU and WebGL and require
+        at least one hardware-backed path. SwiftShader, llvmpipe, and software rasterizers are
+        rejected. GPU workloads request their accelerator and have no CPU fallback.</li>
     <li><b>Telemetry.</b> OpenTelemetry traces and logs across gateway and servers, with audit
         summaries as durable evidence for regulated deployments.</li>
   </ul>
@@ -786,18 +798,18 @@
     <thead><tr><td>Component</td><td>Role</td><td>What it is</td></tr></thead>
     <tbody>
       <tr><td class="mono">ingress</td><td>ours</td><td>The single public door, owned by the operator: Kubernetes Ingress in local k3d and fielded clusters. One place to defend and observe.</td></tr>
-      <tr><td class="mono">gateway</td><td>ours</td><td>The governed protocol boundary: authenticates the caller, checks policy, projects full MCP server surfaces, proxies server administration under declared request and response schemas, and writes the audit trail.</td></tr>
+      <tr><td class="mono">gateway</td><td>ours</td><td>The governed protocol boundary: authenticates the caller, checks policy, projects full MCP server surfaces, carries declared additive administration projections, and writes the audit trail.</td></tr>
       <tr><td class="mono">console</td><td>ours</td><td>The cockpit: the operations UI plus a session backend that owns browser login, encrypted sessions, and CSRF enforcement.</td></tr>
       <tr><td class="mono">agent kernel</td><td>ours</td><td>The runtime for long-lived agents: short episodes, durable memory, wake on a result, a timer, or a message.</td></tr>
-      <tr><td class="mono">hosted MCP server</td><td>ours</td><td>A domain boundary with explicit request and response models, the MCP surfaces it needs, shared task and artifact contracts, and optional administration under its canonical mount.</td></tr>
-      <tr><td class="mono">Map server</td><td>ours</td><td>Earth geography and logistics routing over governed, versioned releases; its administrative API owns sources, acquisition, activation, rollback, and mobility profiles.</td></tr>
+      <tr><td class="mono">hosted MCP server</td><td>ours</td><td>A domain boundary with typed models, full MCP surfaces, shared task and artifact contracts, canonical MCP administration, and only declared additive HTTP projections.</td></tr>
+      <tr><td class="mono">Map server</td><td>ours</td><td>Earth geography and logistics routing over governed releases; scoped MCP tools, resources, tasks, and Apps own sources, acquisition, activation, rollback, and mobility profiles.</td></tr>
       <tr><td class="mono">world model</td><td>concept</td><td>What an agent knows: everything the operation senses, remembers, and decides, fused into one durable, queryable model of reality. Every episode's context is a fresh slice of it.</td></tr>
       <tr><td class="mono">platform store</td><td>OSS</td><td>SurrealDB 3.2.1 — the platform's memory: identity, policy, tasks, artifacts, recordings, map catalogs and releases, agents, audit, and the transactional outbox.</td></tr>
       <tr><td class="mono">task runtime</td><td>ours</td><td>The ledger for long work: UUIDv7 task ids with atomic leases, transitions, results, and declared recovery per operation.</td></tr>
-      <tr><td class="mono">ingest socket</td><td>OSS</td><td>Where every producer pushes: one gRPC endpoint (the Rerun proxy), rebroadcast live to anyone reading.</td></tr>
-      <tr><td class="mono">persist-first writer</td><td>ours</td><td>Embeds the ingest socket and fsyncs every message to disk before anything else — the write happens first.</td></tr>
-      <tr><td class="mono">.rrd segment</td><td>format</td><td>The record on disk: one growing file per dataset / day / recording, readable even mid-write.</td></tr>
-      <tr><td class="mono">catalog</td><td>ours</td><td>The card catalog: stable installation identity for every recording and segment; startup reconciles crash leftovers.</td></tr>
+      <tr><td class="mono">recording forwarder</td><td>ours</td><td>The producer-local durability edge: loopback Rerun gRPC, bounded persistent queue, OAuth upload, and checkpoint resume.</td></tr>
+      <tr><td class="mono">Recording Hub</td><td>ours</td><td>The acknowledgement authority: fsynced batch journal, immutable ordered part materialization, and a monotonic checkpoint.</td></tr>
+      <tr><td class="mono">RRD archive shard</td><td>format</td><td>An immutable footer-indexed shard produced once at an IDR-aligned hour or 192 MiB boundary.</td></tr>
+      <tr><td class="mono">catalog</td><td>ours</td><td>The card catalog: stable recording identities related to acknowledged parts, archive shards, checkpoints, labels, and lifecycle.</td></tr>
       <tr><td class="mono">recording server</td><td>ours</td><td>The reading room: authorized discovery, latest-at / range / dataframe queries, subscriptions, and sealing to an artifact.</td></tr>
       <tr><td class="mono">SUMO / TraCI</td><td>OSS</td><td>The traffic simulator and its control socket — a live world producing positions and states to record and reason about.</td></tr>
       <tr><td class="mono">sumo-mcp</td><td>ours</td><td>The bridge: the one owner of the simulator's control socket, pushing the world into the hub and exposing governed control.</td></tr>

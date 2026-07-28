@@ -11,13 +11,13 @@ multimodal world-model checkpoint through the vLLM runtime shipped in the
 deployable image, but runtime and vendor names do not appear in its public MCP
 identities.
 
-This is deliberately not part of `stream-mcp`. Perception is bounded
-deterministic inference: a site-approved detection engine whose calibrated
-per-frame output is reproducible byte for byte. Reasoning output comes from a
-generative model and carries model-reported rather than calibrated confidence.
-Keeping the domains separate preserves perception's audit story and keeps the
-DeepStream and world-model serving release trains independently upgradable. It is also
-not part of `media-mcp`, because reasoning runs entirely inside the
+This is deliberately not part of `stream-mcp`. A Stream perception profile is
+bounded deterministic inference: a site-approved detection engine whose
+calibrated per-frame output is reproducible byte for byte. Reasoning output
+comes from a generative model and carries model-reported rather than calibrated
+confidence. Keeping the domains separate preserves the Stream result's audit
+story and keeps the DeepStream and world-model serving release trains
+independently upgradable. It is also not part of `media-mcp`, because reasoning runs entirely inside the
 installation. It uses no provider API, no webhook completion, no resident
 inference service, and no agent framework.
 
@@ -29,7 +29,7 @@ inference service, and no agent framework.
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Video selection, reasoning request, model and pipeline catalog, event, grounding, provenance, and artifact contracts. |
 | [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; every reasoning invocation is a durable, cancellable, result-addressable task. |
 | [Rerun 0.35.0](https://rerun.io/docs/) RRD and `VideoStream` | Frozen or sealed sources and task-start snapshots of complete acknowledged ingest parts preserve exact time; derived semantic events are published as RRD annotations. |
-| H.264/AVC Annex B | The source profile matches Perception: no B-frames and decoder-reentrant IDRs marked in the Rerun stream. |
+| H.264/AVC Annex B | The source profile matches Stream: no B-frames and decoder-reentrant IDRs marked in the Rerun stream. |
 | ISO Base Media File Format / MP4 | A bounded source range is remuxed without re-encoding for the task-local decoder and world-model runner. |
 | Typed JSON process protocol | One schema-controlled request and response per isolated runner process. This boundary is private and does not replace MCP. |
 | OAuth bearer and signed JWT identity | Source recording, grounding artifacts, results, and derived artifacts retain gateway-resolved Work Context authority and labels. |
@@ -52,7 +52,7 @@ recording-hub acknowledged live parts and frozen/sealed segments
 typed reasoning results + derived RRD annotations + artifacts
 ```
 
-The recording authorization contract is identical to perception's. A task
+The recording authorization contract is identical to Stream replay. A task
 first authorizes the canonical `recording://recordings/{uuidv7}` identity
 against its tenant and labels. It then re-resolves that identity and captures
 the complete acknowledged parts visible at task start with prior frozen or
@@ -82,16 +82,17 @@ digest from the catalog, the prompt template revision, and the decode
 parameters that produced it. Decoding is greedy by default. Sampled decoding
 is opt-in per request and its parameters are recorded in the result. The
 result also states `confidence_basis: model_reported`, which distinguishes
-reasoning output from perception's calibrated detector confidences. Same
-engine, same input, same prompt revision, and greedy decoding must produce
-the same result.
+reasoning output from a Stream perception result's calibrated detector
+confidences. Same engine, same input, same prompt revision, and greedy decoding
+must produce the same result.
 
-A request may reference grounding: the governed results artifact of a
-completed perception analysis over the same recording. The server resolves
+A request may reference grounding: a governed
+`stream://artifact/{artifact_id}` results artifact produced by a completed
+Stream perception replay over the same recording. The server resolves
 the artifact with the caller's authority at submission time, validates its
 schema, extracts a bounded typed subset of detections, and embeds that
-subset in the durable request. Reasoning output may then cite perception
-track identities. Grounding never travels as a bearer token or a URL.
+subset in the durable request. Reasoning output may then cite Stream track
+identities. Grounding never travels as a bearer token or a URL.
 
 ## Work Context and ownership
 
@@ -158,7 +159,7 @@ Analysis publishes immutable occurrences through the shared artifact plane:
 typed JSON results, a Rerun annotation layer, and optionally the remuxed
 source clip. The annotation layer places each detected event on the source
 timeline as a text log entry and records the full provenance block as a
-static document, so events appear in the console viewer beside perception's
+static document, so events appear in the console viewer beside Stream
 bounding boxes. Large bytes are never returned inline; oversized occurrences
 use the governed artifact download path.
 

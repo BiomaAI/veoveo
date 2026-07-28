@@ -548,9 +548,9 @@
       bundle. A live <strong>SUMO traffic city</strong> proves the whole loop end to end.
     </p>
     <div class="statrow">
-      <div class="stat"><b>14</b>hosted servers</div>
+      <div class="stat"><b>17</b>hosted servers</div>
       <div class="stat"><b>full</b>MCP surface</div>
-      <div class="stat"><b>~225k</b>msgs/s lossless</div>
+      <div class="stat"><b>2.56 s</b>measured archive pass</div>
       <div class="stat"><b>1</b>platform store</div>
       <div class="stat"><b>1</b>shared artifact plane</div>
       <div class="stat"><b>1</b>Helm workload model</div>
@@ -698,8 +698,9 @@ flowchart LR
       <div>
         <h5>Stream perception, live or on the record</h5>
         <ul>
-          <li>"How many vehicles, by class, passed E14 in the last hour?" — <code>stream__run_recording</code> on the camera's recording</li>
-          <li>→ detections as rows, boxes over the original video, a clip of the window that matters</li>
+          <li><code>stream__start_live_session</code> processes arriving H.264 immediately; the optional recording forwarder never gates live results.</li>
+          <li>"How many vehicles, by class, passed E14 in the last hour?" — <code>stream__run_recording</code> over one authorized task-start snapshot.</li>
+          <li>→ detections as rows, boxes over the original video, and governed Stream result artifacts</li>
           <li><code>duckdb__ingest</code> the detections → demand per approach, as SQL</li>
         </ul>
       </div>
@@ -727,7 +728,7 @@ sequenceDiagram
   participant S as SUMO
   Note over A: wake — resources/updated: sumo://congestion
   A->>W: latest-at snapshot — edge E14 saturated
-  A->>P: analyze_recording /world/camera/e14 (task)
+  A->>P: run_recording /world/camera/e14 (task)
   P-->>A: detections + annotations + clip
   A->>Q: ingest detections → demand per approach
   A->>O: plan — minimize delay, options from SQL (task)
@@ -735,7 +736,7 @@ sequenceDiagram
   A->>S: set_signal_phase · run_batch(500) (task) — sleep
   S-->>A: wake — delay −23%, evidence in the record
       </div>
-      <figcaption><b>One governed loop.</b> record → Stream perception → SQL → plan → act — every call policy-checked, every step in the record.</figcaption>
+      <figcaption><b>One governed loop.</b> live Stream results and authorized replay evidence feed SQL, planning, action, and grounded Reason output without making live processing wait for recording.</figcaption>
     </figure>
   </section>
 
@@ -745,8 +746,9 @@ sequenceDiagram
     <h2>How data moves</h2>
     <p class="section-lede">
       The decision cycle, engineered: Boyd's OODA loop, with orientation living durably in the
-      world model — and one stage Boyd never needed, Account. <strong>Observe</strong>: producers push into the
-      Recording Hub, and agents query the record back out through governed tools.
+      world model — and one stage Boyd never needed, Account. <strong>Observe</strong>: live H.264
+      enters Stream directly while a separate forwarder may publish the encoded source and other
+      telemetry into Recording Hub. Agents query acknowledged recording parts through governed tools.
       <strong>Act</strong>: agents and operators call tools through the gateway; long work
       becomes a durable task whose completion wakes the sleeping agent.
       <strong>Account</strong>: every auth decision, tool call, task transition, artifact grant,
@@ -756,42 +758,26 @@ sequenceDiagram
     <figure class="diagram hero-diagram">
       <div class="mermaid">
 flowchart LR
-  subgraph PROD["Live world"]
-    direction TB
-    SEN["Sensors&lt;br/&gt;cameras · IMU · GNSS"]
-    SUMO["SUMO city&lt;br/&gt;traffic world"]
-    TEE["Agent decision log&lt;br/&gt;(tee)"]
-  end
-  subgraph HUB["Recording Hub"]
-    direction TB
-    PROXY["gRPC ingest :9876"]
-    SPOOL["Persist-first writer&lt;br/&gt;fsynced on arrival"]
-    FILES[("RRD segments&lt;br/&gt;dataset / day / recording")]
-    PROXY --> SPOOL --> FILES
-  end
-  subgraph GOV["Governed plane"]
-    direction TB
-    GW["MCP Gateway&lt;br/&gt;auth · policy · audit"]
-    SRV["hosted capability servers&lt;br/&gt;14 catalog identities + sumo + remote"]
-    GW --> SRV
-  end
-  KERNEL["Agent Kernel&lt;br/&gt;bounded episodes"]
-  CONSOLE["Operations Console&lt;br/&gt;browser · BFF"]
-  STORE[("Platform store&lt;br/&gt;SurrealDB")]
-  BYTES[("Object store&lt;br/&gt;artifact bytes")]
-
-  SEN -->|push| PROXY
-  SUMO -->|push| PROXY
-  TEE -->|push| PROXY
-  KERNEL -->|tools| GW
-  CONSOLE -->|session| GW
-  SRV -.->|world control| SUMO
-  FILES -->|governed recording queries| SRV
-  SRV --- STORE
-  SRV --- BYTES
+  CAM["Live H.264&lt;br/&gt;camera or simulator"] ==>|direct RTP| STREAM["Stream&lt;br/&gt;live graph + encoded App preview"]
+  CAM -.optional encoded tee.-> FWD["Producer-local forwarder&lt;br/&gt;bounded queue"]
+  TEL["Telemetry · world state&lt;br/&gt;agent evidence"] --> FWD
+  FWD -->|"OAuth + protobuf"| GW["MCP Gateway&lt;br/&gt;identity · policy · audit"]
+  GW --> HUB["Recording Hub&lt;br/&gt;fsynced journal + checkpoint"]
+  HUB --> REC[("Acknowledged parts&lt;br/&gt;+ indexed archive shards")]
+  REC --> REPLAY["Stream replay&lt;br/&gt;task-start snapshot"]
+  REC --> REASON["Reason&lt;br/&gt;authorized snapshot"]
+  STREAM --> RESULTS[("Typed Stream results&lt;br/&gt;+ RRD annotations")]
+  REPLAY --> RESULTS
+  RESULTS -->|optional grounding| REASON
+  REASON --> ANSWERS[("Grounded events · answers&lt;br/&gt;+ governed artifacts")]
+  KERNEL["Agent Kernel&lt;br/&gt;bounded episodes"] -->|17-server profile| GW
+  CONSOLE["Console + MCP Apps"] -->|session| GW
+  GW --> SRV["Hosted MCP servers&lt;br/&gt;17 canonical identities"]
+  SRV --- STORE[("Platform store")]
+  SRV --- BYTES[("Artifact bytes")]
   STORE -. wakes .-> KERNEL
       </div>
-      <figcaption><b>The whole system.</b> Files are the record · the hub is the bus · the gateway is the door · the platform store is the memory.</figcaption>
+      <figcaption><b>The whole system.</b> Live Stream does not wait for Recording Hub; replay and Reason consume immutable authorized snapshots, and Stream results can ground Reason output.</figcaption>
     </figure>
 
     <div class="agent-grid">
@@ -1028,8 +1014,8 @@ flowchart LR
               <li>Validated server / profile / policy catalog</li>
               <li>Authenticated live <code>apply</code> &amp; reload</li>
               <li>Secret references (env / vault) with redaction</li>
-              <li>Contract-defined server administration through <code>/admin/{profile}/servers/{server}/...</code></li>
-              <li>Explicit same-origin Console projections; browser tokens stay in the BFF</li>
+              <li>Domain administration through canonical MCP tools, resources, tasks, and Apps</li>
+              <li>Declared HTTP projections remain additive; browser tokens stay in the BFF</li>
               <li>Policy-checked, audited artifact downloads</li>
             </ul>
           </div>
@@ -1051,11 +1037,11 @@ flowchart LR
   <section class="layer">
     <div class="layer-head">
       <h2 class="layer-title">Hosted Capabilities</h2>
-      <span class="layer-sub">fourteen canonical server identities — and any MCP server you connect — under one contract</span>
+      <span class="layer-sub">seventeen canonical server identities — and any MCP server you connect — under one contract</span>
     </div>
     <div class="layer-body">
       <p class="agent-lede" style="margin:0 0 16px">
-        The canonical control plane defines fourteen hosted server identities. Each declares the
+        The canonical control plane defines seventeen hosted server identities. Each declares the
         MCP surfaces its domain needs and runs inside the installation behind gateway-signed
         identity. A new local, bridged, or <strong>remote MCP endpoint</strong> registers in the
         validated catalog and immediately answers to the same task, artifact, identity, policy,
@@ -1086,17 +1072,35 @@ flowchart LR
           <div class="server-head">
             <span class="scheme">stream://</span>
             <h4><span class="dot" style="background:var(--hue-viewer)"></span>Stream</h4>
-            <p>Ask questions of recorded video: which objects, of which class, where, when —
-               tracked over time. Answered locally, on the installation's own hardware; the video
-               never leaves.</p>
+            <p>Process arriving RTP/H.264 without waiting for recording, or replay one authorized
+               task-start recording snapshot through the same admitted local GPU profiles.</p>
           </div>
           <div class="tools"><table>
-            <tr><td class="tn">analyze_recording</td><td>Run a detection or detection-plus-tracking pipeline over a recording's video range; returns detections, a derived annotation layer on the source timeline, and an optional clip.</td></tr>
-            <tr><td class="tn">extract_clip</td><td>Cut an exact time range from recorded video with keyframe-aware, no-transcode extraction.</td></tr>
+            <tr><td class="tn">start_live_session</td><td>Reserve one admitted pipeline and begin direct live processing with bounded encoded preview and typed results.</td></tr>
+            <tr><td class="tn">stop_live_session</td><td>Stop the owner-scoped live graph and release its bounded GPU capacity.</td></tr>
+            <tr><td class="tn">run_recording</td><td>Run a reproducible pass-through or perception profile over an authorized recording snapshot.</td></tr>
           </table></div>
           <div class="server-foot">
             <span class="cap">durable tasks</span><span class="cap">artifacts</span>
-            <span class="cap plain">labels inherited</span><span class="cap plain">rrd annotations</span><span class="cap plain">local inference</span>
+            <span class="cap plain">live H.264 App</span><span class="cap plain">typed results</span><span class="cap plain">no CPU inference fallback</span>
+          </div>
+        </div>
+
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">reason://</span>
+            <h4><span class="dot" style="background:var(--hue-media)"></span>Reason</h4>
+            <p>Answer semantic and temporal questions over authorized recording snapshots with a
+               local world model, optionally grounded by governed Stream perception results.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">analyze_recording</td><td>Describe a segment, detect typed events, or answer one bounded question as a durable GPU task.</td></tr>
+            <tr><td class="tn">grounding</td><td>Resolve one <code>stream://artifact/{id}</code>, validate its schema, and embed a bounded typed detection subset in the request.</td></tr>
+            <tr><td class="tn">results</td><td>Publish typed answers, source-timeline RRD annotations, provenance, and governed artifacts.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap">durable tasks</span><span class="cap">artifacts</span>
+            <span class="cap plain">local GPU model</span><span class="cap plain">grounded track citations</span><span class="cap plain">no CPU fallback</span>
           </div>
         </div>
 
@@ -1133,7 +1137,7 @@ flowchart LR
             <tr><td class="tn">route_matrix</td><td>Persist a many-to-many route matrix, up to 400 cells.</td></tr>
             <tr><td class="tn">reachable_area</td><td>Build a land isochrone as a durable task.</td></tr>
             <tr><td class="tn">publish / withdraw restriction</td><td>Change effective movement restrictions and invalidate dependent routes.</td></tr>
-            <tr><td class="tn">admin/*</td><td>Register sources and mobility profiles; acquire, activate, reconcile, rollback, or quarantine releases through the governed server-admin route.</td></tr>
+            <tr><td class="tn">administration</td><td>Register sources and profiles; acquire, activate, reconcile, rollback, or quarantine releases through scoped MCP tools, resources, durable tasks, and the Map administration App.</td></tr>
           </table></div>
           <div class="server-foot">
             <span class="cap">durable tasks</span><span class="cap">domain admin</span>
@@ -1309,6 +1313,42 @@ flowchart LR
 
         <div class="server">
           <div class="server-head">
+            <span class="scheme">uav-sim://</span>
+            <h4><span class="dot" style="background:var(--hue-opt)"></span>UAV Simulation</h4>
+            <p>Govern simulation sessions, missions, vehicles, terrain, and dataset capture while
+               keeping simulator-native control ports private.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">configure_world</td><td>Bind the governed world, scene, vehicles, frames, and runtime inputs for one session.</td></tr>
+            <tr><td class="tn">execute_mission</td><td>Run one bounded multi-vehicle mission as durable simulator work.</td></tr>
+            <tr><td class="tn">capture_dataset</td><td>Capture synchronized camera, pose, telemetry, and mission evidence.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap">durable tasks</span><span class="cap">recordings</span>
+            <span class="cap plain">PX4 and MAVLink</span><span class="cap plain">typed adapter</span><span class="cap plain">GPU simulation</span>
+          </div>
+        </div>
+
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">simulation-view://</span>
+            <h4><span class="dot" style="background:var(--hue-viewer)"></span>Simulation View</h4>
+            <p>Render provider-neutral simulation scenes through logical cameras and bounded
+               live-view leases without taking ownership of domain dynamics or control.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">create_session</td><td>Bind renderer capacity to one owner-scoped scene session.</td></tr>
+            <tr><td class="tn">create_camera · set_camera</td><td>Create and revise a logical camera against the admitted scene.</td></tr>
+            <tr><td class="tn">open_live_view</td><td>Issue a bounded WebRTC lease rendered in <code>ui://simulation-view/live.html</code>.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap">MCP App</span><span class="cap">GPU rendering</span>
+            <span class="cap plain">WebRTC</span><span class="cap plain">capacity admission</span><span class="cap plain">pose freshness</span>
+          </div>
+        </div>
+
+        <div class="server">
+          <div class="server-head">
             <span class="scheme">tasks/*</span>
             <h4><span class="dot" style="background:var(--faint)"></span>Shared durable tasks</h4>
             <p>Every long-running tool runs on the shared task runtime and the final Veoveo task
@@ -1334,8 +1374,8 @@ flowchart LR
               A live Rerun viewer driven entirely over MCP — the stack's eyes. The other servers' RRD artifacts
               (timeseries forecasts, optimization plans) open here for timeline scrubbing, inspection, and
               screenshots. The viewer speaks stdio, so one container runs the headless viewer, its MCP,
-              and the Stdio Bridge together; recordings stream in over gRPC and screenshots render
-              through software rasterization.
+              and the Stdio Bridge together. Visual acceptance requires hardware-backed rendering;
+              software rasterizers are not accepted as visual evidence.
             </p>
           </div>
           <div class="toolcols">
@@ -1375,7 +1415,7 @@ flowchart LR
           <div class="server-foot">
             <span class="cap">stdio bridge upstream</span>
             <span class="cap plain">interactive tools</span><span class="cap plain">headless viewer</span>
-            <span class="cap plain">software rendering</span><span class="cap plain">grpc recording ingest</span>
+            <span class="cap plain">hardware-backed rendering</span><span class="cap plain">grpc recording ingest</span>
             <span class="cap plain">dedicated access profile</span>
           </div>
         </div>
@@ -1455,73 +1495,66 @@ flowchart LR
     <div class="layer-body">
       <div class="card">
         <p class="agent-lede">
-          Every sensor, estimator, and agent streams Rerun data into <strong>one ingest
-          point</strong>, and the hub <strong>persists first</strong>: the ingest socket and the
-          durable writer are one process, so every message is fsynced to day-partitioned segment
-          files the moment it arrives. Live files <strong>stay readable mid-write</strong> and
-          are verified before their optimized replacement at freeze. Every recording and segment
-          becomes a <strong>governed record in the platform store</strong>, and the recording
-          server answers authorized queries over the same bytes.
-          <strong>Files are the record, the hub is the bus, the recording server is the reading
-          room.</strong>
+          Every sensor, estimator, and agent publishes native Rerun traffic to a
+          <strong>producer-local forwarder</strong>. The forwarder keeps a bounded persistent
+          queue, authenticates through the gateway, and resumes from the Hub checkpoint. Recording
+          Hub fsyncs each accepted batch journal before acknowledgement, materializes immutable
+          ordered RRD parts, and advances one monotonic checkpoint. Archive boundaries occur at
+          one hour or the 192 MiB precompaction safety limit and remain IDR-aligned for video.
+          One footer-writing object-store pass produces the indexed archive shards the recording
+          server resolves for authorized reads.
         </p>
 
         <figure class="diagram">
           <div class="mermaid">
-flowchart TB
-  subgraph SP["Persist-first writer (one process)"]
-    direction LR
-    RX["Ingest socket&lt;br/&gt;embedded Rerun proxy"] --> DEMUX["Demux by&lt;br/&gt;application id → recording"]
-    DEMUX --> ENC["Per-recording writer&lt;br/&gt;readable mid-write"]
-    ENC --> LIVE[("Live segment&lt;br/&gt;crash-decodable")]
-    LIVE -->|size / age| FREEZE["Freeze&lt;br/&gt;finish · optimize · verify"]
-    FREEZE --> FROZEN[("Frozen segment&lt;br/&gt;+ manifest")]
-  end
-  P1["Sensors"] -->|push| RX
-  P2["Agent tee"] -->|push| RX
-  P3["SUMO"] -->|push| RX
-  FROZEN --> CAT["Catalog projection&lt;br/&gt;platform store records"]
-  LIVE -.snapshot.-> QE["QueryEngine&lt;br/&gt;local reader (authoritative)"]
-  CAT --> RMCP["recording server&lt;br/&gt;authorized queries · seal to artifact"]
-  RMCP --> CLIENTS["agents · pipelines · console"]
+flowchart LR
+  P["Producer&lt;br/&gt;native Rerun gRPC"] --> F["Local forwarder&lt;br/&gt;bounded durable queue"]
+  F -->|"OAuth + protobuf batches"| G["Gateway&lt;br/&gt;policy · audit"]
+  G --> H["Recording Hub&lt;br/&gt;fsynced journal + checkpoint"]
+  H --> PARTS[("Immutable acknowledged&lt;br/&gt;ordered RRD parts")]
+  PARTS -->|"1 h or 192 MiB · IDR aligned"| ARCH["One footer-writing&lt;br/&gt;archive pass"]
+  ARCH --> SHARDS[("Indexed immutable&lt;br/&gt;RRD shards")]
+  PARTS -.bounded live projection.-> RMCP["Recording MCP&lt;br/&gt;authorized reads"]
+  SHARDS --> RMCP
+  RMCP --> CLIENTS["agents · Stream replay · Reason · Console"]
           </div>
-          <figcaption><b>Durable capture.</b> kill -9 leaves a readable segment · a restart never overwrites · startup reconciles crash leftovers · ~225k msgs/s lossless.</figcaption>
+          <figcaption><b>Durable capture.</b> Hub acknowledgement follows fsynced journal state; replay and Reason snapshot only complete acknowledged parts.</figcaption>
         </figure>
 
         <div class="agent-grid">
           <div>
-            <h5>Producers → bus</h5>
+            <h5>Producer → Hub</h5>
             <ul>
-              <li>Many SDKs stream into one ingest socket, sessioned by recording id.</li>
-              <li>Routing: application-id prefix → dataset (<code>world</code>, <code>agents</code>, …); unmatched → <code>quarantine</code>.</li>
-              <li>Internal-network only; the recording server is the authorized surface.</li>
+              <li>Native Rerun gRPC stays on producer loopback.</li>
+              <li>The persistent forwarder queue survives producer and network restart.</li>
+              <li>Versioned protobuf upload passes gateway OAuth, policy, quota, and audit.</li>
             </ul>
           </div>
           <div>
             <h5>Durability</h5>
             <ul>
-              <li>Segment per <code>(dataset, day, recording)</code>, fsynced on write.</li>
-              <li>Footer-less live → decodable to the last whole message after a crash.</li>
-              <li>Freeze runs <code>rerun rrd optimize</code> and verifies before replacing.</li>
+              <li>The Hub journals and materializes each batch before acknowledgement.</li>
+              <li>Acknowledged parts are immutable, ordered, and checkpointed.</li>
+              <li>Archive compaction is one verified, footer-writing object-store pass.</li>
             </ul>
           </div>
           <div>
             <h5>Reading room</h5>
             <ul>
-              <li>Local <code>QueryEngine</code> is the authoritative file reader.</li>
-              <li>Recordings and segments carry canonical tenant identities in the platform store.</li>
-              <li>latest-at = a world snapshot · range = a trajectory · seal = an artifact.</li>
+              <li>The catalog resolves logical recording identities to live parts and archive shards.</li>
+              <li>Replay tasks capture one immutable task-start snapshot.</li>
+              <li>Measured corpus: 30,307 input chunks became 31 archive chunks in 2.56 seconds.</li>
             </ul>
           </div>
         </div>
         <div class="chiprow" style="margin-top:14px">
-          <span class="chip">persist-first ingest</span>
-          <span class="chip">fsynced writes</span>
-          <span class="chip">readable mid-write</span>
-          <span class="chip">.rN resume</span>
-          <span class="chip">verify-on-freeze</span>
+          <span class="chip">producer-local queue</span>
+          <span class="chip">fsynced journal</span>
+          <span class="chip">monotonic checkpoint</span>
+          <span class="chip">immutable parts</span>
+          <span class="chip">IDR-aligned archives</span>
           <span class="chip">governed catalog</span>
-          <span class="chip">~225k msgs/s</span>
+          <span class="chip">2.56 s measured pass</span>
         </div>
       </div>
     </div>
@@ -1749,10 +1782,10 @@ sequenceDiagram
         <div class="term">
           <div class="term-head"><span class="term-name">MCP Gateway</span><span class="term-kind k-ours">ours</span></div>
           <p><b>The governed protocol boundary.</b> It authenticates the caller, checks policy,
-             projects each server's full MCP surface, proxies server administration under declared
-             request and response schemas, and writes an audit trail.</p>
+             projects each server's full MCP surface, carries declared additive administration
+             projections, and writes an audit trail.</p>
           <p>Tool names gain a prefix at aggregation; resource URIs keep their owning schemes.
-             Administrative reads and writes follow the catalog-resolved server route.</p>
+             Domain administration stays on canonical MCP tools, resources, tasks, and Apps.</p>
         </div>
         <div class="term">
           <div class="term-head"><span class="term-name">Operations Console</span><span class="term-kind k-ours">ours</span></div>
@@ -1776,18 +1809,25 @@ sequenceDiagram
         </div>
         <div class="term">
           <div class="term-head"><span class="term-name">Stream server</span><span class="term-kind k-ours">ours</span></div>
-          <p><b>Eyes on the record.</b> Ask recorded video which objects were where, when, and
-             which are the same object over time — detection and tracking, executed locally.</p>
-          <p>Results come back as detections, an annotation layer on the source timeline,
-             and an optional clip; every derived artifact inherits the source's classification.</p>
+          <p><b>Eyes on live media and the record.</b> Admitted GPU graphs process arriving H.264
+             immediately or replay one authorized recording snapshot.</p>
+          <p>Pass-through and perception profiles publish typed results, source-timeline
+             annotations, and the existing encoded preview without a second encode.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">Reason server</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>Grounded interpretation of recorded video.</b> A local world model describes
+             segments, detects typed events, and answers bounded questions.</p>
+          <p>An authorized Stream result may ground the task. The durable request embeds a bounded
+             typed subset, and answers can cite Stream track identities.</p>
         </div>
         <div class="term">
           <div class="term-head"><span class="term-name">Map server</span><span class="term-kind k-ours">ours</span></div>
           <p><b>Earth geography and logistics routing.</b> It combines governed source releases,
              restrictions, mobility profiles, Valhalla land routes, and explicit network routes
              behind MCP resources with stable <code>map://</code> identities and durable tasks.</p>
-          <p>Its administrative API owns source registration, acquisition, activation, rollback,
-             quarantine, and profiles. The gateway and Console project that same domain state.</p>
+          <p>Scoped MCP tools and resources own source registration, acquisition, activation,
+             rollback, quarantine, and profiles; the administration App uses that same state.</p>
         </div>
         <div class="term">
           <div class="term-head"><span class="term-name">Python server SDK</span><span class="term-kind k-ours">ours</span></div>
@@ -1820,26 +1860,32 @@ sequenceDiagram
       <h3>Recording Hub — the durable record</h3>
       <div class="glossary">
         <div class="term">
-          <div class="term-head"><span class="term-name">Ingest socket</span><span class="term-kind k-oss">OSS</span></div>
-          <p><b>The ingest socket.</b> A gRPC server (<code>re_grpc_server</code>) where every producer <em>pushes</em> data, and which rebroadcasts it live to anyone reading.</p>
-          <p>It is the single meeting point: producers write to it, viewers read from it. It holds a short in-memory buffer; durability is the writer's job.</p>
+          <div class="term-head"><span class="term-name">Recording forwarder</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>The producer-local durability edge.</b> It receives native Rerun gRPC on loopback,
+             persists a bounded queue, authenticates through the gateway, and uploads versioned batches.</p>
+          <p>It resumes from the Hub checkpoint after producer or network restart. No raw ingest
+             service is exposed outside the producer boundary.</p>
         </div>
         <div class="term">
-          <div class="term-head"><span class="term-name">Persist-first writer</span><span class="term-kind k-ours">ours</span></div>
-          <p><b>Catch-and-persist.</b> Our service that <em>embeds</em> the ingest socket and fsyncs every message it receives to disk before anything else.</p>
-          <p>Because the socket and the writer are one process, the write is the first thing that happens to arriving data.</p>
+          <div class="term-head"><span class="term-name">Recording Hub</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>The acknowledgement authority.</b> It validates each authenticated batch, fsyncs
+             journal state, materializes an immutable ordered part, and advances a monotonic checkpoint.</p>
+          <p>A producer may discard queued bytes only after that acknowledgement. The Hub never
+             polls producers.</p>
         </div>
         <div class="term">
-          <div class="term-head"><span class="term-name">Segment file <code>.rrd</code></span><span class="term-kind k-format">format</span></div>
-          <p><b>The record on disk.</b> Rerun's recording format — one growing file per <code>dataset / day / recording</code>.</p>
-          <p>It stays readable even mid-write, so a crash leaves a decodable file up to the last whole message. This <em>is</em> the durable truth; everything else is a view onto it.</p>
+          <div class="term-head"><span class="term-name">RRD part and archive shard</span><span class="term-kind k-format">format</span></div>
+          <p><b>The immutable recording bytes.</b> Small acknowledged parts preserve ingest order.
+             An IDR-aligned boundary closes at one hour or the 192 MiB safety limit.</p>
+          <p>One footer-writing object-store pass turns the boundary into indexed immutable
+             archive shards. Archive reads never rebuild the recording.</p>
         </div>
         <div class="term">
           <div class="term-head"><span class="term-name">Catalog projection</span><span class="term-kind k-ours">ours</span></div>
           <p><b>The card catalog.</b> Every recording and segment gets a stable installation
              identity in the platform store — tenant, owner, classification, labels, state.</p>
-          <p>Startup reconciles footer-less crash leftovers into explicit records, so the catalog
-             always reflects what is actually on disk.</p>
+          <p>The catalog relates logical recordings to acknowledged parts, archive shards,
+             checkpoints, labels, and lifecycle state without exposing physical storage paths.</p>
         </div>
         <div class="term">
           <div class="term-head"><span class="term-name">recording server</span><span class="term-kind k-ours">ours</span></div>
@@ -1857,7 +1903,8 @@ sequenceDiagram
         <div class="term">
           <div class="term-head"><span class="term-name">Rerun viewer</span><span class="term-kind k-client">client</span></div>
           <p><b>The window that draws it.</b> A GUI app that renders the streams — vehicles on a map, speeds as graphs, a scrubbable timeline.</p>
-          <p>It attaches like any other reader: to the ingest socket for a live tail, or to a <code>.rrd</code> file or sealed artifact to replay a whole run. The hosted headless instance is the <code>rerun</code> server above.</p>
+          <p>It opens an authorized live projection or immutable archive window through the
+             recording contract. The hosted headless instance is the <code>rerun</code> server above.</p>
         </div>
         <div class="term">
           <div class="term-head"><span class="term-name">GeoPoints · Scalars</span><span class="term-kind k-format">format</span></div>

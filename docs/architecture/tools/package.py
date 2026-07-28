@@ -16,9 +16,9 @@ REPO = ARCH.parents[1]
 OUTPUT = REPO / "output" / "architecture"
 STAGING = REPO / "tmp" / "architecture-packages"
 VERSION = "0.1.0"
-REVISION_DATE = "2026-07-27"
-SOURCE_COMMIT = "429379faaf329650797cf230895a23b23901e863"
-FIXED_ZIP_TIME = (2026, 7, 27, 12, 0, 0)
+REVISION_DATE = "2026-07-28"
+SOURCE_COMMIT = "3af8f51d9361d59bbfb78ec997f70c86f46b219a"
+FIXED_ZIP_TIME = (2026, 7, 28, 12, 0, 0)
 
 
 def digest(path: Path) -> str:
@@ -118,7 +118,7 @@ def prepare(package_kind: str) -> Path:
         "counts": {
             "software_resources": 69,
             "interfaces": 39,
-            "requirements": 18,
+            "requirements": 19,
             "views": 11,
             "pdf_pages": 27,
         },
