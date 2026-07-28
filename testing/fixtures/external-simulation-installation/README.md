@@ -50,6 +50,7 @@ Publish and install one exact committed revision:
 
 ```sh
 PROFILE=testing/fixtures/external-simulation-installation/deployment.json
+LOCK=testing/fixtures/external-simulation-installation/deployment.lock.json
 REVISION=$(git rev-parse HEAD)
 
 cargo xtask smoke profile-validate --profile "$PROFILE"
@@ -60,13 +61,18 @@ cargo xtask image builder ensure
 cargo xtask release images \
   --profile "$PROFILE" \
   --profile-revision "$REVISION" \
-  --lock-output testing/fixtures/external-simulation-installation/deployment.lock.json
-cargo xtask smoke profile-up --profile "$PROFILE"
+  --lock-output "$LOCK"
+cargo xtask smoke profile-up --profile "$PROFILE" --lock "$LOCK"
 ```
 
 The fixture raises the running node's nonpersistent inotify instance ceiling because
 one workstation may host several independent k3d clusters. Fielded hosts set an
 equivalent persistent ceiling through their normal node configuration.
+
+`profile-up` consumes the combined lock explicitly. It checks out every source at the
+locked revision, verifies the source-owned image and chart closure, and supplies only
+digest-addressed images to Helm. It never resolves the profile's moving source
+expressions again during installation.
 
 Use the operator's persistent, authenticated headed Chrome profile on the
 active X11 display. The acceptance command rejects HeadlessChrome and requires
@@ -102,8 +108,10 @@ cargo xtask smoke simulation-view-verify \
 
 The command drives the anonymous producer through the core Simulation View
 contract. It exercises several cameras, capacity admission, live leases, and
-the real MCP App in headed hardware-backed Chrome. The fixture has no UAV
-runtime or UAV-owned rendering behavior.
+the real MCP App in headed hardware-backed Chrome. Each successful run writes
+its screenshot and typed evidence manifest beneath
+`output/acceptance/simulation-view/`. The fixture has no UAV runtime or
+UAV-owned rendering behavior.
 
 Stop the fixture cluster after acceptance:
 

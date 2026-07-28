@@ -349,6 +349,19 @@ pub(crate) async fn helm_config() -> Result<()> {
             contains(deployment, "value: vulkan")?;
             contains(deployment, "nvidia.com/gpu: \"1\"")?;
         }
+        if component == "simulation-view-mcp" {
+            contains(
+                deployment,
+                "readinessProbe:\n            httpGet:\n              path: /simulation-view/healthz",
+            )?;
+        }
+        if component == "simulation-view-renderer" {
+            ensure!(
+                deployment.matches("path: /healthz").count() >= 3,
+                "Simulation View renderer must use process health for Kubernetes startup, \
+                 readiness, and liveness"
+            );
+        }
     }
     let bioma_tunnel = fs::read_to_string("examples/bioma/gitops/cloudflared.yaml")?;
     contains(&bioma_tunnel, "name: TUNNEL_TOKEN")?;

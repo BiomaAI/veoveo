@@ -25,13 +25,17 @@ published under another revision.
 
 ~~~bash
 PROFILE=showcase/sumo/deploy/deployment.json
+LOCK=output/deployments/sumo/deployment.lock.json
 REVISION=$(git rev-parse HEAD)
 
 cargo xtask smoke profile-validate --profile "$PROFILE"
 cargo xtask smoke profile-cluster-up --profile "$PROFILE"
 cargo xtask image builder ensure
-cargo xtask release images --profile "$PROFILE" --profile-revision "$REVISION"
-cargo xtask smoke profile-up --profile "$PROFILE"
+cargo xtask release images \
+  --profile "$PROFILE" \
+  --profile-revision "$REVISION" \
+  --lock-output "$LOCK"
+cargo xtask smoke profile-up --profile "$PROFILE" --lock "$LOCK"
 ~~~
 
 BuildKit pushes images directly to the shared local OCI registry. It does not load
@@ -71,6 +75,11 @@ repository/tag references, and accepts platform-image closure only from the sing
 `platform` source. It then publishes each source's Bake groups under that revision and writes one
 `veoveo.io/deployment-lock/v2` document with source repositories, exact revisions,
 image manifest digests, chart-content digests, and the expanded platform graph.
+
+`cargo xtask smoke profile-up` requires that lock. It checks out each source at the
+recorded revision, verifies its origin, selected Bake repositories, and source-chart
+archive digest, then passes the source-owned digest map to Helm in production mode.
+Installation never re-resolves `HEAD`, a branch, or another mutable source expression.
 
 The `extension-foundation` preset selects the gateway, platform store, object store,
 artifact service, Artifact MCP, Frames MCP, and Recording MCP/hub. A custom selection

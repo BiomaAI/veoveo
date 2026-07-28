@@ -105,6 +105,9 @@ enum Cmd {
         /// Deployment profile JSON.
         #[arg(long)]
         profile: PathBuf,
+        /// Immutable deployment lock produced by `cargo xtask release images --profile`.
+        #[arg(long)]
+        lock: PathBuf,
     },
     /// Uninstall every Helm release selected by a deployment profile.
     ProfileDown {
@@ -537,6 +540,9 @@ enum Cmd {
         /// HTTP discovery or direct ws:// browser endpoint for headed hardware-backed Chrome.
         #[arg(long, default_value = "http://127.0.0.1:9222")]
         chrome_cdp_url: String,
+        /// Directory that receives immutable per-run visual evidence.
+        #[arg(long, default_value = "output/acceptance/simulation-view")]
+        evidence_root: PathBuf,
         /// Maximum time for Isaac, poses, render products, NVENC, WebRTC, and video playback.
         #[arg(long, default_value_t = 300)]
         timeout_seconds: u64,
@@ -616,7 +622,7 @@ async fn main() -> Result<()> {
         Cmd::ProfileClusterUp { profile } => profile_cluster_up(&profile),
         Cmd::ProfileClusterStop { profile } => profile_cluster_stop(&profile),
         Cmd::ProfileClusterDelete { profile } => profile_cluster_delete(&profile),
-        Cmd::ProfileUp { profile } => profile_up(&profile),
+        Cmd::ProfileUp { profile, lock } => profile_up(&profile, &lock),
         Cmd::ProfileDown { profile } => profile_down(&profile),
         Cmd::BiomaVerify {
             context,
@@ -870,6 +876,7 @@ async fn main() -> Result<()> {
             public_base_url,
             work_context,
             chrome_cdp_url,
+            evidence_root,
             timeout_seconds,
         } => {
             simulation_view_verify(
@@ -879,6 +886,7 @@ async fn main() -> Result<()> {
                 &public_base_url,
                 &work_context,
                 &chrome_cdp_url,
+                &evidence_root,
                 Duration::from_secs(timeout_seconds),
             )
             .await

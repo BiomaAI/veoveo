@@ -239,7 +239,7 @@ spec:
               containerPort: {{ $view.ports.mcp }}
           readinessProbe:
             httpGet:
-              path: /simulation-view/readyz
+              path: /simulation-view/healthz
               port: http
               httpHeaders:
                 - name: Host
@@ -391,14 +391,14 @@ spec:
             {{- end }}
           startupProbe:
             httpGet:
-              path: /readyz
+              path: /healthz
               port: render-control
             failureThreshold: 120
             periodSeconds: 5
             timeoutSeconds: 3
           readinessProbe:
             httpGet:
-              path: /readyz
+              path: /healthz
               port: render-control
             periodSeconds: 5
             timeoutSeconds: 3

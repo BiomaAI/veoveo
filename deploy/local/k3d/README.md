@@ -98,12 +98,16 @@ Validate the profile, create the cluster, and publish one committed revision:
 
 ```bash
 PROFILE=showcase/sumo/deploy/deployment.json
+LOCK=output/deployments/sumo/deployment.lock.json
 REVISION=$(git rev-parse HEAD)
 cargo xtask smoke profile-validate --profile "$PROFILE"
 cargo xtask smoke profile-cluster-up --profile "$PROFILE"
 cargo xtask image builder ensure
-cargo xtask release images --profile "$PROFILE" --profile-revision "$REVISION"
-cargo xtask smoke profile-up --profile "$PROFILE"
+cargo xtask release images \
+  --profile "$PROFILE" \
+  --profile-revision "$REVISION" \
+  --lock-output "$LOCK"
+cargo xtask smoke profile-up --profile "$PROFILE" --lock "$LOCK"
 cargo xtask smoke sumo-verify --context k3d-veoveo-sumo
 ```
 
