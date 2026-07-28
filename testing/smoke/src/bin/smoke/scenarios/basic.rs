@@ -265,7 +265,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: view-mcp",
         "name: stream-mcp",
         "name: reason-mcp",
-        "value: \"artifact,media,timeseries,optimization,duckdb,frames,map,recording,stream,reason,simulation-view,datasheet\"",
+        "value: \"artifact,media,timeseries,optimization,duckdb,frames,map,recording,stream,reason,simulation-view,datasheet,uav-sim\"",
         "checksum/reason-runtime:",
     ] {
         contains(&bioma, expected)?;
