@@ -27,6 +27,8 @@
     {"ref": "veoveo/console-bff:0.1.0", "dockerfile": "apps/console/bff/Dockerfile"},
     {"ref": "veoveo/frames-mcp:0.1.0", "dockerfile": "servers/frames-mcp/Dockerfile"},
     {"ref": "veoveo/duckdb-mcp:0.1.0", "dockerfile": "servers/duckdb-mcp/Dockerfile"},
+    {"ref": "veoveo/gateway-composer:0.1.0", "dockerfile": "mcp/composer/Dockerfile"},
+    {"ref": "veoveo/mcp-conformance:0.1.0", "dockerfile": "mcp/conformance/Dockerfile"},
     {"ref": "veoveo/mcp-gateway:0.1.0", "dockerfile": "platform/gateway/Dockerfile"},
     {"ref": "veoveo/mcp-stdio-bridge:0.1.0", "dockerfile": "mcp/bridges/stdio/Dockerfile"},
     {"ref": "veoveo/media-mcp:0.1.0", "dockerfile": "servers/media-mcp/Dockerfile"},
