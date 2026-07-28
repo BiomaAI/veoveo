@@ -68,7 +68,7 @@ from commit 20aa16e5215d6e12eb18cbe7ff785cbb3c9ba952.
 The UAV MCP image was published from the chart-set commit. The Stream and Reason
 MCP images were published from commit 49df5b36742316e0fc81bb09f72641a88a5a7f5a,
 the Console image was published from commit
-c9c5cf75518f92015d8b4aab6c484b850cc6490f, the Simulation View Isaac image was
+c85547649ab93336f6718f4b71986f59055b1776, the Simulation View Isaac image was
 published from commit f0ff335161d3d7a66b50db265784f1ba26421b10, and the UAV
 runtime was published from commit b2c1df19dff4a90532ff18664e0d0a19b4ddf6d1.
 The selected digests identify each immutable image release.
