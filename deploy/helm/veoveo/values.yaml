@@ -208,11 +208,11 @@ stream:
   resources:
     requests:
       cpu: "1"
-      memory: 4Gi
+      memory: 8Gi
       nvidia.com/gpu: "1"
     limits:
       cpu: "8"
-      memory: 16Gi
+      memory: 24Gi
       nvidia.com/gpu: "1"
 
 reason:
