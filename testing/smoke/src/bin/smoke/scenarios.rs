@@ -76,31 +76,6 @@ pub(crate) async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Pa
         [],
     )?;
 
-    suite_step("smoke binary dependencies");
-    run_checked(
-        Path::new("cargo"),
-        [
-            "build".into(),
-            "-p".into(),
-            "veoveo-mcp-conformance".into(),
-            "--bin".into(),
-            "conformance".into(),
-            "-p".into(),
-            "veoveo-mcp-gateway".into(),
-            "--bin".into(),
-            "gateway".into(),
-            "-p".into(),
-            "veoveo-recording-hub".into(),
-            "--bin".into(),
-            "spooler".into(),
-            "-p".into(),
-            "veoveo-media-mcp".into(),
-            "--bin".into(),
-            "server".into(),
-        ],
-        [],
-    )?;
-
     suite_step("contract schema export");
     contract_schemas(conformance)?;
 

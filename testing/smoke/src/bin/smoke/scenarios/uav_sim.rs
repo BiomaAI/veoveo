@@ -432,19 +432,6 @@ async fn uav_sim_verify_with_visual_hold(
     visual_stream_capture: Option<oneshot::Receiver<()>>,
 ) -> Result<()> {
     let scenario = UavAcceptanceScenario::load(scenario_path)?;
-    if conformance == Path::new("target/debug/conformance") {
-        run_checked(
-            Path::new("cargo"),
-            [
-                "build".into(),
-                "-p".into(),
-                "veoveo-mcp-conformance".into(),
-                "--bin".into(),
-                "conformance".into(),
-            ],
-            [],
-        )?;
-    }
     assert_executable(conformance)?;
     let public_base_url = public_base_url.trim_end_matches('/');
     let public = url::Url::parse(public_base_url).context("parsing public installation URL")?;

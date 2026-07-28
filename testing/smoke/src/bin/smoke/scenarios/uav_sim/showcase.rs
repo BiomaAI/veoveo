@@ -72,19 +72,6 @@ pub(crate) async fn uav_showcase_verify(
     evidence_root: &Path,
 ) -> Result<()> {
     let scenario = UavAcceptanceScenario::load(scenario_path)?;
-    if conformance == Path::new("target/debug/conformance") {
-        run_checked(
-            Path::new("cargo"),
-            [
-                "build".into(),
-                "-p".into(),
-                "veoveo-mcp-conformance".into(),
-                "--bin".into(),
-                "conformance".into(),
-            ],
-            [],
-        )?;
-    }
     assert_executable(conformance)?;
     let public_base_url = public_base_url.trim_end_matches('/');
     ensure!(
