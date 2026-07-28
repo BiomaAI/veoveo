@@ -98,9 +98,29 @@ class Px4Commander:
         return Px4Status(self._connected, flight_state, self._battery_percent)
 
     def arm(self) -> None:
-        self._command(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 1.0)
-        deadline = time.monotonic() + 15.0
         with self._lock:
+            self._require_connection()
+            if (
+                self._has_flown
+                and self._landed_state
+                == mavutil.mavlink.MAV_LANDED_STATE_ON_GROUND
+            ):
+                # PX4 remains in AUTO_LAND after a successful landing, and
+                # AUTO_LAND intentionally rejects a later arm request. Return
+                # the landed vehicle to position control before re-arming.
+                base_mode, custom_mode, custom_sub_mode = mavutil.px4_map[
+                    "POSCTL"
+                ]
+                self._send_command_locked(
+                    mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+                    base_mode,
+                    custom_mode,
+                    custom_sub_mode,
+                )
+            self._send_command_locked(
+                mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 1.0
+            )
+            deadline = time.monotonic() + 15.0
             while time.monotonic() < deadline:
                 self._send_gcs_heartbeat_locked_if_due()
                 message = self._connection.recv_match(blocking=True, timeout=1.0)

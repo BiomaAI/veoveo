@@ -144,7 +144,7 @@ Run credential-free checks:
 ```sh
 cargo test -p veoveo-uav-sim-mcp --all-targets
 PYTHONPATH=showcase/uav-sim/runtime:sdk/python/src \
-  uv run --with numpy==2.5.1 --python python3 \
+  uv run --with numpy==2.5.1 --with pymavlink==2.4.49 --python python3 \
   python -m unittest discover -s showcase/uav-sim/runtime/tests -v
 helm lint showcase/uav-sim/deploy/helm
 cargo test -p veoveo-smoke --bin smoke

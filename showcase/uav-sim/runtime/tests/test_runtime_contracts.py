@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
+from pymavlink import mavutil
 
 from veoveo_mcp.simulation_pose import (
     POSE_PROTOCOL_SCHEMA,
@@ -21,6 +22,7 @@ from veoveo_uav_sim.config import RuntimeConfig
 from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operation
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
 from veoveo_uav_sim.pose import PoseProducer, entity_ids
+from veoveo_uav_sim.px4 import Px4Commander
 from veoveo_uav_sim.state import RuntimeState, VehicleTelemetry
 from veoveo_uav_sim.stream_output import _annex_b_nals, _packetize_nal
 from veoveo_uav_sim.world_config import (
@@ -401,6 +403,106 @@ class AdapterContractTests(unittest.TestCase):
         distance = horizontal_distance_m(13.6929, -89.2182, 13.6929, -89.21818)
         self.assertGreater(distance, 2.0)
         self.assertLess(distance, 2.3)
+
+
+class _MavlinkMessage:
+    def __init__(self, message_type: str, **fields: object) -> None:
+        self._message_type = message_type
+        for name, value in fields.items():
+            setattr(self, name, value)
+
+    def get_type(self) -> str:
+        return self._message_type
+
+    def get_srcSystem(self) -> int:
+        return 1
+
+
+class _MavlinkSender:
+    def __init__(self) -> None:
+        self.commands: list[tuple[int, tuple[float, ...]]] = []
+
+    def heartbeat_send(self, *_args: object) -> None:
+        pass
+
+    def command_long_send(
+        self,
+        _target_system: int,
+        _target_component: int,
+        command: int,
+        _confirmation: int,
+        *parameters: float,
+    ) -> None:
+        self.commands.append((command, parameters))
+
+
+class _MavlinkConnection:
+    def __init__(self, acknowledgements: list[int]) -> None:
+        self.mav = _MavlinkSender()
+        self._messages = [
+            _MavlinkMessage(
+                "COMMAND_ACK",
+                command=command,
+                result=mavutil.mavlink.MAV_RESULT_ACCEPTED,
+            )
+            for command in acknowledgements
+        ]
+        self._messages.append(
+            _MavlinkMessage(
+                "HEARTBEAT",
+                base_mode=mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED,
+            )
+        )
+
+    def recv_match(self, **_kwargs: object) -> _MavlinkMessage:
+        return self._messages.pop(0)
+
+
+class Px4CommanderTests(unittest.TestCase):
+    def test_rearm_exits_land_mode_before_arming(self) -> None:
+        connection = _MavlinkConnection(
+            [
+                mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+                mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+            ]
+        )
+        commander = Px4Commander(instance=0, origin_height_m=-17.0)
+        commander._connection = connection
+        commander._connected = True
+        commander._has_flown = True
+        commander._landed_state = (
+            mavutil.mavlink.MAV_LANDED_STATE_ON_GROUND
+        )
+
+        commander.arm()
+
+        self.assertEqual(
+            [command for command, _parameters in connection.mav.commands],
+            [
+                mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+                mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+            ],
+        )
+        position_mode = mavutil.px4_map["POSCTL"]
+        self.assertEqual(
+            connection.mav.commands[0][1][:3],
+            position_mode,
+        )
+
+    def test_initial_arm_does_not_change_flight_mode(self) -> None:
+        connection = _MavlinkConnection(
+            [mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM]
+        )
+        commander = Px4Commander(instance=0, origin_height_m=-17.0)
+        commander._connection = connection
+        commander._connected = True
+
+        commander.arm()
+
+        self.assertEqual(
+            [command for command, _parameters in connection.mav.commands],
+            [mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM],
+        )
 
 
 class WorldConfigurationTests(unittest.TestCase):
