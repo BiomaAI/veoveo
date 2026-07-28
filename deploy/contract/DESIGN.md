@@ -22,9 +22,11 @@ Each named source owns its repository, independently resolved revision, Bake pha
 and Helm releases. Exactly one source has the `platform` role. Every other source has
 the `extension` role and can use only the extension chart-values contract. The lock
 retains that ownership boundary with the resolved repository and revision, image
-manifest digests, and chart-content digests. Local development may use source charts;
-production composition replaces source coordinates with digest-addressed private OCI
-chart coordinates.
+runnable platform-manifest digests, attested publication-index digests, and
+chart-content digests. Helm consumes the runnable digest. The publication digest
+retains the exact SBOM and provenance envelope emitted by one release invocation.
+Local development may use source charts; production composition replaces source
+coordinates with digest-addressed private OCI chart coordinates.
 
 The platform resolver expands `full`, `extension-foundation`, or a typed custom
 selection. Gateway composition requirements fail closed against that graph. Artifact,

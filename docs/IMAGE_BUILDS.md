@@ -132,22 +132,26 @@ target/veoveo-xtask/evidence/<revision>/
 `plan.json` records the resolved source, dirty state, targets, packages, binaries,
 families, cache identities, tags, and platform. `run.json` records the operation,
 output mode, start time, duration, exit status, and metadata filename. The Buildx file
-contains the exporter result and image digests reported by BuildKit. A failed execution
-also retains its plan and terminal record. Release locks consume the exporter digest
-directly and verify its image reference. They do not rediscover the digest through a
-second registry request, which keeps the evidence path independent of private-registry
-TLS transport.
+contains the exporter result and attested publication-index digests reported by
+BuildKit. A failed execution also retains its plan and terminal record. Publication
+inspects the immutable `repository@publicationDigest` coordinate through ordinary
+Docker registry authentication. A repository-declared local registry permits the
+insecure loopback transport used by k3d; private and production registries remain
+TLS-verified.
 
 Image execution sets `SOURCE_DATE_EPOCH=0`. Registry publication rewrites timestamps,
 which removes wall-clock creation time from the release image. A local build uses the
 Docker exporter and is a disposable developer artifact; its image identity is not
-release evidence. Cold and warm registry builds of one source state must produce
-identical image digests. Build cache remains an optimization and never supplies the
-source identity or release tag.
+release evidence. Cold and warm registry builds of one source state must produce the
+same runnable platform-manifest digest. Build cache remains an optimization and never
+supplies the source identity or release tag.
 
 Every registry release attaches BuildKit SBOM and maximum-mode provenance attestations.
-The release lock records the resulting manifest-list digest, not an attestation-free
-local image identity.
+Those attestations contain run identity and build timestamps, so their enclosing OCI
+index is publication evidence rather than a reproducible artifact identity. Each locked
+image records `digest` for the single runnable `linux/amd64` manifest consumed by Helm
+and `publicationDigest` for the attested OCI index emitted by that release. Publication
+rejects an index without both SPDX SBOM and SLSA provenance statements.
 
 ## Rust Builder Families
 

@@ -175,17 +175,31 @@ pub(crate) struct PreparedPlan {
     override_file: NamedTempFile,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct ImageOutput {
+    pub(crate) target: String,
+    pub(crate) reference: String,
+    pub(crate) platform: String,
+}
+
 impl PreparedPlan {
     pub(crate) fn image_references(&self) -> Vec<(String, String)> {
+        self.image_outputs()
+            .into_iter()
+            .map(|output| (output.target, output.reference))
+            .collect()
+    }
+
+    pub(crate) fn image_outputs(&self) -> Vec<ImageOutput> {
         self.plan
             .targets
             .iter()
             .flat_map(|target| {
-                target
-                    .tags
-                    .iter()
-                    .cloned()
-                    .map(|tag| (target.name.clone(), tag))
+                target.tags.iter().cloned().map(|tag| ImageOutput {
+                    target: target.name.clone(),
+                    reference: tag,
+                    platform: target.platform.clone(),
+                })
             })
             .collect()
     }
@@ -622,7 +636,7 @@ impl EvidenceRun {
         &self.metadata
     }
 
-    pub(crate) fn published_image_digests(
+    pub(crate) fn publication_index_digests(
         &self,
         prepared: &PreparedPlan,
     ) -> Result<BTreeMap<String, String>> {
@@ -632,7 +646,7 @@ impl EvidenceRun {
             .image_references()
             .into_iter()
             .collect::<BTreeMap<_, _>>();
-        parse_published_image_digests(&bytes, &expected)
+        parse_publication_index_digests(&bytes, &expected)
     }
 
     fn finish(
@@ -670,7 +684,7 @@ impl EvidenceRun {
     }
 }
 
-fn parse_published_image_digests(
+fn parse_publication_index_digests(
     bytes: &[u8],
     expected: &BTreeMap<String, String>,
 ) -> Result<BTreeMap<String, String>> {
@@ -1131,11 +1145,11 @@ fn validate_identifier(kind: &str, value: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_published_image_digests, validate_standalone_builder_stage};
+    use super::{parse_publication_index_digests, validate_standalone_builder_stage};
     use std::collections::BTreeMap;
 
     #[test]
-    fn reads_published_digest_from_buildx_metadata_without_registry_round_trip() {
+    fn reads_publication_index_digest_from_buildx_metadata() {
         let expected = BTreeMap::from([(
             "example".to_owned(),
             "registry.internal/veoveo/example:revision".to_owned(),
@@ -1147,7 +1161,7 @@ mod tests {
           }
         }"#;
 
-        let digests = parse_published_image_digests(metadata, &expected).unwrap();
+        let digests = parse_publication_index_digests(metadata, &expected).unwrap();
 
         assert_eq!(
             digests["example"],
@@ -1168,7 +1182,7 @@ mod tests {
           }
         }"#;
 
-        let error = parse_published_image_digests(metadata, &expected).unwrap_err();
+        let error = parse_publication_index_digests(metadata, &expected).unwrap_err();
 
         assert!(
             error
