@@ -162,6 +162,11 @@ static document, so events appear in the console viewer beside perception's
 bounding boxes. Large bytes are never returned inline; oversized occurrences
 use the governed artifact download path.
 
+The typed JSON result carries the complete immutable recording-source snapshot
+used by the analysis. Each Artifact descriptor carries only that snapshot's
+SHA-256 digest and the essential analysis identity. Descriptor size therefore
+remains bounded as Recording Hub acknowledges more live parts.
+
 ## GPU image and Kubernetes deployment
 
 The Kubernetes node needs an NVIDIA driver compatible with the image's CUDA

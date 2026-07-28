@@ -3,7 +3,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::ArtifactMetadata;
 
-pub use veoveo_recording_video::{IndexRange, RecordingVideoSelection, VideoTimelineKind};
+pub use veoveo_recording_video::{
+    IndexRange, RecordingSourceIdentity, RecordingSourceIdentityKind, RecordingSourceSnapshot,
+    RecordingVideoSelection, VideoTimelineKind,
+};
 
 pub const MAX_PROMPT_BYTES: usize = 8_192;
 pub const MAX_OBSERVATION_FRAMES: u32 = 1_024;
@@ -166,6 +169,7 @@ pub struct ReasoningResults {
     pub timeline: String,
     pub timeline_kind: VideoTimelineKind,
     pub requested_range: IndexRange,
+    pub source_snapshot: RecordingSourceSnapshot,
     pub task: ReasoningTask,
     pub answer: ReasoningAnswer,
     pub observed_frames: u64,

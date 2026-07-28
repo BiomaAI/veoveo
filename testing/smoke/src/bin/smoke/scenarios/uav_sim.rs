@@ -687,13 +687,16 @@ async fn uav_sim_verify_with_visual_hold(
             "Stream replay processed no Isaac camera frames: {stream_replay}"
         );
         assert_requested_range(&stream_replay, range_start, range_end, "Stream replay")?;
-        assert_live_recording_snapshot(&stream_replay, "Stream replay")?;
         let governed_artifact_id =
             json_string(&stream_replay, "/results_artifact/artifact_id")?.to_owned();
         ensure!(
             uuid::Uuid::parse_str(&governed_artifact_id)?.get_version_num() == 7,
             "Stream replay result artifact identity must be UUIDv7"
         );
+        let stream_results =
+            download_governed_json_artifact(conformance, public_base_url, &governed_artifact_id)
+                .await?;
+        assert_live_recording_snapshot(&stream_results, "Stream replay")?;
         let grounding_uri =
             json_string(&stream_replay, "/results_artifact/artifact_uri")?.to_owned();
 
@@ -726,12 +729,15 @@ async fn uav_sim_verify_with_visual_hold(
             "Reason observed no Isaac camera frames: {reason}"
         );
         assert_requested_range(&reason, range_start, range_end, "Reason")?;
-        assert_live_recording_snapshot(&reason, "Reason")?;
         let reason_artifact_id = json_string(&reason, "/results_artifact/artifact_id")?.to_owned();
         ensure!(
             uuid::Uuid::parse_str(&reason_artifact_id)?.get_version_num() == 7,
             "Reason result artifact identity must be UUIDv7"
         );
+        let reason_results =
+            download_governed_json_artifact(conformance, public_base_url, &reason_artifact_id)
+                .await?;
+        assert_live_recording_snapshot(&reason_results, "Reason")?;
 
         Ok(governed_artifact_id)
     }
@@ -1224,35 +1230,7 @@ async fn assert_governed_artifact_access(
     );
 
     let download_url = format!("{base}/artifacts/operator/{artifact_id}/download");
-    let authorized_token = gateway_token(conformance, base).await?;
-    let preview = client
-        .get(&download_url)
-        .bearer_auth(&authorized_token)
-        .send()
-        .await
-        .context("previewing the governed artifact as an authorized context member")?
-        .error_for_status()
-        .context("authorized governed artifact preview returned an error")?;
-    let preview_media_type = preview
-        .headers()
-        .get(reqwest::header::CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or_default()
-        .to_owned();
-    let preview_bytes = preview.bytes().await?;
-    let preview_media_type = preview_media_type
-        .split(';')
-        .next()
-        .unwrap_or_default()
-        .trim();
-    ensure!(
-        preview_media_type == "application/json"
-            || (preview_media_type.starts_with("application/")
-                && preview_media_type.ends_with("+json")),
-        "authorized governed artifact preview returned media type `{preview_media_type}`"
-    );
-    let preview_json: Value = serde_json::from_slice(&preview_bytes)
-        .context("authorized governed artifact preview contained invalid JSON")?;
+    let preview_json = download_governed_json_artifact(conformance, base, artifact_id).await?;
     ensure!(
         preview_json.is_object(),
         "authorized governed artifact preview did not contain a JSON object"
@@ -1283,6 +1261,41 @@ async fn assert_governed_artifact_access(
         denied.status()
     );
     Ok(())
+}
+
+async fn download_governed_json_artifact(
+    conformance: &Path,
+    base: &str,
+    artifact_id: &str,
+) -> Result<Value> {
+    let token = gateway_token(conformance, base).await?;
+    let response = reqwest::Client::builder()
+        .timeout(Duration::from_secs(60))
+        .build()?
+        .get(format!("{base}/artifacts/operator/{artifact_id}/download"))
+        .bearer_auth(token)
+        .send()
+        .await
+        .with_context(|| format!("downloading governed JSON artifact {artifact_id}"))?
+        .error_for_status()
+        .with_context(|| format!("governed JSON artifact {artifact_id} returned an error"))?;
+    let media_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .split(';')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_owned();
+    ensure!(
+        media_type == "application/json"
+            || (media_type.starts_with("application/") && media_type.ends_with("+json")),
+        "governed artifact {artifact_id} returned media type `{media_type}`"
+    );
+    serde_json::from_slice(&response.bytes().await?)
+        .with_context(|| format!("governed artifact {artifact_id} contained invalid JSON"))
 }
 
 async fn wait_for_recording_camera_range(
@@ -1332,7 +1345,7 @@ async fn wait_for_recording_camera_range(
 
 fn assert_live_recording_snapshot(output: &Value, domain: &str) -> Result<()> {
     let sources = output
-        .pointer("/results_artifact/metadata/provenance/source_snapshot/sources")
+        .pointer("/source_snapshot/sources")
         .and_then(Value::as_array)
         .with_context(|| format!("{domain} omitted its governed recording source snapshot"))?;
     ensure!(

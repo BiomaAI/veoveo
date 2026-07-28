@@ -9,8 +9,12 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow.workspace = true
+chrono.workspace = true
+hex.workspace = true
 schemars.workspace = true
 serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 uuid.workspace = true
 veoveo-platform-store.workspace = true
