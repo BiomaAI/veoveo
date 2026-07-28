@@ -196,32 +196,20 @@ fn console_acceptance_url(public_base_url: &str, route: &str) -> String {
 
 async fn preflight_console_live_app_inner(cdp_base: &str, page_url: &str) -> Result<()> {
     let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, page_url).await?;
-    let acceptance = async {
+    let acceptance: Result<()> = async {
         wait_for_document(&mut cdp, &session_id).await?;
         assert_page_visible(&mut cdp, &session_id).await?;
         let hardware: HardwareIdentity =
             cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
         hardware.validate()?;
-        let app: Value = evaluate_console_app(
+        wait_for_console_app_body(
             &mut cdp,
             &target_id,
             &session_id,
             "simulation-view",
-            r#"({
-              readyState: document.readyState,
-              body: document.body?.innerText ?? ""
-            })"#,
-            false,
+            "Simulation View",
         )
         .await?;
-        ensure!(
-            app.get("readyState").and_then(Value::as_str) == Some("complete")
-                && app
-                    .get("body")
-                    .and_then(Value::as_str)
-                    .is_some_and(|body| body.contains("Simulation View")),
-            "authenticated Console did not finish loading the Simulation View App: {app}"
-        );
         cdp.assert_no_software_renderer_events()?;
         Ok(())
     }
@@ -230,6 +218,46 @@ async fn preflight_console_live_app_inner(cdp_base: &str, page_url: &str) -> Res
     acceptance?;
     close?;
     Ok(())
+}
+
+async fn wait_for_console_app_body(
+    cdp: &mut Cdp,
+    parent_target_id: &str,
+    session_id: &str,
+    app_server: &str,
+    marker: &str,
+) -> Result<()> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+    loop {
+        let app: Value = evaluate_console_app(
+            cdp,
+            parent_target_id,
+            session_id,
+            app_server,
+            r#"({
+              readyState: document.readyState,
+              body: document.body?.innerText ?? ""
+            })"#,
+            false,
+        )
+        .await?;
+        if console_app_body_ready(&app, marker) {
+            return Ok(());
+        }
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "authenticated Console did not finish loading the {app_server} App: {app}"
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
+fn console_app_body_ready(app: &Value, marker: &str) -> bool {
+    app.get("readyState").and_then(Value::as_str) == Some("complete")
+        && app
+            .get("body")
+            .and_then(Value::as_str)
+            .is_some_and(|body| body.contains(marker))
 }
 
 async fn capture_console_live_app_inner(
@@ -2172,6 +2200,21 @@ mod tests {
         assert_eq!(page.path(), "/console/");
         assert_eq!(page.fragment(), Some("/apps/simulation-view/live.html"));
         assert!(uuid::Uuid::parse_str(&nonce).is_ok());
+    }
+
+    #[test]
+    fn console_app_body_must_finish_after_the_transient_empty_document() {
+        assert!(!console_app_body_ready(
+            &serde_json::json!({"readyState": "complete", "body": ""}),
+            "Simulation View"
+        ));
+        assert!(console_app_body_ready(
+            &serde_json::json!({
+                "readyState": "complete",
+                "body": "Simulation View\nNVIDIA NVENC · H.264"
+            }),
+            "Simulation View"
+        ));
     }
 
     #[test]
