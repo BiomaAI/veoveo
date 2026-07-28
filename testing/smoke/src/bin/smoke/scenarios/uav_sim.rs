@@ -121,6 +121,7 @@ struct RecordingAcceptance {
 #[serde(deny_unknown_fields)]
 struct PerceptionScenario {
     range_lag_seconds: f64,
+    freshness_probe_duration_seconds: f64,
     range_duration_seconds: f64,
     maximum_frames: u64,
     task_timeout_seconds: u64,
@@ -321,10 +322,15 @@ impl UavAcceptanceScenario {
         ensure!(
             self.perception.range_lag_seconds.is_finite()
                 && self.perception.range_lag_seconds >= 0.0
+                && self.perception.range_lag_seconds <= 2.0
+                && self.perception.freshness_probe_duration_seconds.is_finite()
+                && self.perception.freshness_probe_duration_seconds > 0.0
+                && self.perception.freshness_probe_duration_seconds
+                    <= self.perception.range_duration_seconds
                 && self.perception.range_duration_seconds.is_finite()
                 && self.perception.range_duration_seconds > 0.0
                 && (1..=10_000).contains(&self.perception.maximum_frames),
-            "perception parameters must define a positive bounded capture"
+            "Perception must probe a positive range no more than two seconds behind the live edge"
         );
         ensure!(
             !self.reason.prompt.trim().is_empty()
@@ -553,12 +559,14 @@ pub(crate) async fn uav_sim_verify(
         );
         let range_start = (range_start_s * 1_000_000_000.0) as i64;
         let range_end = (range_end_s * 1_000_000_000.0) as i64;
+        let freshness_probe_start = range_end
+            - (scenario.perception.freshness_probe_duration_seconds * 1_000_000_000.0) as i64;
 
         wait_for_recording_camera_range(
             &operator,
             recording_id,
             &camera_entity,
-            range_start,
+            freshness_probe_start,
             range_end,
             Duration::from_secs(scenario.recording.live_rows_timeout_seconds),
         )
@@ -590,6 +598,7 @@ pub(crate) async fn uav_sim_verify(
                 .is_some_and(|count| count > 0),
             "Perception processed no Isaac camera frames: {perception}"
         );
+        assert_requested_range(&perception, range_start, range_end, "Perception")?;
         assert_live_recording_snapshot(&perception, "Perception")?;
         let governed_artifact_id =
             json_string(&perception, "/results_artifact/artifact_id")?.to_owned();
@@ -627,6 +636,7 @@ pub(crate) async fn uav_sim_verify(
                 .is_some_and(|count| count > 0),
             "Reason observed no Isaac camera frames: {reason}"
         );
+        assert_requested_range(&reason, range_start, range_end, "Reason")?;
         assert_live_recording_snapshot(&reason, "Reason")?;
         let reason_artifact_id = json_string(&reason, "/results_artifact/artifact_id")?.to_owned();
         ensure!(
@@ -1051,6 +1061,21 @@ fn assert_live_recording_snapshot(output: &Value, domain: &str) -> Result<()> {
     Ok(())
 }
 
+fn assert_requested_range(output: &Value, start: i64, end: i64, domain: &str) -> Result<()> {
+    ensure!(
+        output
+            .pointer("/summary/requested_start_index")
+            .and_then(Value::as_i64)
+            == Some(start)
+            && output
+                .pointer("/summary/requested_end_index")
+                .and_then(Value::as_i64)
+                == Some(end),
+        "{domain} did not analyze the requested near-live recording range: {output}"
+    );
+    Ok(())
+}
+
 fn assert_concurrent_gpu_workloads(context: &str) -> Result<()> {
     for deployment in ["uav-sim", "view-mcp", "perception-mcp", "reason-mcp"] {
         run_checked(
@@ -1412,7 +1437,8 @@ mod tests {
         assert_eq!(scenario.mission.speed_mps, 3.0);
         assert_eq!(scenario.recording.live_rows_timeout_seconds, 120);
         assert_eq!(scenario.camera.aerial_detail.minimum_dynamic_range, 8);
-        assert_eq!(scenario.perception.range_lag_seconds, 10.0);
+        assert_eq!(scenario.perception.range_lag_seconds, 1.0);
+        assert_eq!(scenario.perception.freshness_probe_duration_seconds, 1.0);
         assert!(!scenario.reason.prompt.is_empty());
         assert_eq!(scenario.reason.maximum_frames, 6);
         assert_eq!(scenario.view.camera.width_px, 640);
