@@ -11,6 +11,7 @@ in [`docs/RECORDINGS.md`](../../docs/RECORDINGS.md).
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP for discovery, bounded queries, resources, templates, subscriptions, notifications, and artifact publication. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Recording query, manifest, subscription, and structured-result contracts. |
 | [Rerun 0.35.0](https://rerun.io/docs/) RRD and Rerun Data Protocol | Immutable frozen and sealed shards are layers of one recording-scoped dataset segment. The public service implements the viewer's read subset of the `rerun.cloud.v1alpha1.RerunCloudService` protocol over HTTP/2 or gRPC-Web. It does not claim the catalog, mutation, table, task, or maintenance profiles. |
+| [Fetch Standard](https://fetch.spec.whatwg.org/) credentials mode | Rerun's HTTP RRD receiver uses `omit`. The Console's internal adapter changes that mode to `same-origin` only for the exact canonical bounded-live route, allowing its HttpOnly Console session to authorize the stream without a bearer URL. This adapter is not a public recording protocol. |
 | Veoveo recording ingest | Version `2026-07-24`; authenticated protobuf batches carry native Rerun messages from a producer-local forwarder through the gateway to Recording Hub. |
 | Veoveo recording playback manifest | Version `veoveo.io/recording-playback/v2`; one stable Redap archive URI, one optional bounded live RRD source, a catalog revision, and recording-scoped access material. |
 | [JSON Web Token](https://www.rfc-editor.org/rfc/rfc7519) | Rerun-compatible HS256 read tokens carry the standard Redap audience and an exact installation hostname. A server-side session binds each token subject to one recording and one authorized Veoveo actor. |
@@ -52,7 +53,12 @@ Live playback is a generated stream over the current writing shard. It emits
 store information and static context, retains a bounded row-ID history window,
 then follows newly durable data. Every outgoing message is rewritten to the
 same dataset and segment identity used by Redap. The live URL is bound to one
-writing shard identity and ends at rollover. While the recording remains live,
+writing shard identity and ends at rollover. Rerun 0.35 deliberately omits
+credentials for HTTP RRD fetches. Console wraps the browser Fetch boundary while
+the viewer is mounted and upgrades only this exact same-origin route to
+`same-origin` credentials. The unchanged URL remains the receiver identity, the
+HttpOnly Console session reaches the BFF policy boundary, and no access token
+enters a URL or browser-readable cookie. While the recording remains live,
 Console refreshes the manifest every five seconds. Rollover first refreshes the
 archive catalog, then opens the successor live source before detaching the prior
 receiver. The viewer instance and operator state remain intact.
