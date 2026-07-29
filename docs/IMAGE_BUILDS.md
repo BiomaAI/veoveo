@@ -23,10 +23,12 @@ evidence. `cargo xtask smoke` dispatches the typed Rust acceptance harness; one-
 native tool commands remain native.
 
 `xtask` is not a replacement compiler or a second image graph. It contains no fixed
-package list and does not interpret Dockerfiles. Bazel, Buck2, Pants, Earthly, and a
-custom remote-execution service are outside this design. They would add another graph
-and cache authority without addressing a requirement that Cargo, Bake, and the typed
-planner leave unmet.
+package list and does not interpret Dockerfiles. The planner discovers the complete
+builder family from labels on every Bake target, while the command selection controls
+which runtime images BuildKit exports. Bazel, Buck2, Pants, Earthly, and a custom
+remote-execution service are outside this design. They would add another graph and cache
+authority without addressing a requirement that Cargo, Bake, and the typed planner
+leave unmet.
 
 The Python Datasheet example has two deliberate package boundaries. Its template
 Dockerfile consumes an extension-owned lock and a released SDK from the configured
@@ -155,9 +157,12 @@ rejects an index without both SPDX SBOM and SLSA provenance statements.
 
 ## Rust Builder Families
 
-The trixie and bookworm families each execute one Cargo action for all selected
-production binaries. Runtime Dockerfiles consume the resulting scratch artifact target
-through the `veoveo-rust-artifacts` named context.
+The trixie and bookworm families each execute one Cargo action for their complete
+discovered production-binary catalog. This keeps Cargo's unified feature graph stable
+when a developer moves between a direct target, `platform-core`, `platform-full`, and a
+showcase. Runtime Dockerfiles consume the resulting scratch artifact target through the
+`veoveo-rust-artifacts` named context, while Bake exports only the selected runtime
+images.
 
 | Family | Contract |
 |---|---|
@@ -195,14 +200,15 @@ closure. A runtime built directly and the same runtime consumed as `target:<name
 an overlay therefore have identical build arguments and share BuildKit layers.
 
 Heavy server-only dependency graphs do not become the default library graph. The
-Recording MCP binary requires its package-qualified `redap` feature, and the shared
-image builder enables that feature only when it selects the Recording MCP package.
-Stream, Reason, video, and smoke consumers of the recording library therefore avoid
-the DataFusion-backed Redap server dependencies. The all-feature Rust gate still
-compiles and tests the production surface.
+Recording MCP binary requires its package-qualified `redap` feature, and the trixie
+image family consistently enables it because Recording MCP belongs to that family.
+Stream, Reason, video, and smoke builds outside the trixie image family still avoid the
+DataFusion-backed Redap server dependencies. The all-feature Rust gate compiles and
+tests the production surface.
 
-Every Rust family, including the isolated DeepStream, vLLM, UAV, and SUMO families,
-reads the complete workspace through the canonical read-only BuildKit source mount.
+Every Rust family, including the isolated DeepStream, vLLM, and SUMO families, reads the
+complete workspace through the canonical read-only BuildKit source mount. UAV MCP uses
+the shared trixie family.
 Standalone Dockerfiles do not copy a handwritten subset of workspace members. The
 planner rejects a standalone builder that omits the source mount or introduces a
 builder-stage `COPY`, which prevents a new workspace crate from breaking an otherwise
