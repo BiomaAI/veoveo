@@ -354,8 +354,6 @@ pub struct SolverPolicyRef {
     pub deadline_seconds: Option<NonZeroU32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quality_target: Option<QualityTarget>,
-    #[serde(default)]
-    pub fresh_run: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

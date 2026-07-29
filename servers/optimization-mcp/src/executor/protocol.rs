@@ -124,6 +124,25 @@ pub struct CompiledRoutingProblem {
     pub order_vehicle_matches: Vec<CompiledOrderVehicleMatch>,
     pub objectives: Vec<CompiledRouteObjective>,
     pub minimum_vehicles: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub initial_solution: Option<CompiledInitialRoutingSolution>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct CompiledInitialRoutingSolution {
+    pub vehicle_indices: Vec<u32>,
+    pub route_nodes: Vec<u32>,
+    pub node_kinds: Vec<CompiledInitialRouteNodeKind>,
+    pub solution_offsets: Vec<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CompiledInitialRouteNodeKind {
+    Depot,
+    Delivery,
+    Pickup,
+    Break,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

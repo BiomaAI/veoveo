@@ -1,6 +1,10 @@
 use clap::Parser;
 use secrecy::SecretString;
+use std::path::PathBuf;
 use veoveo_mcp_contract::{PublicDeployment, parse_allowed_host_authority};
+use veoveo_optimization_mcp::{
+    executor::DEFAULT_MAX_EXECUTOR_FRAME_BYTES, problem_store::DEFAULT_MAX_PREPARED_PROBLEM_BYTES,
+};
 use veoveo_task_runtime::StoreAuthLevel;
 
 #[derive(Parser)]
@@ -19,6 +23,22 @@ pub(super) struct Args {
     pub(super) allowed_hosts: Vec<String>,
     #[arg(long, default_value_t = 536_870_912)]
     pub(super) max_artifact_bytes: u64,
+    #[arg(
+        long,
+        default_value = "/run/veoveo-cuopt/executor.sock",
+        env = "VEOVEO_CUOPT_SOCKET"
+    )]
+    pub(super) executor_socket: PathBuf,
+    #[arg(long, default_value_t = DEFAULT_MAX_EXECUTOR_FRAME_BYTES)]
+    pub(super) max_executor_frame_bytes: u64,
+    #[arg(
+        long,
+        default_value = "/var/lib/veoveo/optimization",
+        env = "VEOVEO_OPTIMIZATION_WORKSPACE"
+    )]
+    pub(super) optimization_workspace: PathBuf,
+    #[arg(long, default_value_t = DEFAULT_MAX_PREPARED_PROBLEM_BYTES)]
+    pub(super) max_prepared_problem_bytes: u64,
     #[arg(long = "surreal-endpoint", env = "VEOVEO_SURREAL_ENDPOINT")]
     pub(super) surreal_endpoint: String,
     #[arg(long = "surreal-namespace", env = "VEOVEO_SURREAL_NAMESPACE")]

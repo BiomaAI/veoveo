@@ -51,20 +51,6 @@ pub(super) fn caller_from(identity: GatewayInternalIdentity, bearer: String) -> 
     }
 }
 
-pub(super) fn task_owner_from_identity(
-    task_id: &str,
-    identity: &GatewayInternalIdentity,
-) -> TaskOwner {
-    TaskOwner {
-        task_id: task_id.to_string(),
-        principal_id: identity.actor.id.clone(),
-        profile: identity.profile.clone(),
-        tenant: identity.actor.tenant.clone(),
-        data_labels: identity.actor.data_labels.clone(),
-        authority: identity.authority.clone(),
-    }
-}
-
 pub(super) fn task_owner_from_runtime(
     task_id: &str,
     owner: &veoveo_task_runtime::TaskOwner,

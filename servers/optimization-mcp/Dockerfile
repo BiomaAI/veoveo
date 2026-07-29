@@ -5,9 +5,6 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=veoveo-rust-artifacts /lib/libduckdb.so /usr/local/lib/libduckdb.so
-RUN ldconfig
-
 RUN useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo \
     && mkdir -p /var/lib/veoveo/optimization \
     && chown -R veoveo:veoveo /var/lib/veoveo
