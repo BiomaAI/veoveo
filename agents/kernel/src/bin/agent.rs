@@ -15,6 +15,7 @@ use cli::{Args, Cmd};
 async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
     let _ = rustls::crypto::ring::default_provider().install_default();
+    let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
     let _telemetry: TelemetryGuard =
         init_server_telemetry("veoveo-agent-kernel", "info,veoveo_agent_kernel=debug")?;
     let args = Args::parse();

@@ -673,13 +673,31 @@ impl AgentRuntime {
             .bind(("agent_task", agent_task_id.record_id()))
             .bind(("content", content))
             .bind(("event", event))
-            .await
-            .and_then(|response| response.check());
+            .await;
+        let result = match result {
+            Ok(mut response) => {
+                let mut errors = response.take_errors().into_iter().collect::<Vec<_>>();
+                errors.sort_by_key(|(statement, _)| *statement);
+                if errors.is_empty() {
+                    Ok(response)
+                } else {
+                    Err(AgentRuntimeError::DatabaseOperation {
+                        operation: "record agent task delivery",
+                        errors: errors
+                            .into_iter()
+                            .map(|(statement, error)| format!("statement {statement}: {error}"))
+                            .collect::<Vec<_>>()
+                            .join("; "),
+                    })
+                }
+            }
+            Err(error) => Err(AgentRuntimeError::Database(error)),
+        };
         if let Err(error) = result {
             if let Some(existing) = self.task_by_task_id(draft.task_id).await? {
                 return agent_task_id_from_record(&existing.id);
             }
-            return Err(AgentRuntimeError::Database(error));
+            return Err(error);
         }
         Ok(agent_task_id)
     }

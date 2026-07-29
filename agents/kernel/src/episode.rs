@@ -169,6 +169,12 @@ impl EpisodeDriver {
                 self.memory
                     .set_episode_projection_summary(episode.episode_id.as_uuid(), &summary)?;
                 self.finish_rrd(summary);
+                tracing::info!(
+                    episode_id = %episode.episode_id,
+                    seq = episode.sequence,
+                    detached_tasks = report.detached_tasks,
+                    "episode completed"
+                );
                 Ok(report)
             }
             Err(rig_core::completion::PromptError::PromptCancelled { reason, .. })
