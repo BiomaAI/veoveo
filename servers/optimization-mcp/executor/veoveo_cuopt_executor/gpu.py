@@ -87,6 +87,19 @@ def initialize_gpu() -> GpuHealth:
     )
 
 
+def assert_gpu_available() -> None:
+    try:
+        import cupy
+
+        if cupy.cuda.runtime.getDeviceCount() != 1:
+            raise RuntimeError("executor no longer has exactly one visible GPU")
+        free_bytes, total_bytes = cupy.cuda.runtime.memGetInfo()
+        if free_bytes <= 0 or total_bytes <= 0:
+            raise RuntimeError("CUDA reported invalid device memory capacity")
+    except Exception as error:
+        raise GpuUnavailable(f"CUDA health probe failed: {error}") from error
+
+
 def _cuda_runtime_version() -> str:
     try:
         from cuda.bindings import runtime

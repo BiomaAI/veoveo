@@ -43,6 +43,7 @@
     - --max-artifact-bytes
     - "536870912"
 - name: optimization-mcp
+  runtimeClassName: nvidia
   image:
     repository: veoveo/optimization-mcp
     tag: 0.1.0
@@ -56,6 +57,94 @@
     - optimization-mcp:8792
     - --artifact-service-url
     - http://artifact-service:8790
+    - --executor-socket
+    - /run/veoveo-cuopt/executor.sock
+    - --optimization-workspace
+    - /var/lib/veoveo/optimization
+    - --max-executor-frame-bytes
+    - "268435456"
+    - --max-prepared-problem-bytes
+    - "268435456"
+    - --max-artifact-bytes
+    - "536870912"
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      cpu: "4"
+      memory: 8Gi
+  persistenceMountPath: /var/lib/veoveo/optimization
+  persistence:
+    size: 20Gi
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+  extraVolumeMounts:
+    - name: cuopt-runtime
+      mountPath: /run/veoveo-cuopt
+  extraVolumes:
+    - name: cuopt-runtime
+      emptyDir:
+        sizeLimit: 8Gi
+    - name: cuopt-shm
+      emptyDir:
+        medium: Memory
+        sizeLimit: 8Gi
+  sidecars:
+    - name: cuopt-executor
+      image:
+        repository: veoveo/cuopt-executor
+        tag: 0.1.0
+        digest: ""
+      workingDir: /run/veoveo-cuopt
+      env:
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: all
+        - name: NVIDIA_DRIVER_CAPABILITIES
+          value: compute,utility
+        - name: VEOVEO_CUOPT_SOCKET
+          value: /run/veoveo-cuopt/executor.sock
+        - name: VEOVEO_CUOPT_STAGING_ROOT
+          value: /run/veoveo-cuopt/staging
+        - name: VEOVEO_CUOPT_MAX_FRAME_BYTES
+          value: "268435456"
+        - name: VEOVEO_CUOPT_POOL_GIB
+          value: "1"
+        - name: HOME
+          value: /run/veoveo-cuopt
+      startupProbe:
+        exec:
+          command:
+            - python
+            - -m
+            - veoveo_cuopt_executor.healthcheck
+        failureThreshold: 60
+        periodSeconds: 5
+        timeoutSeconds: 4
+      livenessProbe:
+        exec:
+          command:
+            - python
+            - -m
+            - veoveo_cuopt_executor.healthcheck
+        periodSeconds: 10
+        timeoutSeconds: 4
+      resources:
+        requests:
+          cpu: "4"
+          memory: 16Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "16"
+          memory: 64Gi
+          nvidia.com/gpu: "1"
+      volumeMounts:
+        - name: cuopt-runtime
+          mountPath: /run/veoveo-cuopt
+        - name: cuopt-shm
+          mountPath: /dev/shm
+        - name: tmp
+          mountPath: /tmp
 - name: frames-mcp
   image:
     repository: veoveo/frames-mcp
