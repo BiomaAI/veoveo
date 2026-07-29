@@ -244,14 +244,18 @@ landing. Each checkpoint requires an advancing pose sequence and a healthy
 640-by-360 NVIDIA NVENC H.264 stream. During the mission it opens the Stream
 MCP App and requires advancing direct-live H.264, fresh typed results, the
 overlay canvas, and an exact Media Capabilities decode result. It then opens
-the same flight's governed recording in the Console Rerun viewer. Headless
-Chrome, a browser with neither hardware WebGPU nor hardware WebGL, missing
-Console APIs, a synthetic App host, a static frame, stale Stream results, or a
-software-renderer warning from the active visual surface fails the run.
+the same flight's governed recording in the Console Rerun viewer. Recording
+acceptance requires a successful manifest response, scoped Redap responses,
+zero legacy archive-shard requests, and measured nonblank plots, imagery, or
+spatial content inside the Rerun viewport. Headless Chrome, a browser with
+neither hardware WebGPU nor hardware WebGL, missing Console APIs, a synthetic
+App host, a static frame, stale Stream results, an archive loading surface, or
+a software-renderer warning from the active visual surface fails the run.
 
 Evidence is written beneath
 `output/acceptance/uav/{source-revision}/{run-id}/`. The typed
 `veoveo.io/uav-showcase-acceptance-evidence/v2` manifest records the scene,
 producer, camera, Stream session, recording, pose sequences, flight states,
-hardware identities, decode results, screenshot paths, and SHA-256 image
-digests. The directory is a run artifact and remains outside source control.
+hardware identities, decode results, Redap request counts, viewport render
+measurements, screenshot paths, and SHA-256 image digests. The directory is a
+run artifact and remains outside source control.
