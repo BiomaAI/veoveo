@@ -1166,9 +1166,8 @@ The first delivery supports one explicit target platform, `linux/amd64`.
 
 | Family | Initial Rust image units |
 |---|---|
-| `rust-trixie-v1` | gateway, artifact service, recording forwarder, recording hub, recording MCP, Console BFF, artifact MCP, media MCP, timeseries MCP, DuckDB MCP, optimization MCP, frames MCP, stdio bridge, and agent kernel when selected |
+| `rust-trixie-v1` | gateway, artifact service, recording forwarder, recording hub, recording MCP, Console BFF, artifact MCP, media MCP, timeseries MCP, DuckDB MCP, optimization MCP, frames MCP, stdio bridge, UAV MCP, and agent kernel when selected |
 | `rust-bookworm-v1` | map MCP, time MCP, and view MCP |
-| `rust-uav-bookworm-v1` | UAV MCP; standalone because the embedded WebRTC bundle changes its compile environment |
 | `rust-deepstream-v1` | Stream MCP |
 | `rust-vllm-v1` | reason MCP |
 | `rust-sumo-bullseye-v1` | SUMO MCP |
@@ -1179,9 +1178,9 @@ unique binaries, and exports those binaries through a scratch artifact stage. Ru
 Dockerfiles keep their runtime bases, users, files, configuration, native downloads,
 entrypoints, and ports.
 
-Frames moves to the slim trixie contract. Its native build dependencies become part of
-that family. The UAV, DeepStream, vLLM, and SUMO families remain standalone in the first
-delivery, although their cache identities become explicit and source-aware. Each
+Frames and UAV use the slim trixie contract. Their native build dependencies become
+part of that family. The DeepStream, vLLM, and SUMO families remain standalone in the
+first delivery, although their cache identities become explicit and source-aware. Each
 standalone family reads the complete workspace through the same read-only source-mount
 boundary. The typed planner rejects handwritten builder-stage workspace `COPY` lists,
 so adding a workspace member cannot leave one isolated image with an incomplete Cargo
@@ -1201,13 +1200,19 @@ racing while Cargo unpacks a crate, while independent libc and SDK families stil
 in parallel. Target caches use locked mounts and the following derived identity:
 
 ```text
-veoveo-target-v1-<source-hash>-<family-hash>-linux-amd64-release
+veoveo-target-v1-<source-hash>-<family-epoch>-linux-amd64-release
 ```
 
-The source hash excludes the revision. The family hash covers the resolved builder
-image, builder Dockerfile, Rust toolchain, target triple, platform, Cargo profile,
-features, rustflags, compile-time environment, libc, SDK, and native dependency
-contract.
+The source hash excludes the revision. The explicit family epoch changes only for an
+incompatible builder image, Rust toolchain, target, Cargo profile, libc, SDK, or native
+dependency contract. Cargo fingerprints source, dependency, feature, rustflag, and
+compile-time environment changes inside that namespace. Hashing a complete Dockerfile
+is prohibited because unrelated layer or cache-mount edits would discard compatible
+compiled artifacts.
+
+Source revision arguments apply to the complete transitive Bake target-context closure.
+Direct runtime builds and overlay-owned uses of the same runtime cannot diverge to an
+implicit default revision and create duplicate BuildKit lineages.
 
 Registry-backed cache export and import are deferred. Stable source and family
 identities allow that backend to arrive later without changing package discovery or

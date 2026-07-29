@@ -163,7 +163,6 @@ through the `veoveo-rust-artifacts` named context.
 |---|---|
 | `rust-trixie-v1` | shared Rust 1.97.1 trixie builder |
 | `rust-bookworm-v1` | shared Rust 1.97.1 bookworm builder |
-| `rust-uav-bookworm-v1` | standalone compile-time WebRTC bundle |
 | `rust-deepstream-v1` | standalone NVIDIA DeepStream SDK |
 | `rust-vllm-v1` | standalone vLLM runtime ABI |
 | `rust-sumo-bullseye-v1` | standalone SUMO-compatible bullseye ABI |
@@ -178,16 +177,22 @@ veoveo-cargo-<family>-git-v1
 Their mounts are locked within one family. Different libc and SDK families retain
 parallelism, while two builds of the same family cannot race while Cargo unpacks a
 crate or checks out a Git dependency. Target caches derive from the source identity,
-complete builder-family contract, platform, and Cargo profile:
+an explicit builder-family compatibility epoch, platform, and Cargo profile:
 
 ```text
-veoveo-target-v1-<source-hash>-<family-hash>-linux-amd64-release
+veoveo-target-v1-<source-hash>-<family-epoch>-linux-amd64-release
 ```
 
-The source hash excludes the revision. A new commit can reuse compatible artifacts,
-while separate clones and incompatible SDK or libc families cannot mix target output.
-The target mount remains `sharing=locked` because a family now has one Cargo writer.
-There is no cross-image lock convoy and no fixed `--jobs` throttle.
+The source hash excludes the revision. The epoch changes only when the toolchain, ABI,
+target, Cargo profile, or native SDK becomes incompatible. Dockerfile text is not a
+cache key because Cargo already fingerprints source, features, flags, and dependencies.
+Separate clones and incompatible SDK or libc families cannot mix target output. The
+target mount remains `sharing=locked` because a family now has one Cargo writer. There
+is no cross-image lock convoy and no fixed `--jobs` throttle.
+
+The planner applies the resolved source revision to the complete Bake target-context
+closure. A runtime built directly and the same runtime consumed as `target:<name>` by
+an overlay therefore have identical build arguments and share BuildKit layers.
 
 Heavy server-only dependency graphs do not become the default library graph. The
 Recording MCP binary requires its package-qualified `redap` feature, and the shared

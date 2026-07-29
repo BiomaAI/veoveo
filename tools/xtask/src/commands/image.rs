@@ -9,7 +9,6 @@ use std::{
 
 use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use tempfile::NamedTempFile;
 
 use crate::{
@@ -75,6 +74,7 @@ pub(crate) struct BuildPlanV1 {
     selection: Selection,
     source: SourceRevision,
     source_date_epoch: &'static str,
+    source_revision_targets: Vec<String>,
     targets: Vec<ImageTarget>,
     families: Vec<FamilyPlan>,
 }
@@ -117,7 +117,6 @@ enum BuildMode {
 enum BuilderFamily {
     RustTrixieV1,
     RustBookwormV1,
-    RustUavBookwormV1,
     RustDeepstreamV1,
     RustVllmV1,
     RustSumoBullseyeV1,
@@ -128,7 +127,6 @@ impl BuilderFamily {
         match self {
             Self::RustTrixieV1 => "rust-trixie-v1",
             Self::RustBookwormV1 => "rust-bookworm-v1",
-            Self::RustUavBookwormV1 => "rust-uav-bookworm-v1",
             Self::RustDeepstreamV1 => "rust-deepstream-v1",
             Self::RustVllmV1 => "rust-vllm-v1",
             Self::RustSumoBullseyeV1 => "rust-sumo-bullseye-v1",
@@ -145,6 +143,29 @@ impl BuilderFamily {
 
     fn cargo_cache_id(self) -> String {
         format!("veoveo-cargo-{}", self.name())
+    }
+
+    /// Explicit compatibility epoch for Cargo target artifacts.
+    ///
+    /// Bump this only when the builder ABI, toolchain, target, or Cargo
+    /// profile becomes incompatible. Cargo owns source and flag freshness
+    /// inside the namespace, so ordinary Dockerfile edits do not invalidate it.
+    fn target_cache_epoch(self) -> &'static str {
+        match self {
+            Self::RustTrixieV1 => "9b79bf6f1617",
+            Self::RustBookwormV1 => "d793280d4d65",
+            Self::RustDeepstreamV1 => "33878ce751d7",
+            Self::RustVllmV1 => "b6332ab4fe25",
+            Self::RustSumoBullseyeV1 => "79132306a5b6",
+        }
+    }
+
+    fn target_cache_id(self, source_hash: &str) -> String {
+        format!(
+            "veoveo-target-v1-{}-{}-linux-amd64-release",
+            &source_hash[..12],
+            self.target_cache_epoch()
+        )
     }
 }
 
@@ -172,6 +193,7 @@ struct FamilyPlan {
     binaries: Vec<String>,
     auxiliary: Vec<AuxiliaryArtifact>,
     cargo_cache_id: String,
+    target_cache_epoch: &'static str,
     target_cache_id: String,
 }
 
@@ -264,12 +286,14 @@ struct BakeGroup {
     targets: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 struct BakeTarget {
     #[serde(default)]
     args: BTreeMap<String, String>,
     #[serde(default)]
     context: String,
+    #[serde(default)]
+    contexts: BTreeMap<String, String>,
     #[serde(default)]
     dockerfile: String,
     #[serde(default)]
@@ -360,6 +384,7 @@ pub(crate) fn prepare(
 ) -> Result<PreparedPlan> {
     let checked = bake_print(repository.root(), &selection, environment, &[])?;
     let direct_targets = selected_targets(&checked, &selection)?;
+    let source_revision_targets = target_dependency_closure(&checked, &direct_targets)?;
     let metadata = cargo_metadata(repository.root())?;
     let source_hash = source::source_hash(repository)?;
     let source_revision = SourceRevision {
@@ -423,19 +448,14 @@ pub(crate) fn prepare(
             binaries.extend(unit.binaries.iter().cloned());
             auxiliary.extend(unit.auxiliary.iter().copied());
         }
-        let fingerprint = family_fingerprint(repository.root(), *family, units, &checked)?;
-        let target_cache_id = format!(
-            "veoveo-target-v1-{}-{}-linux-amd64-release",
-            &source_hash[..12],
-            &fingerprint[..12]
-        );
         families.push(FamilyPlan {
             family: *family,
             packages: packages.into_iter().collect(),
             binaries: binaries.into_iter().collect(),
             auxiliary: auxiliary.into_iter().collect(),
             cargo_cache_id: family.cargo_cache_id(),
-            target_cache_id,
+            target_cache_epoch: family.target_cache_epoch(),
+            target_cache_id: family.target_cache_id(&source_hash),
         });
     }
 
@@ -444,6 +464,7 @@ pub(crate) fn prepare(
         selection,
         source: source_revision,
         source_date_epoch: SOURCE_DATE_EPOCH,
+        source_revision_targets,
         targets,
         families,
     };
@@ -745,6 +766,35 @@ fn selected_targets(definition: &BakeDefinition, selection: &Selection) -> Resul
     }
 }
 
+fn target_dependency_closure(
+    definition: &BakeDefinition,
+    direct_targets: &[String],
+) -> Result<Vec<String>> {
+    let mut pending = direct_targets.to_vec();
+    let mut closure = BTreeSet::new();
+    while let Some(name) = pending.pop() {
+        if !closure.insert(name.clone()) {
+            continue;
+        }
+        let target = definition
+            .target
+            .get(&name)
+            .with_context(|| format!("Bake target dependency {name} does not exist"))?;
+        for dependency in target
+            .contexts
+            .values()
+            .filter_map(|context| context.strip_prefix("target:"))
+        {
+            ensure!(
+                definition.target.contains_key(dependency),
+                "Bake target {name} references missing target context {dependency}"
+            );
+            pending.push(dependency.to_owned());
+        }
+    }
+    Ok(closure.into_iter().collect())
+}
+
 fn parse_rust_unit(
     name: &str,
     target: &BakeTarget,
@@ -813,7 +863,6 @@ fn parse_family(value: &str) -> Result<BuilderFamily> {
     match value {
         "rust-trixie-v1" => Ok(BuilderFamily::RustTrixieV1),
         "rust-bookworm-v1" => Ok(BuilderFamily::RustBookwormV1),
-        "rust-uav-bookworm-v1" => Ok(BuilderFamily::RustUavBookwormV1),
         "rust-deepstream-v1" => Ok(BuilderFamily::RustDeepstreamV1),
         "rust-vllm-v1" => Ok(BuilderFamily::RustVllmV1),
         "rust-sumo-bullseye-v1" => Ok(BuilderFamily::RustSumoBullseyeV1),
@@ -913,50 +962,13 @@ fn validate_standalone_builder_stage(dockerfile: &str) -> Result<()> {
     Ok(())
 }
 
-fn family_fingerprint(
-    repository: &Path,
-    family: BuilderFamily,
-    units: &[(String, RustBuildUnit)],
-    definition: &BakeDefinition,
-) -> Result<String> {
-    let mut hasher = Sha256::new();
-    hasher.update(family.name());
-    hasher.update(b"\0linux/amd64\0release\0");
-    hasher.update(fs::read(repository.join("rust-toolchain.toml"))?);
-    hasher.update(fs::read(repository.join("Cargo.toml"))?);
-    hasher.update(fs::read(repository.join(".cargo/config.toml"))?);
-    if let Some(artifact) = family.shared_artifact_target() {
-        let target = &definition.target[artifact];
-        hasher.update(fs::read(repository.join(&target.dockerfile))?);
-        for (key, value) in &target.args {
-            hasher.update(key);
-            hasher.update(b"=");
-            hasher.update(value);
-            hasher.update(b"\0");
-        }
-    } else {
-        for (name, _) in units {
-            let target = &definition.target[name];
-            hasher.update(name);
-            hasher.update(fs::read(repository.join(&target.dockerfile))?);
-            for (key, value) in &target.args {
-                hasher.update(key);
-                hasher.update(b"=");
-                hasher.update(value);
-                hasher.update(b"\0");
-            }
-        }
-    }
-    Ok(hex::encode(hasher.finalize()))
-}
-
 fn make_override(plan: &BuildPlanV1) -> Result<BakeOverride> {
     let mut target = plan
-        .targets
+        .source_revision_targets
         .iter()
-        .map(|image| {
+        .map(|name| {
             (
-                image.name.clone(),
+                name.clone(),
                 BakeTargetOverride {
                     args: BTreeMap::from([(
                         "SOURCE_REVISION".to_owned(),
@@ -1036,6 +1048,16 @@ fn make_override(plan: &BuildPlanV1) -> Result<BakeOverride> {
 }
 
 fn verify_override(plan: &BuildPlanV1, definition: &BakeDefinition) -> Result<()> {
+    for name in &plan.source_revision_targets {
+        let target = definition
+            .target
+            .get(name)
+            .with_context(|| format!("resolved Bake graph omitted source target {name}"))?;
+        ensure!(
+            target.args.get("SOURCE_REVISION") == Some(&plan.source.revision),
+            "resolved Bake graph changed source revision for {name}"
+        );
+    }
     for family in &plan.families {
         let target_name = family.family.shared_artifact_target().unwrap_or_else(|| {
             plan.targets
@@ -1134,12 +1156,13 @@ fn print_human(plan: &BuildPlanV1) {
     );
     for family in &plan.families {
         println!(
-            "{}: {} packages, {} binaries, Cargo cache {}, target cache {}",
+            "{}: {} packages, {} binaries, Cargo cache {}, target cache {} (epoch {})",
             family.family.name(),
             family.packages.len(),
             family.binaries.len(),
             family.cargo_cache_id,
-            family.target_cache_id
+            family.target_cache_id,
+            family.target_cache_epoch
         );
     }
     let non_rust = plan
@@ -1168,7 +1191,8 @@ fn validate_identifier(kind: &str, value: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{
-        BuilderFamily, parse_publication_index_digests, validate_standalone_builder_stage,
+        BakeDefinition, BakeTarget, BuilderFamily, parse_publication_index_digests,
+        target_dependency_closure, validate_standalone_builder_stage,
     };
     use std::collections::{BTreeMap, BTreeSet};
 
@@ -1177,7 +1201,6 @@ mod tests {
         let families = [
             BuilderFamily::RustTrixieV1,
             BuilderFamily::RustBookwormV1,
-            BuilderFamily::RustUavBookwormV1,
             BuilderFamily::RustDeepstreamV1,
             BuilderFamily::RustVllmV1,
             BuilderFamily::RustSumoBullseyeV1,
@@ -1190,6 +1213,62 @@ mod tests {
         assert_eq!(identities.len(), families.len());
         assert!(identities.contains("veoveo-cargo-rust-trixie-v1"));
         assert!(identities.contains("veoveo-cargo-rust-bookworm-v1"));
+    }
+
+    #[test]
+    fn target_cache_epochs_are_explicit_stable_and_unique() {
+        let families = [
+            BuilderFamily::RustTrixieV1,
+            BuilderFamily::RustBookwormV1,
+            BuilderFamily::RustDeepstreamV1,
+            BuilderFamily::RustVllmV1,
+            BuilderFamily::RustSumoBullseyeV1,
+        ];
+        let source_hash = "a".repeat(64);
+        let identities = families
+            .into_iter()
+            .map(|family| family.target_cache_id(&source_hash))
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(identities.len(), families.len());
+        assert!(
+            identities.contains("veoveo-target-v1-aaaaaaaaaaaa-9b79bf6f1617-linux-amd64-release")
+        );
+    }
+
+    #[test]
+    fn source_revision_reaches_transitive_target_contexts() {
+        let definition = BakeDefinition {
+            group: BTreeMap::new(),
+            target: BTreeMap::from([
+                (
+                    "overlay".to_owned(),
+                    BakeTarget {
+                        contexts: BTreeMap::from([(
+                            "runtime".to_owned(),
+                            "target:runtime".to_owned(),
+                        )]),
+                        ..BakeTarget::default()
+                    },
+                ),
+                (
+                    "runtime".to_owned(),
+                    BakeTarget {
+                        contexts: BTreeMap::from([(
+                            "artifacts".to_owned(),
+                            "target:artifacts".to_owned(),
+                        )]),
+                        ..BakeTarget::default()
+                    },
+                ),
+                ("artifacts".to_owned(), BakeTarget::default()),
+            ]),
+        };
+
+        assert_eq!(
+            target_dependency_closure(&definition, &["overlay".to_owned()]).unwrap(),
+            ["artifacts", "overlay", "runtime"]
+        );
     }
 
     #[test]
