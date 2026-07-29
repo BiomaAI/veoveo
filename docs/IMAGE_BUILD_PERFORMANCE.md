@@ -216,6 +216,17 @@ payload work. Publication evidence must show the expensive dependency layers cac
 only the source revision changes; an identical revision is not sufficient proof of this
 boundary.
 
+The first corrected build necessarily migrated the layer chain because the Dockerfile
+instruction history changed:
+
+| Case | Buildx-recorded time | Simulation payload |
+|---|---:|---|
+| Defective revision-only full publication `b4e4a1d` | 940.493 s | Python graph rebuilt; new payload uploaded |
+| Corrected-layout migration `c3d4ff0` | 754.609 s | new cache boundary populated once |
+
+The next publication changes only this measurement record. It is the cross-revision
+acceptance run for the corrected boundary.
+
 ## Acceptance Matrix
 
 | Requirement | Evidence | Result |
@@ -228,7 +239,7 @@ boundary.
 | Unchanged runtime images remain identical | five non-gateway digests match | pass |
 | Execution evidence is immutable | unique create-only evidence directory for every run | pass |
 | Release output timestamps are reproducible | epoch input and timestamp-rewriting registry exporter | pass |
-| Revision-only metadata preserves simulation payload cache | trailing build arguments and consecutive-revision publication evidence | pass |
+| Revision-only metadata preserves simulation payload cache | trailing build arguments and consecutive-revision publication evidence | pending cross-revision run |
 
 ## Extension Platform Closure
 
