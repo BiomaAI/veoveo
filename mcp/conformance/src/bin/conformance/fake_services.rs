@@ -190,17 +190,17 @@ async fn fake_llm_completion(AxumJson(request): AxumJson<Value>) -> AxumJson<Val
     let has_pilot_ask = messages
         .iter()
         .any(|message| text_of(message).contains("Add target alpha"));
-    let has_plan_update = messages.iter().any(|message| {
+    let has_optimization_update = messages.iter().any(|message| {
         let text = text_of(message);
-        text.contains("Background task update") && text.contains("optimization__plan")
+        text.contains("Background task update") && text.contains("optimization__solve_milp")
     });
 
     if has_heartbeat && !has_task_update && !has_episode_count_ask && !has_pilot_ask {
         return AxumJson(fake_llm_stop_response(&request, "IDLE."));
     }
     // The pilot mission script: record the target, measure the leg, dispatch
-    // the planner as a task; on the plan result, record the waypoint.
-    if has_plan_update {
+    // a selection MILP as a task; on the solution result, record the waypoint.
+    if has_optimization_update {
         let choice = match assistant_turns {
             0 => fake_llm_tool_call_choice(
                 "memory_write",
@@ -241,32 +241,47 @@ async fn fake_llm_completion(AxumJson(request): AxumJson<Value>) -> AxumJson<Val
                 }),
             ),
             2 => fake_llm_tool_call_choice(
-                "optimization__plan",
+                "optimization__solve_milp",
                 json!({
-                    "schema_version": 1,
-                    "source_map_releases": [
-                        "map://dataset/pilot-smoke/release/release-smoke"
-                    ],
-                    "frame_world_revision": "frames://world/pilot-smoke/revision/revision-1",
-                    "agents": [{
-                        "agent_id": "pilot-1",
-                        "mobility_profile": "map://mobility-profile/pilot-aircraft/1"
-                    }],
-                    "tasks": [{
-                        "task_id": "visit-alpha",
-                        "quantity": { "minimum": 1, "desired": 1 },
-                        "target": {
-                            "kind": "source_feature",
-                            "uri": "map://source-feature/release-smoke/source-feature-alpha"
+                    "problem": {
+                        "source": "inline",
+                        "problem": {
+                            "version": "veoveo.io/milp-problem/v1",
+                            "variables": [{
+                                "variable_id": "visit-alpha",
+                                "kind": "integer",
+                                "bounds": {"lower": 0.0, "upper": 1.0}
+                            }],
+                            "objective": {
+                                "direction": "maximize",
+                                "linear_terms": [{
+                                    "variable_id": "visit-alpha",
+                                    "coefficient": 1.0
+                                }],
+                                "offset": 0.0
+                            },
+                            "constraints": [{
+                                "constraint_id": "visit-required",
+                                "terms": [{
+                                    "variable_id": "visit-alpha",
+                                    "coefficient": 1.0
+                                }],
+                                "bounds": {"lower": 1.0, "upper": 1.0}
+                            }]
                         },
-                        "execution": {
-                            "kind": "map_route",
-                            "uri": "map://route/route-alpha"
-                        }
-                    }]
+                    },
+                    "policy": {
+                        "profile_uri": "optimization://profile/balanced"
+                    },
+                    "output": {
+                        "retain_warm_start": false,
+                        "retain_incumbents": true
+                    }
                 }),
             ),
-            _ => return AxumJson(fake_llm_stop_response(&request, "AWAITING PLAN.")),
+            _ => {
+                return AxumJson(fake_llm_stop_response(&request, "AWAITING OPTIMIZATION."));
+            }
         };
         return AxumJson(fake_llm_response(&request, choice));
     }

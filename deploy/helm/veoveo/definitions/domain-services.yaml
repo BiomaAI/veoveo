@@ -110,8 +110,6 @@
           value: "268435456"
         - name: VEOVEO_CUOPT_POOL_GIB
           value: "1"
-        - name: HOME
-          value: /run/veoveo-cuopt
       startupProbe:
         exec:
           command:

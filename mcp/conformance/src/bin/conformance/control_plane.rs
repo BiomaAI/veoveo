@@ -188,6 +188,18 @@ pub(super) fn cmd_gateway_pilot_smoke_control_plane(
     frames_upstream_url: String,
     optimization_upstream_url: String,
 ) -> Result<()> {
+    const OPTIMIZATION_TOOLS: &[&str] = &[
+        "optimize_routes",
+        "optimize_route_scenarios",
+        "solve_convex",
+        "solve_milp",
+        "verify_solution",
+    ];
+    const OPTIMIZATION_PROMPTS: &[&str] = &[
+        "formulate_routing_problem",
+        "compare_route_scenarios",
+        "formulate_mathematical_model",
+    ];
     validate_loopback_http_url(&frames_upstream_url, "--frames-upstream-url")?;
     validate_loopback_http_url(&optimization_upstream_url, "--optimization-upstream-url")?;
 
@@ -207,16 +219,23 @@ pub(super) fn cmd_gateway_pilot_smoke_control_plane(
             "publish_world",
         ],
     );
-    let optimization = pilot_server_manifest(
+    let mut optimization = pilot_server_manifest(
         "optimization",
         &optimization_upstream_url,
         serde_json::json!({
             "tools": true, "resources": true, "resource_templates": true,
-            "resource_subscriptions": false, "prompts": false, "completions": false,
+            "resource_subscriptions": true, "prompts": true, "completions": true,
             "tasks": true, "resources_list_changed": true
         }),
-        &["plan"],
+        OPTIMIZATION_TOOLS,
     );
+    optimization["prompts"] = serde_json::json!(OPTIMIZATION_PROMPTS);
+    optimization["metadata"] = serde_json::json!({
+        "contract_revision": 2,
+        "engine": "nvidia-cuopt-26.06"
+    });
+    optimization["resource_projection"] = serde_json::json!("server_owned");
+    optimization["referenced_resource_schemes"] = serde_json::json!(["artifact", "map"]);
     {
         let servers = control_plane_array_mut(&mut control_plane, "servers")?;
         let media = servers
@@ -243,7 +262,7 @@ pub(super) fn cmd_gateway_pilot_smoke_control_plane(
                 ],
                 "all"
             ),
-            pilot_profile_exposure("optimization", &["plan"], "none"),
+            pilot_profile_exposure("optimization", OPTIMIZATION_TOOLS, "all"),
         ]);
     }
     {
@@ -288,13 +307,16 @@ pub(super) fn cmd_gateway_pilot_smoke_control_plane(
                 "actions": [
                     "tools_list", "tools_call", "resources_list",
                     "resources_templates_list", "resources_read",
+                    "resources_subscribe", "resources_unsubscribe",
+                    "prompts_list", "prompts_get", "completion_complete",
                     "tasks_get", "tasks_update", "tasks_result", "tasks_cancel",
                     "tasks_subscribe", "artifact_read", "usage_read"
                 ],
                 "profiles": [profile],
                 "servers": ["optimization"],
-                "tools": ["plan"],
+                "tools": OPTIMIZATION_TOOLS,
                 "resource_schemes": ["optimization"],
+                "prompts": OPTIMIZATION_PROMPTS,
                 "required_scopes": ["operator:use"],
                 "metadata": {}
             }));
