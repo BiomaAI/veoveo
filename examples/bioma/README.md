@@ -390,7 +390,7 @@ cargo xtask smoke bioma-verify
 Then run the full GPU delivery proof:
 
 ~~~bash
-VEOVEO_CUOPT_IMAGE=veoveo/cuopt-executor:0.1.0 \
+VEOVEO_CUOPT_EXECUTOR_IMAGE=veoveo/cuopt-executor:0.1.0 \
   cargo xtask smoke agent-pilot
 cargo xtask smoke uav-domain-verify \
   --context k3d-veoveo-bioma \
