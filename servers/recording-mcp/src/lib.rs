@@ -1,5 +1,6 @@
 //! Governed MCP control plane for durable Rerun recordings.
 
+pub mod admin;
 pub mod contract;
 pub mod live_playback;
 #[cfg(feature = "redap")]
