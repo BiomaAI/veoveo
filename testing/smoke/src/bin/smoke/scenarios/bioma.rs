@@ -2,16 +2,32 @@ use std::collections::BTreeSet;
 
 use anyhow::ensure;
 use scraper::{Html, Selector};
+use sha2::{Digest, Sha256};
 
 use super::*;
 
 const NAMESPACE: &str = "veoveo";
+const LARGE_ARTIFACT_ROWS: u64 = 200_000;
+const LARGE_ARTIFACT_MINIMUM_BYTES: usize = 8 * 1024 * 1024;
+const OPERATOR_PROFILE_SCOPES: &[&str] = &[
+    "operator:use",
+    "simulation-view:read",
+    "simulation-view:write",
+    "simulation-view:stream",
+    "view:read",
+    "view:write",
+    "view:capture",
+    "map:dataset:read",
+    "time:read",
+];
 const BIOMA_DEPLOYMENTS: &[&str] = &[
     "mcp-gateway",
     "artifact-service",
     "console-bff",
     "recording",
     "artifact-mcp",
+    "simulation-view-mcp",
+    "simulation-view-renderer",
     "media-mcp",
     "stream-mcp",
     "reason-mcp",
@@ -30,10 +46,12 @@ const BIOMA_DEPLOYMENTS: &[&str] = &[
 ];
 
 pub(crate) async fn bioma_verify(
+    conformance: &Path,
     context: &str,
     local_base_url: &str,
     public_base_url: &str,
 ) -> Result<()> {
+    assert_executable(conformance)?;
     run_checked(
         Path::new("kubectl"),
         ["--context", context, "cluster-info"].map(OsString::from),
@@ -88,11 +106,273 @@ pub(crate) async fn bioma_verify(
             }),
         "public endpoint did not expose the Bioma authorization-server key"
     );
+    verify_large_artifact_delivery(conformance, public_base_url).await?;
 
     println!(
-        "Bioma verify ok: the full server catalog is available, Isaac Sim, View, Stream, and Reason are concurrently schedulable, the single public origin serves console and authorization surfaces, and the Bioma JWKS is authoritative"
+        "Bioma verify ok: the full server catalog is available, both Isaac renderers, View, Stream, and Reason are concurrently schedulable, the single public origin serves console and authorization surfaces, the Bioma JWKS is authoritative, and a deterministic large governed artifact passed full, HEAD, and ranged streaming without a redirect"
     );
     Ok(())
+}
+
+async fn verify_large_artifact_delivery(conformance: &Path, public_base_url: &str) -> Result<()> {
+    let base = public_base_url.trim_end_matches('/');
+    let token = gateway_token_for_context(
+        conformance,
+        base,
+        "operator-service",
+        "operator",
+        OPERATOR_PROFILE_SCOPES,
+        "operations",
+    )
+    .await?;
+
+    let execute = run_public_conformance(
+        conformance,
+        base,
+        &token,
+        &[
+            "call",
+            "--tool-name",
+            "duckdb__execute",
+            "--arguments",
+            r#"{"db":"artifact_delivery_acceptance","sql":"CREATE OR REPLACE TABLE marker AS SELECT 1 AS ready","create_if_missing":true}"#,
+        ],
+        Duration::from_secs(60),
+    )
+    .await?;
+    let execute = structured_output(&execute)?;
+    ensure!(
+        execute.get("db").and_then(Value::as_str) == Some("artifact_delivery_acceptance"),
+        "large-artifact setup returned an unexpected DuckDB identity: {execute}"
+    );
+
+    let export_sql = format!(
+        "SELECT i, sha256(CAST(i AS VARCHAR)) AS digest FROM range({LARGE_ARTIFACT_ROWS}) AS t(i) ORDER BY i"
+    );
+    let arguments = serde_json::to_string(&serde_json::json!({
+        "db": "artifact_delivery_acceptance",
+        "selection": {
+            "kind": "sql",
+            "sql": export_sql,
+        },
+        "format": "csv",
+    }))?;
+    let export = run_public_conformance(
+        conformance,
+        base,
+        &token,
+        &[
+            "task-call",
+            "--tool-name",
+            "duckdb__export",
+            "--arguments",
+            &arguments,
+            "--timeout-seconds",
+            "180",
+        ],
+        Duration::from_secs(210),
+    )
+    .await?;
+    let export = structured_output(&export)?;
+    ensure!(
+        export.get("rows_exported").and_then(Value::as_u64) == Some(LARGE_ARTIFACT_ROWS),
+        "large-artifact export returned an unexpected row count: {export}"
+    );
+    let artifact = export
+        .get("artifact")
+        .and_then(Value::as_object)
+        .context("large-artifact export omitted typed artifact metadata")?;
+    let artifact_id = artifact
+        .get("artifact_id")
+        .and_then(Value::as_str)
+        .context("large-artifact export omitted artifact_id")?;
+    veoveo_mcp_contract::ArtifactId::parse(artifact_id)
+        .context("large-artifact export returned an invalid artifact_id")?;
+    ensure!(
+        !artifact.contains_key("download_url"),
+        "artifact metadata must not expose storage download plumbing: {artifact:?}"
+    );
+
+    let expected = expected_large_artifact();
+    ensure!(
+        expected.len() > LARGE_ARTIFACT_MINIMUM_BYTES,
+        "large-artifact fixture must remain larger than 8 MiB"
+    );
+    ensure!(
+        artifact.get("byte_len").and_then(Value::as_u64) == Some(expected.len() as u64),
+        "artifact metadata byte length does not match deterministic export"
+    );
+    let expected_digest = Sha256::digest(&expected);
+    let download_url = format!("{base}/artifacts/operator/{artifact_id}/download");
+    let public_origin = url::Url::parse(base)?.origin();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(120))
+        .redirect(Policy::none())
+        .build()?;
+
+    let full = client
+        .get(&download_url)
+        .bearer_auth(&token)
+        .send()
+        .await
+        .context("downloading the large artifact through the public origin")?;
+    assert_artifact_response(
+        &full,
+        StatusCode::OK,
+        &public_origin,
+        expected.len() as u64,
+        None,
+    )?;
+    let full_bytes = full.bytes().await?;
+    ensure!(
+        full_bytes.as_ref() == expected.as_slice()
+            && Sha256::digest(&full_bytes) == expected_digest,
+        "full public artifact download failed deterministic content and SHA-256 verification"
+    );
+
+    let head = client
+        .head(&download_url)
+        .bearer_auth(&token)
+        .send()
+        .await
+        .context("requesting large artifact metadata through the public origin")?;
+    assert_artifact_response(
+        &head,
+        StatusCode::OK,
+        &public_origin,
+        expected.len() as u64,
+        None,
+    )?;
+    ensure!(
+        head.bytes().await?.is_empty(),
+        "artifact HEAD response transferred a body"
+    );
+
+    let range_start = LARGE_ARTIFACT_MINIMUM_BYTES;
+    let range_end = range_start + 1023;
+    let range = client
+        .get(&download_url)
+        .bearer_auth(&token)
+        .header(
+            reqwest::header::RANGE,
+            format!("bytes={range_start}-{range_end}"),
+        )
+        .send()
+        .await
+        .context("requesting a large artifact byte range through the public origin")?;
+    assert_artifact_response(
+        &range,
+        StatusCode::PARTIAL_CONTENT,
+        &public_origin,
+        (range_end - range_start + 1) as u64,
+        Some(&format!(
+            "bytes {range_start}-{range_end}/{}",
+            expected.len()
+        )),
+    )?;
+    ensure!(
+        range.bytes().await?.as_ref() == &expected[range_start..=range_end],
+        "public artifact byte range did not match the deterministic export"
+    );
+    Ok(())
+}
+
+fn assert_artifact_response(
+    response: &reqwest::Response,
+    expected_status: StatusCode,
+    public_origin: &url::Origin,
+    expected_length: u64,
+    expected_range: Option<&str>,
+) -> Result<()> {
+    ensure!(
+        response.status() == expected_status,
+        "public artifact response returned {}, expected {expected_status}",
+        response.status()
+    );
+    ensure!(
+        response.url().origin() == *public_origin,
+        "public artifact response escaped the installation origin: {}",
+        response.url()
+    );
+    ensure!(
+        !response.headers().contains_key(LOCATION),
+        "public artifact response exposed a redirect"
+    );
+    ensure!(
+        response
+            .headers()
+            .get(reqwest::header::CONTENT_LENGTH)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok())
+            == Some(expected_length),
+        "public artifact response returned an incorrect Content-Length"
+    );
+    ensure!(
+        response
+            .headers()
+            .get(reqwest::header::ACCEPT_RANGES)
+            .and_then(|value| value.to_str().ok())
+            == Some("bytes"),
+        "public artifact response omitted Accept-Ranges: bytes"
+    );
+    let content_range = response
+        .headers()
+        .get(reqwest::header::CONTENT_RANGE)
+        .and_then(|value| value.to_str().ok());
+    ensure!(
+        content_range == expected_range,
+        "public artifact response returned Content-Range {content_range:?}, expected {expected_range:?}"
+    );
+    Ok(())
+}
+
+async fn run_public_conformance(
+    conformance: &Path,
+    base: &str,
+    token: &str,
+    operation: &[&str],
+    timeout: Duration,
+) -> Result<String> {
+    let url = format!("{base}/mcp/operator");
+    let mut command = tokio::process::Command::new(conformance);
+    command
+        .args(["--url", &url])
+        .args(operation)
+        .env_remove("VEOVEO_INTERNAL_SIGNING_KEY_DER_B64")
+        .env("MCP_BEARER_TOKEN", token)
+        .kill_on_drop(true)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let output = tokio::time::timeout(timeout, command.output())
+        .await
+        .with_context(|| format!("public conformance operation {operation:?} timed out"))??;
+    ensure!(
+        output.status.success(),
+        "public conformance operation {operation:?} failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).context("decoding public conformance output")
+}
+
+fn structured_output(output: &str) -> Result<Value> {
+    let encoded = output
+        .lines()
+        .find_map(|line| line.strip_prefix("structured: "))
+        .with_context(|| format!("conformance output omitted structured content:\n{output}"))?;
+    serde_json::from_str(encoded).context("decoding structured MCP output")
+}
+
+fn expected_large_artifact() -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(15 * 1024 * 1024);
+    bytes.extend_from_slice(b"i,digest\n");
+    for index in 0..LARGE_ARTIFACT_ROWS {
+        let decimal = index.to_string();
+        bytes.extend_from_slice(decimal.as_bytes());
+        bytes.push(b',');
+        bytes.extend_from_slice(hex::encode(Sha256::digest(decimal.as_bytes())).as_bytes());
+        bytes.push(b'\n');
+    }
+    bytes
 }
 
 async fn verify_public_console(public_base_url: &str) -> Result<()> {

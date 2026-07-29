@@ -117,6 +117,9 @@ enum Cmd {
     },
     /// Verify the Bioma installation and its public Cloudflare edge.
     BiomaVerify {
+        /// Built conformance binary used as the public machine OAuth and MCP client.
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
         /// Kubernetes context owned by the Bioma k3d cluster.
         #[arg(long, default_value = "k3d-veoveo-bioma")]
         context: String,
@@ -622,10 +625,19 @@ async fn main() -> Result<()> {
         Cmd::ProfileUp { profile, lock } => profile_up(&profile, &lock),
         Cmd::ProfileDown { profile } => profile_down(&profile),
         Cmd::BiomaVerify {
+            conformance_bin,
             context,
             local_base_url,
             public_base_url,
-        } => bioma_verify(&context, &local_base_url, &public_base_url).await,
+        } => {
+            bioma_verify(
+                &conformance_bin,
+                &context,
+                &local_base_url,
+                &public_base_url,
+            )
+            .await
+        }
         Cmd::SurrealIntegration => surreal_integration().await,
         Cmd::GatewayPlatformStore {
             gateway_bin,
