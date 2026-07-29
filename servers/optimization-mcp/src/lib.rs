@@ -1,5 +1,6 @@
 pub mod artifacts;
 pub mod contract;
+pub mod domain;
 pub mod plan_artifacts;
 pub mod planning;
 pub mod state;
