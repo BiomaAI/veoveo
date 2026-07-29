@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   attachConsoleSessionToLivePlayback,
+  authorizeConsoleLivePlaybackFetch,
   isConsoleLivePlaybackRequest,
 } from "./recordingLiveFetch.ts";
 
@@ -47,4 +48,34 @@ test("does not attach credentials outside the exact live playback boundary", () 
 test("preserves an explicitly credentialed canonical request", () => {
   const request = new Request(LIVE_URL, { credentials: "include" });
   assert.equal(attachConsoleSessionToLivePlayback(request, ORIGIN), request);
+});
+
+test("adapts a canonical fetch without reconstructing unrelated requests", async () => {
+  const liveRequest = new Request(LIVE_URL, {
+    credentials: "omit",
+    headers: { Accept: "application/vnd.rerun.rrd" },
+  });
+  const [authorizedInput, authorizedInit] = authorizeConsoleLivePlaybackFetch(
+    liveRequest,
+    undefined,
+    ORIGIN
+  );
+  assert.ok(authorizedInput instanceof Request);
+  assert.notEqual(authorizedInput, liveRequest);
+  assert.equal(authorizedInput.credentials, "same-origin");
+  assert.equal(authorizedInit, undefined);
+
+  const redapRequest = new Request(`${ORIGIN}/redap/query`, {
+    method: "POST",
+    body: "query",
+  });
+  await redapRequest.text();
+  assert.equal(redapRequest.bodyUsed, true);
+  const untouched = authorizeConsoleLivePlaybackFetch(
+    redapRequest,
+    undefined,
+    ORIGIN
+  );
+  assert.equal(untouched[0], redapRequest);
+  assert.equal(untouched[1], undefined);
 });
