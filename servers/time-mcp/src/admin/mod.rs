@@ -11,6 +11,20 @@ use axum::{
 use crate::state::TimeApplication;
 
 pub fn router(state: Arc<TimeApplication>) -> Router {
+    docs_router().merge(domain_router(state))
+}
+
+/// Read-only REST projection of the well-known surface at
+/// `{mount}/admin/docs/llms.txt` and `{mount}/admin/docs/{doc_id}` (contract
+/// C20, C21). The server nests this behind the same gateway authentication
+/// and administrative scope authorization as the domain routes.
+fn docs_router() -> Router {
+    Router::new()
+        .route("/docs/llms.txt", get(handlers::docs_index))
+        .route("/docs/{doc_id}", get(handlers::doc_body))
+}
+
+fn domain_router(state: Arc<TimeApplication>) -> Router {
     Router::new()
         .route(
             "/sources",
