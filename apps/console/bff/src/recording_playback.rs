@@ -21,6 +21,9 @@ use crate::{
 const MAX_MANIFEST_BYTES: u64 = 8 * 1024 * 1024;
 const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v2";
 const PLAYBACK_SESSION_HEADER: &str = "x-veoveo-playback-session";
+pub(crate) const MANIFEST_PATH: &str = "/console/api/recordings/{recording_id}/playback";
+pub(crate) const LIVE_SEGMENT_PATH: &str =
+    "/console/api/recordings/{recording_id}/segments/{segment_id}/live.rrd";
 
 #[derive(Debug, Deserialize, Serialize)]
 struct PlaybackManifest {
@@ -201,11 +204,15 @@ fn validated_manifest_bytes(body: &[u8], recording_id: uuid::Uuid) -> anyhow::Re
 
 #[cfg(test)]
 mod tests {
+    use axum::{Router, routing::get};
     use serde_json::json;
 
-    use super::{PLAYBACK_MANIFEST_SCHEMA, validated_manifest_bytes};
+    use super::{
+        LIVE_SEGMENT_PATH, MANIFEST_PATH, PLAYBACK_MANIFEST_SCHEMA, live_segment, manifest,
+        validated_manifest_bytes,
+    };
 
-    fn manifest(recording_id: uuid::Uuid) -> serde_json::Value {
+    fn manifest_value(recording_id: uuid::Uuid) -> serde_json::Value {
         json!({
             "schema": PLAYBACK_MANIFEST_SCHEMA,
             "recording_id": recording_id,
@@ -236,7 +243,7 @@ mod tests {
     #[test]
     fn manifest_v2_is_canonicalized_after_identity_validation() {
         let recording_id = uuid::Uuid::now_v7();
-        let body = serde_json::to_vec(&manifest(recording_id)).unwrap();
+        let body = serde_json::to_vec(&manifest_value(recording_id)).unwrap();
         let validated = validated_manifest_bytes(&body, recording_id).unwrap();
         let decoded: serde_json::Value = serde_json::from_slice(&validated).unwrap();
         assert_eq!(decoded["schema"], PLAYBACK_MANIFEST_SCHEMA);
@@ -244,9 +251,16 @@ mod tests {
     }
 
     #[test]
+    fn canonical_playback_routes_register_with_axum() {
+        let _: Router<crate::AppState> = Router::new()
+            .route(MANIFEST_PATH, get(manifest))
+            .route(LIVE_SEGMENT_PATH, get(live_segment));
+    }
+
+    #[test]
     fn obsolete_or_cross_recording_manifests_are_rejected() {
         let recording_id = uuid::Uuid::now_v7();
-        let mut obsolete = manifest(recording_id);
+        let mut obsolete = manifest_value(recording_id);
         obsolete["schema"] = json!("veoveo.io/recording-playback/v1");
         assert!(
             validated_manifest_bytes(&serde_json::to_vec(&obsolete).unwrap(), recording_id)
@@ -256,7 +270,7 @@ mod tests {
         let other_recording_id = uuid::Uuid::now_v7();
         assert!(
             validated_manifest_bytes(
-                &serde_json::to_vec(&manifest(other_recording_id)).unwrap(),
+                &serde_json::to_vec(&manifest_value(other_recording_id)).unwrap(),
                 recording_id
             )
             .is_err()

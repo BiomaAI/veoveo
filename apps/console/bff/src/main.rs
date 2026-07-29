@@ -140,11 +140,11 @@ async fn main() -> anyhow::Result<()> {
             get(api::preview_artifact),
         )
         .route(
-            "/console/api/recordings/{recording_id}/playback",
+            recording_playback::MANIFEST_PATH,
             get(recording_playback::manifest),
         )
         .route(
-            "/console/api/recordings/{recording_id}/live/{segment_id}.rrd",
+            recording_playback::LIVE_SEGMENT_PATH,
             get(recording_playback::live_segment),
         );
     let router = with_console_static_routes(router, config.asset_dir())?
