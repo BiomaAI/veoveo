@@ -13,7 +13,8 @@ use crate::domain::{
 pub struct ExecutorRequest {
     pub protocol: String,
     pub run_id: RunId,
-    pub profile: ExecutorProfile,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<ExecutorProfile>,
     pub operation: ExecutorOperation,
 }
 
@@ -22,7 +23,16 @@ impl ExecutorRequest {
         Self {
             protocol: EXECUTOR_PROTOCOL_VERSION.to_owned(),
             run_id,
-            profile,
+            profile: Some(profile),
+            operation,
+        }
+    }
+
+    pub fn control(run_id: RunId, operation: ExecutorOperation) -> Self {
+        Self {
+            protocol: EXECUTOR_PROTOCOL_VERSION.to_owned(),
+            run_id,
+            profile: None,
             operation,
         }
     }
@@ -32,6 +42,9 @@ impl ExecutorRequest {
 #[serde(tag = "operation", rename_all = "snake_case")]
 pub enum ExecutorOperation {
     Health,
+    Cancel {
+        target_run_id: RunId,
+    },
     SolveRoutes {
         problem: CompiledRoutingProblem,
     },
