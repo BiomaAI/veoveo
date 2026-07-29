@@ -437,13 +437,45 @@ pub(crate) fn prepare(
         });
     }
 
+    let all_targets = family_units
+        .keys()
+        .any(|family| family.shared_artifact_target().is_some())
+        .then(|| bake_print_all(repository.root(), environment))
+        .transpose()?;
     let mut families = Vec::new();
-    for (family, units) in &family_units {
-        validate_family_modes(*family, units)?;
+    for (family, selected_units) in &family_units {
+        validate_family_modes(*family, selected_units)?;
+        let units = if family.shared_artifact_target().is_some() {
+            let canonical_definition = all_targets
+                .as_ref()
+                .expect("the complete Bake graph was loaded for a shared family");
+            let mut canonical_units = Vec::new();
+            for (name, target) in &canonical_definition.target {
+                if let Some(unit) = parse_rust_unit(name, target, &package_index)?
+                    && unit.family == *family
+                {
+                    canonical_units.push((name.clone(), unit));
+                }
+            }
+            let canonical_names = canonical_units
+                .iter()
+                .map(|(name, _)| name.as_str())
+                .collect::<BTreeSet<_>>();
+            for (name, _) in selected_units {
+                ensure!(
+                    canonical_names.contains(name.as_str()),
+                    "Rust target {name} is missing from the complete Bake family catalog"
+                );
+            }
+            validate_family_modes(*family, &canonical_units)?;
+            canonical_units
+        } else {
+            selected_units.clone()
+        };
         let mut packages = BTreeSet::new();
         let mut binaries = BTreeSet::new();
         let mut auxiliary = BTreeSet::new();
-        for (_, unit) in units {
+        for (_, unit) in &units {
             packages.insert(unit.package.clone());
             binaries.extend(unit.binaries.iter().cloned());
             auxiliary.extend(unit.auxiliary.iter().copied());
@@ -1106,6 +1138,22 @@ fn bake_print(
     environment: &BTreeMap<String, String>,
     extra_files: &[&Path],
 ) -> Result<BakeDefinition> {
+    bake_print_pattern(repository, &selection.name, environment, extra_files)
+}
+
+fn bake_print_all(
+    repository: &Path,
+    environment: &BTreeMap<String, String>,
+) -> Result<BakeDefinition> {
+    bake_print_pattern(repository, "*", environment, &[])
+}
+
+fn bake_print_pattern(
+    repository: &Path,
+    pattern: &str,
+    environment: &BTreeMap<String, String>,
+    extra_files: &[&Path],
+) -> Result<BakeDefinition> {
     let mut command = builder::buildx_command(&RepositoryContext::discover(repository)?)?;
     command
         .current_dir(repository)
@@ -1115,7 +1163,7 @@ fn bake_print(
         command.arg("-f").arg(file);
     }
     let output = command
-        .arg(&selection.name)
+        .arg(pattern)
         .arg("--print")
         .envs(environment)
         .output()

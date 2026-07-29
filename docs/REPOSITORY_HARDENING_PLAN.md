@@ -1025,14 +1025,16 @@ builder-family identity. Compatibility includes:
 - Cargo profile, feature resolution, rustflags, and compile-time environment.
 
 Each selected compatible family uses one Cargo invocation at Cargo's available
-parallelism. Unique production binary names land before this consolidation. Runtime
-targets consume the family artifact target through the Bake graph and keep their
-runtime-specific bases, files, users, and configuration.
+parallelism. That invocation covers the complete family catalog even when Bake publishes
+only one runtime target. The stable package and feature graph lets Cargo reuse one
+compiled lineage across `platform-core`, `platform-full`, showcase, and direct-target
+commands. Runtime targets consume the family artifact target through the Bake graph and
+keep their runtime-specific bases, files, users, and configuration.
 
-Build-unit membership comes from Cargo metadata and the intentional selected image
-definitions. A fixed shared-builder command that lists every package is prohibited.
-Adding a discovered first-party image must not require editing a second builder package
-list.
+Build-unit membership comes from Cargo metadata and every labeled image definition in
+the resolved Bake catalog. A fixed shared-builder command that lists packages is
+prohibited. Adding a first-party image requires its one target declaration and does not
+require a second builder package list.
 
 Target-cache identities derive from source identity, builder family, target platform,
 and Cargo profile. They are never anonymous and are not fragmented by output image.
@@ -1074,14 +1076,16 @@ The family name selects a typed builder contract; it does not authorize two
 incompatible environments to share compiled artifacts.
 
 Cargo metadata proves that each declared package and binary exists. Bake selects the
-intentional image targets. No checked-in shared-builder command, central image manifest,
-or `xtask` package array repeats that membership.
+runtime images for the command, while the planner discovers the complete compatible
+family from all labeled Bake targets. No checked-in shared-builder command, central
+image manifest, or `xtask` package array repeats that membership.
 
 Shared runtime targets consume a family artifact target through the named context
-`veoveo-rust-artifacts`. The artifact target receives the exact selected package and
-binary arguments through an ephemeral JSON Bake override. `xtask` first resolves the
-checked-in HCL with `docker buildx bake --print`, constructs the typed plan, merges the
-override, resolves the result again, and executes only that verified graph.
+`veoveo-rust-artifacts`. The artifact target receives the complete discovered family
+package and binary arguments through an ephemeral JSON Bake override. `xtask` resolves
+both the selected graph and the full target catalog with `docker buildx bake --print`,
+constructs the typed plan, merges the override, resolves the selected result again, and
+executes only that verified graph.
 
 #### Internal Image Commands
 
@@ -1166,17 +1170,18 @@ The first delivery supports one explicit target platform, `linux/amd64`.
 
 | Family | Initial Rust image units |
 |---|---|
-| `rust-trixie-v1` | gateway, artifact service, recording forwarder, recording hub, recording MCP, Console BFF, artifact MCP, media MCP, timeseries MCP, DuckDB MCP, optimization MCP, frames MCP, stdio bridge, UAV MCP, and agent kernel when selected |
+| `rust-trixie-v1` | gateway, artifact service, recording forwarder, recording hub, recording MCP, Console BFF, artifact MCP, media MCP, timeseries MCP, DuckDB MCP, optimization MCP, frames MCP, stdio bridge, conformance, composer, simulation view, UAV MCP, and agent kernel |
 | `rust-bookworm-v1` | map MCP, time MCP, and view MCP |
 | `rust-deepstream-v1` | Stream MCP |
 | `rust-vllm-v1` | reason MCP |
 | `rust-sumo-bullseye-v1` | SUMO MCP |
 
 The trixie and bookworm families use one shared workspace-artifact Dockerfile. It
-bind-mounts the source read-only, invokes Cargo once for the selected packages and
-unique binaries, and exports those binaries through a scratch artifact stage. Runtime
-Dockerfiles keep their runtime bases, users, files, configuration, native downloads,
-entrypoints, and ports.
+bind-mounts the source read-only, invokes Cargo once for the complete discovered family,
+and exports its unique binaries through a scratch artifact stage. Runtime Dockerfiles
+keep their runtime bases, users, files, configuration, native downloads, entrypoints,
+and ports. Runtime selection controls which images are exported, not Cargo's unified
+feature graph.
 
 Frames and UAV use the slim trixie contract. Their native build dependencies become
 part of that family. The DeepStream, vLLM, and SUMO families remain standalone in the
