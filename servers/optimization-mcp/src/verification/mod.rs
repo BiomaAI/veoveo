@@ -59,6 +59,10 @@ pub(crate) fn report(
     }
 }
 
+pub fn empty_report(tolerance: VerificationTolerance) -> VerificationReport {
+    report(Vec::new(), tolerance, None, None, None)
+}
+
 pub(crate) fn non_negative(value: f64) -> NonNegativeF64 {
     NonNegativeF64::new(value.max(0.0)).expect("verification metrics are finite and non-negative")
 }

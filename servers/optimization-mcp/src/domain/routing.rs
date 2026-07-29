@@ -155,11 +155,26 @@ pub struct InlineTravelModel {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct TravelModelArtifact {
+    pub version: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub map_resource_uri: Option<MapTravelModelUri>,
+    pub model: InlineTravelModel,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "source", rename_all = "snake_case")]
 pub enum TravelModelSource {
-    MapResource { uri: MapTravelModelUri },
-    Artifact { manifest_uri: ArtifactUri },
-    Inline { model: InlineTravelModel },
+    MapResource {
+        uri: MapTravelModelUri,
+        manifest_uri: ArtifactUri,
+    },
+    Artifact {
+        manifest_uri: ArtifactUri,
+    },
+    Inline {
+        model: InlineTravelModel,
+    },
 }
 
 #[derive(
@@ -467,8 +482,6 @@ pub enum RoutingProblemSource {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
 pub struct RouteOutputPolicy {
-    #[serde(default)]
-    pub retain_solver_log: bool,
     #[serde(default)]
     pub include_route_table_artifact: bool,
 }

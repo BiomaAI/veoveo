@@ -293,6 +293,7 @@ pub fn verify_routing_solution(
         }
         total_cost += route_cost + vehicle.fixed_cost as f64;
         routes.push(VehicleRoute {
+            case_id: None,
             vehicle_id: vehicle.vehicle_id.clone(),
             stops: output_stops,
             objective: FiniteF64::new(route_cost + vehicle.fixed_cost as f64)
@@ -527,6 +528,7 @@ mod tests {
                 weight: 1.0,
             }],
             minimum_vehicles: 0,
+            initial_solution: None,
         };
         let solution = ExecutorRoutingSolution {
             status: ExecutorRoutingStatus::Success,

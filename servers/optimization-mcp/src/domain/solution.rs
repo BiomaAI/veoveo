@@ -183,6 +183,8 @@ pub enum RouteNodeKind {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct VehicleRoute {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub case_id: Option<RouteCaseId>,
     pub vehicle_id: VehicleId,
     pub stops: Vec<RouteStopResult>,
     pub objective: FiniteF64,
@@ -365,8 +367,25 @@ pub struct OptimizationToolOutput {
     pub feasibility: SolutionFeasibility,
     pub termination: SolverTermination,
     pub summary: OptimizationToolSummary,
+    pub problem_artifact: ArtifactMetadata,
+    pub solution_artifact: ArtifactMetadata,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub artifacts: Vec<ArtifactMetadata>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "family", rename_all = "snake_case")]
+pub enum OptimizationProblemDefinition {
+    Routing { problem: super::RoutingProblem },
+    RouteScenarios { cases: Vec<super::RouteScenario> },
+    Convex { problem: super::ConvexProblem },
+    Milp { problem: super::MilpProblem },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct OptimizationProblemResource {
+    pub record: OptimizationProblemRecord,
+    pub definition: OptimizationProblemDefinition,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

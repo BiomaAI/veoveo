@@ -2,13 +2,15 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     domain::{
-        DenseTravelMatrix, LocationId, RouteNodeKind, RouteObjectiveMetric, RouteOrderKind,
-        RouteServicePolicy, RoutingProblem, TravelModelSource, VehicleTypeId,
+        DenseTravelMatrix, LocationId, OptimizationSolution, RouteNodeKind, RouteObjectiveMetric,
+        RouteOrderKind, RouteServicePolicy, RoutingProblem, SolutionDetail, TravelModelSource,
+        VehicleTypeId,
     },
     executor::{
-        CompiledCapacityDimension, CompiledDenseMatrix, CompiledOrderVehicleMatch,
-        CompiledPickupDeliveryPair, CompiledRouteNode, CompiledRouteObjective,
-        CompiledRoutingProblem, CompiledVehicle, CompiledVehicleBreak,
+        CompiledCapacityDimension, CompiledDenseMatrix, CompiledInitialRouteNodeKind,
+        CompiledInitialRoutingSolution, CompiledOrderVehicleMatch, CompiledPickupDeliveryPair,
+        CompiledRouteNode, CompiledRouteObjective, CompiledRoutingProblem, CompiledVehicle,
+        CompiledVehicleBreak,
     },
 };
 
@@ -65,6 +67,99 @@ pub fn compile_routing_problem(
             .fleet
             .exact_vehicles
             .unwrap_or(problem.fleet.minimum_vehicles),
+        initial_solution: None,
+    })
+}
+
+pub fn compile_routing_initial_solution(
+    problem: &CompiledRoutingProblem,
+    solution: &OptimizationSolution,
+) -> Result<CompiledInitialRoutingSolution, CompileError> {
+    let SolutionDetail::Routing { routes, .. } = &solution.detail else {
+        return Err(CompileError::InvalidProblem(
+            "routing warm start must reference a routing solution".to_owned(),
+        ));
+    };
+    if routes.iter().any(|route| route.case_id.is_some()) {
+        return Err(CompileError::InvalidProblem(
+            "route-scenario solutions cannot seed a single routing case".to_owned(),
+        ));
+    }
+    let vehicle_indices = problem
+        .vehicles
+        .iter()
+        .enumerate()
+        .map(|(index, vehicle)| (vehicle.vehicle_id.clone(), index as u32))
+        .collect::<BTreeMap<_, _>>();
+    let mut vehicles = Vec::new();
+    let mut route_nodes = Vec::new();
+    let mut node_kinds = Vec::new();
+    for route in routes {
+        let vehicle = vehicle_indices
+            .get(&route.vehicle_id)
+            .copied()
+            .ok_or_else(|| {
+                CompileError::InvalidProblem(format!(
+                    "warm start references unknown vehicle {}",
+                    route.vehicle_id
+                ))
+            })?;
+        for stop in &route.stops {
+            let (node, kind) = match stop.node_kind {
+                RouteNodeKind::Depot => (0, CompiledInitialRouteNodeKind::Depot),
+                RouteNodeKind::Break => (0, CompiledInitialRouteNodeKind::Break),
+                RouteNodeKind::Service | RouteNodeKind::Delivery | RouteNodeKind::Pickup => {
+                    let order_id = stop.order_id.as_ref().ok_or_else(|| {
+                        CompileError::InvalidProblem(
+                            "warm-start order stop omits order_id".to_owned(),
+                        )
+                    })?;
+                    let expected_kind = stop.node_kind;
+                    let node = problem
+                        .nodes
+                        .iter()
+                        .position(|candidate| {
+                            &candidate.order_id == order_id && candidate.kind == expected_kind
+                        })
+                        .or_else(|| {
+                            (expected_kind == RouteNodeKind::Service).then(|| {
+                                problem
+                                    .nodes
+                                    .iter()
+                                    .position(|candidate| &candidate.order_id == order_id)
+                            })?
+                        })
+                        .ok_or_else(|| {
+                            CompileError::InvalidProblem(format!(
+                                "warm start references unknown order stop {order_id}"
+                            ))
+                        })? as u32;
+                    let kind = match stop.node_kind {
+                        RouteNodeKind::Pickup => CompiledInitialRouteNodeKind::Pickup,
+                        RouteNodeKind::Service | RouteNodeKind::Delivery => {
+                            CompiledInitialRouteNodeKind::Delivery
+                        }
+                        RouteNodeKind::Depot | RouteNodeKind::Break => unreachable!(),
+                    };
+                    (node, kind)
+                }
+            };
+            vehicles.push(vehicle);
+            route_nodes.push(node);
+            node_kinds.push(kind);
+        }
+    }
+    if route_nodes.is_empty() {
+        return Err(CompileError::InvalidProblem(
+            "routing warm start contains no route stops".to_owned(),
+        ));
+    }
+    let solution_length = route_nodes.len() as u32;
+    Ok(CompiledInitialRoutingSolution {
+        vehicle_indices: vehicles,
+        route_nodes,
+        node_kinds,
+        solution_offsets: vec![0, solution_length],
     })
 }
 

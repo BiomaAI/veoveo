@@ -367,9 +367,7 @@ fn validate_initial_solution(
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ArtifactModelFormat {
-    Mps,
-    Lp,
-    OptimizationPackageV1,
+    OptimizationJsonV1,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -395,9 +393,13 @@ pub enum MilpProblemSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
-pub struct MathematicalOutputPolicy {
+pub struct ConvexOutputPolicy {
     #[serde(default)]
-    pub retain_solver_log: bool,
+    pub retain_warm_start: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+pub struct MilpOutputPolicy {
     #[serde(default)]
     pub retain_warm_start: bool,
     #[serde(default)]
@@ -409,7 +411,7 @@ pub struct SolveConvexRequest {
     pub problem: ConvexProblemSource,
     pub policy: SolverPolicyRef,
     #[serde(default)]
-    pub output: MathematicalOutputPolicy,
+    pub output: ConvexOutputPolicy,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -419,7 +421,7 @@ pub struct SolveMilpRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub initial_solution: Option<OptimizationSolutionUri>,
     #[serde(default)]
-    pub output: MathematicalOutputPolicy,
+    pub output: MilpOutputPolicy,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

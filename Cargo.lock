@@ -4720,16 +4720,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "good_lp"
-version = "1.15.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "745190412d5ff4a54335cd16229a475ad3fb8f5474a5c1358292d62932187ea7"
-dependencies = [
- "fnv",
- "microlp",
-]
-
-[[package]]
 name = "gpu-allocator"
 version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6047,17 +6037,6 @@ checksum = "c73f5c649995a115e1a0220b35e4df0a1294500477f97a91d0660fb5abeb574a"
 dependencies = [
  "libc",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "microlp"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "458ed987196f802dc47c69d4c5afcd19002d6c1c5f8f75c76d129bcf2425057a"
-dependencies = [
- "log",
- "sprs",
- "web-time",
 ]
 
 [[package]]
@@ -9978,18 +9957,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sprs"
-version = "0.11.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6dca58a33be2188d4edc71534f8bafa826e787cc28ca1c47f31be3423f0d6e55"
-dependencies = [
- "ndarray 0.17.2",
- "num-complex",
- "num-traits",
- "smallvec",
-]
-
-[[package]]
 name = "sqlparser"
 version = "0.61.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11962,12 +11929,8 @@ dependencies = [
  "chrono",
  "clap",
  "dotenvy",
- "duckdb",
  "futures",
- "good_lp",
  "hex",
- "re_sdk",
- "re_sdk_types",
  "reqwest",
  "rmcp",
  "rustls",

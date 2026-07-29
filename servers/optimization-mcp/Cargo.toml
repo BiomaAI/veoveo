@@ -18,12 +18,8 @@ base64.workspace = true
 chrono.workspace = true
 clap.workspace = true
 dotenvy.workspace = true
-duckdb.workspace = true
 futures.workspace = true
-good_lp.workspace = true
 hex.workspace = true
-re_sdk.workspace = true
-re_sdk_types.workspace = true
 reqwest = { workspace = true, features = ["rustls-no-provider"] }
 rustls.workspace = true
 rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"] }

@@ -5,7 +5,7 @@ mod mathematical;
 mod routing;
 
 pub use mathematical::{compile_convex_problem, compile_milp_problem};
-pub use routing::compile_routing_problem;
+pub use routing::{compile_routing_initial_solution, compile_routing_problem};
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq)]
 pub enum CompileError {

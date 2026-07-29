@@ -105,6 +105,7 @@ fn routing_problem() -> CompiledRoutingProblem {
             weight: 1.0,
         }],
         minimum_vehicles: 0,
+        initial_solution: None,
     }
 }
 

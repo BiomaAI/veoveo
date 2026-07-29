@@ -203,6 +203,23 @@ def _build_model(problem: dict[str, Any], routing: Any) -> Any:
     minimum_vehicles = int(problem.get("minimum_vehicles", 0))
     if minimum_vehicles:
         model.set_min_vehicles(minimum_vehicles)
+    initial = problem.get("initial_solution")
+    if initial is not None:
+        kind_names = {
+            "depot": "Depot",
+            "delivery": "Delivery",
+            "pickup": "Pickup",
+            "break": "Break",
+        }
+        model.add_initial_solutions(
+            cudf.Series(initial["vehicle_indices"], dtype="int32"),
+            cudf.Series(initial["route_nodes"], dtype="int32"),
+            cudf.Series(
+                [kind_names[kind] for kind in initial["node_kinds"]],
+                dtype="str",
+            ),
+            cudf.Series(initial["solution_offsets"], dtype="int32"),
+        )
     return model
 
 
