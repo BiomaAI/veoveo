@@ -246,8 +246,13 @@ MCP App and requires advancing direct-live H.264, fresh typed results, the
 overlay canvas, and an exact Media Capabilities decode result. It then opens
 the same flight's governed recording in the Console Rerun viewer. Recording
 acceptance requires a successful manifest response, scoped Redap responses,
-zero legacy archive-shard requests, and measured nonblank plots, imagery, or
-spatial content inside the Rerun viewport. Headless Chrome, a browser with
+successful `WhoAmI`, `FindEntries`, `ReadDatasetEntry`, `GetRrdManifest`, and
+`GetSegmentTableSchema` calls, zero legacy archive-shard requests, and measured
+nonblank plots, imagery, or spatial content inside the Rerun viewport. Chrome
+may report a redundant request as a canceled `net::ERR_ABORTED` only when the
+same Redap path also completed successfully during the capture. The evidence
+records that supersession separately; every other network abort remains a
+playback failure. Headless Chrome, a browser with
 neither hardware WebGPU nor hardware WebGL, missing Console APIs, a synthetic
 App host, a static frame, stale Stream results, an archive loading surface, or
 a software-renderer warning from the active visual surface fails the run.

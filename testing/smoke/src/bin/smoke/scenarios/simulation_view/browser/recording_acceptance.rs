@@ -18,14 +18,17 @@ pub(super) struct RecordingPlaybackNetworkEvidence {
     redap_responses: usize,
     live_responses: usize,
     legacy_archive_requests: usize,
+    canceled_playback_requests: usize,
+    cancellations: Vec<PlaybackRequestIssue>,
     failed_playback_requests: usize,
-    failures: Vec<PlaybackRequestFailure>,
+    failures: Vec<PlaybackRequestIssue>,
     redap_paths: Vec<String>,
+    successful_redap_paths: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct PlaybackRequestFailure {
+struct PlaybackRequestIssue {
     path: String,
     status: Option<u16>,
     error_text: Option<String>,
@@ -183,8 +186,10 @@ impl Cdp {
         let mut redap_responses = 0;
         let mut live_responses = 0;
         let mut legacy_archive_requests = BTreeSet::new();
-        let mut failures = BTreeMap::<String, PlaybackRequestFailure>::new();
+        let mut issues = BTreeMap::<String, PlaybackRequestIssue>::new();
+        let mut successful_paths = BTreeSet::new();
         let mut redap_paths = BTreeSet::new();
+        let mut successful_redap_paths = BTreeSet::new();
 
         for event in &self.events {
             let Some(method) = event.get("method").and_then(Value::as_str) else {
@@ -230,8 +235,8 @@ impl Cdp {
                         .and_then(Value::as_f64)
                         .unwrap_or_default();
                     if !(200.0..300.0).contains(&status) {
-                        record_playback_failure(
-                            &mut failures,
+                        record_playback_issue(
+                            &mut issues,
                             request_id,
                             &request.path,
                             Some(status as u16),
@@ -240,9 +245,13 @@ impl Cdp {
                         );
                         continue;
                     }
+                    successful_paths.insert(request.path.clone());
                     match request.kind {
                         PlaybackRequestKind::Manifest => manifest_responses += 1,
-                        PlaybackRequestKind::Redap => redap_responses += 1,
+                        PlaybackRequestKind::Redap => {
+                            redap_responses += 1;
+                            successful_redap_paths.insert(request.path.clone());
+                        }
                         PlaybackRequestKind::Live => live_responses += 1,
                         PlaybackRequestKind::LegacyArchive => {}
                     }
@@ -256,8 +265,8 @@ impl Cdp {
                     let Some(request) = requests.get(request_id) else {
                         continue;
                     };
-                    record_playback_failure(
-                        &mut failures,
+                    record_playback_issue(
+                        &mut issues,
                         request_id,
                         &request.path,
                         None,
@@ -272,21 +281,26 @@ impl Cdp {
             }
         }
 
-        let failures = failures.into_values().collect::<Vec<_>>();
+        let (cancellations, failures) =
+            classify_playback_issues(issues.into_values(), &successful_paths);
         let evidence = RecordingPlaybackNetworkEvidence {
             manifest_responses,
             redap_responses,
             live_responses,
             legacy_archive_requests: legacy_archive_requests.len(),
+            canceled_playback_requests: cancellations.len(),
+            cancellations,
             failed_playback_requests: failures.len(),
             failures,
             redap_paths: redap_paths.into_iter().collect(),
+            successful_redap_paths: successful_redap_paths.into_iter().collect(),
         };
         ensure!(
             evidence.manifest_responses > 0
                 && evidence.redap_responses > 0
                 && evidence.legacy_archive_requests == 0
-                && evidence.failed_playback_requests == 0,
+                && evidence.failed_playback_requests == 0
+                && required_redap_paths_succeeded(&evidence.successful_redap_paths),
             "Console did not complete scoped lazy Redap playback without legacy archive traffic: \
              {evidence:?}"
         );
@@ -333,27 +347,59 @@ fn playback_request_kind(
     None
 }
 
-fn record_playback_failure(
-    failures: &mut BTreeMap<String, PlaybackRequestFailure>,
+fn record_playback_issue(
+    issues: &mut BTreeMap<String, PlaybackRequestIssue>,
     request_id: &str,
     path: &str,
     status: Option<u16>,
     error_text: Option<&str>,
     canceled: bool,
 ) {
-    let failure = failures
+    let issue = issues
         .entry(request_id.to_owned())
-        .or_insert_with(|| PlaybackRequestFailure {
+        .or_insert_with(|| PlaybackRequestIssue {
             path: path.to_owned(),
             status: None,
             error_text: None,
             canceled: false,
         });
-    failure.status = status.or(failure.status);
+    issue.status = status.or(issue.status);
     if let Some(error_text) = error_text {
-        failure.error_text = Some(error_text.to_owned());
+        issue.error_text = Some(error_text.to_owned());
     }
-    failure.canceled |= canceled;
+    issue.canceled |= canceled;
+}
+
+fn classify_playback_issues(
+    issues: impl IntoIterator<Item = PlaybackRequestIssue>,
+    successful_paths: &BTreeSet<String>,
+) -> (Vec<PlaybackRequestIssue>, Vec<PlaybackRequestIssue>) {
+    let mut cancellations = Vec::new();
+    let mut failures = Vec::new();
+    for issue in issues {
+        let is_superseded_cancellation = issue.status.is_none()
+            && issue.canceled
+            && issue.error_text.as_deref() == Some("net::ERR_ABORTED")
+            && successful_paths.contains(&issue.path);
+        if is_superseded_cancellation {
+            cancellations.push(issue);
+        } else {
+            failures.push(issue);
+        }
+    }
+    (cancellations, failures)
+}
+
+fn required_redap_paths_succeeded(paths: &[String]) -> bool {
+    [
+        "/WhoAmI",
+        "/FindEntries",
+        "/ReadDatasetEntry",
+        "/GetRrdManifest",
+        "/GetSegmentTableSchema",
+    ]
+    .into_iter()
+    .all(|required| paths.iter().any(|path| path.ends_with(required)))
 }
 
 #[cfg(test)]
@@ -394,17 +440,17 @@ mod tests {
 
     #[test]
     fn one_failed_request_is_not_double_counted_by_response_and_loading_events() {
-        let mut failures = BTreeMap::new();
-        record_playback_failure(
-            &mut failures,
+        let mut issues = BTreeMap::new();
+        record_playback_issue(
+            &mut issues,
             "request-1",
             "/console/api/recordings/id/segments/id/live.rrd",
             Some(401),
             None,
             false,
         );
-        record_playback_failure(
-            &mut failures,
+        record_playback_issue(
+            &mut issues,
             "request-1",
             "/console/api/recordings/id/segments/id/live.rrd",
             None,
@@ -412,10 +458,44 @@ mod tests {
             false,
         );
 
-        let failure = failures.get("request-1").unwrap();
-        assert_eq!(failures.len(), 1);
+        let failure = issues.get("request-1").unwrap();
+        assert_eq!(issues.len(), 1);
         assert_eq!(failure.status, Some(401));
         assert_eq!(failure.error_text.as_deref(), Some("net::ERR_ABORTED"));
+    }
+
+    #[test]
+    fn superseded_abort_is_evidenced_only_after_the_same_path_succeeds() {
+        let path = "/rerun.cloud.v1alpha1.RerunCloudService/GetRrdManifest";
+        let issue = PlaybackRequestIssue {
+            path: path.to_owned(),
+            status: None,
+            error_text: Some("net::ERR_ABORTED".to_owned()),
+            canceled: true,
+        };
+
+        let (cancellations, failures) =
+            classify_playback_issues([issue.clone()], &BTreeSet::from([path.to_owned()]));
+        assert_eq!(cancellations.len(), 1);
+        assert!(failures.is_empty());
+
+        let (cancellations, failures) = classify_playback_issues([issue], &BTreeSet::new());
+        assert!(cancellations.is_empty());
+        assert_eq!(failures.len(), 1);
+    }
+
+    #[test]
+    fn scoped_lazy_redap_requires_every_core_success_path() {
+        let paths = [
+            "WhoAmI",
+            "FindEntries",
+            "ReadDatasetEntry",
+            "GetRrdManifest",
+            "GetSegmentTableSchema",
+        ]
+        .map(|method| format!("/rerun.cloud.v1alpha1.RerunCloudService/{method}"));
+        assert!(required_redap_paths_succeeded(&paths));
+        assert!(!required_redap_paths_succeeded(&paths[..4]));
     }
 
     #[test]
