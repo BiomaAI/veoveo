@@ -19,7 +19,17 @@ pub(super) struct RecordingPlaybackNetworkEvidence {
     live_responses: usize,
     legacy_archive_requests: usize,
     failed_playback_requests: usize,
+    failures: Vec<PlaybackRequestFailure>,
     redap_paths: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlaybackRequestFailure {
+    path: String,
+    status: Option<u16>,
+    error_text: Option<String>,
+    canceled: bool,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
@@ -168,12 +178,12 @@ impl Cdp {
         recording_id: &str,
     ) -> Result<RecordingPlaybackNetworkEvidence> {
         let recording_prefix = format!("/console/api/recordings/{recording_id}/");
-        let mut request_paths = BTreeMap::<String, PlaybackRequestKind>::new();
+        let mut requests = BTreeMap::<String, PlaybackRequest>::new();
         let mut manifest_responses = 0;
         let mut redap_responses = 0;
         let mut live_responses = 0;
         let mut legacy_archive_requests = BTreeSet::new();
-        let mut failed_playback_requests = 0;
+        let mut failures = BTreeMap::<String, PlaybackRequestFailure>::new();
         let mut redap_paths = BTreeSet::new();
 
         for event in &self.events {
@@ -196,9 +206,9 @@ impl Cdp {
                             legacy_archive_requests.insert(request_id.to_owned());
                         }
                         if kind == PlaybackRequestKind::Redap {
-                            redap_paths.insert(path);
+                            redap_paths.insert(path.clone());
                         }
-                        request_paths.insert(request_id.to_owned(), kind);
+                        requests.insert(request_id.to_owned(), PlaybackRequest { kind, path });
                     }
                 }
                 "Network.responseReceived" => {
@@ -207,11 +217,12 @@ impl Cdp {
                     else {
                         continue;
                     };
-                    let kind = request_paths.get(request_id).copied().or_else(|| {
+                    let request = requests.get(request_id).cloned().or_else(|| {
                         let url = event.pointer("/params/response/url")?.as_str()?;
-                        playback_request_kind(url, &recording_prefix).map(|(kind, _)| kind)
+                        playback_request_kind(url, &recording_prefix)
+                            .map(|(kind, path)| PlaybackRequest { kind, path })
                     });
-                    let Some(kind) = kind else {
+                    let Some(request) = request else {
                         continue;
                     };
                     let status = event
@@ -219,10 +230,17 @@ impl Cdp {
                         .and_then(Value::as_f64)
                         .unwrap_or_default();
                     if !(200.0..300.0).contains(&status) {
-                        failed_playback_requests += 1;
+                        record_playback_failure(
+                            &mut failures,
+                            request_id,
+                            &request.path,
+                            Some(status as u16),
+                            None,
+                            false,
+                        );
                         continue;
                     }
-                    match kind {
+                    match request.kind {
                         PlaybackRequestKind::Manifest => manifest_responses += 1,
                         PlaybackRequestKind::Redap => redap_responses += 1,
                         PlaybackRequestKind::Live => live_responses += 1,
@@ -235,20 +253,33 @@ impl Cdp {
                     else {
                         continue;
                     };
-                    if request_paths.contains_key(request_id) {
-                        failed_playback_requests += 1;
-                    }
+                    let Some(request) = requests.get(request_id) else {
+                        continue;
+                    };
+                    record_playback_failure(
+                        &mut failures,
+                        request_id,
+                        &request.path,
+                        None,
+                        event.pointer("/params/errorText").and_then(Value::as_str),
+                        event
+                            .pointer("/params/canceled")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(false),
+                    );
                 }
                 _ => {}
             }
         }
 
+        let failures = failures.into_values().collect::<Vec<_>>();
         let evidence = RecordingPlaybackNetworkEvidence {
             manifest_responses,
             redap_responses,
             live_responses,
             legacy_archive_requests: legacy_archive_requests.len(),
-            failed_playback_requests,
+            failed_playback_requests: failures.len(),
+            failures,
             redap_paths: redap_paths.into_iter().collect(),
         };
         ensure!(
@@ -261,6 +292,12 @@ impl Cdp {
         );
         Ok(evidence)
     }
+}
+
+#[derive(Clone, Debug)]
+struct PlaybackRequest {
+    kind: PlaybackRequestKind,
+    path: String,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -294,6 +331,29 @@ fn playback_request_kind(
         return Some((PlaybackRequestKind::LegacyArchive, path));
     }
     None
+}
+
+fn record_playback_failure(
+    failures: &mut BTreeMap<String, PlaybackRequestFailure>,
+    request_id: &str,
+    path: &str,
+    status: Option<u16>,
+    error_text: Option<&str>,
+    canceled: bool,
+) {
+    let failure = failures
+        .entry(request_id.to_owned())
+        .or_insert_with(|| PlaybackRequestFailure {
+            path: path.to_owned(),
+            status: None,
+            error_text: None,
+            canceled: false,
+        });
+    failure.status = status.or(failure.status);
+    if let Some(error_text) = error_text {
+        failure.error_text = Some(error_text.to_owned());
+    }
+    failure.canceled |= canceled;
 }
 
 #[cfg(test)]
@@ -330,6 +390,32 @@ mod tests {
             kind("https://installation.example/console/assets/re_viewer.wasm"),
             None
         );
+    }
+
+    #[test]
+    fn one_failed_request_is_not_double_counted_by_response_and_loading_events() {
+        let mut failures = BTreeMap::new();
+        record_playback_failure(
+            &mut failures,
+            "request-1",
+            "/console/api/recordings/id/segments/id/live.rrd",
+            Some(401),
+            None,
+            false,
+        );
+        record_playback_failure(
+            &mut failures,
+            "request-1",
+            "/console/api/recordings/id/segments/id/live.rrd",
+            None,
+            Some("net::ERR_ABORTED"),
+            false,
+        );
+
+        let failure = failures.get("request-1").unwrap();
+        assert_eq!(failures.len(), 1);
+        assert_eq!(failure.status, Some(401));
+        assert_eq!(failure.error_text.as_deref(), Some("net::ERR_ABORTED"));
     }
 
     #[test]

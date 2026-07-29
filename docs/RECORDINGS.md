@@ -92,6 +92,14 @@ the durable Veoveo catalog and immutable RRD files rebuild it after restart or
 eviction. There are no archive-byte proxy routes and no whole-recording RRD
 concatenation endpoint.
 
+The current writing shard remains one bounded HTTP RRD receiver with the same
+recording and segment identity. Rerun 0.35 creates that Fetch request with
+credentials omitted, so Console installs a reversible exact-route adapter while
+the viewer is mounted. It changes only the canonical same-origin live request
+to `same-origin` credentials. The HttpOnly Console session therefore reaches
+the normal BFF and gateway policy boundary without a token in the URL, while
+Redap and arbitrary HTTP sources remain untouched.
+
 Live playback is a distinct governed projection. The manifest identifies the
 current writing segment and declares the configured history window. The
 production default sends 60 seconds of recent temporal data plus two seconds of

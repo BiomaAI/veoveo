@@ -5,6 +5,7 @@ import {
   type GovernedRerunSource,
   type OpenedRerunSources,
 } from "../rerunSources";
+import { installConsoleLivePlaybackFetch } from "../recordingLiveFetch";
 
 type ViewerStatus =
   | { state: "loading"; delayed: boolean }
@@ -66,6 +67,7 @@ export default function GovernedRerunViewer({
 
   useEffect(() => {
     const viewer = new WebViewer();
+    const releaseLivePlaybackFetch = installConsoleLivePlaybackFetch();
     let active = true;
     let removeOpenListener: (() => void) | undefined;
     let delayedNotice: number | undefined;
@@ -114,6 +116,7 @@ export default function GovernedRerunViewer({
       } catch (cause) {
         console.warn("Rerun cleanup failed after the viewer stopped", cause);
       }
+      releaseLivePlaybackFetch();
     };
   }, [recordingId]);
 
