@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use axum::body::{Body, Bytes};
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
-use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
+use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -23,7 +23,7 @@ use veoveo_mcp_contract::{
 
 use crate::PlaneAuthenticator;
 use crate::ledger::ArtifactRepository;
-use crate::service::{ArtifactDownload, ArtifactService, DownloadDelivery};
+use crate::service::{ArtifactByteRange, ArtifactDownload, ArtifactService, DownloadBody};
 use crate::store::BlobStore;
 
 const MAX_UPLOAD_BODY_BYTES: usize = 256 * 1024 * 1024;
@@ -68,10 +68,6 @@ where
         .route(
             "/artifacts/{artifact_id}/download",
             get(download_artifact::<R, S>),
-        )
-        .route(
-            "/artifacts/{artifact_id}/proxy-download",
-            get(proxy_download_artifact::<R, S>),
         )
         .route(
             "/artifacts/{artifact_id}/grants",
@@ -254,6 +250,7 @@ fn metadata_headers(metadata: &ArtifactMetadata) -> Result<HeaderMap, ApiError> 
         header::CONTENT_SECURITY_POLICY,
         HeaderValue::from_static("default-src 'none'; sandbox"),
     );
+    headers.insert(header::ACCEPT_RANGES, HeaderValue::from_static("bytes"));
     Ok(headers)
 }
 
@@ -261,35 +258,89 @@ fn bytes_with_metadata(metadata: &ArtifactMetadata, bytes: Vec<u8>) -> Result<Re
     let mut response = Response::new(Body::from(bytes));
     *response.status_mut() = StatusCode::OK;
     *response.headers_mut() = metadata_headers(metadata)?;
+    response.headers_mut().insert(
+        header::CONTENT_LENGTH,
+        HeaderValue::from_str(&metadata.byte_len.to_string())
+            .map_err(|error| ArtifactPlaneError::Transport(error.to_string()))?,
+    );
     Ok(response)
 }
 
 fn download_response(download: ArtifactDownload) -> Result<Response, ApiError> {
-    match download.delivery {
-        DownloadDelivery::Bytes(bytes) => bytes_with_metadata(&download.metadata, bytes),
-        DownloadDelivery::SignedRedirect(url) => {
-            let mut response = StatusCode::TEMPORARY_REDIRECT.into_response();
-            response.headers_mut().insert(
-                header::LOCATION,
-                HeaderValue::from_str(&url)
-                    .map_err(|error| ArtifactPlaneError::Transport(error.to_string()))?,
-            );
-            response
-                .headers_mut()
-                .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-            response.headers_mut().insert(
-                header::REFERRER_POLICY,
-                HeaderValue::from_static("no-referrer"),
-            );
-            Ok(response)
-        }
-        DownloadDelivery::Stream(stream) => {
-            let mut response = Response::new(Body::from_stream(stream));
-            *response.status_mut() = StatusCode::OK;
-            *response.headers_mut() = metadata_headers(&download.metadata)?;
-            Ok(response)
-        }
+    let body = download.body.map_or_else(Body::empty, Body::from_stream);
+    let mut response = Response::new(body);
+    *response.headers_mut() = metadata_headers(&download.metadata)?;
+    let content_length = download
+        .range
+        .map_or(download.metadata.byte_len, |range| range.length());
+    response.headers_mut().insert(
+        header::CONTENT_LENGTH,
+        HeaderValue::from_str(&content_length.to_string())
+            .map_err(|error| ArtifactPlaneError::Transport(error.to_string()))?,
+    );
+    if let Some(range) = download.range {
+        *response.status_mut() = StatusCode::PARTIAL_CONTENT;
+        response.headers_mut().insert(
+            header::CONTENT_RANGE,
+            HeaderValue::from_str(&format!(
+                "bytes {}-{}/{}",
+                range.start,
+                range.end_exclusive - 1,
+                download.metadata.byte_len
+            ))
+            .map_err(|error| ArtifactPlaneError::Transport(error.to_string()))?,
+        );
+    } else {
+        *response.status_mut() = StatusCode::OK;
     }
+    Ok(response)
+}
+
+fn requested_range(headers: &HeaderMap) -> Result<Option<ArtifactByteRange>, ApiError> {
+    let Some(value) = headers.get(header::RANGE) else {
+        return Ok(None);
+    };
+    let value = value.to_str().map_err(|_| {
+        ArtifactPlaneError::InvalidRequest("Range header must contain ASCII bytes".into())
+    })?;
+    let value = value.strip_prefix("bytes=").ok_or_else(|| {
+        ArtifactPlaneError::InvalidRequest("only byte ranges are supported".into())
+    })?;
+    if value.contains(',') {
+        return Err(ArtifactPlaneError::InvalidRequest(
+            "multiple artifact byte ranges are not supported".into(),
+        )
+        .into());
+    }
+    let (start, end) = value
+        .split_once('-')
+        .ok_or_else(|| ArtifactPlaneError::InvalidRequest("invalid artifact byte range".into()))?;
+    let range = match (start, end) {
+        ("", "") => {
+            return Err(
+                ArtifactPlaneError::InvalidRequest("artifact byte range is empty".into()).into(),
+            );
+        }
+        ("", end) => ArtifactByteRange::Suffix {
+            length: end.parse().map_err(|_| {
+                ArtifactPlaneError::InvalidRequest("invalid artifact suffix range".into())
+            })?,
+        },
+        (start, "") => ArtifactByteRange::From {
+            start: start.parse().map_err(|_| {
+                ArtifactPlaneError::InvalidRequest("invalid artifact range start".into())
+            })?,
+        },
+        (start, end) => ArtifactByteRange::Inclusive {
+            start: start.parse().map_err(|_| {
+                ArtifactPlaneError::InvalidRequest("invalid artifact range start".into())
+            })?,
+            end: end.parse().map_err(|_| {
+                ArtifactPlaneError::InvalidRequest("invalid artifact range end".into())
+            })?,
+        },
+    };
+    Ok(Some(range))
 }
 
 async fn put_artifact<R: ArtifactRepository, S: BlobStore>(
@@ -347,26 +398,22 @@ async fn download_artifact<R: ArtifactRepository, S: BlobStore>(
     State(state): State<AppState<R, S>>,
     Path(artifact_id): Path<String>,
     headers: HeaderMap,
+    method: Method,
 ) -> Result<Response, ApiError> {
     let caller = caller(&state, &headers)?;
     download_response(
         state
             .service
-            .download(&caller, parse_artifact_id(&artifact_id)?)
-            .await?,
-    )
-}
-
-async fn proxy_download_artifact<R: ArtifactRepository, S: BlobStore>(
-    State(state): State<AppState<R, S>>,
-    Path(artifact_id): Path<String>,
-    headers: HeaderMap,
-) -> Result<Response, ApiError> {
-    let caller = caller(&state, &headers)?;
-    download_response(
-        state
-            .service
-            .proxy_download(&caller, parse_artifact_id(&artifact_id)?)
+            .download(
+                &caller,
+                parse_artifact_id(&artifact_id)?,
+                requested_range(&headers)?,
+                if method == Method::HEAD {
+                    DownloadBody::Omit
+                } else {
+                    DownloadBody::Include
+                },
+            )
             .await?,
     )
 }
@@ -582,8 +629,22 @@ async fn redeem_write_capability<R: ArtifactRepository, S: BlobStore>(
 async fn redeem_public_share<R: ArtifactRepository, S: BlobStore>(
     State(state): State<AppState<R, S>>,
     Path(token): Path<String>,
+    headers: HeaderMap,
+    method: Method,
 ) -> Result<Response, ApiError> {
-    match state.service.redeem_public_share(&token).await {
+    match state
+        .service
+        .redeem_public_share(
+            &token,
+            requested_range(&headers)?,
+            if method == Method::HEAD {
+                DownloadBody::Omit
+            } else {
+                DownloadBody::Include
+            },
+        )
+        .await
+    {
         Ok(download) => download_response(download),
         Err(ArtifactPlaneError::Transport(message)) => {
             Err(ApiError(ArtifactPlaneError::Transport(message)))
@@ -599,6 +660,7 @@ mod tests {
 
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
     use chrono::{TimeDelta, Utc};
+    use sha2::{Digest, Sha256};
     use veoveo_artifact_client::HttpArtifactPlane;
     use veoveo_mcp_contract::gateway::{
         GatewayProfileId, PrincipalId, PrincipalKind, ServerSlug, TenantId, TokenIssuer,
@@ -695,7 +757,6 @@ mod tests {
             InMemoryBlobStore::default(),
             &base,
             1024,
-            8,
         );
         let auth = PlaneAuthenticator::new(
             TokenIssuer::new("veoveo-internal").unwrap(),
@@ -747,6 +808,8 @@ mod tests {
         let http = reqwest::Client::new();
         let first = http.get(&link.url).send().await.unwrap();
         assert_eq!(first.status(), reqwest::StatusCode::OK);
+        assert!(link.url.starts_with(&base));
+        assert!(!first.headers().contains_key(header::LOCATION));
         assert_eq!(first.headers()[header::CACHE_CONTROL], "no-store");
         assert_eq!(first.headers()[header::REFERRER_POLICY], "no-referrer");
         assert_eq!(first.headers()[header::CONTENT_DISPOSITION], "attachment");
@@ -756,6 +819,79 @@ mod tests {
             http.get(&link.url).send().await.unwrap().status(),
             reqwest::StatusCode::NOT_FOUND
         );
+    }
+
+    #[tokio::test]
+    async fn large_full_range_and_head_downloads_stay_on_the_artifact_service() {
+        let (base, caller) = spawn_service().await;
+        let http = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .unwrap();
+        let plane = HttpArtifactPlane::with_client(&base, http.clone());
+        let payload = (0..(9 * 1024 * 1024 + 37))
+            .map(|index| (index % 251) as u8)
+            .collect::<Vec<_>>();
+        let expected_digest = Sha256::digest(&payload);
+        let metadata = plane
+            .put(&caller, PutArtifactRequest::default(), payload.clone())
+            .await
+            .unwrap();
+        let url = format!("{base}/artifacts/{}/download", metadata.artifact_id);
+
+        let full = http
+            .get(&url)
+            .bearer_auth(&caller.bearer_token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(full.status(), reqwest::StatusCode::OK);
+        assert_eq!(
+            full.headers()[header::CONTENT_LENGTH],
+            payload.len().to_string()
+        );
+        assert_eq!(full.headers()[header::ACCEPT_RANGES], "bytes");
+        assert!(!full.headers().contains_key(header::LOCATION));
+        let full_bytes = full.bytes().await.unwrap();
+        assert_eq!(Sha256::digest(&full_bytes), expected_digest);
+
+        let range_start = 1024 * 1024;
+        let range_end = range_start + 1024 * 1024 - 1;
+        let partial = http
+            .get(&url)
+            .bearer_auth(&caller.bearer_token)
+            .header(header::RANGE, format!("bytes={range_start}-{range_end}"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(partial.status(), reqwest::StatusCode::PARTIAL_CONTENT);
+        assert_eq!(
+            partial.headers()[header::CONTENT_RANGE],
+            format!("bytes {range_start}-{range_end}/{}", payload.len())
+        );
+        assert_eq!(
+            partial.headers()[header::CONTENT_LENGTH],
+            (range_end - range_start + 1).to_string()
+        );
+        assert!(!partial.headers().contains_key(header::LOCATION));
+        assert_eq!(
+            partial.bytes().await.unwrap().as_ref(),
+            &payload[range_start..=range_end]
+        );
+
+        let head = http
+            .head(&url)
+            .bearer_auth(&caller.bearer_token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(head.status(), reqwest::StatusCode::OK);
+        assert_eq!(
+            head.headers()[header::CONTENT_LENGTH],
+            payload.len().to_string()
+        );
+        assert!(!head.headers().contains_key(header::LOCATION));
+        assert!(head.bytes().await.unwrap().is_empty());
     }
 
     #[tokio::test]

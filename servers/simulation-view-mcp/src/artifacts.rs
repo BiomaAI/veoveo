@@ -321,7 +321,7 @@ mod tests {
         };
         let artifact_router = Router::new()
             .route("/artifacts/{id}/meta", get(metadata))
-            .route("/artifacts/{id}/proxy-download", get(download))
+            .route("/artifacts/{id}/download", get(download))
             .with_state(fixture);
         let (artifact_endpoint, artifact_task) = serve(artifact_router).await;
 

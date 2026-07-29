@@ -7,7 +7,6 @@ surrealdb:
 
 objectStore:
   rustfs:
-    publicEndpoint: http://objects.localhost:8780
     persistence:
       size: 10Gi
 
@@ -28,7 +27,6 @@ telemetry:
 ingress:
   className: traefik
   host: localhost
-  objectStoreHost: objects.localhost
   tls:
     enabled: false
 

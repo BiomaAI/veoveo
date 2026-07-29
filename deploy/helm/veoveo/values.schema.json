@@ -247,7 +247,6 @@
           "required": [
             "image",
             "bucket",
-            "publicEndpoint",
             "persistence",
             "resources"
           ],
@@ -258,10 +257,6 @@
             "bucket": {
               "type": "string",
               "minLength": 1
-            },
-            "publicEndpoint": {
-              "type": "string",
-              "pattern": "^(https://|http://([a-z0-9-]+\\.)?localhost(:[0-9]+)?)"
             },
             "persistence": {
               "$ref": "#/definitions/persistence"
@@ -275,16 +270,12 @@
           "type": "object",
           "required": [
             "endpoint",
-            "publicEndpoint",
             "bucket",
             "region",
             "allowHttp"
           ],
           "properties": {
             "endpoint": {
-              "type": "string"
-            },
-            "publicEndpoint": {
               "type": "string"
             },
             "bucket": {
@@ -314,10 +305,6 @@
               "externalS3": {
                 "properties": {
                   "endpoint": {
-                    "minLength": 1,
-                    "pattern": "^https://"
-                  },
-                  "publicEndpoint": {
                     "minLength": 1,
                     "pattern": "^https://"
                   },
@@ -1140,7 +1127,6 @@
         "annotations",
         "publicShareAnnotations",
         "host",
-        "objectStoreHost",
         "tls"
       ],
       "properties": {
@@ -1164,10 +1150,6 @@
           }
         },
         "host": {
-          "type": "string",
-          "minLength": 1
-        },
-        "objectStoreHost": {
           "type": "string",
           "minLength": 1
         },

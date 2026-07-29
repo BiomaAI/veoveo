@@ -75,7 +75,7 @@ impl HttpArtifactPlane {
         }
         let response = self
             .http
-            .get(self.url(&format!("/artifacts/{artifact_id}/proxy-download")))
+            .get(self.url(&format!("/artifacts/{artifact_id}/download")))
             .bearer_auth(&caller.bearer_token)
             .send()
             .await

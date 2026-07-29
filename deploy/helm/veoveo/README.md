@@ -218,10 +218,11 @@ installing the release. Bootstrap creates the canonical schema and materializes
 the configured contexts. Browser sessions and service tokens are reissued after
 the identity-provider role mapping is active.
 
-For an internal RustFS store, configure `objectStore.rustfs.publicEndpoint` and
-`ingress.objectStoreHost` to the same HTTPS origin. Presigned artifact downloads
-must be reachable by authorized clients. Set `objectStore.mode=externalS3` to use
-an existing S3-compatible service instead.
+RustFS and external S3-compatible stores are private infrastructure. Configure only
+the endpoint reachable by Artifact service. Clients never address object storage;
+authorized, ranged, and shared downloads stream through the installation origin from
+`global.publicBaseUrl`. Set `objectStore.mode=externalS3` to use an existing private
+S3-compatible service.
 
 Anyone-with-link artifact URLs contain a bearer secret under `/s/*`. The chart
 renders that path as a dedicated Ingress and defaults

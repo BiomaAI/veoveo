@@ -1,22 +1,17 @@
 //! Artifact byte storage and controlled bulk-download delivery.
 
+use std::ops::Range;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Duration;
 
 use axum::body::Bytes;
 use futures::{Stream, StreamExt};
-use object_store::signer::Signer;
-use object_store::{Attribute, Attributes, ObjectStore, ObjectStoreExt, PutPayload, path::Path};
-
-pub const SIGNED_DOWNLOAD_TTL: Duration = Duration::from_secs(60);
+use object_store::{
+    Attribute, Attributes, GetOptions, GetRange, ObjectStore, ObjectStoreExt, PutPayload,
+    path::Path,
+};
 
 pub type BlobStream = Pin<Box<dyn Stream<Item = Result<Bytes, BlobStoreError>> + Send + 'static>>;
-
-pub enum BlobDownload {
-    SignedRedirect(String),
-    Stream(BlobStream),
-}
 
 /// Storage is addressed only by opaque internal object keys. Public callers
 /// never supply a key and never receive one in artifact metadata.
@@ -33,16 +28,10 @@ pub trait BlobStore: Send + Sync {
         max_bytes: u64,
     ) -> impl std::future::Future<Output = Result<Vec<u8>, BlobStoreError>> + Send;
 
-    fn download(
-        &self,
-        object_key: &str,
-    ) -> impl std::future::Future<Output = Result<BlobDownload, BlobStoreError>> + Send;
-
-    /// Stream bytes through artifact-service even when the backing store can
-    /// issue a signed public redirect.
     fn stream(
         &self,
         object_key: &str,
+        range: Option<Range<u64>>,
     ) -> impl std::future::Future<Output = Result<BlobStream, BlobStoreError>> + Send;
 
     fn delete(
@@ -80,22 +69,11 @@ impl std::error::Error for BlobStoreError {}
 #[derive(Clone)]
 pub struct ArtifactObjectStore {
     inner: Arc<dyn ObjectStore>,
-    signer: Option<Arc<dyn Signer>>,
 }
 
 impl ArtifactObjectStore {
     pub fn new(inner: Arc<dyn ObjectStore>) -> Self {
-        Self {
-            inner,
-            signer: None,
-        }
-    }
-
-    pub fn with_signer(inner: Arc<dyn ObjectStore>, signer: Arc<dyn Signer>) -> Self {
-        Self {
-            inner,
-            signer: Some(signer),
-        }
+        Self { inner }
     }
 
     fn path(object_key: &str) -> Result<Path, BlobStoreError> {
@@ -114,22 +92,15 @@ impl BlobStore for ArtifactObjectStore {
     async fn put(&self, object_key: &str, bytes: Vec<u8>) -> Result<(), BlobStoreError> {
         let path = Self::path(object_key)?;
         let payload = PutPayload::from(bytes);
-        if self.signer.is_some() {
-            let attributes = Attributes::from_iter([
-                (Attribute::CacheControl, "no-store"),
-                (Attribute::ContentDisposition, "attachment"),
-                (Attribute::ContentType, "application/octet-stream"),
-            ]);
-            self.inner
-                .put_opts(&path, payload, attributes.into())
-                .await
-                .map_err(map_store_error)?;
-        } else {
-            self.inner
-                .put(&path, payload)
-                .await
-                .map_err(map_store_error)?;
-        }
+        let attributes = Attributes::from_iter([
+            (Attribute::CacheControl, "no-store"),
+            (Attribute::ContentDisposition, "attachment"),
+            (Attribute::ContentType, "application/octet-stream"),
+        ]);
+        self.inner
+            .put_opts(&path, payload, attributes.into())
+            .await
+            .map_err(map_store_error)?;
         Ok(())
     }
 
@@ -152,23 +123,19 @@ impl BlobStore for ArtifactObjectStore {
             .map_err(map_store_error)
     }
 
-    async fn download(&self, object_key: &str) -> Result<BlobDownload, BlobStoreError> {
+    async fn stream(
+        &self,
+        object_key: &str,
+        range: Option<Range<u64>>,
+    ) -> Result<BlobStream, BlobStoreError> {
         let path = Self::path(object_key)?;
-        if let Some(signer) = &self.signer {
-            let url = signer
-                .signed_url(axum::http::Method::GET, &path, SIGNED_DOWNLOAD_TTL)
-                .await
-                .map_err(map_store_error)?;
-            return Ok(BlobDownload::SignedRedirect(url.to_string()));
-        }
-        Ok(BlobDownload::Stream(self.stream(object_key).await?))
-    }
-
-    async fn stream(&self, object_key: &str) -> Result<BlobStream, BlobStoreError> {
-        let path = Self::path(object_key)?;
+        let options = GetOptions {
+            range: range.map(GetRange::Bounded),
+            ..GetOptions::default()
+        };
         let stream = self
             .inner
-            .get(&path)
+            .get_opts(&path, options)
             .await
             .map_err(map_store_error)?
             .into_stream()
@@ -219,12 +186,12 @@ pub(crate) mod testing {
             self.inner.get_bounded(object_key, max_bytes).await
         }
 
-        async fn download(&self, object_key: &str) -> Result<BlobDownload, BlobStoreError> {
-            self.inner.download(object_key).await
-        }
-
-        async fn stream(&self, object_key: &str) -> Result<BlobStream, BlobStoreError> {
-            self.inner.stream(object_key).await
+        async fn stream(
+            &self,
+            object_key: &str,
+            range: Option<Range<u64>>,
+        ) -> Result<BlobStream, BlobStoreError> {
+            self.inner.stream(object_key, range).await
         }
 
         async fn delete(&self, object_key: &str) -> Result<(), BlobStoreError> {
@@ -259,11 +226,10 @@ mod tests {
             store.get_bounded("tenants/acme/blobs/opaque", 31).await,
             Err(BlobStoreError::TooLarge { .. })
         ));
-        let BlobDownload::Stream(stream) =
-            store.download("tenants/acme/blobs/opaque").await.unwrap()
-        else {
-            panic!("memory store must use streaming fallback")
-        };
+        let stream = store
+            .stream("tenants/acme/blobs/opaque", Some(7..19))
+            .await
+            .unwrap();
         let bytes = stream
             .try_fold(Vec::new(), |mut all, chunk| async move {
                 all.extend_from_slice(&chunk);
@@ -271,6 +237,6 @@ mod tests {
             })
             .await
             .unwrap();
-        assert_eq!(bytes, vec![7; 32]);
+        assert_eq!(bytes, vec![7; 12]);
     }
 }

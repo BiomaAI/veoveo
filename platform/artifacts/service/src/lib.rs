@@ -17,5 +17,7 @@ pub use auth::PlaneAuthenticator;
 pub use config::{Config, ObjectStoreConfig};
 pub use ledger::surreal::SurrealArtifactRepository;
 pub use ledger::{ArtifactRepository, StoredArtifact};
-pub use service::{ArtifactDownload, ArtifactService, DownloadDelivery};
+pub use service::{
+    ArtifactByteRange, ArtifactDownload, ArtifactService, DownloadBody, ResolvedArtifactByteRange,
+};
 pub use store::{ArtifactObjectStore, BlobStore};

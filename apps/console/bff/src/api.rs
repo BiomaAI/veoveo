@@ -6,8 +6,8 @@ use axum::{
         header::{
             ACCEPT_RANGES, CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_RANGE,
             CONTENT_SECURITY_POLICY, CONTENT_TYPE, ETAG, HOST, IF_MATCH, IF_MODIFIED_SINCE,
-            IF_NONE_MATCH, IF_RANGE, IF_UNMODIFIED_SINCE, LAST_MODIFIED, LOCATION, RANGE,
-            REFERRER_POLICY, X_CONTENT_TYPE_OPTIONS,
+            IF_NONE_MATCH, IF_RANGE, IF_UNMODIFIED_SINCE, LAST_MODIFIED, RANGE, REFERRER_POLICY,
+            X_CONTENT_TYPE_OPTIONS,
         },
     },
     middleware::Next,
@@ -402,7 +402,7 @@ pub(crate) async fn download_artifact(
         Ok(session) => session,
         Err(response) => return response,
     };
-    let mut headers = match response_session_headers(&state, &session) {
+    let headers = match response_session_headers(&state, &session) {
         Ok(headers) => headers,
         Err(status) => return status.into_response(),
     };
@@ -425,29 +425,7 @@ pub(crate) async fn download_artifact(
     if upstream.status() == reqwest::StatusCode::UNAUTHORIZED {
         return unauthorized(&state);
     }
-    for name in [
-        LOCATION,
-        CONTENT_TYPE,
-        CONTENT_LENGTH,
-        CONTENT_RANGE,
-        CONTENT_DISPOSITION,
-        ACCEPT_RANGES,
-        CACHE_CONTROL,
-        ETAG,
-        LAST_MODIFIED,
-        REFERRER_POLICY,
-        X_CONTENT_TYPE_OPTIONS,
-        CONTENT_SECURITY_POLICY,
-    ] {
-        if let Some(value) = upstream.headers().get(&name) {
-            headers.insert(name, value.clone());
-        }
-    }
-    let status = upstream.status();
-    let mut response = Response::new(Body::from_stream(upstream.bytes_stream()));
-    *response.status_mut() = status;
-    *response.headers_mut() = headers;
-    response
+    artifact_stream_response(upstream, headers, ArtifactStreamPresentation::Download)
 }
 
 pub(crate) async fn preview_artifact(
@@ -463,7 +441,7 @@ pub(crate) async fn preview_artifact(
         Ok(session) => session,
         Err(response) => return response,
     };
-    let mut headers = match response_session_headers(&state, &session) {
+    let headers = match response_session_headers(&state, &session) {
         Ok(headers) => headers,
         Err(status) => return status.into_response(),
     };
@@ -478,7 +456,7 @@ pub(crate) async fn preview_artifact(
             .bearer_auth(&session.session.access_token),
         &request_headers,
     );
-    let mut upstream = match request.send().await {
+    let upstream = match request.send().await {
         Ok(response) => response,
         Err(error) => {
             tracing::error!(%error, "console artifact preview authorization failed");
@@ -488,33 +466,27 @@ pub(crate) async fn preview_artifact(
     if upstream.status() == reqwest::StatusCode::UNAUTHORIZED {
         return unauthorized(&state);
     }
+    artifact_stream_response(upstream, headers, ArtifactStreamPresentation::Preview)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ArtifactStreamPresentation {
+    Download,
+    Preview,
+}
+
+fn artifact_stream_response(
+    upstream: reqwest::Response,
+    mut headers: HeaderMap,
+    presentation: ArtifactStreamPresentation,
+) -> Response {
     if upstream.status().is_redirection() {
-        let Some(location) = upstream
-            .headers()
-            .get(LOCATION)
-            .and_then(|value| value.to_str().ok())
-        else {
-            return (headers, StatusCode::BAD_GATEWAY).into_response();
-        };
-        let Ok(url) = url::Url::parse(location) else {
-            return (headers, StatusCode::BAD_GATEWAY).into_response();
-        };
-        if url.scheme() != "https" {
-            tracing::warn!(
-                scheme = url.scheme(),
-                "rejected non-HTTPS artifact preview redirect"
-            );
-            return (headers, StatusCode::BAD_GATEWAY).into_response();
-        }
-        let request =
-            forward_read_headers(state.stream_http.request(method, url), &request_headers);
-        upstream = match request.send().await {
-            Ok(response) => response,
-            Err(error) => {
-                tracing::error!(%error, "console artifact preview object read failed");
-                return (headers, StatusCode::BAD_GATEWAY).into_response();
-            }
-        };
+        tracing::error!(
+            status = %upstream.status(),
+            ?presentation,
+            "artifact upstream returned a forbidden redirect"
+        );
+        return (headers, StatusCode::BAD_GATEWAY).into_response();
     }
     for name in [
         CONTENT_TYPE,
@@ -524,13 +496,29 @@ pub(crate) async fn preview_artifact(
         CACHE_CONTROL,
         ETAG,
         LAST_MODIFIED,
+        X_CONTENT_TYPE_OPTIONS,
     ] {
         if let Some(value) = upstream.headers().get(&name) {
             headers.insert(name, value.clone());
         }
     }
-    headers.insert(CONTENT_DISPOSITION, HeaderValue::from_static("inline"));
-    headers.insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    match presentation {
+        ArtifactStreamPresentation::Download => {
+            for name in [
+                CONTENT_DISPOSITION,
+                REFERRER_POLICY,
+                CONTENT_SECURITY_POLICY,
+            ] {
+                if let Some(value) = upstream.headers().get(&name) {
+                    headers.insert(name, value.clone());
+                }
+            }
+        }
+        ArtifactStreamPresentation::Preview => {
+            headers.insert(CONTENT_DISPOSITION, HeaderValue::from_static("inline"));
+            headers.insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+        }
+    }
     let status = upstream.status();
     let mut response = Response::new(Body::from_stream(upstream.bytes_stream()));
     *response.status_mut() = status;
@@ -764,22 +752,23 @@ mod tests {
 
     use axum::{
         Router,
-        body::to_bytes,
+        body::{Body, Bytes, to_bytes},
         extract::{RawQuery, State},
         http::{
-            HeaderMap, HeaderValue,
-            header::{COOKIE, HOST},
+            HeaderMap, HeaderValue, StatusCode,
+            header::{COOKIE, HOST, LOCATION},
         },
-        response::{IntoResponse, sse::Event, sse::Sse},
+        response::{IntoResponse, Redirect, Response, sse::Event, sse::Sse},
         routing::get,
     };
     use chrono::Utc;
-    use futures::stream as futures_stream;
-    use tokio::net::TcpListener;
+    use futures::{StreamExt, stream as futures_stream};
+    use tokio::{net::TcpListener, sync::Notify};
     use veoveo_mcp_contract::ScopeName;
 
     use super::{
-        SnapshotUpstreamDisposition, classify_snapshot_upstream, constant_time_equal, stream,
+        ArtifactStreamPresentation, SnapshotUpstreamDisposition, artifact_stream_response,
+        classify_snapshot_upstream, constant_time_equal, stream,
     };
     use crate::{
         AppState,
@@ -815,6 +804,104 @@ mod tests {
             classify_snapshot_upstream(reqwest::StatusCode::INTERNAL_SERVER_ERROR),
             SnapshotUpstreamDisposition::BadGateway
         );
+    }
+
+    #[tokio::test]
+    async fn artifact_streaming_rejects_redirects_and_never_forwards_location() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/redirect", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                Router::new().route(
+                    "/redirect",
+                    get(|| async { Redirect::temporary("http://objects.invalid/private") }),
+                ),
+            )
+            .await
+            .unwrap();
+        });
+        let upstream = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .unwrap()
+            .get(url)
+            .send()
+            .await
+            .unwrap();
+
+        let response = artifact_stream_response(
+            upstream,
+            HeaderMap::new(),
+            ArtifactStreamPresentation::Download,
+        );
+
+        assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+        assert!(!response.headers().contains_key(LOCATION));
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn artifact_streaming_forwards_chunks_without_buffering_the_complete_object() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/artifact", listener.local_addr().unwrap());
+        let release_second_chunk = Arc::new(Notify::new());
+        let server_gate = Arc::clone(&release_second_chunk);
+        let server = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                Router::new().route(
+                    "/artifact",
+                    get(move || {
+                        let gate = Arc::clone(&server_gate);
+                        async move {
+                            let chunks = futures_stream::unfold(0_u8, move |state| {
+                                let gate = Arc::clone(&gate);
+                                async move {
+                                    match state {
+                                        0 => Some((
+                                            Ok::<_, Infallible>(Bytes::from_static(b"first")),
+                                            1,
+                                        )),
+                                        1 => {
+                                            gate.notified().await;
+                                            Some((
+                                                Ok::<_, Infallible>(Bytes::from_static(b"second")),
+                                                2,
+                                            ))
+                                        }
+                                        _ => None,
+                                    }
+                                }
+                            });
+                            Response::new(Body::from_stream(chunks))
+                        }
+                    }),
+                ),
+            )
+            .await
+            .unwrap();
+        });
+        let upstream = reqwest::Client::new().get(url).send().await.unwrap();
+
+        let response = artifact_stream_response(
+            upstream,
+            HeaderMap::new(),
+            ArtifactStreamPresentation::Download,
+        );
+        let mut chunks = response.into_body().into_data_stream();
+
+        assert_eq!(
+            chunks.next().await.unwrap().unwrap(),
+            Bytes::from_static(b"first")
+        );
+        release_second_chunk.notify_one();
+        assert_eq!(
+            chunks.next().await.unwrap().unwrap(),
+            Bytes::from_static(b"second")
+        );
+        assert!(chunks.next().await.is_none());
+        server.abort();
     }
 
     #[tokio::test]

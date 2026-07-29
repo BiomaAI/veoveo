@@ -13,7 +13,6 @@ and an independently packaged UAV MCP extension from Git and OCI artifacts.
 | Argo namespace | argocd |
 | Loopback ingress | http://localhost:8781 |
 | Public origin | https://veoveo.bioma.ai |
-| Object-store origin | https://objects-veoveo.bioma.ai |
 | Root Application | bioma |
 
 This example follows the neutral contract in
@@ -322,17 +321,16 @@ owns the live application resources; do not operate concurrent Helm releases for
 
 ## Public edge
 
-The remote-managed tunnel is named veoveo-bioma-ai. Its desired ingress sends both
-public hostnames to Traefik in the cluster:
+The remote-managed tunnel is named veoveo-bioma-ai. Its desired ingress sends the
+installation's only public hostname to Traefik in the cluster:
 
 ~~~text
-veoveo.bioma.ai         -> http://traefik.kube-system.svc.cluster.local:80
-objects-veoveo.bioma.ai -> http://traefik.kube-system.svc.cluster.local:80
+veoveo.bioma.ai -> http://traefik.kube-system.svc.cluster.local:80
 ~~~
 
-Both DNS records target the tunnel hostname. Cloudflare terminates public TLS. The
-object-store origin is an S3 endpoint, so an unauthenticated bucket-root request
-returns AccessDenied by design.
+The DNS record targets the tunnel hostname and Cloudflare terminates public TLS.
+RustFS remains cluster-private. Artifact bytes reach clients only through governed
+Gateway, Console BFF, or public-share paths on `veoveo.bioma.ai`.
 
 The operations console is available at:
 

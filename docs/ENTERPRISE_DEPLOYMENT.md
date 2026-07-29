@@ -55,6 +55,11 @@ gateway issuer metadata derive from that one installation-owned origin. No Veove
 artifact embeds a universal service hostname, and private deployment does not require a
 public Veoveo control plane.
 
+Artifact downloads, Console downloads, and public-share bearers also remain on that
+origin. RustFS or an external S3-compatible service is private installation
+infrastructure. It has no client-facing ingress, DNS requirement, or presigned delivery
+contract.
+
 ## Release artifacts
 
 One installation release may combine several independently published sources.

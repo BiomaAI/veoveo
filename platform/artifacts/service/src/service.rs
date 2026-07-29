@@ -31,10 +31,9 @@ use crate::ledger::{
     RepositoryError, ShareLinkDraft, StoredArtifact, WriteCapabilityDraft,
     WriteCapabilityReservation,
 };
-use crate::store::{BlobDownload, BlobStore};
+use crate::store::{BlobStore, BlobStream};
 
 const DEFAULT_INTERNAL_READ_LIMIT: u64 = 64 * 1024 * 1024;
-const DEFAULT_REDIRECT_THRESHOLD: u64 = 8 * 1024 * 1024;
 const CAPABILITY_MAX_TTL: TimeDelta = TimeDelta::hours(24);
 const SHARE_DEFAULT_TTL: TimeDelta = TimeDelta::days(7);
 const SHARE_MAX_TTL: TimeDelta = TimeDelta::days(30);
@@ -47,15 +46,35 @@ const LIST_SCAN_BATCH: usize = 100;
 const OBJECT_KEY_NAMESPACE: uuid::Uuid =
     uuid::Uuid::from_u128(0x78115f34_7753_5b1f_a22c_6cc48885dbf9);
 
-pub enum DownloadDelivery {
-    Bytes(Vec<u8>),
-    SignedRedirect(String),
-    Stream(crate::store::BlobStream),
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ArtifactByteRange {
+    Inclusive { start: u64, end: u64 },
+    From { start: u64 },
+    Suffix { length: u64 },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ResolvedArtifactByteRange {
+    pub start: u64,
+    pub end_exclusive: u64,
+}
+
+impl ResolvedArtifactByteRange {
+    pub fn length(self) -> u64 {
+        self.end_exclusive - self.start
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DownloadBody {
+    Include,
+    Omit,
 }
 
 pub struct ArtifactDownload {
     pub metadata: ArtifactMetadata,
-    pub delivery: DownloadDelivery,
+    pub range: Option<ResolvedArtifactByteRange>,
+    pub body: Option<BlobStream>,
 }
 
 pub struct ArtifactService<R: ArtifactRepository, S: BlobStore> {
@@ -63,7 +82,6 @@ pub struct ArtifactService<R: ArtifactRepository, S: BlobStore> {
     store: S,
     public_base_url: String,
     max_internal_read_bytes: u64,
-    redirect_threshold_bytes: u64,
 }
 
 impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
@@ -73,7 +91,6 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             store,
             "http://artifact.invalid",
             DEFAULT_INTERNAL_READ_LIMIT,
-            DEFAULT_REDIRECT_THRESHOLD,
         )
     }
 
@@ -82,14 +99,12 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
         store: S,
         public_base_url: impl Into<String>,
         max_internal_read_bytes: u64,
-        redirect_threshold_bytes: u64,
     ) -> Self {
         Self {
             repository,
             store,
             public_base_url: public_base_url.into().trim_end_matches('/').to_owned(),
             max_internal_read_bytes,
-            redirect_threshold_bytes,
         }
     }
 
@@ -585,40 +600,20 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
         &self,
         caller: &PlaneCaller,
         artifact_id: ArtifactId,
+        range: Option<ArtifactByteRange>,
+        body: DownloadBody,
     ) -> Result<ArtifactDownload, ArtifactPlaneError> {
         let stored = self.load(artifact_id).await?;
         self.authorize(caller, &stored, "artifact.download", AccessLevel::Read)
             .await?;
-        self.delivery(stored).await
-    }
-
-    pub async fn proxy_download(
-        &self,
-        caller: &PlaneCaller,
-        artifact_id: ArtifactId,
-    ) -> Result<ArtifactDownload, ArtifactPlaneError> {
-        let stored = self.load(artifact_id).await?;
-        self.authorize(
-            caller,
-            &stored,
-            "artifact.download.proxy",
-            AccessLevel::Read,
-        )
-        .await?;
-        let stream = self
-            .store
-            .stream(&stored.object_key)
-            .await
-            .map_err(transport)?;
-        Ok(ArtifactDownload {
-            metadata: stored.metadata,
-            delivery: DownloadDelivery::Stream(stream),
-        })
+        self.delivery(stored, range, body).await
     }
 
     pub async fn redeem_public_share(
         &self,
         token: &str,
+        range: Option<ArtifactByteRange>,
+        body: DownloadBody,
     ) -> Result<ArtifactDownload, ArtifactPlaneError> {
         if token.len() < 32 || token.chars().any(char::is_whitespace) {
             return Err(ArtifactPlaneError::NotFound);
@@ -651,36 +646,73 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             serde_json::Map::new(),
         )
         .await?;
-        self.delivery(stored).await
+        self.delivery(stored, range, body).await
     }
 
     async fn delivery(
         &self,
         stored: StoredArtifact,
+        requested_range: Option<ArtifactByteRange>,
+        body: DownloadBody,
     ) -> Result<ArtifactDownload, ArtifactPlaneError> {
-        let delivery = if stored.metadata.byte_len < self.redirect_threshold_bytes {
-            DownloadDelivery::Bytes(
+        let range = requested_range
+            .map(|range| resolve_range(range, stored.metadata.byte_len))
+            .transpose()?;
+        let stream_range = range.map(|range| range.start..range.end_exclusive);
+        let response_body = if body == DownloadBody::Include {
+            Some(
                 self.store
-                    .get_bounded(&stored.object_key, self.redirect_threshold_bytes)
+                    .stream(&stored.object_key, stream_range)
                     .await
                     .map_err(transport)?,
             )
         } else {
-            match self
-                .store
-                .download(&stored.object_key)
-                .await
-                .map_err(transport)?
-            {
-                BlobDownload::SignedRedirect(url) => DownloadDelivery::SignedRedirect(url),
-                BlobDownload::Stream(stream) => DownloadDelivery::Stream(stream),
-            }
+            None
         };
         Ok(ArtifactDownload {
             metadata: stored.metadata,
-            delivery,
+            range,
+            body: response_body,
         })
     }
+}
+
+fn resolve_range(
+    requested: ArtifactByteRange,
+    total_length: u64,
+) -> Result<ResolvedArtifactByteRange, ArtifactPlaneError> {
+    let invalid = || {
+        ArtifactPlaneError::InvalidRequest(format!(
+            "artifact byte range is not satisfiable for {total_length} bytes"
+        ))
+    };
+    if total_length == 0 {
+        return Err(invalid());
+    }
+    let (start, end_exclusive) = match requested {
+        ArtifactByteRange::Inclusive { start, end } => {
+            if start > end || start >= total_length {
+                return Err(invalid());
+            }
+            (start, end.saturating_add(1).min(total_length))
+        }
+        ArtifactByteRange::From { start } => {
+            if start >= total_length {
+                return Err(invalid());
+            }
+            (start, total_length)
+        }
+        ArtifactByteRange::Suffix { length } => {
+            if length == 0 {
+                return Err(invalid());
+            }
+            (total_length.saturating_sub(length), total_length)
+        }
+    };
+    Ok(ResolvedArtifactByteRange {
+        start,
+        end_exclusive,
+    })
 }
 
 impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S> {
@@ -1328,7 +1360,6 @@ mod tests {
                 InMemoryBlobStore::default(),
                 "https://artifacts.example.com",
                 1024,
-                8,
             ),
             repository,
         )
@@ -1394,7 +1425,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn proxy_download_streams_authorized_bytes_without_a_redirect() {
+    async fn canonical_download_streams_authorized_bytes() {
         let (service, _) = service();
         let alice = caller("alice", "acme", &[]);
         let payload = vec![7_u8; 32];
@@ -1403,13 +1434,11 @@ mod tests {
             .await
             .unwrap();
         let download = service
-            .proxy_download(&alice, artifact.artifact_id)
+            .download(&alice, artifact.artifact_id, None, DownloadBody::Include)
             .await
             .unwrap();
         assert_eq!(download.metadata, artifact);
-        let DownloadDelivery::Stream(stream) = download.delivery else {
-            panic!("proxy download must stream through artifact-service")
-        };
+        let stream = download.body.expect("download body");
         let bytes = stream
             .try_fold(Vec::new(), |mut bytes, chunk| async move {
                 bytes.extend_from_slice(&chunk);
@@ -1797,10 +1826,15 @@ mod tests {
             .await
             .unwrap();
         let token = link.url.rsplit('/').next().unwrap();
-        let first = service.redeem_public_share(token).await.unwrap();
+        let first = service
+            .redeem_public_share(token, None, DownloadBody::Include)
+            .await
+            .unwrap();
         assert_eq!(first.metadata.artifact_id, metadata.artifact_id);
         assert!(matches!(
-            service.redeem_public_share(token).await,
+            service
+                .redeem_public_share(token, None, DownloadBody::Include)
+                .await,
             Err(ArtifactPlaneError::NotFound)
         ));
 
@@ -1818,7 +1852,9 @@ mod tests {
             .await
             .unwrap();
         assert!(matches!(
-            service.redeem_public_share(&token).await,
+            service
+                .redeem_public_share(&token, None, DownloadBody::Include)
+                .await,
             Err(ArtifactPlaneError::NotFound)
         ));
     }

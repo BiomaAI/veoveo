@@ -17,9 +17,6 @@ spec:
   tls:
     - hosts:
         - {{ .Values.ingress.host }}
-        {{- if eq .Values.objectStore.mode "rustfs" }}
-        - {{ .Values.ingress.objectStoreHost }}
-        {{- end }}
       secretName: {{ .Values.ingress.tls.secretName }}
   {{- end }}
   rules:
@@ -86,18 +83,6 @@ spec:
                 name: mcp-gateway
                 port:
                   number: 8788
-    {{- if eq .Values.objectStore.mode "rustfs" }}
-    - host: {{ .Values.ingress.objectStoreHost }}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: rustfs
-                port:
-                  number: 9000
-    {{- end }}
 ---
 # Bearer share URLs use a dedicated Ingress so its controller can suppress the
 # request path without disabling access logs for the rest of the installation.

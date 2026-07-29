@@ -254,7 +254,6 @@ pub(crate) async fn helm_config() -> Result<()> {
     )?;
     for expected in [
         "host: veoveo.bioma.ai",
-        "host: objects-veoveo.bioma.ai",
         "https://veoveo.bioma.ai",
         "name: SIMULATION_VIEW_PUBLIC_SIGNALING_URL",
         "value: \"wss://veoveo.bioma.ai/simulation-view/signaling\"",
@@ -269,6 +268,15 @@ pub(crate) async fn helm_config() -> Result<()> {
         "checksum/reason-runtime:",
     ] {
         contains(&bioma, expected)?;
+    }
+    for forbidden in [
+        "objects-veoveo",
+        "objects.veoveo",
+        "ARTIFACT_S3_PUBLIC_ENDPOINT",
+        "objectStoreHost",
+        "publicEndpoint",
+    ] {
+        not_contains(&bioma, forbidden)?;
     }
     not_contains(&bioma, "name: frames-mcp-bootstrap")?;
     not_contains(&bioma, "frames://frame/")?;
@@ -540,6 +548,14 @@ pub(crate) async fn helm_config() -> Result<()> {
                     == Some("http://traefik.kube-system.svc.cluster.local:80")
         }),
         "Bioma tunnel must route the public hostname to in-cluster Traefik"
+    );
+    let public_hosts = ingress
+        .iter()
+        .filter_map(|route| route.get("hostname").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+    ensure!(
+        public_hosts == ["veoveo.bioma.ai"],
+        "Bioma tunnel must declare exactly one public hostname: {public_hosts:?}"
     );
 
     let sumo = run_checked(
