@@ -5,7 +5,7 @@ description = "Veoveo dataset profiling MCP server — the Python hosted-server 
 requires-python = ">=3.12"
 dependencies = [
     "veoveo-mcp==0.1.0",
-    "mcp>=1.16",
+    "mcp>=2.0",
     "pydantic>=2.8",
     "pandas>=2.2",
     "pyarrow>=17",

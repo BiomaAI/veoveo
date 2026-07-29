@@ -7,13 +7,14 @@ content, and completions match the Rust servers' behavior.
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 from typing import Any
 
 import mcp.types as types
-from mcp.server.lowlevel import Server
-from mcp.server.lowlevel.helper_types import ReadResourceContents
-from mcp.shared.exceptions import McpError
+from mcp.server import Server, ServerRequestContext
+from mcp.shared.exceptions import MCPError
+from pydantic import ValidationError
 
 from veoveo_mcp.contract import UsageKind, UsageRecord, UsageReport
 from veoveo_mcp.pagination import PaginationError, paginate
@@ -42,6 +43,8 @@ from .ownership import (
 )
 from .profile_task import SERVER_SLUG
 
+Context = ServerRequestContext[Any, Any]
+
 LIST_PAGE_SIZE = 100
 INSTRUCTIONS = (
     "Datasheet profiling server. Use direct tools for small previews and "
@@ -51,24 +54,15 @@ INSTRUCTIONS = (
 )
 
 
-def _invalid(message: str) -> McpError:
-    return McpError(types.ErrorData(code=types.INVALID_REQUEST, message=message))
-
-
-def _internal(message: str) -> McpError:
-    return McpError(types.ErrorData(code=types.INTERNAL_ERROR, message=message))
+def _invalid(message: str) -> MCPError:
+    return MCPError(code=types.INVALID_REQUEST, message=message)
 
 
 def build_mcp_server(state: AppState) -> Server:
-    server: Server = Server("datasheet", version="0.1.0", instructions=INSTRUCTIONS)
-
-    def scope() -> dict[str, Any]:
-        return request_scope(server)
-
-    async def load_frame(selector: DatasetSelector):
+    async def load_frame(ctx: Context, selector: DatasetSelector):
         if selector.inline_csv is not None:
             return await asyncio.to_thread(engine.load_inline_csv, selector.inline_csv)
-        caller = caller_from_scope(scope())
+        caller = caller_from_scope(request_scope(ctx))
         artifact = await state.artifacts.resolve(caller, selector.dataset_uri or "")
         return await asyncio.to_thread(
             engine.load_dataframe,
@@ -77,106 +71,111 @@ def build_mcp_server(state: AppState) -> Server:
             artifact.metadata.mime_type,
         )
 
-    @server.list_tools()
-    async def list_tools() -> list[types.Tool]:
-        return [
-            types.Tool(
-                name="preview_dataset",
-                title="Preview dataset",
-                description=(
-                    "Read the schema and a small sample of a CSV or Parquet "
-                    "dataset from an artifact URI or inline CSV."
+    async def list_tools(
+        _ctx: Context, _params: types.PaginatedRequestParams | None
+    ) -> types.ListToolsResult:
+        return types.ListToolsResult(
+            tools=[
+                types.Tool(
+                    name="preview_dataset",
+                    title="Preview dataset",
+                    description=(
+                        "Read the schema and a small sample of a CSV or Parquet "
+                        "dataset from an artifact URI or inline CSV."
+                    ),
+                    input_schema=mcp_input_schema(PreviewDatasetRequest),
+                    output_schema=PreviewDatasetOutput.model_json_schema(),
+                    annotations=types.ToolAnnotations(
+                        read_only_hint=True,
+                        destructive_hint=False,
+                        idempotent_hint=True,
+                        open_world_hint=False,
+                    ),
                 ),
-                inputSchema=mcp_input_schema(PreviewDatasetRequest),
-                outputSchema=PreviewDatasetOutput.model_json_schema(),
-                annotations=types.ToolAnnotations(
-                    readOnlyHint=True,
-                    destructiveHint=False,
-                    idempotentHint=True,
-                    openWorldHint=False,
+                types.Tool(
+                    name="column_stats",
+                    title="Column statistics",
+                    description="Compute summary statistics for one dataset column.",
+                    input_schema=mcp_input_schema(ColumnStatsRequest),
+                    output_schema=ColumnStatsOutput.model_json_schema(),
+                    annotations=types.ToolAnnotations(
+                        read_only_hint=True,
+                        destructive_hint=False,
+                        idempotent_hint=True,
+                        open_world_hint=False,
+                    ),
                 ),
-            ),
-            types.Tool(
-                name="column_stats",
-                title="Column statistics",
-                description="Compute summary statistics for one dataset column.",
-                inputSchema=mcp_input_schema(ColumnStatsRequest),
-                outputSchema=ColumnStatsOutput.model_json_schema(),
-                annotations=types.ToolAnnotations(
-                    readOnlyHint=True,
-                    destructiveHint=False,
-                    idempotentHint=True,
-                    openWorldHint=False,
+                types.Tool(
+                    name="profile_dataset",
+                    title="Profile dataset",
+                    description=(
+                        "Run a full dataset profile as an MCP task and optionally "
+                        "store the JSON report through the shared artifact plane."
+                    ),
+                    input_schema=mcp_input_schema(ProfileDatasetRequest),
+                    output_schema=ProfileDatasetOutput.model_json_schema(),
+                    annotations=types.ToolAnnotations(
+                        read_only_hint=False,
+                        destructive_hint=False,
+                        idempotent_hint=False,
+                        open_world_hint=False,
+                    ),
                 ),
-            ),
-            types.Tool(
-                name="profile_dataset",
-                title="Profile dataset",
-                description=(
-                    "Run a full dataset profile as an MCP task and optionally "
-                    "store the JSON report through the shared artifact plane."
-                ),
-                inputSchema=mcp_input_schema(ProfileDatasetRequest),
-                outputSchema=ProfileDatasetOutput.model_json_schema(),
-                annotations=types.ToolAnnotations(
-                    readOnlyHint=False,
-                    destructiveHint=False,
-                    idempotentHint=False,
-                    openWorldHint=False,
-                ),
-            ),
-        ]
+            ]
+        )
 
-    @server.call_tool()
-    async def call_tool(name: str, arguments: dict[str, Any]) -> types.CallToolResult:
-        if name == "preview_dataset":
-            request = PreviewDatasetRequest.model_validate(arguments)
-            try:
-                frame = await load_frame(request)
+    async def call_tool(
+        ctx: Context, params: types.CallToolRequestParams
+    ) -> types.CallToolResult:
+        name = params.name
+        arguments = params.arguments or {}
+        try:
+            if name == "preview_dataset":
+                request = PreviewDatasetRequest.model_validate(arguments)
+                frame = await load_frame(ctx, request)
                 output = engine.preview(frame, request.rows)
-            except engine.EngineError as error:
-                raise _invalid(str(error)) from error
-            return _structured_result(
-                f"previewed {len(output.rows)} of {output.row_count} row(s)", output
-            )
-        if name == "column_stats":
-            request = ColumnStatsRequest.model_validate(arguments)
-            try:
-                frame = await load_frame(request)
+                return _structured_result(
+                    f"previewed {len(output.rows)} of {output.row_count} row(s)",
+                    output,
+                )
+            if name == "column_stats":
+                request = ColumnStatsRequest.model_validate(arguments)
+                frame = await load_frame(ctx, request)
                 output = engine.column_stats(frame, request.column)
-            except engine.EngineError as error:
-                raise _invalid(str(error)) from error
-            return _structured_result(f"column {output.column} statistics", output)
-        if name == "profile_dataset":
-            raise _invalid("profile_dataset requires task-based invocation")
-        raise _invalid(f"unknown tool `{name}`")
+                return _structured_result(f"column {output.column} statistics", output)
+            if name == "profile_dataset":
+                return _error_result("profile_dataset requires task-based invocation")
+            return _error_result(f"unknown tool `{name}`")
+        except MCPError as error:
+            return _error_result(error.message)
+        except (engine.EngineError, ValidationError) as error:
+            return _error_result(str(error))
 
-    @server.list_resources()
     async def list_resources(
-        request: types.ListResourcesRequest,
+        ctx: Context, params: types.PaginatedRequestParams | None
     ) -> types.ListResourcesResult:
-        identity = identity_from_scope(scope())
+        identity = identity_from_scope(request_scope(ctx))
         resources = [
             types.Resource(
                 uri=uris.REPORTS_URI,
                 name="reports",
                 title="Profile reports",
                 description="Completed and running datasheet profile tasks.",
-                mimeType="application/json",
+                mime_type="application/json",
             ),
             types.Resource(
                 uri=uris.USAGE_ROOT_URI,
                 name="usage",
                 title="Datasheet usage ledger",
                 description="Index of task usage resources.",
-                mimeType="application/json",
+                mime_type="application/json",
             ),
             types.Resource(
                 uri=uris.DOCS_URI,
                 name="docs",
                 title="Datasheet server documentation",
                 description="Index of embedded server documents.",
-                mimeType="application/json",
+                mime_type="application/json",
             ),
         ]
         for doc in SERVER_DOCS:
@@ -186,7 +185,7 @@ def build_mcp_server(state: AppState) -> Server:
                     name=doc.id,
                     title=doc.title,
                     description=f"Embedded `{doc.id}` server document.",
-                    mimeType="text/markdown",
+                    mime_type="text/markdown",
                 )
             )
         resources.append(
@@ -198,7 +197,7 @@ def build_mcp_server(state: AppState) -> Server:
                     "Machine-readable contract revision, compliance, and "
                     "capability inventory."
                 ),
-                mimeType="application/json",
+                mime_type="application/json",
             )
         )
         for task_id in await state.tasks.store.domain_usage_task_ids(SERVER_SLUG):
@@ -210,57 +209,65 @@ def build_mcp_server(state: AppState) -> Server:
                     uri=uris.usage_task_uri(str(task_id)),
                     name=f"usage for task {task_id}",
                     description="Usage rows for one datasheet task.",
-                    mimeType="application/json",
+                    mime_type="application/json",
                 )
             )
-        resources.sort(key=lambda resource: str(resource.uri))
-        cursor = request.params.cursor if request.params is not None else None
+        resources.sort(key=lambda resource: resource.uri)
+        cursor = params.cursor if params is not None else None
         try:
             page = paginate(resources, cursor, LIST_PAGE_SIZE)
         except PaginationError as error:
             raise _invalid(str(error)) from error
         return types.ListResourcesResult(
-            resources=page.items, nextCursor=page.next_cursor
+            resources=page.items, next_cursor=page.next_cursor
         )
 
-    @server.list_resource_templates()
-    async def list_resource_templates() -> list[types.ResourceTemplate]:
-        return [
-            types.ResourceTemplate(
-                uriTemplate=uris.USAGE_TASK_TEMPLATE,
-                name="usage",
-                title="Datasheet task usage",
-                description=(
-                    "Usage rows for one datasheet task. task_id supports "
-                    "completion."
+    async def list_resource_templates(
+        _ctx: Context, _params: types.PaginatedRequestParams | None
+    ) -> types.ListResourceTemplatesResult:
+        return types.ListResourceTemplatesResult(
+            resource_templates=[
+                types.ResourceTemplate(
+                    uri_template=uris.USAGE_TASK_TEMPLATE,
+                    name="usage",
+                    title="Datasheet task usage",
+                    description=(
+                        "Usage rows for one datasheet task. task_id supports "
+                        "completion."
+                    ),
+                    mime_type="application/json",
                 ),
-                mimeType="application/json",
-            ),
-            types.ResourceTemplate(
-                uriTemplate=uris.ARTIFACT_TEMPLATE,
-                name="artifact",
-                title="Datasheet artifact",
-                description="Shared-plane immutable datasheet artifact.",
-                mimeType="application/json",
-            ),
-        ]
+                types.ResourceTemplate(
+                    uri_template=uris.ARTIFACT_TEMPLATE,
+                    name="artifact",
+                    title="Datasheet artifact",
+                    description="Shared-plane immutable datasheet artifact.",
+                    mime_type="application/json",
+                ),
+            ]
+        )
 
-    @server.read_resource()
-    async def read_resource(uri: Any) -> list[ReadResourceContents]:
-        text = str(uri)
-        identity = identity_from_scope(scope())
+    async def read_resource(
+        ctx: Context, params: types.ReadResourceRequestParams
+    ) -> types.ReadResourceResult:
+        text = params.uri
+        identity = identity_from_scope(request_scope(ctx))
         if text == uris.DOCS_URI:
-            return [_json_contents(SERVER_DOCS.index_wire())]
+            return _json_result(text, SERVER_DOCS.index_wire())
         if text == uris.CONTRACT_URI:
-            return [_json_contents(CONTRACT_DECLARATION.wire())]
+            return _json_result(text, CONTRACT_DECLARATION.wire())
         doc_id = uris.parse_doc_uri(text)
         if doc_id is not None:
             doc = SERVER_DOCS.doc(doc_id)
             if doc is None:
                 raise _invalid(f"unknown server document `{doc_id}`")
-            return [
-                ReadResourceContents(content=doc.body, mime_type="text/markdown")
-            ]
+            return types.ReadResourceResult(
+                contents=[
+                    types.TextResourceContents(
+                        uri=text, text=doc.body, mime_type="text/markdown"
+                    )
+                ]
+            )
         if text == uris.REPORTS_URI:
             snapshots = await state.tasks.list_for_owner(runtime_owner(identity))
             reports = [
@@ -273,7 +280,7 @@ def build_mcp_server(state: AppState) -> Server:
                 }
                 for snapshot in snapshots
             ]
-            return [_json_contents(reports)]
+            return _json_result(text, reports)
         if text == uris.USAGE_ROOT_URI:
             entries = []
             for task_id in await state.tasks.store.domain_usage_task_ids(SERVER_SLUG):
@@ -285,7 +292,7 @@ def build_mcp_server(state: AppState) -> Server:
                             "usage_uri": uris.usage_task_uri(str(task_id)),
                         }
                     )
-            return [_json_contents(entries)]
+            return _json_result(text, entries)
         task_id = uris.parse_usage_task_uri(text)
         if task_id is not None:
             await require_task_owner(state, identity, task_id)
@@ -299,33 +306,35 @@ def build_mcp_server(state: AppState) -> Server:
                 uris.usage_task_uri(task_id),
                 [_usage_record(task_id, record) for record in records],
             )
-            return [_json_contents(report.wire())]
+            return _json_result(text, report.wire())
         artifact_id = uris.parse_artifact_uri(text)
         if artifact_id is not None:
-            caller = caller_from_scope(scope())
+            caller = caller_from_scope(request_scope(ctx))
             artifact = await state.artifacts.get(caller, artifact_id)
             if artifact is None:
                 raise _invalid(f"unknown artifact `{artifact_id}`")
-            return [
-                ReadResourceContents(
-                    content=artifact.bytes_,
-                    mime_type=artifact.metadata.mime_type or "application/json",
-                )
-            ]
+            return types.ReadResourceResult(
+                contents=[
+                    types.BlobResourceContents(
+                        uri=text,
+                        blob=base64.b64encode(artifact.bytes_).decode(),
+                        mime_type=artifact.metadata.mime_type or "application/json",
+                    )
+                ]
+            )
         raise _invalid(f"unknown resource uri: {text}")
 
-    @server.completion()
     async def complete(
-        ref: types.PromptReference | types.ResourceTemplateReference,
-        argument: types.CompletionArgument,
-        _context: types.CompletionContext | None,
-    ) -> types.Completion | None:
+        ctx: Context, params: types.CompleteRequestParams
+    ) -> types.CompleteResult:
+        ref = params.ref
+        argument = params.argument
         if (
             isinstance(ref, types.ResourceTemplateReference)
             and ref.uri == uris.USAGE_TASK_TEMPLATE
             and argument.name == "task_id"
         ):
-            identity = identity_from_scope(scope())
+            identity = identity_from_scope(request_scope(ctx))
             values = []
             for task_id in await state.tasks.store.domain_usage_task_ids(SERVER_SLUG):
                 owner = await state.tasks.owner(str(task_id))
@@ -335,38 +344,65 @@ def build_mcp_server(state: AppState) -> Server:
                     values.append(str(task_id))
             total = len(values)
             values = values[:100]
-            return types.Completion(
-                values=values, total=total, hasMore=len(values) < total
+            return types.CompleteResult(
+                completion=types.Completion(
+                    values=values, total=total, has_more=len(values) < total
+                )
             )
-        return None
+        return types.CompleteResult(
+            completion=types.Completion(values=[], total=None, has_more=None)
+        )
 
-    @server.list_prompts()
-    async def list_prompts() -> list[types.Prompt]:
-        return prompts.list_prompts()
+    async def list_prompts(
+        _ctx: Context, _params: types.PaginatedRequestParams | None
+    ) -> types.ListPromptsResult:
+        return types.ListPromptsResult(prompts=prompts.list_prompts())
 
-    @server.get_prompt()
     async def get_prompt(
-        name: str, arguments: dict[str, str] | None
+        _ctx: Context, params: types.GetPromptRequestParams
     ) -> types.GetPromptResult:
         try:
-            return prompts.get_prompt(name, arguments)
+            return prompts.get_prompt(params.name, params.arguments)
         except ValueError as error:
             raise _invalid(str(error)) from error
 
-    return server
+    return Server(
+        "datasheet",
+        version="0.1.0",
+        instructions=INSTRUCTIONS,
+        on_list_tools=list_tools,
+        on_call_tool=call_tool,
+        on_list_resources=list_resources,
+        on_list_resource_templates=list_resource_templates,
+        on_read_resource=read_resource,
+        on_completion=complete,
+        on_list_prompts=list_prompts,
+        on_get_prompt=get_prompt,
+    )
 
 
 def _structured_result(text: str, output: Any) -> types.CallToolResult:
     return types.CallToolResult(
         content=[types.TextContent(type="text", text=text)],
-        structuredContent=output.model_dump(mode="json", exclude_none=True),
-        isError=False,
+        structured_content=output.model_dump(mode="json", exclude_none=True),
+        is_error=False,
     )
 
 
-def _json_contents(value: Any) -> ReadResourceContents:
-    return ReadResourceContents(
-        content=json.dumps(value), mime_type="application/json"
+def _error_result(message: str) -> types.CallToolResult:
+    return types.CallToolResult(
+        content=[types.TextContent(type="text", text=message)],
+        is_error=True,
+    )
+
+
+def _json_result(uri: str, value: Any) -> types.ReadResourceResult:
+    return types.ReadResourceResult(
+        contents=[
+            types.TextResourceContents(
+                uri=uri, text=json.dumps(value), mime_type="application/json"
+            )
+        ]
     )
 
 
