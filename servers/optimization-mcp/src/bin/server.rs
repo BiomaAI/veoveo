@@ -122,6 +122,7 @@ async fn main() -> anyhow::Result<()> {
         artifacts: ArtifactRepository::new(args.artifact_service_url.clone()),
         executor,
         executor_health,
+        executor_slot: Arc::new(tokio::sync::Semaphore::new(1)),
         problem_store: ProblemStore::open(
             args.optimization_workspace.clone(),
             args.max_prepared_problem_bytes,

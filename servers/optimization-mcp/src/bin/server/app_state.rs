@@ -11,6 +11,7 @@ pub(super) struct AppState {
     pub(super) artifacts: ArtifactRepository,
     pub(super) executor: ExecutorClient,
     pub(super) executor_health: ExecutorHealth,
+    pub(super) executor_slot: std::sync::Arc<tokio::sync::Semaphore>,
     pub(super) problem_store: ProblemStore,
     pub(super) subscriptions: std::sync::Arc<SubscriptionHub>,
     pub(super) resource_observers: std::sync::Arc<ResourceListObservers>,

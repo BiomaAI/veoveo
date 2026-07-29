@@ -3,417 +3,474 @@
 This document is the canonical design and operational contract for the
 `optimization-mcp` crate.
 
-Optimization accepts compact spatial work declarations and produces governed
-multi-agent plans. It expands assignment candidates inside the service, solves
-the bounded model, and records complete assignment evidence. Callers do not
-construct a static option matrix.
+Optimization owns bounded decision models and verified solver results. Its
+public contract follows NVIDIA cuOpt's two strongest domains: vehicle routing
+and GPU mathematical optimization. Agents submit typed routing, route-scenario,
+continuous convex, or mixed-integer linear problems. Every invocation becomes
+a durable MCP task, and every completed solve publishes separate immutable
+problem, run, and solution identities.
 
 ## Status
 
-The compact spatial assignment contract is implemented. The hosted server owns
-the `optimization` slug, the `optimization://` URI scheme, and the
-`/optimization/mcp` endpoint.
+Implemented in this workspace.
 
-The public planning surface is a hard cut. Static `PlanningOption` input,
-`inline` and `duck_db_options` modes, and source-URI option loading are not
-supported.
+The canonical service identity is:
+
+```text
+crate       veoveo-optimization-mcp
+folder      servers/optimization-mcp
+slug        optimization
+URI scheme  optimization
+MCP         /optimization/mcp
+health      /optimization/healthz
+```
+
+Gateway-mounted tools use the `optimization__` prefix. Resource identities
+retain the `optimization://` scheme.
 
 ## Standards And Protocols
 
 | Standard or protocol | Implemented profile |
 |---|---|
-| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP. The server exposes tools, resources, resource templates, tasks, and structured results. |
-| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Generated schemas describe compact agents, groups, tasks, constraints, objectives, assignments, findings, and artifacts. Controlled fields use Rust structs and enums. |
-| [Veoveo MCP server contract](../../mcp/contract/DESIGN.md) | Hosted-server contract revision 2, including gateway-signed invocation authority, canonical pagination, artifact-plane access, and usage evidence. |
-| [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`. Planning always uses the shared durable task runtime. |
-| `good_lp` 1.15.2 and `microlp` 0.4.0 | Pure-Rust binary linear assignment solver. The only public backend value is `micro_lp`. |
-| [Rerun](https://rerun.io/) 0.35.0 RRD | Optional immutable plan evidence containing the governed plan, assignments, and summary metrics. |
-| DuckDB SQL | Optional immutable analytical projection containing assignment, requirement, and governed-plan tables. |
-| SHA-256 | Request and governed-plan digests. |
-| UUID version 5 | Stable plan and assignment identifiers derived from governed inputs. |
-| Map and Frames repository contracts | Optimization retains immutable Map releases, Map resource references, mobility-profile revisions, and one Frames world revision. It performs no coordinate conversion or route construction. |
-| OAuth bearer and signed JWT identity | Gateway policy fixes principal, tenant, profile, labels, Work Context, and invocation authority before task creation. |
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | Protocol version `2025-11-25`; JSON-RPC 2.0 over sessionful Streamable HTTP with tools, resources and templates, prompts, completions, subscriptions, ordered notifications, and structured content. |
+| [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; all five tools require durable task invocation. |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Self-contained schemas generated from strong Rust request and response types through the shared MCP contract machinery. |
+| [NVIDIA cuOpt](https://github.com/NVIDIA/cuOpt) | Stable release `26.06`, running from `nvidia/cuopt:26.6.0-cuda13.2-py3.14` at manifest-list digest `sha256:0faac7182b32f5be747e30f081427e80e8dfeccd8f49613814d3d217167fe1ad`. |
+| CUDA | CUDA 13.2 runtime supplied by the pinned cuOpt image. A hardware NVIDIA GPU is mandatory. |
+| `veoveo.io/optimization/v1` | Repository-owned Optimization resource and result profile. |
+| `veoveo.io/routing-problem/v1` | Repository-owned routing problem profile for service or pickup-delivery orders. |
+| `veoveo.io/convex-problem/v1` | Repository-owned continuous LP, QP, QCQP, and quadratic SOCP representation. |
+| `veoveo.io/milp-problem/v1` | Repository-owned linear MILP profile with continuous, integer, and semi-continuous variables. |
+| `veoveo.io/travel-model-artifact/v1` | Immutable Map-to-Optimization matrix exchange with location order, vehicle types, units, unavailable cells, and Map resource attestation. |
+| `veoveo.io/cuopt-executor/v1` | Private control-to-executor protocol over a Unix-domain socket. Each JSON message has an unsigned 64-bit big-endian length prefix and a configured byte bound. It is not a public contract. |
+| SHA-256 and UUID version 7 | Canonical problem and solution digests use SHA-256. Problem, run, solution, and verification identities use UUIDv7-derived controlled identifiers. |
+| Veoveo MCP server contract | Revision 2, including the canonical hosted runtime, artifact plane, platform store, documentation resources, and gateway registration. |
 
-DuckDB and RRD are evidence projections. The mandatory canonical plan is the
-typed JSON artifact and the corresponding `optimization://plan/{plan_id}`
-resource.
+## Design Position
 
-## Responsibilities
+The server is a decision engine, not a general-purpose modeling language and
+not an execution controller.
 
 Optimization owns:
 
-- bounded validation of compact planning declarations;
-- candidate expansion for agents and declared groups;
-- capability and mobility-profile admission;
-- shared and per-agent resource constraints;
-- lane and resource-band assignment;
-- fixed-window collision constraints;
-- task dependency and mutual-exclusion constraints;
-- weighted objective compilation;
-- deterministic tie breaking;
-- complete assignment and requirement results;
-- plan provenance, digests, artifact publication, and usage records.
+- routing order, fleet, objective, policy, problem, run, solution, and
+  verification types;
+- deterministic validation and compilation into cuOpt-native dense routing
+  matrices and sparse mathematical structures;
+- durable solve lifecycle, cancellation, provenance, usage, and immutable
+  evidence;
+- independent feasibility and objective verification after cuOpt returns.
 
-Map owns source features, spatial derivations, route construction, terrain,
-restriction checks, projected CRS behavior, geodesics, and mobility-envelope
-validation. Frames owns world revisions and coordinate conversion.
+Map owns locations, mobility profiles, immutable releases, travel feasibility,
+route-cost construction, and travel-model artifacts. The artifact plane owns
+bytes and access control. SurrealDB owns durable task, ownership, and usage
+records. The gateway owns external authentication, profile exposure, policy,
+and the signed internal identity presented to this server.
 
-The consuming extension owns plan admission, session binding, final dynamic
-validation, bounded runtime-buffer compilation, and execution.
+The server never actuates a route or mathematical decision. A verified
+solution is advisory input to a separately authorized operational workflow.
 
-## Non-Goals
-
-- No physics-rate stepping or waypoint advancement.
-- No controller, actuator, or collision authority.
-- No route generation, CRS conversion, geodesic calculation, or terrain query.
-- No dynamic feasibility claim.
-- No raw LP or MILP request model.
-- No provider job protocol or provider status polling.
-- No client REST, gRPC, or WebSocket job surface.
-- No autonomous plan execution.
-
-## MCP Surface
-
-The internal endpoint is:
+## Architecture
 
 ```text
-/optimization/mcp
+agent
+  |
+  | MCP Streamable HTTP
+  v
+mcp-gateway
+  |
+  | signed invocation identity
+  v
+optimization-mcp control container
+  |-- typed MCP contract and durable tasks
+  |-- problem materialization and deterministic compilation
+  |-- independent solution verification
+  |-- SurrealDB task and usage state
+  |-- shared artifact plane
+  |
+  | private length-prefixed JSON over shared Unix socket
+  v
+cuOpt executor sidecar
+  |-- NVIDIA cuOpt 26.06
+  |-- CUDA 13.2 and RMM device pool
+  `-- one required NVIDIA GPU
 ```
 
-The gateway exposes the local `plan` tool under the configured server
-namespace, normally `optimization__plan`.
+The Rust control container never imports cuOpt and never needs a GPU device.
+The Python executor is the only container with `nvidia.com/gpu: 1`. This split
+keeps public protocol, identity, artifact, and verification logic in the
+strongly typed control plane while cuOpt runs in its supported Python and CUDA
+environment.
 
-The server advertises tools, resources, resource templates, and final tasks.
-Resources are not subscription-enabled.
+The socket transport avoids an additional network endpoint and keeps
+solver-private compiled structures out of the public MCP contract. The
+configured frame limit defaults to 256 MiB. Prepared problems are staged under
+the Optimization workspace with a recorded byte length and SHA-256 digest.
 
-### Tool
+## Public MCP Contract
 
-```text
-plan(PlanRequest) -> PlanOutput
-```
+The server exposes five tools. They remain separate because each one has
+different formulation rules, solver semantics, result shapes, and agent
+guidance.
 
-The tool always creates a durable task. A client that negotiates the final task
-extension receives the task handle immediately. A direct call waits on the same
-durable execution and returns its result.
+| Tool | Purpose | Canonical output |
+|---|---|---|
+| `optimize_routes` | Solve one heterogeneous vehicle-routing problem. | One routing solution with case summary, vehicle routes, verification, and optional CSV route table. |
+| `optimize_route_scenarios` | Submit two through 64 independent routing cases to cuOpt BatchSolve. | Case-addressed summaries and routes under one problem, run, and solution identity. |
+| `solve_convex` | Solve a continuous LP, QP, QCQP, or quadratic representation of an SOCP. | Variable values, constraint activities, quality metrics, and independent verification. |
+| `solve_milp` | Solve a linear mixed-integer model. | Variable values, constraint activities, bound and gap metrics, optional incumbents, and independent verification. |
+| `verify_solution` | Re-run server-owned checks with caller-selected finite tolerances. | A new verification report and immutable verification artifact for an existing solution. |
 
-Planning reserves artifact-plane authority before task creation. One write is
-mandatory for the plan JSON. Optional DuckDB and RRD outputs reserve one
-additional write each.
+All tools declare task support as `required`. A direct non-task call is
+rejected with instructions to use the MCP Task API. Task subscriptions carry
+progress and terminal wakeups; agents do not poll the solver.
 
-### Resources
+Tool outputs contain short text for conversation, typed `structuredContent`,
+resource links for the problem, run, and solution, and artifact links for
+canonical evidence. The structured result never embeds an ungoverned download
+URL.
 
-```text
-optimization://plans
-optimization://plan/{plan_id}
-optimization://artifact/{artifact_id}
-optimization://usage
-optimization://usage/task/{task_id}
-```
+## Problem Sources
 
-`optimization://plans` lists at most 100 visible completed plans and reports
-whether the result was truncated. The exact plan resource returns `PlanOutput`,
-including the governed plan and every artifact identity.
+Each solver family accepts bounded inline JSON. It also accepts an immutable
+`optimization://problem/{problem_id}` of the same family or a governed
+`artifact://` JSON model. The only mathematical artifact format is
+`optimization_json_v1`.
 
-Plan visibility is reconstructed from durable completed task results. A caller
-must match the recorded principal, profile, tenant, data-label authority, and
-Work Context. The gateway independently authorizes the resource operation
-under the caller's current profile.
+Routing has one additional boundary. Its travel model can be:
 
-`optimization://artifact/{artifact_id}` is the Optimization presentation URI
-for bytes in the shared artifact plane. The neutral
-`artifact://{artifact_id}` identity remains the cross-server form.
+- inline dense matrices;
+- an immutable `artifact://` travel-model manifest;
+- a `map://travel-model/{travel_model_id}` paired with its exact
+  `artifact://` manifest.
 
-## Compact Request Contract
+The Map form is attested. Optimization rejects it unless the artifact declares
+the requested Map resource URI. Materialization preserves Map's location
+order, vehicle-type identities, objective costs, transit times, and
+unavailable cells before the public problem is normalized and hashed.
 
-`PlanRequest.schema_version` is `1`. Every request declares at least one
-immutable Map release, one Frames world revision, one agent, and one spatial
-task.
+Problem resources are immutable snapshots. Reusing one creates a new run and
+solution identity without mutating the source problem.
 
-### Agents And Groups
+## Routing Contract
 
-An agent declares:
+A routing problem contains:
 
-- a controlled agent identifier;
-- exactly one immutable Map mobility-profile URI;
-- a capability set;
-- resource capacities;
-- a positive maximum assignment count;
-- assignment cost, risk, and confidence values.
+- stable location, order, vehicle, vehicle-type, and capacity-dimension IDs;
+- an absolute UTC time origin and a second or minute unit;
+- service orders or pickup-delivery pairs;
+- mandatory or optional service with positive drop penalties for optional
+  orders;
+- heterogeneous vehicle depots, availability windows, breaks, capacities,
+  fixed costs, maximum cost, and maximum time;
+- order-to-vehicle restrictions;
+- separate cost and transit-time matrices per vehicle type;
+- unavailable travel arcs;
+- minimum or exact vehicle counts;
+- weighted cost, travel-time, route-size variance, service-time variance,
+  prize, and fixed-vehicle-cost objectives;
+- an optional immutable routing solution as a warm start.
 
-A group declares its controlled identifier, member agents, and group
-capabilities. Group candidate cost and risk are the sums of member values.
-Group confidence is the least member confidence. The group consumes the
-assignment capacity and overlapping time of every member.
+One problem uses service orders or pickup-delivery orders, never both.
+Pickup and delivery demand signs are derived by the compiler. Client input
+uses non-negative demand quantities.
 
-### Spatial Tasks
+The compiler turns controlled IDs into stable cuOpt indices, checks every
+cross-reference, converts route restrictions into cuOpt arrays, and rejects
+numeric narrowing that cannot be represented safely. Duplicate objective
+metrics and zero-weight objective sets are invalid.
 
-A task declares:
+Route scenarios are complete independent problems. A scenario batch contains
+two through 64 uniquely identified cases and one solver policy. BatchSolve is
+the reason for a dedicated tool: the executor can keep the comparison on the
+GPU path while the result preserves an exact case identity.
 
-- minimum and desired quantity;
-- required or optional admission;
-- agent, group, or agent-or-group assignment;
-- positive priority;
-- a Map source-feature or spatial-derivation target;
-- a Map route, Map spatial derivation, or artifact trajectory execution
-  reference;
-- required capabilities and allowed mobility profiles;
-- optional eligible agents and groups;
-- dependencies;
-- shared-resource and per-agent demand;
-- allowed lanes and resource bands;
-- an unscheduled or fixed time window;
-- once, loop, or periodic recurrence;
-- assignment cost and risk.
+## Mathematical Contract
 
-Every source-feature target must belong to a release identifier declared in
-`source_map_releases`. References are identities only. Optimization never
-dereferences them to duplicate Map or Frames computation.
+Mathematical variables and constraints use stable controlled IDs. Coefficients
+are finite `f64` values. Omitted variable or constraint bounds represent
+negative or positive infinity as appropriate.
 
-### Global Policies
+`solve_convex` accepts continuous variables only:
 
-Requests may declare:
+| Declared kind | Required structure |
+|---|---|
+| `linear_program` | Linear objective and linear constraints. |
+| `quadratic_program` | Quadratic objective and no quadratic constraints. |
+| `quadratically_constrained_program` | One or more quadratic constraints. |
+| `second_order_cone_program` | A quadratic-constraint representation accepted by cuOpt. |
 
-- shared resources with positive capacities;
-- lanes with positive assignment capacities and optional Map geometry;
-- resource bands with positive assignment capacities;
-- mutual-exclusion sets with a maximum active-task count;
-- weights for priority, cost, risk, confidence, and resource use;
-- a deterministic seed;
-- a maximum generated-candidate count;
-- optional DuckDB and RRD evidence.
+The server validates the declared shape, references, dimensions, bounds, and
+finite coefficients. It does not prove that an arbitrary submitted quadratic
+matrix is positive semidefinite or that a quadratic constraint is convex.
+The formulator remains responsible for the declared convexity. cuOpt
+termination and the independent feasibility report do not constitute a proof
+of global optimality for a misdeclared non-convex model.
 
-All identifiers are unique within their declared kind. Every reference must
-resolve inside the request, and task dependencies must form an acyclic graph.
+Quadratic equality constraints are outside the cuOpt 26.06 profile. A
+two-sided quadratic inequality is compiled into separate lower and upper
+constraints.
 
-## Bounds
+`solve_milp` accepts a linear objective and linear constraints. At least one
+variable must be integer or semi-continuous. The request can provide an inline
+MIP start or reference a prior mathematical solution whose variable IDs match.
+An output policy controls retained warm-start values and incumbent history.
 
-The schema and runtime enforce these service limits:
+The compiler merges duplicate terms into deterministic sparse rows. Linear
+constraint matrices and quadratic objectives use CSR. The controlled model is
+bounded at 16,384 nonzero input terms. Artifact input follows the same bound;
+it changes transport and governance, not the accepted mathematical profile.
 
-| Input | Maximum |
-|---|---:|
-| Agents | 512 |
-| Groups | 128 |
-| Tasks | 512 |
-| Shared resources | 256 |
-| Lanes | 256 |
-| Resource bands | 256 |
-| Mutual-exclusion sets | 256 |
-| Source Map releases | 64 |
-| Generated candidates | 50,000 |
+## Solver Profiles
 
-The request may lower the candidate limit. Expansion fails before solver
-construction when the compact declaration exceeds that bound.
+Clients select an immutable `optimization://profile/{profile_id}`. A request
+may shorten the deadline. It cannot exceed the selected profile maximum.
+MILP requests may also tighten the relative or absolute gap.
 
-## Candidate Expansion
+| Profile | Maximum | Routing default | Convex default | MILP default | Convex tolerance | MILP relative gap |
+|---|---:|---:|---:|---:|---:|---:|
+| `interactive` | 30 s | 5 s | 5 s | 10 s | `1e-4` | `0.05` |
+| `balanced` | 300 s | 30 s | 30 s | 60 s | `1e-6` | `0.01` |
+| `thorough` | 3,600 s | 300 s | 300 s | 300 s | `1e-8` | `0.001` |
 
-The service builds individual units from agents and collective units from
-declared groups. It removes units that fail capability, mobility-profile, or
-explicit eligibility checks.
-
-Each eligible unit expands across the task's allowed lane and resource-band
-choices. An empty lane or band set creates one unassigned choice. Candidate
-keys contain the task, unit, lane, and band identities, which gives a stable
-ordering independent of map iteration order.
-
-The deterministic seed feeds a SHA-256 tie break smaller than
-`1e-9`. The tie break chooses consistently among otherwise equivalent
-candidates without materially changing declared objective weights.
-
-## Solver Model
-
-Each generated candidate has one binary variable. Each task has one binary
-active variable.
-
-The model enforces:
-
-- assigned quantity no greater than desired quantity;
-- active tasks meeting their minimum quantity;
-- required tasks remaining active;
-- one lane-band variant for a task and unit;
-- per-agent maximum assignments;
-- per-agent resource capacities;
-- no simultaneous fixed-window assignments for one agent;
-- shared-resource capacities;
-- lane and resource-band capacities;
-- an active dependent task requiring its prerequisite to reach desired
-  quantity;
-- mutual-exclusion active-task limits.
-
-The objective maximizes weighted priority and confidence while penalizing
-cost, risk, and declared resource demand. `good_lp` expresses the model and
-the pinned pure-Rust `microlp` backend solves it.
-
-Solver infeasibility is a governed result, not a transport failure. Contract
-validation errors fail the tool result before a model is solved.
-
-## Governed Plan
-
-`GovernedPlan` records:
-
-- schema version, stable plan identifier, resource URI, and status;
-- ordered complete assignments;
-- complete, partial, unmet, or inactive requirement results;
-- typed findings;
-- exact source Map releases and Frames world revision;
-- every declared mobility-profile revision;
-- objective components and aggregate metrics;
-- solver backend, seed, variable count, constraint count, candidate count, and
-  termination;
-- algorithm revision;
-- request and plan SHA-256 digests;
-- submitting principal, Work Context, policy revision, and time.
-
-An assignment includes all agents in the unit, the optional group, target,
-execution reference, mobility profiles, lane, resource band, timing,
-recurrence, shared-resource demand, cost, risk, and confidence.
-
-The status is:
-
-- `optimal` when every active requirement reaches desired quantity;
-- `partial` when a solved model leaves a requirement below desired quantity;
-- `infeasible` when the hard model has no solution.
-
-Findings distinguish missing eligible units, insufficient eligible units,
-unsatisfied desired quantity, unsatisfied hard minima, and solver
-infeasibility.
-
-## Identity And Digest Profile
-
-The request digest is lowercase hexadecimal SHA-256 over the UTF-8 JSON bytes
-emitted by the typed `PlanRequest` serializer.
-
-The plan identifier is UUIDv5 over:
-
-```text
-{durable_task_id}:{request_digest_sha256}
-```
-
-Assignment identifiers are UUIDv5 over the plan identifier and stable
-candidate key.
-
-The plan digest is lowercase hexadecimal SHA-256 over the typed governed-plan
-JSON object with `plan_digest_sha256` omitted. Ordered Rust collections make
-maps and sets deterministic. The plan identifier, authority, and submission
-time are part of the governed bytes.
-
-## Artifact Profile
-
-The canonical artifact is always:
-
-```text
-filename    plan.json
-media type  application/vnd.veoveo.optimization-plan+json
-```
-
-The optional DuckDB artifact is `plan.duckdb` with media type
-`application/vnd.duckdb`. It contains:
-
-- `plan_assignment`;
-- `plan_requirement`;
-- `governed_plan`.
-
-The optional RRD artifact is `plan.rrd` with media type
-`application/vnd.veoveo.rerun-rrd`. It records the canonical plan document,
-summary metrics, and one ordered entity per assignment.
-
-Artifact metadata repeats the plan identifier and URI, request and plan
-digests, algorithm revision, Map releases, Frames revision, and mobility
-profiles. The shared artifact plane stamps ownership and returns immutable
-artifact identities. Download URLs are removed from durable task results.
+Convex solves use PDLP with presolve in the current profile. MILP uses
+presolve and an integrality tolerance of `1e-5`. Balanced and thorough retain
+MILP incumbents by default. The profile resource is the authority; this table
+documents the current compiled values.
 
 ## Durable Execution
 
-The task request persists the compact input, submission time, and issued
-artifact-write capability. Recovery class `resume` allows an interrupted
-server process to claim and run the same task.
+Submission performs the following bounded sequence:
 
-The runtime:
+1. Verify gateway identity, Work Context, labels, profile, and artifact
+   authority.
+2. Materialize the problem source and any Map travel model.
+3. Validate and compile the public model.
+4. Create immutable problem and run IDs, stage prepared bytes, and record their
+   length and SHA-256 digest.
+5. Enqueue the shared final-extension task.
+6. Send the compiled operation and profile to the executor.
+7. Rebuild a typed solution from cuOpt output and independently verify it.
+8. Publish canonical artifacts, task result, run provenance, usage, and
+   resource notifications.
 
-1. validates and solves in a blocking worker;
-2. writes the mandatory and selected optional artifacts;
-3. records actual usage in generated candidates;
-4. stores the structured `PlanOutput` as the durable result.
+The executor handles one solve at a time. The shared task runtime owns queueing.
+Cancellation sends a private cancel operation for the active run. cuOpt does
+not expose one uniform safe interruption mechanism across every solver, so the
+executor terminates itself when it must cancel an active solve. Kubernetes
+restarts the sidecar, and the startup probe requires a fresh CUDA health check
+before further work.
 
-The worker renews its lease during execution and observes cancellation before
-and after artifact publication. Task ownership is stored in the installation
-SurrealDB.
+Provider-style status polling does not exist. Task state changes come from the
+owned runtime and executor call.
 
-## Gateway And Deployment
+## Independent Verification
 
-The gateway catalog registers:
+Solver output is never accepted only because cuOpt labels it feasible.
+
+Routing verification checks:
+
+- route endpoints, vehicle identity, duplicate routes, and node identity;
+- mandatory service, pickup-delivery completeness and precedence;
+- order-to-vehicle restrictions;
+- order and vehicle time windows;
+- capacity trajectories;
+- maximum vehicle cost and time;
+- unavailable travel arcs and arrival sequence consistency.
+
+Mathematical verification checks:
+
+- missing, duplicate, and unknown variables;
+- variable bounds and MILP integrality;
+- linear and quadratic constraint activities;
+- the objective recalculated from canonical problem terms;
+- maximum constraint, integrality, and bound violations.
+
+The initial report uses server-owned finite absolute and relative tolerances.
+`verify_solution` creates a fresh report under caller-selected non-negative
+tolerances. Verification establishes consistency and feasibility against the
+published problem. It does not independently reproduce cuOpt's optimality
+proof or certify model convexity.
+
+## Resources
+
+The stable roots are:
+
+| Resource | Meaning |
+|---|---|
+| `optimization://capabilities` | Live GPU identity, cuOpt version and digest, supported families, limits, and verification inventory. |
+| `optimization://profiles` | Solver profile catalog. |
+| `optimization://problems` | Visible immutable problem records. |
+| `optimization://runs` | Visible durable execution records. |
+| `optimization://solutions` | Visible completed solution records. |
+| `optimization://usage` | Visible task usage index. |
+| `optimization://docs` | Embedded server documents. |
+| `optimization://contract` | Machine-readable revision-2 compliance declaration and capability inventory. |
+
+Resource templates provide:
 
 ```text
-slug        optimization
-scheme      optimization
-mount       /optimization
-MCP         /optimization/mcp
-scope       operator:use
+optimization://profile/{profile_id}
+optimization://problem/{problem_id}
+optimization://run/{run_id}
+optimization://run/{run_id}/incumbents
+optimization://solution/{solution_id}
+optimization://solution/{solution_id}/routes
+optimization://solution/{solution_id}/variables
+optimization://solution/{solution_id}/verification
+optimization://artifact/{artifact_id}
+optimization://usage/task/{task_id}
+optimization://docs/{doc_id}
 ```
 
-The catalog declares the `plan` tool, task support, the
-`optimization://plan/{plan_id}` and artifact resource families, and usage
-resources. The Helm workload receives SurrealDB and artifact-service
-configuration through installation-owned values.
+Problem, run, and solution identities are deliberately disjoint. A problem
+states what was solved. A run records when, where, and under which policy it
+was solved. A solution records the returned decision and verification. This
+prevents retries or alternative profiles from overwriting decision evidence.
 
-No Map or Frames credentials are present because Optimization consumes exact
-resource identities and does not fetch cross-server data.
+Visible task-backed lists are capped at 100 entries per response. MCP list
+calls use cursor pagination. Resource reads repeat authorization and never
+turn a denial into a missing object.
+
+## Prompts, Completions, And Notifications
+
+The server provides three prompts:
+
+- `formulate_routing_problem`;
+- `compare_route_scenarios`;
+- `formulate_mathematical_model`.
+
+They direct agents to stable IDs, explicit units, the correct problem family,
+the Map travel-model boundary, bounded profiles, durable task invocation, and
+verification.
+
+Completions discover visible profile, problem, run, and solution identifiers.
+Subscriptions apply to the mutable problem, run, and solution collection
+resources. Individual problem, run, and solution snapshots are immutable and
+not subscribable. A completed task emits resource-list-change and
+subscribed-resource notifications in protocol order through the owning
+session.
+
+## Artifacts And Usage
+
+Every solve publishes canonical problem JSON and canonical solution JSON.
+Optional artifacts are:
+
+| Family | Optional artifact |
+|---|---|
+| Routing | CSV route table. |
+| Convex | JSON warm-start variable values. |
+| MILP | JSON warm-start variable values and JSON incumbent history. |
+| Verification | JSON verification report. |
+
+Artifact writes use a task-bound capability issued before execution. The
+artifact plane stamps tenant and owner from the forwarded identity. Data
+labels and Work Context accompany each write. Returned metadata omits download
+URLs and uses the `optimization://artifact/{artifact_id}` presentation.
+
+Usage records capture measured solve work against the durable task. They are
+read through canonical usage resources and the same owner visibility rules.
+
+## Identity, Visibility, And Storage
+
+Every public request requires a gateway-signed internal assertion scoped to
+the Optimization server. The server records principal, profile, tenant,
+labels, Work Context, invocation authority, and policy revision with the task.
+Problem, run, solution, artifact, and usage reads must match that authority.
+
+SurrealDB holds durable task and usage metadata. The shared artifact plane
+holds immutable bytes. The Optimization workspace holds digest-addressed
+prepared problem staging needed by durable tasks. It is not an alternate
+control database and exposes no byte route.
+
+The default bounds are:
+
+| Boundary | Limit |
+|---|---:|
+| Routing scenario cases | 64 |
+| Inline dense travel matrix | 16,384 cells |
+| Inline mathematical terms | 16,384 |
+| Routing objectives | 6 |
+| Capacity dimensions | 64 |
+| Prepared problem | 256 MiB |
+| Executor request or response frame | 256 MiB |
+| Resolved or published artifact | 512 MiB |
+
+Controlled client IDs are at most 128 ASCII alphanumeric or `-_.:` characters.
+Locations, orders, and vehicles are additionally bounded by their cuOpt index
+representations.
+
+## GPU Executor
+
+The executor initializes CUDA before opening its socket. Startup fails unless
+CuPy can select a hardware device, allocate device memory, and report the
+expected cuOpt version. It creates a one-GiB RMM pool by default. Health checks
+repeat a CUDA device and memory probe; a lost device returns
+`gpu_unavailable`.
+
+The executor supports:
+
+- direct cuOpt routing `Solve`;
+- direct cuOpt routing `BatchSolve`;
+- low-level cuOpt `DataModel` construction for LP, QP, QCQP, and MILP;
+- PDLP or barrier selection for continuous models;
+- MIP callbacks for retained incumbents.
+
+There is no CPU solver, software CUDA path, optional GPU mode, or degraded
+acceptance profile. A missing socket, wrong protocol version, mismatched run
+ID, malformed frame, version mismatch, CUDA failure, or lost GPU fails the
+request closed.
+
+## Deployment
+
+Helm deploys one `optimization-mcp` Pod with `runtimeClassName: nvidia` and a
+non-overlapping `Recreate` strategy. The Pod contains:
+
+- one Rust control container with CPU and memory resources but no GPU request;
+- one cuOpt executor sidecar requesting and limiting exactly one
+  `nvidia.com/gpu`;
+- a shared `emptyDir` for the Unix socket, staging, and CUDA caches;
+- an 8 GiB memory-backed `/dev/shm`;
+- a 20 GiB `ReadWriteOnce` Optimization workspace;
+- executor startup and liveness probes that perform the CUDA health request.
+
+The image build graph and offline lock include the exact executor image.
+Production accepts only a saved, versioned image whose cuOpt base digest
+matches the compiled provenance constant.
 
 ## Source Layout
 
-```text
-servers/optimization-mcp/
-  DESIGN.md
-  AGENTS.md
-  src/
-    contract.rs
-    planning.rs
-    plan_artifacts.rs
-    state.rs
-    uris.rs
-    bin/
-      server.rs
-      server/
-        app_state.rs
-        config.rs
-        host.rs
-        internal_auth.rs
-        outputs.rs
-        ownership.rs
-        task_extension.rs
-```
+| Path | Responsibility |
+|---|---|
+| `src/domain/` | Public problem, profile, solution, verification, ID, and URI-adjacent types. |
+| `src/compiler/` | Deterministic routing and sparse mathematical compilation. |
+| `src/verification/` | Independent route and mathematical checks. |
+| `src/executor/` | Private protocol types and bounded Unix-socket client. |
+| `src/problem_store.rs` | Digest-verified prepared-problem staging. |
+| `src/profiles.rs` | Curated immutable solver profiles. |
+| `src/solution_builder.rs` | Typed solution construction, provenance, digest, and initial verification. |
+| `src/bin/server/` | Thin HTTP/MCP wiring, tasks, identity, artifacts, resources, prompts, and output publication. |
+| `executor/veoveo_cuopt_executor/` | Python cuOpt GPU adapter. |
+| `tests/cuopt_gpu.rs` | Ignored hardware-GPU acceptance test. |
 
-`contract.rs` owns wire types and bounds. `planning.rs` validates requests,
-expands candidates, builds the solver model, and constructs the governed plan.
-`plan_artifacts.rs` owns canonical JSON, DuckDB, and RRD encoding. The binary
-modules own task orchestration, authority, artifact publication, and MCP
-projection.
+## Verification And Acceptance
 
-## Testing
+The ordinary Rust suite covers schemas, domain validation, compilation,
+independent verification, private protocol framing, resources, prompts, task
+behavior, artifacts, and control-server startup checks. Python unit tests cover
+framing, health, GPU failure mapping, and executor dispatch.
 
-Unit coverage proves:
+The ignored `cuopt_gpu` test is acceptance evidence only when run against the
+pinned executor image on an NVIDIA GPU. It performs a health request and real
+routing, convex LP, and MILP solves through the Rust client. A software solver
+or mocked CUDA result cannot satisfy this test.
 
-- strong URI and identifier validation;
-- stable UUIDv5 identities;
-- fixed-window overlap semantics;
-- internal candidate generation and deterministic selection;
-- required-capacity infeasibility;
-- optional partial plans;
-- dependency and mutual-exclusion behavior;
-- canonical JSON round trips;
-- DuckDB and RRD evidence encoding;
-- plan, artifact, and usage URI parsing;
-- canonical MCP tool schemas.
+## Contract Compliance
 
-Repository integration tests exercise the hosted task and gateway projection.
-The first-party agent-kernel smoke uses the compact request profile.
+Contract revision: 2.
 
-## Security And Safety
-
-The gateway remains the public authorization boundary. Optimization verifies
-gateway-signed internal identity and persists task ownership. Resource reads
-must match the recorded principal, profile, tenant, labels, and Work Context.
-Artifact reads pass the verified caller and bearer to the shared plane.
-
-Plans are advisory. They contain no access token, credential, arbitrary
-network URL, executable content, actuator instruction, or hidden compatibility
-behavior.
+All mandatory checks C01 through C30 are met. There are no compatibility
+projections, so C06 is satisfied by the single canonical surface. The gateway
+registration states revision 2 and the cuOpt 26.06 engine. Documentation and
+contract resources are embedded at build time and served through MCP and the
+canonical administrative mount.

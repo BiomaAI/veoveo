@@ -808,6 +808,7 @@ fn run_phase(snapshot: &TaskSnapshot) -> RunPhase {
         TaskStatus::Queued => RunPhase::Queued,
         TaskStatus::Running | TaskStatus::Waiting | TaskStatus::CancelRequested => {
             match snapshot.status_message.as_deref() {
+                Some(message) if message.contains("queued for cuOpt") => RunPhase::Queued,
                 Some(message) if message.contains("solving") => RunPhase::Solving,
                 Some(message) if message.contains("publishing") => RunPhase::Publishing,
                 _ => RunPhase::Preparing,
