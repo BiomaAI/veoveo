@@ -25,6 +25,10 @@ installation.
 The connected bundle builder must authenticate to `nvcr.io` before building the
 Stream image.
 
+The bundle includes the derived `veoveo/cuopt-executor` image based on the
+digest-pinned NVIDIA cuOpt 26.06 CUDA 13.2 runtime. Offline GPU nodes still need
+a compatible NVIDIA driver, device plugin, and `nvidia` RuntimeClass.
+
 On the offline host, verify and import into Docker, retaining the installation
 payload and checksum/SBOM evidence under an empty destination directory:
 

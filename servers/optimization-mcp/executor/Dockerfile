@@ -8,7 +8,7 @@ ENV PYTHONPATH=/opt/veoveo-cuopt \
     NUMBA_CACHE_DIR=/run/veoveo-cuopt/cache/numba \
     XDG_CACHE_HOME=/run/veoveo-cuopt/cache
 
-COPY --chown=10001:10001 veoveo_cuopt_executor /opt/veoveo-cuopt/veoveo_cuopt_executor
+COPY --chown=10001:10001 servers/optimization-mcp/executor/veoveo_cuopt_executor /opt/veoveo-cuopt/veoveo_cuopt_executor
 
-USER 10001
+USER 10001:10001
 ENTRYPOINT ["python", "-m", "veoveo_cuopt_executor"]

@@ -199,6 +199,9 @@ spec:
               mountPath: /var/lib/veoveo/runtime
             - name: tmp
               mountPath: /tmp
+            {{- with $service.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
             {{- if $service.persistence }}
             - name: workspace
               mountPath: {{ default "/var/lib/veoveo/duckdb" $service.persistenceMountPath }}
@@ -218,12 +221,55 @@ spec:
               mountPath: /etc/veoveo/bootstrap
               readOnly: true
             {{- end }}
+        {{- range $sidecar := $service.sidecars }}
+        - name: {{ $sidecar.name }}
+          image: {{ include "veoveo.ownedImage" (list $ $sidecar.image) }}
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          {{- with $sidecar.workingDir }}
+          workingDir: {{ . }}
+          {{- end }}
+          {{- with $sidecar.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $sidecar.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $sidecar.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $sidecar.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $sidecar.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $sidecar.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- include "veoveo.containerSecurityContext" $ | nindent 12 }}
+          resources:
+            {{- toYaml $sidecar.resources | nindent 12 }}
+          {{- with $sidecar.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
       volumes:
         - name: runtime
           emptyDir:
             sizeLimit: 1Gi
         - name: tmp
           emptyDir: {}
+        {{- with $service.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
         {{- if $service.persistence }}
         - name: workspace
           persistentVolumeClaim:

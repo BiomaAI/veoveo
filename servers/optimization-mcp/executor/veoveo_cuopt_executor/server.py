@@ -4,7 +4,12 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .gpu import GpuHealth, GpuUnavailable, initialize_gpu
+from .gpu import (
+    GpuHealth,
+    GpuUnavailable,
+    assert_gpu_available,
+    initialize_gpu,
+)
 from .protocol import (
     ProtocolError,
     error_response,
@@ -68,6 +73,7 @@ class ExecutorServer:
             operation = require_mapping(request["operation"], "operation")
             operation_name = operation["operation"]
             if operation_name == "health":
+                assert_gpu_available()
                 result = {
                     "result": "health",
                     "health": self.health.to_dict(),
@@ -100,6 +106,10 @@ class ExecutorServer:
         except ProtocolError as error:
             await self._write_error(
                 writer, run_id, "protocol_failure", str(error)
+            )
+        except GpuUnavailable as error:
+            await self._write_error(
+                writer, run_id, "gpu_unavailable", str(error)
             )
         except MemoryError as error:
             await self._write_error(

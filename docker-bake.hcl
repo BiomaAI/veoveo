@@ -54,6 +54,7 @@ group "platform-full" {
     "timeseries-mcp",
     "duckdb-mcp",
     "optimization-mcp",
+    "cuopt-executor",
     "frames-mcp",
     "map-mcp",
     "view-mcp",
@@ -316,8 +317,14 @@ target "optimization-mcp" {
     "io.veoveo.build.package"   = "veoveo-optimization-mcp"
     "io.veoveo.build.binaries"  = "optimization-mcp"
     "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = "libduckdb"
+    "io.veoveo.build.auxiliary" = ""
   }
+}
+
+target "cuopt-executor" {
+  inherits   = ["base"]
+  dockerfile = "servers/optimization-mcp/executor/Dockerfile"
+  tags       = [image_ref("cuopt-executor")]
 }
 
 target "frames-mcp" {

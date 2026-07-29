@@ -25,6 +25,7 @@
     {"ref": "veoveo/artifact-service:0.1.0", "dockerfile": "platform/artifacts/service/Dockerfile"},
     {"ref": "veoveo/chart-mcp:0.1.0", "dockerfile": "servers/chart-mcp/Dockerfile"},
     {"ref": "veoveo/console-bff:0.1.0", "dockerfile": "apps/console/bff/Dockerfile"},
+    {"ref": "veoveo/cuopt-executor:0.1.0", "dockerfile": "servers/optimization-mcp/executor/Dockerfile"},
     {"ref": "veoveo/frames-mcp:0.1.0", "dockerfile": "servers/frames-mcp/Dockerfile"},
     {"ref": "veoveo/duckdb-mcp:0.1.0", "dockerfile": "servers/duckdb-mcp/Dockerfile"},
     {"ref": "veoveo/gateway-composer:0.1.0", "dockerfile": "mcp/composer/Dockerfile"},

@@ -97,6 +97,14 @@ canonical catalog, while the volume retains the
 tenant-scoped DuckDB Spatial projection and activated Valhalla routing builds.
 Release activation serializes projection changes within that process.
 
+`optimization-mcp` runs as a Rust control container beside the pinned NVIDIA
+cuOpt 26.06 executor. The executor alone requests one `nvidia.com/gpu`; both
+containers share a bounded Unix-socket volume, and the control container retains
+prepared governed problems on its `ReadWriteOnce` workspace. Startup, readiness,
+and liveness require the exact executor protocol, a CUDA 13.2-capable driver,
+and one visible hardware GPU. The pod uses the `nvidia` RuntimeClass and has no
+CPU solver or GPU-optional deployment mode.
+
 `serverBootstrap` delivers installation-time domain configuration to any MCP
 server component, keyed by domain-service name. Each entry renders a
 `{name}-bootstrap` ConfigMap mounted at the canonical
