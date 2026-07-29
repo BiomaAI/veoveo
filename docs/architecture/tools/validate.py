@@ -63,8 +63,8 @@ def main() -> None:
     glossary = rows("model-glossary.csv")
     if len(components) != 69:
         fail(f"expected 69 components, found {len(components)}")
-    if len(interfaces) != 39:
-        fail(f"expected 39 interfaces, found {len(interfaces)}")
+    if len(interfaces) != 40:
+        fail(f"expected 40 interfaces, found {len(interfaces)}")
     if len(requirements) != 19:
         fail(f"expected 19 requirements, found {len(requirements)}")
     if len(glossary) < 25:

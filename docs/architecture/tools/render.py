@@ -20,7 +20,7 @@ DIAGRAMS = ARCH / "diagrams"
 MODEL = ARCH / "model"
 VERSION = "0.1.0"
 REVISION_DATE = "2026-07-28"
-SOURCE_COMMIT = "3af8f51d9361d59bbfb78ec997f70c86f46b219a"
+SOURCE_COMMIT = "7783abd7ef2eeac35c57844ced4ad7d53deed896"
 
 
 def read_csv(name: str) -> list[dict[str, str]]:
