@@ -110,9 +110,10 @@ veoveo-mcp-certify \
   --report release/conformance-result.json
 ```
 
-Provide a bearer token only through `MCP_BEARER_TOKEN` when the profile requires it.
-Store the report as an immutable release artifact. A failed applicable check blocks the
-release.
+Provide the gateway internal bearer only through `MCP_BEARER_TOKEN`. Hosted
+certification always uses it for both MCP and the same-origin administrative docs
+projection; the credential never enters the profile or report. Store the report as an
+immutable release artifact. Any failed check blocks the release.
 
 ### 5. Package the application chart
 
