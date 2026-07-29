@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
-from veoveo_mcp.contract import ArtifactMetadata, PlaneCaller
+from veoveo_mcp.contract import (
+    CONTRACT_REVISION,
+    ArtifactMetadata,
+    ComplianceStatus,
+    PlaneCaller,
+    parse_compliance,
+)
 from veoveo_mcp.simulation_pose import PoseTlsConfig
 from veoveo_mcp.simulation_view import FrameRevision
 
@@ -17,13 +24,12 @@ from anonymous_simulation_mcp.contract import (
     StartPoseProducerRequest,
 )
 from anonymous_simulation_mcp.mcp_server import (
-    CONTRACT_REVISION,
+    CONTRACT_DECLARATION,
     DOCS_INDEX,
     LLMS_TXT,
     SERVER_DOCS,
-    contract_declaration,
-    parse_compliance,
 )
+from anonymous_simulation_mcp.main import RootApp
 from anonymous_simulation_mcp.runtime import (
     ENTITY_IDS,
     ENTITY_TABLE_REVISION,
@@ -147,11 +153,11 @@ def test_llms_txt_lists_every_document() -> None:
     assert LLMS_TXT.startswith("# anonymous-simulation\n")
     assert f"Contract revision {CONTRACT_REVISION}." in LLMS_TXT
     for doc in SERVER_DOCS:
-        assert f"- [{doc.title}](docs/{doc.id})\n" in LLMS_TXT
+        assert f"- [{doc.title}]({doc.id})\n" in LLMS_TXT
 
 
 def test_contract_declaration_meets_the_well_known_surface() -> None:
-    declaration = contract_declaration()
+    declaration = CONTRACT_DECLARATION.wire()
     assert declaration["server"] == "anonymous-simulation"
     assert declaration["contract_revision"] == 2
     by_id = {item["id"]: item for item in declaration["compliance"]}
@@ -171,13 +177,55 @@ def test_parse_compliance_reads_status_and_note() -> None:
         "- C03: pending - dashed\n\n"
         "## Build And Test\n\n- C99: met\n"
     )
-    assert items == [
-        {"id": "C01", "status": "met"},
-        {"id": "C02", "status": "pending", "note": "reason text"},
-        {"id": "C03", "status": "pending", "note": "dashed"},
+    assert [(item.id, item.status, item.note) for item in items] == [
+        ("C01", ComplianceStatus.MET, None),
+        ("C02", ComplianceStatus.PENDING, "reason text"),
+        ("C03", ComplianceStatus.PENDING, "dashed"),
     ]
-    with pytest.raises(ValueError):
-        parse_compliance("# Manual\n\nNo compliance section.\n")
+    assert parse_compliance("# Manual\n\nNo compliance section.\n") == []
+
+
+def test_admin_docs_are_routed_through_the_protected_stack() -> None:
+    paths: list[str] = []
+
+    async def protected_app(scope, receive, send) -> None:
+        paths.append(scope["path"])
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 204,
+                "headers": [],
+            }
+        )
+        await send({"type": "http.response.body", "body": b""})
+
+    app = RootApp(
+        protected_app,
+        session_manager=None,  # type: ignore[arg-type]
+        ready=asyncio.Event(),
+    )
+    messages: list[dict[str, Any]] = []
+
+    async def exercise() -> None:
+        async def receive() -> dict[str, Any]:
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(message: dict[str, Any]) -> None:
+            messages.append(message)
+
+        await app(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": "/anonymous-simulation/admin/docs/llms.txt",
+            },
+            receive,
+            send,
+        )
+
+    asyncio.run(exercise())
+    assert paths == ["/anonymous-simulation/admin/docs/llms.txt"]
+    assert messages[0]["status"] == 204
 
 
 def test_assets_are_declarative_self_contained_usda() -> None:

@@ -49,20 +49,6 @@ class RootApp:
             await _plain(send, 200, b"ok")
         elif path == "/anonymous-simulation/readyz":
             await _plain(send, 200 if self._ready.is_set() else 503, b"ok")
-        elif path == "/anonymous-simulation/admin/docs/llms.txt":
-            # Read-only well-known projection (contract C20), open like the
-            # health probes so unauthenticated conformance fetches succeed.
-            await _plain(send, 200, LLMS_TXT.encode())
-        elif path.startswith("/anonymous-simulation/admin/docs/"):
-            doc_id = path.removeprefix("/anonymous-simulation/admin/docs/")
-            doc = next(
-                (doc for doc in SERVER_DOCS if doc.id == doc_id),
-                None,
-            )
-            if doc is None:
-                await _plain(send, 404, b"unknown server document")
-            else:
-                await _markdown(send, doc.body)
         elif path.startswith("/anonymous-simulation/mcp") or path.startswith(
             "/anonymous-simulation/admin/"
         ):
@@ -135,7 +121,18 @@ async def serve(config: Config) -> None:
 
     async def protected_asgi(scope, receive, send):
         path = scope.get("path", "")
-        if path == "/anonymous-simulation/mcp" or path.startswith(
+        if path == "/anonymous-simulation/admin/docs/llms.txt":
+            await _plain(send, 200, LLMS_TXT.encode())
+        elif path.startswith("/anonymous-simulation/admin/docs/"):
+            doc_id = path.removeprefix(
+                "/anonymous-simulation/admin/docs/"
+            )
+            doc = SERVER_DOCS.doc(doc_id)
+            if doc is None:
+                await _plain(send, 404, b"unknown server document")
+            else:
+                await _markdown(send, doc.body)
+        elif path == "/anonymous-simulation/mcp" or path.startswith(
             "/anonymous-simulation/mcp/"
         ):
             await session_manager.handle_request(scope, receive, send)

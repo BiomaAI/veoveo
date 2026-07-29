@@ -34,8 +34,8 @@ def test_llms_txt_renders_the_contract_format():
         "# datasheet\n\n"
         "> Veoveo MCP server documents. Contract revision 2.\n\n"
         "## Docs\n\n"
-        "- [Agent work manual](docs/agents)\n"
-        "- [Domain design](docs/design)\n"
+        "- [Agent work manual](agents)\n"
+        "- [Domain design](design)\n"
     )
 
 
@@ -75,18 +75,46 @@ def test_declaration_wire_shape_and_capability_inventory():
 
 
 def _root_app() -> RootApp:
-    async def mcp_app(scope: dict[str, Any], receive: Any, send: Any) -> None:
-        raise AssertionError("admin docs requests must not reach the MCP stack")
+    async def protected_app(
+        scope: dict[str, Any], receive: Any, send: Any
+    ) -> None:
+        path = scope["path"]
+        if path == "/datasheet/admin/docs/llms.txt":
+            body = LLMS_TXT.encode()
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 200,
+                    "headers": [],
+                }
+            )
+            await send({"type": "http.response.body", "body": body})
+            return
+        doc = SERVER_DOCS.doc(path.removeprefix("/datasheet/admin/docs/"))
+        if doc is None:
+            body = b"unknown server document"
+            status = 404
+            content_type = b"text/plain; charset=utf-8"
+        else:
+            body = doc.body.encode()
+            status = 200
+            content_type = b"text/markdown; charset=utf-8"
+        await send(
+            {
+                "type": "http.response.start",
+                "status": status,
+                "headers": [(b"content-type", content_type)],
+            }
+        )
+        await send({"type": "http.response.body", "body": body})
 
     return RootApp(
         health_path="/datasheet/healthz",
         ready_path="/datasheet/readyz",
         docs_llms_path="/datasheet/admin/docs/llms.txt",
         docs_prefix="/datasheet/admin/docs/",
-        docs=SERVER_DOCS,
-        llms_txt=LLMS_TXT,
         mcp_path="/datasheet/mcp",
-        mcp_app=mcp_app,
+        protected_app=protected_app,
         # The session manager is only touched by the lifespan protocol.
         session_manager=None,  # type: ignore[arg-type]
         ready=asyncio.Event(),
@@ -109,7 +137,7 @@ def _get(app: RootApp, path: str) -> tuple[int, dict[bytes, bytes], bytes]:
     return start["status"], dict(start["headers"]), body
 
 
-def test_admin_projection_serves_llms_txt_unauthenticated():
+def test_admin_projection_routes_llms_txt_through_the_protected_stack():
     status, _headers, body = _get(_root_app(), "/datasheet/admin/docs/llms.txt")
     assert status == 200
     assert body.decode() == LLMS_TXT

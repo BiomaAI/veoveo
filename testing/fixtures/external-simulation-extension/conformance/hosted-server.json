@@ -1,7 +1,7 @@
 {
   "schemaVersion": "veoveo.io/mcp-conformance-profile/v1",
   "profileId": "anonymous-simulation-extension-ci",
-  "contractRevision": "2",
+  "contractRevision": "veoveo.io/hosted-mcp/v1",
   "endpoint": "http://anonymous-simulation-mcp:8812/anonymous-simulation/mcp",
   "serverSlug": "anonymous-simulation",
   "ownedResourceSchemes": [

@@ -41,7 +41,8 @@ The server serves its document index at `datasheet://docs`, the `agents` and
 `design` bodies at `datasheet://docs/{doc_id}`, and the contract declaration at
 `datasheet://contract` through `veoveo_mcp.contract.docs`. The administrative
 mount projects the same material read-only at `/datasheet/admin/docs/llms.txt`
-and `/datasheet/admin/docs/{doc_id}`. This directory's `AGENTS.md` and
+and `/datasheet/admin/docs/{doc_id}`. The projection requires the same
+gateway-issued internal identity as MCP. This directory's `AGENTS.md` and
 `DESIGN.md` are embedded into the wheel at build time, so a deployed container
 serves the manual of exactly the version it runs.
 

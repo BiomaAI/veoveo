@@ -30,6 +30,8 @@ every change here must keep the template a complete, working reference.
   served at `datasheet://docs`, `datasheet://docs/{doc_id}`,
   `datasheet://contract`, and the read-only admin projection
   `/datasheet/admin/docs/llms.txt` plus `/datasheet/admin/docs/{doc_id}`.
+  The MCP endpoint and this projection pass through the same gateway
+  internal-auth middleware.
 - Tool inputs are published with `mcp_input_schema`; recursive tool arguments
   are not supported.
 

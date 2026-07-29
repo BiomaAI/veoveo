@@ -52,8 +52,8 @@ def test_llms_txt_lists_every_document():
     )
     index = docs.llms_txt()
     assert index.startswith("# example\n")
-    assert "- [Agent work manual](docs/agents)" in index
-    assert "- [Domain design](docs/design)" in index
+    assert "- [Agent work manual](agents)" in index
+    assert "- [Domain design](design)" in index
     assert f"Contract revision {CONTRACT_REVISION}" in index
 
 
@@ -66,8 +66,8 @@ def test_llms_txt_renders_the_exact_served_format():
         "# example\n\n"
         "> Veoveo MCP server documents. Contract revision 2.\n\n"
         "## Docs\n\n"
-        "- [Agent work manual](docs/agents)\n"
-        "- [Domain design](docs/design)\n"
+        "- [Agent work manual](agents)\n"
+        "- [Domain design](design)\n"
     )
 
 
