@@ -2,7 +2,7 @@
 ARG TARGETPLATFORM=linux/amd64
 ARG ISAAC_SIM_IMAGE=nvcr.io/nvidia/isaac-sim:6.0.1@sha256:b1c542b2ecc549b3d1ebb78c25664aa3bacba1709e6ad8e0a68e09426d57dedb
 
-FROM --platform=${TARGETPLATFORM} ${ISAAC_SIM_IMAGE} AS runtime
+FROM --platform=${TARGETPLATFORM} ${ISAAC_SIM_IMAGE} AS payload
 
 ARG ISAAC_LAB_REVISION=ffff603eafc6b74264a5261cc0183d6a65390d78
 ARG ISAAC_LAB_ARCHIVE_URL=https://github.com/isaac-sim/IsaacLab/archive/ffff603eafc6b74264a5261cc0183d6a65390d78.tar.gz
@@ -220,6 +220,11 @@ ENV ACCEPT_EULA=Y \
 
 RUN /isaac-sim/python.sh /opt/veoveo/simulation-runtime/probes/identity.py
 
+USER 10001:10001
+CMD ["/bin/bash"]
+
+FROM payload AS runtime
+
 ARG SOURCE_REVISION=local
 ARG COMPATIBILITY_RELEASE=2026.07.0
 LABEL org.opencontainers.image.title="Veoveo canonical GPU simulation runtime" \
@@ -232,6 +237,3 @@ LABEL org.opencontainers.image.title="Veoveo canonical GPU simulation runtime" \
       veoveo.io/torch-version="2.12.0+cu130" \
       veoveo.io/warp-version="1.15.0" \
       veoveo.io/newton-version="1.4.0"
-
-USER 10001:10001
-CMD ["/bin/bash"]

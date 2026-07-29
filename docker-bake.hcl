@@ -521,10 +521,18 @@ target "sumo-base" {
   tags       = [image_ref("sumo-base")]
 }
 
+target "simulation-runtime-payload" {
+  context    = "platform/runtimes/simulation"
+  dockerfile = "Dockerfile"
+  platforms  = ["linux/amd64"]
+  target     = "payload"
+}
+
 target "simulation-runtime" {
   context    = "platform/runtimes/simulation"
   dockerfile = "Dockerfile"
   platforms  = ["linux/amd64"]
+  target     = "runtime"
   tags       = [image_ref("simulation-runtime")]
 }
 
@@ -560,7 +568,7 @@ target "simulation-view-isaac" {
   platforms  = ["linux/amd64"]
   tags       = [image_ref("simulation-view-isaac")]
   contexts = {
-    simulation-runtime = "target:simulation-runtime"
+    simulation-runtime = "target:simulation-runtime-payload"
   }
   args = {
     SIMULATION_RUNTIME_IMAGE = "simulation-runtime"
@@ -591,7 +599,7 @@ target "uav-sim-runtime" {
   target     = "runtime"
   tags       = [image_ref("uav-sim-runtime")]
   contexts = {
-    simulation-runtime = "target:simulation-runtime"
+    simulation-runtime = "target:simulation-runtime-payload"
     simulation-pose-sdk = "./sdk/python/src/veoveo_mcp"
   }
   args = {
@@ -605,7 +613,7 @@ target "simulation-overlay-acceptance" {
   platforms  = ["linux/amd64"]
   tags       = [image_ref("simulation-overlay-acceptance")]
   contexts = {
-    simulation-runtime = "target:simulation-runtime"
+    simulation-runtime = "target:simulation-runtime-payload"
   }
   args = {
     VEOVEO_SIMULATION_BASE = "simulation-runtime"

@@ -227,6 +227,12 @@ instruction history changed:
 The next publication changes only this measurement record. It is the cross-revision
 acceptance run for the corrected boundary.
 
+Internal overlays consume the cache-stable `payload` stage rather than the published
+`runtime` stage. The latter adds source revision and compatibility labels without
+changing the filesystem. This distinction prevents publication metadata from changing
+the parent image config seen by the Isaac renderer, the first-party UAV overlay, or the
+external overlay fixture.
+
 ## Acceptance Matrix
 
 | Requirement | Evidence | Result |
