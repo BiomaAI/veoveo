@@ -162,8 +162,7 @@ fn every_server_crate_carries_its_contract_documents() {
                     if item.status == ComplianceStatus::Pending && item.note.is_none() {
                         failures.push(format!("{name}: {id} is pending without a reason"));
                     }
-                    if WELL_KNOWN_SURFACE_IDS.contains(&id)
-                        && item.status != ComplianceStatus::Met
+                    if WELL_KNOWN_SURFACE_IDS.contains(&id) && item.status != ComplianceStatus::Met
                     {
                         failures.push(format!(
                             "{name}: {id} must be met; the well-known surface \

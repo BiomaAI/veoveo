@@ -753,8 +753,8 @@ impl ServerHandler for MediaMcp {
                 .map(|doc| doc.id.to_owned())
                 .filter(|doc_id| doc_id.contains(&needle))
                 .collect();
-            let completion = CompletionInfo::new(values)
-                .map_err(|e| McpError::internal_error(e, None))?;
+            let completion =
+                CompletionInfo::new(values).map_err(|e| McpError::internal_error(e, None))?;
             return Ok(CompleteResult::new(completion));
         }
         if res_ref.uri != uris::MODEL_TEMPLATE || request.argument.name != "model_id" {

@@ -394,14 +394,19 @@ async fn check_well_known_surface(
             Ok(text) => match serde_json::from_str::<Vec<DocIndexEntry>>(&text) {
                 Ok(entries) => {
                     let ids: Vec<String> = entries.into_iter().map(|entry| entry.id).collect();
-                    if ["agents", "design"].iter().all(|id| ids.iter().any(|listed| listed == id)) {
+                    if ["agents", "design"]
+                        .iter()
+                        .all(|id| ids.iter().any(|listed| listed == id))
+                    {
                         serving_scheme = Some(scheme.clone());
                         listed_ids = ids;
                         break;
                     }
                     index_errors.push(format!("{uri}: index lists {ids:?} without agents+design"));
                 }
-                Err(error) => index_errors.push(format!("{uri}: index is not a JSON list: {error}")),
+                Err(error) => {
+                    index_errors.push(format!("{uri}: index is not a JSON list: {error}"))
+                }
             },
             Err(error) => index_errors.push(format!("{uri}: {error}")),
         }
@@ -501,7 +506,10 @@ async fn check_admin_docs(
 ) {
     let Some(url) = url else {
         for id in ["VV-MCP-DOCS-HTTP-001", "VV-MCP-DOCS-HTTP-002"] {
-            checks.push(skipped(id, "admin docs URL is not selected by this profile"));
+            checks.push(skipped(
+                id,
+                "admin docs URL is not selected by this profile",
+            ));
         }
         return;
     };
@@ -571,13 +579,11 @@ async fn check_admin_docs(
     for id in &listed {
         let doc_url = format!("{base}{id}");
         match http.get(&doc_url).send().await {
-            Ok(response) if response.status().is_success() => {
-                match response.text().await {
-                    Ok(text) if !text.trim().is_empty() => {}
-                    Ok(_) => body_errors.push(format!("{doc_url}: body is empty")),
-                    Err(error) => body_errors.push(format!("{doc_url}: {error}")),
-                }
-            }
+            Ok(response) if response.status().is_success() => match response.text().await {
+                Ok(text) if !text.trim().is_empty() => {}
+                Ok(_) => body_errors.push(format!("{doc_url}: body is empty")),
+                Err(error) => body_errors.push(format!("{doc_url}: {error}")),
+            },
             Ok(response) => body_errors.push(format!("{doc_url}: {}", response.status())),
             Err(error) => body_errors.push(format!("{doc_url}: {error}")),
         }
