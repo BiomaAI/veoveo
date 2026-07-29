@@ -15,6 +15,13 @@ pub const ARTIFACT_TEMPLATE: &str = "media://artifact/{artifact_id}";
 pub const USAGE_ROOT_URI: &str = "media://usage";
 pub const USAGE_TASK_TEMPLATE: &str = "media://usage/task/{task_id}";
 
+/// Well-known surface roots (contract C18, C19). These literals must match
+/// `ServerResourceUris::new("media")`; a unit test below pins the
+/// equivalence.
+pub const DOCS_URI: &str = "media://docs";
+pub const CONTRACT_URI: &str = "media://contract";
+pub const DOC_TEMPLATE: &str = "media://docs/{doc_id}";
+
 fn media_uris() -> ServerResourceUris {
     ServerResourceUris::new("media")
 }
@@ -33,6 +40,15 @@ pub fn artifact_uri(artifact_id: ArtifactId) -> String {
 
 pub fn usage_task_uri(task_id: &str) -> String {
     media_uris().usage_task_uri(task_id)
+}
+
+pub fn doc_uri(doc_id: &str) -> String {
+    media_uris().doc_uri(doc_id)
+}
+
+pub fn parse_doc_uri(uri: &str) -> Option<&str> {
+    uri.strip_prefix("media://docs/")
+        .filter(|doc_id| !doc_id.is_empty() && !doc_id.contains('/'))
 }
 
 /// Parse a `media://model/{model_id}` URI. Model ids contain slashes
@@ -56,6 +72,18 @@ pub fn parse_usage_task_uri(uri: &str) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn well_known_uris_match_the_shared_contract_conventions() {
+        let conventions = media_uris();
+        assert_eq!(DOCS_URI, conventions.docs_root_uri());
+        assert_eq!(CONTRACT_URI, conventions.contract_uri());
+        assert_eq!(DOC_TEMPLATE, conventions.doc_template());
+        assert_eq!(doc_uri("agents"), conventions.doc_uri("agents"));
+        assert_eq!(parse_doc_uri("media://docs/agents"), Some("agents"));
+        assert_eq!(parse_doc_uri("media://docs"), None);
+        assert_eq!(parse_doc_uri("media://docs/agents/extra"), None);
+    }
 
     #[test]
     fn model_uri_round_trip() {
