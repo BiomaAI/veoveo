@@ -481,7 +481,10 @@ provenance, and DuckDB persistence.
 | `servers/optimization-mcp/src/executor/` | private bounded Unix-socket protocol and Rust client |
 | `servers/optimization-mcp/executor/` | pinned Python cuOpt 26.06 GPU adapter and hardware health check |
 | `servers/optimization-mcp/src/bin/server/` | MCP tasks, GPU queue, problem/run/solution resources, artifact publication, prompts, and identity |
+| `deploy/contract/src/lib.rs` | Optimization image closure and mandatory `cuopt-executor` GPU scheduling declaration |
 | `deploy/helm/veoveo/definitions/domain-services.yaml` | single Optimization Pod, CPU control container, one-GPU cuOpt sidecar, shared socket, memory-backed shared memory, and persistent workspace |
+| `examples/bioma/images.lock.yaml` | immutable Bioma release digests for both Optimization control and cuOpt executor images |
+| `testing/smoke/src/bin/smoke/scenarios/agent_kernel.rs` | full Pilot mission flow through gateway task dispatch, cuOpt MILP execution, independent verification, wake delivery, and durable memory |
 
 ### Temporal Domain
 

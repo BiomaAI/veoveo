@@ -93,6 +93,26 @@ paths. A mutating query interrupted after execution begins fails as
 
 DuckDB is not the durable multi-process platform database.
 
+## Optimization execution
+
+Optimization exposes typed vehicle-routing, route-scenario, continuous convex,
+and linear mixed-integer problem families. It does not expose a generic planning
+graph or preserve the retired planner contract. Map owns geography and publishes
+immutable `veoveo.io/travel-model-artifact/v1` matrices; Optimization consumes
+those matrices without recomputing GIS costs.
+
+The Rust Optimization server owns public identities, authorization, validation,
+compilation, durable tasks, solver admission, artifacts, and independent
+verification. A pod-local Python sidecar owns only NVIDIA cuOpt execution through
+`veoveo.io/cuopt-executor/v1`. The sidecar runs the digest-pinned cuOpt 26.06 and
+CUDA 13.2 image, requests one NVIDIA GPU, and fails closed when the runtime,
+driver, or device is unavailable. There is no CPU solver, GPU-optional profile,
+or public executor endpoint.
+
+Solver status is not acceptance evidence. The control plane recalculates route
+feasibility, variable bounds, integrality, constraints, and objective values
+before publishing an immutable solution linked to its exact problem and run.
+
 ## Recording ingest
 
 Recording ingest uses one authenticated, resumable batch protocol from Kubernetes, a
@@ -272,10 +292,11 @@ Stream consumes newly encoded simulator camera frames directly for live
 processing. Its reproducible replay profile consumes governed recording
 identities rather than a simulator-private media URL.
 
-Bioma runs Isaac Sim, View, and Stream concurrently. Their Helm workloads
+Bioma runs the UAV simulator, Simulation View renderer, View, Stream, Reason,
+the cuOpt executor, and the Rerun viewer concurrently. Their Helm workloads
 declare ordinary GPU requests and remain independently schedulable. No
 application profile disables one GPU service to admit another; cluster capacity
-must satisfy the complete declared workload.
+must satisfy the complete seven-workload declaration.
 
 Visual workflows fail closed without hardware acceleration. Browser automation,
 interactive demonstrations, screenshots, and publication rendering require a
@@ -287,7 +308,8 @@ Browser H.264 playback is the only software exception. The exact Media
 Capabilities configuration must report `supported` and `smooth`, and the UI
 labels the path as software decode unless it is also `powerEfficient`. This
 exception does not relax hardware-backed browser graphics, server-side NVENC,
-GPU rendering, simulation, Stream perception, or Reason execution.
+GPU rendering, simulation, Stream perception, Reason execution, or cuOpt
+optimization.
 
 ## Offline operation
 

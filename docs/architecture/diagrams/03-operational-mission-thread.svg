@@ -13,7 +13,7 @@
 <rect x="0" y="0" width="1800" height="82" rx="0" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
 <text x="36" y="43" class="title inverse" text-anchor="start">Operational mission thread</text>
 <text x="1764" y="32" class="label inverse" text-anchor="end">VV-VIEW-03</text>
-<text x="1764" y="57" class="small inverse" text-anchor="end">UAF 1.3 / SysML 1.6 | v0.1.0</text>
+<text x="1764" y="57" class="small inverse" text-anchor="end">UAF 1.3 / SysML 1.6 | v0.2.0</text>
 <rect x="35" y="135" width="1730" height="155" rx="8" fill="#ffffff" stroke="#c1cdd2" stroke-width="1" opacity="1"/>
 <text x="55" y="165" class="label" text-anchor="start">Mission operator / autonomous agent</text>
 <text x="55" y="189" class="small" text-anchor="start">Intent, constraints, decision, authority</text>
@@ -40,10 +40,10 @@
 <text x="910" y="655" class="body" text-anchor="middle">Observe</text>
 <rect x="1058" y="603" width="144" height="68" rx="34" fill="#d9ebe7" stroke="#88aca8" stroke-width="1" opacity="1"/>
 <text x="1130" y="631" class="node-id" text-anchor="middle">5</text>
-<text x="1130" y="655" class="body" text-anchor="middle">Analyze / route</text>
-<rect x="1278" y="203" width="144" height="68" rx="34" fill="#d9ebe7" stroke="#88aca8" stroke-width="1" opacity="1"/>
-<text x="1350" y="231" class="node-id" text-anchor="middle">6</text>
-<text x="1350" y="255" class="body" text-anchor="middle">Plan / decide</text>
+<text x="1130" y="655" class="body" text-anchor="middle">Formulate</text>
+<rect x="1278" y="603" width="144" height="68" rx="34" fill="#d9ebe7" stroke="#88aca8" stroke-width="1" opacity="1"/>
+<text x="1350" y="631" class="node-id" text-anchor="middle">6</text>
+<text x="1350" y="655" class="body" text-anchor="middle">Solve / verify</text>
 <rect x="1498" y="203" width="144" height="68" rx="34" fill="#d9ebe7" stroke="#88aca8" stroke-width="1" opacity="1"/>
 <text x="1570" y="231" class="node-id" text-anchor="middle">7</text>
 <text x="1570" y="255" class="body" text-anchor="middle">Act</text>
@@ -51,8 +51,8 @@
 <path d="M 542 437 L 580.0 437 L 580.0 437 L 618 437" class="edge"/>
 <path d="M 762 437 L 800.0 437 L 800.0 637 L 838 637" class="edge"/>
 <path d="M 982 637 L 1020.0 637 L 1020.0 637 L 1058 637" class="edge"/>
-<path d="M 1202 637 L 1240.0 637 L 1240.0 237 L 1278 237" class="edge"/>
-<path d="M 1422 237 L 1460.0 237 L 1460.0 237 L 1498 237" class="edge"/>
+<path d="M 1202 637 L 1240.0 637 L 1240.0 637 L 1278 637" class="edge"/>
+<path d="M 1422 637 L 1460.0 637 L 1460.0 237 L 1498 237" class="edge"/>
 <rect x="205" y="790" width="250" height="105" rx="9" fill="#eee5d8" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="205" y="790" width="7" height="105" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="223" y="813" class="node-id" text-anchor="start">EVIDENCE</text>
@@ -84,10 +84,10 @@
 <rect x="1060" y="790" width="7" height="105" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="1078" y="813" class="node-id" text-anchor="start">EVIDENCE</text>
 <text x="1078" y="837" class="node-title" text-anchor="start">
-<tspan x="1078" dy="0">Result identity</tspan>
+<tspan x="1078" dy="0">Decision evidence</tspan>
 </text>
 <text x="1078" y="860" class="small" text-anchor="start">
-<tspan x="1078" dy="0">artifact://... / map://...</tspan>
+<tspan x="1078" dy="0">optimization://problem/run/solution</tspan>
 </text>
 <rect x="1345" y="790" width="250" height="105" rx="9" fill="#eee5d8" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="1345" y="790" width="7" height="105" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
@@ -106,5 +106,5 @@
 <text x="58" y="990" class="body inverse" text-anchor="start">Every transition carries canonical identity and policy context; durable work and outputs remain addressable after the initiating episode ends.</text>
 <rect x="28" y="1045" width="1744" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1066" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="1770" y="1066" class="tiny" text-anchor="end">Revision 2026-07-28 | VV-VIEW-03</text>
+<text x="1770" y="1066" class="tiny" text-anchor="end">Revision 2026-07-29 | VV-VIEW-03</text>
 </svg>

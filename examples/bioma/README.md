@@ -390,6 +390,8 @@ cargo xtask smoke bioma-verify
 Then run the full GPU delivery proof:
 
 ~~~bash
+VEOVEO_CUOPT_IMAGE=veoveo/cuopt-executor:0.1.0 \
+  cargo xtask smoke agent-pilot
 cargo xtask smoke uav-domain-verify \
   --context k3d-veoveo-bioma \
   --public-base-url https://veoveo.bioma.ai
@@ -398,6 +400,11 @@ cargo xtask smoke uav-showcase-verify \
   --public-base-url https://veoveo.bioma.ai \
   --chrome-cdp-url http://127.0.0.1:9222
 ~~~
+
+The Pilot acceptance starts the real cuOpt executor on the host GPU, sends a typed
+MILP through the gateway as a durable task, verifies the solution independently,
+wakes the sleeping agent from task completion, and checks its durable decision
+record.
 
 The UAV acceptance requires Google Photorealistic 3D Tiles resident in Isaac, flies a
 PX4 mission, verifies direct Stream results from newly arrived camera frames,

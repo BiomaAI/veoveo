@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -20,6 +21,7 @@ CATALOGS = ARCH / "catalogs"
 MODEL = ARCH / "model" / "veoveo-uaf-sysml.xmi"
 XMI_NS = "http://www.omg.org/spec/XMI/20131001"
 EXPECTED_TOOLS = {"package.py", "qa.py", "render.py", "validate.py"}
+EXPECTED_VERSION = "0.2.0"
 
 
 def fail(message: str) -> None:
@@ -61,12 +63,12 @@ def main() -> None:
     interfaces = rows("interfaces-and-protocols.csv")
     requirements = rows("requirements-traceability.csv")
     glossary = rows("model-glossary.csv")
-    if len(components) != 69:
-        fail(f"expected 69 components, found {len(components)}")
-    if len(interfaces) != 40:
-        fail(f"expected 40 interfaces, found {len(interfaces)}")
-    if len(requirements) != 19:
-        fail(f"expected 19 requirements, found {len(requirements)}")
+    if len(components) != 71:
+        fail(f"expected 71 components, found {len(components)}")
+    if len(interfaces) != 43:
+        fail(f"expected 43 interfaces, found {len(interfaces)}")
+    if len(requirements) != 20:
+        fail(f"expected 20 requirements, found {len(requirements)}")
     if len(glossary) < 25:
         fail(f"expected at least 25 glossary terms, found {len(glossary)}")
 
@@ -127,10 +129,10 @@ def main() -> None:
     xmi_ids = [element.attrib[xmi_id] for element in root.iter() if xmi_id in element.attrib]
     unique(xmi_ids, "XMI IDs")
     xmi_id_set = set(xmi_ids)
-    required_model_ids = set(component_ids) | set(requirement_ids)
-    required_model_ids |= {f"VV-CAP-{index:03d}" for index in range(1, 13)}
-    required_model_ids |= {f"VV-OPA-{index:03d}" for index in range(1, 11)}
-    required_model_ids |= {f"VV-SVC-{index:03d}" for index in range(1, 13)}
+    required_model_ids = set(component_ids) | set(interface_ids) | set(requirement_ids)
+    required_model_ids |= {f"VV-CAP-{index:03d}" for index in range(1, 14)}
+    required_model_ids |= {f"VV-OPA-{index:03d}" for index in range(1, 12)}
+    required_model_ids |= {f"VV-SVC-{index:03d}" for index in range(1, 14)}
     required_model_ids |= {f"VV-AR-{index:03d}" for index in range(1, 4)}
     required_model_ids.add("VV-SYS-001")
     missing_model_ids = sorted(required_model_ids - xmi_id_set)
@@ -148,6 +150,8 @@ def main() -> None:
         "client",
         "supplier",
         "classifier",
+        "informationSource",
+        "informationTarget",
     }
     for element in root.iter():
         for name, value in element.attrib.items():
@@ -214,9 +218,21 @@ def main() -> None:
     pdf = ARCH / "veoveo-reference-architecture.pdf"
     if not pdf.exists() or not pdf.read_bytes().startswith(b"%PDF"):
         fail("formal PDF is missing or invalid")
-    page_count = len(PdfReader(pdf).pages)
+    reader = PdfReader(pdf)
+    page_count = len(reader.pages)
     if page_count < 20:
         fail("formal PDF page count is unexpectedly low")
+    pdf_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    for required_text in [
+        f"Version {EXPECTED_VERSION}",
+        "NVIDIA cuOpt",
+    ]:
+        if required_text not in pdf_text:
+            fail(f"formal PDF is stale; missing {required_text!r}")
+    compact_pdf_text = re.sub(r"\s+", "", pdf_text)
+    for required_id in ["VV-CMP-071", "VV-IF-043", "VV-REQ-020"]:
+        if required_id not in compact_pdf_text:
+            fail(f"formal PDF is stale; missing {required_id!r}")
 
     print(
         "validated: "

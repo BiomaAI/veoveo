@@ -13,7 +13,7 @@
 <rect x="0" y="0" width="1800" height="82" rx="0" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
 <text x="36" y="43" class="title inverse" text-anchor="start">Deployment configurations</text>
 <text x="1764" y="32" class="label inverse" text-anchor="end">VV-VIEW-07</text>
-<text x="1764" y="57" class="small inverse" text-anchor="end">UAF 1.3 / SysML 1.6 | v0.1.0</text>
+<text x="1764" y="57" class="small inverse" text-anchor="end">UAF 1.3 / SysML 1.6 | v0.2.0</text>
 <rect x="38" y="135" width="540" height="190" rx="9" fill="#d9ebe7" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="38" y="135" width="7" height="190" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="56" y="158" class="node-id" text-anchor="start">VV-AR-001</text>
@@ -22,14 +22,14 @@
 </text>
 <text x="56" y="205" class="small" text-anchor="start">
 <tspan x="56" dy="0">Local Kubernetes. Loopback ingress;</tspan>
-<tspan x="56" dy="16">development Secrets; mandatory NVIDIA GPU</tspan>
-<tspan x="56" dy="16">access</tspan>
+<tspan x="56" dy="16">development Secrets; seven schedulable NVIDIA</tspan>
+<tspan x="56" dy="16">GPU shares</tspan>
 </text>
 <rect x="38" y="365" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
 <text x="56" y="398" class="body" text-anchor="start">Gateway + console</text>
 <text x="553" y="398" class="tiny" text-anchor="end">INVARIANT</text>
 <rect x="38" y="437" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="56" y="470" class="body" text-anchor="start">Hosted MCP domains</text>
+<text x="56" y="470" class="body" text-anchor="start">Hosted domains; Optimization GPU executor</text>
 <text x="553" y="470" class="tiny" text-anchor="end">INVARIANT</text>
 <rect x="38" y="509" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
 <text x="56" y="542" class="body" text-anchor="start">Artifact plane</text>
@@ -46,7 +46,7 @@
 <rect x="38" y="825" width="540" height="112" rx="8" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
 <text x="56" y="855" class="node-id" text-anchor="start">Form-specific controls</text>
 <text x="56" y="883" class="body" text-anchor="start">
-<tspan x="56" dy="0">k3d ports, registry pulls, GPU node</tspan>
+<tspan x="56" dy="0">k3d ports, registry pulls, seven GPU shares</tspan>
 </text>
 <rect x="611" y="135" width="540" height="190" rx="9" fill="#eee5d8" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="611" y="135" width="7" height="190" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
@@ -56,13 +56,14 @@
 </text>
 <text x="629" y="205" class="small" text-anchor="start">
 <tspan x="629" dy="0">Kubernetes. External OIDC/S3; Ingress;</tspan>
-<tspan x="629" dy="16">default-deny NetworkPolicy; mesh mTLS</tspan>
+<tspan x="629" dy="16">default-deny NetworkPolicy; mesh mTLS;</tspan>
+<tspan x="629" dy="16">measured GPU capacity</tspan>
 </text>
 <rect x="611" y="365" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
 <text x="629" y="398" class="body" text-anchor="start">Gateway + console</text>
 <text x="1126" y="398" class="tiny" text-anchor="end">INVARIANT</text>
 <rect x="611" y="437" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="629" y="470" class="body" text-anchor="start">Hosted MCP domains</text>
+<text x="629" y="470" class="body" text-anchor="start">Hosted domains; Optimization GPU executor</text>
 <text x="1126" y="470" class="tiny" text-anchor="end">INVARIANT</text>
 <rect x="611" y="509" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
 <text x="629" y="542" class="body" text-anchor="start">Artifact plane</text>
@@ -79,7 +80,8 @@
 <rect x="611" y="825" width="540" height="112" rx="8" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
 <text x="629" y="855" class="node-id" text-anchor="start">Form-specific controls</text>
 <text x="629" y="883" class="body" text-anchor="start">
-<tspan x="629" dy="0">Kubernetes Secrets, PVCs, Ingress</tspan>
+<tspan x="629" dy="0">Kubernetes Secrets, PVCs, Ingress, GPU</tspan>
+<tspan x="629" dy="18">placement</tspan>
 </text>
 <rect x="1184" y="135" width="540" height="190" rx="9" fill="#e7e1ef" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="1184" y="135" width="7" height="190" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
@@ -89,13 +91,14 @@
 </text>
 <text x="1202" y="205" class="small" text-anchor="start">
 <tspan x="1202" dy="0">Isolated Kubernetes. Imported images; existing</tspan>
-<tspan x="1202" dy="16">Secrets; offline values; retained evidence</tspan>
+<tspan x="1202" dy="16">Secrets; NVIDIA runtime; offline values;</tspan>
+<tspan x="1202" dy="16">retained evidence</tspan>
 </text>
 <rect x="1184" y="365" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
 <text x="1202" y="398" class="body" text-anchor="start">Gateway + console</text>
 <text x="1699" y="398" class="tiny" text-anchor="end">INVARIANT</text>
 <rect x="1184" y="437" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="1202" y="470" class="body" text-anchor="start">Hosted MCP domains</text>
+<text x="1202" y="470" class="body" text-anchor="start">Hosted domains; Optimization GPU executor</text>
 <text x="1699" y="470" class="tiny" text-anchor="end">INVARIANT</text>
 <rect x="1184" y="509" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
 <text x="1202" y="542" class="body" text-anchor="start">Artifact plane</text>
@@ -112,11 +115,12 @@
 <rect x="1184" y="825" width="540" height="112" rx="8" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
 <text x="1202" y="855" class="node-id" text-anchor="start">Form-specific controls</text>
 <text x="1202" y="883" class="body" text-anchor="start">
-<tspan x="1202" dy="0">Offline Helm values and image policy</tspan>
+<tspan x="1202" dy="0">Offline values, image policy, NVIDIA</tspan>
+<tspan x="1202" dy="18">runtime</tspan>
 </text>
 <rect x="38" y="980" width="1719" height="60" rx="10" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
 <text x="60" y="1017" class="body inverse" text-anchor="start">Deployment invariant: one enterprise installation owns identity mapping, policy, persistence, artifacts, recordings, telemetry, secrets, ingress, and lifecycle.</text>
 <rect x="28" y="1065" width="1744" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1086" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="1770" y="1086" class="tiny" text-anchor="end">Revision 2026-07-28 | VV-VIEW-07</text>
+<text x="1770" y="1086" class="tiny" text-anchor="end">Revision 2026-07-29 | VV-VIEW-07</text>
 </svg>

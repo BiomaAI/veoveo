@@ -881,6 +881,7 @@ collides.
 | Media MCP auth and tasks | `servers/media-mcp/smoke` |
 | Frames tools, tasks, and artifacts | `servers/frames-mcp/smoke` |
 | Map acquisition, activation, and routing | `servers/map-mcp/smoke` |
+| Optimization GPU routing, mathematical solving, and verification | `servers/optimization-mcp/smoke` |
 | View local and live GPU rendering | `servers/view-mcp/smoke` |
 | Perception GPU workflow | `servers/stream-mcp/smoke` |
 | Reason GPU workflow | `servers/reason-mcp/smoke` |

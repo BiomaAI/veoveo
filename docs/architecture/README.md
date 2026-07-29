@@ -16,9 +16,9 @@ runtimes.
 - `index.html` is the offline browser portal and canonical report source.
 - `veoveo-reference-architecture.pdf` is the fixed-layout formal review copy.
 - `diagrams/*.svg` contains eleven individually reusable vector views.
-- `catalogs/software-components.csv` enumerates 69 scoped software resources.
-- `catalogs/interfaces-and-protocols.csv` defines 40 canonical interfaces.
-- `catalogs/requirements-traceability.csv` traces 19 requirements to capability,
+- `catalogs/software-components.csv` enumerates 71 scoped software resources.
+- `catalogs/interfaces-and-protocols.csv` defines 43 canonical interfaces.
+- `catalogs/requirements-traceability.csv` traces 20 requirements to capability,
   activity, service, resource, and evidence.
 - `catalogs/model-glossary.csv` fixes the terms used across the package.
 
@@ -57,10 +57,10 @@ native-project round-trip fidelity before the documented import validation.
 
 The generated release directory contains two packages:
 
-- `veoveo-reference-architecture-0.1.0-review.zip` contains HTML, PDF, SVG,
+- `veoveo-reference-architecture-0.2.0-review.zip` contains HTML, PDF, SVG,
   catalogs, the README, release manifest, and checksums. It requires no modeling
   software.
-- `veoveo-reference-architecture-0.1.0-model-exchange.zip` adds XMI, the model
+- `veoveo-reference-architecture-0.2.0-model-exchange.zip` adds XMI, the model
   manifest, and import guidance for a client's architecture team.
 
 Before release, apply the contract's distribution, export-control, CUI, and
@@ -83,9 +83,12 @@ uv run --project docs/architecture --locked python docs/architecture/tools/rende
 uv run --project docs/architecture --locked python docs/architecture/tools/validate.py
 ```
 
-Render the PDF from `index.html` with headless Chrome after regeneration. Never
-edit the generated SVG, XMI, HTML, PDF, or release archives as an alternate
-source of truth.
+Render the PDF from `index.html` with headed hardware-backed Chrome after
+regeneration. Before `Page.printToPDF`, prove that the browser exposes a
+high-performance hardware WebGPU adapter and a hardware WebGL context. Stop if
+either context is missing or reports SwiftShader, llvmpipe, or another software
+renderer. Never edit the generated SVG, XMI, HTML, PDF, or release archives as
+an alternate source of truth.
 
 Render every PDF page and a review contact sheet through the pinned PDFium and
 Pillow stack:
@@ -103,8 +106,8 @@ modules in this directory.
 ## Model identity
 
 - Architecture: `VV-MODEL-001`
-- Version: `0.1.0`
-- Revision: `2026-07-28`
-- Source commit: `7783abd7ef2eeac35c57844ced4ad7d53deed896`
+- Version: `0.2.0`
+- Revision: `2026-07-29`
+- Source commit: `6b7d59a9d26a3b077084bbd535378d00620d4097`
 - Governing framework: OMG UAF 1.3
 - Detailed systems language: OMG SysML 1.6
