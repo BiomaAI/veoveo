@@ -6,9 +6,10 @@ This document is the canonical design and operational contract for the
 `map-mcp` is Veoveo's Earth geography and logistics-routing domain. Agents use
 one strongly typed MCP surface to find places, inspect facilities and borders,
 work with coordinates, apply transport restrictions, calculate routes, build
-matrices, inspect reachable areas, and author governed feature layers. Source
-administration runs through the same MCP surface: scoped tools for mutations,
-`map://` resources for reads, and MCP App views that hosts render
+matrices, publish cuOpt-ready travel models, inspect reachable areas, and
+author governed feature layers. Source administration runs through the same
+MCP surface: scoped tools for mutations, `map://` resources for reads, and MCP
+App views that hosts render
 (see `mcp/apps-extension/DESIGN.md`).
 
 ## Status
@@ -19,8 +20,8 @@ The implementation includes the Map domain contract, SurrealDB records,
 tenant-scoped DuckDB Spatial tables, a supervised Valhalla land engine, a
 governed network planner, source acquisition, release activation, MCP discovery
 surfaces, administrative MCP tools, the administration MCP App view, gateway
-proxying, Helm, offline image registration, and governed spatial and raster
-derivations.
+proxying, Helm, offline image registration, governed spatial and raster
+derivations, and the immutable travel-model handoff to Optimization MCP.
 
 The canonical service identity is:
 
@@ -55,7 +56,8 @@ the `map://` scheme.
 | Mapbox Vector Tile 2.1 and MapLibre Style 8 | Deterministic bounded XYZ tile bundles and safe literal presentation styles. |
 | OSM PBF, GTFS Schedule, S-57/S-100, AIXM, and FAA NASR exchange sets | Registered acquisition adapters accept only their documented snapshot profiles. Product-specific operational validation remains explicit. |
 | HTTPS and mounted exchange sets | Registered sources control hosts, redirects, media types, credentials, byte limits, elapsed time, and filesystem roots before an adapter runs. |
-| Valhalla HTTP/JSON | A supervised loopback-only routing-engine protocol. It is an internal projection, never a public Map API. |
+| Valhalla HTTP/JSON | A supervised loopback-only routing-engine protocol. The travel-model adapter uses one concise many-to-many request per requested vehicle type. It is an internal projection, never a public Map API. |
+| `veoveo.io/travel-model-artifact/v1` | Repository-owned immutable exchange from Map to Optimization. It carries shared location order, per-vehicle-type cost and transit-time matrices, unavailable cells, and exact Map resource attestation. |
 
 The workspace pins `geo` 0.32.0 because SurrealDB 3.2 uses the same release
 line and requires `i_overlay <4.1`. `geo` 0.33.1 requires `i_overlay >=4.5`,
@@ -71,14 +73,15 @@ profile can travel there. It provides:
 - locations, facilities, boundaries, map datasets, and effective restrictions;
 - versioned human and vehicle mobility profiles;
 - route feasibility, geometry, cost, provenance, matrices, and reachable areas;
+- immutable heterogeneous travel models for cuOpt routing;
 - advisory spatial geometry and complete-route mobility validation;
 - governed source acquisition and immutable release activation;
 - Work Context-owned GeoJSON and JSON-FG feature authoring, revision, query,
   tombstone, restore, and publication;
 - map-owned analytical and routing-engine projections.
 
-Optimization consumes Map feasibility and route costs to compose fleet
-selection, assignments, schedules, stop sequences, and multi-asset transfers.
+Optimization consumes attested Map travel models to compose fleet selection,
+assignments, schedules, stop sequences, and multi-asset transfers.
 Map embeds the hardened DuckDB runtime as a library and owns its analytical
 database and SQL policy.
 
@@ -99,6 +102,7 @@ map-mcp container
   |-- PROJ and GeographicLib calculations
   |-- DuckDB Spatial analytical projection
   |-- supervised loopback Valhalla process
+  |-- immutable Optimization travel-model builder
   |-- governed network planner
   |-- Python acquisition application
   |-- GDAL and Osmium source utilities
@@ -651,7 +655,28 @@ Route matrices are limited to 20 origins, 20 destinations, and 400 cells.
 Individual unavailable cells are typed as unavailable; the entire matrix fails
 when no pair has supported coverage.
 
-Reachable areas are Valhalla isochrones for human and road profiles. All three
+`build_travel_model` serves a different contract from `route_matrix`. It
+accepts one shared ordered set of up to 128 locations and as many as 64
+vehicle types. Every vehicle type binds a stable Optimization-facing ID to one
+exact Map mobility-profile version. The builder resolves and persists one
+governed operational snapshot per requested vehicle type, then performs one
+Valhalla many-to-many request. It publishes square objective-cost and
+transit-time matrices with the same location order for every type.
+
+Duration or distance may be the objective metric. Transit time is always
+published separately. The time model is static or uses one invariant local
+departure across all matrix cells. Per-origin dynamic departure propagation is
+outside this artifact profile because it would make one cell depend on an
+unknown upstream route sequence.
+
+The artifact records `veoveo.io/travel-model-artifact/v1`, the exact
+`map://travel-model/{travel_model_id}` identity, unavailable cell indices, and
+the profile release, operational-snapshot, planner, cost-model, and matrix
+algorithm provenance. The Map record retains its neutral `artifact://`
+manifest URI. Optimization requires both identities and rejects a manifest
+that does not attest the requested Map resource.
+
+Reachable areas are Valhalla isochrones for human and road profiles. All four
 operations renew leases while running and resume after a server restart.
 
 ## Spatial And Terrain Derivations
@@ -705,6 +730,7 @@ as every other raster derivation.
 | `validate_geofence` | direct | `map:dataset:read` | topological and segment relationship findings |
 | `route` | task only | `map:route` | persisted route with pinned provenance |
 | `route_matrix` | task only | `map:route_matrix` | persisted many-to-many matrix |
+| `build_travel_model` | task only | `map:route_matrix` | immutable heterogeneous cuOpt cost and transit-time matrices |
 | `reachable_area` | task only | `map:route` | land isochrone |
 | `validate_route` | direct | `map:route` | typed validation findings |
 | `inspect_corridor` | direct | `map:dataset:read` | restrictions, facilities, boundaries, and gaps |
@@ -751,6 +777,7 @@ map://mobility-profiles
 map://restrictions
 map://routes
 map://matrices
+map://travel-models
 map://feature-layers
 map://publications
 map://layer-products
@@ -776,6 +803,7 @@ map://mobility-profile/{profile_id}/{profile_version}
 map://restriction/{restriction_id}
 map://route/{route_id}
 map://matrix/{matrix_id}
+map://travel-model/{travel_model_id}
 map://artifact/{artifact_id}
 map://feature-layer/{layer_id}
 map://feature-layer/{layer_id}/schema/{schema_version}
@@ -791,31 +819,36 @@ map://composition/{composition_id}/revision/{composition_revision}
 ```
 
 Source resources present public source fields. Routes and matrices are owner
-scoped. Dataset, geography, profile, and restriction resources are tenant
-scoped. Authored layers, publications, products, and compositions are Work
-Context scoped and filtered by the caller's data labels. Raster derivation
-resources are confined to their creating Work Context, while the immutable
-source raster remains tenant scoped. Spatial derivations are also confined to
-their creating Work Context.
+scoped. Travel models are filtered by principal, gateway profile, tenant,
+labels, and Work Context from their durable task owner. Dataset, geography,
+profile, and restriction resources are tenant scoped. Authored layers,
+publications, products, and compositions are Work Context scoped and filtered
+by the caller's data labels. Raster derivation resources are confined to their
+creating Work Context, while the immutable source raster remains tenant
+scoped. Spatial derivations are also confined to their creating Work Context.
 
 ### Prompts And Completions
 
 Map exposes `prepare_route_request`, `review_route`,
-`prepare_logistics_matrix`, and `author_feature_layer`. The authoring prompt
-directs agents through resource inspection, validation, optimistic commit,
+`prepare_logistics_matrix`, `prepare_optimization_travel_model`, and
+`author_feature_layer`. The travel-model prompt carries stable shared IDs,
+exact profile versions, units, limits, and the Map resource plus artifact
+manifest into the Optimization routing tools. The authoring prompt directs
+agents through resource inspection, validation, optimistic commit,
 publication, and task-based bulk transfer without granting routing authority.
 
 Completion applies to resource-template arguments and returns only visible ids.
 The implementation completes source, dataset, release, location, facility,
-profile, restriction, route, matrix, layer, publication, product, and composition
-identities from the caller's scope.
+profile, restriction, route, matrix, travel-model, layer, publication, product,
+and composition identities from the caller's scope.
 
 ### Subscriptions And Notifications
 
-Subscriptions cover the mutable dataset, restriction, route, feature-layer,
-publication-product, and composition surfaces. The server emits resource-update
-and resource-list-change notifications after relevant mutations. Subscription
-state is session local; durable long-running work uses task subscriptions.
+Subscriptions cover the mutable dataset, restriction, route, travel-model,
+feature-layer, publication-product, and composition surfaces. The server emits
+resource-update and resource-list-change notifications after relevant
+mutations. Subscription state is session local; durable long-running work uses
+task subscriptions.
 
 ## Installation Bootstrap
 
@@ -889,6 +922,8 @@ endpoint unavailable.
 - A route accepts 32 waypoints and 3 alternatives.
 - Graph endpoints must snap within 10 km.
 - Matrices accept at most 400 cells.
+- Travel models accept at most 128 shared locations, 64 vehicle types, and
+  1,048,576 total matrix cells.
 - Admin pages accept at most 200 records.
 - Source elapsed time is within 1 second and 24 hours.
 - Routing archive expansion defaults to 16 GiB and 5,000,000 entries.
@@ -999,6 +1034,7 @@ servers/map-mcp/
       routes.rs
       source_products.rs
       spatial.rs
+      travel_models.rs
       transfers.rs
       units.rs
     authoring/
@@ -1058,7 +1094,8 @@ The implementation is checked at several boundaries:
 
 - Rust contract tests cover ids, quantities, geometry, mobility taxonomy,
   source validation, geodesics, graph costs, Valhalla profile limits, URI
-  parsing, paging, stable feature ids, routing archive bounds, and activation;
+  parsing, paging, stable feature ids, routing archive bounds, travel-model
+  bounds, and activation;
 - DuckDB runtime tests cover controlled HTTPS source policy;
 - Python tests cover typed contracts, a bounded GTFS acquisition with validator
   execution, unsafe ZIP rejection, subprocess timeout, process-group
@@ -1079,6 +1116,9 @@ The implementation is checked at several boundaries:
   risk, withdraws the restriction, and reads the invalidated dependent route;
 - the broader smoke and conformance suites validate gateway, control-plane,
   offline, task, and MCP behavior.
+- the cross-server compatibility test serializes the Map travel-model artifact
+  and deserializes it directly as the Optimization contract without a
+  translation shim.
 
 The principal local commands are:
 

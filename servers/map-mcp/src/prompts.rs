@@ -10,14 +10,16 @@ pub enum MapPrompt {
     PrepareRoute,
     ReviewRoute,
     PrepareMatrix,
+    PrepareOptimizationTravelModel,
     AuthorFeatureLayer,
 }
 
 impl MapPrompt {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::PrepareRoute,
         Self::ReviewRoute,
         Self::PrepareMatrix,
+        Self::PrepareOptimizationTravelModel,
         Self::AuthorFeatureLayer,
     ];
 
@@ -30,6 +32,7 @@ impl MapPrompt {
             Self::PrepareRoute => "prepare_route_request",
             Self::ReviewRoute => "review_route",
             Self::PrepareMatrix => "prepare_logistics_matrix",
+            Self::PrepareOptimizationTravelModel => "prepare_optimization_travel_model",
             Self::AuthorFeatureLayer => "author_feature_layer",
         }
     }
@@ -66,6 +69,26 @@ impl MapPrompt {
                     ),
                 ],
             ),
+            Self::PrepareOptimizationTravelModel => (
+                "Prepare an Optimization travel model",
+                "Publish shared heterogeneous matrices for cuOpt vehicle routing.",
+                vec![
+                    required(
+                        "decision",
+                        "Routing decision the Optimization solve must answer.",
+                    ),
+                    required(
+                        "locations",
+                        "Shared locations with stable Optimization-facing ids.",
+                    ),
+                    required(
+                        "vehicle_types",
+                        "Vehicle-type ids and exact Map mobility profile versions.",
+                    ),
+                    optional("departure_time", "ISO 8601 departure time."),
+                    optional("cost_metric", "duration or distance; defaults to duration."),
+                ],
+            ),
             Self::AuthorFeatureLayer => (
                 "Author feature layer",
                 "Prepare a governed feature-layer change, validation, commit, and optional publication.",
@@ -98,6 +121,10 @@ impl MapPrompt {
             route_id: Option<String>,
             origins: Option<String>,
             destinations: Option<String>,
+            decision: Option<String>,
+            locations: Option<String>,
+            vehicle_types: Option<String>,
+            cost_metric: Option<String>,
             objective: Option<String>,
             layer_id: Option<String>,
             source_artifact_id: Option<String>,
@@ -125,6 +152,17 @@ impl MapPrompt {
                 profile = required_value(arguments.mobility_profile_id, "mobility_profile_id")?,
                 origins = required_value(arguments.origins, "origins")?,
                 destinations = required_value(arguments.destinations, "destinations")?,
+            ),
+            Self::PrepareOptimizationTravelModel => format!(
+                "Prepare governed travel costs for this routing decision: {decision}. Resolve the shared locations [{locations}] once and assign stable ids that the Optimization routing problem will reuse in the same order. Resolve these vehicle types and exact Map mobility profile versions: {vehicle_types}. Use departure time {departure} and cost metric {metric}; declare route constraints, data policy, and either the static or invariant-local-departure time model explicitly. Keep the model within 128 locations, 64 vehicle types, and 1,048,576 total matrix cells. Invoke build_travel_model as a durable task, then read map://travel-model/{{travel_model_id}} and retain its artifact:// manifest_uri. Pass both to optimize_routes or every optimize_route_scenarios case as a map_resource travel model. Preserve unavailable cells and never substitute straight-line or route_matrix costs.",
+                decision = required_value(arguments.decision, "decision")?,
+                locations = required_value(arguments.locations, "locations")?,
+                vehicle_types = required_value(arguments.vehicle_types, "vehicle_types")?,
+                departure = arguments
+                    .departure_time
+                    .as_deref()
+                    .unwrap_or("the intended routing departure"),
+                metric = arguments.cost_metric.as_deref().unwrap_or("duration"),
             ),
             Self::AuthorFeatureLayer => format!(
                 "Author this map content: {objective}. {layer} Read the layer, schema, and style resources before changing existing content. Use validate_feature_changes before commit_feature_changes, keep the returned base revisions unchanged, and resolve every conflict explicitly rather than overwriting it. Use import_feature_layer as a durable task for {input}; use direct changesets only for bounded interactive edits. Query the committed head and inspect its changeset resource. Publish only when an immutable release is required, then use export_feature_layer or build_vector_tiles as durable tasks for derived artifacts. Never treat generic authored features as routing restrictions or routable network data.",
@@ -182,5 +220,23 @@ mod tests {
         assert!(text.contains("validate_feature_changes"));
         assert!(text.contains("commit_feature_changes"));
         assert!(text.contains("Never treat generic authored features as routing restrictions"));
+    }
+
+    #[test]
+    fn optimization_travel_model_prompt_preserves_the_cross_server_handoff() {
+        let arguments = serde_json::from_value(json!({
+            "decision": "assign deliveries to two truck classes",
+            "locations": "depot, alpha, bravo",
+            "vehicle_types": "van=road-van/3, truck=road-truck/7"
+        }))
+        .unwrap();
+        let rendered = MapPrompt::PrepareOptimizationTravelModel
+            .render(Some(arguments))
+            .unwrap();
+        let text = serde_json::to_string(&rendered).unwrap();
+        assert!(text.contains("build_travel_model"));
+        assert!(text.contains("map://travel-model/{travel_model_id}"));
+        assert!(text.contains("artifact://"));
+        assert!(text.contains("optimize_routes"));
     }
 }

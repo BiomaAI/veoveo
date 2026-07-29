@@ -417,7 +417,7 @@ impl MapMcp {
 
     #[tool(
         title = "Build optimization travel model",
-        description = "Build immutable square cost and transit-time matrices for up to 128 shared locations and multiple cuOpt vehicle types. Each vehicle type binds a versioned Map mobility profile; the implementation uses one governed Valhalla many-to-many request per profile, preserves unreachable arcs, and publishes a canonical artifact manifest for Optimization MCP. This operation requires durable task invocation.",
+        description = "Build immutable square cost and transit-time matrices for up to 128 shared locations and multiple cuOpt vehicle types. Each vehicle type binds a versioned Map mobility profile; the implementation uses one governed Valhalla many-to-many request per requested vehicle type, preserves unreachable arcs, and publishes a canonical artifact manifest for Optimization MCP. This operation requires durable task invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<TravelModelRecord>(),
         execution(task_support = "required"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
@@ -2499,7 +2499,7 @@ mod well_known_tests {
             ContractDeclaration::from_docs(&SERVER_DOCS, MapMcp::capability_inventory());
         assert_eq!(declaration.server, "map");
         assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
-        for id in ["C18", "C19", "C20", "C21"] {
+        for id in ["C17", "C18", "C19", "C20", "C21"] {
             let item = declaration
                 .compliance
                 .iter()
@@ -2507,13 +2507,6 @@ mod well_known_tests {
                 .expect("declared checklist item");
             assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
         }
-        let c17 = declaration
-            .compliance
-            .iter()
-            .find(|item| item.id == "C17")
-            .expect("C17 declared");
-        assert_eq!(c17.status, ComplianceStatus::Pending);
-        assert!(c17.note.is_some(), "pending items must state a reason");
         let json = serde_json::to_value(&declaration).expect("declaration serializes");
         assert_eq!(json["server"], "map");
     }
