@@ -12,6 +12,7 @@ RUN npm install --global npm@12.0.1 \
     && npm cache clean --force
 
 COPY --chown=10001:10001 server.mjs /usr/local/lib/node_modules/flint-chart-mcp/veoveo-server.mjs
+COPY --chown=10001:10001 AGENTS.md DESIGN.md /usr/local/lib/node_modules/flint-chart-mcp/
 
 RUN useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo
 
