@@ -223,15 +223,26 @@ instruction history changed:
 |---|---:|---|
 | Defective revision-only full publication `b4e4a1d` | 940.493 s | Python graph rebuilt; new payload uploaded |
 | Corrected-layout migration `c3d4ff0` | 754.609 s | new cache boundary populated once |
+| Cross-revision full publication `062fb7b` | 156.068 s | every build and SBOM action cached; payload upload took 0.3 s |
+| Stable-payload full publication `1def437` | 156.198 s | base and Isaac renderer actions cached |
 
-The next publication changes only this measurement record. It is the cross-revision
-acceptance run for the corrected boundary.
+The cross-revision publication was 83.4% faster than the defective run. Registry
+inspection found the same 31 Simulation Runtime payload layers and the same 34 Isaac
+renderer payload layers on both sides of the revision change.
 
 Internal overlays consume the cache-stable `payload` stage rather than the published
 `runtime` stage. The latter adds source revision and compatibility labels without
 changing the filesystem. This distinction prevents publication metadata from changing
 the parent image config seen by the Isaac renderer, the first-party UAV overlay, or the
-external overlay fixture.
+external overlay fixture. A subsequent UAV publication kept PX4, Pegasus, Cesium, its
+Python and Rerun graph, the canonical simulation payload, and all runtime source layers
+cached. Its 255.647-second Buildx duration was dominated by the 225.9-second reproducible
+export of the inherited image.
+
+The registry exporter still traverses large cached images when rewriting timestamps.
+The full platform run spent about 148 seconds there despite uploading payload layers in
+0.3 seconds. This cost is now isolated from dependency compilation and belongs to a
+future exporter optimization.
 
 ## Acceptance Matrix
 
@@ -245,7 +256,7 @@ external overlay fixture.
 | Unchanged runtime images remain identical | five non-gateway digests match | pass |
 | Execution evidence is immutable | unique create-only evidence directory for every run | pass |
 | Release output timestamps are reproducible | epoch input and timestamp-rewriting registry exporter | pass |
-| Revision-only metadata preserves simulation payload cache | trailing build arguments and consecutive-revision publication evidence | pending cross-revision run |
+| Revision-only metadata preserves simulation payload cache | trailing build arguments, identical payload layers, and cross-revision publications | pass |
 
 ## Extension Platform Closure
 
