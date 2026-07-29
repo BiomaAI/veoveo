@@ -4,7 +4,7 @@ use anyhow::{Context, Result, anyhow};
 use reqwest::header::HOST;
 use rmcp::{
     ClientHandler, ServiceExt,
-    model::{ClientCapabilities, ClientInfo, Implementation, Tool},
+    model::{ClientCapabilities, ClientInfo, Implementation, TaskSupport, Tool},
     transport::{
         StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
     },
@@ -33,7 +33,11 @@ pub async fn run_hosted_server_conformance(
     profile: &HostedServerConformanceProfile,
     credentials: &ConformanceCredentials,
 ) -> Result<ConformanceReport> {
+    let _ = rustls::crypto::ring::default_provider().install_default();
     profile.validate()?;
+    let bearer_token = credentials
+        .bearer_token()
+        .ok_or_else(|| anyhow!("hosted certification requires an out-of-band bearer token"))?;
     let started_at = chrono::Utc::now();
     let mut checks = Vec::new();
     let http = reqwest::Client::new();
@@ -112,9 +116,7 @@ pub async fn run_hosted_server_conformance(
     .await;
 
     let mut transport = StreamableHttpClientTransportConfig::with_uri(profile.endpoint.clone());
-    if let Some(token) = credentials.bearer_token() {
-        transport = transport.auth_header(token.to_owned());
-    }
+    transport = transport.auth_header(bearer_token.to_owned());
     let client = CertificationClient
         .serve(StreamableHttpClientTransport::from_config(transport))
         .await
@@ -175,6 +177,30 @@ pub async fn run_hosted_server_conformance(
         None
     };
     check_tools(profile, tools_advertised, tools.as_deref(), &mut checks);
+    let tool_names = tools
+        .as_ref()
+        .map(|tools| {
+            tools
+                .iter()
+                .map(|tool| tool.name.to_string())
+                .collect::<BTreeSet<_>>()
+        })
+        .unwrap_or_default();
+    let task_tool_names = tools
+        .as_ref()
+        .map(|tools| {
+            tools
+                .iter()
+                .filter(|tool| {
+                    tool.execution
+                        .as_ref()
+                        .and_then(|execution| execution.task_support)
+                        .is_some_and(|support| support != TaskSupport::Forbidden)
+                })
+                .map(|tool| tool.name.to_string())
+                .collect::<BTreeSet<_>>()
+        })
+        .unwrap_or_default();
 
     let resources = if should_query(profile.surfaces.resources, resources_advertised) {
         match client.list_resources(Default::default()).await {
@@ -331,8 +357,29 @@ pub async fn run_hosted_server_conformance(
         )
     });
 
-    check_well_known_surface(&client, profile, &mut checks).await;
-    check_admin_docs(&http, profile.http.docs_llms_url.as_deref(), &mut checks).await;
+    let observed_surface = ObservedSurface {
+        tool_names,
+        resource_uris,
+        template_uris,
+        prompt_names,
+        task_tool_names,
+        tasks_advertised,
+    };
+    check_well_known_surface(
+        &client,
+        profile,
+        &implementation,
+        &observed_surface,
+        &mut checks,
+    )
+    .await;
+    check_admin_docs(
+        &http,
+        &profile.http.docs_llms_url,
+        bearer_token,
+        &mut checks,
+    )
+    .await;
 
     client.cancel().await?;
     Ok(ConformanceReport {
@@ -348,6 +395,16 @@ pub async fn run_hosted_server_conformance(
 }
 
 type Client = rmcp::service::RunningService<rmcp::RoleClient, CertificationClient>;
+
+#[derive(Default)]
+struct ObservedSurface {
+    tool_names: BTreeSet<String>,
+    resource_uris: BTreeSet<String>,
+    template_uris: BTreeSet<String>,
+    prompt_names: BTreeSet<String>,
+    task_tool_names: BTreeSet<String>,
+    tasks_advertised: bool,
+}
 
 /// One entry of the document index served at `{scheme}://docs` (C18).
 #[derive(serde::Deserialize)]
@@ -376,15 +433,10 @@ async fn read_text_resource(client: &Client, uri: &str) -> Result<String> {
 async fn check_well_known_surface(
     client: &Client,
     profile: &HostedServerConformanceProfile,
+    implementation: &ObservedImplementation,
+    observed: &ObservedSurface,
     checks: &mut Vec<CheckResult>,
 ) {
-    if profile.surfaces.resources == SurfaceExpectation::Forbidden {
-        for id in ["VV-MCP-DOCS-001", "VV-MCP-DOCS-002", "VV-MCP-CONTRACT-001"] {
-            checks.push(skipped(id, "resources are forbidden for this profile"));
-        }
-        return;
-    }
-
     let mut index_errors = Vec::new();
     let mut serving_scheme = None;
     let mut listed_ids = Vec::new();
@@ -420,7 +472,11 @@ async fn check_well_known_surface(
                 index_errors.join("; ")
             ),
         ));
-        for id in ["VV-MCP-DOCS-002", "VV-MCP-CONTRACT-001"] {
+        for id in [
+            "VV-MCP-DOCS-002",
+            "VV-MCP-CONTRACT-001",
+            "VV-MCP-CONTRACT-002",
+        ] {
             checks.push(failed(id, "docs index unavailable".to_owned()));
         }
         return;
@@ -451,12 +507,14 @@ async fn check_well_known_surface(
     });
 
     let contract_uri = format!("{scheme}://contract");
-    checks.push(match read_text_resource(client, &contract_uri).await {
+    match read_text_resource(client, &contract_uri).await {
         Ok(text) => {
             match serde_json::from_str::<veoveo_mcp_contract::docs::ContractDeclaration>(&text) {
                 Ok(declaration) => {
                     let revision_matches = declaration.contract_revision
                         == veoveo_mcp_contract::docs::CONTRACT_REVISION;
+                    let identity_matches = declaration.server == profile.server_slug
+                        && declaration.server == implementation.name;
                     let unmet: Vec<&str> = ["C18", "C19", "C20", "C21"]
                         .into_iter()
                         .filter(|id| {
@@ -467,53 +525,192 @@ async fn check_well_known_surface(
                             })
                         })
                         .collect();
-                    if revision_matches && unmet.is_empty() {
+                    checks.push(if revision_matches && identity_matches && unmet.is_empty() {
                         passed(
                             "VV-MCP-CONTRACT-001",
-                            "contract declaration matches the current revision with C18-C21 met",
+                            "contract declaration matches the selected revision and server identity with C18-C21 met",
                             Some(json!({
                                 "server": declaration.server,
-                                "contractRevision": declaration.contract_revision
+                                "contractRevision": declaration.contract_revision,
+                                "selectedRevision": profile.contract_revision
                             })),
                         )
                     } else {
                         failed(
                             "VV-MCP-CONTRACT-001",
                             format!(
-                                "declaration revision {} (expected {}), unmet well-known items {unmet:?}",
+                                "declaration server {:?}, initialized server {:?}, expected profile server {:?}; revision {} (expected {} for {}), unmet well-known items {unmet:?}",
+                                declaration.server,
+                                implementation.name,
+                                profile.server_slug,
                                 declaration.contract_revision,
-                                veoveo_mcp_contract::docs::CONTRACT_REVISION
+                                veoveo_mcp_contract::docs::CONTRACT_REVISION,
+                                profile.contract_revision,
                             ),
                         )
-                    }
+                    });
+                    checks.push(check_declared_capabilities(
+                        &declaration.capabilities,
+                        observed,
+                    ));
                 }
-                Err(error) => failed(
-                    "VV-MCP-CONTRACT-001",
-                    format!("{contract_uri} is not a contract declaration: {error}"),
-                ),
+                Err(error) => {
+                    let summary = format!("{contract_uri} is not a contract declaration: {error}");
+                    checks.push(failed("VV-MCP-CONTRACT-001", summary.clone()));
+                    checks.push(failed("VV-MCP-CONTRACT-002", summary));
+                }
             }
         }
-        Err(error) => failed("VV-MCP-CONTRACT-001", format!("{contract_uri}: {error}")),
-    });
+        Err(error) => {
+            let summary = format!("{contract_uri}: {error}");
+            checks.push(failed("VV-MCP-CONTRACT-001", summary.clone()));
+            checks.push(failed("VV-MCP-CONTRACT-002", summary));
+        }
+    }
+}
+
+fn check_declared_capabilities(
+    declared: &veoveo_mcp_contract::docs::CapabilityInventory,
+    observed: &ObservedSurface,
+) -> CheckResult {
+    let declared_tools = declared.tools.iter().cloned().collect::<BTreeSet<_>>();
+    let declared_resources = declared.resources.iter().cloned().collect::<BTreeSet<_>>();
+    let declared_templates = declared
+        .resource_templates
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let declared_prompts = declared.prompts.iter().cloned().collect::<BTreeSet<_>>();
+    let declared_tasks = declared.tasks.iter().cloned().collect::<BTreeSet<_>>();
+
+    let mut mismatches = Vec::new();
+    for (name, values, unique) in [
+        ("tools", &declared.tools, &declared_tools),
+        ("resources", &declared.resources, &declared_resources),
+        (
+            "resource templates",
+            &declared.resource_templates,
+            &declared_templates,
+        ),
+        ("prompts", &declared.prompts, &declared_prompts),
+        ("tasks", &declared.tasks, &declared_tasks),
+    ] {
+        if values.len() != unique.len() {
+            mismatches.push(format!("declared {name} contain duplicate identities"));
+        }
+    }
+    compare_exact(
+        "tools",
+        &declared_tools,
+        &observed.tool_names,
+        &mut mismatches,
+    );
+    compare_subset(
+        "resources",
+        &declared_resources,
+        &observed.resource_uris,
+        &mut mismatches,
+    );
+    compare_exact(
+        "resource templates",
+        &declared_templates,
+        &observed.template_uris,
+        &mut mismatches,
+    );
+    compare_exact(
+        "prompts",
+        &declared_prompts,
+        &observed.prompt_names,
+        &mut mismatches,
+    );
+    compare_exact(
+        "task-augmented tools",
+        &declared_tasks,
+        &observed.task_tool_names,
+        &mut mismatches,
+    );
+    if !declared_tasks.is_empty() && !observed.tasks_advertised {
+        mismatches.push("task inventory is non-empty but task capability is absent".to_owned());
+    }
+
+    if mismatches.is_empty() {
+        passed(
+            "VV-MCP-CONTRACT-002",
+            "contract capability inventory matches the observed stable MCP surface",
+            Some(json!({
+                "tools": declared_tools,
+                "resources": declared_resources,
+                "resourceTemplates": declared_templates,
+                "prompts": declared_prompts,
+                "tasks": declared_tasks,
+            })),
+        )
+    } else {
+        failed("VV-MCP-CONTRACT-002", mismatches.join("; "))
+    }
+}
+
+fn compare_exact(
+    name: &str,
+    declared: &BTreeSet<String>,
+    observed: &BTreeSet<String>,
+    mismatches: &mut Vec<String>,
+) {
+    if declared != observed {
+        mismatches.push(format!(
+            "{name} differ: declared {declared:?}, observed {observed:?}"
+        ));
+    }
+}
+
+fn compare_subset(
+    name: &str,
+    declared: &BTreeSet<String>,
+    observed: &BTreeSet<String>,
+    mismatches: &mut Vec<String>,
+) {
+    let missing = declared.difference(observed).cloned().collect::<Vec<_>>();
+    if !missing.is_empty() {
+        mismatches.push(format!("declared {name} are not listed: {missing:?}"));
+    }
 }
 
 /// Fetches the admin llms.txt projection and every listed document body
 /// (contract C20).
 async fn check_admin_docs(
     http: &reqwest::Client,
-    url: Option<&str>,
+    url: &str,
+    bearer_token: &str,
     checks: &mut Vec<CheckResult>,
 ) {
-    let Some(url) = url else {
-        for id in ["VV-MCP-DOCS-HTTP-001", "VV-MCP-DOCS-HTTP-002"] {
-            checks.push(skipped(
-                id,
-                "admin docs URL is not selected by this profile",
-            ));
+    let index_url = match url::Url::parse(url) {
+        Ok(url) => url,
+        Err(error) => {
+            let summary = format!("validated llms.txt URL did not parse: {error}");
+            checks.push(failed("VV-MCP-DOCS-HTTP-001", summary.clone()));
+            checks.push(failed("VV-MCP-DOCS-HTTP-002", summary));
+            return;
         }
-        return;
     };
-    let body = match http.get(url).send().await {
+    checks.push(match http.get(url).send().await {
+        Ok(response) if response.status() == reqwest::StatusCode::UNAUTHORIZED => passed(
+            "VV-MCP-DOCS-HTTP-000",
+            "admin docs reject requests without the gateway internal identity",
+            Some(json!({"status": response.status().as_u16()})),
+        ),
+        Ok(response) => failed(
+            "VV-MCP-DOCS-HTTP-000",
+            format!(
+                "unauthenticated llms.txt returned {}, expected 401",
+                response.status()
+            ),
+        ),
+        Err(error) => failed(
+            "VV-MCP-DOCS-HTTP-000",
+            format!("unauthenticated llms.txt request failed: {error}"),
+        ),
+    });
+    let body = match http.get(url).bearer_auth(bearer_token).send().await {
         Ok(response) if response.status().is_success() => match response.text().await {
             Ok(body) => body,
             Err(error) => {
@@ -555,8 +752,8 @@ async fn check_admin_docs(
     let listed: Vec<&str> = body
         .lines()
         .filter_map(|line| {
-            let (_, rest) = line.split_once("](docs/")?;
-            rest.split_once(')').map(|(id, _)| id)
+            let (_, rest) = line.split_once("](")?;
+            rest.split_once(')').map(|(target, _)| target)
         })
         .collect();
     checks.push(
@@ -574,11 +771,48 @@ async fn check_admin_docs(
         },
     );
 
-    let base = url.trim_end_matches("llms.txt");
     let mut body_errors = Vec::new();
-    for id in &listed {
-        let doc_url = format!("{base}{id}");
-        match http.get(&doc_url).send().await {
+    for target in &listed {
+        if target.is_empty()
+            || target.contains('/')
+            || target.contains(['?', '#'])
+            || *target == "."
+            || *target == ".."
+        {
+            body_errors.push(format!(
+                "{target:?}: document link must be one relative path segment"
+            ));
+            continue;
+        }
+        let doc_url = match index_url.join(target) {
+            Ok(url) if same_origin(&index_url, &url) => url,
+            Ok(url) => {
+                body_errors.push(format!(
+                    "{url}: document link leaves the authenticated origin"
+                ));
+                continue;
+            }
+            Err(error) => {
+                body_errors.push(format!("{target:?}: invalid document link: {error}"));
+                continue;
+            }
+        };
+        match http.get(doc_url.clone()).send().await {
+            Ok(response) if response.status() == reqwest::StatusCode::UNAUTHORIZED => {}
+            Ok(response) => body_errors.push(format!(
+                "{doc_url}: unauthenticated document returned {}, expected 401",
+                response.status()
+            )),
+            Err(error) => body_errors.push(format!(
+                "{doc_url}: unauthenticated document request failed: {error}"
+            )),
+        }
+        match http
+            .get(doc_url.clone())
+            .bearer_auth(bearer_token)
+            .send()
+            .await
+        {
             Ok(response) if response.status().is_success() => match response.text().await {
                 Ok(text) if !text.trim().is_empty() => {}
                 Ok(_) => body_errors.push(format!("{doc_url}: body is empty")),
@@ -591,12 +825,18 @@ async fn check_admin_docs(
     checks.push(if body_errors.is_empty() {
         passed(
             "VV-MCP-DOCS-HTTP-002",
-            "every listed document body serves over the admin mount",
+            "every listed document rejects unauthenticated access and serves over the authenticated admin mount",
             Some(json!({"documents": listed.len()})),
         )
     } else {
         failed("VV-MCP-DOCS-HTTP-002", body_errors.join("; "))
     });
+}
+
+fn same_origin(left: &url::Url, right: &url::Url) -> bool {
+    left.scheme() == right.scheme()
+        && left.host_str() == right.host_str()
+        && left.port_or_known_default() == right.port_or_known_default()
 }
 
 async fn check_success_url(
@@ -828,5 +1068,56 @@ fn skipped(requirement_id: impl Into<String>, summary: impl Into<String>) -> Che
         status: CheckStatus::Skipped,
         summary: summary.into(),
         evidence: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use veoveo_mcp_contract::docs::CapabilityInventory;
+
+    #[test]
+    fn declaration_inventory_cannot_omit_an_observed_tool() {
+        let result = check_declared_capabilities(
+            &CapabilityInventory::default(),
+            &ObservedSurface {
+                tool_names: BTreeSet::from(["inspect".to_owned()]),
+                ..ObservedSurface::default()
+            },
+        );
+        assert_eq!(result.status, CheckStatus::Failed);
+        assert!(result.summary.contains("inspect"));
+    }
+
+    #[test]
+    fn declaration_inventory_cannot_claim_an_unobserved_resource() {
+        let result = check_declared_capabilities(
+            &CapabilityInventory {
+                resources: vec!["domain://missing".to_owned()],
+                ..CapabilityInventory::default()
+            },
+            &ObservedSurface {
+                resource_uris: BTreeSet::from(["domain://docs".to_owned()]),
+                ..ObservedSurface::default()
+            },
+        );
+        assert_eq!(result.status, CheckStatus::Failed);
+        assert!(result.summary.contains("domain://missing"));
+    }
+
+    #[test]
+    fn declaration_inventory_cannot_repeat_an_identity() {
+        let result = check_declared_capabilities(
+            &CapabilityInventory {
+                tools: vec!["inspect".to_owned(), "inspect".to_owned()],
+                ..CapabilityInventory::default()
+            },
+            &ObservedSurface {
+                tool_names: BTreeSet::from(["inspect".to_owned()]),
+                ..ObservedSurface::default()
+            },
+        );
+        assert_eq!(result.status, CheckStatus::Failed);
+        assert!(result.summary.contains("duplicate"));
     }
 }
