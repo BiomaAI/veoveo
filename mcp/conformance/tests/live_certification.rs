@@ -97,12 +97,12 @@ impl ServerHandler for DomainFixture {
                 text, uri,
             )]));
         }
-        if let Some(id) = uri.strip_prefix("domain://docs/") {
-            if let Some(doc) = FIXTURE_DOCS.doc(id) {
-                return Ok(ReadResourceResult::new(vec![ResourceContents::text(
-                    doc.body, uri,
-                )]));
-            }
+        if let Some(id) = uri.strip_prefix("domain://docs/")
+            && let Some(doc) = FIXTURE_DOCS.doc(id)
+        {
+            return Ok(ReadResourceResult::new(vec![ResourceContents::text(
+                doc.body, uri,
+            )]));
         }
         if uri == "domain://contract" {
             let declaration =
