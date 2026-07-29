@@ -56,6 +56,9 @@ RUN --mount=type=bind,source=.,target=/src,readonly \
             [[ "${binary}" =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo "invalid Cargo binary: ${binary}" >&2; exit 1; }; \
             cargo_args+=(--bin "${binary}"); \
         done; \
+        if [[ ",${VEOVEO_CARGO_PACKAGES}," == *,veoveo-recording-mcp,* ]]; then \
+            cargo_args+=(--features veoveo-recording-mcp/redap); \
+        fi; \
         toolchain="$(rustup default | cut -d" " -f1)"; \
         [[ -n "${toolchain}" ]] || { echo "the builder image has no default Rust toolchain" >&2; exit 1; }; \
         RUSTUP_TOOLCHAIN="${toolchain}" CARGO_TARGET_DIR=/target cargo "${cargo_args[@]}"; \

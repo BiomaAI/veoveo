@@ -6,8 +6,8 @@ Delta over the repository root `AGENTS.md`. The normative server contract is
 ## Purpose
 
 The governed catalog and read boundary for Recording Hub data: recording
-discovery, bounded queries, subscriptions, artifact publication, and range
-capable RRD playback for archive and live shards. The repository ingest,
+discovery, bounded queries, subscriptions, artifact publication, lazy Redap
+archive playback, and bounded RRD live following. The repository ingest,
 storage, and playback contract is normative in
 [`docs/RECORDINGS.md`](../../docs/RECORDINGS.md).
 
@@ -15,23 +15,29 @@ storage, and playback contract is normative in
 
 - Owns the `recording://` scheme. Gateway policy and audit target the
   canonical `recording://recordings/{id}` resource before either the MCP
-  endpoint or a byte route reaches this server.
-- Frozen and sealed segments are immutable. The data route never decodes,
-  merges, or rewrites an archive during a request, and it reauthorizes every
-  shard read.
-- The HTTP routes beside the MCP endpoint exist because the embedded Rerun
-  viewer consumes byte streams; they implement byte ranges and immutable
-  validators, and the manifest binds each shard to catalog UUIDv7, ordinal,
-  bounds, length, and digest. Do not add routes outside this governed set.
+  endpoint, playback manifest, or live route reaches this server.
+- Frozen and sealed shards are immutable layers of one recording-scoped Redap
+  dataset segment. The durable catalog and shards are authoritative; the
+  in-memory Rerun catalog is derived, bounded, and reconstructible.
+- Playback manifest v2 returns one stable Redap archive URI, its deterministic
+  layer revision, one optional live source, and recording-scoped access
+  material. Do not return archive shard URLs or add a whole-recording RRD
+  route.
+- The public Rerun Data Protocol surface is read-only and recording-scoped.
+  Reject catalog enumeration, cross-recording entry access, writes,
+  registration, tables, tasks, and maintenance.
 - Live playback is bound to one writing segment identity and ends at
-  rollover; the follow projection keeps a bounded row ID history window.
+  rollover. The follow projection keeps a bounded row ID history window and
+  rewrites every outgoing message to the same dataset and segment identity as
+  the archive.
 - Governed queries and analysis snapshots may include complete acknowledged
   ingest parts from a writing segment. A task-local copy binds the exact part
   sequence, byte length, and SHA-256 before Hub rollover can replace it.
 - Module boundaries are pinned by DESIGN.md: `contract.rs` owns the typed
-  manifest, `service/read.rs` resolves authorized filesystem plans from
-  durable identities, `live_playback.rs` owns the follow projection,
-  `bin/server.rs` owns HTTP framing, and authorization stays in `service.rs`.
+  manifest, `service.rs` resolves authorized playback plans,
+  `service/read.rs` resolves governed analysis plans, `playback.rs` owns
+  sessions and Redap, `live_playback.rs` owns the follow projection, and
+  `bin/server.rs` owns transport composition.
 - Durable catalog state lives in the installation SurrealDB; artifact
   operations go through the shared artifact plane with the forwarded
   internal identity.

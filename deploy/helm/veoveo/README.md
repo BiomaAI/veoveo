@@ -54,9 +54,14 @@ the `recording-data-plane` component. Live graph execution never waits for this
 route. Its session resource reports forwarding, draining, and failure.
 
 `recording.idleTimeoutSeconds` closes a loopback-native Hub capture after its
-final message; the default is 15 seconds. Governed browser playback enters
-through the gateway and Console BFF. `recording-mcp` reads the shared PVC
-without exposing it.
+final message; the default is 15 seconds. The gateway authorizes the playback
+manifest and the Console BFF authenticates bounded live delivery.
+`recording-mcp` reads the shared PVC without exposing it, derives one
+recording-scoped Redap dataset, and serves its read-only gRPC-Web path at the
+installation's existing public origin. The chart routes only
+`/rerun.cloud.v1alpha1.RerunCloudService` directly to that server. A
+host-limited token and server-side recording session protect the route; the
+general Rerun catalog and mutation methods are unavailable.
 
 Simulation View uses a separate provider-neutral MCP pod and one hardware-GPU pod. The
 GPU pod contains the Isaac/RTX renderer and the mTLS pose-ingress sidecar. Those
@@ -129,9 +134,10 @@ The operator must create these resources before installation:
 - `surrealdb.adminExistingSecret`: `username` and `password` for bootstrap only.
 - `surrealdb.runtimeExistingSecret`: database-level `username` and `password`.
 - `global.existingSecret`: gateway signing keys, internal JWKS, console session
-  key, provider credentials, object-store credentials, and the gateway refresh
-  delivery key under `refresh-delivery-key-b64`. Simulation View also reads
-  `simulation-view-renderer-control-token` and
+  key, provider credentials, object-store credentials, the gateway refresh
+  delivery key under `refresh-delivery-key-b64`, and a distinct 32-byte
+  base64 playback key under `recording-playback-token-key`. Simulation View
+  also reads `simulation-view-renderer-control-token` and
   `simulation-view-pose-control-token`.
 - `simulationView.poseIngress.existingTlsSecret`: DER server certificate under
   `certificateKey`, PKCS#8 DER private key under `privateKeyKey`, and DER producer
@@ -167,6 +173,10 @@ keys with `openssl rand -base64 32`, then store that base64 text as the Secret
 value. It must decode to exactly 32 bytes. The gateway uses it only to encrypt a
 successor refresh token during the short duplicate-delivery window; plaintext
 successors are never persisted.
+
+Generate `recording-playback-token-key` separately with
+`openssl rand -base64 32`. It must decode to exactly 32 bytes and signs only
+recording-scoped Redap read tokens. Do not reuse any other installation key.
 
 `gateway.refreshDeliveryWindowSeconds` defaults to `5` and accepts `1` through
 `30`. If two stateless console BFF requests concurrently present the same

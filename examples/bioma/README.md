@@ -210,6 +210,7 @@ jq -n '{
     "authorization-server-private-key-der-b64": env.VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64,
     "refresh-delivery-key-b64": env.VEOVEO_REFRESH_DELIVERY_KEY_B64,
     "console-session-key": env.VEOVEO_CONSOLE_SESSION_KEY,
+    "recording-playback-token-key": env.VEOVEO_RECORDING_PLAYBACK_TOKEN_KEY,
     "object-store-access-key": env.VEOVEO_OBJECT_STORE_ACCESS_KEY,
     "object-store-secret-key": env.VEOVEO_OBJECT_STORE_SECRET_KEY,
     "media-provider-api-key": env.MEDIA_PROVIDER_API_KEY,

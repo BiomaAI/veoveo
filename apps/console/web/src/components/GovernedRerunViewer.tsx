@@ -17,14 +17,21 @@ function synchronizeSources(
   desired: GovernedRerunSource
 ) {
   const transition = planRerunSourceTransition(opened, desired);
-  if (transition.archiveUrlsToOpen.length > 0) {
-    viewer.open(transition.archiveUrlsToOpen);
+  if (transition.credentialsChanged) {
+    viewer.set_credentials(desired.redapToken, "recording-playback");
   }
+  if (transition.archiveUrlToCloseBeforeOpen) {
+    viewer.close(transition.archiveUrlToCloseBeforeOpen);
+  }
+  if (transition.archiveUrlToOpen) viewer.open(transition.archiveUrlToOpen);
   if (transition.liveUrlToOpen) {
     viewer.open(transition.liveUrlToOpen);
   }
-  if (transition.urlsToClose.length > 0) viewer.close(transition.urlsToClose);
-  opened.archiveUrls = transition.next.archiveUrls;
+  if (transition.urlsToCloseAfterOpen.length > 0) {
+    viewer.close(transition.urlsToCloseAfterOpen);
+  }
+  opened.redapToken = transition.next.redapToken;
+  opened.archive = transition.next.archive;
   opened.liveUrl = transition.next.liveUrl;
 }
 
@@ -38,7 +45,7 @@ export default function GovernedRerunViewer({
   const host = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<WebViewer | undefined>(undefined);
   const desiredSourceRef = useRef(source);
-  const openedSourcesRef = useRef<OpenedRerunSources>({ archiveUrls: new Set() });
+  const openedSourcesRef = useRef<OpenedRerunSources>({});
   const [status, setStatus] = useState<ViewerStatus>({
     state: "loading",
     delayed: false,
@@ -62,13 +69,14 @@ export default function GovernedRerunViewer({
     let active = true;
     let removeOpenListener: (() => void) | undefined;
     let delayedNotice: number | undefined;
-    openedSourcesRef.current = { archiveUrls: new Set() };
+    openedSourcesRef.current = {};
     void viewer
       .start(null, host.current, {
         width: "100%",
         height: "100%",
         hide_welcome_screen: true,
         allow_fullscreen: true,
+        fallback_token: desiredSourceRef.current.redapToken,
       })
       .then(() => {
         if (!active) return;
@@ -129,10 +137,10 @@ export default function GovernedRerunViewer({
           </strong>
           <span>
             {status.delayed
-              ? "Authorized data is still streaming into Rerun. Playback will open automatically; large recordings can take longer."
+              ? "Rerun is still fetching the selected time window. Playback will open automatically."
               : source.liveUrl
-              ? "Opening authorized history, then following newly durable RRD batches."
-              : "Opening the complete authorized, footer-indexed recording history."}
+              ? "Following bounded live history while immutable layers remain lazy."
+              : "Opening the recording catalog; Rerun fetches chunks as the active view needs them."}
           </span>
         </div>
       ) : null}

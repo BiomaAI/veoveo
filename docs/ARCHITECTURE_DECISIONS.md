@@ -116,9 +116,11 @@ new durable batch at each GoP, which guarantees an eligible boundary after the l
 reached. Frozen and sealed archive shards remain the governed long-term recording authority.
 
 Console live playback receives bounded recent history and follows the authorized writing
-segment after each Hub flush. Completed playback attaches the ordered, range-capable
-archive sources to one persistent Rerun viewer, where their shared store identity presents
-one recording timeline. No request path rebuilds or concatenates the whole recording.
+segment after each Hub flush. Completed playback opens one recording-scoped Rerun Data
+Protocol dataset. Immutable shards are layers of its stable segment, and Rerun fetches
+footer-indexed chunks as the active view requires them. Live messages use the same dataset
+and segment identity. No request path opens every shard, rebuilds, or concatenates the
+whole recording.
 
 Bounded Stream replay and Reason tasks may analyze the writing recording before rollover.
 Their governed read plan captures only complete acknowledged ingest parts, copies those
@@ -246,8 +248,8 @@ The recording hub is a durable push path. Producers push Rerun log streams;
 the hub does not poll producers. Segment writes are fsynced, crash-decodable,
 verified before optimized replacement, and cataloged as governed tenant records.
 A recording MCP server exposes authorized discovery, queries, subscriptions,
-and artifact publication instead of exposing the unauthenticated Rerun proxy or
-catalog directly.
+artifact publication, and one recording-scoped read-only Redap projection. It
+does not expose an unauthenticated Rerun proxy or general catalog.
 
 SUMO is a domain showcase over these same contracts: one process owns TraCI,
 pushes world state to the recording hub, exposes MCP controls, and uses the

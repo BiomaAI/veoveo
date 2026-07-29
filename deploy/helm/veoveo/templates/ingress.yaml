@@ -47,6 +47,15 @@ spec:
                 name: console-bff
                 port:
                   number: 8786
+          {{- if include "veoveo.mcpServerEnabled" (list . "recording") }}
+          - path: /rerun.cloud.v1alpha1.RerunCloudService
+            pathType: Prefix
+            backend:
+              service:
+                name: recording-mcp
+                port:
+                  number: 8796
+          {{- end }}
           - path: /media/webhooks
             pathType: Prefix
             backend:

@@ -45,6 +45,15 @@ pub(super) struct Args {
         value_parser = clap::value_parser!(u64).range(1..=3600)
     )]
     pub(super) live_history_seconds: u64,
+    #[arg(
+        long,
+        env = "RECORDING_PLAYBACK_TOKEN_KEY",
+        hide_env_values = true,
+        value_parser = parse_secret
+    )]
+    pub(super) playback_token_key: SecretString,
+    #[arg(long, env = "RECORDING_PLAYBACK_PUBLIC_URL")]
+    pub(super) playback_public_url: String,
 }
 
 fn parse_secret(value: &str) -> Result<SecretString, String> {

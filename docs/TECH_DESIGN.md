@@ -19,10 +19,10 @@ catalog.
 | [MCP Apps SEP-1865](../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; server-owned `ui://` resources use the sandboxed MCP Apps host bridge. |
 | OpenID Connect and OAuth 2.0 | OIDC Core login; S256 PKCE; Client Credentials and JWT Bearer grants; RFC 8414 authorization-server metadata; RFC 9728 protected-resource metadata; RFC 8707 resource indicators; signed JWT/JWS/JWK tokens and key discovery. |
 | MCP Enterprise-Managed Authorization / ID-JAG | Explicit enterprise grant profile with durable replay protection, client binding, tenant mapping, and scope reduction. |
-| HTTPS and HTTP range semantics | External acquisition, MCP transport, provider webhooks, artifact delivery, and immutable RRD byte ranges. Internal cleartext HTTP exists only inside declared cluster trust boundaries. |
+| HTTPS and HTTP range semantics | External acquisition, MCP transport, provider webhooks, and artifact delivery. Internal cleartext HTTP exists only inside declared cluster trust boundaries. |
 | OpenTelemetry OTLP/HTTP | Optional traces and logs from shared server instrumentation. Export remains disabled unless the installation supplies an endpoint. |
 | Veoveo recording ingest | Version `2026-07-24`; authenticated protobuf batches preserve native Rerun 0.35.0 messages, ordering, idempotency, and decoder-safe rollover markers. |
-| Rerun 0.35.0 gRPC, RRD, and `VideoStream` | Producer-local log ingestion, immutable time-and-space records, viewer playback, and H.264 Annex B video with exact timeline indices. |
+| Rerun 0.35.0 gRPC, RRD, Rerun Data Protocol, and `VideoStream` | Producer-local log ingestion, immutable time-and-space records, recording-scoped lazy viewer playback, and H.264 Annex B video with exact timeline indices. |
 | S3-compatible object API | Artifact bytes and presigned delivery. SurrealDB remains authoritative for occurrences, identity, grants, release state, shares, policy, and audit. |
 | Kubernetes, Helm, and OCI images | Canonical workload graph, declarative installation configuration, registry-first delivery, GitOps reconciliation, and offline bundle material. |
 | Domain standards | Map, Time, Frames, View, UAV, Recording, Perception, and Reason designs pin their geospatial, temporal, 3D, vehicle, and media profiles independently. |
@@ -402,10 +402,12 @@ login transition, which prevents parallel API failures from starting competing O
 flows.
 
 Recording playback remains inside this boundary. The BFF exposes authorized same-origin
-manifest and segment routes, including byte ranges, while the gateway evaluates the
-canonical `recording://` resource policy and audits every access. The browser lazily loads
-the Rerun viewer version that matches the RRD producer. Artifact previews use a separate
-inline route and keep text reads bounded.
+manifest and bounded-live routes, while the gateway evaluates the canonical
+`recording://` resource policy and audits every access. The manifest grants one
+recording-scoped, host-limited Redap read session. The browser then reaches the same-origin
+read-only Rerun service directly and fetches only the footer-indexed chunks required by
+the active view. The browser lazily loads the Rerun viewer version that matches the RRD
+producer. Artifact previews use a separate inline route and keep text reads bounded.
 
 ## Recordings And Agents
 
@@ -425,10 +427,12 @@ owner, dataset, classification, and labels. Raw Rerun ingest, durable parts, and
 filesystem paths are not installation ingress or read surfaces.
 
 `recording-mcp` applies tenant/label authorization to discovery, query, subscription,
-artifact publication, range-capable archive reads, and bounded-history live following.
-Console presents ordered archive sources and the current live tail in one persistent
-Rerun timeline without constructing another RRD. SUMO uses the same path: one serialized TraCI owner publishes Rerun world
-frames and exposes traffic controls, resources, and tasks.
+artifact publication, playback-session creation, and bounded-history live following.
+It projects immutable shards as layers of one recording-scoped Redap dataset segment and
+rewrites the live tail to that same identity. Console presents both in one persistent
+Rerun timeline without downloading every shard or constructing another RRD. SUMO uses
+the same path: one serialized TraCI owner publishes Rerun world frames and exposes
+traffic controls, resources, and tasks.
 
 The agent kernel runs bounded episodes and persists scheduling through
 `veoveo-agent-runtime`. Tool tasks detach at episode end; durable descriptors, watcher

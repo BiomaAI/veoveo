@@ -6,13 +6,14 @@ use axum::{
     Extension, Router,
     body::Body,
     extract::{Path, State},
-    http::{HeaderMap, Method, Request, StatusCode, header},
+    http::{HeaderMap, StatusCode, header},
     middleware,
     response::{IntoResponse, Response},
     routing::get,
 };
 use clap::Parser;
 use futures::stream;
+use re_protos::cloud::v1alpha1::rerun_cloud_service_server::RerunCloudServiceServer;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -28,10 +29,9 @@ use rmcp::{
     tool_handler, tool_router,
     transport::streamable_http_server::StreamableHttpService,
 };
+use secrecy::ExposeSecret as _;
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
-use tower::ServiceExt;
-use tower_http::services::ServeFile;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::tool;
@@ -39,13 +39,14 @@ use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle, Page,
     ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry, paginate,
 };
-use veoveo_platform_store::{PlatformStore, RecordingId, SegmentId, StoreConfig, StoreCredentials};
+use veoveo_platform_store::{PlatformStore, RecordingId, StoreConfig, StoreCredentials};
 use veoveo_recording_mcp::live_playback::stream_live_rrd;
 use veoveo_recording_mcp::{
     RecordingService,
     contract::{
         QueryRecordingOutput, QueryRecordingRequest, SealRecordingOutput, SealRecordingRequest,
     },
+    playback::{PLAYBACK_SESSION_HEADER, PlaybackManager, playback_store_id},
     uris,
 };
 
@@ -483,86 +484,34 @@ async fn playback_manifest(
     State(state): State<Arc<AppState>>,
     Extension(identity): Extension<veoveo_mcp_contract::GatewayInternalIdentity>,
     Path(recording_id): Path<String>,
-) -> Response {
-    let Ok(recording_id) = parse_recording_id(&recording_id) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    match state
-        .recordings
-        .playback_manifest(&identity, recording_id)
-        .await
-    {
-        Ok(Some(manifest)) => axum::Json(manifest).into_response(),
-        Ok(None) => StatusCode::NOT_FOUND.into_response(),
-        Err(error) => {
-            tracing::error!(%error, %recording_id, "recording playback manifest failed");
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
-        }
-    }
-}
-
-async fn playback_segment(
-    State(state): State<Arc<AppState>>,
-    Extension(identity): Extension<veoveo_mcp_contract::GatewayInternalIdentity>,
-    Path((recording_id, segment_id)): Path<(String, String)>,
-    method: Method,
     headers: HeaderMap,
 ) -> Response {
     let Ok(recording_id) = parse_recording_id(&recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let Ok(segment_id) = uuid::Uuid::parse_str(&segment_id) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    if segment_id.get_version_num() != 7 {
-        return StatusCode::NOT_FOUND.into_response();
-    }
-    let path = match state
+    let plan = match state
         .recordings
-        .playback_segment_path(&identity, recording_id, SegmentId::from_uuid(segment_id))
+        .playback_plan(&identity, recording_id)
         .await
     {
-        Ok(Some(path)) => path,
+        Ok(Some(plan)) => plan,
         Ok(None) => return StatusCode::NOT_FOUND.into_response(),
         Err(error) => {
-            tracing::error!(%error, %recording_id, %segment_id, "recording segment authorization failed");
+            tracing::error!(%error, %recording_id, "recording playback manifest failed");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let mut request = Request::builder().method(method).uri("/");
-    for name in [
-        header::RANGE,
-        header::IF_RANGE,
-        header::IF_MATCH,
-        header::IF_NONE_MATCH,
-        header::IF_MODIFIED_SINCE,
-        header::IF_UNMODIFIED_SINCE,
-    ] {
-        if let Some(value) = headers.get(&name) {
-            request = request.header(name, value);
-        }
-    }
-    let request = match request.body(Body::empty()) {
-        Ok(request) => request,
+    let requested_session = headers
+        .get(PLAYBACK_SESSION_HEADER)
+        .and_then(|value| value.to_str().ok());
+    match state
+        .playback
+        .prepare_manifest(&identity, plan, requested_session)
+        .await
+    {
+        Ok(manifest) => axum::Json(manifest).into_response(),
         Err(error) => {
-            tracing::error!(%error, "failed to build recording segment request");
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
-    };
-    match ServeFile::new(path).oneshot(request).await {
-        Ok(mut response) => {
-            response.headers_mut().insert(
-                header::CONTENT_TYPE,
-                header::HeaderValue::from_static("application/vnd.rerun.rrd"),
-            );
-            response.headers_mut().insert(
-                header::CACHE_CONTROL,
-                header::HeaderValue::from_static("private, no-store"),
-            );
-            response.map(Body::new)
-        }
-        Err(error) => {
-            tracing::error!(%error, "recording segment read failed");
+            tracing::error!(%error, %recording_id, "recording playback catalog preparation failed");
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
@@ -576,26 +525,43 @@ async fn playback_live_segment(
     let Ok(recording_id) = parse_recording_id(&recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let Ok(segment_id) = uuid::Uuid::parse_str(&segment_id) else {
+    let Ok(segment_uuid) = uuid::Uuid::parse_str(&segment_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    if segment_id.get_version_num() != 7 {
+    if segment_uuid.get_version_num() != 7 {
         return StatusCode::NOT_FOUND.into_response();
     }
-    let path = match state
+    let plan = match state
         .recordings
-        .playback_live_segment_path(&identity, recording_id, SegmentId::from_uuid(segment_id))
+        .playback_plan(&identity, recording_id)
         .await
     {
-        Ok(Some(path)) => path,
+        Ok(Some(plan)) => plan,
         Ok(None) => return StatusCode::NOT_FOUND.into_response(),
         Err(error) => {
             tracing::error!(%error, %recording_id, %segment_id, "live recording segment authorization failed");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
+    let Some(live) = plan
+        .live
+        .filter(|live| live.descriptor.segment_id == segment_id)
+    else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let playback_store_id = match playback_store_id(recording_id, &plan.recording_key) {
+        Ok(store_id) => store_id,
+        Err(error) => {
+            tracing::error!(%error, %recording_id, "live playback identity construction failed");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
     let stream = stream::unfold(
-        stream_live_rrd(path, state.recordings.live_history()),
+        stream_live_rrd(
+            live.path,
+            state.recordings.live_history(),
+            playback_store_id,
+        ),
         |mut receiver| async move { receiver.recv().await.map(|item| (item, receiver)) },
     );
     let mut response = rrd_response(Body::from_stream(stream));
@@ -664,6 +630,10 @@ async fn main() -> anyhow::Result<()> {
             spool_dir,
         )?
         .with_live_history_seconds(args.live_history_seconds)?,
+        playback: PlaybackManager::new(
+            args.playback_token_key.expose_secret(),
+            &args.playback_public_url,
+        )?,
         subscribers: SubscriptionHub::new(),
     });
     let cancellation = CancellationToken::new();
@@ -694,19 +664,22 @@ async fn main() -> anyhow::Result<()> {
     let playback = Router::new()
         .route("/{recording_id}/playback", get(playback_manifest))
         .route(
-            "/{recording_id}/segments/{segment_id}/data.rrd",
-            get(playback_segment),
-        )
-        .route(
             "/{recording_id}/segments/{segment_id}/live.rrd",
             get(playback_live_segment),
         )
         .layer(middleware::from_fn_with_state(auth_state, authenticate));
+    let redap = tonic::service::Routes::new(RerunCloudServiceServer::new(
+        state.playback.scoped_redap_service(),
+    ))
+    .into_axum_router()
+    .layer(tonic_web::GrpcWebLayer::new())
+    .with_state::<Arc<AppState>>(());
     let router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(ready))
         .nest("/mcp", mcp)
         .nest("/recordings", playback)
+        .merge(redap)
         .with_state(state)
         .layer(
             TraceLayer::new_for_http()

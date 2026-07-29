@@ -43,6 +43,7 @@ stringData:
   simulation-view-pose-control-token: development-pose-control-token-000000000000000
   refresh-delivery-key-b64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
   console-session-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+  recording-playback-token-key: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=
 ---
 # This key matches `test-key` in showcase/sumo/deploy/jwks.json. It is a
 # disposable loopback-development credential, never a shared-cluster secret.

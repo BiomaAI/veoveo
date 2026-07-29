@@ -50,6 +50,11 @@ Create the gateway refresh-delivery key inside that boundary with
 `global.existingSecret`. It must decode to exactly
 32 bytes and must not reuse any signing or console session key.
 
+Create the recording-scoped Redap key independently with
+`openssl rand -base64 32`. Store it under `recording-playback-token-key` in
+`global.existingSecret`. It must decode to exactly 32 bytes and must not reuse
+the refresh-delivery, gateway signing, object-store, or Console session keys.
+
 The offline deployment keeps the same default five-second
 `VEOVEO_REFRESH_DELIVERY_WINDOW_SECONDS` /
 `gateway.refreshDeliveryWindowSeconds` behavior as a connected installation.

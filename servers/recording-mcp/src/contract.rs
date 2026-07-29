@@ -88,31 +88,35 @@ pub struct SealRecordingOutput {
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct PlaybackManifest {
+    pub schema: String,
     pub recording_id: String,
     pub application_id: String,
     pub recording_key: String,
     pub state: String,
     pub started_at: String,
     pub ended_at: Option<String>,
-    pub archive: PlaybackArchive,
+    pub access: PlaybackAccess,
+    pub archive: Option<PlaybackArchive>,
     pub live: Option<PlaybackLiveSegment>,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
-pub struct PlaybackArchive {
-    pub rrd_version: String,
-    pub optimization_profile: String,
-    pub segments: Vec<PlaybackSegment>,
+pub struct PlaybackAccess {
+    pub session_id: String,
+    pub redap_token: String,
+    pub expires_at: String,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
-pub struct PlaybackSegment {
+pub struct PlaybackArchive {
+    pub uri: String,
+    pub dataset_id: String,
     pub segment_id: String,
-    pub ordinal: i64,
+    pub revision: String,
+    pub rrd_version: String,
+    pub optimization_profile: String,
     pub byte_len: u64,
-    pub sha256: String,
-    pub started_at: Option<String>,
-    pub ended_at: Option<String>,
+    pub layer_count: usize,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]

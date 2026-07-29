@@ -116,8 +116,9 @@ their pinned upstream runtime and LuST scenario through the layer cache; the
 cluster pulls only missing blobs into containerd.
 
 [`development-resources.yaml`](development-resources.yaml) contains public,
-fixed development credentials. It is valid only for this loopback cluster. A
-shared cluster must use operator-created Secrets instead.
+fixed development credentials, including the recording-scoped Redap signing
+key. It is valid only for this loopback cluster. A shared cluster must use
+operator-created Secrets instead.
 
 Useful control commands remain standard Kubernetes operations:
 

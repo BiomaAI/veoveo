@@ -980,6 +980,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "VEOVEO_CARGO_PACKAGES",
         "VEOVEO_CARGO_BINARIES",
         "cargo_args=(build --release --locked)",
+        "--features veoveo-recording-mcp/redap",
     ] {
         contains(&workspace_builder, expected)?;
     }

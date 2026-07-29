@@ -18,9 +18,8 @@ use veoveo_recording_hub::{
 };
 
 use crate::contract::{
-    ManifestSegment, PlaybackArchive, PlaybackLiveSegment, PlaybackManifest, PlaybackSegment,
-    QueryRecordingOutput, QueryRecordingRequest, RecordingManifest, RecordingView,
-    SealRecordingOutput, SegmentView,
+    ManifestSegment, PlaybackLiveSegment, QueryRecordingOutput, QueryRecordingRequest,
+    RecordingManifest, RecordingView, SealRecordingOutput, SegmentView,
 };
 
 mod read;
@@ -35,6 +34,33 @@ const DEFAULT_LIVE_HISTORY_SECONDS: u64 = 60;
 const LIVE_VIDEO_PREROLL_SECONDS: u64 = 2;
 const RRD_MIME: &str = "application/vnd.rerun.rrd";
 const MANIFEST_MIME: &str = "application/vnd.veoveo.recording-manifest+json";
+
+#[derive(Clone, Debug)]
+pub struct RecordingPlaybackPlan {
+    pub recording_id: RecordingId,
+    pub application_id: String,
+    pub recording_key: String,
+    pub state: RecordingState,
+    pub started_at: chrono::DateTime<Utc>,
+    pub ended_at: Option<chrono::DateTime<Utc>>,
+    pub archive_segments: Vec<PlaybackArchiveSegmentPlan>,
+    pub live: Option<PlaybackLiveSegmentPlan>,
+}
+
+#[derive(Clone, Debug)]
+pub struct PlaybackArchiveSegmentPlan {
+    pub segment_id: SegmentId,
+    pub ordinal: i64,
+    pub byte_len: u64,
+    pub sha256: String,
+    pub path: PathBuf,
+}
+
+#[derive(Clone, Debug)]
+pub struct PlaybackLiveSegmentPlan {
+    pub descriptor: PlaybackLiveSegment,
+    pub path: PathBuf,
+}
 
 #[derive(Clone)]
 pub struct RecordingService {
@@ -179,11 +205,11 @@ impl RecordingService {
         ))
     }
 
-    pub async fn playback_manifest(
+    pub async fn playback_plan(
         &self,
         identity: &GatewayInternalIdentity,
         recording_id: RecordingId,
-    ) -> Result<Option<PlaybackManifest>> {
+    ) -> Result<Option<RecordingPlaybackPlan>> {
         let authority = RecordingReadAuthority::from_gateway(identity);
         let Some(plan) = self.read_plan(&authority, recording_id).await? else {
             return Ok(None);
@@ -196,16 +222,15 @@ impl RecordingService {
             .iter()
             .filter(|segment| matches!(segment.state, SegmentState::Frozen | SegmentState::Sealed))
             .map(|segment| {
-                Ok(PlaybackSegment {
-                    segment_id: segment.segment_id.to_string(),
+                Ok(PlaybackArchiveSegmentPlan {
+                    segment_id: segment.segment_id,
                     ordinal: segment.ordinal,
                     byte_len: segment.byte_len,
                     sha256: segment
                         .sha256
                         .clone()
                         .context("playback segment is missing sha256")?,
-                    started_at: segment.started_at.map(|value| value.to_rfc3339()),
-                    ended_at: segment.ended_at.map(|value| value.to_rfc3339()),
+                    path: segment.path.clone(),
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -215,68 +240,28 @@ impl RecordingService {
             .filter(|segment| segment.state == SegmentState::Writing)
             .max_by_key(|segment| segment.ordinal)
             .map(|segment| {
-                Ok::<_, anyhow::Error>(PlaybackLiveSegment {
-                    segment_id: segment.segment_id.to_string(),
-                    ordinal: segment.ordinal,
-                    current_byte_len: live_segment_byte_len(&segment.path)?,
-                    history_seconds: self.live_history_seconds,
-                    video_preroll_seconds: LIVE_VIDEO_PREROLL_SECONDS,
+                Ok::<_, anyhow::Error>(PlaybackLiveSegmentPlan {
+                    descriptor: PlaybackLiveSegment {
+                        segment_id: segment.segment_id.to_string(),
+                        ordinal: segment.ordinal,
+                        current_byte_len: live_segment_byte_len(&segment.path)?,
+                        history_seconds: self.live_history_seconds,
+                        video_preroll_seconds: LIVE_VIDEO_PREROLL_SECONDS,
+                    },
+                    path: segment.path.clone(),
                 })
             })
             .transpose()?;
-        Ok(Some(PlaybackManifest {
-            recording_id: recording_id.to_string(),
+        Ok(Some(RecordingPlaybackPlan {
+            recording_id,
             application_id: plan.application_id,
             recording_key: plan.recording_key,
-            state: recording_state(plan.state).to_owned(),
-            started_at: recording.started_at.to_rfc3339(),
-            ended_at: recording.ended_at.map(|value| value.to_rfc3339()),
-            archive: PlaybackArchive {
-                rrd_version: "0.35.0".to_owned(),
-                optimization_profile: "object-store".to_owned(),
-                segments,
-            },
+            state: plan.state,
+            started_at: recording.started_at,
+            ended_at: recording.ended_at,
+            archive_segments: segments,
             live,
         }))
-    }
-
-    pub async fn playback_segment_path(
-        &self,
-        identity: &GatewayInternalIdentity,
-        recording_id: RecordingId,
-        segment_id: SegmentId,
-    ) -> Result<Option<PathBuf>> {
-        let authority = RecordingReadAuthority::from_gateway(identity);
-        let Some(plan) = self.read_plan(&authority, recording_id).await? else {
-            return Ok(None);
-        };
-        Ok(plan
-            .segments
-            .into_iter()
-            .find(|segment| {
-                segment.segment_id == segment_id
-                    && matches!(segment.state, SegmentState::Frozen | SegmentState::Sealed)
-            })
-            .map(|segment| segment.path))
-    }
-
-    pub async fn playback_live_segment_path(
-        &self,
-        identity: &GatewayInternalIdentity,
-        recording_id: RecordingId,
-        segment_id: SegmentId,
-    ) -> Result<Option<PathBuf>> {
-        let authority = RecordingReadAuthority::from_gateway(identity);
-        let Some(plan) = self.read_plan(&authority, recording_id).await? else {
-            return Ok(None);
-        };
-        Ok(plan
-            .segments
-            .into_iter()
-            .find(|segment| {
-                segment.segment_id == segment_id && segment.state == SegmentState::Writing
-            })
-            .map(|segment| segment.path))
     }
 
     pub async fn query(

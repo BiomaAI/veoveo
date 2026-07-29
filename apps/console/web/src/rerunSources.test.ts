@@ -3,53 +3,69 @@ import test from "node:test";
 
 import { planRerunSourceTransition } from "./rerunSources.ts";
 
-test("opens complete archive history in one receiver set", () => {
+test("opens one lazy Redap archive receiver", () => {
   const transition = planRerunSourceTransition(
-    { archiveUrls: new Set() },
-    { archiveUrls: ["archive-0", "archive-1"] }
+    {},
+    {
+      redapToken: "token-a",
+      archive: { uri: "rerun://archive", revision: "revision-a" },
+    }
   );
 
-  assert.deepEqual(transition.archiveUrlsToOpen, ["archive-0", "archive-1"]);
-  assert.equal(transition.liveUrlToOpen, undefined);
-  assert.deepEqual(transition.urlsToClose, []);
+  assert.equal(transition.credentialsChanged, true);
+  assert.equal(transition.archiveUrlToOpen, "rerun://archive");
+  assert.equal(transition.archiveUrlToCloseBeforeOpen, undefined);
+  assert.deepEqual(transition.urlsToCloseAfterOpen, []);
 });
 
-test("rollover attaches frozen history and successor live source before detaching", () => {
+test("rollover attaches archive and successor live source before detaching old live", () => {
   const transition = planRerunSourceTransition(
-    { archiveUrls: new Set(["archive-0"]), liveUrl: "live-1" },
+    { redapToken: "token-a", liveUrl: "live-1" },
     {
-      archiveUrls: ["archive-0", "archive-1"],
+      redapToken: "token-a",
+      archive: { uri: "rerun://archive", revision: "revision-a" },
       liveUrl: "live-2",
     }
   );
 
-  assert.deepEqual(transition.archiveUrlsToOpen, ["archive-1"]);
+  assert.equal(transition.archiveUrlToOpen, "rerun://archive");
   assert.equal(transition.liveUrlToOpen, "live-2");
-  assert.deepEqual(transition.urlsToClose, ["live-1"]);
-  assert.deepEqual([...transition.next.archiveUrls], ["archive-0", "archive-1"]);
+  assert.deepEqual(transition.urlsToCloseAfterOpen, ["live-1"]);
 });
 
-test("stable playback-session renewal does not churn receivers", () => {
+test("new immutable layers refresh the same stable archive receiver", () => {
   const transition = planRerunSourceTransition(
-    { archiveUrls: new Set(["archive-0"]), liveUrl: "live-1" },
-    { archiveUrls: ["archive-0"], liveUrl: "live-1" }
-  );
-
-  assert.deepEqual(transition.archiveUrlsToOpen, []);
-  assert.equal(transition.liveUrlToOpen, undefined);
-  assert.deepEqual(transition.urlsToClose, []);
-});
-
-test("an expired playback session replaces sources without remounting the viewer", () => {
-  const transition = planRerunSourceTransition(
-    { archiveUrls: new Set(["session-a/archive-0"]), liveUrl: "session-a/live-1" },
     {
-      archiveUrls: ["session-b/archive-0"],
-      liveUrl: "session-b/live-1",
+      redapToken: "token-a",
+      archive: { uri: "rerun://archive", revision: "revision-a" },
+    },
+    {
+      redapToken: "token-a",
+      archive: { uri: "rerun://archive", revision: "revision-b" },
     }
   );
 
-  assert.deepEqual(transition.archiveUrlsToOpen, ["session-b/archive-0"]);
-  assert.equal(transition.liveUrlToOpen, "session-b/live-1");
-  assert.deepEqual(transition.urlsToClose, ["session-a/archive-0", "session-a/live-1"]);
+  assert.equal(transition.archiveUrlToCloseBeforeOpen, "rerun://archive");
+  assert.equal(transition.archiveUrlToOpen, "rerun://archive");
+  assert.deepEqual(transition.urlsToCloseAfterOpen, []);
+});
+
+test("session renewal updates credentials without churning receivers", () => {
+  const transition = planRerunSourceTransition(
+    {
+      redapToken: "token-a",
+      archive: { uri: "rerun://archive", revision: "revision-a" },
+      liveUrl: "live-1",
+    },
+    {
+      redapToken: "token-b",
+      archive: { uri: "rerun://archive", revision: "revision-a" },
+      liveUrl: "live-1",
+    }
+  );
+
+  assert.equal(transition.credentialsChanged, true);
+  assert.equal(transition.archiveUrlToOpen, undefined);
+  assert.equal(transition.liveUrlToOpen, undefined);
+  assert.deepEqual(transition.urlsToCloseAfterOpen, []);
 });

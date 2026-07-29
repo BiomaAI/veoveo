@@ -18,7 +18,7 @@ use bytes::Bytes;
 use re_build_info::CrateVersion;
 use re_chunk::Chunk;
 use re_log_encoding::{Decoder, EncodingOptions, rrd::Encoder};
-use re_log_types::LogMsg;
+use re_log_types::{LogMsg, StoreId};
 use tokio::sync::mpsc;
 use veoveo_recording_hub::{
     ingest_part_sequence, ingest_segment_parts_directory, ingest_stream_static_context_path,
@@ -26,14 +26,18 @@ use veoveo_recording_hub::{
 
 pub type LiveRrdReceiver = mpsc::Receiver<Result<Bytes, io::Error>>;
 
-pub fn stream_live_rrd(segment_path: PathBuf, history: Duration) -> LiveRrdReceiver {
+pub fn stream_live_rrd(
+    segment_path: PathBuf,
+    history: Duration,
+    playback_store_id: StoreId,
+) -> LiveRrdReceiver {
     let (sender, receiver) = mpsc::channel(32);
     tokio::task::spawn_blocking(move || {
         let error_sender = sender.clone();
         let result = if segment_path.exists() {
-            stream_growing_file(&segment_path, history, sender)
+            stream_growing_file(&segment_path, history, &playback_store_id, sender)
         } else {
-            stream_ingest_parts(&segment_path, history, sender)
+            stream_ingest_parts(&segment_path, history, &playback_store_id, sender)
         };
         if let Err(error) = result {
             let _ = error_sender.blocking_send(Err(io::Error::other(error.to_string())));
@@ -45,6 +49,7 @@ pub fn stream_live_rrd(segment_path: PathBuf, history: Duration) -> LiveRrdRecei
 fn stream_growing_file(
     path: &Path,
     history: Duration,
+    playback_store_id: &StoreId,
     sender: mpsc::Sender<Result<Bytes, io::Error>>,
 ) -> Result<()> {
     let cutoff = history_cutoff(history)?;
@@ -53,7 +58,9 @@ fn stream_growing_file(
         .with_context(|| format!("opening live RRD {}", path.display()))?;
     let mut encoder = live_encoder(sender)?;
     for message in decoder {
-        let message = message.with_context(|| format!("decoding live RRD {}", path.display()))?;
+        let mut message =
+            message.with_context(|| format!("decoding live RRD {}", path.display()))?;
+        message.set_store_id(playback_store_id.clone());
         if message_is_in_live_window(&message, cutoff)? {
             encoder.append(&message)?;
             encoder.flush_blocking()?;
@@ -67,6 +74,7 @@ fn stream_growing_file(
 fn stream_ingest_parts(
     segment_path: &Path,
     history: Duration,
+    playback_store_id: &StoreId,
     sender: mpsc::Sender<Result<Bytes, io::Error>>,
 ) -> Result<()> {
     let parts_directory = ingest_segment_parts_directory(segment_path);
@@ -83,9 +91,11 @@ fn stream_ingest_parts(
             format!("decoding live static context {}", static_context.display())
         })?;
         for message in decoder {
-            encoder.append(&message.with_context(|| {
+            let mut message = message.with_context(|| {
                 format!("decoding live static context {}", static_context.display())
-            })?)?;
+            })?;
+            message.set_store_id(playback_store_id.clone());
+            encoder.append(&message)?;
         }
         encoder.flush_blocking()?;
     }
@@ -118,9 +128,10 @@ fn stream_ingest_parts(
             let decoder = Decoder::<LogMsg>::decode_eager(BufReader::new(file))
                 .with_context(|| format!("decoding live ingest part {}", part.path.display()))?;
             for message in decoder {
-                let message = message.with_context(|| {
+                let mut message = message.with_context(|| {
                     format!("decoding live ingest part {}", part.path.display())
                 })?;
+                message.set_store_id(playback_store_id.clone());
                 if message_is_in_live_window(&message, cutoff)? {
                     encoder.append(&message)?;
                 }
@@ -320,7 +331,12 @@ mod tests {
             .unwrap();
         }
 
-        let mut receiver = stream_live_rrd(segment_path, Duration::from_secs(60));
+        let playback_store_id = StoreId::recording("playback-dataset", "run-a");
+        let mut receiver = stream_live_rrd(
+            segment_path,
+            Duration::from_secs(60),
+            playback_store_id.clone(),
+        );
         let mut streamed = Vec::new();
         loop {
             match tokio::time::timeout(Duration::from_millis(250), receiver.recv()).await {
@@ -343,6 +359,11 @@ mod tests {
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
         assert_eq!(decoded.len(), 4);
+        assert!(
+            decoded
+                .iter()
+                .all(|message| message.store_id() == &playback_store_id)
+        );
     }
 
     #[cfg(unix)]

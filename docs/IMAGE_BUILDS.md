@@ -181,6 +181,13 @@ while separate clones and incompatible SDK or libc families cannot mix target ou
 The target mount remains `sharing=locked` because a family now has one Cargo writer.
 There is no cross-image lock convoy and no fixed `--jobs` throttle.
 
+Heavy server-only dependency graphs do not become the default library graph. The
+Recording MCP binary requires its package-qualified `redap` feature, and the shared
+image builder enables that feature only when it selects the Recording MCP package.
+Stream, Reason, video, and smoke consumers of the recording library therefore avoid
+the DataFusion-backed Redap server dependencies. The all-feature Rust gate still
+compiles and tests the production surface.
+
 Every Rust family, including the isolated DeepStream, vLLM, UAV, and SUMO families,
 reads the complete workspace through the canonical read-only BuildKit source mount.
 Standalone Dockerfiles do not copy a handwritten subset of workspace members. The
