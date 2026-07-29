@@ -833,9 +833,10 @@ pub(crate) async fn helm_config() -> Result<()> {
         "group \"simulation-runtime\"",
         "group \"showcase-uav-sim\"",
         "group \"showcase-uav-sim-overlay-acceptance\"",
+        "target \"simulation-runtime-payload\"",
         "target \"simulation-overlay-acceptance\"",
         "sumo-base = \"target:sumo-base\"",
-        "simulation-runtime = \"target:simulation-runtime\"",
+        "simulation-runtime = \"target:simulation-runtime-payload\"",
         "veoveo-rust-artifacts = \"target:rust-trixie-artifacts\"",
         "veoveo-rust-artifacts = \"target:rust-bookworm-artifacts\"",
         "\"io.veoveo.build.mode\"",
@@ -847,6 +848,7 @@ pub(crate) async fn helm_config() -> Result<()> {
     ] {
         contains(&bake, expected)?;
     }
+    not_contains(&bake, "simulation-runtime = \"target:simulation-runtime\"")?;
     let image_orchestration = fs::read_to_string("tools/xtask/src/commands/image.rs")?;
     contains(&image_orchestration, "type=provenance,mode=max")?;
     contains(&image_orchestration, "type=sbom")?;
