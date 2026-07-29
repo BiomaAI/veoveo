@@ -19,7 +19,6 @@ import {
 import {
   loadRecordingPlayback,
   recordingLiveSegmentUrl,
-  recordingSegmentUrl,
 } from "../api";
 import { EmptyState, SectionHeader, StatusPill } from "../components/primitives";
 import { formatBytes, formatDate } from "../format";
@@ -166,8 +165,8 @@ export function RecordingsView({
     if (!resolvedSelectedId || !manifest) return;
     const currentLiveSegmentId = manifest?.live?.segment_id;
     const currentManifestState = manifest?.state;
-    const currentArchiveIds = manifest.archive.segments.map((segment) => segment.segment_id);
-    const currentPlaybackSession = manifest.playback_session;
+    const currentArchiveRevision = manifest.archive?.revision;
+    const currentPlaybackSession = manifest.access.session_id;
     let disposed = false;
     let refreshing = false;
     const refreshPlaybackManifest = async () => {
@@ -181,11 +180,9 @@ export function RecordingsView({
           disposed ||
           (value.live?.segment_id === currentLiveSegmentId &&
             value.state === currentManifestState &&
-            value.archive.segments.length === currentArchiveIds.length &&
-            value.archive.segments.every(
-              (segment, index) => segment.segment_id === currentArchiveIds[index]
-            ) &&
-            value.playback_session === currentPlaybackSession)
+            value.archive?.revision === currentArchiveRevision &&
+            value.access.session_id === currentPlaybackSession &&
+            value.access.redap_token === manifest.access.redap_token)
         ) {
           return;
         }
@@ -234,21 +231,24 @@ export function RecordingsView({
 
   const playbackSource = useMemo(() => {
     if (!manifest) return undefined;
-    const archiveUrls = manifest.archive.segments.map((segment) =>
-      recordingSegmentUrl(
-        manifest.recording_id,
-        manifest.playback_session,
-        segment.segment_id
-      )
-    );
     const liveUrl = manifest.live
       ? recordingLiveSegmentUrl(
           manifest.recording_id,
-          manifest.playback_session,
           manifest.live.segment_id
         )
       : undefined;
-    return archiveUrls.length > 0 || liveUrl ? { archiveUrls, liveUrl } : undefined;
+    return manifest.archive || liveUrl
+      ? {
+          redapToken: manifest.access.redap_token,
+          archive: manifest.archive
+            ? {
+                uri: manifest.archive.uri,
+                revision: manifest.archive.revision,
+              }
+            : undefined,
+          liveUrl,
+        }
+      : undefined;
   }, [manifest]);
 
   return (
@@ -409,20 +409,20 @@ export function RecordingsView({
                   <summary>Details</summary>
                   <div className="recording-archive-details-panel">
                     <strong>Archive</strong>
-                    <span>
-                      {manifest.archive.segments.length} immutable part
-                      {manifest.archive.segments.length === 1 ? "" : "s"} · RRD{" "}
-                      {manifest.archive.rrd_version} · {manifest.archive.optimization_profile}
-                    </span>
-                    <ol>
-                      {manifest.archive.segments.map((segment) => (
-                        <li key={segment.segment_id}>
-                          <span>Part {segment.ordinal + 1}</span>
-                          <span>{formatBytes(segment.byte_len)}</span>
-                          <code>{segment.sha256.slice(0, 12)}</code>
-                        </li>
-                      ))}
-                    </ol>
+                    {manifest.archive ? (
+                      <>
+                        <span>
+                          {manifest.archive.layer_count} immutable layer
+                          {manifest.archive.layer_count === 1 ? "" : "s"} ·{" "}
+                          {formatBytes(manifest.archive.byte_len)} · RRD{" "}
+                          {manifest.archive.rrd_version} ·{" "}
+                          {manifest.archive.optimization_profile}
+                        </span>
+                        <code>{manifest.archive.dataset_id}</code>
+                      </>
+                    ) : (
+                      <span>Waiting for the first immutable layer.</span>
+                    )}
                   </div>
                 </details>
               </footer>
@@ -432,7 +432,7 @@ export function RecordingsView({
           <div className="recording-empty-player">
             <FileStack size={34} />
             <h2>Select a recording</h2>
-            <p>Inspect lifecycle details and open its governed RRD segments in the embedded Rerun viewer.</p>
+            <p>Inspect lifecycle details and open its governed recording in the embedded Rerun viewer.</p>
           </div>
         )}
       </section>

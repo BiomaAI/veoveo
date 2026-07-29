@@ -316,21 +316,11 @@ export async function loadRecordingPlayback(
   return response.json() as Promise<RecordingPlaybackManifest>;
 }
 
-export function recordingSegmentUrl(
-  recordingId: string,
-  playbackSession: string,
-  segmentId: string
-): string {
-  const path = `/console/api/recordings/${encodeURIComponent(recordingId)}/playback-sessions/${encodeURIComponent(playbackSession)}/segments/${encodeURIComponent(segmentId)}/data.rrd`;
-  return new URL(path, window.location.origin).toString();
-}
-
 export function recordingLiveSegmentUrl(
   recordingId: string,
-  playbackSession: string,
   segmentId: string
 ): string {
-  const path = `/console/api/recordings/${encodeURIComponent(recordingId)}/playback-sessions/${encodeURIComponent(playbackSession)}/segments/${encodeURIComponent(segmentId)}/live.rrd`;
+  const path = `/console/api/recordings/${encodeURIComponent(recordingId)}/live/${encodeURIComponent(segmentId)}.rrd`;
   return new URL(path, window.location.origin).toString();
 }
 

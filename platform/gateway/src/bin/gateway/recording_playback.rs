@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, time::Instant};
 use axum::{
     body::Body,
     extract::{Extension, Path, State},
-    http::{HeaderMap, Method, StatusCode, header},
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
 use chrono::{TimeDelta, Utc};
@@ -17,18 +17,18 @@ use crate::runtime::{RecordingPlaybackState, current_catalog};
 
 const RECORDING_SERVER: &str = "recording";
 const INTERNAL_PLAYBACK_TOKEN_TTL_SECONDS: i64 = 60;
+const PLAYBACK_SESSION_HEADER: &str = "x-veoveo-playback-session";
 
 #[derive(Clone, Debug)]
 enum PlaybackSource {
     Manifest,
-    FrozenSegment(String),
     LiveSegment(String),
 }
 
 impl PlaybackSource {
     fn segment_id(&self) -> Option<&str> {
         match self {
-            Self::FrozenSegment(segment_id) | Self::LiveSegment(segment_id) => Some(segment_id),
+            Self::LiveSegment(segment_id) => Some(segment_id),
             Self::Manifest => None,
         }
     }
@@ -36,7 +36,6 @@ impl PlaybackSource {
     fn mode(&self) -> &'static str {
         match self {
             Self::Manifest => "manifest",
-            Self::FrozenSegment(_) => "frozen-segment",
             Self::LiveSegment(_) => "live-segment",
         }
     }
@@ -44,9 +43,6 @@ impl PlaybackSource {
     fn upstream_path(&self, recording_id: &str) -> String {
         match self {
             Self::Manifest => format!("/recordings/{recording_id}/playback"),
-            Self::FrozenSegment(segment_id) => {
-                format!("/recordings/{recording_id}/segments/{segment_id}/data.rrd")
-            }
             Self::LiveSegment(segment_id) => {
                 format!("/recordings/{recording_id}/segments/{segment_id}/live.rrd")
             }
@@ -66,26 +62,6 @@ pub(super) async fn playback_manifest(
         recording_id,
         PlaybackSource::Manifest,
         subject,
-        Method::GET,
-        headers,
-    )
-    .await
-}
-
-pub(super) async fn playback_segment(
-    State(state): State<RecordingPlaybackState>,
-    Path((profile, recording_id, segment_id)): Path<(String, String, String)>,
-    Extension(subject): Extension<AuthenticatedSubject>,
-    method: Method,
-    headers: HeaderMap,
-) -> Response {
-    proxy_playback(
-        state,
-        profile,
-        recording_id,
-        PlaybackSource::FrozenSegment(segment_id),
-        subject,
-        method,
         headers,
     )
     .await
@@ -95,8 +71,6 @@ pub(super) async fn playback_live_segment(
     State(state): State<RecordingPlaybackState>,
     Path((profile, recording_id, segment_id)): Path<(String, String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    method: Method,
-    headers: HeaderMap,
 ) -> Response {
     proxy_playback(
         state,
@@ -104,8 +78,7 @@ pub(super) async fn playback_live_segment(
         recording_id,
         PlaybackSource::LiveSegment(segment_id),
         subject,
-        method,
-        headers,
+        HeaderMap::new(),
     )
     .await
 }
@@ -116,7 +89,6 @@ async fn proxy_playback(
     recording_id: String,
     source: PlaybackSource,
     subject: AuthenticatedSubject,
-    method: Method,
     headers: HeaderMap,
 ) -> Response {
     let started_at = Instant::now();
@@ -233,20 +205,11 @@ async fn proxy_playback(
     let path = source.upstream_path(&recording_id);
     url.set_path(&path);
     url.set_query(None);
-    let mut request = client
-        .request(method, url)
-        .bearer_auth(internal_token.bearer_token);
-    for name in [
-        header::RANGE,
-        header::IF_RANGE,
-        header::IF_MATCH,
-        header::IF_NONE_MATCH,
-        header::IF_MODIFIED_SINCE,
-        header::IF_UNMODIFIED_SINCE,
-    ] {
-        if let Some(value) = headers.get(&name) {
-            request = request.header(name, value);
-        }
+    let mut request = client.get(url).bearer_auth(internal_token.bearer_token);
+    if matches!(source, PlaybackSource::Manifest)
+        && let Some(value) = headers.get(PLAYBACK_SESSION_HEADER)
+    {
+        request = request.header(PLAYBACK_SESSION_HEADER, value);
     }
     let upstream = match request.send().await {
         Ok(response) => response,
@@ -262,15 +225,11 @@ fn proxy_response(upstream: reqwest::Response) -> Response {
     let status = upstream.status();
     let mut headers = HeaderMap::new();
     for name in [
-        header::CONTENT_TYPE,
-        header::CONTENT_LENGTH,
-        header::CONTENT_RANGE,
-        header::ACCEPT_RANGES,
-        header::CACHE_CONTROL,
-        header::ETAG,
-        header::LAST_MODIFIED,
-        header::CONTENT_DISPOSITION,
-        header::X_CONTENT_TYPE_OPTIONS,
+        axum::http::header::CONTENT_TYPE,
+        axum::http::header::CONTENT_LENGTH,
+        axum::http::header::CACHE_CONTROL,
+        axum::http::header::CONTENT_DISPOSITION,
+        axum::http::header::X_CONTENT_TYPE_OPTIONS,
     ] {
         if let Some(value) = upstream.headers().get(&name) {
             headers.insert(name, value.clone());
@@ -278,10 +237,10 @@ fn proxy_response(upstream: reqwest::Response) -> Response {
     }
     if let Some(value) = upstream
         .headers()
-        .get(header::HeaderName::from_static("x-accel-buffering"))
+        .get(axum::http::HeaderName::from_static("x-accel-buffering"))
     {
         headers.insert(
-            header::HeaderName::from_static("x-accel-buffering"),
+            axum::http::HeaderName::from_static("x-accel-buffering"),
             value.clone(),
         );
     }

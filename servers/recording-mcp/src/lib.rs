@@ -2,11 +2,13 @@
 
 pub mod contract;
 pub mod live_playback;
+#[cfg(feature = "redap")]
+pub mod playback;
 pub mod service;
 pub mod uris;
 
 pub use service::{
-    MaterializedRecordingReadSnapshot, RecordingReadAuthority, RecordingReadPlan,
-    RecordingReadSegment, RecordingReadSnapshot, RecordingReadSource, RecordingReadSourceKind,
-    RecordingService,
+    MaterializedRecordingReadSnapshot, PlaybackArchiveSegmentPlan, PlaybackLiveSegmentPlan,
+    RecordingPlaybackPlan, RecordingReadAuthority, RecordingReadPlan, RecordingReadSegment,
+    RecordingReadSnapshot, RecordingReadSource, RecordingReadSourceKind, RecordingService,
 };

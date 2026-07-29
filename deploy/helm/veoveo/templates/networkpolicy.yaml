@@ -295,6 +295,9 @@ spec:
           - artifact-service
           - media-mcp
           - object-store
+          {{- if include "veoveo.mcpServerEnabled" (list . "recording") }}
+          - recording
+          {{- end }}
           {{- if include "veoveo.mcpServerEnabled" (list . "simulation-view") }}
           - simulation-view-mcp
           {{- end }}
@@ -311,6 +314,10 @@ spec:
           port: 8787
         - protocol: TCP
           port: 9000
+        {{- if include "veoveo.mcpServerEnabled" (list . "recording") }}
+        - protocol: TCP
+          port: 8796
+        {{- end }}
         {{- if include "veoveo.mcpServerEnabled" (list . "simulation-view") }}
         - protocol: TCP
           port: {{ .Values.simulationView.ports.mcp }}

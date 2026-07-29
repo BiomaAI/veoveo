@@ -154,7 +154,7 @@ The platform chart expects these Secret contracts by default:
 |---|---|
 | veoveo-surreal-admin | username, password |
 | veoveo-surreal-runtime | username, password |
-| veoveo-installation-secrets | internal-signing-key-der-b64, internal-signing-key-id, internal-trust-jwks, oidc-client-secret, authorization-server-private-key-der-b64, refresh-delivery-key-b64, console-session-key, object-store-access-key, object-store-secret-key, media-provider-api-key, google-maps-api-key, media-provider-webhook-secret, simulation-view-renderer-control-token, simulation-view-pose-control-token |
+| veoveo-installation-secrets | internal-signing-key-der-b64, internal-signing-key-id, internal-trust-jwks, oidc-client-secret, authorization-server-private-key-der-b64, refresh-delivery-key-b64, console-session-key, recording-playback-token-key, object-store-access-key, object-store-secret-key, media-provider-api-key, google-maps-api-key, media-provider-webhook-secret, simulation-view-renderer-control-token, simulation-view-pose-control-token |
 | simulation-view-pose-tls | tls.crt.der, tls.key.der, ca.crt.der |
 
 An extension declares its own least-privilege Secret references. It does not add
@@ -163,6 +163,10 @@ credentials use a Kubernetes image pull Secret selected through Helm values.
 
 Argo CD repository credentials are also platform Secrets. They authorize Argo to read
 the enterprise Git and OCI repositories; they are not application credentials.
+
+`recording-playback-token-key` is independent base64 text that decodes to exactly
+32 random bytes. It signs only recording-scoped Redap read tokens and must not reuse a
+gateway, refresh-delivery, Console session, object-store, or provider key.
 
 ## Controller boundary
 

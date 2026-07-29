@@ -10,32 +10,55 @@ path = "src/lib.rs"
 [[bin]]
 name = "recording-mcp"
 path = "src/bin/server.rs"
+required-features = ["redap"]
+
+[features]
+default = []
+redap = [
+    "dep:base64",
+    "dep:re_auth",
+    "dep:re_protos",
+    "dep:re_server",
+    "dep:re_tuid",
+    "dep:re_uri",
+    "dep:tonic",
+    "dep:tonic-web",
+]
 
 [dependencies]
 anyhow.workspace = true
 axum.workspace = true
-base64.workspace = true
+base64 = { workspace = true, optional = true }
 bytes.workspace = true
 chrono.workspace = true
 clap.workspace = true
 futures.workspace = true
 re_build_info.workspace = true
+re_auth = { workspace = true, optional = true }
 re_chunk.workspace = true
 re_log_encoding.workspace = true
 re_log_types.workspace = true
+re_protos = { workspace = true, optional = true }
+re_server = { workspace = true, optional = true }
+re_tuid = { workspace = true, optional = true }
+re_uri = { workspace = true, optional = true }
 rmcp = { workspace = true, features = ["server", "transport-streamable-http-server"] }
 rustls.workspace = true
 schemars.workspace = true
 secrecy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal", "fs", "io-util", "sync", "time"] }
 tokio-util.workspace = true
+tonic = { workspace = true, optional = true }
+tonic-web = { workspace = true, optional = true }
 tower-http.workspace = true
 tower.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 tempfile = "=3.27.0"
+url.workspace = true
 uuid = { workspace = true, features = ["serde", "v7"] }
 veoveo-artifact-client = { path = "../../platform/artifacts/client" }
 veoveo-mcp-contract.workspace = true

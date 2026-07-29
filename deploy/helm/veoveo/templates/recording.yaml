@@ -166,6 +166,13 @@ spec:
             - {{ .Values.recording.liveHistorySeconds | quote }}
           env:
             {{- include "veoveo.commonEnv" . | nindent 12 }}
+            - name: RECORDING_PLAYBACK_PUBLIC_URL
+              value: {{ trimSuffix "/" .Values.global.publicBaseUrl | quote }}
+            - name: RECORDING_PLAYBACK_TOKEN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.existingSecret }}
+                  key: recording-playback-token-key
             - name: OTEL_SERVICE_NAME
               value: veoveo-recording-mcp
           ports:

@@ -1,5 +1,16 @@
 # Governed recordings
 
+## Standards And Protocols
+
+| Standard or protocol | Recording profile |
+|---|---|
+| Rerun 0.35.0 gRPC and RRD | Producer-local ingestion and immutable `object-store`-optimized shards with footer manifests. |
+| Rerun Data Protocol `rerun.cloud.v1alpha1` | Recording-scoped read subset over HTTP/2 and gRPC-Web. Veoveo does not expose a general Rerun catalog or mutation surface. |
+| Veoveo recording ingest `2026-07-24` | Authenticated protobuf batches preserve native Rerun messages, order, idempotency, and IDR-aligned rollover. |
+| Veoveo recording playback `v2` | `veoveo.io/recording-playback/v2` binds one lazy archive dataset, one optional bounded live source, catalog revision, and scoped session. |
+| H.264/AVC Annex B | Decoder-reentrant `VideoStream` access units, sparse keyframe markers, and exact producer timeline indices. |
+| JSON Web Token and SHA-256 | Host-limited Redap read access and immutable shard, layer-revision, and artifact identities. |
+
 Recording ingest begins at a producer-local forwarder. Native Rerun gRPC stays
 on `127.0.0.1:9876`; the forwarder journals bounded batches and sends the
 authenticated protobuf protocol through the gateway. Recording Hub receives
@@ -49,23 +60,37 @@ while publishing the durable outbox event in the same SurrealDB transaction.
 boundary, and `sealed_at` records later publication. These timestamps are not
 interchangeable.
 
-The recording server also owns authenticated HTTP playback routes beside its MCP
-surface. The gateway applies the same recording resource policy and audit path,
-then issues a short-lived internal assertion. An authenticated manifest request
-lets the Console BFF establish a renewable five-minute opaque playback session
-scoped to one recording. Active replay renews that session every minute, while
-live manifest refreshes renew it every five seconds. Each renewal rechecks the
-recording policy and replaces the upstream access token without changing source
-URLs. The session identifier contains no bearer or filesystem identity.
+The recording server owns an authenticated playback manifest and bounded live
+route beside its MCP surface. The gateway applies the canonical recording
+resource policy and audit path, then issues a short-lived internal assertion.
+The BFF authenticates each Console request and passes the manifest through. It
+does not retain playback sessions or proxy archive bytes.
 
-Completed playback attaches every authorized immutable shard URL to one
-persistent Rerun viewer. Each shard retains the logical recording's Rerun store
-identity, so Rerun presents their indexed rows on one timeline. The BFF and
-gateway preserve byte-range and conditional-read headers, while `recording-mcp`
-serves each file without decoding it. The manifest lists every shard with its
-ordinal, wall-clock bounds, length, and digest. Shard details remain available
-for archive inspection; they are not playback controls. There is no
-whole-recording RRD concatenation endpoint.
+Playback manifest `veoveo.io/recording-playback/v2` establishes a renewable
+five-minute server session scoped to one recording and actor. It returns a
+Rerun-compatible read token whose standard Redap claims limit delivery to the
+installation hostname. Active replay renews the session every minute, while
+live manifest refreshes renew it every five seconds. Each renewal rechecks
+recording policy. The opaque session identifier contains no bearer, catalog, or
+filesystem identity.
+
+Completed playback opens one stable Rerun Data Protocol dataset-segment URI.
+The recording UUIDv7 supplies the exact dataset id. The producer's logical
+recording id supplies the segment id, and each immutable Hub shard becomes a
+named layer of that segment. `recording-mcp` verifies this identity when it
+registers a layer. The manifest carries a deterministic revision over the
+ordered layer names, content digests, and lengths. A newly frozen shard changes
+the revision without changing the archive URI.
+
+The browser connects directly to a same-origin, recording-scoped Redap service.
+That service permits only the Rerun viewer's read operations and denies catalog
+enumeration, mutation, registration, table, task, and maintenance methods.
+Rerun reads each shard's footer manifest, then fetches chunks as the active
+timeline and view require them. It does not download every archive shard when a
+recording opens. The derived Rerun catalog is a bounded in-memory projection;
+the durable Veoveo catalog and immutable RRD files rebuild it after restart or
+eviction. There are no archive-byte proxy routes and no whole-recording RRD
+concatenation endpoint.
 
 Live playback is a distinct governed projection. The manifest identifies the
 current writing segment and declares the configured history window. The
@@ -77,16 +102,20 @@ snapshot and recent parts instead of scanning the full active hour. Direct nativ
 writers are decoded through the same temporal filter while the decoder follows
 the growing file.
 
-Rerun opens frozen archive sources with HTTP following disabled and the current
-live response with following enabled. Camera and telemetry therefore appear
-before shard freeze while earlier history stays on the same timeline. The
-canonical camera producer emits the IDR first at each GoP timestamp, then
-reasserts pinhole metadata. Its one-second GoP bounds rollover delay and supplies
-the declared live preroll. Once the producer's world is ready, diagnostic image
-quality does not interrupt encoding or the IDR cadence. At rollover, Console
-attaches the newly frozen
-archive and successor live source before detaching the old live receiver. The
-persistent viewer retains its layout, selection, and timeline state.
+Rerun opens the lazy archive dataset and the current live HTTP response in one
+viewer. Recording MCP rewrites every live message to the archive dataset and
+segment identity, so camera and telemetry appear before shard freeze while
+earlier history remains on the same timeline. The canonical camera producer
+emits the IDR first at each GoP timestamp, then reasserts pinhole metadata. Its
+one-second GoP bounds rollover delay and supplies the declared live preroll.
+Once the producer's world is ready, diagnostic image quality does not interrupt
+encoding or the IDR cadence.
+
+At rollover, the live response ends. Console refreshes the stable archive URI
+when its revision changes, opens the successor live response, then detaches the
+prior receiver. The persistent viewer retains its layout, selection, and
+timeline state. Token renewal updates viewer credentials without reopening
+either source.
 
 Governed queries and bounded analysis use the same acknowledged writing data
 without waiting for rollover. Recording MCP captures one ordered snapshot of

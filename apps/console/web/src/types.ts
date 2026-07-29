@@ -196,24 +196,27 @@ export interface RecordingSummary {
 }
 
 export interface RecordingPlaybackManifest {
+  schema: "veoveo.io/recording-playback/v2";
   recording_id: string;
   application_id: string;
   recording_key: string;
   state: RecordingSummary["state"];
   started_at: string;
   ended_at?: string;
-  playback_session: string;
-  archive: {
+  access: {
+    session_id: string;
+    redap_token: string;
+    expires_at: string;
+  };
+  archive?: {
+    uri: string;
+    dataset_id: string;
+    segment_id: string;
+    revision: string;
     rrd_version: string;
     optimization_profile: string;
-    segments: Array<{
-      segment_id: string;
-      ordinal: number;
-      byte_len: number;
-      sha256: string;
-      started_at?: string;
-      ended_at?: string;
-    }>;
+    byte_len: number;
+    layer_count: number;
   };
   live?: {
     segment_id: string;

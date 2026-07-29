@@ -1,17 +1,26 @@
+export interface GovernedRerunArchive {
+  uri: string;
+  revision: string;
+}
+
 export interface GovernedRerunSource {
-  archiveUrls: string[];
+  redapToken: string;
+  archive?: GovernedRerunArchive;
   liveUrl?: string;
 }
 
 export interface OpenedRerunSources {
-  archiveUrls: Set<string>;
+  redapToken?: string;
+  archive?: GovernedRerunArchive;
   liveUrl?: string;
 }
 
 export interface RerunSourceTransition {
-  archiveUrlsToOpen: string[];
+  credentialsChanged: boolean;
+  archiveUrlToCloseBeforeOpen?: string;
+  archiveUrlToOpen?: string;
   liveUrlToOpen?: string;
-  urlsToClose: string[];
+  urlsToCloseAfterOpen: string[];
   next: OpenedRerunSources;
 }
 
@@ -19,25 +28,38 @@ export function planRerunSourceTransition(
   opened: OpenedRerunSources,
   desired: GovernedRerunSource
 ): RerunSourceTransition {
-  const desiredArchiveUrls = new Set(desired.archiveUrls);
-  const archiveUrlsToOpen = desired.archiveUrls.filter(
-    (url) => !opened.archiveUrls.has(url)
-  );
-  const urlsToClose = [...opened.archiveUrls].filter(
-    (url) => !desiredArchiveUrls.has(url)
-  );
+  const archiveChanged =
+    opened.archive?.uri !== desired.archive?.uri ||
+    opened.archive?.revision !== desired.archive?.revision;
+  const sameArchiveReceiverNeedsRefresh =
+    archiveChanged &&
+    opened.archive?.uri !== undefined &&
+    opened.archive.uri === desired.archive?.uri;
+  const urlsToCloseAfterOpen: string[] = [];
+  if (
+    archiveChanged &&
+    opened.archive &&
+    opened.archive.uri !== desired.archive?.uri
+  ) {
+    urlsToCloseAfterOpen.push(opened.archive.uri);
+  }
   if (opened.liveUrl && opened.liveUrl !== desired.liveUrl) {
-    urlsToClose.push(opened.liveUrl);
+    urlsToCloseAfterOpen.push(opened.liveUrl);
   }
   return {
-    archiveUrlsToOpen,
+    credentialsChanged: opened.redapToken !== desired.redapToken,
+    archiveUrlToCloseBeforeOpen: sameArchiveReceiverNeedsRefresh
+      ? opened.archive?.uri
+      : undefined,
+    archiveUrlToOpen: archiveChanged ? desired.archive?.uri : undefined,
     liveUrlToOpen:
       desired.liveUrl && desired.liveUrl !== opened.liveUrl
         ? desired.liveUrl
         : undefined,
-    urlsToClose,
+    urlsToCloseAfterOpen,
     next: {
-      archiveUrls: desiredArchiveUrls,
+      redapToken: desired.redapToken,
+      archive: desired.archive,
       liveUrl: desired.liveUrl,
     },
   };

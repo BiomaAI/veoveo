@@ -330,7 +330,7 @@ The runtime is the source of truth. The extension is transport only.
 | `admin/console/health.rs` | background MCP server health prober and cache |
 | `admin/server_proxy.rs` | generic policy-checked proxy to a hosted server's contract-defined admin API |
 | `artifact_download.rs` | authorized/audited large download proxy |
-| `recording_playback.rs` | authorized/audited recording manifest and ordered segment-byte proxy |
+| `recording_playback.rs` | authorized/audited playback-manifest and bounded-live proxy |
 | `audit.rs` | common admin authorization and operation audit helpers |
 
 `gateway.rs` remains the thin CLI/serve entrypoint.
@@ -576,13 +576,16 @@ instead of a private video path.
 
 ### `servers/recording-mcp`
 
-`contract.rs` owns query, publication, whole-recording playback, and live manifest types.
-`service.rs` owns authorized MCP and playback behavior. `live_playback.rs` retains static
-context, filters bounded temporal history, and follows direct writers or ordered ingest
-parts as one RRD stream. `uris.rs` owns recording identities, and `bin/server.rs` exposes
-authenticated range-capable archive shards and live RRD bytes beside the MCP route.
-`bin/server/state.rs` composes platform store, spool access, subscriptions, and artifact
-publication.
+`contract.rs` owns query, publication, playback-manifest v2, archive-catalog, and live
+descriptor types. `service.rs` resolves authorized MCP and playback plans.
+`playback.rs` owns stable dataset identity, bounded playback sessions, the derived
+append-only Rerun catalog, and the recording-scoped read-only Redap service.
+`live_playback.rs` retains static context, filters bounded temporal history, rewrites
+messages to the stable playback identity, and follows direct writers or ordered ingest
+parts as one RRD stream. `uris.rs` owns recording identities, and `bin/server.rs` composes
+the authenticated manifest/live routes with gRPC-Web and MCP.
+`bin/server/state.rs` composes platform store, spool access, playback, subscriptions, and
+artifact publication.
 
 ### `servers/stream-mcp`
 
@@ -684,7 +687,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `oauth.rs` | PKCE login, token exchange, refresh rotation |
 | `session.rs` | XChaCha20-Poly1305 cookies and CSRF material |
 | `api.rs` | snapshot, SSE, mutation, and artifact preview/download BFF projections |
-| `recording_playback.rs` | renewable recording-scoped playback sessions plus range-capable archive and live proxies |
+| `recording_playback.rs` | authenticated playback-manifest pass-through and per-request bounded-live proxy; no archive bytes or BFF session store |
 | `apps.rs`, `mcp_client.rs` | MCP Apps host backend: gateway MCP session pool, app catalog, sandboxed frame serving, allowlisted tool calls, implicit own-server reads, and gateway-projected cross-server reads |
 | `config.rs` | validated public/gateway/resource configuration |
 
@@ -694,12 +697,12 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 |---|---|
 | `App.tsx` | application shell: platform navigation plus catalog-driven MCP App entries, topbar, view routing, drawer mounting |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
-| `components/GovernedRerunViewer.tsx`, `rerunSources.ts` | persistent WebViewer lifecycle and ordered archive/live receiver transitions |
+| `components/GovernedRerunViewer.tsx`, `rerunSources.ts` | persistent WebViewer lifecycle, Redap credentials, stable archive revision refresh, and live-to-archive transitions |
 | `views/` | remaining platform-plane views (overview, work, artifacts, agents, MCP, apps, access, audit, cluster); domain views ship as MCP Apps, never here |
 | `drawers/ArtifactDrawer.tsx` | artifact preview, recording provenance, download, release, grant, and share-link workflows |
 | `drawers/` | remaining detail drawers with mutation workflows |
 | `components/ArtifactPreview.tsx` | bounded text and inline image/audio/video/PDF previews with explicit governed-access failures |
-| `components/GovernedRerunViewer.tsx` | authenticated ordered RRD delivery into isolated Rerun data channels |
+| `components/GovernedRerunViewer.tsx` | recording-scoped Redap archive and bounded live delivery into one isolated Rerun timeline |
 | `components/` | reusable primitives, tables, toolbar, and the promise-based confirm dialog |
 | `queries.ts`, `queryClient.ts` | TanStack Query keys, snapshot/apps/cluster queries, mutation hooks with targeted cache patches |
 | `live.ts` | EventSource console stream feeding row upserts into the snapshot cache |
