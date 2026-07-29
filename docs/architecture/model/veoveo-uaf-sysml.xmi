@@ -20,8 +20,8 @@
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CAP-004" name="Governed world recording">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-004-COMMENT" body="Sensor and simulation evidence is pushed into durable RRD recordings." />
       </packagedElement>
-      <packagedElement xmi:type="uml:Class" xmi:id="VV-CAP-005" name="Bounded analytics and decisions">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-005-COMMENT" body="Arbitrary SQL, forecasting, planning, and charts execute inside owned limits." />
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CAP-005" name="Bounded analytics">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-005-COMMENT" body="Arbitrary SQL, forecasting, and charts execute inside owned limits." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CAP-006" name="Local stream processing">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-006-COMMENT" body="Admitted live media graphs and reproducible recording replays execute inside the installation." />
@@ -44,6 +44,9 @@
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CAP-012" name="Extensible hosted domains">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-012-COMMENT" body="Shared Rust contracts and validated Python models add servers without weakening canonical protocol behavior." />
       </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CAP-013" name="Operational optimization">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-013-COMMENT" body="Typed fleet-routing and mathematical decisions execute on a required GPU and retain independently verified evidence." />
+      </packagedElement>
     </packagedElement>
     <packagedElement xmi:type="uml:Package" xmi:id="VV-PKG-OPERATIONAL" name="Operational">
       <packagedElement xmi:type="uml:Activity" xmi:id="VV-OPA-001" name="Authenticate and authorize request">
@@ -61,8 +64,8 @@
       <packagedElement xmi:type="uml:Activity" xmi:id="VV-OPA-005" name="Ingest and query world evidence">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-OPA-005-COMMENT" body="Push Rerun observations, freeze segments, authorize, and query logical recordings." />
       </packagedElement>
-      <packagedElement xmi:type="uml:Activity" xmi:id="VV-OPA-006" name="Analyze, route, and plan">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-OPA-006-COMMENT" body="Transform governed inputs into analytical, logistical, or planning products." />
+      <packagedElement xmi:type="uml:Activity" xmi:id="VV-OPA-006" name="Analyze and route governed data">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-OPA-006-COMMENT" body="Transform governed inputs into analytical and geospatial products." />
       </packagedElement>
       <packagedElement xmi:type="uml:Activity" xmi:id="VV-OPA-007" name="Process live and recorded media">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-OPA-007-COMMENT" body="Run admitted live graphs immediately or replay authorized video and publish governed results." />
@@ -75,6 +78,9 @@
       </packagedElement>
       <packagedElement xmi:type="uml:Activity" xmi:id="VV-OPA-010" name="Deploy and verify installation">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-OPA-010-COMMENT" body="Bootstrap, configure, validate, observe, and transfer connected or offline forms." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Activity" xmi:id="VV-OPA-011" name="Formulate solve and verify decisions">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-OPA-011-COMMENT" body="Compile typed routing or mathematical models, execute cuOpt, independently verify results, and publish evidence." />
       </packagedElement>
     </packagedElement>
     <packagedElement xmi:type="uml:Package" xmi:id="VV-PKG-SERVICES" name="Services">
@@ -94,7 +100,7 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-SVC-005-COMMENT" body="Authenticates world streams and maintains crash-decodable governed recordings." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-SVC-006" name="Domain compute service">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-SVC-006-COMMENT" body="Runs analytical, forecasting, optimization, frame, and chart workloads." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-SVC-006-COMMENT" body="Runs analytical, forecasting, frame, and chart workloads." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-SVC-007" name="Agent execution service">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-SVC-007-COMMENT" body="Runs restart-safe bounded episodes over governed context and tools." />
@@ -113,6 +119,9 @@
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-SVC-012" name="Stream processing service">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-SVC-012-COMMENT" body="Runs local bounded GStreamer graphs over arriving media or governed recordings." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-SVC-013" name="GPU optimization service">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-SVC-013-COMMENT" body="Compiles typed decisions, executes pinned cuOpt on NVIDIA hardware, and publishes independently verified solutions." />
       </packagedElement>
     </packagedElement>
     <packagedElement xmi:type="uml:Package" xmi:id="VV-PKG-RESOURCES" name="Resources">
@@ -177,7 +186,7 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-020-COMMENT" body="Governs map sources and releases; performs geodesy, CRS transformation, location inspection, restrictions, reachable areas, routing, logistics matrices, and immutable cuOpt travel-model publication." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-021" name="Optimization MCP server">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-021-COMMENT" body="Compiles typed routing, route-scenario, convex, and MILP problems for NVIDIA cuOpt; independently verifies solutions; records durable runs; and publishes governed problem and solution artifacts." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-021-COMMENT" body="Owns the typed routing, route-scenario, convex, and MILP contract; compiles controlled models; coordinates durable GPU work; independently verifies solver output; and publishes immutable problem, run, solution, and verification evidence." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-022" name="Stream MCP server">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-022-COMMENT" body="Runs operator-admitted GStreamer graphs directly over live encoded media or authorized recording ranges; exposes an MCP App for encoded preview and typed overlays; publishes governed replay results; and may route existing encoded live output to Recording Hub without delaying processing." />
@@ -323,8 +332,143 @@
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-069" name="Simulation View MCP server">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-069-COMMENT" body="Owns renderer-independent scene binding logical cameras admission leases signaling and a live MCP App while keeping domain simulation dynamics and controls outside the service." />
       </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-070" name="cuOpt executor">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-070-COMMENT" body="Loads the pinned cuOpt runtime, owns the CUDA context and bounded RMM pool, executes one prepared routing batch or mathematical model at a time, and returns solver-native results to the Rust control plane." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-071" name="NVIDIA cuOpt and CUDA runtime">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-071-COMMENT" body="Executes heterogeneous vehicle routing and BatchSolve plus continuous LP QP QCQP SOCP and linear MILP formulations on an NVIDIA GPU." />
+      </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-SYS-001" name="Veoveo Installation System">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-SYS-001-COMMENT" body="Aggregate resource performer composed from the canonical Veoveo software and infrastructure service graph." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-001" name="External MCP profile access" informationSource="VV-EXT-MCP-CLIENT" informationTarget="VV-CMP-001">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-001-COMMENT" body="HTTPS; sessionful MCP Streamable HTTP with event-stream responses; JSON-RPC. Direction: bidirectional. Identity and policy: Gateway OAuth access token bound to profile and protected resource; per-method and target-aware policy. Data: Tools, resources, templates, prompts, completions, tasks, subscriptions, notifications, structured content. Availability and recovery: One active gateway process owns every client session." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-002" name="Browser console access" informationSource="VV-EXT-BROWSER" informationTarget="VV-CMP-002">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-002-COMMENT" body="HTTPS; HTML; same-origin JSON. Direction: bidirectional. Identity and policy: Encrypted HttpOnly SameSite session plus CSRF on unsafe requests. Data: Installation projections, task controls, artifact workflows, and hosted MCP Apps. Availability and recovery: Browser never receives gateway bearer; BFF replicas use encrypted cookie state." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-003" name="Console static application" informationSource="VV-CMP-002" informationTarget="VV-CMP-003">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-003-COMMENT" body="HTTPS static assets. Direction: outbound. Identity and policy: CSP, frame denial, MIME sniff prevention, and same-origin referrer policy. Data: React application assets. Availability and recovery: Immutable build assets." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-004" name="Console to gateway administration" informationSource="VV-CMP-002" informationTarget="VV-CMP-001">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-004-COMMENT" body="HTTPS; gateway administration and artifact routes. Direction: bidirectional. Identity and policy: BFF-held OAuth token; gateway policy and audit. Data: Safe installation projection and explicit mutations. Availability and recovery: BFF refresh rotation uses durable gateway token family state." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-005" name="Enterprise identity federation" informationSource="VV-CMP-001" informationTarget="VV-CMP-041">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-005-COMMENT" body="OIDC discovery; OAuth 2.0; JWKS HTTPS. Direction: bidirectional. Identity and policy: Issuer, key, claim, tenant, client, scope, and protected-resource validation. Data: Authorization requests, tokens, claims, public keys. Availability and recovery: Unknown issuers or keys fail closed." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-006" name="Gateway OAuth service" informationSource="VV-EXT-OAUTH-CLIENT" informationTarget="VV-CMP-001">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-006-COMMENT" body="OAuth authorization code with PKCE; client credentials; client assertions; ID-JAG. Direction: bidirectional. Identity and policy: Authorization server policy; rotating refresh families; replay detection. Data: Authorization codes, access tokens, refresh tokens, metadata. Availability and recovery: Durable compare-and-swap rotation and bounded duplicate delivery." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-007" name="Gateway hosted-server MCP" informationSource="VV-CMP-001" informationTarget="VV-CMP-HOSTED">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-007-COMMENT" body="Private HTTP; MCP Streamable HTTP. Direction: bidirectional. Identity and policy: Short-lived Ed25519 internal assertion with audience, principal, tenant, labels, and scopes. Data: Canonical server MCP requests and responses. Availability and recovery: Gateway reconnects per request/session; server state is durable where required." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-008" name="Gateway hosted-server administration projection" informationSource="VV-CMP-001" informationTarget="VV-CMP-HOSTED">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-008-COMMENT" body="Optional private HTTP under a declared server admin mount. Direction: bidirectional. Identity and policy: AdminRead or AdminWrite policy, audit, and short-lived internal assertion. Data: Bounded projection of canonical domain request and response models. Availability and recovery: Owning server reuses MCP models identities and state; the projection is never a second authority." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-009" name="Platform persistence" informationSource="VV-CMP-PLATFORM" informationTarget="VV-CMP-038">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-009-COMMENT" body="SurrealDB WebSocket at database scope. Direction: bidirectional. Identity and policy: Dedicated runtime credentials; tenant-scoped persistence APIs. Data: Identity, policy, control, tasks, artifacts, recordings, agents, audit, outbox. Availability and recovery: Transactional outbox is authoritative; LIVE is a latency path only." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-010" name="Installation bootstrap" informationSource="VV-CMP-001" informationTarget="VV-CMP-038">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-010-COMMENT" body="SurrealDB WebSocket at root scope. Direction: outbound. Identity and policy: Separate bootstrap credentials. Data: Ordered migrations, runtime user rotation, initial control revision. Availability and recovery: Runs to completion before long-lived services." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-011" name="Task protocol projection" informationSource="VV-CMP-HOSTED" informationTarget="VV-CMP-012">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-011-COMMENT" body="MCP final task extension over Streamable HTTP event streams. Direction: bidirectional. Identity and policy: Same principal and policy context as tool invocation. Data: Task create, get, update, cancel, list, notifications, progress, result. Availability and recovery: Projects the shared task runtime without a second task store." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-012" name="Task persistence" informationSource="VV-CMP-009" informationTarget="VV-CMP-008">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-012-COMMENT" body="Rust API and transactional outbox. Direction: bidirectional. Identity and policy: Task owner includes tenant, principal, profile, server, and operation. Data: Tasks, leases, inputs, results, provider jobs, retention pins. Availability and recovery: Resume." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-013" name="Domain artifact operations" informationSource="VV-CMP-HOSTED" informationTarget="VV-CMP-004">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-013-COMMENT" body="Private HTTP through artifact client or Python SDK. Direction: bidirectional. Identity and policy: Forwarded internal identity or task-bound write capability. Data: Metadata, capabilities, uploads, downloads, grants, releases, share links. Availability and recovery: Idempotent capability redemption and durable artifact records." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-014" name="Artifact byte storage" informationSource="VV-CMP-004" informationTarget="VV-CMP-039">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-014-COMMENT" body="S3-compatible API. Direction: bidirectional. Identity and policy: Installation object-store credentials; service-only access. Data: Artifact blob bytes and short-lived signed download redirects. Availability and recovery: Tenant-derived storage keys and content integrity hashes." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-015" name="Authorized artifact download" informationSource="VV-EXT-AUTHORIZED-USER" informationTarget="VV-CMP-001">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-015-COMMENT" body="HTTPS /artifacts/{profile}/{artifact_id}/download. Direction: inbound. Identity and policy: Gateway policy and audit; service-side authorization. Data: Short-lived object-store redirect. Availability and recovery: No domain-specific byte route." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-016" name="Public artifact redemption" informationSource="VV-EXT-LINK-HOLDER" informationTarget="VV-CMP-004">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-016-COMMENT" body="HTTPS /s/{token}. Direction: inbound. Identity and policy: Random read-only bearer; hash-only storage; expiry, limit, release state, revocation. Data: Artifact download redirect. Availability and recovery: Edge logging suppresses bearer path." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-017" name="Producer recording publication" informationSource="VV-EXT-PRODUCER" informationTarget="VV-CMP-051">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-017-COMMENT" body="Producer-loopback Rerun gRPC. Direction: outbound. Identity and policy: Loopback receiver; application and recording identities are validated before upload. Data: Native Rerun log messages. Availability and recovery: Forwarder applies persistent bounded backpressure and restart replay." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-018" name="Governed recording playback" informationSource="VV-EXT-BROWSER" informationTarget="VV-CMP-023">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-018-COMMENT" body="HTTPS manifest through Console BFF and gateway; recording-scoped Rerun Data Protocol over HTTP/2 or gRPC-Web; bounded live RRD. Direction: inbound. Identity and policy: Gateway policy and audit establish a five-minute actor-and-recording session; standard Redap read token is host-limited; enumeration and mutation are denied. Data: One stable dataset-segment URI with immutable shard layers and revision; footer-indexed chunks fetched on demand; recent live history under the same Rerun identity. Availability and recovery: Derived Redap catalogs rebuild from the durable catalog and shards; live rollover refreshes the archive revision and hands off to a successor stream." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-019" name="Stream recording replay" informationSource="VV-CMP-022" informationTarget="VV-CMP-005">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-019-COMMENT" body="Read-only RRD files plus SurrealDB catalog. Direction: inbound. Identity and policy: Canonical recording URI authorization; classification and labels propagate. Data: H.264 VideoStream samples, timestamps, keyframes. Availability and recovery: Replay captures one task-start snapshot of complete acknowledged parts." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-020" name="Stream native runner" informationSource="VV-CMP-022" informationTarget="VV-CMP-032">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-020-COMMENT" body="Closed JSON request and response or newline-delimited event socket. Direction: bidirectional. Identity and policy: Operator-admitted graph and mounted configuration; owner-scoped live session or task filesystem boundary. Data: Runner request, H.264 access units, detections, tracks, source indices. Availability and recovery: One bounded subprocess per live session or replay task." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-021" name="DeepStream execution" informationSource="VV-CMP-032" informationTarget="VV-CMP-044">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-021-COMMENT" body="GStreamer, CUDA, NVDEC, TensorRT, NVIDIA metadata. Direction: bidirectional. Identity and policy: Mounted approved engine and coherent host-driver libraries. Data: H.264 frames, tensors, detections, tracks. Availability and recovery: No CPU inference fallback and no Triton server process." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-022" name="Media provider submission" informationSource="VV-CMP-019" informationTarget="VV-CMP-043">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-022-COMMENT" body="Provider HTTPS API. Direction: outbound. Identity and policy: Provider credential held only by media server. Data: Bounded provider request and deletion request. Availability and recovery: Submission binding commits before task detaches." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-023" name="Media terminal webhook" informationSource="VV-CMP-043" informationTarget="VV-CMP-019">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-023-COMMENT" body="Signed HTTPS webhook. Direction: inbound. Identity and policy: Provider signature and unique event validation. Data: Terminal event, output references, usage facts. Availability and recovery: Webhook-only completion; missing delivery is operational failure." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-024" name="Analytical execution" informationSource="VV-CMP-018" informationTarget="VV-CMP-045">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-024-COMMENT" body="Embedded DuckDB API and arbitrary SQL. Direction: bidirectional. Identity and policy: Owner-derived workspace and locked engine settings. Data: Queries, mutations, ingests, exports, spatial operations. Availability and recovery: Read work may resume; uncertain mutation is never replayed." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-025" name="Map acquisition helper" informationSource="VV-CMP-020" informationTarget="VV-CMP-031">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-025-COMMENT" body="JSON subprocess contract and filesystem exchange. Direction: bidirectional. Identity and policy: Registered source policy, bounded paths, network controls. Data: OSM, GTFS, maritime, aviation, and authority acquisition products. Availability and recovery: Acquisition tasks persist durable state and immutable release identities." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-026" name="Map routing toolchain" informationSource="VV-CMP-020" informationTarget="VV-CMP-046">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-026-COMMENT" body="Local process and HTTP APIs. Direction: bidirectional. Identity and policy: Container-local endpoints and governed active release. Data: Routing tiles, route requests, matrices, reachable areas. Availability and recovery: Active release dependencies are recorded with route products." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-027" name="Rerun viewer bridge" informationSource="VV-CMP-013" informationTarget="VV-CMP-027">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-027-COMMENT" body="MCP stdio child to Streamable HTTP parent. Direction: bidirectional. Identity and policy: Gateway profile controls the external HTTP projection. Data: Viewer MCP tools. Availability and recovery: Bridge process owns child lifecycle." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-028" name="World recording publication" informationSource="VV-CMP-028" informationTarget="VV-CMP-051">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-028-COMMENT" body="Pod-loopback Rerun gRPC. Direction: outbound. Identity and policy: Producer-local transport; gateway policy later binds the registered application and tenant. Data: SUMO world frames. Availability and recovery: Recording Hub never polls SUMO." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-029" name="SUMO control" informationSource="VV-CMP-028" informationTarget="VV-CMP-029">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-029-COMMENT" body="Private TraCI TCP. Direction: bidirectional. Identity and policy: Single serialized owner; not published to host. Data: Simulation state, signals, vehicles, network actuation. Availability and recovery: Uncertain mutating batch execution is interrupted-indeterminate." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-030" name="Telemetry export" informationSource="VV-CMP-PLATFORM" informationTarget="VV-CMP-042">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-030-COMMENT" body="OTLP gRPC or HTTP. Direction: outbound. Identity and policy: Installation-selected exporter and SIEM credentials. Data: Logs, traces, metrics, audit-compatible events. Availability and recovery: Telemetry excludes tokens." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-031" name="Local cluster control" informationSource="VV-CMP-035" informationTarget="VV-CMP-048">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-031-COMMENT" body="k3d, Docker image, and Kubernetes APIs. Direction: outbound. Identity and policy: Local operator access and development Secrets. Data: K3s node, GPU runtime, images, ports, and kubeconfig. Availability and recovery: k3d is the canonical local Kubernetes substrate." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-032" name="Kubernetes deployment control" informationSource="VV-CMP-036" informationTarget="VV-CMP-048">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-032-COMMENT" body="Helm and Kubernetes APIs. Direction: outbound. Identity and policy: Installation operator RBAC and existing Secrets. Data: Workloads, Services, Ingress, NetworkPolicy, volumes, mTLS annotations. Availability and recovery: Helm preserves the same service graph and explicit singleton resources." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-033" name="Offline transfer" informationSource="VV-CMP-037" informationTarget="VV-CMP-048">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-033-COMMENT" body="Verified tar and OCI image archives. Direction: outbound. Identity and policy: SHA-256 checksums, resolved identities, SPDX SBOMs. Data: Images, Helm values, schemas, manifests, evidence. Availability and recovery: Loader performs no network operation." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-034" name="Authenticated recording upload" informationSource="VV-CMP-051" informationTarget="VV-CMP-001">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-034-COMMENT" body="HTTPS; OAuth discovery; client_credentials with private_key_jwt; versioned protobuf. Direction: outbound. Identity and policy: Resource-bound recording:ingest token; producer registration; tenant dataset application label retention and quota policy. Data: Idempotent stream open status append finish operations and RRD batches. Availability and recovery: At-least-once retry resumes from Hub durable and materialized checkpoints." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-035" name="Gateway recording delivery" informationSource="VV-CMP-001" informationTarget="VV-CMP-005">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-035-COMMENT" body="Private HTTP; versioned protobuf. Direction: outbound. Identity and policy: Gateway policy and audit; short-lived internal assertion addressed to Recording Hub. Data: Authorized producer binding and validated recording operations. Availability and recovery: Hub fsyncs journal state and materializes the batch before acknowledgement." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-036" name="UAV simulation control" informationSource="VV-CMP-054" informationTarget="VV-CMP-055">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-036-COMMENT" body="Pod-private typed HTTP. Direction: bidirectional. Identity and policy: Gateway-forwarded caller owns the MCP operation; the simulator adapter is not externally routed. Data: Session state vehicle commands missions capture requests tiles and health. Availability and recovery: Reads remain available during durable work; uncertain live mutations are interrupted-indeterminate." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-037" name="UAV recording publication" informationSource="VV-CMP-055" informationTarget="VV-CMP-051">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-037-COMMENT" body="Pod-loopback Rerun gRPC. Direction: outbound. Identity and policy: Producer-local transport; registered application and tenant authority are enforced at gateway upload. Data: Camera H.264 poses transforms IMU vehicles missions collisions and tile diagnostics. Availability and recovery: Dedicated persistent forwarder queue survives producer or network restart." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-038" name="UAV simulator execution" informationSource="VV-CMP-055" informationTarget="VV-CMP-056">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-038-COMMENT" body="Isaac extension and Python APIs; USD; MAVLink 2; ROS 2. Direction: bidirectional. Identity and policy: Pinned dependency identities; provider credential from Kubernetes Secret; canonical Frames identity. Data: Rendered tiles camera frames multirotor state PX4 commands and telemetry. Availability and recovery: Explicit startup readiness bounded mission execution and no simulator-native public control port." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-039" name="Live Stream publication" informationSource="VV-EXT-PRODUCER" informationTarget="VV-CMP-022">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-039-COMMENT" body="RTP 2.0 with RFC 6184 H.264 over admitted UDP. Direction: outbound. Identity and policy: Installation NetworkPolicy and one operator-admitted pipeline endpoint. Data: Annex B H.264 access units with 90 kHz timestamps. Availability and recovery: Live processing begins on arriving frames without resolving or waiting for Recording Hub." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-040" name="Recording catalog and shard access" informationSource="VV-CMP-023" informationTarget="VV-CMP-005">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-040-COMMENT" body="SurrealDB catalog; read-only footer-indexed RRD shards; complete acknowledged ingest parts. Direction: inbound. Identity and policy: Tenant and data-label authorization precedes every physical playback or analysis plan. Data: Logical recording metadata, immutable shard identities, and bounded writing-segment snapshots. Availability and recovery: Immutable sources remain zero-copy; derived read state is reconstructible; task snapshots never read incomplete writes." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-041" name="Map travel-model handoff" informationSource="VV-CMP-020" informationTarget="VV-CMP-021">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-041-COMMENT" body="veoveo.io/travel-model-artifact/v1; map://travel-model identity; artifact occurrence and bytes. Direction: outbound. Identity and policy: Caller access and labels apply at both domains; map release mobility profile restriction snapshot units and digest remain immutable. Data: Controlled location and vehicle-type order; cost and transit-time matrices; unavailable arcs; provenance. Availability and recovery: Optimization resolves the exact governed occurrence through the artifact plane and never recomputes GIS costs." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-042" name="Optimization executor control" informationSource="VV-CMP-021" informationTarget="VV-CMP-070">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-042-COMMENT" body="veoveo.io/cuopt-executor/v1; private Unix-domain socket; unsigned 64-bit big-endian length prefix; bounded JSON messages. Direction: bidirectional. Identity and policy: Pod-local transport is not a public authority; task owner policy and artifact access remain in the Rust control plane; staged inputs are digest-checked. Data: Health solve cancel and shutdown operations; prepared-problem path digest and bounds; solver result or typed error. Availability and recovery: The control plane owns durable state and serial GPU admission; missing socket health version or digest fails readiness or the task." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-043" name="cuOpt GPU execution" informationSource="VV-CMP-070" informationTarget="VV-CMP-071">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-043-COMMENT" body="Python cuOpt 26.06 API; CUDA 13.2; RMM. Direction: bidirectional. Identity and policy: Digest-pinned runtime and one visible NVIDIA GPU are mandatory; the executor accepts only compiled bounded formulations. Data: Routing Solve and BatchSolve arrays; sparse mathematical models; solver controls; routes variables objectives duals and statuses. Availability and recovery: No CPU solver or GPU-optional mode exists; incompatible cuOpt CUDA driver or GPU identity fails closed." />
       </packagedElement>
     </packagedElement>
     <packagedElement xmi:type="uml:Package" xmi:id="VV-PKG-ACTUAL" name="Actual Resources">
@@ -394,7 +538,10 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-REQ-018-COMMENT" body="New hosted servers shall compose through shared contracts and the gateway catalog without leaking server-specific behavior into generic gateway modules." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-REQ-019" name="VV-REQ-019">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-REQ-019-COMMENT" body="Visual workflows shall use headed hardware-backed WebGPU or WebGL and GPU services shall fail closed without their declared accelerator; browser H.264 software decode is allowed only when the exact Media Capabilities configuration is supported and smooth and the UI labels it as software." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-REQ-019-COMMENT" body="Visual workflows shall use headed hardware-backed WebGPU or WebGL and visual GPU services shall fail closed without their declared accelerator; browser H.264 software decode is allowed only when the exact Media Capabilities configuration is supported and smooth and the UI labels it as software." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-REQ-020" name="VV-REQ-020">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-REQ-020-COMMENT" body="Optimization shall accept typed routing route-scenario continuous LP QP QCQP SOCP and linear MILP problems; execute only through a pinned hardware-GPU cuOpt runtime; independently verify feasibility and objective values; and publish immutable problem run solution and verification evidence." />
       </packagedElement>
     </packagedElement>
     <packagedElement xmi:type="uml:Package" xmi:id="VV-PKG-ROLES" name="Operational Performers and Roles">
@@ -428,11 +575,12 @@
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-05" name="satisfy" client="VV-CMP-017" supplier="VV-REQ-002" />
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-06" name="satisfy" client="VV-CMP-019" supplier="VV-REQ-002" />
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-07" name="satisfy" client="VV-CMP-020" supplier="VV-REQ-002" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-08" name="satisfy" client="VV-CMP-022" supplier="VV-REQ-002" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-09" name="satisfy" client="VV-CMP-023" supplier="VV-REQ-002" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-10" name="satisfy" client="VV-CMP-025" supplier="VV-REQ-002" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-11" name="satisfy" client="VV-CMP-052" supplier="VV-REQ-002" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-12" name="satisfy" client="VV-CMP-054" supplier="VV-REQ-002" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-08" name="satisfy" client="VV-CMP-021" supplier="VV-REQ-002" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-09" name="satisfy" client="VV-CMP-022" supplier="VV-REQ-002" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-10" name="satisfy" client="VV-CMP-023" supplier="VV-REQ-002" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-11" name="satisfy" client="VV-CMP-025" supplier="VV-REQ-002" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-12" name="satisfy" client="VV-CMP-052" supplier="VV-REQ-002" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-13" name="satisfy" client="VV-CMP-054" supplier="VV-REQ-002" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-03-1" name="tracesTo" client="VV-REQ-003" supplier="VV-CAP-001" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-03-2" name="tracesTo" client="VV-CAP-001" supplier="VV-OPA-001" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-03-3" name="tracesTo" client="VV-OPA-001" supplier="VV-SVC-001" />
@@ -559,6 +707,17 @@
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-19-05" name="satisfy" client="VV-CMP-050" supplier="VV-REQ-019" />
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-19-06" name="satisfy" client="VV-CMP-055" supplier="VV-REQ-019" />
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-19-07" name="satisfy" client="VV-CMP-069" supplier="VV-REQ-019" />
+      <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-20-1" name="tracesTo" client="VV-REQ-020" supplier="VV-CAP-013" />
+      <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-20-2" name="tracesTo" client="VV-CAP-013" supplier="VV-OPA-011" />
+      <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-20-3" name="tracesTo" client="VV-OPA-011" supplier="VV-SVC-013" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-01" name="satisfy" client="VV-CMP-004" supplier="VV-REQ-020" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-02" name="satisfy" client="VV-CMP-009" supplier="VV-REQ-020" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-03" name="satisfy" client="VV-CMP-012" supplier="VV-REQ-020" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-04" name="satisfy" client="VV-CMP-020" supplier="VV-REQ-020" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-05" name="satisfy" client="VV-CMP-021" supplier="VV-REQ-020" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-06" name="satisfy" client="VV-CMP-038" supplier="VV-REQ-020" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-07" name="satisfy" client="VV-CMP-070" supplier="VV-REQ-020" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-08" name="satisfy" client="VV-CMP-071" supplier="VV-REQ-020" />
     </packagedElement>
   </uml:Model>
   <UAF:Capability xmi:id="VV-CAP-001-UAF" base_Class="VV-CAP-001" />
@@ -573,6 +732,7 @@
   <UAF:Capability xmi:id="VV-CAP-010-UAF" base_Class="VV-CAP-010" />
   <UAF:Capability xmi:id="VV-CAP-011-UAF" base_Class="VV-CAP-011" />
   <UAF:Capability xmi:id="VV-CAP-012-UAF" base_Class="VV-CAP-012" />
+  <UAF:Capability xmi:id="VV-CAP-013-UAF" base_Class="VV-CAP-013" />
   <UAF:OperationalActivity xmi:id="VV-OPA-001-UAF" base_Activity="VV-OPA-001" />
   <UAF:OperationalActivity xmi:id="VV-OPA-002-UAF" base_Activity="VV-OPA-002" />
   <UAF:OperationalActivity xmi:id="VV-OPA-003-UAF" base_Activity="VV-OPA-003" />
@@ -583,6 +743,7 @@
   <UAF:OperationalActivity xmi:id="VV-OPA-008-UAF" base_Activity="VV-OPA-008" />
   <UAF:OperationalActivity xmi:id="VV-OPA-009-UAF" base_Activity="VV-OPA-009" />
   <UAF:OperationalActivity xmi:id="VV-OPA-010-UAF" base_Activity="VV-OPA-010" />
+  <UAF:OperationalActivity xmi:id="VV-OPA-011-UAF" base_Activity="VV-OPA-011" />
   <UAF:Service xmi:id="VV-SVC-001-UAF" base_Class="VV-SVC-001" />
   <UAF:Service xmi:id="VV-SVC-002-UAF" base_Class="VV-SVC-002" />
   <UAF:Service xmi:id="VV-SVC-003-UAF" base_Class="VV-SVC-003" />
@@ -595,6 +756,7 @@
   <UAF:Service xmi:id="VV-SVC-010-UAF" base_Class="VV-SVC-010" />
   <UAF:Service xmi:id="VV-SVC-011-UAF" base_Class="VV-SVC-011" />
   <UAF:Service xmi:id="VV-SVC-012-UAF" base_Class="VV-SVC-012" />
+  <UAF:Service xmi:id="VV-SVC-013-UAF" base_Class="VV-SVC-013" />
   <UAF:Software xmi:id="VV-CMP-001-UAF" base_Class="VV-CMP-001" />
   <SysML:Block xmi:id="VV-CMP-001-SYSML" base_Class="VV-CMP-001" isEncapsulated="true" />
   <UAF:Software xmi:id="VV-CMP-002-UAF" base_Class="VV-CMP-002" />
@@ -733,6 +895,10 @@
   <SysML:Block xmi:id="VV-CMP-068-SYSML" base_Class="VV-CMP-068" isEncapsulated="true" />
   <UAF:Software xmi:id="VV-CMP-069-UAF" base_Class="VV-CMP-069" />
   <SysML:Block xmi:id="VV-CMP-069-SYSML" base_Class="VV-CMP-069" isEncapsulated="true" />
+  <UAF:Software xmi:id="VV-CMP-070-UAF" base_Class="VV-CMP-070" />
+  <SysML:Block xmi:id="VV-CMP-070-SYSML" base_Class="VV-CMP-070" isEncapsulated="true" />
+  <UAF:System xmi:id="VV-CMP-071-UAF" base_Class="VV-CMP-071" />
+  <SysML:Block xmi:id="VV-CMP-071-SYSML" base_Class="VV-CMP-071" isEncapsulated="true" />
   <UAF:System xmi:id="VV-SYS-001-UAF" base_Class="VV-SYS-001" />
   <SysML:Block xmi:id="VV-SYS-001-SYSML" base_Class="VV-SYS-001" isEncapsulated="true" />
   <UAF:ActualResource xmi:id="VV-AR-001-UAF" base_InstanceSpecification="VV-AR-001" />
@@ -764,7 +930,8 @@
   <SysML:Requirement xmi:id="VV-REQ-016-SYSML" base_Class="VV-REQ-016" id="VV-REQ-016" text="Only the gateway shall sign short-lived internal identity assertions and hosted services shall validate the key identifier, audience, tenant, principal, labels, scopes, and expiry." />
   <SysML:Requirement xmi:id="VV-REQ-017-SYSML" base_Class="VV-REQ-017" id="VV-REQ-017" text="SurrealDB shall remain the sole platform coordination authority; transactional outbox replay shall remain authoritative over best-effort live delivery." />
   <SysML:Requirement xmi:id="VV-REQ-018-SYSML" base_Class="VV-REQ-018" id="VV-REQ-018" text="New hosted servers shall compose through shared contracts and the gateway catalog without leaking server-specific behavior into generic gateway modules." />
-  <SysML:Requirement xmi:id="VV-REQ-019-SYSML" base_Class="VV-REQ-019" id="VV-REQ-019" text="Visual workflows shall use headed hardware-backed WebGPU or WebGL and GPU services shall fail closed without their declared accelerator; browser H.264 software decode is allowed only when the exact Media Capabilities configuration is supported and smooth and the UI labels it as software." />
+  <SysML:Requirement xmi:id="VV-REQ-019-SYSML" base_Class="VV-REQ-019" id="VV-REQ-019" text="Visual workflows shall use headed hardware-backed WebGPU or WebGL and visual GPU services shall fail closed without their declared accelerator; browser H.264 software decode is allowed only when the exact Media Capabilities configuration is supported and smooth and the UI labels it as software." />
+  <SysML:Requirement xmi:id="VV-REQ-020-SYSML" base_Class="VV-REQ-020" id="VV-REQ-020" text="Optimization shall accept typed routing route-scenario continuous LP QP QCQP SOCP and linear MILP problems; execute only through a pinned hardware-GPU cuOpt runtime; independently verify feasibility and objective values; and publish immutable problem run solution and verification evidence." />
   <SysML:Satisfy xmi:id="VV-SAT-01-01-SYSML" base_Abstraction="VV-SAT-01-01" />
   <SysML:Satisfy xmi:id="VV-SAT-01-02-SYSML" base_Abstraction="VV-SAT-01-02" />
   <SysML:Satisfy xmi:id="VV-SAT-01-03-SYSML" base_Abstraction="VV-SAT-01-03" />
@@ -781,6 +948,7 @@
   <SysML:Satisfy xmi:id="VV-SAT-02-10-SYSML" base_Abstraction="VV-SAT-02-10" />
   <SysML:Satisfy xmi:id="VV-SAT-02-11-SYSML" base_Abstraction="VV-SAT-02-11" />
   <SysML:Satisfy xmi:id="VV-SAT-02-12-SYSML" base_Abstraction="VV-SAT-02-12" />
+  <SysML:Satisfy xmi:id="VV-SAT-02-13-SYSML" base_Abstraction="VV-SAT-02-13" />
   <SysML:Satisfy xmi:id="VV-SAT-03-01-SYSML" base_Abstraction="VV-SAT-03-01" />
   <SysML:Satisfy xmi:id="VV-SAT-03-02-SYSML" base_Abstraction="VV-SAT-03-02" />
   <SysML:Satisfy xmi:id="VV-SAT-03-03-SYSML" base_Abstraction="VV-SAT-03-03" />
@@ -856,4 +1024,12 @@
   <SysML:Satisfy xmi:id="VV-SAT-19-05-SYSML" base_Abstraction="VV-SAT-19-05" />
   <SysML:Satisfy xmi:id="VV-SAT-19-06-SYSML" base_Abstraction="VV-SAT-19-06" />
   <SysML:Satisfy xmi:id="VV-SAT-19-07-SYSML" base_Abstraction="VV-SAT-19-07" />
+  <SysML:Satisfy xmi:id="VV-SAT-20-01-SYSML" base_Abstraction="VV-SAT-20-01" />
+  <SysML:Satisfy xmi:id="VV-SAT-20-02-SYSML" base_Abstraction="VV-SAT-20-02" />
+  <SysML:Satisfy xmi:id="VV-SAT-20-03-SYSML" base_Abstraction="VV-SAT-20-03" />
+  <SysML:Satisfy xmi:id="VV-SAT-20-04-SYSML" base_Abstraction="VV-SAT-20-04" />
+  <SysML:Satisfy xmi:id="VV-SAT-20-05-SYSML" base_Abstraction="VV-SAT-20-05" />
+  <SysML:Satisfy xmi:id="VV-SAT-20-06-SYSML" base_Abstraction="VV-SAT-20-06" />
+  <SysML:Satisfy xmi:id="VV-SAT-20-07-SYSML" base_Abstraction="VV-SAT-20-07" />
+  <SysML:Satisfy xmi:id="VV-SAT-20-08-SYSML" base_Abstraction="VV-SAT-20-08" />
 </xmi:XMI>

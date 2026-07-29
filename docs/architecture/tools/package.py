@@ -11,14 +11,16 @@ import sys
 import zipfile
 from pathlib import Path
 
+from pypdf import PdfReader
+
 ARCH = Path(__file__).resolve().parents[1]
 REPO = ARCH.parents[1]
 OUTPUT = REPO / "output" / "architecture"
 STAGING = REPO / "tmp" / "architecture-packages"
-VERSION = "0.1.0"
-REVISION_DATE = "2026-07-28"
-SOURCE_COMMIT = "7783abd7ef2eeac35c57844ced4ad7d53deed896"
-FIXED_ZIP_TIME = (2026, 7, 28, 12, 0, 0)
+VERSION = "0.2.0"
+REVISION_DATE = "2026-07-29"
+SOURCE_COMMIT = "6b7d59a9d26a3b077084bbd535378d00620d4097"
+FIXED_ZIP_TIME = (2026, 7, 29, 12, 0, 0)
 
 
 def digest(path: Path) -> str:
@@ -116,11 +118,11 @@ def prepare(package_kind: str) -> Path:
         "handling": "reference_baseline_no_client_data",
         "standards": {"uaf": "1.3", "sysml": "1.6", "uml": "2.5.1", "xmi": "2.5.1"},
         "counts": {
-            "software_resources": 69,
-            "interfaces": 40,
-            "requirements": 19,
+            "software_resources": 71,
+            "interfaces": 43,
+            "requirements": 20,
             "views": 11,
-            "pdf_pages": 28,
+            "pdf_pages": len(PdfReader(ARCH / "veoveo-reference-architecture.pdf").pages),
         },
     }
     (root / "RELEASE-MANIFEST.json").write_text(

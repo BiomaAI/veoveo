@@ -24,8 +24,9 @@ catalog.
 | Veoveo recording ingest | Version `2026-07-24`; authenticated protobuf batches preserve native Rerun 0.35.0 messages, ordering, idempotency, and decoder-safe rollover markers. |
 | Rerun 0.35.0 gRPC, RRD, Rerun Data Protocol, and `VideoStream` | Producer-local log ingestion, immutable time-and-space records, recording-scoped lazy viewer playback, and H.264 Annex B video with exact timeline indices. |
 | S3-compatible object API | Artifact bytes and presigned delivery. SurrealDB remains authoritative for occurrences, identity, grants, release state, shares, policy, and audit. |
+| NVIDIA cuOpt 26.06 and CUDA 13.2 | Digest-pinned hardware-GPU execution for heterogeneous routing, BatchSolve scenarios, continuous LP/QP/QCQP/SOCP, and linear MILP. `veoveo.io/travel-model-artifact/v1` is the repository-owned Map handoff; `veoveo.io/cuopt-executor/v1` is a private pod-local adapter protocol rather than a public contract. |
 | Kubernetes, Helm, and OCI images | Canonical workload graph, declarative installation configuration, registry-first delivery, GitOps reconciliation, and offline bundle material. |
-| Domain standards | Map, Time, Frames, View, UAV, Recording, Perception, and Reason designs pin their geospatial, temporal, 3D, vehicle, and media profiles independently. |
+| Domain standards | Map, Optimization, Time, Frames, View, UAV, Recording, Perception, and Reason designs pin their geospatial, solver, temporal, 3D, vehicle, and media profiles independently. |
 
 ## Capability Model
 
@@ -340,6 +341,29 @@ Read-only query and export tasks use `Resume`. Mutating execute and ingest tasks
 `InterruptedIndeterminate` once execution may have started. This preserves flexibility
 without pretending mutations can be replayed safely.
 
+## Map And Optimization Decision Plane
+
+Map constructs immutable travel models from one governed release, mobility-profile
+version, and restriction snapshot. A travel model fixes controlled location and
+vehicle-type order, cost and transit-time units, unavailable arcs, and provenance.
+Optimization resolves that exact Map-owned occurrence through the artifact plane.
+
+The Optimization control container accepts typed routing, route-scenario, continuous
+LP/QP/QCQP/SOCP, and linear MILP inputs. It validates stable identifiers and every
+cross-reference, combines sparse terms, applies bounded solver profiles, and writes a
+digest-checked prepared problem. One serialized admission queue sends the prepared
+problem over the private length-prefixed Unix-socket protocol to the Python executor.
+
+The executor owns the CUDA context and bounded RMM pool inside the pinned cuOpt image.
+It exposes no cluster Service and carries no tenant, policy, artifact, or durable-task
+authority. Readiness requires the expected cuOpt version and a visible NVIDIA GPU.
+
+Completed output returns to Rust for independent route feasibility, bound, integrality,
+constraint, and objective checks. The server publishes immutable
+`optimization://problem`, `optimization://run`, and `optimization://solution`
+resources plus verification evidence. A caller can invoke `verify_solution` again with
+an allowed tolerance without rerunning cuOpt.
+
 ## Gateway Identity And Policy
 
 External identity is provider-independent. The control-plane configuration is validated
@@ -456,13 +480,15 @@ checksums, and packages Helm configuration. The loader verifies all files before
 import, verifies image references after import, retains evidence, and performs no network
 operation.
 
-## Hardware-Backed Visual Execution
+## Hardware-Backed GPU And Visual Execution
 
 GPU workloads request their required Kubernetes resources and fail readiness when the
-accelerator or coherent runtime is unavailable. Browser visual acceptance runs in a
-headed browser and probes both WebGPU and WebGL when they are exposed. At least one
-high-performance path must report hardware backing. SwiftShader, llvmpipe, software
-adapters, and software rasterizer warnings fail the visual workflow.
+accelerator or coherent runtime is unavailable. Optimization additionally checks the
+pinned cuOpt version and hardware GPU during sidecar startup; it has no CPU solver.
+Browser visual acceptance runs in a headed browser and probes both WebGPU and WebGL
+when they are exposed. At least one high-performance path must report hardware backing.
+SwiftShader, llvmpipe, software adapters, and software rasterizer warnings fail the
+visual workflow.
 
 The Stream App queries Media Capabilities for the exact H.264 codec, dimensions,
 bitrate, and frame rate. A supported and smooth configuration may use browser software

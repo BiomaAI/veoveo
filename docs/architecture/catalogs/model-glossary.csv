@@ -13,6 +13,8 @@ Internal assertion,"A short-lived Ed25519 JWT signed only by the gateway for a s
 MCP resource,"Addressable domain state with a canonical URI, optionally produced from a template and optionally subscribable.",UAF ResourceInformation or OperationalInformation
 Mission thread,"An ordered operational scenario that traces mission need through activities, services, resources, information, and evidence.",UAF Operational sequence and process
 Operational Activity,"A logical process independent of its implementing software or deployment.",UAF OperationalActivity
+Optimization problem,"An immutable typed routing route-scenario convex or MILP formulation with stable domain identities solver profile and exact input provenance.",UAF ResourceInformation and SysML constraint model
+Optimization run,"A durable execution record that binds one optimization problem to the pinned cuOpt runtime GPU identity controls progress status and usage.",UAF Function execution and ResourceInformation
 Outbox,"An ordered event record committed in the same transaction as domain state and replayed from a durable consumer cursor.",UAF ResourceInformation
 Provider completion,"The transition of an external provider job from submitted to terminal state. Veoveo accepts it only from a signed webhook.",UAF Operational event and SysML state transition
 Recording,"A governed logical Rerun recording composed of immutable footer-indexed archive shards, an optional bounded live projection, and a SurrealDB catalog identity.",UAF ResourceArtifact and ResourceInformation
@@ -25,6 +27,8 @@ Software component,"A first-party or external executable, library, application, 
 System,"A resource performer that composes software and infrastructure into an operationally useful whole.",UAF System and SysML Block
 Tenant,"An installation-local isolation boundary carried through identity, tasks, artifacts, recordings, policy, audit, and persistence.",UAF Organization/security boundary
 Transactional authority,"The store whose committed record decides system state after restart or concurrency. For platform coordination this is SurrealDB.",UAF ResourceInformation source of truth
+Travel model,"An immutable Map-owned artifact containing controlled location and vehicle-type order cost and transit-time matrices unavailable arcs units release pins and restriction provenance for Optimization.",UAF ResourceArtifact and ResourceInformation
+Verified optimization solution,"An immutable solution linked to one problem and run whose feasibility integrality constraints and objective were independently recalculated outside cuOpt.",UAF ResourceArtifact and verification evidence
 View,"A presentation of selected model elements that addresses named stakeholder concerns without becoming a separate source of truth.",SysML View and UAF View specification
 Viewpoint,"The conventions, concerns, stakeholders, and model kinds used to construct a view.",SysML Viewpoint and UAF viewpoint/aspect
 Webhook wait,"A durable recovery state entered only after provider submission and provider-job binding commit; completion awaits a signed webhook.",SysML state

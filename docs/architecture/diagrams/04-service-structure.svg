@@ -13,7 +13,7 @@
 <rect x="0" y="0" width="1800" height="82" rx="0" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
 <text x="36" y="43" class="title inverse" text-anchor="start">Service structure</text>
 <text x="1764" y="32" class="label inverse" text-anchor="end">VV-VIEW-04</text>
-<text x="1764" y="57" class="small inverse" text-anchor="end">UAF 1.3 / SysML 1.6 | v0.1.0</text>
+<text x="1764" y="57" class="small inverse" text-anchor="end">UAF 1.3 / SysML 1.6 | v0.2.0</text>
 <rect x="38" y="120" width="1724" height="225" rx="12" fill="#d9ebe7" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
 <text x="56" y="146" class="label" text-anchor="start">Access and oversight</text>
 <text x="1744" y="146" class="small" text-anchor="end">UAF Services</text>
@@ -93,45 +93,58 @@
 <rect x="38" y="614" width="1724" height="225" rx="12" fill="#eee5d8" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
 <text x="56" y="640" class="label" text-anchor="start">Domain execution</text>
 <text x="1744" y="640" class="small" text-anchor="end">UAF Services</text>
-<rect x="60.0" y="661" width="405" height="158" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
-<rect x="60.0" y="661" width="7" height="158" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="78.0" y="684" class="node-id" text-anchor="start">VV-SVC-006</text>
-<text x="78.0" y="708" class="node-title" text-anchor="start">
-<tspan x="78.0" dy="0">Domain compute service</tspan>
+<rect x="58.0" y="661" width="320.8" height="158" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="58.0" y="661" width="7" height="158" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="76.0" y="684" class="node-id" text-anchor="start">VV-SVC-006</text>
+<text x="76.0" y="708" class="node-title" text-anchor="start">
+<tspan x="76.0" dy="0">Domain compute service</tspan>
 </text>
-<text x="78.0" y="731" class="small" text-anchor="start">
-<tspan x="78.0" dy="0">Runs analytical, forecasting, optimization,</tspan>
-<tspan x="78.0" dy="16">frame, and chart workloads.</tspan>
+<text x="76.0" y="731" class="small" text-anchor="start">
+<tspan x="76.0" dy="0">Runs analytical, forecasting, frame,</tspan>
+<tspan x="76.0" dy="16">and chart workloads.</tspan>
 </text>
-<rect x="485.0" y="661" width="405" height="158" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
-<rect x="485.0" y="661" width="7" height="158" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="503.0" y="684" class="node-id" text-anchor="start">VV-SVC-007</text>
-<text x="503.0" y="708" class="node-title" text-anchor="start">
-<tspan x="503.0" dy="0">Agent execution service</tspan>
+<rect x="398.8" y="661" width="320.8" height="158" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="398.8" y="661" width="7" height="158" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="416.8" y="684" class="node-id" text-anchor="start">VV-SVC-007</text>
+<text x="416.8" y="708" class="node-title" text-anchor="start">
+<tspan x="416.8" dy="0">Agent execution service</tspan>
 </text>
-<text x="503.0" y="731" class="small" text-anchor="start">
-<tspan x="503.0" dy="0">Runs restart-safe bounded episodes over</tspan>
-<tspan x="503.0" dy="16">governed context and tools.</tspan>
+<text x="416.8" y="731" class="small" text-anchor="start">
+<tspan x="416.8" dy="0">Runs restart-safe bounded episodes</tspan>
+<tspan x="416.8" dy="16">over governed context and tools.</tspan>
 </text>
-<rect x="910.0" y="661" width="405" height="158" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
-<rect x="910.0" y="661" width="7" height="158" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="928.0" y="684" class="node-id" text-anchor="start">VV-SVC-011</text>
-<text x="928.0" y="708" class="node-title" text-anchor="start">
-<tspan x="928.0" dy="0">Geospatial logistics service</tspan>
+<rect x="739.6" y="661" width="320.8" height="158" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="739.6" y="661" width="7" height="158" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="757.6" y="684" class="node-id" text-anchor="start">VV-SVC-011</text>
+<text x="757.6" y="708" class="node-title" text-anchor="start">
+<tspan x="757.6" dy="0">Geospatial logistics service</tspan>
 </text>
-<text x="928.0" y="731" class="small" text-anchor="start">
-<tspan x="928.0" dy="0">Governs map releases and serves routing and</tspan>
-<tspan x="928.0" dy="16">spatial operations.</tspan>
+<text x="757.6" y="731" class="small" text-anchor="start">
+<tspan x="757.6" dy="0">Governs map releases and serves</tspan>
+<tspan x="757.6" dy="16">routing and spatial operations.</tspan>
 </text>
-<rect x="1335.0" y="661" width="405" height="158" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
-<rect x="1335.0" y="661" width="7" height="158" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1353.0" y="684" class="node-id" text-anchor="start">VV-SVC-012</text>
-<text x="1353.0" y="708" class="node-title" text-anchor="start">
-<tspan x="1353.0" dy="0">Stream processing service</tspan>
+<rect x="1080.4" y="661" width="320.8" height="158" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1080.4" y="661" width="7" height="158" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1098.4" y="684" class="node-id" text-anchor="start">VV-SVC-012</text>
+<text x="1098.4" y="708" class="node-title" text-anchor="start">
+<tspan x="1098.4" dy="0">Stream processing service</tspan>
 </text>
-<text x="1353.0" y="731" class="small" text-anchor="start">
-<tspan x="1353.0" dy="0">Runs local bounded GStreamer graphs over</tspan>
-<tspan x="1353.0" dy="16">arriving media or governed recordings.</tspan>
+<text x="1098.4" y="731" class="small" text-anchor="start">
+<tspan x="1098.4" dy="0">Runs local bounded GStreamer graphs</tspan>
+<tspan x="1098.4" dy="16">over arriving media or governed</tspan>
+<tspan x="1098.4" dy="16">recordings.</tspan>
+</text>
+<rect x="1421.2" y="661" width="320.8" height="158" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1421.2" y="661" width="7" height="158" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1439.2" y="684" class="node-id" text-anchor="start">VV-SVC-013</text>
+<text x="1439.2" y="708" class="node-title" text-anchor="start">
+<tspan x="1439.2" dy="0">GPU optimization service</tspan>
+</text>
+<text x="1439.2" y="731" class="small" text-anchor="start">
+<tspan x="1439.2" dy="0">Compiles typed decisions, executes</tspan>
+<tspan x="1439.2" dy="16">pinned cuOpt on NVIDIA hardware, and</tspan>
+<tspan x="1439.2" dy="16">publishes independently verified</tspan>
+<tspan x="1439.2" dy="16">solutions.</tspan>
 </text>
 <rect x="38" y="861" width="1724" height="185" rx="12" fill="#e7e1ef" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
 <text x="56" y="887" class="label" text-anchor="start">Deployment and assurance</text>
@@ -160,7 +173,7 @@
 <tspan x="732" dy="0">VV-CMP-001, 004, 005, 014-016, 023,</tspan>
 <tspan x="732" dy="15">039, 047, 051, 053</tspan>
 </text>
-<text x="1077" y="1110" class="node-id" text-anchor="start">VV-SVC-006/011/012</text>
+<text x="1077" y="1110" class="node-id" text-anchor="start">VV-SVC-006/011/012/013</text>
 <text x="1077" y="1133" class="small" text-anchor="start">
 <tspan x="1077" dy="0">VV-CMP-017-022, 024-026, 031, 032,</tspan>
 <tspan x="1077" dy="15">044-046, 049, 050, 054-057, 063, 064,...</tspan>
@@ -172,5 +185,5 @@
 </text>
 <rect x="28" y="1165" width="1744" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1186" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="1770" y="1186" class="tiny" text-anchor="end">Revision 2026-07-28 | VV-VIEW-04</text>
+<text x="1770" y="1186" class="tiny" text-anchor="end">Revision 2026-07-29 | VV-VIEW-04</text>
 </svg>

@@ -389,10 +389,11 @@ installation; each deployment substitutes its own.
 
 ### GPU execution contract
 
-Hardware GPU access is mandatory for simulation, perception, reasoning, 3D
-rendering, Rerun, and visual acceptance workflows that declare it. Kubernetes
-workloads request an NVIDIA device and fail closed when CUDA, Vulkan, WebGPU, or
-WebGL cannot reach hardware. Software rendering is not a supported fallback.
+Hardware GPU access is mandatory for optimization, simulation, perception,
+reasoning, 3D rendering, Rerun, and visual acceptance workflows that declare
+it. Kubernetes workloads request an NVIDIA device and fail closed when cuOpt,
+CUDA, Vulkan, WebGPU, or WebGL cannot reach hardware. CPU solving and software
+rendering are not supported fallbacks.
 
 The local cluster applies the same `nvidia.com/gpu` scheduling contract used by
 fielded installations. Browser verification proves that high-performance
@@ -419,6 +420,7 @@ profile rather than support for every optional feature of each standard.
 | Identity and authorization | OpenID Connect Core; OAuth 2.0 Authorization Code with S256 PKCE, Client Credentials, and JWT Bearer grants; RFC 8414 metadata; RFC 9728 protected-resource metadata; RFC 8707 resource indicators; JWT, JWS, and JWK; MCP enterprise-managed authorization and ID-JAG. |
 | Recordings, data, and media | Rerun RRD and `VideoStream`; versioned protobuf recording ingest; S3-compatible object APIs; DuckDB SQL; Apache Parquet; and OTLP/HTTP telemetry. |
 | Geography and time | WGS84/EPSG identities; GeoJSON RFC 7946; OGC JSON-FG and CQL2; GeoParquet 1.0; Mapbox Vector Tile 2.1; MapLibre Style 8; RFC 3339; RFC 9557; IANA TZDB/TZif and leap-second data; TAI and GPS time. |
+| Optimization | NVIDIA cuOpt 26.06 on CUDA 13.2; `veoveo.io/travel-model-artifact/v1` for the Map handoff; and the private pod-local `veoveo.io/cuopt-executor/v1` adapter protocol. |
 | 3D and vehicles | OGC 3D Tiles 1.0/1.1; glTF/GLB 2.0; Draco geometry compression; MAVLink 2; and pod-private ROS 2 simulator paths. |
 | Packaging and operations | Kubernetes resources, Helm charts, OCI images and charts, S3-compatible storage, and OpenTelemetry. |
 
@@ -426,6 +428,7 @@ The exact supported subsets are collected in
 [`docs/TECH_DESIGN.md`](docs/TECH_DESIGN.md#standards-and-protocols). Domain
 profiles live in their server designs, including
 [`map-mcp`](servers/map-mcp/DESIGN.md#standards-and-protocols),
+[`optimization-mcp`](servers/optimization-mcp/DESIGN.md#standards-and-protocols),
 [`time-mcp`](servers/time-mcp/DESIGN.md#standards-and-protocols),
 [`view-mcp`](servers/view-mcp/DESIGN.md#standards-and-protocols), and
 [`uav-sim-mcp`](servers/uav-sim-mcp/DESIGN.md#standards-and-protocols).
@@ -436,8 +439,9 @@ Veoveo is built from technology many engineers already run in production:
 services that share one ontology of work, evidence, and worlds, MCP servers
 in any language that speaks the protocol, a Console that runs in any modern
 browser, Kubernetes and Helm underneath, SurrealDB for coordination, DuckDB
-for analysis, Rerun for recordings, and NVIDIA runtimes for simulation and
-Stream perception profiles. If these tools feel like home, so will this repository.
+for analysis, Rerun for recordings, and NVIDIA runtimes for cuOpt decisions,
+simulation, and Stream perception profiles. If these tools feel like home, so
+will this repository.
 
 <table align="center" aria-label="Technology stack logos">
   <tbody>

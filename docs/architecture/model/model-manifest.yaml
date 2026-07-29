@@ -2,18 +2,18 @@ schema: veoveo.architecture-model-manifest/v1
 architecture:
   id: VV-MODEL-001
   title: Veoveo UAF 1.3 / SysML 1.6 Reference Architecture
-  version: 0.1.0
-  revision_date: 2026-07-28
+  version: 0.2.0
+  revision_date: 2026-07-29
   handling: reference_baseline_no_client_data
   source_repository: veoveo
-  source_commit: 7783abd7ef2eeac35c57844ced4ad7d53deed896
+  source_commit: 6b7d59a9d26a3b077084bbd535378d00620d4097
 
 scope:
   rust_workspace_packages: 45
   gateway_server_identities: 17
-  software_resources: 69
-  interfaces: 40
-  requirements: 19
+  software_resources: 71
+  interfaces: 43
+  requirements: 20
   actual_resource_configurations: 3
   includes:
     - first_party_buildable_components
@@ -51,6 +51,18 @@ standards:
     declared_version: 2.5.1
   uml:
     namespace: http://www.omg.org/spec/UML/20161101
+  optimization_runtime:
+    name: NVIDIA cuOpt
+    version: "26.06"
+    cuda_version: "13.2"
+    container_digest: sha256:0faac7182b32f5be747e30f081427e80e8dfeccd8f49613814d3d217167fe1ad
+    profile: routing Solve and BatchSolve; continuous LP QP QCQP and SOCP; linear MILP
+  optimization_executor_protocol:
+    name: veoveo.io/cuopt-executor/v1
+    exposure: private_pod_local_adapter_not_public_contract
+  travel_model_contract:
+    name: veoveo.io/travel-model-artifact/v1
+    exposure: repository_owned_cross_server_contract
 
 model:
   exchange_file: veoveo-uaf-sysml.xmi
@@ -78,7 +90,7 @@ validation:
     - cross_catalog_identifier_resolution
     - svg_xml_well_formedness
     - html_local_link_resolution
-    - headless_browser_pdf_render
+    - headed_hardware_browser_pdf_render
     - pdf_text_extraction
     - rendered_pdf_visual_inspection
     - release_checksum_generation

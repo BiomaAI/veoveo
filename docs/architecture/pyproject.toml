@@ -1,6 +1,6 @@
 [project]
 name = "veoveo-architecture-tools"
-version = "0.1.0"
+version = "0.2.0"
 description = "Locked rendering, validation, packaging, and visual-QA toolchain for the formal architecture artifacts"
 requires-python = ">=3.12,<3.15"
 dependencies = [

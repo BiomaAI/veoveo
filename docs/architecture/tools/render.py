@@ -18,9 +18,9 @@ ARCH = Path(__file__).resolve().parents[1]
 CATALOGS = ARCH / "catalogs"
 DIAGRAMS = ARCH / "diagrams"
 MODEL = ARCH / "model"
-VERSION = "0.1.0"
-REVISION_DATE = "2026-07-28"
-SOURCE_COMMIT = "7783abd7ef2eeac35c57844ced4ad7d53deed896"
+VERSION = "0.2.0"
+REVISION_DATE = "2026-07-29"
+SOURCE_COMMIT = "6b7d59a9d26a3b077084bbd535378d00620d4097"
 
 
 def read_csv(name: str) -> list[dict[str, str]]:
@@ -56,8 +56,8 @@ CAPABILITIES = [
     ),
     (
         "VV-CAP-005",
-        "Bounded analytics and decisions",
-        "Arbitrary SQL, forecasting, planning, and charts execute inside owned limits.",
+        "Bounded analytics",
+        "Arbitrary SQL, forecasting, and charts execute inside owned limits.",
     ),
     (
         "VV-CAP-006",
@@ -94,6 +94,11 @@ CAPABILITIES = [
         "Extensible hosted domains",
         "Shared Rust contracts and validated Python models add servers without weakening canonical protocol behavior.",
     ),
+    (
+        "VV-CAP-013",
+        "Operational optimization",
+        "Typed fleet-routing and mathematical decisions execute on a required GPU and retain independently verified evidence.",
+    ),
 ]
 
 ACTIVITIES = [
@@ -124,8 +129,8 @@ ACTIVITIES = [
     ),
     (
         "VV-OPA-006",
-        "Analyze, route, and plan",
-        "Transform governed inputs into analytical, logistical, or planning products.",
+        "Analyze and route governed data",
+        "Transform governed inputs into analytical and geospatial products.",
     ),
     (
         "VV-OPA-007",
@@ -146,6 +151,11 @@ ACTIVITIES = [
         "VV-OPA-010",
         "Deploy and verify installation",
         "Bootstrap, configure, validate, observe, and transfer connected or offline forms.",
+    ),
+    (
+        "VV-OPA-011",
+        "Formulate solve and verify decisions",
+        "Compile typed routing or mathematical models, execute cuOpt, independently verify results, and publish evidence.",
     ),
 ]
 
@@ -178,7 +188,7 @@ SERVICES = [
     (
         "VV-SVC-006",
         "Domain compute service",
-        "Runs analytical, forecasting, optimization, frame, and chart workloads.",
+        "Runs analytical, forecasting, frame, and chart workloads.",
     ),
     (
         "VV-SVC-007",
@@ -209,6 +219,11 @@ SERVICES = [
         "VV-SVC-012",
         "Stream processing service",
         "Runs local bounded GStreamer graphs over arriving media or governed recordings.",
+    ),
+    (
+        "VV-SVC-013",
+        "GPU optimization service",
+        "Compiles typed decisions, executes pinned cuOpt on NVIDIA hardware, and publishes independently verified solutions.",
     ),
 ]
 
@@ -598,14 +613,14 @@ def diagram_context() -> None:
 def diagram_capabilities() -> None:
     svg = Svg(
         1700,
-        1180,
+        1250,
         "Capability map",
         "Strategic capability taxonomy for the Veoveo reference architecture.",
         "VV-VIEW-02",
     )
     groups = [
         ("Mission-facing capabilities", CAPABILITIES[0:4], "#d9ebe7"),
-        ("Domain decision capabilities", CAPABILITIES[4:7], "#deebf2"),
+        ("Domain decision capabilities", CAPABILITIES[4:7] + CAPABILITIES[12:13], "#deebf2"),
         ("Enterprise platform capabilities", CAPABILITIES[7:10], "#eee5d8"),
         ("Extension and logistics capabilities", CAPABILITIES[10:12], "#e7e1ef"),
     ]
@@ -630,11 +645,11 @@ def diagram_capabilities() -> None:
                 max_lines=4,
             )
         y += height + 22
-    svg.rect(40, 1045, 1620, 70, fill="#102f40", rx=10)
-    svg.text(62, 1075, "Capability realization rule", cls="label inverse")
+    svg.rect(40, 1100, 1620, 80, fill="#102f40", rx=10)
+    svg.text(62, 1132, "Capability realization rule", cls="label inverse")
     svg.text(
         62,
-        1101,
+        1160,
         "Every capability traces through at least one operational activity and service to named software resources and verification evidence.",
         cls="body inverse",
     )
@@ -665,8 +680,8 @@ def diagram_mission_thread() -> None:
         ("2", "Authorize", 470, lane_y[1]),
         ("3", "Discover", 690, lane_y[1]),
         ("4", "Observe", 910, lane_y[2]),
-        ("5", "Analyze / route", 1130, lane_y[2]),
-        ("6", "Plan / decide", 1350, lane_y[0]),
+        ("5", "Formulate", 1130, lane_y[2]),
+        ("6", "Solve / verify", 1350, lane_y[2]),
         ("7", "Act", 1570, lane_y[0]),
     ]
     centers: list[tuple[float, float]] = []
@@ -683,7 +698,7 @@ def diagram_mission_thread() -> None:
         (330, "Recording identity", "recording://..."),
         (615, "Policy decision", "principal + target + outcome"),
         (900, "Task identity", "UUIDv7 + recovery class"),
-        (1185, "Result identity", "artifact://... / map://..."),
+        (1185, "Decision evidence", "optimization://problem/run/solution"),
         (1470, "Audit evidence", "method + reason + context"),
     ]
     for x, title, body in evidence:
@@ -724,7 +739,7 @@ def diagram_services() -> None:
     tiers = [
         ("Access and oversight", SERVICES[0:2] + SERVICES[7:8], "#d9ebe7"),
         ("Coordination and governance", SERVICES[2:5] + SERVICES[9:10], "#deebf2"),
-        ("Domain execution", SERVICES[5:7] + SERVICES[10:12], "#eee5d8"),
+        ("Domain execution", SERVICES[5:7] + SERVICES[10:13], "#eee5d8"),
         ("Deployment and assurance", SERVICES[8:9], "#e7e1ef"),
     ]
     y = 120
@@ -755,8 +770,8 @@ def diagram_services() -> None:
         ("VV-SVC-003", "VV-CMP-008, 009, 012, 038, 065"),
         ("VV-SVC-004/005", "VV-CMP-001, 004, 005, 014-016, 023, 039, 047, 051, 053"),
         (
-            "VV-SVC-006/011/012",
-            "VV-CMP-017-022, 024-026, 031, 032, 044-046, 049, 050, 054-057, 063, 064, 066-069",
+            "VV-SVC-006/011/012/013",
+            "VV-CMP-017-022, 024-026, 031, 032, 044-046, 049, 050, 054-057, 063, 064, 066-071",
         ),
         ("VV-SVC-007/008/009/010", "VV-CMP-002, 003, 006, 007, 033-037, 040, 042, 048, 060, 061"),
     ]
@@ -775,7 +790,7 @@ def component_by_id(ident: str) -> dict[str, str]:
 def diagram_resource_structure() -> None:
     svg = Svg(
         2200,
-        1900,
+        2100,
         "Software resource structure",
         "Complete scoped software component inventory grouped by architectural responsibility.",
         "VV-VIEW-05",
@@ -814,7 +829,7 @@ def diagram_resource_structure() -> None:
         ),
         (
             "Showcase and internal executors",
-            [f"VV-CMP-{i:03d}" for i in range(28, 33)] + ["VV-CMP-055", "VV-CMP-067"],
+            [f"VV-CMP-{i:03d}" for i in range(28, 33)] + ["VV-CMP-055", "VV-CMP-067", "VV-CMP-070"],
             "#e7e1ef",
             7,
         ),
@@ -832,7 +847,7 @@ def diagram_resource_structure() -> None:
         ),
         (
             "External platform and execution resources",
-            [f"VV-CMP-{i:03d}" for i in range(38, 49)] + ["VV-CMP-056"],
+            [f"VV-CMP-{i:03d}" for i in range(38, 49)] + ["VV-CMP-056", "VV-CMP-071"],
             "#f0dfdc",
             6,
         ),
@@ -1009,6 +1024,7 @@ def diagram_connectivity() -> None:
         ("VV-CMP-047", "RRD volumes", "World and episode evidence"),
         ("VV-CMP-045", "DuckDB + Spatial", "Owner analytical workspaces"),
         ("VV-CMP-046", "Map toolchain", "Routing and acquisition"),
+        ("VV-CMP-070/071", "cuOpt executor + runtime", "Private NVIDIA GPU optimization"),
         ("VV-CMP-044", "DeepStream / TensorRT", "Local GPU inference"),
         ("VV-CMP-056", "UAV simulator stack", "Isaac, Cesium, Pegasus, and PX4"),
         ("VV-CMP-042", "OTel collector", "Approved operational signals"),
@@ -1017,9 +1033,9 @@ def diagram_connectivity() -> None:
         col, row = index % 2, index // 2
         svg.card(
             1318 + col * 267,
-            175 + row * 220,
+            165 + row * 180,
             245,
-            165,
+            150,
             ident,
             title,
             body,
@@ -1039,10 +1055,12 @@ def diagram_connectivity() -> None:
     svg.path("M 610 730 L 975 855")
     svg.path("M 955 855 L 1318 257")
     svg.path("M 955 855 L 1585 257")
-    svg.path("M 1098 855 L 1318 477")
-    svg.path("M 1225 500 L 1318 697", cls="edge-muted")
-    svg.path("M 1225 645 L 1585 697", cls="edge-muted")
-    svg.path("M 1130 500 L 1585 477", cls="edge-muted")
+    svg.path("M 1098 855 L 1318 420")
+    svg.path("M 1225 500 L 1318 600", cls="edge-muted")
+    svg.path("M 954 346 L 1585 600")
+    svg.path("M 1225 645 L 1318 780", cls="edge-muted")
+    svg.path("M 1130 500 L 1585 420", cls="edge-muted")
+    svg.path("M 1086 645 L 1585 780", cls="edge-muted")
     svg.save("06-software-resource-connectivity.svg")
 
 
@@ -1059,21 +1077,21 @@ def diagram_deployment() -> None:
             "VV-AR-001",
             "k3d local",
             "Local Kubernetes",
-            "Loopback ingress; development Secrets; mandatory NVIDIA GPU access",
+            "Loopback ingress; development Secrets; seven schedulable NVIDIA GPU shares",
             "#d9ebe7",
         ),
         (
             "VV-AR-002",
             "Kubernetes connected",
             "Kubernetes",
-            "External OIDC/S3; Ingress; default-deny NetworkPolicy; mesh mTLS",
+            "External OIDC/S3; Ingress; default-deny NetworkPolicy; mesh mTLS; measured GPU capacity",
             "#eee5d8",
         ),
         (
             "VV-AR-003",
             "Kubernetes offline",
             "Isolated Kubernetes",
-            "Imported images; existing Secrets; offline values; retained evidence",
+            "Imported images; existing Secrets; NVIDIA runtime; offline values; retained evidence",
             "#e7e1ef",
         ),
     ]
@@ -1093,7 +1111,7 @@ def diagram_deployment() -> None:
         )
         invariants = [
             "Gateway + console",
-            "Hosted MCP domains",
+            "Hosted domains; Optimization GPU executor",
             "Artifact plane",
             "Recording plane",
             "SurrealDB authority",
@@ -1106,9 +1124,9 @@ def diagram_deployment() -> None:
         svg.rect(x, 825, 540, 112, fill="#ffffff", stroke="#c0ccd1", rx=8)
         svg.text(x + 18, 855, "Form-specific controls", cls="node-id")
         form_controls = [
-            "k3d ports, registry pulls, GPU node",
-            "Kubernetes Secrets, PVCs, Ingress",
-            "Offline Helm values and image policy",
+            "k3d ports, registry pulls, seven GPU shares",
+            "Kubernetes Secrets, PVCs, Ingress, GPU placement",
+            "Offline values, image policy, NVIDIA runtime",
         ][index]
         svg.multiline(x + 18, 883, form_controls, width=43, cls="body", leading=18, max_lines=3)
     svg.rect(38, 980, 1719, 60, fill="#102f40", rx=10)
@@ -1259,9 +1277,9 @@ def diagram_security() -> None:
             "Owner paths, locked settings, bounded processes, governed input and output",
         ),
         (
-            "VV-CMP-044",
+            "VV-CMP-044/070/071",
             "GPU execution",
-            "Mounted approved engine, task process boundary, no remote inference dependency",
+            "Pinned engines, private executor boundary, digest-checked inputs, no CPU fallback",
         ),
     ]
     for i, (ident, name, body) in enumerate(data):
@@ -1296,7 +1314,7 @@ def diagram_security() -> None:
 def diagram_traceability() -> None:
     svg = Svg(
         2400,
-        1500,
+        1620,
         "Requirements traceability",
         "Trace from SysML requirements through UAF capabilities, operational activities, services, resources, and verification evidence.",
         "VV-VIEW-09",
@@ -1625,6 +1643,31 @@ def generate_xmi() -> None:
             {f"{{{xmi_ns}}}id": f"{ident}-UAF", "base_Class": ident},
         )
 
+    for interface in INTERFACES:
+        ident = interface["interface_id"]
+        element = ET.SubElement(
+            resources,
+            "packagedElement",
+            {
+                f"{{{xmi_ns}}}type": "uml:InformationFlow",
+                f"{{{xmi_ns}}}id": ident,
+                "name": interface["name"],
+                "informationSource": interface["source_id"],
+                "informationTarget": interface["target_id"],
+            },
+        )
+        comment(
+            element,
+            f"{ident}-COMMENT",
+            (
+                f"{interface['protocol_or_contract']}. "
+                f"Direction: {interface['direction']}. "
+                f"Identity and policy: {interface['identity_and_policy']}. "
+                f"Data: {interface['data']}. "
+                f"Availability and recovery: {interface['availability_and_recovery']}."
+            ),
+        )
+
     requirement_ids: set[str] = set()
     for req in REQUIREMENTS:
         ident = req["requirement_id"]
@@ -1848,7 +1891,7 @@ def generate_html() -> None:
 :root{{--ink:#102f40;--muted:#526a76;--teal:#176b68;--line:#c1cdd2;--paper:#f5f2eb;--panel:#fff;--wash:#e7eef0}}
 *{{box-sizing:border-box}}html{{scroll-behavior:smooth}}body{{margin:0;background:var(--paper);color:var(--ink);font-family:Arial,Helvetica,sans-serif;line-height:1.45}}a{{color:var(--teal)}}header{{background:var(--ink);color:#fff;padding:52px clamp(24px,6vw,88px)}}header .kicker,.eyebrow{{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}}header h1{{font-size:clamp(34px,6vw,68px);line-height:1.02;max-width:980px;margin:14px 0 18px}}header .abstract{{max-width:1020px;font-size:19px;color:#e1e9ec}}.meta{{display:flex;gap:28px;flex-wrap:wrap;margin-top:28px;font-size:13px;color:#c8d6db}}nav{{position:sticky;top:0;z-index:3;display:flex;gap:18px;overflow:auto;padding:12px clamp(18px,5vw,72px);background:#fff;border-bottom:1px solid var(--line);white-space:nowrap}}nav a{{font-size:13px;text-decoration:none;color:var(--ink)}}main{{max-width:1480px;margin:auto;padding:42px clamp(18px,4vw,54px) 80px}}section{{scroll-margin-top:70px;margin:0 0 58px}}h2{{font-size:30px;margin:0 0 12px}}h3{{font-size:20px;margin:28px 0 8px}}p{{max-width:1040px}}.summary-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;margin:24px 0}}.summary{{background:#fff;border:1px solid var(--line);padding:18px;border-radius:8px}}.summary strong{{display:block;font-size:30px}}.notice{{background:#eee5d8;border-left:6px solid #b98a52;padding:18px 22px;margin:24px 0;max-width:1150px}}.view{{background:#fff;border:1px solid var(--line);padding:28px;border-radius:12px;break-before:page}}.view-heading{{display:flex;justify-content:space-between;gap:24px;align-items:start}}.viewpoint{{font-size:13px;color:var(--muted);text-align:right;max-width:380px}}.diagram{{display:block;width:100%;height:auto;margin:20px auto 0;border:1px solid var(--line);background:var(--paper)}}.diagram-link{{font-size:13px}}.table-wrap{{overflow:auto;background:#fff;border:1px solid var(--line);margin:18px 0 36px}}table{{width:100%;border-collapse:collapse;font-size:12px}}th,td{{padding:9px 10px;border-bottom:1px solid #d7dfe2;text-align:left;vertical-align:top}}th{{position:sticky;top:0;background:var(--ink);color:#fff;z-index:1}}tbody tr:nth-child(even){{background:#edf1f2}}code{{font-size:.92em}}.filter{{display:flex;gap:12px;align-items:center;margin:18px 0}}.filter input{{min-width:320px;max-width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:5px;background:#fff;color:var(--ink)}}.doc-control td:first-child{{font-weight:700;width:220px}}footer{{padding:28px clamp(18px,5vw,72px);background:var(--ink);color:#dce6e9;font-size:12px}}
 @media(max-width:700px){{.view-heading{{display:block}}.viewpoint{{text-align:left}}.filter{{display:block}}.filter input{{min-width:0;width:100%}}}}
-@media print{{@page{{size:A4 landscape;margin:10mm}}body{{background:#fff;font-size:9pt}}nav,.diagram-link,.filter{{display:none}}header{{height:188mm;min-height:188mm;padding:28mm 20mm;background:#102f40!important;break-after:page;-webkit-print-color-adjust:exact;print-color-adjust:exact}}header h1{{font-size:34pt}}main{{max-width:none;padding:0}}section{{margin:0 0 8mm}}#method{{break-before:page;break-inside:avoid}}.view{{height:188mm;border:0;padding:0;break-before:page;break-inside:avoid;overflow:hidden}}.view-heading{{align-items:start}}.view h2{{font-size:18pt;margin:0 0 2mm}}.view .eyebrow{{margin:0 0 1mm}}.view>p{{margin:0 0 2mm}}.diagram{{display:block;width:auto;max-width:100%;height:147mm;object-fit:contain;border:0;margin:2mm auto 0}}.table-wrap{{overflow:visible;border:0}}table{{font-size:6.7pt}}th,td{{padding:4px}}th{{position:static;background:#102f40!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}tbody tr:nth-child(even){{background:#edf1f2!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}#component-table tbody tr:nth-child(12n),#interfaces tbody tr:nth-child(13),#interfaces tbody tr:nth-child(26),#requirements tbody tr:nth-child(10),#glossary tbody tr:nth-child(15){{break-after:page}}.catalog-section{{break-before:page}}footer{{display:none}}}}
+@media print{{@page{{size:A4 landscape;margin:10mm}}body{{background:#fff;font-size:9pt}}nav,.diagram-link,.filter{{display:none}}header{{height:188mm;min-height:188mm;padding:28mm 20mm;background:#102f40!important;break-after:page;-webkit-print-color-adjust:exact;print-color-adjust:exact}}header h1{{font-size:34pt}}main{{max-width:none;padding:0}}section{{margin:0 0 8mm}}#method{{break-before:page;break-inside:avoid}}.view{{height:188mm;border:0;padding:0;break-before:page;break-inside:avoid;overflow:hidden}}.view-heading{{align-items:start}}.view h2{{font-size:18pt;margin:0 0 2mm}}.view .eyebrow{{margin:0 0 1mm}}.view>p{{margin:0 0 2mm}}.diagram{{display:block;width:auto;max-width:100%;height:147mm;object-fit:contain;border:0;margin:2mm auto 0}}.table-wrap{{overflow:visible;border:0}}table{{font-size:6.7pt}}th,td{{padding:4px}}th{{position:static;background:#102f40!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}tbody tr:nth-child(even){{background:#edf1f2!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}#component-table tbody tr:nth-child(12n),#interfaces tbody tr:nth-child(13),#interfaces tbody tr:nth-child(26),#interfaces tbody tr:nth-child(39),#requirements tbody tr:nth-child(10),#requirements tbody tr:nth-child(20),#glossary tbody tr:nth-child(15){{break-after:page}}.catalog-section{{break-before:page}}footer{{display:none}}}}
 </style>
 </head>
 <body>
