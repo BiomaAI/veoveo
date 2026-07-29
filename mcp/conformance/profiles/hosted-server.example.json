@@ -11,7 +11,8 @@
     "requireAuthenticationRejection": true,
     "rejectedHost": "untrusted.invalid",
     "healthUrl": "https://extension.example.internal/domain/healthz",
-    "readinessUrl": "https://extension.example.internal/domain/readyz"
+    "readinessUrl": "https://extension.example.internal/domain/readyz",
+    "docsLlmsUrl": "https://extension.example.internal/domain/admin/docs/llms.txt"
   },
   "surfaces": {
     "tools": "required",
