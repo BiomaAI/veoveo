@@ -261,7 +261,7 @@ mod tests {
             server: "optimization".to_owned(),
             source_id: None,
             provider_job_id: None,
-            model_id: "optimization/microlp".to_owned(),
+            model_id: "nvidia/cuopt:26.06.00".to_owned(),
             kind: DomainUsageKind::Actual,
             quantity: Some(2.0),
             unit: Some("option".to_owned()),
