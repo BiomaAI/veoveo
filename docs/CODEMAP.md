@@ -412,6 +412,8 @@ Current MCP crates under `servers/` are indexed here:
 | `examples/bioma/uav-sim-values.yaml` | Bioma reference sensor, pose-producer, public gateway origin, and recording tenant binding |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | runtime world publication and binding plus credentialed Google tiles, PX4, independent live Stream processing, Recording Hub replay, Reason, and concurrent GPU acceptance |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim/showcase.rs` | showcase-owned UAV scene composition with independent Simulation View, real authenticated Console follow-camera checkpoints, governed Rerun playback, and revision-qualified evidence |
+| `testing/smoke/src/bin/smoke/scenarios/simulation_view/browser.rs` | headed authenticated Chrome attachment, hardware WebGPU-or-WebGL enforcement, Console App interaction, screenshots, and shared CDP transport |
+| `testing/smoke/src/bin/smoke/scenarios/simulation_view/browser/recording_acceptance.rs` | scoped Redap network evidence, legacy archive-request rejection, and nonblank Rerun viewport measurement |
 
 ### Geospatial Domains
 

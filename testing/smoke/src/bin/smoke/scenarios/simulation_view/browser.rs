@@ -16,6 +16,12 @@ use tokio_tungstenite::{
 use url::Url;
 
 use super::*;
+use recording_acceptance::{
+    ElementBounds, RecordingPlaybackNetworkEvidence, RerunRenderEvidence, analyze_rerun_render,
+};
+
+#[path = "browser/recording_acceptance.rs"]
+mod recording_acceptance;
 
 pub(super) struct BrowserFixture {
     pub app_html: String,
@@ -47,6 +53,8 @@ pub(crate) struct ConsoleRecordingCaptureEvidence {
     screenshot_path: String,
     screenshot_sha256: String,
     hardware: HardwareIdentity,
+    network: RecordingPlaybackNetworkEvidence,
+    render: RerunRenderEvidence,
 }
 
 #[derive(Debug, Serialize)]
@@ -504,17 +512,40 @@ async fn capture_console_recording_inner(
         let final_hardware: HardwareIdentity =
             cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
         final_hardware.validate()?;
+        let viewer_bounds: ElementBounds = cdp
+            .evaluate(
+                &session_id,
+                r#"(() => {
+                    const bounds = document.querySelector(".rerun-web-viewer-host")
+                      ?.getBoundingClientRect();
+                    if (!bounds) return null;
+                    return {
+                      x: bounds.x,
+                      y: bounds.y,
+                      width: bounds.width,
+                      height: bounds.height
+                    };
+                })()"#,
+                false,
+            )
+            .await
+            .context("Console did not expose the Rerun viewport bounds")?;
         let screenshot_sha256 =
             capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
+        let render = analyze_rerun_render(screenshot_path, viewer_bounds)?;
+        render.validate()?;
+        let network = cdp.recording_playback_network_evidence(recording_id)?;
         cdp.assert_no_software_renderer_events()?;
         Ok(ConsoleRecordingCaptureEvidence {
-            schema: "veoveo.io/uav-console-recording-capture/v1",
+            schema: "veoveo.io/uav-console-recording-capture/v2",
             captured_at: chrono::Utc::now(),
             page_url: page_url.to_owned(),
             recording_id: recording_id.to_owned(),
             screenshot_path: screenshot_path.display().to_string(),
             screenshot_sha256,
             hardware: final_hardware,
+            network,
+            render,
         })
     }
     .await;
