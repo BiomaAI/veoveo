@@ -11,7 +11,8 @@
     "requireAuthenticationRejection": true,
     "rejectedHost": "untrusted.invalid",
     "healthUrl": "http://anonymous-simulation-mcp:8812/anonymous-simulation/healthz",
-    "readinessUrl": "http://anonymous-simulation-mcp:8812/anonymous-simulation/readyz"
+    "readinessUrl": "http://anonymous-simulation-mcp:8812/anonymous-simulation/readyz",
+    "docsLlmsUrl": "http://anonymous-simulation-mcp:8812/anonymous-simulation/admin/docs/llms.txt"
   },
   "surfaces": {
     "tools": "required",

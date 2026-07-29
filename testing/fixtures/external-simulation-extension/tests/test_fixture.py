@@ -16,6 +16,14 @@ from anonymous_simulation_mcp.contract import (
     PrepareSceneRequest,
     StartPoseProducerRequest,
 )
+from anonymous_simulation_mcp.mcp_server import (
+    CONTRACT_REVISION,
+    DOCS_INDEX,
+    LLMS_TXT,
+    SERVER_DOCS,
+    contract_declaration,
+    parse_compliance,
+)
 from anonymous_simulation_mcp.runtime import (
     ENTITY_IDS,
     ENTITY_TABLE_REVISION,
@@ -126,6 +134,50 @@ def test_complete_snapshots_move_every_declared_entity() -> None:
     assert tuple(entity.entity_id for entity in first.entities) == ENTITY_IDS
     assert first.entity_table_digest == second.entity_table_digest
     assert first.entities[0].position != second.entities[0].position
+
+
+def test_docs_index_lists_the_required_documents() -> None:
+    ids = [entry["id"] for entry in DOCS_INDEX]
+    assert ids == ["agents", "design"]
+    assert all(entry["title"] for entry in DOCS_INDEX)
+    assert all(doc.body.strip() for doc in SERVER_DOCS)
+
+
+def test_llms_txt_lists_every_document() -> None:
+    assert LLMS_TXT.startswith("# anonymous-simulation\n")
+    assert f"Contract revision {CONTRACT_REVISION}." in LLMS_TXT
+    for doc in SERVER_DOCS:
+        assert f"- [{doc.title}](docs/{doc.id})\n" in LLMS_TXT
+
+
+def test_contract_declaration_meets_the_well_known_surface() -> None:
+    declaration = contract_declaration()
+    assert declaration["server"] == "anonymous-simulation"
+    assert declaration["contract_revision"] == 2
+    by_id = {item["id"]: item for item in declaration["compliance"]}
+    assert len(by_id) == 30
+    for item_id in ("C18", "C19", "C20", "C21"):
+        assert by_id[item_id]["status"] == "met"
+    resources = declaration["capabilities"]["resources"]
+    assert "anonymous-simulation://docs" in resources
+    assert "anonymous-simulation://contract" in resources
+
+
+def test_parse_compliance_reads_status_and_note() -> None:
+    items = parse_compliance(
+        "# Manual\n\n## Contract Compliance\n\n"
+        "- C01: met\n"
+        "- C02: pending — reason text\n"
+        "- C03: pending - dashed\n\n"
+        "## Build And Test\n\n- C99: met\n"
+    )
+    assert items == [
+        {"id": "C01", "status": "met"},
+        {"id": "C02", "status": "pending", "note": "reason text"},
+        {"id": "C03", "status": "pending", "note": "dashed"},
+    ]
+    with pytest.raises(ValueError):
+        parse_compliance("# Manual\n\nNo compliance section.\n")
 
 
 def test_assets_are_declarative_self_contained_usda() -> None:
