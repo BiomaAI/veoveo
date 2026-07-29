@@ -1,7 +1,8 @@
+mod admin;
 pub(crate) mod auth;
 mod config;
 mod host;
-mod tasks;
+pub(crate) mod tasks;
 
 use std::{net::SocketAddr, sync::Arc};
 
@@ -136,9 +137,15 @@ pub async fn run() -> Result<()> {
             veoveo_mcp_task_extension::task_extension_middleware::<ViewTaskExtension>,
         ))
         .layer(middleware::from_fn_with_state(
-            auth_state,
+            auth_state.clone(),
             authenticate_internal,
         ));
+    // Read-only well-known projection (contract C20) behind the same gateway
+    // authentication as the MCP surface.
+    let admin_router = admin::router().layer(middleware::from_fn_with_state(
+        auth_state,
+        authenticate_internal,
+    ));
 
     let readiness_state = state.clone();
     let server_router = Router::new()
@@ -157,6 +164,7 @@ pub async fn run() -> Result<()> {
                 }
             }),
         )
+        .nest("/admin", admin_router)
         .nest("/mcp", mcp_router);
     let router = Router::new()
         .nest(public_endpoint.mount_path(), server_router)
@@ -174,6 +182,7 @@ pub async fn run() -> Result<()> {
         service = "veoveo-view-mcp",
         %address,
         mcp_path = public_endpoint.path("mcp"),
+        admin_path = public_endpoint.path("admin"),
         readiness_path = public_endpoint.path("readyz"),
         "listening"
     );
