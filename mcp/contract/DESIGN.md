@@ -201,7 +201,10 @@ Every server is self-describing. Under its canonical URI scheme it serves:
 
 On its administrative mount the server serves the same material as a read-only
 HTTP projection at `{mount}/admin/docs/llms.txt` (an index in llms.txt form) and
-`{mount}/admin/docs/{doc_id}`. This well-known projection does not establish an
+`{mount}/admin/docs/{doc_id}`. Links in `llms.txt` are relative to that directory:
+`agents` and `design`, not paths that repeat `docs/`. The projection requires the
+same gateway-issued internal identity as the server's MCP endpoint. It is not a
+public exception to refused-by-default authentication and does not establish an
 alternate domain administration API.
 
 Documents are embedded at build time from the crate, so a running server
@@ -273,12 +276,19 @@ rules:
   sections and a parseable `Contract Compliance` declaration.
 - **Protocol conformance** — the conformance client validates advertised
   schemas (C07) and the client-facing protocol shape against a running
-  server. C18–C20 are checked only when a profile names the well-known
-  resources in its required tools, resources, and prompts; the client does
-  not fetch `{scheme}://contract` or compare its declaration with observed
-  behavior. Internal-assertion verification is likewise outside the current
-  profile: the client proves that an unauthenticated request is rejected,
-  not that a forged, expired, or misaddressed assertion is.
+  server. Certification for `veoveo.io/hosted-mcp/v1` always checks C18–C21;
+  a profile cannot forbid resources or omit the administrative docs URL.
+  The client reads `{scheme}://contract`, requires the selected revision,
+  matches its server identity to the initialized implementation, and compares
+  its stable capability inventory with the observed MCP lists. It follows the
+  links actually published by `llms.txt` and authenticates those requests with
+  credentials supplied out of band after proving the projection rejects an
+  unauthenticated request at both its index and document bodies. Credentials
+  may be sent to the docs projection only when it has the same HTTP origin as
+  the MCP endpoint.
+  Internal-assertion verification still proves only the selected boundary
+  checks; forged, expired, and misaddressed assertion cases remain explicit
+  profile or component tests.
 - **Construction** — C03, C08, C10, C18–C21 are inherited by consuming
   `veoveo_mcp_contract`; avoiding them requires bypassing the shared crate,
   which review treats as a contract change.
@@ -288,5 +298,10 @@ rules:
 - **Review** — C05, C06, C09, C13, and C14 are review-enforced boundaries;
   their violation is architectural, not stylistic.
 
-Capability inventories are part of the contract declaration, so protocol
-surface changes are reviewable diffs rather than silent drift.
+Capability inventories contain stable tool names, resource URIs, resource
+template URIs, prompt names, and task-augmented tool names. Tools, templates,
+and prompts match the observed lists exactly. Declared resources must appear in
+the observed list, which may also contain dynamic instance resources. Every
+declared task must name an observed tool, and a non-empty task inventory
+requires the task extension capability. These comparisons make protocol
+surface changes reviewable diffs rather than silent drift.
