@@ -78,7 +78,6 @@ geographiclib-rs = "0.2.7"
 geojson = { version = "1.0.0", features = ["geo-types"] }
 getrandom = "0.3.4"
 http = "1.4.2"
-good_lp = { version = "1.15.2", default-features = false, features = ["microlp"] }
 hex = "0.4.3"
 hmac = "0.13.0"
 image = { version = "0.25.9", default-features = false, features = ["jpeg", "png"] }
