@@ -33,8 +33,12 @@ publication remain governed Recording MCP operations.
 Machine producers use OAuth `client_credentials` with `private_key_jwt`. The active
 gateway control plane binds each producer to one tenant, dataset, application allowlist,
 classification, labels, retention policy, and quota set. Payloads cannot select those
-values. The gateway authenticates the external token, evaluates policy, records audit
-evidence, and issues a short-lived internal assertion addressed to Recording Hub.
+values. The gateway authenticates the external token, evaluates policy, records durable
+audit evidence for stream lifecycle operations and every authentication or policy denial,
+and issues a short-lived internal assertion addressed to Recording Hub. Successful batch
+appends do not create general operator audit events. Their accepted-batch evidence is the
+immutable ingest ledger entry containing producer, stream, sequence, digest, byte count,
+message count, and timestamp.
 
 Producer public keys belong in installation-controlled JWKS material. The producer keeps
 its private key. An installation can therefore issue tokens and ingest on its local

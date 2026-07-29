@@ -166,6 +166,23 @@ impl Config {
     pub(crate) fn secure_cookie(&self) -> bool {
         self.public_base_url.scheme() == "https"
     }
+
+    #[cfg(test)]
+    pub(crate) fn for_test(gateway_url: Url) -> Self {
+        Self {
+            bind: "127.0.0.1:0".parse().expect("valid test bind"),
+            public_base_url: gateway_url.clone(),
+            oauth_client_id: "console".to_owned(),
+            oauth_resource: gateway_url.join("/mcp/admin").expect("valid test resource"),
+            oauth_scopes: BTreeSet::from([
+                ScopeName::new("admin:manage").expect("valid test scope")
+            ]),
+            admin_profile: "admin".to_owned(),
+            session_key: [7; 32],
+            asset_dir: PathBuf::from("/tmp/veoveo-console-test-assets"),
+            gateway_url,
+        }
+    }
 }
 
 fn required(key: &'static str) -> anyhow::Result<String> {

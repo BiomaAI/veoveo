@@ -281,27 +281,28 @@ async fn proxy_authorized(
         audit_metadata.insert("stream_id".to_owned(), stream_id.to_string());
     }
     let allowed = decision.effect == PolicyEffect::Allow;
-    if let Err(error) = record_resource_auth_audit(
-        &state.gateway_state,
-        AuthAuditTarget {
-            profile: None,
-            protected_resource: &resource.protected_resource,
-        },
-        if allowed {
-            AuthOutcome::Allow
-        } else {
-            AuthOutcome::Deny
-        },
-        if allowed {
-            AuthReasonCode::AuthAllow
-        } else {
-            AuthReasonCode::PolicyDenied
-        },
-        Some(&subject),
-        started_at,
-        audit_metadata,
-    )
-    .await
+    if should_record_authorization_audit(action, &decision.effect)
+        && let Err(error) = record_resource_auth_audit(
+            &state.gateway_state,
+            AuthAuditTarget {
+                profile: None,
+                protected_resource: &resource.protected_resource,
+            },
+            if allowed {
+                AuthOutcome::Allow
+            } else {
+                AuthOutcome::Deny
+            },
+            if allowed {
+                AuthReasonCode::AuthAllow
+            } else {
+                AuthReasonCode::PolicyDenied
+            },
+            Some(&subject),
+            started_at,
+            audit_metadata,
+        )
+        .await
     {
         return auth_audit_error_response(error);
     }
@@ -380,6 +381,10 @@ async fn proxy_authorized(
         .headers_mut()
         .insert(header::CONTENT_TYPE, HeaderValue::from_static(MEDIA_TYPE));
     forwarded
+}
+
+fn should_record_authorization_audit(action: GatewayAction, effect: &PolicyEffect) -> bool {
+    *effect == PolicyEffect::Deny || action != GatewayAction::RecordingBatchAppend
 }
 
 async fn authenticate(
@@ -615,4 +620,36 @@ fn stream_not_found() -> Response {
         IngestErrorCode::StreamNotFound,
         "recording ingest stream was not found",
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_record_authorization_audit;
+    use veoveo_mcp_contract::{GatewayAction, PolicyEffect};
+
+    #[test]
+    fn successful_batch_append_uses_the_durable_ingest_ledger() {
+        assert!(!should_record_authorization_audit(
+            GatewayAction::RecordingBatchAppend,
+            &PolicyEffect::Allow,
+        ));
+    }
+
+    #[test]
+    fn recording_lifecycle_and_every_denial_remain_audited() {
+        for action in [
+            GatewayAction::RecordingStreamOpen,
+            GatewayAction::RecordingStreamStatus,
+            GatewayAction::RecordingStreamFinish,
+        ] {
+            assert!(should_record_authorization_audit(
+                action,
+                &PolicyEffect::Allow,
+            ));
+        }
+        assert!(should_record_authorization_audit(
+            GatewayAction::RecordingBatchAppend,
+            &PolicyEffect::Deny,
+        ));
+    }
 }
