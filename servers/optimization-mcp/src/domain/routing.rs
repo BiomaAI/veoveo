@@ -250,6 +250,20 @@ impl RoutingProblem {
                 "at least one routing objective weight must be positive".to_owned(),
             ));
         }
+        let has_service_orders = self
+            .orders
+            .iter()
+            .any(|order| matches!(order.order, RouteOrderKind::Service { .. }));
+        let has_pickup_delivery_orders = self
+            .orders
+            .iter()
+            .any(|order| matches!(order.order, RouteOrderKind::PickupDelivery { .. }));
+        if has_service_orders && has_pickup_delivery_orders {
+            return Err(OptimizationContractError::InvalidProblem(
+                "cuOpt 26.06 routing does not support mixing service and pickup-delivery orders"
+                    .to_owned(),
+            ));
+        }
 
         let mut capacity_dimensions = BTreeSet::new();
         for vehicle in &self.fleet.vehicles {
@@ -296,10 +310,23 @@ impl RoutingProblem {
                     order.order_id
                 )));
             }
-            if order.service_policy == RouteServicePolicy::Optional && order.drop_penalty.is_none()
-            {
+            if order.service_policy == RouteServicePolicy::Optional {
+                let Some(drop_penalty) = order.drop_penalty else {
+                    return Err(OptimizationContractError::InvalidProblem(format!(
+                        "optional order {} requires a drop penalty",
+                        order.order_id
+                    )));
+                };
+                if drop_penalty.get() == 0.0 {
+                    return Err(OptimizationContractError::InvalidProblem(format!(
+                        "optional order {} drop penalty must be positive",
+                        order.order_id
+                    )));
+                }
+            }
+            if order.demand.values().any(|demand| *demand < 0) {
                 return Err(OptimizationContractError::InvalidProblem(format!(
-                    "optional order {} requires a drop penalty",
+                    "order {} demand values must be non-negative; pickup-delivery signs are derived",
                     order.order_id
                 )));
             }
@@ -348,8 +375,27 @@ impl RoutingProblem {
                 "cost matrices",
                 model.cost_matrices.len(),
                 1,
-                self.fleet.vehicles.len(),
+                u8::MAX as usize + 1,
             )?;
+            let used_vehicle_types = self
+                .fleet
+                .vehicles
+                .iter()
+                .map(|vehicle| &vehicle.vehicle_type_id)
+                .collect::<BTreeSet<_>>();
+            let cost_vehicle_types = model
+                .cost_matrices
+                .iter()
+                .map(|matrix| &matrix.vehicle_type_id)
+                .collect::<BTreeSet<_>>();
+            if cost_vehicle_types.len() != model.cost_matrices.len()
+                || cost_vehicle_types != used_vehicle_types
+            {
+                return Err(OptimizationContractError::InvalidProblem(
+                    "inline cost matrices must contain exactly one matrix per used vehicle type"
+                        .to_owned(),
+                ));
+            }
             for matrix in &model.cost_matrices {
                 matrix.validate("cost matrix")?;
                 if matrix.dimension as usize != model.location_ids.len() {
@@ -357,6 +403,20 @@ impl RoutingProblem {
                         "cost matrix dimension must match travel-model locations".to_owned(),
                     ));
                 }
+            }
+            let transit_vehicle_types = model
+                .transit_time_matrices
+                .iter()
+                .map(|matrix| &matrix.vehicle_type_id)
+                .collect::<BTreeSet<_>>();
+            if !model.transit_time_matrices.is_empty()
+                && (transit_vehicle_types.len() != model.transit_time_matrices.len()
+                    || transit_vehicle_types != used_vehicle_types)
+            {
+                return Err(OptimizationContractError::InvalidProblem(
+                    "inline transit-time matrices must be empty or contain exactly one matrix per used vehicle type"
+                        .to_owned(),
+                ));
             }
             for matrix in &model.transit_time_matrices {
                 matrix.validate("transit-time matrix")?;

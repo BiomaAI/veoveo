@@ -188,8 +188,8 @@ pub struct MilpProblem {
     pub objective: ModelObjective,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub constraints: Vec<LinearConstraint>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub mip_starts: Vec<Vec<FiniteF64>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mip_start: Option<Vec<FiniteF64>>,
 }
 
 impl MilpProblem {
@@ -216,9 +216,7 @@ impl MilpProblem {
                 "MILP requires at least one integer or semi-continuous variable".to_owned(),
             ));
         }
-        for start in &self.mip_starts {
-            validate_initial_solution("MIP start", Some(start), self.variables.len())?;
-        }
+        validate_initial_solution("MIP start", self.mip_start.as_deref(), self.variables.len())?;
         Ok(())
     }
 }
@@ -480,7 +478,7 @@ mod tests {
                 offset: FiniteF64::default(),
             },
             constraints: vec![],
-            mip_starts: vec![],
+            mip_start: None,
         };
         assert!(problem.validate().is_err());
     }
