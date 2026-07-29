@@ -7,9 +7,10 @@ Delta over the repository root `AGENTS.md`. The normative server contract is
 
 Veoveo's Earth geography and logistics routing domain: places, facilities,
 borders, coordinates, transport restrictions, routes, matrices, reachable
-areas, governed source acquisition with immutable release activation, and
-Work Context owned feature authoring. Administration runs through the same
-typed MCP surface, including the admin and editor MCP Apps.
+areas, cuOpt-ready travel models, governed source acquisition with immutable
+release activation, and Work Context owned feature authoring. Administration
+runs through the same typed MCP surface, including the admin and editor MCP
+Apps.
 
 ## Invariants
 
@@ -30,6 +31,11 @@ typed MCP surface, including the admin and editor MCP Apps.
   type, byte, time, and filesystem controls.
 - Valhalla is a supervised loopback engine and an internal projection, never
   a public Map API.
+- `build_travel_model` is the canonical Map-to-Optimization boundary. It
+  preserves shared location order, binds each vehicle type to an exact
+  mobility-profile version, records unavailable cells, and publishes
+  `veoveo.io/travel-model-artifact/v1`. Never reconstruct these matrices in
+  Optimization.
 - Domain profile pins (DESIGN.md, Standards And Protocols): GeoJSON RFC 7946,
   OGC JSON-FG 1.0, RFC 8142 text sequences, Basic CQL2-JSON from OGC CQL2
   1.0, GeoParquet 1.0.0, Mapbox Vector Tile 2.1, MapLibre Style 8, final task
@@ -39,6 +45,8 @@ typed MCP surface, including the admin and editor MCP Apps.
 
 - `cargo check -p veoveo-map-mcp`
 - `cargo test -p veoveo-map-mcp`
+- The Map-to-Optimization compatibility test must prove that serialized travel
+  model artifacts deserialize directly into the Optimization contract.
 - Native builds need a C/C++ toolchain, CMake, pkg-config, SQLite development
   files, and PROJ build dependencies (root README, Develop And Verify). The
   DuckDB C library links through the pinned 1.5.5 `duckdb-rs` fork, which
@@ -67,7 +75,7 @@ Contract revision: 2
 - C14: met
 - C15: met
 - C16: met
-- C17: pending — registration does not state the contract revision
+- C17: met
 - C18: met
 - C19: met
 - C20: met

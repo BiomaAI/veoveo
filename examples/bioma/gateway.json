@@ -428,14 +428,18 @@
         "withdraw_restriction"
       ],
       "prompts": [
+        "author_feature_layer",
         "prepare_logistics_matrix",
+        "prepare_optimization_travel_model",
         "prepare_route_request",
         "review_route"
       ],
       "required_scopes": [
         "operator:use"
       ],
-      "metadata": {},
+      "metadata": {
+        "contract_revision": 2
+      },
       "resource_projection": "server_owned"
     },
     {

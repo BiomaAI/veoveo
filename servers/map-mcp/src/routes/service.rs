@@ -345,6 +345,7 @@ impl RouteService {
                     .collect(),
                 observation_release_ids: BTreeSet::new(),
             };
+            self.catalog.persist_snapshot(scope, &snapshot).await?;
             let endpoint = request.locations[0].endpoint.clone();
             let route_request = RouteRequest {
                 mobility_profile_id: vehicle_type.mobility_profile_id.clone(),
