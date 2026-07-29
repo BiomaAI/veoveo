@@ -39,16 +39,28 @@ struct SimulationViewAcceptanceEvidence {
     capture: GenericAppCaptureEvidence,
 }
 
-pub(crate) async fn simulation_view_verify(
-    conformance: &Path,
-    context: &str,
-    namespace: &str,
-    public_base_url: &str,
-    work_context: &str,
-    chrome_cdp_url: &str,
-    evidence_root: &Path,
-    timeout: Duration,
-) -> Result<()> {
+pub(crate) struct SimulationViewVerifyRequest<'a> {
+    pub(crate) conformance: &'a Path,
+    pub(crate) context: &'a str,
+    pub(crate) namespace: &'a str,
+    pub(crate) public_base_url: &'a str,
+    pub(crate) work_context: &'a str,
+    pub(crate) chrome_cdp_url: &'a str,
+    pub(crate) evidence_root: &'a Path,
+    pub(crate) timeout: Duration,
+}
+
+pub(crate) async fn simulation_view_verify(request: SimulationViewVerifyRequest<'_>) -> Result<()> {
+    let SimulationViewVerifyRequest {
+        conformance,
+        context,
+        namespace,
+        public_base_url,
+        work_context,
+        chrome_cdp_url,
+        evidence_root,
+        timeout,
+    } = request;
     ensure!(
         secure_or_loopback_origin(public_base_url)?,
         "Simulation View live acceptance requires public HTTPS or an exact loopback HTTP origin"

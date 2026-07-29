@@ -879,16 +879,16 @@ async fn main() -> Result<()> {
             evidence_root,
             timeout_seconds,
         } => {
-            simulation_view_verify(
-                &conformance_bin,
-                &context,
-                &namespace,
-                &public_base_url,
-                &work_context,
-                &chrome_cdp_url,
-                &evidence_root,
-                Duration::from_secs(timeout_seconds),
-            )
+            simulation_view_verify(SimulationViewVerifyRequest {
+                conformance: &conformance_bin,
+                context: &context,
+                namespace: &namespace,
+                public_base_url: &public_base_url,
+                work_context: &work_context,
+                chrome_cdp_url: &chrome_cdp_url,
+                evidence_root: &evidence_root,
+                timeout: Duration::from_secs(timeout_seconds),
+            })
             .await
         }
         Cmd::SimulationCertify {
