@@ -703,7 +703,7 @@ pub(crate) async fn agent_pilot_mission(
     fs::write(
         &manifest_path,
         serde_json::to_vec_pretty(&serde_json::json!({
-            "agent": { "tenant": "smoke", "id": "pilot-smoke", "display_name": "Pilot Smoke Agent" },
+            "agent": { "tenant": "tenant-a", "id": "pilot-smoke", "display_name": "Pilot Smoke Agent" },
             "model": {
                 "base_url": format!("http://127.0.0.1:{llm_port}/v1"),
                 "api_key_env": "SMOKE_LLM_API_KEY",
@@ -713,6 +713,7 @@ pub(crate) async fn agent_pilot_mission(
                 "url": gateway_base,
                 "profile": "operator",
                 "client_id": "operator-service",
+                "work_context": "operations",
                 "audience": format!("{PUBLIC_BASE_URL}/oauth/token"),
                 "resource": format!("{PUBLIC_BASE_URL}/mcp/operator"),
                 "scopes": ["operator:use"],
@@ -738,6 +739,19 @@ pub(crate) async fn agent_pilot_mission(
 
     let agent_data_dir = tmpdir.join("pilot-data");
     let agent_log = tmpdir.join("pilot.log");
+    let mut agent_env = platform_store.runtime_env();
+    agent_env.extend([
+        ("SMOKE_LLM_API_KEY", "fake".into()),
+        (
+            "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
+            auth_private_key.clone().into(),
+        ),
+        ("OTEL_SERVICE_NAME", "veoveo-pilot-smoke".into()),
+        (
+            "OTEL_EXPORTER_OTLP_ENDPOINT",
+            format!("http://127.0.0.1:{otlp_port}").into(),
+        ),
+    ]);
     let mut agent_child = ChildGuard::spawn(
         agent,
         [
@@ -749,21 +763,10 @@ pub(crate) async fn agent_pilot_mission(
             "--prompt".into(),
             "Add target alpha at 37.7749,-122.4194 and plan the visit.".into(),
         ],
-        [
-            ("SMOKE_LLM_API_KEY", "fake".into()),
-            (
-                "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
-                auth_private_key.clone().into(),
-            ),
-            ("OTEL_SERVICE_NAME", "veoveo-pilot-smoke".into()),
-            (
-                "OTEL_EXPORTER_OTLP_ENDPOINT",
-                format!("http://127.0.0.1:{otlp_port}").into(),
-            ),
-        ],
+        agent_env,
         &agent_log,
     )?;
-    wait_for_log_substring(&agent_log, "MISSION PLANNED", 240).await?;
+    wait_for_log_occurrences(&agent_log, "\"message\":\"episode completed\"", 2, 240).await?;
     agent_child.stop();
 
     {
@@ -775,16 +778,6 @@ pub(crate) async fn agent_pilot_mission(
         if targets != 1 || waypoints != 1 {
             bail!("pilot memory had {targets} targets / {waypoints} waypoints, expected 1/1");
         }
-        let (task_tool, task_state, consumed): (String, String, Option<String>) = ledger
-            .query_row(
-                "SELECT tool_name, state, consumed_by_episode FROM kernel.task_ledger",
-                [],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-            )?;
-        if task_tool != "optimization__solve_milp" || task_state != "resolved" || consumed.is_none()
-        {
-            bail!("optimization task was ({task_tool}, {task_state}, consumed: {consumed:?})");
-        }
         let planned: i64 = ledger.query_row(
             "SELECT COUNT(*) FROM agent_memory.episode_log WHERE final_output LIKE '%MISSION PLANNED%'",
             [],
@@ -792,6 +785,42 @@ pub(crate) async fn agent_pilot_mission(
         )?;
         if planned < 1 {
             bail!("no episode declared the mission planned");
+        }
+    }
+    {
+        use veoveo_platform_store::{
+            AgentTaskRecord, AgentTaskWatchState, PlatformStore, StoreConfig, StoreCredentials,
+        };
+
+        let store = PlatformStore::connect(
+            StoreConfig::builder(
+                &platform_store.endpoint,
+                &platform_store.namespace,
+                &platform_store.database,
+                StoreCredentials::database(SURREAL_RUNTIME_USER, SURREAL_RUNTIME_PASSWORD),
+            )
+            .build()?,
+        )
+        .await?;
+        let mut response = store
+            .client()
+            .query("SELECT * FROM agent_task WHERE tool_name = $tool;")
+            .bind(("tool", "optimization__solve_milp"))
+            .await?
+            .check()?;
+        let tasks: Vec<AgentTaskRecord> = response.take(0)?;
+        let [task] = tasks.as_slice() else {
+            bail!(
+                "expected one optimization task in the platform store, found {}",
+                tasks.len()
+            );
+        };
+        if task.state != AgentTaskWatchState::Resolved || task.consumed_by_episode.is_none() {
+            bail!(
+                "optimization task was ({:?}, consumed: {:?})",
+                task.state,
+                task.consumed_by_episode
+            );
         }
     }
 
@@ -1167,4 +1196,24 @@ async fn wait_for_log_substring(file: &Path, needle: &str, attempts: u32) -> Res
         "timed out waiting for `{needle}` in {}\ncontents:\n{contents}",
         file.display()
     );
+}
+
+async fn wait_for_log_occurrences(
+    file: &Path,
+    needle: &str,
+    expected: usize,
+    attempts: u32,
+) -> Result<()> {
+    for _ in 0..attempts {
+        let contents = fs::read_to_string(file).unwrap_or_default();
+        if contents.matches(needle).count() >= expected {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    let contents = fs::read_to_string(file).unwrap_or_default();
+    bail!(
+        "timed out waiting for {expected} occurrences of `{needle}` in {}\ncontents:\n{contents}",
+        file.display()
+    )
 }
