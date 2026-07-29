@@ -56,6 +56,33 @@ pub(super) struct IsochroneContour {
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub(super) struct MatrixRequest {
+    pub sources: Vec<MatrixLocation>,
+    pub targets: Vec<MatrixLocation>,
+    pub costing: String,
+    pub costing_options: CostingOptions,
+    pub units: &'static str,
+    pub verbose: bool,
+    pub prioritize_bidirectional: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub date_time: Option<MatrixDateTime>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exclude_polygons: Vec<Vec<[f64; 2]>>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct MatrixLocation {
+    pub lat: f64,
+    pub lon: f64,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct MatrixDateTime {
+    pub r#type: u8,
+    pub value: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub(super) struct Location {
     pub lat: f64,
     pub lon: f64,
@@ -194,6 +221,19 @@ struct ErrorResponse {
     status_message: Option<String>,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+pub(super) struct MatrixResponse {
+    pub algorithm: String,
+    pub units: String,
+    pub sources_to_targets: ConciseMatrix,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub(super) struct ConciseMatrix {
+    pub durations: Vec<Vec<Option<f64>>>,
+    pub distances: Vec<Vec<Option<f64>>>,
+}
+
 impl ValhallaClient {
     pub fn new(config: ValhallaClientConfig) -> Result<Self> {
         validate_base_url(&config.base_url)?;
@@ -264,6 +304,30 @@ impl ValhallaClient {
         }
         decode_json(&bytes, "Valhalla isochrone response")
     }
+
+    pub(super) async fn matrix(&self, request: &MatrixRequest) -> Result<MatrixResponse> {
+        let url = self.base_url.join("sources_to_targets")?;
+        let response = self.client.post(url).json(request).send().await?;
+        let status = response.status();
+        let bytes = bounded_bytes(response).await?;
+        if !status.is_success() {
+            let error: ErrorResponse = serde_json::from_slice(&bytes).unwrap_or(ErrorResponse {
+                error_code: None,
+                error: None,
+                status_message: None,
+            });
+            bail!(
+                "Valhalla matrix failed with HTTP {} and code {:?}: {}",
+                status,
+                error.error_code,
+                error
+                    .error
+                    .or(error.status_message)
+                    .unwrap_or_else(|| "redacted engine error".to_owned())
+            );
+        }
+        decode_json(&bytes, "Valhalla matrix response")
+    }
 }
 
 fn validate_base_url(url: &Url) -> Result<()> {
@@ -311,5 +375,22 @@ mod tests {
         assert!(validate_base_url(&Url::parse("http://127.0.0.1:8002/").unwrap()).is_ok());
         assert!(validate_base_url(&Url::parse("http://valhalla:8002/").unwrap()).is_err());
         assert!(validate_base_url(&Url::parse("https://127.0.0.1:8002/").unwrap()).is_err());
+    }
+
+    #[test]
+    fn concise_matrix_response_preserves_unreachable_cells() {
+        let response: MatrixResponse = serde_json::from_str(
+            r#"{
+                "algorithm":"costmatrix",
+                "units":"kilometers",
+                "sources_to_targets":{
+                    "durations":[[0.0,null],[12.0,0.0]],
+                    "distances":[[0.0,null],[0.5,0.0]]
+                }
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(response.algorithm, "costmatrix");
+        assert_eq!(response.sources_to_targets.durations[0][1], None);
     }
 }

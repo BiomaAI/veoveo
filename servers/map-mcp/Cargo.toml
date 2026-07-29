@@ -60,3 +60,4 @@ veoveo-task-runtime = { path = "../../platform/task-runtime" }
 [dev-dependencies]
 tempfile = "3"
 tower = { workspace = true, features = ["util"] }
+veoveo-optimization-mcp = { path = "../optimization-mcp" }

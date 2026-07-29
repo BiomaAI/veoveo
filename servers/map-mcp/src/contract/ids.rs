@@ -132,6 +132,7 @@ map_id!(RestrictionId, "restriction-");
 map_id!(MapGeofenceId, "geofence-");
 map_id!(RouteId, "route-");
 map_id!(RouteMatrixId, "matrix-");
+map_id!(TravelModelId, "travel-model-");
 map_id!(ReachableAreaId, "reachable-area-");
 map_id!(ValidationId, "validation-");
 map_id!(MapOperationId, "map-operation-");

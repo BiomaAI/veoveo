@@ -14,6 +14,7 @@ pub const MOBILITY_PROFILES_URI: &str = "map://mobility-profiles";
 pub const RESTRICTIONS_URI: &str = "map://restrictions";
 pub const ROUTES_URI: &str = "map://routes";
 pub const MATRICES_URI: &str = "map://matrices";
+pub const TRAVEL_MODELS_URI: &str = "map://travel-models";
 pub const RASTERS_URI: &str = "map://rasters";
 pub const RASTER_DERIVATIONS_URI: &str = "map://raster-derivations";
 pub const SPATIAL_DERIVATIONS_URI: &str = "map://spatial-derivations";
@@ -37,6 +38,7 @@ pub const MOBILITY_PROFILE_TEMPLATE: &str = "map://mobility-profile/{profile_id}
 pub const RESTRICTION_TEMPLATE: &str = "map://restriction/{restriction_id}";
 pub const ROUTE_TEMPLATE: &str = "map://route/{route_id}";
 pub const MATRIX_TEMPLATE: &str = "map://matrix/{matrix_id}";
+pub const TRAVEL_MODEL_TEMPLATE: &str = "map://travel-model/{travel_model_id}";
 pub const ARTIFACT_TEMPLATE: &str = "map://artifact/{artifact_id}";
 pub const FEATURE_LAYER_TEMPLATE: &str = "map://feature-layer/{layer_id}";
 pub const FEATURE_SCHEMA_TEMPLATE: &str = "map://feature-layer/{layer_id}/schema/{schema_version}";
@@ -117,6 +119,10 @@ pub fn route_uri(id: &str) -> String {
 
 pub fn matrix_uri(id: &str) -> String {
     format!("map://matrix/{id}")
+}
+
+pub fn travel_model_uri(id: &str) -> String {
+    format!("map://travel-model/{id}")
 }
 
 pub fn feature_layer_uri(id: &str) -> String {

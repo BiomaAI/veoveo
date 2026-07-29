@@ -30,11 +30,12 @@ use veoveo_task_runtime::{
 
 use crate::{
     contract::{
-        BuildVectorTilesOutput, BuildVectorTilesRequest, DeriveRasterRequest,
-        ExportFeatureLayerOutput, ExportFeatureLayerRequest, ImportFeatureLayerRequest,
-        LayerProduct, LayerProductId, MAX_RASTER_FULL_DERIVATION_PIXELS,
+        BuildTravelModelRequest, BuildVectorTilesOutput, BuildVectorTilesRequest,
+        DeriveRasterRequest, ExportFeatureLayerOutput, ExportFeatureLayerRequest,
+        ImportFeatureLayerRequest, LayerProduct, LayerProductId, MAX_RASTER_FULL_DERIVATION_PIXELS,
         RASTER_DERIVATION_SCHEMA_VERSION, RasterDerivation, RasterDerivationId,
         RasterDerivationOperation, ReachableAreaRequest, RouteMatrixRequest, RouteRequest,
+        TravelModelId, TravelModelRecord,
     },
     server::auth::ForwardedBearer,
     state::MapApplication,
@@ -43,6 +44,7 @@ use crate::{
 const SERVER_SLUG: &str = "map";
 const ROUTE_TASK: &str = "route";
 const ROUTE_MATRIX_TASK: &str = "route_matrix";
+const BUILD_TRAVEL_MODEL_TASK: &str = "build_travel_model";
 const REACHABLE_AREA_TASK: &str = "reachable_area";
 const IMPORT_FEATURE_LAYER_TASK: &str = "import_feature_layer";
 const EXPORT_FEATURE_LAYER_TASK: &str = "export_feature_layer";
@@ -56,6 +58,7 @@ const DERIVE_RASTER_TASK: &str = "derive_raster";
 pub(crate) const TASK_TOOLS: &[&str] = &[
     ROUTE_TASK,
     ROUTE_MATRIX_TASK,
+    BUILD_TRAVEL_MODEL_TASK,
     REACHABLE_AREA_TASK,
     IMPORT_FEATURE_LAYER_TASK,
     EXPORT_FEATURE_LAYER_TASK,
@@ -119,10 +122,20 @@ struct DurableRasterDerivationRequest {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+struct DurableTravelModelRequest {
+    input: BuildTravelModelRequest,
+    identity: GatewayInternalIdentity,
+    travel_model_id: TravelModelId,
+    created_at: chrono::DateTime<Utc>,
+    artifact_write_capability: IssuedArtifactWriteCapability,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "request", rename_all = "snake_case")]
 enum MapTaskRequest {
     Route(RouteRequest),
     RouteMatrix(RouteMatrixRequest),
+    BuildTravelModel(DurableTravelModelRequest),
     ReachableArea(ReachableAreaRequest),
     ImportFeatureLayer(DurableImportRequest),
     ExportFeatureLayer(DurableExportRequest),
@@ -153,7 +166,8 @@ impl MapTaskExtension {
             &owner.profile,
             owner.tenant_key.as_deref(),
             &owner.data_labels,
-        ) {
+        ) && snapshot.owner.authority.work_context == owner.authority.work_context
+        {
             Ok(snapshot)
         } else {
             Err(AdapterError::invalid_params("unknown task id"))
@@ -201,6 +215,27 @@ impl TaskExtensionHandler for MapTaskExtension {
                     serde_json::from_value(arguments)
                         .map_err(|error| AdapterError::invalid_params(error.to_string()))?,
                 )
+            }
+            BUILD_TRAVEL_MODEL_TASK => {
+                require_scope(&caller.identity, "map:route_matrix")?;
+                let input: BuildTravelModelRequest = serde_json::from_value(arguments)
+                    .map_err(|error| AdapterError::invalid_params(error.to_string()))?;
+                input
+                    .validate()
+                    .map_err(|error| AdapterError::invalid_params(error.to_string()))?;
+                MapTaskRequest::BuildTravelModel(DurableTravelModelRequest {
+                    input,
+                    identity: caller.identity.clone(),
+                    travel_model_id: TravelModelId::new(),
+                    created_at: Utc::now(),
+                    artifact_write_capability: issue_output_capability(
+                        self.state.as_ref(),
+                        &caller.caller,
+                        &task_id,
+                    )
+                    .await
+                    .map_err(|error| AdapterError::internal(error.to_string()))?,
+                })
             }
             REACHABLE_AREA_TASK => {
                 require_scope(&caller.identity, "map:route")?;
@@ -383,6 +418,7 @@ impl TaskExtensionHandler for MapTaskExtension {
                         owner.tenant_key.as_deref(),
                         &owner.data_labels,
                     )
+                    || snapshot.owner.authority.work_context != owner.authority.work_context
                 {
                     return None;
                 }
@@ -400,6 +436,39 @@ impl TaskExtensionHandler for MapTaskExtension {
     }
 }
 
+pub(crate) async fn visible_travel_models(
+    state: &MapApplication,
+    identity: &GatewayInternalIdentity,
+) -> anyhow::Result<Vec<TravelModelRecord>> {
+    let caller_owner = runtime_owner(identity);
+    let mut records: Vec<TravelModelRecord> = Vec::new();
+    for snapshot in state.tasks.list().await? {
+        if snapshot.task_type != BUILD_TRAVEL_MODEL_TASK
+            || !snapshot.owner.allows(
+                &caller_owner.principal_key,
+                &caller_owner.profile,
+                caller_owner.tenant_key.as_deref(),
+                &caller_owner.data_labels,
+            )
+            || snapshot.owner.authority.work_context != caller_owner.authority.work_context
+        {
+            continue;
+        }
+        let Some(structured) = snapshot.result.as_ref().and_then(|result| {
+            result
+                .get("structuredContent")
+                .or_else(|| result.get("structured_content"))
+        }) else {
+            continue;
+        };
+        if let Ok(record) = serde_json::from_value(structured.clone()) {
+            records.push(record);
+        }
+    }
+    records.sort_by(|left, right| left.created_at.cmp(&right.created_at));
+    Ok(records)
+}
+
 pub(super) async fn recover_tasks(
     state: Arc<MapApplication>,
     resumable: Vec<TaskSnapshot>,
@@ -409,6 +478,7 @@ pub(super) async fn recover_tasks(
             snapshot.task_type.as_str(),
             ROUTE_TASK
                 | ROUTE_MATRIX_TASK
+                | BUILD_TRAVEL_MODEL_TASK
                 | REACHABLE_AREA_TASK
                 | IMPORT_FEATURE_LAYER_TASK
                 | EXPORT_FEATURE_LAYER_TASK
@@ -522,6 +592,7 @@ async fn run_map_task_inner(
     cancellation: CancellationToken,
 ) {
     let uses_task_directory = request.uses_task_directory();
+    let publishes_travel_model = matches!(&request, MapTaskRequest::BuildTravelModel(_));
     update_task(
         &state,
         &task_id,
@@ -557,6 +628,9 @@ async fn run_map_task_inner(
                 }),
             Err(error) => Err(error),
         },
+        MapTaskRequest::BuildTravelModel(request) => {
+            run_travel_model_task(state.as_ref(), &task_id, request).await
+        }
         MapTaskRequest::ReachableArea(request) => match state.scope_from_task_owner(&owner).await {
             Ok(scope) => state
                 .routes
@@ -603,6 +677,13 @@ async fn run_map_task_inner(
                     },
                 )
                 .await;
+                if publishes_travel_model {
+                    state
+                        .subscriptions
+                        .notify_resource_updated(crate::uris::TRAVEL_MODELS_URI)
+                        .await;
+                    state.resource_observers.notify_changed().await;
+                }
             }
             Err(error) => fail_task(&state, &task_id, "result_serialization_failed", error).await,
         },
@@ -618,6 +699,7 @@ impl MapTaskRequest {
         match self {
             Self::Route(_) => ROUTE_TASK,
             Self::RouteMatrix(_) => ROUTE_MATRIX_TASK,
+            Self::BuildTravelModel(_) => BUILD_TRAVEL_MODEL_TASK,
             Self::ReachableArea(_) => REACHABLE_AREA_TASK,
             Self::ImportFeatureLayer(_) => IMPORT_FEATURE_LAYER_TASK,
             Self::ExportFeatureLayer(_) => EXPORT_FEATURE_LAYER_TASK,
@@ -630,6 +712,7 @@ impl MapTaskRequest {
         match self {
             Self::Route(_) => "logistics route",
             Self::RouteMatrix(_) => "logistics route matrix",
+            Self::BuildTravelModel(_) => "cuOpt travel model",
             Self::ReachableArea(_) => "land reachable area",
             Self::ImportFeatureLayer(_) => "authored feature import",
             Self::ExportFeatureLayer(_) => "authored feature export",
@@ -980,6 +1063,86 @@ async fn issue_output_capability(
             },
         )
         .await
+}
+
+async fn run_travel_model_task(
+    state: &MapApplication,
+    task_id: &str,
+    request: DurableTravelModelRequest,
+) -> anyhow::Result<CallToolResult> {
+    let scope = state.scope(&request.identity).await?;
+    let travel_model_uri = crate::uris::travel_model_uri(request.travel_model_id.as_str());
+    let cost_metric = request.input.cost_metric;
+    let time_model = request.input.time_model;
+    let (package, profiles) = state
+        .routes
+        .build_travel_model(&scope, request.input, travel_model_uri.clone())
+        .await?;
+    let unavailable_cell_count = package
+        .model
+        .cost_matrices
+        .iter()
+        .map(|matrix| matrix.unavailable_cells.len() as u64)
+        .sum();
+    let location_count =
+        u32::try_from(package.model.location_ids.len()).context("too many travel locations")?;
+    let vehicle_type_count = u32::try_from(package.model.cost_matrices.len())
+        .context("too many travel vehicle types")?;
+    let bytes = serde_json::to_vec(&package)?;
+    if bytes.len() as u64 > state.max_artifact_bytes {
+        bail!(
+            "travel-model package is {} bytes and exceeds the {}-byte limit",
+            bytes.len(),
+            state.max_artifact_bytes
+        );
+    }
+    let mut artifact = ArtifactPut::new(bytes);
+    artifact.mime_type = Some("application/json".to_owned());
+    artifact.filename = Some(format!("{}.travel-model.json", request.travel_model_id));
+    artifact.compliance = artifact_compliance(&request.identity);
+    artifact.metadata = serde_json::json!({
+        "domain": "map_travel_model",
+        "travel_model_id": request.travel_model_id,
+        "version": crate::contract::TRAVEL_MODEL_ARTIFACT_VERSION,
+        "location_count": location_count,
+        "vehicle_type_count": vehicle_type_count,
+        "unavailable_cell_count": unavailable_cell_count,
+    });
+    let artifact = state
+        .artifacts
+        .put_with_capability(
+            &request.artifact_write_capability,
+            ArtifactWriteIdempotencyKey::new(format!("map:{task_id}:travel-model"))?,
+            artifact,
+        )
+        .await?
+        .without_download_url();
+    let record = TravelModelRecord {
+        travel_model_id: request.travel_model_id,
+        travel_model_uri: travel_model_uri.clone(),
+        manifest_uri: artifact.artifact_id.plane_uri(),
+        artifact: artifact.clone(),
+        cost_metric,
+        time_model,
+        location_count,
+        vehicle_type_count,
+        unavailable_cell_count,
+        profiles,
+        created_by: request.identity.actor.id.clone(),
+        work_context: request.identity.authority.work_context.clone(),
+        created_at: request.created_at,
+    };
+    tool_result_with_links(
+        format!(
+            "built travel model {} with {} locations and {} vehicle types",
+            record.travel_model_id, record.location_count, record.vehicle_type_count
+        ),
+        &record,
+        [
+            (travel_model_uri, "cuOpt travel model"),
+            (artifact.artifact_uri, "travel-model artifact"),
+        ],
+    )
 }
 
 async fn run_import_task(

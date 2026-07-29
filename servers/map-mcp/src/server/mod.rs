@@ -167,6 +167,7 @@ async fn serve(args: Args) -> Result<()> {
         valhalla_process: valhalla_process.clone(),
         activation: Arc::new(tokio::sync::Mutex::new(())),
         subscriptions: Arc::new(SubscriptionHub::new()),
+        resource_observers: Arc::new(veoveo_mcp_contract::ResourceListObservers::new()),
         authoring_task_root,
         max_artifact_bytes: args.max_artifact_bytes,
     });
