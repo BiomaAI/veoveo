@@ -27,6 +27,7 @@ listed next to each obligation is where this template satisfies it.
 | Artifact output through task-bound write capabilities; no identity minting in background work | `server/profile_task.py` |
 | Per-task domain usage rows and `{scheme}://usage/task/{id}` resources | `server/profile_task.py`, `server/mcp_server.py` |
 | Task ownership checks by principal, profile, tenant, and data labels | `server/ownership.py` |
+| Well-known surface: `datasheet://docs`, `datasheet://contract`, and the read-only admin `docs/llms.txt` projection from embedded `AGENTS.md` and `DESIGN.md` | `docs.py`, `server/mcp_server.py`, `server/main.py` |
 
 ## Creating a new server from this template
 

@@ -37,7 +37,10 @@ from veoveo_mcp.task_extension import (
 from veoveo_mcp.tasks import TaskRuntime
 from veoveo_mcp.telemetry import JsonLogger
 
+from veoveo_mcp.contract import ServerDocs
+
 from .. import uris
+from ..docs import LLMS_TXT, SERVER_DOCS
 from .app_state import AppState
 from .config import Config, parse_config
 from .mcp_server import INSTRUCTIONS, build_mcp_server
@@ -61,6 +64,10 @@ class RootApp:
         self,
         health_path: str,
         ready_path: str,
+        docs_llms_path: str,
+        docs_prefix: str,
+        docs: ServerDocs,
+        llms_txt: str,
         mcp_path: str,
         mcp_app: AsgiApp,
         session_manager: StreamableHTTPSessionManager,
@@ -68,6 +75,10 @@ class RootApp:
     ) -> None:
         self.health_path = health_path
         self.ready_path = ready_path
+        self.docs_llms_path = docs_llms_path
+        self.docs_prefix = docs_prefix
+        self.docs = docs
+        self.llms_txt = llms_txt
         self.mcp_path = mcp_path
         self.mcp_app = mcp_app
         self.session_manager = session_manager
@@ -88,6 +99,18 @@ class RootApp:
                 await _plain(send, 200, b"ok")
             else:
                 await _plain(send, 503, b"starting")
+            return
+        if path == self.docs_llms_path:
+            # Read-only well-known projection (contract C20), open like the
+            # health probes so unauthenticated conformance fetches succeed.
+            await _plain(send, 200, self.llms_txt.encode())
+            return
+        if path.startswith(self.docs_prefix):
+            doc = self.docs.doc(path[len(self.docs_prefix) :])
+            if doc is None:
+                await _plain(send, 404, b"unknown server document")
+            else:
+                await _markdown(send, doc.body)
             return
         if path == self.mcp_path or path.startswith(f"{self.mcp_path}/"):
             await self.mcp_app(scope, receive, send)
@@ -114,6 +137,21 @@ class RootApp:
                 elif message["type"] == "lifespan.shutdown":
                     await send({"type": "lifespan.shutdown.complete"})
                     return
+
+
+async def _markdown(send, body: str) -> None:
+    encoded = body.encode()
+    await send(
+        {
+            "type": "http.response.start",
+            "status": 200,
+            "headers": [
+                (b"content-type", b"text/markdown; charset=utf-8"),
+                (b"content-length", str(len(encoded)).encode()),
+            ],
+        }
+    )
+    await send({"type": "http.response.body", "body": encoded})
 
 
 async def _plain(send, status: int, body: bytes) -> None:
@@ -190,6 +228,10 @@ async def serve(config: Config) -> None:
     root = RootApp(
         health_path=endpoint.path("healthz"),
         ready_path=endpoint.path("readyz"),
+        docs_llms_path=endpoint.path("admin/docs/llms.txt"),
+        docs_prefix=endpoint.path("admin/docs/"),
+        docs=SERVER_DOCS,
+        llms_txt=LLMS_TXT,
         mcp_path=endpoint.path("mcp"),
         mcp_app=mcp_stack,
         session_manager=session_manager,

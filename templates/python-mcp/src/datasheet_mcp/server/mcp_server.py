@@ -21,6 +21,7 @@ from veoveo_mcp.schema import mcp_input_schema
 from veoveo_mcp.tasks import parse_task_id
 
 from .. import engine, prompts, uris
+from ..docs import CONTRACT_DECLARATION, SERVER_DOCS
 from ..contract import (
     ColumnStatsOutput,
     ColumnStatsRequest,
@@ -170,7 +171,36 @@ def build_mcp_server(state: AppState) -> Server:
                 description="Index of task usage resources.",
                 mimeType="application/json",
             ),
+            types.Resource(
+                uri=uris.DOCS_URI,
+                name="docs",
+                title="Datasheet server documentation",
+                description="Index of embedded server documents.",
+                mimeType="application/json",
+            ),
         ]
+        for doc in SERVER_DOCS:
+            resources.append(
+                types.Resource(
+                    uri=uris.doc_uri(doc.id),
+                    name=doc.id,
+                    title=doc.title,
+                    description=f"Embedded `{doc.id}` server document.",
+                    mimeType="text/markdown",
+                )
+            )
+        resources.append(
+            types.Resource(
+                uri=uris.CONTRACT_URI,
+                name="contract",
+                title="Datasheet contract declaration",
+                description=(
+                    "Machine-readable contract revision, compliance, and "
+                    "capability inventory."
+                ),
+                mimeType="application/json",
+            )
+        )
         for task_id in await state.tasks.store.domain_usage_task_ids(SERVER_SLUG):
             owner = await state.tasks.owner(str(task_id))
             if owner is None or not task_owner_allows(owner, identity):
@@ -219,6 +249,18 @@ def build_mcp_server(state: AppState) -> Server:
     async def read_resource(uri: Any) -> list[ReadResourceContents]:
         text = str(uri)
         identity = identity_from_scope(scope())
+        if text == uris.DOCS_URI:
+            return [_json_contents(SERVER_DOCS.index_wire())]
+        if text == uris.CONTRACT_URI:
+            return [_json_contents(CONTRACT_DECLARATION.wire())]
+        doc_id = uris.parse_doc_uri(text)
+        if doc_id is not None:
+            doc = SERVER_DOCS.doc(doc_id)
+            if doc is None:
+                raise _invalid(f"unknown server document `{doc_id}`")
+            return [
+                ReadResourceContents(content=doc.body, mime_type="text/markdown")
+            ]
         if text == uris.REPORTS_URI:
             snapshots = await state.tasks.list_for_owner(runtime_owner(identity))
             reports = [
