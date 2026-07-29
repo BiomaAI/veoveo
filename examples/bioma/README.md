@@ -137,6 +137,10 @@ Isaac Sim, Simulation View, cuOpt, Rerun, and the other GPU services remain
 resident. Installations with different checkpoints, solver pools, or GPU capacity
 size `reason.engine.gpuMemoryUtilization` and
 `VEOVEO_CUOPT_POOL_GIB` against all seven concurrently resident workloads.
+The development chart requests 4 GiB of host memory for the cuOpt executor and
+8 GiB for the Simulation View renderer. Their higher memory limits remain available
+for bursts without making the seven-workload placement unschedulable on the reference
+64 GiB node.
 
 The local fixture advertises Simulation View signaling through
 `wss://veoveo.bioma.ai/simulation-view/signaling` and its bounded UDP media
