@@ -47,8 +47,7 @@ pub fn doc_uri(doc_id: &str) -> String {
 }
 
 pub fn parse_doc_uri(uri: &str) -> Option<&str> {
-    uri.strip_prefix("media://docs/")
-        .filter(|doc_id| !doc_id.is_empty() && !doc_id.contains('/'))
+    veoveo_mcp_contract::parse_server_doc_uri("media", uri)
 }
 
 /// Parse a `media://model/{model_id}` URI. Model ids contain slashes

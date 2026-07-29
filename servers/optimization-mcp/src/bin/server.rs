@@ -38,7 +38,7 @@ use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
     IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, Page, ServerSlug,
     TelemetryGuard, TokenIssuer, UsageKind, UsageRecord, UsageReport,
-    docs::{CapabilityInventory, ContractDeclaration, ServerDocs},
+    docs::{CapabilityInventory, ServerDocs},
     init_server_telemetry, paginate, public_allowed_hosts,
 };
 use veoveo_mcp_task_extension::{
@@ -466,11 +466,10 @@ impl ServerHandler for OptimizationMcp {
             ]));
         }
         if uri == uris::CONTRACT_URI {
-            let declaration =
-                ContractDeclaration::from_docs(&SERVER_DOCS, Self::capability_inventory());
+            let declaration = SERVER_DOCS.contract_declaration(Self::capability_inventory);
             return Ok(ReadResourceResult::new(vec![
                 ResourceContents::text(
-                    serde_json::to_string(&declaration)
+                    serde_json::to_string(declaration)
                         .map_err(|error| McpError::internal_error(error.to_string(), None))?,
                     uri,
                 )
@@ -986,7 +985,7 @@ mod schema_tests {
 #[cfg(test)]
 mod well_known_tests {
     use veoveo_mcp_contract::docs::{
-        CONTRACT_REVISION, ComplianceStatus, ContractDeclaration, DOC_ID_AGENTS, DOC_ID_DESIGN,
+        CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
     };
 
     use super::{OptimizationMcp, SERVER_DOCS, uris};
@@ -999,14 +998,16 @@ mod well_known_tests {
         let design = SERVER_DOCS.doc(DOC_ID_DESIGN).expect("design document");
         assert!(!design.body.is_empty());
         let index = SERVER_DOCS.llms_txt();
-        assert!(index.contains("(docs/agents)"));
-        assert!(index.contains("(docs/design)"));
+        assert!(index.contains("(agents)"));
+        assert!(index.contains("(design)"));
     }
 
     #[test]
     fn contract_declaration_resolves_from_the_embedded_manual() {
-        let declaration =
-            ContractDeclaration::from_docs(&SERVER_DOCS, OptimizationMcp::capability_inventory());
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(
+            &SERVER_DOCS,
+            OptimizationMcp::capability_inventory(),
+        );
         assert_eq!(declaration.server, "optimization");
         assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
         for id in ["C18", "C19", "C20", "C21"] {

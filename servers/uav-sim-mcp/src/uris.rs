@@ -61,7 +61,7 @@ pub fn usage_task(task_id: &str) -> String {
 }
 
 pub fn parse_doc(uri: &str) -> Option<&str> {
-    parse_one(uri, "uav-sim://docs/")
+    veoveo_mcp_contract::parse_server_doc_uri("uav-sim", uri)
 }
 
 pub fn parse_session(uri: &str) -> Option<&str> {

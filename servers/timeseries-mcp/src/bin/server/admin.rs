@@ -75,8 +75,8 @@ mod tests {
         assert_eq!(status, axum::http::StatusCode::OK);
         assert_eq!(content_type, "text/plain; charset=utf-8");
         assert!(body.starts_with("# timeseries\n"));
-        assert!(body.contains("(docs/agents)"));
-        assert!(body.contains("(docs/design)"));
+        assert!(body.contains("(agents)"));
+        assert!(body.contains("(design)"));
     }
 
     #[tokio::test]

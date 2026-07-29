@@ -23,8 +23,7 @@ pub fn doc_uri(doc_id: &str) -> String {
 }
 
 pub fn parse_doc(uri: &str) -> Option<&str> {
-    let value = uri.strip_prefix("timeseries://docs/")?;
-    (!value.is_empty() && !value.contains('/')).then_some(value)
+    veoveo_mcp_contract::parse_server_doc_uri("timeseries", uri)
 }
 
 pub fn artifact_uri(artifact_id: ArtifactId) -> String {

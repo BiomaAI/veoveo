@@ -14,8 +14,7 @@ pub fn doc_uri(doc_id: &str) -> String {
 }
 
 pub fn parse_doc(uri: &str) -> Option<&str> {
-    let doc_id = uri.strip_prefix("recording://docs/")?;
-    (!doc_id.is_empty() && !doc_id.contains('/')).then_some(doc_id)
+    veoveo_mcp_contract::parse_server_doc_uri("recording", uri)
 }
 
 pub fn recording_uri(recording_id: &str) -> String {

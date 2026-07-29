@@ -39,7 +39,7 @@ use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
     IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, Page, ServerSlug,
     TelemetryGuard, TokenIssuer, UsageReport,
-    docs::{CapabilityInventory, ContractDeclaration, ServerDocs},
+    docs::{CapabilityInventory, ServerDocs},
     init_server_telemetry, paginate, public_allowed_hosts,
 };
 use veoveo_mcp_task_extension::{
@@ -415,14 +415,10 @@ impl ServerHandler for TimeseriesMcp {
             ]));
         }
         if uri == uris::CONTRACT_URI {
-            let declaration =
-                ContractDeclaration::from_docs(&SERVER_DOCS, Self::capability_inventory());
+            let declaration = SERVER_DOCS.contract_declaration(Self::capability_inventory);
             return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(
-                    serde_json::to_string(&declaration).unwrap_or_default(),
-                    uri,
-                )
-                .with_mime_type("application/json"),
+                ResourceContents::text(serde_json::to_string(declaration).unwrap_or_default(), uri)
+                    .with_mime_type("application/json"),
             ]));
         }
         if uri == uris::FORECAST_APP_URI {
@@ -869,7 +865,7 @@ mod schema_tests {
 #[cfg(test)]
 mod well_known_tests {
     use veoveo_mcp_contract::docs::{
-        CONTRACT_REVISION, ComplianceStatus, ContractDeclaration, DOC_ID_AGENTS, DOC_ID_DESIGN,
+        CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
     };
 
     use super::{SERVER_DOCS, TimeseriesMcp};
@@ -883,14 +879,16 @@ mod well_known_tests {
         let design = SERVER_DOCS.doc(DOC_ID_DESIGN).expect("design document");
         assert!(!design.body.is_empty());
         let index = SERVER_DOCS.llms_txt();
-        assert!(index.contains("(docs/agents)"));
-        assert!(index.contains("(docs/design)"));
+        assert!(index.contains("(agents)"));
+        assert!(index.contains("(design)"));
     }
 
     #[test]
     fn contract_declaration_resolves_from_the_embedded_manual() {
-        let declaration =
-            ContractDeclaration::from_docs(&SERVER_DOCS, TimeseriesMcp::capability_inventory());
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(
+            &SERVER_DOCS,
+            TimeseriesMcp::capability_inventory(),
+        );
         assert_eq!(declaration.server, "timeseries");
         assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
         for id in ["C18", "C19", "C20", "C21"] {

@@ -8,6 +8,8 @@
 //! deployed binary serves the manual of exactly the version it was built
 //! from.
 
+use std::sync::OnceLock;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -49,6 +51,7 @@ pub struct ServerDoc {
 pub struct ServerDocs {
     server: &'static str,
     docs: Vec<ServerDoc>,
+    declaration: OnceLock<ContractDeclaration>,
 }
 
 impl ServerDocs {
@@ -56,6 +59,7 @@ impl ServerDocs {
         Self {
             server,
             docs: Vec::new(),
+            declaration: OnceLock::new(),
         }
     }
 
@@ -83,7 +87,7 @@ impl ServerDocs {
             self.server, CONTRACT_REVISION
         );
         for doc in &self.docs {
-            out.push_str(&format!("- [{}](docs/{})\n", doc.title, doc.id));
+            out.push_str(&format!("- [{}]({})\n", doc.title, doc.id));
         }
         out
     }
@@ -91,6 +95,16 @@ impl ServerDocs {
     /// The agent manual embedded from the crate `AGENTS.md`, when present.
     pub fn agent_manual(&self) -> Option<&'static str> {
         self.doc(DOC_ID_AGENTS).map(|doc| doc.body)
+    }
+
+    /// Returns the declaration built once from this document set and the
+    /// server's stable registered capability inventory.
+    pub fn contract_declaration(
+        &self,
+        capabilities: impl FnOnce() -> CapabilityInventory,
+    ) -> &ContractDeclaration {
+        self.declaration
+            .get_or_init(|| ContractDeclaration::from_docs(self, capabilities()))
     }
 }
 
@@ -240,8 +254,8 @@ mod tests {
             .with_doc(DOC_ID_DESIGN, "Domain design", "body");
         let index = docs.llms_txt();
         assert!(index.starts_with("# example\n"));
-        assert!(index.contains("- [Agent work manual](docs/agents)"));
-        assert!(index.contains("- [Domain design](docs/design)"));
+        assert!(index.contains("- [Agent work manual](agents)"));
+        assert!(index.contains("- [Domain design](design)"));
         assert!(index.contains(&format!("Contract revision {CONTRACT_REVISION}")));
     }
 
@@ -255,6 +269,26 @@ mod tests {
         let json = serde_json::to_string(&declaration).unwrap();
         let back: ContractDeclaration = serde_json::from_str(&json).unwrap();
         assert_eq!(back, declaration);
+    }
+
+    #[test]
+    fn server_docs_builds_the_declaration_once() {
+        let docs = ServerDocs::new("example").with_doc(DOC_ID_AGENTS, "Agent work manual", MANUAL);
+        let builds = std::cell::Cell::new(0);
+        let first = docs.contract_declaration(|| {
+            builds.set(builds.get() + 1);
+            CapabilityInventory {
+                tools: vec!["inspect".to_owned()],
+                ..CapabilityInventory::default()
+            }
+        });
+        let second = docs.contract_declaration(|| {
+            builds.set(builds.get() + 1);
+            CapabilityInventory::default()
+        });
+        assert!(std::ptr::eq(first, second));
+        assert_eq!(builds.get(), 1);
+        assert_eq!(first.capabilities.tools, ["inspect"]);
     }
 
     #[test]
