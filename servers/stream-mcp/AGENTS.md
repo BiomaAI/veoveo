@@ -64,10 +64,10 @@ Contract revision: 2
 - C15: met
 - C16: met
 - C17: met
-- C18: pending — the well-known documentation resources are not wired
-- C19: pending — the contract declaration resource is not wired
-- C20: pending — the administrative documentation routes are not wired
-- C21: pending — the server does not yet embed its crate documents
+- C18: met
+- C19: met
+- C20: met
+- C21: met
 - C22: met
 - C23: met
 - C24: met
