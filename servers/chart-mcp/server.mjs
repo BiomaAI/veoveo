@@ -1,20 +1,199 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 
 import { createServer } from "./dist/server.js";
+import {
+  loadInternalTokenVerifier,
+  requireInternalIdentity,
+} from "./internal-auth.mjs";
 
 const DEFAULT_MAX_BODY_BYTES = 32 * 1024 * 1024;
 const SESSION_DISCONNECT_GRACE_MS = 60_000;
 const SESSION_REAP_INTERVAL_MS = 5_000;
 
+// Well-known surface of `mcp/contract/DESIGN.md` (C18-C21). The launcher
+// serves the crate documents baked into the image beside this file, the
+// contract declaration parsed from the agent manual, and the administrative
+// llms.txt projection. Shapes mirror `veoveo_mcp_contract::docs`.
+const CONTRACT_REVISION = 2;
+const SERVER_SLUG = "charts";
+const SERVER_MOUNT = `/${SERVER_SLUG}`;
+const MCP_PATH = `${SERVER_MOUNT}/mcp`;
+const DOCS_URI = "charts://docs";
+const CONTRACT_URI = "charts://contract";
+
+function loadServerDocument(name) {
+  const path = join(dirname(fileURLToPath(import.meta.url)), name);
+  const body = readFileSync(path, "utf8");
+  if (body.trim().length === 0) {
+    throw new Error(`server document ${path} is empty`);
+  }
+  return body;
+}
+
+const SERVER_DOCS = [
+  { id: "agents", title: "Agent work manual", body: loadServerDocument("AGENTS.md") },
+  { id: "design", title: "Domain design", body: loadServerDocument("DESIGN.md") },
+];
+
+function docsIndexJson() {
+  return JSON.stringify(SERVER_DOCS.map(({ id, title }) => ({ id, title })));
+}
+
+function llmsTxt() {
+  const entries = SERVER_DOCS.map((doc) => `- [${doc.title}](${doc.id})`);
+  return (
+    `# ${SERVER_SLUG}\n\n` +
+    `> Veoveo MCP server documents. Contract revision ${CONTRACT_REVISION}.\n\n` +
+    `## Docs\n\n${entries.join("\n")}\n`
+  );
+}
+
+// Mirrors `veoveo_mcp_contract::docs::parse_compliance`: `- Cnn: met` and
+// `- Cnn: pending — note` lines inside the `## Contract Compliance` section.
+function parseCompliance(manual) {
+  let inSection = false;
+  const items = [];
+  for (const line of manual.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("## ")) {
+      inSection = trimmed === "## Contract Compliance";
+      continue;
+    }
+    if (!inSection || !trimmed.startsWith("- C")) {
+      continue;
+    }
+    const separator = trimmed.indexOf(":");
+    if (separator === -1) {
+      continue;
+    }
+    const id = `C${trimmed.slice(3, separator).trim()}`;
+    const rest = trimmed.slice(separator + 1).trim();
+    let status;
+    let remainder;
+    if (rest.startsWith("met")) {
+      status = "met";
+      remainder = rest.slice("met".length);
+    } else if (rest.startsWith("pending")) {
+      status = "pending";
+      remainder = rest.slice("pending".length);
+    } else {
+      continue;
+    }
+    const note = remainder.replace(/^[\s—-]+/u, "").trim();
+    items.push(note.length > 0 ? { id, status, note } : { id, status });
+  }
+  if (items.length === 0) {
+    throw new Error("AGENTS.md declares no Contract Compliance items");
+  }
+  return items;
+}
+
+function textResource(uri, mimeType, text) {
+  return { contents: [{ uri: uri.href, mimeType, text }] };
+}
+
+function registerWellKnownResources(server) {
+  if (typeof server.registerResource !== "function") {
+    throw new Error(
+      "upstream chart server exposes no registerResource; the well-known surface (contract C18, C19) cannot be served",
+    );
+  }
+  server.registerResource(
+    "docs",
+    DOCS_URI,
+    {
+      title: "Server documents",
+      description: "Index of the server documents baked into the image.",
+      mimeType: "application/json",
+    },
+    async (uri) => textResource(uri, "application/json", docsIndexJson()),
+  );
+  for (const doc of SERVER_DOCS) {
+    server.registerResource(
+      doc.id,
+      `${DOCS_URI}/${doc.id}`,
+      {
+        title: doc.title,
+        description: "Server document baked into the image.",
+        mimeType: "text/markdown",
+      },
+      async (uri) => textResource(uri, "text/markdown", doc.body),
+    );
+  }
+  let declaration;
+  server.registerResource(
+    "contract",
+    CONTRACT_URI,
+    {
+      title: "Contract declaration",
+      description:
+        "Machine-readable contract revision, compliance, and capability inventory.",
+      mimeType: "application/json",
+    },
+    async (uri) =>
+      textResource(uri, "application/json", JSON.stringify(declaration)),
+  );
+  declaration = contractDeclaration(server);
+}
+
+function contractDeclaration(server) {
+  const enabledNames = (registry) =>
+    Object.entries(registry)
+      .filter(([, value]) => value.enabled)
+      .map(([name]) => name)
+      .sort();
+  const resourceTemplates = Object.values(server._registeredResourceTemplates)
+    .filter((resource) => resource.enabled)
+    .map((resource) => resource.resourceTemplate.uriTemplate.toString())
+    .sort();
+  const tasks = Object.entries(server._registeredTools)
+    .filter(([, tool]) =>
+      ["optional", "required"].includes(tool.execution?.taskSupport),
+    )
+    .map(([name]) => name)
+    .sort();
+  return {
+    server: SERVER_SLUG,
+    contract_revision: CONTRACT_REVISION,
+    compliance: parseCompliance(SERVER_DOCS[0].body),
+    capabilities: {
+      tools: enabledNames(server._registeredTools),
+      resources: enabledNames(server._registeredResources),
+      resource_templates: resourceTemplates,
+      prompts: enabledNames(server._registeredPrompts),
+      tasks,
+    },
+  };
+}
+
+function createHostedServer(options) {
+  const server = createServer(options);
+  if (
+    server?.server?._serverInfo == null ||
+    typeof server.server._serverInfo !== "object"
+  ) {
+    throw new Error("upstream chart server exposes no mutable MCP identity");
+  }
+  server.server._serverInfo = {
+    ...server.server._serverInfo,
+    name: SERVER_SLUG,
+  };
+  registerWellKnownResources(server);
+  return server;
+}
+
 function parseArgs(argv) {
   const options = {
     host: "0.0.0.0",
     port: 8795,
-    path: "/mcp",
+    path: MCP_PATH,
     allowedHosts: [],
     disableFileReference: false,
   };
@@ -56,6 +235,9 @@ function parseArgs(argv) {
   if (!options.path.startsWith("/")) {
     throw new Error("MCP path must begin with /");
   }
+  if (options.path !== MCP_PATH) {
+    throw new Error(`MCP path must be the canonical ${MCP_PATH}`);
+  }
   return options;
 }
 
@@ -87,6 +269,13 @@ async function readBody(request) {
 }
 
 const options = parseArgs(process.argv.slice(2));
+const verifyInternalIdentity = loadInternalTokenVerifier(
+  process.env.VEOVEO_INTERNAL_TRUST_JWKS,
+  SERVER_SLUG,
+);
+// Fail closed at boot when the pinned upstream server cannot host the
+// well-known resources, rather than on the first MCP session.
+createHostedServer({ disableFileReference: options.disableFileReference });
 const sessions = new Map();
 
 async function closeSession(session) {
@@ -145,10 +334,54 @@ sessionReaper.unref();
 const httpServer = createHttpServer(async (request, response) => {
   try {
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
-    if (request.method === "GET" && (url.pathname === "/health" || url.pathname === "/")) {
+    if (
+      options.allowedHosts.length > 0 &&
+      !options.allowedHosts.includes(request.headers.host)
+    ) {
+      response
+        .writeHead(421, { "content-type": "text/plain; charset=utf-8" })
+        .end("untrusted Host authority");
+      return;
+    }
+    if (request.method === "GET" && url.pathname === `${SERVER_MOUNT}/healthz`) {
       response
         .writeHead(200, { "content-type": "application/json" })
-        .end(JSON.stringify({ name: "flint-chart-mcp", status: "ok", transport: "streamable_http" }));
+        .end(JSON.stringify({ name: SERVER_SLUG, status: "ok", transport: "streamable_http" }));
+      return;
+    }
+    if (
+      (url.pathname === options.path ||
+        url.pathname.startsWith(`${SERVER_MOUNT}/admin/`)) &&
+      !requireInternalIdentity(request, response, verifyInternalIdentity)
+    ) {
+      return;
+    }
+    if (
+      request.method === "GET" &&
+      url.pathname === `${SERVER_MOUNT}/admin/docs/llms.txt`
+    ) {
+      response
+        .writeHead(200, { "content-type": "text/plain; charset=utf-8" })
+        .end(llmsTxt());
+      return;
+    }
+    if (
+      request.method === "GET" &&
+      url.pathname.startsWith(`${SERVER_MOUNT}/admin/docs/`)
+    ) {
+      const doc = SERVER_DOCS.find(
+        (candidate) =>
+          url.pathname === `${SERVER_MOUNT}/admin/docs/${candidate.id}`,
+      );
+      if (doc) {
+        response
+          .writeHead(200, { "content-type": "text/markdown; charset=utf-8" })
+          .end(doc.body);
+      } else {
+        response
+          .writeHead(404, { "content-type": "text/plain; charset=utf-8" })
+          .end("unknown server document");
+      }
       return;
     }
     if (url.pathname !== options.path) {
@@ -164,7 +397,7 @@ const httpServer = createHttpServer(async (request, response) => {
     if (request.method === "POST") {
       body = await readBody(request);
       if (!transport && !sessionId && isInitializeRequest(body)) {
-        const server = createServer({
+        const server = createHostedServer({
           disableFileReference: options.disableFileReference,
         });
         transport = new StreamableHTTPServerTransport({

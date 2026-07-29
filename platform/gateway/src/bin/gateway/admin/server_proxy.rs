@@ -197,16 +197,21 @@ pub(crate) async fn proxy_server_admin(
 }
 
 fn valid_admin_path(path: &str) -> bool {
-    !path.is_empty()
-        && path.len() <= 2_048
-        && path.split('/').all(|segment| {
-            !segment.is_empty()
-                && segment != "."
-                && segment != ".."
-                && segment
-                    .bytes()
-                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-        })
+    !path.is_empty() && path.len() <= 2_048 && path.split('/').all(valid_admin_path_segment)
+}
+
+fn valid_admin_path_segment(segment: &str) -> bool {
+    segment
+        .as_bytes()
+        .first()
+        .is_some_and(u8::is_ascii_alphanumeric)
+        && segment
+            .as_bytes()
+            .last()
+            .is_some_and(u8::is_ascii_alphanumeric)
+        && segment
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
 }
 
 fn copy_response_headers(source: &HeaderMap, target: &mut HeaderMap) {
@@ -265,7 +270,10 @@ mod tests {
     #[test]
     fn admin_path_rejects_traversal_and_encoded_punctuation() {
         assert!(valid_admin_path("sources/source-123"));
+        assert!(valid_admin_path("docs/llms.txt"));
         assert!(!valid_admin_path("sources/../secrets"));
+        assert!(!valid_admin_path("docs/.hidden"));
+        assert!(!valid_admin_path("docs/trailing."));
         assert!(!valid_admin_path("sources/%2e%2e/secrets"));
         assert!(!valid_admin_path("https://attacker.example"));
     }

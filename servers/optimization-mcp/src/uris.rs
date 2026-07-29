@@ -146,6 +146,17 @@ mod tests {
     use super::*;
 
     #[test]
+    fn well_known_uris_match_the_shared_contract_conventions() {
+        let conventions = optimization_uris();
+        assert_eq!(DOCS_URI, conventions.docs_root_uri());
+        assert_eq!(CONTRACT_URI, conventions.contract_uri());
+        assert_eq!(DOC_TEMPLATE, conventions.doc_template());
+        assert_eq!(parse_doc_uri("optimization://docs/agents"), Some("agents"));
+        assert_eq!(parse_doc_uri("optimization://docs"), None);
+        assert_eq!(parse_doc_uri("optimization://docs/agents/extra"), None);
+    }
+
+    #[test]
     fn problem_run_and_solution_uris_are_disjoint() {
         let problem = ProblemId::new();
         let run = RunId::new();

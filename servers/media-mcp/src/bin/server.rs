@@ -19,7 +19,7 @@
 use std::{
     net::SocketAddr,
     num::{NonZeroU32, NonZeroU64},
-    sync::Arc,
+    sync::{Arc, LazyLock},
     time::Duration,
 };
 
@@ -57,8 +57,9 @@ use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
     GenerationRunOutput, IssueArtifactWriteCapabilityRequest, Page, ResourceListObservers,
-    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, UsageReport, init_server_telemetry,
-    paginate, public_allowed_hosts,
+    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, UsageReport,
+    docs::{CapabilityInventory, ServerDocs},
+    init_server_telemetry, paginate, public_allowed_hosts,
 };
 use veoveo_mcp_task_extension::{
     Implementation as TaskExtensionImplementation, ServerDiscovery, TaskExtensionAdapter,
@@ -75,6 +76,8 @@ use veoveo_task_runtime::{
     TaskRuntimeConfig, TaskSnapshot, TaskTransition,
 };
 
+#[path = "server/admin.rs"]
+mod admin;
 #[path = "server/app_state.rs"]
 mod app_state;
 #[path = "server/artifact_tools.rs"]
@@ -132,6 +135,16 @@ const BILLING_RECONCILE_MAX_DELAY: Duration = Duration::from_secs(10 * 60);
 const SERVER_SLUG: &str = "media";
 const LIST_PAGE_SIZE: usize = 100;
 const TASK_LEASE_DURATION: Duration = Duration::from_secs(120);
+
+/// The crate documents embedded at build time and served under the well-known
+/// surface: `media://docs`, `media://docs/{doc_id}`, `media://contract`, and
+/// the administrative `admin/docs` routes (contract C18-C21).
+static SERVER_DOCS: LazyLock<ServerDocs> =
+    LazyLock::new(|| veoveo_mcp_contract::server_docs!(SERVER_SLUG));
+
+/// Task-augmented tool names declared at `media://contract`; `run` requires
+/// the final task extension.
+const TASK_TOOLS: &[&str] = &["run"];
 
 #[derive(Clone)]
 struct MediaMcp {
@@ -249,6 +262,38 @@ impl MediaMcp {
 }
 
 impl MediaMcp {
+    /// The capability inventory declared at `media://contract` (contract
+    /// C19). Tools and prompts derive from the live registrations; stable
+    /// resources and templates come from the lists those surfaces are served
+    /// from, so the declaration cannot silently diverge from the handler.
+    fn capability_inventory() -> CapabilityInventory {
+        let mut tools: Vec<String> = Self::tool_router()
+            .list_all()
+            .into_iter()
+            .map(|tool| tool.name.into_owned())
+            .collect();
+        tools.sort();
+        let mut resources: Vec<String> = well_known_resources()
+            .into_iter()
+            .map(|resource| resource.uri.clone())
+            .collect();
+        resources.extend([uris::MODELS_URI, uris::USAGE_ROOT_URI].map(str::to_owned));
+        resources.sort();
+        CapabilityInventory {
+            tools,
+            resources,
+            resource_templates: resource_templates()
+                .into_iter()
+                .map(|template| template.uri_template.clone())
+                .collect(),
+            prompts: MediaPrompt::ALL
+                .into_iter()
+                .map(|prompt| prompt.prompt().name)
+                .collect(),
+            tasks: TASK_TOOLS.iter().map(|name| (*name).to_owned()).collect(),
+        }
+    }
+
     fn models_index_json(models: &[ModelEntry]) -> Value {
         Value::Array(
             models
@@ -273,6 +318,69 @@ fn mcp_page<T>(
 ) -> Result<Page<T>, McpError> {
     paginate(items, request, LIST_PAGE_SIZE)
         .map_err(|e| McpError::invalid_params(e.to_string(), None))
+}
+
+/// Well-known surface resources (contract C18, C19). `list_resources` serves
+/// these for every authenticated identity and `capability_inventory` declares
+/// them at `media://contract`, so the two cannot diverge.
+fn well_known_resources() -> Vec<Resource> {
+    let mut resources = vec![
+        Resource::new(uris::DOCS_URI, "docs")
+            .with_title("Server documents")
+            .with_description("Index of the crate documents embedded at build time.")
+            .with_mime_type("application/json"),
+    ];
+    for doc in SERVER_DOCS.iter() {
+        resources.push(
+            Resource::new(uris::doc_uri(doc.id), doc.title)
+                .with_title(doc.title)
+                .with_description("Crate document embedded at build time.")
+                .with_mime_type("text/markdown"),
+        );
+    }
+    resources.push(
+        Resource::new(uris::CONTRACT_URI, "contract")
+            .with_title("Contract declaration")
+            .with_description(
+                "Machine-readable contract revision, compliance, and capability inventory.",
+            )
+            .with_mime_type("application/json"),
+    );
+    resources
+}
+
+/// Templates served by `list_resource_templates` and declared in the
+/// `media://contract` capability inventory.
+fn resource_templates() -> Vec<ResourceTemplate> {
+    vec![
+        ResourceTemplate::new(uris::DOC_TEMPLATE, "doc")
+            .with_title("Server document")
+            .with_description("Embedded crate document body (contract C18).")
+            .with_mime_type("text/markdown"),
+        ResourceTemplate::new(uris::MODEL_TEMPLATE, "model")
+            .with_title("Media model schema")
+            .with_description(
+                "Full definition of one model: input JSON Schema, pricing, description. \
+                     model_id supports completion/complete.",
+            )
+            .with_mime_type("application/json"),
+        ResourceTemplate::new(uris::PREDICTION_TEMPLATE, "prediction")
+            .with_title("Media prediction state")
+            .with_description(
+                "Live state of a prediction. Subscribable: resources/updated fires when \
+                     the provider reports a terminal state.",
+            )
+            .with_mime_type("application/json"),
+        ResourceTemplate::new(uris::ARTIFACT_TEMPLATE, "artifact")
+            .with_title("Media artifact")
+            .with_description(
+                "Server-owned immutable output artifact, addressed by occurrence id.",
+            ),
+        ResourceTemplate::new(uris::USAGE_TASK_TEMPLATE, "usage")
+            .with_title("Media task usage")
+            .with_description("Usage estimates and actuals for one task, addressed by task id.")
+            .with_mime_type("application/json"),
+    ]
 }
 
 #[tool_handler]
@@ -359,7 +467,8 @@ impl ServerHandler for MediaMcp {
             .observe(context.peer.clone())
             .await;
         let identity = internal_identity(&context)?;
-        let mut resources = vec![
+        let mut resources = well_known_resources();
+        resources.extend([
             Resource::new(uris::MODELS_URI, "models")
                 .with_title("Media model catalog")
                 .with_description(
@@ -370,7 +479,7 @@ impl ServerHandler for MediaMcp {
                 .with_title("Media usage ledger")
                 .with_description("Index of task usage resources.")
                 .with_mime_type("application/json"),
-        ];
+        ]);
         let predictions = self
             .state
             .durable
@@ -431,32 +540,7 @@ impl ServerHandler for MediaMcp {
         request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        let templates = vec![
-            ResourceTemplate::new(uris::MODEL_TEMPLATE, "model")
-                .with_title("Media model schema")
-                .with_description(
-                    "Full definition of one model: input JSON Schema, pricing, description. \
-                         model_id supports completion/complete.",
-                )
-                .with_mime_type("application/json"),
-            ResourceTemplate::new(uris::PREDICTION_TEMPLATE, "prediction")
-                .with_title("Media prediction state")
-                .with_description(
-                    "Live state of a prediction. Subscribable: resources/updated fires when \
-                         the provider reports a terminal state.",
-                )
-                .with_mime_type("application/json"),
-            ResourceTemplate::new(uris::ARTIFACT_TEMPLATE, "artifact")
-                .with_title("Media artifact")
-                .with_description(
-                    "Server-owned immutable output artifact, addressed by occurrence id.",
-                ),
-            ResourceTemplate::new(uris::USAGE_TASK_TEMPLATE, "usage")
-                .with_title("Media task usage")
-                .with_description("Usage estimates and actuals for one task, addressed by task id.")
-                .with_mime_type("application/json"),
-        ];
-        let page = mcp_page(templates, request.as_ref())?;
+        let page = mcp_page(resource_templates(), request.as_ref())?;
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
@@ -471,6 +555,31 @@ impl ServerHandler for MediaMcp {
     ) -> Result<ReadResourceResult, McpError> {
         let identity = internal_identity(&context)?;
         let uri = request.uri.as_str();
+        // Well-known surface (contract C18, C19): readable by any
+        // authenticated identity, like `list_resources`.
+        if uri == uris::DOCS_URI {
+            let text = serde_json::to_string(&SERVER_DOCS.iter().collect::<Vec<_>>())
+                .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+            return Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(text, uri).with_mime_type("application/json"),
+            ]));
+        }
+        if let Some(doc_id) = uris::parse_doc_uri(uri) {
+            let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
+                McpError::resource_not_found(format!("unknown server document '{doc_id}'"), None)
+            })?;
+            return Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
+            ]));
+        }
+        if uri == uris::CONTRACT_URI {
+            let declaration = SERVER_DOCS.contract_declaration(Self::capability_inventory);
+            let text = serde_json::to_string(declaration)
+                .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+            return Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(text, uri).with_mime_type("application/json"),
+            ]));
+        }
         let text = if uri == uris::MODELS_URI {
             let models = self
                 .state
@@ -636,6 +745,17 @@ impl ServerHandler for MediaMcp {
         let Reference::Resource(res_ref) = &request.r#ref else {
             return Ok(CompleteResult::default());
         };
+        if res_ref.uri.as_str() == uris::DOC_TEMPLATE && request.argument.name == "doc_id" {
+            let needle = request.argument.value.to_lowercase();
+            let values: Vec<String> = SERVER_DOCS
+                .iter()
+                .map(|doc| doc.id.to_owned())
+                .filter(|doc_id| doc_id.contains(&needle))
+                .collect();
+            let completion =
+                CompletionInfo::new(values).map_err(|e| McpError::internal_error(e, None))?;
+            return Ok(CompleteResult::new(completion));
+        }
         if res_ref.uri != uris::MODEL_TEMPLATE || request.argument.name != "model_id" {
             return Ok(CompleteResult::default());
         }
@@ -918,14 +1038,19 @@ async fn main() -> anyhow::Result<()> {
             task_extension_middleware::<MediaTaskExtension>,
         ))
         .layer(middleware::from_fn_with_state(
-            internal_auth_state,
+            internal_auth_state.clone(),
             authenticate_internal_mcp,
         ));
+    let admin_router = admin::router().layer(middleware::from_fn_with_state(
+        internal_auth_state,
+        authenticate_internal_mcp,
+    ));
 
     let mut server_router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route("/webhooks/{task_id}", post(media_webhook))
         .with_state(state.clone())
+        .nest("/admin", admin_router)
         .nest("/mcp", mcp_router);
     if let Some(dir) = &args.static_dir {
         tracing::info!(
@@ -963,6 +1088,89 @@ async fn main() -> anyhow::Result<()> {
         })
         .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod well_known_tests {
+    use veoveo_mcp_contract::docs::{
+        CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
+    };
+
+    use super::{MediaMcp, SERVER_DOCS, TASK_TOOLS, resource_templates, uris};
+
+    #[test]
+    fn embedded_documents_carry_the_crate_manual_and_design() {
+        assert_eq!(SERVER_DOCS.server(), "media");
+        let agents = SERVER_DOCS.doc(DOC_ID_AGENTS).expect("agents document");
+        assert!(agents.body.contains("## Contract Compliance"));
+        let design = SERVER_DOCS.doc(DOC_ID_DESIGN).expect("design document");
+        assert!(!design.body.is_empty());
+        let index = SERVER_DOCS.llms_txt();
+        assert!(index.contains("(agents)"));
+        assert!(index.contains("(design)"));
+    }
+
+    #[test]
+    fn contract_declaration_resolves_from_the_embedded_manual() {
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(
+            &SERVER_DOCS,
+            MediaMcp::capability_inventory(),
+        );
+        assert_eq!(declaration.server, "media");
+        assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
+        for id in ["C18", "C19", "C20", "C21"] {
+            let item = declaration
+                .compliance
+                .iter()
+                .find(|item| item.id == id)
+                .expect("declared checklist item");
+            assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
+        }
+        for item in &declaration.compliance {
+            if item.status == ComplianceStatus::Pending {
+                assert!(item.note.is_some(), "pending items must state a reason");
+            }
+        }
+    }
+
+    #[test]
+    fn capability_inventory_matches_the_registered_surface() {
+        let inventory = MediaMcp::capability_inventory();
+        for tool in ["run", "models", "model_schema", "artifact"] {
+            assert!(
+                inventory.tools.iter().any(|name| name == tool),
+                "inventory is missing tool {tool}"
+            );
+        }
+        for uri in [
+            uris::DOCS_URI,
+            uris::CONTRACT_URI,
+            uris::MODELS_URI,
+            uris::USAGE_ROOT_URI,
+        ] {
+            assert!(
+                inventory.resources.contains(&uri.to_owned()),
+                "inventory is missing resource {uri}"
+            );
+        }
+        assert!(inventory.resources.contains(&uris::doc_uri("agents")));
+        assert!(
+            inventory
+                .resource_templates
+                .contains(&uris::DOC_TEMPLATE.to_owned())
+        );
+        assert_eq!(
+            resource_templates().len(),
+            inventory.resource_templates.len()
+        );
+        assert!(
+            inventory
+                .prompts
+                .iter()
+                .any(|name| name == "media-model-select")
+        );
+        assert_eq!(inventory.tasks, TASK_TOOLS);
+    }
 }
 
 #[cfg(test)]

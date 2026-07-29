@@ -27,11 +27,18 @@ repository. Domain lifecycle smoke remains with the component that owns the doma
 A profile names the expected implementation slug, selected contract revision, allowed
 resource URI schemes, HTTP boundary checks, and required, optional, or forbidden MCP
 surfaces. Required tool, resource, template, and prompt identities are extension-owned
-inputs rather than compiled registry entries.
+inputs rather than compiled registry entries. A hosted-server certificate selects
+exactly `veoveo.io/hosted-mcp/v1`: resources are required, and the profile must name
+the administrative `llms.txt` URL. Unauthenticated Bearer rejection is required for
+the MCP endpoint. C18–C21 cannot be disabled by a profile.
 
 Credentials never enter the profile or report. The CLI receives a bearer through
 `MCP_BEARER_TOKEN`, or uses the existing direct-hosted internal assertion arguments
-for installation-local acceptance.
+for installation-local acceptance. The same credential authenticates the MCP endpoint
+and the administrative docs projection. Profile validation requires both URLs to have
+the same scheme, host, and effective port before any credential can be forwarded.
+Certification also requires the index and every linked document to return HTTP 401
+without that credential.
 
 ## Report
 
@@ -39,6 +46,14 @@ Each result carries a stable requirement identifier, status, summary, and bounde
 evidence. The report records the negotiated protocol, implementation identity,
 advertised capabilities, selected contract revision, and execution interval. A failed
 requirement produces a report and a non-zero CLI exit.
+
+Certification reads the live contract declaration and binds it to the selection and
+observation. The selected revision must equal the conformance client's supported
+revision. The declaration's numeric revision must be the numeric member of that
+revision, its server must match both the expected slug and initialized implementation,
+and its stable capability inventory must match the MCP lists according to the normative
+contract. The client follows the relative document links published in `llms.txt`;
+it does not synthesize document URLs from parsed identifiers.
 
 ## CLI Output
 

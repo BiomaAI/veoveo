@@ -19,12 +19,7 @@ from veoveo_mcp.internal_auth import (
 from veoveo_mcp.telemetry import JsonLogger
 
 from .config import SERVER_SLUG, Config, parse_config
-from .mcp_server import (
-    AGENTS_DOCUMENT,
-    DESIGN_DOCUMENT,
-    DOC_INDEX,
-    build_mcp_server,
-)
+from .mcp_server import LLMS_TXT, SERVER_DOCS, build_mcp_server
 from .runtime import FixtureRuntime
 
 
@@ -127,11 +122,16 @@ async def serve(config: Config) -> None:
     async def protected_asgi(scope, receive, send):
         path = scope.get("path", "")
         if path == "/anonymous-simulation/admin/docs/llms.txt":
-            await _markdown(send, DOC_INDEX)
-        elif path == "/anonymous-simulation/admin/docs/design":
-            await _markdown(send, DESIGN_DOCUMENT)
-        elif path == "/anonymous-simulation/admin/docs/agents":
-            await _markdown(send, AGENTS_DOCUMENT)
+            await _plain(send, 200, LLMS_TXT.encode())
+        elif path.startswith("/anonymous-simulation/admin/docs/"):
+            doc_id = path.removeprefix(
+                "/anonymous-simulation/admin/docs/"
+            )
+            doc = SERVER_DOCS.doc(doc_id)
+            if doc is None:
+                await _plain(send, 404, b"unknown server document")
+            else:
+                await _markdown(send, doc.body)
         elif path == "/anonymous-simulation/mcp" or path.startswith(
             "/anonymous-simulation/mcp/"
         ):

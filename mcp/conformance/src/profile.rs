@@ -45,6 +45,9 @@ pub struct HttpBoundaryProfile {
     /// Readiness endpoint that must return success.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub readiness_url: Option<String>,
+    /// Authenticated admin llms.txt index URL. Hosted certification always
+    /// fetches the index and every linked document body (contract C20).
+    pub docs_llms_url: String,
 }
 
 /// Capability-driven checks for the generic MCP protocol surface.
@@ -95,15 +98,31 @@ impl HostedServerConformanceProfile {
     /// Validates controlled profile fields before any network request.
     pub fn validate(&self) -> Result<()> {
         require_token("profileId", &self.profile_id)?;
-        require_token("contractRevision", &self.contract_revision)?;
+        ensure!(
+            self.contract_revision == HOSTED_MCP_CONTRACT_REVISION,
+            "contractRevision must be {HOSTED_MCP_CONTRACT_REVISION:?}"
+        );
         require_token("serverSlug", &self.server_slug)?;
-        validate_url("endpoint", &self.endpoint)?;
+        let endpoint = validate_url("endpoint", &self.endpoint)?;
         if let Some(url) = &self.http.health_url {
             validate_url("healthUrl", url)?;
         }
         if let Some(url) = &self.http.readiness_url {
             validate_url("readinessUrl", url)?;
         }
+        let docs_url = validate_url("docsLlmsUrl", &self.http.docs_llms_url)?;
+        ensure!(
+            docs_url.path().ends_with("/docs/llms.txt"),
+            "docsLlmsUrl must end with /docs/llms.txt (contract C20)"
+        );
+        ensure!(
+            same_origin(&endpoint, &docs_url),
+            "docsLlmsUrl must have the same HTTP origin as endpoint before credentials can be forwarded"
+        );
+        ensure!(
+            self.http.require_authentication_rejection,
+            "requireAuthenticationRejection must be true for hosted certification"
+        );
         if let Some(host) = &self.http.rejected_host {
             ensure!(
                 !host.trim().is_empty()
@@ -115,6 +134,10 @@ impl HostedServerConformanceProfile {
         ensure!(
             !self.owned_resource_schemes.is_empty(),
             "ownedResourceSchemes cannot be empty"
+        );
+        ensure!(
+            self.surfaces.resources == SurfaceExpectation::Required,
+            "resources must be required by the hosted-server contract (C18-C19)"
         );
         for scheme in &self.owned_resource_schemes {
             ensure!(
@@ -159,7 +182,7 @@ impl HostedServerConformanceProfile {
     }
 }
 
-fn validate_url(field: &str, value: &str) -> Result<()> {
+fn validate_url(field: &str, value: &str) -> Result<Url> {
     let url = Url::parse(value)?;
     ensure!(
         matches!(url.scheme(), "http" | "https"),
@@ -174,7 +197,13 @@ fn validate_url(field: &str, value: &str) -> Result<()> {
         url.fragment().is_none(),
         "{field} must not contain a fragment"
     );
-    Ok(())
+    Ok(url)
+}
+
+fn same_origin(left: &Url, right: &Url) -> bool {
+    left.scheme() == right.scheme()
+        && left.host_str() == right.host_str()
+        && left.port_or_known_default() == right.port_or_known_default()
 }
 
 fn require_token(field: &str, value: &str) -> Result<()> {
@@ -217,6 +246,8 @@ mod tests {
                 rejected_host: Some("untrusted.invalid".to_owned()),
                 health_url: None,
                 readiness_url: None,
+                docs_llms_url: "https://extension.example.internal/domain/admin/docs/llms.txt"
+                    .to_owned(),
             },
             surfaces: SurfaceProfile {
                 tools: SurfaceExpectation::Required,
@@ -248,5 +279,37 @@ mod tests {
         profile.endpoint = "https://example.internal/mcp".to_owned();
         profile.surfaces.tools = SurfaceExpectation::Forbidden;
         assert!(profile.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_an_unsupported_revision_or_optional_well_known_surface() {
+        let mut unsupported_revision = profile();
+        unsupported_revision.contract_revision = "2".to_owned();
+        assert!(unsupported_revision.validate().is_err());
+
+        let mut optional_resources = profile();
+        optional_resources.surfaces.resources = SurfaceExpectation::Optional;
+        assert!(optional_resources.validate().is_err());
+
+        let mut open_mcp = profile();
+        open_mcp.http.require_authentication_rejection = false;
+        assert!(open_mcp.validate().is_err());
+
+        let mut missing_docs_url = profile();
+        missing_docs_url.http.docs_llms_url.clear();
+        assert!(missing_docs_url.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_cross_origin_authenticated_docs() {
+        let mut other_host = profile();
+        other_host.http.docs_llms_url =
+            "https://docs.example.internal/domain/admin/docs/llms.txt".to_owned();
+        assert!(other_host.validate().is_err());
+
+        let mut other_port = profile();
+        other_port.http.docs_llms_url =
+            "https://extension.example.internal:8443/admin/docs/llms.txt".to_owned();
+        assert!(other_port.validate().is_err());
     }
 }

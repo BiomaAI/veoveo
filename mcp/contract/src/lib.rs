@@ -163,7 +163,9 @@ pub use tasks::{
 };
 pub use telemetry::{TelemetryGuard, init_server_telemetry};
 pub use transport::canonical_streamable_http_server_config;
-pub use uri::{ServerResourceUri, ServerResourceUriError, ServerResourceUris};
+pub use uri::{
+    ServerResourceUri, ServerResourceUriError, ServerResourceUris, parse_server_doc_uri,
+};
 pub use usage::{UsageKind, UsageRecord, UsageReport};
 pub use veoveo_mcp_schema_macros::tool;
 pub use waiters::WebhookWaiters;

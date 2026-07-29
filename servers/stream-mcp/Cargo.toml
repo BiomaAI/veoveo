@@ -44,3 +44,6 @@ veoveo-platform-store.workspace = true
 veoveo-recording-mcp = { path = "../recording-mcp" }
 veoveo-recording-video = { path = "../../platform/recordings/video" }
 veoveo-task-runtime = { path = "../../platform/task-runtime" }
+
+[dev-dependencies]
+tower = { workspace = true, features = ["util"] }

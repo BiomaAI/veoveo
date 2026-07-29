@@ -76,8 +76,7 @@ pub fn parse_stream(uri: &str) -> Option<(LiveSessionId, LiveViewId)> {
 }
 
 pub fn parse_doc(uri: &str) -> Option<&str> {
-    uri.strip_prefix("simulation-view://docs/")
-        .filter(|id| !id.is_empty() && !id.contains('/'))
+    veoveo_mcp_contract::parse_server_doc_uri("simulation-view", uri)
 }
 
 fn parse_tail<'a>(uri: &'a str, prefix: &str) -> Option<&'a str> {

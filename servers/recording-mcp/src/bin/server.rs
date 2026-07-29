@@ -37,12 +37,14 @@ use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle, Page,
-    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry, paginate,
+    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, docs::CapabilityInventory,
+    init_server_telemetry, paginate,
 };
 use veoveo_platform_store::{PlatformStore, RecordingId, StoreConfig, StoreCredentials};
 use veoveo_recording_mcp::live_playback::stream_live_rrd;
 use veoveo_recording_mcp::{
     RecordingService,
+    admin::{self, SERVER_DOCS},
     contract::{
         QueryRecordingOutput, QueryRecordingRequest, SealRecordingOutput, SealRecordingRequest,
     },
@@ -80,6 +82,42 @@ impl RecordingMcp {
         Self {
             state,
             tool_router: Self::tool_router(),
+        }
+    }
+
+    /// The capability inventory declared at `recording://contract` (contract
+    /// C19). Tools and prompts derive from the live registrations; stable
+    /// resources and resource templates come from the lists the handler
+    /// serves, so the declaration cannot silently diverge.
+    fn capability_inventory() -> CapabilityInventory {
+        let mut tools: Vec<String> = Self::tool_router()
+            .list_all()
+            .into_iter()
+            .map(|tool| tool.name.into_owned())
+            .collect();
+        tools.sort();
+        let mut prompts: Vec<String> = RecordingPrompt::ALL
+            .into_iter()
+            .map(|prompt| prompt.definition().name)
+            .collect();
+        prompts.sort();
+        let mut resources = vec![
+            uris::DOCS_URI.to_owned(),
+            uris::CONTRACT_URI.to_owned(),
+            uris::CATALOG_URI.to_owned(),
+        ];
+        resources.extend(SERVER_DOCS.iter().map(|doc| uris::doc_uri(doc.id)));
+        resources.sort();
+        CapabilityInventory {
+            tools,
+            resources,
+            resource_templates: vec![
+                uris::DOC_TEMPLATE.to_owned(),
+                uris::RECORDING_TEMPLATE.to_owned(),
+                uris::SEGMENTS_TEMPLATE.to_owned(),
+            ],
+            prompts,
+            tasks: Vec::new(),
         }
     }
 
@@ -190,11 +228,29 @@ impl ServerHandler for RecordingMcp {
     ) -> Result<ListResourcesResult, McpError> {
         let identity = identity(&context)?;
         let mut resources = vec![
+            Resource::new(uris::DOCS_URI, "recording docs")
+                .with_title("Server documents")
+                .with_description("Index of the crate documents embedded at build time.")
+                .with_mime_type("application/json"),
+            Resource::new(uris::CONTRACT_URI, "recording contract")
+                .with_title("Contract declaration")
+                .with_description(
+                    "Machine-readable contract revision, compliance, and capability inventory.",
+                )
+                .with_mime_type("application/json"),
             Resource::new(uris::CATALOG_URI, "recording catalog")
                 .with_title("Recording catalog")
                 .with_description("Authorized recording lifecycle and artifact index.")
                 .with_mime_type("application/json"),
         ];
+        for doc in SERVER_DOCS.iter() {
+            resources.push(
+                Resource::new(uris::doc_uri(doc.id), doc.title)
+                    .with_title(doc.title)
+                    .with_description("Crate document embedded at build time.")
+                    .with_mime_type("text/markdown"),
+            );
+        }
         for recording in self
             .state
             .recordings
@@ -236,6 +292,10 @@ impl ServerHandler for RecordingMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
         let templates = vec![
+            ResourceTemplate::new(uris::DOC_TEMPLATE, "doc")
+                .with_title("Server document")
+                .with_description("Embedded crate document body (contract C18).")
+                .with_mime_type("text/markdown"),
             ResourceTemplate::new(uris::RECORDING_TEMPLATE, "recording")
                 .with_title("Recording")
                 .with_description("Governed recording metadata by UUIDv7.")
@@ -260,6 +320,25 @@ impl ServerHandler for RecordingMcp {
     ) -> Result<ReadResourceResult, McpError> {
         let identity = identity(&context)?;
         let uri = request.uri.as_str();
+        // Well-known surface (contract C18, C19): readable by any identity
+        // that can list resources.
+        if uri == uris::DOCS_URI {
+            return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
+        }
+        if let Some(doc_id) = uris::parse_doc(uri) {
+            let doc = SERVER_DOCS
+                .doc(doc_id)
+                .ok_or_else(|| McpError::resource_not_found("server document not found", None))?;
+            return Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
+            ]));
+        }
+        if uri == uris::CONTRACT_URI {
+            return json_resource(
+                uri,
+                SERVER_DOCS.contract_declaration(Self::capability_inventory),
+            );
+        }
         if uri == uris::CATALOG_URI {
             return json_resource(
                 uri,
@@ -661,6 +740,10 @@ async fn main() -> anyhow::Result<()> {
             auth_state.clone(),
             authenticate,
         ));
+    let admin_router = admin::router().layer(middleware::from_fn_with_state(
+        auth_state.clone(),
+        authenticate,
+    ));
     let playback = Router::new()
         .route("/{recording_id}/playback", get(playback_manifest))
         .route(
@@ -677,6 +760,7 @@ async fn main() -> anyhow::Result<()> {
     let router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(ready))
+        .nest_service("/admin", admin_router)
         .nest("/mcp", mcp)
         .nest("/recordings", playback)
         .merge(redap)
@@ -725,5 +809,36 @@ mod tests {
         let id = uuid::Uuid::now_v7().to_string();
         assert!(subscribable_recording_id(&uris::recording_uri(&id)).is_ok());
         assert!(subscribable_recording_id(uris::CATALOG_URI).is_err());
+    }
+
+    #[test]
+    fn contract_declaration_resolves_from_the_embedded_manual() {
+        use veoveo_mcp_contract::docs::{CONTRACT_REVISION, ComplianceStatus};
+
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(
+            &SERVER_DOCS,
+            RecordingMcp::capability_inventory(),
+        );
+        assert_eq!(declaration.server, "recording");
+        assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
+        for id in ["C18", "C19", "C20", "C21"] {
+            let item = declaration
+                .compliance
+                .iter()
+                .find(|item| item.id == id)
+                .expect("declared checklist item");
+            assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
+        }
+        let inventory = &declaration.capabilities;
+        assert!(inventory.tools.contains(&"query_recording".to_owned()));
+        assert!(inventory.resources.contains(&uris::DOCS_URI.to_owned()));
+        assert!(inventory.resources.contains(&uris::CONTRACT_URI.to_owned()));
+        assert!(inventory.resources.contains(&uris::doc_uri("agents")));
+        assert!(
+            inventory
+                .resource_templates
+                .contains(&uris::DOC_TEMPLATE.to_owned())
+        );
+        assert!(!inventory.prompts.is_empty());
     }
 }

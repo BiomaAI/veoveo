@@ -18,7 +18,9 @@ identity, storage, models, policies, domain name, and release process.
 [Product tour](#product-tour) · [Agentic apps](#an-agentic-app-platform) ·
 [Executable showcases](#executable-showcases) ·
 [Connectors](#enterprise-connectors) ·
-[Deployment](#deploy-your-installation) · [Technical design](docs/TECH_DESIGN.md) ·
+[Deployment](#deploy-your-installation) ·
+[Software factory](#a-software-factory) ·
+[Technical design](docs/TECH_DESIGN.md) ·
 [Screenshot gallery](docs/screenshots/GALLERY.md)
 
 [![Veoveo 3D View MCP App in the operations Console](docs/screenshots/gallery/console-app-view.png)](docs/screenshots/gallery/console-app-view.png)
@@ -106,7 +108,8 @@ compatible external host.
 
 The platform itself is built the same way: a small team working with coding
 agents can extend, deploy, and operate an installation inside the same
-identity, policy, and audit boundary.
+identity, policy, and audit boundary. The repository is organized as a
+[software factory](#a-software-factory) for exactly that work.
 
 ## Product Tour
 
@@ -480,14 +483,30 @@ will this repository.
 
 *All logos belong to their respective projects.*
 
-The platform is also designed to be extended, deployed, and operated with
-coding agents. Toolchains are pinned, contracts reject invalid work before
-it deploys, verification runs as executable harnesses, and deployments prove
-themselves with smoke tests. The same
-boundary that governs human operators governs agents: every action is
-authenticated, scoped by policy, bounded by budgets, and audited, so an
-installation can hand real work to agents and stay in control of what they
-touch.
+## A Software Factory
+
+The platform is designed to be extended, deployed, and operated with
+coding agents. Veoveo ships no coding harness of its own: the factory
+admits whatever agents a team already trusts, from a terminal session to a
+full MCP host, and meets them with the material a new engineer would ask
+for on day one. Engineering conventions live in [`AGENTS.md`](AGENTS.md)
+at the root and beside every hosted server, ownership and call paths in
+the [`code map`](docs/CODEMAP.md), and each server carries a design
+document bound to the normative [server contract](mcp/contract/DESIGN.md).
+
+Toolchains are pinned, contracts reject invalid work before it deploys,
+verification runs as executable harnesses, and deployments prove themselves
+with smoke tests. The same boundary that governs human operators governs
+agents: every action is authenticated, scoped by policy, bounded by
+budgets, and audited, so an installation can hand real work to agents and
+stay in control of what they touch.
+
+Delivery follows the same model. A forward-deployed engineer can stand up
+an installation inside the customer's environment and, working with agents
+against these contracts, encode the domain's knowledge into its policies,
+profiles, and extensions. What an engagement leaves behind is the factory
+itself: cluster, identity, models, policies, and release process, owned
+end to end by the organization that runs it.
 
 ## Develop And Verify
 

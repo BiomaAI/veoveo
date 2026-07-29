@@ -55,7 +55,7 @@ Python adapter, and executor-native indices must not become the MCP contract.
 
 - `cargo check -p veoveo-optimization-mcp --all-targets`
 - `cargo test -p veoveo-optimization-mcp --all-targets`
-- `python -m unittest discover -s servers/optimization-mcp/executor/tests`
+- `PYTHONPATH=servers/optimization-mcp/executor python -m unittest discover -s servers/optimization-mcp/executor/tests`
 - `docker buildx bake cuopt-executor`
 - `VEOVEO_CUOPT_TEST_SOCKET=/absolute/path/executor.sock cargo test -p veoveo-optimization-mcp --test cuopt_gpu -- --ignored --nocapture`
 

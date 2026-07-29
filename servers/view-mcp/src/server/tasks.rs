@@ -23,6 +23,10 @@ use crate::{
 };
 
 const CAPTURE_FRAME_TASK: &str = "capture_frame";
+
+/// Task-augmented tool names declared in the `view://contract` capability
+/// inventory (contract C19).
+pub(crate) const TASK_TOOLS: &[&str] = &[CAPTURE_FRAME_TASK];
 const TASK_TTL_MS: u64 = 24 * 60 * 60 * 1_000;
 const TASK_POLL_INTERVAL_MS: u64 = 1_000;
 const TASK_LEASE_DURATION: Duration = Duration::from_secs(180);

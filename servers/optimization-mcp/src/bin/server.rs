@@ -261,3 +261,61 @@ mod schema_tests {
         }));
     }
 }
+
+#[cfg(test)]
+mod well_known_tests {
+    use veoveo_mcp_contract::docs::{
+        CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
+    };
+    use veoveo_optimization_mcp::uris;
+
+    use super::service::{OptimizationMcp, SERVER_DOCS};
+
+    #[test]
+    fn embedded_documents_carry_the_crate_manual_and_design() {
+        assert_eq!(SERVER_DOCS.server(), "optimization");
+        let agents = SERVER_DOCS.doc(DOC_ID_AGENTS).expect("agents document");
+        assert!(agents.body.contains("## Contract Compliance"));
+        let design = SERVER_DOCS.doc(DOC_ID_DESIGN).expect("design document");
+        assert!(!design.body.is_empty());
+        let index = SERVER_DOCS.llms_txt();
+        assert!(index.contains("(agents)"));
+        assert!(index.contains("(design)"));
+    }
+
+    #[test]
+    fn contract_declaration_matches_the_cuopt_surface() {
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(
+            &SERVER_DOCS,
+            OptimizationMcp::capability_inventory(),
+        );
+        assert_eq!(declaration.server, "optimization");
+        assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
+        for id in ["C18", "C19", "C20", "C21"] {
+            let item = declaration
+                .compliance
+                .iter()
+                .find(|item| item.id == id)
+                .expect("declared checklist item");
+            assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
+        }
+        let inventory = &declaration.capabilities;
+        for tool in [
+            "optimize_routes",
+            "optimize_route_scenarios",
+            "solve_convex",
+            "solve_milp",
+            "verify_solution",
+        ] {
+            assert!(inventory.tools.contains(&tool.to_owned()));
+            assert!(inventory.tasks.contains(&tool.to_owned()));
+        }
+        assert!(inventory.resources.contains(&uris::DOCS_URI.to_owned()));
+        assert!(inventory.resources.contains(&uris::CONTRACT_URI.to_owned()));
+        assert!(
+            inventory
+                .resource_templates
+                .contains(&uris::DOC_TEMPLATE.to_owned())
+        );
+    }
+}

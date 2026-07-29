@@ -16,9 +16,14 @@ remains upstream.
 - This is a packaged server from a third party. Do not vendor or patch
   upstream behavior in this directory; change the pinned `flint-chart-mcp`
   version in the Dockerfile and follow the root Dependency Currency policy.
-- `server.mjs` owns only the sessionful Streamable HTTP lifecycle around that
-  implementation. Transport close removes the session exactly once and must
-  not re-enter protocol-server shutdown.
+- `server.mjs` owns the sessionful Streamable HTTP lifecycle and the
+  well-known surface around that implementation: it serves `charts://docs`,
+  the document bodies, and `charts://contract` on every session, plus the
+  `admin/docs` HTTP projection, from `AGENTS.md` and `DESIGN.md` baked into
+  the image beside it. The MCP endpoint and admin projection both require a
+  gateway internal token audienced to `charts`. Boot fails when the trust
+  bundle or either document is missing. Transport close removes the session
+  exactly once and must not re-enter protocol-server shutdown.
 - Domain behavior is stateless: `platformStore: false`, no persistence
   volume, and `--disable-file-reference` stays set. MCP sessions live in the
   singleton Veoveo launcher.
@@ -31,6 +36,7 @@ remains upstream.
 ## Build And Test
 
 - No Rust crate exists, so `cargo check` and `cargo test` do not apply.
+- `node --test servers/chart-mcp/internal-auth.test.mjs`
 - Build the image: `docker build servers/chart-mcp`.
 - `cargo xtask smoke helm-config` validates the chart material that registers
   the server.
@@ -52,16 +58,16 @@ Contract revision: 2
 - C09: pending — unverified
 - C10: pending — does not consume shared contract crate
 - C11: pending — unverified
-- C12: pending — unverified
+- C12: met
 - C13: met
 - C14: pending — unverified
 - C15: met
 - C16: met
 - C17: pending — registration does not state the contract revision
-- C18: pending — well-known surface not yet wired
-- C19: pending — well-known surface not yet wired
-- C20: pending — well-known surface not yet wired
-- C21: pending — well-known surface not yet wired
+- C18: met
+- C19: met
+- C20: met
+- C21: met
 - C22: met
 - C23: met
 - C25: met

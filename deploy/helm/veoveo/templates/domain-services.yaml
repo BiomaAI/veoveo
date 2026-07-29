@@ -103,6 +103,13 @@ spec:
             {{- if or (not (hasKey $service "platformStore")) $service.platformStore }}
             {{- include "veoveo.commonEnv" $ | nindent 12 }}
             {{- else }}
+            {{- if $service.internalAuth }}
+            - name: VEOVEO_INTERNAL_TRUST_JWKS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.global.existingSecret }}
+                  key: internal-trust-jwks
+            {{- end }}
             {{- if $.Values.telemetry.enabled }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: http://otel-collector:4318
