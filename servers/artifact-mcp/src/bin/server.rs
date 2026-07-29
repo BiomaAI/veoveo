@@ -14,6 +14,8 @@ use veoveo_mcp_contract::{
 };
 use veoveo_platform_store::PlatformStore;
 
+#[path = "server/admin.rs"]
+mod admin;
 #[path = "server/auth.rs"]
 mod auth;
 #[path = "server/config.rs"]
@@ -79,15 +81,21 @@ async fn main() -> anyhow::Result<()> {
             .with_allowed_hosts(allowed_hosts.iter().cloned())
             .with_cancellation_token(cancellation.child_token()),
     );
+    let auth_state = InternalAuthState { verifier };
     let mcp_router = Router::new()
         .route_service("/", mcp_service.clone())
         .route_service("/{*path}", mcp_service)
         .layer(middleware::from_fn_with_state(
-            InternalAuthState { verifier },
+            auth_state.clone(),
             auth::authenticate,
         ));
+    let admin_router = admin::router().layer(middleware::from_fn_with_state(
+        auth_state,
+        auth::authenticate,
+    ));
     let server_router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
+        .nest("/admin", admin_router)
         .nest("/mcp", mcp_router);
     let router = Router::new()
         .nest(public_endpoint.mount_path(), server_router)
