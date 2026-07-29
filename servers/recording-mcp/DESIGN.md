@@ -74,7 +74,10 @@ from the current writing shard. An analysis consumer captures one ordered
 snapshot, copies its live parts into bounded task-local storage, and verifies
 each copy against its captured byte length and SHA-256 identity. Frozen and
 sealed sources remain zero-copy. Source provenance contains recording,
-segment, and part identities without filesystem paths.
+segment, and part identities without filesystem paths. Hub may replace the
+parts directory with its frozen shard during capture. A missing part or an
+uncovered writing segment restarts the complete authorized read-plan capture;
+one snapshot never combines paths from two catalog views.
 
 `contract.rs` owns playback manifest v2. `service.rs` resolves an authorized
 playback plan from durable identities, while `service/read.rs` owns governed

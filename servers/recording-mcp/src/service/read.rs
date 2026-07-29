@@ -17,6 +17,8 @@ use veoveo_recording_hub::{
 
 use super::{MAX_SEGMENTS, RecordingService, labels_visible, record_uuid};
 
+const ANALYSIS_SNAPSHOT_ATTEMPTS: usize = 4;
+
 /// Stable identity and clearance needed to reopen an authorized recording.
 ///
 /// Unlike a gateway assertion this value has no bearer or expiry. It can be
@@ -117,6 +119,7 @@ pub struct RecordingReadSnapshot {
 
 #[derive(Debug)]
 pub struct MaterializedRecordingReadSnapshot {
+    pub plan: RecordingReadPlan,
     pub snapshot: RecordingReadSnapshot,
     paths: Vec<PathBuf>,
     _temporary: Option<tempfile::TempDir>,
@@ -219,7 +222,7 @@ impl RecordingReadPlan {
     /// Hub may replace a writing parts directory with its frozen shard at any
     /// time. These bounded copies retain the exact acknowledged bytes selected
     /// for one task while immutable archive sources remain zero-copy.
-    pub fn materialize_analysis_snapshot(&self) -> Result<MaterializedRecordingReadSnapshot> {
+    fn materialize_analysis_snapshot(self) -> Result<MaterializedRecordingReadSnapshot> {
         let snapshot = self.analysis_snapshot()?;
         let mut temporary = None;
         let mut paths = Vec::with_capacity(snapshot.sources.len());
@@ -268,6 +271,7 @@ impl RecordingReadPlan {
             paths.push(destination);
         }
         Ok(MaterializedRecordingReadSnapshot {
+            plan: self,
             snapshot,
             paths,
             _temporary: temporary,
@@ -276,6 +280,81 @@ impl RecordingReadPlan {
 }
 
 impl RecordingService {
+    /// Resolve and retain one analysis snapshot across live ingest rollover.
+    ///
+    /// Ingest parts are immutable after publication but Hub may atomically
+    /// replace their directory with a frozen segment while this process is
+    /// opening them. A missing part therefore restarts the complete governed
+    /// read-plan capture; a task never combines paths from two catalog views.
+    pub async fn materialize_analysis_snapshot(
+        &self,
+        authority: &RecordingReadAuthority,
+        recording_id: RecordingId,
+    ) -> Result<Option<MaterializedRecordingReadSnapshot>> {
+        for attempt in 1..=ANALYSIS_SNAPSHOT_ATTEMPTS {
+            let Some(plan) = self.read_plan(authority, recording_id).await? else {
+                return Ok(None);
+            };
+            let recording_is_live = plan.state == RecordingState::Live;
+            let materialized =
+                tokio::task::spawn_blocking(move || plan.materialize_analysis_snapshot())
+                    .await
+                    .context("recording analysis snapshot worker panicked")?;
+            match materialized {
+                Ok(materialized) => {
+                    if recording_is_live
+                        && self
+                            .snapshot_missed_ingest_rollover(authority, &materialized)
+                            .await?
+                    {
+                        ensure!(
+                            attempt < ANALYSIS_SNAPSHOT_ATTEMPTS,
+                            "live recording kept rolling over while its analysis snapshot was captured"
+                        );
+                        tokio::task::yield_now().await;
+                        continue;
+                    }
+                    return Ok(Some(materialized));
+                }
+                Err(error)
+                    if recording_is_live
+                        && error_chain_contains_not_found(&error)
+                        && attempt < ANALYSIS_SNAPSHOT_ATTEMPTS =>
+                {
+                    tokio::task::yield_now().await;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        unreachable!("analysis snapshot attempts either return or continue before exhaustion")
+    }
+
+    async fn snapshot_missed_ingest_rollover(
+        &self,
+        authority: &RecordingReadAuthority,
+        materialized: &MaterializedRecordingReadSnapshot,
+    ) -> Result<bool> {
+        let uncovered_writing_segments = uncovered_writing_segments(materialized);
+        if uncovered_writing_segments.is_empty() {
+            return Ok(false);
+        }
+        let Some(current) = self
+            .read_plan(authority, materialized.plan.recording_id)
+            .await?
+        else {
+            return Ok(true);
+        };
+        let current_writing_segments = current
+            .segments
+            .iter()
+            .filter(|segment| segment.state == SegmentState::Writing)
+            .map(|segment| segment.segment_id)
+            .collect::<BTreeSet<_>>();
+        Ok(uncovered_writing_segments
+            .iter()
+            .any(|segment_id| !current_writing_segments.contains(segment_id)))
+    }
+
     /// Resolve one governed recording into a local, typed read plan.
     ///
     /// Callers persist the recording identity, not these filesystem paths, and
@@ -368,6 +447,28 @@ impl RecordingService {
             segments,
         }))
     }
+}
+
+fn uncovered_writing_segments(
+    materialized: &MaterializedRecordingReadSnapshot,
+) -> BTreeSet<SegmentId> {
+    let captured_live_segments = materialized
+        .snapshot
+        .sources
+        .iter()
+        .filter(|source| source.kind == RecordingReadSourceKind::LiveIngestPart)
+        .map(|source| source.segment_id)
+        .collect::<BTreeSet<_>>();
+    materialized
+        .plan
+        .segments
+        .iter()
+        .filter(|segment| {
+            segment.state == SegmentState::Writing
+                && !captured_live_segments.contains(&segment.segment_id)
+        })
+        .map(|segment| segment.segment_id)
+        .collect()
 }
 
 fn error_chain_contains_not_found(error: &anyhow::Error) -> bool {
@@ -519,6 +620,38 @@ mod tests {
                 .copied()
                 .unwrap_or_default(),
             3
+        );
+    }
+
+    #[test]
+    fn analysis_snapshot_marks_writing_segments_missed_during_rollover() {
+        let directory = tempfile::tempdir().unwrap();
+        let segment_id = SegmentId::from_uuid(uuid::Uuid::now_v7());
+        let plan = RecordingReadPlan {
+            recording_id: RecordingId::from_uuid(uuid::Uuid::now_v7()),
+            dataset: "world".to_owned(),
+            application_id: "live-perception".to_owned(),
+            recording_key: "flight-a".to_owned(),
+            state: RecordingState::Live,
+            classification: "unclassified".to_owned(),
+            labels: Vec::new(),
+            segments: vec![RecordingReadSegment {
+                segment_id,
+                ordinal: 0,
+                state: SegmentState::Writing,
+                byte_len: 0,
+                sha256: None,
+                started_at: None,
+                ended_at: None,
+                path: directory.path().join("rotating.rrd"),
+            }],
+        };
+
+        let materialized = plan.materialize_analysis_snapshot().unwrap();
+        assert!(materialized.snapshot.sources.is_empty());
+        assert_eq!(
+            uncovered_writing_segments(&materialized),
+            BTreeSet::from([segment_id])
         );
     }
 }
