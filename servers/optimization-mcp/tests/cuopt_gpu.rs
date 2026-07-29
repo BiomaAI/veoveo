@@ -8,10 +8,11 @@ use veoveo_optimization_mcp::{
         VehicleId,
     },
     executor::{
-        CompiledDenseMatrix, CompiledMathematicalModel, CompiledRouteNode, CompiledRouteObjective,
-        CompiledRoutingProblem, CompiledVehicle, ConvexMethod, ConvexSolverSettings, CsrMatrix,
-        ExecutorClient, ExecutorModelFamily, ExecutorOperation, ExecutorProfile, ExecutorResult,
-        ExecutorRoutingStatus, MilpSolverSettings, RoutingSolverSettings,
+        CompiledDenseMatrix, CompiledMathematicalModel, CompiledQuadraticConstraint,
+        CompiledRouteNode, CompiledRouteObjective, CompiledRoutingProblem, CompiledVehicle,
+        ConvexMethod, ConvexSolverSettings, CsrMatrix, ExecutorClient, ExecutorModelFamily,
+        ExecutorOperation, ExecutorProfile, ExecutorResult, ExecutorRoutingStatus,
+        MilpSolverSettings, QuadraticConstraintSense, RoutingSolverSettings,
     },
 };
 
@@ -138,9 +139,83 @@ fn mathematical_model(variable_kind: VariableKind) -> CompiledMathematicalModel 
     }
 }
 
+fn quadratic_program() -> CompiledMathematicalModel {
+    let mut model = mathematical_model(VariableKind::Continuous);
+    model.objective_coefficients = vec![finite(0.0), finite(0.0)];
+    model.quadratic_objective = Some(CsrMatrix {
+        rows: 2,
+        columns: 2,
+        offsets: vec![0, 1, 2],
+        indices: vec![0, 1],
+        values: vec![finite(1.0), finite(1.0)],
+    });
+    model
+}
+
+fn quadratically_constrained_program() -> CompiledMathematicalModel {
+    let mut model = mathematical_model(VariableKind::Continuous);
+    model
+        .constraint_ids
+        .push(ConstraintId::new("unit-circle").unwrap());
+    model
+        .quadratic_constraints
+        .push(CompiledQuadraticConstraint {
+            constraint_id: ConstraintId::new("unit-circle").unwrap(),
+            linear_indices: vec![],
+            linear_values: vec![],
+            rows: vec![0, 1],
+            columns: vec![0, 1],
+            values: vec![finite(1.0), finite(1.0)],
+            sense: QuadraticConstraintSense::LessThanOrEqual,
+            rhs: finite(1.0),
+        });
+    model
+}
+
+fn second_order_cone_program() -> CompiledMathematicalModel {
+    CompiledMathematicalModel {
+        variable_ids: ["x", "y", "t"]
+            .into_iter()
+            .map(|value| VariableId::new(value).unwrap())
+            .collect(),
+        variable_kinds: vec![VariableKind::Continuous; 3],
+        variable_lower_bounds: vec![Some(finite(0.0)), Some(finite(0.0)), Some(finite(0.0))],
+        variable_upper_bounds: vec![None; 3],
+        objective_direction: ObjectiveDirection::Minimize,
+        objective_offset: finite(0.0),
+        objective_coefficients: vec![finite(0.0), finite(0.0), finite(1.0)],
+        constraint_ids: vec![
+            ConstraintId::new("minimum").unwrap(),
+            ConstraintId::new("cone").unwrap(),
+        ],
+        constraint_matrix: CsrMatrix {
+            rows: 1,
+            columns: 3,
+            offsets: vec![0, 2],
+            indices: vec![0, 1],
+            values: vec![finite(1.0), finite(1.0)],
+        },
+        constraint_lower_bounds: vec![Some(finite(2.0))],
+        constraint_upper_bounds: vec![None],
+        quadratic_objective: None,
+        quadratic_constraints: vec![CompiledQuadraticConstraint {
+            constraint_id: ConstraintId::new("cone").unwrap(),
+            linear_indices: vec![],
+            linear_values: vec![],
+            rows: vec![0, 1, 2],
+            columns: vec![0, 1, 2],
+            values: vec![finite(1.0), finite(1.0), finite(-1.0)],
+            sense: QuadraticConstraintSense::LessThanOrEqual,
+            rhs: finite(0.0),
+        }],
+        initial_primal_solution: None,
+        initial_dual_solution: None,
+    }
+}
+
 #[tokio::test]
 #[ignore = "requires the pinned cuOpt image and one NVIDIA GPU"]
-async fn solves_routing_convex_and_milp_on_the_gpu() {
+async fn solves_every_public_family_on_the_gpu() {
     let socket = env::var("VEOVEO_CUOPT_TEST_SOCKET")
         .expect("VEOVEO_CUOPT_TEST_SOCKET must identify the executor socket");
     let client = ExecutorClient::with_default_limit(socket);
@@ -171,24 +246,54 @@ async fn solves_routing_convex_and_milp_on_the_gpu() {
     assert_eq!(solution.vehicles_used, 1);
     assert!(!solution.routes.is_empty());
 
-    for (family, variable_kind) in [
-        (ExecutorModelFamily::Convex, VariableKind::Continuous),
-        (ExecutorModelFamily::Milp, VariableKind::Integer),
+    for (label, family, model, expected_objective, tolerance) in [
+        (
+            "LP",
+            ExecutorModelFamily::Convex,
+            mathematical_model(VariableKind::Continuous),
+            1.0,
+            1e-4,
+        ),
+        (
+            "QP",
+            ExecutorModelFamily::Convex,
+            quadratic_program(),
+            0.5,
+            1e-5,
+        ),
+        (
+            "QCQP",
+            ExecutorModelFamily::Convex,
+            quadratically_constrained_program(),
+            1.0,
+            1e-5,
+        ),
+        (
+            "SOCP",
+            ExecutorModelFamily::Convex,
+            second_order_cone_program(),
+            std::f64::consts::SQRT_2,
+            1e-5,
+        ),
+        (
+            "MILP",
+            ExecutorModelFamily::Milp,
+            mathematical_model(VariableKind::Integer),
+            1.0,
+            1e-4,
+        ),
     ] {
         let request = veoveo_optimization_mcp::executor::ExecutorRequest::new(
             RunId::new(),
             profile(),
-            ExecutorOperation::SolveModel {
-                family,
-                model: mathematical_model(variable_kind),
-            },
+            ExecutorOperation::SolveModel { family, model },
         );
         let response = client
             .execute(&request, CancellationToken::new())
             .await
             .unwrap();
         let ExecutorResult::Model { solution } = response.result else {
-            panic!("executor returned a non-model response");
+            panic!("{label} executor returned a non-model response");
         };
         assert_eq!(
             solution.family,
@@ -197,8 +302,11 @@ async fn solves_routing_convex_and_milp_on_the_gpu() {
                 ExecutorModelFamily::Milp => ProblemFamily::Milp,
             }
         );
-        assert_eq!(solution.primal_solution.len(), 2);
+        assert!(!solution.primal_solution.is_empty(), "{label}");
         let objective = solution.primal_objective.unwrap().get();
-        assert!((objective - 1.0).abs() <= 1e-4, "{objective}");
+        assert!(
+            (objective - expected_objective).abs() <= tolerance,
+            "{label} objective {objective}, expected {expected_objective}"
+        );
     }
 }

@@ -2,9 +2,9 @@ use std::{num::NonZeroU32, sync::LazyLock};
 
 use crate::{
     domain::{
-        NonNegativeF64, OptimizationContractError, OptimizationProfileUri, ProblemFamily,
-        SolverIntent, SolverPolicyRef, SolverProfile, SolverProfileDefaults, SolverProfileId,
-        UnitInterval,
+        ConvexProblemKind, NonNegativeF64, OptimizationContractError, OptimizationProfileUri,
+        ProblemFamily, SolverIntent, SolverPolicyRef, SolverProfile, SolverProfileDefaults,
+        SolverProfileId, UnitInterval,
     },
     executor::{
         ConvexMethod, ConvexSolverSettings, ExecutorProfile, MilpSolverSettings,
@@ -132,6 +132,20 @@ pub fn executor_profile(
     })
 }
 
+pub fn convex_executor_profile(
+    policy: &SolverPolicyRef,
+    kind: ConvexProblemKind,
+) -> Result<ExecutorProfile, OptimizationContractError> {
+    let mut profile = executor_profile(policy, ProblemFamily::Convex, false)?;
+    profile.convex.method = match kind {
+        ConvexProblemKind::LinearProgram => ConvexMethod::Pdlp,
+        ConvexProblemKind::QuadraticProgram
+        | ConvexProblemKind::QuadraticallyConstrainedProgram
+        | ConvexProblemKind::SecondOrderConeProgram => ConvexMethod::Barrier,
+    };
+    Ok(profile)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn profile(
     id: &str,
@@ -200,5 +214,34 @@ mod tests {
             quality_target: None,
         };
         assert!(executor_profile(&policy, ProblemFamily::Routing, false).is_err());
+    }
+
+    #[test]
+    fn quadratic_convex_forms_select_the_required_barrier_method() {
+        let policy = SolverPolicyRef {
+            profile_uri: OptimizationProfileUri::parse(BALANCED_PROFILE_URI).unwrap(),
+            deadline_seconds: None,
+            quality_target: None,
+        };
+        assert_eq!(
+            convex_executor_profile(&policy, ConvexProblemKind::LinearProgram)
+                .unwrap()
+                .convex
+                .method,
+            ConvexMethod::Pdlp
+        );
+        for kind in [
+            ConvexProblemKind::QuadraticProgram,
+            ConvexProblemKind::QuadraticallyConstrainedProgram,
+            ConvexProblemKind::SecondOrderConeProgram,
+        ] {
+            assert_eq!(
+                convex_executor_profile(&policy, kind)
+                    .unwrap()
+                    .convex
+                    .method,
+                ConvexMethod::Barrier
+            );
+        }
     }
 }

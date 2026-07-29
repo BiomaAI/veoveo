@@ -48,7 +48,12 @@ def solve_model(
     from cuopt import linear_programming
 
     model = _build_model(model_data, linear_programming)
-    settings, recorder = _settings(family, profile, linear_programming)
+    settings, recorder = _settings(
+        family,
+        profile,
+        linear_programming,
+        requires_barrier=_requires_barrier(model_data),
+    )
     started = time.monotonic()
     solution = linear_programming.Solve(
         model, solver_settings=settings
@@ -68,7 +73,12 @@ def solve_model_file(
     from cuopt import linear_programming
 
     model = linear_programming.Read(path)
-    settings, recorder = _settings(family, profile, linear_programming)
+    settings, recorder = _settings(
+        family,
+        profile,
+        linear_programming,
+        requires_barrier=family == "convex",
+    )
     started = time.monotonic()
     solution = linear_programming.Solve(
         model, solver_settings=settings
@@ -172,10 +182,18 @@ def _bounds(values: list[float | None], lower: bool) -> np.ndarray:
     )
 
 
+def _requires_barrier(data: dict[str, Any]) -> bool:
+    return data.get("quadratic_objective") is not None or bool(
+        data.get("quadratic_constraints")
+    )
+
+
 def _settings(
     family: str,
     profile: dict[str, Any],
     linear_programming: Any,
+    *,
+    requires_barrier: bool = False,
 ) -> tuple[Any, _IncumbentRecorder | None]:
     settings = linear_programming.SolverSettings()
     selected = profile[family]
@@ -193,9 +211,9 @@ def _settings(
         settings.set_parameter(
             "method",
             (
-                linear_programming.SolverMethod.PDLP
-                if selected["method"] == "pdlp"
-                else linear_programming.SolverMethod.Barrier
+                linear_programming.SolverMethod.Barrier
+                if requires_barrier or selected["method"] == "barrier"
+                else linear_programming.SolverMethod.PDLP
             ),
         )
         settings.set_optimality_tolerance(
@@ -291,7 +309,8 @@ def _optional_array(solution: Any, method: str) -> list[float]:
         return []
     if value is None:
         return []
-    return [float(item) for item in value.tolist()]
+    items = [float(item) for item in value.tolist()]
+    return items if all(math.isfinite(item) for item in items) else []
 
 
 def _optional_mapping(solution: Any, method: str) -> dict[str, Any]:

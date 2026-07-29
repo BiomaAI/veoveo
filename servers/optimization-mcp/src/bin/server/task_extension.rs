@@ -26,7 +26,7 @@ use veoveo_optimization_mcp::{
         ExecutorRouteVisit, ExecutorRoutingSolution, ExecutorRoutingStatus, ExecutorVehicleRoute,
     },
     problem_store::{PreparedProblem, PreparedProblemRef},
-    profiles::executor_profile,
+    profiles::{convex_executor_profile, executor_profile},
     solution_builder::{
         SolutionContext, build_convex_solution, build_milp_solution, build_route_scenario_solution,
         build_routing_solution,
@@ -742,7 +742,7 @@ async fn execute_task(
             let executor_permit = acquire_executor_slot(state, task_id, &cancellation).await?;
             let queue_seconds = executor_permit.queue_seconds;
             update_solving(state, task_id, &common).await;
-            let profile = executor_profile(&input.policy, ProblemFamily::Convex, false)?;
+            let profile = convex_executor_profile(&input.policy, problem.kind)?;
             let executor_started_at = Utc::now();
             let response = state
                 .executor
