@@ -53,8 +53,8 @@ MCP designs live with the crate whose public contract they specify:
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and bounded transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration |
-| [`servers/map-mcp/DESIGN.md`](../servers/map-mcp/DESIGN.md) | Earth geography, map data administration, and logistics routing |
-| [`servers/optimization-mcp/DESIGN.md`](../servers/optimization-mcp/DESIGN.md) | compact spatial multi-agent assignment, governed plan identity, and evidence artifacts |
+| [`servers/map-mcp/DESIGN.md`](../servers/map-mcp/DESIGN.md) | Earth geography, map data administration, logistics routing, and immutable Optimization travel models |
+| [`servers/optimization-mcp/DESIGN.md`](../servers/optimization-mcp/DESIGN.md) | NVIDIA cuOpt routing, route scenarios, convex and MILP models, independent verification, and GPU execution |
 | [`servers/stream-mcp/DESIGN.md`](../servers/stream-mcp/DESIGN.md) | admitted live and replay GStreamer graphs, typed pipeline profiles, live results, and the Stream MCP App |
 | [`servers/reason-mcp/DESIGN.md`](../servers/reason-mcp/DESIGN.md) | governed video reasoning, grounding, and audited world-model output |
 | [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) | temporal authority, operational calendars, clock quality, and events |
@@ -366,9 +366,10 @@ The Rust MCP server pattern is intentionally consistent:
 
 | Local module | Responsibility |
 |---|---|
-| `contract.rs` | tool/resource request and result types owned by the domain |
-| `engine.rs`, `forecast.rs`, or `planning.rs` | pure domain computation |
-| `plan_artifacts.rs` | canonical governed-plan JSON plus optional DuckDB and RRD evidence encoding |
+| `contract.rs`, `contract/`, or `domain/` | tool, resource, problem, and result types owned by the domain |
+| `engine.rs`, `forecast.rs`, `compiler/`, or another focused engine module | pure domain computation or deterministic provider compilation |
+| `verification/` | provider-independent checks when the domain publishes separately verified results |
+| `executor/` | private typed provider protocol and client; never a second public API |
 | `state.rs` | server-local provider and domain models, not task persistence |
 | `uris.rs` | canonical server resource identities |
 | `artifacts.rs` | task-bound capability preparation/redemption |
@@ -388,9 +389,9 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/artifact-mcp` | MCP resources, tools, prompts, and subscriptions over the artifact plane |
 | `servers/duckdb-mcp` | arbitrary analytical SQL, governed ingest/export, and DuckDB Spatial |
 | `servers/frames-mcp` | complete rooted frame worlds, immutable revisions, coordinate conversion, and operation provenance |
-| `servers/map-mcp` | Earth geography, governed feature authoring and products, source and raster releases, reusable spatial derivation, mobility validation, and logistics routing |
+| `servers/map-mcp` | Earth geography, governed feature authoring and products, source and raster releases, reusable spatial derivation, mobility validation, logistics routing, and immutable cuOpt travel models |
 | `servers/media-mcp` | webhook-completed provider media work and governed outputs |
-| `servers/optimization-mcp` | compact typed spatial assignments, internal candidate generation, bounded solver execution, immutable plan resources, and governed evidence |
+| `servers/optimization-mcp` | typed cuOpt routing and route-scenario problems, convex and MILP models, GPU execution, independent verification, and immutable problem/run/solution evidence |
 | `servers/stream-mcp` | admitted live and replay GStreamer execution, typed pipeline profiles and results, encoded preview, and the Stream MCP App |
 | `servers/reason-mcp` | local recorded-video reasoning, grounding, and Rerun annotations |
 | `servers/recording-mcp` | governed recording catalog, queries, subscriptions, and sealing |
@@ -421,7 +422,7 @@ The geospatial hard cut has three canonical servers:
 
 | Path | Responsibility |
 |---|---|
-| `servers/map-mcp` | Earth geography, complete immutable source features, governed COG rasters and terrain derivations, reusable spatial geometry and mobility validation, authored GeoJSON/JSON-FG layers, source acquisition, release activation, DuckDB Spatial analytics, CRS and geodesic work, geofences, restrictions, Valhalla land routing, governed network routing, matrices, and reachable areas |
+| `servers/map-mcp` | Earth geography, complete immutable source features, governed COG rasters and terrain derivations, reusable spatial geometry and mobility validation, authored GeoJSON/JSON-FG layers, source acquisition, release activation, DuckDB Spatial analytics, CRS and geodesic work, geofences, restrictions, Valhalla land routing, governed network routing, matrices, Optimization travel models, and reachable areas |
 | `servers/frames-mcp` | ECEF-rooted world trees, geodetic/static/dynamic transforms, immutable revisions, bounded coordinate conversion, durable batch work, operation provenance, artifacts, and usage |
 | `servers/view-mcp` | governed static scene compositions, configured 3D scene layers, camera rigs, exact Map/Frames/Artifact inputs, bounded overlays, NVIDIA-accelerated rendering, and frame resources |
 
@@ -466,6 +467,21 @@ implements pure geometry, `src/spatial/projection.rs` owns the exact local
 projection profile, and `src/spatial/validation.rs` resolves mobility envelopes
 and active restrictions. `src/spatial/mod.rs` binds catalog authority,
 provenance, and DuckDB persistence.
+
+### Optimization And Travel Models
+
+| Path | Responsibility |
+|---|---|
+| `servers/map-mcp/src/contract/travel_models.rs` | exact `veoveo.io/travel-model-artifact/v1` cross-server wire profile, controlled location and vehicle-type IDs, bounds, provenance, and Map record |
+| `servers/map-mcp/src/routes/service.rs` | governed Valhalla matrix construction, immutable mobility-profile versions, persisted operational snapshots, and unavailable arcs |
+| `servers/map-mcp/src/server/tasks.rs` | durable travel-model publication, owner visibility, neutral artifact manifest identity, and resource notifications |
+| `servers/optimization-mcp/src/domain/` | public routing, route-scenario, convex, MILP, solution, verification, and solver-profile contracts |
+| `servers/optimization-mcp/src/compiler/` | deterministic conversion into cuOpt routing arrays and sparse mathematical structures |
+| `servers/optimization-mcp/src/verification/` | cuOpt-independent routing feasibility, mathematical feasibility, integrality, and objective checks |
+| `servers/optimization-mcp/src/executor/` | private bounded Unix-socket protocol and Rust client |
+| `servers/optimization-mcp/executor/` | pinned Python cuOpt 26.06 GPU adapter and hardware health check |
+| `servers/optimization-mcp/src/bin/server/` | MCP tasks, GPU queue, problem/run/solution resources, artifact publication, prompts, and identity |
+| `deploy/helm/veoveo/definitions/domain-services.yaml` | single Optimization Pod, CPU control container, one-GPU cuOpt sidecar, shared socket, memory-backed shared memory, and persistent workspace |
 
 ### Temporal Domain
 

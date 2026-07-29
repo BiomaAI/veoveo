@@ -705,14 +705,13 @@ flowchart LR
         </ul>
       </div>
       <div>
-        <h5>Planning, from the model</h5>
+        <h5>Optimization, from the model</h5>
         <ul>
-          <li>"Three drones, forty waypoints — who flies which route?" — <code>optimization__plan</code>, options read straight from SQL rows</li>
-          <li><code>map__route</code> and <code>map__route_matrix</code> supply governed feasibility and costs from active releases and immutable mobility-profile versions</li>
-          <li>→ the winning allocation as structured data the agent executes, plus a plan the viewer can scrub</li>
-          <li><code>sumo__optimize_signals</code> — the same shape on real signal timings, as a durable task</li>
-          <li>exact underneath: one binary decision per option, a weighted linear objective, an
-              in-process solver — optimal or explicitly infeasible, and deterministic either way</li>
+          <li>"Three drones, forty waypoints — who flies which route?" — <code>map__build_travel_model</code>, then <code>optimization__optimize_routes</code></li>
+          <li><code>map__build_travel_model</code> publishes immutable cost and transit-time matrices from one exact release and mobility-profile version</li>
+          <li>→ a verified solution linked to immutable problem, execution-run, and solution resources</li>
+          <li><code>optimization__solve_milp</code> expresses signal choices and policy constraints that do not fit a routing model</li>
+          <li>NVIDIA cuOpt solves on a required GPU; the Rust control plane independently checks route feasibility, bounds, integrality, constraints, and objective values</li>
         </ul>
       </div>
     </div>
@@ -724,19 +723,19 @@ sequenceDiagram
   participant A as Agent
   participant P as Stream
   participant Q as SQL
-  participant O as Planning
+  participant O as Optimization
   participant S as SUMO
   Note over A: wake — resources/updated: sumo://congestion
   A->>W: latest-at snapshot — edge E14 saturated
   A->>P: run_recording /world/camera/e14 (task)
   P-->>A: detections + annotations + clip
   A->>Q: ingest detections → demand per approach
-  A->>O: plan — minimize delay, options from SQL (task)
-  O-->>A: phase plan + RRD
+  A->>O: solve_milp — typed signal choices and constraints (task)
+  O-->>A: verified solution + immutable evidence
   A->>S: set_signal_phase · run_batch(500) (task) — sleep
   S-->>A: wake — delay −23%, evidence in the record
       </div>
-      <figcaption><b>One governed loop.</b> live Stream results and authorized replay evidence feed SQL, planning, action, and grounded Reason output without making live processing wait for recording.</figcaption>
+      <figcaption><b>One governed loop.</b> live Stream results and authorized replay evidence feed SQL, optimization, action, and grounded Reason output without making live processing wait for recording.</figcaption>
     </figure>
   </section>
 
@@ -1169,14 +1168,18 @@ flowchart LR
           <div class="server-head">
             <span class="scheme">optimization://</span>
             <h4><span class="dot" style="background:var(--hue-opt)"></span>Optimization</h4>
-            <p>Task-option planning for one or many agents over planning objects or SQL-readable option rows.</p>
+            <p>NVIDIA cuOpt vehicle routing, scenario batches, convex solving, and mixed-integer optimization with immutable evidence and independent verification.</p>
           </div>
           <div class="tools"><table>
-            <tr><td class="tn">plan</td><td>Solve a planning problem; returns a structured plan plus optional database and Rerun RRD artifacts.</td></tr>
+            <tr><td class="tn">optimize_routes</td><td>Solve one heterogeneous vehicle-routing problem.</td></tr>
+            <tr><td class="tn">optimize_route_scenarios</td><td>Compare two through 64 independent routing cases with cuOpt BatchSolve.</td></tr>
+            <tr><td class="tn">solve_convex</td><td>Solve continuous LP, QP, QCQP, or quadratic SOCP representations.</td></tr>
+            <tr><td class="tn">solve_milp</td><td>Solve a linear mixed-integer model.</td></tr>
+            <tr><td class="tn">verify_solution</td><td>Re-run independent checks with caller-selected tolerances.</td></tr>
           </table></div>
           <div class="server-foot">
             <span class="cap">durable tasks</span><span class="cap">artifacts</span>
-            <span class="cap plain">rrd output</span><span class="cap plain">usage</span>
+            <span class="cap plain">required NVIDIA GPU</span><span class="cap plain">verified solutions</span>
           </div>
         </div>
 

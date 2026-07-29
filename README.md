@@ -43,8 +43,8 @@ Photorealistic 3D Tiles, rendered on cluster GPUs.*
   state, sensors, poses, annotations on one timeline — and get grounded,
   audited answers.
 - **Forecast, plan, and analyze.** Timeseries forecasts with uncertainty,
-  deterministic planning for one vehicle or a fleet, and SQL over
-  operational data.
+  GPU vehicle routing and mathematical optimization with independently
+  verified solutions, and SQL over operational data.
 - **Hand evidence to anyone.** Every result becomes an artifact with
   ownership, provenance, and release state, shareable through expiring,
   revocable links.
@@ -230,7 +230,7 @@ without changing the underlying server identities.
 | `frames` | WGS84, ECEF, ENU, and NED conversion with durable batch transforms. |
 | `map` | Authoritative geography, dataset acquisition and releases, restrictions, routing, and map apps. |
 | `media` | Provider-neutral model discovery, schemas, generation, artifact output, and webhook completion. |
-| `optimization` | Deterministic single- and multi-agent planning with retained results. |
+| `optimization` | NVIDIA cuOpt vehicle routing, scenario batches, convex and MILP solving, and independently verified problem/run/solution evidence. |
 | `reason` | Semantic and temporal reasoning over recordings with grounded, audited output. |
 | `recording` | Recording discovery, bounded queries, subscriptions, publication, and viewer projection. |
 | `rerun` | The bridged Rerun viewer surface. |

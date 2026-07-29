@@ -524,9 +524,9 @@
       <tr><td>Forecasting<br><code>timeseries</code></td><td>Forecasting over any SQL-readable time-series source, visualized as Rerun recordings.</td><td class="mono">forecast</td></tr>
       <tr><td>Time<br><code>time</code></td><td>Authority-bound civil, military, GNSS, and mission time; calendars, timelines, clock quality, and temporal events.</td><td class="mono">resolve_time · convert_time · assess_clock · evaluate_windows</td></tr>
       <tr><td>SQL<br><code>duckdb</code></td><td>Arbitrary SQL over principal-owned databases inside a locked, resource-bounded sandbox.</td><td class="mono">query · execute · ingest · export</td></tr>
-      <tr><td>Planning<br><code>optimization</code></td><td>Task-option planning for one or many agents over planning objects or SQL-readable option rows.</td><td class="mono">plan</td></tr>
+      <tr><td>Optimization<br><code>optimization</code></td><td>NVIDIA cuOpt vehicle routing, scenario batches, convex and MILP solving, with immutable problem, run, solution, and verification evidence.</td><td class="mono">optimize_routes · optimize_route_scenarios · solve_convex · solve_milp · verify_solution</td></tr>
       <tr><td>Frames<br><code>frames</code></td><td>Complete ECEF-rooted frame worlds, immutable revisions, bounded conversion, durable batches, and provenance.</td><td class="mono">create_world · publish_world · convert_frame · batch_transform</td></tr>
-      <tr><td>Map<br><code>map</code></td><td>Earth geography, governed releases and restrictions, Valhalla and governed-network routes, matrices, and reachable areas with pinned provenance.</td><td class="mono">search_locations · inspect_location · route · route_matrix · reachable_area · publish_restriction · validate_route</td></tr>
+      <tr><td>Map<br><code>map</code></td><td>Earth geography, governed releases and restrictions, Valhalla and governed-network routes, cuOpt travel models, and reachable areas with pinned provenance.</td><td class="mono">search_locations · route · route_matrix · build_travel_model · reachable_area · publish_restriction · validate_route</td></tr>
       <tr><td>Datasheet<br><code>datasheet</code></td><td>Python reference server for dataset preview, column statistics, and durable artifact-backed profiling.</td><td class="mono">preview_dataset · column_stats · profile_dataset</td></tr>
       <tr><td>Sharing<br><code>artifact</code></td><td>Discovery, metadata, grants, release, and sharing — the governance surface over the byte store.</td><td class="mono">metadata · grant_access · revoke_access · set_release_state · create_share_link · revoke_share_link</td></tr>
       <tr><td>Recordings<br><code>recording</code></td><td>Authorized access to the Recording Hub: discovery, dataframe queries, subscriptions, publication.</td><td class="mono">query_recording · seal_recording</td></tr>
@@ -569,11 +569,11 @@
 
 <div class="page">
   <span class="runhead">Veoveo · Autonomy Harness</span>
-  <h2 class="sub" style="margin-top:0">7.2 In Depth: Planning</h2>
+  <h2 class="sub" style="margin-top:0">7.2 In Depth: Optimization</h2>
   <p class="body">
-    Planning solves assignment: given agents or assets, the options open to them, and an
-    objective, it returns the best allocation — who does what, in what order, at what cost. The
-    kinds of questions it answers:
+    Optimization handles vehicle routing and bounded mathematical decisions. Routing assigns
+    orders to heterogeneous vehicles and sequences every stop. Convex and mixed-integer models
+    express decisions that do not fit a route contract. The kinds of questions it answers:
   </p>
   <ul class="bullets">
     <li>Three survey drones, forty waypoints, battery limits — which drone flies which route?</li>
@@ -581,25 +581,19 @@
     <li>Ten targets, two sensors, shifting priorities — what gets watched this hour?</li>
   </ul>
   <p class="body">
-    Options are rows: any SQL-readable table is a valid option set — the mission tables an agent
-    already keeps, or the demand counts perception produced minutes ago. The result is a
-    structured plan the agent executes tool by tool, plus a visualization an operator can inspect
-    before it commits; committed waypoints land back in agent memory.
+    Map publishes immutable cost and transit-time matrices for each vehicle type. Agents may use
+    SQL observations to formulate coefficients, but the submitted problem is controlled JSON
+    with stable location, order, vehicle, variable, and constraint identities. The result is an
+    immutable solution linked to the exact problem and execution run.
   </p>
   <p class="body">
-    The request compiles to an exact optimization: one binary decision per option, a linear
-    objective weighing priority, confidence, cost, risk, duration, and resource use under
-    operator-set weights, and constraints covering task requirements, agent concurrency,
-    resource ceilings, dependencies, exclusions, and time-window conflicts between options that
-    share an agent. An embedded solver settles the model in-process, which is why the identical
-    planner runs on an edge host or behind an air gap. The answer is optimal under the declared
-    objective or explicitly infeasible, and it returns with the scores and constraint counts
-    that decided it — the same inputs produce the same plan, and the plan can explain itself.
+    The Rust control plane validates and compiles the typed model before NVIDIA cuOpt 26.06 runs
+    it on a required GPU. Routing supports service or pickup-delivery orders, windows, breaks,
+    capacities, optional orders, restrictions, warm starts, and weighted objectives. Mathematical
+    work covers continuous LP, QP, QCQP, and SOCP representations plus linear MILP. A separate
+    verifier recalculates route feasibility, bounds, integrality, constraints, and objective
+    values before the solution becomes evidence.
   </p>
-  <figure class="art">
-    <img src="images/planning-flow.png" alt="" style="height:2.4in;object-fit:contain">
-    <figcaption>The world model and SQL-readable options go in; the plan comes out — executed by the agent, written back to memory.</figcaption>
-  </figure>
   <h3 class="minor">One governed loop</h3>
   <table class="data tight">
     <thead><tr><td>#</td><td>Call</td><td>Result</td></tr></thead>
@@ -608,7 +602,7 @@
       <tr><td>2</td><td class="mono">query_recording · latest-at</td><td>World snapshot: edge E14 saturated.</td></tr>
       <tr><td>3</td><td class="mono">stream__run_recording /world/camera/e14 · 10 min</td><td>1,204 detections · 87 tracks — cars, buses, trucks, counted per approach.</td></tr>
       <tr><td>4</td><td class="mono">duckdb__ingest → query</td><td>Demand per approach, as SQL rows.</td></tr>
-      <tr><td>5</td><td class="mono">optimization__plan · minimize total delay · options from SQL</td><td>The winning signal-timing plan, as structured data.</td></tr>
+      <tr><td>5</td><td class="mono">optimization__solve_milp · typed signal choices and policy constraints</td><td>A GPU-solved signal-timing solution with independent feasibility and objective verification.</td></tr>
       <tr><td>6</td><td class="mono">sumo__set_signal_phase · run_batch(500)</td><td>Applied; the agent sleeps through the batch.</td></tr>
       <tr><td>7</td><td class="mono">wake — task result</td><td>Delay −23%; every step already in the record.</td></tr>
     </tbody>

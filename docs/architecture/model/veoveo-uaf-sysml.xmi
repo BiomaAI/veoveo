@@ -174,10 +174,10 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-019-COMMENT" body="Provides provider-neutral media model discovery, schemas, generation tasks, webhook-only provider completion, usage reconciliation, and governed output artifacts." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-020" name="Map MCP server">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-020-COMMENT" body="Governs map sources and releases; performs geodesy, CRS transformation, location inspection, restrictions, reachable areas, routing, and logistics matrices." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-020-COMMENT" body="Governs map sources and releases; performs geodesy, CRS transformation, location inspection, restrictions, reachable areas, routing, logistics matrices, and immutable cuOpt travel-model publication." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-021" name="Optimization MCP server">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-021-COMMENT" body="Builds deterministic planning options, records durable task state, and publishes plan artifacts." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-021-COMMENT" body="Compiles typed routing, route-scenario, convex, and MILP problems for NVIDIA cuOpt; independently verifies solutions; records durable runs; and publishes governed problem and solution artifacts." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-022" name="Stream MCP server">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-022-COMMENT" body="Runs operator-admitted GStreamer graphs directly over live encoded media or authorized recording ranges; exposes an MCP App for encoded preview and typed overlays; publishes governed replay results; and may route existing encoded live output to Recording Hub without delaying processing." />
@@ -252,7 +252,7 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-045-COMMENT" body="Provides arbitrary analytical SQL, spatial functions, bounded owner workspaces, spill, ingest, and export execution." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-046" name="Map processing and routing toolchain">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-046-COMMENT" body="Builds and serves routing tiles, transforms geospatial data, and validates transit datasets under the Map MCP owner." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-046-COMMENT" body="Builds and serves routing tiles, constructs vehicle-specific route and travel matrices, transforms geospatial data, and validates transit datasets under the Map MCP owner." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-047" name="Rerun data model and transport">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-047-COMMENT" body="Carries world logs into producer-local forwarders, encodes footer-indexed RRD shards, supports lazy Redap chunk reads and bounded live following, and renders recording evidence." />
