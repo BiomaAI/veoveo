@@ -17,7 +17,7 @@ OUTPUT = REPO / "output" / "architecture"
 STAGING = REPO / "tmp" / "architecture-packages"
 VERSION = "0.1.0"
 REVISION_DATE = "2026-07-28"
-SOURCE_COMMIT = "3af8f51d9361d59bbfb78ec997f70c86f46b219a"
+SOURCE_COMMIT = "7783abd7ef2eeac35c57844ced4ad7d53deed896"
 FIXED_ZIP_TIME = (2026, 7, 28, 12, 0, 0)
 
 
@@ -117,10 +117,10 @@ def prepare(package_kind: str) -> Path:
         "standards": {"uaf": "1.3", "sysml": "1.6", "uml": "2.5.1", "xmi": "2.5.1"},
         "counts": {
             "software_resources": 69,
-            "interfaces": 39,
+            "interfaces": 40,
             "requirements": 19,
             "views": 11,
-            "pdf_pages": 27,
+            "pdf_pages": 28,
         },
     }
     (root / "RELEASE-MANIFEST.json").write_text(
