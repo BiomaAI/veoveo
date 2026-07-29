@@ -17,10 +17,11 @@ RUN apt-get update \
         | sh -s -- -y --profile minimal --default-toolchain 1.97.1
 
 WORKDIR /src
+ARG VEOVEO_CARGO_CACHE_ID
 ARG VEOVEO_TARGET_CACHE_ID
 RUN --mount=type=bind,source=.,target=/src,readonly \
-    --mount=type=cache,id=veoveo-cargo-registry-v1,target=/usr/local/cargo/registry \
-    --mount=type=cache,id=veoveo-cargo-git-v1,target=/usr/local/cargo/git \
+    --mount=type=cache,id=${VEOVEO_CARGO_CACHE_ID}-registry-v1,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=${VEOVEO_CARGO_CACHE_ID}-git-v1,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=${VEOVEO_TARGET_CACHE_ID},target=/target,sharing=locked \
     toolchain="$(rustup default | awk 'NR == 1 { print $1 }')" \
     && test -n "${toolchain}" \

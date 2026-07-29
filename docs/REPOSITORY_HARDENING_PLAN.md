@@ -1189,15 +1189,16 @@ graph.
 
 #### Cache Contract
 
-Cargo download caches use the fixed identities:
+Cargo download caches use builder-family identities:
 
 ```text
-veoveo-cargo-registry-v1
-veoveo-cargo-git-v1
+veoveo-cargo-<family>-registry-v1
+veoveo-cargo-<family>-git-v1
 ```
 
-They use shared mounts under Cargo's cache locking. Target caches use locked mounts and
-the following derived identity:
+They use locked mounts within a family. This prevents concurrent publication runs from
+racing while Cargo unpacks a crate, while independent libc and SDK families still build
+in parallel. Target caches use locked mounts and the following derived identity:
 
 ```text
 veoveo-target-v1-<source-hash>-<family-hash>-linux-amd64-release

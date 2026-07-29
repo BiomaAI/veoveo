@@ -142,6 +142,10 @@ impl BuilderFamily {
             _ => None,
         }
     }
+
+    fn cargo_cache_id(self) -> String {
+        format!("veoveo-cargo-{}", self.name())
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -167,6 +171,7 @@ struct FamilyPlan {
     packages: Vec<String>,
     binaries: Vec<String>,
     auxiliary: Vec<AuxiliaryArtifact>,
+    cargo_cache_id: String,
     target_cache_id: String,
 }
 
@@ -429,6 +434,7 @@ pub(crate) fn prepare(
             packages: packages.into_iter().collect(),
             binaries: binaries.into_iter().collect(),
             auxiliary: auxiliary.into_iter().collect(),
+            cargo_cache_id: family.cargo_cache_id(),
             target_cache_id,
         });
     }
@@ -982,6 +988,10 @@ fn make_override(plan: &BuildPlanV1) -> Result<BakeOverride> {
                         .join(","),
                 ),
                 (
+                    "VEOVEO_CARGO_CACHE_ID".to_owned(),
+                    family.cargo_cache_id.clone(),
+                ),
+                (
                     "VEOVEO_TARGET_CACHE_ID".to_owned(),
                     family.target_cache_id.clone(),
                 ),
@@ -995,10 +1005,16 @@ fn make_override(plan: &BuildPlanV1) -> Result<BakeOverride> {
                 .extend(args);
             continue;
         } else {
-            BTreeMap::from([(
-                "VEOVEO_TARGET_CACHE_ID".to_owned(),
-                family.target_cache_id.clone(),
-            )])
+            BTreeMap::from([
+                (
+                    "VEOVEO_CARGO_CACHE_ID".to_owned(),
+                    family.cargo_cache_id.clone(),
+                ),
+                (
+                    "VEOVEO_TARGET_CACHE_ID".to_owned(),
+                    family.target_cache_id.clone(),
+                ),
+            ])
         };
         let image = plan
             .targets
@@ -1039,6 +1055,11 @@ fn verify_override(plan: &BuildPlanV1, definition: &BakeDefinition) -> Result<()
         ensure!(
             target.args.get("VEOVEO_TARGET_CACHE_ID") == Some(&family.target_cache_id),
             "resolved Bake graph changed cache identity for {}",
+            family.family.name()
+        );
+        ensure!(
+            target.args.get("VEOVEO_CARGO_CACHE_ID") == Some(&family.cargo_cache_id),
+            "resolved Bake graph changed Cargo download cache identity for {}",
             family.family.name()
         );
         if family.family.shared_artifact_target().is_some() {
@@ -1113,10 +1134,11 @@ fn print_human(plan: &BuildPlanV1) {
     );
     for family in &plan.families {
         println!(
-            "{}: {} packages, {} binaries, cache {}",
+            "{}: {} packages, {} binaries, Cargo cache {}, target cache {}",
             family.family.name(),
             family.packages.len(),
             family.binaries.len(),
+            family.cargo_cache_id,
             family.target_cache_id
         );
     }
@@ -1145,8 +1167,30 @@ fn validate_identifier(kind: &str, value: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_publication_index_digests, validate_standalone_builder_stage};
-    use std::collections::BTreeMap;
+    use super::{
+        BuilderFamily, parse_publication_index_digests, validate_standalone_builder_stage,
+    };
+    use std::collections::{BTreeMap, BTreeSet};
+
+    #[test]
+    fn cargo_download_caches_are_isolated_by_builder_family() {
+        let families = [
+            BuilderFamily::RustTrixieV1,
+            BuilderFamily::RustBookwormV1,
+            BuilderFamily::RustUavBookwormV1,
+            BuilderFamily::RustDeepstreamV1,
+            BuilderFamily::RustVllmV1,
+            BuilderFamily::RustSumoBullseyeV1,
+        ];
+        let identities = families
+            .into_iter()
+            .map(BuilderFamily::cargo_cache_id)
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(identities.len(), families.len());
+        assert!(identities.contains("veoveo-cargo-rust-trixie-v1"));
+        assert!(identities.contains("veoveo-cargo-rust-bookworm-v1"));
+    }
 
     #[test]
     fn reads_publication_index_digest_from_buildx_metadata() {
