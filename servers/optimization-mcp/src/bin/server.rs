@@ -9,7 +9,7 @@ use std::{
     collections::BTreeSet,
     net::SocketAddr,
     num::{NonZeroU32, NonZeroU64},
-    sync::Arc,
+    sync::{Arc, LazyLock},
     time::Duration,
 };
 
@@ -37,8 +37,9 @@ use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
     IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, Page, ServerSlug,
-    TelemetryGuard, TokenIssuer, UsageKind, UsageRecord, UsageReport, init_server_telemetry,
-    paginate, public_allowed_hosts,
+    TelemetryGuard, TokenIssuer, UsageKind, UsageRecord, UsageReport,
+    docs::{CapabilityInventory, ContractDeclaration, ServerDocs},
+    init_server_telemetry, paginate, public_allowed_hosts,
 };
 use veoveo_mcp_task_extension::{
     Implementation as TaskExtensionImplementation, ServerDiscovery, TaskExtensionAdapter,
@@ -56,6 +57,8 @@ use veoveo_task_runtime::{
     TaskRetentionPin, TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
 };
 
+#[path = "server/admin.rs"]
+mod admin;
 #[path = "server/app_state.rs"]
 mod app_state;
 #[path = "server/config.rs"]
@@ -81,6 +84,13 @@ use ownership::{
     task_owner_allows, task_owner_from_identity, task_owner_from_runtime,
 };
 use task_extension::OptimizationTaskExtension;
+
+/// The crate documents embedded at build time and served under the well-known
+/// surface: `optimization://docs`, `optimization://docs/{doc_id}`,
+/// `optimization://contract`, and the administrative `admin/docs` routes
+/// (contract C18-C21).
+pub(crate) static SERVER_DOCS: LazyLock<ServerDocs> =
+    LazyLock::new(|| veoveo_mcp_contract::server_docs!("optimization"));
 
 const MCP_TASK_POLL_INTERVAL_MS: u64 = 3000;
 const MCP_TASK_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1000;
@@ -115,6 +125,40 @@ impl OptimizationMcp {
         Self {
             state,
             tool_router: Self::tool_router(),
+        }
+    }
+
+    /// The capability inventory declared at `optimization://contract`
+    /// (contract C19). Tools derive from the live registration; stable
+    /// resources, resource templates, and task-augmented tool names come from
+    /// the lists the handler serves, so the declaration cannot silently
+    /// diverge.
+    fn capability_inventory() -> CapabilityInventory {
+        let mut tools: Vec<String> = Self::tool_router()
+            .list_all()
+            .into_iter()
+            .map(|tool| tool.name.into_owned())
+            .collect();
+        tools.sort();
+        let mut resources = vec![
+            uris::DOCS_URI.to_owned(),
+            uris::CONTRACT_URI.to_owned(),
+            uris::PLANS_ROOT_URI.to_owned(),
+            uris::USAGE_ROOT_URI.to_owned(),
+        ];
+        resources.extend(SERVER_DOCS.iter().map(|doc| uris::doc_uri(doc.id)));
+        resources.sort();
+        CapabilityInventory {
+            tools,
+            resources,
+            resource_templates: vec![
+                uris::DOC_TEMPLATE.to_owned(),
+                uris::PLAN_TEMPLATE.to_owned(),
+                uris::ARTIFACT_TEMPLATE.to_owned(),
+                uris::USAGE_TASK_TEMPLATE.to_owned(),
+            ],
+            prompts: Vec::new(),
+            tasks: vec!["plan".to_owned()],
         }
     }
 
@@ -283,6 +327,16 @@ impl ServerHandler for OptimizationMcp {
     ) -> Result<ListResourcesResult, McpError> {
         let identity = internal_identity(&context)?;
         let mut resources = vec![
+            Resource::new(uris::DOCS_URI, "docs")
+                .with_title("Server documents")
+                .with_description("Index of the crate documents embedded at build time.")
+                .with_mime_type("application/json"),
+            Resource::new(uris::CONTRACT_URI, "contract")
+                .with_title("Contract declaration")
+                .with_description(
+                    "Machine-readable contract revision, compliance, and capability inventory.",
+                )
+                .with_mime_type("application/json"),
             Resource::new(uris::PLANS_ROOT_URI, "plans")
                 .with_title("Governed spatial plans")
                 .with_description("Index of visible immutable Optimization plans.")
@@ -292,6 +346,14 @@ impl ServerHandler for OptimizationMcp {
                 .with_description("Index of task usage resources.")
                 .with_mime_type("application/json"),
         ];
+        for doc in SERVER_DOCS.iter() {
+            resources.push(
+                Resource::new(uris::doc_uri(doc.id), doc.title)
+                    .with_title(doc.title)
+                    .with_description("Crate document embedded at build time.")
+                    .with_mime_type("text/markdown"),
+            );
+        }
         for output in visible_plan_outputs(&self.state, &identity).await? {
             resources.push(
                 Resource::new(
@@ -348,6 +410,10 @@ impl ServerHandler for OptimizationMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
         let templates = vec![
+            ResourceTemplate::new(uris::DOC_TEMPLATE, "doc")
+                .with_title("Server document")
+                .with_description("Embedded crate document body (contract C18).")
+                .with_mime_type("text/markdown"),
             ResourceTemplate::new(uris::PLAN_TEMPLATE, "plan")
                 .with_title("Governed spatial plan")
                 .with_description(
@@ -379,6 +445,38 @@ impl ServerHandler for OptimizationMcp {
     ) -> Result<ReadResourceResult, McpError> {
         let identity = internal_identity(&context)?;
         let uri = request.uri.as_str();
+        // Well-known surface (contract C18, C19): readable by any identity
+        // that can list resources.
+        if uri == uris::DOCS_URI {
+            return Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(
+                    serde_json::to_string(&SERVER_DOCS.iter().collect::<Vec<_>>())
+                        .map_err(|error| McpError::internal_error(error.to_string(), None))?,
+                    uri,
+                )
+                .with_mime_type("application/json"),
+            ]));
+        }
+        if let Some(doc_id) = uris::parse_doc(uri) {
+            let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
+                McpError::resource_not_found(format!("unknown server document '{doc_id}'"), None)
+            })?;
+            return Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
+            ]));
+        }
+        if uri == uris::CONTRACT_URI {
+            let declaration =
+                ContractDeclaration::from_docs(&SERVER_DOCS, Self::capability_inventory());
+            return Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(
+                    serde_json::to_string(&declaration)
+                        .map_err(|error| McpError::internal_error(error.to_string(), None))?,
+                    uri,
+                )
+                .with_mime_type("application/json"),
+            ]));
+        }
         if uri == uris::PLANS_ROOT_URI {
             let mut plans = visible_plan_outputs(&self.state, &identity).await?;
             let truncated = plans.len() > LIST_PAGE_SIZE;
@@ -835,11 +933,16 @@ async fn main() -> anyhow::Result<()> {
             task_extension_middleware::<OptimizationTaskExtension>,
         ))
         .layer(middleware::from_fn_with_state(
-            internal_auth_state,
+            internal_auth_state.clone(),
             authenticate_internal_mcp,
         ));
+    let admin_router = admin::router().layer(middleware::from_fn_with_state(
+        internal_auth_state,
+        authenticate_internal_mcp,
+    ));
     let server_router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
+        .nest("/admin", admin_router)
         .nest("/mcp", mcp_router);
     let router = Router::new()
         .nest(public_endpoint.mount_path(), server_router)
@@ -877,5 +980,53 @@ mod schema_tests {
     #[test]
     fn tool_input_schemas_use_the_canonical_profile() {
         assert!(!OptimizationMcp::tool_router().list_all().is_empty());
+    }
+}
+
+#[cfg(test)]
+mod well_known_tests {
+    use veoveo_mcp_contract::docs::{
+        CONTRACT_REVISION, ComplianceStatus, ContractDeclaration, DOC_ID_AGENTS, DOC_ID_DESIGN,
+    };
+
+    use super::{OptimizationMcp, SERVER_DOCS, uris};
+
+    #[test]
+    fn embedded_documents_carry_the_crate_manual_and_design() {
+        assert_eq!(SERVER_DOCS.server(), "optimization");
+        let agents = SERVER_DOCS.doc(DOC_ID_AGENTS).expect("agents document");
+        assert!(agents.body.contains("## Contract Compliance"));
+        let design = SERVER_DOCS.doc(DOC_ID_DESIGN).expect("design document");
+        assert!(!design.body.is_empty());
+        let index = SERVER_DOCS.llms_txt();
+        assert!(index.contains("(docs/agents)"));
+        assert!(index.contains("(docs/design)"));
+    }
+
+    #[test]
+    fn contract_declaration_resolves_from_the_embedded_manual() {
+        let declaration =
+            ContractDeclaration::from_docs(&SERVER_DOCS, OptimizationMcp::capability_inventory());
+        assert_eq!(declaration.server, "optimization");
+        assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
+        for id in ["C18", "C19", "C20", "C21"] {
+            let item = declaration
+                .compliance
+                .iter()
+                .find(|item| item.id == id)
+                .expect("declared checklist item");
+            assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
+        }
+        let inventory = &declaration.capabilities;
+        assert!(inventory.tools.contains(&"plan".to_owned()));
+        assert!(inventory.tasks.contains(&"plan".to_owned()));
+        assert!(inventory.resources.contains(&uris::DOCS_URI.to_owned()));
+        assert!(inventory.resources.contains(&uris::CONTRACT_URI.to_owned()));
+        assert!(inventory.resources.contains(&uris::doc_uri("agents")));
+        assert!(
+            inventory
+                .resource_templates
+                .contains(&uris::DOC_TEMPLATE.to_owned())
+        );
     }
 }
