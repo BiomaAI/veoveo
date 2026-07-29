@@ -98,7 +98,9 @@ credentials omitted, so Console installs a reversible exact-route adapter while
 the viewer is mounted. It changes only the canonical same-origin live request
 to `same-origin` credentials. The HttpOnly Console session therefore reaches
 the normal BFF and gateway policy boundary without a token in the URL, while
-Redap and arbitrary HTTP sources remain untouched.
+Redap and arbitrary HTTP sources remain untouched. The adapter inspects
+unrelated Fetch inputs without reconstructing their `Request` objects because
+Rerun's streaming Redap requests may already own a one-use body.
 
 Live playback is a distinct governed projection. The manifest identifies the
 current writing segment and declares the configured history window. The
@@ -122,8 +124,10 @@ encoding or the IDR cadence.
 At rollover, the live response ends. Console refreshes the stable archive URI
 when its revision changes, opens the successor live response, then detaches the
 prior receiver. The persistent viewer retains its layout, selection, and
-timeline state. Token renewal updates viewer credentials without reopening
-either source.
+timeline state. Rerun's web API accepts a generic Redap token only as the
+viewer's fallback token at startup. Token rotation therefore replaces the
+viewer credential context instead of misclassifying the token as a Rerun Cloud
+OAuth credential; rollover within one token lifetime keeps the viewer intact.
 
 Governed queries and bounded analysis use the same acknowledged writing data
 without waiting for rollover. Recording MCP captures one ordered snapshot of

@@ -18,9 +18,6 @@ function synchronizeSources(
   desired: GovernedRerunSource
 ) {
   const transition = planRerunSourceTransition(opened, desired);
-  if (transition.credentialsChanged) {
-    viewer.set_credentials(desired.redapToken, "recording-playback");
-  }
   if (transition.archiveUrlToCloseBeforeOpen) {
     viewer.close(transition.archiveUrlToCloseBeforeOpen);
   }
@@ -56,6 +53,9 @@ export default function GovernedRerunViewer({
     desiredSourceRef.current = source;
     const viewer = viewerRef.current;
     if (!viewer) return;
+    if (openedSourcesRef.current.redapToken !== source.redapToken) {
+      return;
+    }
     try {
       synchronizeSources(viewer, openedSourcesRef.current, source);
     } catch (cause: unknown) {
@@ -71,7 +71,9 @@ export default function GovernedRerunViewer({
     let active = true;
     let removeOpenListener: (() => void) | undefined;
     let delayedNotice: number | undefined;
-    openedSourcesRef.current = {};
+    openedSourcesRef.current = {
+      redapToken: desiredSourceRef.current.redapToken,
+    };
     void viewer
       .start(null, host.current, {
         width: "100%",
@@ -118,7 +120,7 @@ export default function GovernedRerunViewer({
       }
       releaseLivePlaybackFetch();
     };
-  }, [recordingId]);
+  }, [recordingId, source.redapToken]);
 
   return (
     <div className="rerun-web-viewer">

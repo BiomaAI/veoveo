@@ -39,6 +39,49 @@ export function attachConsoleSessionToLivePlayback(
   return new Request(request, { credentials: "same-origin" });
 }
 
+export function authorizeConsoleLivePlaybackFetch(
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+  consoleOrigin: string
+): readonly [RequestInfo | URL, RequestInit | undefined] {
+  const request = input instanceof Request ? input : undefined;
+  const method = (init?.method ?? request?.method ?? "GET").toUpperCase();
+  const credentials =
+    init?.credentials ?? request?.credentials ?? "same-origin";
+  let url: URL;
+  try {
+    url = new URL(request?.url ?? String(input), consoleOrigin);
+  } catch {
+    return [input, init];
+  }
+  if (
+    method !== "GET" ||
+    credentials !== "omit" ||
+    url.origin !== consoleOrigin ||
+    url.search !== "" ||
+    url.hash !== "" ||
+    !LIVE_PLAYBACK_PATH.test(url.pathname)
+  ) {
+    return [input, init];
+  }
+  if (request) {
+    return [
+      new Request(request, {
+        ...init,
+        credentials: "same-origin",
+      }),
+      undefined,
+    ];
+  }
+  return [
+    input,
+    {
+      ...init,
+      credentials: "same-origin",
+    },
+  ];
+}
+
 /**
  * Rerun 0.35 deliberately omits credentials on HTTP RRD receivers. Veoveo's
  * bounded live receiver is a same-origin Console resource, so its existing
@@ -56,16 +99,9 @@ export function installConsoleLivePlaybackFetch(): () => void {
   const original = globalThis.fetch;
   const origin = globalThis.location.origin;
   const adapted: typeof globalThis.fetch = (input, init) => {
-    let request: Request;
-    try {
-      request = new Request(input, init);
-    } catch {
-      return original.call(globalThis, input, init);
-    }
-    const authorized = attachConsoleSessionToLivePlayback(request, origin);
-    return authorized === request
-      ? original.call(globalThis, input, init)
-      : original.call(globalThis, authorized);
+    const [authorizedInput, authorizedInit] =
+      authorizeConsoleLivePlaybackFetch(input, init, origin);
+    return original.call(globalThis, authorizedInput, authorizedInit);
   };
   installation = {
     consumers: 1,

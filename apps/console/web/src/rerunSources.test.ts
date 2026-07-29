@@ -50,7 +50,7 @@ test("new immutable layers refresh the same stable archive receiver", () => {
   assert.deepEqual(transition.urlsToCloseAfterOpen, []);
 });
 
-test("session renewal updates credentials without churning receivers", () => {
+test("session renewal requires a new viewer credential context without churning URLs", () => {
   const transition = planRerunSourceTransition(
     {
       redapToken: "token-a",

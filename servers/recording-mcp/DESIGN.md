@@ -58,10 +58,14 @@ credentials for HTTP RRD fetches. Console wraps the browser Fetch boundary while
 the viewer is mounted and upgrades only this exact same-origin route to
 `same-origin` credentials. The unchanged URL remains the receiver identity, the
 HttpOnly Console session reaches the BFF policy boundary, and no access token
-enters a URL or browser-readable cookie. While the recording remains live,
+enters a URL or browser-readable cookie. Unrelated Fetch inputs pass through
+without constructing replacement `Request` objects, preserving Redap's
+one-use streaming bodies. While the recording remains live,
 Console refreshes the manifest every five seconds. Rollover first refreshes the
 archive catalog, then opens the successor live source before detaching the prior
-receiver. The viewer instance and operator state remain intact.
+receiver. The viewer instance and operator state remain intact until the
+generic Redap fallback token rotates. Rotation creates a new viewer credential
+context because Rerun's mutable credential API is specific to Rerun Cloud OAuth.
 
 Governed query and analysis plans include complete acknowledged ingest parts
 from the current writing shard. An analysis consumer captures one ordered

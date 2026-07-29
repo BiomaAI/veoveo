@@ -699,7 +699,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 |---|---|
 | `App.tsx` | application shell: platform navigation plus catalog-driven MCP App entries, topbar, view routing, drawer mounting |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
-| `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `recordingLiveFetch.ts` | persistent WebViewer lifecycle, Redap credentials, exact-path same-origin live authorization, stable archive revision refresh, and live-to-archive transitions |
+| `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `recordingLiveFetch.ts` | persistent WebViewer lifecycle within a generic Redap fallback-token context, exact-path same-origin live authorization without touching unrelated Fetch bodies, stable archive revision refresh, credential-context rotation, and live-to-archive transitions |
 | `views/` | remaining platform-plane views (overview, work, artifacts, agents, MCP, apps, access, audit, cluster); domain views ship as MCP Apps, never here |
 | `drawers/ArtifactDrawer.tsx` | artifact preview, recording provenance, download, release, grant, and share-link workflows |
 | `drawers/` | remaining detail drawers with mutation workflows |
