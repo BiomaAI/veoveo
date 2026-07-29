@@ -980,9 +980,11 @@ pub(crate) async fn helm_config() -> Result<()> {
     }
     for expected in [
         "type=bind,source=.,target=/src,readonly",
-        "id=veoveo-cargo-registry-v1",
-        "id=veoveo-cargo-git-v1",
+        "id=${VEOVEO_CARGO_CACHE_ID}-registry-v1",
+        "id=${VEOVEO_CARGO_CACHE_ID}-git-v1",
         "id=${VEOVEO_TARGET_CACHE_ID}",
+        "target=/usr/local/cargo/registry,sharing=locked",
+        "target=/usr/local/cargo/git,sharing=locked",
         "VEOVEO_CARGO_PACKAGES",
         "VEOVEO_CARGO_BINARIES",
         "cargo_args=(build --release --locked)",
@@ -997,9 +999,11 @@ pub(crate) async fn helm_config() -> Result<()> {
         "showcase/sumo/sumo-mcp/Dockerfile",
     ] {
         let contents = fs::read_to_string(dockerfile)?;
-        contains(&contents, "id=veoveo-cargo-registry-v1")?;
-        contains(&contents, "id=veoveo-cargo-git-v1")?;
+        contains(&contents, "id=${VEOVEO_CARGO_CACHE_ID}-registry-v1")?;
+        contains(&contents, "id=${VEOVEO_CARGO_CACHE_ID}-git-v1")?;
         contains(&contents, "id=${VEOVEO_TARGET_CACHE_ID}")?;
+        contains(&contents, "target=/usr/local/cargo/registry,sharing=locked")?;
+        contains(&contents, "target=/usr/local/cargo/git,sharing=locked")?;
         not_contains(&contents, "--jobs 4")?;
     }
 

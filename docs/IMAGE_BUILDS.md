@@ -168,9 +168,17 @@ through the `veoveo-rust-artifacts` named context.
 | `rust-vllm-v1` | standalone vLLM runtime ABI |
 | `rust-sumo-bullseye-v1` | standalone SUMO-compatible bullseye ABI |
 
-Cargo registry and Git caches use the fixed identities
-`veoveo-cargo-registry-v1` and `veoveo-cargo-git-v1`. Target caches derive from the
-source identity, complete builder-family contract, platform, and Cargo profile:
+Cargo registry and Git caches use builder-family identities:
+
+```text
+veoveo-cargo-<family>-registry-v1
+veoveo-cargo-<family>-git-v1
+```
+
+Their mounts are locked within one family. Different libc and SDK families retain
+parallelism, while two builds of the same family cannot race while Cargo unpacks a
+crate or checks out a Git dependency. Target caches derive from the source identity,
+complete builder-family contract, platform, and Cargo profile:
 
 ```text
 veoveo-target-v1-<source-hash>-<family-hash>-linux-amd64-release

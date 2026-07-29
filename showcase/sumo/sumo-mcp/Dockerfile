@@ -8,13 +8,14 @@ ARG SUMO_BASE_IMAGE=sumo-base
 FROM --platform=${SUMO_PLATFORM} rust:1.97.1-slim-bullseye@sha256:dd159e8e44aaa84dffbb7f24a742a96b8d0a26920bd3b46ec2b1778be0da1cdf AS builder
 
 WORKDIR /src
+ARG VEOVEO_CARGO_CACHE_ID
 ARG VEOVEO_TARGET_CACHE_ID
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 RUN --mount=type=bind,source=.,target=/src,readonly \
-    --mount=type=cache,id=veoveo-cargo-registry-v1,target=/usr/local/cargo/registry \
-    --mount=type=cache,id=veoveo-cargo-git-v1,target=/usr/local/cargo/git \
+    --mount=type=cache,id=${VEOVEO_CARGO_CACHE_ID}-registry-v1,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=${VEOVEO_CARGO_CACHE_ID}-git-v1,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=${VEOVEO_TARGET_CACHE_ID},target=/target,sharing=locked \
     CARGO_TARGET_DIR=/target \
         cargo build --release --locked -p veoveo-sumo-mcp --bin sumo-mcp \

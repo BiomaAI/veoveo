@@ -18,12 +18,13 @@ RUN apt-get update \
 ARG VEOVEO_CARGO_PACKAGES
 ARG VEOVEO_CARGO_BINARIES
 ARG VEOVEO_AUXILIARY
+ARG VEOVEO_CARGO_CACHE_ID
 ARG VEOVEO_TARGET_CACHE_ID
 
 WORKDIR /src
 RUN --mount=type=bind,source=.,target=/src,readonly \
-    --mount=type=cache,id=veoveo-cargo-registry-v1,target=/usr/local/cargo/registry \
-    --mount=type=cache,id=veoveo-cargo-git-v1,target=/usr/local/cargo/git \
+    --mount=type=cache,id=${VEOVEO_CARGO_CACHE_ID}-registry-v1,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=${VEOVEO_CARGO_CACHE_ID}-git-v1,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=${VEOVEO_TARGET_CACHE_ID},target=/target,sharing=locked \
     bash -euc '\
         [[ -n "${VEOVEO_CARGO_PACKAGES}" ]] || { echo "no Cargo packages selected" >&2; exit 1; }; \
