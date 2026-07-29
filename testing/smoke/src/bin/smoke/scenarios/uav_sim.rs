@@ -214,10 +214,21 @@ impl OperatorClient<'_> {
 
     async fn task_tool(&self, tool: &str, arguments: Value, timeout: Duration) -> Result<Value> {
         let arguments = serde_json::to_string(&arguments)?;
+        let timeout_seconds = timeout.as_secs().max(1).to_string();
         let output = self
             .conformance(
-                &["task-call", "--tool-name", tool, "--arguments", &arguments],
-                timeout,
+                &[
+                    "task-call",
+                    "--tool-name",
+                    tool,
+                    "--arguments",
+                    &arguments,
+                    "--timeout-seconds",
+                    &timeout_seconds,
+                ],
+                timeout
+                    .checked_add(Duration::from_secs(30))
+                    .context("task timeout overflowed the subprocess margin")?,
             )
             .await?;
         structured_output(&output)

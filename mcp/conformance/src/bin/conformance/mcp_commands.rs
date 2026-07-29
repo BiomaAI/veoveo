@@ -577,6 +577,7 @@ pub(super) async fn cmd_task_call(
     final_tasks: &FinalTaskClient,
     tool_name: String,
     arguments: String,
+    timeout: Duration,
 ) -> Result<()> {
     let arguments = serde_json::from_str::<Value>(&arguments)?
         .as_object()
@@ -600,7 +601,7 @@ pub(super) async fn cmd_task_call(
         created.task.status
     );
 
-    let final_task = tokio::time::timeout(Duration::from_secs(300), async {
+    let final_task = tokio::time::timeout(timeout, async {
         loop {
             let task = final_tasks.get(task_id).await?;
             let message = task.metadata().status_message.as_deref().unwrap_or("");
@@ -617,7 +618,7 @@ pub(super) async fn cmd_task_call(
         }
     })
     .await
-    .map_err(|_| anyhow!("timed out waiting for task {task_id}"))??;
+    .map_err(|_| anyhow!("timed out waiting {timeout:?} for task {task_id}"))??;
 
     match final_task {
         DetailedTask::Completed { result, .. } => {
