@@ -17,7 +17,7 @@ pub(crate) fn run(repository: &RepositoryContext) -> Result<()> {
         builder::BUILDX_VERSION
     );
     ensure!(
-        uv.trim() == format!("uv {UV_VERSION}"),
+        installed_uv_version(&uv) == Some(UV_VERSION),
         "{} is installed; Veoveo requires uv {UV_VERSION}",
         uv.trim()
     );
@@ -34,4 +34,25 @@ pub(crate) fn run(repository: &RepositoryContext) -> Result<()> {
 
 fn first_line(value: &str) -> &str {
     value.lines().next().unwrap_or(value).trim()
+}
+
+fn installed_uv_version(value: &str) -> Option<&str> {
+    let mut fields = first_line(value).split_ascii_whitespace();
+    (fields.next()? == "uv").then_some(fields.next()?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{UV_VERSION, installed_uv_version};
+
+    #[test]
+    fn uv_version_accepts_the_pinned_release_with_an_upstream_target_suffix() {
+        assert_eq!(
+            installed_uv_version("uv 0.11.32 (x86_64-unknown-linux-gnu)\n"),
+            Some(UV_VERSION)
+        );
+        assert_eq!(installed_uv_version("uv 0.11.32\n"), Some(UV_VERSION));
+        assert_ne!(installed_uv_version("uv 0.11.31\n"), Some(UV_VERSION));
+        assert_eq!(installed_uv_version("unexpected 0.11.32\n"), None);
+    }
 }
