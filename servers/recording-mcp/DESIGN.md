@@ -73,7 +73,10 @@ Governed query and analysis plans include complete acknowledged ingest parts
 from the current writing shard. An analysis consumer captures one ordered
 snapshot, copies its live parts into bounded task-local storage, and verifies
 each copy against its captured byte length and SHA-256 identity. Frozen and
-sealed sources remain zero-copy. Source provenance contains recording,
+sealed sources remain zero-copy. The writer publishes each part through an
+atomic UUIDv7 staging file; readers exclude that exact staging identity until
+its rename commits the canonical sequence-named part. Other unexpected entries
+still invalidate the snapshot. Source provenance contains recording,
 segment, and part identities without filesystem paths. Hub may replace the
 parts directory with its frozen shard during capture. A missing part or an
 uncovered writing segment restarts the complete authorized read-plan capture;

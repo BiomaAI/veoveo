@@ -136,7 +136,10 @@ without waiting for rollover. Recording MCP captures one ordered snapshot of
 the complete ingest parts visible at request or task start. Stream replay and
 Reason copy those live parts into bounded task-local storage, verify their byte
 length and SHA-256 identity, and load them with prior immutable shards as one
-logical Rerun store. If Hub freezes the writing shard during capture, Recording
+logical Rerun store. Hub writes each part under an exact UUIDv7 staging name and
+publishes it by atomic rename; readers do not admit that staging identity until
+the canonical sequence-named part exists. Unexpected directory entries remain
+an error. If Hub freezes the writing shard during capture, Recording
 MCP discards that attempt, resolves the authorized catalog again, and captures
 one coherent successor view. Later batches remain outside that task. This path
 never reads the producer proxy or an incomplete part.
