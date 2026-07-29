@@ -581,7 +581,7 @@ pub(crate) async fn stream(
         url.set_query(Some(query));
     }
     let mut request = state
-        .http
+        .live_http
         .get(url)
         .header(HOST, state.config.gateway_host())
         .bearer_auth(&session.session.access_token);
@@ -760,7 +760,34 @@ fn unauthorized(state: &AppState) -> Response {
 
 #[cfg(test)]
 mod tests {
-    use super::{SnapshotUpstreamDisposition, classify_snapshot_upstream, constant_time_equal};
+    use std::{collections::BTreeSet, convert::Infallible, sync::Arc, time::Duration};
+
+    use axum::{
+        Router,
+        body::to_bytes,
+        extract::{RawQuery, State},
+        http::{
+            HeaderMap, HeaderValue,
+            header::{COOKIE, HOST},
+        },
+        response::{IntoResponse, sse::Event, sse::Sse},
+        routing::get,
+    };
+    use chrono::Utc;
+    use futures::stream as futures_stream;
+    use tokio::net::TcpListener;
+    use veoveo_mcp_contract::ScopeName;
+
+    use super::{
+        SnapshotUpstreamDisposition, classify_snapshot_upstream, constant_time_equal, stream,
+    };
+    use crate::{
+        AppState,
+        apps::AppTaskRegistry,
+        config::Config,
+        mcp_client::McpSessionPool,
+        session::{ConsoleSession, SESSION_AAD, SESSION_COOKIE, SessionCipher},
+    };
 
     #[test]
     fn csrf_comparison_rejects_wrong_values_and_lengths() {
@@ -788,5 +815,68 @@ mod tests {
             classify_snapshot_upstream(reqwest::StatusCode::INTERNAL_SERVER_ERROR),
             SnapshotUpstreamDisposition::BadGateway
         );
+    }
+
+    #[tokio::test]
+    async fn console_event_stream_outlives_the_ordinary_request_timeout() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let gateway_url =
+            url::Url::parse(&format!("http://{}/", listener.local_addr().unwrap())).unwrap();
+        let gateway = Router::new().route(
+            "/admin/admin/console/stream",
+            get(|| async {
+                let events = futures_stream::once(async {
+                    tokio::time::sleep(Duration::from_millis(75)).await;
+                    Ok::<_, Infallible>(Event::default().event("audit").data("{}"))
+                });
+                Sse::new(events).into_response()
+            }),
+        );
+        let server = tokio::spawn(async move {
+            axum::serve(listener, gateway).await.unwrap();
+        });
+
+        let config = Arc::new(Config::for_test(gateway_url));
+        let sessions = SessionCipher::new(config.session_key()).unwrap();
+        let now = Utc::now().timestamp();
+        let session = ConsoleSession {
+            access_token: "access-token".to_owned(),
+            access_expires_at: now + 300,
+            refresh_token: "refresh-token".to_owned(),
+            refresh_expires_at: now + 3_600,
+            granted_scopes: BTreeSet::from([ScopeName::new("admin:manage").unwrap()]),
+            csrf_token: "csrf-token".to_owned(),
+        };
+        let sealed = sessions.seal(&session, SESSION_AAD).unwrap();
+        let mut request_headers = HeaderMap::new();
+        request_headers.insert(
+            COOKIE,
+            HeaderValue::from_str(&format!("{SESSION_COOKIE}={sealed}")).unwrap(),
+        );
+        request_headers.insert(HOST, HeaderValue::from_static("console.test"));
+
+        let state = AppState {
+            config,
+            http: reqwest::Client::builder()
+                .timeout(Duration::from_millis(25))
+                .build()
+                .unwrap(),
+            stream_http: reqwest::Client::new(),
+            live_http: reqwest::Client::new(),
+            cluster: None,
+            sessions,
+            mcp: Arc::new(McpSessionPool::new().unwrap()),
+            app_tasks: AppTaskRegistry::default(),
+        };
+        let response = stream(State(state), RawQuery(None), request_headers).await;
+        let body = to_bytes(response.into_body(), 1_024).await.unwrap();
+
+        let body = String::from_utf8_lossy(&body);
+        assert!(
+            body.contains("event: audit") && body.contains("data: {}"),
+            "the delayed SSE event must survive the bounded JSON-client timeout; body={body:?}"
+        );
+        server.abort();
     }
 }
