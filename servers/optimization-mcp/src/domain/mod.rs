@@ -1,8 +1,7 @@
 //! cuOpt-native Optimization domain contract.
 //!
-//! The modules in this namespace define the greenfield public contract before
-//! the legacy spatial-plan MCP surface is removed. They deliberately model
-//! routing, convex optimization, and MILP as separate problem families.
+//! The modules in this namespace define routing, convex optimization, and
+//! MILP as separate problem families with independent resource identities.
 
 mod common;
 mod model;

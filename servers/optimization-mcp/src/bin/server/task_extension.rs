@@ -2,7 +2,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     num::{NonZeroU32, NonZeroU64},
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use chrono::{TimeDelta, Utc};
@@ -620,6 +620,8 @@ async fn execute_task(
             else {
                 anyhow::bail!("prepared problem is not routing");
             };
+            let executor_permit = acquire_executor_slot(state, task_id, &cancellation).await?;
+            let queue_seconds = executor_permit.queue_seconds;
             update_solving(state, task_id, &common).await;
             let profile = executor_profile(&input.policy, ProblemFamily::Routing, false)?;
             let executor_started_at = Utc::now();
@@ -636,6 +638,7 @@ async fn execute_task(
                     cancellation,
                 )
                 .await?;
+            drop(executor_permit);
             let ExecutorResult::Routes { solution: raw } = response.result else {
                 return executor_result_error(response.result);
             };
@@ -648,6 +651,7 @@ async fn execute_task(
                     &owner,
                     resource.record.problem_uri.clone(),
                     executor_started_at,
+                    queue_seconds,
                 ),
             )?;
             update_publishing(state, task_id).await;
@@ -667,6 +671,8 @@ async fn execute_task(
             let PreparedProblem::RouteScenarios { resource, cases } = &prepared else {
                 anyhow::bail!("prepared problem is not a route-scenario batch");
             };
+            let executor_permit = acquire_executor_slot(state, task_id, &cancellation).await?;
+            let queue_seconds = executor_permit.queue_seconds;
             update_solving(state, task_id, &common).await;
             let profile = executor_profile(&input.policy, ProblemFamily::RouteScenarios, false)?;
             let executor_started_at = Utc::now();
@@ -691,6 +697,7 @@ async fn execute_task(
                     cancellation,
                 )
                 .await?;
+            drop(executor_permit);
             let ExecutorResult::RouteScenarios { solutions: raw } = response.result else {
                 return executor_result_error(response.result);
             };
@@ -707,6 +714,7 @@ async fn execute_task(
                     &owner,
                     resource.record.problem_uri.clone(),
                     executor_started_at,
+                    queue_seconds,
                 ),
             )?;
             update_publishing(state, task_id).await;
@@ -731,6 +739,8 @@ async fn execute_task(
             else {
                 anyhow::bail!("prepared problem is not convex");
             };
+            let executor_permit = acquire_executor_slot(state, task_id, &cancellation).await?;
+            let queue_seconds = executor_permit.queue_seconds;
             update_solving(state, task_id, &common).await;
             let profile = executor_profile(&input.policy, ProblemFamily::Convex, false)?;
             let executor_started_at = Utc::now();
@@ -748,6 +758,7 @@ async fn execute_task(
                     cancellation,
                 )
                 .await?;
+            drop(executor_permit);
             let ExecutorResult::Model { solution: raw } = response.result else {
                 return executor_result_error(response.result);
             };
@@ -760,6 +771,7 @@ async fn execute_task(
                     &owner,
                     resource.record.problem_uri.clone(),
                     executor_started_at,
+                    queue_seconds,
                 ),
             )?;
             update_publishing(state, task_id).await;
@@ -784,6 +796,8 @@ async fn execute_task(
             else {
                 anyhow::bail!("prepared problem is not MILP");
             };
+            let executor_permit = acquire_executor_slot(state, task_id, &cancellation).await?;
+            let queue_seconds = executor_permit.queue_seconds;
             update_solving(state, task_id, &common).await;
             let profile = executor_profile(
                 &input.policy,
@@ -805,6 +819,7 @@ async fn execute_task(
                     cancellation,
                 )
                 .await?;
+            drop(executor_permit);
             let ExecutorResult::Model { solution: raw } = response.result else {
                 return executor_result_error(response.result);
             };
@@ -817,6 +832,7 @@ async fn execute_task(
                     &owner,
                     resource.record.problem_uri.clone(),
                     executor_started_at,
+                    queue_seconds,
                 ),
             )?;
             update_publishing(state, task_id).await;
@@ -862,7 +878,13 @@ fn solution_context(
     owner: &veoveo_optimization_mcp::state::TaskOwner,
     problem_uri: veoveo_optimization_mcp::domain::OptimizationProblemUri,
     executor_started_at: chrono::DateTime<Utc>,
+    queue_seconds: NonNegativeF64,
 ) -> SolutionContext {
+    let total_before_executor = executor_started_at
+        .signed_duration_since(common.submitted_at)
+        .num_milliseconds()
+        .max(0) as f64
+        / 1_000.0;
     SolutionContext {
         run_id: common.run_id.clone(),
         problem_uri,
@@ -878,12 +900,9 @@ fn solution_context(
             solver_profile_uri: common.profile_uri.clone(),
         },
         timings: RunTimings {
+            queue_seconds,
             preparation_seconds: NonNegativeF64::new(
-                executor_started_at
-                    .signed_duration_since(common.submitted_at)
-                    .num_milliseconds()
-                    .max(0) as f64
-                    / 1_000.0,
+                (total_before_executor - queue_seconds.get()).max(0.0),
             )
             .expect("preparation duration is non-negative"),
             ..Default::default()
@@ -896,6 +915,41 @@ fn solution_context(
         },
         created_at: Utc::now(),
     }
+}
+
+struct ExecutorPermit {
+    _permit: tokio::sync::OwnedSemaphorePermit,
+    queue_seconds: NonNegativeF64,
+}
+
+async fn acquire_executor_slot(
+    state: &AppState,
+    task_id: &str,
+    cancellation: &tokio_util::sync::CancellationToken,
+) -> anyhow::Result<ExecutorPermit> {
+    update_task(
+        state,
+        task_id,
+        TaskTransition::Running {
+            message: "queued for cuOpt GPU execution".to_owned(),
+            progress: 0.20,
+        },
+    )
+    .await;
+    let queued_at = Instant::now();
+    let permit = tokio::select! {
+        permit = state.executor_slot.clone().acquire_owned() => {
+            permit.map_err(|_| anyhow::anyhow!("cuOpt executor queue is closed"))?
+        }
+        () = cancellation.cancelled() => {
+            anyhow::bail!("cuOpt execution cancelled while queued")
+        }
+    };
+    Ok(ExecutorPermit {
+        _permit: permit,
+        queue_seconds: NonNegativeF64::new(queued_at.elapsed().as_secs_f64())
+            .expect("elapsed queue duration is non-negative"),
+    })
 }
 
 fn reverify_solution(
