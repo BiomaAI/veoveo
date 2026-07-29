@@ -30,7 +30,7 @@ pub fn doc_uri(doc_id: &str) -> String {
 }
 
 pub fn parse_doc(uri: &str) -> Option<&str> {
-    parse_single(uri, "stream://docs/")
+    veoveo_mcp_contract::parse_server_doc_uri("stream", uri)
 }
 
 pub fn pipeline_uri(id: &str) -> String {

@@ -37,8 +37,7 @@ use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle, Page,
-    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer,
-    docs::{CapabilityInventory, ContractDeclaration},
+    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, docs::CapabilityInventory,
     init_server_telemetry, paginate,
 };
 use veoveo_platform_store::{PlatformStore, RecordingId, StoreConfig, StoreCredentials};
@@ -337,7 +336,7 @@ impl ServerHandler for RecordingMcp {
         if uri == uris::CONTRACT_URI {
             return json_resource(
                 uri,
-                &ContractDeclaration::from_docs(&SERVER_DOCS, Self::capability_inventory()),
+                SERVER_DOCS.contract_declaration(Self::capability_inventory),
             );
         }
         if uri == uris::CATALOG_URI {
@@ -816,8 +815,10 @@ mod tests {
     fn contract_declaration_resolves_from_the_embedded_manual() {
         use veoveo_mcp_contract::docs::{CONTRACT_REVISION, ComplianceStatus};
 
-        let declaration =
-            ContractDeclaration::from_docs(&SERVER_DOCS, RecordingMcp::capability_inventory());
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(
+            &SERVER_DOCS,
+            RecordingMcp::capability_inventory(),
+        );
         assert_eq!(declaration.server, "recording");
         assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
         for id in ["C18", "C19", "C20", "C21"] {

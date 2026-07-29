@@ -35,12 +35,7 @@ pub fn doc_uri(doc_id: &str) -> String {
 }
 
 pub fn parse_doc_uri(uri: &str) -> Option<&str> {
-    let doc_id = uri.strip_prefix("duckdb://docs/")?;
-    if doc_id.is_empty() || doc_id.contains('/') {
-        None
-    } else {
-        Some(doc_id)
-    }
+    veoveo_mcp_contract::parse_server_doc_uri("duckdb", uri)
 }
 
 pub fn artifact_uri(artifact_id: ArtifactId) -> String {

@@ -25,8 +25,7 @@ pub fn doc_uri(doc_id: &str) -> String {
 }
 
 pub fn parse_doc_uri(uri: &str) -> Option<&str> {
-    let doc_id = uri.strip_prefix("artifact://docs/")?;
-    (!doc_id.is_empty() && !doc_id.contains('/')).then_some(doc_id)
+    veoveo_mcp_contract::parse_server_doc_uri("artifact", uri)
 }
 
 pub fn artifact_uri(id: ArtifactId) -> String {

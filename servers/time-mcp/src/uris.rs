@@ -38,8 +38,7 @@ pub fn event_uri(event_id: &str) -> String {
 }
 
 pub fn parse_doc(uri: &str) -> Option<&str> {
-    let value = uri.strip_prefix("time://docs/")?;
-    (!value.is_empty() && !value.contains('/')).then_some(value)
+    veoveo_mcp_contract::parse_server_doc_uri("time", uri)
 }
 
 pub fn parse_zone(uri: &str) -> Option<&str> {

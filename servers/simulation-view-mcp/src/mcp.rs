@@ -16,7 +16,7 @@ use serde::Serialize;
 use veoveo_mcp_contract::{
     GatewayInternalIdentity, LiveViewOwner, Page, PlaneCaller, ResourceListObservers,
     SubscriptionHub,
-    docs::{CapabilityInventory, ContractDeclaration, ServerDocs},
+    docs::{CapabilityInventory, ServerDocs},
     paginate, tool,
 };
 
@@ -959,7 +959,7 @@ impl ServerHandler for SimulationViewMcp {
             uris::CONTRACT => {
                 return json_resource(
                     uri,
-                    &ContractDeclaration::from_docs(&SERVER_DOCS, Self::capability_inventory()),
+                    SERVER_DOCS.contract_declaration(Self::capability_inventory),
                 );
             }
             _ => {}

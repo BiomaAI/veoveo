@@ -54,8 +54,7 @@ pub fn tile(tile_key: &str) -> String {
 }
 
 pub fn parse_doc(uri: &str) -> Option<&str> {
-    let value = uri.strip_prefix("view://docs/")?;
-    (!value.is_empty() && !value.contains('/')).then_some(value)
+    veoveo_mcp_contract::parse_server_doc_uri("view", uri)
 }
 
 pub fn parse_view(uri: &str) -> Option<ViewId> {
