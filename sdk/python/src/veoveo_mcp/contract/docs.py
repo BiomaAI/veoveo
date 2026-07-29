@@ -104,7 +104,7 @@ class ServerDocs:
             "## Docs\n\n"
         )
         for doc in self.docs:
-            out += f"- [{doc.title}](docs/{doc.id})\n"
+            out += f"- [{doc.title}]({doc.id})\n"
         return out
 
     def agent_manual(self) -> str | None:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import mcp.types as types
@@ -11,6 +11,14 @@ from mcp.server import Server, ServerRequestContext
 from mcp.shared.exceptions import MCPError
 from pydantic import ValidationError
 
+from veoveo_mcp.contract import (
+    CapabilityInventory,
+    ContractDeclaration,
+    DOC_ID_AGENTS,
+    DOC_ID_DESIGN,
+    ServerDocs,
+    server_docs,
+)
 from veoveo_mcp.contract.identity import GatewayInternalIdentity, PlaneCaller
 from veoveo_mcp.internal_auth import BEARER_SCOPE_KEY, IDENTITY_SCOPE_KEY
 from veoveo_mcp.schema import mcp_input_schema
@@ -40,144 +48,35 @@ DESIGN_URI = "anonymous-simulation://docs/design"
 AGENTS_URI = "anonymous-simulation://docs/agents"
 CONTRACT_URI = "anonymous-simulation://contract"
 SERVER_NAME = "anonymous-simulation"
-CONTRACT_REVISION = 2
-DESIGN_DOCUMENT = """# Anonymous Simulation Extension
-
-## Standards And Protocols
-
-This fixture uses MCP Streamable HTTP, OpenUSD USDA, the Veoveo Simulation
-View scene contract, and the Veoveo latest-pose mTLS data plane.
-
-It owns declarative synthetic assets and complete moving-entity pose
-snapshots. Simulation View owns scene mirroring, cameras, RTX rendering,
-NVENC, WebRTC, capacity, leases, and the live MCP App.
-"""
-AGENTS_DOCUMENT = """# Anonymous Simulation MCP Server — Agent Manual
-
-Contract revision: 2
-
-Do not add camera, renderer, media, live-view, dynamics, or provider
-implementation logic. Publish governed assets and typed latest poses only.
-
-## Contract Compliance
-
-- C01: met
-- C02: met
-- C03: met
-- C04: met
-- C05: met
-- C06: met
-- C07: met
-- C08: met
-- C09: met
-- C10: met
-- C11: met
-- C12: met
-- C13: met
-- C14: met
-- C15: met
-- C16: met
-- C17: met
-- C18: met
-- C19: met
-- C20: met
-- C21: met
-- C22: met
-- C23: met
-- C24: met
-- C25: met
-- C26: met
-- C27: met
-- C28: met
-- C29: met
-- C30: met
-"""
-
-
-@dataclass(frozen=True)
-class ServerDoc:
-    """One embedded document of the well-known surface (contract C18)."""
-
-    id: str
-    title: str
-    body: str
-
-
-SERVER_DOCS: tuple[ServerDoc, ...] = (
-    ServerDoc(id="agents", title="Agent work manual", body=AGENTS_DOCUMENT),
-    ServerDoc(id="design", title="Domain design", body=DESIGN_DOCUMENT),
+_PACKAGE = __package__ or "anonymous_simulation_mcp"
+_SOURCE_ROOT = Path(__file__).resolve().parents[2]
+SERVER_DOCS: ServerDocs = server_docs(
+    SERVER_NAME, _PACKAGE, source_root=_SOURCE_ROOT
 )
-DOCS_INDEX = tuple(
-    {"id": doc.id, "title": doc.title} for doc in SERVER_DOCS
+DOCS_INDEX = tuple(doc.wire() for doc in SERVER_DOCS)
+LLMS_TXT = SERVER_DOCS.llms_txt()
+AGENTS_DOCUMENT = SERVER_DOCS.doc(DOC_ID_AGENTS)
+DESIGN_DOCUMENT = SERVER_DOCS.doc(DOC_ID_DESIGN)
+if AGENTS_DOCUMENT is None or DESIGN_DOCUMENT is None:
+    raise RuntimeError("shared server_docs omitted a required document")
+CAPABILITY_INVENTORY = CapabilityInventory(
+    tools=(
+        "prepare_scene",
+        "start_pose_producer",
+        "stop_pose_producer",
+        "get_fixture_state",
+    ),
+    resources=(
+        STATE_URI,
+        DOCS_URI,
+        AGENTS_URI,
+        DESIGN_URI,
+        CONTRACT_URI,
+    ),
 )
-LLMS_TXT = (
-    f"# {SERVER_NAME}\n\n"
-    f"> Veoveo MCP server documents. Contract revision {CONTRACT_REVISION}.\n\n"
-    "## Docs\n\n"
-    + "".join(f"- [{doc.title}](docs/{doc.id})\n" for doc in SERVER_DOCS)
+CONTRACT_DECLARATION = ContractDeclaration.from_docs(
+    SERVER_DOCS, CAPABILITY_INVENTORY
 )
-
-
-def parse_compliance(manual: str) -> list[dict[str, str]]:
-    """Mirror `veoveo_mcp_contract::docs::parse_compliance` for the embedded
-    agent manual: `- Cnn: met` and `- Cnn: pending — note` lines inside the
-    `## Contract Compliance` section."""
-    in_section = False
-    items: list[dict[str, str]] = []
-    for line in manual.splitlines():
-        trimmed = line.strip()
-        if trimmed.startswith("## "):
-            in_section = trimmed == "## Contract Compliance"
-            continue
-        if not in_section or not trimmed.startswith("- C"):
-            continue
-        entry = trimmed.removeprefix("- C")
-        number, separator, rest = entry.partition(":")
-        if not separator:
-            continue
-        item_id = f"C{number.strip()}"
-        rest = rest.strip()
-        if rest.startswith("met"):
-            status, remainder = "met", rest.removeprefix("met")
-        elif rest.startswith("pending"):
-            status, remainder = "pending", rest.removeprefix("pending")
-        else:
-            continue
-        note = remainder.lstrip(" —-").strip()
-        item = {"id": item_id, "status": status}
-        if note:
-            item["note"] = note
-        items.append(item)
-    if not items:
-        raise ValueError(
-            "agent manual declares no Contract Compliance items"
-        )
-    return items
-
-
-def contract_declaration() -> dict[str, Any]:
-    """The declaration served at `anonymous-simulation://contract` (C19),
-    shaped as `veoveo_mcp_contract::docs::ContractDeclaration`."""
-    return {
-        "server": SERVER_NAME,
-        "contract_revision": CONTRACT_REVISION,
-        "compliance": parse_compliance(AGENTS_DOCUMENT),
-        "capabilities": {
-            "tools": [
-                "prepare_scene",
-                "start_pose_producer",
-                "stop_pose_producer",
-                "get_fixture_state",
-            ],
-            "resources": [
-                STATE_URI,
-                DOCS_URI,
-                AGENTS_URI,
-                DESIGN_URI,
-                CONTRACT_URI,
-            ],
-        },
-    }
 
 
 def build_mcp_server(runtime: FixtureRuntime) -> Server:
@@ -339,11 +238,11 @@ def build_mcp_server(runtime: FixtureRuntime) -> Server:
         if text == DOCS_URI:
             return _json_result(text, list(DOCS_INDEX))
         if text == DESIGN_URI:
-            return _markdown_result(text, DESIGN_DOCUMENT)
+            return _markdown_result(text, DESIGN_DOCUMENT.body)
         if text == AGENTS_URI:
-            return _markdown_result(text, AGENTS_DOCUMENT)
+            return _markdown_result(text, AGENTS_DOCUMENT.body)
         if text == CONTRACT_URI:
-            return _json_result(text, contract_declaration())
+            return _json_result(text, CONTRACT_DECLARATION.wire())
         raise _invalid(f"unknown resource URI `{text}`")
 
     return Server(
