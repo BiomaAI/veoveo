@@ -130,6 +130,7 @@ impl GatewayMcp {
                 projection.tool.clone(),
             )
             .await?;
+        restore_request_meta(&mut request, &context.meta);
         request.name = Cow::Owned(projection.tool.to_string());
         let direct_task_call_adapter = self.client_uses_direct_task_call_adapter(&subject)?;
         let downstream_progress_token = context.meta.get_progress_token();
@@ -204,7 +205,7 @@ impl GatewayMcp {
 
     pub(super) async fn handle_enqueue_task(
         &self,
-        request: CallToolRequestParams,
+        mut request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CreateTaskResult, McpError> {
         let catalog = self.catalog.current();
@@ -221,6 +222,7 @@ impl GatewayMcp {
                 projection.tool.clone(),
             )
             .await?;
+        restore_request_meta(&mut request, &context.meta);
         let final_request = final_tool_request(request, projection.tool.as_str())?;
         let client = self.final_task_client(&projection.server, &subject).await?;
         let created = client.start_tool(final_request).await?;
@@ -271,6 +273,14 @@ impl GatewayMcp {
         });
         Ok(())
     }
+}
+
+fn restore_request_meta(request: &mut CallToolRequestParams, context_meta: &rmcp::model::Meta) {
+    if context_meta.0.is_empty() {
+        return;
+    }
+    let request_meta = request.meta.get_or_insert_with(rmcp::model::Meta::new);
+    request_meta.0.extend(context_meta.0.clone());
 }
 
 fn final_tool_request(
@@ -446,6 +456,28 @@ mod tests {
         );
         request.meta = Some(meta);
         let projected = final_tool_request(request, "forecast").unwrap();
+        assert_eq!(
+            projected
+                .meta
+                .task_retention_pin
+                .as_ref()
+                .map(TaskRetentionPin::as_str),
+            Some("agent-episode:test")
+        );
+    }
+
+    #[test]
+    fn rmcp_context_meta_is_restored_before_task_projection() {
+        let mut request = CallToolRequestParams::new("timeseries__forecast");
+        let mut context_meta = rmcp::model::Meta::new();
+        context_meta.0.insert(
+            TASK_RETENTION_PIN_META_KEY.to_owned(),
+            serde_json::json!("agent-episode:test"),
+        );
+
+        restore_request_meta(&mut request, &context_meta);
+        let projected = final_tool_request(request, "forecast").unwrap();
+
         assert_eq!(
             projected
                 .meta
