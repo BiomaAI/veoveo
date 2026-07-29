@@ -8,20 +8,28 @@ use crate::{
         HumanMovementMode, MapFamily, Meters, MobilityProfile, Ratio, ReachableAreaRequest,
         ReachableBudget, RoadVehicleClass, RouteAlternative, RouteCost, RouteEndpoint,
         RouteInstruction, RouteLeg, RouteObjective, RouteObjectiveKind, RouteRequest, RouteStatus,
-        Seconds, Wgs84LineString, Wgs84Polygon, Wgs84Position,
+        Seconds, TravelTimeModel, Wgs84LineString, Wgs84Polygon, Wgs84Position,
     },
     routes::PlannerOutput,
 };
 
 use super::client::{
-    BicycleOptions, CostingOptions, IsochroneContour, IsochroneRequest, Location,
-    MotorcycleOptions, MotorizedOptions, PedestrianOptions, RouteRequest as ValhallaRouteRequest,
-    Trip, ValhallaClient,
+    BicycleOptions, CostingOptions, IsochroneContour, IsochroneRequest, Location, MatrixDateTime,
+    MatrixLocation, MatrixRequest, MotorcycleOptions, MotorizedOptions, PedestrianOptions,
+    RouteRequest as ValhallaRouteRequest, Trip, ValhallaClient,
 };
 
 #[derive(Clone, Debug)]
 pub struct ValhallaPlanner {
     client: ValhallaClient,
+}
+
+#[derive(Clone, Debug)]
+pub(in crate::routes) struct ValhallaMatrix {
+    pub durations_seconds: Vec<f32>,
+    pub distances_meters: Vec<f32>,
+    pub unavailable_cells: Vec<u32>,
+    pub algorithm: String,
 }
 
 impl ValhallaPlanner {
@@ -205,6 +213,135 @@ impl ValhallaPlanner {
             .await?;
         parse_isochrone_polygons(&response)
     }
+
+    pub(in crate::routes) async fn matrix(
+        &self,
+        request: &RouteRequest,
+        profile: &MobilityProfile,
+        positions: &[Wgs84Position],
+        time_model: TravelTimeModel,
+        prioritize_bidirectional: bool,
+    ) -> Result<ValhallaMatrix> {
+        if positions.is_empty() {
+            bail!("Valhalla travel model requires at least one location");
+        }
+        if !request.constraints.required_areas.is_empty()
+            || !request.constraints.required_facility_stops.is_empty()
+            || request.constraints.latest_arrival.is_some()
+            || request.constraints.minimum_energy_reserve.is_some()
+        {
+            bail!(
+                "travel-model matrices do not support required areas, facility stops, arrival limits, or reserve constraints"
+            );
+        }
+        let (costing, costing_options, _) = costing(profile, request)?;
+        let locations = positions
+            .iter()
+            .map(|position| MatrixLocation {
+                lat: position.latitude_deg,
+                lon: position.longitude_deg,
+            })
+            .collect::<Vec<_>>();
+        let date_time = match time_model {
+            TravelTimeModel::Static => None,
+            TravelTimeModel::InvariantLocalDeparture { local_time } => Some(MatrixDateTime {
+                r#type: 3,
+                value: local_time.format("%Y-%m-%dT%H:%M").to_string(),
+            }),
+        };
+        let exclude_polygons = request
+            .constraints
+            .avoided_areas
+            .iter()
+            .map(|polygon| {
+                polygon.validate()?;
+                Ok(polygon
+                    .exterior
+                    .iter()
+                    .map(|position| [position.longitude_deg, position.latitude_deg])
+                    .collect::<Vec<_>>())
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let response = self
+            .client
+            .matrix(&MatrixRequest {
+                sources: locations.clone(),
+                targets: locations,
+                costing,
+                costing_options,
+                units: "kilometers",
+                verbose: false,
+                prioritize_bidirectional,
+                date_time,
+                exclude_polygons,
+            })
+            .await?;
+        if response.units != "kilometers" {
+            bail!(
+                "Valhalla matrix returned unsupported units {}",
+                response.units
+            );
+        }
+        let dimension = positions.len();
+        validate_matrix_shape(
+            &response.sources_to_targets.durations,
+            dimension,
+            "duration",
+        )?;
+        validate_matrix_shape(
+            &response.sources_to_targets.distances,
+            dimension,
+            "distance",
+        )?;
+        let mut durations_seconds = Vec::with_capacity(dimension * dimension);
+        let mut distances_meters = Vec::with_capacity(dimension * dimension);
+        let mut unavailable_cells = Vec::new();
+        for row in 0..dimension {
+            for column in 0..dimension {
+                let duration = response.sources_to_targets.durations[row][column];
+                let distance = response.sources_to_targets.distances[row][column];
+                match (duration, distance) {
+                    (Some(duration), Some(distance))
+                        if duration.is_finite()
+                            && duration >= 0.0
+                            && distance.is_finite()
+                            && distance >= 0.0 =>
+                    {
+                        durations_seconds.push(f32_matrix_value(duration, "duration")?);
+                        distances_meters.push(f32_matrix_value(distance * 1_000.0, "distance")?);
+                    }
+                    (None, None) => {
+                        unavailable_cells.push(u32::try_from(row * dimension + column)?);
+                        durations_seconds.push(0.0);
+                        distances_meters.push(0.0);
+                    }
+                    _ => bail!(
+                        "Valhalla matrix cell {row},{column} has inconsistent or invalid values"
+                    ),
+                }
+            }
+        }
+        Ok(ValhallaMatrix {
+            durations_seconds,
+            distances_meters,
+            unavailable_cells,
+            algorithm: response.algorithm,
+        })
+    }
+}
+
+fn validate_matrix_shape(rows: &[Vec<Option<f64>>], dimension: usize, field: &str) -> Result<()> {
+    if rows.len() != dimension || rows.iter().any(|row| row.len() != dimension) {
+        bail!("Valhalla {field} matrix does not match the requested square dimension");
+    }
+    Ok(())
+}
+
+fn f32_matrix_value(value: f64, field: &str) -> Result<f32> {
+    if !value.is_finite() || value < 0.0 || value > f32::MAX as f64 {
+        bail!("Valhalla {field} matrix value is outside float32 range");
+    }
+    Ok(value as f32)
 }
 
 fn parse_isochrone_polygons(value: &serde_json::Value) -> Result<Vec<Wgs84Polygon>> {

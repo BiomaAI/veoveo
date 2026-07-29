@@ -66,6 +66,7 @@ RUN ln -s libprime_server.so.0.0.0 /usr/local/lib/libprime_server.so.0 \
       --mjolnir-admin /var/lib/veoveo/map/valhalla/active/admins.sqlite \
       --mjolnir-timezone /var/lib/veoveo/map/valhalla/active/timezones.sqlite \
       > /etc/veoveo/map/valhalla.json \
+    && python3 -c 'import json; p="/etc/veoveo/map/valhalla.json"; c=json.load(open(p)); [(c["service_limits"][k].update(max_locations=128, max_matrix_location_pairs=16384)) for k in ("auto", "bus", "truck", "motorcycle", "bicycle", "pedestrian")]; open(p, "w").write(json.dumps(c, separators=(",", ":")))' \
     && chown -R veoveo:veoveo /var/lib/veoveo /data/map-sources \
     && chmod 0555 /opt/veoveo/map-data \
     && chmod 0444 /etc/veoveo/map/valhalla.json

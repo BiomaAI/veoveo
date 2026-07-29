@@ -9,11 +9,14 @@ use crate::{
     analytics::MapAnalytics,
     catalog::{MapCatalog, MapScope},
     contract::{
-        DatasetReleaseState, FacilityId, MapFamily, MobilityProfile, OperationalSnapshot,
-        OperationalSnapshotId, ReachableArea, ReachableAreaId, ReachableAreaRequest, Restriction,
-        RestrictionEffectKind, RouteEndpoint, RouteId, RouteMatrix, RouteMatrixCell, RouteMatrixId,
-        RouteMatrixRequest, RoutePlan, RouteProvenance, RouteRequest, RouteStatus, RouteValidation,
-        ValidateRouteRequest, ValidationId, Wgs84BoundingBox, Wgs84Position,
+        BuildTravelModelRequest, DatasetReleaseState, FacilityId, MapFamily, MobilityProfile,
+        OperationalSnapshot, OperationalSnapshotId, OptimizationTravelModel, ReachableArea,
+        ReachableAreaId, ReachableAreaRequest, Restriction, RestrictionEffectKind, RouteEndpoint,
+        RouteId, RouteMatrix, RouteMatrixCell, RouteMatrixId, RouteMatrixRequest, RouteObjective,
+        RouteObjectiveKind, RoutePlan, RouteProvenance, RouteRequest, RouteStatus, RouteValidation,
+        TRAVEL_MODEL_ARTIFACT_VERSION, TravelCostMetric, TravelModelArtifact, TravelModelMatrix,
+        TravelModelProfileProvenance, ValidateRouteRequest, ValidationId, Wgs84BoundingBox,
+        Wgs84Position,
     },
     routes::{PlannerOutput, graph::GraphPlanner, valhalla::ValhallaPlanner, valhalla::sum_cost},
 };
@@ -247,6 +250,173 @@ impl RouteService {
             )
             .await?;
         Ok(matrix)
+    }
+
+    pub async fn build_travel_model(
+        &self,
+        scope: &MapScope,
+        request: BuildTravelModelRequest,
+        resource_uri: String,
+    ) -> Result<(TravelModelArtifact, Vec<TravelModelProfileProvenance>)> {
+        request.validate()?;
+        let tenant_key = scope.tenant_key();
+        let mut facility_ids = BTreeSet::new();
+        let positions = request
+            .locations
+            .iter()
+            .map(|location| {
+                self.resolve_endpoint(&tenant_key, &location.endpoint, &mut facility_ids)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let coverage = coverage(&positions)?;
+        let dimension = u32::try_from(positions.len()).context("too many travel locations")?;
+        let mut cost_matrices = Vec::with_capacity(request.vehicle_types.len());
+        let mut transit_time_matrices = Vec::with_capacity(request.vehicle_types.len());
+        let mut provenance = Vec::with_capacity(request.vehicle_types.len());
+
+        for vehicle_type in &request.vehicle_types {
+            let profile = self
+                .catalog
+                .mobility_profile(
+                    scope,
+                    &vehicle_type.mobility_profile_id,
+                    vehicle_type.mobility_profile_version,
+                )
+                .await?
+                .context("unknown travel-model mobility profile version")?;
+            profile.validate()?;
+            if request.departure_time < profile.metadata().valid_from
+                || profile
+                    .metadata()
+                    .valid_until
+                    .is_some_and(|until| request.departure_time >= until)
+            {
+                bail!(
+                    "mobility profile {} version {} is not valid at travel-model departure time",
+                    vehicle_type.mobility_profile_id,
+                    vehicle_type.mobility_profile_version
+                );
+            }
+            let restrictions = self
+                .catalog
+                .list_restrictions(scope)
+                .await?
+                .into_iter()
+                .filter(|restriction| {
+                    restriction_applies(restriction, &profile, request.departure_time)
+                })
+                .collect::<Vec<_>>();
+            let mut constraints = request.constraints.clone();
+            constraints.avoided_areas.extend(
+                restrictions
+                    .iter()
+                    .filter(|restriction| {
+                        restriction.effect.kind == RestrictionEffectKind::Prohibit
+                    })
+                    .map(|restriction| restriction.geometry.clone()),
+            );
+            let (release_ids, map_families) = self
+                .active_releases(scope, &profile, request.departure_time)
+                .await?;
+            if release_ids.is_empty() {
+                bail!(
+                    "coverage unavailable for vehicle type {}: no active release supports its mobility profile",
+                    vehicle_type.vehicle_type_id
+                );
+            }
+            if !request
+                .data_policy
+                .required_map_families
+                .is_subset(&map_families)
+            {
+                bail!(
+                    "required map-family coverage is unavailable for vehicle type {}",
+                    vehicle_type.vehicle_type_id
+                );
+            }
+            let snapshot = OperationalSnapshot {
+                snapshot_id: OperationalSnapshotId::new(),
+                captured_at: Utc::now(),
+                departure_time: request.departure_time,
+                coverage: coverage.clone(),
+                restriction_ids: restrictions
+                    .iter()
+                    .map(|restriction| restriction.restriction_id.clone())
+                    .collect(),
+                observation_release_ids: BTreeSet::new(),
+            };
+            let endpoint = request.locations[0].endpoint.clone();
+            let route_request = RouteRequest {
+                mobility_profile_id: vehicle_type.mobility_profile_id.clone(),
+                mobility_profile_version: vehicle_type.mobility_profile_version,
+                origin: endpoint.clone(),
+                destination: endpoint,
+                waypoints: Vec::new(),
+                departure_time: request.departure_time,
+                objective: RouteObjective {
+                    kind: match request.cost_metric {
+                        TravelCostMetric::Duration => RouteObjectiveKind::Fastest,
+                        TravelCostMetric::Distance => RouteObjectiveKind::Shortest,
+                    },
+                    weights: None,
+                },
+                constraints,
+                alternatives: 0,
+                data_policy: request.data_policy.clone(),
+            };
+            let matrix = self
+                .valhalla
+                .matrix(
+                    &route_request,
+                    &profile,
+                    &positions,
+                    request.time_model,
+                    request.prioritize_bidirectional,
+                )
+                .await?;
+            let cost_values = match request.cost_metric {
+                TravelCostMetric::Duration => matrix.durations_seconds.clone(),
+                TravelCostMetric::Distance => matrix.distances_meters,
+            };
+            cost_matrices.push(TravelModelMatrix {
+                vehicle_type_id: vehicle_type.vehicle_type_id.clone(),
+                dimension,
+                values: cost_values,
+                unavailable_cells: matrix.unavailable_cells.clone(),
+            });
+            transit_time_matrices.push(TravelModelMatrix {
+                vehicle_type_id: vehicle_type.vehicle_type_id.clone(),
+                dimension,
+                values: matrix.durations_seconds,
+                unavailable_cells: matrix.unavailable_cells,
+            });
+            provenance.push(TravelModelProfileProvenance {
+                vehicle_type_id: vehicle_type.vehicle_type_id.clone(),
+                mobility_profile_id: vehicle_type.mobility_profile_id.clone(),
+                mobility_profile_version: vehicle_type.mobility_profile_version,
+                base_release_ids: release_ids,
+                operational_snapshot_id: snapshot.snapshot_id,
+                planner_version: PLANNER_VERSION.to_owned(),
+                cost_model_version: COST_MODEL_VERSION.to_owned(),
+                matrix_algorithm: matrix.algorithm,
+            });
+        }
+        Ok((
+            TravelModelArtifact {
+                version: TRAVEL_MODEL_ARTIFACT_VERSION.to_owned(),
+                map_resource_uri: Some(resource_uri),
+                model: OptimizationTravelModel {
+                    location_ids: request
+                        .locations
+                        .into_iter()
+                        .map(|location| location.location_id)
+                        .collect(),
+                    cost_matrices,
+                    transit_time_matrices,
+                },
+            },
+            provenance,
+        ))
     }
 
     pub async fn reachable_area(

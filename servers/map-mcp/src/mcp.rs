@@ -30,21 +30,21 @@ use veoveo_mcp_contract::{
 use crate::{
     administration::{self, AdminOpError},
     contract::{
-        AcquisitionId, AcquisitionJob, CancelAcquisitionRequest, CorridorInspectionOutput,
-        CorridorInspectionRequest, CreateAcquisitionRequest, CreateMobilityProfileRequest,
-        CreateSourceRequest, DatasetReleaseId, DeriveRasterRequest, DeriveSpatialGeometryRequest,
-        DisableSourceRequest, FacilityId, GeodesicDirectOutput, GeodesicDirectRequest,
-        GeodesicInverseOutput, GeodesicInverseRequest, InspectLocationOutput,
-        InspectLocationRequest, LocationId, MapDatasetId, MapSourceId, MobilityProfile,
-        MobilityProfileId, PublishRestrictionRequest, QuerySourceFeaturesOutput,
+        AcquisitionId, AcquisitionJob, BuildTravelModelRequest, CancelAcquisitionRequest,
+        CorridorInspectionOutput, CorridorInspectionRequest, CreateAcquisitionRequest,
+        CreateMobilityProfileRequest, CreateSourceRequest, DatasetReleaseId, DeriveRasterRequest,
+        DeriveSpatialGeometryRequest, DisableSourceRequest, FacilityId, GeodesicDirectOutput,
+        GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest,
+        InspectLocationOutput, InspectLocationRequest, LocationId, MapDatasetId, MapSourceId,
+        MobilityProfile, MobilityProfileId, PublishRestrictionRequest, QuerySourceFeaturesOutput,
         QuerySourceFeaturesRequest, RasterDerivation, RasterDerivationId, RasterProductId,
         ReachableArea, ReachableAreaRequest, RegisteredSource, ReleaseMutationRequest,
         ReleaseMutationResponse, ReplaceSourceRequest, RestrictionId, RestrictionMutationOutput,
         RouteId, RouteMatrix, RouteMatrixId, RouteMatrixRequest, RoutePlan, RouteRequest,
         RouteValidation, SearchLocationsOutput, SearchLocationsRequest, SourceFeatureId,
         SpatialDerivation, SpatialDerivationId, TransformCrsOutput, TransformCrsRequest,
-        ValidateGeofenceOutput, ValidateGeofenceRequest, ValidateRouteRequest,
-        WithdrawRestrictionRequest,
+        TravelModelId, TravelModelRecord, ValidateGeofenceOutput, ValidateGeofenceRequest,
+        ValidateRouteRequest, WithdrawRestrictionRequest,
     },
     geodesy,
     prompts::MapPrompt,
@@ -416,6 +416,24 @@ impl MapMcp {
     }
 
     #[tool(
+        title = "Build optimization travel model",
+        description = "Build immutable square cost and transit-time matrices for up to 128 shared locations and multiple cuOpt vehicle types. Each vehicle type binds a versioned Map mobility profile; the implementation uses one governed Valhalla many-to-many request per profile, preserves unreachable arcs, and publishes a canonical artifact manifest for Optimization MCP. This operation requires durable task invocation.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<TravelModelRecord>(),
+        execution(task_support = "required"),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
+    )]
+    async fn build_travel_model(
+        &self,
+        Parameters(_request): Parameters<BuildTravelModelRequest>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        Err(McpError::invalid_request(
+            "build_travel_model requires task-based invocation",
+            None,
+        ))
+    }
+
+    #[tool(
         title = "Calculate land reachable area",
         description = "Calculate a governed Valhalla network isochrone for a human or road-vehicle profile. This operation requires durable task invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ReachableArea>(),
@@ -755,7 +773,7 @@ impl ServerHandler for MapMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("map", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Earth geography, governed authored feature layers, and logistics planning for human, road, off-road, rail, maritime, and aviation mobility. Create and revise Work Context-owned GeoJSON/JSON-FG features with optimistic changesets, query their DuckDB Spatial projection through bounded CQL2 JSON, and publish immutable layer revisions. Use durable tasks to import an authorized GeoJSON artifact, export a publication as GeoJSON Sequence or GeoParquet 1.0, or build an MVT 2.1 bundle. Compose publication pins through map://composition resources or the ui://map/editor.html MCP App. Generic authored features never affect routing until a separate governed promotion validates them into a routing dataset release. Read versioned map:// resources, invoke route or route_matrix through the Task API with an explicit profile and departure time, and treat planning_advisory status as non-certified guidance. Source, acquisition, release, and mobility-profile administration runs through the map:admin-scoped tools and the ui://map/admin.html app view."
+            "Earth geography, governed authored feature layers, and logistics planning for human, road, off-road, rail, maritime, and aviation mobility. Create and revise Work Context-owned GeoJSON/JSON-FG features with optimistic changesets, query their DuckDB Spatial projection through bounded CQL2 JSON, and publish immutable layer revisions. Use durable tasks to import an authorized GeoJSON artifact, export a publication as GeoJSON Sequence or GeoParquet 1.0, or build an MVT 2.1 bundle. Compose publication pins through map://composition resources or the ui://map/editor.html MCP App. Generic authored features never affect routing until a separate governed promotion validates them into a routing dataset release. Read versioned map:// resources, invoke route or route_matrix through the Task API with an explicit profile and departure time, and use build_travel_model to publish heterogeneous cuOpt-ready cost and transit-time matrices for Optimization MCP. Treat planning_advisory status as non-certified guidance. Source, acquisition, release, and mobility-profile administration runs through the map:admin-scoped tools and the ui://map/admin.html app view."
                 .to_owned(),
         );
         info
@@ -818,6 +836,10 @@ impl ServerHandler for MapMcp {
                 None,
             ));
         }
+        self.state
+            .resource_observers
+            .observe(context.peer.clone())
+            .await;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let mut resources = Vec::new();
         resources.extend(well_known_resources());
@@ -968,6 +990,17 @@ impl ServerHandler for MapMcp {
                     uris::matrix_uri(matrix.matrix_id.as_str()),
                     format!("matrix {}", matrix.matrix_id),
                     "Owner-scoped many-to-many route matrix.",
+                ));
+            }
+            for travel_model in
+                crate::server::tasks::visible_travel_models(self.state.as_ref(), &identity)
+                    .await
+                    .map_err(internal)?
+            {
+                resources.push(json_resource_descriptor(
+                    travel_model.travel_model_uri,
+                    format!("travel model {}", travel_model.travel_model_id),
+                    "Immutable cuOpt-ready Map travel model.",
                 ));
             }
         }
@@ -1493,6 +1526,14 @@ impl ServerHandler for MapMcp {
                         .map_err(internal)?,
                 );
             }
+            uris::TRAVEL_MODELS_URI => {
+                return json_resource(
+                    uri,
+                    &crate::server::tasks::visible_travel_models(self.state.as_ref(), &identity)
+                        .await
+                        .map_err(internal)?,
+                );
+            }
             uris::RASTERS_URI => {
                 return json_resource(
                     uri,
@@ -1716,6 +1757,16 @@ impl ServerHandler for MapMcp {
                     .ok_or_else(|| not_found("matrix"))?,
             );
         }
+        if let Some(value) = uris::parse_single(uri, "map://travel-model/") {
+            let id = TravelModelId::parse(value).map_err(invalid_params)?;
+            let model = crate::server::tasks::visible_travel_models(self.state.as_ref(), &identity)
+                .await
+                .map_err(internal)?
+                .into_iter()
+                .find(|model| model.travel_model_id == id)
+                .ok_or_else(|| not_found("travel model"))?;
+            return json_resource(uri, &model);
+        }
         Err(McpError::resource_not_found(
             format!("unknown Map resource `{uri}`"),
             None,
@@ -1913,6 +1964,11 @@ fn resource_templates() -> Vec<ResourceTemplate> {
             uris::MATRIX_TEMPLATE,
             "Route matrix",
             "Owner-scoped route matrix.",
+        ),
+        template(
+            uris::TRAVEL_MODEL_TEMPLATE,
+            "Optimization travel model",
+            "Immutable cuOpt-ready cost and transit-time matrix manifest.",
         ),
         template(
             uris::ARTIFACT_TEMPLATE,
@@ -2159,6 +2215,7 @@ fn root_resources() -> Vec<Resource> {
         (uris::RESTRICTIONS_URI, "Map restrictions"),
         (uris::ROUTES_URI, "Map routes"),
         (uris::MATRICES_URI, "Route matrices"),
+        (uris::TRAVEL_MODELS_URI, "Optimization travel models"),
         (uris::RASTERS_URI, "Raster products"),
     ]
     .into_iter()
@@ -2293,6 +2350,13 @@ async fn completion_values(
             .into_iter()
             .map(|value| value.matrix_id.to_string())
             .collect(),
+        (uris::TRAVEL_MODEL_TEMPLATE, "travel_model_id") => {
+            crate::server::tasks::visible_travel_models(state, identity)
+                .await?
+                .into_iter()
+                .map(|value| value.travel_model_id.to_string())
+                .collect()
+        }
         (uris::SPATIAL_DERIVATION_TEMPLATE, "spatial_derivation_id") => state
             .analytics
             .list_spatial_derivations(
@@ -2383,6 +2447,7 @@ fn is_subscribable(uri: &str) -> bool {
             | uris::MOBILITY_PROFILES_URI
             | uris::RESTRICTIONS_URI
             | uris::ROUTES_URI
+            | uris::TRAVEL_MODELS_URI
     ) || uris::parse_profile(uri).is_some()
         || uris::parse_single(uri, "map://restriction/").is_some()
         || uris::parse_single(uri, "map://route/").is_some()
@@ -2500,6 +2565,7 @@ mod well_known_tests {
             [
                 "route",
                 "route_matrix",
+                "build_travel_model",
                 "reachable_area",
                 "import_feature_layer",
                 "export_feature_layer",

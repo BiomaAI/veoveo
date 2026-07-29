@@ -10,6 +10,7 @@ mod routes;
 mod source_products;
 mod spatial;
 mod transfers;
+mod travel_models;
 mod units;
 
 pub use admin::*;
@@ -24,4 +25,5 @@ pub use routes::*;
 pub use source_products::*;
 pub use spatial::*;
 pub use transfers::*;
+pub use travel_models::*;
 pub use units::*;

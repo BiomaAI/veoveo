@@ -11720,6 +11720,7 @@ dependencies = [
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",
+ "veoveo-optimization-mcp",
  "veoveo-platform-store",
  "veoveo-task-runtime",
 ]
