@@ -28,7 +28,11 @@ const FIXTURE_MANUAL: &str = "# Domain\n\n## Purpose\n\nConformance fixture.\n\n
 static FIXTURE_DOCS: LazyLock<ServerDocs> = LazyLock::new(|| {
     ServerDocs::new("domain")
         .with_doc(DOC_ID_AGENTS, "Agent work manual", FIXTURE_MANUAL)
-        .with_doc(DOC_ID_DESIGN, "Domain design", "# Domain design\n\nFixture.")
+        .with_doc(
+            DOC_ID_DESIGN,
+            "Domain design",
+            "# Domain design\n\nFixture.",
+        )
 });
 
 #[derive(Clone)]
