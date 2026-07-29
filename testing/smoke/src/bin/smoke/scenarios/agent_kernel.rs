@@ -565,7 +565,7 @@ pub(crate) async fn agent_kernel_scheduler(
 ///
 /// One operator objective drives the whole choreography — record a target
 /// (memory_write), convert the target (frames__convert_frame, inline),
-/// dispatch the planner (optimization__plan, task-required), then record the
+/// dispatch a selection MILP (optimization__solve_milp, task-required), then record the
 /// waypoint when the plan lands and declare the mission planned. The pilot's
 /// real domain migrations from configs/agents/pilot are applied verbatim.
 pub(crate) async fn agent_pilot_mission(
@@ -611,12 +611,15 @@ pub(crate) async fn agent_pilot_mission(
         &plane.platform,
         &tmpdir.join("frames.log"),
     )?;
+    let cuopt = spawn_cuopt_executor_smoke(&tmpdir.join("cuopt-runtime"))?;
     let mut optimization_child = spawn_optimization_smoke(
         optimization,
         optimization_port,
         &optimization_base,
-        &tmpdir.join("optimization-state.duckdb"),
+        &tmpdir.join("optimization-workspace"),
+        &cuopt.socket,
         &plane.url,
+        &plane.platform,
         &tmpdir.join("optimization.log"),
     )?;
     wait_for_http(&format!("{frames_base}/frames/healthz")).await?;
@@ -778,8 +781,9 @@ pub(crate) async fn agent_pilot_mission(
                 [],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )?;
-        if task_tool != "optimization__plan" || task_state != "resolved" || consumed.is_none() {
-            bail!("plan task was ({task_tool}, {task_state}, consumed: {consumed:?})");
+        if task_tool != "optimization__solve_milp" || task_state != "resolved" || consumed.is_none()
+        {
+            bail!("optimization task was ({task_tool}, {task_state}, consumed: {consumed:?})");
         }
         let planned: i64 = ledger.query_row(
             "SELECT COUNT(*) FROM agent_memory.episode_log WHERE final_output LIKE '%MISSION PLANNED%'",
@@ -806,7 +810,7 @@ pub(crate) async fn agent_pilot_mission(
         [],
     )?;
     contains(&timeline, "frames__convert_frame")?;
-    contains(&timeline, "optimization__plan")?;
+    contains(&timeline, "optimization__solve_milp")?;
 
     // Replay rebuilds domain truth from the decision log alone.
     let replay = run_checked(

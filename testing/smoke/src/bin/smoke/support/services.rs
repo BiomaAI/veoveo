@@ -213,10 +213,14 @@ pub(crate) fn spawn_optimization_smoke(
     optimization: &Path,
     port: u16,
     public_base_url: &str,
-    state_db: &Path,
+    workspace: &Path,
+    executor_socket: &Path,
     artifact_service_url: &str,
+    platform: &PlatformStoreSmoke,
     log: &Path,
 ) -> Result<ChildGuard> {
+    let mut env = platform.runtime_env();
+    env.push(("VEOVEO_INTERNAL_TRUST_JWKS", INTERNAL_TRUST_JWKS.into()));
     ChildGuard::spawn(
         optimization,
         [
@@ -225,14 +229,87 @@ pub(crate) fn spawn_optimization_smoke(
             "--public-base-url".into(),
             public_base_url.into(),
             "--allow-loopback-hosts".into(),
-            "--state-db".into(),
-            state_db.as_os_str().to_os_string(),
+            "--optimization-workspace".into(),
+            workspace.as_os_str().to_os_string(),
+            "--executor-socket".into(),
+            executor_socket.as_os_str().to_os_string(),
             "--artifact-service-url".into(),
             artifact_service_url.into(),
         ],
-        [("VEOVEO_INTERNAL_TRUST_JWKS", INTERNAL_TRUST_JWKS.into())],
+        env,
         log,
     )
+}
+
+pub(crate) struct CuoptExecutorSmoke {
+    pub(crate) socket: PathBuf,
+    _container: ContainerGuard,
+}
+
+pub(crate) fn spawn_cuopt_executor_smoke(runtime_dir: &Path) -> Result<CuoptExecutorSmoke> {
+    fs::create_dir_all(runtime_dir)?;
+    let runtime_dir = fs::canonicalize(runtime_dir)?;
+    let suffix = uuid::Uuid::now_v7().simple().to_string();
+    let container_name = format!("veoveo-smoke-cuopt-{suffix}");
+    let container = ContainerGuard::new(container_name.clone());
+    let uid = run_checked(Path::new("id"), ["-u".into()], [])?
+        .trim()
+        .to_owned();
+    let gid = run_checked(Path::new("id"), ["-g".into()], [])?
+        .trim()
+        .to_owned();
+    let image = env::var("VEOVEO_CUOPT_EXECUTOR_IMAGE")
+        .unwrap_or_else(|_| "veoveo/cuopt-executor:0.1.0".to_owned());
+    run_checked(
+        Path::new("docker"),
+        [
+            "run".into(),
+            "-d".into(),
+            "--name".into(),
+            container_name.clone().into(),
+            "--gpus".into(),
+            "all".into(),
+            "--read-only".into(),
+            "--user".into(),
+            format!("{uid}:{gid}").into(),
+            "--shm-size".into(),
+            "8g".into(),
+            "--tmpfs".into(),
+            format!("/tmp:rw,nosuid,nodev,noexec,uid={uid},gid={gid}").into(),
+            "-e".into(),
+            "NVIDIA_DRIVER_CAPABILITIES=compute,utility".into(),
+            "-e".into(),
+            "VEOVEO_CUOPT_SOCKET=/run/veoveo-cuopt/executor.sock".into(),
+            "-v".into(),
+            format!("{}:/run/veoveo-cuopt", runtime_dir.display()).into(),
+            image.into(),
+        ],
+        [],
+    )?;
+    let socket = runtime_dir.join("executor.sock");
+    for _ in 0..120 {
+        if socket.exists()
+            && Command::new("docker")
+                .args([
+                    "exec",
+                    container_name.as_str(),
+                    "python",
+                    "-m",
+                    "veoveo_cuopt_executor.healthcheck",
+                ])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok_and(|status| status.success())
+        {
+            return Ok(CuoptExecutorSmoke {
+                socket,
+                _container: container,
+            });
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    bail!("cuOpt executor did not become ready")
 }
 
 const SURREAL_ROOT_USER: &str = "root";
