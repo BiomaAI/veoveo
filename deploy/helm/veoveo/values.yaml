@@ -329,7 +329,7 @@ simulationView:
   rendererResources:
     requests:
       cpu: "4"
-      memory: 16Gi
+      memory: 8Gi
       nvidia.com/gpu: "1"
     limits:
       cpu: "16"
