@@ -45,6 +45,10 @@ pub struct HttpBoundaryProfile {
     /// Readiness endpoint that must return success.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub readiness_url: Option<String>,
+    /// Admin llms.txt index URL; when set, the served index and every listed
+    /// document body must fetch (contract C20).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub docs_llms_url: Option<String>,
 }
 
 /// Capability-driven checks for the generic MCP protocol surface.
@@ -103,6 +107,13 @@ impl HostedServerConformanceProfile {
         }
         if let Some(url) = &self.http.readiness_url {
             validate_url("readinessUrl", url)?;
+        }
+        if let Some(url) = &self.http.docs_llms_url {
+            validate_url("docsLlmsUrl", url)?;
+            ensure!(
+                url.ends_with("/docs/llms.txt"),
+                "docsLlmsUrl must end with /docs/llms.txt (contract C20)"
+            );
         }
         if let Some(host) = &self.http.rejected_host {
             ensure!(
@@ -217,6 +228,7 @@ mod tests {
                 rejected_host: Some("untrusted.invalid".to_owned()),
                 health_url: None,
                 readiness_url: None,
+                docs_llms_url: None,
             },
             surfaces: SurfaceProfile {
                 tools: SurfaceExpectation::Required,
