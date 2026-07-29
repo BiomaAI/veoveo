@@ -83,8 +83,10 @@ ordered layer names, content digests, and lengths. A newly frozen shard changes
 the revision without changing the archive URI.
 
 The browser connects directly to a same-origin, recording-scoped Redap service.
-That service permits only the Rerun viewer's read operations and denies catalog
-enumeration, mutation, registration, table, task, and maintenance methods.
+That service permits only the Rerun viewer's read operations. `FindEntries`
+sees the one dataset in the authorized session's isolated derived catalog;
+cross-recording access, mutation, registration, table, task, and maintenance
+methods remain unavailable.
 Rerun reads each shard's footer manifest, then fetches chunks as the active
 timeline and view require them. It does not download every archive shard when a
 recording opens. The derived Rerun catalog is a bounded in-memory projection;
