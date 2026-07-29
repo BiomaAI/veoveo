@@ -233,10 +233,11 @@ MILP requests may also tighten the relative or absolute gap.
 | `balanced` | 300 s | 30 s | 30 s | 60 s | `1e-6` | `0.01` |
 | `thorough` | 3,600 s | 300 s | 300 s | 300 s | `1e-8` | `0.001` |
 
-Convex solves use PDLP with presolve in the current profile. MILP uses
-presolve and an integrality tolerance of `1e-5`. Balanced and thorough retain
-MILP incumbents by default. The profile resource is the authority; this table
-documents the current compiled values.
+Linear programs use PDLP with presolve. QP, QCQP, and SOCP forms use cuOpt's
+barrier method because cuOpt 26.06 requires barrier for quadratic objectives
+and constraints. MILP uses presolve and an integrality tolerance of `1e-5`.
+Balanced and thorough retain MILP incumbents by default. The profile resource
+is the authority; this table documents the current compiled values.
 
 ## Durable Execution
 
