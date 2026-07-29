@@ -6,6 +6,13 @@ pub const ARTIFACT_TEMPLATE: &str = "duckdb://artifact/{artifact_id}";
 pub const USAGE_ROOT_URI: &str = "duckdb://usage";
 pub const USAGE_TASK_TEMPLATE: &str = "duckdb://usage/task/{task_id}";
 
+/// Well-known surface roots (contract C18, C19). These literals must match
+/// `ServerResourceUris::new("duckdb")`; a unit test below pins the
+/// equivalence.
+pub const DOCS_URI: &str = "duckdb://docs";
+pub const CONTRACT_URI: &str = "duckdb://contract";
+pub const DOC_TEMPLATE: &str = "duckdb://docs/{doc_id}";
+
 fn duckdb_uris() -> ServerResourceUris {
     ServerResourceUris::new("duckdb")
 }
@@ -20,6 +27,19 @@ pub fn parse_db_uri(uri: &str) -> Option<&str> {
         None
     } else {
         Some(rest)
+    }
+}
+
+pub fn doc_uri(doc_id: &str) -> String {
+    duckdb_uris().doc_uri(doc_id)
+}
+
+pub fn parse_doc_uri(uri: &str) -> Option<&str> {
+    let doc_id = uri.strip_prefix("duckdb://docs/")?;
+    if doc_id.is_empty() || doc_id.contains('/') {
+        None
+    } else {
+        Some(doc_id)
     }
 }
 
@@ -51,6 +71,18 @@ mod tests {
         assert_eq!(parse_db_uri("duckdb://db/"), None);
         assert_eq!(parse_db_uri("duckdb://db/a/b"), None);
         assert_eq!(parse_db_uri("duckdb://dbs"), None);
+    }
+
+    #[test]
+    fn well_known_uris_match_the_shared_contract_conventions() {
+        let conventions = duckdb_uris();
+        assert_eq!(DOCS_URI, conventions.docs_root_uri());
+        assert_eq!(CONTRACT_URI, conventions.contract_uri());
+        assert_eq!(DOC_TEMPLATE, conventions.doc_template());
+        assert_eq!(doc_uri("agents"), conventions.doc_uri("agents"));
+        assert_eq!(parse_doc_uri("duckdb://docs/agents"), Some("agents"));
+        assert_eq!(parse_doc_uri("duckdb://docs"), None);
+        assert_eq!(parse_doc_uri("duckdb://docs/agents/extra"), None);
     }
 
     #[test]
