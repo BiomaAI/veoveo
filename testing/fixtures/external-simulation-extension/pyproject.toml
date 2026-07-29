@@ -5,7 +5,7 @@ description = "Anonymous external Simulation View producer acceptance fixture"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "veoveo-mcp==0.1.0",
-    "mcp==1.28.1",
+    "mcp==2.0.0",
     "pydantic==2.13.4",
     "uvicorn==0.51.0",
 ]
@@ -25,6 +25,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/anonymous_simulation_mcp"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"AGENTS.md" = "anonymous_simulation_mcp/AGENTS.md"
+"DESIGN.md" = "anonymous_simulation_mcp/DESIGN.md"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -62,6 +62,11 @@ impl ServerResourceUris {
         format!("{}://docs/{{doc_id}}", self.scheme)
     }
 
+    /// Parses one document body URI under the server's canonical docs root.
+    pub fn parse_doc_uri<'a>(&self, uri: &'a str) -> Option<&'a str> {
+        parse_server_doc_uri(&self.scheme, uri)
+    }
+
     /// The machine-readable contract declaration (contract C19).
     pub fn contract_uri(&self) -> String {
         format!("{}://contract", self.scheme)
@@ -102,6 +107,12 @@ impl ServerResourceUris {
         uri.strip_prefix(&format!("{}://usage/task/", self.scheme))
             .filter(|s| !s.is_empty() && !s.contains('/'))
     }
+}
+
+/// Parses `{scheme}://docs/{doc_id}` using the shared one-segment contract.
+pub fn parse_server_doc_uri<'a>(scheme: &str, uri: &'a str) -> Option<&'a str> {
+    uri.strip_prefix(&format!("{scheme}://docs/"))
+        .filter(|id| !id.is_empty() && !id.contains('/'))
 }
 
 /// Strongly typed resource shapes shared by Veoveo MCP servers.
@@ -349,6 +360,11 @@ mod tests {
         assert_eq!(uris.artifact_template(), "example://artifact/{artifact_id}");
         assert_eq!(uris.usage_root_uri(), "example://usage");
         assert_eq!(uris.usage_task_template(), "example://usage/task/{task_id}");
+        assert_eq!(uris.docs_root_uri(), "example://docs");
+        assert_eq!(uris.doc_uri("agents"), "example://docs/agents");
+        assert_eq!(uris.parse_doc_uri("example://docs/agents"), Some("agents"));
+        assert_eq!(uris.parse_doc_uri("example://docs"), None);
+        assert_eq!(uris.parse_doc_uri("example://docs/agents/extra"), None);
         assert_eq!(
             uris.model_uri("provider/model"),
             "example://model/provider/model"

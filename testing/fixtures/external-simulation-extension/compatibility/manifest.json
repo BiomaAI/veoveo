@@ -41,7 +41,7 @@
         "kind": "python_wheel",
         "version": "0.1.0",
         "coordinate": "https://packages.example.internal/veoveo/artifacts/veoveo_mcp-0.1.0-py3-none-any.whl",
-        "digest": "sha256:a2a0d2758a6c6036e7433d52653e215b359b29d36853cbe353057da288979dc1",
+        "digest": "sha256:3a12b26f667ab480d08b21dc84f8c274d09fa92ec707d9630b8fc40df5da26e5",
         "platform": {
           "operatingSystem": "any",
           "architecture": "any"

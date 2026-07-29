@@ -19,6 +19,8 @@ latest-pose snapshots for independent Simulation View acceptance.
   SPIFFE client identity over mutual TLS.
 - Credentials and access tokens never enter source, resources, logs, release
   manifests, or image layers.
+- The MCP endpoint and `/anonymous-simulation/admin/docs/*` projection pass
+  through the same gateway internal-auth middleware.
 
 ## Build And Test
 

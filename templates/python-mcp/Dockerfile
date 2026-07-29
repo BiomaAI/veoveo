@@ -9,6 +9,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=secret,id=veoveo-python-index,required=true \
     UV_DEFAULT_INDEX="$(cat /run/secrets/veoveo-python-index)" \
     uv sync --locked --no-dev --no-install-project
+COPY AGENTS.md DESIGN.md ./
 COPY src src
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=secret,id=veoveo-python-index,required=true \

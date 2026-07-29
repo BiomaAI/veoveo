@@ -153,6 +153,9 @@ domain server crate or central server registry. `conformance certify --profile
 <file> --report <file>` records implementation identity, negotiated protocol,
 advertised capabilities, applicable requirement results, and bounded evidence. The
 same binary ships in the private `veoveo/mcp-conformance` OCI artifact.
+Hosted certification always checks the well-known MCP resources and the authenticated
+same-origin administrative docs projection. The gateway internal bearer is supplied
+out of band and never serialized into the profile or report.
 
 `deploy/helm/veoveo-extension` is the private library-chart source for
 `veoveo.io/extension-helm-library/v1`. It exports stable installation and component

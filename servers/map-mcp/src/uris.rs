@@ -174,7 +174,7 @@ pub fn parse_artifact(uri: &str) -> Option<veoveo_mcp_contract::ArtifactId> {
 }
 
 pub fn parse_doc(uri: &str) -> Option<&str> {
-    parse_single(uri, "map://docs/")
+    veoveo_mcp_contract::parse_server_doc_uri("map", uri)
 }
 
 pub fn parse_single<'a>(uri: &'a str, prefix: &str) -> Option<&'a str> {

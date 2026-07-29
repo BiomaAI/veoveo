@@ -11,6 +11,12 @@ use veoveo_mcp_contract::docs::{
     CHECKLIST_IDS, ComplianceStatus, REQUIRED_AGENT_SECTIONS, parse_compliance,
 };
 
+/// Well-Known Surface items every server must implement, not merely declare
+/// (`mcp/contract/DESIGN.md` C18-C21): docs resources, the contract
+/// declaration resource, the admin `docs/llms.txt` projection, and build-time
+/// document embedding.
+const WELL_KNOWN_SURFACE_IDS: [&str; 4] = ["C18", "C19", "C20", "C21"];
+
 fn repository_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
@@ -155,6 +161,13 @@ fn every_server_crate_carries_its_contract_documents() {
                 Some(item) => {
                     if item.status == ComplianceStatus::Pending && item.note.is_none() {
                         failures.push(format!("{name}: {id} is pending without a reason"));
+                    }
+                    if WELL_KNOWN_SURFACE_IDS.contains(&id) && item.status != ComplianceStatus::Met
+                    {
+                        failures.push(format!(
+                            "{name}: {id} must be met; the well-known surface \
+                             (C18-C21) is mandatory for every server"
+                        ));
                     }
                 }
             }

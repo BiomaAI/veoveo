@@ -9,7 +9,7 @@ use std::{
     collections::BTreeSet,
     net::SocketAddr,
     num::{NonZeroU32, NonZeroU64},
-    sync::Arc,
+    sync::{Arc, LazyLock},
     time::Duration,
 };
 
@@ -38,8 +38,9 @@ use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
     IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, Page, ServerSlug,
-    TelemetryGuard, TokenIssuer, UsageReport, init_server_telemetry, paginate,
-    public_allowed_hosts,
+    TelemetryGuard, TokenIssuer, UsageReport,
+    docs::{CapabilityInventory, ServerDocs},
+    init_server_telemetry, paginate, public_allowed_hosts,
 };
 use veoveo_mcp_task_extension::{
     Implementation as TaskExtensionImplementation, ServerDiscovery, TaskExtensionAdapter,
@@ -56,6 +57,8 @@ use veoveo_timeseries_mcp::{
     uris,
 };
 
+#[path = "server/admin.rs"]
+mod admin;
 #[path = "server/app_state.rs"]
 mod app_state;
 #[path = "server/config.rs"]
@@ -90,6 +93,13 @@ const ARTIFACT_CAPABILITY_TTL: TimeDelta = TimeDelta::hours(24);
 const SERVER_SLUG: &str = "timeseries";
 const LIST_PAGE_SIZE: usize = 100;
 
+/// The crate documents embedded at build time and served under the well-known
+/// surface: `timeseries://docs`, `timeseries://docs/{doc_id}`,
+/// `timeseries://contract`, and the administrative `admin/docs` routes
+/// (contract C18-C21).
+static SERVER_DOCS: LazyLock<ServerDocs> =
+    LazyLock::new(|| veoveo_mcp_contract::server_docs!(SERVER_SLUG));
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct ForecastTaskRequest {
     input: TimeseriesForecastRequest,
@@ -113,6 +123,36 @@ impl TimeseriesMcp {
         Self {
             state,
             tool_router: Self::tool_router(),
+        }
+    }
+
+    /// The capability inventory declared at `timeseries://contract`
+    /// (contract C19). Tools derive from the live registration; the stable
+    /// resource and template lists mirror `list_resources` and
+    /// `list_resource_templates`. The `forecast` tool is the one
+    /// task-augmented execution.
+    fn capability_inventory() -> CapabilityInventory {
+        CapabilityInventory {
+            tools: Self::tool_router()
+                .list_all()
+                .into_iter()
+                .map(|tool| tool.name.into_owned())
+                .collect(),
+            resources: vec![
+                uris::FORECAST_APP_URI.to_owned(),
+                uris::USAGE_ROOT_URI.to_owned(),
+                uris::DOCS_URI.to_owned(),
+                uris::doc_uri(veoveo_mcp_contract::docs::DOC_ID_AGENTS),
+                uris::doc_uri(veoveo_mcp_contract::docs::DOC_ID_DESIGN),
+                uris::CONTRACT_URI.to_owned(),
+            ],
+            resource_templates: vec![
+                uris::ARTIFACT_TEMPLATE.to_owned(),
+                uris::USAGE_TASK_TEMPLATE.to_owned(),
+                uris::DOC_TEMPLATE.to_owned(),
+            ],
+            prompts: Vec::new(),
+            tasks: vec!["forecast".to_owned()],
         }
     }
 
@@ -263,7 +303,25 @@ impl ServerHandler for TimeseriesMcp {
                 .with_title("Timeseries usage ledger")
                 .with_description("Index of task usage resources.")
                 .with_mime_type("application/json"),
+            Resource::new(uris::DOCS_URI, "Server documents")
+                .with_title("Server documents")
+                .with_description("Index of the crate documents embedded at build time.")
+                .with_mime_type("application/json"),
+            Resource::new(uris::CONTRACT_URI, "Contract declaration")
+                .with_title("Contract declaration")
+                .with_description(
+                    "Machine-readable contract revision, compliance, and capability inventory.",
+                )
+                .with_mime_type("application/json"),
         ];
+        for doc in SERVER_DOCS.iter() {
+            resources.push(
+                Resource::new(uris::doc_uri(doc.id), doc.title)
+                    .with_title(doc.title)
+                    .with_description("Crate document embedded at build time.")
+                    .with_mime_type("text/markdown"),
+            );
+        }
         // Artifacts live on the shared plane now; this server keeps no local
         // artifact index to enumerate. They remain readable by their
         // artifact URI through resources/read, which resolves against the plane.
@@ -316,6 +374,10 @@ impl ServerHandler for TimeseriesMcp {
                 .with_title("Timeseries task usage")
                 .with_description("Usage rows for one task, addressed by task id.")
                 .with_mime_type("application/json"),
+            ResourceTemplate::new(uris::DOC_TEMPLATE, "Server document")
+                .with_title("Server document")
+                .with_description("Embedded crate document body (contract C18).")
+                .with_mime_type("text/markdown"),
         ];
         let page = mcp_page(templates, request.as_ref())?;
         Ok(ListResourceTemplatesResult {
@@ -332,6 +394,33 @@ impl ServerHandler for TimeseriesMcp {
     ) -> Result<ReadResourceResult, McpError> {
         let identity = internal_identity(&context)?;
         let uri = request.uri.as_str();
+        // Well-known surface (contract C18, C19): readable by any identity
+        // that can list resources.
+        if uri == uris::DOCS_URI {
+            return Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(
+                    serde_json::to_string(&SERVER_DOCS.iter().collect::<Vec<_>>())
+                        .unwrap_or_default(),
+                    uri,
+                )
+                .with_mime_type("application/json"),
+            ]));
+        }
+        if let Some(doc_id) = uris::parse_doc(uri) {
+            let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
+                McpError::resource_not_found(format!("unknown document '{doc_id}'"), None)
+            })?;
+            return Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
+            ]));
+        }
+        if uri == uris::CONTRACT_URI {
+            let declaration = SERVER_DOCS.contract_declaration(Self::capability_inventory);
+            return Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(serde_json::to_string(declaration).unwrap_or_default(), uri)
+                    .with_mime_type("application/json"),
+            ]));
+        }
         if uri == uris::FORECAST_APP_URI {
             return Ok(ReadResourceResult::new(vec![
                 veoveo_mcp_apps_extension::app_html_contents(
@@ -719,12 +808,19 @@ async fn main() -> anyhow::Result<()> {
             task_extension_middleware::<TimeseriesTaskExtension>,
         ))
         .layer(middleware::from_fn_with_state(
-            internal_auth_state,
+            internal_auth_state.clone(),
             authenticate_internal_mcp,
         ));
+    // Read-only well-known projection (contract C20) behind the same gateway
+    // authentication as the MCP surface.
+    let admin_router = admin::router().layer(middleware::from_fn_with_state(
+        internal_auth_state,
+        authenticate_internal_mcp,
+    ));
     let server_router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .with_state(state.clone())
+        .nest("/admin", admin_router)
         .nest("/mcp", mcp_router);
     let router = Router::new()
         .nest(public_endpoint.mount_path(), server_router)
@@ -742,6 +838,7 @@ async fn main() -> anyhow::Result<()> {
         service = "veoveo-timeseries-mcp",
         address = %addr,
         mcp_path = public_endpoint.path("mcp"),
+        admin_path = public_endpoint.path("admin"),
         public_url = public_endpoint.public_url(),
         "listening"
     );
@@ -762,5 +859,66 @@ mod schema_tests {
     #[test]
     fn tool_input_schemas_use_the_canonical_profile() {
         assert!(!TimeseriesMcp::tool_router().list_all().is_empty());
+    }
+}
+
+#[cfg(test)]
+mod well_known_tests {
+    use veoveo_mcp_contract::docs::{
+        CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
+    };
+
+    use super::{SERVER_DOCS, TimeseriesMcp};
+    use veoveo_timeseries_mcp::uris;
+
+    #[test]
+    fn embedded_documents_carry_the_crate_manual_and_design() {
+        assert_eq!(SERVER_DOCS.server(), "timeseries");
+        let agents = SERVER_DOCS.doc(DOC_ID_AGENTS).expect("agents document");
+        assert!(agents.body.contains("## Contract Compliance"));
+        let design = SERVER_DOCS.doc(DOC_ID_DESIGN).expect("design document");
+        assert!(!design.body.is_empty());
+        let index = SERVER_DOCS.llms_txt();
+        assert!(index.contains("(agents)"));
+        assert!(index.contains("(design)"));
+    }
+
+    #[test]
+    fn contract_declaration_resolves_from_the_embedded_manual() {
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(
+            &SERVER_DOCS,
+            TimeseriesMcp::capability_inventory(),
+        );
+        assert_eq!(declaration.server, "timeseries");
+        assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
+        for id in ["C18", "C19", "C20", "C21"] {
+            let item = declaration
+                .compliance
+                .iter()
+                .find(|item| item.id == id)
+                .expect("declared checklist item");
+            assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
+        }
+        let json = serde_json::to_value(&declaration).expect("declaration serializes");
+        assert_eq!(json["server"], "timeseries");
+    }
+
+    #[test]
+    fn capability_inventory_matches_the_registered_surface() {
+        let inventory = TimeseriesMcp::capability_inventory();
+        assert_eq!(inventory.tools, vec!["forecast".to_owned()]);
+        for uri in [uris::DOCS_URI, uris::CONTRACT_URI, uris::USAGE_ROOT_URI] {
+            assert!(
+                inventory.resources.contains(&uri.to_owned()),
+                "inventory is missing resource {uri}"
+            );
+        }
+        assert!(inventory.resources.contains(&uris::doc_uri("agents")));
+        assert!(
+            inventory
+                .resource_templates
+                .contains(&uris::DOC_TEMPLATE.to_owned())
+        );
+        assert_eq!(inventory.tasks, vec!["forecast".to_owned()]);
     }
 }

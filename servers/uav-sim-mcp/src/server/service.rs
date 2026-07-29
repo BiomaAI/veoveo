@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use axum::{Router, extract::State, http::StatusCode, middleware, routing::get};
 use chrono::Utc;
@@ -29,6 +29,7 @@ use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle, Page,
     ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, UsageKind, UsageRecord, UsageReport,
+    docs::{CapabilityInventory, ServerDocs},
     init_server_telemetry, paginate, public_allowed_hosts,
 };
 use veoveo_mcp_task_extension::{
@@ -63,6 +64,12 @@ use super::task_worker::{await_result, resume_queued_operation, start_operation}
 
 const SERVER_SLUG: &str = "uav-sim";
 const LIST_PAGE_SIZE: usize = 100;
+
+/// The crate documents embedded at build time and served under the well-known
+/// surface: `uav-sim://docs`, `uav-sim://docs/{doc_id}`, `uav-sim://contract`,
+/// and the administrative `admin/docs` routes (contract C18-C21).
+pub(super) static SERVER_DOCS: LazyLock<ServerDocs> =
+    LazyLock::new(|| veoveo_mcp_contract::server_docs!(SERVER_SLUG));
 #[derive(Clone)]
 struct UavSimMcp {
     state: Arc<AppState>,
@@ -70,11 +77,53 @@ struct UavSimMcp {
     tool_router: ToolRouter<UavSimMcp>,
 }
 
+/// Task-augmented tool names declared in the `uav-sim://contract` capability
+/// inventory (contract C19); each matches a `DurableOperation` task type.
+const TASK_TOOLS: &[&str] = &["run_scenario", "execute_mission", "capture_dataset"];
+
 impl UavSimMcp {
     fn new(state: Arc<AppState>) -> Self {
         Self {
             state,
             tool_router: Self::tool_router(),
+        }
+    }
+
+    /// The capability inventory declared at `uav-sim://contract`
+    /// (contract C19). Tools and prompts derive from the live registrations;
+    /// resource templates come from `resource_templates`, which
+    /// `list_resource_templates` also serves, so the two cannot diverge.
+    /// Stable resources are the identity-independent indexes; per-session
+    /// resources are covered by the templates.
+    fn capability_inventory() -> CapabilityInventory {
+        let mut tools: Vec<String> = Self::tool_router()
+            .list_all()
+            .into_iter()
+            .map(|tool| tool.name.into_owned())
+            .collect();
+        tools.sort();
+        let mut prompts: Vec<String> = UavSimPrompt::ALL
+            .into_iter()
+            .map(|prompt| prompt.definition().name)
+            .collect();
+        prompts.sort();
+        let mut resources = vec![
+            uris::SESSIONS.to_owned(),
+            uris::USAGE.to_owned(),
+            uris::DOCS.to_owned(),
+            uris::CONTRACT.to_owned(),
+        ];
+        resources.extend(SERVER_DOCS.iter().map(|doc| uris::doc(doc.id)));
+        resources.sort();
+        CapabilityInventory {
+            tools,
+            resources,
+            resource_templates: resource_templates()
+                .into_iter()
+                .map(|template| template.uri_template.clone())
+                .collect(),
+            prompts,
+            tasks: TASK_TOOLS.iter().map(|name| (*name).to_owned()).collect(),
         }
     }
 
@@ -406,6 +455,7 @@ impl ServerHandler for UavSimMcp {
             .await
             .map_err(internal)?;
         let mut resources = session_resources(&state);
+        resources.extend(well_known_resources());
         for session_id in self
             .state
             .view_scenes
@@ -453,54 +503,7 @@ impl ServerHandler for UavSimMcp {
         request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        let templates = vec![
-            template(
-                uris::SESSION_TEMPLATE,
-                "Simulation session",
-                "Typed session state.",
-            ),
-            template(
-                uris::WORLD_TEMPLATE,
-                "Simulation world",
-                "Frame, georeference, and world clock state.",
-            ),
-            template(
-                uris::TILES_TEMPLATE,
-                "Simulation tiles",
-                "Google Photorealistic 3D Tiles load state inside the simulator.",
-            ),
-            template(
-                uris::VEHICLES_TEMPLATE,
-                "Simulation vehicles",
-                "Vehicle inventory for one session.",
-            ),
-            template(
-                uris::VEHICLE_TEMPLATE,
-                "Simulation vehicle",
-                "Typed state for one simulated vehicle.",
-            ),
-            template(
-                uris::RECORDINGS_TEMPLATE,
-                "Simulation recordings",
-                "Governed recording identities emitted by one session.",
-            ),
-            template(
-                uris::VIEW_SCENE_TEMPLATE,
-                "Simulation View scene",
-                "Prepared governed scene and exact pose-producer binding for one session.",
-            ),
-            template(
-                uris::MISSION_TEMPLATE,
-                "Simulation mission",
-                "Authorized durable mission task state.",
-            ),
-            template(
-                uris::USAGE_TASK_TEMPLATE,
-                "Simulation task usage",
-                "Usage report for one authorized task.",
-            ),
-        ];
-        let page = mcp_page(templates, request.as_ref())?;
+        let page = mcp_page(resource_templates(), request.as_ref())?;
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
@@ -514,6 +517,28 @@ impl ServerHandler for UavSimMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, McpError> {
         let uri = request.uri.as_str();
+        // Well-known surface (contract C18, C19): readable by any identity
+        // that can list resources.
+        if uri == uris::DOCS {
+            internal_identity(&context)?;
+            return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
+        }
+        if let Some(doc_id) = uris::parse_doc(uri) {
+            internal_identity(&context)?;
+            let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
+                McpError::resource_not_found("unknown UAV simulation document", None)
+            })?;
+            return Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
+            ]));
+        }
+        if uri == uris::CONTRACT {
+            internal_identity(&context)?;
+            return json_resource(
+                uri,
+                SERVER_DOCS.contract_declaration(Self::capability_inventory),
+            );
+        }
         let state = self.current_state().await?;
         let caller = internal_caller(&context)?;
         if uri == uris::SESSIONS {
@@ -685,6 +710,9 @@ impl ServerHandler for UavSimMcp {
             (uris::USAGE_TASK_TEMPLATE, "task_id") => {
                 tasks.iter().map(|task| task.task_id.to_string()).collect()
             }
+            (uris::DOC_TEMPLATE, "doc_id") => {
+                SERVER_DOCS.iter().map(|doc| doc.id.to_owned()).collect()
+            }
             _ => return Ok(CompleteResult::default()),
         };
         complete_values(values, &request.argument.value)
@@ -838,15 +866,24 @@ pub(super) async fn serve() -> anyhow::Result<()> {
             task_extension_middleware::<UavSimTaskExtension>,
         ))
         .layer(middleware::from_fn_with_state(
-            InternalMcpAuthState { verifier },
+            InternalMcpAuthState {
+                verifier: verifier.clone(),
+            },
             authenticate_internal_mcp,
         ));
+    // Read-only well-known projection (contract C20) behind the same gateway
+    // authentication as the MCP surface.
+    let admin_router = super::admin::router().layer(middleware::from_fn_with_state(
+        InternalMcpAuthState { verifier },
+        authenticate_internal_mcp,
+    ));
     let router = Router::new()
         .nest(
             public_endpoint.mount_path(),
             Router::new()
                 .route("/healthz", get(|| async { "ok" }))
                 .route("/readyz", get(ready))
+                .nest("/admin", admin_router)
                 .nest("/mcp", mcp_router),
         )
         .with_state(state)
@@ -1026,6 +1063,88 @@ fn session_resources(state: &SimulationState) -> Vec<Resource> {
         )
     }));
     resources
+}
+
+/// Well-known surface resources (contract C18, C19). `list_resources` serves
+/// these for every authorized identity; `capability_inventory` declares the
+/// same URIs at `uav-sim://contract`.
+fn well_known_resources() -> Vec<Resource> {
+    let mut resources = vec![descriptor(
+        uris::DOCS.to_owned(),
+        "Server documents".to_owned(),
+        "Index of the crate documents embedded at build time.",
+    )];
+    for doc in SERVER_DOCS.iter() {
+        resources.push(
+            Resource::new(uris::doc(doc.id), doc.title)
+                .with_title(doc.title)
+                .with_description("Crate document embedded at build time.")
+                .with_mime_type("text/markdown"),
+        );
+    }
+    resources.push(descriptor(
+        uris::CONTRACT.to_owned(),
+        "Contract declaration".to_owned(),
+        "Machine-readable contract revision, compliance, and capability inventory.",
+    ));
+    resources
+}
+
+/// Every advertised resource template. `list_resource_templates` serves this
+/// list and the `uav-sim://contract` capability inventory declares it, so the
+/// two cannot diverge.
+fn resource_templates() -> Vec<ResourceTemplate> {
+    vec![
+        ResourceTemplate::new(uris::DOC_TEMPLATE, "Server document")
+            .with_title("Server document")
+            .with_description("Embedded crate document body (contract C18).")
+            .with_mime_type("text/markdown"),
+        template(
+            uris::SESSION_TEMPLATE,
+            "Simulation session",
+            "Typed session state.",
+        ),
+        template(
+            uris::WORLD_TEMPLATE,
+            "Simulation world",
+            "Frame, georeference, and world clock state.",
+        ),
+        template(
+            uris::TILES_TEMPLATE,
+            "Simulation tiles",
+            "Google Photorealistic 3D Tiles load state inside the simulator.",
+        ),
+        template(
+            uris::VEHICLES_TEMPLATE,
+            "Simulation vehicles",
+            "Vehicle inventory for one session.",
+        ),
+        template(
+            uris::VEHICLE_TEMPLATE,
+            "Simulation vehicle",
+            "Typed state for one simulated vehicle.",
+        ),
+        template(
+            uris::RECORDINGS_TEMPLATE,
+            "Simulation recordings",
+            "Governed recording identities emitted by one session.",
+        ),
+        template(
+            uris::VIEW_SCENE_TEMPLATE,
+            "Simulation View scene",
+            "Prepared governed scene and exact pose-producer binding for one session.",
+        ),
+        template(
+            uris::MISSION_TEMPLATE,
+            "Simulation mission",
+            "Authorized durable mission task state.",
+        ),
+        template(
+            uris::USAGE_TASK_TEMPLATE,
+            "Simulation task usage",
+            "Usage report for one authorized task.",
+        ),
+    ]
 }
 
 fn descriptor(uri: String, title: String, description: &str) -> Resource {
@@ -1228,5 +1347,76 @@ mod tests {
         let text = serde_json::to_string(&world_view(&fake_state().unwrap())).unwrap();
         assert!(!text.contains("token"));
         assert!(!text.contains("CESIUM_ION_ACCESS_TOKEN"));
+    }
+}
+
+#[cfg(test)]
+mod well_known_tests {
+    use veoveo_mcp_contract::docs::{
+        CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
+    };
+
+    use super::{SERVER_DOCS, TASK_TOOLS, UavSimMcp, resource_templates};
+    use crate::uris;
+
+    #[test]
+    fn embedded_documents_carry_the_crate_manual_and_design() {
+        assert_eq!(SERVER_DOCS.server(), "uav-sim");
+        let agents = SERVER_DOCS.doc(DOC_ID_AGENTS).expect("agents document");
+        assert!(agents.body.contains("## Contract Compliance"));
+        let design = SERVER_DOCS.doc(DOC_ID_DESIGN).expect("design document");
+        assert!(!design.body.is_empty());
+        let index = SERVER_DOCS.llms_txt();
+        assert!(index.contains("(agents)"));
+        assert!(index.contains("(design)"));
+    }
+
+    #[test]
+    fn contract_declaration_resolves_from_the_embedded_manual() {
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(
+            &SERVER_DOCS,
+            UavSimMcp::capability_inventory(),
+        );
+        assert_eq!(declaration.server, "uav-sim");
+        assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
+        for id in ["C18", "C19", "C20", "C21"] {
+            let item = declaration
+                .compliance
+                .iter()
+                .find(|item| item.id == id)
+                .expect("declared checklist item");
+            assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
+        }
+        let json = serde_json::to_value(&declaration).expect("declaration serializes");
+        assert_eq!(json["server"], "uav-sim");
+    }
+
+    #[test]
+    fn capability_inventory_matches_the_registered_surface() {
+        let inventory = UavSimMcp::capability_inventory();
+        for tool in TASK_TOOLS {
+            assert!(
+                inventory.tools.iter().any(|name| name == tool),
+                "inventory is missing task-augmented tool {tool}"
+            );
+        }
+        for uri in [uris::DOCS, uris::CONTRACT, uris::SESSIONS, uris::USAGE] {
+            assert!(
+                inventory.resources.contains(&uri.to_owned()),
+                "inventory is missing resource {uri}"
+            );
+        }
+        assert!(inventory.resources.contains(&uris::doc("agents")));
+        assert!(
+            inventory
+                .resource_templates
+                .contains(&uris::DOC_TEMPLATE.to_owned())
+        );
+        assert_eq!(
+            resource_templates().len(),
+            inventory.resource_templates.len(),
+            "inventory templates come from resource_templates"
+        );
+        assert_eq!(inventory.tasks.len(), TASK_TOOLS.len());
     }
 }

@@ -298,15 +298,16 @@
     tag: 0.1.0
     digest: ""
   port: 8795
-  healthPath: /health
+  healthPath: /charts/healthz
   platformStore: false
+  internalAuth: true
   args:
     - --host
     - 0.0.0.0
     - --port
     - "8795"
     - --path
-    - /mcp
+    - /charts/mcp
     - --allowed-hosts
     - chart-mcp:8795
     - --disable-file-reference
