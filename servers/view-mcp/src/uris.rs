@@ -1,9 +1,16 @@
 use crate::contract::{ContractError, FrameId, PreviewScenePolicy, SceneCompositionId, ViewId};
 
+/// Well-known surface roots (contract C18, C19). These literals must match
+/// `veoveo_mcp_contract::ServerResourceUris::new("view")`; a unit test below
+/// pins that equivalence.
+pub const DOCS: &str = "view://docs";
+pub const CONTRACT: &str = "view://contract";
+
 pub const LAYERS: &str = "view://layers";
 pub const COMPOSITIONS: &str = "view://compositions";
 pub const VIEWS: &str = "view://views";
 pub const FRAMES: &str = "view://frames";
+pub const DOC_TEMPLATE: &str = "view://docs/{doc_id}";
 pub const LAYER_TEMPLATE: &str = "view://layer/{layer_id}";
 pub const COMPOSITION_TEMPLATE: &str = "view://composition/{composition_id}";
 pub const VIEW_TEMPLATE: &str = "view://view/{view_id}";
@@ -14,6 +21,10 @@ pub const TILE_TEMPLATE: &str = "view://tile/{tile_key}";
 /// The 3D preview MCP App view; the slug segment must match the gateway's
 /// ServerOwned `ui://{slug}/{page}` projection.
 pub const PREVIEW_APP_URI: &str = "ui://view/preview.html";
+
+pub fn doc(doc_id: &str) -> String {
+    format!("view://docs/{doc_id}")
+}
 
 pub fn layer(layer_id: &crate::contract::LayerId) -> String {
     format!("view://layer/{layer_id}")
@@ -40,6 +51,11 @@ pub fn view_scene(view_id: &ViewId, policy: PreviewScenePolicy) -> String {
 
 pub fn tile(tile_key: &str) -> String {
     format!("view://tile/{tile_key}")
+}
+
+pub fn parse_doc(uri: &str) -> Option<&str> {
+    let value = uri.strip_prefix("view://docs/")?;
+    (!value.is_empty() && !value.contains('/')).then_some(value)
 }
 
 pub fn parse_view(uri: &str) -> Option<ViewId> {
@@ -149,6 +165,18 @@ mod tests {
             parse_tile(&format!("view://tile/{}/x", "a".repeat(64))),
             None
         );
+    }
+
+    #[test]
+    fn well_known_uris_match_the_shared_conventions() {
+        let conventions = veoveo_mcp_contract::ServerResourceUris::new("view");
+        assert_eq!(DOCS, conventions.docs_root_uri());
+        assert_eq!(CONTRACT, conventions.contract_uri());
+        assert_eq!(DOC_TEMPLATE, conventions.doc_template());
+        assert_eq!(doc("agents"), conventions.doc_uri("agents"));
+        assert_eq!(parse_doc("view://docs/agents"), Some("agents"));
+        assert_eq!(parse_doc("view://docs"), None);
+        assert_eq!(parse_doc("view://docs/agents/extra"), None);
     }
 
     #[test]

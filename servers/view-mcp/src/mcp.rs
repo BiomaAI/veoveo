@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use rmcp::{
@@ -16,7 +16,11 @@ use rmcp::{
 };
 use serde::Serialize;
 use veoveo_mcp_contract::tool;
-use veoveo_mcp_contract::{GatewayInternalIdentity, Page, PlaneCaller, paginate};
+use veoveo_mcp_contract::{
+    GatewayInternalIdentity, Page, PlaneCaller,
+    docs::{CapabilityInventory, ContractDeclaration, ServerDocs},
+    paginate,
+};
 
 use crate::{
     contract::{
@@ -29,6 +33,12 @@ use crate::{
 };
 
 const LIST_PAGE_SIZE: usize = 100;
+
+/// The crate documents embedded at build time and served under the well-known
+/// surface: `view://docs`, `view://docs/{doc_id}`, `view://contract`, and the
+/// administrative `admin/docs` routes (contract C18-C21).
+pub(crate) static SERVER_DOCS: LazyLock<ServerDocs> =
+    LazyLock::new(|| veoveo_mcp_contract::server_docs!(crate::server::SERVER_SLUG));
 
 /// The real view lifecycle tools double as the preview app's surface; the
 /// app drives them end-to-end (revision control and task-based capture
@@ -56,6 +66,35 @@ impl ViewMcp {
         Self {
             state,
             tool_router: Self::tool_router(),
+        }
+    }
+
+    /// The capability inventory declared at `view://contract` (contract C19).
+    ///
+    /// Tools derive from the live registration. Stable resources, resource
+    /// templates, and task-augmented tool names come from the lists those
+    /// surfaces are served from (`stable_resource_uris`, `resource_templates`,
+    /// `crate::server::tasks::TASK_TOOLS`), so the declaration cannot
+    /// silently diverge from what the handler registers.
+    pub(crate) fn capability_inventory() -> CapabilityInventory {
+        let mut tools: Vec<String> = Self::tool_router()
+            .list_all()
+            .into_iter()
+            .map(|tool| tool.name.into_owned())
+            .collect();
+        tools.sort();
+        CapabilityInventory {
+            tools,
+            resources: stable_resource_uris(),
+            resource_templates: resource_templates()
+                .into_iter()
+                .map(|template| template.uri_template.clone())
+                .collect(),
+            prompts: Vec::new(),
+            tasks: crate::server::tasks::TASK_TOOLS
+                .iter()
+                .map(|name| (*name).to_owned())
+                .collect(),
         }
     }
 
@@ -255,7 +294,8 @@ impl ServerHandler for ViewMcp {
     ) -> Result<ListResourcesResult, McpError> {
         let identity = require_scope(&context, "view:read")?;
         let owner = ResourceOwner::from_identity(&identity);
-        let mut resources = vec![
+        let mut resources = well_known_resources();
+        resources.extend([
             json_descriptor(uris::LAYERS, "View layers", "Configured 3D scene layers."),
             json_descriptor(
                 uris::COMPOSITIONS,
@@ -264,7 +304,7 @@ impl ServerHandler for ViewMcp {
             ),
             json_descriptor(uris::VIEWS, "Views", "Owner-scoped camera views."),
             json_descriptor(uris::FRAMES, "Frames", "Owner-scoped captured frames."),
-        ];
+        ]);
         if identity_has_scope(&identity, "view:capture") {
             resources.push(
                 veoveo_mcp_apps_extension::app_resource(uris::PREVIEW_APP_URI, "view-preview-app")
@@ -332,34 +372,7 @@ impl ServerHandler for ViewMcp {
         request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        let templates = vec![
-            template(
-                uris::LAYER_TEMPLATE,
-                "View layer",
-                "Configured scene layer.",
-            ),
-            template(
-                uris::COMPOSITION_TEMPLATE,
-                "Scene composition",
-                "Owner-scoped immutable governed scene composition.",
-            ),
-            template(uris::VIEW_TEMPLATE, "View", "Owner-scoped camera view."),
-            template(
-                uris::FRAME_TEMPLATE,
-                "Frame",
-                "Owner-scoped captured image.",
-            ),
-            template(
-                uris::VIEW_SCENE_TEMPLATE,
-                "View scene",
-                "Render-cut manifest for the view's current camera and preview policy.",
-            ),
-            ResourceTemplate::new(uris::TILE_TEMPLATE, "Preview tile")
-                .with_title("Preview tile")
-                .with_description("Raw draco GLB tile content from a scene manifest.")
-                .with_mime_type("model/gltf-binary"),
-        ];
-        let page = mcp_page(templates, request.as_ref())?;
+        let page = mcp_page(resource_templates(), request.as_ref())?;
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
@@ -382,6 +395,23 @@ impl ServerHandler for ViewMcp {
             ]));
         }
         let identity = require_scope(&context, "view:read")?;
+        // Well-known surface (contract C18, C19): readable by any identity
+        // that can list resources.
+        if uri == uris::DOCS {
+            return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
+        }
+        if let Some(doc_id) = uris::parse_doc(uri) {
+            let doc = SERVER_DOCS.doc(doc_id).ok_or_else(not_found)?;
+            return Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
+            ]));
+        }
+        if uri == uris::CONTRACT {
+            return json_resource(
+                uri,
+                &ContractDeclaration::from_docs(&SERVER_DOCS, Self::capability_inventory()),
+            );
+        }
         let owner = ResourceOwner::from_identity(&identity);
         match uri {
             uris::LAYERS => return json_resource(uri, self.state.views.layers()),
@@ -468,6 +498,9 @@ impl ServerHandler for ViewMcp {
         let identity = require_scope(&context, "view:read")?;
         let owner = ResourceOwner::from_identity(&identity);
         let values: Vec<String> = match (reference.uri.as_str(), request.argument.name.as_str()) {
+            (uris::DOC_TEMPLATE, "doc_id") => {
+                SERVER_DOCS.iter().map(|doc| doc.id.to_owned()).collect()
+            }
             (uris::LAYER_TEMPLATE, "layer_id") => self
                 .state
                 .views
@@ -657,6 +690,93 @@ fn json_resource<T: Serialize + ?Sized>(
     ]))
 }
 
+/// Well-known surface resources (contract C18, C19). `list_resources` serves
+/// these for every authorized identity and `stable_resource_uris` declares
+/// them in the `view://contract` capability inventory, so the two cannot
+/// diverge.
+fn well_known_resources() -> Vec<Resource> {
+    let mut resources = vec![json_descriptor(
+        uris::DOCS,
+        "Server documents",
+        "Index of the crate documents embedded at build time.",
+    )];
+    for doc in SERVER_DOCS.iter() {
+        resources.push(
+            Resource::new(uris::doc(doc.id), doc.title)
+                .with_title(doc.title)
+                .with_description("Crate document embedded at build time.")
+                .with_mime_type("text/markdown"),
+        );
+    }
+    resources.push(json_descriptor(
+        uris::CONTRACT,
+        "Contract declaration",
+        "Machine-readable contract revision, compliance, and capability inventory.",
+    ));
+    resources
+}
+
+/// Stable resource URIs declared in the `view://contract` capability
+/// inventory: the well-known surface, the app view, and the index resources
+/// `list_resources` always serves. Per-entity resources are enumerated per
+/// identity at list time and are covered by the resource templates instead.
+fn stable_resource_uris() -> Vec<String> {
+    let mut resource_uris: Vec<String> = well_known_resources()
+        .into_iter()
+        .map(|resource| resource.uri.clone())
+        .collect();
+    resource_uris.extend(
+        [
+            uris::PREVIEW_APP_URI,
+            uris::LAYERS,
+            uris::COMPOSITIONS,
+            uris::VIEWS,
+            uris::FRAMES,
+        ]
+        .into_iter()
+        .map(str::to_owned),
+    );
+    resource_uris.sort();
+    resource_uris
+}
+
+/// Every advertised resource template. `list_resource_templates` serves this
+/// list and the `view://contract` capability inventory declares it, so the
+/// two cannot diverge.
+fn resource_templates() -> Vec<ResourceTemplate> {
+    vec![
+        ResourceTemplate::new(uris::DOC_TEMPLATE, "Server document")
+            .with_title("Server document")
+            .with_description("Embedded crate document body (contract C18).")
+            .with_mime_type("text/markdown"),
+        template(
+            uris::LAYER_TEMPLATE,
+            "View layer",
+            "Configured scene layer.",
+        ),
+        template(
+            uris::COMPOSITION_TEMPLATE,
+            "Scene composition",
+            "Owner-scoped immutable governed scene composition.",
+        ),
+        template(uris::VIEW_TEMPLATE, "View", "Owner-scoped camera view."),
+        template(
+            uris::FRAME_TEMPLATE,
+            "Frame",
+            "Owner-scoped captured image.",
+        ),
+        template(
+            uris::VIEW_SCENE_TEMPLATE,
+            "View scene",
+            "Render-cut manifest for the view's current camera and preview policy.",
+        ),
+        ResourceTemplate::new(uris::TILE_TEMPLATE, "Preview tile")
+            .with_title("Preview tile")
+            .with_description("Raw draco GLB tile content from a scene manifest.")
+            .with_mime_type("model/gltf-binary"),
+    ]
+}
+
 fn json_descriptor(uri: &str, title: &str, description: &str) -> Resource {
     Resource::new(uri.to_owned(), title.to_owned())
         .with_title(title)
@@ -704,5 +824,84 @@ mod tests {
         let value = serde_json::to_value(ContentBlock::image("abcd", "image/png")).unwrap();
         assert_eq!(value["type"], "image");
         assert_eq!(value["mimeType"], "image/png");
+    }
+}
+
+#[cfg(test)]
+mod well_known_tests {
+    use veoveo_mcp_contract::docs::{
+        CONTRACT_REVISION, ComplianceStatus, ContractDeclaration, DOC_ID_AGENTS, DOC_ID_DESIGN,
+    };
+
+    use super::{SERVER_DOCS, ViewMcp, resource_templates, stable_resource_uris};
+    use crate::uris;
+
+    #[test]
+    fn embedded_documents_carry_the_crate_manual_and_design() {
+        assert_eq!(SERVER_DOCS.server(), "view");
+        let agents = SERVER_DOCS.doc(DOC_ID_AGENTS).expect("agents document");
+        assert!(agents.body.contains("## Contract Compliance"));
+        let design = SERVER_DOCS.doc(DOC_ID_DESIGN).expect("design document");
+        assert!(!design.body.is_empty());
+        let index = SERVER_DOCS.llms_txt();
+        assert!(index.contains("(docs/agents)"));
+        assert!(index.contains("(docs/design)"));
+    }
+
+    #[test]
+    fn contract_declaration_resolves_from_the_embedded_manual() {
+        let declaration =
+            ContractDeclaration::from_docs(&SERVER_DOCS, ViewMcp::capability_inventory());
+        assert_eq!(declaration.server, "view");
+        assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
+        for id in ["C18", "C19", "C20", "C21"] {
+            let item = declaration
+                .compliance
+                .iter()
+                .find(|item| item.id == id)
+                .expect("declared checklist item");
+            assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
+        }
+        let json = serde_json::to_value(&declaration).expect("declaration serializes");
+        assert_eq!(json["server"], "view");
+    }
+
+    #[test]
+    fn capability_inventory_matches_the_registered_surface() {
+        let inventory = ViewMcp::capability_inventory();
+        for tool in ["create_view", "set_camera", "capture_frame"] {
+            assert!(
+                inventory.tools.iter().any(|name| name == tool),
+                "inventory is missing tool {tool}"
+            );
+        }
+        for uri in [
+            uris::DOCS,
+            uris::CONTRACT,
+            uris::PREVIEW_APP_URI,
+            uris::VIEWS,
+        ] {
+            assert!(
+                inventory.resources.contains(&uri.to_owned()),
+                "inventory is missing resource {uri}"
+            );
+        }
+        assert!(inventory.resources.contains(&uris::doc("agents")));
+        assert_eq!(
+            stable_resource_uris().len(),
+            inventory.resources.len(),
+            "inventory resources come from stable_resource_uris"
+        );
+        assert!(
+            inventory
+                .resource_templates
+                .contains(&uris::DOC_TEMPLATE.to_owned())
+        );
+        assert_eq!(
+            resource_templates().len(),
+            inventory.resource_templates.len(),
+            "inventory templates come from resource_templates"
+        );
+        assert_eq!(inventory.tasks, vec!["capture_frame".to_owned()]);
     }
 }
