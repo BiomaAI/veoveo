@@ -4,9 +4,6 @@ ARG SIMULATION_RUNTIME_IMAGE=veoveo/simulation-runtime:2026.07.0
 
 FROM --platform=${TARGETPLATFORM} ${SIMULATION_RUNTIME_IMAGE} AS runtime
 
-ARG SOURCE_REVISION=local
-ARG COMPATIBILITY_RELEASE=2026.07.0
-
 USER root
 RUN mkdir -p \
       /opt/veoveo/simulation-view \
@@ -27,6 +24,8 @@ COPY --chown=10001:10001 --chmod=0555 entrypoint.py /opt/veoveo/simulation-view/
 
 ENV PYTHONPATH=/opt/veoveo/simulation-view:/isaac-sim/extscache/omni.warp.core-1.13.0+lx64:/isaac-sim/exts/isaacsim.pip.newton/pip_prebundle:/opt/veoveo/python:/opt/veoveo/isaaclab/source/isaaclab:/opt/veoveo/isaaclab/source/isaaclab_newton:/opt/veoveo/isaaclab/source/isaaclab_physx:/opt/veoveo/isaaclab/source/isaaclab_ov:/opt/veoveo/isaaclab/source/isaaclab_ovphysx
 
+ARG SOURCE_REVISION=local
+ARG COMPATIBILITY_RELEASE=2026.07.0
 LABEL org.opencontainers.image.title="Veoveo Simulation View Isaac renderer" \
       org.opencontainers.image.description="Renderer-only OpenUSD, RTX HydraTexture, NVIDIA NVENC, and WebRTC implementation" \
       org.opencontainers.image.revision="${SOURCE_REVISION}" \

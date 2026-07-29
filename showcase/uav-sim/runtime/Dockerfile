@@ -104,13 +104,13 @@ USER 10001:10001
 
 FROM uav-overlay AS runtime
 
+COPY --chown=10001:10001 veoveo_uav_sim/ /opt/veoveo/uav-sim/veoveo_uav_sim/
+COPY --chown=10001:10001 --chmod=0555 entrypoint.py /opt/veoveo/uav-sim/entrypoint.py
+COPY --chown=10001:10001 uav-overlay.identity.json /opt/veoveo/simulation-overlay/identity.json
+
 ARG SOURCE_REVISION=local
 LABEL org.opencontainers.image.revision="${SOURCE_REVISION}" \
       io.veoveo.simulation.overlay="first_party_uav" \
       io.veoveo.simulation.base-lock="sha256:a4d6870c0c748ea1804feb06c24decf11c4d05ff154ae0fb0811e9073816545c"
-
-COPY --chown=10001:10001 veoveo_uav_sim/ /opt/veoveo/uav-sim/veoveo_uav_sim/
-COPY --chown=10001:10001 --chmod=0555 entrypoint.py /opt/veoveo/uav-sim/entrypoint.py
-COPY --chown=10001:10001 uav-overlay.identity.json /opt/veoveo/simulation-overlay/identity.json
 
 ENTRYPOINT ["/isaac-sim/python.sh", "/opt/veoveo/uav-sim/entrypoint.py"]
