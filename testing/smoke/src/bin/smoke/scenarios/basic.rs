@@ -341,6 +341,12 @@ pub(crate) async fn helm_config() -> Result<()> {
             contains(deployment, "startupProbe:")?;
             contains(deployment, "failureThreshold: 60")?;
         }
+        if component == "optimization-mcp" {
+            contains(deployment, "runtimeClassName: nvidia")?;
+            contains(deployment, "name: cuopt-executor")?;
+            contains(deployment, "name: VEOVEO_CUOPT_SOCKET")?;
+            contains(deployment, "nvidia.com/gpu: \"1\"")?;
+        }
         if component == "rerun-bridge" {
             contains(deployment, "runtimeClassName: nvidia")?;
             contains(deployment, "name: NVIDIA_VISIBLE_DEVICES")?;
@@ -712,10 +718,10 @@ pub(crate) async fn helm_config() -> Result<()> {
         contains(&px4_commander, expected)?;
     }
     let gpu_device_plugin = fs::read_to_string("deploy/local/k3d/node/nvidia-device-plugin.yaml")?;
-    contains(&gpu_device_plugin, "replicas: 6")?;
+    contains(&gpu_device_plugin, "replicas: 7")?;
     contains(
         &gpu_device_plugin,
-        "veoveo.ai/device-plugin-config: time-slicing-6",
+        "veoveo.ai/device-plugin-config: time-slicing-7",
     )?;
 
     let gateway_dockerfile = fs::read_to_string("platform/gateway/Dockerfile")?;

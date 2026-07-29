@@ -45,7 +45,7 @@ pub(crate) async fn bioma_verify(
     for deployment in BIOMA_DEPLOYMENTS {
         assert_available_deployment(context, deployment)?;
     }
-    assert_gpu_capacity(context, 4)?;
+    assert_gpu_capacity(context, 7)?;
 
     let public = url::Url::parse(public_base_url).context("parsing public Bioma URL")?;
     ensure!(

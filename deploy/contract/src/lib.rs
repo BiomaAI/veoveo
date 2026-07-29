@@ -1105,6 +1105,12 @@ impl ResolvedPlatformSelection {
         if self.mcp_servers.contains(&FirstPartyMcpServer::Reason) {
             required.insert("reason");
         }
+        if self
+            .mcp_servers
+            .contains(&FirstPartyMcpServer::Optimization)
+        {
+            required.insert("cuopt-executor");
+        }
         if required.is_empty() {
             ensure!(
                 self.gpu_scheduling.is_none(),
@@ -1223,7 +1229,7 @@ impl FirstPartyMcpServer {
             Self::Artifact => &["artifact-mcp"],
             Self::Media => &["media-mcp"],
             Self::Timeseries => &["timeseries-mcp"],
-            Self::Optimization => &["optimization-mcp"],
+            Self::Optimization => &["cuopt-executor", "optimization-mcp"],
             Self::Frames => &["frames-mcp"],
             Self::Map => &["map-mcp"],
             Self::Time => &["time-mcp"],
@@ -1846,6 +1852,43 @@ mod tests {
                 "recording-forwarder".to_owned(),
                 "recording-hub".to_owned(),
                 "recording-mcp".to_owned(),
+            ])
+        );
+    }
+
+    #[test]
+    fn optimization_image_closure_includes_gpu_executor() {
+        let selection = PlatformSelection {
+            installation_preset: InstallationPreset::Custom,
+            components: BTreeSet::from([
+                PlatformComponent::Gateway,
+                PlatformComponent::PlatformStore,
+                PlatformComponent::ObjectStore,
+                PlatformComponent::ArtifactService,
+            ]),
+            mcp_servers: BTreeSet::from([FirstPartyMcpServer::Optimization]),
+            artifact_audiences: BTreeSet::from(["optimization".to_owned()]),
+            external_workloads: BTreeSet::new(),
+            gpu_scheduling: Some(GpuSchedulingProfile {
+                runtime_class_name: "nvidia".to_owned(),
+                allocatable_devices: 1,
+                workloads: vec![GpuWorkloadPlacement {
+                    workload: "cuopt-executor".to_owned(),
+                    devices: 1,
+                    isolation: GpuIsolation::Exclusive,
+                    evidence_digest: None,
+                }],
+            }),
+        }
+        .resolve()
+        .expect("valid Optimization selection");
+        assert_eq!(
+            selection.required_images(),
+            BTreeSet::from([
+                "artifact-service".to_owned(),
+                "cuopt-executor".to_owned(),
+                "mcp-gateway".to_owned(),
+                "optimization-mcp".to_owned(),
             ])
         );
     }

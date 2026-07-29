@@ -55,9 +55,9 @@ by local deployment profiles.
 The node image combines K3s with the NVIDIA Container Toolkit. The cluster passes
 the host GPU through to its server node and installs NVIDIA's Kubernetes device
 plugin with `FAIL_ON_INIT_ERROR=true`. GPU workloads do not have a CPU fallback.
-The node profile publishes six time-sliced allocations from that device because
-UAV Isaac Sim, Simulation View, View, Stream, Reason, and the Rerun viewer
-MCP run at the same time. Each workload still requests one ordinary
+The node profile publishes seven time-sliced allocations from that device because
+UAV Isaac Sim, Simulation View, View, Stream, Reason, the cuOpt executor, and the
+Rerun viewer MCP run at the same time. Each workload still requests one ordinary
 `nvidia.com/gpu` resource. Time-slicing provides schedulability, not memory or
 fault isolation; a fielded cluster may instead provide physical GPUs or an
 operator-selected partitioning policy.

@@ -128,22 +128,21 @@ kubectl --context k3d-veoveo-bioma -n kube-system rollout status   daemonset/nvi
 kubectl --context k3d-veoveo-bioma get nodes   -o 'custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\.com/gpu'
 ~~~
 
-The node must report six allocatable GPU shares before application bootstrap.
+The node must report seven allocatable GPU shares before application bootstrap.
 The local time-slicing profile keeps the UAV simulator, Simulation View
-renderer, View, Stream, Reason, and the Rerun viewer MCP in separate
+renderer, View, Stream, Reason, the cuOpt executor, and the Rerun viewer MCP in separate
 GPU-requesting workloads. Fielded installations use their measured exclusive,
 MIG, or time-slicing placement instead of inheriting this development profile.
 Each required workload still requests nvidia.com/gpu: 1 and the nvidia runtime
-class. The shares make all six render and GPU-compute workloads schedulable
+class. The shares make all seven render and GPU-compute workloads schedulable
 together; they are not a CPU fallback.
 
-The local Reason profile reserves 35% of the 24 GiB NVIDIA device for vLLM.
-The concurrently resident GPU workloads consume about 10.2 GiB before Reason
-starts. This bound preserves device-memory headroom for the six-frame
-multimodal pass while Isaac Sim, Simulation View, Rerun, and the other GPU
-services remain resident. Installations with different checkpoints or GPU
-capacity size `reason.engine.gpuMemoryUtilization` against their concurrently
-resident workloads.
+The local Reason profile reserves 35% of the 24 GiB NVIDIA device for vLLM. This
+bound preserves device-memory headroom for the six-frame multimodal pass while
+Isaac Sim, Simulation View, cuOpt, Rerun, and the other GPU services remain
+resident. Installations with different checkpoints, solver pools, or GPU capacity
+size `reason.engine.gpuMemoryUtilization` and
+`VEOVEO_CUOPT_POOL_GIB` against all seven concurrently resident workloads.
 
 The local fixture advertises Simulation View signaling through
 `wss://veoveo.bioma.ai/simulation-view/signaling` and its bounded UDP media
