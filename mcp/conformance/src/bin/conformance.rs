@@ -464,7 +464,16 @@ async fn main() -> Result<()> {
         Cmd::TaskCall {
             tool_name,
             arguments,
-        } => cmd_task_call(&final_tasks, tool_name, arguments).await,
+            timeout_seconds,
+        } => {
+            cmd_task_call(
+                &final_tasks,
+                tool_name,
+                arguments,
+                Duration::from_secs(timeout_seconds),
+            )
+            .await
+        }
         Cmd::CompleteResource {
             uri,
             argument,

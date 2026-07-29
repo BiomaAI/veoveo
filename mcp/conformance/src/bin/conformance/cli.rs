@@ -428,6 +428,13 @@ pub(super) enum Cmd {
         /// Tool arguments as a JSON object.
         #[arg(long)]
         arguments: String,
+        /// Maximum time to wait for the durable task to reach a terminal state.
+        #[arg(
+            long,
+            default_value_t = 300,
+            value_parser = clap::value_parser!(u64).range(1..)
+        )]
+        timeout_seconds: u64,
     },
     /// Autocomplete any resource-template argument via completion/complete.
     CompleteResource {
