@@ -385,6 +385,11 @@ Verify the reconciled installation and public edge:
 cargo xtask smoke bioma-verify
 ~~~
 
+This gate uses the public machine-client contract to export a deterministic artifact
+larger than 8 MiB through DuckDB. It then verifies full, HEAD, and ranged delivery at
+the installation origin with redirect following disabled, exact content and SHA-256
+checks, and no object-storage address in metadata or response headers.
+
 Then run the full GPU delivery proof:
 
 ~~~bash
