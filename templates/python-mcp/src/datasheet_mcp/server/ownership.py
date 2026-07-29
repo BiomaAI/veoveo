@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from mcp.shared.exceptions import McpError
-from mcp.types import INVALID_REQUEST, ErrorData
+from mcp.server import ServerRequestContext
+from mcp.shared.exceptions import MCPError
+from mcp.types import INVALID_REQUEST
 
 from veoveo_mcp.contract.identity import GatewayInternalIdentity, PlaneCaller
 from veoveo_mcp.internal_auth import BEARER_SCOPE_KEY, IDENTITY_SCOPE_KEY
@@ -14,8 +15,8 @@ from veoveo_mcp.tasks import PrincipalKind, TaskOwner
 from .app_state import AppState
 
 
-def _invalid(message: str) -> McpError:
-    return McpError(ErrorData(code=INVALID_REQUEST, message=message))
+def _invalid(message: str) -> MCPError:
+    return MCPError(code=INVALID_REQUEST, message=message)
 
 
 def identity_from_scope(scope: dict[str, Any]) -> GatewayInternalIdentity:
@@ -33,9 +34,9 @@ def caller_from_scope(scope: dict[str, Any]) -> PlaneCaller:
     return PlaneCaller.from_identity(identity, bearer)
 
 
-def request_scope(server: Any) -> dict[str, Any]:
+def request_scope(ctx: ServerRequestContext[Any, Any]) -> dict[str, Any]:
     """The ASGI scope of the HTTP request behind the current MCP call."""
-    request = server.request_context.request
+    request = ctx.request
     if request is None:
         raise _invalid("authenticated HTTP context missing")
     return request.scope
