@@ -112,10 +112,11 @@ pub async fn materialize_video(
     limits.validate()?;
     validate_video_selection(&selection)?;
     let recording_id = recording_id_from_uri(&selection.recording_uri)?;
-    let plan = recordings
-        .read_plan(&authority, recording_id)
+    let materialized = recordings
+        .materialize_analysis_snapshot(&authority, recording_id)
         .await?
         .context("recording not found")?;
+    let plan = &materialized.plan;
     let application_id = plan.application_id.clone();
     let recording_key = plan.recording_key.clone();
     let classification = plan.classification.clone();
@@ -131,7 +132,6 @@ pub async fn materialize_video(
         max_encoded_bytes: limits.max_encoded_bytes,
     };
     let (source_snapshot, clip, mp4) = tokio::task::spawn_blocking(move || {
-        let materialized = plan.materialize_analysis_snapshot()?;
         let source_bytes =
             materialized
                 .snapshot

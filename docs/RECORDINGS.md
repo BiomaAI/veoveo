@@ -136,8 +136,10 @@ without waiting for rollover. Recording MCP captures one ordered snapshot of
 the complete ingest parts visible at request or task start. Stream replay and
 Reason copy those live parts into bounded task-local storage, verify their byte
 length and SHA-256 identity, and load them with prior immutable shards as one
-logical Rerun store. Later batches remain outside that task. This path never
-reads the producer proxy or an incomplete part.
+logical Rerun store. If Hub freezes the writing shard during capture, Recording
+MCP discards that attempt, resolves the authorized catalog again, and captures
+one coherent successor view. Later batches remain outside that task. This path
+never reads the producer proxy or an incomplete part.
 
 Recording UUIDv7 values and artifact UUIDv7 values are occurrence identities.
 Filesystem paths are always tenant-internal implementation details and are not

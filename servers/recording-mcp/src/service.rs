@@ -287,14 +287,16 @@ impl RecordingService {
             .transpose()?;
         let recording_id = parse_recording_id(&request.recording_id)?;
         let authority = RecordingReadAuthority::from_gateway(identity);
-        let Some(plan) = self.read_plan(&authority, recording_id).await? else {
+        let Some(materialized) = self
+            .materialize_analysis_snapshot(&authority, recording_id)
+            .await?
+        else {
             anyhow::bail!("recording not found");
         };
         let entities = request.entities.clone();
         let timeline = request.timeline.clone();
         let max_rows = request.max_rows;
         let result = tokio::task::spawn_blocking(move || {
-            let materialized = plan.materialize_analysis_snapshot()?;
             query_segments_in_range(materialized.paths(), &entities, &timeline, max_rows, range)
         })
         .await
