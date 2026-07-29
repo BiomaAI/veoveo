@@ -2,8 +2,14 @@ use crate::contract::{MissionId, SessionId, VehicleId};
 use veoveo_mcp_contract::ServerResourceUris;
 
 pub const SCHEME: &str = "uav-sim";
+/// Well-known surface roots (contract C18, C19). These literals must match
+/// `ServerResourceUris::new(SCHEME)`; a unit test below pins that
+/// equivalence.
+pub const DOCS: &str = "uav-sim://docs";
+pub const CONTRACT: &str = "uav-sim://contract";
 pub const SESSIONS: &str = "uav-sim://sessions";
 pub const USAGE: &str = "uav-sim://usage";
+pub const DOC_TEMPLATE: &str = "uav-sim://docs/{doc_id}";
 pub const SESSION_TEMPLATE: &str = "uav-sim://session/{session_id}";
 pub const WORLD_TEMPLATE: &str = "uav-sim://session/{session_id}/world";
 pub const TILES_TEMPLATE: &str = "uav-sim://session/{session_id}/tiles";
@@ -42,12 +48,20 @@ pub fn view_scene(session_id: &SessionId) -> String {
     format!("{}/view-scene", session(session_id))
 }
 
+pub fn doc(doc_id: &str) -> String {
+    format!("uav-sim://docs/{doc_id}")
+}
+
 pub fn mission(mission_id: &MissionId) -> String {
     format!("uav-sim://mission/{mission_id}")
 }
 
 pub fn usage_task(task_id: &str) -> String {
     format!("uav-sim://usage/task/{task_id}")
+}
+
+pub fn parse_doc(uri: &str) -> Option<&str> {
+    parse_one(uri, "uav-sim://docs/")
 }
 
 pub fn parse_session(uri: &str) -> Option<&str> {
@@ -130,5 +144,17 @@ mod tests {
         );
         assert_eq!(parse_usage_task(&usage_task("task-1")), Some("task-1"));
         assert_eq!(parse_session("uav-sim://session/a/world"), None);
+    }
+
+    #[test]
+    fn well_known_uris_match_the_shared_conventions() {
+        let conventions = ServerResourceUris::new(SCHEME);
+        assert_eq!(DOCS, conventions.docs_root_uri());
+        assert_eq!(CONTRACT, conventions.contract_uri());
+        assert_eq!(DOC_TEMPLATE, conventions.doc_template());
+        assert_eq!(doc("agents"), conventions.doc_uri("agents"));
+        assert_eq!(parse_doc("uav-sim://docs/agents"), Some("agents"));
+        assert_eq!(parse_doc("uav-sim://docs"), None);
+        assert_eq!(parse_doc("uav-sim://docs/agents/extra"), None);
     }
 }

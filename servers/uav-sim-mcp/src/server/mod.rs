@@ -1,4 +1,5 @@
 //! Hosted server implementation.
+mod admin;
 mod auth;
 mod config;
 mod host;
