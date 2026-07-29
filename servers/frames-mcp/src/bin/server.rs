@@ -9,7 +9,7 @@ use std::{
     collections::BTreeSet,
     net::SocketAddr,
     num::{NonZeroU32, NonZeroU64},
-    sync::Arc,
+    sync::{Arc, LazyLock},
     time::Duration,
 };
 
@@ -50,7 +50,9 @@ use veoveo_mcp_contract::{
     CoordinateOperationId, CoordinateSpace, GATEWAY_INTERNAL_TOKEN_ISSUER,
     GatewayInternalTokenVerifier, GatewayInternalTrustBundle, IssueArtifactWriteCapabilityRequest,
     IssuedArtifactWriteCapability, Page, ServerSlug, TelemetryGuard, TokenIssuer, UsageReport,
-    WorldFrameUri, init_server_telemetry, paginate, public_allowed_hosts,
+    WorldFrameUri,
+    docs::{CapabilityInventory, ContractDeclaration, ServerDocs},
+    init_server_telemetry, paginate, public_allowed_hosts,
 };
 use veoveo_mcp_task_extension::{
     Implementation as TaskExtensionImplementation, ServerDiscovery, TaskExtensionAdapter,
@@ -61,6 +63,8 @@ use veoveo_task_runtime::{
     TaskRetentionPin, TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
 };
 
+#[path = "server/admin.rs"]
+mod admin;
 #[path = "server/app_state.rs"]
 mod app_state;
 #[path = "server/config.rs"]
@@ -99,6 +103,16 @@ const SERVER_SLUG: &str = "frames";
 const LIST_PAGE_SIZE: usize = 100;
 const BATCH_ARTIFACT_MIME: &str = "application/json";
 
+/// The crate documents embedded at build time and served under the well-known
+/// surface: `frames://docs`, `frames://docs/{doc_id}`, `frames://contract`,
+/// and the administrative `admin/docs` routes (contract C18-C21).
+static SERVER_DOCS: LazyLock<ServerDocs> =
+    LazyLock::new(|| veoveo_mcp_contract::server_docs!(SERVER_SLUG));
+
+/// Task-augmented tool names declared at `frames://contract`;
+/// `batch_transform` requires the final task extension.
+const TASK_TOOLS: &[&str] = &["batch_transform"];
+
 fn install_rustls_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
 }
@@ -116,6 +130,38 @@ impl FramesMcp {
         Self {
             state,
             tool_router: Self::tool_router(),
+        }
+    }
+
+    /// The capability inventory declared at `frames://contract` (contract
+    /// C19). Tools and prompts derive from the live registrations; stable
+    /// resources and templates come from the lists those surfaces are served
+    /// from, so the declaration cannot silently diverge from the handler.
+    fn capability_inventory() -> CapabilityInventory {
+        let mut tools: Vec<String> = Self::tool_router()
+            .list_all()
+            .into_iter()
+            .map(|tool| tool.name.into_owned())
+            .collect();
+        tools.sort();
+        let mut resources: Vec<String> = well_known_resources()
+            .into_iter()
+            .map(|resource| resource.uri.clone())
+            .collect();
+        resources.extend([uris::WORLDS_URI, uris::USAGE_ROOT_URI].map(str::to_owned));
+        resources.sort();
+        CapabilityInventory {
+            tools,
+            resources,
+            resource_templates: resource_templates()
+                .into_iter()
+                .map(|template| template.uri_template.clone())
+                .collect(),
+            prompts: FramesPrompt::ALL
+                .into_iter()
+                .map(|prompt| prompt.name().to_owned())
+                .collect(),
+            tasks: TASK_TOOLS.iter().map(|name| (*name).to_owned()).collect(),
         }
     }
 
@@ -342,7 +388,8 @@ impl ServerHandler for FramesMcp {
     ) -> Result<ListResourcesResult, McpError> {
         let identity = internal_identity(&context)?;
         let scope = frame_scope_from_identity(&self.state, &identity).await?;
-        let mut resources = vec![
+        let mut resources = well_known_resources();
+        resources.extend([
             Resource::new(uris::WORLDS_URI, "worlds")
                 .with_title("Frame worlds")
                 .with_description("Visible authored frame worlds and their current revisions.")
@@ -351,7 +398,7 @@ impl ServerHandler for FramesMcp {
                 .with_title("Frames usage ledger")
                 .with_description("Index of task usage resources.")
                 .with_mime_type("application/json"),
-        ];
+        ]);
         for world in self
             .state
             .frames
@@ -439,33 +486,7 @@ impl ServerHandler for FramesMcp {
         request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        let templates = vec![
-            ResourceTemplate::new(uris::WORLD_TEMPLATE, "world")
-                .with_title("Frame world")
-                .with_description("Mutable world head and authoring metadata.")
-                .with_mime_type("application/json"),
-            ResourceTemplate::new(uris::WORLD_REVISION_TEMPLATE, "world revision")
-                .with_title("Frame world revision")
-                .with_description("Immutable complete rooted frame tree.")
-                .with_mime_type("application/json"),
-            ResourceTemplate::new(uris::WORLD_FRAME_TEMPLATE, "world frame")
-                .with_title("Revision-scoped world frame")
-                .with_description("Typed frame node inside one immutable world revision.")
-                .with_mime_type("application/json"),
-            ResourceTemplate::new(uris::OPERATION_TEMPLATE, "operation")
-                .with_title("Coordinate operation")
-                .with_description("Recorded operation provenance.")
-                .with_mime_type("application/json"),
-            ResourceTemplate::new(uris::ARTIFACT_TEMPLATE, "artifact")
-                .with_title("Frames artifact")
-                .with_description("Shared-plane immutable Frames artifact.")
-                .with_mime_type(BATCH_ARTIFACT_MIME),
-            ResourceTemplate::new(uris::USAGE_TASK_TEMPLATE, "usage")
-                .with_title("Frames task usage")
-                .with_description("Usage rows for one Frames task.")
-                .with_mime_type("application/json"),
-        ];
-        let page = mcp_page(templates, request.as_ref())?;
+        let page = mcp_page(resource_templates(), request.as_ref())?;
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
@@ -480,6 +501,25 @@ impl ServerHandler for FramesMcp {
     ) -> Result<ReadResourceResult, McpError> {
         let uri = request.uri.as_str();
         let identity = internal_identity(&context)?;
+        // Well-known surface (contract C18, C19): readable by any
+        // authenticated identity, like `list_resources`.
+        if uri == uris::DOCS_URI {
+            return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
+        }
+        if let Some(doc_id) = uris::parse_doc_uri(uri) {
+            let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
+                McpError::resource_not_found(format!("unknown server document `{doc_id}`"), None)
+            })?;
+            return Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
+            ]));
+        }
+        if uri == uris::CONTRACT_URI {
+            return json_resource(
+                uri,
+                &ContractDeclaration::from_docs(&SERVER_DOCS, Self::capability_inventory()),
+            );
+        }
         let scope = frame_scope_from_identity(&self.state, &identity).await?;
         if uri == uris::WORLDS_URI {
             let worlds = self
@@ -663,7 +703,14 @@ impl ServerHandler for FramesMcp {
         let Reference::Resource(res_ref) = &request.r#ref else {
             return Ok(CompleteResult::default());
         };
-        let values = if res_ref.uri == uris::WORLD_TEMPLATE && request.argument.name == "world_id" {
+        let values = if res_ref.uri == uris::DOC_TEMPLATE && request.argument.name == "doc_id" {
+            let needle = request.argument.value.to_lowercase();
+            SERVER_DOCS
+                .iter()
+                .map(|doc| doc.id.to_owned())
+                .filter(|doc_id| doc_id.contains(&needle))
+                .collect::<Vec<_>>()
+        } else if res_ref.uri == uris::WORLD_TEMPLATE && request.argument.name == "world_id" {
             let needle = request.argument.value.to_lowercase();
             let identity = internal_identity(&context)?;
             let scope = frame_scope_from_identity(&self.state, &identity).await?;
@@ -697,6 +744,70 @@ fn json_resource<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResul
     Ok(ReadResourceResult::new(vec![
         ResourceContents::text(text, uri).with_mime_type("application/json"),
     ]))
+}
+
+/// Well-known surface resources (contract C18, C19). `list_resources` serves
+/// these for every authenticated identity and `capability_inventory` declares
+/// them at `frames://contract`, so the two cannot diverge.
+fn well_known_resources() -> Vec<Resource> {
+    let mut resources = vec![
+        Resource::new(uris::DOCS_URI, "docs")
+            .with_title("Server documents")
+            .with_description("Index of the crate documents embedded at build time.")
+            .with_mime_type("application/json"),
+    ];
+    for doc in SERVER_DOCS.iter() {
+        resources.push(
+            Resource::new(uris::doc_uri(doc.id), doc.title)
+                .with_title(doc.title)
+                .with_description("Crate document embedded at build time.")
+                .with_mime_type("text/markdown"),
+        );
+    }
+    resources.push(
+        Resource::new(uris::CONTRACT_URI, "contract")
+            .with_title("Contract declaration")
+            .with_description(
+                "Machine-readable contract revision, compliance, and capability inventory.",
+            )
+            .with_mime_type("application/json"),
+    );
+    resources
+}
+
+/// Templates served by `list_resource_templates` and declared in the
+/// `frames://contract` capability inventory.
+fn resource_templates() -> Vec<ResourceTemplate> {
+    vec![
+        ResourceTemplate::new(uris::DOC_TEMPLATE, "doc")
+            .with_title("Server document")
+            .with_description("Embedded crate document body (contract C18).")
+            .with_mime_type("text/markdown"),
+        ResourceTemplate::new(uris::WORLD_TEMPLATE, "world")
+            .with_title("Frame world")
+            .with_description("Mutable world head and authoring metadata.")
+            .with_mime_type("application/json"),
+        ResourceTemplate::new(uris::WORLD_REVISION_TEMPLATE, "world revision")
+            .with_title("Frame world revision")
+            .with_description("Immutable complete rooted frame tree.")
+            .with_mime_type("application/json"),
+        ResourceTemplate::new(uris::WORLD_FRAME_TEMPLATE, "world frame")
+            .with_title("Revision-scoped world frame")
+            .with_description("Typed frame node inside one immutable world revision.")
+            .with_mime_type("application/json"),
+        ResourceTemplate::new(uris::OPERATION_TEMPLATE, "operation")
+            .with_title("Coordinate operation")
+            .with_description("Recorded operation provenance.")
+            .with_mime_type("application/json"),
+        ResourceTemplate::new(uris::ARTIFACT_TEMPLATE, "artifact")
+            .with_title("Frames artifact")
+            .with_description("Shared-plane immutable Frames artifact.")
+            .with_mime_type(BATCH_ARTIFACT_MIME),
+        ResourceTemplate::new(uris::USAGE_TASK_TEMPLATE, "usage")
+            .with_title("Frames task usage")
+            .with_description("Usage rows for one Frames task.")
+            .with_mime_type("application/json"),
+    ]
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1037,12 +1148,17 @@ async fn main() -> anyhow::Result<()> {
             task_extension_middleware::<FramesTaskExtension>,
         ))
         .layer(middleware::from_fn_with_state(
-            internal_auth_state,
+            internal_auth_state.clone(),
             authenticate_internal_mcp,
         ));
+    let admin_router = admin::router().layer(middleware::from_fn_with_state(
+        internal_auth_state,
+        authenticate_internal_mcp,
+    ));
     let server_router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .with_state(state.clone())
+        .nest("/admin", admin_router)
         .nest("/mcp", mcp_router);
     let router = Router::new()
         .nest(public_endpoint.mount_path(), server_router)
@@ -1071,6 +1187,92 @@ async fn main() -> anyhow::Result<()> {
         })
         .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod well_known_tests {
+    use veoveo_mcp_contract::docs::{
+        CONTRACT_REVISION, ComplianceStatus, ContractDeclaration, DOC_ID_AGENTS, DOC_ID_DESIGN,
+    };
+
+    use super::{FramesMcp, SERVER_DOCS, TASK_TOOLS, resource_templates, uris};
+
+    #[test]
+    fn embedded_documents_carry_the_crate_manual_and_design() {
+        assert_eq!(SERVER_DOCS.server(), "frames");
+        let agents = SERVER_DOCS.doc(DOC_ID_AGENTS).expect("agents document");
+        assert!(agents.body.contains("## Contract Compliance"));
+        let design = SERVER_DOCS.doc(DOC_ID_DESIGN).expect("design document");
+        assert!(!design.body.is_empty());
+        let index = SERVER_DOCS.llms_txt();
+        assert!(index.contains("(docs/agents)"));
+        assert!(index.contains("(docs/design)"));
+    }
+
+    #[test]
+    fn contract_declaration_resolves_from_the_embedded_manual() {
+        let declaration =
+            ContractDeclaration::from_docs(&SERVER_DOCS, FramesMcp::capability_inventory());
+        assert_eq!(declaration.server, "frames");
+        assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
+        for id in ["C18", "C19", "C20", "C21"] {
+            let item = declaration
+                .compliance
+                .iter()
+                .find(|item| item.id == id)
+                .expect("declared checklist item");
+            assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
+        }
+        for item in &declaration.compliance {
+            if item.status == ComplianceStatus::Pending {
+                assert!(item.note.is_some(), "pending items must state a reason");
+            }
+        }
+    }
+
+    #[test]
+    fn capability_inventory_matches_the_registered_surface() {
+        let inventory = FramesMcp::capability_inventory();
+        for tool in [
+            "convert_frame",
+            "create_world",
+            "publish_world",
+            "batch_transform",
+        ] {
+            assert!(
+                inventory.tools.iter().any(|name| name == tool),
+                "inventory is missing tool {tool}"
+            );
+        }
+        for uri in [
+            uris::DOCS_URI,
+            uris::CONTRACT_URI,
+            uris::WORLDS_URI,
+            uris::USAGE_ROOT_URI,
+        ] {
+            assert!(
+                inventory.resources.contains(&uri.to_owned()),
+                "inventory is missing resource {uri}"
+            );
+        }
+        assert!(inventory.resources.contains(&uris::doc_uri("agents")));
+        assert!(
+            inventory
+                .resource_templates
+                .contains(&uris::DOC_TEMPLATE.to_owned())
+        );
+        assert_eq!(
+            resource_templates().len(),
+            inventory.resource_templates.len()
+        );
+        assert!(
+            inventory
+                .prompts
+                .iter()
+                .any(|name| name == "frames-frame-audit")
+        );
+        assert_eq!(inventory.tasks, TASK_TOOLS);
+    }
 }
 
 #[cfg(test)]

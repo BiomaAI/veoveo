@@ -42,3 +42,6 @@ veoveo-mcp-task-extension = { path = "../../mcp/task-extension" }
 veoveo-platform-store = { path = "../../platform/store" }
 veoveo-rrd.workspace = true
 veoveo-task-runtime = { path = "../../platform/task-runtime" }
+
+[dev-dependencies]
+tower = { workspace = true, features = ["util"] }
