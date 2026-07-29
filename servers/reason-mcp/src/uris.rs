@@ -1,5 +1,12 @@
 use veoveo_mcp_contract::{ArtifactId, ServerResourceUris};
 
+/// Well-known surface roots (contract C18, C19). These literals must match
+/// `veoveo_mcp_contract::ServerResourceUris::new("reason")`; a unit test below
+/// pins that equivalence.
+pub const DOCS_URI: &str = "reason://docs";
+pub const CONTRACT_URI: &str = "reason://contract";
+pub const DOC_TEMPLATE: &str = "reason://docs/{doc_id}";
+
 pub const PIPELINES_URI: &str = "reason://pipelines";
 pub const PIPELINE_TEMPLATE: &str = "reason://pipeline/{pipeline_id}";
 pub const MODELS_URI: &str = "reason://models";
@@ -11,6 +18,14 @@ pub const ARTIFACT_TEMPLATE: &str = "reason://artifact/{artifact_id}";
 
 fn server_uris() -> ServerResourceUris {
     ServerResourceUris::new("reason")
+}
+
+pub fn doc_uri(doc_id: &str) -> String {
+    server_uris().doc_uri(doc_id)
+}
+
+pub fn parse_doc(uri: &str) -> Option<&str> {
+    parse_single(uri, "reason://docs/")
 }
 
 pub fn pipeline_uri(id: &str) -> String {
@@ -63,6 +78,18 @@ fn parse_single<'a>(uri: &'a str, prefix: &str) -> Option<&'a str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn well_known_uris_match_the_shared_contract_conventions() {
+        let conventions = server_uris();
+        assert_eq!(DOCS_URI, conventions.docs_root_uri());
+        assert_eq!(CONTRACT_URI, conventions.contract_uri());
+        assert_eq!(DOC_TEMPLATE, conventions.doc_template());
+        assert_eq!(doc_uri("agents"), "reason://docs/agents");
+        assert_eq!(parse_doc("reason://docs/agents"), Some("agents"));
+        assert_eq!(parse_doc("reason://docs"), None);
+        assert_eq!(parse_doc("reason://docs/agents/extra"), None);
+    }
 
     #[test]
     fn analysis_uris_are_unambiguous() {
