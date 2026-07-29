@@ -200,6 +200,22 @@ The same sanitized nested-Cargo path is used by `cargo xtask enforce rust`, whic
 prevents its format, Clippy, test, and documentation phases from alternating package
 fingerprints.
 
+## Revision Metadata Cache Boundary
+
+A full publication exposed an independent invalidation path in the simulation images.
+Their `SOURCE_REVISION` argument was declared before the payload was assembled, although
+the value was consumed only by the final OCI revision label. BuildKit includes an in-scope
+argument in subsequent cache keys. A new Git revision therefore reinstalled the complete
+Isaac Python dependency graph even when every runtime input and source file was unchanged.
+
+The canonical simulation runtime, Isaac renderer, first-party UAV overlay, and external
+overlay fixture now declare revision-only arguments after their final `RUN` or `COPY`
+instruction. Compatibility inputs that determine payload bytes remain above the build.
+The repository smoke rejects any future placement that lets a revision label invalidate
+payload work. Publication evidence must show the expensive dependency layers cached when
+only the source revision changes; an identical revision is not sufficient proof of this
+boundary.
+
 ## Acceptance Matrix
 
 | Requirement | Evidence | Result |
@@ -212,6 +228,7 @@ fingerprints.
 | Unchanged runtime images remain identical | five non-gateway digests match | pass |
 | Execution evidence is immutable | unique create-only evidence directory for every run | pass |
 | Release output timestamps are reproducible | epoch input and timestamp-rewriting registry exporter | pass |
+| Revision-only metadata preserves simulation payload cache | trailing build arguments and consecutive-revision publication evidence | pass |
 
 ## Extension Platform Closure
 

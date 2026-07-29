@@ -4,6 +4,35 @@ use veoveo_extension_contract::SimulationRuntimeBuildLock;
 
 use super::*;
 
+fn assert_revision_metadata_follows_payload(path: &str) -> Result<()> {
+    let dockerfile =
+        fs::read_to_string(path).with_context(|| format!("reading Dockerfile {path}"))?;
+    let revision_argument = dockerfile
+        .rfind("\nARG SOURCE_REVISION=")
+        .with_context(|| format!("{path} has no SOURCE_REVISION build argument"))?;
+    let last_payload_instruction = dockerfile
+        .rfind("\nRUN ")
+        .into_iter()
+        .chain(dockerfile.rfind("\nCOPY "))
+        .max()
+        .with_context(|| format!("{path} has no payload-producing RUN or COPY instruction"))?;
+    ensure!(
+        revision_argument > last_payload_instruction,
+        "{path} declares SOURCE_REVISION before its final payload instruction; changing an OCI \
+         label revision would invalidate an unchanged image payload"
+    );
+    ensure!(
+        dockerfile.matches("ARG SOURCE_REVISION=").count() == 1,
+        "{path} must have one canonical SOURCE_REVISION argument"
+    );
+    contains(
+        &dockerfile[revision_argument..],
+        r#"org.opencontainers.image.revision="${SOURCE_REVISION}""#,
+    )
+    .with_context(|| format!("{path} must consume SOURCE_REVISION only in trailing metadata"))?;
+    Ok(())
+}
+
 pub(crate) async fn surreal_integration() -> Result<()> {
     let port = std::net::TcpListener::bind("127.0.0.1:0")?
         .local_addr()?
@@ -648,6 +677,14 @@ pub(crate) async fn helm_config() -> Result<()> {
     simulation_lock.validate()?;
     let simulation_runtime_dockerfile =
         fs::read_to_string("platform/runtimes/simulation/Dockerfile")?;
+    for dockerfile in [
+        "platform/runtimes/simulation/Dockerfile",
+        "platform/simulation/view-isaac/Dockerfile",
+        "showcase/uav-sim/runtime/Dockerfile",
+        "testing/fixtures/simulation-overlay/Dockerfile",
+    ] {
+        assert_revision_metadata_follows_payload(dockerfile)?;
+    }
     for expected in [
         "nvcr.io/nvidia/isaac-sim:6.0.1@sha256:",
         "ISAAC_LAB_REVISION=ffff603eafc6b74264a5261cc0183d6a65390d78",

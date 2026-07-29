@@ -4,8 +4,6 @@ ARG ISAAC_SIM_IMAGE=nvcr.io/nvidia/isaac-sim:6.0.1@sha256:b1c542b2ecc549b3d1ebb7
 
 FROM --platform=${TARGETPLATFORM} ${ISAAC_SIM_IMAGE} AS runtime
 
-ARG SOURCE_REVISION=local
-ARG COMPATIBILITY_RELEASE=2026.07.0
 ARG ISAAC_LAB_REVISION=ffff603eafc6b74264a5261cc0183d6a65390d78
 ARG ISAAC_LAB_ARCHIVE_URL=https://github.com/isaac-sim/IsaacLab/archive/ffff603eafc6b74264a5261cc0183d6a65390d78.tar.gz
 ARG ISAAC_LAB_ARCHIVE_SHA256=fe65b28ad08a943e35005e6c75885929cd6cbd7075c721d8da4d05d97fa392be
@@ -222,6 +220,8 @@ ENV ACCEPT_EULA=Y \
 
 RUN /isaac-sim/python.sh /opt/veoveo/simulation-runtime/probes/identity.py
 
+ARG SOURCE_REVISION=local
+ARG COMPATIBILITY_RELEASE=2026.07.0
 LABEL org.opencontainers.image.title="Veoveo canonical GPU simulation runtime" \
       org.opencontainers.image.description="Immutable Isaac Sim, Isaac Lab, Warp, Newton, MuJoCo, RTX, and live-stream compatibility lineage" \
       org.opencontainers.image.revision="${SOURCE_REVISION}" \
