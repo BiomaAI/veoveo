@@ -190,6 +190,8 @@ protocol tooling.
 | `artifact_service.rs` | artifact-plane requests, capabilities, share links, native async port |
 | `duckdb.rs` | shared DuckDB source types and safe read-function SQL fragments |
 | `coordinates.rs` | shared coordinate spaces, world/revision/frame identities, complete frame-tree vocabulary, WGS84 positions, and operation provenance |
+| `docs.rs` | build-embedded server documents, once-built contract declarations, capability inventories, compliance parsing, and canonical llms.txt rendering |
+| `uri.rs` | canonical hosted-server resource URI construction and shared one-segment document URI parsing |
 | `schema.rs` | canonical self-contained JSON Schema 2020-12 generation for Rust MCP tool inputs |
 | `storage.rs` | artifact metadata, release state, compliance labels |
 | `gateway.rs` | gateway control-plane aggregate and public re-exports |
@@ -399,6 +401,13 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | immutable governed scene compositions, owner and Work Context scoped geospatial views, shared 3D Tiles streaming, GPU overlays, and captured frames |
 | `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, missions, vehicles, tasks, subscriptions, recording references, governed Simulation View scene preparation, and typed pose-publication health |
+
+The packaged Node chart server keeps its Veoveo boundary beside the image:
+
+| Path | Responsibility |
+|---|---|
+| `servers/chart-mcp/server.mjs` | canonical mounted Streamable HTTP lifecycle, hosted identity, well-known resources, and derived declaration over the pinned upstream chart server |
+| `servers/chart-mcp/internal-auth.mjs` | fail-closed Ed25519 gateway-token verification shared by the chart MCP and admin docs routes |
 
 ### UAV Simulation Integration
 
@@ -719,7 +728,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 
 | Path | Responsibility |
 |---|---|
-| `mcp/conformance` | reusable domain-neutral MCP certification library, thin CLI, schemas, profiles, and standalone image |
+| `mcp/conformance` | reusable domain-neutral MCP certification library, thin CLI, schemas, profiles, authenticated same-origin well-known-surface checks, live declaration binding, and standalone image |
 | `testing/smoke/src/bin/smoke.rs` | smoke command dispatcher and digest-addressed simulation certification entrypoint |
 | `testing/smoke/src/bin/smoke/scenarios/` | Rust process/deployment scenarios |
 | `testing/smoke/src/bin/smoke/support/` | process, HTTP, auth, fixture, usage helpers |

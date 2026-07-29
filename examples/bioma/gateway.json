@@ -665,7 +665,7 @@
       "mcp_path": "/charts/mcp",
       "upstream": {
         "transport": "streamable_http",
-        "url": "http://chart-mcp:8795/mcp",
+        "url": "http://chart-mcp:8795/charts/mcp",
         "security": "cluster_internal_http"
       },
       "capabilities": {

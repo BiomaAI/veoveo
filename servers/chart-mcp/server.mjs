@@ -8,6 +8,10 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 
 import { createServer } from "./dist/server.js";
+import {
+  loadInternalTokenVerifier,
+  requireInternalIdentity,
+} from "./internal-auth.mjs";
 
 const DEFAULT_MAX_BODY_BYTES = 32 * 1024 * 1024;
 const SESSION_DISCONNECT_GRACE_MS = 60_000;
@@ -19,6 +23,8 @@ const SESSION_REAP_INTERVAL_MS = 5_000;
 // llms.txt projection. Shapes mirror `veoveo_mcp_contract::docs`.
 const CONTRACT_REVISION = 2;
 const SERVER_SLUG = "charts";
+const SERVER_MOUNT = `/${SERVER_SLUG}`;
+const MCP_PATH = `${SERVER_MOUNT}/mcp`;
 const DOCS_URI = "charts://docs";
 const CONTRACT_URI = "charts://contract";
 
@@ -41,7 +47,7 @@ function docsIndexJson() {
 }
 
 function llmsTxt() {
-  const entries = SERVER_DOCS.map((doc) => `- [${doc.title}](docs/${doc.id})`);
+  const entries = SERVER_DOCS.map((doc) => `- [${doc.title}](${doc.id})`);
   return (
     `# ${SERVER_SLUG}\n\n` +
     `> Veoveo MCP server documents. Contract revision ${CONTRACT_REVISION}.\n\n` +
@@ -89,19 +95,6 @@ function parseCompliance(manual) {
   return items;
 }
 
-const CONTRACT_DECLARATION = {
-  server: SERVER_SLUG,
-  contract_revision: CONTRACT_REVISION,
-  compliance: parseCompliance(SERVER_DOCS[0].body),
-  capabilities: {
-    resources: [
-      DOCS_URI,
-      ...SERVER_DOCS.map((doc) => `${DOCS_URI}/${doc.id}`),
-      CONTRACT_URI,
-    ],
-  },
-};
-
 function textResource(uri, mimeType, text) {
   return { contents: [{ uri: uri.href, mimeType, text }] };
 }
@@ -134,6 +127,7 @@ function registerWellKnownResources(server) {
       async (uri) => textResource(uri, "text/markdown", doc.body),
     );
   }
+  let declaration;
   server.registerResource(
     "contract",
     CONTRACT_URI,
@@ -144,15 +138,62 @@ function registerWellKnownResources(server) {
       mimeType: "application/json",
     },
     async (uri) =>
-      textResource(uri, "application/json", JSON.stringify(CONTRACT_DECLARATION)),
+      textResource(uri, "application/json", JSON.stringify(declaration)),
   );
+  declaration = contractDeclaration(server);
+}
+
+function contractDeclaration(server) {
+  const enabledNames = (registry) =>
+    Object.entries(registry)
+      .filter(([, value]) => value.enabled)
+      .map(([name]) => name)
+      .sort();
+  const resourceTemplates = Object.values(server._registeredResourceTemplates)
+    .filter((resource) => resource.enabled)
+    .map((resource) => resource.resourceTemplate.uriTemplate.toString())
+    .sort();
+  const tasks = Object.entries(server._registeredTools)
+    .filter(([, tool]) =>
+      ["optional", "required"].includes(tool.execution?.taskSupport),
+    )
+    .map(([name]) => name)
+    .sort();
+  return {
+    server: SERVER_SLUG,
+    contract_revision: CONTRACT_REVISION,
+    compliance: parseCompliance(SERVER_DOCS[0].body),
+    capabilities: {
+      tools: enabledNames(server._registeredTools),
+      resources: enabledNames(server._registeredResources),
+      resource_templates: resourceTemplates,
+      prompts: enabledNames(server._registeredPrompts),
+      tasks,
+    },
+  };
+}
+
+function createHostedServer(options) {
+  const server = createServer(options);
+  if (
+    server?.server?._serverInfo == null ||
+    typeof server.server._serverInfo !== "object"
+  ) {
+    throw new Error("upstream chart server exposes no mutable MCP identity");
+  }
+  server.server._serverInfo = {
+    ...server.server._serverInfo,
+    name: SERVER_SLUG,
+  };
+  registerWellKnownResources(server);
+  return server;
 }
 
 function parseArgs(argv) {
   const options = {
     host: "0.0.0.0",
     port: 8795,
-    path: "/mcp",
+    path: MCP_PATH,
     allowedHosts: [],
     disableFileReference: false,
   };
@@ -194,6 +235,9 @@ function parseArgs(argv) {
   if (!options.path.startsWith("/")) {
     throw new Error("MCP path must begin with /");
   }
+  if (options.path !== MCP_PATH) {
+    throw new Error(`MCP path must be the canonical ${MCP_PATH}`);
+  }
   return options;
 }
 
@@ -225,11 +269,13 @@ async function readBody(request) {
 }
 
 const options = parseArgs(process.argv.slice(2));
+const verifyInternalIdentity = loadInternalTokenVerifier(
+  process.env.VEOVEO_INTERNAL_TRUST_JWKS,
+  SERVER_SLUG,
+);
 // Fail closed at boot when the pinned upstream server cannot host the
 // well-known resources, rather than on the first MCP session.
-registerWellKnownResources(
-  createServer({ disableFileReference: options.disableFileReference }),
-);
+createHostedServer({ disableFileReference: options.disableFileReference });
 const sessions = new Map();
 
 async function closeSession(session) {
@@ -288,21 +334,44 @@ sessionReaper.unref();
 const httpServer = createHttpServer(async (request, response) => {
   try {
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
-    if (request.method === "GET" && (url.pathname === "/health" || url.pathname === "/")) {
+    if (
+      options.allowedHosts.length > 0 &&
+      !options.allowedHosts.includes(request.headers.host)
+    ) {
       response
-        .writeHead(200, { "content-type": "application/json" })
-        .end(JSON.stringify({ name: "flint-chart-mcp", status: "ok", transport: "streamable_http" }));
+        .writeHead(421, { "content-type": "text/plain; charset=utf-8" })
+        .end("untrusted Host authority");
       return;
     }
-    if (request.method === "GET" && url.pathname === "/admin/docs/llms.txt") {
+    if (request.method === "GET" && url.pathname === `${SERVER_MOUNT}/healthz`) {
+      response
+        .writeHead(200, { "content-type": "application/json" })
+        .end(JSON.stringify({ name: SERVER_SLUG, status: "ok", transport: "streamable_http" }));
+      return;
+    }
+    if (
+      (url.pathname === options.path ||
+        url.pathname.startsWith(`${SERVER_MOUNT}/admin/`)) &&
+      !requireInternalIdentity(request, response, verifyInternalIdentity)
+    ) {
+      return;
+    }
+    if (
+      request.method === "GET" &&
+      url.pathname === `${SERVER_MOUNT}/admin/docs/llms.txt`
+    ) {
       response
         .writeHead(200, { "content-type": "text/plain; charset=utf-8" })
         .end(llmsTxt());
       return;
     }
-    if (request.method === "GET" && url.pathname.startsWith("/admin/docs/")) {
+    if (
+      request.method === "GET" &&
+      url.pathname.startsWith(`${SERVER_MOUNT}/admin/docs/`)
+    ) {
       const doc = SERVER_DOCS.find(
-        (candidate) => url.pathname === `/admin/docs/${candidate.id}`,
+        (candidate) =>
+          url.pathname === `${SERVER_MOUNT}/admin/docs/${candidate.id}`,
       );
       if (doc) {
         response
@@ -328,10 +397,9 @@ const httpServer = createHttpServer(async (request, response) => {
     if (request.method === "POST") {
       body = await readBody(request);
       if (!transport && !sessionId && isInitializeRequest(body)) {
-        const server = createServer({
+        const server = createHostedServer({
           disableFileReference: options.disableFileReference,
         });
-        registerWellKnownResources(server);
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
           enableJsonResponse: false,

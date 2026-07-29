@@ -20,9 +20,10 @@ remains upstream.
   well-known surface around that implementation: it serves `charts://docs`,
   the document bodies, and `charts://contract` on every session, plus the
   `admin/docs` HTTP projection, from `AGENTS.md` and `DESIGN.md` baked into
-  the image beside it. Boot fails when either document is missing. Transport
-  close removes the session exactly once and must not re-enter
-  protocol-server shutdown.
+  the image beside it. The MCP endpoint and admin projection both require a
+  gateway internal token audienced to `charts`. Boot fails when the trust
+  bundle or either document is missing. Transport close removes the session
+  exactly once and must not re-enter protocol-server shutdown.
 - Domain behavior is stateless: `platformStore: false`, no persistence
   volume, and `--disable-file-reference` stays set. MCP sessions live in the
   singleton Veoveo launcher.
@@ -35,6 +36,7 @@ remains upstream.
 ## Build And Test
 
 - No Rust crate exists, so `cargo check` and `cargo test` do not apply.
+- `node --test servers/chart-mcp/internal-auth.test.mjs`
 - Build the image: `docker build servers/chart-mcp`.
 - `cargo xtask smoke helm-config` validates the chart material that registers
   the server.
@@ -56,7 +58,7 @@ Contract revision: 2
 - C09: pending — unverified
 - C10: pending — does not consume shared contract crate
 - C11: pending — unverified
-- C12: pending — unverified
+- C12: met
 - C13: met
 - C14: pending — unverified
 - C15: met
