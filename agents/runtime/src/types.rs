@@ -180,6 +180,11 @@ pub enum AgentRuntimeError {
     NumericOverflow(&'static str),
     #[error(transparent)]
     Store(#[from] veoveo_platform_store::StoreError),
+    #[error("database operation `{operation}` failed: {errors}")]
+    DatabaseOperation {
+        operation: &'static str,
+        errors: String,
+    },
     #[error(transparent)]
     Database(#[from] surrealdb::Error),
     #[error(transparent)]
