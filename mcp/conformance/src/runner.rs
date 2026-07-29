@@ -331,6 +331,9 @@ pub async fn run_hosted_server_conformance(
         )
     });
 
+    check_well_known_surface(&client, profile, &mut checks).await;
+    check_admin_docs(&http, profile.http.docs_llms_url.as_deref(), &mut checks).await;
+
     client.cancel().await?;
     Ok(ConformanceReport {
         schema_version: ConformanceReportSchema::V1,
@@ -342,6 +345,252 @@ pub async fn run_hosted_server_conformance(
         observed_capabilities: Some(capabilities),
         checks,
     })
+}
+
+type Client = rmcp::service::RunningService<rmcp::RoleClient, CertificationClient>;
+
+/// One entry of the document index served at `{scheme}://docs` (C18).
+#[derive(serde::Deserialize)]
+struct DocIndexEntry {
+    id: String,
+}
+
+async fn read_text_resource(client: &Client, uri: &str) -> Result<String> {
+    let result = client
+        .read_resource(rmcp::model::ReadResourceRequestParams::new(uri))
+        .await?;
+    result
+        .contents
+        .iter()
+        .find_map(|contents| match contents {
+            rmcp::model::ResourceContents::TextResourceContents { text, .. } => Some(text.clone()),
+            _ => None,
+        })
+        .ok_or_else(|| anyhow!("resource {uri} returned no text contents"))
+}
+
+/// Reads the Well-Known Surface over the live session (contract C18, C19):
+/// at least one owned scheme must serve a docs index listing `agents` and
+/// `design`, every listed body must read, and `{scheme}://contract` must
+/// deserialize to the current contract revision with C18-C21 met.
+async fn check_well_known_surface(
+    client: &Client,
+    profile: &HostedServerConformanceProfile,
+    checks: &mut Vec<CheckResult>,
+) {
+    if profile.surfaces.resources == SurfaceExpectation::Forbidden {
+        for id in ["VV-MCP-DOCS-001", "VV-MCP-DOCS-002", "VV-MCP-CONTRACT-001"] {
+            checks.push(skipped(id, "resources are forbidden for this profile"));
+        }
+        return;
+    }
+
+    let mut index_errors = Vec::new();
+    let mut serving_scheme = None;
+    let mut listed_ids = Vec::new();
+    for scheme in &profile.owned_resource_schemes {
+        let uri = format!("{scheme}://docs");
+        match read_text_resource(client, &uri).await {
+            Ok(text) => match serde_json::from_str::<Vec<DocIndexEntry>>(&text) {
+                Ok(entries) => {
+                    let ids: Vec<String> = entries.into_iter().map(|entry| entry.id).collect();
+                    if ["agents", "design"].iter().all(|id| ids.iter().any(|listed| listed == id)) {
+                        serving_scheme = Some(scheme.clone());
+                        listed_ids = ids;
+                        break;
+                    }
+                    index_errors.push(format!("{uri}: index lists {ids:?} without agents+design"));
+                }
+                Err(error) => index_errors.push(format!("{uri}: index is not a JSON list: {error}")),
+            },
+            Err(error) => index_errors.push(format!("{uri}: {error}")),
+        }
+    }
+
+    let Some(scheme) = serving_scheme else {
+        checks.push(failed(
+            "VV-MCP-DOCS-001",
+            format!(
+                "no owned scheme serves a docs index with agents+design: {}",
+                index_errors.join("; ")
+            ),
+        ));
+        for id in ["VV-MCP-DOCS-002", "VV-MCP-CONTRACT-001"] {
+            checks.push(failed(id, "docs index unavailable".to_owned()));
+        }
+        return;
+    };
+    checks.push(passed(
+        "VV-MCP-DOCS-001",
+        "docs index lists the required documents",
+        Some(json!({"scheme": scheme, "documents": listed_ids})),
+    ));
+
+    let mut body_errors = Vec::new();
+    for id in &listed_ids {
+        let uri = format!("{scheme}://docs/{id}");
+        match read_text_resource(client, &uri).await {
+            Ok(body) if !body.trim().is_empty() => {}
+            Ok(_) => body_errors.push(format!("{uri}: body is empty")),
+            Err(error) => body_errors.push(format!("{uri}: {error}")),
+        }
+    }
+    checks.push(if body_errors.is_empty() {
+        passed(
+            "VV-MCP-DOCS-002",
+            "every listed document body reads",
+            Some(json!({"documents": listed_ids.len()})),
+        )
+    } else {
+        failed("VV-MCP-DOCS-002", body_errors.join("; "))
+    });
+
+    let contract_uri = format!("{scheme}://contract");
+    checks.push(match read_text_resource(client, &contract_uri).await {
+        Ok(text) => {
+            match serde_json::from_str::<veoveo_mcp_contract::docs::ContractDeclaration>(&text) {
+                Ok(declaration) => {
+                    let revision_matches = declaration.contract_revision
+                        == veoveo_mcp_contract::docs::CONTRACT_REVISION;
+                    let unmet: Vec<&str> = ["C18", "C19", "C20", "C21"]
+                        .into_iter()
+                        .filter(|id| {
+                            !declaration.compliance.iter().any(|item| {
+                                item.id == *id
+                                    && item.status
+                                        == veoveo_mcp_contract::docs::ComplianceStatus::Met
+                            })
+                        })
+                        .collect();
+                    if revision_matches && unmet.is_empty() {
+                        passed(
+                            "VV-MCP-CONTRACT-001",
+                            "contract declaration matches the current revision with C18-C21 met",
+                            Some(json!({
+                                "server": declaration.server,
+                                "contractRevision": declaration.contract_revision
+                            })),
+                        )
+                    } else {
+                        failed(
+                            "VV-MCP-CONTRACT-001",
+                            format!(
+                                "declaration revision {} (expected {}), unmet well-known items {unmet:?}",
+                                declaration.contract_revision,
+                                veoveo_mcp_contract::docs::CONTRACT_REVISION
+                            ),
+                        )
+                    }
+                }
+                Err(error) => failed(
+                    "VV-MCP-CONTRACT-001",
+                    format!("{contract_uri} is not a contract declaration: {error}"),
+                ),
+            }
+        }
+        Err(error) => failed("VV-MCP-CONTRACT-001", format!("{contract_uri}: {error}")),
+    });
+}
+
+/// Fetches the admin llms.txt projection and every listed document body
+/// (contract C20).
+async fn check_admin_docs(
+    http: &reqwest::Client,
+    url: Option<&str>,
+    checks: &mut Vec<CheckResult>,
+) {
+    let Some(url) = url else {
+        for id in ["VV-MCP-DOCS-HTTP-001", "VV-MCP-DOCS-HTTP-002"] {
+            checks.push(skipped(id, "admin docs URL is not selected by this profile"));
+        }
+        return;
+    };
+    let body = match http.get(url).send().await {
+        Ok(response) if response.status().is_success() => match response.text().await {
+            Ok(body) => body,
+            Err(error) => {
+                checks.push(failed(
+                    "VV-MCP-DOCS-HTTP-001",
+                    format!("llms.txt body failed to read: {error}"),
+                ));
+                checks.push(failed(
+                    "VV-MCP-DOCS-HTTP-002",
+                    "llms.txt unavailable".to_owned(),
+                ));
+                return;
+            }
+        },
+        Ok(response) => {
+            checks.push(failed(
+                "VV-MCP-DOCS-HTTP-001",
+                format!("llms.txt returned {}", response.status()),
+            ));
+            checks.push(failed(
+                "VV-MCP-DOCS-HTTP-002",
+                "llms.txt unavailable".to_owned(),
+            ));
+            return;
+        }
+        Err(error) => {
+            checks.push(failed(
+                "VV-MCP-DOCS-HTTP-001",
+                format!("llms.txt request failed: {error}"),
+            ));
+            checks.push(failed(
+                "VV-MCP-DOCS-HTTP-002",
+                "llms.txt unavailable".to_owned(),
+            ));
+            return;
+        }
+    };
+
+    let listed: Vec<&str> = body
+        .lines()
+        .filter_map(|line| {
+            let (_, rest) = line.split_once("](docs/")?;
+            rest.split_once(')').map(|(id, _)| id)
+        })
+        .collect();
+    checks.push(
+        if ["agents", "design"].iter().all(|id| listed.contains(id)) {
+            passed(
+                "VV-MCP-DOCS-HTTP-001",
+                "llms.txt lists the required documents",
+                Some(json!({"url": url, "documents": listed})),
+            )
+        } else {
+            failed(
+                "VV-MCP-DOCS-HTTP-001",
+                format!("llms.txt lists {listed:?} without agents+design"),
+            )
+        },
+    );
+
+    let base = url.trim_end_matches("llms.txt");
+    let mut body_errors = Vec::new();
+    for id in &listed {
+        let doc_url = format!("{base}{id}");
+        match http.get(&doc_url).send().await {
+            Ok(response) if response.status().is_success() => {
+                match response.text().await {
+                    Ok(text) if !text.trim().is_empty() => {}
+                    Ok(_) => body_errors.push(format!("{doc_url}: body is empty")),
+                    Err(error) => body_errors.push(format!("{doc_url}: {error}")),
+                }
+            }
+            Ok(response) => body_errors.push(format!("{doc_url}: {}", response.status())),
+            Err(error) => body_errors.push(format!("{doc_url}: {error}")),
+        }
+    }
+    checks.push(if body_errors.is_empty() {
+        passed(
+            "VV-MCP-DOCS-HTTP-002",
+            "every listed document body serves over the admin mount",
+            Some(json!({"documents": listed.len()})),
+        )
+    } else {
+        failed("VV-MCP-DOCS-HTTP-002", body_errors.join("; "))
+    });
 }
 
 async fn check_success_url(
