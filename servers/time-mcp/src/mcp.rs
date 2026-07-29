@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
@@ -18,7 +18,11 @@ use serde::Serialize;
 use serde_json::json;
 use uuid::Uuid;
 use veoveo_mcp_contract::tool;
-use veoveo_mcp_contract::{GatewayInternalIdentity, Page, paginate};
+use veoveo_mcp_contract::{
+    GatewayInternalIdentity, Page,
+    docs::{CapabilityInventory, ContractDeclaration, ServerDocs},
+    paginate,
+};
 
 use crate::{
     clock::assess_clock,
@@ -36,6 +40,12 @@ use crate::{
 
 const LIST_PAGE_SIZE: usize = 100;
 
+/// The crate documents embedded at build time and served under the well-known
+/// surface: `time://docs`, `time://docs/{doc_id}`, `time://contract`, and the
+/// administrative `admin/docs` routes (contract C18-C21).
+pub(crate) static SERVER_DOCS: LazyLock<ServerDocs> =
+    LazyLock::new(|| veoveo_mcp_contract::server_docs!("time"));
+
 #[derive(Clone)]
 pub struct TimeMcp {
     state: Arc<TimeApplication>,
@@ -49,6 +59,40 @@ impl TimeMcp {
         Self {
             state,
             tool_router: Self::tool_router(),
+        }
+    }
+
+    /// The capability inventory declared at `time://contract` (contract C19).
+    ///
+    /// Tools and prompts derive from the live registrations. Stable resources,
+    /// resource templates, and task-augmented tool names come from the lists
+    /// those surfaces are served from (`stable_resource_uris`,
+    /// `resource_templates`, `crate::server::tasks::TASK_TOOLS`), so the
+    /// declaration cannot silently diverge from what the handler registers.
+    pub(crate) fn capability_inventory() -> CapabilityInventory {
+        let mut tools: Vec<String> = Self::tool_router()
+            .list_all()
+            .into_iter()
+            .map(|tool| tool.name.into_owned())
+            .collect();
+        tools.sort();
+        let mut prompts: Vec<String> = TimePrompt::ALL
+            .into_iter()
+            .map(|prompt| prompt.definition().name)
+            .collect();
+        prompts.sort();
+        CapabilityInventory {
+            tools,
+            resources: stable_resource_uris(),
+            resource_templates: resource_templates()
+                .into_iter()
+                .map(|template| template.uri_template.clone())
+                .collect(),
+            prompts,
+            tasks: crate::server::tasks::TASK_TOOLS
+                .iter()
+                .map(|name| (*name).to_owned())
+                .collect(),
         }
     }
 
@@ -378,29 +422,7 @@ impl ServerHandler for TimeMcp {
         request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        let templates = vec![
-            template(
-                uris::ZONE_TEMPLATE,
-                "IANA time zone",
-                "Zone interpretation under active TZDB.",
-            ),
-            template(
-                uris::CALENDAR_TEMPLATE,
-                "Operational calendar",
-                "Versioned operational calendar.",
-            ),
-            template(
-                uris::EPOCH_TEMPLATE,
-                "Mission epoch",
-                "Versioned mission epoch.",
-            ),
-            template(
-                uris::EVENT_TEMPLATE,
-                "Temporal event",
-                "Owner-scoped temporal event.",
-            ),
-        ];
-        let page = mcp_page(templates, request.as_ref())?;
+        let page = mcp_page(resource_templates(), request.as_ref())?;
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
@@ -414,9 +436,28 @@ impl ServerHandler for TimeMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, McpError> {
         let identity = require_scope(&context, "time:read")?;
+        let uri = request.uri.as_str();
+        // Well-known surface (contract C18, C19): readable by any identity
+        // that can list resources.
+        if uri == uris::DOCS_URI {
+            return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
+        }
+        if let Some(doc_id) = uris::parse_doc(uri) {
+            let doc = SERVER_DOCS
+                .doc(doc_id)
+                .ok_or_else(|| not_found("server document"))?;
+            return Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
+            ]));
+        }
+        if uri == uris::CONTRACT_URI {
+            return json_resource(
+                uri,
+                &ContractDeclaration::from_docs(&SERVER_DOCS, Self::capability_inventory()),
+            );
+        }
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let engine = self.state.engine(&scope).await.map_err(internal)?;
-        let uri = request.uri.as_str();
         match uri {
             uris::CLOCK_QUALITY_URI => {
                 return json_resource(uri, &self.state.clock.quality().await.map_err(internal)?);
@@ -581,6 +622,9 @@ impl ServerHandler for TimeMcp {
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let engine = self.state.engine(&scope).await.map_err(internal)?;
         let values = match (reference.uri.as_str(), request.argument.name.as_str()) {
+            (uris::DOC_TEMPLATE, "doc_id") => {
+                SERVER_DOCS.iter().map(|doc| doc.id.to_owned()).collect()
+            }
             (uris::ZONE_TEMPLATE, "zone_id") => engine
                 .authority()
                 .tzdb
@@ -779,23 +823,92 @@ fn template(uri: &str, title: &str, description: &str) -> ResourceTemplate {
         .with_mime_type("application/json")
 }
 fn root_resources() -> Vec<Resource> {
-    [
-        (uris::CLOCK_CURRENT_URI, "Current authoritative time"),
-        (uris::CLOCK_QUALITY_URI, "Clock quality"),
-        (uris::AUTHORITIES_CURRENT_URI, "Active time authorities"),
-        (uris::CALENDARS_URI, "Operational calendars"),
-        (uris::EPOCHS_URI, "Mission epochs"),
-        (uris::EVENTS_URI, "Temporal events"),
+    let mut resources = well_known_resources();
+    resources.extend(
+        [
+            (uris::CLOCK_CURRENT_URI, "Current authoritative time"),
+            (uris::CLOCK_QUALITY_URI, "Clock quality"),
+            (uris::AUTHORITIES_CURRENT_URI, "Active time authorities"),
+            (uris::CALENDARS_URI, "Operational calendars"),
+            (uris::EPOCHS_URI, "Mission epochs"),
+            (uris::EVENTS_URI, "Temporal events"),
+        ]
+        .into_iter()
+        .map(|(uri, title)| {
+            descriptor(
+                uri.to_owned(),
+                title.to_owned(),
+                "Authorized Time domain resource.",
+            )
+        }),
+    );
+    resources
+}
+/// Well-known surface resources (contract C18, C19). `list_resources` serves
+/// these for every authorized identity and `stable_resource_uris` declares
+/// them in the `time://contract` capability inventory, so the two cannot
+/// diverge.
+fn well_known_resources() -> Vec<Resource> {
+    let mut resources = vec![descriptor(
+        uris::DOCS_URI.to_owned(),
+        "Server documents".to_owned(),
+        "Index of the crate documents embedded at build time.",
+    )];
+    for doc in SERVER_DOCS.iter() {
+        resources.push(
+            Resource::new(uris::doc_uri(doc.id), doc.title)
+                .with_title(doc.title)
+                .with_description("Crate document embedded at build time.")
+                .with_mime_type("text/markdown"),
+        );
+    }
+    resources.push(descriptor(
+        uris::CONTRACT_URI.to_owned(),
+        "Contract declaration".to_owned(),
+        "Machine-readable contract revision, compliance, and capability inventory.",
+    ));
+    resources
+}
+/// Stable resource URIs declared in the `time://contract` capability
+/// inventory: the well-known surface plus the index resources
+/// `list_resources` always serves. Per-entity resources are enumerated per
+/// identity at list time and are covered by the resource templates instead.
+fn stable_resource_uris() -> Vec<String> {
+    root_resources()
+        .into_iter()
+        .map(|resource| resource.uri.clone())
+        .collect()
+}
+/// Every advertised resource template. `list_resource_templates` serves this
+/// list and the `time://contract` capability inventory declares it, so the
+/// two cannot diverge.
+fn resource_templates() -> Vec<ResourceTemplate> {
+    vec![
+        ResourceTemplate::new(uris::DOC_TEMPLATE, "Server document")
+            .with_title("Server document")
+            .with_description("Embedded crate document body (contract C18).")
+            .with_mime_type("text/markdown"),
+        template(
+            uris::ZONE_TEMPLATE,
+            "IANA time zone",
+            "Zone interpretation under active TZDB.",
+        ),
+        template(
+            uris::CALENDAR_TEMPLATE,
+            "Operational calendar",
+            "Versioned operational calendar.",
+        ),
+        template(
+            uris::EPOCH_TEMPLATE,
+            "Mission epoch",
+            "Versioned mission epoch.",
+        ),
+        template(
+            uris::EVENT_TEMPLATE,
+            "Temporal event",
+            "Owner-scoped temporal event.",
+        ),
     ]
-    .into_iter()
-    .map(|(uri, title)| {
-        descriptor(
-            uri.to_owned(),
-            title.to_owned(),
-            "Authorized Time domain resource.",
-        )
-    })
-    .collect()
 }
 fn is_subscribable(uri: &str) -> bool {
     matches!(
@@ -826,5 +939,82 @@ mod tests {
     #[test]
     fn tool_input_schemas_use_the_canonical_profile() {
         assert!(!TimeMcp::tool_router().list_all().is_empty());
+    }
+}
+
+#[cfg(test)]
+mod well_known_tests {
+    use veoveo_mcp_contract::docs::{
+        CONTRACT_REVISION, ComplianceStatus, ContractDeclaration, DOC_ID_AGENTS, DOC_ID_DESIGN,
+    };
+
+    use super::{SERVER_DOCS, TimeMcp, resource_templates, stable_resource_uris};
+    use crate::uris;
+
+    #[test]
+    fn embedded_documents_carry_the_crate_manual_and_design() {
+        assert_eq!(SERVER_DOCS.server(), "time");
+        let agents = SERVER_DOCS.doc(DOC_ID_AGENTS).expect("agents document");
+        assert!(agents.body.contains("## Contract Compliance"));
+        let design = SERVER_DOCS.doc(DOC_ID_DESIGN).expect("design document");
+        assert!(!design.body.is_empty());
+        let index = SERVER_DOCS.llms_txt();
+        assert!(index.contains("(docs/agents)"));
+        assert!(index.contains("(docs/design)"));
+    }
+
+    #[test]
+    fn contract_declaration_resolves_from_the_embedded_manual() {
+        let declaration =
+            ContractDeclaration::from_docs(&SERVER_DOCS, TimeMcp::capability_inventory());
+        assert_eq!(declaration.server, "time");
+        assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
+        for id in ["C18", "C19", "C20", "C21"] {
+            let item = declaration
+                .compliance
+                .iter()
+                .find(|item| item.id == id)
+                .expect("declared checklist item");
+            assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
+        }
+        let json = serde_json::to_value(&declaration).expect("declaration serializes");
+        assert_eq!(json["server"], "time");
+    }
+
+    #[test]
+    fn capability_inventory_matches_the_registered_surface() {
+        let inventory = TimeMcp::capability_inventory();
+        for tool in ["resolve_time", "expand_schedule", "create_temporal_event"] {
+            assert!(
+                inventory.tools.iter().any(|name| name == tool),
+                "inventory is missing tool {tool}"
+            );
+        }
+        for uri in [uris::DOCS_URI, uris::CONTRACT_URI, uris::EVENTS_URI] {
+            assert!(
+                inventory.resources.contains(&uri.to_owned()),
+                "inventory is missing resource {uri}"
+            );
+        }
+        assert!(inventory.resources.contains(&uris::doc_uri("agents")));
+        assert_eq!(
+            stable_resource_uris().len(),
+            inventory.resources.len(),
+            "inventory resources come from stable_resource_uris"
+        );
+        assert!(
+            inventory
+                .resource_templates
+                .contains(&uris::DOC_TEMPLATE.to_owned())
+        );
+        assert_eq!(
+            resource_templates().len(),
+            inventory.resource_templates.len(),
+            "inventory templates come from resource_templates"
+        );
+        assert_eq!(
+            inventory.tasks,
+            vec!["expand_schedule".to_owned(), "validate_timeline".to_owned()]
+        );
     }
 }

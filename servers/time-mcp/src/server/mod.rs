@@ -1,7 +1,7 @@
 pub(super) mod auth;
 mod config;
 mod host;
-mod tasks;
+pub(crate) mod tasks;
 
 use std::{collections::BTreeMap, net::SocketAddr, sync::Arc, time::Duration};
 

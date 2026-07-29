@@ -24,6 +24,10 @@ use crate::{
 const SERVER_SLUG: &str = "time";
 const EXPAND_SCHEDULE_TASK: &str = "expand_schedule";
 const VALIDATE_TIMELINE_TASK: &str = "validate_timeline";
+
+/// Task-augmented tool names declared in the `time://contract` capability
+/// inventory (contract C19).
+pub(crate) const TASK_TOOLS: &[&str] = &[EXPAND_SCHEDULE_TASK, VALIDATE_TIMELINE_TASK];
 const TASK_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1_000;
 const TASK_POLL_INTERVAL_MS: u64 = 1_000;
 const TASK_LEASE_DURATION: Duration = Duration::from_secs(120);
