@@ -235,7 +235,9 @@ pub(super) fn cmd_gateway_pilot_smoke_control_plane(
         "engine": "nvidia-cuopt-26.06"
     });
     optimization["resource_projection"] = serde_json::json!("server_owned");
-    optimization["referenced_resource_schemes"] = serde_json::json!(["artifact", "map"]);
+    // The Pilot fixture exercises an inline MILP and intentionally registers no
+    // Artifact or Map MCP owner. Full installation control planes preserve both
+    // canonical schemes for governed artifact and travel-model inputs.
     {
         let servers = control_plane_array_mut(&mut control_plane, "servers")?;
         let media = servers
