@@ -24,8 +24,10 @@ storage, and playback contract is normative in
   material. Do not return archive shard URLs or add a whole-recording RRD
   route.
 - The public Rerun Data Protocol surface is read-only and recording-scoped.
-  Reject catalog enumeration, cross-recording entry access, writes,
-  registration, tables, tasks, and maintenance.
+  Its isolated derived catalog may enumerate the one authorized recording
+  because native Rerun source navigation requires `FindEntries`. Reject
+  cross-recording entry access, writes, registration, tables, tasks, and
+  maintenance.
 - Live playback is bound to one writing segment identity and ends at
   rollover. The follow projection keeps a bounded row ID history window and
   rewrites every outgoing message to the same dataset and segment identity as

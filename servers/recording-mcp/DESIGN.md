@@ -45,9 +45,11 @@ than a general Rerun catalog. A five-minute server session binds the token
 subject to the authorized actor and recording. The standard Rerun read token is
 host-limited and expires after 30 minutes, while active Console renewal keeps
 the server session alive and rotates the token before its renewal window.
-Dataset enumeration, writes, registration, tables, tasks, and maintenance are
-denied. The BFF never stores playback session state and never proxies archive
-bytes.
+`FindEntries` enumerates only the one dataset in that session's isolated
+derived catalog, which lets native Rerun source navigation resolve without
+exposing another recording. Writes, registration, tables, tasks, and
+maintenance are denied. The BFF never stores playback session state and never
+proxies archive bytes.
 
 Live playback is a generated stream over the current writing shard. It emits
 store information and static context, retains a bounded row-ID history window,

@@ -105,6 +105,7 @@ struct CatalogLayer {
 #[derive(Clone)]
 struct AuthorizedCatalog {
     handler: Arc<RerunCloudHandler>,
+    dataset_id: EntryId,
     subject: String,
 }
 
@@ -410,14 +411,15 @@ impl PlaybackManager {
         if let Ok(mut accessed_at) = slot.accessed_at.lock() {
             *accessed_at = Utc::now();
         }
-        let handler = slot
-            .state
-            .lock()
-            .await
+        let state = slot.state.lock().await;
+        let catalog = state
             .as_ref()
-            .map(|catalog| catalog.handler.clone())
             .ok_or_else(|| Status::unavailable("recording playback catalog is not prepared"))?;
-        Ok(AuthorizedCatalog { handler, subject })
+        Ok(AuthorizedCatalog {
+            handler: catalog.handler.clone(),
+            dataset_id: catalog.dataset_id,
+            subject,
+        })
     }
 
     fn prune_catalogs(&self) {
@@ -686,6 +688,24 @@ macro_rules! impl_scoped_redap_service {
                 }))
             }
 
+            async fn find_entries(
+                &self,
+                request: Request<proto::FindEntriesRequest>,
+            ) -> Result<Response<proto::FindEntriesResponse>, Status> {
+                let authorized = self.manager.authorized_catalog(&request).await?;
+                let mut response = authorized
+                    .handler
+                    .find_entries(request)
+                    .await?
+                    .into_inner();
+                let dataset_id: re_protos::common::v1alpha1::EntryId =
+                    authorized.dataset_id.into();
+                response
+                    .entries
+                    .retain(|entry| entry.id.as_ref() == Some(&dataset_id));
+                Ok(Response::new(response))
+            }
+
             async fn write_chunks(
                 &self,
                 _request: Request<tonic::Streaming<proto::WriteChunksRequest>>,
@@ -726,7 +746,6 @@ impl_scoped_redap_service! {
         fetch_chunks / FetchChunksStream: proto::FetchChunksRequest => proto::FetchChunksResponse,
     }
     deny_unary {
-        find_entries: proto::FindEntriesRequest => proto::FindEntriesResponse,
         delete_entry: proto::DeleteEntryRequest => proto::DeleteEntryResponse,
         update_entry: proto::UpdateEntryRequest => proto::UpdateEntryResponse,
         create_dataset_entry: proto::CreateDatasetEntryRequest => proto::CreateDatasetEntryResponse,
@@ -861,15 +880,21 @@ mod tests {
             Some(first_manifest.access.session_id.as_str())
         );
 
-        let denied = service
+        let entries = service
             .find_entries(authorized_request(
                 proto::FindEntriesRequest::default(),
                 &first_manifest.access.redap_token,
                 None,
             ))
             .await
-            .unwrap_err();
-        assert_eq!(denied.code(), tonic::Code::PermissionDenied);
+            .unwrap()
+            .into_inner()
+            .entries;
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0].name.as_deref(),
+            Some(format!("recording-{recording_id}").as_str())
+        );
 
         let second_segment = SegmentId::new();
         let second_path = write_rrd(
