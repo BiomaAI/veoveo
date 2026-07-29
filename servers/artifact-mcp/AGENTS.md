@@ -22,9 +22,9 @@ links. It fronts `artifact-service` and holds no bytes of its own.
   come from the shared `tool` macro, with declared output schemas.
 - All six tools are quick metadata actions. A durable operation would require
   the shared task runtime, never a private queue.
-- The crate has no `DESIGN.md` yet; the typed contract in `src/lib.rs` is the
-  current authority for shapes and URIs. Widening the surface starts by
-  writing that document.
+- `DESIGN.md` is the domain contract; the typed contract in `src/lib.rs`
+  carries its shapes and URIs. Both documents are embedded at build time and
+  served under the well-known surface.
 
 ## Build And Test
 
@@ -55,10 +55,10 @@ Contract revision: 2
 - C15: met
 - C16: met
 - C17: pending — registration does not state the contract revision
-- C18: pending — well-known surface not yet wired
-- C19: pending — well-known surface not yet wired
-- C20: pending — well-known surface not yet wired
-- C21: pending — well-known surface not yet wired
+- C18: met
+- C19: met
+- C20: met
+- C21: met
 - C22: met
 - C23: met
 - C25: met
