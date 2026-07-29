@@ -84,10 +84,10 @@ uv run --project docs/architecture --locked python docs/architecture/tools/valid
 ```
 
 Render the PDF from `index.html` with headed hardware-backed Chrome after
-regeneration. Before `Page.printToPDF`, prove that the browser exposes a
-high-performance hardware WebGPU adapter and a hardware WebGL context. Stop if
-either context is missing or reports SwiftShader, llvmpipe, or another software
-renderer. Never edit the generated SVG, XMI, HTML, PDF, or release archives as
+regeneration. Before `Page.printToPDF`, probe WebGPU and WebGL when the browser
+exposes them and prove that at least one API reaches hardware. Stop when neither
+API does. SwiftShader, llvmpipe, and other software renderers are never hardware
+evidence. Never edit the generated SVG, XMI, HTML, PDF, or release archives as
 an alternate source of truth.
 
 Render every PDF page and a review contact sheet through the pinned PDFium and

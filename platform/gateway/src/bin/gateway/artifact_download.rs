@@ -149,9 +149,15 @@ pub(super) async fn download_artifact(
 
 fn proxy_download_response(upstream: reqwest::Response) -> Response {
     let status = upstream.status();
+    if status.is_redirection() {
+        tracing::error!(
+            status = %status,
+            "artifact service returned a forbidden download redirect"
+        );
+        return StatusCode::BAD_GATEWAY.into_response();
+    }
     let mut headers = HeaderMap::new();
     for name in [
-        header::LOCATION,
         header::CONTENT_TYPE,
         header::CONTENT_LENGTH,
         header::CONTENT_RANGE,
@@ -181,7 +187,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn signed_redirect_is_forwarded_without_caching() {
+    async fn artifact_redirect_is_rejected() {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let app = Router::new().route(
@@ -209,14 +215,7 @@ mod tests {
             .unwrap();
 
         let response = proxy_download_response(upstream);
-        assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
-        assert_eq!(
-            response.headers().get(header::LOCATION).unwrap(),
-            "https://objects.example/signed"
-        );
-        assert_eq!(
-            response.headers().get(header::CACHE_CONTROL).unwrap(),
-            "no-store"
-        );
+        assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+        assert!(!response.headers().contains_key(header::LOCATION));
     }
 }

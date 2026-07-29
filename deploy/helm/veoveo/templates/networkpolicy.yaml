@@ -49,18 +49,18 @@ spec:
   podSelector:
     matchLabels:
       {{- include "veoveo.selectorLabels" . | nindent 6 }}
-    {{- if or (include "veoveo.componentEnabled" (list . "recording-data-plane")) (include "veoveo.mcpServerEnabled" (list . "simulation-view")) }}
     matchExpressions:
       - key: app.kubernetes.io/component
         operator: NotIn
         values:
+          - object-store
+          - object-store-init
           {{- if include "veoveo.componentEnabled" (list . "recording-data-plane") }}
           - recording
           {{- end }}
           {{- if include "veoveo.mcpServerEnabled" (list . "simulation-view") }}
           - simulation-view-renderer
           {{- end }}
-    {{- end }}
   policyTypes: [Ingress, Egress]
   ingress:
     - from:
@@ -102,6 +102,56 @@ spec:
         - podSelector:
             matchLabels:
               {{- include "veoveo.installationSelectorLabels" . | nindent 14 }}
+{{- if and (include "veoveo.componentEnabled" (list . "object-store")) (eq .Values.objectStore.mode "rustfs") }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "veoveo.fullname" . }}-object-store
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: object-store
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "veoveo.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: artifact-service
+        - podSelector:
+            matchLabels:
+              {{- include "veoveo.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: object-store-init
+      ports:
+        - protocol: TCP
+          port: 9000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "veoveo.fullname" . }}-object-store-init
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: object-store-init
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "veoveo.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: object-store
+      ports:
+        - protocol: TCP
+          port: 9000
+{{- end }}
 {{- end }}
 {{- if .Values.networkPolicy.externalEgressCidrs }}
 ---

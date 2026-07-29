@@ -59,7 +59,6 @@ objectStore:
       tag: 1.0.0-beta.8
       digest: ""
     bucket: artifact-plane
-    publicEndpoint: https://objects.enterprise.example
     persistence:
       size: 50Gi
       storageClass: ""
@@ -73,7 +72,6 @@ objectStore:
         memory: 2Gi
   externalS3:
     endpoint: ""
-    publicEndpoint: ""
     bucket: ""
     region: us-east-1
     allowHttp: false
@@ -416,7 +414,6 @@ ingress:
   publicShareAnnotations:
     nginx.ingress.kubernetes.io/enable-access-log: "false"
   host: veoveo.enterprise.example
-  objectStoreHost: objects.enterprise.example
   tls:
     enabled: true
     secretName: veoveo-ingress-tls

@@ -186,8 +186,10 @@ Artifacts support two distinct sharing modes:
 
 Link tokens are random, stored only as hashes, default to seven days, may not
 exceed thirty days, and are revocable. Public links never confer write or admin
-access. Large authorized downloads are policy-checked and audited before a
-sixty-second object-store URL is issued.
+access. Every client-facing capability uses the installation origin selected by
+`global.publicBaseUrl`. Large authorized, ranged, and public-share downloads are
+policy-checked and streamed through Artifact service. Object storage remains private,
+has no client-addressable hostname, and never issues a redirect to a client.
 
 ## MCP protocol surface
 

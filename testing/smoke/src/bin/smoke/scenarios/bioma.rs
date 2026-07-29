@@ -33,7 +33,6 @@ pub(crate) async fn bioma_verify(
     context: &str,
     local_base_url: &str,
     public_base_url: &str,
-    object_base_url: &str,
 ) -> Result<()> {
     run_checked(
         Path::new("kubectl"),
@@ -90,24 +89,8 @@ pub(crate) async fn bioma_verify(
         "public endpoint did not expose the Bioma authorization-server key"
     );
 
-    let object = url::Url::parse(object_base_url).context("parsing public object-store URL")?;
-    ensure!(
-        object.scheme() == "https",
-        "public object-store URL must use HTTPS"
-    );
-    let object_status = client
-        .get(object)
-        .send()
-        .await
-        .context("requesting the public Bioma object-store edge")?
-        .status();
-    ensure!(
-        !object_status.is_server_error(),
-        "public Bioma object-store edge returned {object_status}"
-    );
-
     println!(
-        "Bioma verify ok: the full server catalog is available, Isaac Sim, View, Stream, and Reason are concurrently schedulable, console assets and Entra authorization are public, object TLS is valid, and the Bioma JWKS is authoritative"
+        "Bioma verify ok: the full server catalog is available, Isaac Sim, View, Stream, and Reason are concurrently schedulable, the single public origin serves console and authorization surfaces, and the Bioma JWKS is authoritative"
     );
     Ok(())
 }

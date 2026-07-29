@@ -32,7 +32,6 @@ async fn main() -> anyhow::Result<()> {
         object_store,
         &config.public_base_url,
         config.max_internal_read_bytes,
-        config.redirect_threshold_bytes,
     );
     let auth = PlaneAuthenticator::new(
         config.internal_token_issuer.clone(),

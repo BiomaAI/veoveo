@@ -1,10 +1,6 @@
 global:
   publicBaseUrl: http://localhost:8782
 
-objectStore:
-  rustfs:
-    publicEndpoint: http://objects.localhost:8782
-
 simulationView:
   publicSignalingUrl: ws://localhost:8782/simulation-view/signaling
   publicMediaIp: 127.0.0.1

@@ -126,9 +126,6 @@ enum Cmd {
         /// Public Cloudflare hostname for the Bioma installation.
         #[arg(long, default_value = "https://veoveo.bioma.ai")]
         public_base_url: String,
-        /// Public Cloudflare hostname for the Bioma object store.
-        #[arg(long, default_value = "https://objects-veoveo.bioma.ai")]
-        object_base_url: String,
     },
     /// Run every live SurrealDB integration target against an isolated 3.2.1 container.
     SurrealIntegration,
@@ -628,16 +625,7 @@ async fn main() -> Result<()> {
             context,
             local_base_url,
             public_base_url,
-            object_base_url,
-        } => {
-            bioma_verify(
-                &context,
-                &local_base_url,
-                &public_base_url,
-                &object_base_url,
-            )
-            .await
-        }
+        } => bioma_verify(&context, &local_base_url, &public_base_url).await,
         Cmd::SurrealIntegration => surreal_integration().await,
         Cmd::GatewayPlatformStore {
             gateway_bin,

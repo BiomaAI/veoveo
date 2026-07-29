@@ -22,7 +22,6 @@ pub enum ObjectStoreConfig {
     },
     S3 {
         endpoint: Option<String>,
-        public_endpoint: String,
         bucket: String,
         region: String,
         access_key_id: String,
@@ -46,32 +45,24 @@ impl ObjectStoreConfig {
             }
             Self::S3 {
                 endpoint,
-                public_endpoint,
                 bucket,
                 region,
                 access_key_id,
                 secret_access_key,
                 allow_http,
             } => {
-                let base_builder = object_store::aws::AmazonS3Builder::new()
+                let mut builder = object_store::aws::AmazonS3Builder::new()
                     .with_bucket_name(bucket)
                     .with_region(region)
                     .with_access_key_id(access_key_id)
                     .with_secret_access_key(secret_access_key.expose_secret())
                     .with_allow_http(*allow_http);
-                let mut builder = base_builder.clone();
                 if let Some(endpoint) = endpoint {
                     builder = builder.with_endpoint(endpoint);
                 }
                 let store = Arc::new(builder.build().context("building S3 artifact store")?);
-                let signer = Arc::new(
-                    base_builder
-                        .with_endpoint(public_endpoint)
-                        .build()
-                        .context("building public S3 download signer")?,
-                );
                 let object_store: Arc<dyn ObjectStore> = store;
-                Ok(ArtifactObjectStore::with_signer(object_store, signer))
+                Ok(ArtifactObjectStore::new(object_store))
             }
         }
     }
@@ -87,7 +78,6 @@ impl std::fmt::Debug for ObjectStoreConfig {
                 .finish(),
             Self::S3 {
                 endpoint,
-                public_endpoint,
                 bucket,
                 region,
                 access_key_id,
@@ -96,7 +86,6 @@ impl std::fmt::Debug for ObjectStoreConfig {
             } => formatter
                 .debug_struct("S3")
                 .field("endpoint", endpoint)
-                .field("public_endpoint", public_endpoint)
                 .field("bucket", bucket)
                 .field("region", region)
                 .field("access_key_id", access_key_id)
@@ -116,7 +105,6 @@ pub struct Config {
     pub internal_trust_bundle: GatewayInternalTrustBundle,
     pub object_store: ObjectStoreConfig,
     pub max_internal_read_bytes: u64,
-    pub redirect_threshold_bytes: u64,
 }
 
 fn env(key: &str) -> anyhow::Result<String> {
@@ -207,10 +195,6 @@ impl Config {
             },
             "s3" => ObjectStoreConfig::S3 {
                 endpoint: std::env::var("ARTIFACT_S3_ENDPOINT").ok(),
-                public_endpoint: validated_s3_public_endpoint(
-                    &env("ARTIFACT_S3_PUBLIC_ENDPOINT")?,
-                    env_or("ARTIFACT_S3_ALLOW_HTTP", "false") == "true",
-                )?,
                 bucket: env("ARTIFACT_S3_BUCKET")?,
                 region: env_or("ARTIFACT_S3_REGION", "us-east-1"),
                 access_key_id: env("ARTIFACT_S3_ACCESS_KEY_ID")?,
@@ -233,52 +217,18 @@ impl Config {
             internal_trust_bundle,
             object_store,
             max_internal_read_bytes: positive_u64("ARTIFACT_INTERNAL_READ_MAX_BYTES", "67108864")?,
-            redirect_threshold_bytes: positive_u64("ARTIFACT_REDIRECT_THRESHOLD_BYTES", "8388608")?,
         })
     }
 }
 
-fn validated_s3_public_endpoint(value: &str, allow_http: bool) -> anyhow::Result<String> {
-    let endpoint =
-        url::Url::parse(value).context("ARTIFACT_S3_PUBLIC_ENDPOINT must be an absolute URL")?;
-    if endpoint.host_str().is_none() || !matches!(endpoint.scheme(), "http" | "https") {
-        return Err(anyhow!(
-            "ARTIFACT_S3_PUBLIC_ENDPOINT must use http or https and include a host"
-        ));
-    }
-    if endpoint.scheme() != "https" && !allow_http {
-        return Err(anyhow!(
-            "ARTIFACT_S3_PUBLIC_ENDPOINT must use https unless ARTIFACT_S3_ALLOW_HTTP=true"
-        ));
-    }
-    Ok(endpoint.as_str().trim_end_matches('/').to_owned())
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::store::{BlobDownload, BlobStore};
-
     use super::*;
 
     #[test]
-    fn public_s3_endpoint_requires_absolute_https_by_default() {
-        assert_eq!(
-            validated_s3_public_endpoint("https://objects.example.com", false).unwrap(),
-            "https://objects.example.com"
-        );
-        assert!(validated_s3_public_endpoint("http://objects.example.com", false).is_err());
-        assert!(validated_s3_public_endpoint("/objects", true).is_err());
-        assert_eq!(
-            validated_s3_public_endpoint("http://localhost:9000/", true).unwrap(),
-            "http://localhost:9000"
-        );
-    }
-
-    #[tokio::test]
-    async fn signer_uses_public_endpoint_not_internal_service_dns() {
+    fn s3_debug_redacts_credentials_and_has_no_public_endpoint() {
         let config = ObjectStoreConfig::S3 {
             endpoint: Some("http://rustfs:9000".into()),
-            public_endpoint: "http://localhost:9000".into(),
             bucket: "artifacts".into(),
             region: "us-east-1".into(),
             access_key_id: "test-access".into(),
@@ -288,15 +238,6 @@ mod tests {
         let debug = format!("{config:?}");
         assert!(!debug.contains("test-secret"));
         assert!(debug.contains("[REDACTED]"));
-        let store = config.build().unwrap();
-        let BlobDownload::SignedRedirect(url) = store
-            .download("tenants/acme/blobs/01900000-0000-7000-8000-000000000001")
-            .await
-            .unwrap()
-        else {
-            panic!("S3 must return a signed redirect")
-        };
-        assert!(url.starts_with("http://localhost:9000/"));
-        assert!(!url.contains("rustfs:9000"));
+        assert!(!debug.contains("public"));
     }
 }

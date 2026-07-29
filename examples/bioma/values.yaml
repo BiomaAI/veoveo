@@ -2,10 +2,6 @@ global:
   production: true
   publicBaseUrl: https://veoveo.bioma.ai
 
-objectStore:
-  rustfs:
-    publicEndpoint: https://objects-veoveo.bioma.ai
-
 artifactService:
   allowedAudiences:
     - artifact
@@ -35,6 +31,5 @@ clusterInspection:
 ingress:
   className: traefik
   host: veoveo.bioma.ai
-  objectStoreHost: objects-veoveo.bioma.ai
   tls:
     enabled: false
