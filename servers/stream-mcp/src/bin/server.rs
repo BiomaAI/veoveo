@@ -6,7 +6,7 @@
 
 use std::collections::{BTreeSet, HashMap};
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use axum::{Router, extract::State, http::StatusCode, middleware, routing::get};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
@@ -37,8 +37,9 @@ use veoveo_mcp_apps_extension::{
 use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle, Page,
-    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry, paginate,
-    public_allowed_hosts,
+    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer,
+    docs::{CapabilityInventory, ContractDeclaration, ServerDocs},
+    init_server_telemetry, paginate, public_allowed_hosts,
 };
 use veoveo_mcp_task_extension::{
     Implementation as TaskExtensionImplementation, ServerDiscovery, TaskExtensionAdapter,
@@ -56,6 +57,8 @@ use veoveo_stream_mcp::{
 };
 use veoveo_task_runtime::{TaskError, TaskRuntime, TaskRuntimeConfig, TaskSnapshot};
 
+#[path = "server/admin.rs"]
+mod admin;
 #[path = "server/app.rs"]
 mod app;
 #[path = "server/app_state.rs"]
@@ -97,6 +100,12 @@ use tasks::{
 
 const LIST_PAGE_SIZE: usize = 100;
 
+/// The crate documents embedded at build time and served under the well-known
+/// surface: `stream://docs`, `stream://docs/{doc_id}`, `stream://contract`,
+/// and the administrative `admin/docs` routes (contract C18-C21).
+pub(crate) static SERVER_DOCS: LazyLock<ServerDocs> =
+    LazyLock::new(|| veoveo_mcp_contract::server_docs!("stream"));
+
 #[derive(Clone)]
 struct StreamMcp {
     state: Arc<AppState>,
@@ -110,6 +119,53 @@ impl StreamMcp {
         Self {
             state,
             tool_router: Self::tool_router(),
+        }
+    }
+
+    /// The capability inventory declared at `stream://contract` (contract
+    /// C19). Tools and prompts derive from the live registrations; stable
+    /// resources, resource templates, and task-augmented tool names come from
+    /// the lists the handler serves, so the declaration cannot silently
+    /// diverge.
+    fn capability_inventory() -> CapabilityInventory {
+        let mut tools: Vec<String> = Self::tool_router()
+            .list_all()
+            .into_iter()
+            .map(|tool| tool.name.into_owned())
+            .collect();
+        tools.sort();
+        let mut prompts: Vec<String> = StreamPrompt::ALL
+            .into_iter()
+            .map(|prompt| prompt.definition().name)
+            .collect();
+        prompts.sort();
+        let mut resources = vec![
+            uris::DOCS_URI.to_owned(),
+            uris::CONTRACT_URI.to_owned(),
+            uris::PIPELINES_URI.to_owned(),
+            uris::MODELS_URI.to_owned(),
+            uris::RUNS_URI.to_owned(),
+            uris::SESSIONS_URI.to_owned(),
+            uris::LIVE_APP_URI.to_owned(),
+        ];
+        resources.extend(SERVER_DOCS.iter().map(|doc| uris::doc_uri(doc.id)));
+        resources.sort();
+        CapabilityInventory {
+            tools,
+            resources,
+            resource_templates: vec![
+                uris::DOC_TEMPLATE.to_owned(),
+                uris::PIPELINE_TEMPLATE.to_owned(),
+                uris::MODEL_TEMPLATE.to_owned(),
+                uris::RUN_TEMPLATE.to_owned(),
+                uris::RUN_RESULTS_TEMPLATE.to_owned(),
+                uris::SESSION_TEMPLATE.to_owned(),
+                uris::SESSION_RESULTS_TEMPLATE.to_owned(),
+                uris::SESSION_PREVIEW_TEMPLATE.to_owned(),
+                uris::ARTIFACT_TEMPLATE.to_owned(),
+            ],
+            prompts,
+            tasks: vec!["run_recording".to_owned()],
         }
     }
 
@@ -258,6 +314,16 @@ impl ServerHandler for StreamMcp {
             app_resource(uris::LIVE_APP_URI, "stream-live-app")
                 .with_title("Stream")
                 .with_description("Live encoded video and typed Stream pipeline overlays."),
+            Resource::new(uris::DOCS_URI, "stream docs")
+                .with_title("Server documents")
+                .with_description("Index of the crate documents embedded at build time.")
+                .with_mime_type("application/json"),
+            Resource::new(uris::CONTRACT_URI, "stream contract")
+                .with_title("Contract declaration")
+                .with_description(
+                    "Machine-readable contract revision, compliance, and capability inventory.",
+                )
+                .with_mime_type("application/json"),
             Resource::new(uris::PIPELINES_URI, "stream pipelines")
                 .with_title("Stream pipelines")
                 .with_description("Operator-admitted GStreamer pipeline catalog.")
@@ -277,6 +343,14 @@ impl ServerHandler for StreamMcp {
                 )
                 .with_mime_type("application/json"),
         ];
+        for doc in SERVER_DOCS.iter() {
+            resources.push(
+                Resource::new(uris::doc_uri(doc.id), doc.title)
+                    .with_title(doc.title)
+                    .with_description("Crate document embedded at build time.")
+                    .with_mime_type("text/markdown"),
+            );
+        }
         for pipeline in self.state.catalog.pipeline_views() {
             resources.push(
                 Resource::new(pipeline.uri, format!("pipeline {}", pipeline.id))
@@ -353,6 +427,10 @@ impl ServerHandler for StreamMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
         let templates = vec![
+            ResourceTemplate::new(uris::DOC_TEMPLATE, "doc")
+                .with_title("Server document")
+                .with_description("Embedded crate document body (contract C18).")
+                .with_mime_type("text/markdown"),
             ResourceTemplate::new(uris::PIPELINE_TEMPLATE, "pipeline")
                 .with_title("Stream pipeline")
                 .with_mime_type("application/json"),
@@ -396,6 +474,25 @@ impl ServerHandler for StreamMcp {
                 uri,
                 app::LIVE_APP_HTML,
             )]));
+        }
+        // Well-known surface (contract C18, C19): readable by any identity
+        // that can list resources.
+        if uri == uris::DOCS_URI {
+            return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
+        }
+        if let Some(doc_id) = uris::parse_doc(uri) {
+            let doc = SERVER_DOCS
+                .doc(doc_id)
+                .ok_or_else(|| McpError::resource_not_found("server document not found", None))?;
+            return Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
+            ]));
+        }
+        if uri == uris::CONTRACT_URI {
+            return json_resource(
+                uri,
+                &ContractDeclaration::from_docs(&SERVER_DOCS, Self::capability_inventory()),
+            );
         }
         if uri == uris::PIPELINES_URI {
             return json_resource(uri, &self.state.catalog.pipeline_views());
@@ -947,13 +1044,18 @@ async fn main() -> anyhow::Result<()> {
             task_extension_middleware::<StreamTaskExtension>,
         ))
         .layer(middleware::from_fn_with_state(
-            auth_state,
+            auth_state.clone(),
             authenticate_internal_mcp,
         ));
+    let admin_router = admin::router().layer(middleware::from_fn_with_state(
+        auth_state,
+        authenticate_internal_mcp,
+    ));
     let service_router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(ready))
         .with_state(state.clone())
+        .nest("/admin", admin_router)
         .nest("/mcp", mcp_router);
     let router = Router::new()
         .nest(public_endpoint.mount_path(), service_router)
@@ -990,5 +1092,54 @@ mod schema_tests {
     #[test]
     fn tool_input_schemas_use_the_canonical_profile() {
         assert!(!StreamMcp::tool_router().list_all().is_empty());
+    }
+}
+
+#[cfg(test)]
+mod well_known_tests {
+    use veoveo_mcp_contract::docs::{
+        CONTRACT_REVISION, ComplianceStatus, ContractDeclaration, DOC_ID_AGENTS, DOC_ID_DESIGN,
+    };
+
+    use super::{SERVER_DOCS, StreamMcp, uris};
+
+    #[test]
+    fn embedded_documents_carry_the_crate_manual_and_design() {
+        assert_eq!(SERVER_DOCS.server(), "stream");
+        let agents = SERVER_DOCS.doc(DOC_ID_AGENTS).expect("agents document");
+        assert!(agents.body.contains("## Contract Compliance"));
+        let design = SERVER_DOCS.doc(DOC_ID_DESIGN).expect("design document");
+        assert!(!design.body.is_empty());
+        let index = SERVER_DOCS.llms_txt();
+        assert!(index.contains("(docs/agents)"));
+        assert!(index.contains("(docs/design)"));
+    }
+
+    #[test]
+    fn contract_declaration_resolves_from_the_embedded_manual() {
+        let declaration =
+            ContractDeclaration::from_docs(&SERVER_DOCS, StreamMcp::capability_inventory());
+        assert_eq!(declaration.server, "stream");
+        assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
+        for id in ["C18", "C19", "C20", "C21"] {
+            let item = declaration
+                .compliance
+                .iter()
+                .find(|item| item.id == id)
+                .expect("declared checklist item");
+            assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
+        }
+        let inventory = &declaration.capabilities;
+        assert!(inventory.tools.contains(&"run_recording".to_owned()));
+        assert!(inventory.tasks.contains(&"run_recording".to_owned()));
+        assert!(inventory.resources.contains(&uris::DOCS_URI.to_owned()));
+        assert!(inventory.resources.contains(&uris::CONTRACT_URI.to_owned()));
+        assert!(inventory.resources.contains(&uris::doc_uri("agents")));
+        assert!(
+            inventory
+                .resource_templates
+                .contains(&uris::DOC_TEMPLATE.to_owned())
+        );
+        assert!(!inventory.prompts.is_empty());
     }
 }
