@@ -7,9 +7,8 @@ from dataclasses import dataclass
 from typing import Any
 
 import mcp.types as types
-from mcp.server.lowlevel import Server
-from mcp.server.lowlevel.helper_types import ReadResourceContents
-from mcp.shared.exceptions import McpError
+from mcp.server import Server, ServerRequestContext
+from mcp.shared.exceptions import MCPError
 from pydantic import ValidationError
 
 from veoveo_mcp.contract.identity import GatewayInternalIdentity, PlaneCaller
@@ -27,6 +26,8 @@ from .contract import (
 )
 from .runtime import FixtureRuntime
 
+
+Context = ServerRequestContext[Any, Any]
 
 INSTRUCTIONS = (
     "Anonymous external Simulation View fixture. Publish its synthetic "
@@ -180,90 +181,87 @@ def contract_declaration() -> dict[str, Any]:
 
 
 def build_mcp_server(runtime: FixtureRuntime) -> Server:
-    server: Server = Server(
-        "anonymous-simulation",
-        version="0.1.0",
-        instructions=INSTRUCTIONS,
-    )
-
-    def scope() -> dict[str, Any]:
-        request = server.request_context.request
+    def scope(ctx: Context) -> dict[str, Any]:
+        request = ctx.request
         if request is None:
             raise _invalid("authenticated HTTP context missing")
         return request.scope
 
-    @server.list_tools()
-    async def list_tools() -> list[types.Tool]:
-        return [
-            types.Tool(
-                name="prepare_scene",
-                title="Prepare synthetic Simulation View scene",
-                description=(
-                    "Publish fixture-owned OpenUSD assets to the Artifact plane "
-                    "and return one immutable Simulation View scene declaration."
+    async def list_tools(
+        _ctx: Context, _params: types.PaginatedRequestParams | None
+    ) -> types.ListToolsResult:
+        return types.ListToolsResult(
+            tools=[
+                types.Tool(
+                    name="prepare_scene",
+                    title="Prepare synthetic Simulation View scene",
+                    description=(
+                        "Publish fixture-owned OpenUSD assets to the Artifact plane "
+                        "and return one immutable Simulation View scene declaration."
+                    ),
+                    input_schema=mcp_input_schema(PrepareSceneRequest),
+                    output_schema=PreparedScene.model_json_schema(),
+                    annotations=types.ToolAnnotations(
+                        read_only_hint=False,
+                        destructive_hint=False,
+                        idempotent_hint=False,
+                        open_world_hint=False,
+                    ),
                 ),
-                inputSchema=mcp_input_schema(PrepareSceneRequest),
-                outputSchema=PreparedScene.model_json_schema(),
-                annotations=types.ToolAnnotations(
-                    readOnlyHint=False,
-                    destructiveHint=False,
-                    idempotentHint=False,
-                    openWorldHint=False,
+                types.Tool(
+                    name="start_pose_producer",
+                    title="Start synthetic pose producer",
+                    description=(
+                        "Start complete moving-entity snapshots on the independent "
+                        "mTLS Simulation View pose data plane."
+                    ),
+                    input_schema=mcp_input_schema(StartPoseProducerRequest),
+                    output_schema=ProducerState.model_json_schema(),
+                    annotations=types.ToolAnnotations(
+                        read_only_hint=False,
+                        destructive_hint=False,
+                        idempotent_hint=True,
+                        open_world_hint=False,
+                    ),
                 ),
-            ),
-            types.Tool(
-                name="start_pose_producer",
-                title="Start synthetic pose producer",
-                description=(
-                    "Start complete moving-entity snapshots on the independent "
-                    "mTLS Simulation View pose data plane."
+                types.Tool(
+                    name="stop_pose_producer",
+                    title="Stop synthetic pose producer",
+                    description="Stop the fixture-owned pose stream.",
+                    input_schema=mcp_input_schema(StopPoseProducerRequest),
+                    output_schema=ProducerState.model_json_schema(),
+                    annotations=types.ToolAnnotations(
+                        read_only_hint=False,
+                        destructive_hint=True,
+                        idempotent_hint=True,
+                        open_world_hint=False,
+                    ),
                 ),
-                inputSchema=mcp_input_schema(StartPoseProducerRequest),
-                outputSchema=ProducerState.model_json_schema(),
-                annotations=types.ToolAnnotations(
-                    readOnlyHint=False,
-                    destructiveHint=False,
-                    idempotentHint=True,
-                    openWorldHint=False,
+                types.Tool(
+                    name="get_fixture_state",
+                    title="Read synthetic producer state",
+                    description="Read redacted pose-producer lifecycle and counters.",
+                    input_schema=mcp_input_schema(GetFixtureStateRequest),
+                    output_schema=FixtureState.model_json_schema(),
+                    annotations=types.ToolAnnotations(
+                        read_only_hint=True,
+                        destructive_hint=False,
+                        idempotent_hint=True,
+                        open_world_hint=False,
+                    ),
                 ),
-            ),
-            types.Tool(
-                name="stop_pose_producer",
-                title="Stop synthetic pose producer",
-                description="Stop the fixture-owned pose stream.",
-                inputSchema=mcp_input_schema(StopPoseProducerRequest),
-                outputSchema=ProducerState.model_json_schema(),
-                annotations=types.ToolAnnotations(
-                    readOnlyHint=False,
-                    destructiveHint=True,
-                    idempotentHint=True,
-                    openWorldHint=False,
-                ),
-            ),
-            types.Tool(
-                name="get_fixture_state",
-                title="Read synthetic producer state",
-                description="Read redacted pose-producer lifecycle and counters.",
-                inputSchema=mcp_input_schema(GetFixtureStateRequest),
-                outputSchema=FixtureState.model_json_schema(),
-                annotations=types.ToolAnnotations(
-                    readOnlyHint=True,
-                    destructiveHint=False,
-                    idempotentHint=True,
-                    openWorldHint=False,
-                ),
-            ),
-        ]
+            ]
+        )
 
-    @server.call_tool()
     async def call_tool(
-        name: str,
-        arguments: dict[str, Any],
+        ctx: Context, params: types.CallToolRequestParams
     ) -> types.CallToolResult:
+        name = params.name
+        arguments = params.arguments or {}
         try:
             if name == "prepare_scene":
                 request = PrepareSceneRequest.model_validate(arguments)
-                output = await runtime.prepare_scene(_caller(scope()), request)
+                output = await runtime.prepare_scene(_caller(scope(ctx)), request)
                 return _structured("prepared synthetic scene", output)
             if name == "start_pose_producer":
                 request = StartPoseProducerRequest.model_validate(arguments)
@@ -277,13 +275,14 @@ def build_mcp_server(runtime: FixtureRuntime) -> Server:
                 GetFixtureStateRequest.model_validate(arguments)
                 output = await runtime.fixture_state()
                 return _structured("read synthetic fixture state", output)
+        except MCPError as error:
+            return _error_result(error.message)
         except (ValidationError, ValueError) as error:
-            raise _invalid(str(error)) from error
-        raise _invalid(f"unknown tool `{name}`")
+            return _error_result(str(error))
+        return _error_result(f"unknown tool `{name}`")
 
-    @server.list_resources()
     async def list_resources(
-        _request: types.ListResourcesRequest,
+        _ctx: Context, _params: types.PaginatedRequestParams | None
     ) -> types.ListResourcesResult:
         resources = [
             types.Resource(
@@ -291,28 +290,28 @@ def build_mcp_server(runtime: FixtureRuntime) -> Server:
                 name="state",
                 title="Anonymous simulation fixture state",
                 description="Redacted synthetic pose-producer state.",
-                mimeType="application/json",
+                mime_type="application/json",
             ),
             types.Resource(
                 uri=DOCS_URI,
                 name="docs",
                 title="Anonymous simulation fixture documentation",
                 description="Index of embedded fixture documents.",
-                mimeType="application/json",
+                mime_type="application/json",
             ),
             types.Resource(
                 uri=DESIGN_URI,
                 name="design",
                 title="Anonymous simulation fixture design",
                 description="Public protocol and ownership boundary.",
-                mimeType="text/markdown",
+                mime_type="text/markdown",
             ),
             types.Resource(
                 uri=AGENTS_URI,
                 name="agents",
                 title="Anonymous simulation fixture agent manual",
                 description="Implementation invariants and compliance declaration.",
-                mimeType="text/markdown",
+                mime_type="text/markdown",
             ),
             types.Resource(
                 uri=CONTRACT_URI,
@@ -322,39 +321,40 @@ def build_mcp_server(runtime: FixtureRuntime) -> Server:
                     "Machine-readable contract revision, compliance, and "
                     "capability inventory."
                 ),
-                mimeType="application/json",
+                mime_type="application/json",
             ),
         ]
         return types.ListResourcesResult(resources=resources)
 
-    @server.read_resource()
-    async def read_resource(uri: Any) -> list[ReadResourceContents]:
-        text = str(uri)
-        _identity(scope())
+    async def read_resource(
+        ctx: Context, params: types.ReadResourceRequestParams
+    ) -> types.ReadResourceResult:
+        text = params.uri
+        _identity(scope(ctx))
         if text == STATE_URI:
             state = await runtime.fixture_state()
-            return [_json_contents(state.model_dump(mode="json", by_alias=True))]
+            return _json_result(
+                text, state.model_dump(mode="json", by_alias=True)
+            )
         if text == DOCS_URI:
-            return [_json_contents(list(DOCS_INDEX))]
+            return _json_result(text, list(DOCS_INDEX))
         if text == DESIGN_URI:
-            return [
-                ReadResourceContents(
-                    content=DESIGN_DOCUMENT,
-                    mime_type="text/markdown",
-                )
-            ]
+            return _markdown_result(text, DESIGN_DOCUMENT)
         if text == AGENTS_URI:
-            return [
-                ReadResourceContents(
-                    content=AGENTS_DOCUMENT,
-                    mime_type="text/markdown",
-                )
-            ]
+            return _markdown_result(text, AGENTS_DOCUMENT)
         if text == CONTRACT_URI:
-            return [_json_contents(contract_declaration())]
+            return _json_result(text, contract_declaration())
         raise _invalid(f"unknown resource URI `{text}`")
 
-    return server
+    return Server(
+        "anonymous-simulation",
+        version="0.1.0",
+        instructions=INSTRUCTIONS,
+        on_list_tools=list_tools,
+        on_call_tool=call_tool,
+        on_list_resources=list_resources,
+        on_read_resource=read_resource,
+    )
 
 
 def _identity(scope: dict[str, Any]) -> GatewayInternalIdentity:
@@ -375,21 +375,43 @@ def _caller(scope: dict[str, Any]) -> PlaneCaller:
 def _structured(text: str, output: Any) -> types.CallToolResult:
     return types.CallToolResult(
         content=[types.TextContent(type="text", text=text)],
-        structuredContent=output.model_dump(
+        structured_content=output.model_dump(
             mode="json",
             by_alias=True,
             exclude_none=True,
         ),
-        isError=False,
+        is_error=False,
     )
 
 
-def _json_contents(value: object) -> ReadResourceContents:
-    return ReadResourceContents(
-        content=json.dumps(value, separators=(",", ":")),
-        mime_type="application/json",
+def _error_result(message: str) -> types.CallToolResult:
+    return types.CallToolResult(
+        content=[types.TextContent(type="text", text=message)],
+        is_error=True,
     )
 
 
-def _invalid(message: str) -> McpError:
-    return McpError(types.ErrorData(code=types.INVALID_REQUEST, message=message))
+def _json_result(uri: str, value: object) -> types.ReadResourceResult:
+    return types.ReadResourceResult(
+        contents=[
+            types.TextResourceContents(
+                uri=uri,
+                text=json.dumps(value, separators=(",", ":")),
+                mime_type="application/json",
+            )
+        ]
+    )
+
+
+def _markdown_result(uri: str, body: str) -> types.ReadResourceResult:
+    return types.ReadResourceResult(
+        contents=[
+            types.TextResourceContents(
+                uri=uri, text=body, mime_type="text/markdown"
+            )
+        ]
+    )
+
+
+def _invalid(message: str) -> MCPError:
+    return MCPError(code=types.INVALID_REQUEST, message=message)
