@@ -1,7 +1,10 @@
 pub mod artifacts;
+pub mod compiler;
 pub mod contract;
 pub mod domain;
+pub mod executor;
 pub mod plan_artifacts;
 pub mod planning;
 pub mod state;
 pub mod uris;
+pub mod verification;

@@ -230,14 +230,65 @@ pub struct MathematicalQuality {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct VariableValue {
+    pub variable_id: VariableId,
+    pub value: FiniteF64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ConstraintValue {
+    pub constraint_id: ConstraintId,
+    pub activity: FiniteF64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dual_value: Option<FiniteF64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct VerificationFinding {
-    pub code: String,
+    pub code: VerificationCode,
     pub severity: VerificationSeverity,
     pub message: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub variable_id: Option<VariableId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub constraint_id: Option<ConstraintId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub order_id: Option<OrderId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vehicle_id: Option<VehicleId>,
+}
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum VerificationCode {
+    MissingVariable,
+    DuplicateVariable,
+    UnknownVariable,
+    VariableLowerBound,
+    VariableUpperBound,
+    VariableIntegrality,
+    ConstraintLowerBound,
+    ConstraintUpperBound,
+    ObjectiveMismatch,
+    UnknownVehicle,
+    DuplicateVehicleRoute,
+    InvalidRouteEndpoint,
+    UnknownRouteNode,
+    DuplicateRouteNode,
+    MissingMandatoryOrder,
+    PartialPickupDelivery,
+    PickupDeliveryPrecedence,
+    VehicleOrderRestriction,
+    OrderTimeWindow,
+    VehicleTimeWindow,
+    VehicleCapacity,
+    VehicleMaximumCost,
+    VehicleMaximumTime,
+    UnavailableTravelArc,
+    ArrivalSequence,
+    SolverReportedFailure,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -253,6 +304,14 @@ pub struct VerificationReport {
     pub verification_id: VerificationId,
     pub verified: bool,
     pub findings: Vec<VerificationFinding>,
+    pub absolute_tolerance: NonNegativeF64,
+    pub relative_tolerance: NonNegativeF64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub maximum_constraint_violation: Option<NonNegativeF64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub maximum_integrality_violation: Option<NonNegativeF64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub maximum_bound_violation: Option<NonNegativeF64>,
     pub verified_at: DateTime<Utc>,
 }
 
@@ -266,9 +325,15 @@ pub enum SolutionDetail {
     },
     Convex {
         quality: MathematicalQuality,
+        variables: Vec<VariableValue>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        constraints: Vec<ConstraintValue>,
     },
     Milp {
         quality: MathematicalQuality,
+        variables: Vec<VariableValue>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        constraints: Vec<ConstraintValue>,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         incumbents: Vec<IncumbentSummary>,
     },
