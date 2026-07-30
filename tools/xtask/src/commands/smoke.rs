@@ -170,6 +170,7 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         | "profile-cluster-delete"
         | "profile-up"
         | "profile-down"
+        | "gpu-allocation-verify"
         | "bioma-verify"
         | "surreal-integration"
         | "view-mcp"
@@ -236,6 +237,7 @@ mod tests {
             &[CONFORMANCE, ARTIFACT_SERVICE]
         );
         assert_eq!(scenario_binaries("profile-up").unwrap(), &[]);
+        assert_eq!(scenario_binaries("gpu-allocation-verify").unwrap(), &[]);
         assert!(scenario_binaries("unmapped-scenario").is_err());
     }
 
