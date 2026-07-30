@@ -12,6 +12,7 @@ use veoveo_deploy_contract::RegistryTransport;
 
 pub const BUILDER_NAME: &str = "veoveo";
 pub const BUILDX_VERSION: &str = "v0.35.0";
+pub const CERTIFICATION_CACHE_REPOSITORY: &str = "veoveo-simulation-certify-cache";
 const BUILDX_LINUX_AMD64_SHA256: &str =
     "d41ece72044243b4f58b343441ae37446d9c29a7d6b5e11c61847bbcf8f7dfda";
 const BUILDX_LINUX_ARM64_SHA256: &str =
@@ -139,6 +140,59 @@ pub fn recreate(repository: &Path, confirmation: &str) -> Result<()> {
         inspect(repository)?.context("managed builder disappeared after recreation")?;
     validate(repository, &inspection, &configuration)?;
     drop(lease);
+    Ok(())
+}
+
+pub fn prune_certification_cache(repository: &Path, confirmation: &str) -> Result<()> {
+    ensure!(
+        confirmation == CERTIFICATION_CACHE_REPOSITORY,
+        "refusing to remove certification materializations: pass --confirm {CERTIFICATION_CACHE_REPOSITORY}"
+    );
+    let filter = format!("reference={CERTIFICATION_CACHE_REPOSITORY}:*");
+    let output = Command::new("docker")
+        .current_dir(repository)
+        .args([
+            "image",
+            "ls",
+            "--filter",
+            &filter,
+            "--format",
+            "{{.Repository}}:{{.Tag}}",
+        ])
+        .output()
+        .context("listing simulation certification materializations")?;
+    ensure!(
+        output.status.success(),
+        "listing simulation certification materializations failed with {}\n{}",
+        output.status,
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let references = String::from_utf8(output.stdout)
+        .context("certification materialization list is not UTF-8")?
+        .lines()
+        .map(ToOwned::to_owned)
+        .collect::<Vec<_>>();
+    if references.is_empty() {
+        println!("Simulation certification materialization cache is empty");
+        return Ok(());
+    }
+    let status = Command::new("docker")
+        .current_dir(repository)
+        .args(["image", "rm"])
+        .args(&references)
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()
+        .context("removing simulation certification materializations")?;
+    ensure!(
+        status.success(),
+        "removing simulation certification materializations failed with {status}"
+    );
+    println!(
+        "Removed {} simulation certification materialization(s)",
+        references.len()
+    );
     Ok(())
 }
 
@@ -615,7 +669,7 @@ mod tests {
 
     use super::{
         BuilderInspection, managed_buildx, parse_buildx_version, parse_inspection,
-        registry_configuration,
+        prune_certification_cache, registry_configuration,
     };
     use veoveo_deploy_contract::RegistryTransport;
 
@@ -738,5 +792,13 @@ mod tests {
             generated.path.file_stem().and_then(std::ffi::OsStr::to_str),
             Some(generated.digest.as_str())
         );
+    }
+
+    #[test]
+    fn certification_cache_removal_requires_exact_scope_confirmation() {
+        let temporary = tempdir().expect("create temporary repository");
+        let error = prune_certification_cache(temporary.path(), "veoveo")
+            .expect_err("reject broad confirmation");
+        assert!(error.to_string().contains("refusing to remove"));
     }
 }

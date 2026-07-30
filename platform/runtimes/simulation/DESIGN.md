@@ -160,4 +160,11 @@ the conformance result records the original registry coordinates.
 
 Certification creates a sibling `*.transcript.log` before registry access. It streams
 the GPU process output into that file and keeps the partial transcript after a command
-failure or timeout.
+failure or timeout. BuildKit materializes each exact overlay into a digest-keyed local
+Docker cache with a source-identity label. Later runs reuse only an exact label match.
+Operators remove those large images explicitly:
+
+```sh
+cargo xtask image certification-cache-prune \
+  --confirm veoveo-simulation-certify-cache
+```
