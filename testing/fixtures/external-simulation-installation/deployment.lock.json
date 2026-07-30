@@ -1,7 +1,7 @@
 {
   "schemaVersion": "veoveo.io/deployment-lock/v3",
   "profile": "anonymous-simulation-extension",
-  "profileRevision": "3af8f51d9361d59bbfb78ec997f70c86f46b219a",
+  "profileRevision": "d2b80d11b49767ed12118ab00eabfdb00add7a45",
   "registry": "k3d-veoveo-registry.localhost:5001",
   "registryTransport": "insecure-http",
   "sources": [
@@ -9,62 +9,62 @@
       "name": "veoveo",
       "role": "platform",
       "repository": "ssh://git@github.com/BiomaAI/veoveo",
-      "revision": "3af8f51d9361d59bbfb78ec997f70c86f46b219a",
+      "revision": "d2b80d11b49767ed12118ab00eabfdb00add7a45",
       "images": [
         {
           "name": "artifact-mcp",
           "repository": "k3d-veoveo-registry.localhost:5001/veoveo/artifact-mcp",
-          "digest": "sha256:eb6974ff55da3fec11796cf4f940908cdcb155a3358552c304ea333337928cac",
-          "publicationDigest": "sha256:04b8d899a4823afff9b05e53ee55ff71a9b661753d747571a8e8b0124e2aad3a"
+          "digest": "sha256:ccee379f6ed27405bc2080f5c53634431c9cd0c06fb9e31c776cf048dcc41d92",
+          "publicationDigest": "sha256:61f73fbde2f133cd3bb90f319ab77faa91a43187703e49a4b39b516619854ed6"
         },
         {
           "name": "artifact-service",
           "repository": "k3d-veoveo-registry.localhost:5001/veoveo/artifact-service",
-          "digest": "sha256:5e1ff614e7b63503684318ac18fab756fe8b435896f57c79cb6250141efbe106",
-          "publicationDigest": "sha256:fac8af6628276410b7b59b483104f9ef70d451f0b7ee5f1e80cef541c133286a"
+          "digest": "sha256:14a2431d07603233b5e0ba6c4f08c9a7b5d067ca87bc212e8918b94aa14cc494",
+          "publicationDigest": "sha256:2c1bf54d6f6d3d97b4e8a4dd573f207462adb356c186d1840083f403b0ba2a64"
         },
         {
           "name": "frames-mcp",
           "repository": "k3d-veoveo-registry.localhost:5001/veoveo/frames-mcp",
-          "digest": "sha256:db9a17162365dcf77ee3559db9388d574475e23704b3f177b9578c191f594570",
-          "publicationDigest": "sha256:1646c358114eec44a72a385558742d84dc363e2989e050a2f3e497481e348432"
+          "digest": "sha256:6abf27478b8d8369dd8b75873f1bc65c779203ff3dfe04dd18eb00e24a26976c",
+          "publicationDigest": "sha256:2a27f329d1c5e1f0a0260f737b272a3136747f996726e38f8a2eda45c9c9cb4a"
         },
         {
           "name": "mcp-gateway",
           "repository": "k3d-veoveo-registry.localhost:5001/veoveo/mcp-gateway",
-          "digest": "sha256:00159ee6298e87ca5ec31ded5bb0ac4792b0a2c8dbbf4086676cd77d8b236224",
-          "publicationDigest": "sha256:6376cf444fd44dd69acf327390c49073c6931a6484345d61321cb5442240bc62"
+          "digest": "sha256:c8f90075a70a326ecaaa42190d01b7ca0fc8e32115f69204dea6e31f4950513a",
+          "publicationDigest": "sha256:a1472897e541f6e39e87f2d32825eced604e8b68164a407fba4e741de3c843d6"
         },
         {
           "name": "simulation-runtime",
           "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-runtime",
-          "digest": "sha256:9da4dc936c138cd48de376b239791caaf118a86788efabfcb497b7e66734b605",
-          "publicationDigest": "sha256:97284d90ab20385cdf0f7ff1bb53e811122b3cc5bd00d069cacad6eee92c4b47"
+          "digest": "sha256:e142841a7f9791dc04b4dc9a358fa3f41b222ce7b0c8fd3bcb73c7dd6856ea42",
+          "publicationDigest": "sha256:a48393490b2d1075c26a81be623dcd4e38a1aaa7e6cdfa83e35ba03249cc8746"
         },
         {
           "name": "simulation-view-isaac",
           "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-view-isaac",
-          "digest": "sha256:dd76b7449f1f1d5ccf767444551905b0e54b24a6716e1c60accf3d632839baf5",
-          "publicationDigest": "sha256:8fe4c4716e0b7c8932b931123fd96d20bd1b5bf397b4d4925ecbd98452394752"
+          "digest": "sha256:95423dbedd03f0f2cdb0344950ad0b546499bd582762c095b9897a434f38b090",
+          "publicationDigest": "sha256:c7f728af2e1d531d0b924a47eab7d5f8b136a94c9018808804bd89b3d028808f"
         },
         {
           "name": "simulation-view-mcp",
           "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-view-mcp",
-          "digest": "sha256:a4da3973e6141bbccbc9ec541365edeefdbbb5de1afc8f5c35e4ac7eabf4caf8",
-          "publicationDigest": "sha256:e647f29d6339427df3630faaeaa6e0cbc0cbe7f3c5004546ac54c6f9fbe5a3a6"
+          "digest": "sha256:26a95cb4a1833980d91367672c9b5bab849edffdbefe28a19df2d73be6d1a5ba",
+          "publicationDigest": "sha256:00af780755248bc2f9758a17de8a2d5b0f7e57e209296bdb558029be3c2ae344"
         },
         {
           "name": "simulation-view-pose",
           "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-view-pose",
-          "digest": "sha256:8372324d6be9e293bdeb991378a3645b7b36792ab490063f2034979b58b33afa",
-          "publicationDigest": "sha256:4bf1906c85491ca4fae56790b3c00ad63e34245b7d38039d52f1c5f0b7a03cbc"
+          "digest": "sha256:c83bdf4cb02bd29fe1ae626e3a9568e97dbc181fdcc2c82f7083ec81917bab20",
+          "publicationDigest": "sha256:3cc107534f8331e1569b6f85b68276e80dba2e245dc177524dd48e3bd174dba6"
         }
       ],
       "charts": [
         {
           "release": "veoveo",
           "coordinate": "source://veoveo/deploy/helm/veoveo",
-          "digest": "sha256:e023542eeaa31cb2502fe0d4cebd11f48f51ee891d2edf00bb775fb3a427c9ac"
+          "digest": "sha256:8497fd3d259308c26c1da292b8462877980652a4db1e531385d702671ff84bac"
         }
       ]
     },
@@ -72,20 +72,20 @@
       "name": "anonymous-simulation",
       "role": "extension",
       "repository": "ssh://git@github.com/BiomaAI/veoveo",
-      "revision": "3af8f51d9361d59bbfb78ec997f70c86f46b219a",
+      "revision": "d2b80d11b49767ed12118ab00eabfdb00add7a45",
       "images": [
         {
           "name": "anonymous-simulation-mcp",
           "repository": "k3d-veoveo-registry.localhost:5001/extensions/anonymous-simulation-mcp",
-          "digest": "sha256:89cc99a52589ad7311e8267f1d9e154ba7ecb100fc407f734f25b32de131001c",
-          "publicationDigest": "sha256:95ea0c003f4194c6560dfe1a69114ef9640a573c42f11465f12e984934a83c48"
+          "digest": "sha256:4f2e926fbb3afc5a262dfc58de6f9f06a2f7447199ea0551231f097b3bf64462",
+          "publicationDigest": "sha256:182b08c94daf48d2381865b5a03e71f0e3efe266b1da1e5dd02226fd9158f8a3"
         }
       ],
       "charts": [
         {
           "release": "anonymous-simulation",
           "coordinate": "source://anonymous-simulation/testing/fixtures/external-simulation-extension/deploy/helm",
-          "digest": "sha256:b55e1d4a521acb001b5fbbe2ef3f2abf311321c183c575248c00d269bfe55073"
+          "digest": "sha256:b31dbade0052d8e103007d6d830bf6b4cbf5707bac93912bde744a08c23ccb58"
         }
       ]
     }
