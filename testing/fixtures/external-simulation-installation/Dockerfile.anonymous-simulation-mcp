@@ -25,6 +25,9 @@ COPY sdk/python/src/veoveo_mcp \
     /opt/extension/.venv/lib/python3.13/site-packages/veoveo_mcp
 COPY testing/fixtures/external-simulation-extension/src/anonymous_simulation_mcp \
     /opt/extension/.venv/lib/python3.13/site-packages/anonymous_simulation_mcp
+COPY testing/fixtures/external-simulation-extension/AGENTS.md \
+    testing/fixtures/external-simulation-extension/DESIGN.md \
+    /opt/extension/.venv/lib/python3.13/site-packages/anonymous_simulation_mcp/
 RUN /opt/extension/.venv/bin/python -m compileall -q \
       /opt/extension/.venv/lib/python3.13/site-packages/veoveo_mcp \
       /opt/extension/.venv/lib/python3.13/site-packages/anonymous_simulation_mcp

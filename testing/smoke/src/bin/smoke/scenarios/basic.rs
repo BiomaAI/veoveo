@@ -866,6 +866,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         "--require-hashes",
         "sdk/python/src/veoveo_mcp",
         "external-simulation-extension/src/anonymous_simulation_mcp",
+        "external-simulation-extension/AGENTS.md",
+        "external-simulation-extension/DESIGN.md",
     ] {
         contains(&anonymous_simulation_adapter, expected)?;
     }
