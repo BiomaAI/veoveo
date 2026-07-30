@@ -1,8 +1,9 @@
 {
-  "schemaVersion": "veoveo.io/deployment/v2",
+  "schemaVersion": "veoveo.io/deployment/v3",
   "name": "anonymous-extension",
   "registry": {
-    "address": "registry.example.internal",
+    "address": "registry.example.internal:5002",
+    "transport": "tls",
     "localConfig": null
   },
   "sources": [
@@ -14,14 +15,13 @@
         "path": "../../.."
       },
       "revision": "HEAD",
-      "imageGroups": [
-        "external-extension-platform"
-      ],
+      "imageGroups": [],
       "releases": [
         {
           "name": "veoveo",
           "chart": "deploy/helm/veoveo",
-          "values": [],
+          "sourceValues": [],
+          "installationValues": [],
           "valuesContract": "platform",
           "createNamespace": true,
           "timeoutSeconds": 720

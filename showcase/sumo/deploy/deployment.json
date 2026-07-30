@@ -1,8 +1,9 @@
 {
-  "schemaVersion": "veoveo.io/deployment/v2",
+  "schemaVersion": "veoveo.io/deployment/v3",
   "name": "sumo",
   "registry": {
     "address": "k3d-veoveo-registry.localhost:5001",
+    "transport": "insecure-http",
     "localConfig": "../../../deploy/local/k3d/registry.json"
   },
   "sources": [
@@ -14,27 +15,40 @@
         "path": "../../.."
       },
       "revision": "HEAD",
-      "imageGroups": [
-        "showcase-sumo-base",
-        "platform-core",
-        "showcase-sumo"
-      ],
+      "imageGroups": [],
       "releases": [
         {
           "name": "veoveo",
           "chart": "deploy/helm/veoveo",
-          "values": [
-            "deploy/local/k3d/values.yaml",
-            "showcase/sumo/deploy/platform-values.yaml"
+          "sourceValues": [
+            "deploy/local/k3d/values.yaml"
+          ],
+          "installationValues": [
+            "platform-values.yaml"
           ],
           "valuesContract": "platform",
           "createNamespace": true,
           "timeoutSeconds": 720
-        },
+        }
+      ]
+    },
+    {
+      "name": "sumo",
+      "role": "workload",
+      "repository": {
+        "kind": "local",
+        "path": "../../.."
+      },
+      "revision": "HEAD",
+      "imageGroups": [
+        "showcase-sumo"
+      ],
+      "releases": [
         {
           "name": "sumo",
           "chart": "showcase/sumo/deploy/helm",
-          "values": [],
+          "sourceValues": [],
+          "installationValues": [],
           "valuesContract": "veoveo-source",
           "createNamespace": false,
           "timeoutSeconds": 720

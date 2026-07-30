@@ -14,9 +14,9 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use url::Url;
 use veoveo_deploy_contract::{
-    ConfigMapSpec, DeploymentLock, DeploymentSource, FirstPartyMcpServer, LoadedProfile,
-    LockedSource, PlannedImage, PlatformComponent, ReleaseSpec, ReleaseValuesContract,
-    SecretFormat, SecretSpec, SourceRepository, load_local_registry,
+    ConfigMapSpec, DeploymentLock, DeploymentSource, DeploymentSourceRole, FirstPartyMcpServer,
+    LoadedProfile, LockedSource, PlannedImage, PlatformComponent, ReleaseSpec,
+    ReleaseValuesContract, SecretFormat, SecretSpec, SourceRepository, load_local_registry,
 };
 use veoveo_mcp_contract::GatewayInternalTrustBundle;
 
@@ -75,17 +75,22 @@ struct ResolvedSource {
 pub(crate) fn profile_validate(path: &Path) -> Result<()> {
     let profile = load_profile(path)?;
     let sources = resolve_sources(&profile)?;
-    let selected_images = validate_bake_groups(&profile, &sources)?;
+    let selected_images = validate_bake_selections(&profile, &sources)?;
     profile.validate_image_plan(&selected_images)?;
     validate_helm_releases(&profile, &sources)?;
     let platform = profile.resolved_platform()?;
     println!(
-        "Deployment profile {} is valid: {} sources, {} image groups, {} Helm releases, {} platform components, and {} MCP servers",
+        "Deployment profile {} is valid: {} sources, {} image publication phases, {} Helm releases, {} platform components, and {} MCP servers",
         profile.definition.name,
         sources.len(),
         sources
             .iter()
-            .map(|source| source.definition.image_groups.len())
+            .map(|source| match source.definition.role {
+                DeploymentSourceRole::Platform => 1,
+                DeploymentSourceRole::Extension | DeploymentSourceRole::Workload => {
+                    source.definition.image_groups.len()
+                }
+            })
             .sum::<usize>(),
         sources
             .iter()
@@ -186,7 +191,7 @@ pub(crate) fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
     let lock = load_deployment_lock(lock_path)?;
     validate_locked_profile(&profile, &lock)?;
     let sources = resolve_locked_sources(&profile, &lock)?;
-    let selected_images = validate_bake_groups(&profile, &sources)?;
+    let selected_images = validate_bake_selections(&profile, &sources)?;
     profile.validate_image_plan(&selected_images)?;
     validate_locked_images(&profile, &lock, &sources, &selected_images)?;
     validate_helm_releases(&profile, &sources)?;
@@ -386,6 +391,18 @@ fn validate_locked_profile(profile: &LoadedProfile, lock: &DeploymentLock) -> Re
         profile.definition.registry.address
     );
     ensure!(
+        lock.registry_transport == profile.definition.registry.transport,
+        "deployment lock registry transport does not match the profile"
+    );
+    let profile_revision = resolve_revision(&profile.repository, "HEAD")?;
+    ensure!(
+        lock.profile_revision == profile_revision,
+        "deployment lock installation revision {} does not match checked-out installation revision {}",
+        lock.profile_revision,
+        profile_revision
+    );
+    validate_installation_inputs(profile)?;
+    ensure!(
         lock.platform == profile.resolved_platform()?,
         "deployment lock platform selection does not match the profile"
     );
@@ -405,6 +422,43 @@ fn validate_locked_profile(profile: &LoadedProfile, lock: &DeploymentLock) -> Re
             locked.role == source.role,
             "deployment lock role for source {} does not match the profile",
             source.name
+        );
+    }
+    Ok(())
+}
+
+fn validate_installation_inputs(profile: &LoadedProfile) -> Result<()> {
+    for path in profile.installation_inputs()? {
+        let relative = path.strip_prefix(&profile.repository).with_context(|| {
+            format!(
+                "installation input {} is outside installation repository {}",
+                path.display(),
+                profile.repository.display()
+            )
+        })?;
+        let tracked = Command::new("git")
+            .args(["ls-files", "--error-unmatch", "--"])
+            .arg(relative)
+            .current_dir(&profile.repository)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .with_context(|| format!("checking tracked installation input {}", path.display()))?;
+        ensure!(
+            tracked.success(),
+            "installation input {} is not tracked at profile revision",
+            path.display()
+        );
+        let unchanged = Command::new("git")
+            .args(["diff", "--quiet", "HEAD", "--"])
+            .arg(relative)
+            .current_dir(&profile.repository)
+            .status()
+            .with_context(|| format!("checking installation input {}", path.display()))?;
+        ensure!(
+            unchanged.success(),
+            "installation input {} differs from locked profile revision",
+            path.display()
         );
     }
     Ok(())
@@ -597,7 +651,7 @@ fn validate_locked_images(
         .sum::<usize>();
     ensure!(
         locked_count == planned.len(),
-        "deployment lock contains {locked_count} images, selected Bake groups resolve {}",
+        "deployment lock contains {locked_count} images, selected Bake targets resolve {}",
         planned.len()
     );
     let mut locked_images = BTreeMap::new();
@@ -792,28 +846,46 @@ fn cluster_gpu_capacity(context: &str) -> Result<u64> {
     Ok(gpu_capacity)
 }
 
-fn validate_bake_groups(
+fn validate_bake_selections(
     profile: &LoadedProfile,
     sources: &[ResolvedSource],
 ) -> Result<Vec<PlannedImage>> {
     let mut selected_images = Vec::new();
+    let platform_targets = profile.required_platform_images()?;
     for source in sources {
-        for group in &source.definition.image_groups {
-            let output = Command::new("docker")
-                .args(["buildx", "bake", group.as_str(), "--print"])
+        let selections = match source.definition.role {
+            DeploymentSourceRole::Platform => {
+                vec![(
+                    "exact platform selection".to_owned(),
+                    platform_targets.iter().cloned().collect::<Vec<_>>(),
+                )]
+            }
+            DeploymentSourceRole::Extension | DeploymentSourceRole::Workload => source
+                .definition
+                .image_groups
+                .iter()
+                .map(|group| (format!("group {group}"), vec![group.clone()]))
+                .collect(),
+        };
+        for (selection_name, bake_patterns) in selections {
+            let mut command = Command::new("docker");
+            command.args(["buildx", "bake"]);
+            command.args(&bake_patterns);
+            let output = command
+                .arg("--print")
                 .current_dir(&source.repository)
                 .env("VEOVEO_REGISTRY", &profile.definition.registry.address)
                 .env("VEOVEO_IMAGE_TAG", &source.revision)
                 .output()
                 .with_context(|| {
                     format!(
-                        "running Docker Bake group {group} from source {} in profile {}",
+                        "running Docker Bake {selection_name} from source {} in profile {}",
                         source.definition.name, profile.definition.name
                     )
                 })?;
             ensure!(
                 output.status.success(),
-                "validating Docker Bake group {group} from source {} in profile {} failed:\n{}",
+                "validating Docker Bake {selection_name} from source {} in profile {} failed:\n{}",
                 source.definition.name,
                 profile.definition.name,
                 String::from_utf8_lossy(&output.stderr)
@@ -821,17 +893,26 @@ fn validate_bake_groups(
             let definition =
                 serde_json::from_slice::<BakePrint>(&output.stdout).with_context(|| {
                     format!(
-                        "decoding Docker Bake group {group} from source {}",
+                        "decoding Docker Bake {selection_name} from source {}",
                         source.definition.name
                     )
                 })?;
-            let targets = definition
-                .group
-                .get(group)
-                .with_context(|| format!("Docker Bake output omitted selected group {group}"))?;
-            for target in &targets.targets {
-                let image = definition.target.get(target).with_context(|| {
-                    format!("Docker Bake group {group} references missing target {target}")
+            let selected_targets = if source.definition.role == DeploymentSourceRole::Platform {
+                platform_targets.iter().cloned().collect::<Vec<_>>()
+            } else {
+                let group = bake_patterns
+                    .first()
+                    .expect("extension and workload selections contain one group");
+                definition
+                    .group
+                    .get(group)
+                    .with_context(|| format!("Docker Bake output omitted selected group {group}"))?
+                    .targets
+                    .clone()
+            };
+            for target in selected_targets {
+                let image = definition.target.get(&target).with_context(|| {
+                    format!("Docker Bake {selection_name} references missing target {target}")
                 })?;
                 ensure!(
                     image.tags.len() == 1,
@@ -840,7 +921,7 @@ fn validate_bake_groups(
                 );
                 selected_images.push(PlannedImage {
                     source: source.definition.name.clone(),
-                    target: target.clone(),
+                    target,
                     reference: image
                         .tags
                         .first()
@@ -972,9 +1053,9 @@ fn helm_up(
     if release.create_namespace {
         args.push("--create-namespace".to_owned());
     }
-    for values in &release.values {
+    for values in ordered_release_values(&source.repository, &profile.directory, release) {
         args.push("--values".to_owned());
-        args.push(path_str(&source.repository.join(values))?.to_owned());
+        args.push(path_str(&values)?.to_owned());
     }
     append_release_values(
         &mut args,
@@ -1008,9 +1089,9 @@ fn helm_render(
         release.name.clone(),
         path_str(&chart)?.to_owned(),
     ];
-    for values in &release.values {
+    for values in ordered_release_values(&source.repository, &profile.directory, release) {
         args.push("--values".to_owned());
-        args.push(path_str(&source.repository.join(values))?.to_owned());
+        args.push(path_str(&values)?.to_owned());
     }
     append_release_values(
         &mut args,
@@ -1025,6 +1106,24 @@ fn helm_render(
     let rendered = output_checked("helm", refs, None)
         .with_context(|| format!("rendering Helm release {}", release.name))?;
     String::from_utf8(rendered).context("Helm output is not UTF-8")
+}
+
+fn ordered_release_values(
+    source_repository: &Path,
+    installation_directory: &Path,
+    release: &ReleaseSpec,
+) -> Vec<PathBuf> {
+    release
+        .source_values
+        .iter()
+        .map(|path| source_repository.join(path))
+        .chain(
+            release
+                .installation_values
+                .iter()
+                .map(|path| installation_directory.join(path)),
+        )
+        .collect()
 }
 
 fn append_release_values(
@@ -1301,13 +1400,42 @@ fn path_str(path: &Path) -> Result<&str> {
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_origin;
+    use std::path::{Path, PathBuf};
+
+    use veoveo_deploy_contract::{ReleaseSpec, ReleaseValuesContract};
+
+    use super::{normalize_origin, ordered_release_values};
 
     #[test]
     fn normalizes_scp_git_origins_for_lock_comparison() {
         assert_eq!(
             normalize_origin("git@github.com:BiomaAI/veoveo.git").expect("normalize origin"),
             "ssh://git@github.com/BiomaAI/veoveo"
+        );
+    }
+
+    #[test]
+    fn installation_values_override_source_values_in_helm_order() {
+        let release = ReleaseSpec {
+            name: "example".to_owned(),
+            chart: PathBuf::from("chart"),
+            source_values: vec![PathBuf::from("defaults.yaml")],
+            installation_values: vec![
+                PathBuf::from("environment.yaml"),
+                PathBuf::from("site.yaml"),
+            ],
+            values_contract: ReleaseValuesContract::Platform,
+            create_namespace: false,
+            timeout_seconds: 60,
+        };
+
+        assert_eq!(
+            ordered_release_values(Path::new("/source"), Path::new("/installation"), &release),
+            [
+                PathBuf::from("/source/defaults.yaml"),
+                PathBuf::from("/installation/environment.yaml"),
+                PathBuf::from("/installation/site.yaml"),
+            ]
         );
     }
 }

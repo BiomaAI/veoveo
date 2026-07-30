@@ -33,6 +33,16 @@ fn independent_git_sources_produce_one_validated_installation_lock() {
     fs::create_dir(&installation).expect("create installation repository");
     git(&installation, ["init", "--quiet"]);
     configure_git(&installation);
+    fs::write(
+        installation.join("platform-values.yaml"),
+        "global:\n  publicBaseUrl: https://veoveo.example.internal\n",
+    )
+    .expect("write installation-owned platform values");
+    fs::write(
+        installation.join("extension-values.yaml"),
+        "replicaCount: 2\n",
+    )
+    .expect("write installation-owned extension values");
 
     let platform_revision = git_output(&platform, ["rev-parse", "HEAD"]);
     let extension_revision = git_output(&extension, ["rev-parse", "HEAD"]);
@@ -42,10 +52,11 @@ fn independent_git_sources_produce_one_validated_installation_lock() {
     );
 
     let profile = serde_json::json!({
-        "schemaVersion": "veoveo.io/deployment/v2",
+        "schemaVersion": "veoveo.io/deployment/v3",
         "name": "anonymous-installation",
         "registry": {
             "address": "registry.example.internal",
+            "transport": "tls",
             "localConfig": null
         },
         "sources": [
@@ -57,11 +68,12 @@ fn independent_git_sources_produce_one_validated_installation_lock() {
                     "path": "../platform-source"
                 },
                 "revision": platform_revision,
-                "imageGroups": ["platform"],
+                "imageGroups": [],
                 "releases": [{
                     "name": "platform",
                     "chart": "platform-chart",
-                    "values": [],
+                    "sourceValues": ["platform-chart/source-values.yaml"],
+                    "installationValues": ["platform-values.yaml"],
                     "valuesContract": "platform",
                     "createNamespace": true,
                     "timeoutSeconds": 600
@@ -79,7 +91,8 @@ fn independent_git_sources_produce_one_validated_installation_lock() {
                 "releases": [{
                     "name": "extension",
                     "chart": "extension-chart",
-                    "values": [],
+                    "sourceValues": ["extension-chart/source-values.yaml"],
+                    "installationValues": ["extension-values.yaml"],
                     "valuesContract": "extension",
                     "createNamespace": false,
                     "timeoutSeconds": 600
@@ -115,6 +128,11 @@ fn independent_git_sources_produce_one_validated_installation_lock() {
     git(&installation, ["commit", "--quiet", "-m", "installation"]);
 
     let loaded = LoadedProfile::load(&profile_path, &installation).expect("load installation");
+    let installation_inputs = loaded
+        .installation_inputs()
+        .expect("resolve installation inputs");
+    assert!(installation_inputs.contains(&installation.join("platform-values.yaml")));
+    assert!(installation_inputs.contains(&installation.join("extension-values.yaml")));
     let required = loaded
         .required_platform_images()
         .expect("resolve platform closure");
@@ -145,7 +163,9 @@ fn independent_git_sources_produce_one_validated_installation_lock() {
     let lock = DeploymentLock {
         schema_version: DEPLOYMENT_LOCK_SCHEMA.to_owned(),
         profile: loaded.definition.name.clone(),
+        profile_revision: git_output(&installation, ["rev-parse", "HEAD"]),
         registry: loaded.definition.registry.address.clone(),
+        registry_transport: loaded.definition.registry.transport,
         sources: vec![
             LockedSource {
                 name: "platform".to_owned(),
@@ -232,6 +252,8 @@ fn create_source_repository(workspace: &Path, name: &str, chart: &str, marker: &
         format!("apiVersion: v2\nname: {chart}\nversion: 0.1.0\n"),
     )
     .expect("write chart");
+    fs::write(chart_root.join("source-values.yaml"), "sourceOwned: true\n")
+        .expect("write source-owned values");
     fs::write(repository.join("source.txt"), format!("{marker}\n")).expect("write source marker");
     git(&repository, ["add", "."]);
     git(&repository, ["commit", "--quiet", "-m", marker]);

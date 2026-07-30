@@ -1,5 +1,6 @@
 use std::{
-    fs,
+    fs::{self, File, OpenOptions},
+    io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
@@ -7,6 +8,7 @@ use std::{
 use anyhow::{Context, Result, bail, ensure};
 use sha2::{Digest, Sha256};
 use tempfile::NamedTempFile;
+use veoveo_deploy_contract::RegistryTransport;
 
 use crate::{context::RepositoryContext, process};
 
@@ -26,6 +28,15 @@ struct BuilderInspection {
     buildkit_version: Option<String>,
 }
 
+struct BuilderConfiguration {
+    path: PathBuf,
+    digest: String,
+}
+
+pub(crate) struct BuilderLease {
+    _lock: File,
+}
+
 pub(crate) fn status(repository: &RepositoryContext) -> Result<()> {
     let buildx = installed_buildx_version(repository)?;
     println!("Docker Buildx: {buildx} (required {})", BUILDX_VERSION);
@@ -41,24 +52,55 @@ pub(crate) fn status(repository: &RepositoryContext) -> Result<()> {
                 "BuildKit: {}",
                 inspection.buildkit_version.as_deref().unwrap_or("inactive")
             );
-            validate(repository, &inspection)
+            validate_identity(repository, &inspection)?;
+            println!(
+                "Configuration: sha256:{}",
+                active_config_digest(repository)?
+            );
+            Ok(())
         }
     }
 }
 
-pub(crate) fn ensure(repository: &RepositoryContext) -> Result<()> {
+pub(crate) fn ensure(repository: &RepositoryContext) -> Result<BuilderLease> {
+    let configuration = base_configuration(repository)?;
+    ensure_configuration(repository, configuration)
+}
+
+pub(crate) fn ensure_for_registry(
+    repository: &RepositoryContext,
+    registry: &str,
+    transport: RegistryTransport,
+) -> Result<BuilderLease> {
+    let configuration = registry_configuration(repository, registry, transport)?;
+    ensure_configuration(repository, configuration)
+}
+
+fn ensure_configuration(
+    repository: &RepositoryContext,
+    configuration: BuilderConfiguration,
+) -> Result<BuilderLease> {
+    let lease = acquire_lease(repository)?;
     ensure_buildx(repository)?;
     if inspect(repository)?.is_none() {
-        create(repository)?;
+        create(repository, &configuration)?;
     }
     buildx_status(repository, ["inspect", "--bootstrap", BUILDER_NAME])?;
-    let inspection =
+    let mut inspection =
         inspect(repository)?.context("managed builder disappeared after creation or bootstrap")?;
-    validate(repository, &inspection)?;
+    validate_identity(repository, &inspection)?;
+    if active_config_digest(repository)? != configuration.digest {
+        buildx_status(repository, ["rm", "--keep-state", BUILDER_NAME])?;
+        create(repository, &configuration)?;
+        buildx_status(repository, ["inspect", "--bootstrap", BUILDER_NAME])?;
+        inspection = inspect(repository)?
+            .context("managed builder disappeared after registry reconfiguration")?;
+    }
+    validate(repository, &inspection, &configuration)?;
     println!(
         "Builder {BUILDER_NAME} is ready with Buildx {BUILDX_VERSION} and BuildKit {BUILDKIT_VERSION}"
     );
-    Ok(())
+    Ok(lease)
 }
 
 pub(crate) fn reconfigure(repository: &RepositoryContext, confirmation: &str) -> Result<()> {
@@ -66,12 +108,20 @@ pub(crate) fn reconfigure(repository: &RepositoryContext, confirmation: &str) ->
         confirmation == BUILDER_NAME,
         "refusing to reconfigure builder: pass --confirm {BUILDER_NAME}"
     );
+    let lease = acquire_lease(repository)?;
     ensure_buildx(repository)?;
     if let Some(inspection) = inspect(repository)? {
         validate_identity(repository, &inspection)?;
         buildx_status(repository, ["rm", "--keep-state", BUILDER_NAME])?;
     }
-    ensure(repository)
+    let configuration = base_configuration(repository)?;
+    create(repository, &configuration)?;
+    buildx_status(repository, ["inspect", "--bootstrap", BUILDER_NAME])?;
+    let inspection =
+        inspect(repository)?.context("managed builder disappeared after reconfiguration")?;
+    validate(repository, &inspection, &configuration)?;
+    drop(lease);
+    Ok(())
 }
 
 pub(crate) fn recreate(repository: &RepositoryContext, confirmation: &str) -> Result<()> {
@@ -79,11 +129,19 @@ pub(crate) fn recreate(repository: &RepositoryContext, confirmation: &str) -> Re
         confirmation == BUILDER_NAME,
         "refusing to remove builder: pass --confirm {BUILDER_NAME}"
     );
+    let lease = acquire_lease(repository)?;
     ensure_buildx(repository)?;
     if inspect(repository)?.is_some() {
         buildx_status(repository, ["rm", BUILDER_NAME])?;
     }
-    ensure(repository)
+    let configuration = base_configuration(repository)?;
+    create(repository, &configuration)?;
+    buildx_status(repository, ["inspect", "--bootstrap", BUILDER_NAME])?;
+    let inspection =
+        inspect(repository)?.context("managed builder disappeared after recreation")?;
+    validate(repository, &inspection, &configuration)?;
+    drop(lease);
+    Ok(())
 }
 
 pub(crate) fn installed_buildx_version(repository: &RepositoryContext) -> Result<String> {
@@ -160,13 +218,12 @@ fn ensure_buildx(repository: &RepositoryContext) -> Result<()> {
     require_buildx(repository)
 }
 
-fn create(repository: &RepositoryContext) -> Result<()> {
-    let config = repository.root().join("tools/image-build/buildkitd.toml");
-    let config_digest = config_digest(&config)?;
-    let config_arg = config
+fn create(repository: &RepositoryContext, configuration: &BuilderConfiguration) -> Result<()> {
+    let config_arg = configuration
+        .path
         .to_str()
         .context("BuildKit configuration path is not UTF-8")?;
-    let identity = format!("env.VEOVEO_BUILDER_CONFIG_SHA256={config_digest}");
+    let identity = format!("env.VEOVEO_BUILDER_CONFIG_SHA256={}", configuration.digest);
     let image = format!("image={BUILDKIT_IMAGE}");
     buildx_status(
         repository,
@@ -236,17 +293,7 @@ fn managed_buildx(repository: &RepositoryContext) -> Result<ManagedBuildx> {
         ("linux", "aarch64") => ("buildx-v0.35.0.linux-arm64", BUILDX_LINUX_ARM64_SHA256),
         _ => ("", ""),
     };
-    let common = process::output_text(
-        "git",
-        ["rev-parse", "--path-format=absolute", "--git-common-dir"],
-        Some(repository.root()),
-    )?;
-    let common = fs::canonicalize(common.trim())
-        .with_context(|| format!("resolving Git common directory {}", common.trim()))?;
-    let worktree = common
-        .parent()
-        .context("Git common directory has no parent worktree")?;
-    let root = worktree.join("target/veoveo-xtask/docker-config");
+    let root = managed_root(repository)?.join("docker-config");
     Ok(ManagedBuildx {
         binary: root.join("cli-plugins/docker-buildx"),
         config: root.join("buildx"),
@@ -337,11 +384,22 @@ fn install_managed_buildx(managed: &ManagedBuildx) -> Result<()> {
     Ok(())
 }
 
-fn validate(repository: &RepositoryContext, inspection: &BuilderInspection) -> Result<()> {
+fn validate(
+    repository: &RepositoryContext,
+    inspection: &BuilderInspection,
+    configuration: &BuilderConfiguration,
+) -> Result<()> {
     validate_identity(repository, inspection)?;
+    let active_digest = active_config_digest(repository)?;
+    ensure!(
+        active_digest == configuration.digest,
+        "builder {BUILDER_NAME} was created with BuildKit configuration sha256:{active_digest}; expected sha256:{}",
+        configuration.digest
+    );
+    Ok(())
+}
 
-    let expected_digest =
-        config_digest(&repository.root().join("tools/image-build/buildkitd.toml"))?;
+fn active_config_digest(repository: &RepositoryContext) -> Result<String> {
     let environment = process::output_text(
         "docker",
         [
@@ -352,13 +410,11 @@ fn validate(repository: &RepositoryContext, inspection: &BuilderInspection) -> R
         ],
         Some(repository.root()),
     )?;
-    ensure!(
-        environment
-            .lines()
-            .any(|line| line == format!("VEOVEO_BUILDER_CONFIG_SHA256={expected_digest}")),
-        "builder {BUILDER_NAME} was created with a different BuildKit configuration"
-    );
-    Ok(())
+    environment
+        .lines()
+        .find_map(|line| line.strip_prefix("VEOVEO_BUILDER_CONFIG_SHA256="))
+        .map(ToOwned::to_owned)
+        .context("managed builder does not declare its BuildKit configuration digest")
 }
 
 fn validate_identity(repository: &RepositoryContext, inspection: &BuilderInspection) -> Result<()> {
@@ -398,6 +454,113 @@ fn config_digest(path: &Path) -> Result<String> {
     Ok(hex::encode(Sha256::digest(bytes)))
 }
 
+fn base_configuration(repository: &RepositoryContext) -> Result<BuilderConfiguration> {
+    let path = repository.root().join("tools/image-build/buildkitd.toml");
+    let digest = config_digest(&path)?;
+    Ok(BuilderConfiguration { path, digest })
+}
+
+fn registry_configuration(
+    repository: &RepositoryContext,
+    registry: &str,
+    transport: RegistryTransport,
+) -> Result<BuilderConfiguration> {
+    let base = base_configuration(repository)?;
+    if transport == RegistryTransport::Tls {
+        return Ok(base);
+    }
+    ensure!(
+        !registry
+            .chars()
+            .any(|character| character.is_control() || matches!(character, '"' | '\\')),
+        "registry address contains characters that cannot be represented in BuildKit configuration"
+    );
+    let mut bytes = fs::read(&base.path)
+        .with_context(|| format!("reading BuildKit configuration {}", base.path.display()))?;
+    ensure!(
+        bytes.last().is_none_or(|byte| *byte == b'\n'),
+        "BuildKit base configuration must end in a newline"
+    );
+    write!(
+        bytes,
+        "\n[registry.\"{registry}\"]\n  http = true\n  insecure = true\n"
+    )
+    .context("rendering registry-specific BuildKit configuration")?;
+    let digest = hex::encode(Sha256::digest(&bytes));
+    let root = managed_root(repository)?;
+    let directory = root.join("builder-config");
+    fs::create_dir_all(&directory).with_context(|| {
+        format!(
+            "creating generated BuildKit configuration directory {}",
+            directory.display()
+        )
+    })?;
+    let path = directory.join(format!("{digest}.toml"));
+    if path.exists() {
+        ensure!(
+            fs::read(&path)
+                .with_context(|| format!("reading generated configuration {}", path.display()))?
+                == bytes,
+            "generated BuildKit configuration {} does not match its content digest",
+            path.display()
+        );
+    } else {
+        let mut temporary = NamedTempFile::new_in(&directory).with_context(|| {
+            format!(
+                "creating generated BuildKit configuration in {}",
+                directory.display()
+            )
+        })?;
+        temporary
+            .write_all(&bytes)
+            .context("writing generated BuildKit configuration")?;
+        temporary
+            .as_file()
+            .sync_all()
+            .context("syncing generated BuildKit configuration")?;
+        temporary
+            .persist(&path)
+            .map_err(|error| error.error)
+            .with_context(|| {
+                format!(
+                    "publishing generated BuildKit configuration {}",
+                    path.display()
+                )
+            })?;
+    }
+    Ok(BuilderConfiguration { path, digest })
+}
+
+fn acquire_lease(repository: &RepositoryContext) -> Result<BuilderLease> {
+    let root = managed_root(repository)?;
+    fs::create_dir_all(&root)
+        .with_context(|| format!("creating managed builder directory {}", root.display()))?;
+    let path = root.join("builder.lock");
+    let lock = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(&path)
+        .with_context(|| format!("opening managed builder lock {}", path.display()))?;
+    File::lock(&lock).with_context(|| format!("locking managed builder {}", path.display()))?;
+    Ok(BuilderLease { _lock: lock })
+}
+
+fn managed_root(repository: &RepositoryContext) -> Result<PathBuf> {
+    let common = process::output_text(
+        "git",
+        ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+        Some(repository.root()),
+    )?;
+    let common = fs::canonicalize(common.trim())
+        .with_context(|| format!("resolving Git common directory {}", common.trim()))?;
+    let worktree = common
+        .parent()
+        .context("Git common directory has no parent worktree")?;
+    Ok(worktree.join("target/veoveo-xtask"))
+}
+
 fn parse_buildx_version(output: &str) -> Option<String> {
     output
         .split_whitespace()
@@ -429,8 +592,12 @@ mod tests {
 
     use tempfile::tempdir;
 
-    use super::{BuilderInspection, managed_buildx, parse_buildx_version, parse_inspection};
+    use super::{
+        BuilderInspection, managed_buildx, parse_buildx_version, parse_inspection,
+        registry_configuration,
+    };
     use crate::context::RepositoryContext;
+    use veoveo_deploy_contract::RegistryTransport;
 
     fn git(repository: &Path, arguments: &[&str]) {
         let output = Command::new("git")
@@ -524,6 +691,37 @@ mod tests {
         assert_eq!(
             main.binary,
             repository.join("target/veoveo-xtask/docker-config/cli-plugins/docker-buildx")
+        );
+    }
+
+    #[test]
+    fn insecure_registry_configuration_uses_the_selected_profile_address() {
+        let temporary = tempdir().expect("create temporary repository");
+        let repository = temporary.path().join("repository");
+        fs::create_dir_all(repository.join("tools/image-build")).expect("create config directory");
+        git(&repository, &["init", "--quiet"]);
+        fs::write(
+            repository.join("tools/image-build/buildkitd.toml"),
+            "[worker.oci]\n  gc = true\n",
+        )
+        .expect("write base configuration");
+        let context = RepositoryContext::discover(&repository).expect("discover repository");
+
+        let generated = registry_configuration(
+            &context,
+            "registry.private.internal:5002",
+            RegistryTransport::InsecureHttp,
+        )
+        .expect("generate registry configuration");
+        let contents = fs::read_to_string(&generated.path).expect("read generated configuration");
+
+        assert!(contents.contains("[registry.\"registry.private.internal:5002\"]"));
+        assert!(contents.contains("http = true"));
+        assert!(contents.contains("insecure = true"));
+        assert!(!contents.contains(":5001"));
+        assert_eq!(
+            generated.path.file_stem().and_then(std::ffi::OsStr::to_str),
+            Some(generated.digest.as_str())
         );
     }
 }

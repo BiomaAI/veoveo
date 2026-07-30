@@ -12,9 +12,9 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 /// Canonical multi-source deployment profile.
-pub const PROFILE_SCHEMA: &str = "veoveo.io/deployment/v2";
+pub const PROFILE_SCHEMA: &str = "veoveo.io/deployment/v3";
 /// Canonical immutable multi-source deployment lock.
-pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.io/deployment-lock/v2";
+pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.io/deployment-lock/v3";
 /// Canonical local OCI registry declaration.
 pub const REGISTRY_SCHEMA: &str = "veoveo.io/local-registry/v1";
 
@@ -53,8 +53,27 @@ pub struct DeploymentProfile {
 pub struct RegistryReference {
     /// Registry host and optional port, without a URL scheme.
     pub address: String,
+    /// Transport and trust mode used by OCI and BuildKit clients.
+    pub transport: RegistryTransport,
     /// Optional repository-local lifecycle declaration.
     pub local_config: Option<PathBuf>,
+}
+
+/// Registry transport and trust profile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum RegistryTransport {
+    /// HTTPS using trust roots already installed for the OCI client and BuildKit daemon.
+    Tls,
+    /// Explicitly admitted plaintext HTTP for a private development registry.
+    InsecureHttp,
+}
+
+impl RegistryTransport {
+    #[must_use]
+    pub const fn is_insecure(self) -> bool {
+        matches!(self, Self::InsecureHttp)
+    }
 }
 
 /// One independently versioned source and its owned build and chart surfaces.
@@ -85,6 +104,8 @@ pub enum DeploymentSourceRole {
     Platform,
     /// An independently owned extension source.
     Extension,
+    /// A separately selected Veoveo-owned showcase or application source.
+    Workload,
 }
 
 /// Repository location for one deployment source.
@@ -205,9 +226,12 @@ pub struct ReleaseSpec {
     pub name: String,
     /// Chart root.
     pub chart: PathBuf,
-    /// Ordered values files.
+    /// Ordered chart-source-owned values files, resolved from the selected source revision.
     #[serde(default)]
-    pub values: Vec<PathBuf>,
+    pub source_values: Vec<PathBuf>,
+    /// Ordered installation-owned values files, resolved from the deployment profile repository.
+    #[serde(default)]
+    pub installation_values: Vec<PathBuf>,
     /// Typed values surface used for registry, revision, and platform injection.
     pub values_contract: ReleaseValuesContract,
     /// Whether Helm creates the namespace.
@@ -298,6 +322,7 @@ pub enum PlatformCapability {
     Frames,
     Map,
     Media,
+    Optimization,
     Recording,
     Rrd,
     SimulationView,
@@ -391,7 +416,10 @@ pub struct GatewayDeploymentRequirements {
 pub struct DeploymentLock {
     pub schema_version: String,
     pub profile: String,
+    /// Exact installation-repository revision that owns the profile and installation values.
+    pub profile_revision: String,
     pub registry: String,
+    pub registry_transport: RegistryTransport,
     pub sources: Vec<LockedSource>,
     pub platform: ResolvedPlatformSelection,
 }
@@ -442,6 +470,8 @@ pub struct LockedChart {
 pub struct LoadedProfile {
     /// Parsed profile definition.
     pub definition: DeploymentProfile,
+    /// Canonical profile document path.
+    pub path: PathBuf,
     /// Canonical profile parent directory.
     pub directory: PathBuf,
     /// Canonical repository source root.
@@ -471,6 +501,7 @@ impl LoadedProfile {
         .with_context(|| format!("decoding {}", path.display()))?;
         let profile = Self {
             definition,
+            path,
             directory,
             repository,
         };
@@ -486,6 +517,60 @@ impl LoadedProfile {
         } else {
             self.directory.join(path)
         }
+    }
+
+    /// Returns every installation-repository file whose bytes affect profile
+    /// validation, resource application, or Helm values.
+    pub fn installation_inputs(&self) -> Result<BTreeSet<PathBuf>> {
+        let mut paths = BTreeSet::from([self.path.clone()]);
+        if let Some(path) = &self.definition.registry.local_config {
+            paths.insert(self.resolve(path));
+        }
+        if let Some(cluster) = &self.definition.kubernetes.local_cluster {
+            paths.insert(self.resolve(&cluster.config));
+            paths.extend(
+                cluster
+                    .node_bootstrap_manifests
+                    .iter()
+                    .map(|path| self.resolve(path)),
+            );
+        }
+        paths.extend(
+            self.definition
+                .resources
+                .manifests
+                .iter()
+                .map(|path| self.resolve(path)),
+        );
+        paths.extend(
+            self.definition
+                .resources
+                .config_maps
+                .iter()
+                .flat_map(|config_map| config_map.files.values())
+                .map(|path| self.resolve(path)),
+        );
+        paths.extend(
+            self.definition
+                .gateway_requirements
+                .iter()
+                .map(|path| self.resolve(path)),
+        );
+        paths.extend(
+            self.definition
+                .sources
+                .iter()
+                .flat_map(|source| &source.releases)
+                .flat_map(|release| &release.installation_values)
+                .map(|path| self.resolve(path)),
+        );
+        paths
+            .into_iter()
+            .map(|path| {
+                fs::canonicalize(&path)
+                    .with_context(|| format!("resolving installation input {}", path.display()))
+            })
+            .collect()
     }
 
     /// Resolves a local source repository selected by the profile.
@@ -592,6 +677,13 @@ impl LoadedProfile {
             for group in &source.image_groups {
                 validate_name("image group", group)?;
             }
+            if source.role == DeploymentSourceRole::Platform {
+                ensure!(
+                    source.image_groups.is_empty(),
+                    "platform source {} must not declare imageGroups; its targets are derived from the exact platform selection",
+                    source.name
+                );
+            }
             match &source.repository {
                 SourceRepository::Local { .. } => {
                     let root = self.local_source_root(source)?;
@@ -608,6 +700,11 @@ impl LoadedProfile {
                 SourceRepository::Git { url } => {
                     validate_git_url(url)?;
                     validate_release_metadata(source, &mut release_names)?;
+                }
+            }
+            for release in &source.releases {
+                for values in &release.installation_values {
+                    require_file(&self.resolve(values), "installation-owned Helm values")?;
                 }
             }
         }
@@ -632,6 +729,10 @@ impl LoadedProfile {
             }
         }
         if let Some(config) = &profile.registry.local_config {
+            ensure!(
+                profile.registry.transport == RegistryTransport::InsecureHttp,
+                "repository-managed local registries require registry transport insecure-http"
+            );
             let registry = load_local_registry(&self.resolve(config))?;
             ensure!(
                 registry.address()? == profile.registry.address,
@@ -687,6 +788,14 @@ impl LoadedProfile {
                 &self.resolve(requirements),
                 "gateway composition requirements",
             )?;
+        }
+        for path in self.installation_inputs()? {
+            ensure!(
+                path.starts_with(&self.repository),
+                "installation input {} is outside installation repository {}",
+                path.display(),
+                self.repository.display()
+            );
         }
         let _ = self.resolved_platform()?;
         ensure_unique(
@@ -782,6 +891,17 @@ impl DeploymentProfile {
             self.name,
             platform_source.name,
             missing.join(", ")
+        );
+        let unexpected = platform_targets
+            .difference(required_platform_images)
+            .cloned()
+            .collect::<Vec<_>>();
+        ensure!(
+            unexpected.is_empty(),
+            "deployment profile {} selects unnecessary Veoveo image targets from platform source {}: {}",
+            self.name,
+            platform_source.name,
+            unexpected.join(", ")
         );
         Ok(())
     }
@@ -1068,6 +1188,12 @@ impl ResolvedPlatformSelection {
                         "media capability requires Media MCP",
                     )?;
                 }
+                PlatformCapability::Optimization => {
+                    self.require_server(
+                        FirstPartyMcpServer::Optimization,
+                        "optimization capability requires Optimization MCP and cuOpt",
+                    )?;
+                }
                 PlatformCapability::Recording | PlatformCapability::Rrd => {
                     self.require_server(
                         FirstPartyMcpServer::Recording,
@@ -1271,6 +1397,7 @@ impl DeploymentLock {
             "deployment lock schemaVersion must be {DEPLOYMENT_LOCK_SCHEMA}"
         );
         validate_name("profile", &self.profile)?;
+        validate_revision(&self.profile_revision)?;
         validate_registry_address(&self.registry)?;
         self.platform.validate_dependencies()?;
         ensure!(!self.sources.is_empty(), "locked sources cannot be empty");
@@ -1429,8 +1556,8 @@ fn validate_releases(
     validate_release_metadata(source, release_names)?;
     for release in &source.releases {
         require_directory(&root.join(&release.chart), "Helm chart")?;
-        for values in &release.values {
-            require_file(&root.join(values), "Helm values")?;
+        for values in &release.source_values {
+            require_file(&root.join(values), "source-owned Helm values")?;
         }
     }
     Ok(())
@@ -1443,14 +1570,20 @@ fn validate_release_metadata(
     for release in &source.releases {
         match source.role {
             DeploymentSourceRole::Platform => ensure!(
-                release.values_contract != ReleaseValuesContract::Extension,
-                "platform source {} cannot own extension Helm release {}",
+                release.values_contract == ReleaseValuesContract::Platform,
+                "platform source {} must use the platform values contract for Helm release {}",
                 source.name,
                 release.name
             ),
             DeploymentSourceRole::Extension => ensure!(
                 release.values_contract == ReleaseValuesContract::Extension,
                 "extension source {} must use the extension values contract for Helm release {}",
+                source.name,
+                release.name
+            ),
+            DeploymentSourceRole::Workload => ensure!(
+                release.values_contract == ReleaseValuesContract::VeoveoSource,
+                "workload source {} must use the Veoveo source values contract for Helm release {}",
                 source.name,
                 release.name
             ),
@@ -1467,10 +1600,17 @@ fn validate_release_metadata(
             "Helm chart path for {} must be source-relative",
             release.name
         );
-        for values in &release.values {
+        for values in &release.source_values {
             ensure!(
                 !values.as_os_str().is_empty() && !values.is_absolute(),
-                "Helm values path for {} must be source-relative",
+                "source-owned Helm values path for {} must be source-relative",
+                release.name
+            );
+        }
+        for values in &release.installation_values {
+            ensure!(
+                !values.as_os_str().is_empty() && !values.is_absolute(),
+                "installation-owned Helm values path for {} must be profile-relative",
                 release.name
             );
         }
@@ -1511,6 +1651,17 @@ fn validate_registry_address(address: &str) -> Result<()> {
     ensure!(
         !address.chars().any(char::is_whitespace),
         "registry address contains whitespace"
+    );
+    let url = Url::parse(&format!("https://{address}"))
+        .with_context(|| format!("invalid registry address {address}"))?;
+    ensure!(
+        url.host_str().is_some()
+            && url.username().is_empty()
+            && url.password().is_none()
+            && url.path() == "/"
+            && url.query().is_none()
+            && url.fragment().is_none(),
+        "registry address must contain only a host and optional port"
     );
     Ok(())
 }
@@ -1600,8 +1751,9 @@ mod tests {
         let profile = repository.join("showcase/sumo/deploy/deployment.json");
         let loaded = LoadedProfile::load(&profile, &repository).expect("load SUMO profile");
         assert_eq!(loaded.definition.name, "sumo");
-        assert_eq!(loaded.definition.sources.len(), 1);
-        assert_eq!(loaded.definition.sources[0].image_groups.len(), 3);
+        assert_eq!(loaded.definition.sources.len(), 2);
+        assert!(loaded.definition.sources[0].image_groups.is_empty());
+        assert_eq!(loaded.definition.sources[1].image_groups, ["showcase-sumo"]);
         loaded.resolved_platform().expect("resolve platform");
     }
 
@@ -1724,6 +1876,21 @@ mod tests {
                 .expect_err("duplicate reference must fail")
                 .to_string()
                 .contains("collides between")
+        );
+
+        images.pop();
+        images.push(PlannedImage {
+            source: "veoveo".to_owned(),
+            target: "unnecessary-platform-image".to_owned(),
+            reference: "registry.example.internal/veoveo/unnecessary-platform-image:revision"
+                .to_owned(),
+        });
+        assert!(
+            loaded
+                .validate_image_plan(&images)
+                .expect_err("unnecessary platform image must fail")
+                .to_string()
+                .contains("unnecessary Veoveo image targets")
         );
     }
 
@@ -1858,6 +2025,16 @@ mod tests {
 
     #[test]
     fn optimization_image_closure_includes_gpu_executor() {
+        let requirements =
+            serde_json::from_value::<GatewayDeploymentRequirements>(serde_json::json!({
+                "platformCapabilities": ["optimization"],
+                "artifactAudiences": []
+            }))
+            .expect("decode portable Optimization requirement");
+        assert_eq!(
+            requirements.platform_capabilities,
+            BTreeSet::from([PlatformCapability::Optimization])
+        );
         let selection = PlatformSelection {
             installation_preset: InstallationPreset::Custom,
             components: BTreeSet::from([
@@ -1882,6 +2059,9 @@ mod tests {
         }
         .resolve()
         .expect("valid Optimization selection");
+        selection
+            .satisfy(&requirements)
+            .expect("Optimization requirement must be formally satisfiable");
         assert_eq!(
             selection.required_images(),
             BTreeSet::from([

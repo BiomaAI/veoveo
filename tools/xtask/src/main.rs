@@ -259,7 +259,7 @@ fn main() -> Result<()> {
         Command::Image { command } => match command {
             ImageCommand::Builder { command } => match command {
                 BuilderCommand::Status => builder::status(&repository),
-                BuilderCommand::Ensure => builder::ensure(&repository),
+                BuilderCommand::Ensure => builder::ensure(&repository).map(drop),
                 BuilderCommand::Reconfigure(args) => {
                     builder::reconfigure(&repository, &args.confirm)
                 }

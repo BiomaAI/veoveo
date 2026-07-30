@@ -17,7 +17,7 @@
     },
     {
       "kind": "deployment",
-      "version": "veoveo.io/deployment/v2"
+      "version": "veoveo.io/deployment/v3"
     },
     {
       "kind": "extension_release",

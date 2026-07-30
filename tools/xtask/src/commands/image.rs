@@ -32,6 +32,8 @@ const AUXILIARY_LABEL: &str = "io.veoveo.build.auxiliary";
 pub(crate) struct Selection {
     pub(crate) kind: SelectionKind,
     pub(crate) name: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) targets: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -39,6 +41,7 @@ pub(crate) struct Selection {
 pub(crate) enum SelectionKind {
     Target,
     Group,
+    Exact,
 }
 
 impl Selection {
@@ -55,6 +58,7 @@ impl Selection {
         Ok(Self {
             kind: SelectionKind::Target,
             name: target.to_owned(),
+            targets: Vec::new(),
         })
     }
 
@@ -63,7 +67,29 @@ impl Selection {
         Ok(Self {
             kind: SelectionKind::Group,
             name: group.to_owned(),
+            targets: Vec::new(),
         })
+    }
+
+    pub(crate) fn exact(name: &str, targets: impl IntoIterator<Item = String>) -> Result<Self> {
+        validate_identifier("exact Bake selection", name)?;
+        let targets = targets.into_iter().collect::<BTreeSet<_>>();
+        ensure!(!targets.is_empty(), "exact Bake selection cannot be empty");
+        for target in &targets {
+            validate_identifier("Bake target", target)?;
+        }
+        Ok(Self {
+            kind: SelectionKind::Exact,
+            name: name.to_owned(),
+            targets: targets.into_iter().collect(),
+        })
+    }
+
+    fn bake_patterns(&self) -> Vec<&str> {
+        match self.kind {
+            SelectionKind::Target | SelectionKind::Group => vec![self.name.as_str()],
+            SelectionKind::Exact => self.targets.iter().map(String::as_str).collect(),
+        }
     }
 }
 
@@ -363,10 +389,11 @@ pub(crate) fn build_command(
     args: &ImageSelectionArgs,
 ) -> Result<()> {
     let selection = Selection::from_args(args)?;
-    builder::ensure(repository)?;
+    let _builder = builder::ensure(repository)?;
     let prepared = prepare(repository, selection, &BTreeMap::new())?;
     let evidence = evidence_run(repository, &prepared.plan, "build")?;
     execute(
+        repository,
         repository,
         &prepared,
         &BTreeMap::new(),
@@ -382,17 +409,32 @@ pub(crate) fn prepare(
     selection: Selection,
     environment: &BTreeMap<String, String>,
 ) -> Result<PreparedPlan> {
-    let checked = bake_print(repository.root(), &selection, environment, &[])?;
+    prepare_with_builder(repository, repository, selection, environment)
+}
+
+pub(crate) fn prepare_with_builder(
+    builder_repository: &RepositoryContext,
+    source_repository: &RepositoryContext,
+    selection: Selection,
+    environment: &BTreeMap<String, String>,
+) -> Result<PreparedPlan> {
+    let checked = bake_print(
+        builder_repository,
+        source_repository.root(),
+        &selection,
+        environment,
+        &[],
+    )?;
     let direct_targets = selected_targets(&checked, &selection)?;
     let source_revision_targets = target_dependency_closure(&checked, &direct_targets)?;
-    let metadata = cargo_metadata(repository.root())?;
-    let source_hash = source::source_hash(repository)?;
+    let metadata = cargo_metadata(source_repository.root())?;
+    let source_hash = source::source_hash(source_repository)?;
     let source_revision = SourceRevision {
-        revision: git_output(repository.root(), ["rev-parse", "HEAD"])?
+        revision: git_output(source_repository.root(), ["rev-parse", "HEAD"])?
             .trim()
             .to_owned(),
         dirty: !git_output(
-            repository.root(),
+            source_repository.root(),
             ["status", "--porcelain=v1", "--untracked-files=all"],
         )?
         .trim()
@@ -422,7 +464,7 @@ pub(crate) fn prepare(
         let rust = parse_rust_unit(&name, target, &package_index)?;
         if let Some(unit) = &rust {
             if unit.mode == BuildMode::RustStandalone {
-                validate_standalone_source_boundary(repository.root(), &name, target)?;
+                validate_standalone_source_boundary(source_repository.root(), &name, target)?;
             }
             family_units
                 .entry(unit.family)
@@ -440,7 +482,7 @@ pub(crate) fn prepare(
     let all_targets = family_units
         .keys()
         .any(|family| family.shared_artifact_target().is_some())
-        .then(|| bake_print_all(repository.root(), environment))
+        .then(|| bake_print_all(builder_repository, source_repository.root(), environment))
         .transpose()?;
     let mut families = Vec::new();
     for (family, selected_units) in &family_units {
@@ -506,7 +548,8 @@ pub(crate) fn prepare(
     override_file.flush()?;
 
     let resolved = bake_print(
-        repository.root(),
+        builder_repository,
+        source_repository.root(),
         &plan.selection,
         environment,
         &[override_file.path()],
@@ -538,13 +581,14 @@ impl OutputMode {
 }
 
 pub(crate) fn execute(
-    repository: &RepositoryContext,
+    builder_repository: &RepositoryContext,
+    source_repository: &RepositoryContext,
     prepared: &PreparedPlan,
     environment: &BTreeMap<String, String>,
     mode: OutputMode,
     evidence: &EvidenceRun,
 ) -> Result<()> {
-    let bake = repository.root().join("docker-bake.hcl");
+    let bake = source_repository.root().join("docker-bake.hcl");
     let mut attestation_override = match mode {
         OutputMode::Load => None,
         OutputMode::Push => {
@@ -569,9 +613,9 @@ pub(crate) fn execute(
             Some(file)
         }
     };
-    let mut command = builder::buildx_command(repository)?;
+    let mut command = builder::buildx_command(builder_repository)?;
     command
-        .current_dir(repository.root())
+        .current_dir(source_repository.root())
         .args(["bake", "--builder", builder::BUILDER_NAME, "-f"])
         .arg(&bake)
         .arg("-f")
@@ -580,7 +624,7 @@ pub(crate) fn execute(
         command.arg("-f").arg(override_file.path());
     }
     command
-        .arg(&prepared.plan.selection.name)
+        .args(prepared.plan.selection.bake_patterns())
         .arg("--metadata-file")
         .arg(evidence.metadata_path())
         .env("SOURCE_DATE_EPOCH", SOURCE_DATE_EPOCH)
@@ -640,6 +684,7 @@ pub(crate) fn evidence_run(
     let selection_kind = match plan.selection.kind {
         SelectionKind::Target => "target",
         SelectionKind::Group => "group",
+        SelectionKind::Exact => "exact",
     };
     let started_at = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -795,6 +840,15 @@ fn selected_targets(definition: &BakeDefinition, selection: &Selection) -> Resul
             .get(&selection.name)
             .map(|group| group.targets.clone())
             .with_context(|| format!("unknown Bake group {}", selection.name)),
+        SelectionKind::Exact => {
+            for target in &selection.targets {
+                ensure!(
+                    definition.target.contains_key(target),
+                    "unknown Bake target {target}"
+                );
+            }
+            Ok(selection.targets.clone())
+        }
     }
 }
 
@@ -1133,37 +1187,52 @@ fn verify_override(plan: &BuildPlanV1, definition: &BakeDefinition) -> Result<()
 }
 
 fn bake_print(
-    repository: &Path,
+    builder_repository: &RepositoryContext,
+    source_repository: &Path,
     selection: &Selection,
     environment: &BTreeMap<String, String>,
     extra_files: &[&Path],
 ) -> Result<BakeDefinition> {
-    bake_print_pattern(repository, &selection.name, environment, extra_files)
+    bake_print_patterns(
+        builder_repository,
+        source_repository,
+        &selection.bake_patterns(),
+        environment,
+        extra_files,
+    )
 }
 
 fn bake_print_all(
-    repository: &Path,
+    builder_repository: &RepositoryContext,
+    source_repository: &Path,
     environment: &BTreeMap<String, String>,
 ) -> Result<BakeDefinition> {
-    bake_print_pattern(repository, "*", environment, &[])
+    bake_print_patterns(
+        builder_repository,
+        source_repository,
+        &["*"],
+        environment,
+        &[],
+    )
 }
 
-fn bake_print_pattern(
-    repository: &Path,
-    pattern: &str,
+fn bake_print_patterns(
+    builder_repository: &RepositoryContext,
+    source_repository: &Path,
+    patterns: &[&str],
     environment: &BTreeMap<String, String>,
     extra_files: &[&Path],
 ) -> Result<BakeDefinition> {
-    let mut command = builder::buildx_command(&RepositoryContext::discover(repository)?)?;
+    let mut command = builder::buildx_command(builder_repository)?;
     command
-        .current_dir(repository)
+        .current_dir(source_repository)
         .args(["bake", "--builder", builder::BUILDER_NAME, "-f"])
-        .arg(repository.join("docker-bake.hcl"));
+        .arg(source_repository.join("docker-bake.hcl"));
     for file in extra_files {
         command.arg("-f").arg(file);
     }
     let output = command
-        .arg(pattern)
+        .args(patterns)
         .arg("--print")
         .envs(environment)
         .output()
@@ -1197,6 +1266,7 @@ fn print_human(plan: &BuildPlanV1) {
         match plan.selection.kind {
             SelectionKind::Target => "target",
             SelectionKind::Group => "group",
+            SelectionKind::Exact => "exact",
         },
         plan.selection.name,
         plan.source.revision,
@@ -1239,7 +1309,7 @@ fn validate_identifier(kind: &str, value: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{
-        BakeDefinition, BakeTarget, BuilderFamily, parse_publication_index_digests,
+        BakeDefinition, BakeTarget, BuilderFamily, Selection, parse_publication_index_digests,
         target_dependency_closure, validate_standalone_builder_stage,
     };
     use std::collections::{BTreeMap, BTreeSet};
@@ -1281,6 +1351,24 @@ mod tests {
         assert_eq!(identities.len(), families.len());
         assert!(
             identities.contains("veoveo-target-v1-aaaaaaaaaaaa-9b79bf6f1617-linux-amd64-release")
+        );
+    }
+
+    #[test]
+    fn exact_selection_is_one_sorted_multi_target_bake_invocation() {
+        let selection = Selection::exact(
+            "platform",
+            [
+                "optimization-mcp".to_owned(),
+                "mcp-gateway".to_owned(),
+                "optimization-mcp".to_owned(),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(
+            selection.bake_patterns(),
+            ["mcp-gateway", "optimization-mcp"]
         );
     }
 
