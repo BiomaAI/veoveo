@@ -841,13 +841,31 @@ fn verify_workloads_and_gpu(context: &str, namespace: &str, timeout: Duration) -
         .map(OsString::from),
         [],
     )?;
-    let fingerprint = gpu.to_ascii_lowercase();
+    let gpu = parse_single_nvidia_smi_gpu(&gpu)?;
+    let visible_devices = run_checked(
+        Path::new("kubectl"),
+        [
+            "--context",
+            context,
+            "-n",
+            namespace,
+            "exec",
+            "deployment/simulation-view-renderer",
+            "-c",
+            "simulation-view-isaac",
+            "--",
+            "printenv",
+            "NVIDIA_VISIBLE_DEVICES",
+        ]
+        .map(OsString::from),
+        [],
+    )?;
+    let allocated_uuid = NvidiaGpuUuid::from_visible_devices(&visible_devices)?;
     ensure!(
-        !gpu.trim().is_empty()
-            && fingerprint.contains("nvidia")
-            && !fingerprint.contains("software")
-            && !fingerprint.contains("llvmpipe"),
-        "Simulation View renderer did not expose an NVIDIA hardware GPU: {gpu}"
+        allocated_uuid == gpu.uuid,
+        "Simulation View renderer saw GPU {} but the device plugin allocated {}",
+        gpu.uuid.as_str(),
+        allocated_uuid.as_str()
     );
 
     let deployments: Value = serde_json::from_str(&run_checked(

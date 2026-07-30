@@ -15,6 +15,8 @@ mod external_simulation;
 mod frames;
 #[path = "scenarios/gateway.rs"]
 mod gateway;
+#[path = "scenarios/gpu_allocation.rs"]
+mod gpu_allocation;
 #[path = "scenarios/map.rs"]
 mod map;
 #[path = "scenarios/media.rs"]
@@ -45,6 +47,7 @@ pub(crate) use datasheet::*;
 pub(crate) use external_simulation::*;
 pub(crate) use frames::*;
 pub(crate) use gateway::*;
+pub(crate) use gpu_allocation::*;
 pub(crate) use map::*;
 pub(crate) use media::*;
 pub(crate) use reason::*;

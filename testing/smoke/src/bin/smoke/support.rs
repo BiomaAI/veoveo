@@ -10,6 +10,8 @@ mod duckdb;
 mod final_tasks;
 #[path = "support/gateway_auth.rs"]
 mod gateway_auth;
+#[path = "support/gpu.rs"]
+mod gpu;
 #[path = "support/http.rs"]
 mod http;
 #[path = "support/mcp.rs"]
@@ -28,6 +30,7 @@ pub(crate) use control_plane::*;
 pub(crate) use duckdb::*;
 pub(crate) use final_tasks::*;
 pub(crate) use gateway_auth::*;
+pub(crate) use gpu::*;
 pub(crate) use http::*;
 pub(crate) use mcp::*;
 pub(crate) use process::*;

@@ -74,6 +74,20 @@ does not set `NVIDIA_VISIBLE_DEVICES`; the plugin supplies the UUID selected by 
 container's `nvidia.com/gpu` allocation. Workloads retain their required
 `NVIDIA_DRIVER_CAPABILITIES`.
 
+An exclusive multi-GPU node can prove that boundary before profile acceptance. Supply
+one digest-pinned CUDA-capable image already admitted by the installation:
+
+```sh
+cargo xtask smoke gpu-allocation-verify \
+  --context <kube-context> \
+  --node <two-gpu-node> \
+  --image <registry/image@sha256:digest>
+```
+
+The Rust smoke harness schedules two simultaneous one-GPU pods on that node. Each pod
+must see one allocated UUID, and the UUIDs must differ. Time-sliced allocation is not
+accepted as isolation evidence.
+
 `simulationView.signaling`, `simulationView.media`, and
 `simulationView.poseIngress` select the installation-owned exposure. Signaling accepts
 Ingress, ClusterIP, NodePort, or LoadBalancer. Media is a bounded UDP port collection,

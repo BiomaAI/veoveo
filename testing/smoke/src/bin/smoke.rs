@@ -115,6 +115,24 @@ enum Cmd {
         #[arg(long)]
         profile: PathBuf,
     },
+    /// Prove exclusive NVIDIA device-plugin allocation with two one-GPU pods on one node.
+    GpuAllocationVerify {
+        /// Kubernetes context containing the exclusive multi-GPU node.
+        #[arg(long)]
+        context: String,
+        /// Exact node name with at least two allocatable physical NVIDIA GPUs.
+        #[arg(long)]
+        node: String,
+        /// Digest-pinned CUDA-capable image containing bash, printenv, and nvidia-smi.
+        #[arg(long)]
+        image: String,
+        /// NVIDIA RuntimeClass used by GPU workloads.
+        #[arg(long, default_value = "nvidia")]
+        runtime_class_name: String,
+        /// Maximum time for both probe pods to receive ready allocations.
+        #[arg(long, default_value_t = 300)]
+        timeout_seconds: u64,
+    },
     /// Verify the Bioma installation and its public Cloudflare edge.
     BiomaVerify {
         /// Built conformance binary used as the public machine OAuth and MCP client.
@@ -629,6 +647,19 @@ async fn main() -> Result<()> {
         Cmd::ProfileClusterDelete { profile } => profile_cluster_delete(&profile),
         Cmd::ProfileUp { profile, lock } => profile_up(&profile, &lock),
         Cmd::ProfileDown { profile } => profile_down(&profile),
+        Cmd::GpuAllocationVerify {
+            context,
+            node,
+            image,
+            runtime_class_name,
+            timeout_seconds,
+        } => gpu_allocation_verify(
+            &context,
+            &node,
+            &image,
+            &runtime_class_name,
+            Duration::from_secs(timeout_seconds),
+        ),
         Cmd::BiomaVerify {
             conformance_bin,
             context,

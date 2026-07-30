@@ -711,12 +711,30 @@ fn assert_showcase_gpu_workloads(context: &str, namespace: &str) -> Result<()> {
             ],
             [],
         )?;
-        let fingerprint = gpu.to_ascii_lowercase();
+        let gpu = parse_single_nvidia_smi_gpu(&gpu)?;
+        let visible_devices = run_checked(
+            Path::new("kubectl"),
+            [
+                "--context".into(),
+                context.into(),
+                "-n".into(),
+                namespace.into(),
+                "exec".into(),
+                format!("deployment/{deployment}").into(),
+                "-c".into(),
+                container.into(),
+                "--".into(),
+                "printenv".into(),
+                "NVIDIA_VISIBLE_DEVICES".into(),
+            ],
+            [],
+        )?;
+        let allocated_uuid = NvidiaGpuUuid::from_visible_devices(&visible_devices)?;
         ensure!(
-            fingerprint.contains("nvidia")
-                && !fingerprint.contains("software")
-                && !fingerprint.contains("llvmpipe"),
-            "{deployment} did not expose an NVIDIA hardware GPU: {gpu}"
+            allocated_uuid == gpu.uuid,
+            "{deployment} saw GPU {} but the device plugin allocated {}",
+            gpu.uuid.as_str(),
+            allocated_uuid.as_str()
         );
     }
     Ok(())
