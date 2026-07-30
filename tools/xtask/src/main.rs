@@ -57,6 +57,8 @@ enum ImageCommand {
         #[command(subcommand)]
         command: BuilderCommand,
     },
+    /// Remove digest-keyed local Docker materializations retained by simulation certification.
+    CertificationCachePrune(CertificationCachePruneArgs),
     /// Resolve and validate an image build plan.
     Plan(ImagePlanArgs),
     /// Build selected images from the current checkout and load them into Docker.
@@ -99,6 +101,13 @@ struct SmokeArgs {
 #[derive(Debug, Args)]
 struct BuilderConfirmationArgs {
     /// Required builder-name confirmation.
+    #[arg(long)]
+    confirm: String,
+}
+
+#[derive(Debug, Args)]
+struct CertificationCachePruneArgs {
+    /// Required certification cache repository confirmation.
     #[arg(long)]
     confirm: String,
 }
@@ -265,6 +274,9 @@ fn main() -> Result<()> {
                 }
                 BuilderCommand::Recreate(args) => builder::recreate(&repository, &args.confirm),
             },
+            ImageCommand::CertificationCachePrune(args) => {
+                builder::prune_certification_cache(&repository, &args.confirm)
+            }
             ImageCommand::Plan(args) => {
                 image::plan_command(&repository, &args.selection, args.format)
             }

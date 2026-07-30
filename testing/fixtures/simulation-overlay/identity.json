@@ -1,7 +1,7 @@
 {
   "schemaVersion": "veoveo.io/simulation-overlay-identity/v1",
   "kind": "anonymous_external",
-  "baseLockDigest": "sha256:a4d6870c0c748ea1804feb06c24decf11c4d05ff154ae0fb0811e9073816545c",
+  "baseLockDigest": "sha256:73b6d5e8f8d8d263d63c42ba3c708738fcf886d6b398ee9df2c0013733d419c0",
   "probeModule": "anonymous_simulation_overlay",
   "marker": "anonymous-simulation-overlay"
 }

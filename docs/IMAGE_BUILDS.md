@@ -111,6 +111,15 @@ Simulation certification holds the same lease. A deployment lock may authorize o
 configuration, attestation inspection, and digest-addressed materialization all select
 the managed builder explicitly. Docker Engine never resolves the remote certification
 image and runs the local materialization with pulls disabled.
+Materializations are tagged in Docker under `veoveo-simulation-certify-cache` by a
+SHA-256 of the complete remote coordinate. Their source label must match before reuse.
+This avoids repeatedly serializing and importing the large Isaac filesystem. Cache
+removal is explicit:
+
+```bash
+cargo xtask image certification-cache-prune \
+  --confirm veoveo-simulation-certify-cache
+```
 
 ## Release Publication
 

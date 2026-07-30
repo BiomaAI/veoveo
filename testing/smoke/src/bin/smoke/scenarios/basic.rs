@@ -671,10 +671,25 @@ pub(crate) async fn helm_config() -> Result<()> {
                 == Some("0.35.0"),
         "UAV dependency lock omitted a canonical release or Google tiles identity"
     );
-    let simulation_lock: SimulationRuntimeBuildLock = serde_json::from_slice(&fs::read(
-        "platform/runtimes/simulation/simulation-runtime.lock.json",
-    )?)?;
+    let simulation_lock_bytes =
+        fs::read("platform/runtimes/simulation/simulation-runtime.lock.json")?;
+    let simulation_lock: SimulationRuntimeBuildLock =
+        serde_json::from_slice(&simulation_lock_bytes)?;
     simulation_lock.validate()?;
+    let simulation_lock_digest = format!(
+        "sha256:{}",
+        hex::encode(Sha256::digest(&simulation_lock_bytes))
+    );
+    for identity_path in [
+        "showcase/uav-sim/runtime/uav-overlay.identity.json",
+        "testing/fixtures/simulation-overlay/identity.json",
+    ] {
+        let identity: Value = serde_json::from_slice(&fs::read(identity_path)?)?;
+        ensure!(
+            identity.get("baseLockDigest").and_then(Value::as_str) == Some(&simulation_lock_digest),
+            "{identity_path} does not identify the current canonical simulation lock"
+        );
+    }
     let simulation_runtime_dockerfile =
         fs::read_to_string("platform/runtimes/simulation/Dockerfile")?;
     let overlay_dockerfiles = [
@@ -700,6 +715,15 @@ pub(crate) async fn helm_config() -> Result<()> {
         ] {
             not_contains(&contents, platform_root)?;
         }
+    }
+    for dockerfile in [
+        "showcase/uav-sim/runtime/Dockerfile",
+        "testing/fixtures/simulation-overlay/Dockerfile",
+    ] {
+        contains(
+            &fs::read_to_string(dockerfile)?,
+            &format!("io.veoveo.simulation.base-lock=\"{simulation_lock_digest}\""),
+        )?;
     }
     for expected in [
         "nvcr.io/nvidia/isaac-sim:6.0.1@sha256:",

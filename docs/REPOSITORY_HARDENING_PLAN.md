@@ -403,8 +403,10 @@ The deployment lock is the only authority for a non-TLS registry. Certification 
 release configure the managed builder from its exact registry address and transport.
 Buildx resolves configurations and attestations through that builder, and certification
 materializes the digest-addressed overlay through BuildKit before Docker runs it with
-pulls disabled. The original OCI identity remains in the result. A sibling transcript
-retains complete or partial diagnostics after every certification attempt.
+pulls disabled. A verified digest-keyed Docker materialization cache avoids repeating
+that large import, and an explicit confirmed `xtask` command removes it. The original
+OCI identity remains in the result. A sibling transcript retains complete or partial
+diagnostics after every certification attempt.
 
 ### Bundle And Composition Ownership
 

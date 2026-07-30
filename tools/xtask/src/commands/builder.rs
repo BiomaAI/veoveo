@@ -30,6 +30,13 @@ pub(crate) fn recreate(repository: &RepositoryContext, confirmation: &str) -> Re
     veoveo_image_build_control::recreate(repository.root(), confirmation)
 }
 
+pub(crate) fn prune_certification_cache(
+    repository: &RepositoryContext,
+    confirmation: &str,
+) -> Result<()> {
+    veoveo_image_build_control::prune_certification_cache(repository.root(), confirmation)
+}
+
 pub(crate) fn installed_buildx_version(repository: &RepositoryContext) -> Result<String> {
     veoveo_image_build_control::installed_buildx_version(repository.root())
 }

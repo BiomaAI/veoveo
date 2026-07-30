@@ -33,16 +33,6 @@ struct MaterializedImage {
     tag: String,
 }
 
-impl Drop for MaterializedImage {
-    fn drop(&mut self) {
-        let _ = Command::new("docker")
-            .args(["image", "rm", "--force", &self.tag])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-    }
-}
-
 struct Transcript {
     path: PathBuf,
     file: File,
@@ -696,15 +686,20 @@ fn materialize_image(
     image: &str,
     transcript: &mut Transcript,
 ) -> Result<MaterializedImage> {
+    let tag = format!(
+        "{}:{}",
+        veoveo_image_build_control::CERTIFICATION_CACHE_REPOSITORY,
+        hex::encode(Sha256::digest(image.as_bytes()))
+    );
+    if cached_materialization(&tag, image, transcript)? {
+        transcript.line("cache", &format!("reusing {tag}"))?;
+        return Ok(MaterializedImage { tag });
+    }
     let context = tempfile::tempdir().context("creating image materialization context")?;
     fs::write(
         context.path().join("Dockerfile"),
-        "# syntax=docker/dockerfile:1.25.0\nARG CERT_IMAGE\nFROM ${CERT_IMAGE}\n",
+        "# syntax=docker/dockerfile:1.25.0\nARG CERT_IMAGE\nFROM ${CERT_IMAGE}\nARG CERT_IMAGE\nLABEL io.veoveo.certification.source=\"${CERT_IMAGE}\"\n",
     )?;
-    let tag = format!(
-        "veoveo-simulation-certify:{}",
-        uuid::Uuid::new_v4().simple()
-    );
     let mut command = veoveo_image_build_control::buildx_command(repository)?;
     command
         .args([
@@ -728,7 +723,41 @@ fn materialize_image(
         output.status.success(),
         "BuildKit failed to materialize exact image {image}"
     );
+    ensure!(
+        cached_materialization(&tag, image, transcript)?,
+        "materialized image does not retain its exact source identity"
+    );
     Ok(MaterializedImage { tag })
+}
+
+fn cached_materialization(tag: &str, image: &str, transcript: &mut Transcript) -> Result<bool> {
+    let mut command = Command::new("docker");
+    command.args([
+        "image",
+        "inspect",
+        tag,
+        "--format",
+        "{{json (index .Config.Labels \"io.veoveo.certification.source\")}}",
+    ]);
+    let output = command_output(
+        &mut command,
+        transcript,
+        &format!("inspect certification cache {tag}"),
+    )?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if stderr.contains("No such image") {
+            return Ok(false);
+        }
+        bail!("inspecting certification cache {tag} failed");
+    }
+    let source: String = serde_json::from_slice(&output.stdout)
+        .with_context(|| format!("decoding certification cache identity for {tag}"))?;
+    ensure!(
+        source == image,
+        "certification cache {tag} identifies {source}; expected {image}"
+    );
+    Ok(true)
 }
 
 fn image_file(image: &str, path: &str, transcript: &mut Transcript) -> Result<Vec<u8>> {

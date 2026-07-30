@@ -319,6 +319,10 @@ An internal HTTP registry works only when the lock explicitly selects
 `insecure-http`; changing the image reference to a loopback alias is rejected because
 it changes the recorded OCI identity. Each certification keeps a sibling
 `*.transcript.log`, including partial output from a failed or timed-out GPU launch.
+The first exact-digest run materializes the overlay into the local Docker certification
+cache. Later runs verify its source label and reuse it. Operators can reclaim those
+large local images with `cargo xtask image certification-cache-prune --confirm
+veoveo-simulation-certify-cache`.
 
 ## Definition Of Done
 
