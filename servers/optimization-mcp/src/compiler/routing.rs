@@ -255,18 +255,17 @@ fn compile_vehicles(
         .collect()
 }
 
+type CompiledNodes = (
+    Vec<CompiledRouteNode>,
+    Vec<CompiledPickupDeliveryPair>,
+    Vec<CompiledOrderVehicleMatch>,
+);
+
 fn compile_nodes(
     problem: &RoutingProblem,
     locations: &BTreeMap<LocationId, u32>,
     vehicles: &[CompiledVehicle],
-) -> Result<
-    (
-        Vec<CompiledRouteNode>,
-        Vec<CompiledPickupDeliveryPair>,
-        Vec<CompiledOrderVehicleMatch>,
-    ),
-    CompileError,
-> {
+) -> Result<CompiledNodes, CompileError> {
     let vehicle_indices = vehicles
         .iter()
         .enumerate()

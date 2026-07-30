@@ -719,7 +719,7 @@ async fn visible_tasks(
             output,
         });
     }
-    visible.sort_by(|left, right| left.snapshot.created_at.cmp(&right.snapshot.created_at));
+    visible.sort_by_key(|item| item.snapshot.created_at);
     Ok(visible)
 }
 

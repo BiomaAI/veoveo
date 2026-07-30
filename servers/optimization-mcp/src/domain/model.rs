@@ -335,13 +335,10 @@ fn validate_model(
 }
 
 fn validate_terms<'a>(
-    terms: impl Iterator<Item = &'a VariableId>,
+    mut terms: impl Iterator<Item = &'a VariableId>,
     variables: &BTreeSet<&VariableId>,
 ) -> Result<(), OptimizationContractError> {
-    if let Some(unknown) = terms
-        .filter(|variable| !variables.contains(variable))
-        .next()
-    {
+    if let Some(unknown) = terms.find(|variable| !variables.contains(variable)) {
         return Err(OptimizationContractError::InvalidProblem(format!(
             "model term references unknown variable {unknown}"
         )));

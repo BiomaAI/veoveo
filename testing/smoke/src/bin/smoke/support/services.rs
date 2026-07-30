@@ -209,35 +209,37 @@ pub(crate) fn spawn_duckdb_smoke(
     )
 }
 
-pub(crate) fn spawn_optimization_smoke(
-    optimization: &Path,
-    port: u16,
-    public_base_url: &str,
-    workspace: &Path,
-    executor_socket: &Path,
-    artifact_service_url: &str,
-    platform: &PlatformStoreSmoke,
-    log: &Path,
-) -> Result<ChildGuard> {
-    let mut env = platform.runtime_env();
+pub(crate) struct OptimizationSmokeConfig<'a> {
+    pub optimization: &'a Path,
+    pub port: u16,
+    pub public_base_url: &'a str,
+    pub workspace: &'a Path,
+    pub executor_socket: &'a Path,
+    pub artifact_service_url: &'a str,
+    pub platform: &'a PlatformStoreSmoke,
+    pub log: &'a Path,
+}
+
+pub(crate) fn spawn_optimization_smoke(config: &OptimizationSmokeConfig<'_>) -> Result<ChildGuard> {
+    let mut env = config.platform.runtime_env();
     env.push(("VEOVEO_INTERNAL_TRUST_JWKS", INTERNAL_TRUST_JWKS.into()));
     ChildGuard::spawn(
-        optimization,
+        config.optimization,
         [
             "--port".into(),
-            port.to_string().into(),
+            config.port.to_string().into(),
             "--public-base-url".into(),
-            public_base_url.into(),
+            config.public_base_url.into(),
             "--allow-loopback-hosts".into(),
             "--optimization-workspace".into(),
-            workspace.as_os_str().to_os_string(),
+            config.workspace.as_os_str().to_os_string(),
             "--executor-socket".into(),
-            executor_socket.as_os_str().to_os_string(),
+            config.executor_socket.as_os_str().to_os_string(),
             "--artifact-service-url".into(),
-            artifact_service_url.into(),
+            config.artifact_service_url.into(),
         ],
         env,
-        log,
+        config.log,
     )
 }
 

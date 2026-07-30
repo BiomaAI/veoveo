@@ -64,7 +64,7 @@ pub(super) enum OptimizationTaskRequest {
         input: SolveMilpRequest,
     },
     VerifySolution {
-        request: PreparedVerifyTask,
+        request: Box<PreparedVerifyTask>,
     },
 }
 
