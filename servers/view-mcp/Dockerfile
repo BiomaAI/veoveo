@@ -21,8 +21,7 @@ RUN apt-get update \
 COPY --from=veoveo-rust-artifacts /bin/view-mcp /usr/local/bin/view-mcp
 COPY configs/view/layers.json /etc/veoveo/view/layers.json
 
-ENV NVIDIA_VISIBLE_DEVICES=all \
-    NVIDIA_DRIVER_CAPABILITIES=graphics,compute,utility \
+ENV NVIDIA_DRIVER_CAPABILITIES=graphics,compute,utility \
     WGPU_BACKEND=vulkan \
     WGPU_POWER_PREF=high \
     HOME=/tmp \

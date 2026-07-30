@@ -374,8 +374,6 @@ spec:
               value: {{ $view.ports.mediaBase | quote }}
             - name: SIMULATION_VIEW_PUBLIC_MEDIA_IP
               value: {{ required "simulationView.publicMediaIp is required" $view.publicMediaIp | quote }}
-            - name: NVIDIA_VISIBLE_DEVICES
-              value: all
             - name: NVIDIA_DRIVER_CAPABILITIES
               value: compute,graphics,utility,video
           ports:

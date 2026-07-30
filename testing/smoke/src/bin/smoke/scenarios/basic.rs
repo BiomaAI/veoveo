@@ -304,6 +304,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "ARTIFACT_S3_PUBLIC_ENDPOINT",
         "objectStoreHost",
         "publicEndpoint",
+        "name: NVIDIA_VISIBLE_DEVICES",
     ] {
         not_contains(&bioma, forbidden)?;
     }
@@ -374,6 +375,19 @@ pub(crate) async fn helm_config() -> Result<()> {
         contains(deployment, "replicas: 1")?;
         contains(deployment, "strategy:\n    type: Recreate")?;
         contains(deployment, "veoveo.ai/chart-revision: \"0.1.0\"")?;
+        let required_driver_capabilities = match component {
+            "reason-mcp" | "stream-mcp" => Some("compute,utility,video"),
+            "optimization-mcp" => Some("compute,utility"),
+            "view-mcp" | "rerun-bridge" => Some("graphics,compute,utility"),
+            "simulation-view-renderer" => Some("compute,graphics,utility,video"),
+            _ => None,
+        };
+        if let Some(capabilities) = required_driver_capabilities {
+            contains(deployment, "nvidia.com/gpu: \"1\"")?;
+            contains(deployment, "name: NVIDIA_DRIVER_CAPABILITIES")?;
+            contains(deployment, &format!("value: {capabilities}"))?;
+            not_contains(deployment, "name: NVIDIA_VISIBLE_DEVICES")?;
+        }
         if component == "map-mcp" {
             contains(deployment, "startupProbe:")?;
             contains(deployment, "failureThreshold: 60")?;
@@ -386,11 +400,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         }
         if component == "rerun-bridge" {
             contains(deployment, "runtimeClassName: nvidia")?;
-            contains(deployment, "name: NVIDIA_VISIBLE_DEVICES")?;
-            contains(deployment, "name: NVIDIA_DRIVER_CAPABILITIES")?;
             contains(deployment, "name: WGPU_BACKEND")?;
             contains(deployment, "value: vulkan")?;
-            contains(deployment, "nvidia.com/gpu: \"1\"")?;
         }
         if component == "simulation-view-mcp" {
             contains(
@@ -840,6 +851,12 @@ pub(crate) async fn helm_config() -> Result<()> {
         &simulation_view_mcp_dockerfile,
         "--from=veoveo-rust-artifacts /bin/simulation-view-mcp",
     )?;
+    let view_mcp_dockerfile = fs::read_to_string("servers/view-mcp/Dockerfile")?;
+    contains(
+        &view_mcp_dockerfile,
+        "NVIDIA_DRIVER_CAPABILITIES=graphics,compute,utility",
+    )?;
+    not_contains(&view_mcp_dockerfile, "NVIDIA_VISIBLE_DEVICES")?;
     let anonymous_simulation_adapter = fs::read_to_string(
         "testing/fixtures/external-simulation-installation/Dockerfile.anonymous-simulation-mcp",
     )?;

@@ -137,8 +137,6 @@ spec:
                 secretKeyRef:
                   name: {{ $.Values.global.existingSecret }}
                   key: google-maps-api-key
-            - name: NVIDIA_VISIBLE_DEVICES
-              value: all
             - name: NVIDIA_DRIVER_CAPABILITIES
               value: graphics,compute,utility
             - name: WGPU_BACKEND
@@ -151,8 +149,6 @@ spec:
               value: /tmp/wgpu-cache
             {{- end }}
             {{- if eq $service.name "rerun-bridge" }}
-            - name: NVIDIA_VISIBLE_DEVICES
-              value: all
             - name: NVIDIA_DRIVER_CAPABILITIES
               value: graphics,compute,utility
             - name: WGPU_BACKEND
