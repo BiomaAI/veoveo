@@ -69,13 +69,16 @@ LOCK=output/deployments/sumo/deployment.lock.json
 REVISION=$(git rev-parse HEAD)
 cargo xtask smoke profile-validate --profile "$PROFILE"
 cargo xtask smoke profile-cluster-up --profile "$PROFILE"
-cargo xtask image builder ensure
 cargo xtask release images \
   --profile "$PROFILE" \
   --profile-revision "$REVISION" \
   --lock-output "$LOCK"
 cargo xtask smoke profile-up --profile "$PROFILE" --lock "$LOCK"
 ```
+
+The profile derives the exact platform images and publishes the SUMO images through a
+separate `workload` source. Publication configures the managed builder from the
+profile's registry address and transport while retaining its existing cache.
 
 Normal clients use the `operator` gateway profile at
 `http://localhost:8780/mcp/operator`. They mint a scoped service token through

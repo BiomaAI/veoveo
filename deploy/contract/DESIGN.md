@@ -4,10 +4,10 @@
 
 | Standard or protocol | Supported profile |
 |---|---|
-| `veoveo.io/deployment/v2` | named-source deployment profile with one explicit platform source and independently versioned extension sources |
-| `veoveo.io/deployment-lock/v2` | immutable source-role, OCI image, chart, and platform resolution |
+| `veoveo.io/deployment/v3` | installation-repository profile with exact platform targets, independently versioned workload and extension sources, split Helm values ownership, and explicit registry transport |
+| `veoveo.io/deployment-lock/v3` | immutable installation revision, registry transport, source-role, OCI image, chart, and platform resolution |
 | `veoveo.io/local-registry/v1` | repository-owned loopback registry declaration |
-| Docker Buildx Bake | image-group names selected by a deployment profile |
+| Docker Buildx Bake | one exact multi-target platform build plus source-owned workload and extension groups |
 | Kubernetes and Helm | typed destination and ordered release inputs; process execution remains outside this crate |
 | Kubernetes NVIDIA device resources | exact exclusive-device accounting plus evidence-gated NVIDIA MIG or time-slicing declarations |
 
@@ -18,21 +18,27 @@ local registry declaration, controlled path resolution, platform component graph
 pure validation used by operational tooling. It does not execute Git, Docker, Buildx,
 k3d, Kubernetes, or Helm commands.
 
-Each named source owns its repository, independently resolved revision, Bake phases,
-and Helm releases. Exactly one source has the `platform` role. Every other source has
-the `extension` role and can use only the extension chart-values contract. The lock
-retains that ownership boundary with the resolved repository and revision, image
-runnable platform-manifest digests, attested publication-index digests, and
-chart-content digests. Helm consumes the runnable digest. The publication digest
-retains the exact SBOM and provenance envelope emitted by one release invocation.
-Local development may use source charts; production composition replaces source
-coordinates with digest-addressed private OCI chart coordinates.
+The installation repository owns the profile, registry selection, Kubernetes
+destination, pre-Helm resources, and `installationValues` files. Each named source owns
+its repository, independently resolved revision, source chart, `sourceValues`, and
+non-platform Bake groups. Exactly one source has the `platform` role. Separately
+selected Veoveo applications use `workload`; independently owned integrations use
+`extension`. Their values contracts remain distinct.
+
+The lock records the exact installation-repository revision and registry transport
+alongside source revisions, runnable platform-manifest digests, attested
+publication-index digests, and chart-content digests. Helm consumes the runnable
+digest. The publication digest retains the exact SBOM and provenance envelope emitted
+by one release invocation. Local development may use source charts; production
+composition replaces source coordinates with digest-addressed private OCI chart
+coordinates.
 
 The platform resolver expands `full`, `extension-foundation`, or a typed custom
 selection. Gateway composition requirements fail closed against that graph. Artifact,
-Frames, Map, Media, Recording, and RRD requirements select their actual hosted server
-and infrastructure dependencies; portable composition tools do not link those server
-implementations.
+Frames, Map, Media, Optimization, Recording, and RRD requirements select their actual
+hosted server and infrastructure dependencies; portable composition tools do not link
+those server implementations. Optimization selects both its MCP control image and the
+GPU cuOpt executor.
 
 The component graph distinguishes the recording data plane, hardware GPU renderer, and
 canonical simulation-runtime support from hosted MCP servers and operator surfaces.
@@ -53,21 +59,26 @@ image, Recording contributes the hub and MCP images, and an RRD requirement cont
 the producer-side recording forwarder. Only targets from the explicit platform source
 can satisfy this closure.
 
-Operational tools resolve every source-qualified target and final repository/tag
-reference before publication begins. Pure contract validation rejects a target selected
-twice by one source, an OCI reference claimed by two sources, or an omitted platform
-target. The immutable lock also rejects repositories and Helm release identities owned
-by more than one source. An extension cannot satisfy platform closure by copying a
-first-party target name.
+Operational tools derive the platform source targets from the exact typed selection and
+resolve them in one Bake invocation. Platform profiles do not repeat that set through a
+named image group. Other sources retain ordered repository-owned groups. Pure contract
+validation rejects a target selected twice by one source, an OCI reference claimed by
+two sources, an omitted platform target, or an unnecessary platform target. The
+immutable lock also rejects repositories and Helm release identities owned by more than
+one source. An extension cannot satisfy platform closure by copying a first-party
+target name.
 
-Local installation consumes that lock as an explicit input. The installer checks out
-each recorded source revision, confirms the normalized source origin, recomputes every
-source-chart archive digest, and compares the locked image repositories with the
-source's selected Bake groups. Helm receives a source-owned image-digest map with
-production enforcement enabled. It does not resolve the profile's source revision
-expressions during installation.
+Local installation consumes that lock as an explicit input. The installer requires the
+checked-out installation repository to match the locked revision and rejects changed or
+untracked profile inputs. It checks out each recorded source revision, confirms the
+normalized source origin, recomputes every source-chart archive digest, and compares the
+locked image repositories with the exact Bake selection. Helm applies source values
+first and installation values second, then receives a source-owned image-digest map
+with production enforcement enabled. It does not resolve mutable source expressions
+during installation.
 
 The acceptance test creates independent platform, extension, and installation Git
-repositories, resolves distinct commits, validates the source-qualified image plan, and
-produces one combined lock. It does not introduce an installation coordinator or
-prescribe the extension's build system.
+repositories, resolves distinct commits, loads installation-owned Helm values from the
+installation repository, validates the source-qualified exact image plan, and produces
+one combined lock. It does not introduce an installation coordinator or prescribe the
+extension's build system.
