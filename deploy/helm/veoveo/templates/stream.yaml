@@ -209,8 +209,6 @@ spec:
           env:
             - name: HOME
               value: /tmp
-            - name: NVIDIA_VISIBLE_DEVICES
-              value: all
             - name: NVIDIA_DRIVER_CAPABILITIES
               value: compute,utility,video
           securityContext:
@@ -245,8 +243,6 @@ spec:
               value: veoveo-stream-mcp
             - name: HOME
               value: /tmp
-            - name: NVIDIA_VISIBLE_DEVICES
-              value: all
             - name: NVIDIA_DRIVER_CAPABILITIES
               value: compute,utility,video
           ports:

@@ -69,6 +69,10 @@ containers exchange complete latest-pose snapshots through a memory-backed volum
 the renderer never gains network egress. A read-only governed-artifact volume supplies
 content-addressed USD, USDZ, GLB, glTF, and texture inputs. The renderer requests
 exactly one `nvidia.com/gpu` and starts only through `simulationView.runtimeClassName`.
+The NVIDIA device plugin owns device visibility for every GPU container. The chart
+does not set `NVIDIA_VISIBLE_DEVICES`; the plugin supplies the UUID selected by each
+container's `nvidia.com/gpu` allocation. Workloads retain their required
+`NVIDIA_DRIVER_CAPABILITIES`.
 
 `simulationView.signaling`, `simulationView.media`, and
 `simulationView.poseIngress` select the installation-owned exposure. Signaling accepts
