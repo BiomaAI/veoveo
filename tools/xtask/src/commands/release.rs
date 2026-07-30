@@ -11,8 +11,8 @@ use std::{
 use anyhow::{Context, Result, bail, ensure};
 use sha2::{Digest, Sha256};
 use veoveo_deploy_contract::{
-    DEPLOYMENT_LOCK_SCHEMA, DeploymentLock, DeploymentSource, LoadedProfile, LockedChart,
-    LockedImage, LockedSource, PlannedImage, SourceRepository,
+    DEPLOYMENT_LOCK_SCHEMA, DeploymentLock, DeploymentSource, DeploymentSourceRole, LoadedProfile,
+    LockedChart, LockedImage, LockedSource, PlannedImage, RegistryTransport, SourceRepository,
 };
 
 const IMAGE_RELEASE_EVIDENCE_SCHEMA: &str = "veoveo.io/image-release-evidence/v1";
@@ -64,7 +64,13 @@ pub(crate) fn simulation_runtime(
     repository: &RepositoryContext,
     args: &ReleaseSimulationRuntimeArgs,
 ) -> Result<()> {
-    builder::ensure(repository)?;
+    validate_registry(&args.registry)?;
+    let transport = if registry_is_loopback(&args.registry)? {
+        RegistryTransport::InsecureHttp
+    } else {
+        RegistryTransport::Tls
+    };
+    let _builder = builder::ensure_for_registry(repository, &args.registry, transport)?;
     let publication = PublicationSource::prepare(repository, &args.revision)?;
     let output_root = if args.output_dir.is_absolute() {
         args.output_dir.clone()
@@ -175,7 +181,6 @@ pub(crate) fn python_sdk(
 }
 
 pub(crate) fn images(repository: &RepositoryContext, args: &ReleaseImagesArgs) -> Result<()> {
-    builder::ensure(repository)?;
     match &args.profile {
         Some(profile_path) => release_profile_images(repository, profile_path, args),
         None => release_direct_images(repository, args),
@@ -191,8 +196,6 @@ fn release_direct_images(repository: &RepositoryContext, args: &ReleaseImagesArg
         .revision
         .as_deref()
         .context("a direct image release requires --revision")?;
-    let publication = PublicationSource::prepare(repository, revision)?;
-    let selected_repository = RepositoryContext::discover(publication.path())?;
     let selection = match (&args.target, &args.group) {
         (Some(target), None) => Selection::target(target)?,
         (None, Some(group)) => Selection::group(group)?,
@@ -204,6 +207,14 @@ fn release_direct_images(repository: &RepositoryContext, args: &ReleaseImagesArg
         .context("a direct target or group release requires --registry")?;
     validate_registry(registry)?;
     let allow_insecure_registry = registry_is_loopback(registry)?;
+    let transport = if allow_insecure_registry {
+        RegistryTransport::InsecureHttp
+    } else {
+        RegistryTransport::Tls
+    };
+    let _builder = builder::ensure_for_registry(repository, registry, transport)?;
+    let publication = PublicationSource::prepare(repository, revision)?;
+    let selected_repository = RepositoryContext::discover(publication.path())?;
     let images = publish_image_selections(
         repository,
         &selected_repository,
@@ -263,11 +274,21 @@ fn release_profile_images(
         .profile_revision
         .as_deref()
         .context("a profile image release requires --profile-revision")?;
-    let relative = profile_relative_path(repository, &profile_path.to_path_buf())?;
-    let working_profile =
-        LoadedProfile::load(&repository.root().join(&relative), repository.root())?;
+    let (profile_repository, profile_path, relative) = profile_location(repository, profile_path)?;
+    let working_profile = LoadedProfile::load(&profile_path, profile_repository.root())?;
+    let working_registry = &working_profile.definition.registry;
+    validate_registry(&working_registry.address)?;
+    let _builder = builder::ensure_for_registry(
+        repository,
+        &working_registry.address,
+        working_registry.transport,
+    )?;
+    let profile_publication = Arc::new(PublicationSource::prepare(
+        &profile_repository,
+        profile_revision,
+    )?);
     let committed_profile = {
-        let publication = PublicationSource::prepare(repository, profile_revision)?;
+        let publication = &profile_publication;
         let selected = publication.path().join(&relative);
         let loaded = LoadedProfile::load(&selected, publication.path())?;
         ensure!(
@@ -277,17 +298,35 @@ fn release_profile_images(
         );
         loaded
     };
+    validate_installation_inputs(
+        &working_profile,
+        &committed_profile,
+        profile_publication.revision(),
+    )?;
     let registry = committed_profile.definition.registry.address.clone();
     validate_registry(&registry)?;
-    let allow_insecure_registry = committed_profile.definition.registry.local_config.is_some();
+    let registry_transport = committed_profile.definition.registry.transport;
+    let allow_insecure_registry = registry_transport.is_insecure();
+    let platform_targets = committed_profile.required_platform_images()?;
     let mut prepared_sources = Vec::new();
     let mut publications = BTreeMap::new();
+    let profile_identity = (
+        fs::canonicalize(profile_repository.root()).with_context(|| {
+            format!(
+                "resolving installation repository {}",
+                profile_repository.root().display()
+            )
+        })?,
+        profile_publication.revision().to_owned(),
+    );
+    publications.insert(profile_identity, profile_publication.clone());
     for source in &committed_profile.definition.sources {
         prepared_sources.push(prepare_profile_source(
             repository,
             &working_profile,
             source,
             &registry,
+            &platform_targets,
             &mut publications,
         )?);
     }
@@ -305,7 +344,9 @@ fn release_profile_images(
     let lock = DeploymentLock {
         schema_version: DEPLOYMENT_LOCK_SCHEMA.to_owned(),
         profile: committed_profile.definition.name.clone(),
+        profile_revision: profile_publication.revision().to_owned(),
         registry,
+        registry_transport,
         sources: locked_sources,
         platform: committed_profile.resolved_platform()?,
     };
@@ -328,6 +369,7 @@ fn prepare_profile_source(
     working_profile: &LoadedProfile,
     source: &DeploymentSource,
     registry: &str,
+    platform_targets: &BTreeSet<String>,
     publications: &mut BTreeMap<(PathBuf, String), Arc<PublicationSource>>,
 ) -> Result<PreparedSourceRelease> {
     let source_root = match &source.repository {
@@ -354,6 +396,14 @@ fn prepare_profile_source(
     let publication = if let Some(publication) = publications.get(&identity) {
         publication.clone()
     } else {
+        ensure!(
+            !publications
+                .keys()
+                .any(|(repository, _)| repository == &identity.0),
+            "deployment source {} selects a different revision of repository {} already used by this profile; one publication may pin a repository only once",
+            source.name,
+            source_repository.root().display()
+        );
         let publication = Arc::new(PublicationSource::prepare(&source_repository, &revision)?);
         publications.insert(identity, publication.clone());
         publication
@@ -361,16 +411,28 @@ fn prepare_profile_source(
     let revision = publication.revision().to_owned();
     let selected_repository = RepositoryContext::discover(publication.path())?;
     let environment = publication_environment(registry, &revision);
-    let mut phases = Vec::with_capacity(source.image_groups.len());
+    let selections = match source.role {
+        DeploymentSourceRole::Platform => vec![(
+            "exact-platform".to_owned(),
+            Selection::exact("exact-platform", platform_targets.iter().cloned())?,
+        )],
+        DeploymentSourceRole::Extension | DeploymentSourceRole::Workload => source
+            .image_groups
+            .iter()
+            .map(|group| Ok((group.clone(), Selection::group(group)?)))
+            .collect::<Result<Vec<_>>>()?,
+    };
+    let mut phases = Vec::with_capacity(selections.len());
     let mut images = Vec::new();
-    for group in &source.image_groups {
-        let plan = image::prepare(&selected_repository, Selection::group(group)?, &environment)
-            .with_context(|| {
-                format!(
-                    "resolving image group {group} from deployment source {}",
-                    source.name
-                )
-            })?;
+    for (name, selection) in selections {
+        let plan =
+            image::prepare_with_builder(repository, &selected_repository, selection, &environment)
+                .with_context(|| {
+                    format!(
+                        "resolving image phase {name} from deployment source {}",
+                        source.name
+                    )
+                })?;
         for (target, reference) in plan.image_references() {
             validate_revision_reference(&reference, registry, &revision)?;
             images.push(PlannedImage {
@@ -379,10 +441,7 @@ fn prepare_profile_source(
                 reference,
             });
         }
-        phases.push(PreparedImagePhase {
-            name: group.clone(),
-            plan,
-        });
+        phases.push(PreparedImagePhase { name, plan });
     }
     let charts = lock_source_charts(source, publication.path(), &revision)?;
     Ok(PreparedSourceRelease {
@@ -416,6 +475,7 @@ fn publish_prepared_source(
         );
         let evidence = image::evidence_run(evidence_repository, &phase.plan.plan, "release")?;
         image::execute(
+            evidence_repository,
             &source.repository,
             &phase.plan,
             &environment,
@@ -470,7 +530,12 @@ fn publish_image_selections(
         .into_iter()
         .map(|selection| {
             let name = selection.name.clone();
-            let plan = image::prepare(source_repository, selection, &environment)?;
+            let plan = image::prepare_with_builder(
+                evidence_repository,
+                source_repository,
+                selection,
+                &environment,
+            )?;
             for (_, reference) in plan.image_references() {
                 validate_revision_reference(&reference, registry, revision)?;
             }
@@ -503,6 +568,7 @@ fn publish_image_selections(
         );
         let evidence = image::evidence_run(evidence_repository, &phase.plan.plan, "release")?;
         image::execute(
+            evidence_repository,
             source_repository,
             &phase.plan,
             &environment,
@@ -588,15 +654,63 @@ fn validate_revision_reference(reference: &str, registry: &str, revision: &str) 
     Ok(())
 }
 
-fn profile_relative_path(repository: &RepositoryContext, profile: &PathBuf) -> Result<PathBuf> {
+fn validate_installation_inputs(
+    working: &LoadedProfile,
+    committed: &LoadedProfile,
+    revision: &str,
+) -> Result<()> {
+    let fingerprints = |profile: &LoadedProfile| -> Result<BTreeMap<PathBuf, String>> {
+        profile
+            .installation_inputs()?
+            .into_iter()
+            .map(|path| {
+                let relative = path
+                    .strip_prefix(&profile.repository)
+                    .map(PathBuf::from)
+                    .with_context(|| {
+                        format!(
+                            "installation input {} is outside installation repository {}",
+                            path.display(),
+                            profile.repository.display()
+                        )
+                    })?;
+                let digest =
+                    hex::encode(Sha256::digest(fs::read(&path).with_context(|| {
+                        format!("reading installation input {}", path.display())
+                    })?));
+                Ok((relative, digest))
+            })
+            .collect()
+    };
+    ensure!(
+        fingerprints(working)? == fingerprints(committed)?,
+        "working installation inputs differ from committed profile revision {}; commit the profile and its referenced installation files before publication",
+        revision
+    );
+    Ok(())
+}
+
+fn profile_location(
+    invocation_repository: &RepositoryContext,
+    profile: &Path,
+) -> Result<(RepositoryContext, PathBuf, PathBuf)> {
     let candidate = if profile.is_absolute() {
-        profile.clone()
+        profile.to_path_buf()
     } else {
-        repository.root().join(profile)
+        invocation_repository.root().join(profile)
     };
     let candidate = fs::canonicalize(&candidate)
         .with_context(|| format!("resolving deployment profile {}", candidate.display()))?;
-    candidate
+    let parent = candidate
+        .parent()
+        .context("deployment profile has no parent directory")?;
+    let repository = RepositoryContext::discover(parent).with_context(|| {
+        format!(
+            "discovering installation repository for deployment profile {}",
+            candidate.display()
+        )
+    })?;
+    let relative = candidate
         .strip_prefix(repository.root())
         .map(PathBuf::from)
         .with_context(|| {
@@ -605,7 +719,8 @@ fn profile_relative_path(repository: &RepositoryContext, profile: &PathBuf) -> R
                 candidate.display(),
                 repository.root().display()
             )
-        })
+        })?;
+    Ok((repository, candidate, relative))
 }
 
 fn prepare_remote_repository(repository: &RepositoryContext, url: &str) -> Result<PathBuf> {
@@ -660,6 +775,14 @@ fn lock_source_charts(
                 "duplicate Helm release {}",
                 release.name
             );
+            for values in &release.source_values {
+                ensure!(
+                    repository.join(values).is_file(),
+                    "source-owned Helm values for release {} do not exist at {}",
+                    release.name,
+                    repository.join(values).display()
+                );
+            }
             let archive = Command::new("git")
                 .args([
                     "archive",
@@ -740,6 +863,17 @@ fn validate_registry(registry: &str) -> Result<()> {
         !registry.chars().any(char::is_whitespace),
         "registry must not contain whitespace"
     );
+    let url = url::Url::parse(&format!("https://{registry}"))
+        .with_context(|| format!("invalid registry address {registry}"))?;
+    ensure!(
+        url.host_str().is_some()
+            && url.username().is_empty()
+            && url.password().is_none()
+            && url.path() == "/"
+            && url.query().is_none()
+            && url.fragment().is_none(),
+        "registry must contain only a host and optional port"
+    );
     Ok(())
 }
 
@@ -754,4 +888,49 @@ fn registry_is_loopback(registry: &str) -> Result<bool> {
         || host
             .parse::<std::net::IpAddr>()
             .is_ok_and(|address| address.is_loopback()))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{fs, path::Path, process::Command};
+
+    use tempfile::tempdir;
+
+    use super::profile_location;
+    use crate::context::RepositoryContext;
+
+    fn git_init(path: &Path) {
+        fs::create_dir(path).expect("create repository");
+        let status = Command::new("git")
+            .args(["init", "--quiet"])
+            .current_dir(path)
+            .status()
+            .expect("initialize repository");
+        assert!(status.success());
+    }
+
+    #[test]
+    fn profile_location_discovers_a_separate_installation_repository() {
+        let temporary = tempdir().expect("create temporary repositories");
+        let invocation = temporary.path().join("veoveo");
+        let installation = temporary.path().join("installation");
+        git_init(&invocation);
+        git_init(&installation);
+        let profile = installation.join("environments/example/deployment.json");
+        fs::create_dir_all(profile.parent().expect("profile parent"))
+            .expect("create profile directory");
+        fs::write(&profile, "{}\n").expect("write profile");
+        let invocation =
+            RepositoryContext::discover(&invocation).expect("discover invocation repository");
+
+        let (repository, resolved, relative) =
+            profile_location(&invocation, &profile).expect("resolve external profile");
+
+        assert_eq!(
+            fs::canonicalize(repository.root()).unwrap(),
+            fs::canonicalize(&installation).unwrap()
+        );
+        assert_eq!(resolved, fs::canonicalize(&profile).unwrap());
+        assert_eq!(relative, Path::new("environments/example/deployment.json"));
+    }
 }

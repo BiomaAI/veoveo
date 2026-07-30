@@ -1,8 +1,9 @@
 {
-  "schemaVersion": "veoveo.io/deployment/v2",
+  "schemaVersion": "veoveo.io/deployment/v3",
   "name": "anonymous-simulation-extension",
   "registry": {
     "address": "k3d-veoveo-registry.localhost:5001",
+    "transport": "insecure-http",
     "localConfig": "../../../deploy/local/k3d/registry.json"
   },
   "sources": [
@@ -14,16 +15,16 @@
         "path": "../../.."
       },
       "revision": "HEAD",
-      "imageGroups": [
-        "external-simulation-platform"
-      ],
+      "imageGroups": [],
       "releases": [
         {
           "name": "veoveo",
           "chart": "deploy/helm/veoveo",
-          "values": [
-            "deploy/local/k3d/values.yaml",
-            "testing/fixtures/external-simulation-installation/platform-values.yaml"
+          "sourceValues": [
+            "deploy/local/k3d/values.yaml"
+          ],
+          "installationValues": [
+            "platform-values.yaml"
           ],
           "valuesContract": "platform",
           "createNamespace": true,
@@ -46,7 +47,8 @@
         {
           "name": "anonymous-simulation",
           "chart": "testing/fixtures/external-simulation-extension/deploy/helm",
-          "values": [],
+          "sourceValues": [],
+          "installationValues": [],
           "valuesContract": "extension",
           "createNamespace": false,
           "timeoutSeconds": 600

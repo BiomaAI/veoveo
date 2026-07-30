@@ -13,7 +13,3 @@
   reservedSpace = "240GB"
   maxUsedSpace = "320GB"
   minFreeSpace = "80GB"
-
-[registry."k3d-veoveo-registry.localhost:5001"]
-  http = true
-  insecure = true
