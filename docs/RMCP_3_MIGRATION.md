@@ -20,9 +20,16 @@ evidence land together.
 | MCP Tasks extension, SEP-2663 | server-directed deferred request execution using `tasks/get`, `tasks/update`, `tasks/cancel`, optional task notifications, opaque task identifiers, and typed terminal payloads |
 | MCP multi-round tool requests, SEP-2322 | `input_required`, `inputRequests`, opaque `requestState`, and retry `inputResponses`; this replaces the legacy server-initiated elicitation path |
 | MCP subscriptions | request-scoped `subscriptions/listen` with accepted filters; legacy resource subscribe and unsubscribe methods are excluded |
+| MCP extension negotiation | per-request typed capability intersection for Tasks, MCP Apps, authorization extensions, and admitted Veoveo extensions |
+| MCP OAuth Client Credentials extension | `io.modelcontextprotocol/oauth-client-credentials` for admitted machine clients, narrowed to `private_key_jwt` by the Veoveo profile |
 | JSON Schema 2020-12 | complete controlled tool schemas, including bounded same-document references and composition |
-| OAuth 2.0 protected-resource and authorization-server metadata | issuer-bound authorization, resource indicators, step-up scopes, and the final MCP authorization profile |
+| OAuth 2.1 draft 13 and RFC 6750 | bearer-token authorization profile for HTTP-hosted MCP |
+| RFC 8414, RFC 9728, and OpenID Connect Discovery 1.0 | protected-resource and authorization-server discovery with issuer-bound metadata |
 | RFC 9207 | authorization-server issuer identification and validation |
+| RFC 8707 | canonical MCP resource indicators carried through authorization and token requests |
+| RFC 7523 | `private_key_jwt` authentication for installation-owned confidential machine clients |
+| W3C Trace Context and W3C Baggage | standard MCP trace propagation; baggage is untrusted observability input and never authorization state |
+| RFC 9110 | standard MCP request-header syntax, matching, size rejection, and transport behavior |
 | MCP Apps `io.modelcontextprotocol/ui`, ext-apps `2026-01-26` | separate official extension retained across the core protocol migration |
 | `rmcp` `3.0.1` | audited Rust SDK baseline; implementation begins by verifying the latest stable `rmcp` release and pinning that exact version |
 | Rig `0.41.0` | audited upstream agent-runtime baseline; the migration targets a fresh branch from current upstream and an exact released or justified fork revision |
@@ -38,20 +45,39 @@ Authoritative upstream sources are:
 - the [MCP `2026-07-28` release](https://github.com/modelcontextprotocol/modelcontextprotocol/releases/tag/2026-07-28);
 - the [MCP `2026-07-28` changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog);
 - the [official Tasks overview](https://modelcontextprotocol.io/extensions/tasks/overview);
+- the [MCP OAuth Client Credentials extension](https://modelcontextprotocol.io/extensions/auth/oauth-client-credentials);
+- the [MCP authorization profile](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization);
+- [OAuth 2.1 draft 13](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13),
+  [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750.html),
+  [RFC 8414](https://www.rfc-editor.org/rfc/rfc8414.html),
+  [RFC 9728](https://www.rfc-editor.org/rfc/rfc9728.html), and
+  [OpenID Connect Discovery 1.0](https://openid.net/specs/openid-connect-discovery-1_0.html);
+- [RFC 9207](https://www.rfc-editor.org/rfc/rfc9207.html),
+  [RFC 8707](https://www.rfc-editor.org/rfc/rfc8707.html), and
+  [RFC 7523](https://www.rfc-editor.org/rfc/rfc7523.html);
+- [W3C Trace Context](https://www.w3.org/TR/trace-context/) and
+  [W3C Baggage](https://www.w3.org/TR/baggage/);
+- [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html);
 - the [`rmcp` 3.0.1 release](https://github.com/modelcontextprotocol/rust-sdk/releases/tag/rmcp-v3.0.1);
 - the [`rmcp` 3.0.1 conformance roadmap](https://github.com/modelcontextprotocol/rust-sdk/blob/rmcp-v3.0.1/ROADMAP.md);
 - the [Rig 0.41.0 release](https://github.com/0xPlaygrounds/rig/releases/tag/v0.41.0).
 
 ## Objective
 
-Veoveo will have one MCP implementation profile. `rmcp` will own the standard
-protocol models, lifecycle, transport, headers, Tasks methods, multi-round request
-shapes, subscriptions, response caching, and ordinary schema generation.
+Veoveo will publish hosted-server contract revision 3 as its one MCP implementation
+profile. `rmcp` will own the standard protocol models, lifecycle, transport, headers,
+Tasks methods, multi-round request shapes, subscriptions, response caching, and
+ordinary schema generation.
 
 Veoveo will own platform policy and durable behavior. The platform retains task
 execution, persistence, authorization, audit, resource identity, event persistence,
 provider completion, and application behavior. Those concerns are not SDK
 duplication.
+
+Revision 3 also removes duplicated protocol authority. Installation configuration
+owns what may be exposed. Discover and the list methods own what a running server
+actually exposes. The gateway validates the two views and fails closed without
+turning self-reported server metadata into an authorization source.
 
 The migration is complete when every in-repository and supported external-facing
 surface speaks MCP `2026-07-28`, the superseded protocol code is deleted, and
@@ -74,6 +100,19 @@ both the old and new protocol is not an intermediate deliverable.
 | Subscriptions | `subscriptions/listen` over shared event sources; no stored protocol peers |
 | Replicas | ordinary hosted MCP services may scale without sticky sessions after cross-call state becomes durable or explicit |
 | Schemas | ordinary `rmcp` and Schemars generation with Veoveo validation bounds; no forced inlining or blanket reference ban |
+| Server surface authority | installation policy owns allowed and required exposure; Discover and list methods own observed runtime capability |
+| Contract resource | retain revision, compliance, and embedded documentation identity; remove the hand-maintained duplicate live capability inventory |
+| Effective capabilities | compute a typed per-request intersection across the client, gateway, installation, upstream, and active policy |
+| Cross-call state | use opaque explicit handles whose authority, lifetime, and replay behavior are checked on every request |
+| Result discrimination | let the final `rmcp` codec own required `complete`, `input_required`, and extension result discrimination |
+| Tool errors | actionable argument and business validation returns `CallToolResult` with `isError: true`; protocol errors remain JSON-RPC errors |
+| Resource errors | use final JSON-RPC `Invalid Params` (`-32602`) for a missing resource; remove the old MCP-specific code |
+| Audit | record one durable policy event per logical action and durable authentication lifecycle or denial events; ordinary successful bearer verification is trace metadata |
+| Tracing | propagate W3C trace context; never derive authority from `clientInfo`, `serverInfo`, `tracestate`, or `baggage` |
+| Tool names | accept the final MCP tool-name grammar for local tools; keep installation slugs separately constrained |
+| Custom MCP headers | implement and validate the standard mechanism; hosted servers may use `x-mcp-header` only through installation-admitted routing policy |
+| Deprecated features | do not adopt Roots, Sampling, or MCP Logging |
+| OAuth client registration | pre-registration is the private-installation baseline; Client ID Metadata Documents are optional future work and Dynamic Client Registration is unsupported |
 | Rig | fresh implementation from current upstream, not a rebase or cherry-pick of the old draft-Tasks commit |
 | Python and TypeScript | final-profile official SDK lifecycle with thin typed extension bindings only where an official released binding is absent |
 | Rollout | one coordinated source and deployment cut after the complete acceptance gate |
@@ -184,6 +223,54 @@ claiming that they are protocol sessions. Protocol response metadata supplies
 `ttlMs` and `cacheScope`. Private entries never cross a principal or effective
 authority.
 
+### Duplicated server surface authority
+
+The current control plane records core capability booleans and stable tool and prompt
+names in `ServerManifest`. Every server then builds another `CapabilityInventory` for
+its `{scheme}://contract` resource. Conformance compares that second declaration with
+the live MCP lists, while `ServerInfo` carries another capability view.
+
+These copies attempt to prove consistency but leave several hand-maintained sources
+for the same runtime fact. They also make extension installation depend on declarations
+that the gateway still has to verify against a running server.
+
+Revision 3 separates expected policy from observation:
+
+- profiles and bindings declare allowed or required names, resource selectors, scopes,
+  extension exposure, and cross-server dependencies;
+- server registration declares transport identity, resource ownership, routes, and
+  installation requirements;
+- Discover and the list methods report the observed running surface;
+- readiness and conformance compare the observed surface with installation policy;
+- the contract resource records revision and compliance without repeating the lists.
+
+`clientInfo`, `serverInfo`, and Discover identity remain useful evidence. They are
+self-reported and never authorize a request.
+
+### Error, naming, trace, and audit narrowing
+
+Current local tool names allow only lowercase gateway-safe characters even though the
+final MCP grammar permits case-sensitive ASCII letters and dots. The restriction comes
+from `mcp/contract/src/gateway/wire.rs::validate_gateway_name`, which currently serves
+several identifier roles. Current tool handlers also return `Invalid params` for many
+domain validation failures that a model could correct after receiving a tool execution
+error. `servers/artifact-mcp/src/bin/server/handler.rs`, for example, maps
+`max_downloads == 0` to a protocol error.
+
+The gateway generates arbitrary correlation tokens rather than accepting and
+propagating the standard W3C trace context now defined by MCP. Successful bearer
+verification also produces durable authentication audit records in addition to the
+logical action's policy audit. Stateless per-request authentication would multiply
+that duplicate evidence. The authenticated-gateway smoke currently requires at least
+ten successful `bearer_jwt` rows, and the HTTP gateway smoke requires at least two.
+Those assertions preserve the duplication and must be replaced with logical-action
+cardinality and token-lifecycle evidence.
+
+Revision 3 uses separate types for installation slugs, local tool names, gateway
+projections, W3C trace identity, and extension identifiers. It records successful
+authentication as part of the logical action while retaining durable events for token
+lifecycle, denial, replay, and policy decisions.
+
 ### Rig fork
 
 The pinned Rig commit added approximately 8,600 lines. It introduced generic task
@@ -219,10 +306,122 @@ The shared Rust configuration explicitly disables legacy session mode. The migra
 must not rely on an SDK default because the default exists to support older protocol
 versions.
 
+Every result uses the final wire discriminator. Ordinary results carry
+`resultType: "complete"`, multi-round interim results carry
+`resultType: "input_required"`, and extension results use the extension's typed
+variant. `rmcp` owns this wire bookkeeping. Domain handlers do not hand-build or strip
+the discriminator.
+
+Missing required per-request metadata returns HTTP `400` with JSON-RPC `Invalid
+Params` (`-32602`). A request for another protocol revision returns HTTP `400` with
+`UnsupportedProtocolVersion` (`-32022`) and typed requested and supported versions.
+The client does not downgrade after either response.
+
 The gateway keeps process-wide HTTP connection pools and TLS configuration keyed by
 validated transport identity. It does not keep an upstream protocol handler attached
 to a downstream request peer. Internal assertions remain short-lived and are minted
 for each upstream HTTP request.
+
+A broken response stream has no protocol replay. A client that retries issues a new
+JSON-RPC request ID and re-evaluates whether the operation is safe to repeat. A
+non-idempotent domain action requires its own typed idempotency contract; transport
+failure does not make it retryable.
+
+### Server surface authority
+
+Server registration and installation policy no longer duplicate the live protocol
+inventory.
+
+Installation-owned configuration retains:
+
+- server slug, canonical resource scheme, upstream endpoint, mount ownership, and
+  transport-security identity;
+- profile exposure for tools, prompts, resources, completions, and admitted
+  extensions;
+- required scopes, policy selectors, App resource dependencies, and other
+  installation requirements;
+- explicit compatibility-helper admission.
+
+The running server owns:
+
+- supported protocol versions and core or extension capabilities through Discover;
+- current tools, prompts, resources, and templates through the standard list methods;
+- cache policy and list-change signals for that observed surface.
+
+The gateway performs one readiness observation for each registered server at a
+catalog revision. A required name or extension that is absent fails readiness. An
+observed name that policy does not expose remains unreachable. `Exposure::All`, where
+retained, is an explicit installation decision to admit the observed surface rather
+than an implication derived from the server's self-description.
+
+The live `{scheme}://contract` resource continues to prove the deployed contract
+revision, compliance declaration, and embedded document identity. It does not contain
+a separately maintained list of live tools, prompts, resources, templates, or
+task-capable tools. Conformance records the observed lists directly.
+
+### Per-request capabilities and extensions
+
+The gateway derives one `EffectiveClientCapabilities` value for each request:
+
+```text
+client-declared capabilities
+∩ gateway-supported capabilities
+∩ installation-admitted extensions
+∩ upstream-discovered capabilities
+∩ active profile policy
+```
+
+Only the effective value is forwarded upstream. A capability mentioned on a previous
+request has no effect. Unknown extension fields are not forwarded through the gateway
+unless the installation admits the exact extension identifier and the gateway has an
+explicit safe forwarding rule.
+
+The intersection is evaluated independently at each protocol hop. The direct-call
+adapter terminates a non-Tasks downstream call. When installation policy admits the
+adapter, the gateway becomes the upstream client and may advertise Tasks on that
+separate hop because the gateway consumes the task itself. It never marks the
+downstream client as Tasks-capable or returns a Task wire result to that client.
+
+Core MCP surfaces remain typed core capabilities. Tasks, MCP Apps, authorization
+extensions, and `io.veoveo/app-resource-dependencies` use the standard extension map.
+Breaking revisions of a Veoveo extension use a new identifier. A server may return
+extension-specific results only when the current request declares the required
+extension.
+
+When an operation cannot proceed without a missing client capability and no admitted
+adapter terminates that need, the server returns HTTP `400` with
+`MissingRequiredClientCapability` (`-32021`) and the typed
+`requiredCapabilities` value. It does not guess support or wait for a callback that
+cannot arrive.
+
+Authenticated OAuth client identity, Work Context, and the gateway's internal
+assertion remain authoritative. `clientInfo` and `serverInfo` are recorded for
+display, diagnostics, and evidence only.
+
+### Explicit state handles
+
+Every value that carries state across requests is explicit. This includes Tasks,
+application-owned live objects, playback access, pagination cursors, multi-round
+request state, and any server-specific workflow handle.
+
+The hosted-server profile requires:
+
+- an opaque bounded wire representation;
+- a documented lifetime and cleanup rule;
+- authorization against the current principal, Work Context, profile, and target on
+  every use;
+- a clear distinction between identity and capability, because possession is not
+  authorization;
+- actionable expiry or unknown-handle errors;
+- integrity protection when client modification could affect authority or behavior.
+
+First-party internal identities may remain UUIDv7. External task and application
+handles are opaque strings. Gateway task identities remain source-qualified so two
+servers may mint the same upstream value safely.
+
+Pagination cursors are sealed and bind the list method, normalized parameters,
+catalog or data revision, and effective authorization context. A cursor cannot cross
+principals or be replayed against another list.
 
 ### Durable official Tasks
 
@@ -259,6 +458,28 @@ created and retention metadata
 The mapping prevents collisions between independently owned servers. Any authorized
 gateway replica can route a later task operation.
 
+Task projection obeys the final lifecycle:
+
+- `CreateTaskResult` is returned only after `tasks/get` can read the durable task;
+- `working` and `input_required` remain non-terminal;
+- `completed`, `failed`, and `cancelled` are immutable terminal states;
+- a completed tool call may contain `isError: true`, because a tool execution error is
+  still the terminal result of that call;
+- `failed` is reserved for a JSON-RPC execution failure and includes the protocol
+  error;
+- `tasks/update` and `tasks/cancel` acknowledge accepted intent without claiming that
+  the worker has already changed state;
+- repeated input-response keys are idempotent and do not repeat a side effect;
+- cancellation intent and worker-confirmed cancellation remain separate internal
+  events;
+- the completed payload validates against the result schema of the original method.
+
+Every task read, update, cancel, and notification subscription checks current
+authority as well as the retained task owner. Authority at task creation never grants
+permanent access by itself. The task TTL is the protocol retention promise. Internal
+retention pins may keep storage longer but do not extend what an expired external
+handle promises.
+
 ### Direct-call compatibility adapter
 
 The adapter for clients without Tasks remains supported because many deployed MCP
@@ -293,8 +514,26 @@ The retry carries `inputResponses` and the exact opaque request state. A Task in
 `input_required` receives responses through `tasks/update`.
 
 Request state is integrity-protected through the audited `rmcp` request-state
-mechanism and a cluster-shared secret. Servers never trust client-edited request
-state.
+mechanism and a cluster-shared secret. The protected payload binds the original
+method, salient-parameter digest, principal, Work Context, profile, issuing server,
+expiry, and protocol revision. Servers reject a mismatched or expired state. A
+one-time business action also records consumption durably because integrity and
+expiry alone do not prevent replay.
+
+The profile bounds request-state bytes, input-request count, total response bytes,
+round trips, and lifetime. Input keys are unique and stable for one round. A client
+cannot satisfy an input request that was not issued, and duplicate answers cannot
+repeat a side effect.
+
+Revision 3 supports form elicitation for current approval and interactive-input
+workflows. URL-mode elicitation is excluded until a product workflow requires its
+out-of-band browser and origin policy. Roots, Sampling, and MCP Logging are
+deprecated and excluded. Server-side model work continues through Veoveo's governed
+provider integration rather than MCP Sampling.
+
+Consent-sensitive input is classified by platform policy. A host never silently
+model-fills an approval, credential, destructive confirmation, or other
+human-required response.
 
 The existing durable agent approval and UI workflow remains. The
 `McpElicitationHandler`, parked session waiters, and server-initiated elicitation
@@ -312,6 +551,25 @@ explicitly single-owner live or GPU resource whose state cannot move between pod
 The common adapter maps accepted MCP filters to event ownership and publishes
 through `rmcp::SubscriptionSink`. It does not store a session peer in domain state.
 
+One typed `SubscriptionsListen` policy action replaces the broad legacy subscribe
+actions. Authorization evaluates each requested filter:
+
+- exact resource subscriptions check the projected server and resource URI;
+- task subscriptions check every task ID and the Tasks extension capability;
+- tool, prompt, and resource list-change signals check exposure to that catalog;
+- an extension filter requires exact installation admission.
+
+Unsupported filters may be omitted from the acknowledged subset. An unauthorized
+target rejects the request instead of silently creating partial authority. The
+acknowledgment is the first message on the stream, and every later notification
+carries the subscription ID.
+
+Task notifications contain complete task state and may replace polling for a
+connected client. `tasks/get` remains the recovery and correctness path.
+Request-scoped progress stays on its originating response stream and never moves to
+the listener. Revision 3 emits no protocol log messages because MCP Logging is
+excluded.
+
 The protocol no longer requires singleton deployment. An endpoint remains singleton
 only when a real resource-owner constraint requires it, such as exclusive GPU
 capacity or a live simulation process.
@@ -325,7 +583,8 @@ types remain mandatory.
 Veoveo validation enforces:
 
 - the object root required for controlled tool inputs;
-- complete output schemas and structured-content validation;
+- complete output schemas and structured-content validation for any JSON root,
+  including arrays, scalars, and `null` where the declared schema permits them;
 - bounded depth and total subschema count;
 - bounded strings, arrays, maps, and numeric domains where the tool contract
   controls them;
@@ -334,34 +593,150 @@ Veoveo validation enforces:
 
 The validation does not reject a schema merely because it contains `$ref`,
 `allOf`, `anyOf`, `oneOf`, or another JSON Schema 2020-12 construct.
+External references are not fetched automatically. Any explicitly supported reference
+resolver is installation-owned, allowlisted, size-bounded, cycle-bounded, and included
+in release evidence.
+
+### Tool names and error semantics
+
+The final MCP specification recommends tool names between 1 and 128 characters,
+case-sensitive, using ASCII letters, digits, underscore, hyphen, or dot. Revision 3
+makes that recommendation mandatory for `LocalToolName` to give every Veoveo client
+one deterministic grammar. `ServerSlug` remains a separate lowercase installation
+identifier. Gateway composition rejects a projected tool name that exceeds the MCP
+bound or collides with another projected name. It does not truncate or silently
+rename a tool.
+
+Tool failures have one shared classification:
+
+| Failure | Wire result |
+|---|---|
+| malformed JSON-RPC or `CallToolRequest` envelope | JSON-RPC protocol error |
+| unknown tool | JSON-RPC protocol error |
+| tool input schema, domain, or business validation | completed `CallToolResult` with `isError: true` and actionable content |
+| downstream API or domain execution failure the model can act on | completed `CallToolResult` with `isError: true` |
+| server failure that prevents the request from producing a tool result | JSON-RPC server error |
+
+The same classification survives Tasks. A tool execution error produces a
+`completed` Task containing the exact `CallToolResult`. A JSON-RPC failure produces
+a `failed` Task containing the protocol error.
+
+The shared Rust and Python handler paths convert controlled validation errors into
+typed tool execution errors. Individual servers do not reproduce this mapping.
+Conformance submits schema-valid and domain-invalid arguments and proves the error is
+visible to the model.
+
+Resource methods separately adopt the final protocol mapping. An unknown resource URI
+returns JSON-RPC `Invalid Params` (`-32602`), not the superseded MCP-specific
+`-32002`.
 
 ### Cache metadata
 
-Every discover, list, and read result receives an explicit policy:
+Every final `CacheableResult` receives an explicit policy. This includes Discover,
+`tools/list`, `prompts/list`, `resources/list`, `resources/templates/list`, and
+`resources/read`.
 
 | Result class | Default cache policy |
 |---|---|
 | authorization-filtered catalog or resource | `private` |
 | deterministic public contract or immutable documentation | `public` when the content is independent of authority |
-| task or live state | `private`, zero or short TTL |
+| live resource read | `private`, zero or short TTL |
 | installation configuration | `private`, revision-bound TTL |
 
 List ordering is deterministic. An `rmcp` client cache is scoped to one authenticated
 client identity. Catalog and domain caches may remain when they cache a product fact
 rather than a protocol response.
 
+Task and multi-round results do not enter the response cache. A task's `ttlMs`
+describes external task retention and is not a response-freshness hint.
+
+TTL is a freshness hint, not a background polling schedule. Clients read again only
+when they need stale data. A client that deliberately polls applies jitter and
+backoff. List-change notifications invalidate the relevant cached pages immediately.
+Multi-round retries carrying `requestState` or `inputResponses` are never cached.
+
+Private cache keys include the request method, normalized parameters, protocol
+version, effective authorization context, and catalog or policy revision. A bearer
+token string is not persisted as the cache identity. Public cache scope is permitted
+only when the response is identical for every authority.
+
+### Audit and observability
+
+Protocol statelessness does not create a second audit event for authentication on
+every request. The durable boundary is:
+
+- token issuance, refresh, revocation, replay, and credential denial;
+- one policy decision for each logical MCP or administrative action;
+- durable task, input, subscription, artifact, recording, and other governed state
+  transitions required by their domain contracts.
+
+Successful bearer verification becomes structured metadata on the logical action's
+trace and policy record. It remains measurable without creating a separate durable
+`bearer_jwt` allow event for every list, read, or task poll. Cache hits and SSE
+keep-alive comments do not create policy or authentication audit records.
+
+Every MCP request accepts W3C `traceparent`, `tracestate`, and `baggage` in `_meta`.
+The gateway validates and forwards trace context, creates a new trace when none is
+usable, and stores the canonical trace ID on audit evidence. `tracestate` and
+`baggage` are bounded and sanitized. They never supply tenant, principal, Work
+Context, scopes, data labels, assurances, routing authority, or policy input.
+
+`clientInfo` and `serverInfo` remain self-reported diagnostics. Gateway-generated
+downstream results identify the gateway as the MCP server. Upstream implementation
+identity is retained in deployment evidence and traces rather than projected as
+authenticated identity.
+
+### HTTP routing headers
+
+`rmcp` owns `MCP-Protocol-Version`, `Mcp-Method`, `Mcp-Name`, encoding, and the
+standard header-mismatch response: HTTP `400` with JSON-RPC `-32020`. The gateway
+still enforces the security boundary. Any component that reads the body verifies that
+the decoded header values match it before routing or policy use.
+
+Hosted tools may declare `x-mcp-header` only when installation configuration admits
+the exact tool, property path, and header name for a routing need. The annotated
+property follows the final static-reachability constraints and has type string,
+integer in the IEEE 754 safe range, or boolean. JSON Schema `number`, compound values,
+and case-insensitively duplicated header names are rejected.
+Configuration rejects headers that carry or resemble:
+
+- credentials, cookies, internal assertions, or secrets;
+- personally identifiable information or sensitive domain data;
+- principal, scope, role, assurance, or authorization decisions;
+- an unverified tenant or Work Context;
+- standard forwarding, host, trace, or MCP protocol headers.
+
+An `Mcp-Param-*` value remains model-controlled input. A router may use it to select
+capacity or locality only after the server validates the matching body and
+independently enforces authority. Header and aggregate size limits are installation
+settings, and oversized requests fail before decoding or body parsing.
+
 ### Authorization
 
 The gateway remains the protected resource and policy enforcement point. The final
 MCP authorization profile adds these migration requirements:
 
-- validate the authorization-server issuer through RFC 9207;
+- publish RFC 9728 protected-resource metadata and support both RFC 8414 and OpenID
+  Connect authorization-server discovery;
+- use installation-pre-registered OAuth clients as the canonical private-deployment
+  registration model;
+- validate every present authorization-response issuer through RFC 9207 and reject an
+  absent issuer when authorization-server metadata advertises it;
+- emit `iss` on Veoveo authorization responses and advertise that behavior;
 - bind client credentials and cached authorization metadata to that issuer;
-- include the required dynamic-registration application type;
-- prefer Client ID Metadata Documents where the selected authorization server
-  supports them;
 - carry RFC 8707 resource identity through initial authorization and refresh;
-- accumulate and reauthorize step-up scopes without dropping prior grants.
+- accumulate and reauthorize step-up scopes without dropping prior grants;
+- include the exact missing scopes for the current operation in an insufficient-scope
+  challenge;
+- advertise `io.modelcontextprotocol/oauth-client-credentials` only when the
+  installation admits machine clients;
+- keep `client_credentials` restricted to installation-owned confidential clients
+  using `private_key_jwt`.
+
+Dynamic Client Registration is not part of the Veoveo profile. Client ID Metadata
+Documents remain optional future work for an installation that deliberately accepts
+previously unknown clients. They are not a revision-3 acceptance requirement and do
+not add an outbound metadata-fetching SSRF surface to the private baseline.
 
 The `rmcp` auth feature is enabled only in clients that need its OAuth flow. Hosted
 servers do not acquire a full client auth dependency merely to validate the
@@ -389,10 +764,14 @@ remains a separate extension. There is no legacy SDK fallback.
 | `mcp/task-extension` | delete after all callers use `rmcp` Tasks |
 | `platform/gateway/src/mcp/final_tasks.rs` | delete the raw request and SSE client |
 | legacy task branches in gateway tool projection | replace with one `CallToolResponse` path |
+| `ServerManifest` live tool, prompt, and capability inventories | retain installation identity and exposure policy; remove duplicated observations supplied by Discover and list methods |
+| per-server `CapabilityInventory` and contract-resource live lists | delete; conformance records the observed surface directly |
+| `McpSurfaceCapabilities` and per-tool `TaskExposure` | replace with typed core capability and extension policy plus the per-request effective intersection |
 | `mcp/contract/src/session.rs` | delete protocol session ownership and cleanup |
 | stateful transport configuration | replace with explicit final-profile stateless configuration |
 | `mcp/contract/src/subscriptions.rs` | replace stored peers with the shared event-to-listener adapter |
 | server-local subscribe/unsubscribe handlers | delete |
+| `GatewayAction::{ResourcesSubscribe, ResourcesUnsubscribe, TasksSubscribe}` | replace with one typed listen action that authorizes each requested filter |
 | `mcp/schema-macros` | delete after handlers use the ordinary `rmcp` macro |
 | forced schema inlining and no-reference conformance rules | delete |
 | `mcp/task-contract::ProtocolTaskId` | replace with an opaque external ID and canonical gateway-owned task identity |
@@ -400,9 +779,18 @@ remains a separate extension. There is no legacy SDK fallback.
 | `mcp/task-contract` | retire if no protocol-independent types remain after the move |
 | Console `McpSessionPool` | replace with an auth-scoped client pool |
 | manual protocol catalog caches | replace with final cache metadata where they do not own a product fact |
+| unsealed pagination cursors and process-local cross-call handles | replace with typed opaque handles carrying bounded lifetime and authorization checks |
 | `resources/subscribe` and `resources/unsubscribe` policy actions | replace with accepted `subscriptions/listen` filters and resource authorization |
 | `tasks/result`, `tasks/list`, and `taskSupport` | delete from models, policy, apps, tests, examples, and docs |
-| custom MCP routing headers and version metadata | delete; `rmcp` owns them |
+| custom standard MCP routing headers and version metadata | delete; `rmcp` owns them |
+| arbitrary correlation-token parsing | replace with validated W3C trace context |
+| per-request successful bearer-verification audit events | remove; attach verification metadata to the logical action's trace and policy evidence |
+| server-local domain failures returned as `Invalid params` | replace with the shared typed tool-execution error mapping |
+| resource-not-found code `-32002` | replace with final JSON-RPC `Invalid Params` (`-32602`) |
+| gateway-safe local tool-name validation | split into final `LocalToolName`, lowercase `ServerSlug`, and collision-checked projected-name types |
+| protocol `ping`, `logging/setLevel`, and `notifications/roots/list_changed` | delete |
+| `notifications/elicitation/complete` and `elicitationId` | delete; multi-round retries carry application correlation in protected `requestState` |
+| legacy elicitation, Roots, Sampling, MCP Logging, HTTP+SSE, and non-`none` `includeContext` paths | delete rather than negotiate deprecated features |
 | Platform Store task records and `platform/task-runtime` | retain |
 | gateway auth, policy, internal assertions, and audit | retain |
 | provider webhook completion | retain |
@@ -518,6 +906,16 @@ complete gate passes.
 
 - Rewrite `mcp/contract/DESIGN.md` for MCP `2026-07-28`.
 - Increment `CONTRACT_REVISION`.
+- Define the installation-owned policy surface and the Discover-owned observed
+  surface, including fail-closed readiness comparison.
+- Define `EffectiveClientCapabilities`, opaque cross-call handles, final task
+  semantics, subscription-filter authorization, tool-error classification, W3C trace
+  handling, and the final local tool-name grammar.
+- Remove the duplicated capability inventory from the contract resource and replace
+  it with revision, compliance, and embedded-document evidence.
+- State the private-installation OAuth profile: pre-registered clients, RFC 9207
+  issuer validation, RFC 8707 resource binding, step-up scopes, and no Dynamic Client
+  Registration.
 - Update `docs/CODEMAP.md`, architecture documents, server compliance sections, and
   MCP Apps design.
 - Replace the compliance checklist entries for sessions, subscriptions, tasks, and
@@ -534,8 +932,20 @@ published while revision 2 behavior remains deployed.
 - Pin one exact `rmcp` 3 version in the workspace.
 - Replace the canonical server and client configuration.
 - Migrate Discover and final request metadata.
+- Move `serverInfo` to the standard result `_meta` field and keep `clientInfo`
+  optional, self-reported, and non-authoritative.
+- Use final `resultType` wire discrimination through the SDK rather than
+  application-built result envelopes.
+- Return the final typed `-32602`, `-32021`, and `-32022` HTTP `400` responses for
+  missing metadata, missing capabilities, and unsupported versions.
+- Implement the per-request effective capability intersection and reject unknown or
+  unadmitted extensions.
+- Observe server lists at readiness, fail when a required surface is absent, and keep
+  unexposed observations unreachable.
 - Remove initialization, session IDs, GET reconnect, DELETE, replay, and session
   cleanup.
+- Remove protocol `ping`, `logging/setLevel`, and
+  `notifications/roots/list_changed`.
 - Separate HTTP/TLS pooling from protocol request state.
 - Migrate all hosted Rust servers, the stdio bridge, gateway, Console BFF,
   conformance client, and smoke support.
@@ -544,6 +954,10 @@ published while revision 2 behavior remains deployed.
 
 - Implement official task handlers over `platform/task-runtime`.
 - Add the durable gateway task mapping and opaque upstream IDs.
+- Make creation durable before returning a task and enforce immutable terminal state.
+- Separate a completed tool result carrying `isError` from a failed JSON-RPC task.
+- Make input updates idempotent, treat cancel as accepted intent, validate terminal
+  output schemas, and reauthorize every later task operation.
 - Migrate every task-producing server.
 - Rewrite the direct-call compatibility adapter.
 - Migrate Console and agent task consumers.
@@ -553,6 +967,10 @@ published while revision 2 behavior remains deployed.
 
 - Implement the event/outbox-to-`SubscriptionSink` adapter.
 - Migrate resource, catalog, task, progress, and domain notification paths.
+- Authorize exact task IDs, resource URIs, catalog surfaces, and extension identifiers
+  in each listen filter.
+- Reject unauthorized filters and acknowledge only the supported subset of authorized
+  filters.
 - Delete stored peer registries and legacy resource subscription handlers.
 - Remove the universal singleton deployment rule.
 - Enable at least two gateway replicas and one ordinary hosted-server replica in
@@ -564,18 +982,40 @@ published while revision 2 behavior remains deployed.
 
 - Implement durable `inputRequests`, request state, response, authority, and audit
   records.
+- Bind protected request state to the original method, salient parameters, principal,
+  Work Context, profile, issuing server, expiry, and protocol revision.
+- Enforce byte, input-count, round-trip, and lifetime limits. Record durable
+  consumption for one-time business actions.
 - Migrate agent approvals and interactive inputs.
 - Implement in-task input through `tasks/update`.
 - Remove parked elicitation waiters and old Rig elicitation callbacks.
+- Remove `notifications/elicitation/complete` and `elicitationId`.
+- Support form elicitation only. Do not add URL mode, Roots, Sampling, or MCP Logging.
 - Prove request and task input survive process restart.
 
-### Phase 6: Schemas, caching, headers, and authorization
+### Phase 6: Schemas, names, errors, caching, headers, and authorization
 
 - Move every Rust handler to the ordinary `rmcp` schema path.
 - Delete `mcp/schema-macros` and the forced-inlining generator.
 - Add bounded JSON Schema 2020-12 validation.
+- Permit schemas and structured content with any valid JSON root, prohibit automatic
+  external-reference fetching, and bound any installed resolver.
+- Replace gateway-safe local tool names with the final MCP grammar while preserving
+  separate lowercase server slugs and collision-checked projections.
+- Centralize Rust and Python tool-error mapping. Domain and actionable execution
+  failures return `CallToolResult` with `isError: true`.
+- Replace the legacy missing-resource error with JSON-RPC `-32602`.
 - Set explicit TTL and cache scope on discover, list, and read results.
+- Key private caches by effective authority and policy revision. Treat TTL as
+  on-demand freshness rather than a polling schedule.
 - Delete custom standard-header construction and validation.
+- Validate standard header/body agreement and admit `x-mcp-header` only through typed
+  installation routing policy with strict size and authority exclusions.
+- Replace arbitrary correlation tokens with bounded W3C trace context and untrusted
+  baggage.
+- Stop emitting a separate durable successful bearer event per stateless request.
+  Preserve one logical policy event plus durable token lifecycle, replay, and denial
+  events.
 - Implement the final issuer, resource, registration, and step-up requirements.
 - Align dependent cryptography and HTTP crates with the selected `rmcp` feature set.
 
@@ -606,26 +1046,40 @@ published while revision 2 behavior remains deployed.
 |---|---|
 | Dependency graph | one exact `rmcp` 3 version; no second major through Rig or another package |
 | Discovery | every client and hosted server completes the `2026-07-28` Discover lifecycle without Initialize |
+| Surface authority | required installation surfaces fail readiness when absent; unexpected observed surfaces remain unreachable; the contract resource contains no duplicate live inventory |
+| Effective capabilities | each hop receives the typed client, gateway, installation, upstream, and policy intersection; a previous request and an unknown extension cannot expand it; an unmet requirement returns HTTP `400` with `-32021` |
+| Adapter negotiation | a non-Tasks downstream client receives no Task wire result; the admitted gateway adapter may negotiate and consume Tasks only on its separate upstream hop |
 | Transport | no session header, reconnect GET, session DELETE, or Last-Event-ID; terminal results are JSON |
+| Protocol errors | missing required metadata returns HTTP `400` with `-32602`; a non-final version returns HTTP `400` with `-32022` and cannot trigger downgrade |
+| Result discrimination | every ordinary and multi-round result has the final SDK-owned discriminator; handlers do not carry a second result envelope |
 | Official conformance | server and client suites pass with zero Veoveo-allowlisted failures |
-| Tasks | immediate, working, input-required, completed, failed, cancelled, TTL, poll interval, update, and cancel paths pass |
+| Tasks | creation is durable before return; immediate, working, input-required, completed, failed, cancelled, TTL, poll interval, idempotent update, accepted cancel intent, immutable terminal state, and terminal-schema paths pass |
+| Task errors | a completed tool result may carry `isError: true`; only a JSON-RPC failure yields a failed Task |
 | Task notifications | a task listener observes authorized status changes; loss of an optional notification does not prevent correctness through `tasks/get` |
 | Compatibility adapter | a client without Tasks receives the canonical terminal result and task resource without invoking an alternate task store |
 | Opaque IDs | two servers may return the same upstream task string without a gateway collision |
+| Handles and cursors | expired, tampered, cross-principal, cross-profile, cross-method, and replayed values fail without revealing another authority's state |
 | Replica routing | a task created through one gateway replica is read, updated, cancelled, or completed through another |
 | Restart | a gateway or server restart between task creation and observation does not lose canonical state |
-| Multi-round request | direct and in-task input survive serialization, authorization recheck, restart, and retry |
-| Subscriptions | persistent events replay from the outbox and live events arrive through one accepted listener filter |
+| Multi-round request | direct and in-task form input survives serialization, authorization recheck, restart, and retry; tamper, expiry, replay, response-size, round-count, and unissued-input checks fail closed |
+| Subscriptions | persistent events replay from the outbox and live events arrive through one accepted listener filter; unsupported authorized filters may be omitted and any unauthorized target rejects the request |
 | Stateless scaling | two gateway replicas and one replicated ordinary MCP server pass without sticky sessions |
-| Schemas | bounded same-document references and composition validate; malformed, cyclic-over-limit, or resource-exhausting schemas fail closed |
-| Caching | private entries never cross principals; immutable public content honors TTL and invalidation |
-| Authorization | issuer, resource, refresh, and step-up behavior pass the final profile |
+| Schemas | bounded same-document references, composition, and object, array, scalar, or null structured-content roots validate; automatic external fetches and malformed, cyclic-over-limit, or resource-exhausting schemas fail closed |
+| Tool errors | malformed envelopes and unknown tools produce JSON-RPC errors; schema-valid domain failures and actionable execution failures produce model-visible `isError` tool results in direct and task flows |
+| Resource errors | a missing resource returns JSON-RPC `-32602`; the superseded MCP-specific code is absent |
+| Tool names | case-sensitive final-profile names, including dots and uppercase characters, pass; empty, overlength, invalid-character, and projected-collision cases fail |
+| Caching | private entries never cross principals or policy revisions; immutable public content honors TTL and notification invalidation; TTL expiry causes no unsolicited background polling |
+| Audit volume | one successful stateless action produces one durable policy event rather than a second `bearer_jwt` allow event; token lifecycle, replay, credential denial, and policy denial remain durable |
+| Trace context | valid W3C context propagates; malformed or oversized context is rejected or replaced as specified; baggage and self-reported client or server identity cannot change authority |
+| MCP headers | standard method and name headers agree with the decoded body; mismatch returns HTTP `400` with JSON-RPC `-32020`; unadmitted, authority-bearing, and oversized parameter headers fail before routing |
+| Authorization | pre-registered clients pass issuer, resource, refresh, exact step-up, issuer-bound cache, and confidential `private_key_jwt` behavior; Dynamic Client Registration is absent |
+| Deprecated features | Roots, Sampling, MCP Logging, URL-mode elicitation, HTTP+SSE, non-`none` `includeContext`, legacy sessions, and legacy subscriptions are not advertised or accepted |
 | Rig | blocking and streaming agent runs have identical task semantics; serialized pending runs resume against reconnected task handles |
 | Python and TypeScript | SDK, template, Console, and MCP Apps use only final methods and response shapes |
 | Extensions | anonymous external conformance and integration fixtures consume the published revision-3 artifacts without Veoveo source |
 | Deployment | rendered charts carry the intended replica and GPU-owner constraints; images and charts use immutable release identities |
 | Repository | workspace tests, Clippy, docs, Python tests, frontend tests, Rust smokes, profile acceptance, showcases, and GPU visual acceptance pass |
-| Hard cut | searches find no `2025-11-25`, `2026-06-30`, `Mcp-Session-Id`, `tasks/result`, `tasks/list`, `taskSupport`, `resources/subscribe`, or `resources/unsubscribe` outside explicit historical migration evidence |
+| Hard cut | searches find no `2025-11-25`, `2026-06-30`, `Mcp-Session-Id`, `tasks/result`, `tasks/list`, `taskSupport`, `resources/subscribe`, `resources/unsubscribe`, protocol `ping`, `logging/setLevel`, `notifications/roots/list_changed`, `notifications/elicitation/complete`, `elicitationId`, or resource error `-32002` outside explicit historical migration evidence |
 
 The official conformance runner may lag an SDK release. Veoveo supplements missing
 scenarios but does not mark an upstream failure expected merely to make the gate
@@ -649,6 +1103,41 @@ supports bounded `tasks/get` observation using the server's poll interval.
 Final cache metadata introduces useful reuse and a new isolation obligation. Client
 instances and private cache entries are keyed by effective authorization. Acceptance
 uses distinct principals with overlapping catalogs and different allowed results.
+
+### Surface-policy drift
+
+Discover and list methods may change after a server upgrade. Readiness compares the
+observed surface with the installation revision before admitting traffic. Missing
+required names fail closed, while newly observed names remain hidden until installation
+policy admits them.
+
+### Opaque-state confusion and replay
+
+Stateless requests make every surviving handle security-sensitive. Strong types keep
+task IDs, request state, cursors, and application handles from crossing method
+boundaries. Integrity, expiry, current authorization, and durable one-time consumption
+cover the cases that possession alone cannot.
+
+### Audit loss during volume reduction
+
+Removing duplicate successful-authentication rows must not remove policy evidence.
+Acceptance compares one logical action with its trace, authentication metadata, and
+policy record. Token lifecycle, replay, denial, and governed state transitions retain
+their existing durable evidence.
+
+### Untrusted routing and trace metadata
+
+Model-controlled parameter headers, `clientInfo`, `serverInfo`, trace state, and
+baggage can describe a request but cannot authorize it. Installation allowlists, body
+agreement, strict size limits, sanitization, and independent policy evaluation prevent
+these inputs from becoming an authority channel.
+
+### Private OAuth onboarding
+
+Pre-registration favors deterministic private installations but requires an explicit
+client-onboarding step. Installation documentation and typed configuration own that
+step. Veoveo does not add Dynamic Client Registration or remote client-metadata
+fetching merely to remove the administrative action.
 
 ### Agent runtime regression
 
@@ -681,7 +1170,10 @@ The final implementation report records:
 - exact Veoveo, Rig, and `rmcp` revisions;
 - official conformance versions and complete results;
 - workspace and language dependency locks;
-- task, multi-round, subscription, and replica evidence;
+- surface-readiness and effective-capability evidence;
+- task, opaque-handle, multi-round, subscription, and replica evidence;
+- schema, tool-name, tool-error, caching, header, trace, authorization, and audit
+  evidence;
 - deployed image and chart digests;
 - full showcase and visual acceptance evidence;
 - the list of deleted protocol modules.
