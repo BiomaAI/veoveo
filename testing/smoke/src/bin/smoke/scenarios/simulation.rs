@@ -1,9 +1,17 @@
-use std::{collections::BTreeMap, os::unix::fs::PermissionsExt, process::Stdio};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs::File,
+    io::Write,
+    os::unix::fs::PermissionsExt,
+    process::{ExitStatus, Output, Stdio},
+};
 
-use anyhow::ensure;
+use anyhow::{bail, ensure};
 use chrono::Utc;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
+use tokio::io::{AsyncBufReadExt, BufReader};
+use veoveo_deploy_contract::{DeploymentLock, RegistryTransport};
 use veoveo_extension_contract::{
     ArtifactCoordinate, ArtifactDigest, SimulationAttestationEvidence, SimulationConformanceResult,
     SimulationConformanceResultSchema, SimulationHardwareEvidence, SimulationOverlayKind,
@@ -13,6 +21,84 @@ use veoveo_extension_contract::{
 use super::*;
 
 const RESULT_MARKER: &str = "VEOVEO_SIMULATION_PROBE_RESULT=";
+const EMBEDDED_BUILD_LOCK: &str = "/opt/veoveo/simulation-base/simulation-runtime.lock.json";
+
+#[derive(Debug)]
+struct RegistryAccess {
+    address: Option<String>,
+    transport: RegistryTransport,
+}
+
+struct MaterializedImage {
+    tag: String,
+}
+
+impl Drop for MaterializedImage {
+    fn drop(&mut self) {
+        let _ = Command::new("docker")
+            .args(["image", "rm", "--force", &self.tag])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+}
+
+struct Transcript {
+    path: PathBuf,
+    file: File,
+}
+
+impl Transcript {
+    fn create(output: &Path) -> Result<Self> {
+        let path = output.with_extension("transcript.log");
+        let parent = path
+            .parent()
+            .context("simulation transcript has no parent directory")?;
+        fs::create_dir_all(parent).with_context(|| {
+            format!(
+                "creating simulation transcript directory {}",
+                parent.display()
+            )
+        })?;
+        let mut file = File::create(&path)
+            .with_context(|| format!("creating simulation transcript {}", path.display()))?;
+        writeln!(
+            file,
+            "Veoveo simulation certification transcript\nstartedAt={}",
+            Utc::now().to_rfc3339()
+        )?;
+        file.sync_data()?;
+        Ok(Self { path, file })
+    }
+
+    fn stage(&mut self, name: &str) -> Result<()> {
+        writeln!(self.file, "\n== {name} ==")?;
+        self.file.flush()?;
+        Ok(())
+    }
+
+    fn line(&mut self, stream: &str, line: &str) -> Result<()> {
+        writeln!(self.file, "[{stream}] {line}")?;
+        self.file.flush()?;
+        Ok(())
+    }
+
+    fn output(&mut self, output: &Output) -> Result<()> {
+        writeln!(self.file, "status={}", output.status)?;
+        for line in String::from_utf8_lossy(&output.stdout).lines() {
+            self.line("stdout", line)?;
+        }
+        for line in String::from_utf8_lossy(&output.stderr).lines() {
+            self.line("stderr", line)?;
+        }
+        Ok(())
+    }
+
+    fn failure(&mut self, error: &anyhow::Error) {
+        let _ = writeln!(self.file, "\n== certification failed ==\n{error:#}");
+        let _ = self.file.sync_all();
+    }
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -114,6 +200,7 @@ struct ProbeDurations {
 }
 
 pub(crate) async fn simulation_certify(
+    deployment_lock: Option<&Path>,
     base_image: &str,
     overlay_image: &str,
     overlay_kind: SimulationOverlayKind,
@@ -121,6 +208,42 @@ pub(crate) async fn simulation_certify(
     output: &Path,
     cache_directory: &Path,
     timeout: Duration,
+) -> Result<()> {
+    let mut transcript = Transcript::create(output)?;
+    let result = simulation_certify_inner(
+        deployment_lock,
+        base_image,
+        overlay_image,
+        overlay_kind,
+        source_revision,
+        output,
+        cache_directory,
+        timeout,
+        &mut transcript,
+    )
+    .await;
+    if let Err(error) = &result {
+        transcript.failure(error);
+    }
+    result.with_context(|| {
+        format!(
+            "simulation certification transcript retained at {}",
+            transcript.path.display()
+        )
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn simulation_certify_inner(
+    deployment_lock: Option<&Path>,
+    base_image: &str,
+    overlay_image: &str,
+    overlay_kind: SimulationOverlayKind,
+    source_revision: &str,
+    output: &Path,
+    cache_directory: &Path,
+    timeout: Duration,
+    transcript: &mut Transcript,
 ) -> Result<()> {
     let (base_coordinate, base_digest) = exact_oci_image("base image", base_image)?;
     let (overlay_coordinate, overlay_digest) = exact_oci_image("overlay image", overlay_image)?;
@@ -130,10 +253,27 @@ pub(crate) async fn simulation_certify(
         "simulation certification timeout must allow at least 120 seconds"
     );
 
-    let build_lock_bytes = image_file(
-        overlay_image,
-        "/opt/veoveo/simulation-base/simulation-runtime.lock.json",
-    )?;
+    let registry = registry_access(deployment_lock, base_image, overlay_image)?;
+    let repository = repository_root()?;
+    transcript.stage("managed BuildKit registry resolver")?;
+    let _builder = match &registry.address {
+        Some(address) => veoveo_image_build_control::ensure_for_registry(
+            &repository,
+            address,
+            registry.transport,
+        )?,
+        None => veoveo_image_build_control::ensure(&repository)?,
+    };
+
+    transcript.stage("image environment invariants")?;
+    let base_environment = inspect_image_environment(&repository, base_image, transcript)?;
+    let overlay_environment = inspect_image_environment(&repository, overlay_image, transcript)?;
+    validate_inherited_python_path(&base_environment, &overlay_environment)?;
+
+    transcript.stage("digest-addressed overlay materialization")?;
+    let materialized = materialize_image(&repository, overlay_image, transcript)
+        .context("materializing overlay")?;
+    let build_lock_bytes = image_file(&materialized.tag, EMBEDDED_BUILD_LOCK, transcript)?;
     let build_lock: SimulationRuntimeBuildLock =
         serde_json::from_slice(&build_lock_bytes).context("decoding embedded simulation lock")?;
     build_lock.validate()?;
@@ -142,8 +282,9 @@ pub(crate) async fn simulation_certify(
         hex::encode(Sha256::digest(&build_lock_bytes))
     ))?;
 
-    let sbom = inspect_attestation(base_image, "SBOM")?;
-    let provenance = inspect_attestation(base_image, "Provenance")?;
+    transcript.stage("canonical base attestations")?;
+    let sbom = inspect_attestation(&repository, base_image, "SBOM", transcript)?;
+    let provenance = inspect_attestation(&repository, base_image, "Provenance", transcript)?;
     let attestations = SimulationAttestationEvidence {
         sbom_digest: ArtifactDigest::new(format!("sha256:{}", hex::encode(Sha256::digest(&sbom))))?,
         provenance_digest: ArtifactDigest::new(format!(
@@ -171,6 +312,7 @@ pub(crate) async fn simulation_certify(
         SimulationOverlayKind::FirstPartyUav => "first_party_uav",
         SimulationOverlayKind::AnonymousExternal => "anonymous_external",
     };
+    transcript.stage("hardware GPU conformance probe")?;
     let mut command = tokio::process::Command::new("docker");
     command
         .args([
@@ -196,7 +338,9 @@ pub(crate) async fn simulation_certify(
             &format!("{}:/var/lib/veoveo/.cache", cache_directory.display()),
             "--entrypoint",
             "/isaac-sim/python.sh",
-            overlay_image,
+            "--pull",
+            "never",
+            &materialized.tag,
             "-m",
             "veoveo_simulation_base.probe",
             "--overlay-kind",
@@ -208,29 +352,22 @@ pub(crate) async fn simulation_certify(
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let process = tokio::time::timeout(timeout, command.output())
-        .await
-        .with_context(|| format!("simulation certification exceeded {timeout:?}"))??;
-    let stdout = String::from_utf8_lossy(&process.stdout);
-    let stderr = String::from_utf8_lossy(&process.stderr);
-    let transcript = format!("{stdout}\n{stderr}");
+    let (status, probe_transcript) = run_logged(&mut command, timeout, transcript).await?;
     ensure!(
-        process.status.success(),
-        "simulation certification failed with {}\n{}",
-        process.status,
-        transcript
+        status.success(),
+        "simulation certification failed with {status}"
     );
     for forbidden in ["SwiftShader", "llvmpipe", "Software Rasterizer"] {
         ensure!(
-            !transcript.contains(forbidden),
+            !probe_transcript.contains(forbidden),
             "simulation certification selected forbidden renderer {forbidden}"
         );
     }
     ensure!(
-        transcript.contains("Graphics API: Vulkan"),
+        probe_transcript.contains("Graphics API: Vulkan"),
         "simulation certification did not prove Vulkan hardware"
     );
-    let payload = transcript
+    let payload = probe_transcript
         .lines()
         .find_map(|line| line.strip_prefix(RESULT_MARKER))
         .context("simulation certification emitted no typed result marker")?;
@@ -298,7 +435,6 @@ pub(crate) async fn simulation_certify(
     fs::create_dir_all(parent)?;
     let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
     serde_json::to_writer_pretty(&mut temporary, &result)?;
-    use std::io::Write as _;
     temporary.write_all(b"\n")?;
     temporary.as_file().sync_all()?;
     temporary
@@ -306,11 +442,12 @@ pub(crate) async fn simulation_certify(
         .map_err(|error| error.error)
         .with_context(|| format!("publishing simulation result {}", output.display()))?;
     println!(
-        "Simulation certification passed: {:?} overlay {} on base {}; result {}",
+        "Simulation certification passed: {:?} overlay {} on base {}; result {}; transcript {}",
         overlay_kind,
         overlay_image,
         base_image,
-        output.display()
+        output.display(),
+        transcript.path.display()
     );
     Ok(())
 }
@@ -392,36 +529,257 @@ fn exact_oci_image(field: &str, reference: &str) -> Result<(ArtifactCoordinate, 
     Ok((coordinate, digest))
 }
 
-fn image_file(image: &str, path: &str) -> Result<Vec<u8>> {
-    let output = Command::new("docker")
-        .args(["run", "--rm", "--entrypoint", "/bin/cat", image, path])
+fn registry_access(
+    deployment_lock: Option<&Path>,
+    base_image: &str,
+    overlay_image: &str,
+) -> Result<RegistryAccess> {
+    let Some(path) = deployment_lock else {
+        return Ok(RegistryAccess {
+            address: None,
+            transport: RegistryTransport::Tls,
+        });
+    };
+    let bytes =
+        fs::read(path).with_context(|| format!("reading deployment lock {}", path.display()))?;
+    let lock: DeploymentLock = serde_json::from_slice(&bytes)
+        .with_context(|| format!("decoding deployment lock {}", path.display()))?;
+    lock.validate()?;
+    for (field, image) in [("base image", base_image), ("overlay image", overlay_image)] {
+        validate_locked_authority(field, image, &lock.registry)?;
+    }
+    Ok(RegistryAccess {
+        address: Some(lock.registry),
+        transport: lock.registry_transport,
+    })
+}
+
+fn validate_locked_authority(field: &str, image: &str, registry: &str) -> Result<()> {
+    let repository = image
+        .rsplit_once('@')
+        .map(|(repository, _)| repository)
+        .with_context(|| format!("{field} must use repository@sha256 identity"))?;
+    let authority = repository
+        .split_once('/')
+        .map(|(authority, _)| authority)
+        .with_context(|| format!("{field} must include an explicit registry authority"))?;
+    ensure!(
+        authority == registry,
+        "{field} uses registry {authority}; deployment lock authorizes {registry}"
+    );
+    Ok(())
+}
+
+fn repository_root() -> Result<PathBuf> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
         .output()
-        .with_context(|| format!("reading {path} from {image}"))?;
+        .context("locating the Veoveo repository")?;
     ensure!(
         output.status.success(),
-        "reading {path} from {image} failed:\n{}",
+        "locating the Veoveo repository failed:\n{}",
         String::from_utf8_lossy(&output.stderr)
+    );
+    let root = String::from_utf8(output.stdout).context("repository path is not UTF-8")?;
+    Ok(PathBuf::from(root.trim()))
+}
+
+fn inspect_image_environment(
+    repository: &Path,
+    image: &str,
+    transcript: &mut Transcript,
+) -> Result<BTreeMap<String, String>> {
+    let mut command = veoveo_image_build_control::buildx_command(repository)?;
+    command.args([
+        "imagetools",
+        "inspect",
+        "--builder",
+        veoveo_image_build_control::BUILDER_NAME,
+        "--format",
+        "{{json .Image}}",
+        image,
+    ]);
+    let output = command_output(&mut command, transcript, &format!("inspect config {image}"))?;
+    ensure!(
+        output.status.success(),
+        "inspecting image configuration for {image} failed"
+    );
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .with_context(|| format!("decoding image configuration for {image}"))?;
+    unique_environment(&value).with_context(|| format!("reading image environment from {image}"))
+}
+
+fn unique_environment(value: &serde_json::Value) -> Result<BTreeMap<String, String>> {
+    fn visit(value: &serde_json::Value, candidates: &mut Vec<BTreeMap<String, String>>) {
+        match value {
+            serde_json::Value::Array(values) => {
+                for value in values {
+                    visit(value, candidates);
+                }
+            }
+            serde_json::Value::Object(object) => {
+                if let Some(config) = object.get("config").or_else(|| object.get("Config"))
+                    && let Some(environment) = config.get("Env").or_else(|| config.get("env"))
+                    && let Some(environment) = environment.as_array()
+                {
+                    let values = environment
+                        .iter()
+                        .filter_map(serde_json::Value::as_str)
+                        .filter_map(|item| item.split_once('='))
+                        .map(|(name, value)| (name.to_owned(), value.to_owned()))
+                        .collect::<BTreeMap<_, _>>();
+                    candidates.push(values);
+                    return;
+                }
+                for value in object.values() {
+                    visit(value, candidates);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut candidates = Vec::new();
+    visit(value, &mut candidates);
+    ensure!(
+        !candidates.is_empty(),
+        "Buildx image inspection returned no image configuration"
+    );
+    let unique = candidates.into_iter().collect::<BTreeSet<_>>();
+    ensure!(
+        unique.len() == 1,
+        "image index contains different environments across runtime manifests"
+    );
+    Ok(unique.into_iter().next().expect("one environment"))
+}
+
+fn validate_inherited_python_path(
+    base: &BTreeMap<String, String>,
+    overlay: &BTreeMap<String, String>,
+) -> Result<()> {
+    let base = base
+        .get("PYTHONPATH")
+        .context("canonical simulation runtime declares no PYTHONPATH")?;
+    let overlay = overlay
+        .get("PYTHONPATH")
+        .context("simulation overlay declares no PYTHONPATH")?;
+    let base_roots = base
+        .split(':')
+        .filter(|root| !root.is_empty())
+        .collect::<Vec<_>>();
+    let overlay_roots = overlay
+        .split(':')
+        .filter(|root| !root.is_empty())
+        .collect::<Vec<_>>();
+    let mut position = 0usize;
+    for root in &base_roots {
+        let Some(offset) = overlay_roots[position..]
+            .iter()
+            .position(|candidate| candidate == root)
+        else {
+            bail!("simulation overlay removed or reordered platform Python root {root}");
+        };
+        position += offset + 1;
+    }
+    ensure!(
+        base_roots.iter().any(|root| *root == "/opt/veoveo/python")
+            && base_roots
+                .iter()
+                .any(|root| root.starts_with("/opt/veoveo/isaaclab/source/")),
+        "canonical simulation runtime PYTHONPATH omits platform or Isaac Lab roots"
+    );
+    Ok(())
+}
+
+fn materialize_image(
+    repository: &Path,
+    image: &str,
+    transcript: &mut Transcript,
+) -> Result<MaterializedImage> {
+    let context = tempfile::tempdir().context("creating image materialization context")?;
+    fs::write(
+        context.path().join("Dockerfile"),
+        "# syntax=docker/dockerfile:1.25.0\nARG CERT_IMAGE\nFROM ${CERT_IMAGE}\n",
+    )?;
+    let tag = format!(
+        "veoveo-simulation-certify:{}",
+        uuid::Uuid::new_v4().simple()
+    );
+    let mut command = veoveo_image_build_control::buildx_command(repository)?;
+    command
+        .args([
+            "build",
+            "--builder",
+            veoveo_image_build_control::BUILDER_NAME,
+            "--platform",
+            "linux/amd64",
+            "--pull",
+            "--provenance=false",
+            "--build-arg",
+            &format!("CERT_IMAGE={image}"),
+            "--output",
+            "type=docker",
+            "--tag",
+            &tag,
+        ])
+        .arg(context.path());
+    let output = command_output(&mut command, transcript, &format!("materialize {image}"))?;
+    ensure!(
+        output.status.success(),
+        "BuildKit failed to materialize exact image {image}"
+    );
+    Ok(MaterializedImage { tag })
+}
+
+fn image_file(image: &str, path: &str, transcript: &mut Transcript) -> Result<Vec<u8>> {
+    let mut command = Command::new("docker");
+    command.args([
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--entrypoint",
+        "/bin/cat",
+        image,
+        path,
+    ]);
+    let output = command_output(
+        &mut command,
+        transcript,
+        &format!("read embedded file {path}"),
+    )?;
+    ensure!(
+        output.status.success(),
+        "reading {path} from materialized image failed"
     );
     Ok(output.stdout)
 }
 
-fn inspect_attestation(image: &str, field: &str) -> Result<Vec<u8>> {
+fn inspect_attestation(
+    repository: &Path,
+    image: &str,
+    field: &str,
+    transcript: &mut Transcript,
+) -> Result<Vec<u8>> {
     let template = format!("{{{{json .{field}}}}}");
-    let output = Command::new("docker")
-        .args([
-            "buildx",
-            "imagetools",
-            "inspect",
-            "--format",
-            &template,
-            image,
-        ])
-        .output()
-        .with_context(|| format!("inspecting {field} attestation for {image}"))?;
+    let mut command = veoveo_image_build_control::buildx_command(repository)?;
+    command.args([
+        "imagetools",
+        "inspect",
+        "--builder",
+        veoveo_image_build_control::BUILDER_NAME,
+        "--format",
+        &template,
+        image,
+    ]);
+    let output = command_output(
+        &mut command,
+        transcript,
+        &format!("inspect {field} attestation for {image}"),
+    )?;
     ensure!(
         output.status.success(),
-        "inspecting {field} attestation for {image} failed:\n{}",
-        String::from_utf8_lossy(&output.stderr)
+        "inspecting {field} attestation for {image} failed"
     );
     let trimmed = String::from_utf8_lossy(&output.stdout).trim().to_owned();
     ensure!(
@@ -431,6 +789,76 @@ fn inspect_attestation(image: &str, field: &str) -> Result<Vec<u8>> {
     serde_json::from_str::<serde_json::Value>(&trimmed)
         .with_context(|| format!("decoding {field} attestation for {image}"))?;
     Ok(trimmed.into_bytes())
+}
+
+fn command_output(
+    command: &mut Command,
+    transcript: &mut Transcript,
+    stage: &str,
+) -> Result<Output> {
+    transcript.stage(stage)?;
+    let output = command
+        .output()
+        .with_context(|| format!("running {stage}"))?;
+    transcript.output(&output)?;
+    Ok(output)
+}
+
+async fn run_logged(
+    command: &mut tokio::process::Command,
+    timeout: Duration,
+    transcript: &mut Transcript,
+) -> Result<(ExitStatus, String)> {
+    let mut child = command.spawn().context("starting simulation GPU probe")?;
+    let stdout = child
+        .stdout
+        .take()
+        .context("simulation GPU probe stdout is not piped")?;
+    let stderr = child
+        .stderr
+        .take()
+        .context("simulation GPU probe stderr is not piped")?;
+    let mut stdout = BufReader::new(stdout).lines();
+    let mut stderr = BufReader::new(stderr).lines();
+    let mut stdout_open = true;
+    let mut stderr_open = true;
+    let mut complete = String::new();
+    let deadline = tokio::time::sleep(timeout);
+    tokio::pin!(deadline);
+
+    while stdout_open || stderr_open {
+        tokio::select! {
+            line = stdout.next_line(), if stdout_open => match line? {
+                Some(line) => {
+                    println!("{line}");
+                    transcript.line("stdout", &line)?;
+                    complete.push_str(&line);
+                    complete.push('\n');
+                }
+                None => stdout_open = false,
+            },
+            line = stderr.next_line(), if stderr_open => match line? {
+                Some(line) => {
+                    eprintln!("{line}");
+                    transcript.line("stderr", &line)?;
+                    complete.push_str(&line);
+                    complete.push('\n');
+                }
+                None => stderr_open = false,
+            },
+            () = &mut deadline => {
+                let _ = child.start_kill();
+                let _ = child.wait().await;
+                bail!("simulation certification exceeded {timeout:?}");
+            }
+        }
+    }
+    let status = child
+        .wait()
+        .await
+        .context("waiting for simulation GPU probe")?;
+    transcript.line("status", &status.to_string())?;
+    Ok((status, complete))
 }
 
 fn driver_at_least(actual: &str, minimum: &str) -> Result<bool> {
@@ -449,4 +877,121 @@ fn driver_at_least(actual: &str, minimum: &str) -> Result<bool> {
     actual.resize(width, 0);
     minimum.resize(width, 0);
     Ok(actual >= minimum)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::BTreeMap, process::Stdio, time::Duration};
+
+    use serde_json::json;
+    use tempfile::tempdir;
+
+    use super::{
+        Transcript, run_logged, unique_environment, validate_inherited_python_path,
+        validate_locked_authority,
+    };
+
+    #[test]
+    fn deployment_lock_authority_accepts_exact_private_registry_with_arbitrary_port() {
+        validate_locked_authority(
+            "overlay image",
+            "registry.acceptance.internal:5002/veoveo/overlay@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "registry.acceptance.internal:5002",
+        )
+        .expect("accept selected registry");
+        let error = validate_locked_authority(
+            "overlay image",
+            "127.0.0.1:5002/veoveo/overlay@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "registry.acceptance.internal:5002",
+        )
+        .expect_err("reject substituted registry identity");
+        assert!(error.to_string().contains("deployment lock authorizes"));
+    }
+
+    #[test]
+    fn image_environment_parser_accepts_single_and_index_shapes() {
+        let single = json!({"config": {"Env": ["HOME=/tmp", "PYTHONPATH=/base"]}});
+        assert_eq!(
+            unique_environment(&single)
+                .expect("single environment")
+                .get("PYTHONPATH")
+                .map(String::as_str),
+            Some("/base")
+        );
+        let index = json!({
+            "linux/amd64": {"config": {"Env": ["HOME=/tmp", "PYTHONPATH=/base"]}},
+            "linux/amd64/attestation": {"config": {"Env": ["HOME=/tmp", "PYTHONPATH=/base"]}}
+        });
+        assert_eq!(
+            unique_environment(&index)
+                .expect("identical index environments")
+                .get("PYTHONPATH")
+                .map(String::as_str),
+            Some("/base")
+        );
+    }
+
+    #[test]
+    fn overlay_python_path_must_preserve_every_platform_root_in_order() {
+        let base = BTreeMap::from([(
+            "PYTHONPATH".to_owned(),
+            "/isaac-sim/extsDeprecated/omni.isaac.ml_archive/pip_prebundle:/opt/veoveo/python:/opt/veoveo/isaaclab/source/isaaclab:/opt/veoveo/isaaclab/source/isaaclab_newton"
+                .to_owned(),
+        )]);
+        let valid = BTreeMap::from([(
+            "PYTHONPATH".to_owned(),
+            "/opt/extension:/isaac-sim/extsDeprecated/omni.isaac.ml_archive/pip_prebundle:/opt/veoveo/python:/opt/veoveo/isaaclab/source/isaaclab:/opt/veoveo/isaaclab/source/isaaclab_newton:/opt/extension-tail"
+                .to_owned(),
+        )]);
+        validate_inherited_python_path(&base, &valid).expect("monotonic extension");
+
+        let missing = BTreeMap::from([(
+            "PYTHONPATH".to_owned(),
+            "/opt/extension:/opt/veoveo/python".to_owned(),
+        )]);
+        assert!(validate_inherited_python_path(&base, &missing).is_err());
+
+        let reordered = BTreeMap::from([(
+            "PYTHONPATH".to_owned(),
+            "/opt/veoveo/python:/isaac-sim/extsDeprecated/omni.isaac.ml_archive/pip_prebundle:/opt/veoveo/isaaclab/source/isaaclab_newton:/opt/veoveo/isaaclab/source/isaaclab"
+                .to_owned(),
+        )]);
+        assert!(validate_inherited_python_path(&base, &reordered).is_err());
+    }
+
+    #[tokio::test]
+    async fn failing_and_timed_out_probes_retain_partial_transcripts() {
+        let directory = tempdir().expect("temporary transcript directory");
+        let output = directory.path().join("failure.result.json");
+        let mut transcript = Transcript::create(&output).expect("create transcript");
+        let mut failure = tokio::process::Command::new("sh");
+        failure
+            .args(["-c", "printf 'diagnostic-before-failure\\n'; exit 7"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let (status, _) = run_logged(&mut failure, Duration::from_secs(1), &mut transcript)
+            .await
+            .expect("collect failed command");
+        assert_eq!(status.code(), Some(7));
+        let contents = std::fs::read_to_string(&transcript.path).expect("read transcript");
+        assert!(contents.contains("diagnostic-before-failure"));
+        assert!(contents.contains("exit status: 7"));
+
+        let output = directory.path().join("timeout.result.json");
+        let mut transcript = Transcript::create(&output).expect("create timeout transcript");
+        let mut timeout = tokio::process::Command::new("sh");
+        timeout
+            .args([
+                "-c",
+                "printf 'diagnostic-before-timeout\\n'; while :; do :; done",
+            ])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let error = run_logged(&mut timeout, Duration::from_millis(20), &mut transcript)
+            .await
+            .expect_err("probe must time out");
+        assert!(error.to_string().contains("exceeded"));
+        let contents = std::fs::read_to_string(&transcript.path).expect("read timeout transcript");
+        assert!(contents.contains("diagnostic-before-timeout"));
+    }
 }

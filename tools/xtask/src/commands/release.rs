@@ -64,14 +64,30 @@ pub(crate) fn simulation_runtime(
     repository: &RepositoryContext,
     args: &ReleaseSimulationRuntimeArgs,
 ) -> Result<()> {
-    validate_registry(&args.registry)?;
-    let transport = if registry_is_loopback(&args.registry)? {
-        RegistryTransport::InsecureHttp
+    let lock_path = if args.deployment_lock.is_absolute() {
+        args.deployment_lock.clone()
     } else {
-        RegistryTransport::Tls
+        repository.root().join(&args.deployment_lock)
     };
-    let _builder = builder::ensure_for_registry(repository, &args.registry, transport)?;
+    let lock_bytes = fs::read(&lock_path)
+        .with_context(|| format!("reading deployment lock {}", lock_path.display()))?;
+    let lock: DeploymentLock = serde_json::from_slice(&lock_bytes)
+        .with_context(|| format!("decoding deployment lock {}", lock_path.display()))?;
+    lock.validate()?;
+    let _builder =
+        builder::ensure_for_registry(repository, &lock.registry, lock.registry_transport)?;
     let publication = PublicationSource::prepare(repository, &args.revision)?;
+    let platform_source = lock
+        .sources
+        .iter()
+        .find(|source| source.role == DeploymentSourceRole::Platform)
+        .context("deployment lock has no platform source")?;
+    ensure!(
+        platform_source.revision == publication.revision(),
+        "deployment lock platform revision {} does not match selected simulation revision {}",
+        platform_source.revision,
+        publication.revision()
+    );
     let output_root = if args.output_dir.is_absolute() {
         args.output_dir.clone()
     } else {
@@ -82,6 +98,7 @@ pub(crate) fn simulation_runtime(
         repository,
         publication.path(),
         publication.revision(),
+        &lock.registry,
         args,
         &output,
     )?;

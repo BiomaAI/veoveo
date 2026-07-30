@@ -549,6 +549,11 @@ enum Cmd {
     },
     /// Certify an immutable simulation overlay and base on NVIDIA hardware.
     SimulationCertify {
+        /// Validated deployment lock authorizing the registry identity and transport.
+        ///
+        /// When omitted, certification permits TLS registries only.
+        #[arg(long)]
+        deployment_lock: Option<PathBuf>,
         /// Canonical base image using repository@sha256 identity.
         #[arg(long)]
         base_image: String,
@@ -892,6 +897,7 @@ async fn main() -> Result<()> {
             .await
         }
         Cmd::SimulationCertify {
+            deployment_lock,
             base_image,
             overlay_image,
             overlay_kind,
@@ -901,6 +907,7 @@ async fn main() -> Result<()> {
             timeout_seconds,
         } => {
             simulation_certify(
+                deployment_lock.as_deref(),
                 &base_image,
                 &overlay_image,
                 overlay_kind.into(),

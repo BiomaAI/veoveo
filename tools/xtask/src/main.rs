@@ -202,9 +202,9 @@ struct ReleaseSimulationRuntimeArgs {
     /// Semantic simulation-runtime release version.
     #[arg(long)]
     version: String,
-    /// Private OCI registry host and repository prefix, without oci://.
+    /// Validated deployment lock authorizing the registry identity and transport.
     #[arg(long)]
-    registry: String,
+    deployment_lock: PathBuf,
     /// Hardware result for the existing first-party UAV overlay.
     #[arg(long)]
     first_party_result: PathBuf,

@@ -11675,6 +11675,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-image-build-control"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "hex",
+ "sha2 0.11.0",
+ "tempfile",
+ "veoveo-deploy-contract",
+]
+
+[[package]]
 name = "veoveo-map-mcp"
 version = "0.1.0"
 dependencies = [
@@ -12304,6 +12315,7 @@ dependencies = [
  "uuid",
  "veoveo-deploy-contract",
  "veoveo-extension-contract",
+ "veoveo-image-build-control",
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",
  "veoveo-platform-store",
@@ -12589,6 +12601,7 @@ dependencies = [
  "url",
  "veoveo-deploy-contract",
  "veoveo-extension-contract",
+ "veoveo-image-build-control",
  "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
 ]

@@ -6,7 +6,10 @@ FROM ${VEOVEO_SIMULATION_BASE}
 COPY --chown=10001:10001 identity.json /opt/veoveo/simulation-overlay/identity.json
 COPY --chown=10001:10001 anonymous_simulation_overlay.py /opt/veoveo/simulation-overlay/anonymous_simulation_overlay.py
 
-ENV PYTHONPATH=/isaac-sim/extscache/omni.warp.core-1.13.0+lx64:/isaac-sim/exts/isaacsim.pip.newton/pip_prebundle:/opt/veoveo/simulation-overlay:/opt/veoveo/simulation-base
+ENV PYTHONPATH=/opt/veoveo/simulation-overlay:${PYTHONPATH}
+
+RUN /isaac-sim/python.sh -c \
+      'import anonymous_simulation_overlay, isaaclab, isaaclab_newton, veoveo_simulation_base'
 
 ARG SOURCE_REVISION=local
 LABEL org.opencontainers.image.revision="${SOURCE_REVISION}" \

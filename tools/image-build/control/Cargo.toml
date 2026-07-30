@@ -1,0 +1,12 @@
+[package]
+name = "veoveo-image-build-control"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+hex.workspace = true
+sha2.workspace = true
+tempfile = "=3.27.0"
+veoveo-deploy-contract.workspace = true

@@ -73,6 +73,12 @@ loaded Torch, Warp, or Newton file modules outside their selected root. An overl
 may add compatible packages, but it cannot replace Isaac Sim, Isaac Lab, Warp,
 Newton, MuJoCo, Torch, Python, CUDA, or core Kit versions.
 
+The base owns the complete runtime `PYTHONPATH`. A supported overlay extends that value
+with `ENV PYTHONPATH=/opt/overlay:${PYTHONPATH}`. It never reproduces or replaces the
+platform roots. Certification compares the final OCI image configurations and rejects
+an overlay when any base root is absent or appears in a different relative order. This
+check covers Isaac Lab and `/opt/veoveo/python` before a GPU process starts.
+
 ## Runtime Contract
 
 The process runs as UID and GID `10001`. Its home is `/var/lib/veoveo`. Kit cache and
@@ -143,3 +149,15 @@ docker run --rm \
 The image is a candidate until the hardware result, UAV overlay acceptance, and an
 anonymous external overlay result all identify its final digest. A runtime upgrade
 requires all three gates again.
+
+`cargo xtask smoke simulation-certify` accepts an optional deployment lock. Without one,
+the managed builder uses TLS. A supplied `veoveo.io/deployment-lock/v3` document
+authorizes its exact registry authority and may explicitly select `insecure-http`.
+Both image references must retain that authority. Buildx inspection, attestation
+resolution, and digest-addressed materialization use the same managed BuildKit
+configuration. Docker runs only the local materialization with pulls disabled, while
+the conformance result records the original registry coordinates.
+
+Certification creates a sibling `*.transcript.log` before registry access. It streams
+the GPU process output into that file and keeps the partial transcript after a command
+failure or timeout.

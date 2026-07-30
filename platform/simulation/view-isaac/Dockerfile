@@ -22,7 +22,7 @@ RUN mkdir -p \
 COPY --chown=10001:10001 veoveo_simulation_view/ /opt/veoveo/simulation-view/veoveo_simulation_view/
 COPY --chown=10001:10001 --chmod=0555 entrypoint.py /opt/veoveo/simulation-view/entrypoint.py
 
-ENV PYTHONPATH=/opt/veoveo/simulation-view:/isaac-sim/extscache/omni.warp.core-1.13.0+lx64:/isaac-sim/exts/isaacsim.pip.newton/pip_prebundle:/opt/veoveo/python:/opt/veoveo/isaaclab/source/isaaclab:/opt/veoveo/isaaclab/source/isaaclab_newton:/opt/veoveo/isaaclab/source/isaaclab_physx:/opt/veoveo/isaaclab/source/isaaclab_ov:/opt/veoveo/isaaclab/source/isaaclab_ovphysx
+ENV PYTHONPATH=/opt/veoveo/simulation-view:${PYTHONPATH}
 
 ARG SOURCE_REVISION=local
 ARG COMPATIBILITY_RELEASE=2026.07.0
