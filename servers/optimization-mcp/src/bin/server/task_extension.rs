@@ -319,13 +319,13 @@ impl TaskExtensionHandler for OptimizationTaskExtension {
                         .await
                         .map_err(internal)?;
                 OptimizationTaskRequest::VerifySolution {
-                    request: PreparedVerifyTask {
+                    request: Box::new(PreparedVerifyTask {
                         input,
                         solution,
                         prepared: prepared_ref,
                         submitted_at,
                         artifact_write_capability: capability,
-                    },
+                    }),
                 }
             }
             _ => return Ok(None),
@@ -1076,7 +1076,7 @@ fn routing_candidate(
         status: ExecutorRoutingStatus::Success,
         message: "reconstructed for independent verification".to_owned(),
         objective: summary.map_or_else(
-            || veoveo_optimization_mcp::domain::FiniteF64::default(),
+            veoveo_optimization_mcp::domain::FiniteF64::default,
             |summary| summary.objective,
         ),
         objective_components: summary

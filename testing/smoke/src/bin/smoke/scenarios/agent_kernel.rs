@@ -612,16 +612,16 @@ pub(crate) async fn agent_pilot_mission(
         &tmpdir.join("frames.log"),
     )?;
     let cuopt = spawn_cuopt_executor_smoke(&tmpdir.join("cuopt-runtime"))?;
-    let mut optimization_child = spawn_optimization_smoke(
+    let mut optimization_child = spawn_optimization_smoke(&OptimizationSmokeConfig {
         optimization,
-        optimization_port,
-        &optimization_base,
-        &tmpdir.join("optimization-workspace"),
-        &cuopt.socket,
-        &plane.url,
-        &plane.platform,
-        &tmpdir.join("optimization.log"),
-    )?;
+        port: optimization_port,
+        public_base_url: &optimization_base,
+        workspace: &tmpdir.join("optimization-workspace"),
+        executor_socket: &cuopt.socket,
+        artifact_service_url: &plane.url,
+        platform: &plane.platform,
+        log: &tmpdir.join("optimization.log"),
+    })?;
     wait_for_http(&format!("{frames_base}/frames/healthz")).await?;
     wait_for_http(&format!("{optimization_base}/optimization/healthz")).await?;
 

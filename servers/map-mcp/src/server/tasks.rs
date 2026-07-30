@@ -465,7 +465,7 @@ pub(crate) async fn visible_travel_models(
             records.push(record);
         }
     }
-    records.sort_by(|left, right| left.created_at.cmp(&right.created_at));
+    records.sort_by_key(|record| record.created_at);
     Ok(records)
 }
 
