@@ -17,7 +17,8 @@ use veoveo_extension_contract::{
 
 use crate::{ReleaseSimulationRuntimeArgs, commands::builder, context::RepositoryContext};
 
-const CONFORMANCE_REPOSITORY: &str = "veoveo-simulation-conformance";
+const CONFORMANCE_ARTIFACT_NAME: &str = "simulation-conformance";
+const CONFORMANCE_REPOSITORY: &str = "veoveo/simulation-conformance";
 const OCI_INDEX_MEDIA_TYPE: &str = "application/vnd.oci.image.index.v1+json";
 const DOCKERFILE: &str = r#"# syntax=docker/dockerfile:1.25.0@sha256:0adf442eae370b6087e08edc7c50b552d80ddf261576f4ebd6421006b2461f12
 FROM scratch
@@ -36,10 +37,10 @@ pub(crate) fn publish(
     invocation_repository: &RepositoryContext,
     source_root: &Path,
     revision: &str,
+    registry: &str,
     args: &ReleaseSimulationRuntimeArgs,
     output: &Path,
 ) -> Result<()> {
-    validate_registry(&args.registry)?;
     let source_revision = SourceRevision::new(revision)?;
     let version = ReleaseVersion::new(&args.version)?;
     let build_lock_path =
@@ -105,11 +106,7 @@ pub(crate) fn publish(
         &anonymous,
     )?;
 
-    let repository = format!(
-        "{}/{}",
-        args.registry.trim_end_matches('/'),
-        CONFORMANCE_REPOSITORY
-    );
+    let repository = format!("{registry}/{CONFORMANCE_REPOSITORY}");
     let tag = format!("{repository}:{revision}");
     let status = builder::buildx_command(invocation_repository)?
         .current_dir(source_root)
@@ -163,7 +160,7 @@ pub(crate) fn publish(
         components: build_lock.components.clone(),
         gpu: build_lock.gpu.runtime.clone(),
         conformance_result: ArtifactDescriptor {
-            name: ArtifactName::new(CONFORMANCE_REPOSITORY)?,
+            name: ArtifactName::new(CONFORMANCE_ARTIFACT_NAME)?,
             kind: ArtifactKind::ConformanceResult,
             version,
             coordinate: ArtifactCoordinate::new(format!(
@@ -226,6 +223,8 @@ fn inspect_manifest_digest(repository: &RepositoryContext, reference: &str) -> R
         .args([
             "imagetools",
             "inspect",
+            "--builder",
+            builder::BUILDER_NAME,
             "--format",
             "{{json .Manifest.Digest}}",
             reference,
@@ -269,15 +268,4 @@ fn resolve_input(root: &Path, path: &Path) -> PathBuf {
     } else {
         root.join(path)
     }
-}
-
-fn validate_registry(registry: &str) -> Result<()> {
-    ensure!(
-        !registry.trim().is_empty()
-            && !registry.contains("://")
-            && !registry.ends_with('/')
-            && !registry.chars().any(char::is_whitespace),
-        "registry must be a non-empty OCI host/prefix without a scheme, trailing slash, or whitespace"
-    );
-    Ok(())
 }

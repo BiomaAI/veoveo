@@ -677,13 +677,29 @@ pub(crate) async fn helm_config() -> Result<()> {
     simulation_lock.validate()?;
     let simulation_runtime_dockerfile =
         fs::read_to_string("platform/runtimes/simulation/Dockerfile")?;
-    for dockerfile in [
-        "platform/runtimes/simulation/Dockerfile",
+    let overlay_dockerfiles = [
         "platform/simulation/view-isaac/Dockerfile",
         "showcase/uav-sim/runtime/Dockerfile",
         "testing/fixtures/simulation-overlay/Dockerfile",
+    ];
+    for dockerfile in [
+        "platform/runtimes/simulation/Dockerfile",
+        overlay_dockerfiles[0],
+        overlay_dockerfiles[1],
+        overlay_dockerfiles[2],
     ] {
         assert_revision_metadata_follows_payload(dockerfile)?;
+    }
+    for dockerfile in overlay_dockerfiles {
+        let contents = fs::read_to_string(dockerfile)?;
+        contains(&contents, "${PYTHONPATH}")?;
+        for platform_root in [
+            "/isaac-sim/extsDeprecated/omni.isaac.ml_archive/pip_prebundle",
+            "/opt/veoveo/python",
+            "/opt/veoveo/isaaclab/source/isaaclab",
+        ] {
+            not_contains(&contents, platform_root)?;
+        }
     }
     for expected in [
         "nvcr.io/nvidia/isaac-sim:6.0.1@sha256:",

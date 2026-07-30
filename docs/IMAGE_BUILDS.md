@@ -30,6 +30,12 @@ remote-execution service are outside this design. They would add another graph a
 authority without addressing a requirement that Cargo, Bake, and the typed planner
 leave unmet.
 
+The existing managed-builder control lives in the internal
+`tools/image-build/control` crate. `xtask` owns repository policy and the smoke harness
+owns certification assertions, but both use this one implementation for the pinned
+Buildx binary, BuildKit configuration, registry transport, and shared lease. The crate
+does not plan targets or define another build graph.
+
 The Python Datasheet example has two deliberate package boundaries. Its template
 Dockerfile consumes an extension-owned lock and a released SDK from the configured
 private index. Veoveo's own `datasheet-mcp` Bake target instead uses the checked-in
@@ -99,6 +105,12 @@ lineages used by the acceptance suite. `status` verifies the driver, daemon vers
 image digest, and reports the active configuration digest. Image operations hold one
 shared builder lease across configuration and execution, preventing linked worktrees
 from changing the daemon underneath another build.
+
+Simulation certification holds the same lease. A deployment lock may authorize one
+`insecure-http` registry at its exact host and port; otherwise TLS applies. Image
+configuration, attestation inspection, and digest-addressed materialization all select
+the managed builder explicitly. Docker Engine never resolves the remote certification
+image and runs the local materialization with pulls disabled.
 
 ## Release Publication
 

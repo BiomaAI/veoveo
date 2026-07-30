@@ -367,9 +367,9 @@ The hardware probe rejects a loaded module outside those roots or a runtime comp
 that differs from the embedded lock.
 
 The existing UAV runtime and `testing/fixtures/simulation-overlay` derive from the same
-canonical base target. Hardware acceptance passed on an NVIDIA RTX 4090 with driver `580.173.02`.
-Each overlay proved CUDA, Vulkan, RaytracedLighting, the exact runtime tuple, 20 distinct
-Newton tiled-camera outputs, and 20 distinct RTX render products. The anonymous overlay
+canonical base target. Both published overlays must independently prove CUDA, Vulkan,
+RaytracedLighting, the exact runtime tuple, 20 distinct Newton tiled-camera outputs,
+and 20 distinct RTX render products against one base digest. The anonymous overlay
 also executes overlay-owned CUDA code. Host networking, host IPC, software rendering,
 and CPU simulation are not accepted substitutes.
 
@@ -388,14 +388,23 @@ and image in its configured private registry. It may add compatible Kit extensio
 Python packages, but it may not silently replace the base's Isaac Sim, Isaac Lab, Warp,
 Newton, MuJoCo, CUDA, or core Kit/Python versions. A conflicting dependency set fails
 the compatibility profile until Veoveo deliberately advances the canonical base.
+An overlay extends the inherited `PYTHONPATH`; static repository checks and published
+image inspection reject removal or reordering of platform-owned roots.
 
 `simulation-certify` accepts only digest-addressed base and overlay images. It inspects
-their SBOM and provenance attestations and writes
+the canonical base's SBOM and provenance attestations and writes
 `veoveo.io/simulation-conformance-result/v1`. `cargo xtask release
 simulation-runtime` accepts one first-party and one anonymous result from the same
 source revision and base digest, publishes their private OCI evidence bundle, and writes
 `veoveo.io/simulation-runtime-release-evidence/v1`. Compatibility publication consumes
 that release evidence rather than copying the runtime tuple by hand.
+
+The deployment lock is the only authority for a non-TLS registry. Certification and
+release configure the managed builder from its exact registry address and transport.
+Buildx resolves configurations and attestations through that builder, and certification
+materializes the digest-addressed overlay through BuildKit before Docker runs it with
+pulls disabled. The original OCI identity remains in the result. A sibling transcript
+retains complete or partial diagnostics after every certification attempt.
 
 ### Bundle And Composition Ownership
 

@@ -238,7 +238,7 @@ services is copied into an extension image.
 The anonymous installation fixture exercises this closure without a customer identity:
 
 ```sh
-cargo run -p veoveo-smoke --bin smoke -- profile-validate \
+cargo xtask smoke profile-validate \
   --profile testing/fixtures/external-extension-installation/deployment.json
 ```
 
@@ -259,14 +259,17 @@ The `isaac-sim-6` profile currently fixes Isaac Sim
 `6.0.1-rc.7+release.42383.32955d8d.gl`, Isaac Lab `v3.0.0-beta2.patch1` at
 `ffff603eafc6b74264a5261cc0183d6a65390d78`, Warp `1.15.0`, Newton `1.4.0`,
 MuJoCo `3.10.0`, MuJoCo Warp `3.10.0.3`, Python `3.12.13`, CUDA `12.9`, and
-Kit `110.1.2`. `showcase/uav-sim/runtime/simulation-runtime.lock.json` also pins the
+Kit `110.1.2`. `platform/runtimes/simulation/simulation-runtime.lock.json` also pins the
 upstream image, source archive, and wheel digests.
 
 An external repository may derive an independently published simulator overlay from
 the immutable base digest. The overlay may add domain code, assets, scenarios, and
-compatible Kit or Python extensions. It may not silently replace the base runtime
-tuple. A conflicting tuple fails compatibility until Veoveo deliberately advances the
-base and reruns both first-party and anonymous external-overlay GPU acceptance.
+compatible Kit or Python extensions. Its Dockerfile extends the inherited runtime
+environment, for example `ENV PYTHONPATH=/opt/extension:${PYTHONPATH}`. Replacing
+`PYTHONPATH` is unsupported because it removes platform and Isaac Lab roots. A
+conflicting tuple or a non-monotonic Python path fails certification until Veoveo
+deliberately advances the base and reruns both first-party and anonymous
+external-overlay GPU acceptance.
 
 Software rendering and CPU simulation are not acceptance evidence. Runtime images and
 charts request the required NVIDIA GPU and fail closed when the hardware path is
@@ -282,15 +285,17 @@ Release builds must attach SBOM and provenance attestations. Certify their immut
 registry identities separately:
 
 ```sh
-cargo run -p veoveo-smoke --bin smoke -- simulation-certify \
-  --base-image "$REGISTRY/veoveo/uav-sim-base@$BASE_DIGEST" \
+cargo xtask smoke simulation-certify \
+  --deployment-lock "$DEPLOYMENT_LOCK" \
+  --base-image "$REGISTRY/veoveo/simulation-runtime@$BASE_DIGEST" \
   --overlay-image "$REGISTRY/veoveo/uav-sim-runtime@$UAV_DIGEST" \
   --overlay-kind first-party-uav \
   --source-revision "$REVISION" \
   --output output/simulation-certification/first-party-uav.result.json
 
-cargo run -p veoveo-smoke --bin smoke -- simulation-certify \
-  --base-image "$REGISTRY/veoveo/uav-sim-base@$BASE_DIGEST" \
+cargo xtask smoke simulation-certify \
+  --deployment-lock "$DEPLOYMENT_LOCK" \
+  --base-image "$REGISTRY/veoveo/simulation-runtime@$BASE_DIGEST" \
   --overlay-image "$REGISTRY/veoveo/simulation-overlay-acceptance@$EXTERNAL_DIGEST" \
   --overlay-kind anonymous-external \
   --source-revision "$REVISION" \
@@ -304,10 +309,16 @@ component tuple. Publication then creates the private OCI evidence bundle:
 cargo xtask release simulation-runtime \
   --revision "$REVISION" \
   --version 0.1.0 \
-  --registry "$REGISTRY/veoveo" \
+  --deployment-lock "$DEPLOYMENT_LOCK" \
   --first-party-result output/simulation-certification/first-party-uav.result.json \
   --anonymous-result output/simulation-certification/anonymous-external.result.json
 ```
+
+The deployment lock is also the registry transport authority. TLS remains the default.
+An internal HTTP registry works only when the lock explicitly selects
+`insecure-http`; changing the image reference to a loopback alias is rejected because
+it changes the recorded OCI identity. Each certification keeps a sibling
+`*.transcript.log`, including partial output from a failed or timed-out GPU launch.
 
 ## Definition Of Done
 

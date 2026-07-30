@@ -44,6 +44,7 @@ members = [
     "servers/view-mcp",
     "showcase/sumo/sumo-mcp",
     "testing/smoke",
+    "tools/image-build/control",
     "tools/xtask",
 ]
 resolver = "3"
@@ -159,6 +160,7 @@ vaultrs = { version = "0.8.0", default-features = false, features = ["rustls"] }
 veoveo-mcp-contract = { path = "mcp/contract", default-features = false }
 veoveo-deploy-contract = { path = "deploy/contract" }
 veoveo-extension-contract = { path = "extensions/contract" }
+veoveo-image-build-control = { path = "tools/image-build/control" }
 veoveo-mcp-schema-macros = { path = "mcp/schema-macros" }
 veoveo-task-contract = { path = "mcp/task-contract" }
 veoveo-platform-store = { path = "platform/store" }

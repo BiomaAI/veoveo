@@ -161,13 +161,20 @@ Release certification accepts only digest-addressed registry manifests with
 SBOM and provenance attestations:
 
 ```sh
-cargo run -p veoveo-smoke --bin smoke -- simulation-certify \
+cargo xtask smoke simulation-certify \
+  --deployment-lock "$DEPLOYMENT_LOCK" \
   --base-image "$BASE_REPOSITORY@$BASE_DIGEST" \
   --overlay-image "$OVERLAY_REPOSITORY@$OVERLAY_DIGEST" \
   --overlay-kind first-party-uav \
   --source-revision "$REVISION" \
   --output output/simulation-certification/first-party-uav.result.json
 ```
+
+The overlay extends the canonical base `PYTHONPATH`; it does not duplicate platform or
+Isaac Lab roots. Certification verifies that monotonic environment from the published
+image configurations. The deployment lock authorizes one registry authority and its
+transport for inspection and materialization, and the command preserves a sibling
+transcript on success or failure.
 
 The installation-owned live acceptance deploys the UAV simulator and
 Simulation View independently. It verifies two GPU workloads, exact pose

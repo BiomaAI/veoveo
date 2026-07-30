@@ -94,7 +94,7 @@ RUN PYTHONPATH=/opt/veoveo/uav-python/rerun_sdk:/opt/veoveo/uav-python \
       'import rerun; assert rerun.__version__ == "0.35.0"'
 
 ENV MAVLINK20=1 \
-    PYTHONPATH=/opt/veoveo/uav-sim:/opt/veoveo/uav-python/rerun_sdk:/opt/veoveo/uav-python:/opt/veoveo/simulation-overlay:/opt/veoveo/simulation-base:/isaac-sim/extscache/omni.warp.core-1.13.0+lx64:/isaac-sim/exts/isaacsim.pip.newton/pip_prebundle:/opt/veoveo/python:/opt/veoveo/isaaclab/source/isaaclab:/opt/veoveo/isaaclab/source/isaaclab_newton:/opt/veoveo/isaaclab/source/isaaclab_physx:/opt/veoveo/isaaclab/source/isaaclab_ov:/opt/veoveo/isaaclab/source/isaaclab_ovphysx \
+    PYTHONPATH=/opt/veoveo/uav-sim:/opt/veoveo/uav-python/rerun_sdk:/opt/veoveo/uav-python:/opt/veoveo/simulation-overlay:${PYTHONPATH} \
     ROS_LOG_DIR=/tmp/ros/log \
     UAV_SIM_EXTENSION_DIRECTORY=/opt/veoveo/extensions \
     UAV_SIM_PX4_DIRECTORY=/opt/veoveo/px4
