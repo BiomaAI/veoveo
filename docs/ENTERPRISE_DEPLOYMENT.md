@@ -17,8 +17,8 @@ changing the chart, image, configuration, or Secret contracts.
 | OCI Distribution Specification | authenticated private image, chart, SBOM, provenance, schema, and evidence distribution |
 | Helm and Kubernetes | separately reconciled platform and extension application charts |
 | `veoveo.io/extension-release/v1` | independently published extension image, chart, fragment, conformance, and source identity |
-| `veoveo.io/deployment/v2` | repository-development source publication and typed platform-selection profile |
-| `veoveo.io/deployment-lock/v2` | immutable evidence from the repository-development publication flow |
+| `veoveo.io/deployment/v3` | optional repository-development publication profile with exact platform selection and installation-owned Helm values |
+| `veoveo.io/deployment-lock/v3` | immutable installation and source evidence from the repository-development publication flow |
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned hosted-server contribution |
 | `veoveo.io/gateway-binding/v1` | installation-owned exposure, tenant, producer, and authorization policy |
 | `veoveo.io/compatibility-manifest/v1` | supported SDK, chart library, standalone tools, schemas, and optional simulation tuple |
@@ -94,21 +94,23 @@ An internal development registry may explicitly enable plain HTTP. A fielded reg
 uses TLS, authentication, immutable tags, retention policy, and vulnerability scanning
 supplied by the installation owner.
 
-Veoveo's repository-local profile publisher remains available for development and
-source-publication acceptance. It is documented in
+Veoveo's profile publisher remains available for development and source-publication
+acceptance. The profile may live in a separate installation repository without making
+`xtask` part of the fielded runtime or GitOps contract. It is documented in
 [`LOCAL_DEPLOYMENT_PROFILES.md`](LOCAL_DEPLOYMENT_PROFILES.md) and is not required in an
 installation repository.
 
 Direct group publication remains available to Veoveo release pipelines. A Veoveo-backed
 extension platform uses `external-extension-platform`; the canonical simulation base
 and overlays use their dedicated groups. The simulation image group is an ABI and GPU
-certification boundary, not proof that Frames, Map, Media, or RRD services were
-installed. The installation's typed chart selection and composed gateway requirements
-supply that proof.
+certification boundary, not proof that Frames, Map, Media, Optimization, or RRD
+services were installed. The installation's typed chart selection and composed gateway
+requirements supply that proof.
 
 The canonical simulation runtime is a separate build dependency because UAV and
 external simulator overlays consume it as a named build context. The deployment
-profile selects all required groups and records their combined immutable closure.
+profile derives the exact required platform targets and records their combined
+immutable closure.
 
 ## Configuration repository
 

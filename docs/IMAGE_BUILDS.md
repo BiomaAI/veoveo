@@ -62,9 +62,11 @@ not a supported Rust build command.
 
 The managed builder is named `veoveo`. Commands always pass that name explicitly and do
 not change Docker's globally selected builder. `ensure` creates a missing builder and
-fails when an existing one has a different driver, BuildKit image, daemon version, or
-configuration. A checked-in configuration change is applied while retaining the
-builder's state:
+fails when an existing one has a different driver, BuildKit image, or daemon version.
+Profile publication generates the exact registry stanza from the profile's address and
+transport. A configuration change recreates only the builder definition with
+`--keep-state`, preserving the worker cache. The explicit maintenance command restores
+the checked-in base configuration:
 
 ```bash
 cargo xtask image builder reconfigure --confirm veoveo
@@ -83,22 +85,27 @@ All linked worktrees, including the publication worktree, resolve that same bina
 Buildx state through Git's common directory. Docker credentials remain in the
 operator's ordinary Docker configuration.
 
-The builder runs the digest-pinned BuildKit 0.31.2 image. Its checked-in daemon
-configuration preserves source-local and Cargo cache mounts for seven days. The
+The builder runs the digest-pinned BuildKit 0.31.2 image. Its checked-in base daemon
+configuration contains no registry hostname. An `insecure-http` profile adds only its
+selected registry stanza in a content-addressed generated file; a `tls` profile uses
+the base configuration and host trust roots. The configuration preserves source-local
+and Cargo cache mounts for seven days. The
 filtered and general policies both retain at least 240 GB, begin collection above
 320 GB, and protect 80 GB of host free space. A filtered policy's space trigger applies
 to total worker usage, not merely the records selected by its filter; using a lower
 trigger there would evict Cargo cache mounts before the general image-lineage limit.
 These bounds accommodate the simultaneous Isaac, DeepStream, and ordinary Rust image
 lineages used by the acceptance suite. `status` verifies the driver, daemon version,
-image digest, and configuration digest. A configuration change fails closed until the
-operator invokes the state-preserving reconfiguration command or the destructive
-recreation command.
+image digest, and reports the active configuration digest. Image operations hold one
+shared builder lease across configuration and execution, preventing linked worktrees
+from changing the daemon underneath another build.
 
 ## Release Publication
 
-A release resolves one full commit and holds an exclusive lock while it moves the
-tool-owned publication worktree, plans every phase, and pushes the result.
+A direct release resolves one source commit. A profile release resolves the profile's
+installation-repository commit and every independently selected source commit. It holds
+each tool-owned publication worktree lock and the shared builder lease while planning
+and pushing the result. The profile path may be in another Git worktree.
 
 ```bash
 cargo xtask release images \
@@ -137,8 +144,9 @@ output mode, start time, duration, exit status, and metadata filename. The Build
 contains the exporter result and attested publication-index digests reported by
 BuildKit. A failed execution also retains its plan and terminal record. Publication
 inspects the immutable `repository@publicationDigest` coordinate through ordinary
-Docker registry authentication. A repository-declared local registry permits the
-insecure loopback transport used by k3d; private and production registries remain
+Docker registry authentication. A profile may explicitly admit `insecure-http` for a
+private development registry at its configured address. Direct publication admits that
+transport only for a loopback registry. Private production registries remain
 TLS-verified.
 
 Image execution sets `SOURCE_DATE_EPOCH=0`. Registry publication rewrites timestamps,
@@ -236,7 +244,9 @@ requires a distinct typed family.
 The deployment contract resolves an exact Veoveo image set from typed platform
 components, selected MCP servers, and composed gateway requirements. Profile validation
 and profile publication compare that set with the resolved Bake targets before any
-build or push.
+build or push. The platform source declares no image group. Publication passes all
+required targets to one Bake invocation, rejects missing and unnecessary platform
+targets, and lets Bake share dependency and Rust-family work across the selection.
 
 The `external-extension-platform` group contains the platform-side Artifact, Frames,
 Map, Media, Recording, and RRD transport images:
@@ -259,8 +269,9 @@ cargo xtask image build --group showcase-uav-sim-overlay-acceptance
 
 It builds the canonical base, the first-party UAV overlay, and the anonymous overlay.
 It does not claim platform integration. A deployment profile that selects the
-simulation extension and Frames, Map, Media, or RRD must also select Bake groups whose
-resolved targets satisfy the platform image closure.
+simulation extension and Frames, Map, Media, Optimization, or RRD derives those
+platform targets from the typed selection. Extension and workload image groups cannot
+satisfy or enlarge platform closure.
 
 ## External Repositories
 
@@ -286,7 +297,7 @@ through private DNS, an internal network, or a VPN.
 
 The current delivery includes the source-local planner, private Python SDK, standalone
 conformance distribution, gateway composer, Helm library, compatibility release
-generator, named-source deployment v2 coordination, platform-image closure
+generator, named-source deployment v3 coordination, exact platform-image closure
 enforcement, and paired hardware simulation-overlay certification.
 
 Multi-source composition passes an explicit source context and immutable artifact

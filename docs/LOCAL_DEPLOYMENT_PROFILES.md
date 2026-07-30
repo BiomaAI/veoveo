@@ -10,10 +10,10 @@ The current complete profile is the SUMO development environment:
 | Concern | Canonical owner |
 |---|---|
 | Image definitions and reusable groups | docker-bake.hcl |
-| Local image destination | k3d-veoveo-registry.localhost:5001/veoveo/image:git-sha |
+| Local image destination | Profile-selected registry host and port with revision-addressed image tags |
 | Platform workload graph | deploy/helm/veoveo |
 | Showcase workload graph | Its adjacent Helm chart |
-| Development composition | A `veoveo.io/deployment/v2` named-source JSON profile |
+| Development composition | A `veoveo.io/deployment/v3` installation-repository JSON profile |
 | Local registry lifecycle | deploy/local/k3d/registry.json |
 
 ## Workflow
@@ -30,7 +30,6 @@ REVISION=$(git rev-parse HEAD)
 
 cargo xtask smoke profile-validate --profile "$PROFILE"
 cargo xtask smoke profile-cluster-up --profile "$PROFILE"
-cargo xtask image builder ensure
 cargo xtask release images \
   --profile "$PROFILE" \
   --profile-revision "$REVISION" \
@@ -38,10 +37,16 @@ cargo xtask release images \
 cargo xtask smoke profile-up --profile "$PROFILE" --lock "$LOCK"
 ~~~
 
-BuildKit pushes images directly to the shared local OCI registry. It does not load
-release images into the host Docker image store. Ordered image groups publish a
-heavyweight shared base before targets that consume it, while independent targets in
-one group build concurrently.
+BuildKit pushes images directly to the profile-selected OCI registry. It does not load
+release images into the host Docker image store. The publisher configures the managed
+builder from `registry.address` and `registry.transport`; an insecure development
+registry may use any declared host port. A transport change preserves the builder state
+and its cache.
+
+The exact typed platform closure runs as one multi-target Bake invocation. Bake retains
+the shared dependency graph and Cargo family consolidation inside that invocation.
+Workload and extension sources publish their repository-owned groups as separate
+phases.
 
 Each compatible Rust family compiles its selected binaries in one Cargo invocation.
 Target caches derive from source identity, builder family, platform, and profile.
@@ -54,11 +59,15 @@ paths resolve inside that source's exact checkout. The fields are:
 
 | Field | Meaning |
 |---|---|
-| schemaVersion | `veoveo.io/deployment/v2` |
+| schemaVersion | `veoveo.io/deployment/v3` |
 | name | Stable local environment identity |
 | registry.address | OCI host and port |
+| registry.transport | `tls` or explicitly admitted `insecure-http` |
 | registry.localConfig | Shared k3d registry definition |
-| sources | Named repositories with explicit platform or extension ownership, independent revisions, image groups, and releases |
+| sources | Named repositories with `platform`, `workload`, or `extension` ownership and independent revisions |
+| sources[].imageGroups | Ordered source-owned phases for workload and extension sources; prohibited on the platform source |
+| sources[].releases[].sourceValues | Helm values resolved from the exact source checkout |
+| sources[].releases[].installationValues | Later Helm overrides resolved from the installation repository |
 | kubernetes.context | Explicit kubectl and Helm context |
 | kubernetes.localCluster | k3d configuration and node bootstrap manifests |
 | namespace | Namespace for local resources |
@@ -69,26 +78,34 @@ paths resolve inside that source's exact checkout. The fields are:
 | gatewayRequirements | Composer outputs that the selected runtime must satisfy |
 | waitForDeployments | Extra rollout gates |
 
-`cargo xtask release images --profile` resolves every source revision independently.
-It resolves the complete source-qualified image plan before pushing, rejects duplicate
-repository/tag references, and accepts platform-image closure only from the single
-`platform` source. It then publishes each source's Bake groups under that revision and writes one
-`veoveo.io/deployment-lock/v2` document with source repositories, exact revisions,
-image manifest digests, chart-content digests, and the expanded platform graph.
+`cargo xtask release images --profile` accepts a profile inside another Git repository.
+`--profile-revision` names that installation repository's exact commit. The command
+requires the checked-out profile and every referenced installation input to match that
+commit, then resolves each source revision independently.
 
-`cargo xtask smoke profile-up` requires that lock. It checks out each source at the
-recorded revision, verifies its origin, selected Bake repositories, and source-chart
-archive digest, then passes the source-owned digest map to Helm in production mode.
-Installation never re-resolves `HEAD`, a branch, or another mutable source expression.
+The publisher derives only the required platform targets, rejects missing or
+unnecessary platform images and duplicate repository/tag references, and executes the
+platform set once. Workload and extension groups remain source-owned. It writes one
+`veoveo.io/deployment-lock/v3` document with the installation revision, registry
+transport, source repositories and revisions, image manifest digests, chart-content
+digests, and expanded platform graph.
+
+`cargo xtask smoke profile-up` requires that lock. It verifies the installation
+revision and referenced profile files, checks out each source at the recorded revision,
+and verifies its origin, exact Bake repositories, and source-chart archive digest. Helm
+receives source values followed by installation-owned overrides and the source-owned
+digest map in production mode. Installation never re-resolves `HEAD`, a branch, or
+another mutable source expression.
 
 The `extension-foundation` preset selects the gateway, platform store, object store,
 artifact service, Artifact MCP, Frames MCP, and Recording MCP/hub. A custom selection
 can add Map and Media. If a gateway fragment requires either capability and the
-corresponding server is absent, profile validation fails before Helm runs. `rrd`
+corresponding server is absent, profile validation fails before Helm runs.
+`optimization` requires Optimization MCP and the cuOpt GPU executor. `rrd`
 requires the Recording MCP and hub because that runtime owns governed RRD playback,
 and adds `recording-forwarder` to the required image closure for producer-side
-transport. Profile validation and publication reject Bake groups that omit a required
-target.
+transport. Profile validation and publication reject a platform selection that omits a
+required target or introduces an unnecessary one.
 
 Secret values pass to Kubernetes over stdin. The JSON file contains environment
 variable names, not bytes. This mechanism is confined to local development; enterprise
@@ -96,9 +113,10 @@ Secrets are projected by the owner's secret-management platform.
 
 ## Registry and GPU
 
-One standalone OCI Distribution registry serves all local k3d clusters at host port
-5001. Nodes pull missing layers into their containerd store through the registry.
-Deleting a cluster leaves the shared registry volume intact.
+One standalone OCI Distribution registry may serve several local k3d clusters. Its host
+port comes from `registry.address` and the matching local registry declaration; it is
+not a Veoveo constant. Nodes pull missing layers into their containerd store through
+the registry. Deleting a cluster leaves the shared registry volume intact.
 
 A profile applies the NVIDIA device-plugin bootstrap and waits for allocatable
 nvidia.com/gpu capacity. The local workflow fails before application installation
@@ -119,6 +137,6 @@ cargo xtask smoke profile-cluster-delete --profile "$PROFILE"
 ~~~
 
 A new local showcase may add an image group and adjacent Helm chart, then select those
-surfaces from a profile. A fielded installation may keep deployment v2 selection in its
-private configuration repository, but it consumes published OCI artifacts rather than
-building from a checkout inside the cluster.
+surfaces through a `workload` source. A fielded installation may keep deployment v3
+selection in its private configuration repository, but it consumes published OCI
+artifacts rather than building from a checkout inside the cluster.

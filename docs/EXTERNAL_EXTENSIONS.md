@@ -17,8 +17,8 @@ It joins an installation through versioned artifacts and installation-owned comp
 | `veoveo.io/extension-release/v1` | immutable extension source, artifact, fragment, chart, conformance, and optional runtime-overlay declaration |
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned hosted-server declaration |
 | `veoveo.io/gateway-binding/v1` | installation-owned exposure and authorization declaration |
-| `veoveo.io/deployment/v2` | repository-development profile for source-qualified local publication and platform selection |
-| `veoveo.io/deployment-lock/v2` | immutable evidence emitted by that repository-development publication flow |
+| `veoveo.io/deployment/v3` | optional repository-development profile with installation-owned values, exact platform publication, and configurable private-registry transport |
+| `veoveo.io/deployment-lock/v3` | immutable installation revision and source evidence emitted by that repository-development publication flow |
 | `veoveo.io/simulation-runtime-build-lock/v1` | exact canonical Isaac simulation-base inputs and GPU requirements |
 | `veoveo.io/simulation-conformance-result/v1` | hardware result for one immutable simulator overlay and base |
 | `veoveo.io/simulation-runtime-release-evidence/v1` | paired first-party and anonymous-overlay evidence published through private OCI |
@@ -195,10 +195,12 @@ gateway-compose \
 `extensions/examples` prove the same workflow without a source dependency or a
 customer identity.
 
-Deployment v2 remains a Veoveo repository-development facility. It accepts one explicit
-platform source and independently versioned extension sources, resolves the complete
-source-qualified Bake plan, and rejects target or repository/tag collisions before
-publication. `cargo xtask release images --profile` emits a combined lock for that
+Deployment v3 remains an optional repository-development facility. Its profile may
+reside in an installation repository, where the installation owns registry transport,
+Helm overrides, and the exact profile revision. It derives the minimal platform target
+set, accepts independently versioned workload and extension sources, and rejects
+missing, unnecessary, duplicate, or colliding image identities before publication.
+`cargo xtask release images --profile` emits a combined lock for that
 source-publication workflow.
 
 A fielded installation does not clone those sources or run Veoveo `xtask`. Its coding
@@ -216,19 +218,22 @@ requirements together.
 The `extension-foundation` preset contains the platform foundation plus Artifact MCP,
 Frames MCP, and Recording MCP. The chart owns each first-party workload definition;
 installations select typed component and server names instead of reproducing
-Deployments. Custom selections can add Map and Media.
+Deployments. Custom selections can add Map, Media, and Optimization.
 
-Gateway requirements are evaluated before Helm. `artifact`, `frames`, `map`, and
-`media` each require the corresponding MCP server. `recording` and `rrd` require the
-Recording MCP and hub. Artifact audiences declared by composition must appear in the
-installation's admitted audience set.
+Gateway requirements are evaluated before Helm. `artifact`, `frames`, `map`, `media`,
+and `optimization` each require the corresponding MCP server. Optimization also
+requires the GPU cuOpt executor. `recording` and `rrd` require the Recording MCP and
+hub. Artifact audiences declared by composition must appear in the installation's
+admitted audience set.
 
 The same resolution produces the required Veoveo image closure. An RRD capability adds
 the producer-side `recording-forwarder`; Recording adds `recording-hub` and
-`recording-mcp`. Profile validation and publication fail before a build or push when
-the selected Bake groups omit any required image. `external-extension-platform`
-selects Artifact, Frames, Map, Media, Recording, and RRD transport as independently
-versioned images. None of those services is copied into an extension image.
+`recording-mcp`. Optimization adds `optimization-mcp` and `cuopt-executor`. Profile
+validation and publication derive the exact platform targets and fail before a build or
+push when an image is missing or unnecessary. `external-extension-platform` remains a
+convenient direct-build group for Artifact, Frames, Map, Media, Recording, and RRD
+transport. Profiles do not use it as a second source of selection truth. None of those
+services is copied into an extension image.
 
 The anonymous installation fixture exercises this closure without a customer identity:
 

@@ -57,7 +57,6 @@ cargo xtask smoke profile-validate --profile "$PROFILE"
 cargo xtask smoke profile-cluster-up --profile "$PROFILE"
 docker exec k3d-anonymous-simulation-server-0 \
   sysctl -w fs.inotify.max_user_instances=1024
-cargo xtask image builder ensure
 cargo xtask release images \
   --profile "$PROFILE" \
   --profile-revision "$REVISION" \
@@ -69,9 +68,11 @@ The fixture raises the running node's nonpersistent inotify instance ceiling bec
 one workstation may host several independent k3d clusters. Fielded hosts set an
 equivalent persistent ceiling through their normal node configuration.
 
-`profile-up` consumes the combined lock explicitly. It checks out every source at the
-locked revision, verifies the source-owned image and chart closure, and supplies only
-digest-addressed images to Helm. It never resolves the profile's moving source
+Profile publication configures the managed builder for the fixture registry and derives
+the exact platform image targets. `profile-up` consumes the combined lock explicitly.
+It verifies the installation revision and installation-owned values, checks out every
+source at the locked revision, verifies the source-owned image and chart closure, and
+supplies only digest-addressed images to Helm. It never resolves moving source
 expressions again during installation. Each image entry separates the stable runnable
 platform-manifest `digest` from the `publicationDigest` whose OCI index carries that
 release invocation's SPDX SBOM and SLSA provenance.

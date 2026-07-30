@@ -106,7 +106,7 @@ Hub, administration, and GPU policy.
 | `configs/stream/` | admitted GStreamer graph, typed profile, TensorRT model, and live-ingress catalog example |
 | `configs/reason/` | world-model checkpoint reason catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
-| `deploy/contract/` | multi-source deployment v2 profiles and locks, explicit platform/extension source ownership, source-qualified image closure, collision-free publication preflight, local registry declarations, schema generation, and pure validation |
+| `deploy/contract/` | multi-source deployment v3 profiles and locks, platform/workload/extension ownership, exact platform-image closure, split source/installation Helm values, typed registry transport, collision-free publication preflight, schema generation, and pure validation |
 | `extensions/contract/` | typed external artifact, compatibility-manifest, extension-release, simulation build-lock/result/evidence, and schema contracts |
 | `extensions/examples/` | anonymous external fragment and installation-binding examples |
 | `deploy/local/k3d/` | GPU-capable local Kubernetes cluster and values |
@@ -129,13 +129,13 @@ Hub, administration, and GPU policy.
 | `sdk/python/` | Python platform package for hosted MCP servers |
 | `templates/python-mcp/` | canonical Python server template (`datasheet`) |
 | `testing/fixtures/extension-helm-consumer/` | anonymous cross-release Helm library acceptance fixture |
-| `testing/fixtures/external-extension-installation/` | anonymous deployment v2 platform selection and exact Artifact/Frames/Map/Media/Recording/RRD image-closure acceptance |
+| `testing/fixtures/external-extension-installation/` | anonymous deployment v3 platform selection and exact Artifact/Frames/Map/Media/Recording/RRD image-closure acceptance |
 | `testing/fixtures/external-simulation-extension/` | isolated Python extension fixture that publishes governed OpenUSD assets and typed latest poses while consuming core Simulation View |
 | `testing/fixtures/external-simulation-installation/` | independent platform/extension source composition, exact Simulation View image closure, installation-owned gateway binding, and exclusive renderer GPU placement |
 | `deploy/contract/tests/multi_repository.rs` | anonymous acceptance using independent platform, extension, and installation Git histories with one combined deployment lock |
 | `testing/fixtures/simulation-overlay/` | repository-neutral overlay identity and CUDA probe for canonical simulation-base acceptance |
-| `tools/image-build/` | managed BuildKit configuration, shared Rust builder inputs, and the source-locked first-party Datasheet image environment |
-| `tools/xtask/` | compiled repository command, enforcement, typed smoke prerequisite builds and dispatch, image planning, and release orchestration |
+| `tools/image-build/` | registry-neutral managed BuildKit base configuration, shared Rust builder inputs, and the source-locked first-party Datasheet image environment |
+| `tools/xtask/` | compiled repository command, enforcement, typed smoke prerequisite builds and dispatch, exact image planning, profile-registry builder configuration, and release orchestration |
 
 ## Placement Rules
 
@@ -490,7 +490,7 @@ provenance, and DuckDB persistence.
 | `servers/optimization-mcp/src/executor/` | private bounded Unix-socket protocol and Rust client |
 | `servers/optimization-mcp/executor/` | pinned Python cuOpt 26.06 GPU adapter and hardware health check |
 | `servers/optimization-mcp/src/bin/server/` | MCP tasks, GPU queue, problem/run/solution resources, artifact publication, prompts, and identity |
-| `deploy/contract/src/lib.rs` | Optimization image closure and mandatory `cuopt-executor` GPU scheduling declaration |
+| `deploy/contract/src/lib.rs` | portable Optimization capability, exact Optimization image closure, and mandatory `cuopt-executor` GPU scheduling declaration |
 | `deploy/helm/veoveo/definitions/domain-services.yaml` | single Optimization Pod, CPU control container, one-GPU cuOpt sidecar, shared socket, memory-backed shared memory, and persistent workspace |
 | `examples/bioma/images.lock.yaml` | immutable Bioma release digests for both Optimization control and cuOpt executor images |
 | `testing/smoke/src/bin/smoke/scenarios/agent_kernel.rs` | full Pilot mission flow through gateway task dispatch, cuOpt MILP execution, independent verification, wake delivery, and durable memory |

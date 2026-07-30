@@ -29,8 +29,8 @@ profiles:
 | `veoveo.io/image-build-run/v1` | internal immutable record of an image execution, its output mode, elapsed time, result, and Buildx metadata reference |
 | Model Context Protocol | public server protocol governed by `mcp/contract/DESIGN.md`; the current Streamable HTTP verification uses protocol version `2025-11-25` and only claims the repository profile defined there |
 | JSON Schema 2020-12 | canonical MCP tool-input and controlled configuration schemas |
-| `veoveo.io/deployment/v2` | repository-development profile for independently resolved source revisions, source-owned images and charts, gateway requirements, and typed platform selection |
-| `veoveo.io/deployment-lock/v2` | immutable combined evidence emitted by repository-development source publication |
+| `veoveo.io/deployment/v3` | repository-development profile for independently resolved sources, exact platform targets, installation-owned Helm values, and typed registry transport |
+| `veoveo.io/deployment-lock/v3` | immutable installation revision and combined source evidence emitted by repository-development publication |
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned declaration of one hosted server's protocol surface and platform requirements |
 | `veoveo.io/gateway-binding/v1` | installation-owned declaration of exposure, authorization, tenant, policy, and producer bindings |
 | Offline bundle schema version 1 | repository-owned image and payload integrity contract |
@@ -105,9 +105,9 @@ their hard-cut boundary:
 |---|---|
 | P0.2 xtask foundation | delivered for `doctor`, canonical Rust enforcement, typed Rust smoke dispatch, image planning, builder management, and image release; later deployment, bundle, documentation, and hook commands remain planned |
 | Justfile hard cut | delivered; documented workflows use `cargo xtask`, the typed Rust smoke harness, or a clear one-step native command, with no compatibility aliases |
-| P0.4 publication inputs | delivered through a locked persistent worktree, exact commit resolution, source-local profile loading, metadata-preservation tests, and the `docs/` context exclusion |
+| P0.4 publication inputs | delivered through locked persistent worktrees, exact source and installation commit resolution, installation-input fingerprint checks, metadata-preservation tests, and the `docs/` context exclusion |
 | P1.5 internal image graph | delivered for the initial `linux/amd64` families, including consolidated trixie and bookworm Cargo actions, typed cache identities, managed Buildx and BuildKit, reproducible output timestamps, and immutable execution evidence |
-| External repository flow | Python SDK distributions, domain-neutral native/OCI conformance and gateway composition, typed artifact contracts, the private extension Helm library, compatibility bundle generation, an agent-run external integration procedure, typed platform selection, source-role-qualified local publication, anonymous multi-repository contract acceptance, and canonical simulation-overlay certification are delivered |
+| External repository flow | Python SDK distributions, domain-neutral native/OCI conformance and gateway composition, typed artifact contracts, the private extension Helm library, compatibility bundle generation, an agent-run external integration procedure, portable Optimization requirements, typed platform selection, installation-owned values, exact source-role-qualified publication, configurable private-registry transport, anonymous multi-repository contract acceptance, and canonical simulation-overlay certification are delivered |
 
 The normative operating contract is
 [`IMAGE_BUILDS.md`](IMAGE_BUILDS.md). Measured acceptance belongs in
@@ -306,7 +306,7 @@ evidence types still carry an explicit source root, resolved revision, artifact
 coordinate, image digest, and chart identity. They do not rely on one global `HEAD`, one
 image tag, or one chart root.
 
-Deployment v2 applies that constraint to named sources. Each source resolves its own
+Deployment v3 applies that constraint to named sources. Each source resolves its own
 revision, chart artifact, image lock, gateway fragment, compatibility manifest, and
 release evidence. Installation status reports the source revision, Helm release, and
 image digest independently. Local development may materialize one detached worktree per
@@ -320,7 +320,7 @@ its Cargo workspace, builder families, cache namespace, and release evidence in 
 repository. Installation composition consumes immutable image coordinates and digests;
 it does not combine external packages into the Veoveo workspace builder.
 
-The deployment v2 release resolver coordinates several explicit source contexts. It
+The deployment v3 release resolver coordinates several explicit source contexts. It
 treats each source revision as an independent graph and never creates one universal
 package list.
 
@@ -462,8 +462,8 @@ standalone conformance, contributes a server fragment, and joins an installation
 without editing Veoveo or hand-authoring a complete gateway document. A coding-agent
 runbook coordinates those existing artifacts and standard tools without adding a
 Veoveo deployment wrapper. Repository-development validation and image publication
-reject a selected platform whose Bake groups omit Artifact, Frames, Map, Media,
-Recording, or RRD transport images.
+derive an exact platform target set and reject missing or unnecessary Artifact, Frames,
+Map, Media, Optimization, Recording, or RRD transport images.
 
 ## Enforcement Layers
 
@@ -692,7 +692,7 @@ Clippy, rustfmt, Ruff, ESLint, Cargo dependency tools, Helm, Docker, protocol
 conformance, or smoke lifecycle behavior.
 
 Process and evidence APIs receive an explicit source context. An individual image
-command uses one source, while deployment v2 coordinates several such contexts. No
+command uses one source, while deployment v3 coordinates several such contexts. No
 command assumes that repository root, current revision, image tag, and chart root are
 universal installation identities.
 
@@ -1050,11 +1050,13 @@ release evidence.
 
 Deployment profiles add a second graph invariant. The typed platform selection and
 gateway requirements resolve the exact Veoveo-owned OCI image closure. Validation and
-profile publication compare that closure with the selected Bake targets before building
-or pushing. `external-extension-platform` is the canonical group for Artifact, Frames,
-Map, Media, Recording, and producer-side RRD transport. These images remain separate
-services; the group coordinates their publication and never copies them into an
-extension or simulation image.
+profile publication derive that closure as one multi-target Bake invocation before
+building or pushing. The platform source has no handwritten image group, and validation
+rejects both omitted and unnecessary targets. `external-extension-platform` remains a
+convenient direct-build group for Artifact, Frames, Map, Media, Recording, and
+producer-side RRD transport. It is not a second profile-selection authority. These
+images remain separate services and are never copied into an extension or simulation
+image.
 
 #### Canonical Build Inputs
 
@@ -1120,8 +1122,9 @@ overlay.
 
 Image commands use a named `docker-container` Buildx builder called `veoveo`; they never
 change the operator's global builder selection. The builder uses a digest-pinned stable
-BuildKit image and a checked-in daemon configuration for the canonical loopback
-development registry. `xtask` passes `--builder veoveo` explicitly.
+BuildKit image and a checked-in registry-neutral daemon configuration. Profile
+publication derives an exact registry stanza from the typed address and transport.
+`xtask` passes `--builder veoveo` explicitly.
 
 Buildx is exact. The command accepts an exact host plugin. On supported Linux hosts it
 can download the official release into the main worktree's ignored `target` directory
@@ -1130,11 +1133,13 @@ and its isolated Buildx state identical from every linked worktree. Docker crede
 remain in the operator's normal configuration.
 
 The command creates and bootstraps a missing builder. An existing builder with the
-wrong driver, image, daemon version, or configuration fails validation. The checked-in
+wrong driver, image, or daemon version fails validation. A registry-configuration
+change recreates the builder definition under one shared lease with `--keep-state`,
+which retains the worker cache across profiles and worktrees. The checked-in
 BuildKit garbage-collection policy retains source-local and Cargo cache mounts long
 enough for the incremental workflow and applies explicit reserved, maximum, and
 free-space bounds. `image builder reconfigure --confirm veoveo` applies a checked-in
-configuration revision while retaining BuildKit state. Only
+base configuration while retaining BuildKit state. Only
 `image builder recreate --confirm veoveo` may remove an incompatible builder and its
 cache.
 
@@ -1160,9 +1165,10 @@ resolved commit. Git updates changed paths and preserves unchanged path metadata
 tool never removes a healthy publication worktree after a build and never silently
 resets, cleans, or recreates corrupt state.
 
-An in-repository deployment profile is loaded from the selected revision, not from a
-different checkout. Every Bake path and Docker context resolves inside the locked
-publication source.
+A deployment profile may live in the invoking repository or a separate installation
+repository. It is loaded from that repository's selected revision, and every referenced
+installation input must match the same commit. Each Bake path and Docker context
+resolves inside its independently locked source publication.
 
 #### Initial Builder Families
 
@@ -1500,8 +1506,8 @@ The plan is complete when all of the following statements hold:
   collisions regardless of how the document was authored.
 - Deployment and gateway configuration fail typed enforcement when component, source,
   artifact, or workload relationships diverge.
-- Deployment validation and publication reject a selected platform when its Bake groups
-  omit any required platform or RRD transport image.
+- Deployment validation and publication derive one exact platform target set and reject
+  any missing or unnecessary platform or RRD transport image.
 - Image publication materializes one exact committed source revision without resetting
   unchanged path metadata on every run.
 - A selected image graph produces at most one Cargo build action for each compatible
