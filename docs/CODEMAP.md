@@ -196,11 +196,11 @@ protocol tooling.
 | `schema.rs` | canonical self-contained JSON Schema 2020-12 generation for Rust MCP tool inputs |
 | `storage.rs` | artifact metadata, release state, compliance labels |
 | `gateway.rs` | gateway control-plane aggregate and public re-exports |
-| `gateway/ids.rs` | validated identity and configuration newtypes |
+| `gateway/ids.rs` | validated identity and configuration newtypes, including bounded principal display metadata that never participates in authorization |
 | `gateway/auth_config.rs` | IdP, authorization server, OAuth client surfaces |
 | `gateway/server_config.rs` | hosted server and profile exposure contracts, including exact cross-server App resource dependencies |
 | `gateway/policy.rs` | actions, targets, rules, effects, audit reason model |
-| `gateway/runtime_state.rs` | durable auth/runtime record contracts |
+| `gateway/runtime_state.rs` | durable auth/runtime record contracts, including display metadata continuity across authorization-code and refresh grants |
 | `gateway/validation.rs` | fail-closed cross-reference and invariant validation |
 | `gateway/composition.rs` | typed external server fragments, installation bindings, deterministic pure composition, requirements, and provenance |
 | `internal_auth.rs` | Ed25519 signing keys, JWKS trust, internal issuer/verifier |
@@ -301,7 +301,7 @@ The runtime is the source of truth. The extension is transport only.
 |---|---|
 | `catalog.rs` | validated active catalog and profile/server lookup |
 | `control_store.rs` | immutable SurrealDB control revisions and activation |
-| `auth/` | access tokens, OIDC, ID-JAG, client assertions, principals |
+| `auth/` | access tokens, OIDC, ID-JAG, client assertions, immutable principals, and independently typed OIDC display labels |
 | `policy.rs` | policy evaluation entrypoint |
 | `mcp_support.rs` | MCP URI projection, including declared cross-server resource identities |
 | `mcp/authorization.rs` | per-method/profile/server target authorization |
@@ -313,7 +313,7 @@ The runtime is the source of truth. The extension is transport only.
 | `mcp/upstream*.rs` | authenticated Streamable HTTP, session-local protocol state, and catalog-revision-scoped sharing of transport-equivalent HTTP/TLS clients |
 | `state/audit.rs` | durable policy/audit evidence |
 | `state/auth_state.rs` | durable OAuth authorization and replay state |
-| `state/refresh_tokens.rs` | refresh family issue/rotate/replay/revoke/GC |
+| `state/refresh_tokens.rs` | refresh family issue/rotate/replay/revoke/GC plus signed-in display-label continuity |
 | `state/subscriptions.rs` | durable subscription ownership and forwarding |
 | `secrets.rs` | secret-source models and environment/file/Vault resolution |
 
@@ -327,7 +327,7 @@ The runtime is the source of truth. The extension is transport only.
 | `admin/control_plane.rs` | control revision read/update |
 | `admin/tasks.rs` | policy-checked cancellation through owning task extension |
 | `admin/artifacts.rs` | release/grant/link mutations through artifact service |
-| `admin/console/mod.rs` | console snapshot handler, branding, stream cursor bootstrap |
+| `admin/console/mod.rs` | console snapshot handler, signed-in user label projection, branding, stream cursor bootstrap |
 | `admin/console/projection.rs` | tenant projection load and per-entity summary builders |
 | `admin/console/stream.rs` | live console SSE: LIVE wake hub, changefeed replay, tenant filtering, limits |
 | `admin/console/health.rs` | background MCP server health prober and cache |

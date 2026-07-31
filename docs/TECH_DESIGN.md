@@ -378,6 +378,12 @@ against its schema. It describes the OIDC issuer, JWKS, claim mapping, tenant ma
 authorization endpoints, clients, profiles, scopes, server exposure, and policy rules.
 Keycloak is used for real integration tests; Entra is shown in the Bioma example.
 
+Interactive login derives a bounded display label from the verified OIDC `name`,
+`preferred_username`, or `email` claim in that order. The stable subject supplies a
+compact fallback. This label travels beside the immutable principal through the
+authorization code, signed access token, and rotating refresh grant. It never replaces
+issuer, subject, principal id, tenant, Work Context membership, or any policy input.
+
 The gateway supports:
 
 - protected-resource and authorization-server metadata;
@@ -438,6 +444,10 @@ browser's authentication bootstrap. Catalog and live-stream requests begin only 
 that bootstrap succeeds. Every unauthorized response enters one shared, non-retrying
 login transition, which prevents parallel API failures from starting competing OAuth
 flows.
+
+The snapshot always includes the signed-in display label. The Console topbar renders it
+directly and keeps the canonical principal id in the account tooltip for operational
+diagnostics.
 
 Recording playback remains inside this boundary. The BFF exposes authorized same-origin
 manifest and bounded-live routes, while the gateway evaluates the canonical
