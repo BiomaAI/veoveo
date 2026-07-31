@@ -12,9 +12,9 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 /// Canonical multi-source deployment profile.
-pub const PROFILE_SCHEMA: &str = "veoveo.io/deployment/v3";
+pub const PROFILE_SCHEMA: &str = "veoveo.io/deployment/v4";
 /// Canonical immutable multi-source deployment lock.
-pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.io/deployment-lock/v3";
+pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.io/deployment-lock/v4";
 /// Canonical local OCI registry declaration.
 pub const REGISTRY_SCHEMA: &str = "veoveo.io/local-registry/v1";
 
@@ -37,6 +37,8 @@ pub struct DeploymentProfile {
     /// Resources applied before Helm.
     #[serde(default)]
     pub resources: ResourceSet,
+    /// Optional revisioned gateway document and public trust activation.
+    pub gateway_activation: Option<GatewayActivationSpec>,
     /// Typed first-party platform selection.
     pub platform: PlatformSelection,
     /// Gateway composition requirement documents checked against `platform`.
@@ -205,6 +207,25 @@ pub struct SecretEnvironmentEntry {
     /// Controlled value format.
     #[serde(default)]
     pub format: SecretFormat,
+}
+
+/// Installation-owned gateway document, public trust, and confidential Secret binding.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct GatewayActivationSpec {
+    /// Prefix for the immutable digest-qualified ConfigMap created by `profile-up`.
+    pub config_map_name_prefix: String,
+    /// ConfigMap key and mounted filename of the composed control-plane document.
+    pub control_plane_key: String,
+    /// Installation-repository path to the composed control-plane document.
+    pub control_plane: PathBuf,
+    /// Additional public mounted filename to installation-repository source path.
+    #[serde(default)]
+    pub public_files: BTreeMap<String, PathBuf>,
+    /// Pre-existing Secret containing confidential gateway and identity material.
+    pub confidential_secret: String,
+    /// Exact Secret data keys that must exist before activation.
+    pub required_secret_keys: BTreeSet<String>,
 }
 
 /// Controlled validation applied to a Secret value.
@@ -542,6 +563,15 @@ impl LoadedProfile {
                 .iter()
                 .map(|path| self.resolve(path)),
         );
+        if let Some(activation) = &self.definition.gateway_activation {
+            paths.insert(self.resolve(&activation.control_plane));
+            paths.extend(
+                activation
+                    .public_files
+                    .values()
+                    .map(|path| self.resolve(path)),
+            );
+        }
         paths.extend(
             self.definition
                 .resources
@@ -782,6 +812,52 @@ impl LoadedProfile {
                     "Secret environment name cannot be empty"
                 );
             }
+        }
+        if let Some(activation) = &profile.gateway_activation {
+            validate_name(
+                "gateway activation ConfigMap prefix",
+                &activation.config_map_name_prefix,
+            )?;
+            ensure!(
+                activation.config_map_name_prefix.len() <= 45,
+                "gateway activation ConfigMap prefix must leave room for its digest suffix"
+            );
+            validate_data_key(&activation.control_plane_key)?;
+            require_file(
+                &self.resolve(&activation.control_plane),
+                "gateway activation control plane",
+            )?;
+            ensure!(
+                !activation
+                    .public_files
+                    .contains_key(&activation.control_plane_key),
+                "gateway activation publicFiles must not replace controlPlaneKey {}",
+                activation.control_plane_key
+            );
+            for (key, path) in &activation.public_files {
+                validate_data_key(key)?;
+                require_file(&self.resolve(path), "gateway activation public file")?;
+            }
+            validate_name(
+                "gateway activation confidential Secret",
+                &activation.confidential_secret,
+            )?;
+            ensure!(
+                !activation.required_secret_keys.is_empty(),
+                "gateway activation requiredSecretKeys cannot be empty"
+            );
+            for key in &activation.required_secret_keys {
+                validate_data_key(key)?;
+            }
+            ensure!(
+                !profile
+                    .resources
+                    .secrets
+                    .iter()
+                    .any(|secret| secret.name == activation.confidential_secret),
+                "gateway activation confidential Secret {} must be installation-managed and must not be rewritten by profile resources",
+                activation.confidential_secret
+            );
         }
         for requirements in &profile.gateway_requirements {
             require_file(

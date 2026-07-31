@@ -108,7 +108,7 @@ Hub, administration, and GPU policy.
 | `configs/stream/` | admitted GStreamer graph, typed profile, TensorRT model, and live-ingress catalog example |
 | `configs/reason/` | world-model checkpoint reason catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
-| `deploy/contract/` | multi-source deployment v3 profiles and locks, platform/workload/extension ownership, exact platform-image closure, split source/installation Helm values, typed registry transport, collision-free publication preflight, schema generation, and pure validation |
+| `deploy/contract/` | multi-source deployment v4 profiles and locks, platform/workload/extension ownership, exact platform-image closure, split source/installation Helm values, typed registry transport, collision-free publication preflight, schema generation, and pure validation |
 | `extensions/contract/` | typed external artifact, compatibility-manifest, extension-release, simulation build-lock/result/evidence, and schema contracts |
 | `extensions/examples/` | anonymous external fragment and installation-binding examples |
 | `deploy/local/k3d/` | GPU-capable local Kubernetes cluster and values |
@@ -131,7 +131,7 @@ Hub, administration, and GPU policy.
 | `sdk/python/` | Python platform package for hosted MCP servers |
 | `templates/python-mcp/` | canonical Python server template (`datasheet`) |
 | `testing/fixtures/extension-helm-consumer/` | anonymous cross-release Helm library acceptance fixture |
-| `testing/fixtures/external-extension-installation/` | anonymous deployment v3 platform selection and exact Artifact/Frames/Map/Media/Recording/RRD image-closure acceptance |
+| `testing/fixtures/external-extension-installation/` | anonymous deployment v4 platform selection and exact Artifact/Frames/Map/Media/Recording/RRD image-closure acceptance |
 | `testing/fixtures/external-simulation-extension/` | isolated Python extension fixture that publishes governed OpenUSD assets and typed latest poses while consuming core Simulation View |
 | `testing/fixtures/external-simulation-installation/` | independent platform/extension source composition, exact Simulation View image closure, installation-owned gateway binding, and exclusive renderer GPU placement |
 | `deploy/contract/tests/multi_repository.rs` | anonymous acceptance using independent platform, extension, and installation Git histories with one combined deployment lock |

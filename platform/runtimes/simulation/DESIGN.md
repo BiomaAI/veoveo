@@ -151,7 +151,7 @@ anonymous external overlay result all identify its final digest. A runtime upgra
 requires all three gates again.
 
 `cargo xtask smoke simulation-certify` accepts an optional deployment lock. Without one,
-the managed builder uses TLS. A supplied `veoveo.io/deployment-lock/v3` document
+the managed builder uses TLS. A supplied `veoveo.io/deployment-lock/v4` document
 authorizes its exact registry authority and may explicitly select `insecure-http`.
 Both image references must retain that authority. Buildx inspection, attestation
 resolution, and digest-addressed materialization use the same managed BuildKit

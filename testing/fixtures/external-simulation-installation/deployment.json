@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "veoveo.io/deployment/v3",
+  "schemaVersion": "veoveo.io/deployment/v4",
   "name": "anonymous-simulation-extension",
   "registry": {
     "address": "k3d-veoveo-registry.localhost:5001",
@@ -72,16 +72,24 @@
       "../../../deploy/local/k3d/development-resources.yaml",
       "pose-tls.development.yaml"
     ],
-    "configMaps": [
-      {
-        "name": "veoveo-gateway-control-plane",
-        "files": {
-          "gateway.json": "gateway.json",
-          "jwks.json": "../../../showcase/sumo/deploy/jwks.json"
-        }
-      }
-    ],
+    "configMaps": [],
     "secrets": []
+  },
+  "gatewayActivation": {
+    "configMapNamePrefix": "veoveo-gateway",
+    "controlPlaneKey": "gateway.json",
+    "controlPlane": "gateway.json",
+    "publicFiles": {
+      "jwks.json": "../../../showcase/sumo/deploy/jwks.json"
+    },
+    "confidentialSecret": "veoveo-installation-secrets",
+    "requiredSecretKeys": [
+      "authorization-server-private-key-der-b64",
+      "internal-signing-key-der-b64",
+      "internal-signing-key-id",
+      "oidc-client-secret",
+      "refresh-delivery-key-b64"
+    ]
   },
   "platform": {
     "installationPreset": "custom",

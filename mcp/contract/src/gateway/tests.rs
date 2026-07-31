@@ -157,6 +157,39 @@ fn control_plane_with_server_and_secrets(
     }
 }
 
+#[test]
+fn control_plane_lists_every_public_file_mount() {
+    let mut control_plane =
+        control_plane_with_server_and_secrets(media_manifest(), default_secrets());
+    control_plane.identity_providers[0].jwks = JwksSource::File {
+        path: JwksFilePath::new("/etc/veoveo/gateway/identity-jwks.json").unwrap(),
+    };
+    control_plane.identity_providers[0]
+        .trusted_certificate_authorities
+        .push(CertificateAuthoritySource::File {
+            path: CertificateAuthorityFilePath::new("/etc/veoveo/gateway/identity-ca.pem").unwrap(),
+        });
+    control_plane.authorization_servers[0].jwks = JwksSource::File {
+        path: JwksFilePath::new("/etc/veoveo/gateway/authorization-jwks.json").unwrap(),
+    };
+    control_plane.oauth_clients[0].jwks = Some(JwksSource::File {
+        path: JwksFilePath::new("/etc/veoveo/gateway/machine-jwks.json").unwrap(),
+    });
+
+    assert_eq!(
+        control_plane.jwks_file_paths(),
+        BTreeSet::from([
+            "/etc/veoveo/gateway/authorization-jwks.json",
+            "/etc/veoveo/gateway/identity-jwks.json",
+            "/etc/veoveo/gateway/machine-jwks.json",
+        ])
+    );
+    assert_eq!(
+        control_plane.certificate_authority_file_paths(),
+        BTreeSet::from(["/etc/veoveo/gateway/identity-ca.pem"])
+    );
+}
+
 fn default_policy() -> PolicySet {
     PolicySet {
         version: PolicyVersion::new("2026-07-02").unwrap(),

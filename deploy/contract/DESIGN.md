@@ -4,8 +4,8 @@
 
 | Standard or protocol | Supported profile |
 |---|---|
-| `veoveo.io/deployment/v3` | installation-repository profile with exact platform targets, independently versioned workload and extension sources, split Helm values ownership, and explicit registry transport |
-| `veoveo.io/deployment-lock/v3` | immutable installation revision, registry transport, source-role, OCI image, chart, and platform resolution |
+| `veoveo.io/deployment/v4` | installation-repository profile with exact platform targets, independently versioned workload and extension sources, split Helm values ownership, and explicit registry transport |
+| `veoveo.io/deployment-lock/v4` | immutable installation revision, registry transport, source-role, OCI image, chart, and platform resolution |
 | `veoveo.io/local-registry/v1` | repository-owned loopback registry declaration |
 | Docker Buildx Bake | one exact multi-target platform build plus source-owned workload and extension groups |
 | Kubernetes and Helm | typed destination and ordered release inputs; process execution remains outside this crate |
@@ -24,6 +24,15 @@ its repository, independently resolved revision, source chart, `sourceValues`, a
 non-platform Bake groups. Exactly one source has the `platform` role. Separately
 selected Veoveo applications use `workload`; independently owned integrations use
 `extension`. Their values contracts remain distinct.
+
+An optional gateway activation binds one composed control-plane document, every
+file-backed public JWKS or CA bundle it references, and one pre-existing confidential
+Secret. Profile validation parses the complete typed document and public files before
+cluster mutation. `profile-up` creates one immutable digest-qualified ConfigMap, proves
+that the Secret contains every declared key without copying its values, and supplies the
+exact activation revision to the platform Helm release. Repeating the command reuses the
+same public bundle. A changed document or trust file creates a new bundle before rollout;
+the installation-owned Secret is never rewritten by this path.
 
 The lock records the exact installation-repository revision and registry transport
 alongside source revisions, runnable platform-manifest digests, attested

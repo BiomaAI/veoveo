@@ -169,7 +169,7 @@ fails the mount when the ConfigMap or key is absent. The BFF fails startup when 
 mounted file is unreadable, empty, or invalid. These roots augment the standard trust
 store and the projected Kubernetes API root; certificate verification remains enabled.
 Changing the ConfigMap contents requires a Console BFF rollout because clients load the
-bundle at startup. A deployment/v3 installation places these values in a file selected
+bundle at startup. A deployment/v4 installation places these values in a file selected
 through the platform release's `installationValues` array.
 
 `time-mcp` runs as one temporal authority process with a persistent
@@ -223,6 +223,15 @@ revision when its hash differs from the active revision. This is also the
 gateway schema upgrade path: an older active payload does not need to satisfy
 the new schema before the current seed replaces it. A matching hash still
 requires the stored active revision to pass full typed validation.
+
+Deployment v4 installations should declare `gatewayActivation` in their profile instead
+of applying the gateway ConfigMap separately. The profile names the composed document,
+its public JWKS and CA files, the pre-existing confidential Secret, and the Secret keys
+required for rollout. `cargo xtask smoke profile-validate` checks the typed document and
+public material. `cargo xtask smoke profile-up` creates an immutable content-addressed
+ConfigMap, verifies Secret key presence, injects its name and digest into Helm, and then
+runs the ordinary bootstrap Job. The command never reads a Secret value into Helm or
+rewrites the confidential Secret.
 
 Generate `refresh-delivery-key-b64` independently from all signing and session
 keys with `openssl rand -base64 32`, then store that base64 text as the Secret

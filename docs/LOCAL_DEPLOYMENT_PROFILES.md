@@ -13,7 +13,7 @@ The current complete profile is the SUMO development environment:
 | Local image destination | Profile-selected registry host and port with revision-addressed image tags |
 | Platform workload graph | deploy/helm/veoveo |
 | Showcase workload graph | Its adjacent Helm chart |
-| Development composition | A `veoveo.io/deployment/v3` installation-repository JSON profile |
+| Development composition | A `veoveo.io/deployment/v4` installation-repository JSON profile |
 | Local registry lifecycle | deploy/local/k3d/registry.json |
 
 ## Workflow
@@ -59,7 +59,7 @@ paths resolve inside that source's exact checkout. The fields are:
 
 | Field | Meaning |
 |---|---|
-| schemaVersion | `veoveo.io/deployment/v3` |
+| schemaVersion | `veoveo.io/deployment/v4` |
 | name | Stable local environment identity |
 | registry.address | OCI host and port |
 | registry.transport | `tls` or explicitly admitted `insecure-http` |
@@ -74,6 +74,10 @@ paths resolve inside that source's exact checkout. The fields are:
 | resources.manifests | Kubernetes resources applied before Helm |
 | resources.configMaps | File-backed development ConfigMaps |
 | resources.secrets | Environment-backed development Secrets |
+| gatewayActivation.controlPlane | Complete installation-owned composed gateway document |
+| gatewayActivation.publicFiles | Exact public JWKS and CA files referenced by that document |
+| gatewayActivation.confidentialSecret | Pre-existing Secret that `profile-up` verifies but never rewrites |
+| gatewayActivation.requiredSecretKeys | Secret data keys required before gateway rollout |
 | platform | Typed installation preset or exact components, MCP servers, and artifact audiences |
 | gatewayRequirements | Composer outputs that the selected runtime must satisfy |
 | waitForDeployments | Extra rollout gates |
@@ -86,7 +90,7 @@ commit, then resolves each source revision independently.
 The publisher derives only the required platform targets, rejects missing or
 unnecessary platform images and duplicate repository/tag references, and executes the
 platform set once. Workload and extension groups remain source-owned. It writes one
-`veoveo.io/deployment-lock/v3` document with the installation revision, registry
+`veoveo.io/deployment-lock/v4` document with the installation revision, registry
 transport, source repositories and revisions, image manifest digests, chart-content
 digests, and expanded platform graph.
 
@@ -96,6 +100,13 @@ and verifies its origin, exact Bake repositories, and source-chart archive diges
 receives source values followed by installation-owned overrides and the source-owned
 digest map in production mode. Installation never re-resolves `HEAD`, a branch, or
 another mutable source expression.
+
+When `gatewayActivation` is present, profile validation parses the control plane, checks
+that its complete file reference set exactly matches `publicFiles`, and validates each
+JWKS or CA bundle. Profile application verifies the confidential Secret keys, creates a
+digest-named immutable ConfigMap, and supplies that name and digest to the platform
+release. A repeated application reuses the same revision, while a changed public input
+is fully installed before Helm starts the replacement gateway.
 
 The `extension-foundation` preset selects the gateway, platform store, object store,
 artifact service, Artifact MCP, Frames MCP, and Recording MCP/hub. A custom selection
@@ -137,6 +148,6 @@ cargo xtask smoke profile-cluster-delete --profile "$PROFILE"
 ~~~
 
 A new local showcase may add an image group and adjacent Helm chart, then select those
-surfaces through a `workload` source. A fielded installation may keep deployment v3
+surfaces through a `workload` source. A fielded installation may keep deployment v4
 selection in its private configuration repository, but it consumes published OCI
 artifacts rather than building from a checkout inside the cluster.
