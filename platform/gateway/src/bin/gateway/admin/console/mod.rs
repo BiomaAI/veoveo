@@ -13,7 +13,8 @@ use axum::{
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayControlPlane, InvocationMode, ServerSlug, WorkContextMembershipLevel,
+    GatewayAction, GatewayControlPlane, InvocationMode, PrincipalDisplayName, ServerSlug,
+    WorkContextMembershipLevel,
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayServerHealth};
 use veoveo_platform_store::{ChangefeedCursor, SegmentState, deterministic_tenant_id};
@@ -169,8 +170,7 @@ struct InstallationSummary {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SessionSummary {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    display_name: Option<String>,
+    display_name: String,
     principal_id: String,
     actor_id: String,
     tenant_id: String,
@@ -243,20 +243,20 @@ fn build_snapshot(
             || subject.authority.work_context.to_string(),
             |context| context.title.clone(),
         );
-    let display_name = projection
+    let projected_display_name = projection
         .principals
         .iter()
         .find(|principal| {
             principal.issuer == subject.principal.issuer.as_str()
                 && principal.subject == subject.principal.subject.as_str()
         })
-        .and_then(|principal| {
-            operator_display_name(
-                &principal.display_name,
-                subject.principal.id.as_str(),
-                subject.principal.subject.as_str(),
-            )
-        });
+        .map(|principal| principal.display_name.as_str());
+    let display_name = console_display_name(
+        subject.principal_display_name.as_ref(),
+        projected_display_name,
+        subject.principal.id.as_str(),
+        subject.principal.subject.as_str(),
+    );
     let blob_lengths: BTreeMap<_, _> = projection
         .blobs
         .iter()
@@ -426,53 +426,100 @@ fn build_snapshot(
     })
 }
 
-fn operator_display_name(
-    candidate: &str,
+fn console_display_name(
+    authenticated: Option<&PrincipalDisplayName>,
+    projected: Option<&str>,
     principal_id: &str,
     principal_subject: &str,
-) -> Option<String> {
-    let candidate = candidate.trim();
-    (!candidate.is_empty() && candidate != principal_id && candidate != principal_subject)
-        .then(|| candidate.to_owned())
+) -> String {
+    if let Some(authenticated) = authenticated {
+        return authenticated.to_string();
+    }
+    if let Some(projected) = projected {
+        let candidate = projected.trim();
+        if PrincipalDisplayName::new(candidate).is_ok()
+            && candidate != principal_id
+            && candidate != principal_subject
+            && principal_identifier_segment(principal_id) != candidate
+        {
+            return candidate.to_owned();
+        }
+    }
+    compact_principal_label(principal_subject)
+}
+
+fn principal_identifier_segment(principal_id: &str) -> &str {
+    principal_id
+        .split(['#', '/'])
+        .rfind(|segment| !segment.trim().is_empty())
+        .unwrap_or(principal_id)
+        .trim()
+}
+
+fn compact_principal_label(subject: &str) -> String {
+    let candidate = principal_identifier_segment(subject);
+    if candidate.is_empty() {
+        return "User".to_owned();
+    }
+    let mut label = String::new();
+    for (index, character) in candidate.chars().enumerate() {
+        if index == 61 {
+            label.push_str("...");
+            break;
+        }
+        label.push(character);
+    }
+    label
 }
 
 #[cfg(test)]
 mod tests {
-    use super::operator_display_name;
+    use veoveo_mcp_contract::PrincipalDisplayName;
+
+    use super::console_display_name;
 
     #[test]
-    fn operator_display_name_keeps_human_names() {
+    fn console_display_name_prefers_authenticated_identity_metadata() {
         assert_eq!(
-            operator_display_name(
-                " Mara Chen ",
+            console_display_name(
+                Some(&PrincipalDisplayName::new("Mara Chen").unwrap()),
+                Some("Stored Operator"),
                 "https://login.example/tenant#object-id",
                 "object-id"
             ),
-            Some("Mara Chen".to_owned())
+            "Mara Chen"
         );
     }
 
     #[test]
-    fn operator_display_name_rejects_technical_identity_values() {
+    fn console_display_name_uses_human_projection_before_subject_fallback() {
         assert_eq!(
-            operator_display_name(
-                "https://login.example/tenant#object-id",
-                "https://login.example/tenant#object-id",
-                "object-id"
-            ),
-            None
-        );
-        assert_eq!(
-            operator_display_name(
-                "object-id",
+            console_display_name(
+                None,
+                Some("Stored Operator"),
                 "https://login.example/tenant#object-id",
                 "object-id"
             ),
-            None
+            "Stored Operator"
         );
         assert_eq!(
-            operator_display_name("  ", "https://login.example/tenant#object-id", "object-id"),
-            None
+            console_display_name(
+                None,
+                Some("https://login.example/tenant#object-id"),
+                "https://login.example/tenant#object-id",
+                "object-id"
+            ),
+            "object-id"
         );
+        assert_eq!(
+            console_display_name(
+                None,
+                Some("object-id"),
+                "https://login.example/tenant#object-id",
+                "https://login.example/users/mara"
+            ),
+            "mara"
+        );
+        assert_eq!(console_display_name(None, Some("  "), "   ", "   "), "User");
     }
 }

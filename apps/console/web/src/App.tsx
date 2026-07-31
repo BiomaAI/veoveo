@@ -172,7 +172,7 @@ export function App() {
       : navItems.find((item) => item.id === view)?.label ?? "Overview";
   const currentArtifact = selectedArtifact && snapshot.artifacts.find((item) => item.id === selectedArtifact.id);
   const currentTask = selectedTask && snapshot.tasks.find((item) => item.id === selectedTask.id);
-  const accountName = snapshot.session.displayName?.trim();
+  const accountName = snapshot.session.displayName.trim();
 
   return (
     <div className="app-shell">
@@ -264,14 +264,12 @@ export function App() {
             </label>
             <div
               className="user-menu"
-              title={accountName ? `Signed in as ${accountName}` : `Signed-in principal: ${snapshot.session.principalId}`}
+              title={`Signed in as ${accountName} · ${snapshot.session.principalId}`}
             >
               <span>
-                {accountName
-                  ? accountName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)
-                  : <UserRound size={14} />}
+                {accountName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2) || <UserRound size={14} />}
               </span>
-              <strong>{accountName ?? "Account"}</strong>
+              <strong>{accountName}</strong>
             </div>
             <button className="icon-button" onClick={() => void signOut()} title="Sign out" disabled={signingOut}>
               <LogOut size={17} />
