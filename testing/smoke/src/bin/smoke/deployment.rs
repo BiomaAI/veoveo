@@ -1100,7 +1100,7 @@ fn prepare_gateway_activation(
     let digest = hex::encode(hasher.finalize());
     Ok(Some(PreparedGatewayActivation {
         config_map_name: format!("{}-{}", activation.config_map_name_prefix, &digest[..12]),
-        revision: format!("sha256:{digest}"),
+        revision: digest,
         confidential_secret: activation.confidential_secret.clone(),
         required_secret_keys: activation.required_secret_keys.clone(),
         data,
@@ -1661,7 +1661,13 @@ mod tests {
         let activation = prepare_gateway_activation(&profile).unwrap().unwrap();
 
         assert!(activation.config_map_name.starts_with("veoveo-gateway-"));
-        assert!(activation.revision.starts_with("sha256:"));
+        assert_eq!(activation.revision.len(), 64);
+        assert!(
+            activation
+                .revision
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+        );
         assert_eq!(
             activation.data.keys().cloned().collect::<Vec<_>>(),
             ["gateway.json", "jwks.json"]
