@@ -1,0 +1,16 @@
+{
+  "schema": "veoveo.io/upstream-dependency-lock/v1",
+  "dependencies": {
+    "cesium_for_omniverse": {
+      "version": "0.29.0",
+      "asset": "CesiumGS-cesium-omniverse-linux-x86_64-v0.29.0.zip",
+      "url": "https://github.com/CesiumGS/cesium-omniverse/releases/download/v0.29.0/CesiumGS-cesium-omniverse-linux-x86_64-v0.29.0.zip",
+      "sha256": "fe38d6195974620e87d7cdad32bb4b38d5933389523d56e75bbae23bcf4da55f",
+      "source": "https://cesium.com/downloads/"
+    },
+    "lxml": {
+      "version": "6.0.2",
+      "source": "Cesium for Omniverse 0.29.0 verified release bundle"
+    }
+  }
+}

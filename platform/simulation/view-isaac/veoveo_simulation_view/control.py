@@ -39,6 +39,7 @@ POSE_PATH = re.compile(rf"^/v1/sessions/{SESSION}/pose-source$")
 CAMERA_PATH = re.compile(
     rf"^/v1/sessions/{SESSION}/cameras/{CAMERA}$"
 )
+LAYER_PATH = re.compile(rf"^/v1/sessions/{SESSION}/layer$")
 STREAM_PATH = re.compile(
     rf"^/v1/sessions/{SESSION}/streams/{STREAM}$"
 )
@@ -53,6 +54,7 @@ class Readiness:
     render_product_ready: bool = False
     nvenc_ready: bool = False
     visible_non_stale_frame: bool = False
+    streamed_world_ready: bool = False
 
     def response(self) -> dict[str, object]:
         return {
@@ -63,6 +65,7 @@ class Readiness:
             "renderProductReady": self.render_product_ready,
             "nvencReady": self.nvenc_ready,
             "visibleNonStaleFrame": self.visible_non_stale_frame,
+            "streamedWorldReady": self.streamed_world_ready,
         }
 
 
@@ -151,6 +154,9 @@ class ControlServer:
                 if match := CAMERA_PATH.fullmatch(self.path):
                     self._query_camera(match)
                     return
+                if match := LAYER_PATH.fullmatch(self.path):
+                    self._query_layer(match)
+                    return
                 self.send_error(HTTPStatus.NOT_FOUND)
 
             def do_PUT(self) -> None:
@@ -204,6 +210,25 @@ class ControlServer:
                     self.send_error(HTTPStatus.GATEWAY_TIMEOUT, str(error))
                 except (ContractError, ValueError) as error:
                     self.send_error(HTTPStatus.BAD_REQUEST, str(error))
+
+            def _query_layer(self, match: re.Match[str]) -> None:
+                if not self._authorized():
+                    self.send_error(HTTPStatus.UNAUTHORIZED)
+                    return
+                try:
+                    command = ControlCommand(
+                        "get_layer", match.group("session"), None, None
+                    )
+                    outer._commands.put_nowait(command)
+                    result = command.wait(120.0)
+                    self._json(result.status, result.body)
+                except queue.Full:
+                    self.send_error(
+                        HTTPStatus.SERVICE_UNAVAILABLE,
+                        "renderer command queue is full",
+                    )
+                except TimeoutError as error:
+                    self.send_error(HTTPStatus.GATEWAY_TIMEOUT, str(error))
 
             def _materialize_artifact(self, match: re.Match[str]) -> None:
                 if not self._authorized():

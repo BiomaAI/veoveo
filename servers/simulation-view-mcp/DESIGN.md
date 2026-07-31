@@ -31,6 +31,8 @@ signaling   /simulation-view/signaling
 | `veoveo.io/live-view/v1` | Owner-scoped H.264 WebRTC lease state with NVIDIA NVENC, BT.709 metadata, redacted access tokens, and exact endpoints. |
 | Veoveo Artifact plane | Signed internal HTTP authorization and streaming bulk download for canonical `artifact://{uuidv7}` occurrences. Simulation View forwards bytes only to the private Isaac digest-ingest endpoint. |
 | OpenUSD | Render-only stage, content-addressed visual prototypes, instances, and transform mirroring. Executable scene content and physics authority are rejected. |
+| OGC 3D Tiles | Streamed 3D Tiles selected through an installation-owned layer ID; tile bytes flow from the provider to the renderer. |
+| Cesium for Omniverse 0.29.0 | Private Isaac adapter for 3D Tiles streaming, pinned by archive SHA-256. This is not the public MCP contract. |
 | NVIDIA RTX, HydraTexture AOV, NVENC, and WebRTC | Isaac Sim 6.0.1 implementation profile from the canonical `2026.07.0` simulation runtime; browser client `@nvidia/ov-web-rtc` 6.6.0. These are private renderer mechanisms, not the provider-neutral MCP identity. |
 | SPIFFE and TLS 1.3 | Installation-issued workload identities and mutually authenticated pose transport. MCP authorizes the producer identity but does not carry certificates or pose messages. |
 | SHA-256 | Scene bodies, Frames revisions, visual artifacts, entity tables, runtime images, browser dependencies, and evidence. |
@@ -68,6 +70,11 @@ separate artifact-ingest route accepts only a declared byte count at a
 SHA-256-and-format path. User and Work Context ownership remain in the MCP
 process and do not cross into the renderer. The renderer has no domain
 simulator, dynamics loop, control adapter, or extension-code loader.
+
+The renderer loads the platform-pinned 3D Tiles adapter. It receives the
+closed installation layer catalog and Secret-backed provider environments.
+The MCP process receives the same catalog for scene admission, but it never
+receives those provider environments or tile bytes.
 
 ## Scene Contract
 
@@ -114,6 +121,29 @@ filesystem references fail admission before Kit opens the asset.
 The scene body is serialized from its strongly typed field order and hashed.
 An existing session accepts the same digest idempotently and rejects a
 different scene.
+
+### Streamed World Layers
+
+`simulationView.streamedWorld` owns the installation layer catalog. A scene
+selects only `geospatialLayerId`. Admission resolves that ID and requires the
+catalog's Frames revision and local ENU frame to equal the scene exactly.
+Catalog source and attribution URLs must be credential-free HTTPS URLs whose
+hosts appear in the declared allowlists.
+
+The renderer authors provider state only into the anonymous USD session layer.
+It clears the provider token and removes the layer prims on session teardown;
+recorded scene artifacts, MCP configuration, resources, results, and logs do
+not contain the token. A dedicated NetworkPolicy admits DNS and installation
+CIDRs on TCP 443 only. The installation keeps those CIDRs aligned with the
+catalog's source and redirect host allowlists.
+
+Native cache size, simultaneous-load, screen-space-error, and visible-credit
+controls enforce renderer budgets. Runtime health reports resident bytes,
+visible tiles, pending tiles, required attribution, and typed failures for
+unavailable coverage, budget exhaustion, or provider loss. Missing credentials,
+denied source hosts, and invalid georeferencing fail before a scene can render.
+Provider failure changes renderer health but never enters or blocks the
+independent simulator process.
 
 ## Pose Contract
 
@@ -252,6 +282,7 @@ private workloads and Artifact Service, then fails unless:
 - the named RTX render product is ready;
 - NVENC is ready;
 - a visible non-stale frame exists;
+- any selected streamed-world layer remains within its installation budgets;
 - pose ingress implements the exact pose schema and requires mutual
   authentication.
 
@@ -310,3 +341,8 @@ sessions, cameras, render products, leases, signaling, or App acceptance.
 It requires the actual authenticated Console and records takeoff, mission,
 landing, and governed Rerun evidence without adding UAV behavior to this
 server.
+
+When the showcase scene selects an installation layer, the same headed run
+must show nonblank, correctly aligned terrain or buildings from follow, chase,
+mounted, orbit, fixed, and formation-overview cameras. Session state must show
+visible resident tiles and the App must display the configured attribution.

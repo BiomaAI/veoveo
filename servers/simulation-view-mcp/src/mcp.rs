@@ -109,6 +109,18 @@ impl SimulationViewMcp {
             .service
             .get_session(owner, session_id)
             .map_err(service_error)?;
+        if session.geospatial_layer.is_some() {
+            match self.state.runtimes.layer_status(session_id).await {
+                Ok(Some(status)) => self
+                    .state
+                    .service
+                    .apply_layer_status(session_id, status)
+                    .map_err(service_error)?,
+                Ok(None) | Err(_) => {
+                    self.state.service.mark_layer_unavailable(session_id);
+                }
+            }
+        }
         if session.pose_source.is_none() {
             return Ok(());
         }

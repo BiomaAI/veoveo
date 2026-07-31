@@ -9,10 +9,11 @@ use veoveo_mcp_contract::{
 };
 use veoveo_simulation_pose::{EntityId, EpochId};
 pub use veoveo_simulation_scene::{
-    GovernedArtifact, InterpolationPolicy, LocalTransform, PrototypeId, QuaternionXyzw,
-    RendererMode, SCENE_SCHEMA, SceneAttribution, SceneContractError, SceneDeclaration,
-    SceneDeclarationBody, SceneEntity, SceneLighting, SceneQualityPolicy, Vector3,
-    VisualAssetFormat, VisualPrototype,
+    GeospatialLayerHealth, GeospatialLayerId, GovernedArtifact, InterpolationPolicy,
+    LayerFailureCode, LayerFailureDiagnostic, LayerLifecycle, LocalTransform, PrototypeId,
+    QuaternionXyzw, RendererMode, SCENE_SCHEMA, SceneAttribution, SceneContractError,
+    SceneDeclaration, SceneDeclarationBody, SceneEntity, SceneLighting, SceneQualityPolicy,
+    Vector3, VisualAssetFormat, VisualPrototype,
 };
 
 fn validate_id(value: &str) -> Result<(), SimulationViewError> {
@@ -115,6 +116,8 @@ pub struct SimulationViewSession {
     pub revision: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scene: Option<SceneDeclaration>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub geospatial_layer: Option<GeospatialLayerHealth>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pose_source: Option<PoseSourceState>,
     pub created_at: DateTime<Utc>,
@@ -502,6 +505,8 @@ pub enum SimulationViewError {
     InvalidArtifact,
     #[error("invalid scene declaration")]
     InvalidScene,
+    #[error("geospatial layer binding failed: {0}")]
+    GeospatialLayer(String),
     #[error("duplicate visual prototype")]
     DuplicatePrototype,
     #[error("invalid scene entity or prototype binding")]

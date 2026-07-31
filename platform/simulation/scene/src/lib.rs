@@ -1,5 +1,9 @@
 //! Provider-neutral governed scene declaration for Simulation View.
 
+mod layers;
+
+pub use layers::*;
+
 use std::{fmt, str::FromStr};
 
 use schemars::JsonSchema;
@@ -226,6 +230,8 @@ pub struct SceneDeclarationBody {
     pub epoch_id: EpochId,
     pub frame_revision: FrameRevision,
     pub simulation_frame: WorldFrameUri,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub geospatial_layer_id: Option<GeospatialLayerId>,
     pub environment: GovernedArtifact,
     pub prototypes: Vec<VisualPrototype>,
     pub entities: Vec<SceneEntity>,

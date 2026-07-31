@@ -299,6 +299,15 @@ simulationView:
     sizeLimit: 2Gi
   cache:
     sizeLimit: 20Gi
+  streamedWorld:
+    enabled: false
+    existingConfigMap: ""
+    catalogKey: layers.json
+    catalog:
+      schemaVersion: veoveo.io/simulation-view-layer-catalog/v1
+      layers: []
+    credentialBindings: []
+    egressCidrs: []
   capacity:
     profile: rtx4090-development-v1
     maximumLogicalCameras: 16

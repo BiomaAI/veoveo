@@ -40,6 +40,7 @@ const OPERATOR_PROFILE_SCOPES: &[&str] = &[
 struct UavAcceptanceScenario {
     schema: String,
     session_id: String,
+    geospatial_layer_id: String,
     world: FrameWorldScenario,
     vehicle_id: String,
     world_ready_timeout_seconds: u64,
@@ -263,6 +264,7 @@ impl UavAcceptanceScenario {
             self.schema
         );
         validate_identity("session_id", &self.session_id)?;
+        validate_identity("geospatial_layer_id", &self.geospatial_layer_id)?;
         validate_identity("vehicle_id", &self.vehicle_id)?;
         ensure!(
             !self.world.display_name.trim().is_empty(),

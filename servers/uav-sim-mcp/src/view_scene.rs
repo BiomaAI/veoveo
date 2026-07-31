@@ -12,9 +12,10 @@ use veoveo_mcp_contract::{
 };
 use veoveo_simulation_pose::{EntityId, FrameRevision, Sha256Digest, entity_identity_table_digest};
 use veoveo_simulation_scene::{
-    GovernedArtifact, InterpolationPolicy, LocalTransform, PrototypeId, QuaternionXyzw,
-    RendererMode, SCENE_SCHEMA, SceneAttribution, SceneDeclaration, SceneDeclarationBody,
-    SceneEntity, SceneLighting, SceneQualityPolicy, Vector3, VisualAssetFormat, VisualPrototype,
+    GeospatialLayerId, GovernedArtifact, InterpolationPolicy, LocalTransform, PrototypeId,
+    QuaternionXyzw, RendererMode, SCENE_SCHEMA, SceneAttribution, SceneDeclaration,
+    SceneDeclarationBody, SceneEntity, SceneLighting, SceneQualityPolicy, Vector3,
+    VisualAssetFormat, VisualPrototype,
 };
 
 use crate::contract::{PreparedViewScene, SessionId, SimulationState};
@@ -47,10 +48,12 @@ impl ViewSceneService {
         &self,
         caller: &PlaneCaller,
         state: &SimulationState,
+        geospatial_layer_id: Option<GeospatialLayerId>,
     ) -> Result<PreparedViewScene> {
         let key = prepared_key(caller, &state.session_id)?;
         if let Some(prepared) = self.prepared.read().await.get(&key)
             && prepared_matches_state(prepared, state)
+            && prepared.scene.body.geospatial_layer_id == geospatial_layer_id
         {
             return Ok(prepared.clone());
         }
@@ -71,7 +74,7 @@ impl ViewSceneService {
                 PROTOTYPE_USDA
             ),
         )?;
-        let prepared = build_prepared_scene(state, environment, prototype)?;
+        let prepared = build_prepared_scene(state, environment, prototype, geospatial_layer_id)?;
         self.prepared.write().await.insert(key, prepared.clone());
         Ok(prepared)
     }
@@ -142,6 +145,7 @@ fn build_prepared_scene(
     state: &SimulationState,
     environment: GovernedArtifact,
     prototype: GovernedArtifact,
+    geospatial_layer_id: Option<GeospatialLayerId>,
 ) -> Result<PreparedViewScene> {
     let (world, entity_ids) = validate_scene_state(state)?;
     let prototype_id = PrototypeId::new("uav")?;
@@ -159,6 +163,7 @@ fn build_prepared_scene(
         epoch_id: state.pose_publication.epoch_id.clone(),
         frame_revision,
         simulation_frame: world.simulation_frame_uri.clone(),
+        geospatial_layer_id,
         environment,
         prototypes: vec![VisualPrototype {
             prototype_id: prototype_id.clone(),
@@ -297,9 +302,13 @@ mod tests {
     #[test]
     fn prepared_scene_is_bound_to_the_authoritative_pose_table() {
         let state = crate::server::fake_state().unwrap();
-        let prepared =
-            build_prepared_scene(&state, governed(ENVIRONMENT_USDA), governed(PROTOTYPE_USDA))
-                .unwrap();
+        let prepared = build_prepared_scene(
+            &state,
+            governed(ENVIRONMENT_USDA),
+            governed(PROTOTYPE_USDA),
+            None,
+        )
+        .unwrap();
         assert_eq!(
             prepared.scene.body.frame_revision.uri,
             state.world.as_ref().unwrap().revision_uri.as_str()
@@ -329,9 +338,13 @@ mod tests {
         let mut state = crate::server::fake_state().unwrap();
         state.pose_publication.entity_table_digest =
             Sha256Digest::from_bytes(Sha256::digest(b"different").into());
-        let error =
-            build_prepared_scene(&state, governed(ENVIRONMENT_USDA), governed(PROTOTYPE_USDA))
-                .unwrap_err();
+        let error = build_prepared_scene(
+            &state,
+            governed(ENVIRONMENT_USDA),
+            governed(PROTOTYPE_USDA),
+            None,
+        )
+        .unwrap_err();
         assert!(
             error
                 .to_string()

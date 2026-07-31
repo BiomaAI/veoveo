@@ -303,7 +303,10 @@ async fn wait_for_prepared_scene(
         match operator
             .call_tool(
                 "uav-sim__prepare_view_scene",
-                serde_json::json!({"session_id": scenario.session_id}),
+                serde_json::json!({
+                    "session_id": scenario.session_id,
+                    "geospatial_layer_id": scenario.geospatial_layer_id,
+                }),
             )
             .await
         {

@@ -391,6 +391,7 @@ pub struct SimulationWorldBinding {
 #[serde(deny_unknown_fields)]
 pub struct PrepareViewSceneRequest {
     pub session_id: SessionId,
+    pub geospatial_layer_id: Option<veoveo_simulation_scene::GeospatialLayerId>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]

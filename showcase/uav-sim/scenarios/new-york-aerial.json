@@ -1,6 +1,7 @@
 {
   "schema": "veoveo.uav-sim-acceptance/v9",
   "session_id": "uav-showcase",
+  "geospatial_layer_id": "photorealistic-world",
   "world": {
     "world_id": "uav-showcase-new-york",
     "display_name": "UAV showcase — New York",
