@@ -10,6 +10,30 @@ use url::Url;
 use veoveo_mcp_contract::ScopeName;
 
 #[derive(Clone)]
+pub(crate) enum RerunMapProvider {
+    OpenStreetMap,
+    Mapbox { access_token: String },
+}
+
+impl RerunMapProvider {
+    pub(crate) const fn connect_origin(&self) -> &'static str {
+        match self {
+            Self::OpenStreetMap => "https://tile.openstreetmap.org",
+            Self::Mapbox { .. } => "https://api.mapbox.com",
+        }
+    }
+}
+
+impl std::fmt::Debug for RerunMapProvider {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::OpenStreetMap => formatter.write_str("OpenStreetMap"),
+            Self::Mapbox { .. } => formatter.write_str("Mapbox { access_token: [REDACTED] }"),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub(crate) struct Config {
     bind: SocketAddr,
     public_base_url: Url,
@@ -20,6 +44,7 @@ pub(crate) struct Config {
     oauth_scopes: BTreeSet<ScopeName>,
     admin_profile: String,
     outbound_ca_bundle: Option<PathBuf>,
+    rerun_map_provider: RerunMapProvider,
     session_key: [u8; 32],
     asset_dir: PathBuf,
 }
@@ -49,6 +74,10 @@ impl Config {
                 Ok(path)
             })
             .transpose()?;
+        let rerun_map_provider = parse_rerun_map_provider(
+            &env_or("VEOVEO_CONSOLE_RERUN_MAP_PROVIDER", "openStreetMap"),
+            optional("RERUN_MAPBOX_ACCESS_TOKEN")?,
+        )?;
         let key_bytes = STANDARD
             .decode(required("VEOVEO_CONSOLE_SESSION_KEY")?)
             .context("VEOVEO_CONSOLE_SESSION_KEY must be canonical base64")?;
@@ -69,6 +98,7 @@ impl Config {
             oauth_scopes,
             admin_profile,
             outbound_ca_bundle,
+            rerun_map_provider,
             session_key,
             asset_dir,
         })
@@ -104,6 +134,9 @@ impl Config {
     }
     pub(crate) fn outbound_ca_bundle(&self) -> Option<&Path> {
         self.outbound_ca_bundle.as_deref()
+    }
+    pub(crate) const fn rerun_map_provider(&self) -> &RerunMapProvider {
+        &self.rerun_map_provider
     }
 
     pub(crate) fn callback_url(&self) -> Url {
@@ -199,6 +232,7 @@ impl Config {
             ]),
             admin_profile: "admin".to_owned(),
             outbound_ca_bundle: None,
+            rerun_map_provider: RerunMapProvider::OpenStreetMap,
             session_key: [7; 32],
             asset_dir: PathBuf::from("/tmp/veoveo-console-test-assets"),
             gateway_url,
@@ -231,6 +265,47 @@ fn optional(key: &'static str) -> anyhow::Result<Option<String>> {
 
 fn env_or(key: &str, default: &str) -> String {
     std::env::var(key).unwrap_or_else(|_| default.to_owned())
+}
+
+fn parse_rerun_map_provider(
+    provider: &str,
+    mapbox_access_token: Option<String>,
+) -> anyhow::Result<RerunMapProvider> {
+    match provider {
+        "openStreetMap" => {
+            if mapbox_access_token.is_some() {
+                bail!(
+                    "RERUN_MAPBOX_ACCESS_TOKEN must be absent when VEOVEO_CONSOLE_RERUN_MAP_PROVIDER is openStreetMap"
+                );
+            }
+            Ok(RerunMapProvider::OpenStreetMap)
+        }
+        "mapbox" => {
+            let token = mapbox_access_token.context(
+                "RERUN_MAPBOX_ACCESS_TOKEN is required when VEOVEO_CONSOLE_RERUN_MAP_PROVIDER is mapbox",
+            )?;
+            validate_mapbox_access_token(&token)?;
+            Ok(RerunMapProvider::Mapbox {
+                access_token: token,
+            })
+        }
+        _ => bail!("VEOVEO_CONSOLE_RERUN_MAP_PROVIDER must be one of openStreetMap or mapbox"),
+    }
+}
+
+fn validate_mapbox_access_token(token: &str) -> anyhow::Result<()> {
+    if token.len() < 8
+        || token.len() > 4096
+        || !token.starts_with("pk.")
+        || !token
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+    {
+        bail!(
+            "RERUN_MAPBOX_ACCESS_TOKEN must be a browser-safe Mapbox public token beginning with pk."
+        );
+    }
+    Ok(())
 }
 
 fn absolute_url(key: &'static str) -> anyhow::Result<Url> {
@@ -310,6 +385,7 @@ impl std::fmt::Debug for Config {
             .field("oauth_scopes", &self.oauth_scopes)
             .field("admin_profile", &self.admin_profile)
             .field("outbound_ca_bundle", &self.outbound_ca_bundle)
+            .field("rerun_map_provider", &self.rerun_map_provider)
             .field("session_key", &"[REDACTED]")
             .field("asset_dir", &self.asset_dir)
             .finish()
@@ -406,5 +482,31 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(error.contains("profile `admin` must match"), "{error}");
+    }
+
+    #[test]
+    fn rerun_mapbox_requires_one_browser_safe_public_token() {
+        assert!(matches!(
+            parse_rerun_map_provider("openStreetMap", None).unwrap(),
+            RerunMapProvider::OpenStreetMap
+        ));
+        assert!(parse_rerun_map_provider("openStreetMap", Some("pk.example".to_owned())).is_err());
+        assert!(parse_rerun_map_provider("mapbox", None).is_err());
+        assert!(parse_rerun_map_provider("mapbox", Some("sk.secret".to_owned())).is_err());
+        assert!(matches!(
+            parse_rerun_map_provider("mapbox", Some("pk.example-token".to_owned())).unwrap(),
+            RerunMapProvider::Mapbox { .. }
+        ));
+    }
+
+    #[test]
+    fn config_debug_never_contains_the_mapbox_token() {
+        let mut config = Config::for_test(Url::parse("http://127.0.0.1:8788").unwrap());
+        config.rerun_map_provider = RerunMapProvider::Mapbox {
+            access_token: "pk.do-not-print".to_owned(),
+        };
+        let debug = format!("{config:?}");
+        assert!(!debug.contains("pk.do-not-print"));
+        assert!(debug.contains("[REDACTED]"));
     }
 }

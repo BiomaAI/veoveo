@@ -6,6 +6,7 @@ import {
   type OpenedRerunSources,
 } from "../rerunSources";
 import { installConsoleLivePlaybackFetch } from "../recordingLiveFetch";
+import { loadRerunMapViewerOptions } from "../rerunMap";
 
 type ViewerStatus =
   | { state: "loading"; delayed: boolean }
@@ -74,14 +75,15 @@ export default function GovernedRerunViewer({
     openedSourcesRef.current = {
       redapToken: desiredSourceRef.current.redapToken,
     };
-    void viewer
-      .start(null, host.current, {
+    void loadRerunMapViewerOptions()
+      .then((mapOptions) => viewer.start(null, host.current, {
         width: "100%",
         height: "100%",
         hide_welcome_screen: true,
         allow_fullscreen: true,
         fallback_token: desiredSourceRef.current.redapToken,
-      })
+        ...mapOptions,
+      }))
       .then(() => {
         if (!active) return;
         delayedNotice = window.setTimeout(() => {

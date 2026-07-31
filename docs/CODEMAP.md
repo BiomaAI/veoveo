@@ -723,7 +723,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `api.rs` | snapshot, SSE, mutation, and artifact preview/download BFF projections |
 | `recording_playback.rs` | authenticated playback-manifest pass-through and per-request bounded-live proxy; no archive bytes or BFF session store |
 | `apps.rs`, `mcp_client.rs` | MCP Apps host backend: gateway MCP session pool over the independently selected transport, public gateway authority preservation, app catalog, sandboxed frame serving, allowlisted tool calls, implicit own-server reads, and gateway-projected cross-server reads |
-| `config.rs` | validated public/gateway/OAuth-resource/MCP-transport configuration and exact profile binding |
+| `config.rs`, `viewer_config.rs` | validated public/gateway/OAuth-resource/MCP-transport and embedded-map configuration, exact profile binding, redacted provider credentials, and the authenticated no-store Rerun map projection |
 | `outbound_http.rs` | additive installation CA trust shared by Console HTTP, streaming, live, MCP, and Kubernetes clients |
 
 ### `apps/console/web/src`
@@ -732,7 +732,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 |---|---|
 | `App.tsx` | application shell: platform navigation plus catalog-driven MCP App entries, topbar, view routing, drawer mounting |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
-| `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `recordingLiveFetch.ts` | persistent WebViewer lifecycle within a generic Redap fallback-token context, exact-path same-origin live authorization without touching unrelated Fetch bodies, stable archive revision refresh, credential-context rotation, and live-to-archive transitions |
+| `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `recordingLiveFetch.ts`, `rerunMap.ts` | persistent WebViewer lifecycle within a generic Redap fallback-token context, exact-path same-origin live authorization without touching unrelated Fetch bodies, stable archive revision refresh, credential-context rotation, live-to-archive transitions, and installation-owned browser map-provider activation |
 | `views/` | remaining platform-plane views (overview, work, artifacts, agents, MCP, apps, access, audit, cluster); domain views ship as MCP Apps, never here |
 | `drawers/ArtifactDrawer.tsx` | artifact preview, recording provenance, download, release, grant, and share-link workflows |
 | `drawers/` | remaining detail drawers with mutation workflows |

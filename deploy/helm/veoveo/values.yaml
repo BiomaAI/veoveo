@@ -366,6 +366,14 @@ consoleBff:
   outboundCa:
     existingConfigMap: ""
     key: ca.pem
+  # Browser map configuration for embedded Rerun viewers. A Mapbox token is
+  # loaded only through the referenced installation-owned Secret.
+  rerunMap:
+    provider: openStreetMap
+    mapbox:
+      accessToken:
+        existingSecret: ""
+        key: mapbox-access-token
   oauthScopes:
     - operator:use
     - admin:manage

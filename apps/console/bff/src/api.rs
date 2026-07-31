@@ -739,7 +739,7 @@ fn constant_time_equal(left: &str, right: &str) -> bool {
     difference == 0
 }
 
-fn unauthorized(state: &AppState) -> Response {
+pub(crate) fn unauthorized(state: &AppState) -> Response {
     let mut headers = HeaderMap::new();
     headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
     clear_session_cookie(&mut headers, state.config.secure_cookie());

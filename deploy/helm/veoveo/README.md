@@ -172,6 +172,31 @@ Changing the ConfigMap contents requires a Console BFF rollout because clients l
 bundle at startup. A deployment/v4 installation places these values in a file selected
 through the platform release's `installationValues` array.
 
+### Embedded Rerun maps
+
+`consoleBff.rerunMap.provider` selects the closed browser-map provider contract. The
+default `openStreetMap` path carries no credential. Selecting `mapbox` requires a
+browser-safe public token from an installation-owned Secret:
+
+```yaml
+consoleBff:
+  rerunMap:
+    provider: mapbox
+    mapbox:
+      accessToken:
+        existingSecret: console-browser-map
+        key: access-token
+```
+
+The chart projects the selected Secret key directly into the Console BFF process as
+`RERUN_MAPBOX_ACCESS_TOKEN`. Startup rejects a missing, secret, or malformed token. An
+authenticated no-store endpoint supplies it to the embedded Rerun application option;
+RRD data, MCP configuration, gateway responses, and repository values never contain the
+token. A fresh browser validates the token against the provider before starting either
+recording playback or an RRD artifact preview. Authentication, scope, origin-restriction,
+and provider availability failures remain token-free diagnostics in the viewer overlay.
+The Console content security policy admits only the selected provider origin.
+
 `time-mcp` runs as one temporal authority process with a persistent
 `ReadWriteOnce` volume for staged and active TZDB and leap-second products.
 SurrealDB retains the release catalog, active authority pointers, calendars,

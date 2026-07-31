@@ -7,6 +7,7 @@ mod oauth;
 mod outbound_http;
 mod recording_playback;
 mod session;
+mod viewer_config;
 
 use std::{fs, path::Path, sync::Arc, time::Duration};
 
@@ -102,6 +103,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/console/api/apps/task/cancel", post(apps::cancel_app_task))
         .route("/console/api/cluster", get(cluster::snapshot))
         .route(
+            "/console/api/viewer/rerun/map-config",
+            get(viewer_config::rerun_map_config),
+        )
+        .route(
             "/console/api/tasks/{task_id}/cancel",
             post(api::cancel_task),
         )
@@ -156,20 +161,21 @@ async fn main() -> anyhow::Result<()> {
     let router = with_console_static_routes(router, config.asset_dir())?
         .fallback(get(|| async { axum::http::StatusCode::NOT_FOUND }))
         .with_state(state)
-        .layer(middleware::from_fn_with_state(csrf_state, api::enforce_csrf))
+        .layer(middleware::from_fn_with_state(
+            csrf_state,
+            api::enforce_csrf,
+        ))
         .layer(SetResponseHeaderLayer::if_not_present(
             axum::http::header::X_CONTENT_TYPE_OPTIONS,
             axum::http::HeaderValue::from_static("nosniff"),
         ))
         .layer(SetResponseHeaderLayer::if_not_present(
             axum::http::header::REFERRER_POLICY,
-            axum::http::HeaderValue::from_static("same-origin"),
+            axum::http::HeaderValue::from_static("strict-origin-when-cross-origin"),
         ))
         .layer(SetResponseHeaderLayer::if_not_present(
             axum::http::header::HeaderName::from_static("content-security-policy"),
-            axum::http::HeaderValue::from_static(
-                "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
-            ),
+            console_content_security_policy(config.rerun_map_provider())?,
         ))
         .layer(SetResponseHeaderLayer::if_not_present(
             axum::http::header::X_FRAME_OPTIONS,
@@ -189,6 +195,16 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!(address = %config.bind(), "console BFF listening");
     axum::serve(listener, router).await?;
     Ok(())
+}
+
+fn console_content_security_policy(
+    provider: &config::RerunMapProvider,
+) -> anyhow::Result<HeaderValue> {
+    HeaderValue::from_str(&format!(
+        "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' {}; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+        provider.connect_origin()
+    ))
+    .context("building Console content security policy")
 }
 
 fn with_console_static_routes<S>(router: Router<S>, asset_dir: &Path) -> anyhow::Result<Router<S>>
@@ -248,6 +264,27 @@ mod static_asset_tests {
     use uuid::Uuid;
 
     use super::*;
+
+    #[test]
+    fn console_csp_admits_only_the_selected_map_provider() {
+        let open_street_map =
+            console_content_security_policy(&config::RerunMapProvider::OpenStreetMap).unwrap();
+        assert!(
+            open_street_map
+                .to_str()
+                .unwrap()
+                .contains("connect-src 'self' https://tile.openstreetmap.org")
+        );
+
+        let mapbox = console_content_security_policy(&config::RerunMapProvider::Mapbox {
+            access_token: "pk.redacted".to_owned(),
+        })
+        .unwrap();
+        let mapbox = mapbox.to_str().unwrap();
+        assert!(mapbox.contains("connect-src 'self' https://api.mapbox.com"));
+        assert!(!mapbox.contains("pk.redacted"));
+        assert!(!mapbox.contains("tile.openstreetmap.org"));
+    }
 
     fn fixture() -> std::path::PathBuf {
         let root = std::env::temp_dir().join(format!("veoveo-console-assets-{}", Uuid::now_v7()));
