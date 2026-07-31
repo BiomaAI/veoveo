@@ -142,6 +142,36 @@ successful gateway `AdminRead` authorization for each inventory request. When
 NetworkPolicy is enabled, put the Kubernetes API endpoint ranges in
 `clusterInspection.kubernetesApiCidrs` to permit HTTPS from the console BFF.
 
+### Console BFF outbound routing and trust
+
+`consoleBff.oauthResource` is the public OAuth protected-resource identity. It remains
+the `resource` used during authorization and token operations, including audience and
+scope validation. `consoleBff.mcpTransportUrl` is the network endpoint used by the
+Console Apps MCP client. An in-cluster deployment normally selects
+`http://mcp-gateway:8788/mcp/<profile>` while keeping the public origin in
+`oauthResource`. The BFF sends the public deployment authority as the gateway `Host`
+header. Both URLs must select the same exact profile. A blank `mcpTransportUrl`
+preserves the previous behavior by using `oauthResource` for transport.
+
+An installation may add public CA roots to every Console BFF outbound HTTPS client:
+
+```yaml
+consoleBff:
+  oauthResource: https://veoveo.example/mcp/operator
+  mcpTransportUrl: http://mcp-gateway:8788/mcp/operator
+  outboundCa:
+    existingConfigMap: corporate-ca
+    key: ca.pem
+```
+
+The ConfigMap owns a PEM bundle and must exist before the Deployment starts. Kubernetes
+fails the mount when the ConfigMap or key is absent. The BFF fails startup when the
+mounted file is unreadable, empty, or invalid. These roots augment the standard trust
+store and the projected Kubernetes API root; certificate verification remains enabled.
+Changing the ConfigMap contents requires a Console BFF rollout because clients load the
+bundle at startup. A deployment/v3 installation places these values in a file selected
+through the platform release's `installationValues` array.
+
 `time-mcp` runs as one temporal authority process with a persistent
 `ReadWriteOnce` volume for staged and active TZDB and leap-second products.
 SurrealDB retains the release catalog, active authority pointers, calendars,

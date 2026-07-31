@@ -24,6 +24,7 @@ gateway:
 
 consoleBff:
   oauthResource: https://veoveo.bioma.ai/mcp/admin
+  mcpTransportUrl: http://mcp-gateway:8788/mcp/admin
 
 clusterInspection:
   enabled: true

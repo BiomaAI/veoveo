@@ -424,6 +424,13 @@ PKCE, stores access and rotating refresh tokens in an XChaCha20-Poly1305 encrypt
 HttpOnly, SameSite cookie, and uses a separate encrypted authorization cookie during
 login. Unsafe requests require a constant-time CSRF token match.
 
+The OAuth protected-resource URL remains a public identity even when the BFF reaches
+the gateway through a cluster-private transport URL. The Apps MCP client binds those
+URLs by their exact `/mcp/<profile>` path and sends the public deployment authority as
+`Host` on the internal connection. Installation CA roots augment the platform trust
+store for every outbound BFF client; unreadable or invalid trust material prevents
+startup.
+
 The React application receives installation projections and one-time share URLs, never a
 gateway bearer. CSP, frame denial, MIME sniff prevention, same-origin referrer policy,
 and no-store API responses are applied by the BFF. The installation snapshot is the

@@ -68,7 +68,7 @@ async fn main() -> anyhow::Result<()> {
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .context("building console live HTTP client")?;
-    let cluster = cluster::KubernetesClient::from_env()?.map(Arc::new);
+    let cluster = cluster::KubernetesClient::from_env(&outbound_trust)?.map(Arc::new);
     let mcp = Arc::new(mcp_client::McpSessionPool::new(&outbound_trust)?);
     let state = AppState {
         config: config.clone(),

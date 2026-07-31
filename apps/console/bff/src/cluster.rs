@@ -14,7 +14,7 @@ use reqwest::{
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
-use crate::{AppState, api::authorize_cluster_inventory};
+use crate::{AppState, api::authorize_cluster_inventory, outbound_http::OutboundTrust};
 
 const TOKEN_PATH: &str = "/var/run/secrets/veoveo-console/token";
 const CA_PATH: &str = "/var/run/secrets/veoveo-console/ca.crt";
@@ -27,7 +27,7 @@ pub(crate) struct KubernetesClient {
 }
 
 impl KubernetesClient {
-    pub(crate) fn from_env() -> Result<Option<Self>> {
+    pub(crate) fn from_env(outbound_trust: &OutboundTrust) -> Result<Option<Self>> {
         let enabled = std::env::var("VEOVEO_CLUSTER_INSPECTION_ENABLED")
             .unwrap_or_else(|_| "false".to_owned());
         match enabled.as_str() {
@@ -55,8 +55,9 @@ impl KubernetesClient {
             &fs::read(CA_PATH).with_context(|| format!("reading Kubernetes CA {CA_PATH}"))?,
         )
         .context("decoding Kubernetes CA")?;
-        let http = reqwest::Client::builder()
-            .add_root_certificate(certificate)
+        let http = outbound_trust
+            .client_builder()
+            .tls_certs_merge([certificate])
             .redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_secs(10))
             .build()

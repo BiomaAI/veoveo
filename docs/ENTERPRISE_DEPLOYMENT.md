@@ -148,6 +148,15 @@ Helm values, Kustomize, or the GitOps controller's generator. One setting has on
 canonical owner. A value is not copied into a general repository configuration file
 merely because one installation needs it.
 
+The Console public OAuth identity and its network route have separate installation
+ownership. Keep `consoleBff.oauthResource` at the public protected-resource URL and set
+`consoleBff.mcpTransportUrl` to the endpoint reachable by the BFF pod. Corporate roots
+belong in a non-secret installation ConfigMap selected by
+`consoleBff.outboundCa.existingConfigMap`; the chart mounts its configured PEM key and
+the BFF adds those roots to the standard verifier. A deployment/v3 source lists the
+owning values file under the platform release's `installationValues`. Missing ConfigMap
+data blocks the pod mount, while malformed trust material blocks BFF startup.
+
 ## Secrets
 
 Charts reference existing Kubernetes Secrets. Secret bytes never enter Helm values,

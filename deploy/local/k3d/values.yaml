@@ -20,6 +20,7 @@ recording:
 consoleBff:
   replicas: 1
   oauthResource: http://localhost:8780/mcp/admin
+  mcpTransportUrl: http://mcp-gateway:8788/mcp/admin
 
 telemetry:
   enabled: false

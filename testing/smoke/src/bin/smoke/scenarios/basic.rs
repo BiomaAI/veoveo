@@ -243,6 +243,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: artifact-service",
         "name: recording-hub",
         "name: console-bff",
+        "name: VEOVEO_CONSOLE_MCP_TRANSPORT_URL",
+        "value: \"http://mcp-gateway:8788/mcp/admin\"",
         "value: \"operator:use admin:manage simulation-view:read simulation-view:write simulation-view:stream",
         "name: render-control",
         "port: 9878",
@@ -263,6 +265,65 @@ pub(crate) async fn helm_config() -> Result<()> {
             bail!("canonical Helm render must not contain `{forbidden}`");
         }
     }
+
+    let console_ca = run_checked(
+        Path::new("helm"),
+        [
+            "template".into(),
+            "veoveo".into(),
+            "deploy/helm/veoveo".into(),
+            "--namespace".into(),
+            "veoveo".into(),
+            "--values".into(),
+            "deploy/local/k3d/values.yaml".into(),
+            "--values".into(),
+            "showcase/sumo/deploy/platform-values.yaml".into(),
+            "--set".into(),
+            "consoleBff.outboundCa.existingConfigMap=corporate-ca".into(),
+            "--set".into(),
+            "consoleBff.outboundCa.key=roots.pem".into(),
+        ],
+        [],
+    )?;
+    let console_deployment = console_ca
+        .split("\n---\n")
+        .find(|document| {
+            document.contains("kind: Deployment") && document.contains("name: console-bff\n")
+        })
+        .context("finding Console BFF deployment with installation CA")?;
+    for expected in [
+        "name: VEOVEO_CONSOLE_OUTBOUND_CA_BUNDLE",
+        "value: /etc/veoveo/console-outbound-ca/ca.pem",
+        "name: console-outbound-ca",
+        "mountPath: /etc/veoveo/console-outbound-ca",
+        "readOnly: true",
+        "name: \"corporate-ca\"",
+        "defaultMode: 0444",
+        "key: \"roots.pem\"",
+        "path: ca.pem",
+    ] {
+        contains(console_deployment, expected)?;
+    }
+    not_contains(console_deployment, "optional: true")?;
+
+    let malformed_console_transport = Command::new("helm")
+        .args([
+            "template",
+            "veoveo",
+            "deploy/helm/veoveo",
+            "--set",
+            "consoleBff.mcpTransportUrl=relative/mcp/admin",
+        ])
+        .output()
+        .context("rendering the platform chart with a malformed Console MCP transport")?;
+    ensure!(
+        !malformed_console_transport.status.success(),
+        "Helm schema must reject a non-absolute Console MCP transport URL"
+    );
+    contains(
+        &String::from_utf8_lossy(&malformed_console_transport.stderr),
+        "/consoleBff/mcpTransportUrl",
+    )?;
 
     let bioma = run_checked(
         Path::new("helm"),
