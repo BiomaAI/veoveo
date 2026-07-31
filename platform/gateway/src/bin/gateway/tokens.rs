@@ -9,9 +9,9 @@ use jsonwebtoken::{
 };
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    InvocationProvenance, JwtId, OAuthClientId, Principal, PrincipalId, PrincipalKind,
-    ProtectedResourceId, ResourceAuthorizationServer, ScopeName, SecretPurpose, SecretReferenceId,
-    TenantId, TokenSubject, WorkContextId,
+    InvocationProvenance, JwtId, OAuthClientId, Principal, PrincipalDisplayName, PrincipalId,
+    PrincipalKind, ProtectedResourceId, ResourceAuthorizationServer, ScopeName, SecretPurpose,
+    SecretReferenceId, TenantId, TokenSubject, WorkContextId,
 };
 use veoveo_mcp_gateway::{GatewayCatalog, GatewaySecretResolver};
 
@@ -22,6 +22,8 @@ struct AccessTokenClaims {
     iss: String,
     sub: String,
     principal_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    principal_display_name: Option<String>,
     client_id: String,
     work_context: String,
     invocation_mode: veoveo_mcp_contract::InvocationMode,
@@ -88,6 +90,7 @@ pub(super) async fn issue_client_credentials_access_token(
         PrincipalKind::Service,
         Some(service_principal),
         None,
+        None,
         AccessTokenInvocation {
             work_context,
             provenance: InvocationProvenance::Automated,
@@ -130,6 +133,7 @@ pub(super) async fn issue_access_token(
     client_id: &OAuthClientId,
     principal_kind: PrincipalKind,
     principal: Option<&Principal>,
+    principal_display_name: Option<&PrincipalDisplayName>,
     service_tenant: Option<&TenantId>,
     invocation: AccessTokenInvocation,
     principal_id: PrincipalId,
@@ -157,6 +161,7 @@ pub(super) async fn issue_access_token(
         iss: authorization_server.issuer.to_string(),
         sub: subject.to_string(),
         principal_id: principal_id.to_string(),
+        principal_display_name: principal_display_name.map(ToString::to_string),
         client_id: client_id.to_string(),
         work_context: invocation.work_context.to_string(),
         invocation_mode: invocation.provenance.mode(),

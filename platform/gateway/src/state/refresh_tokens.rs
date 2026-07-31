@@ -10,11 +10,13 @@ use chacha20poly1305::{
     aead::{Aead, KeyInit, Payload},
 };
 use chrono::{DateTime, TimeDelta, Utc};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 use veoveo_mcp_contract::{
     AuthAuditEvent, AuthorizationServerId, GatewayProfileId, GatewayRefreshFamilyId,
-    GatewayRefreshGrant, OAuthClientId, OAuthRefreshToken, Principal, ScopeName, WorkContextId,
+    GatewayRefreshGrant, OAuthClientId, OAuthRefreshToken, Principal, PrincipalDisplayName,
+    ScopeName, WorkContextId,
 };
 use veoveo_platform_store::{
     GatewayRefreshFamilyRecord, GatewayRefreshRotationOutcome, GatewayRefreshTokenRecord,
@@ -137,6 +139,7 @@ pub struct GatewayRefreshIssueRequest<'a> {
     pub oauth_client_id: &'a OAuthClientId,
     pub work_context: &'a WorkContextId,
     pub principal: &'a Principal,
+    pub principal_display_name: &'a PrincipalDisplayName,
     pub scopes: &'a BTreeSet<ScopeName>,
     pub now: DateTime<Utc>,
 }
@@ -227,6 +230,7 @@ impl GatewayState {
             oauth_client_id,
             work_context,
             principal,
+            principal_display_name,
             scopes,
             now,
         } = request;
@@ -259,7 +263,7 @@ impl GatewayState {
             principal_id: principal.id.to_string(),
             tenant: principal.tenant.as_ref().map(ToString::to_string),
             scopes: scopes.iter().map(ToString::to_string).collect(),
-            principal: serialize_principal(principal)?,
+            principal: serialize_refresh_principal(principal, principal_display_name)?,
             current_generation: 0,
             issued_at: now,
             expires_at,
@@ -279,6 +283,7 @@ impl GatewayState {
                 oauth_client_id: oauth_client_id.clone(),
                 work_context: work_context.clone(),
                 principal: principal.clone(),
+                principal_display_name: principal_display_name.clone(),
                 scopes: scopes.clone(),
                 generation: 0,
                 issued_at: now,
@@ -410,13 +415,17 @@ impl GatewayState {
 }
 
 fn grant_from_family(family: GatewayRefreshFamilyRecord) -> Result<GatewayRefreshGrant> {
+    let family_id = family_id(&family)?;
+    let stored_principal: StoredRefreshPrincipal =
+        serde_json::from_value(serde_json::to_value(family.principal)?)?;
     Ok(GatewayRefreshGrant {
-        family_id: family_id(&family)?,
+        family_id,
         authorization_server: AuthorizationServerId::new(family.authorization_server)?,
         profile: GatewayProfileId::new(family.profile)?,
         oauth_client_id: OAuthClientId::new(family.oauth_client_id)?,
         work_context: WorkContextId::new(family.work_context)?,
-        principal: serde_json::from_value(serde_json::to_value(family.principal)?)?,
+        principal: stored_principal.principal,
+        principal_display_name: stored_principal.principal_display_name,
         scopes: family
             .scopes
             .into_iter()
@@ -448,10 +457,22 @@ fn refresh_delivery_aad(family: &GatewayRefreshFamilyRecord, generation: i64) ->
     .into_bytes())
 }
 
-fn serialize_principal(principal: &Principal) -> Result<OpenObject> {
-    let value = serde_json::to_value(principal)?;
+#[derive(Serialize, Deserialize)]
+struct StoredRefreshPrincipal {
+    principal: Principal,
+    principal_display_name: PrincipalDisplayName,
+}
+
+fn serialize_refresh_principal(
+    principal: &Principal,
+    principal_display_name: &PrincipalDisplayName,
+) -> Result<OpenObject> {
+    let value = serde_json::to_value(StoredRefreshPrincipal {
+        principal: principal.clone(),
+        principal_display_name: principal_display_name.clone(),
+    })?;
     let serde_json::Value::Object(object) = value else {
-        anyhow::bail!("gateway principal did not serialize as an object");
+        anyhow::bail!("gateway refresh principal did not serialize as an object");
     };
     Ok(OpenObject::new(object.into_iter().collect()))
 }
@@ -469,6 +490,8 @@ fn refresh_token_hash(token: &OAuthRefreshToken) -> String {
 
 #[cfg(test)]
 mod tests {
+    use veoveo_mcp_contract::{PrincipalId, PrincipalKind, TenantId, TokenIssuer, TokenSubject};
+
     use super::*;
 
     const TEST_KEY: &[u8; 32] = b"0123456789abcdef0123456789abcdef";
@@ -500,5 +523,30 @@ mod tests {
         let short_key = BASE64_STANDARD.encode([0_u8; 31]);
         assert!(RefreshTokenDeliveryCipher::from_base64(&short_key).is_err());
         assert!(GatewayRefreshDeliveryWindow::from_seconds(NonZeroU32::new(31).unwrap()).is_err());
+    }
+
+    #[test]
+    fn refresh_principal_state_preserves_display_metadata() {
+        let principal = Principal {
+            id: PrincipalId::new("https://idp.example#alice").unwrap(),
+            kind: PrincipalKind::User,
+            issuer: TokenIssuer::new("https://idp.example").unwrap(),
+            subject: TokenSubject::new("alice").unwrap(),
+            tenant: Some(TenantId::new("tenant-a").unwrap()),
+            groups: BTreeSet::new(),
+            group_roles: BTreeSet::new(),
+            roles: BTreeSet::new(),
+            scopes: BTreeSet::new(),
+            data_labels: BTreeSet::new(),
+            assurances: BTreeSet::new(),
+            authenticated_at: Some(Utc::now()),
+        };
+        let display_name = PrincipalDisplayName::new("Alice Example").unwrap();
+        let encoded = serialize_refresh_principal(&principal, &display_name).unwrap();
+        let decoded: StoredRefreshPrincipal =
+            serde_json::from_value(serde_json::to_value(encoded).unwrap()).unwrap();
+
+        assert_eq!(decoded.principal, principal);
+        assert_eq!(decoded.principal_display_name, display_name);
     }
 }

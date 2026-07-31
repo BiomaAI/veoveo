@@ -343,6 +343,7 @@ pub(crate) async fn authorization_callback(
         code_challenge: authorization_request.code_challenge.clone(),
         code_challenge_method: authorization_request.code_challenge_method,
         principal: verified_identity.principal.clone(),
+        principal_display_name: verified_identity.principal_display_name.clone(),
         issued_at: now,
         expires_at,
         consumed_at: None,

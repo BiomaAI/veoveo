@@ -67,6 +67,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         iss: &'a str,
         sub: &'a str,
         principal_id: &'a str,
+        principal_display_name: &'a str,
         client_id: &'a str,
         work_context: &'a str,
         invocation_mode: InvocationMode,
@@ -132,6 +133,8 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         #[serde(skip_serializing_if = "Option::is_none")]
         oid: Option<&'a str>,
         #[serde(skip_serializing_if = "Option::is_none")]
+        name: Option<&'a str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         email: Option<&'a str>,
         #[serde(skip_serializing_if = "Option::is_none")]
         preferred_username: Option<&'a str>,
@@ -180,6 +183,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 iss: ISSUER,
                 sub: "00u123",
                 principal_id: "https://idp.example.com#00u123",
+                principal_display_name: "Mara Chen",
                 client_id: "operator-local-public",
                 work_context: "mission",
                 invocation_mode: InvocationMode::Direct,
@@ -269,8 +273,9 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 tenant: Some("tenant-a"),
                 tid: None,
                 oid: None,
-                email: None,
-                preferred_username: None,
+                name: Some("Mara Chen"),
+                email: Some("mara.chen@example.com"),
+                preferred_username: Some("mara.chen"),
                 data_labels: vec!["cui"],
                 principal_assurances: vec!["us_person"],
             },
@@ -298,6 +303,37 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 tenant: None,
                 tid: Some("tenant-a"),
                 oid: Some("entra-object-id"),
+                name: None,
+                email: Some("mara.chen@example.com"),
+                preferred_username: Some("mara.chen"),
+                data_labels: vec![],
+                principal_assurances: vec![],
+            },
+            &encoding_key,
+        )
+        .expect("Entra OIDC ID token encodes")
+    }
+
+    fn oidc_minimal_id_token(nonce: &str) -> String {
+        let mut header = Header::new(Algorithm::RS256);
+        header.kid = Some("test-key".to_string());
+        let encoding_key = rsa_encoding_key();
+        encode(
+            &header,
+            &TestOidcIdTokenClaims {
+                iss: ISSUER,
+                sub: "pairwise-subject",
+                aud: "veoveo",
+                exp: 4_102_444_800,
+                nbf: 1_700_000_000,
+                iat: 1_700_000_000,
+                nonce,
+                groups: vec![],
+                roles: vec![],
+                tenant: Some("tenant-a"),
+                tid: None,
+                oid: None,
+                name: None,
                 email: None,
                 preferred_username: None,
                 data_labels: vec![],
@@ -305,7 +341,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             },
             &encoding_key,
         )
-        .expect("Entra OIDC ID token encodes")
+        .expect("minimal OIDC ID token encodes")
     }
 
     fn rsa_encoding_key() -> EncodingKey {
@@ -366,6 +402,10 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         assert_eq!(
             subject.principal.id.as_str(),
             "https://idp.example.com#00u123"
+        );
+        assert_eq!(
+            subject.principal_display_name.unwrap().as_str(),
+            "Mara Chen"
         );
         assert_eq!(subject.principal.tenant.unwrap().as_str(), "tenant-a");
         assert!(
@@ -553,6 +593,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             .expect("valid OIDC ID token");
 
         assert_eq!(verified.principal.subject.as_str(), "00u123");
+        assert_eq!(verified.principal_display_name.as_str(), "Mara Chen");
         assert_eq!(
             verified.principal.id.as_str(),
             "https://idp.example.com#00u123"
@@ -600,6 +641,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             .expect("valid Entra OIDC ID token");
 
         assert_eq!(verified.principal.subject.as_str(), "entra-object-id");
+        assert_eq!(verified.principal_display_name.as_str(), "mara.chen");
         assert_eq!(verified.principal.tenant.unwrap().as_str(), "tenant-a");
         assert!(
             verified
@@ -607,6 +649,26 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 .roles
                 .contains(&veoveo_mcp_contract::RoleId::new("operator").unwrap())
         );
+    }
+
+    #[test]
+    fn oidc_display_name_falls_back_to_the_stable_subject() {
+        let verifier = OidcIdTokenVerifier::new(
+            OidcIdTokenConfig::new(
+                TokenIssuer::new(ISSUER).unwrap(),
+                OidcClientId::new("veoveo").unwrap(),
+                OidcNonce::new("nonce-1").unwrap(),
+                vec![Algorithm::RS256],
+            )
+            .unwrap(),
+            jwks(),
+        );
+
+        let verified = verifier
+            .verify(&oidc_minimal_id_token("nonce-1"))
+            .expect("valid minimal OIDC ID token");
+
+        assert_eq!(verified.principal_display_name.as_str(), "pairwise-subject");
     }
 
     #[test]

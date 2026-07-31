@@ -391,6 +391,7 @@ pub(super) async fn token_endpoint_authorization_code(
         &client_id,
         PrincipalKind::User,
         Some(&code_record.principal),
+        Some(&code_record.principal_display_name),
         None,
         AccessTokenInvocation {
             work_context: code_record.work_context.clone(),
@@ -439,6 +440,7 @@ pub(super) async fn token_endpoint_authorization_code(
                 oauth_client_id: &client_id,
                 work_context: &code_record.work_context,
                 principal: &code_record.principal,
+                principal_display_name: &code_record.principal_display_name,
                 scopes: &code_record.scopes,
                 now: Utc::now(),
             })

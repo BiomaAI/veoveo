@@ -83,6 +83,7 @@ pub struct GatewayAuthorizationCodeRecord {
     pub code_challenge: PkceCodeChallenge,
     pub code_challenge_method: PkceCodeChallengeMethod,
     pub principal: Principal,
+    pub principal_display_name: PrincipalDisplayName,
     pub issued_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -97,6 +98,7 @@ pub struct GatewayRefreshGrant {
     pub oauth_client_id: OAuthClientId,
     pub work_context: WorkContextId,
     pub principal: Principal,
+    pub principal_display_name: PrincipalDisplayName,
     pub scopes: BTreeSet<ScopeName>,
     pub generation: u64,
     pub issued_at: DateTime<Utc>,

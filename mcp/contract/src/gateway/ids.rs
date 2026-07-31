@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 use super::wire::{
     validate_claim_text, validate_compatibility_helper_id, validate_gateway_name,
     validate_oauth_authorization_code, validate_oauth_state_value, validate_path_id,
-    validate_pkce_code_token, validate_sha256_digest, validate_token_text, validate_uri_scheme,
+    validate_pkce_code_token, validate_principal_display_name, validate_sha256_digest,
+    validate_token_text, validate_uri_scheme,
 };
 
 macro_rules! typed_id {
@@ -230,6 +231,11 @@ typed_id!(
     PrincipalId,
     validate_claim_text,
     "Stable authenticated user or service-principal identity."
+);
+typed_id!(
+    PrincipalDisplayName,
+    validate_principal_display_name,
+    "Human-readable label for the authenticated principal. It is display metadata, never an authorization identity."
 );
 typed_id!(
     TenantId,

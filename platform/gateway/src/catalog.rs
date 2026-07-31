@@ -393,6 +393,7 @@ impl GatewayCatalog {
         let VerifiedAccessToken {
             access_token,
             principal,
+            principal_display_name,
         } = verified;
         let client = self
             .oauth_client(&access_token.oauth_client_id)
@@ -487,6 +488,7 @@ impl GatewayCatalog {
             access_token,
             principal,
             actor,
+            principal_display_name,
             authority: InvocationAuthority {
                 work_context: context.id.clone(),
                 tenant: context.tenant.clone(),

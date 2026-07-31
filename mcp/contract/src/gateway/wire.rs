@@ -148,6 +148,28 @@ pub(super) fn validate_claim_text(value: &str) -> Result<(), IdentifierError> {
     Ok(())
 }
 
+pub(super) fn validate_principal_display_name(value: &str) -> Result<(), IdentifierError> {
+    if value.is_empty() || value.trim() != value {
+        return Err(IdentifierError::new(
+            value,
+            "must be non-empty without leading or trailing whitespace",
+        ));
+    }
+    if value.len() > 256 {
+        return Err(IdentifierError::new(
+            value,
+            "must be at most 256 UTF-8 bytes",
+        ));
+    }
+    if value.chars().any(char::is_control) {
+        return Err(IdentifierError::new(
+            value,
+            "must not contain control characters",
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn validate_mount_path(value: &str) -> Result<(), IdentifierError> {
     if !value.starts_with('/') || value.len() == 1 {
         return Err(IdentifierError::new(

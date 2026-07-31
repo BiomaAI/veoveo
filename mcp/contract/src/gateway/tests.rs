@@ -406,6 +406,12 @@ fn identifiers_reject_invalid_wire_values() {
     assert!(OidcNonce::new("nonce-1").is_ok());
     assert!(OAuthAuthorizationCode::new("a".repeat(43)).is_ok());
     assert!(OAuthAuthorizationCode::new("short").is_err());
+    assert!(PrincipalDisplayName::new("Mara Chen").is_ok());
+    assert!(PrincipalDisplayName::new("mara.chen@example.com").is_ok());
+    assert!(PrincipalDisplayName::new("").is_err());
+    assert!(PrincipalDisplayName::new(" Mara Chen ").is_err());
+    assert!(PrincipalDisplayName::new("Mara\nChen").is_err());
+    assert!(PrincipalDisplayName::new("x".repeat(257)).is_err());
     assert!(PkceCodeChallenge::new("A".repeat(43)).is_ok());
     assert!(PkceCodeVerifier::new("a".repeat(129)).is_err());
     assert!(UpstreamUrl::new("http://media-mcp:8787/media/mcp").is_ok());

@@ -203,6 +203,7 @@ pub(crate) async fn token_endpoint_refresh_token(
         &client_id,
         PrincipalKind::User,
         Some(&grant.principal),
+        Some(&grant.principal_display_name),
         None,
         AccessTokenInvocation {
             work_context: grant.work_context.clone(),
