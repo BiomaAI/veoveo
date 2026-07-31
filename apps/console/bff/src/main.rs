@@ -4,6 +4,7 @@ mod cluster;
 mod config;
 mod mcp_client;
 mod oauth;
+mod outbound_http;
 mod recording_playback;
 mod session;
 
@@ -46,24 +47,29 @@ async fn main() -> anyhow::Result<()> {
         init_server_telemetry("veoveo-console-bff", "info,veoveo_console_bff=debug")?;
     let config = Arc::new(Config::from_env()?);
     let sessions = SessionCipher::new(config.session_key())?;
-    let http = reqwest::Client::builder()
+    let outbound_trust =
+        outbound_http::OutboundTrust::from_bundle_path(config.outbound_ca_bundle())?;
+    let http = outbound_trust
+        .client_builder()
         .redirect(reqwest::redirect::Policy::none())
         .timeout(Duration::from_secs(15))
         .build()
         .context("building console HTTP client")?;
-    let stream_http = reqwest::Client::builder()
+    let stream_http = outbound_trust
+        .client_builder()
         .connect_timeout(Duration::from_secs(10))
         .read_timeout(Duration::from_secs(60))
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .context("building console streaming HTTP client")?;
-    let live_http = reqwest::Client::builder()
+    let live_http = outbound_trust
+        .client_builder()
         .connect_timeout(Duration::from_secs(10))
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .context("building console live HTTP client")?;
     let cluster = cluster::KubernetesClient::from_env()?.map(Arc::new);
-    let mcp = Arc::new(mcp_client::McpSessionPool::new()?);
+    let mcp = Arc::new(mcp_client::McpSessionPool::new(&outbound_trust)?);
     let state = AppState {
         config: config.clone(),
         http,

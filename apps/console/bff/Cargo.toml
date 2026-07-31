@@ -32,4 +32,6 @@ veoveo-mcp-contract = { workspace = true }
 veoveo-mcp-task-extension = { path = "../../../mcp/task-extension" }
 
 [dev-dependencies]
+axum-server.workspace = true
+rcgen.workspace = true
 tower.workspace = true

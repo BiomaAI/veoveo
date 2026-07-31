@@ -1,4 +1,9 @@
-use std::{collections::BTreeMap, ops::Deref, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, HashMap},
+    ops::Deref,
+    sync::Arc,
+    time::Duration,
+};
 
 use anyhow::Context;
 use chrono::Utc;
@@ -13,7 +18,7 @@ use rmcp::{
 use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
 
-use crate::config::Config;
+use crate::{config::Config, outbound_http::OutboundTrust};
 
 /// Console host MCP client: declares the apps extension so servers know an
 /// app-capable host is attached; everything else is default client behavior.
@@ -99,10 +104,11 @@ pub(crate) struct McpSessionPool {
 const SESSION_EXPIRY_MARGIN_SECS: i64 = 5;
 
 impl McpSessionPool {
-    pub(crate) fn new() -> anyhow::Result<Self> {
+    pub(crate) fn new(outbound_trust: &OutboundTrust) -> anyhow::Result<Self> {
         // The MCP stream outlives ordinary request timeouts; only connection
         // establishment is bounded.
-        let http = reqwest::Client::builder()
+        let http = outbound_trust
+            .client_builder()
             .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(Duration::from_secs(10))
             .build()
@@ -130,10 +136,21 @@ impl McpSessionPool {
         if let Some(cached) = sessions.get(&key) {
             return Ok(cached.session.clone());
         }
+        let mut transport_headers = HashMap::new();
+        transport_headers.insert(
+            reqwest::header::HOST,
+            config
+                .gateway_host()
+                .parse()
+                .context("PUBLIC_BASE_URL authority is not a valid HTTP Host header")?,
+        );
         let transport = StreamableHttpClientTransport::<reqwest::Client>::with_client(
             self.http.clone(),
-            StreamableHttpClientTransportConfig::with_uri(config.oauth_resource().to_string())
+            StreamableHttpClientTransportConfig::with_uri(config.mcp_transport_url().to_string())
                 .auth_header(access_token.to_owned())
+                // The internal transport address is not the gateway's public
+                // authority. Preserve that authority for gateway Host checks.
+                .custom_headers(transport_headers)
                 // The gateway keeps MCP sessions in memory; a gateway restart
                 // discards them all while this pool still holds the old
                 // session ID. Let rmcp redo the handshake and replay the
@@ -205,6 +222,16 @@ fn hex_encode(bytes: &[u8]) -> String {
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    use axum::Router;
+    use rmcp::{
+        ServerHandler,
+        model::{ServerCapabilities, ServerInfo},
+        transport::streamable_http_server::{
+            StreamableHttpService, session::local::LocalSessionManager,
+        },
+    };
+    use url::Url;
+
     use super::*;
 
     #[tokio::test]
@@ -246,5 +273,79 @@ mod tests {
                 .unwrap(),
             7
         );
+    }
+
+    #[derive(Clone, Default)]
+    struct PrivateCaMcp;
+
+    impl ServerHandler for PrivateCaMcp {
+        fn get_info(&self) -> ServerInfo {
+            ServerInfo::new(
+                ServerCapabilities::builder()
+                    .enable_resources()
+                    .enable_tools()
+                    .build(),
+            )
+        }
+    }
+
+    #[tokio::test]
+    async fn private_ca_https_transport_uses_internal_uri_and_public_authority() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let certified_key = rcgen::generate_simple_self_signed(vec!["127.0.0.1".to_owned()])
+            .expect("private test CA and server certificate");
+        let certificate_pem = certified_key.cert.pem();
+        let tls = axum_server::tls_rustls::RustlsConfig::from_pem(
+            certificate_pem.clone().into_bytes(),
+            certified_key.signing_key.serialize_pem().into_bytes(),
+        )
+        .await
+        .expect("private CA TLS configuration");
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind private CA MCP");
+        listener
+            .set_nonblocking(true)
+            .expect("nonblocking private CA MCP listener");
+        let address = listener.local_addr().expect("private CA MCP address");
+        let service: StreamableHttpService<PrivateCaMcp, LocalSessionManager> =
+            StreamableHttpService::new(
+                || Ok(PrivateCaMcp),
+                LocalSessionManager::default().into(),
+                veoveo_mcp_contract::canonical_streamable_http_server_config()
+                    .with_allowed_hosts(vec!["console.example".to_owned()]),
+            );
+        let handle = axum_server::Handle::new();
+        let server_handle = handle.clone();
+        let server = tokio::spawn(async move {
+            axum_server::from_tcp_rustls(listener, tls)
+                .expect("private CA MCP server")
+                .handle(server_handle)
+                .serve(
+                    Router::new()
+                        .nest_service("/mcp/admin", service)
+                        .into_make_service(),
+                )
+                .await
+        });
+
+        let public_url = Url::parse("https://console.example").unwrap();
+        let internal_url = Url::parse(&format!("https://{address}/mcp/admin")).unwrap();
+        let config = Config::for_test(public_url).with_mcp_transport_url(internal_url);
+        let trust = OutboundTrust::for_test_pem_bundle(certificate_pem.as_bytes()).unwrap();
+        let pool = McpSessionPool::new(&trust).unwrap();
+        let session = pool
+            .session(
+                &config,
+                "private-ca-access-token",
+                Utc::now().timestamp() + 60,
+            )
+            .await
+            .expect("MCP initialization through installation CA and internal transport");
+        let catalog = session.app_catalog().await.expect("empty MCP app catalog");
+        assert!(catalog.resources().is_empty());
+        assert!(catalog.tools().is_empty());
+
+        session.cancellation_token().cancel();
+        handle.shutdown();
+        server.await.unwrap().unwrap();
     }
 }
