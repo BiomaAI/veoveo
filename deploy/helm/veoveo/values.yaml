@@ -11,6 +11,13 @@ global:
   offline: false
   podAnnotations: {}
   podLabels: {}
+  gpuPlacement:
+    enabled: false
+    claimName: ""
+    runtimeClassName: nvidia
+    evidenceDigest: ""
+    workloadRequests: {}
+    workloadReplicas: {}
   serviceMesh:
     enabled: false
     provider: istio

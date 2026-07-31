@@ -23,7 +23,8 @@
         "sourceTag",
         "imageDigests",
         "imagePullSecrets",
-        "installationSecret"
+        "installationSecret",
+        "gpuPlacement"
       ],
       "properties": {
         "installationId": {
@@ -54,7 +55,20 @@
             }
           }
         },
-        "installationSecret": {"type": "string", "minLength": 1}
+        "installationSecret": {"type": "string", "minLength": 1},
+        "gpuPlacement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "claimName", "runtimeClassName", "evidenceDigest", "workloadRequests", "workloadReplicas"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "claimName": {"type": "string"},
+            "runtimeClassName": {"type": "string", "minLength": 1},
+            "evidenceDigest": {"type": "string", "pattern": "^$|^sha256:[a-f0-9]{64}$"},
+            "workloadRequests": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}},
+            "workloadReplicas": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 1}}
+          }
+        }
       }
     },
     "image": {

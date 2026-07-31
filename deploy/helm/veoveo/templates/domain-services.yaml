@@ -14,8 +14,14 @@
   "chart-mcp" "chart"
   "rerun-bridge" "rerun"
 -}}
+{{- $gpuWorkloads := dict
+  "optimization-mcp" "cuopt-executor"
+  "view-mcp" "view-renderer"
+  "rerun-bridge" "rerun-bridge"
+-}}
 {{- range $service := $serviceDefinitions }}
 {{- if has (get $serverIds $service.name) $selectedServers }}
+{{- $gpuWorkload := get $gpuWorkloads $service.name | default "" -}}
 {{- if $service.persistence }}
 ---
 apiVersion: v1
@@ -60,7 +66,7 @@ metadata:
     {{- include "veoveo.labels" $ | nindent 4 }}
     app.kubernetes.io/component: {{ $service.name }}
 spec:
-  replicas: 1
+  replicas: {{ if $gpuWorkload }}{{ include "veoveo.gpuReplicas" (list $ $gpuWorkload) }}{{ else }}1{{ end }}
   strategy:
     type: Recreate
   selector:
@@ -74,13 +80,19 @@ spec:
         app.kubernetes.io/component: {{ $service.name }}
       annotations:
         {{- include "veoveo.podAnnotations" $ | nindent 8 }}
+        {{- if $gpuWorkload }}
+        {{- include "veoveo.gpuPodAnnotations" (list $ $gpuWorkload) | nindent 8 }}
+        {{- end }}
         veoveo.ai/chart-revision: {{ $.Chart.Version | quote }}
         {{- if hasKey $.Values.serverBootstrap $service.name }}
         checksum/bootstrap: {{ toJson (index $.Values.serverBootstrap $service.name) | sha256sum }}
         {{- end }}
     spec:
       {{- if $service.runtimeClassName }}
-      runtimeClassName: {{ $service.runtimeClassName }}
+      runtimeClassName: {{ if $gpuWorkload }}{{ include "veoveo.gpuRuntimeClass" (list $ $service.runtimeClassName) }}{{ else }}{{ $service.runtimeClassName }}{{ end }}
+      {{- end }}
+      {{- if $gpuWorkload }}
+      {{- include "veoveo.gpuPodClaim" (list $ $gpuWorkload) | nindent 6 }}
       {{- end }}
       serviceAccountName: {{ include "veoveo.serviceAccountName" $ }}
       automountServiceAccountToken: false
@@ -196,7 +208,11 @@ spec:
           securityContext:
             {{- include "veoveo.containerSecurityContext" $ | nindent 12 }}
           resources:
+            {{- if and $gpuWorkload (ne $gpuWorkload "cuopt-executor") }}
+            {{- include "veoveo.gpuResources" (list $ $gpuWorkload (default $.Values.gateway.resources $service.resources)) | nindent 12 }}
+            {{- else }}
             {{- toYaml (default $.Values.gateway.resources $service.resources) | nindent 12 }}
+            {{- end }}
           volumeMounts:
             - name: runtime
               mountPath: /var/lib/veoveo/runtime
@@ -258,7 +274,11 @@ spec:
           securityContext:
             {{- include "veoveo.containerSecurityContext" $ | nindent 12 }}
           resources:
+            {{- if eq $sidecar.name $gpuWorkload }}
+            {{- include "veoveo.gpuResources" (list $ $gpuWorkload $sidecar.resources) | nindent 12 }}
+            {{- else }}
             {{- toYaml $sidecar.resources | nindent 12 }}
+            {{- end }}
           {{- with $sidecar.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}

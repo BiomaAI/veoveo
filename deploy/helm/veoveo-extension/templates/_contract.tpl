@@ -85,6 +85,47 @@ seccompProfile:
   type: RuntimeDefault
 {{- end -}}
 
+{{- define "veoveo-extension.gpuRequest" -}}
+{{- $placement := required "gpuRequest requires placement" .placement -}}
+{{- $workload := required "gpuRequest requires workload" .workload -}}
+{{- if $placement.enabled -}}
+{{- required (printf "gpu placement has no request for workload %s" $workload) (get $placement.workloadRequests $workload) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "veoveo-extension.gpuReplicas" -}}
+{{- $placement := required "gpuReplicas requires placement" .placement -}}
+{{- $workload := required "gpuReplicas requires workload" .workload -}}
+{{- if $placement.enabled -}}
+{{- required (printf "gpu placement has no replica count for workload %s" $workload) (get $placement.workloadReplicas $workload) -}}
+{{- else -}}1{{- end -}}
+{{- end -}}
+
+{{- define "veoveo-extension.gpuPodClaim" -}}
+{{- $placement := required "gpuPodClaim requires placement" .placement -}}
+{{- if $placement.enabled }}
+resourceClaims:
+  - name: veoveo-gpu
+    resourceClaimName: {{ required "gpu placement claimName is required" $placement.claimName | quote }}
+{{- end }}
+{{- end -}}
+
+{{- define "veoveo-extension.gpuResources" -}}
+{{- $placement := required "gpuResources requires placement" .placement -}}
+{{- $resources := required "gpuResources requires resources" .resources -}}
+{{- if $placement.enabled -}}
+requests:
+  {{- omit $resources.requests "nvidia.com/gpu" | toYaml | nindent 2 }}
+limits:
+  {{- omit $resources.limits "nvidia.com/gpu" | toYaml | nindent 2 }}
+claims:
+  - name: veoveo-gpu
+    request: {{ include "veoveo-extension.gpuRequest" . | quote }}
+{{- else -}}
+{{- toYaml $resources -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "veoveo-extension.platformEnv" -}}
 - name: PUBLIC_BASE_URL
   value: {{ required "platformEnv requires publicBaseUrl" .publicBaseUrl | quote }}

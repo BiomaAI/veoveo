@@ -117,14 +117,33 @@
     "gpuScheduling": {
       "runtimeClassName": "nvidia",
       "allocatableDevices": 1,
-      "workloads": [
+      "evidenceDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "allocator": {
+        "claimName": "anonymous-simulation-gpu",
+        "fullDeviceClassName": "gpu.nvidia.com",
+        "migDeviceClassName": "mig.nvidia.com",
+        "driverName": "gpu.nvidia.com",
+        "configurationApiVersion": "resource.nvidia.com/v1beta1"
+      },
+      "samePhysicalDeviceGroups": [
         {
-          "workload": "simulation-view-renderer",
-          "devices": 1,
+          "name": "simulation-view",
+          "workloads": [
+            {
+              "workload": "simulation-view-renderer",
+              "deployment": "simulation-view-renderer",
+              "container": "simulation-view-isaac",
+              "replicas": 1
+            }
+          ],
           "isolation": "exclusive",
-          "evidenceDigest": null
+          "maximumConsumers": 1,
+          "evidenceDigest": null,
+          "migProfile": null,
+          "timeSliceInterval": null
         }
-      ]
+      ],
+      "differentPhysicalDeviceGroups": []
     }
   },
   "gatewayRequirements": [

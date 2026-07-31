@@ -54,8 +54,11 @@ fn external_simulation_profile_selects_only_core_renderer_gpu_images() {
         .gpu_scheduling
         .expect("Simulation View requires explicit GPU scheduling");
     assert_eq!(scheduling.allocatable_devices, 1);
-    assert_eq!(scheduling.workloads.len(), 1);
-    assert_eq!(scheduling.workloads[0].workload, "simulation-view-renderer");
+    assert_eq!(scheduling.same_physical_device_groups.len(), 1);
+    assert_eq!(
+        scheduling.same_physical_device_groups[0].workloads[0].workload,
+        "simulation-view-renderer"
+    );
     assert!(
         platform
             .external_workloads

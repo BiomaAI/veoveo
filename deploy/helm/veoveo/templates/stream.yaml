@@ -163,7 +163,7 @@ metadata:
     {{- include "veoveo.labels" . | nindent 4 }}
     app.kubernetes.io/component: stream-mcp
 spec:
-  replicas: 1
+  replicas: {{ include "veoveo.gpuReplicas" (list . "stream") }}
   strategy:
     type: Recreate
   selector:
@@ -177,9 +177,11 @@ spec:
         app.kubernetes.io/component: stream-mcp
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
+        {{- include "veoveo.gpuPodAnnotations" (list . "stream") | nindent 8 }}
         veoveo.ai/chart-revision: {{ .Chart.Version | quote }}
     spec:
-      runtimeClassName: {{ .Values.stream.runtimeClassName }}
+      runtimeClassName: {{ include "veoveo.gpuRuntimeClass" (list . .Values.stream.runtimeClassName) }}
+      {{- include "veoveo.gpuPodClaim" (list . "stream") | nindent 6 }}
       serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
       automountServiceAccountToken: false
       imagePullSecrets:
@@ -214,7 +216,7 @@ spec:
           securityContext:
             {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
           resources:
-            {{- toYaml .Values.stream.builderResources | nindent 12 }}
+            {{- include "veoveo.gpuResources" (list . "stream" .Values.stream.builderResources) | nindent 12 }}
           volumeMounts:
             - name: models
               mountPath: /models
@@ -272,7 +274,7 @@ spec:
           securityContext:
             {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
           resources:
-            {{- toYaml .Values.stream.resources | nindent 12 }}
+            {{- include "veoveo.gpuResources" (list . "stream" .Values.stream.resources) | nindent 12 }}
           volumeMounts:
             - name: models
               mountPath: /models
