@@ -721,8 +721,9 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `session.rs` | XChaCha20-Poly1305 cookies and CSRF material |
 | `api.rs` | snapshot, SSE, mutation, and artifact preview/download BFF projections |
 | `recording_playback.rs` | authenticated playback-manifest pass-through and per-request bounded-live proxy; no archive bytes or BFF session store |
-| `apps.rs`, `mcp_client.rs` | MCP Apps host backend: gateway MCP session pool, app catalog, sandboxed frame serving, allowlisted tool calls, implicit own-server reads, and gateway-projected cross-server reads |
-| `config.rs` | validated public/gateway/resource configuration |
+| `apps.rs`, `mcp_client.rs` | MCP Apps host backend: gateway MCP session pool over the independently selected transport, public gateway authority preservation, app catalog, sandboxed frame serving, allowlisted tool calls, implicit own-server reads, and gateway-projected cross-server reads |
+| `config.rs` | validated public/gateway/OAuth-resource/MCP-transport configuration and exact profile binding |
+| `outbound_http.rs` | additive installation CA trust shared by Console HTTP, streaming, live, MCP, and Kubernetes clients |
 
 ### `apps/console/web/src`
 

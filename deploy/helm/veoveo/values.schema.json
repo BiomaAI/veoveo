@@ -1093,7 +1093,69 @@
       }
     },
     "consoleBff": {
-      "$ref": "#/definitions/workload"
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "replicas",
+        "oauthClientId",
+        "oauthResource",
+        "mcpTransportUrl",
+        "outboundCa",
+        "oauthScopes",
+        "resources"
+      ],
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/image"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "oauthClientId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "oauthResource": {
+          "type": "string",
+          "pattern": "^https?://[^?#]+/mcp/[A-Za-z0-9_.-]+$"
+        },
+        "mcpTransportUrl": {
+          "type": "string",
+          "pattern": "^$|^https?://[^?#]+/mcp/[A-Za-z0-9_.-]+$"
+        },
+        "outboundCa": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "existingConfigMap",
+            "key"
+          ],
+          "properties": {
+            "existingConfigMap": {
+              "type": "string",
+              "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+            },
+            "key": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "oauthScopes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "resources": {
+          "type": "object"
+        }
+      }
     },
     "clusterInspection": {
       "type": "object",

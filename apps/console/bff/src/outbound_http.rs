@@ -61,4 +61,29 @@ mod tests {
             assert!(OutboundTrust::from_pem_bundle(invalid).is_err());
         }
     }
+
+    #[test]
+    fn outbound_ca_bundle_file_failures_name_the_installation_path() {
+        let path = std::env::temp_dir().join(format!(
+            "veoveo-console-invalid-ca-{}.pem",
+            uuid::Uuid::now_v7()
+        ));
+        std::fs::write(&path, "not a certificate").unwrap();
+        let error = OutboundTrust::from_bundle_path(Some(&path))
+            .err()
+            .expect("invalid CA bundle must fail")
+            .to_string();
+        assert!(error.contains(&path.display().to_string()), "{error}");
+        std::fs::remove_file(path).unwrap();
+
+        let missing = std::env::temp_dir().join(format!(
+            "veoveo-console-missing-ca-{}.pem",
+            uuid::Uuid::now_v7()
+        ));
+        let error = OutboundTrust::from_bundle_path(Some(&missing))
+            .err()
+            .expect("missing CA bundle must fail")
+            .to_string();
+        assert!(error.contains(&missing.display().to_string()), "{error}");
+    }
 }

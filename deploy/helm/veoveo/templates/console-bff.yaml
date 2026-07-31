@@ -57,6 +57,14 @@ spec:
               value: {{ .Values.consoleBff.oauthClientId | quote }}
             - name: VEOVEO_CONSOLE_OAUTH_RESOURCE
               value: {{ .Values.consoleBff.oauthResource | quote }}
+            {{- if .Values.consoleBff.mcpTransportUrl }}
+            - name: VEOVEO_CONSOLE_MCP_TRANSPORT_URL
+              value: {{ .Values.consoleBff.mcpTransportUrl | quote }}
+            {{- end }}
+            {{- if .Values.consoleBff.outboundCa.existingConfigMap }}
+            - name: VEOVEO_CONSOLE_OUTBOUND_CA_BUNDLE
+              value: /etc/veoveo/console-outbound-ca/ca.pem
+            {{- end }}
             - name: VEOVEO_CONSOLE_OAUTH_SCOPES
               value: {{ join " " .Values.consoleBff.oauthScopes | quote }}
             - name: VEOVEO_CLUSTER_INSPECTION_ENABLED
@@ -104,6 +112,11 @@ spec:
               mountPath: /var/run/secrets/veoveo-console
               readOnly: true
             {{- end }}
+            {{- if .Values.consoleBff.outboundCa.existingConfigMap }}
+            - name: console-outbound-ca
+              mountPath: /etc/veoveo/console-outbound-ca
+              readOnly: true
+            {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
@@ -120,5 +133,14 @@ spec:
                   items:
                     - key: ca.crt
                       path: ca.crt
+        {{- end }}
+        {{- if .Values.consoleBff.outboundCa.existingConfigMap }}
+        - name: console-outbound-ca
+          configMap:
+            name: {{ .Values.consoleBff.outboundCa.existingConfigMap | quote }}
+            defaultMode: 0444
+            items:
+              - key: {{ .Values.consoleBff.outboundCa.key | quote }}
+                path: ca.pem
         {{- end }}
 {{- end }}
