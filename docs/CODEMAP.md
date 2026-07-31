@@ -14,6 +14,7 @@ component:
 | [`AGENTS.md`](../AGENTS.md) | mandatory contribution and implementation rules |
 | [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md) | normative product and architecture boundaries |
 | [`TECH_DESIGN.md`](TECH_DESIGN.md) | current implementation of those architecture decisions |
+| [`AUTONOMY_HARNESS.md`](AUTONOMY_HARNESS.md) | shared responsibility, continuous containment boundary, and operating proof for always-autonomous agents |
 | [`WORK_CONTEXT_GOVERNANCE.md`](WORK_CONTEXT_GOVERNANCE.md) | invocation authority, output ownership, effective access, and rollout |
 | [`ENTERPRISE_DEPLOYMENT.md`](ENTERPRISE_DEPLOYMENT.md) | OCI release, enterprise configuration, secrets, GitOps, extensions, and acceptance |
 | [`EXTERNAL_EXTENSIONS.md`](EXTERNAL_EXTENSIONS.md) | supported private external-repository contract, artifact ownership, compatibility manifests, and installation composition |

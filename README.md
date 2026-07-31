@@ -386,6 +386,10 @@ repository.
 | Enterprise GitOps | Immutable OCI charts and image digests reconciled by the installation owner's Argo CD, Flux, or equivalent controller. | [`docs/ENTERPRISE_DEPLOYMENT.md`](docs/ENTERPRISE_DEPLOYMENT.md) |
 | Offline | A verified bundle containing runtime images, charts, schemas, checksums, image identities, and SPDX SBOMs. | [`deploy/offline`](deploy/offline/README.md) |
 
+The [Autonomy Harness shared-responsibility contract](docs/AUTONOMY_HARNESS.md)
+defines how continuously autonomous agents remain contained across identity, data,
+network, compute, spend, capabilities, and side effects.
+
 [`examples/bioma`](examples/bioma/README.md) is the executable reference for the
 enterprise flow. Its hostname and infrastructure choices demonstrate one
 installation; each deployment substitutes its own.
