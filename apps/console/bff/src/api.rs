@@ -953,7 +953,7 @@ mod tests {
             live_http: reqwest::Client::new(),
             cluster: None,
             sessions,
-            mcp: Arc::new(McpSessionPool::new().unwrap()),
+            mcp: Arc::new(McpSessionPool::new(&Default::default()).unwrap()),
             app_tasks: AppTaskRegistry::default(),
         };
         let response = stream(State(state), RawQuery(None), request_headers).await;

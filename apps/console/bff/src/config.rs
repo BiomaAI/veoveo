@@ -16,8 +16,10 @@ pub(crate) struct Config {
     gateway_url: Url,
     oauth_client_id: String,
     oauth_resource: Url,
+    mcp_transport_url: Url,
     oauth_scopes: BTreeSet<ScopeName>,
     admin_profile: String,
+    outbound_ca_bundle: Option<PathBuf>,
     session_key: [u8; 32],
     asset_dir: PathBuf,
 }
@@ -32,14 +34,21 @@ impl Config {
         let oauth_client_id = required("VEOVEO_CONSOLE_OAUTH_CLIENT_ID")?;
         validate_identifier("VEOVEO_CONSOLE_OAUTH_CLIENT_ID", &oauth_client_id)?;
         let oauth_resource = absolute_url("VEOVEO_CONSOLE_OAUTH_RESOURCE")?;
+        let configured_mcp_transport = optional("VEOVEO_CONSOLE_MCP_TRANSPORT_URL")?;
+        let mcp_transport_url =
+            resolve_mcp_transport_url(&oauth_resource, configured_mcp_transport.as_deref())?;
         let oauth_scopes = parse_oauth_scopes(&required("VEOVEO_CONSOLE_OAUTH_SCOPES")?)?;
-        let admin_profile = oauth_resource
-            .path()
-            .strip_prefix("/mcp/")
-            .filter(|value| !value.is_empty() && !value.contains('/'))
-            .ok_or_else(|| anyhow!("VEOVEO_CONSOLE_OAUTH_RESOURCE must end in /mcp/<profile>"))?
-            .to_owned();
+        let admin_profile = mcp_profile("VEOVEO_CONSOLE_OAUTH_RESOURCE", &oauth_resource)?;
         validate_identifier("OAuth resource profile", &admin_profile)?;
+        let outbound_ca_bundle = optional("VEOVEO_CONSOLE_OUTBOUND_CA_BUNDLE")?
+            .map(PathBuf::from)
+            .map(|path| {
+                if !path.is_absolute() {
+                    bail!("VEOVEO_CONSOLE_OUTBOUND_CA_BUNDLE must be an absolute path");
+                }
+                Ok(path)
+            })
+            .transpose()?;
         let key_bytes = STANDARD
             .decode(required("VEOVEO_CONSOLE_SESSION_KEY")?)
             .context("VEOVEO_CONSOLE_SESSION_KEY must be canonical base64")?;
@@ -56,8 +65,10 @@ impl Config {
             gateway_url,
             oauth_client_id,
             oauth_resource,
+            mcp_transport_url,
             oauth_scopes,
             admin_profile,
+            outbound_ca_bundle,
             session_key,
             asset_dir,
         })
@@ -71,6 +82,9 @@ impl Config {
     }
     pub(crate) fn oauth_resource(&self) -> &Url {
         &self.oauth_resource
+    }
+    pub(crate) fn mcp_transport_url(&self) -> &Url {
+        &self.mcp_transport_url
     }
     pub(crate) fn oauth_scope(&self) -> String {
         self.oauth_scopes
@@ -87,6 +101,9 @@ impl Config {
     }
     pub(crate) fn asset_dir(&self) -> &Path {
         &self.asset_dir
+    }
+    pub(crate) fn outbound_ca_bundle(&self) -> Option<&Path> {
+        self.outbound_ca_bundle.as_deref()
     }
 
     pub(crate) fn callback_url(&self) -> Url {
@@ -174,14 +191,24 @@ impl Config {
             public_base_url: gateway_url.clone(),
             oauth_client_id: "console".to_owned(),
             oauth_resource: gateway_url.join("/mcp/admin").expect("valid test resource"),
+            mcp_transport_url: gateway_url
+                .join("/mcp/admin")
+                .expect("valid test transport"),
             oauth_scopes: BTreeSet::from([
                 ScopeName::new("admin:manage").expect("valid test scope")
             ]),
             admin_profile: "admin".to_owned(),
+            outbound_ca_bundle: None,
             session_key: [7; 32],
             asset_dir: PathBuf::from("/tmp/veoveo-console-test-assets"),
             gateway_url,
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_mcp_transport_url(mut self, transport_url: Url) -> Self {
+        self.mcp_transport_url = transport_url;
+        self
     }
 }
 
@@ -193,21 +220,61 @@ fn required(key: &'static str) -> anyhow::Result<String> {
     Ok(value)
 }
 
+fn optional(key: &'static str) -> anyhow::Result<Option<String>> {
+    match std::env::var(key) {
+        Ok(value) if value.trim().is_empty() => bail!("{key} must not be empty when set"),
+        Ok(value) => Ok(Some(value)),
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(error) => Err(error).with_context(|| format!("reading env var {key}")),
+    }
+}
+
 fn env_or(key: &str, default: &str) -> String {
     std::env::var(key).unwrap_or_else(|_| default.to_owned())
 }
 
 fn absolute_url(key: &'static str) -> anyhow::Result<Url> {
-    let url =
-        Url::parse(&required(key)?).with_context(|| format!("{key} must be an absolute URL"))?;
+    absolute_url_value(key, &required(key)?)
+}
+
+fn absolute_url_value(key: &'static str, value: &str) -> anyhow::Result<Url> {
+    let url = Url::parse(value).with_context(|| format!("{key} must be an absolute URL"))?;
     if !matches!(url.scheme(), "http" | "https")
         || url.host_str().is_none()
         || url.query().is_some()
         || url.fragment().is_some()
+        || !url.username().is_empty()
+        || url.password().is_some()
     {
-        bail!("{key} must be an http(s) URL without query or fragment");
+        bail!("{key} must be an http(s) URL without credentials, query, or fragment");
     }
     Ok(url)
+}
+
+fn mcp_profile(key: &'static str, url: &Url) -> anyhow::Result<String> {
+    url.path()
+        .strip_prefix("/mcp/")
+        .filter(|value| !value.is_empty() && !value.contains('/'))
+        .map(str::to_owned)
+        .ok_or_else(|| anyhow!("{key} must end in /mcp/<profile>"))
+}
+
+fn resolve_mcp_transport_url(
+    oauth_resource: &Url,
+    configured_transport: Option<&str>,
+) -> anyhow::Result<Url> {
+    let transport = configured_transport.map_or_else(
+        || Ok(oauth_resource.clone()),
+        |value| absolute_url_value("VEOVEO_CONSOLE_MCP_TRANSPORT_URL", value),
+    )?;
+    let oauth_profile = mcp_profile("VEOVEO_CONSOLE_OAUTH_RESOURCE", oauth_resource)?;
+    let transport_profile = mcp_profile("VEOVEO_CONSOLE_MCP_TRANSPORT_URL", &transport)?;
+    if transport_profile != oauth_profile {
+        bail!(
+            "VEOVEO_CONSOLE_MCP_TRANSPORT_URL profile `{transport_profile}` must match VEOVEO_CONSOLE_OAUTH_RESOURCE profile `{oauth_profile}`"
+        );
+    }
+    Ok(transport)
 }
 
 fn base_url(key: &'static str) -> anyhow::Result<Url> {
@@ -239,8 +306,10 @@ impl std::fmt::Debug for Config {
             .field("gateway_url", &self.gateway_url)
             .field("oauth_client_id", &self.oauth_client_id)
             .field("oauth_resource", &self.oauth_resource)
+            .field("mcp_transport_url", &self.mcp_transport_url)
             .field("oauth_scopes", &self.oauth_scopes)
             .field("admin_profile", &self.admin_profile)
+            .field("outbound_ca_bundle", &self.outbound_ca_bundle)
             .field("session_key", &"[REDACTED]")
             .field("asset_dir", &self.asset_dir)
             .finish()
@@ -271,5 +340,71 @@ mod tests {
             ["admin:manage", "operator:use"]
         );
         assert!(parse_oauth_scopes(" ").is_err());
+    }
+
+    #[test]
+    fn console_mcp_transport_requires_an_absolute_http_endpoint() {
+        for invalid in [
+            "mcp-gateway:8788/mcp/admin",
+            "ftp://mcp-gateway/mcp/admin",
+            "http://user@mcp-gateway/mcp/admin",
+            "http://mcp-gateway/mcp/admin?tenant=one",
+            "http://mcp-gateway/mcp/admin#fragment",
+        ] {
+            assert!(
+                absolute_url_value("VEOVEO_CONSOLE_MCP_TRANSPORT_URL", invalid).is_err(),
+                "accepted invalid transport URL {invalid}"
+            );
+        }
+        assert!(
+            absolute_url_value(
+                "VEOVEO_CONSOLE_MCP_TRANSPORT_URL",
+                "http://mcp-gateway:8788/mcp/admin"
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn console_mcp_transport_profile_is_typed_from_the_exact_path() {
+        let admin = Url::parse("https://public.example/mcp/admin").unwrap();
+        let operator = Url::parse("http://mcp-gateway:8788/mcp/operator").unwrap();
+        assert_eq!(
+            mcp_profile("VEOVEO_CONSOLE_OAUTH_RESOURCE", &admin).unwrap(),
+            "admin"
+        );
+        assert_ne!(
+            mcp_profile("VEOVEO_CONSOLE_OAUTH_RESOURCE", &admin).unwrap(),
+            mcp_profile("VEOVEO_CONSOLE_MCP_TRANSPORT_URL", &operator).unwrap()
+        );
+        for invalid in [
+            "http://mcp-gateway:8788/mcp/",
+            "http://mcp-gateway:8788/mcp/admin/",
+            "http://mcp-gateway:8788/internal/mcp/admin",
+        ] {
+            assert!(
+                mcp_profile(
+                    "VEOVEO_CONSOLE_MCP_TRANSPORT_URL",
+                    &Url::parse(invalid).unwrap()
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn console_mcp_transport_defaults_to_oauth_resource_and_rejects_profile_mismatch() {
+        let oauth = Url::parse("https://public.example/mcp/operator").unwrap();
+        assert_eq!(resolve_mcp_transport_url(&oauth, None).unwrap(), oauth);
+        assert_eq!(
+            resolve_mcp_transport_url(&oauth, Some("http://mcp-gateway:8788/mcp/operator"))
+                .unwrap()
+                .as_str(),
+            "http://mcp-gateway:8788/mcp/operator"
+        );
+        let error = resolve_mcp_transport_url(&oauth, Some("http://mcp-gateway:8788/mcp/admin"))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("profile `admin` must match"), "{error}");
     }
 }
