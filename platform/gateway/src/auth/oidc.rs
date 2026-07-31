@@ -4,8 +4,8 @@ use chrono::Utc;
 use jsonwebtoken::{DecodingKey, Validation, decode, decode_header, jwk::JwkSet};
 use veoveo_mcp_contract::{
     DataLabelId, GroupId, IdentityProviderSubjectClaim, IdentityProviderTenantClaim,
-    IdentityProviderTenantClaimMapping, Principal, PrincipalId, PrincipalKind, RoleId, TenantId,
-    TokenIssuer, TokenSubject,
+    IdentityProviderTenantClaimMapping, Principal, PrincipalDisplayName, PrincipalId,
+    PrincipalKind, RoleId, TenantId, TokenIssuer, TokenSubject,
 };
 
 use super::{
@@ -67,6 +67,7 @@ impl OidcIdTokenVerifier {
             subject_claim(&claims, self.config.claim_mapping.subject)?.to_owned(),
         )
         .map_err(AuthError::Claim)?;
+        let principal_display_name = oidc_principal_display_name(&claims, &subject);
         let principal = Principal {
             id: PrincipalId::new(format!("{issuer}#{subject}")).map_err(AuthError::Claim)?,
             kind: PrincipalKind::User,
@@ -110,9 +111,50 @@ impl OidcIdTokenVerifier {
 
         Ok(VerifiedOidcIdentity {
             principal,
+            principal_display_name,
             expires_at: unix_timestamp(claims.exp, "exp")?,
         })
     }
+}
+
+fn oidc_principal_display_name(
+    claims: &OidcIdTokenClaims,
+    subject: &TokenSubject,
+) -> PrincipalDisplayName {
+    for candidate in [
+        claims.name.as_deref(),
+        claims.preferred_username.as_deref(),
+        claims.email.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        if let Ok(display_name) = PrincipalDisplayName::new(candidate.trim()) {
+            return display_name;
+        }
+    }
+    PrincipalDisplayName::new(compact_subject_label(subject.as_str()))
+        .expect("a validated token subject always produces a valid compact display label")
+}
+
+fn compact_subject_label(subject: &str) -> String {
+    let candidate = subject
+        .split(['#', '/'])
+        .rfind(|segment| !segment.trim().is_empty())
+        .unwrap_or(subject)
+        .trim();
+    if candidate.is_empty() {
+        return "User".to_owned();
+    }
+    let mut label = String::new();
+    for character in candidate.chars() {
+        if label.len() + character.len_utf8() > 253 {
+            label.push_str("...");
+            break;
+        }
+        label.push(character);
+    }
+    label
 }
 
 fn subject_claim(

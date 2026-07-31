@@ -14,8 +14,9 @@ use veoveo_mcp_contract::{
     OAuthAuthorizationCode, OAuthClientId, OAuthRedirectUri, OAuthStateValue,
     OidcClientRegistrationId, OidcNonce, PkceCodeChallenge, PkceCodeChallengeMethod,
     PkceCodeVerifier, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget, Principal,
-    PrincipalAuditAttributes, PrincipalId, PrincipalKind, ProtectedResourceId, ResourceUri,
-    ScopeName, ServerSlug, TenantId, TokenIssuer, TokenSubject, TraceId, WorkContextId,
+    PrincipalAuditAttributes, PrincipalDisplayName, PrincipalId, PrincipalKind,
+    ProtectedResourceId, ResourceUri, ScopeName, ServerSlug, TenantId, TokenIssuer, TokenSubject,
+    TraceId, WorkContextId,
 };
 use veoveo_mcp_gateway::{
     GatewayRefreshDeliveryWindow, GatewayRefreshExchange, GatewayRefreshIssueRequest,
@@ -234,6 +235,7 @@ async fn gateway_correctness_state_is_shared_and_single_use_across_replicas() {
             oauth_client_id: &client_id,
             work_context: &WorkContextId::new("mission").unwrap(),
             principal: &principal,
+            principal_display_name: &PrincipalDisplayName::new("Alice").unwrap(),
             scopes: &principal.scopes,
             now,
         })
@@ -476,6 +478,7 @@ async fn refresh_rotation_rolls_back_when_success_audit_cannot_commit() {
             oauth_client_id: &client_id,
             work_context: &WorkContextId::new("mission").unwrap(),
             principal: &principal,
+            principal_display_name: &PrincipalDisplayName::new("Alice").unwrap(),
             scopes: &principal.scopes,
             now,
         })
@@ -575,6 +578,7 @@ async fn consuming_a_successor_clears_its_delivery_envelope_atomically() {
             oauth_client_id: &client_id,
             work_context: &WorkContextId::new("mission").unwrap(),
             principal: &principal,
+            principal_display_name: &PrincipalDisplayName::new("Alice").unwrap(),
             scopes: &principal.scopes,
             now,
         })
@@ -685,6 +689,7 @@ async fn public_client_revocation_is_bound_idempotent_and_family_wide() {
             oauth_client_id: &client_id,
             work_context: &WorkContextId::new("mission").unwrap(),
             principal: &principal,
+            principal_display_name: &PrincipalDisplayName::new("Alice").unwrap(),
             scopes: &principal.scopes,
             now,
         })
@@ -855,6 +860,7 @@ fn authorization_code(
         code_challenge: PkceCodeChallenge::new("E".repeat(43)).unwrap(),
         code_challenge_method: PkceCodeChallengeMethod::S256,
         principal,
+        principal_display_name: PrincipalDisplayName::new("Alice").unwrap(),
         issued_at: now,
         expires_at: now + TimeDelta::minutes(5),
         consumed_at: None,

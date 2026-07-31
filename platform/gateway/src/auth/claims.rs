@@ -10,6 +10,8 @@ pub(super) struct JwtClaims {
     pub(super) iss: String,
     pub(super) sub: String,
     pub(super) principal_id: String,
+    #[serde(default)]
+    pub(super) principal_display_name: Option<String>,
     pub(super) client_id: String,
     pub(super) work_context: String,
     pub(super) invocation_mode: InvocationMode,
@@ -109,6 +111,8 @@ pub(super) struct OidcIdTokenClaims {
     pub(super) tid: Option<String>,
     #[serde(default)]
     pub(super) oid: Option<String>,
+    #[serde(default)]
+    pub(super) name: Option<String>,
     #[serde(default)]
     pub(super) email: Option<String>,
     #[serde(default)]

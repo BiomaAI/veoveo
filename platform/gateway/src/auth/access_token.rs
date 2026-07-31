@@ -4,7 +4,8 @@ use chrono::Utc;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header, jwk::JwkSet};
 use veoveo_mcp_contract::{
     AccessTokenSubject, DataLabelId, DelegationId, GroupId, JwtId, OAuthClientId, Principal,
-    PrincipalId, PrincipalKind, RoleId, TenantId, TokenIssuer, TokenSubject, WorkContextId,
+    PrincipalDisplayName, PrincipalId, PrincipalKind, RoleId, TenantId, TokenIssuer, TokenSubject,
+    WorkContextId,
 };
 
 use super::{
@@ -139,6 +140,11 @@ impl JwtVerifier {
         Ok(VerifiedAccessToken {
             access_token: token_subject,
             principal,
+            principal_display_name: claims
+                .principal_display_name
+                .map(PrincipalDisplayName::new)
+                .transpose()
+                .map_err(AuthError::Claim)?,
         })
     }
 

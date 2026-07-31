@@ -2,13 +2,15 @@ use std::collections::BTreeSet;
 
 use chrono::{DateTime, Utc};
 use veoveo_mcp_contract::{
-    AccessTokenSubject, InvocationAuthority, JwtId, OAuthClientId, Principal, ScopeName,
+    AccessTokenSubject, InvocationAuthority, JwtId, OAuthClientId, Principal, PrincipalDisplayName,
+    ScopeName,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedAccessToken {
     pub access_token: AccessTokenSubject,
     pub principal: Principal,
+    pub principal_display_name: Option<PrincipalDisplayName>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,6 +18,7 @@ pub struct AuthenticatedSubject {
     pub access_token: AccessTokenSubject,
     pub principal: Principal,
     pub actor: Principal,
+    pub principal_display_name: Option<PrincipalDisplayName>,
     pub authority: InvocationAuthority,
 }
 
@@ -38,5 +41,6 @@ pub struct VerifiedIdJag {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedOidcIdentity {
     pub principal: Principal,
+    pub principal_display_name: PrincipalDisplayName,
     pub expires_at: DateTime<Utc>,
 }
