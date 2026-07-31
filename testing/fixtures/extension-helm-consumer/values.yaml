@@ -7,6 +7,13 @@ veoveo:
   imageDigests: {}
   imagePullSecrets: []
   installationSecret: veoveo-installation-secrets
+  gpuPlacement:
+    enabled: false
+    claimName: ""
+    runtimeClassName: nvidia
+    evidenceDigest: ""
+    workloadRequests: {}
+    workloadReplicas: {}
   surreal:
     endpoint: ws://surrealdb:8000
     namespace: veoveo

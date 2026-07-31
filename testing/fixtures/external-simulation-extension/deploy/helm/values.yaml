@@ -6,6 +6,13 @@ veoveo:
   imageDigests: {}
   imagePullSecrets: []
   installationSecret: veoveo-installation-secrets
+  gpuPlacement:
+    enabled: false
+    claimName: ""
+    runtimeClassName: nvidia
+    evidenceDigest: ""
+    workloadRequests: {}
+    workloadReplicas: {}
 
 image:
   repository: extensions/anonymous-simulation-mcp

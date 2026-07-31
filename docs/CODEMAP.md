@@ -108,7 +108,7 @@ Hub, administration, and GPU policy.
 | `configs/stream/` | admitted GStreamer graph, typed profile, TensorRT model, and live-ingress catalog example |
 | `configs/reason/` | world-model checkpoint reason catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
-| `deploy/contract/` | multi-source deployment v4 profiles and locks, platform/workload/extension ownership, exact platform-image closure, split source/installation Helm values, typed registry transport, collision-free publication preflight, schema generation, and pure validation |
+| `deploy/contract/` | multi-source deployment v4 profiles and locks, platform/workload/extension ownership, exact platform-image closure, split source/installation Helm values, typed registry transport, DRA physical-GPU topology, collision-free publication preflight, schema generation, and pure validation |
 | `extensions/contract/` | typed external artifact, compatibility-manifest, extension-release, simulation build-lock/result/evidence, and schema contracts |
 | `extensions/examples/` | anonymous external fragment and installation-binding examples |
 | `deploy/local/k3d/` | GPU-capable local Kubernetes cluster and values |
@@ -122,7 +122,8 @@ Hub, administration, and GPU policy.
 | `testing/` | conformance tooling and multi-process smoke harnesses |
 | `sdk/` | language SDK workspaces |
 | `deploy/helm/veoveo/` | Kubernetes installation chart, chart-owned first-party service definitions, and typed component/server presets |
-| `deploy/helm/veoveo/templates/simulation-view.yaml` | independently selected Simulation View MCP plus co-located hardware Isaac renderer and mTLS pose ingress, bounded signaling/media Services, shared memory, artifacts, and GPU placement |
+| `deploy/helm/veoveo/templates/simulation-view.yaml` | independently selected Simulation View MCP plus co-located hardware Isaac renderer and mTLS pose ingress, bounded signaling/media Services, shared memory, artifacts, and per-container DRA claim binding |
+| `testing/smoke/src/bin/smoke/deployment.rs` | profile validation and orchestration, durable DRA ResourceClaim compilation, physical-UUID rollout verification, immutable gateway activation, and ordered Helm release inputs |
 | `deploy/helm/veoveo-extension/` | private reusable extension-chart helper API and immutable chart package source |
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |

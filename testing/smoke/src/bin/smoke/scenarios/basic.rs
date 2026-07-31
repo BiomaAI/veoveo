@@ -266,6 +266,46 @@ pub(crate) async fn helm_config() -> Result<()> {
         }
     }
 
+    let dra_platform = run_checked(
+        Path::new("helm"),
+        [
+            "template".into(),
+            "veoveo".into(),
+            "deploy/helm/veoveo".into(),
+            "--namespace".into(),
+            "veoveo".into(),
+            "--values".into(),
+            "deploy/local/k3d/values.yaml".into(),
+            "--values".into(),
+            "showcase/sumo/deploy/platform-values.yaml".into(),
+            "--set-json".into(),
+            r#"global.gpuPlacement={"enabled":true,"claimName":"veoveo-gpu-placement","runtimeClassName":"nvidia","evidenceDigest":"sha256:1111111111111111111111111111111111111111111111111111111111111111","workloadRequests":{"simulation-view-renderer":"simulation","view-renderer":"visualization","stream":"perception","reason":"reasoning","cuopt-executor":"optimization","rerun-bridge":"rerun"},"workloadReplicas":{"simulation-view-renderer":1,"view-renderer":1,"stream":1,"reason":1,"cuopt-executor":1,"rerun-bridge":1}}"#.into(),
+        ],
+        [],
+    )?;
+    for component in [
+        "simulation-view-renderer",
+        "view-mcp",
+        "stream-mcp",
+        "reason-mcp",
+        "optimization-mcp",
+        "rerun-bridge",
+    ] {
+        let deployment = dra_platform
+            .split("\n---\n")
+            .find(|document| {
+                document.contains("kind: Deployment")
+                    && document.contains(&format!("name: {component}\n"))
+            })
+            .with_context(|| format!("finding DRA-bound {component} deployment"))?;
+        contains(deployment, "resourceClaims:")?;
+        contains(deployment, "resourceClaimName: \"veoveo-gpu-placement\"")?;
+        contains(deployment, "claims:")?;
+        contains(deployment, "veoveo.ai/gpu-placement-evidence:")?;
+        not_contains(deployment, "nvidia.com/gpu")?;
+        not_contains(deployment, "NVIDIA_VISIBLE_DEVICES")?;
+    }
+
     let console_ca = run_checked(
         Path::new("helm"),
         [

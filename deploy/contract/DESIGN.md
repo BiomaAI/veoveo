@@ -9,7 +9,8 @@
 | `veoveo.io/local-registry/v1` | repository-owned loopback registry declaration |
 | Docker Buildx Bake | one exact multi-target platform build plus source-owned workload and extension groups |
 | Kubernetes and Helm | typed destination and ordered release inputs; process execution remains outside this crate |
-| Kubernetes NVIDIA device resources | exact exclusive-device accounting plus evidence-gated NVIDIA MIG or time-slicing declarations |
+| Kubernetes Dynamic Resource Allocation `resource.k8s.io/v1` | persistent `ResourceClaim` allocation, named requests, per-container claims, and distinct-device constraints |
+| NVIDIA DRA driver `resource.nvidia.com/v1beta1` | full-GPU and MIG DeviceClasses plus measured time-slicing configuration; this is the internal adapter, not the public placement vocabulary |
 
 ## Responsibility
 
@@ -52,15 +53,30 @@ GPU cuOpt executor.
 The component graph distinguishes the recording data plane, hardware GPU renderer, and
 canonical simulation-runtime support from hosted MCP servers and operator surfaces.
 External workload identifiers remain source-owned but enter the same immutable
-selection and deployment lock. A GPU scheduling profile names every selected GPU
-workload, its device count, and its isolation. Exclusive requests consume physical
-devices directly. NVIDIA MIG and time-slicing require a digest-addressed measurement
-record; configuration alone never makes sharing valid.
+selection and deployment lock. A GPU scheduling profile groups named Deployments and
+containers by physical-device identity. Separate constraints state which groups must
+use different physical devices. Each workload declares its replica count, while each
+group bounds all consumers. The profile also records the installation evidence digest
+and the stable DRA claim identity.
+
+`profile-up` compiles that provider-neutral topology into one
+`resource.k8s.io/v1` ResourceClaim before Helm runs. Workloads in one group reference
+the same claim request. Different groups are allocated atomically and use a
+`distinctAttribute` constraint for shared devices. The claim persists through pod
+replacement, node restart, and Helm upgrade. NVIDIA full-device and MIG DeviceClasses
+are implementation details selected by the installation. Measured time slicing adds
+opaque driver configuration and requires its own evidence digest; exclusive groups
+permit one consumer only.
 
 Simulation View selects Frames MCP, its provider-neutral MCP server, the Artifact
 service with the `simulation-view` audience, the canonical runtime support component,
-and one renderer GPU. A profile that also places an external simulator on an ordinary
-one-GPU node with both workloads marked exclusive fails during pure profile resolution.
+and one renderer GPU. A profile whose physical-device groups exceed installation
+capacity fails during pure profile resolution.
+
+After rollout, `profile-up` reads the allocated claim and executes `nvidia-smi` inside
+every declared GPU container. It reports the one visible physical UUID for each replica.
+Same-device drift, different-device drift, a missing replica, or more than one visible
+device fails the command with the exact workload and group.
 
 The same resolution produces the exact Veoveo-owned OCI image closure. Platform
 components contribute their runtime images, each selected MCP server contributes its

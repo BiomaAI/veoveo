@@ -68,6 +68,70 @@ veoveo.ai/installation: {{ required "global.installationId is required" .Values.
 {{- end }}
 {{- end }}
 
+{{- define "veoveo.gpuRequest" -}}
+{{- $root := index . 0 -}}
+{{- $workload := index . 1 -}}
+{{- if $root.Values.global.gpuPlacement.enabled -}}
+{{- required (printf "global.gpuPlacement.workloadRequests[%s] is required" $workload) (get $root.Values.global.gpuPlacement.workloadRequests $workload) -}}
+{{- end -}}
+{{- end }}
+
+{{- define "veoveo.gpuRuntimeClass" -}}
+{{- $root := index . 0 -}}
+{{- $fallback := index . 1 -}}
+{{- if $root.Values.global.gpuPlacement.enabled -}}
+{{- required "global.gpuPlacement.runtimeClassName is required" $root.Values.global.gpuPlacement.runtimeClassName -}}
+{{- else -}}
+{{- $fallback -}}
+{{- end -}}
+{{- end }}
+
+{{- define "veoveo.gpuReplicas" -}}
+{{- $root := index . 0 -}}
+{{- $workload := index . 1 -}}
+{{- if $root.Values.global.gpuPlacement.enabled -}}
+{{- required (printf "global.gpuPlacement.workloadReplicas[%s] is required" $workload) (get $root.Values.global.gpuPlacement.workloadReplicas $workload) -}}
+{{- else -}}
+1
+{{- end -}}
+{{- end }}
+
+{{- define "veoveo.gpuPodAnnotations" -}}
+{{- $root := index . 0 -}}
+{{- $workload := index . 1 -}}
+{{- if $root.Values.global.gpuPlacement.enabled }}
+veoveo.ai/gpu-placement-evidence: {{ required "global.gpuPlacement.evidenceDigest is required" $root.Values.global.gpuPlacement.evidenceDigest | quote }}
+veoveo.ai/gpu-placement-request: {{ include "veoveo.gpuRequest" (list $root $workload) | quote }}
+{{- end }}
+{{- end }}
+
+{{- define "veoveo.gpuPodClaim" -}}
+{{- $root := index . 0 -}}
+{{- $workload := index . 1 -}}
+{{- if $root.Values.global.gpuPlacement.enabled }}
+resourceClaims:
+  - name: veoveo-gpu
+    resourceClaimName: {{ required "global.gpuPlacement.claimName is required" $root.Values.global.gpuPlacement.claimName | quote }}
+{{- end }}
+{{- end }}
+
+{{- define "veoveo.gpuResources" -}}
+{{- $root := index . 0 -}}
+{{- $workload := index . 1 -}}
+{{- $resources := index . 2 -}}
+{{- if $root.Values.global.gpuPlacement.enabled -}}
+requests:
+  {{- omit $resources.requests "nvidia.com/gpu" | toYaml | nindent 2 }}
+limits:
+  {{- omit $resources.limits "nvidia.com/gpu" | toYaml | nindent 2 }}
+claims:
+  - name: veoveo-gpu
+    request: {{ include "veoveo.gpuRequest" (list $root $workload) | quote }}
+{{- else -}}
+{{- toYaml $resources -}}
+{{- end -}}
+{{- end }}
+
 {{- define "veoveo.surrealEnv" -}}
 - name: VEOVEO_SURREAL_ENDPOINT
   value: ws://surrealdb:8000

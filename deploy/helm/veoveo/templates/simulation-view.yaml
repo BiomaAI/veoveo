@@ -274,7 +274,7 @@ metadata:
     {{- include "veoveo.labels" . | nindent 4 }}
     app.kubernetes.io/component: simulation-view-renderer
 spec:
-  replicas: 1
+  replicas: {{ include "veoveo.gpuReplicas" (list . "simulation-view-renderer") }}
   strategy:
     type: Recreate
   selector:
@@ -288,9 +288,11 @@ spec:
         app.kubernetes.io/component: simulation-view-renderer
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
+        {{- include "veoveo.gpuPodAnnotations" (list . "simulation-view-renderer") | nindent 8 }}
         veoveo.ai/chart-revision: {{ .Chart.Version | quote }}
     spec:
-      runtimeClassName: {{ required "simulationView.runtimeClassName is required" $view.runtimeClassName }}
+      runtimeClassName: {{ include "veoveo.gpuRuntimeClass" (list . (required "simulationView.runtimeClassName is required" $view.runtimeClassName)) }}
+      {{- include "veoveo.gpuPodClaim" (list . "simulation-view-renderer") | nindent 6 }}
       serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
       automountServiceAccountToken: false
       imagePullSecrets:
@@ -409,7 +411,7 @@ spec:
           securityContext:
             {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
           resources:
-            {{- toYaml $view.rendererResources | nindent 12 }}
+            {{- include "veoveo.gpuResources" (list . "simulation-view-renderer" $view.rendererResources) | nindent 12 }}
           volumeMounts:
             - name: artifacts
               mountPath: /var/lib/veoveo/simulation-view/artifacts

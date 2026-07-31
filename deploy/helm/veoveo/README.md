@@ -67,11 +67,12 @@ Simulation View uses a separate provider-neutral MCP pod and one hardware-GPU po
 GPU pod contains the Isaac/RTX renderer and the mTLS pose-ingress sidecar. Those
 containers exchange complete latest-pose snapshots through a memory-backed volume;
 the renderer never gains network egress. A read-only governed-artifact volume supplies
-content-addressed USD, USDZ, GLB, glTF, and texture inputs. The renderer requests
-exactly one `nvidia.com/gpu` and starts only through `simulationView.runtimeClassName`.
-The NVIDIA device plugin owns device visibility for every GPU container. The chart
-does not set `NVIDIA_VISIBLE_DEVICES`; the plugin supplies the UUID selected by each
-container's `nvidia.com/gpu` allocation. Workloads retain their required
+content-addressed USD, USDZ, GLB, glTF, and texture inputs. A direct chart installation
+requests exactly one `nvidia.com/gpu`. A deployment profile with
+`gpuScheduling` instead injects `global.gpuPlacement`, binds each GPU container to one
+named request in an installation-owned DRA ResourceClaim, and removes the legacy
+extended resource from that container. The allocator supplies the selected UUID. The
+chart never sets `NVIDIA_VISIBLE_DEVICES`, and workloads retain their required
 `NVIDIA_DRIVER_CAPABILITIES`.
 
 An exclusive multi-GPU node can prove that boundary before profile acceptance. Supply
@@ -85,8 +86,9 @@ cargo xtask smoke gpu-allocation-verify \
 ```
 
 The Rust smoke harness schedules two simultaneous one-GPU pods on that node. Each pod
-must see one allocated UUID, and the UUIDs must differ. Time-sliced allocation is not
-accepted as isolation evidence.
+must see one allocated UUID, and the UUIDs must differ. This command verifies the
+device-plugin boundary. Deployment profiles use DRA for restart-stable same-device and
+different-device placement, then `profile-up` reports and checks every assigned UUID.
 
 `simulationView.signaling`, `simulationView.media`, and
 `simulationView.poseIngress` select the installation-owned exposure. Signaling accepts
@@ -203,12 +205,12 @@ SurrealDB retains the release catalog, active authority pointers, calendars,
 mission epochs, clock policy, events, and durable Task API state. Authority
 activation remains serialized within the process.
 
-`view-mcp` runs as one stateful offscreen renderer and requests one
-`nvidia.com/gpu`. Install NVIDIA GPU Operator or NVIDIA Container Toolkit,
-provide an `nvidia` RuntimeClass, and put `google-maps-api-key` in the
-installation secret. Readiness fails unless Bevy selects an NVIDIA Vulkan
+`view-mcp` runs as one stateful offscreen renderer and consumes one GPU claim request
+under a deployment profile. Direct Helm installations use `nvidia.com/gpu`. Install the
+NVIDIA DRA driver for profile-managed physical placement, provide an `nvidia`
+RuntimeClass, and put `google-maps-api-key` in the installation secret. Readiness fails unless Bevy selects an NVIDIA Vulkan
 hardware adapter; the image does not install a Mesa Vulkan software ICD. Its
-non-overlapping replacement also preserves the exclusive GPU allocation.
+non-overlapping replacement preserves the claim allocation.
 
 The operator must create these resources before installation:
 

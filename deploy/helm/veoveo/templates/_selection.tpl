@@ -77,11 +77,14 @@
 {{- if and (has "recording" $servers) (not (has "recording-data-plane" $components)) -}}
 {{- fail "mcpServer recording requires component recording-data-plane" -}}
 {{- end -}}
-{{- if and (has "gpu-renderer" $components) (ne (get .Values.simulationView.rendererResources.requests "nvidia.com/gpu" | toString) "1") -}}
+{{- if and (has "gpu-renderer" $components) (not .Values.global.gpuPlacement.enabled) (ne (get .Values.simulationView.rendererResources.requests "nvidia.com/gpu" | toString) "1") -}}
 {{- fail "simulationView.rendererResources.requests must select exactly one nvidia.com/gpu" -}}
 {{- end -}}
-{{- if and (has "gpu-renderer" $components) (ne (get .Values.simulationView.rendererResources.limits "nvidia.com/gpu" | toString) "1") -}}
+{{- if and (has "gpu-renderer" $components) (not .Values.global.gpuPlacement.enabled) (ne (get .Values.simulationView.rendererResources.limits "nvidia.com/gpu" | toString) "1") -}}
 {{- fail "simulationView.rendererResources.limits must select exactly one nvidia.com/gpu" -}}
+{{- end -}}
+{{- if and .Values.global.gpuPlacement.enabled (not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.global.gpuPlacement.evidenceDigest)) -}}
+{{- fail "global.gpuPlacement.evidenceDigest must be a sha256 digest when DRA placement is enabled" -}}
 {{- end -}}
 {{- if and (has "gpu-renderer" $components) (gt (int .Values.simulationView.capacity.maximumStreamedCameras) (int .Values.simulationView.capacity.maximumRenderedCameras)) -}}
 {{- fail "simulationView maximumStreamedCameras cannot exceed maximumRenderedCameras" -}}

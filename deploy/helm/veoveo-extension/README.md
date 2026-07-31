@@ -47,6 +47,9 @@ The exported named templates are:
 | `veoveo-extension.image` | registry, source-tag, lock-digest resolution, and production digest enforcement |
 | `veoveo-extension.podSecurityContext` | restricted pod security defaults |
 | `veoveo-extension.containerSecurityContext` | restricted container security defaults |
+| `veoveo-extension.gpuPodClaim` | installation DRA ResourceClaim binding for a declared GPU workload |
+| `veoveo-extension.gpuResources` | per-container DRA request with legacy extended-resource removal |
+| `veoveo-extension.gpuReplicas` | installation-declared replica count for a GPU workload |
 | `veoveo-extension.platformEnv` | typed platform-store and trust environment |
 | `veoveo-extension.httpProbes` | startup, readiness, and liveness probes |
 | `veoveo-extension.bootstrapVolumeMount` | canonical bootstrap mount |
@@ -56,6 +59,11 @@ The exported named templates are:
 
 Each template accepts a dictionary. Required keys fail rendering with a direct error;
 unknown values remain owned by the consumer chart.
+
+Deployment v4 injects the installation GPU placement under
+`veoveo.gpuPlacement` for extension releases. A GPU extension passes that object and
+its canonical workload identifier to the GPU helpers. Non-GPU extensions retain the
+disabled object in their closed values schema and render no claim fields.
 
 The image helper accepts installation-owned `registry`, source-owned `sourceTag`, and
 an `imageDigests` map keyed by the image's declared repository. A literal image digest

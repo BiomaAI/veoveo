@@ -50,7 +50,7 @@ metadata:
     {{- include "veoveo.labels" . | nindent 4 }}
     app.kubernetes.io/component: reason-mcp
 spec:
-  replicas: 1
+  replicas: {{ include "veoveo.gpuReplicas" (list . "reason") }}
   strategy:
     type: Recreate
   selector:
@@ -64,10 +64,12 @@ spec:
         app.kubernetes.io/component: reason-mcp
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
+        {{- include "veoveo.gpuPodAnnotations" (list . "reason") | nindent 8 }}
         veoveo.ai/chart-revision: {{ .Chart.Version | quote }}
         checksum/reason-runtime: {{ include "veoveo.reasonRuntimeData" . | sha256sum | quote }}
     spec:
-      runtimeClassName: {{ .Values.reason.runtimeClassName }}
+      runtimeClassName: {{ include "veoveo.gpuRuntimeClass" (list . .Values.reason.runtimeClassName) }}
+      {{- include "veoveo.gpuPodClaim" (list . "reason") | nindent 6 }}
       serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
       automountServiceAccountToken: false
       imagePullSecrets:
@@ -123,7 +125,7 @@ spec:
           securityContext:
             {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
           resources:
-            {{- toYaml .Values.reason.resources | nindent 12 }}
+            {{- include "veoveo.gpuResources" (list . "reason" .Values.reason.resources) | nindent 12 }}
           volumeMounts:
             - name: models
               mountPath: /models

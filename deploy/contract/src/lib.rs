@@ -349,35 +349,94 @@ pub enum PlatformCapability {
     SimulationView,
 }
 
-/// NVIDIA GPU isolation selected for one independently scheduled workload.
+/// Provider-neutral isolation selected for one physical-device group.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum GpuIsolation {
-    /// One ordinary Kubernetes extended resource per requested physical GPU.
+    /// One workload replica owns the whole physical device.
     Exclusive,
-    /// An installation-defined NVIDIA time-slicing profile backed by measurements.
-    NvidiaTimeSlicing,
-    /// An installation-defined NVIDIA MIG profile backed by measurements.
-    NvidiaMig,
+    /// Multiple consumers share one physical device under a measured time-slice policy.
+    MeasuredTimeSlicing,
+    /// Consumers use hardware partitions of one physical device.
+    Mig,
 }
 
-/// One typed NVIDIA GPU workload placement.
+/// NVIDIA DRA time-slice interval compiled from a provider-neutral placement group.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum GpuTimeSliceInterval {
+    Short,
+    Default,
+    Long,
+}
+
+/// One workload consuming the physical device selected for its group.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GpuWorkloadPlacement {
     /// Stable component or external workload identifier.
     pub workload: String,
-    /// NVIDIA extended resources requested by the workload.
-    pub devices: u16,
-    /// Isolation mechanism selected by the installation.
-    pub isolation: GpuIsolation,
-    /// Digest of measured sharing evidence. Required for every shared placement.
-    pub evidence_digest: Option<String>,
+    /// Kubernetes Deployment that owns this workload.
+    pub deployment: String,
+    /// Container receiving the DRA request.
+    pub container: String,
+    /// Kubernetes workload replicas. One replica is the normal platform contract.
+    #[serde(default = "one_replica")]
+    pub replicas: u16,
 }
 
-/// Installation GPU capacity used to reject impossible component combinations.
+const fn one_replica() -> u16 {
+    1
+}
+
+/// One named set of workloads that must resolve to the same physical device.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct GpuSamePhysicalDeviceGroup {
+    /// Stable group and DRA request name.
+    pub name: String,
+    /// Workloads bound to this request.
+    pub workloads: Vec<GpuWorkloadPlacement>,
+    /// Isolation mechanism selected by the installation.
+    pub isolation: GpuIsolation,
+    /// Maximum replicas allowed to consume this physical device.
+    pub maximum_consumers: u16,
+    /// Digest of measured sharing evidence. Required for measured time slicing.
+    pub evidence_digest: Option<String>,
+    /// NVIDIA MIG profile name. Present only for MIG groups.
+    pub mig_profile: Option<String>,
+    /// Measured scheduling interval. Present only for time-sliced groups.
+    pub time_slice_interval: Option<GpuTimeSliceInterval>,
+}
+
+/// Named groups that must resolve to different physical devices.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct GpuDifferentPhysicalDeviceConstraint {
+    pub groups: BTreeSet<String>,
+}
+
+/// Kubernetes DRA implementation selected by the installation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct GpuDynamicResourceAllocator {
+    /// Stable ResourceClaim name shared across pod replacement and Helm upgrades.
+    pub claim_name: String,
+    /// DRA DeviceClass for complete physical devices.
+    pub full_device_class_name: String,
+    /// DRA DeviceClass for MIG devices.
+    pub mig_device_class_name: String,
+    /// DRA driver that accepts opaque sharing configuration.
+    pub driver_name: String,
+    /// Driver configuration API compiled into opaque DRA parameters.
+    pub configuration_api_version: String,
+}
+
+/// Installation GPU topology compiled to one durable DRA allocation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GpuSchedulingProfile {
@@ -385,8 +444,15 @@ pub struct GpuSchedulingProfile {
     pub runtime_class_name: String,
     /// Physical NVIDIA devices schedulable by this installation profile.
     pub allocatable_devices: u16,
-    /// Exact selected platform and external GPU workloads.
-    pub workloads: Vec<GpuWorkloadPlacement>,
+    /// Digest of installation evidence proving this topology on the target hardware.
+    pub evidence_digest: String,
+    /// Supported physical-device allocation mechanism.
+    pub allocator: GpuDynamicResourceAllocator,
+    /// Exact same-physical-device groups.
+    pub same_physical_device_groups: Vec<GpuSamePhysicalDeviceGroup>,
+    /// Constraints whose group members must use different physical devices.
+    #[serde(default)]
+    pub different_physical_device_groups: Vec<GpuDifferentPhysicalDeviceConstraint>,
 }
 
 /// Typed first-party platform selection.
@@ -1307,6 +1373,9 @@ impl ResolvedPlatformSelection {
         if self.mcp_servers.contains(&FirstPartyMcpServer::Reason) {
             required.insert("reason");
         }
+        if self.mcp_servers.contains(&FirstPartyMcpServer::Rerun) {
+            required.insert("rerun-bridge");
+        }
         if self
             .mcp_servers
             .contains(&FirstPartyMcpServer::Optimization)
@@ -1330,59 +1399,183 @@ impl ResolvedPlatformSelection {
             scheduling.allocatable_devices > 0,
             "gpuScheduling allocatableDevices must be positive"
         );
+        validate_digest(&scheduling.evidence_digest)
+            .context("gpuScheduling evidenceDigest is invalid")?;
+        validate_name("GPU ResourceClaim", &scheduling.allocator.claim_name)?;
+        validate_kubernetes_qualified_name(
+            "GPU full-device DeviceClass",
+            &scheduling.allocator.full_device_class_name,
+        )?;
+        validate_kubernetes_qualified_name(
+            "GPU MIG DeviceClass",
+            &scheduling.allocator.mig_device_class_name,
+        )?;
         ensure!(
-            !scheduling.workloads.is_empty(),
-            "gpuScheduling workloads cannot be empty"
+            scheduling.allocator.driver_name == "gpu.nvidia.com",
+            "gpuScheduling allocator driverName must be gpu.nvidia.com"
+        );
+        ensure!(
+            scheduling.allocator.configuration_api_version == "resource.nvidia.com/v1beta1",
+            "gpuScheduling allocator configurationApiVersion must be resource.nvidia.com/v1beta1"
+        );
+        ensure!(
+            !scheduling.same_physical_device_groups.is_empty(),
+            "gpuScheduling samePhysicalDeviceGroups cannot be empty"
         );
         ensure_unique(
-            "GPU workload",
-            scheduling.workloads.iter().map(|item| &item.workload),
+            "GPU same-physical-device group",
+            scheduling
+                .same_physical_device_groups
+                .iter()
+                .map(|item| &item.name),
         )?;
 
-        let mut exclusive_devices = 0_u32;
-        let mut shared_devices = 0_u32;
         let mut declared = BTreeSet::new();
-        for placement in &scheduling.workloads {
-            validate_name("GPU workload", &placement.workload)?;
+        let mut group_names = BTreeSet::new();
+        for group in &scheduling.same_physical_device_groups {
+            validate_name("GPU same-physical-device group", &group.name)?;
+            group_names.insert(group.name.as_str());
             ensure!(
-                placement.devices > 0,
-                "GPU workload {} must request at least one device",
-                placement.workload
+                !group.workloads.is_empty(),
+                "GPU group {} must contain at least one workload",
+                group.name
             );
-            declared.insert(placement.workload.as_str());
-            match placement.isolation {
+            ensure!(
+                group.maximum_consumers > 0,
+                "GPU group {} maximumConsumers must be positive",
+                group.name
+            );
+            let mut consumers = 0_u32;
+            for placement in &group.workloads {
+                validate_name("GPU workload", &placement.workload)?;
+                validate_name("GPU workload Deployment", &placement.deployment)?;
+                validate_name("GPU workload container", &placement.container)?;
+                ensure!(
+                    placement.replicas > 0,
+                    "GPU workload {} replicas must be positive",
+                    placement.workload
+                );
+                ensure!(
+                    declared.insert(placement.workload.as_str()),
+                    "GPU workload {} appears in more than one same-physical-device group",
+                    placement.workload
+                );
+                consumers += u32::from(placement.replicas);
+            }
+            ensure!(
+                consumers <= u32::from(group.maximum_consumers),
+                "GPU group {} declares {consumers} workload replicas but maximumConsumers is {}",
+                group.name,
+                group.maximum_consumers
+            );
+            match group.isolation {
                 GpuIsolation::Exclusive => {
                     ensure!(
-                        placement.evidence_digest.is_none(),
-                        "exclusive GPU workload {} must not declare sharing evidence",
-                        placement.workload
+                        consumers == 1 && group.maximum_consumers == 1,
+                        "exclusive GPU group {} must contain exactly one consumer",
+                        group.name
                     );
-                    exclusive_devices += u32::from(placement.devices);
+                    ensure!(
+                        group.evidence_digest.is_none()
+                            && group.mig_profile.is_none()
+                            && group.time_slice_interval.is_none(),
+                        "exclusive GPU group {} cannot declare sharing or MIG parameters",
+                        group.name
+                    );
                 }
-                GpuIsolation::NvidiaTimeSlicing | GpuIsolation::NvidiaMig => {
-                    let digest = placement.evidence_digest.as_deref().with_context(|| {
+                GpuIsolation::MeasuredTimeSlicing => {
+                    ensure!(
+                        group.maximum_consumers >= 2,
+                        "time-sliced GPU group {} must allow at least two consumers",
+                        group.name
+                    );
+                    let digest = group.evidence_digest.as_deref().with_context(|| {
                         format!(
-                            "shared GPU workload {} requires measured evidenceDigest",
-                            placement.workload
+                            "time-sliced GPU group {} requires measured evidenceDigest",
+                            group.name
                         )
                     })?;
                     validate_digest(digest)?;
-                    shared_devices = shared_devices.max(u32::from(placement.devices));
+                    ensure!(
+                        group.time_slice_interval.is_some() && group.mig_profile.is_none(),
+                        "time-sliced GPU group {} requires timeSliceInterval and cannot declare migProfile",
+                        group.name
+                    );
+                }
+                GpuIsolation::Mig => {
+                    ensure!(
+                        group
+                            .mig_profile
+                            .as_deref()
+                            .is_some_and(|value| !value.is_empty())
+                            && group.time_slice_interval.is_none(),
+                        "MIG GPU group {} requires migProfile and cannot declare timeSliceInterval",
+                        group.name
+                    );
+                    let profile = group.mig_profile.as_deref().expect("checked above");
+                    ensure!(
+                        profile.len() <= 32
+                            && profile.bytes().all(|byte| {
+                                byte.is_ascii_lowercase()
+                                    || byte.is_ascii_digit()
+                                    || matches!(byte, b'.' | b'-' | b'+')
+                            }),
+                        "MIG GPU group {} has invalid migProfile {profile}",
+                        group.name
+                    );
+                    if let Some(digest) = &group.evidence_digest {
+                        validate_digest(digest)?;
+                    }
                 }
             }
         }
-        for workload in required {
+        for workload in &required {
             ensure!(
-                declared.contains(workload),
+                declared.contains(*workload),
                 "gpuScheduling is missing selected workload {workload}"
             );
         }
+        for workload in &declared {
+            ensure!(
+                required.contains(*workload) || self.external_workloads.contains(*workload),
+                "gpuScheduling declares unselected workload {workload}"
+            );
+        }
         ensure!(
-            exclusive_devices + shared_devices <= u32::from(scheduling.allocatable_devices),
-            "GPU workload selection requires {} physical devices but gpuScheduling exposes {}; two exclusive one-GPU workloads cannot share one ordinary GPU",
-            exclusive_devices + shared_devices,
+            scheduling.same_physical_device_groups.len()
+                <= usize::from(scheduling.allocatable_devices),
+            "GPU topology declares {} physical-device groups but gpuScheduling exposes {} devices",
+            scheduling.same_physical_device_groups.len(),
             scheduling.allocatable_devices
         );
+        for constraint in &scheduling.different_physical_device_groups {
+            ensure!(
+                constraint.groups.len() >= 2,
+                "differentPhysicalDeviceGroups entries must name at least two groups"
+            );
+            for group in &constraint.groups {
+                ensure!(
+                    group_names.contains(group.as_str()),
+                    "different-physical-device constraint references unknown group {group}"
+                );
+            }
+            let mig_modes = scheduling
+                .same_physical_device_groups
+                .iter()
+                .filter(|group| constraint.groups.contains(&group.name))
+                .map(|group| group.isolation == GpuIsolation::Mig)
+                .collect::<BTreeSet<_>>();
+            ensure!(
+                mig_modes.len() == 1,
+                "one different-physical-device constraint cannot mix MIG and full-device groups"
+            );
+            ensure!(
+                constraint.groups.len() <= usize::from(scheduling.allocatable_devices),
+                "different-physical-device constraint needs {} devices but gpuScheduling exposes {}",
+                constraint.groups.len(),
+                scheduling.allocatable_devices
+            );
+        }
         Ok(())
     }
 
@@ -1780,6 +1973,19 @@ fn validate_name(kind: &str, name: &str) -> Result<()> {
     Ok(())
 }
 
+fn validate_kubernetes_qualified_name(kind: &str, name: &str) -> Result<()> {
+    ensure!(!name.is_empty(), "{kind} name cannot be empty");
+    ensure!(name.len() <= 253, "{kind} name exceeds 253 characters");
+    ensure!(
+        name.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'-' | b'.')
+        }) && name.as_bytes()[0].is_ascii_alphanumeric()
+            && name.as_bytes()[name.len() - 1].is_ascii_alphanumeric(),
+        "{kind} name {name} must be a lowercase Kubernetes qualified name"
+    );
+    Ok(())
+}
+
 fn validate_data_key(key: &str) -> Result<()> {
     ensure!(!key.is_empty(), "Kubernetes data key cannot be empty");
     ensure!(
@@ -1816,10 +2022,59 @@ mod tests {
 
     use super::{
         DeploymentLock, DeploymentSourceRole, FirstPartyMcpServer, GatewayDeploymentRequirements,
-        GpuIsolation, GpuSchedulingProfile, GpuWorkloadPlacement, InstallationPreset,
-        LoadedProfile, PlannedImage, PlatformCapability, PlatformComponent, PlatformSelection,
-        deployment_lock_schema, deployment_profile_schema,
+        GpuDifferentPhysicalDeviceConstraint, GpuDynamicResourceAllocator, GpuIsolation,
+        GpuSamePhysicalDeviceGroup, GpuSchedulingProfile, GpuTimeSliceInterval,
+        GpuWorkloadPlacement, InstallationPreset, LoadedProfile, PlannedImage, PlatformCapability,
+        PlatformComponent, PlatformSelection, deployment_lock_schema, deployment_profile_schema,
     };
+
+    fn exclusive_gpu_scheduling(
+        workloads: impl IntoIterator<Item = &'static str>,
+        allocatable_devices: u16,
+    ) -> GpuSchedulingProfile {
+        GpuSchedulingProfile {
+            runtime_class_name: "nvidia".to_owned(),
+            allocatable_devices,
+            evidence_digest:
+                "sha256:1111111111111111111111111111111111111111111111111111111111111111".to_owned(),
+            allocator: GpuDynamicResourceAllocator {
+                claim_name: "veoveo-gpu-placement".to_owned(),
+                full_device_class_name: "gpu.nvidia.com".to_owned(),
+                mig_device_class_name: "mig.nvidia.com".to_owned(),
+                driver_name: "gpu.nvidia.com".to_owned(),
+                configuration_api_version: "resource.nvidia.com/v1beta1".to_owned(),
+            },
+            same_physical_device_groups: workloads
+                .into_iter()
+                .map(|workload| GpuSamePhysicalDeviceGroup {
+                    name: workload.to_owned(),
+                    workloads: vec![GpuWorkloadPlacement {
+                        workload: workload.to_owned(),
+                        deployment: match workload {
+                            "simulation-view-renderer" => "simulation-view-renderer",
+                            "view-renderer" => "view-mcp",
+                            "cuopt-executor" => "optimization-mcp",
+                            value => value,
+                        }
+                        .to_owned(),
+                        container: match workload {
+                            "simulation-view-renderer" => "simulation-view-isaac",
+                            "view-renderer" => "view-mcp",
+                            value => value,
+                        }
+                        .to_owned(),
+                        replicas: 1,
+                    }],
+                    isolation: GpuIsolation::Exclusive,
+                    maximum_consumers: 1,
+                    evidence_digest: None,
+                    mig_profile: None,
+                    time_slice_interval: None,
+                })
+                .collect(),
+            different_physical_device_groups: Vec::new(),
+        }
+    }
 
     #[test]
     fn loads_repository_profile() {
@@ -2122,16 +2377,7 @@ mod tests {
             mcp_servers: BTreeSet::from([FirstPartyMcpServer::Optimization]),
             artifact_audiences: BTreeSet::from(["optimization".to_owned()]),
             external_workloads: BTreeSet::new(),
-            gpu_scheduling: Some(GpuSchedulingProfile {
-                runtime_class_name: "nvidia".to_owned(),
-                allocatable_devices: 1,
-                workloads: vec![GpuWorkloadPlacement {
-                    workload: "cuopt-executor".to_owned(),
-                    devices: 1,
-                    isolation: GpuIsolation::Exclusive,
-                    evidence_digest: None,
-                }],
-            }),
+            gpu_scheduling: Some(exclusive_gpu_scheduling(["cuopt-executor"], 1)),
         }
         .resolve()
         .expect("valid Optimization selection");
@@ -2167,16 +2413,7 @@ mod tests {
             ]),
             artifact_audiences: BTreeSet::from(["simulation-view".to_owned()]),
             external_workloads: BTreeSet::new(),
-            gpu_scheduling: Some(GpuSchedulingProfile {
-                runtime_class_name: "nvidia".to_owned(),
-                allocatable_devices: 1,
-                workloads: vec![GpuWorkloadPlacement {
-                    workload: "simulation-view-renderer".to_owned(),
-                    devices: 1,
-                    isolation: GpuIsolation::Exclusive,
-                    evidence_digest: None,
-                }],
-            }),
+            gpu_scheduling: Some(exclusive_gpu_scheduling(["simulation-view-renderer"], 1)),
         }
         .resolve()
         .expect("valid Simulation View selection");
@@ -2205,7 +2442,7 @@ mod tests {
     }
 
     #[test]
-    fn exclusive_simulation_gpu_workloads_fail_on_one_device() {
+    fn two_physical_groups_fail_on_one_device() {
         let error = PlatformSelection {
             installation_preset: InstallationPreset::Custom,
             components: BTreeSet::from([
@@ -2222,28 +2459,101 @@ mod tests {
             ]),
             artifact_audiences: BTreeSet::from(["simulation-view".to_owned()]),
             external_workloads: BTreeSet::from(["external-simulator".to_owned()]),
-            gpu_scheduling: Some(GpuSchedulingProfile {
-                runtime_class_name: "nvidia".to_owned(),
-                allocatable_devices: 1,
-                workloads: vec![
-                    GpuWorkloadPlacement {
-                        workload: "simulation-view-renderer".to_owned(),
-                        devices: 1,
-                        isolation: GpuIsolation::Exclusive,
-                        evidence_digest: None,
-                    },
-                    GpuWorkloadPlacement {
-                        workload: "external-simulator".to_owned(),
-                        devices: 1,
-                        isolation: GpuIsolation::Exclusive,
-                        evidence_digest: None,
-                    },
-                ],
-            }),
+            gpu_scheduling: Some(exclusive_gpu_scheduling(
+                ["simulation-view-renderer", "external-simulator"],
+                1,
+            )),
         }
         .resolve()
-        .expect_err("two exclusive workloads cannot fit one GPU");
-        assert!(error.to_string().contains("cannot share one ordinary GPU"));
+        .expect_err("two physical groups cannot fit one GPU");
+        assert!(error.to_string().contains("physical-device groups"));
+    }
+
+    #[test]
+    fn shared_gpu_pairing_resolves_two_distinct_physical_groups() {
+        let workload = |workload: &str, deployment: &str, container: &str| GpuWorkloadPlacement {
+            workload: workload.to_owned(),
+            deployment: deployment.to_owned(),
+            container: container.to_owned(),
+            replicas: 1,
+        };
+        let group = |name: &str, workloads: Vec<GpuWorkloadPlacement>, digit: char| {
+            GpuSamePhysicalDeviceGroup {
+                name: name.to_owned(),
+                workloads,
+                isolation: GpuIsolation::MeasuredTimeSlicing,
+                maximum_consumers: 2,
+                evidence_digest: Some(format!("sha256:{}", digit.to_string().repeat(64))),
+                mig_profile: None,
+                time_slice_interval: Some(GpuTimeSliceInterval::Default),
+            }
+        };
+        let scheduling = GpuSchedulingProfile {
+            runtime_class_name: "nvidia".to_owned(),
+            allocatable_devices: 2,
+            evidence_digest:
+                "sha256:1111111111111111111111111111111111111111111111111111111111111111".to_owned(),
+            allocator: GpuDynamicResourceAllocator {
+                claim_name: "paired-gpus".to_owned(),
+                full_device_class_name: "gpu.nvidia.com".to_owned(),
+                mig_device_class_name: "mig.nvidia.com".to_owned(),
+                driver_name: "gpu.nvidia.com".to_owned(),
+                configuration_api_version: "resource.nvidia.com/v1beta1".to_owned(),
+            },
+            same_physical_device_groups: vec![
+                group(
+                    "simulation",
+                    vec![
+                        workload(
+                            "simulation-view-renderer",
+                            "simulation-view-renderer",
+                            "simulation-view-isaac",
+                        ),
+                        workload("external-simulator", "external-simulator", "simulator"),
+                    ],
+                    '2',
+                ),
+                group(
+                    "planning",
+                    vec![
+                        workload("external-optimizer", "external-optimizer", "optimizer"),
+                        workload("external-view", "external-view", "view"),
+                    ],
+                    '3',
+                ),
+            ],
+            different_physical_device_groups: vec![GpuDifferentPhysicalDeviceConstraint {
+                groups: BTreeSet::from(["planning".to_owned(), "simulation".to_owned()]),
+            }],
+        };
+        let selection = PlatformSelection {
+            installation_preset: InstallationPreset::Custom,
+            components: BTreeSet::from([
+                PlatformComponent::Gateway,
+                PlatformComponent::PlatformStore,
+                PlatformComponent::ObjectStore,
+                PlatformComponent::ArtifactService,
+                PlatformComponent::GpuRenderer,
+                PlatformComponent::SimulationRuntimeSupport,
+            ]),
+            mcp_servers: BTreeSet::from([
+                FirstPartyMcpServer::Frames,
+                FirstPartyMcpServer::SimulationView,
+            ]),
+            artifact_audiences: BTreeSet::from(["simulation-view".to_owned()]),
+            external_workloads: BTreeSet::from([
+                "external-optimizer".to_owned(),
+                "external-simulator".to_owned(),
+                "external-view".to_owned(),
+            ]),
+            gpu_scheduling: Some(scheduling),
+        }
+        .resolve()
+        .expect("two paired groups fit two physical devices");
+
+        let scheduling = selection.gpu_scheduling.unwrap();
+        assert_eq!(scheduling.same_physical_device_groups.len(), 2);
+        assert_eq!(scheduling.different_physical_device_groups.len(), 1);
     }
 
     #[test]

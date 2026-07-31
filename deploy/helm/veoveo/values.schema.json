@@ -85,7 +85,8 @@
         "veoveoTag",
         "existingSecret",
         "publicBaseUrl",
-        "offline"
+        "offline",
+        "gpuPlacement"
       ],
       "properties": {
         "installationId": {
@@ -148,6 +149,53 @@
         },
         "podLabels": {
           "type": "object"
+        },
+        "gpuPlacement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "claimName",
+            "runtimeClassName",
+            "evidenceDigest",
+            "workloadRequests",
+            "workloadReplicas"
+          ],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "claimName": {
+              "type": "string",
+              "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+            },
+            "runtimeClassName": {
+              "type": "string",
+              "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+            },
+            "evidenceDigest": {
+              "type": "string",
+              "pattern": "^$|^sha256:[a-f0-9]{64}$"
+            },
+            "workloadRequests": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+              }
+            },
+            "workloadReplicas": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+              },
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
         },
         "serviceMesh": {
           "type": "object",
