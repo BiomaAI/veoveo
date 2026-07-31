@@ -383,6 +383,15 @@ class CameraPool:
     def camera_for_slot(self, slot: int) -> str | None:
         return self._slots.get(slot)
 
+    def active_camera_paths(self) -> tuple[str, ...]:
+        return tuple(
+            runtime.camera_path
+            for _, runtime in sorted(
+                self._cameras.items(),
+                key=lambda item: item[1].binding.render_slot,
+            )
+        )
+
     def status(self, camera_id: str) -> dict[str, object]:
         runtime = self._cameras.get(camera_id)
         if runtime is None:

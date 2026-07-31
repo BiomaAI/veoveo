@@ -4,6 +4,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from .layers import LayerCatalog
+
 
 def _required(name: str) -> str:
     value = os.environ.get(name, "")
@@ -47,6 +49,7 @@ class RendererConfig:
     probe_height: int
     probe_fps: int
     frame_stale_after_ms: int
+    layer_catalog: LayerCatalog
 
     @classmethod
     def from_environment(cls) -> "RendererConfig":
@@ -105,6 +108,14 @@ class RendererConfig:
             probe_fps=_integer("SIMULATION_VIEW_PROBE_FPS", 20, 1, 120),
             frame_stale_after_ms=_integer(
                 "SIMULATION_VIEW_FRAME_STALE_AFTER_MS", 500, 1, 60_000
+            ),
+            layer_catalog=LayerCatalog.load(
+                Path(
+                    os.environ.get(
+                        "SIMULATION_VIEW_LAYER_CATALOG",
+                        "/etc/veoveo/simulation-view/layers.json",
+                    )
+                )
             ),
         )
 

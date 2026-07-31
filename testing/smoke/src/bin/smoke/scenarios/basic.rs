@@ -416,6 +416,83 @@ pub(crate) async fn helm_config() -> Result<()> {
         "consoleBff.rerunMap.mapbox.accessToken.existingSecret is required",
     )?;
 
+    let streamed_world = run_checked(
+        Path::new("helm"),
+        [
+            "template".into(),
+            "veoveo".into(),
+            "deploy/helm/veoveo".into(),
+            "--set-json".into(),
+            r#"simulationView.streamedWorld={"enabled":true,"existingConfigMap":"","catalogKey":"layers.json","catalog":{"schemaVersion":"veoveo.io/simulation-view-layer-catalog/v1","layers":[{"layerId":"installation-world","layerType":"streamed_3d_tiles","source":{"kind":"cesium_ion","assetId":1,"serverUrl":"https://tiles.example/","apiUrl":"https://api.example/","applicationId":2,"credentialEnvironment":"SIMULATION_VIEW_LAYER_TOKEN"},"allowedHosts":["tiles.example","api.example"],"allowedRedirectHosts":["assets.example"],"budgets":{"maximumCacheBytes":1073741824,"maximumTileBytes":67108864,"maximumVisibleTiles":4096,"maximumPendingTiles":64,"maximumScreenSpaceError":16},"license":{"identifier":"provider-terms","attribution":"Installation imagery","attributionUrl":"https://example.com/terms","displayRequired":true},"georeference":{"world":"frames://world/demo/revision/r1","frameRevision":{"uri":"frames://world/demo/revision/r1","digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111"},"localEnuFrame":"frames://world/demo/revision/r1/frame/simulation","origin":{"latitudeDegrees":40,"longitudeDegrees":-105,"ellipsoidHeightM":1600}}}]},"credentialBindings":[{"environment":"SIMULATION_VIEW_LAYER_TOKEN","existingSecret":"streamed-world-provider","key":"access-token"}],"egressCidrs":["192.0.2.0/24"]}"#.into(),
+        ],
+        [],
+    )?;
+    let renderer = streamed_world
+        .split("\n---\n")
+        .find(|document| {
+            document.contains("kind: Deployment")
+                && document.contains("name: simulation-view-renderer\n")
+        })
+        .context("finding streamed-world renderer deployment")?;
+    for expected in [
+        "name: SIMULATION_VIEW_LAYER_CATALOG",
+        "mountPath: /etc/veoveo/simulation-view/layers.json",
+        "name: SIMULATION_VIEW_LAYER_TOKEN",
+        "name: streamed-world-provider",
+        "key: access-token",
+        "name: simulation-view-layer-catalog",
+        "cidr: \"192.0.2.0/24\"",
+    ] {
+        contains(&streamed_world, expected)?;
+    }
+    contains(renderer, "name: SIMULATION_VIEW_LAYER_TOKEN")?;
+    let mcp = streamed_world
+        .split("\n---\n")
+        .find(|document| {
+            document.contains("kind: Deployment")
+                && document.contains("name: simulation-view-mcp\n")
+        })
+        .context("finding streamed-world MCP deployment")?;
+    not_contains(mcp, "name: SIMULATION_VIEW_LAYER_TOKEN")?;
+    not_contains(&streamed_world, "browser-safe-secret")?;
+
+    let missing_streamed_world_egress = Command::new("helm")
+        .args([
+            "template",
+            "veoveo",
+            "deploy/helm/veoveo",
+            "--set",
+            "simulationView.streamedWorld.enabled=true",
+        ])
+        .output()
+        .context("rendering streamed world without installation egress")?;
+    ensure!(
+        !missing_streamed_world_egress.status.success(),
+        "Helm must reject streamed-world activation without admitted egress"
+    );
+    contains(
+        &String::from_utf8_lossy(&missing_streamed_world_egress.stderr),
+        "/simulationView/streamedWorld/egressCidrs",
+    )?;
+    let reserved_layer_environment = Command::new("helm")
+        .args([
+            "template",
+            "veoveo",
+            "deploy/helm/veoveo",
+            "--set-json",
+            r#"simulationView.streamedWorld.credentialBindings=[{"environment":"NVIDIA_VISIBLE_DEVICES","existingSecret":"provider","key":"token"}]"#,
+        ])
+        .output()
+        .context("rendering a streamed-world credential over a reserved environment")?;
+    ensure!(
+        !reserved_layer_environment.status.success(),
+        "Helm must reject layer credentials that can override GPU allocation"
+    );
+    contains(
+        &String::from_utf8_lossy(&reserved_layer_environment.stderr),
+        "/simulationView/streamedWorld/credentialBindings/0/environment",
+    )?;
+
     let bioma = run_checked(
         Path::new("helm"),
         [

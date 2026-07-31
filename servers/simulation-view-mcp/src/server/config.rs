@@ -1,4 +1,4 @@
-use std::{net::IpAddr, time::Duration};
+use std::{net::IpAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use clap::Parser;
 use url::Url;
@@ -6,6 +6,7 @@ use veoveo_mcp_contract::{
     LiveMediaEndpoint, LiveMediaTransport, PublicDeployment, is_valid_live_signaling_url,
     parse_allowed_host_authority,
 };
+use veoveo_simulation_scene::GeospatialLayerCatalog;
 
 use crate::{
     contract::CapacityProfile,
@@ -42,6 +43,12 @@ pub(super) struct Args {
         default_value = "http://artifact-service:8790"
     )]
     pub artifact_service_url: String,
+    #[arg(
+        long,
+        env = "SIMULATION_VIEW_LAYER_CATALOG",
+        default_value = "/etc/veoveo/simulation-view/layers.json"
+    )]
+    pub layer_catalog: PathBuf,
     #[arg(
         long,
         env = "SIMULATION_VIEW_RENDERER_CONTROL_TOKEN",
@@ -166,6 +173,7 @@ impl Args {
                 media_port: self.public_media_port,
             },
             maximum_frame_age_ms: self.maximum_frame_age_ms,
+            layer_catalog: Arc::new(GeospatialLayerCatalog::from_path(&self.layer_catalog)?),
         })
     }
 }

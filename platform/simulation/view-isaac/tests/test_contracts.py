@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import struct
 import tempfile
@@ -25,6 +26,7 @@ from veoveo_simulation_view.contracts import (
     PoseSourceBinding,
     SessionBinding,
 )
+from veoveo_simulation_view.layers import LayerCatalog
 from veoveo_simulation_view.pose import decode_snapshot
 from veoveo_simulation_view.scene import ArtifactMaterializer, ArtifactStore
 
@@ -203,6 +205,16 @@ class RendererContractsTest(unittest.TestCase):
 
     def test_config_requires_disjoint_bounded_port_ranges(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
+            catalog = Path(directory) / "layers.json"
+            catalog.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": "veoveo.io/simulation-view-layer-catalog/v1",
+                        "layers": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
             values = {
                 "SIMULATION_VIEW_RENDERER_CONTROL_TOKEN": "a" * 32,
                 "SIMULATION_VIEW_PUBLIC_MEDIA_IP": "192.0.2.42",
@@ -212,6 +224,7 @@ class RendererContractsTest(unittest.TestCase):
                 "SIMULATION_VIEW_MAXIMUM_RENDER_SLOTS": "4",
                 "SIMULATION_VIEW_SIGNALING_PORT_BASE": "49100",
                 "SIMULATION_VIEW_MEDIA_PORT_BASE": "47998",
+                "SIMULATION_VIEW_LAYER_CATALOG": str(catalog),
             }
             with patch.dict(os.environ, values, clear=True):
                 config = RendererConfig.from_environment()
@@ -220,6 +233,70 @@ class RendererContractsTest(unittest.TestCase):
             self.assertEqual(
                 config.maximum_artifact_bytes, 4 * 1024 * 1024 * 1024
             )
+
+    def test_layer_catalog_requires_secret_without_exposing_it(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "layers.json"
+            value = {
+                "schemaVersion": "veoveo.io/simulation-view-layer-catalog/v1",
+                "layers": [
+                    {
+                        "layerId": "installation-world",
+                        "layerType": "streamed_3d_tiles",
+                        "source": {
+                            "kind": "cesium_ion",
+                            "assetId": 1,
+                            "serverUrl": "https://tiles.example/",
+                            "apiUrl": "https://api.example/",
+                            "applicationId": 2,
+                            "credentialEnvironment": "SIMULATION_VIEW_LAYER_TOKEN",
+                        },
+                        "allowedHosts": ["tiles.example", "api.example"],
+                        "allowedRedirectHosts": ["assets.example"],
+                        "budgets": {
+                            "maximumCacheBytes": 1024,
+                            "maximumTileBytes": 512,
+                            "maximumVisibleTiles": 64,
+                            "maximumPendingTiles": 8,
+                            "maximumScreenSpaceError": 16.0,
+                        },
+                        "license": {
+                            "identifier": "provider-terms",
+                            "attribution": "Installation imagery",
+                            "attributionUrl": "https://example.com/terms",
+                            "displayRequired": True,
+                        },
+                        "georeference": {
+                            "world": "frames://world/demo/revision/r1",
+                            "frameRevision": {
+                                "uri": "frames://world/demo/revision/r1",
+                                "digest": f"sha256:{'1' * 64}",
+                            },
+                            "localEnuFrame": (
+                                "frames://world/demo/revision/r1/frame/simulation"
+                            ),
+                            "origin": {
+                                "latitudeDegrees": 40.0,
+                                "longitudeDegrees": -105.0,
+                                "ellipsoidHeightM": 1600.0,
+                            },
+                        },
+                    }
+                ],
+            }
+            path.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(
+                ValueError, "SIMULATION_VIEW_LAYER_TOKEN"
+            ) as missing:
+                LayerCatalog.load(path, {})
+            self.assertNotIn("browser-safe-secret", str(missing.exception))
+
+            catalog = LayerCatalog.load(
+                path, {"SIMULATION_VIEW_LAYER_TOKEN": "browser-safe-secret"}
+            )
+            layer = catalog.get("installation-world")
+            self.assertEqual(layer.credential, "browser-safe-secret")
+            self.assertNotIn("browser-safe-secret", repr(layer))
 
     def test_private_bindings_are_exact_and_typed(self) -> None:
         session = SessionBinding.parse(

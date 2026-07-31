@@ -17,13 +17,15 @@ use veoveo_mcp_contract::{
     LiveViewId, LiveViewLifecycle, LiveViewOwner, LiveViewState, LiveViewUri,
 };
 use veoveo_simulation_pose::PoseIngressStatus;
+use veoveo_simulation_scene::GeospatialLayerCatalog;
 
 use crate::{
     contract::{
         AuthorizePoseProducerRequest, BindSceneRequest, CameraAdmission, CameraDefinition,
         CameraRecord, CameraStreamPolicy, CapacityDimension, CapacityProfile, CapacityRejection,
         CapacityState, CapacityUsage, CloseCameraRequest, CloseLiveViewRequest, CloseResult,
-        CloseSessionRequest, CreateCameraRequest, CreateSessionRequest, OpenLiveViewRequest,
+        CloseSessionRequest, CreateCameraRequest, CreateSessionRequest, GeospatialLayerHealth,
+        LayerFailureCode, LayerFailureDiagnostic, LayerLifecycle, OpenLiveViewRequest,
         PoseSourceState, RenewLiveViewRequest, RevokePoseProducerRequest, SessionLifecycle,
         SetCameraRequest, SimulationViewError, SimulationViewSession,
     },
@@ -37,6 +39,7 @@ pub struct SimulationViewConfig {
     pub lease_duration: Duration,
     pub endpoint: LiveMediaEndpoint,
     pub maximum_frame_age_ms: u32,
+    pub layer_catalog: Arc<GeospatialLayerCatalog>,
 }
 
 impl Default for SimulationViewConfig {
@@ -63,6 +66,7 @@ impl Default for SimulationViewConfig {
                 media_port: 47998,
             },
             maximum_frame_age_ms: 500,
+            layer_catalog: Arc::new(GeospatialLayerCatalog::empty()),
         }
     }
 }
@@ -148,6 +152,7 @@ impl SimulationViewService {
             lifecycle: SessionLifecycle::Created,
             revision: 1,
             scene: None,
+            geospatial_layer: None,
             pose_source: None,
             created_at: now,
             updated_at: now,
@@ -184,6 +189,22 @@ impl SimulationViewService {
         if session.scene.is_some() {
             return Ok(session.clone());
         }
+        session.geospatial_layer = request
+            .scene
+            .body
+            .geospatial_layer_id
+            .as_ref()
+            .and_then(|layer_id| self.config.layer_catalog.get(layer_id))
+            .map(|layer| GeospatialLayerHealth {
+                layer_id: layer.layer_id.clone(),
+                lifecycle: LayerLifecycle::Configured,
+                resident_bytes: 0,
+                visible_tile_count: 0,
+                pending_tile_count: 0,
+                attribution: layer.license.attribution.clone(),
+                attribution_url: layer.license.attribution_url.clone(),
+                failure: None,
+            });
         session.scene = Some(request.scene);
         session.lifecycle = SessionLifecycle::SceneBound;
         advance_session(session);
@@ -219,6 +240,16 @@ impl SimulationViewService {
             self.config.capacity.maximum_entity_instances,
             self.config.maximum_asset_bytes,
         )?;
+        if let Some(layer_id) = &request.scene.body.geospatial_layer_id {
+            self.config
+                .layer_catalog
+                .validate_scene_binding(
+                    layer_id,
+                    &request.scene.body.frame_revision,
+                    &request.scene.body.simulation_frame,
+                )
+                .map_err(|error| SimulationViewError::GeospatialLayer(error.to_string()))?;
+        }
         if current_entities.saturating_add(request.scene.body.entities.len() as u64)
             > u64::from(self.config.capacity.maximum_entity_instances)
         {
@@ -846,6 +877,52 @@ impl SimulationViewService {
         Ok(())
     }
 
+    pub(crate) fn apply_layer_status(
+        &self,
+        session_id: &LiveSessionId,
+        status: GeospatialLayerHealth,
+    ) -> Result<(), SimulationViewError> {
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        let session = state
+            .sessions
+            .get_mut(session_id)
+            .ok_or_else(|| SimulationViewError::SessionNotFound(session_id.clone()))?;
+        let expected = session
+            .scene
+            .as_ref()
+            .and_then(|scene| scene.body.geospatial_layer_id.as_ref())
+            .ok_or(SimulationViewError::Lifecycle)?;
+        if &status.layer_id != expected {
+            return Err(SimulationViewError::GeospatialLayer(
+                "renderer returned health for a different layer".to_owned(),
+            ));
+        }
+        session.geospatial_layer = Some(status);
+        session.updated_at = Utc::now();
+        Ok(())
+    }
+
+    pub(crate) fn mark_layer_unavailable(&self, session_id: &LiveSessionId) {
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        if let Some(layer) = state
+            .sessions
+            .get_mut(session_id)
+            .and_then(|session| session.geospatial_layer.as_mut())
+        {
+            layer.lifecycle = LayerLifecycle::Failed;
+            layer.failure = Some(LayerFailureDiagnostic {
+                code: LayerFailureCode::ProviderUnavailable,
+                message: "renderer layer health is unavailable".to_owned(),
+            });
+        }
+    }
+
     pub(crate) fn mark_pose_stale(&self, session_id: &LiveSessionId) {
         let mut state = self
             .state
@@ -1394,6 +1471,7 @@ mod tests {
                 digest: digest.clone(),
             },
             simulation_frame,
+            geospatial_layer_id: None,
             environment: GovernedArtifact {
                 artifact_uri: ArtifactId::new().plane_uri(),
                 digest: digest.clone(),

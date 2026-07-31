@@ -9,7 +9,9 @@ use veoveo_simulation_pose::{
     entity_identity_table_digest,
 };
 
-use crate::contract::{CameraDefinition, CameraRecord, PoseSourceState, SimulationViewSession};
+use crate::contract::{
+    CameraDefinition, CameraRecord, GeospatialLayerHealth, PoseSourceState, SimulationViewSession,
+};
 
 pub const RENDERER_PROFILE: &str = "veoveo.io/simulation-view-renderer/isaac-rtx/v1";
 
@@ -23,6 +25,7 @@ pub struct RendererReadiness {
     pub render_product_ready: bool,
     pub nvenc_ready: bool,
     pub visible_non_stale_frame: bool,
+    pub streamed_world_ready: bool,
 }
 
 impl RendererReadiness {
@@ -34,6 +37,7 @@ impl RendererReadiness {
             && self.render_product_ready
             && self.nvenc_ready
             && self.visible_non_stale_frame
+            && self.streamed_world_ready
     }
 }
 
@@ -303,6 +307,27 @@ impl RuntimeClients {
             "pose ingress returned status for a different session"
         );
         Ok(status)
+    }
+
+    pub async fn layer_status(
+        &self,
+        session_id: &veoveo_mcp_contract::LiveSessionId,
+    ) -> anyhow::Result<Option<GeospatialLayerHealth>> {
+        let endpoint = self
+            .renderer_endpoint
+            .join(&format!("v1/sessions/{session_id}/layer"))?;
+        let response = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            self.client
+                .get(endpoint)
+                .bearer_auth(&*self.renderer_control_token)
+                .send(),
+        )
+        .await??;
+        if response.status() == reqwest::StatusCode::NO_CONTENT {
+            return Ok(None);
+        }
+        Ok(Some(response.error_for_status()?.json().await?))
     }
 
     pub async fn upsert_camera(
@@ -598,6 +623,7 @@ mod tests {
             render_product_ready: true,
             nvenc_ready: true,
             visible_non_stale_frame: true,
+            streamed_world_ready: true,
         };
         assert!(readiness.is_ready());
         readiness.nvidia = false;

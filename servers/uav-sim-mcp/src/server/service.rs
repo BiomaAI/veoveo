@@ -238,7 +238,7 @@ impl UavSimMcp {
         let prepared = self
             .state
             .view_scenes
-            .prepare(&caller, &state)
+            .prepare(&caller, &state, request.geospatial_layer_id)
             .await
             .map_err(internal)?;
         self.state

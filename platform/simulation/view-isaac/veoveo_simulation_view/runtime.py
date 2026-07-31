@@ -24,6 +24,7 @@ from .control import (
     ReadinessSlot,
 )
 from .gpu import verify_nvidia_gpu_and_nvenc
+from .layers import StreamedWorldManager
 from .pose import PoseMirror, PoseSnapshot
 from .scene import ArtifactStore, SceneManager
 
@@ -56,6 +57,7 @@ class Renderer:
             ),
         )
         self._cameras = CameraPool(stage, config)
+        self._layers = StreamedWorldManager(stage, config.layer_catalog)
 
     def tick(self) -> None:
         self._process_commands()
@@ -73,15 +75,20 @@ class Renderer:
             elif session.pose.latest is not None:
                 snapshots[session_id] = session.pose.latest
         self._cameras.tick(snapshots, stale_sessions)
+        self._layers.tick(self._cameras.active_camera_paths())
 
     def readiness(self) -> tuple[bool, bool]:
         return self._cameras.readiness()
+
+    def streamed_world_ready(self) -> bool:
+        return self._layers.ready()
 
     def close(self) -> None:
         for session in self._sessions.values():
             if session.pose is not None:
                 session.pose.close()
         self._cameras.close_all()
+        self._layers.close_all()
 
     def _process_commands(self) -> None:
         for _ in range(128):
@@ -124,6 +131,7 @@ class Renderer:
             if session.pose is not None:
                 session.pose.close()
             self._cameras.close_session(command.session_id)
+            self._layers.close(command.session_id)
             self._scenes.close(command.session_id)
             self._streams = {
                 stream_id: stream
@@ -136,7 +144,12 @@ class Renderer:
             assert isinstance(command.value, SceneBinding)
             if command.value.epoch_id != session.binding.epoch_id:
                 raise ContractError("scene epoch does not match the session")
-            self._scenes.bind(command.value)
+            self._layers.bind(command.value)
+            try:
+                self._scenes.bind(command.value)
+            except BaseException:
+                self._layers.close(command.session_id)
+                raise
             session.scene = command.value
             return _accepted()
         if operation == "put_pose_source":
@@ -178,6 +191,11 @@ class Renderer:
                 HTTPStatus.OK,
                 self._cameras.status(command.resource_id),
             )
+        if operation == "get_layer":
+            status = self._layers.status(command.session_id)
+            if status is None:
+                return CommandResult(HTTPStatus.NO_CONTENT)
+            return CommandResult(HTTPStatus.OK, status)
         if operation == "delete_camera":
             assert command.resource_id is not None
             self._cameras.close(command.resource_id)
@@ -252,6 +270,10 @@ def run(config: RendererConfig) -> None:
             "height": config.probe_height,
             "sync_loads": True,
             "extra_args": [
+                "--ext-folder",
+                "/opt/veoveo/extensions",
+                "--enable",
+                "cesium.usd.plugins",
                 "--enable",
                 "omni.kit.livestream.webrtc",
                 "--enable",
@@ -273,7 +295,10 @@ def run(config: RendererConfig) -> None:
         import omni.usd
 
         manager = omni.kit.app.get_app().get_extension_manager()
+        manager.add_path("/opt/veoveo/extensions")
         for extension in (
+            "cesium.usd.plugins",
+            "cesium.omniverse",
             "omni.kit.hydra_texture",
             "omni.kit.livestream.webrtc",
             "omni.kit.livestream.aov",
@@ -296,7 +321,8 @@ def run(config: RendererConfig) -> None:
             renderer.tick()
             simulation_app.update()
             product_ready, visible = renderer.readiness()
-            ready = product_ready and visible
+            streamed_world_ready = renderer.streamed_world_ready()
+            ready = product_ready and visible and streamed_world_ready
             readiness.set(
                 Readiness(
                     ready=ready,
@@ -305,6 +331,7 @@ def run(config: RendererConfig) -> None:
                     render_product_ready=product_ready,
                     nvenc_ready=True,
                     visible_non_stale_frame=visible,
+                    streamed_world_ready=streamed_world_ready,
                 )
             )
     except BaseException:

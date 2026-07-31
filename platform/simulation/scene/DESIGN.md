@@ -14,6 +14,8 @@ that its scene admits. Simulation View validates and renders that declaration.
 | OpenUSD | governed `.usd` and `.usdz` environment and prototype assets |
 | glTF 2.0 | governed `.gltf` and `.glb` prototype assets |
 | WGS 84 and local tangent frames | immutable Frames revision with one local simulation frame |
+| OGC 3D Tiles | installation-selected streamed-world layer identity; tile transport is outside MCP |
+| `veoveo.io/simulation-view-layer-catalog/v1` | closed installation catalog for sources, host admission, budgets, attribution, and exact Frames/WGS 84 binding |
 | SHA-256 | scene-body and visual-asset content identities |
 | `artifact://` | governed visual-asset occurrence identity |
 
@@ -23,7 +25,8 @@ declaration.
 
 ## Boundary
 
-This crate contains scene, visual-asset, transform, lighting, and quality types.
+This crate contains scene, visual-asset, transform, lighting, quality, and
+streamed-world catalog types.
 It contains no renderer sessions, cameras, capacity, leases, WebRTC, MCP
 transport, HTTP client, deployment, or simulator implementation.
 
@@ -31,6 +34,13 @@ A producer owns its visual assets and entity bindings. It cannot select a
 renderer implementation or create an operator camera through this contract.
 Simulation View owns artifact materialization, pose admission, rendering,
 streaming, and lifecycle.
+
+A scene may select one installation layer by stable ID. The declaration never
+contains a provider URL or credential. The catalog binds that ID to a provider
+adapter, Secret environment name, admitted source and redirect hosts, budgets,
+required attribution, and the exact Frames revision, local ENU frame, and WGS
+84 origin. Simulation View rejects an unknown ID or a revision mismatch before
+sending the scene to the renderer.
 
 ## Canonical Identity
 

@@ -99,6 +99,15 @@ Secret, port allocation, and any admitted producer CIDRs. In-cluster producers c
 the `veoveo.ai/simulation-view-pose-producer: "true"` pod label. Readiness requires the
 named RTX render product, NVENC, and a visible non-stale hardware frame.
 
+`simulationView.streamedWorld` supplies the closed live-world catalog. The chart
+can render `catalog` into its owned ConfigMap or mount `existingConfigMap` under
+`catalogKey`. Each `credentialBindings` entry maps a catalog environment name to
+one key in an installation Secret; only the Isaac renderer receives those
+values. `egressCidrs` admits provider and redirect address ranges over HTTPS,
+while the catalog admits their exact hostnames. Enabling streamed worlds without
+at least one egress CIDR fails chart rendering. Keep provider credentials out of
+the catalog and scene declarations.
+
 Every MCP workload has one active pod and uses `Recreate`. This includes the
 gateway MCP endpoint, domain servers, GPU servers, and the stdio bridge that
 owns its child process. The chart does not expose replica or rollout controls
@@ -225,6 +234,10 @@ The operator must create these resources before installation:
 - `simulationView.poseIngress.existingTlsSecret`: DER server certificate under
   `certificateKey`, PKCS#8 DER private key under `privateKeyKey`, and DER producer
   trust anchor under `clientCaKey`.
+- `simulationView.streamedWorld.credentialBindings`: provider credentials in
+  dedicated Secrets. The installation also owns catalog host and redirect
+  allowlists, network CIDRs, budgets, attribution, and the exact Frames revision
+  plus WGS 84 origin.
 - `gateway.existingControlPlaneConfigMap`: the typed gateway JSON under
   `gateway.controlPlaneKey`, plus any file-backed JWKS or CA documents referenced
   by that JSON.

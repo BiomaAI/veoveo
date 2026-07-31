@@ -15,6 +15,7 @@ button,select,input{border:1px solid var(--line);border-radius:6px;background:va
 #empty-grid{min-height:230px;display:grid;place-items:center;color:var(--muted);background:var(--panel2)}
 #error{margin:10px 12px;padding:9px 11px;border:1px solid #8c4845;border-radius:6px;background:#401b1bed;color:#ffd6d2}
 footer{display:flex;gap:12px;align-items:center;padding:8px 12px;border-top:1px solid var(--line);color:var(--muted)}
+footer a{color:var(--cyan)}
 @media(max-width:720px){#controls{grid-template-columns:1fr 1fr}#grid{grid-template-columns:1fr}.view{aspect-ratio:16/9}header{flex-wrap:wrap}}
 </style>
 </head>
@@ -40,7 +41,7 @@ footer{display:flex;gap:12px;align-items:center;padding:8px 12px;border-top:1px 
   <section id="cameras" aria-label="Visible cameras"></section>
   <main id="grid"><div id="empty-grid">No capacity-admitted camera is available.</div></main>
   <div id="error" hidden></div>
-  <footer><span id="session">No renderer session</span><span class="spacer"></span><span id="freshness">frame age —</span></footer>
+  <footer><span id="session">No renderer session</span><a id="attribution" hidden rel="noopener noreferrer" target="_blank"></a><span class="spacer"></span><span id="freshness">frame age —</span></footer>
 </div>
 <script>/*__NVIDIA_OV_WEB_RTC__*/</script>
 <script>
@@ -65,6 +66,7 @@ async function readJson(uri){const result=await bridge.request("resources/read",
 function showError(cause){el("error").textContent=cause instanceof Error?cause.message:String(cause);el("error").hidden=false;}
 function clearError(){el("error").hidden=true;}
 function setStatus(text,live=false,warn=false){el("status").textContent=text;el("status").classList.toggle("live",live);el("status").classList.toggle("warn",warn);}
+function renderAttribution(layer){const link=el("attribution");if(!layer){link.hidden=true;link.removeAttribute("href");link.textContent="";return;}link.textContent=layer.attribution;link.href=layer.attributionUrl;link.hidden=false;}
 function reportSize(){requestAnimationFrame(()=>{const height=Math.ceil(document.documentElement.scrollHeight);if(Math.abs(height-lastHeight)<2)return;lastHeight=height;bridge.notify("ui/notifications/size-changed",{height});});}
 function byId(id){return cameras.find((camera)=>camera.cameraId===id);}
 function sessionUri(suffix=""){return`simulation-view://session/${session.sessionId}${suffix}`;}
@@ -126,9 +128,9 @@ async function applyRig(){const camera=byId(el("camera-select").value),target=el
 function updateHealth(streams){let newest=null;for(const stream of streams){const node=document.getElementById(`view-${stream.cameraId}`);if(!node)continue;node.querySelector(".health").textContent=stream.cameraHealth;const age=stream.lastFrameAt?Math.max(0,Date.now()-Date.parse(stream.lastFrameAt)):null;node.querySelector(".age").textContent=age===null?"frame age —":`frame age ${age} ms`;if(age!==null&&(newest===null||age<newest))newest=age;}el("freshness").textContent=newest===null?"frame age —":`freshest frame ${newest} ms`;}
 async function refresh(){if(refreshing||tearingDown)return;refreshing=true;try{capacity=await readJson("simulation-view://capacity");const sessions=await readJson("simulation-view://sessions");session=sessions.find((item)=>item.lifecycle!=="closed"&&item.lifecycle!=="failed")||null;
     el("capacity").textContent=`${capacity.usage.streamedCameras}/${capacity.limits.maximumStreamedCameras} streams · ${capacity.usage.renderedCameras}/${capacity.limits.maximumRenderedCameras} render`;
-    if(!session){cameras=[];entities=[];el("session").textContent="No renderer session";setStatus("waiting",false,true);renderSelectors();renderChoices();return;}
+    if(!session){cameras=[];entities=[];el("session").textContent="No renderer session";renderAttribution(null);setStatus("waiting",false,true);renderSelectors();renderChoices();return;}
     [cameras]=await Promise.all([readJson(sessionUri("/cameras"))]);const scene=await readJson(sessionUri("/scene")).catch(()=>null);entities=scene?.body?.entities||[];const streams=await readJson(sessionUri("/streams"));
-    el("session").textContent=`${session.sessionId} · ${session.lifecycle} · ${session.poseSource?.stale?"pose stale":"pose current"}`;setStatus(players.size?`${players.size} live`:"ready",players.size>0,session.poseSource?.stale===true);
+    el("session").textContent=`${session.sessionId} · ${session.lifecycle} · ${session.poseSource?.stale?"pose stale":"pose current"}`;renderAttribution(session.geospatialLayer);setStatus(players.size?`${players.size} live`:"ready",players.size>0,session.poseSource?.stale===true);
     for(const id of [...selected])if(!byId(id)){selected.delete(id);void closeView(id,true);}renderSelectors();renderChoices();updateHealth(streams);
   }catch(cause){showError(cause);if(!players.size)setStatus("unavailable",false,true);}finally{refreshing=false;}}
 bridge.on("ui/notifications/tool-result",()=>void refresh());

@@ -750,6 +750,7 @@
         "artifacts",
         "sharedMemory",
         "cache",
+        "streamedWorld",
         "capacity",
         "placement",
         "mcpResources",
@@ -1013,6 +1014,216 @@
         },
         "cache": {
           "$ref": "#/definitions/sizeLimit"
+        },
+        "streamedWorld": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "existingConfigMap",
+            "catalogKey",
+            "catalog",
+            "credentialBindings",
+            "egressCidrs"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "existingConfigMap": {
+              "type": "string",
+              "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+            },
+            "catalogKey": {
+              "$ref": "#/definitions/dataKey"
+            },
+            "catalog": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["schemaVersion", "layers"],
+              "properties": {
+                "schemaVersion": {
+                  "const": "veoveo.io/simulation-view-layer-catalog/v1"
+                },
+                "layers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "layerId",
+                      "layerType",
+                      "source",
+                      "allowedHosts",
+                      "allowedRedirectHosts",
+                      "budgets",
+                      "license",
+                      "georeference"
+                    ],
+                    "properties": {
+                      "layerId": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9_.-]{1,128}$"
+                      },
+                      "layerType": {
+                        "const": "streamed_3d_tiles"
+                      },
+                      "source": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "kind",
+                              "assetId",
+                              "serverUrl",
+                              "apiUrl",
+                              "applicationId",
+                              "credentialEnvironment"
+                            ],
+                            "properties": {
+                              "kind": {"const": "cesium_ion"},
+                              "assetId": {"type": "integer", "minimum": 1},
+                              "serverUrl": {"type": "string", "pattern": "^https://"},
+                              "apiUrl": {"type": "string", "pattern": "^https://"},
+                              "applicationId": {"type": "integer", "minimum": 1},
+                              "credentialEnvironment": {
+                                "type": "string",
+                                "pattern": "^SIMULATION_VIEW_LAYER_[A-Z0-9_]{1,106}$"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["kind", "rootUrl"],
+                            "properties": {
+                              "kind": {"const": "https_3d_tiles"},
+                              "rootUrl": {"type": "string", "pattern": "^https://"}
+                            }
+                          }
+                        ]
+                      },
+                      "allowedHosts": {
+                        "type": "array",
+                        "minItems": 1,
+                        "uniqueItems": true,
+                        "items": {"type": "string", "pattern": "^[A-Za-z0-9.-]+$"}
+                      },
+                      "allowedRedirectHosts": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": {"type": "string", "pattern": "^[A-Za-z0-9.-]+$"}
+                      },
+                      "budgets": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "maximumCacheBytes",
+                          "maximumTileBytes",
+                          "maximumVisibleTiles",
+                          "maximumPendingTiles",
+                          "maximumScreenSpaceError"
+                        ],
+                        "properties": {
+                          "maximumCacheBytes": {"type": "integer", "minimum": 1},
+                          "maximumTileBytes": {"type": "integer", "minimum": 1},
+                          "maximumVisibleTiles": {"type": "integer", "minimum": 1},
+                          "maximumPendingTiles": {"type": "integer", "minimum": 1},
+                          "maximumScreenSpaceError": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 256
+                          }
+                        }
+                      },
+                      "license": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "identifier",
+                          "attribution",
+                          "attributionUrl",
+                          "displayRequired"
+                        ],
+                        "properties": {
+                          "identifier": {"type": "string", "minLength": 1},
+                          "attribution": {"type": "string", "minLength": 1},
+                          "attributionUrl": {"type": "string", "pattern": "^https://"},
+                          "displayRequired": {"const": true}
+                        }
+                      },
+                      "georeference": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["world", "frameRevision", "localEnuFrame", "origin"],
+                        "properties": {
+                          "world": {"type": "string", "pattern": "^frames://world/"},
+                          "frameRevision": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["uri", "digest"],
+                            "properties": {
+                              "uri": {"type": "string", "pattern": "^frames://world/"},
+                              "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+                            }
+                          },
+                          "localEnuFrame": {"type": "string", "pattern": "^frames://world/"},
+                          "origin": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["latitudeDegrees", "longitudeDegrees", "ellipsoidHeightM"],
+                            "properties": {
+                              "latitudeDegrees": {"type": "number", "minimum": -90, "maximum": 90},
+                              "longitudeDegrees": {"type": "number", "minimum": -180, "maximum": 180},
+                              "ellipsoidHeightM": {"type": "number"}
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "credentialBindings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["environment", "existingSecret", "key"],
+                "properties": {
+                  "environment": {
+                    "type": "string",
+                    "pattern": "^SIMULATION_VIEW_LAYER_[A-Z0-9_]{1,106}$"
+                  },
+                  "existingSecret": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+                  },
+                  "key": {"$ref": "#/definitions/dataKey"}
+                }
+              }
+            },
+            "egressCidrs": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F:.]+/[0-9]+$"
+              }
+            }
+          },
+          "allOf": [
+            {
+              "if": {"properties": {"enabled": {"const": true}}},
+              "then": {
+                "properties": {
+                  "egressCidrs": {"minItems": 1}
+                }
+              }
+            }
+          ]
         },
         "capacity": {
           "type": "object",

@@ -88,6 +88,7 @@ class SceneBinding:
     frame_uri: str
     frame_digest: str
     maximum_pose_age_ms: int
+    layer_id: str | None
     declaration: dict[str, Any]
 
     @classmethod
@@ -105,6 +106,7 @@ class SceneBinding:
             "epochId",
             "frameRevision",
             "simulationFrame",
+            "geospatialLayerId",
             "environment",
             "prototypes",
             "entities",
@@ -113,7 +115,12 @@ class SceneBinding:
             "quality",
             "attribution",
         }
-        if set(body) != required or body.get("schemaVersion") != SCENE_SCHEMA:
+        optional = {"geospatialLayerId"}
+        if (
+            not required - optional <= set(body)
+            or set(body) - required
+            or body.get("schemaVersion") != SCENE_SCHEMA
+        ):
             raise ContractError("scene body schema is unsupported")
         frame = object_with_keys(
             "frameRevision", body["frameRevision"], {"uri", "digest"}
@@ -147,6 +154,11 @@ class SceneBinding:
             frame_digest=_digest(frame["digest"]),
             maximum_pose_age_ms=positive_integer(
                 "maximumPoseAgeMs", quality["maximumPoseAgeMs"], 60_000
+            ),
+            layer_id=(
+                identity("geospatialLayerId", body["geospatialLayerId"])
+                if "geospatialLayerId" in body
+                else None
             ),
             declaration=declaration,
         )

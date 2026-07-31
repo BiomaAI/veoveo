@@ -236,6 +236,7 @@ class SceneDeclarationBody(ContractModel):
     epoch_id: Identifier
     frame_revision: FrameRevision
     simulation_frame: WorldFrameUri
+    geospatial_layer_id: Identifier | None = None
     environment: GovernedArtifact
     prototypes: tuple[VisualPrototype, ...] = Field(min_length=1)
     entities: tuple[SceneEntity, ...] = Field(min_length=1)

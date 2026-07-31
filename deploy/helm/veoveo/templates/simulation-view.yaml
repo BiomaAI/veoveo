@@ -1,6 +1,30 @@
 {{- if include "veoveo.mcpServerEnabled" (list . "simulation-view") }}
 {{- $view := .Values.simulationView -}}
 {{- $slots := int $view.capacity.maximumRenderedCameras -}}
+{{- $layerCatalogName := default (printf "%s-simulation-view-layers" (include "veoveo.fullname" .)) $view.streamedWorld.existingConfigMap -}}
+{{- if and $view.streamedWorld.enabled (empty $view.streamedWorld.egressCidrs) -}}
+{{- fail "simulationView.streamedWorld.egressCidrs must admit the configured provider when streamedWorld is enabled" -}}
+{{- end -}}
+{{- $credentialEnvironments := dict -}}
+{{- range $binding := $view.streamedWorld.credentialBindings -}}
+{{- if hasKey $credentialEnvironments $binding.environment -}}
+{{- fail (printf "simulationView.streamedWorld.credentialBindings contains duplicate environment %s" $binding.environment) -}}
+{{- end -}}
+{{- $_ := set $credentialEnvironments $binding.environment true -}}
+{{- end -}}
+{{- if not $view.streamedWorld.existingConfigMap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $layerCatalogName }}
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: simulation-view-layer-catalog
+data:
+  {{ $view.streamedWorld.catalogKey }}: |
+    {{- toPrettyJson $view.streamedWorld.catalog | nindent 4 }}
+---
+{{- end }}
 {{- if not $view.artifacts.existingClaim }}
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -228,6 +252,8 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.global.existingSecret }}
                   key: simulation-view-pose-control-token
+            - name: SIMULATION_VIEW_LAYER_CATALOG
+              value: /etc/veoveo/simulation-view/layers.json
             {{- if .Values.telemetry.enabled }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: http://otel-collector:4318
@@ -262,9 +288,19 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: simulation-view-layer-catalog
+              mountPath: /etc/veoveo/simulation-view/layers.json
+              subPath: {{ $view.streamedWorld.catalogKey }}
+              readOnly: true
       volumes:
         - name: tmp
           emptyDir: {}
+        - name: simulation-view-layer-catalog
+          configMap:
+            name: {{ $layerCatalogName }}
+            items:
+              - key: {{ $view.streamedWorld.catalogKey }}
+                path: {{ $view.streamedWorld.catalogKey }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -348,6 +384,15 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.global.existingSecret }}
                   key: simulation-view-renderer-control-token
+            - name: SIMULATION_VIEW_LAYER_CATALOG
+              value: /etc/veoveo/simulation-view/layers.json
+            {{- range $binding := $view.streamedWorld.credentialBindings }}
+            - name: {{ $binding.environment }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $binding.existingSecret }}
+                  key: {{ $binding.key }}
+            {{- end }}
             - name: SIMULATION_VIEW_ARTIFACT_DIRECTORY
               value: /var/lib/veoveo/simulation-view/artifacts
             - name: SIMULATION_VIEW_MAXIMUM_ARTIFACT_BYTES
@@ -421,6 +466,10 @@ spec:
               mountPath: /var/lib/veoveo/runtime-cache
             - name: renderer-tmp
               mountPath: /tmp
+            - name: simulation-view-layer-catalog
+              mountPath: /etc/veoveo/simulation-view/layers.json
+              subPath: {{ $view.streamedWorld.catalogKey }}
+              readOnly: true
         - name: simulation-view-pose
           image: {{ include "veoveo.ownedImage" (list . $view.poseImage) }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
@@ -491,6 +540,12 @@ spec:
           emptyDir: {}
         - name: pose-tmp
           emptyDir: {}
+        - name: simulation-view-layer-catalog
+          configMap:
+            name: {{ $layerCatalogName }}
+            items:
+              - key: {{ $view.streamedWorld.catalogKey }}
+                path: {{ $view.streamedWorld.catalogKey }}
         - name: pose-tls
           secret:
             secretName: {{ required "simulationView.poseIngress.existingTlsSecret is required" $view.poseIngress.existingTlsSecret }}

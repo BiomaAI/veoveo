@@ -547,7 +547,7 @@ Simulation View data-plane ownership:
 
 | Path | Responsibility |
 |---|---|
-| `platform/simulation/scene/` | typed governed scene body, visual assets, entity bindings, transforms, quality, attribution, validation, and canonical digest |
+| `platform/simulation/scene/` | typed governed scene body, installation layer catalog, exact Frames/WGS 84 bindings, visual assets, entity bindings, transforms, quality, attribution, health, validation, and canonical digest |
 | `servers/simulation-view-mcp/src/contract.rs` | renderer sessions, generic camera rigs, explicit capacity, direct MCP requests and results, and public re-export of the shared scene contract |
 | `servers/simulation-view-mcp/src/state.rs` | owner-scoped scene, camera, and lease transitions with optimistic revisions and typed admission |
 | `servers/simulation-view-mcp/src/artifacts.rs` | caller-authorized Artifact-plane streaming into the private renderer digest-ingest boundary |
@@ -562,7 +562,7 @@ Simulation View data-plane ownership:
 | `platform/simulation/pose/src/stream.rs` | identical length-delimited framing for mutually authenticated streams |
 | `platform/simulation/pose/src/ingress.rs` | typed private producer-binding control declarations and readiness |
 | `platform/simulation/pose-ingress/` | TLS 1.3 mutual-authentication ingress, SPIFFE producer authorization, private control endpoint, and shared-memory publication |
-| `platform/simulation/view-isaac/` | hardware-only Isaac/RTX renderer, atomic digest-addressed artifact ingest and preflight, render-only USD mirroring, pose consumption, generic camera rigs, AOV/NVENC slot pools, and private runtime control |
+| `platform/simulation/view-isaac/` | hardware-only Isaac/RTX renderer, atomic digest-addressed artifact ingest and preflight, render-only USD mirroring, installation-configured 3D Tiles streaming, pose consumption, generic camera rigs, AOV/NVENC slot pools, and private runtime control |
 
 ## Recordings
 
