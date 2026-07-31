@@ -65,6 +65,15 @@ spec:
             - name: VEOVEO_CONSOLE_OUTBOUND_CA_BUNDLE
               value: /etc/veoveo/console-outbound-ca/ca.pem
             {{- end }}
+            - name: VEOVEO_CONSOLE_RERUN_MAP_PROVIDER
+              value: {{ .Values.consoleBff.rerunMap.provider | quote }}
+            {{- if eq .Values.consoleBff.rerunMap.provider "mapbox" }}
+            - name: RERUN_MAPBOX_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "consoleBff.rerunMap.mapbox.accessToken.existingSecret is required when the mapbox provider is selected" .Values.consoleBff.rerunMap.mapbox.accessToken.existingSecret | quote }}
+                  key: {{ required "consoleBff.rerunMap.mapbox.accessToken.key is required when the mapbox provider is selected" .Values.consoleBff.rerunMap.mapbox.accessToken.key | quote }}
+            {{- end }}
             - name: VEOVEO_CONSOLE_OAUTH_SCOPES
               value: {{ join " " .Values.consoleBff.oauthScopes | quote }}
             - name: VEOVEO_CLUSTER_INSPECTION_ENABLED

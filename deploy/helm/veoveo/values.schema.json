@@ -1102,6 +1102,7 @@
         "oauthResource",
         "mcpTransportUrl",
         "outboundCa",
+        "rerunMap",
         "oauthScopes",
         "resources"
       ],
@@ -1140,6 +1141,50 @@
             "key": {
               "type": "string",
               "minLength": 1
+            }
+          }
+        },
+        "rerunMap": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider",
+            "mapbox"
+          ],
+          "properties": {
+            "provider": {
+              "type": "string",
+              "enum": [
+                "openStreetMap",
+                "mapbox"
+              ]
+            },
+            "mapbox": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "accessToken"
+              ],
+              "properties": {
+                "accessToken": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "existingSecret",
+                    "key"
+                  ],
+                  "properties": {
+                    "existingSecret": {
+                      "type": "string",
+                      "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+                    },
+                    "key": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
             }
           }
         },

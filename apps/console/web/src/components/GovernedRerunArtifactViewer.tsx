@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { WebViewer } from "@rerun-io/web-viewer";
+import { loadRerunMapViewerOptions } from "../rerunMap";
 
 export default function GovernedRerunArtifactViewer({
   artifactId,
@@ -15,13 +16,14 @@ export default function GovernedRerunArtifactViewer({
     const viewer = new WebViewer();
     const controller = new AbortController();
 
-    void viewer
-      .start(null, host.current, {
+    void loadRerunMapViewerOptions()
+      .then((mapOptions) => viewer.start(null, host.current, {
         width: "100%",
         height: "100%",
         hide_welcome_screen: true,
         allow_fullscreen: true,
-      })
+        ...mapOptions,
+      }))
       .then(async () => {
         const response = await fetch(url, {
           credentials: "same-origin",
