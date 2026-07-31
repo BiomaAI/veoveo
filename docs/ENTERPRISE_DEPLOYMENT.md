@@ -38,6 +38,12 @@ changing the chart, image, configuration, or Secret contracts.
 | Application reconciliation | Installation GitOps controller | Declared Applications or equivalent release objects |
 | Acceptance evidence | Installation release process | Rust smoke, conformance, and operational evidence |
 
+The [Autonomy Harness](AUTONOMY_HARNESS.md) defines the continuous containment boundary,
+complete shared-responsibility matrix, and end-to-end operating proof for agents that
+remain autonomous throughout the installation lifecycle. Helm readiness establishes
+workload health; the harness evidence proves that each effect stays inside its declared
+authority while agents keep running.
+
 The build pipeline publishes artifacts. It does not connect to customer clusters.
 The configuration repository selects published artifacts. It does not compile
 Veoveo. The reconciliation controller reads the desired state and applies it to the
