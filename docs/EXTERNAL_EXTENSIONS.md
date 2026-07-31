@@ -17,8 +17,8 @@ It joins an installation through versioned artifacts and installation-owned comp
 | `veoveo.io/extension-release/v1` | immutable extension source, artifact, fragment, chart, conformance, and optional runtime-overlay declaration |
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned hosted-server declaration |
 | `veoveo.io/gateway-binding/v1` | installation-owned exposure and authorization declaration |
-| `veoveo.io/deployment/v3` | optional repository-development profile with installation-owned values, exact platform publication, and configurable private-registry transport |
-| `veoveo.io/deployment-lock/v3` | immutable installation revision and source evidence emitted by that repository-development publication flow |
+| `veoveo.io/deployment/v4` | optional repository-development profile with installation-owned values, exact platform publication, and configurable private-registry transport |
+| `veoveo.io/deployment-lock/v4` | immutable installation revision and source evidence emitted by that repository-development publication flow |
 | `veoveo.io/simulation-runtime-build-lock/v1` | exact canonical Isaac simulation-base inputs and GPU requirements |
 | `veoveo.io/simulation-conformance-result/v1` | hardware result for one immutable simulator overlay and base |
 | `veoveo.io/simulation-runtime-release-evidence/v1` | paired first-party and anonymous-overlay evidence published through private OCI |
@@ -195,7 +195,7 @@ gateway-compose \
 `extensions/examples` prove the same workflow without a source dependency or a
 customer identity.
 
-Deployment v3 remains an optional repository-development facility. Its profile may
+Deployment v4 remains an optional repository-development facility. Its profile may
 reside in an installation repository, where the installation owns registry transport,
 Helm overrides, and the exact profile revision. It derives the minimal platform target
 set, accepts independently versioned workload and extension sources, and rejects

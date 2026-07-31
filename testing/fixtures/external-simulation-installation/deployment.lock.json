@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "veoveo.io/deployment-lock/v3",
+  "schemaVersion": "veoveo.io/deployment-lock/v4",
   "profile": "anonymous-simulation-extension",
   "profileRevision": "d2b80d11b49767ed12118ab00eabfdb00add7a45",
   "registry": "k3d-veoveo-registry.localhost:5001",

@@ -17,8 +17,8 @@ changing the chart, image, configuration, or Secret contracts.
 | OCI Distribution Specification | authenticated private image, chart, SBOM, provenance, schema, and evidence distribution |
 | Helm and Kubernetes | separately reconciled platform and extension application charts |
 | `veoveo.io/extension-release/v1` | independently published extension image, chart, fragment, conformance, and source identity |
-| `veoveo.io/deployment/v3` | optional repository-development publication profile with exact platform selection and installation-owned Helm values |
-| `veoveo.io/deployment-lock/v3` | immutable installation and source evidence from the repository-development publication flow |
+| `veoveo.io/deployment/v4` | optional repository-development publication profile with exact platform selection and installation-owned Helm values |
+| `veoveo.io/deployment-lock/v4` | immutable installation and source evidence from the repository-development publication flow |
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned hosted-server contribution |
 | `veoveo.io/gateway-binding/v1` | installation-owned exposure, tenant, producer, and authorization policy |
 | `veoveo.io/compatibility-manifest/v1` | supported SDK, chart library, standalone tools, schemas, and optional simulation tuple |
@@ -159,7 +159,7 @@ ownership. Keep `consoleBff.oauthResource` at the public protected-resource URL 
 `consoleBff.mcpTransportUrl` to the endpoint reachable by the BFF pod. Corporate roots
 belong in a non-secret installation ConfigMap selected by
 `consoleBff.outboundCa.existingConfigMap`; the chart mounts its configured PEM key and
-the BFF adds those roots to the standard verifier. A deployment/v3 source lists the
+the BFF adds those roots to the standard verifier. A deployment/v4 source lists the
 owning values file under the platform release's `installationValues`. Missing ConfigMap
 data blocks the pod mount, while malformed trust material blocks BFF startup.
 

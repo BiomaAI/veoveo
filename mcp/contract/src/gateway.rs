@@ -88,6 +88,42 @@ pub enum GatewayControlPlaneRevisionSource {
 }
 
 impl GatewayControlPlane {
+    /// Public files that must be mounted beside this control-plane document.
+    #[must_use]
+    pub fn jwks_file_paths(&self) -> BTreeSet<&str> {
+        self.identity_providers
+            .iter()
+            .map(|provider| &provider.jwks)
+            .chain(self.authorization_servers.iter().map(|server| &server.jwks))
+            .chain(
+                self.oauth_clients
+                    .iter()
+                    .filter_map(|client| client.jwks.as_ref()),
+            )
+            .filter_map(|source| match source {
+                JwksSource::File { path } => Some(path.as_str()),
+                JwksSource::Remote { .. } => None,
+            })
+            .collect()
+    }
+
+    /// Public CA bundles that must be mounted beside this control-plane document.
+    #[must_use]
+    pub fn certificate_authority_file_paths(&self) -> BTreeSet<&str> {
+        self.identity_providers
+            .iter()
+            .flat_map(|provider| provider.trusted_certificate_authorities.iter())
+            .chain(
+                self.servers
+                    .iter()
+                    .flat_map(|server| server.upstream.trusted_certificate_authorities.iter()),
+            )
+            .map(|source| match source {
+                CertificateAuthoritySource::File { path } => path.as_str(),
+            })
+            .collect()
+    }
+
     pub fn validate(&self) -> Result<(), GatewayControlPlaneError> {
         if let Some(branding) = &self.branding {
             branding.validate()?;

@@ -52,7 +52,7 @@ fn independent_git_sources_produce_one_validated_installation_lock() {
     );
 
     let profile = serde_json::json!({
-        "schemaVersion": "veoveo.io/deployment/v3",
+        "schemaVersion": "veoveo.io/deployment/v4",
         "name": "anonymous-installation",
         "registry": {
             "address": "registry.example.internal",

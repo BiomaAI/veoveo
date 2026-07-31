@@ -18,9 +18,10 @@ use veoveo_deploy_contract::{
     LoadedProfile, LockedSource, PlannedImage, PlatformComponent, ReleaseSpec,
     ReleaseValuesContract, SecretFormat, SecretSpec, SourceRepository, load_local_registry,
 };
-use veoveo_mcp_contract::GatewayInternalTrustBundle;
+use veoveo_mcp_contract::{GatewayControlPlane, GatewayInternalTrustBundle};
 
 const VALIDATION_REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
+const GATEWAY_MOUNT_ROOT: &str = "/etc/veoveo/gateway/";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -72,8 +73,18 @@ struct ResolvedSource {
     _checkout: tempfile::TempDir,
 }
 
+#[derive(Debug)]
+struct PreparedGatewayActivation {
+    config_map_name: String,
+    revision: String,
+    confidential_secret: String,
+    required_secret_keys: BTreeSet<String>,
+    data: BTreeMap<String, String>,
+}
+
 pub(crate) fn profile_validate(path: &Path) -> Result<()> {
     let profile = load_profile(path)?;
+    let _gateway_activation = prepare_gateway_activation(&profile)?;
     let sources = resolve_sources(&profile)?;
     let selected_images = validate_bake_selections(&profile, &sources)?;
     profile.validate_image_plan(&selected_images)?;
@@ -188,6 +199,7 @@ pub(crate) fn profile_cluster_delete(path: &Path) -> Result<()> {
 
 pub(crate) fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
     let profile = load_profile(path)?;
+    let gateway_activation = prepare_gateway_activation(&profile)?;
     let lock = load_deployment_lock(lock_path)?;
     validate_locked_profile(&profile, &lock)?;
     let sources = resolve_locked_sources(&profile, &lock)?;
@@ -231,6 +243,15 @@ pub(crate) fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
     }
     for secret in &profile.definition.resources.secrets {
         apply_secret(&profile, context, secret)?;
+    }
+    if let Some(activation) = &gateway_activation {
+        validate_gateway_secret(
+            context,
+            &profile.definition.namespace,
+            &activation.confidential_secret,
+            &activation.required_secret_keys,
+        )?;
+        apply_gateway_activation(context, &profile.definition.namespace, activation)?;
     }
 
     for source in &sources {
@@ -1002,6 +1023,183 @@ fn apply_config_map(
     )
 }
 
+fn prepare_gateway_activation(
+    profile: &LoadedProfile,
+) -> Result<Option<PreparedGatewayActivation>> {
+    let Some(activation) = &profile.definition.gateway_activation else {
+        return Ok(None);
+    };
+    let control_plane_path = profile.resolve(&activation.control_plane);
+    let control_plane_text = fs::read_to_string(&control_plane_path).with_context(|| {
+        format!(
+            "reading gateway activation control plane {}",
+            control_plane_path.display()
+        )
+    })?;
+    let control_plane: GatewayControlPlane = serde_json::from_str(&control_plane_text)
+        .with_context(|| {
+            format!(
+                "decoding gateway activation control plane {}",
+                control_plane_path.display()
+            )
+        })?;
+    control_plane
+        .validate()
+        .context("validating gateway activation control plane")?;
+
+    let jwks_keys = control_plane
+        .jwks_file_paths()
+        .into_iter()
+        .map(gateway_mount_key)
+        .collect::<Result<BTreeSet<_>>>()?;
+    let ca_keys = control_plane
+        .certificate_authority_file_paths()
+        .into_iter()
+        .map(gateway_mount_key)
+        .collect::<Result<BTreeSet<_>>>()?;
+    let referenced = jwks_keys.union(&ca_keys).cloned().collect::<BTreeSet<_>>();
+    let configured = activation
+        .public_files
+        .keys()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    ensure!(
+        referenced == configured,
+        "gateway activation publicFiles differ from control-plane file references; referenced={referenced:?}, configured={configured:?}"
+    );
+
+    let mut data = BTreeMap::from([(activation.control_plane_key.clone(), control_plane_text)]);
+    for (key, path) in &activation.public_files {
+        let resolved = profile.resolve(path);
+        let text = fs::read_to_string(&resolved).with_context(|| {
+            format!(
+                "reading gateway activation public file {}",
+                resolved.display()
+            )
+        })?;
+        validate_gateway_public_file(key, &text, jwks_keys.contains(key), ca_keys.contains(key))?;
+        data.insert(key.clone(), text);
+    }
+
+    let mut hasher = Sha256::new();
+    hasher.update(b"veoveo.io/gateway-activation/v1\0");
+    for (key, value) in &data {
+        hasher.update(
+            u64::try_from(key.len())
+                .expect("ConfigMap key length fits u64")
+                .to_be_bytes(),
+        );
+        hasher.update(key.as_bytes());
+        hasher.update(
+            u64::try_from(value.len())
+                .expect("ConfigMap value length fits u64")
+                .to_be_bytes(),
+        );
+        hasher.update(value.as_bytes());
+    }
+    let digest = hex::encode(hasher.finalize());
+    Ok(Some(PreparedGatewayActivation {
+        config_map_name: format!("{}-{}", activation.config_map_name_prefix, &digest[..12]),
+        revision: format!("sha256:{digest}"),
+        confidential_secret: activation.confidential_secret.clone(),
+        required_secret_keys: activation.required_secret_keys.clone(),
+        data,
+    }))
+}
+
+fn gateway_mount_key(path: &str) -> Result<String> {
+    let key = path.strip_prefix(GATEWAY_MOUNT_ROOT).with_context(|| {
+        format!("gateway public file path {path:?} must be beneath {GATEWAY_MOUNT_ROOT}")
+    })?;
+    ensure!(
+        !key.is_empty() && !key.contains('/'),
+        "gateway public file path {path:?} must resolve to one ConfigMap data key"
+    );
+    Ok(key.to_owned())
+}
+
+fn validate_gateway_public_file(key: &str, text: &str, jwks: bool, ca: bool) -> Result<()> {
+    if jwks {
+        let jwks: jsonwebtoken::jwk::JwkSet = serde_json::from_str(text)
+            .with_context(|| format!("decoding gateway JWKS file {key}"))?;
+        ensure!(!jwks.keys.is_empty(), "gateway JWKS file {key} has no keys");
+    }
+    if ca {
+        let certificates = reqwest::Certificate::from_pem_bundle(text.as_bytes())
+            .with_context(|| format!("parsing gateway CA bundle {key}"))?;
+        ensure!(
+            !certificates.is_empty(),
+            "gateway CA bundle {key} has no certificates"
+        );
+    }
+    Ok(())
+}
+
+fn validate_gateway_secret(
+    context: &str,
+    namespace: &str,
+    name: &str,
+    required_keys: &BTreeSet<String>,
+) -> Result<()> {
+    let bytes = output_checked(
+        "kubectl",
+        [
+            "--context",
+            context,
+            "--namespace",
+            namespace,
+            "get",
+            "secret",
+            name,
+            "--output=json",
+        ],
+        None,
+    )
+    .with_context(|| format!("reading installation-owned gateway Secret {name}"))?;
+    let secret: Value = serde_json::from_slice(&bytes)
+        .with_context(|| format!("decoding installation-owned gateway Secret {name}"))?;
+    let data = secret
+        .get("data")
+        .and_then(Value::as_object)
+        .with_context(|| format!("installation-owned gateway Secret {name} has no data"))?;
+    for key in required_keys {
+        ensure!(
+            data.get(key)
+                .and_then(Value::as_str)
+                .is_some_and(|value| !value.is_empty()),
+            "installation-owned gateway Secret {name} is missing required key {key}"
+        );
+    }
+    Ok(())
+}
+
+fn apply_gateway_activation(
+    context: &str,
+    namespace: &str,
+    activation: &PreparedGatewayActivation,
+) -> Result<()> {
+    kubectl_apply_value(
+        context,
+        &serde_json::json!({
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": activation.config_map_name,
+                "namespace": namespace,
+                "labels": {
+                    "app.kubernetes.io/managed-by": "veoveo-profile",
+                    "veoveo.ai/gateway-activation": "true"
+                },
+                "annotations": {
+                    "veoveo.ai/gateway-activation-revision": activation.revision
+                }
+            },
+            "immutable": true,
+            "data": activation.data
+        }),
+    )
+}
+
 fn apply_secret(profile: &LoadedProfile, context: &str, secret: &SecretSpec) -> Result<()> {
     let mut data = BTreeMap::new();
     for entry in &secret.data_from_env {
@@ -1178,6 +1376,19 @@ fn append_release_values(
                         serde_json::to_string(&profile.resolved_platform()?.artifact_audiences)?
                     ),
                 ]);
+                if let Some(activation) = prepare_gateway_activation(profile)? {
+                    args.extend([
+                        "--set-string".to_owned(),
+                        format!(
+                            "gateway.existingControlPlaneConfigMap={}",
+                            activation.config_map_name
+                        ),
+                        "--set-string".to_owned(),
+                        format!("gateway.controlPlaneRevision={}", activation.revision),
+                        "--set-string".to_owned(),
+                        format!("global.existingSecret={}", activation.confidential_secret),
+                    ]);
+                }
             }
         }
         ReleaseValuesContract::Extension => {
@@ -1402,9 +1613,12 @@ fn path_str(path: &Path) -> Result<&str> {
 mod tests {
     use std::path::{Path, PathBuf};
 
-    use veoveo_deploy_contract::{ReleaseSpec, ReleaseValuesContract};
+    use veoveo_deploy_contract::{LoadedProfile, ReleaseSpec, ReleaseValuesContract};
 
-    use super::{normalize_origin, ordered_release_values};
+    use super::{
+        gateway_mount_key, normalize_origin, ordered_release_values, prepare_gateway_activation,
+        validate_gateway_public_file,
+    };
 
     #[test]
     fn normalizes_scp_git_origins_for_lock_comparison() {
@@ -1437,5 +1651,50 @@ mod tests {
                 PathBuf::from("/installation/site.yaml"),
             ]
         );
+    }
+
+    #[test]
+    fn checked_in_profile_preflights_revisioned_gateway_activation() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let profile_path = repository.join("showcase/sumo/deploy/deployment.json");
+        let profile = LoadedProfile::load(&profile_path, &repository).unwrap();
+        let activation = prepare_gateway_activation(&profile).unwrap().unwrap();
+
+        assert!(activation.config_map_name.starts_with("veoveo-gateway-"));
+        assert!(activation.revision.starts_with("sha256:"));
+        assert_eq!(
+            activation.data.keys().cloned().collect::<Vec<_>>(),
+            ["gateway.json", "jwks.json"]
+        );
+        assert!(
+            activation
+                .required_secret_keys
+                .contains("oidc-client-secret")
+        );
+    }
+
+    #[test]
+    fn gateway_public_file_validation_rejects_invalid_trust_material() {
+        let invalid_jwks = validate_gateway_public_file("jwks.json", "not-json", true, false)
+            .expect_err("invalid JWKS must fail");
+        assert!(invalid_jwks.to_string().contains("decoding gateway JWKS"));
+
+        let empty_jwks = validate_gateway_public_file("jwks.json", r#"{"keys":[]}"#, true, false)
+            .expect_err("empty JWKS must fail");
+        assert!(empty_jwks.to_string().contains("has no keys"));
+
+        let invalid_ca = validate_gateway_public_file("ca.pem", "not-pem", false, true)
+            .expect_err("invalid CA must fail");
+        assert!(invalid_ca.to_string().contains("gateway CA bundle"));
+    }
+
+    #[test]
+    fn gateway_public_files_must_be_direct_mount_keys() {
+        assert_eq!(
+            gateway_mount_key("/etc/veoveo/gateway/ca.pem").unwrap(),
+            "ca.pem"
+        );
+        assert!(gateway_mount_key("/tmp/ca.pem").is_err());
+        assert!(gateway_mount_key("/etc/veoveo/gateway/trust/ca.pem").is_err());
     }
 }
