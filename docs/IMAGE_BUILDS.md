@@ -260,6 +260,11 @@ copy named artifacts and contain no Cargo build stage. A genuinely different lib
 toolchain, SDK, target triple, feature set, rustflag, or compile-time environment
 requires a distinct typed family.
 
+A target with none of these labels is a native non-Rust image target. Image planning
+does not require that source to contain `Cargo.toml` or `Cargo.lock`; Docker Bake owns
+its build graph. A target that declares any Rust label must declare the complete label
+set and pass locked Cargo package and binary validation.
+
 ## Platform Image Closure
 
 The deployment contract resolves an exact Veoveo image set from typed platform

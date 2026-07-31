@@ -427,7 +427,16 @@ pub(crate) fn prepare_with_builder(
     )?;
     let direct_targets = selected_targets(&checked, &selection)?;
     let source_revision_targets = target_dependency_closure(&checked, &direct_targets)?;
-    let metadata = cargo_metadata(source_repository.root())?;
+    let needs_cargo_metadata = direct_targets.iter().try_fold(false, |needed, name| {
+        let target = checked
+            .target
+            .get(name)
+            .with_context(|| format!("Bake selection references missing target {name}"))?;
+        Ok::<_, anyhow::Error>(needed | rust_labels_present(name, target)?)
+    })?;
+    let metadata = needs_cargo_metadata
+        .then(|| cargo_metadata(source_repository.root()))
+        .transpose()?;
     let source_hash = source::source_hash(source_repository)?;
     let source_revision = SourceRevision {
         revision: git_output(source_repository.root(), ["rev-parse", "HEAD"])?
@@ -441,10 +450,15 @@ pub(crate) fn prepare_with_builder(
         .is_empty(),
     };
     let package_index = metadata
-        .packages
-        .iter()
-        .map(|package| (package.name.as_str(), package))
-        .collect::<BTreeMap<_, _>>();
+        .as_ref()
+        .map(|metadata| {
+            metadata
+                .packages
+                .iter()
+                .map(|package| (package.name.as_str(), package))
+                .collect::<BTreeMap<_, _>>()
+        })
+        .unwrap_or_default();
 
     let mut targets = Vec::new();
     let mut family_units = BTreeMap::<BuilderFamily, Vec<(String, RustBuildUnit)>>::new();
@@ -886,24 +900,9 @@ fn parse_rust_unit(
     target: &BakeTarget,
     packages: &BTreeMap<&str, &CargoPackage>,
 ) -> Result<Option<RustBuildUnit>> {
-    let labels = [
-        MODE_LABEL,
-        PACKAGE_LABEL,
-        BINARIES_LABEL,
-        FAMILY_LABEL,
-        AUXILIARY_LABEL,
-    ];
-    let present = labels
-        .iter()
-        .filter(|label| target.labels.contains_key(**label))
-        .count();
-    if present == 0 {
+    if !rust_labels_present(name, target)? {
         return Ok(None);
     }
-    ensure!(
-        present == labels.len(),
-        "Rust image target {name} must declare all canonical build labels"
-    );
     let mode = match target.labels[MODE_LABEL].as_str() {
         "rust-shared" => BuildMode::RustShared,
         "rust-standalone" => BuildMode::RustStandalone,
@@ -943,6 +942,28 @@ fn parse_rust_unit(
         family,
         auxiliary,
     }))
+}
+
+fn rust_labels_present(name: &str, target: &BakeTarget) -> Result<bool> {
+    let labels = [
+        MODE_LABEL,
+        PACKAGE_LABEL,
+        BINARIES_LABEL,
+        FAMILY_LABEL,
+        AUXILIARY_LABEL,
+    ];
+    let present = labels
+        .iter()
+        .filter(|label| target.labels.contains_key(**label))
+        .count();
+    if present == 0 {
+        return Ok(false);
+    }
+    ensure!(
+        present == labels.len(),
+        "Rust image target {name} must declare all canonical build labels"
+    );
+    Ok(true)
 }
 
 fn parse_family(value: &str) -> Result<BuilderFamily> {
@@ -1309,7 +1330,8 @@ fn validate_identifier(kind: &str, value: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{
-        BakeDefinition, BakeTarget, BuilderFamily, Selection, parse_publication_index_digests,
+        AUXILIARY_LABEL, BINARIES_LABEL, BakeDefinition, BakeTarget, BuilderFamily, FAMILY_LABEL,
+        MODE_LABEL, PACKAGE_LABEL, Selection, parse_publication_index_digests, rust_labels_present,
         target_dependency_closure, validate_standalone_builder_stage,
     };
     use std::collections::{BTreeMap, BTreeSet};
@@ -1369,6 +1391,35 @@ mod tests {
         assert_eq!(
             selection.bake_patterns(),
             ["mcp-gateway", "optimization-mcp"]
+        );
+    }
+
+    #[test]
+    fn cargo_metadata_is_required_only_for_completely_rust_labelled_targets() {
+        let docker_only = BakeTarget::default();
+        assert!(!rust_labels_present("python-runtime", &docker_only).unwrap());
+
+        let rust = BakeTarget {
+            labels: BTreeMap::from([
+                (MODE_LABEL.to_owned(), "rust-standalone".to_owned()),
+                (PACKAGE_LABEL.to_owned(), "example".to_owned()),
+                (BINARIES_LABEL.to_owned(), "example".to_owned()),
+                (FAMILY_LABEL.to_owned(), "rust-trixie-v1".to_owned()),
+                (AUXILIARY_LABEL.to_owned(), String::new()),
+            ]),
+            ..BakeTarget::default()
+        };
+        assert!(rust_labels_present("rust-runtime", &rust).unwrap());
+
+        let partial = BakeTarget {
+            labels: BTreeMap::from([(MODE_LABEL.to_owned(), "rust-standalone".to_owned())]),
+            ..BakeTarget::default()
+        };
+        assert!(
+            rust_labels_present("invalid-runtime", &partial)
+                .unwrap_err()
+                .to_string()
+                .contains("must declare all canonical build labels")
         );
     }
 
