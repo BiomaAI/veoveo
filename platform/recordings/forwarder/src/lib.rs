@@ -1,6 +1,7 @@
 //! Producer-side durable bridge from loopback Rerun gRPC to Veoveo recording ingest.
 
 pub mod batch;
+pub mod blueprint;
 pub mod client;
 pub mod config;
 pub mod oauth;

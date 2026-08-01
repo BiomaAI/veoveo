@@ -90,6 +90,15 @@ pub struct SpoolerConfig {
     /// In-memory replay-buffer limit for late-joining live viewers (bytes).
     #[serde(default = "default_live_queue_limit_bytes")]
     pub live_queue_limit_bytes: u64,
+    /// Maximum encoded size of one producer-authored Blueprint revision.
+    #[serde(default = "default_blueprint_max_bytes")]
+    pub blueprint_max_bytes: u64,
+    /// Maximum Rerun messages in one producer-authored Blueprint revision.
+    #[serde(default = "default_blueprint_max_messages")]
+    pub blueprint_max_messages: u64,
+    /// Maximum immutable Blueprint revisions retained for one recording.
+    #[serde(default = "default_blueprint_max_revisions")]
+    pub blueprint_max_revisions: u32,
 }
 
 fn default_segment_max_bytes() -> u64 {
@@ -109,6 +118,15 @@ fn default_fsync_on_flush() -> bool {
 }
 fn default_live_queue_limit_bytes() -> u64 {
     1024 * 1024 * 1024
+}
+fn default_blueprint_max_bytes() -> u64 {
+    veoveo_recording_protocol::DEFAULT_MAXIMUM_BLUEPRINT_BYTES
+}
+fn default_blueprint_max_messages() -> u64 {
+    veoveo_recording_protocol::DEFAULT_MAXIMUM_BLUEPRINT_MESSAGES
+}
+fn default_blueprint_max_revisions() -> u32 {
+    veoveo_recording_protocol::DEFAULT_MAXIMUM_BLUEPRINT_REVISIONS
 }
 
 impl SpoolerConfig {
@@ -133,6 +151,18 @@ impl SpoolerConfig {
         ensure!(
             self.flush_interval_ms >= 1,
             "flush_interval_ms must be at least 1"
+        );
+        ensure!(
+            (1..=self.segment_max_bytes).contains(&self.blueprint_max_bytes),
+            "blueprint_max_bytes must be between 1 and segment_max_bytes"
+        );
+        ensure!(
+            self.blueprint_max_messages > 0,
+            "blueprint_max_messages must be greater than zero"
+        );
+        ensure!(
+            self.blueprint_max_revisions > 0,
+            "blueprint_max_revisions must be greater than zero"
         );
         // Reject ambiguous routing: two routes with the same prefix.
         let mut prefixes: Vec<&str> = self
@@ -190,6 +220,9 @@ mod tests {
             flush_interval_ms: default_flush_interval_ms(),
             fsync_on_flush: default_fsync_on_flush(),
             live_queue_limit_bytes: default_live_queue_limit_bytes(),
+            blueprint_max_bytes: default_blueprint_max_bytes(),
+            blueprint_max_messages: default_blueprint_max_messages(),
+            blueprint_max_revisions: default_blueprint_max_revisions(),
         }
     }
 

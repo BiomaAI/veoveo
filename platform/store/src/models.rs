@@ -1483,6 +1483,26 @@ pub struct RecordingIngestBatchRecord {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct RecordingBlueprintRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub recording: RecordId,
+    pub stream: Option<RecordId>,
+    pub artifact: Option<RecordId>,
+    pub owner: RecordId,
+    pub work_context: RecordId,
+    pub producer_id: String,
+    pub application_id: String,
+    pub blueprint_id: String,
+    pub revision: i64,
+    pub relative_path: String,
+    pub sha256: String,
+    pub byte_len: i64,
+    pub message_count: i64,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct AgentRecord {
     pub id: RecordId,
     pub tenant: RecordId,

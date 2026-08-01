@@ -22,6 +22,7 @@ mod map_presentations;
 mod migrations;
 mod models;
 mod outbox;
+mod recording_blueprints;
 mod recording_ingest;
 mod recordings;
 mod store;
@@ -76,6 +77,9 @@ pub use migrations::{
 };
 pub use models::*;
 pub use outbox::{OutboxDraft, OutboxPage};
+pub use recording_blueprints::{
+    RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingBlueprintOutcome,
+};
 pub use recording_ingest::{
     RecordingIngestAppendOutcome, RecordingIngestBatchDraft, RecordingIngestStreamDraft,
 };

@@ -1,7 +1,7 @@
 //! Integration: push through the embedded proxy exactly like production, then
 //! read the durable segments back with the query engine. Exercises the real
 //! path (proxy → receiver → spooler → segment file → QueryEngine), the
-//! restart-resume `.rN` behavior, and blueprint filtering.
+//! restart-resume `.rN` behavior, and distinct Blueprint publication.
 
 use std::net::{SocketAddr, TcpListener};
 use std::sync::Arc;
@@ -10,7 +10,10 @@ use std::time::Duration;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use re_grpc_server::{MemoryLimit, ServerOptions, shutdown};
-use re_sdk::RecordingStreamBuilder;
+use re_sdk::{
+    RecordingStreamBuilder,
+    blueprint::{Blueprint, MapView},
+};
 use re_sdk_types::archetypes::{Scalars, VideoStream};
 use re_sdk_types::components::VideoCodec;
 use veoveo_recording_hub::config::{DatasetName, DatasetRoute, SpoolerConfig};
@@ -45,6 +48,9 @@ fn config(spool: &std::path::Path, bind: SocketAddr) -> SpoolerConfig {
         flush_interval_ms: 50,
         fsync_on_flush: true,
         live_queue_limit_bytes: 256 * 1024 * 1024,
+        blueprint_max_bytes: veoveo_recording_protocol::DEFAULT_MAXIMUM_BLUEPRINT_BYTES,
+        blueprint_max_messages: veoveo_recording_protocol::DEFAULT_MAXIMUM_BLUEPRINT_MESSAGES,
+        blueprint_max_revisions: veoveo_recording_protocol::DEFAULT_MAXIMUM_BLUEPRINT_REVISIONS,
     }
 }
 
@@ -168,6 +174,121 @@ async fn roundtrip_counts_match() {
         Some(5),
         "the inclusive timeline range selects five durable rows"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn direct_spool_preserves_a_distinct_producer_blueprint() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let port = free_port();
+    let bind: SocketAddr = format!("127.0.0.1:{port}").parse().unwrap();
+    let cfg = config(dir.path(), bind);
+    let (signal, shutdown) = shutdown::shutdown();
+    let options = ServerOptions {
+        memory_limit: MemoryLimit::from_bytes(cfg.live_queue_limit_bytes),
+        ..Default::default()
+    };
+    let (receiver, _handle) = re_grpc_server::spawn_with_recv(bind, options, shutdown);
+    let stop = Arc::new(AtomicBool::new(false));
+    let stop_drain = stop.clone();
+    let drain = std::thread::spawn(move || {
+        run_blocking(
+            Spooler::new(cfg).expect("spooler"),
+            receiver,
+            stop_drain,
+            Duration::from_millis(25),
+            Duration::from_secs(3600),
+        )
+    });
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    let stream = RecordingStreamBuilder::new("anonymous-blueprint-app")
+        .recording_id("recording-with-layout")
+        .connect_grpc_opts(format!("rerun+http://127.0.0.1:{port}/proxy"))
+        .expect("connect producer");
+    stream
+        .log("/world/value", &Scalars::new([1.0]))
+        .expect("log recording row");
+    Blueprint::new(MapView::new("Map"))
+        .send(&stream, Default::default())
+        .expect("send producer Blueprint");
+    stream.flush_blocking().expect("flush producer");
+    drop(stream);
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    stop.store(true, Ordering::SeqCst);
+    signal.stop();
+    let counters = drain.join().expect("join").expect("run spooler");
+    assert_eq!(counters.blueprints_published, 1);
+    assert_eq!(counters.blueprints_rejected, 0);
+
+    let day = chrono::Utc::now().date_naive().to_string();
+    let path = dir
+        .path()
+        .join("blueprints/world")
+        .join(day)
+        .join("recording-with-layout.1.rbl");
+    let bytes = std::fs::read(&path).expect("read distinct Blueprint RRD");
+    let count = re_log_encoding::Decoder::<re_log_types::LogMsg>::decode_eager(
+        std::io::BufReader::new(std::io::Cursor::new(&bytes)),
+    )
+    .expect("decode Blueprint RRD")
+    .count() as u64;
+    let validated = veoveo_recording_hub::blueprint::validate_blueprint_rrd(
+        &bytes,
+        count,
+        "anonymous-blueprint-app",
+    )
+    .expect("validate distinct Blueprint");
+    assert_eq!(
+        validated.store_id.kind(),
+        re_log_types::StoreKind::Blueprint
+    );
+    assert_eq!(
+        veoveo_recording_hub::query_tree(
+            dir.path(),
+            "/**",
+            "log_time",
+            100,
+            SegmentReadScope::Frozen,
+        )
+        .expect("query recording independently")
+        .rows_by_recording
+        .get("recording-with-layout")
+        .copied(),
+        Some(1)
+    );
+}
+
+#[test]
+fn malformed_blueprint_does_not_interrupt_direct_recording_ingest() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut spooler =
+        Spooler::new(config(dir.path(), "127.0.0.1:0".parse().expect("bind"))).expect("spooler");
+    let (recording, storage) = RecordingStreamBuilder::new("anonymous-blueprint-app")
+        .recording_id("recording-after-rejection")
+        .memory()
+        .expect("memory recording");
+    Blueprint::auto()
+        .send(&recording, Default::default())
+        .expect("build Blueprint messages");
+    let activation = storage
+        .take()
+        .into_iter()
+        .find(|message| matches!(message, re_log_types::LogMsg::BlueprintActivationCommand(_)))
+        .expect("Blueprint activation");
+    spooler
+        .ingest(&activation)
+        .expect("malformed Blueprint is isolated");
+    assert_eq!(spooler.counters().blueprints_rejected, 1);
+
+    recording
+        .log("/world/value", &Scalars::new([1.0]))
+        .expect("log recording after rejection");
+    for message in storage.take() {
+        spooler
+            .ingest(&message)
+            .expect("recording ingest remains available");
+    }
+    assert!(spooler.counters().messages > 0);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

@@ -16,15 +16,15 @@ use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{PrincipalId as ContractPrincipalId, TokenIssuer, TokenSubject};
 use veoveo_platform_store::{
     InvocationAuthorityRecord, PlatformIdentity, PlatformStore, PrincipalKind, RecordId,
-    RecordIdKey, RecordingDraft, RecordingId, RecordingState, SegmentDraft, SegmentId,
-    SegmentState,
+    RecordIdKey, RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingDraft, RecordingId,
+    RecordingState, SegmentDraft, SegmentId, SegmentState,
 };
 
 use crate::config::DatasetName;
 use crate::governance::{governed_classification, governed_labels};
 use crate::ingest::is_authenticated_ingest_path;
 use crate::query::{SegmentReadScope, collect_segments};
-use crate::spool::{FrozenSegment, OpenedSegment, SegmentCatalog, SegmentKey};
+use crate::spool::{FrozenSegment, OpenedSegment, PublishedBlueprint, SegmentCatalog, SegmentKey};
 
 #[derive(Clone, Debug)]
 pub struct CatalogPolicy {
@@ -35,6 +35,7 @@ pub struct CatalogPolicy {
     pub owner_subject: String,
     pub classification: String,
     pub labels: Vec<String>,
+    pub maximum_blueprint_revisions: u32,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -296,6 +297,72 @@ impl SegmentCatalog for PlatformCatalog {
             this.store
                 .finish_recording(&this.identity, recording_id(&recording.id)?, ended_at)
                 .await?;
+            Result::<()>::Ok(())
+        })
+    }
+
+    fn next_blueprint_revision(&mut self, key: &SegmentKey) -> Result<u64> {
+        let this = self.clone();
+        let key = key.clone();
+        self.runtime.block_on(async move {
+            let recording = this
+                .store
+                .recording_by_key(this.identity.tenant_id, &key.application_id, &key.recording)
+                .await?
+                .context("producer Blueprint has no recording catalog entry")?;
+            let current = this
+                .store
+                .current_recording_blueprint(this.identity.tenant_id, recording_id(&recording.id)?)
+                .await?;
+            current
+                .map(|blueprint| {
+                    u64::try_from(blueprint.revision)
+                        .context("stored Blueprint revision is negative")?
+                        .checked_add(1)
+                        .context("stored Blueprint revision overflow")
+                })
+                .unwrap_or(Ok(1))
+        })
+    }
+
+    fn blueprint_published(&mut self, blueprint: &PublishedBlueprint) -> Result<()> {
+        let this = self.clone();
+        let blueprint = blueprint.clone();
+        self.runtime.block_on(async move {
+            let recording = this
+                .store
+                .recording_by_key(
+                    this.identity.tenant_id,
+                    &blueprint.key.application_id,
+                    &blueprint.key.recording,
+                )
+                .await?
+                .context("producer Blueprint has no recording catalog entry")?;
+            let outcome = this
+                .store
+                .commit_recording_blueprint(RecordingBlueprintCommit {
+                    draft: RecordingBlueprintDraft {
+                        identity: this.identity.clone(),
+                        recording_id: recording_id(&recording.id)?,
+                        stream_id: None,
+                        work_context: recording.work_context,
+                        producer_id: this.policy.owner_key.clone(),
+                        application_id: blueprint.key.application_id,
+                        blueprint_id: blueprint.store_id.recording_id().as_str().to_owned(),
+                        revision: blueprint.revision,
+                        relative_path: relative_path(&this.spool_root, &blueprint.path)?,
+                        sha256: blueprint.sha256,
+                        byte_len: blueprint.byte_len,
+                        message_count: blueprint.message_count,
+                        maximum_revisions: this.policy.maximum_blueprint_revisions,
+                    },
+                    created_at: Utc::now(),
+                })
+                .await?;
+            ensure!(
+                !outcome.duplicate,
+                "direct Blueprint revision unexpectedly duplicated"
+            );
             Result::<()>::Ok(())
         })
     }

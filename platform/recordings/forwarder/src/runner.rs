@@ -8,6 +8,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, ensure};
+use re_byte_size::SizeBytes as _;
 use re_grpc_server::{MemoryLimit, PlaybackBehavior, ServerOptions, shutdown};
 use re_log_channel::{DataSourceMessage, RecvTimeoutError};
 use re_log_types::{LogMsg, StoreId, StoreKind};
@@ -21,11 +22,22 @@ use veoveo_recording_protocol::v1::{
 
 use crate::{
     batch::{BatchBoundary, RecordingAccumulator},
+    blueprint::{BlueprintAccumulator, associated_recording},
     client::{IngestRequestError, RecordingIngestClient},
     config::ForwarderConfig,
     oauth::{OAuthTokenProvider, OAuthTokenProviderConfig},
     queue::{DurableQueue, QueueFull},
 };
+
+const MAXIMUM_INCOMPLETE_BLUEPRINT_STORES: usize = 32;
+
+#[derive(Clone, Copy)]
+struct RerunIngestLimits {
+    batch_bytes: u64,
+    blueprint_bytes: u64,
+    blueprint_messages: u64,
+    batch_messages: usize,
+}
 
 pub async fn run(config: ForwarderConfig) -> Result<()> {
     config.validate()?;
@@ -68,6 +80,12 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
         config.maximum_queue_bytes >= client.maximum_batch_bytes(),
         "durable queue must hold at least one maximum-size gateway batch"
     );
+    let limits = RerunIngestLimits {
+        batch_bytes: client.maximum_batch_bytes(),
+        blueprint_bytes: client.maximum_blueprint_bytes(),
+        blueprint_messages: client.maximum_blueprint_messages(),
+        batch_messages: config.batch_message_limit,
+    };
     let queue = Arc::new(Mutex::new(DurableQueue::open(
         config.queue_dir.clone(),
         config.maximum_queue_bytes,
@@ -111,6 +129,7 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
     });
 
     let mut accumulators = HashMap::<StoreId, RecordingAccumulator>::new();
+    let mut blueprint_accumulators = HashMap::<StoreId, BlueprintAccumulator>::new();
     let mut flush = tokio::time::interval(config.flush_interval());
     flush.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     let shutdown = shutdown_signal();
@@ -126,27 +145,14 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
             }
             message = message_rx.recv() => {
                 let Some(message) = message else { break; };
-                let store_id = message.store_id().clone();
-                if store_id.kind() != StoreKind::Recording {
-                    warn!(store_id = ?store_id, "ignoring non-recording Rerun store");
-                    continue;
-                }
-                let accumulator = match accumulators.entry(store_id.clone()) {
-                    std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
-                    std::collections::hash_map::Entry::Vacant(entry) => {
-                        entry.insert(RecordingAccumulator::new(store_id)?)
-                    }
-                };
-                if accumulator.boundary_before(&message)? == BatchBoundary::StartVideoGop {
-                    flush_accumulator(accumulator, &queue, client.maximum_batch_bytes()).await?;
-                }
-                if matches!(message, LogMsg::SetStoreInfo(_)) && accumulator.pending_len() > 0 {
-                    flush_accumulator(accumulator, &queue, client.maximum_batch_bytes()).await?;
-                }
-                accumulator.push(message)?;
-                if accumulator.pending_len() >= config.batch_message_limit {
-                    flush_accumulator(accumulator, &queue, client.maximum_batch_bytes()).await?;
-                }
+                handle_rerun_message(
+                    message,
+                    &mut accumulators,
+                    &mut blueprint_accumulators,
+                    &queue,
+                    limits,
+                )
+                .await?;
             }
         }
     }
@@ -157,20 +163,17 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
         .await
         .context("Rerun receiver task panicked")??;
     while let Ok(message) = message_rx.try_recv() {
-        let store_id = message.store_id().clone();
-        if store_id.kind() != StoreKind::Recording {
-            continue;
-        }
-        let accumulator = accumulators
-            .entry(store_id.clone())
-            .or_insert(RecordingAccumulator::new(store_id)?);
-        if accumulator.boundary_before(&message)? == BatchBoundary::StartVideoGop {
-            flush_accumulator(accumulator, &queue, client.maximum_batch_bytes()).await?;
-        }
-        if matches!(message, LogMsg::SetStoreInfo(_)) && accumulator.pending_len() > 0 {
-            flush_accumulator(accumulator, &queue, client.maximum_batch_bytes()).await?;
-        }
-        accumulator.push(message)?;
+        handle_rerun_message(
+            message,
+            &mut accumulators,
+            &mut blueprint_accumulators,
+            &queue,
+            limits,
+        )
+        .await?;
+    }
+    for (store_id, _) in blueprint_accumulators.drain() {
+        warn!(store_id = ?store_id, "discarding incomplete Rerun Blueprint at shutdown");
     }
     flush_accumulators(&mut accumulators, &queue, client.maximum_batch_bytes()).await?;
     queue
@@ -188,6 +191,115 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
     .await;
     if !matches!(drained, Ok(Ok(()))) {
         warn!("shutdown drain did not complete; durable batches remain queued for restart");
+    }
+    Ok(())
+}
+
+async fn handle_rerun_message(
+    message: LogMsg,
+    accumulators: &mut HashMap<StoreId, RecordingAccumulator>,
+    blueprint_accumulators: &mut HashMap<StoreId, BlueprintAccumulator>,
+    queue: &Arc<Mutex<DurableQueue>>,
+    limits: RerunIngestLimits,
+) -> Result<()> {
+    let store_id = message.store_id().clone();
+    match store_id.kind() {
+        StoreKind::Recording => {
+            let accumulator = match accumulators.entry(store_id.clone()) {
+                std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    entry.insert(RecordingAccumulator::new(store_id)?)
+                }
+            };
+            if accumulator.boundary_before(&message)? == BatchBoundary::StartVideoGop {
+                flush_accumulator(accumulator, queue, limits.batch_bytes).await?;
+            }
+            if matches!(message, LogMsg::SetStoreInfo(_)) && accumulator.pending_len() > 0 {
+                flush_accumulator(accumulator, queue, limits.batch_bytes).await?;
+            }
+            accumulator.push(message)?;
+            if accumulator.pending_len() >= limits.batch_messages {
+                flush_accumulator(accumulator, queue, limits.batch_bytes).await?;
+            }
+        }
+        StoreKind::Blueprint => {
+            let retained_bytes = blueprint_accumulators
+                .values()
+                .map(BlueprintAccumulator::retained_bytes)
+                .fold(0_u64, u64::saturating_add);
+            if (!blueprint_accumulators.contains_key(&store_id)
+                && blueprint_accumulators.len() >= MAXIMUM_INCOMPLETE_BLUEPRINT_STORES)
+                || retained_bytes.saturating_add(message.total_size_bytes())
+                    > limits.blueprint_bytes
+            {
+                blueprint_accumulators.remove(&store_id);
+                warn!(store_id = ?store_id, "rejecting Rerun Blueprint because incomplete stores exhausted their aggregate budget");
+                return Ok(());
+            }
+            let accumulator = match blueprint_accumulators.entry(store_id.clone()) {
+                std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    let accumulator = match BlueprintAccumulator::new(
+                        store_id.clone(),
+                        limits.blueprint_bytes,
+                        limits.blueprint_messages,
+                    ) {
+                        Ok(accumulator) => accumulator,
+                        Err(error) => {
+                            warn!(%error, store_id = ?store_id, "rejecting unauthorized Rerun Blueprint");
+                            return Ok(());
+                        }
+                    };
+                    entry.insert(accumulator)
+                }
+            };
+            let complete = match accumulator.push(message) {
+                Ok(complete) => complete,
+                Err(error) => {
+                    blueprint_accumulators.remove(&store_id);
+                    warn!(%error, store_id = ?store_id, "rejecting malformed Rerun Blueprint");
+                    return Ok(());
+                }
+            };
+            if !complete {
+                return Ok(());
+            }
+            let accumulator = blueprint_accumulators
+                .remove(&store_id)
+                .expect("completed Blueprint accumulator exists");
+            let recording = match associated_recording(accumulator.store_id(), accumulators.keys())
+            {
+                Ok(recording) => recording.clone(),
+                Err(error) => {
+                    warn!(%error, store_id = ?store_id, "rejecting unassociated Rerun Blueprint");
+                    return Ok(());
+                }
+            };
+            let blueprint = match accumulator.finish() {
+                Ok(blueprint) => blueprint,
+                Err(error) => {
+                    warn!(%error, store_id = ?store_id, "rejecting oversized Rerun Blueprint");
+                    return Ok(());
+                }
+            };
+            loop {
+                let result = queue
+                    .lock()
+                    .expect("durable queue mutex poisoned")
+                    .enqueue_blueprint(
+                        recording.application_id().as_str(),
+                        recording.recording_id().as_str(),
+                        &blueprint,
+                    );
+                match result {
+                    Ok(_) => break,
+                    Err(error) if error.downcast_ref::<QueueFull>().is_some() => {
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                    }
+                    Err(error) => return Err(error),
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -398,11 +510,56 @@ async fn upload_pass(
                 .acknowledge(&stream, queued.local_sequence)?;
             progress = true;
         }
+        loop {
+            let queued = {
+                queue
+                    .lock()
+                    .expect("durable queue mutex poisoned")
+                    .next_blueprint(&stream)?
+            };
+            let Some(queued) = queued else {
+                break;
+            };
+            let result = client
+                .publish_blueprint(
+                    stream
+                        .remote_stream_id
+                        .as_deref()
+                        .context("queued stream has no remote identity")?,
+                    &queued.blueprint,
+                )
+                .await;
+            if let Err(error) = &result
+                && blueprint_permanent_rejection(error)
+            {
+                tracing::error!(
+                    revision = queued.revision,
+                    %error,
+                    "governed producer Blueprint was rejected; recording data remains active"
+                );
+                stream = queue
+                    .lock()
+                    .expect("durable queue mutex poisoned")
+                    .acknowledge_blueprint(&stream, queued.revision)?;
+                progress = true;
+                continue;
+            }
+            let result = result?;
+            ensure!(
+                result.revision == queued.revision && result.sha256 == queued.blueprint.sha256,
+                "gateway acknowledged a different Blueprint revision or digest"
+            );
+            stream = queue
+                .lock()
+                .expect("durable queue mutex poisoned")
+                .acknowledge_blueprint(&stream, queued.revision)?;
+            progress = true;
+        }
         if (finish_empty || stream.finish_requested)
             && !queue
                 .lock()
                 .expect("durable queue mutex poisoned")
-                .has_batches(&stream)?
+                .has_pending(&stream)?
         {
             client
                 .finish(
@@ -431,6 +588,27 @@ fn stream_rollover(error: &anyhow::Error) -> Option<bool> {
         return Some(true);
     }
     (ingest.code == IngestErrorCode::StreamFinished).then_some(false)
+}
+
+fn blueprint_permanent_rejection(error: &anyhow::Error) -> bool {
+    let Some(ingest) = error.downcast_ref::<IngestRequestError>() else {
+        return false;
+    };
+    matches!(
+        ingest.code,
+        IngestErrorCode::BlueprintNotAllowed
+            | IngestErrorCode::BlueprintAssociationMismatch
+            | IngestErrorCode::InvalidBlueprint
+            | IngestErrorCode::BlueprintRevisionConflict
+    ) || (ingest.code == IngestErrorCode::QuotaExceeded
+        && matches!(
+            ingest.quota,
+            Some(
+                RecordingIngestQuota::MaximumBlueprintBytes
+                    | RecordingIngestQuota::MaximumBlueprintMessages
+                    | RecordingIngestQuota::MaximumBlueprintRevisions
+            )
+        ))
 }
 
 #[cfg(test)]
@@ -470,5 +648,31 @@ mod tests {
             )),
             None
         );
+    }
+
+    #[test]
+    fn blueprint_rejections_do_not_terminate_recording_ingest() {
+        for code in [
+            IngestErrorCode::BlueprintNotAllowed,
+            IngestErrorCode::BlueprintAssociationMismatch,
+            IngestErrorCode::InvalidBlueprint,
+            IngestErrorCode::BlueprintRevisionConflict,
+        ] {
+            assert!(blueprint_permanent_rejection(&ingest_error(code, None)));
+        }
+        for quota in [
+            RecordingIngestQuota::MaximumBlueprintBytes,
+            RecordingIngestQuota::MaximumBlueprintMessages,
+            RecordingIngestQuota::MaximumBlueprintRevisions,
+        ] {
+            assert!(blueprint_permanent_rejection(&ingest_error(
+                IngestErrorCode::QuotaExceeded,
+                Some(quota),
+            )));
+        }
+        assert!(!blueprint_permanent_rejection(&ingest_error(
+            IngestErrorCode::QuotaExceeded,
+            Some(RecordingIngestQuota::MaximumBytesPerDay),
+        )));
     }
 }

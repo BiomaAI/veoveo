@@ -10,28 +10,33 @@ pub mod v1 {
     include!(concat!(env!("OUT_DIR"), "/veoveo.recording.ingest.v1.rs"));
 }
 
-pub const PROTOCOL_VERSION: &str = "2026-07-24";
+pub const PROTOCOL_VERSION: &str = "2026-08-01";
 pub const REQUIRED_SCOPE: &str = "recording:ingest";
 pub const DEFAULT_MAXIMUM_BATCH_BYTES: u64 = 8 * 1024 * 1024;
+pub const DEFAULT_MAXIMUM_BLUEPRINT_BYTES: u64 = 2 * 1024 * 1024;
+pub const DEFAULT_MAXIMUM_BLUEPRINT_MESSAGES: u64 = 10_000;
+pub const DEFAULT_MAXIMUM_BLUEPRINT_REVISIONS: u32 = 32;
 pub const MEDIA_TYPE: &str = "application/vnd.veoveo.recording-ingest.v1+protobuf";
 pub const DISCOVERY_PATH: &str = "/.well-known/veoveo-recording-ingest";
 pub const STREAMS_PATH: &str = "/ingest/recordings/v1/streams";
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum BatchValidationError {
-    #[error("batch sequence must start at one")]
+    #[error("recording batch sequence or Blueprint revision must start at one")]
     ZeroSequence,
-    #[error("batch payload format is unsupported")]
+    #[error("recording payload format is unsupported")]
     UnsupportedPayloadFormat,
-    #[error("batch payload is empty")]
+    #[error("recording payload is empty")]
     EmptyPayload,
-    #[error("batch payload exceeds the {maximum_bytes}-byte limit")]
+    #[error("recording payload exceeds the {maximum_bytes}-byte limit")]
     PayloadTooLarge { maximum_bytes: u64 },
-    #[error("batch message_count must be positive")]
+    #[error("recording payload message_count must be positive")]
     EmptyMessageCount,
-    #[error("batch sha256 must contain exactly 32 bytes")]
+    #[error("recording payload message_count exceeds the {maximum_messages}-message limit")]
+    MessageCountTooLarge { maximum_messages: u64 },
+    #[error("recording payload sha256 must contain exactly 32 bytes")]
     InvalidDigestLength,
-    #[error("batch sha256 does not match encoded_rrd")]
+    #[error("recording payload sha256 does not match encoded_rrd")]
     DigestMismatch,
 }
 
@@ -62,6 +67,57 @@ impl v1::RecordingBatch {
         }
         Ok(())
     }
+}
+
+impl v1::RecordingBlueprint {
+    pub fn validate(
+        &self,
+        maximum_bytes: u64,
+        maximum_messages: u64,
+    ) -> Result<(), BatchValidationError> {
+        if self.revision == 0 {
+            return Err(BatchValidationError::ZeroSequence);
+        }
+        validate_payload(
+            self.payload_format,
+            &self.encoded_rrd,
+            &self.sha256,
+            self.message_count,
+            maximum_bytes,
+        )?;
+        if self.message_count > maximum_messages {
+            return Err(BatchValidationError::MessageCountTooLarge { maximum_messages });
+        }
+        Ok(())
+    }
+}
+
+fn validate_payload(
+    payload_format: i32,
+    encoded_rrd: &[u8],
+    sha256: &[u8],
+    message_count: u64,
+    maximum_bytes: u64,
+) -> Result<(), BatchValidationError> {
+    if v1::RerunPayloadFormat::try_from(payload_format) != Ok(v1::RerunPayloadFormat::Rrd0350) {
+        return Err(BatchValidationError::UnsupportedPayloadFormat);
+    }
+    if encoded_rrd.is_empty() {
+        return Err(BatchValidationError::EmptyPayload);
+    }
+    if encoded_rrd.len() as u64 > maximum_bytes {
+        return Err(BatchValidationError::PayloadTooLarge { maximum_bytes });
+    }
+    if message_count == 0 {
+        return Err(BatchValidationError::EmptyMessageCount);
+    }
+    if sha256.len() != 32 {
+        return Err(BatchValidationError::InvalidDigestLength);
+    }
+    if Sha256::digest(encoded_rrd).as_slice() != sha256 {
+        return Err(BatchValidationError::DigestMismatch);
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -100,6 +156,30 @@ mod tests {
         assert_eq!(
             old_release.validate(DEFAULT_MAXIMUM_BATCH_BYTES),
             Err(BatchValidationError::UnsupportedPayloadFormat)
+        );
+    }
+
+    #[test]
+    fn validates_blueprint_revision_digest_and_message_budget() {
+        let mut blueprint = v1::RecordingBlueprint {
+            revision: 1,
+            payload_format: v1::RerunPayloadFormat::Rrd0350.into(),
+            encoded_rrd: b"blueprint".to_vec(),
+            sha256: Sha256::digest(b"blueprint").to_vec(),
+            message_count: 3,
+        };
+        blueprint.validate(1024, 3).unwrap();
+        blueprint.message_count = 4;
+        assert_eq!(
+            blueprint.validate(1024, 3),
+            Err(BatchValidationError::MessageCountTooLarge {
+                maximum_messages: 3
+            })
+        );
+        blueprint.revision = 0;
+        assert_eq!(
+            blueprint.validate(1024, 10),
+            Err(BatchValidationError::ZeroSequence)
         );
     }
 }

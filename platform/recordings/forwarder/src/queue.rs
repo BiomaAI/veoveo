@@ -8,7 +8,7 @@ use anyhow::{Context, Result, ensure};
 use prost::Message;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use veoveo_recording_protocol::v1::RecordingBatch;
+use veoveo_recording_protocol::v1::{RecordingBatch, RecordingBlueprint};
 
 #[derive(Debug, thiserror::Error)]
 #[error("durable recording queue is full")]
@@ -24,6 +24,8 @@ pub struct QueueStream {
     pub remote_first_local_sequence: u64,
     pub next_enqueue_sequence: u64,
     pub next_upload_sequence: u64,
+    pub next_enqueue_blueprint_revision: u64,
+    pub next_upload_blueprint_revision: u64,
     pub finish_requested: bool,
 }
 
@@ -31,6 +33,12 @@ pub struct QueueStream {
 pub struct QueuedBatch {
     pub local_sequence: u64,
     pub batch: RecordingBatch,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct QueuedBlueprint {
+    pub revision: u64,
+    pub blueprint: RecordingBlueprint,
 }
 
 #[derive(Debug)]
@@ -96,6 +104,47 @@ impl DurableQueue {
         Ok((stream, sequence))
     }
 
+    pub fn enqueue_blueprint(
+        &mut self,
+        application_id: &str,
+        recording_id: &str,
+        blueprint: &RecordingBlueprint,
+    ) -> Result<(QueueStream, u64)> {
+        validate_identity(application_id, recording_id)?;
+        let added_bytes = u64::try_from(blueprint.encoded_len())?;
+        if self.queued_bytes.saturating_add(added_bytes) > self.maximum_bytes {
+            return Err(QueueFull.into());
+        }
+        let key = stream_key(application_id, recording_id);
+        let directory = self.root.join(&key);
+        std::fs::create_dir_all(&directory)?;
+        sync_directory(&self.root)?;
+        let mut stream = self.load_or_create_stream(&key, application_id, recording_id)?;
+        let revision = stream.next_enqueue_blueprint_revision;
+        let mut blueprint = blueprint.clone();
+        blueprint.revision = revision;
+        let path = blueprint_path(&directory, revision);
+        let created = if path.exists() {
+            let existing = RecordingBlueprint::decode(std::fs::read(&path)?.as_slice())?;
+            ensure!(
+                existing == blueprint,
+                "queued Blueprint revision has conflicting content"
+            );
+            false
+        } else {
+            atomic_write(&path, &blueprint.encode_to_vec())?;
+            true
+        };
+        stream.next_enqueue_blueprint_revision = revision
+            .checked_add(1)
+            .context("Blueprint revision overflow")?;
+        self.write_stream(&stream)?;
+        if created {
+            self.queued_bytes = self.queued_bytes.saturating_add(added_bytes);
+        }
+        Ok((stream, revision))
+    }
+
     pub fn streams(&self) -> Result<Vec<QueueStream>> {
         let mut streams = Vec::<QueueStream>::new();
         for entry in std::fs::read_dir(&self.root)? {
@@ -132,6 +181,32 @@ impl DurableQueue {
     pub fn has_batches(&self, stream: &QueueStream) -> Result<bool> {
         validate_key(&stream.key)?;
         Ok(stream.next_upload_sequence < stream.next_enqueue_sequence)
+    }
+
+    pub fn next_blueprint(&self, stream: &QueueStream) -> Result<Option<QueuedBlueprint>> {
+        validate_key(&stream.key)?;
+        if stream.next_upload_blueprint_revision >= stream.next_enqueue_blueprint_revision {
+            return Ok(None);
+        }
+        let revision = stream.next_upload_blueprint_revision;
+        let path = blueprint_path(&self.root.join(&stream.key), revision);
+        let bytes = std::fs::read(&path)
+            .with_context(|| format!("reading queued Blueprint {}", path.display()))?;
+        let blueprint = RecordingBlueprint::decode(bytes.as_slice())
+            .with_context(|| format!("decoding queued Blueprint {}", path.display()))?;
+        Ok(Some(QueuedBlueprint {
+            revision,
+            blueprint,
+        }))
+    }
+
+    pub fn has_blueprints(&self, stream: &QueueStream) -> Result<bool> {
+        validate_key(&stream.key)?;
+        Ok(stream.next_upload_blueprint_revision < stream.next_enqueue_blueprint_revision)
+    }
+
+    pub fn has_pending(&self, stream: &QueueStream) -> Result<bool> {
+        Ok(self.has_batches(stream)? || self.has_blueprints(stream)?)
     }
 
     pub fn mark_opened(
@@ -185,6 +260,29 @@ impl DurableQueue {
         Ok(current)
     }
 
+    pub fn acknowledge_blueprint(
+        &mut self,
+        stream: &QueueStream,
+        revision: u64,
+    ) -> Result<QueueStream> {
+        let mut current = self.read_stream(&stream.key)?;
+        ensure!(
+            current.next_upload_blueprint_revision == revision,
+            "acknowledged Blueprint is not the next queued revision"
+        );
+        let path = blueprint_path(&self.root.join(&stream.key), revision);
+        ensure!(path.exists(), "acknowledged Blueprint is not queued");
+        let byte_len = std::fs::metadata(&path)?.len();
+        std::fs::remove_file(&path)?;
+        sync_directory(path.parent().context("Blueprint path has no parent")?)?;
+        current.next_upload_blueprint_revision = revision
+            .checked_add(1)
+            .context("Blueprint revision overflow")?;
+        self.write_stream(&current)?;
+        self.queued_bytes = self.queued_bytes.saturating_sub(byte_len);
+        Ok(current)
+    }
+
     pub fn request_finish_all(&mut self) -> Result<()> {
         for mut stream in self.streams()? {
             if !stream.finish_requested {
@@ -197,8 +295,8 @@ impl DurableQueue {
 
     pub fn complete(&mut self, stream: &QueueStream) -> Result<()> {
         ensure!(
-            !self.has_batches(stream)?,
-            "cannot complete a queued stream with batches"
+            !self.has_pending(stream)?,
+            "cannot complete a queued stream with pending data"
         );
         let directory = self.root.join(&stream.key);
         std::fs::remove_file(directory.join("stream.json"))?;
@@ -208,29 +306,44 @@ impl DurableQueue {
     }
 
     pub fn is_empty(&self) -> Result<bool> {
-        Ok(self.streams()?.iter().all(|stream| {
-            self.has_batches(stream)
-                .is_ok_and(|has_batches| !has_batches)
-        }))
+        Ok(self
+            .streams()?
+            .iter()
+            .all(|stream| self.has_pending(stream).is_ok_and(|pending| !pending)))
     }
 
     fn reconcile(&mut self) -> Result<()> {
         let mut queued_bytes = 0_u64;
         for stream in self.streams()? {
             let inventory = self.batch_inventory(&stream)?;
-            queued_bytes = queued_bytes.saturating_add(inventory.byte_len);
+            let blueprint_inventory = self.blueprint_inventory(&stream)?;
+            queued_bytes = queued_bytes
+                .saturating_add(inventory.byte_len)
+                .saturating_add(blueprint_inventory.byte_len);
             let next_enqueue_sequence = inventory
                 .last_sequence
                 .map(|sequence| sequence.saturating_add(1))
                 .unwrap_or(stream.next_enqueue_sequence)
                 .max(stream.next_enqueue_sequence);
             let next_upload_sequence = inventory.first_sequence.unwrap_or(next_enqueue_sequence);
+            let next_enqueue_blueprint_revision = blueprint_inventory
+                .last_sequence
+                .map(|revision| revision.saturating_add(1))
+                .unwrap_or(stream.next_enqueue_blueprint_revision)
+                .max(stream.next_enqueue_blueprint_revision);
+            let next_upload_blueprint_revision = blueprint_inventory
+                .first_sequence
+                .unwrap_or(next_enqueue_blueprint_revision);
             if next_enqueue_sequence != stream.next_enqueue_sequence
                 || next_upload_sequence != stream.next_upload_sequence
+                || next_enqueue_blueprint_revision != stream.next_enqueue_blueprint_revision
+                || next_upload_blueprint_revision != stream.next_upload_blueprint_revision
             {
                 let mut repaired = stream;
                 repaired.next_enqueue_sequence = next_enqueue_sequence;
                 repaired.next_upload_sequence = next_upload_sequence;
+                repaired.next_enqueue_blueprint_revision = next_enqueue_blueprint_revision;
+                repaired.next_upload_blueprint_revision = next_upload_blueprint_revision;
                 self.write_stream(&repaired)?;
             }
         }
@@ -247,10 +360,13 @@ impl DurableQueue {
             if path.extension().and_then(|value| value.to_str()) != Some("pb") {
                 continue;
             }
-            let sequence = path
-                .file_stem()
-                .and_then(|value| value.to_str())
-                .context("queued batch filename is not UTF-8")?
+            let Some(stem) = path.file_stem().and_then(|value| value.to_str()) else {
+                anyhow::bail!("queued batch filename is not UTF-8");
+            };
+            if stem.starts_with("blueprint-") {
+                continue;
+            }
+            let sequence = stem
                 .parse::<u64>()
                 .with_context(|| format!("invalid queued batch filename {}", path.display()))?;
             inventory.first_sequence = Some(
@@ -262,6 +378,38 @@ impl DurableQueue {
                 inventory
                     .last_sequence
                     .map_or(sequence, |current| current.max(sequence)),
+            );
+            inventory.byte_len = inventory.byte_len.saturating_add(entry.metadata()?.len());
+        }
+        Ok(inventory)
+    }
+
+    fn blueprint_inventory(&self, stream: &QueueStream) -> Result<BatchInventory> {
+        validate_key(&stream.key)?;
+        let mut inventory = BatchInventory::default();
+        for entry in std::fs::read_dir(self.root.join(&stream.key))? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().and_then(|value| value.to_str()) != Some("pb") {
+                continue;
+            }
+            let Some(revision) = path
+                .file_stem()
+                .and_then(|value| value.to_str())
+                .and_then(|value| value.strip_prefix("blueprint-"))
+                .and_then(|value| value.parse::<u64>().ok())
+            else {
+                continue;
+            };
+            inventory.first_sequence = Some(
+                inventory
+                    .first_sequence
+                    .map_or(revision, |current| current.min(revision)),
+            );
+            inventory.last_sequence = Some(
+                inventory
+                    .last_sequence
+                    .map_or(revision, |current| current.max(revision)),
             );
             inventory.byte_len = inventory.byte_len.saturating_add(entry.metadata()?.len());
         }
@@ -292,6 +440,8 @@ impl DurableQueue {
             remote_first_local_sequence: 1,
             next_enqueue_sequence: 1,
             next_upload_sequence: 1,
+            next_enqueue_blueprint_revision: 1,
+            next_upload_blueprint_revision: 1,
             finish_requested: false,
         };
         self.write_stream(&stream)?;
@@ -325,6 +475,10 @@ fn stream_key(application_id: &str, recording_id: &str) -> String {
 
 fn batch_path(directory: &Path, sequence: u64) -> PathBuf {
     directory.join(format!("{sequence:020}.pb"))
+}
+
+fn blueprint_path(directory: &Path, revision: u64) -> PathBuf {
+    directory.join(format!("blueprint-{revision:020}.pb"))
 }
 
 fn validate_key(key: &str) -> Result<()> {
@@ -382,7 +536,7 @@ fn sync_directory(path: &Path) -> Result<()> {
 mod tests {
     use sha2::{Digest, Sha256};
     use tempfile::TempDir;
-    use veoveo_recording_protocol::v1::RerunPayloadFormat;
+    use veoveo_recording_protocol::v1::{RecordingBlueprint, RerunPayloadFormat};
 
     use super::*;
 
@@ -395,6 +549,42 @@ mod tests {
             encoded_rrd: payload,
             message_count: 1,
         }
+    }
+
+    fn blueprint() -> RecordingBlueprint {
+        let payload = b"complete-blueprint-rrd".to_vec();
+        RecordingBlueprint {
+            revision: 0,
+            payload_format: RerunPayloadFormat::Rrd0350.into(),
+            sha256: Sha256::digest(&payload).to_vec(),
+            encoded_rrd: payload,
+            message_count: 3,
+        }
+    }
+
+    #[test]
+    fn blueprint_queue_restarts_and_acknowledges_each_revision_once() {
+        let temporary = TempDir::new().unwrap();
+        let root = temporary.path().join("queue");
+        let mut queue = DurableQueue::open(root.clone(), 1_000_000).unwrap();
+        let (_, first) = queue
+            .enqueue_blueprint("camera", "run-a", &blueprint())
+            .unwrap();
+        let (_, second) = queue
+            .enqueue_blueprint("camera", "run-a", &blueprint())
+            .unwrap();
+        assert_eq!((first, second), (1, 2));
+        drop(queue);
+
+        let mut queue = DurableQueue::open(root, 1_000_000).unwrap();
+        let stream = queue.streams().unwrap().remove(0);
+        let queued = queue.next_blueprint(&stream).unwrap().unwrap();
+        assert_eq!(queued.revision, 1);
+        assert_eq!(queued.blueprint.revision, 1);
+        let stream = queue.acknowledge_blueprint(&stream, 1).unwrap();
+        assert_eq!(queue.next_blueprint(&stream).unwrap().unwrap().revision, 2);
+        let stream = queue.acknowledge_blueprint(&stream, 2).unwrap();
+        assert!(!queue.has_blueprints(&stream).unwrap());
     }
 
     #[test]

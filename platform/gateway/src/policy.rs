@@ -776,9 +776,10 @@ mod recording_ingest_tests {
     use serde_json::Value;
     use veoveo_mcp_contract::{
         AuthorizationServerId, DataLabelId, OAuthClientId, PolicyEffect, ProtectedResourceId,
-        ProtectedResourceName, RecordingApplicationId, RecordingDatasetName, RecordingProducerId,
-        RecordingProducerQuotas, RecordingRetentionPolicy, UpstreamEndpoint, UpstreamTransport,
-        UpstreamTransportSecurity, UpstreamUrl,
+        ProtectedResourceName, RecordingApplicationId, RecordingDatasetName,
+        RecordingProducerBlueprintPolicy, RecordingProducerId, RecordingProducerQuotas,
+        RecordingRetentionPolicy, UpstreamEndpoint, UpstreamTransport, UpstreamTransportSecurity,
+        UpstreamUrl,
     };
 
     use super::*;
@@ -826,6 +827,12 @@ mod recording_ingest_tests {
                 maximum_batches_per_minute: 60,
                 maximum_bytes_per_day: 1_000_000,
                 maximum_stream_bytes: 500_000,
+            },
+            blueprints: RecordingProducerBlueprintPolicy {
+                enabled: true,
+                maximum_bytes: 2 * 1024 * 1024,
+                maximum_messages: 10_000,
+                maximum_revisions: 32,
             },
             retention: RecordingRetentionPolicy {
                 open_stream_days: 7,

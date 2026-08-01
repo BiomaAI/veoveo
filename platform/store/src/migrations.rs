@@ -27,7 +27,7 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 29] = [
+const MIGRATIONS: [Migration; 30] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -201,6 +201,12 @@ const MIGRATIONS: [Migration; 29] = [
         name: "mcp_streamable_http",
         filename: "0028_mcp_streamable_http.surql",
         sql: include_str!("../migrations/0028_mcp_streamable_http.surql"),
+    },
+    Migration {
+        version: 29,
+        name: "recording_blueprints",
+        filename: "0029_recording_blueprints.surql",
+        sql: include_str!("../migrations/0029_recording_blueprints.surql"),
     },
 ];
 

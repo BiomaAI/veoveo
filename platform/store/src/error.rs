@@ -6,6 +6,9 @@ pub enum RecordingIngestQuota {
     MaximumConcurrentStreams,
     MaximumBatchesPerMinute,
     MaximumBytesPerDay,
+    MaximumBlueprintBytes,
+    MaximumBlueprintMessages,
+    MaximumBlueprintRevisions,
 }
 
 impl std::fmt::Display for RecordingIngestQuota {
@@ -15,6 +18,9 @@ impl std::fmt::Display for RecordingIngestQuota {
             Self::MaximumConcurrentStreams => "maximum_concurrent_streams",
             Self::MaximumBatchesPerMinute => "maximum_batches_per_minute",
             Self::MaximumBytesPerDay => "maximum_bytes_per_day",
+            Self::MaximumBlueprintBytes => "maximum_blueprint_bytes",
+            Self::MaximumBlueprintMessages => "maximum_blueprint_messages",
+            Self::MaximumBlueprintRevisions => "maximum_blueprint_revisions",
         })
     }
 }
@@ -120,6 +126,12 @@ pub enum StoreError {
     RecordingIngestDigestConflict { sequence: u64 },
     #[error("recording ingest checkpoint changed concurrently")]
     RecordingIngestCheckpointConflict,
+    #[error(
+        "recording Blueprint revision {revision} conflicts with its durable digest or identity"
+    )]
+    RecordingBlueprintRevisionConflict { revision: u64 },
+    #[error("recording Blueprint expected revision {expected}, received {actual}")]
+    RecordingBlueprintRevisionGap { expected: u64, actual: u64 },
     #[error("recording ingest producer exceeded the {quota} quota")]
     RecordingIngestQuotaExceeded { quota: RecordingIngestQuota },
     #[error("invalid domain usage field {field}: {reason}")]

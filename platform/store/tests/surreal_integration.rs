@@ -15,11 +15,12 @@ use veoveo_platform_store::{
     MapFeatureCommitDraft, MapFeatureLayerDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft,
     MapLayerProductDraft, MapLayerPublicationDraft, MapReleaseDraft, MapReleaseState, OpenObject,
     OutboxDraft, PlatformIdentity, PlatformStore, PlatformTable, PrincipalKind, RecordIdKey,
-    RecordingDraft, RecordingId, RecordingSeal, RecordingState, SegmentDraft, SegmentId,
-    SegmentSealBinding, SegmentState, ShareLinkId, StoreConfig, StoreCredentials, StoreError,
-    TaskId, TimeAuthorityReleaseDraft, TimeAuthorityReleaseState, TimeDatasetKind, TimeSourceDraft,
-    WorkContextInitialGrantRecord, WorkContextMembershipLevel, decode_changefeed_entry,
-    deterministic_work_context_id, gateway_replay_record_id,
+    RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingDraft, RecordingId, RecordingSeal,
+    RecordingState, SegmentDraft, SegmentId, SegmentSealBinding, SegmentState, ShareLinkId,
+    StoreConfig, StoreCredentials, StoreError, TaskId, TimeAuthorityReleaseDraft,
+    TimeAuthorityReleaseState, TimeDatasetKind, TimeSourceDraft, WorkContextInitialGrantRecord,
+    WorkContextMembershipLevel, decode_changefeed_entry, deterministic_work_context_id,
+    gateway_replay_record_id,
 };
 
 fn artifact_authority(identity: &PlatformIdentity) -> InvocationAuthorityRecord {
@@ -1290,6 +1291,43 @@ async fn recording_seal_publishes_artifact_bindings_and_outbox_atomically() {
         .await
         .unwrap();
     let interrupted_id = RecordingId::from_uuid(record_uuid(&interrupted.id));
+    let blueprint_commit = RecordingBlueprintCommit {
+        draft: RecordingBlueprintDraft {
+            identity: identity.clone(),
+            recording_id: interrupted_id,
+            stream_id: None,
+            work_context: interrupted.work_context.clone(),
+            producer_id: "anonymous-producer".into(),
+            application_id: interrupted.application_id.clone(),
+            blueprint_id: "producer-layout".into(),
+            revision: 1,
+            relative_path: "blueprints/recording/1.rrd".into(),
+            sha256: "b".repeat(64),
+            byte_len: 1024,
+            message_count: 8,
+            maximum_revisions: 4,
+        },
+        created_at: Utc::now(),
+    };
+    let (first_blueprint, retried_blueprint) = tokio::join!(
+        store.commit_recording_blueprint(blueprint_commit.clone()),
+        store.commit_recording_blueprint(blueprint_commit.clone()),
+    );
+    let first_blueprint = first_blueprint.unwrap();
+    let retried_blueprint = retried_blueprint.unwrap();
+    assert_ne!(
+        first_blueprint.duplicate, retried_blueprint.duplicate,
+        "one concurrent publication creates the revision and one is idempotent"
+    );
+    assert_eq!(first_blueprint.blueprint, retried_blueprint.blueprint);
+    let mut conflicting_blueprint = blueprint_commit;
+    conflicting_blueprint.draft.sha256 = "c".repeat(64);
+    assert!(matches!(
+        store
+            .commit_recording_blueprint(conflicting_blueprint)
+            .await,
+        Err(StoreError::RecordingBlueprintRevisionConflict { revision: 1 })
+    ));
     let interrupted_segment = store
         .open_segment(SegmentDraft {
             identity: identity.clone(),

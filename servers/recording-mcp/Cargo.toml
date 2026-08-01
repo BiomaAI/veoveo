@@ -33,6 +33,7 @@ bytes.workspace = true
 chrono.workspace = true
 clap.workspace = true
 futures.workspace = true
+hex.workspace = true
 re_build_info.workspace = true
 re_auth = { workspace = true, optional = true }
 re_chunk.workspace = true
