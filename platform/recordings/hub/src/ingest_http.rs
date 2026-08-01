@@ -17,9 +17,9 @@ use veoveo_recording_protocol::{
     BatchValidationError, MEDIA_TYPE,
     v1::{
         AuthorizedFinishRecordingStreamRequest, AuthorizedOpenRecordingStreamRequest,
-        AuthorizedRecordingBatchRequest, AuthorizedRecordingProducer, FinishRecordingStreamResult,
-        IngestError, IngestErrorCode, RecordingIngestQuota as ProtocolRecordingIngestQuota,
-        RecordingStreamFinishMode,
+        AuthorizedRecordingBatchRequest, AuthorizedRecordingBlueprintRequest,
+        AuthorizedRecordingProducer, FinishRecordingStreamResult, IngestError, IngestErrorCode,
+        RecordingIngestQuota as ProtocolRecordingIngestQuota, RecordingStreamFinishMode,
     },
 };
 
@@ -64,6 +64,10 @@ pub fn recording_ingest_internal_router(
         .route(
             &format!("{INTERNAL_STREAMS_PATH}/{{stream_id}}/batches/{{sequence}}"),
             put(append_batch),
+        )
+        .route(
+            &format!("{INTERNAL_STREAMS_PATH}/{{stream_id}}/blueprints/{{revision}}"),
+            put(publish_blueprint),
         )
         .route(
             &format!("{INTERNAL_STREAMS_PATH}/{{stream_id}}/finish"),
@@ -187,6 +191,58 @@ async fn append_batch(
     match state
         .service
         .append(&gateway, producer, stream_id, batch)
+        .await
+    {
+        Ok(result) => protobuf_response(StatusCode::OK, &result),
+        Err(error) => service_error(error),
+    }
+}
+
+async fn publish_blueprint(
+    State(state): State<IngestHttpState>,
+    Path((stream_id, revision)): Path<(String, u64)>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let gateway = match authenticate(&state, &headers) {
+        Ok(identity) => identity,
+        Err(error) => return error.into_response(),
+    };
+    let envelope = match decode::<AuthorizedRecordingBlueprintRequest>(&headers, &body) {
+        Ok(envelope) => envelope,
+        Err(error) => return error.into_response(),
+    };
+    let Some(producer) = envelope.producer.as_ref() else {
+        return ingest_error(
+            StatusCode::BAD_REQUEST,
+            IngestErrorCode::InvalidRequest,
+            "producer authorization is required",
+            None,
+        );
+    };
+    let Some(blueprint) = envelope.blueprint.as_ref() else {
+        return ingest_error(
+            StatusCode::BAD_REQUEST,
+            IngestErrorCode::InvalidRequest,
+            "recording Blueprint publication is required",
+            None,
+        );
+    };
+    if blueprint.revision != revision {
+        return ingest_error(
+            StatusCode::BAD_REQUEST,
+            IngestErrorCode::InvalidRequest,
+            "path and Blueprint revisions differ",
+            None,
+        );
+    }
+    let stream_id = match parse_stream_id(&stream_id) {
+        Ok(stream_id) => stream_id,
+        Err(error) => return error.into_response(),
+    };
+    match state
+        .service
+        .publish_blueprint(&gateway, producer, stream_id, blueprint)
         .await
     {
         Ok(result) => protobuf_response(StatusCode::OK, &result),
@@ -332,6 +388,28 @@ fn parse_stream_id(value: &str) -> Result<RecordingIngestStreamId, HttpFailure> 
 }
 
 fn service_error(error: anyhow::Error) -> Response {
+    if let Some(validation) = error.downcast_ref::<crate::RecordingBlueprintPublicationError>() {
+        return match validation {
+            crate::RecordingBlueprintPublicationError::NotAllowed => ingest_error(
+                StatusCode::FORBIDDEN,
+                IngestErrorCode::BlueprintNotAllowed,
+                &validation.to_string(),
+                None,
+            ),
+            crate::RecordingBlueprintPublicationError::AssociationMismatch => ingest_error(
+                StatusCode::FORBIDDEN,
+                IngestErrorCode::BlueprintAssociationMismatch,
+                &validation.to_string(),
+                None,
+            ),
+            crate::RecordingBlueprintPublicationError::Invalid(_) => ingest_error(
+                StatusCode::BAD_REQUEST,
+                IngestErrorCode::InvalidBlueprint,
+                &validation.to_string(),
+                None,
+            ),
+        };
+    }
     if let Some(validation) = error.downcast_ref::<BatchValidationError>() {
         return match validation {
             BatchValidationError::PayloadTooLarge { .. } => ingest_error(
@@ -378,6 +456,13 @@ fn service_error(error: anyhow::Error) -> Response {
             StoreError::RecordingIngestDigestConflict { .. } => ingest_error(
                 StatusCode::CONFLICT,
                 IngestErrorCode::DigestConflict,
+                &store.to_string(),
+                None,
+            ),
+            StoreError::RecordingBlueprintRevisionConflict { .. }
+            | StoreError::RecordingBlueprintRevisionGap { .. } => ingest_error(
+                StatusCode::CONFLICT,
+                IngestErrorCode::BlueprintRevisionConflict,
                 &store.to_string(),
                 None,
             ),
@@ -479,6 +564,16 @@ fn quota_response(quota: StoreRecordingIngestQuota) -> (ProtocolRecordingIngestQ
         StoreRecordingIngestQuota::MaximumBytesPerDay => {
             (ProtocolRecordingIngestQuota::MaximumBytesPerDay, Some(60))
         }
+        StoreRecordingIngestQuota::MaximumBlueprintBytes => {
+            (ProtocolRecordingIngestQuota::MaximumBlueprintBytes, None)
+        }
+        StoreRecordingIngestQuota::MaximumBlueprintMessages => {
+            (ProtocolRecordingIngestQuota::MaximumBlueprintMessages, None)
+        }
+        StoreRecordingIngestQuota::MaximumBlueprintRevisions => (
+            ProtocolRecordingIngestQuota::MaximumBlueprintRevisions,
+            None,
+        ),
     }
 }
 

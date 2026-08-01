@@ -42,6 +42,23 @@ message RecordingBatch {
   uint64 message_count = 5;
 }
 
+// One complete producer-authored Blueprint publication. Blueprint payloads
+// retain StoreKind::Blueprint and are associated with a governed recording by
+// the enclosing stream endpoint rather than by rewriting their Rerun identity.
+message RecordingBlueprint {
+  uint64 revision = 1;
+  RerunPayloadFormat payload_format = 2;
+  bytes encoded_rrd = 3;
+  bytes sha256 = 4;
+  uint64 message_count = 5;
+}
+
+message PublishRecordingBlueprintResult {
+  uint64 revision = 1;
+  bytes sha256 = 2;
+  bool duplicate = 3;
+}
+
 message AppendRecordingBatchResult {
   uint64 durable_through_sequence = 1;
   uint64 materialized_through_sequence = 2;
@@ -76,6 +93,10 @@ enum IngestErrorCode {
   INGEST_ERROR_CODE_INVALID_RERUN_DATA = 10;
   INGEST_ERROR_CODE_QUOTA_EXCEEDED = 11;
   INGEST_ERROR_CODE_STORAGE_UNAVAILABLE = 12;
+  INGEST_ERROR_CODE_BLUEPRINT_NOT_ALLOWED = 13;
+  INGEST_ERROR_CODE_BLUEPRINT_ASSOCIATION_MISMATCH = 14;
+  INGEST_ERROR_CODE_INVALID_BLUEPRINT = 15;
+  INGEST_ERROR_CODE_BLUEPRINT_REVISION_CONFLICT = 16;
 }
 
 enum RecordingIngestQuota {
@@ -84,6 +105,9 @@ enum RecordingIngestQuota {
   RECORDING_INGEST_QUOTA_MAXIMUM_CONCURRENT_STREAMS = 2;
   RECORDING_INGEST_QUOTA_MAXIMUM_BATCHES_PER_MINUTE = 3;
   RECORDING_INGEST_QUOTA_MAXIMUM_BYTES_PER_DAY = 4;
+  RECORDING_INGEST_QUOTA_MAXIMUM_BLUEPRINT_BYTES = 5;
+  RECORDING_INGEST_QUOTA_MAXIMUM_BLUEPRINT_MESSAGES = 6;
+  RECORDING_INGEST_QUOTA_MAXIMUM_BLUEPRINT_REVISIONS = 7;
 }
 
 message IngestError {
@@ -102,6 +126,8 @@ message RecordingIngestDiscovery {
   string streams_endpoint = 5;
   uint64 maximum_batch_bytes = 6;
   repeated RerunPayloadFormat payload_formats = 7;
+  uint64 maximum_blueprint_bytes = 8;
+  uint64 maximum_blueprint_messages = 9;
 }
 
 // Gateway-to-hub envelopes carry policy-derived producer bindings. The hub
@@ -119,6 +145,10 @@ message AuthorizedRecordingProducer {
   uint32 maximum_batches_per_minute = 10;
   uint64 maximum_bytes_per_day = 11;
   uint32 open_stream_days = 12;
+  bool blueprint_publication_enabled = 13;
+  uint64 maximum_blueprint_bytes = 14;
+  uint64 maximum_blueprint_messages = 15;
+  uint32 maximum_blueprint_revisions = 16;
 }
 
 message AuthorizedOpenRecordingStreamRequest {
@@ -129,6 +159,11 @@ message AuthorizedOpenRecordingStreamRequest {
 message AuthorizedRecordingBatchRequest {
   AuthorizedRecordingProducer producer = 1;
   RecordingBatch batch = 2;
+}
+
+message AuthorizedRecordingBlueprintRequest {
+  AuthorizedRecordingProducer producer = 1;
+  RecordingBlueprint blueprint = 2;
 }
 
 message AuthorizedFinishRecordingStreamRequest {

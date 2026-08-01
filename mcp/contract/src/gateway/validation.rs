@@ -710,6 +710,7 @@ fn server_supports_gateway_action(server: &ServerManifest, action: GatewayAction
         GatewayAction::RecordingStreamOpen
         | GatewayAction::RecordingStreamStatus
         | GatewayAction::RecordingBatchAppend
+        | GatewayAction::RecordingBlueprintPublish
         | GatewayAction::RecordingStreamFinish => false,
     }
 }

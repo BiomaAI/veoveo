@@ -16,16 +16,17 @@ use veoveo_mcp_contract::{
 };
 use veoveo_platform_store::{
     PlatformIdentity, PlatformStore, PrincipalId, PrincipalKind, RecordId, RecordIdKey,
-    RecordingDraft, RecordingId, RecordingIngestBatchDraft, RecordingIngestBatchState,
-    RecordingIngestQuota, RecordingIngestStreamId, RecordingIngestStreamRecord,
-    RecordingIngestStreamState, SegmentDraft, SegmentId, SegmentRecord, SegmentState, StoreError,
-    TenantId,
+    RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingDraft, RecordingId,
+    RecordingIngestBatchDraft, RecordingIngestBatchState, RecordingIngestQuota,
+    RecordingIngestStreamId, RecordingIngestStreamRecord, RecordingIngestStreamState, SegmentDraft,
+    SegmentId, SegmentRecord, SegmentState, StoreError, TenantId,
 };
 use veoveo_recording_protocol::{
-    DEFAULT_MAXIMUM_BATCH_BYTES, REQUIRED_SCOPE,
+    BatchValidationError, DEFAULT_MAXIMUM_BATCH_BYTES, REQUIRED_SCOPE,
     v1::{
-        AppendRecordingBatchResult, AuthorizedRecordingProducer, RecordingBatch, RecordingStream,
-        RecordingStreamFinishMode, RecordingStreamState, RerunPayloadFormat,
+        AppendRecordingBatchResult, AuthorizedRecordingProducer, PublishRecordingBlueprintResult,
+        RecordingBatch, RecordingBlueprint, RecordingStream, RecordingStreamFinishMode,
+        RecordingStreamState, RerunPayloadFormat,
     },
 };
 
@@ -33,6 +34,16 @@ use crate::governance::{authority_record, governed_classification, governed_labe
 use crate::inspect_segment;
 
 const VIDEO_STREAM_MARKER: &str = ".video-stream";
+
+#[derive(Debug, thiserror::Error)]
+pub enum RecordingBlueprintPublicationError {
+    #[error("producer is not authorized to publish Blueprints")]
+    NotAllowed,
+    #[error("producer Blueprint authority does not match its governed recording")]
+    AssociationMismatch,
+    #[error("producer Blueprint is invalid: {0}")]
+    Invalid(String),
+}
 
 #[derive(Clone, Debug)]
 pub struct RecordingIngestServiceConfig {
@@ -315,6 +326,111 @@ impl RecordingIngestService {
         Ok(AppendRecordingBatchResult {
             durable_through_sequence: durable_through(&stream)?,
             materialized_through_sequence: materialized_through(&stream)?,
+            duplicate: outcome.duplicate,
+        })
+    }
+
+    pub async fn publish_blueprint(
+        &self,
+        gateway: &GatewayInternalResourceIdentity,
+        producer: &AuthorizedRecordingProducer,
+        stream_id: RecordingIngestStreamId,
+        blueprint: &RecordingBlueprint,
+    ) -> Result<PublishRecordingBlueprintResult> {
+        if !producer.blueprint_publication_enabled {
+            return Err(RecordingBlueprintPublicationError::NotAllowed.into());
+        }
+        if let Err(error) = blueprint.validate(
+            producer.maximum_blueprint_bytes,
+            producer.maximum_blueprint_messages,
+        ) {
+            return Err(match error {
+                BatchValidationError::PayloadTooLarge { .. } => {
+                    StoreError::RecordingIngestQuotaExceeded {
+                        quota: RecordingIngestQuota::MaximumBlueprintBytes,
+                    }
+                    .into()
+                }
+                BatchValidationError::MessageCountTooLarge { .. } => {
+                    StoreError::RecordingIngestQuotaExceeded {
+                        quota: RecordingIngestQuota::MaximumBlueprintMessages,
+                    }
+                    .into()
+                }
+                error => RecordingBlueprintPublicationError::Invalid(error.to_string()).into(),
+            });
+        }
+        let identity = self.authorize(gateway, producer, None).await?;
+        let _guard = self.materialization.lock().await;
+        let stream = self
+            .authorized_stream(&identity, producer, stream_id)
+            .await?;
+        ensure!(
+            stream.state == RecordingIngestStreamState::Open,
+            "recording Blueprint publication requires an open stream"
+        );
+        let recording_id = typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?;
+        let recording = self
+            .store
+            .recording(identity.tenant_id, recording_id)
+            .await?
+            .context("recording Blueprint target was not found")?;
+        if !(recording.owner == identity.principal_id.record_id()
+            && recording.application_id == stream.application_id
+            && recording.work_context
+                == veoveo_platform_store::deterministic_work_context_id(
+                    &identity.tenant_key,
+                    gateway.authority.work_context.as_str(),
+                )?
+                .record_id()
+            && recording.authority == authority_record(&gateway.authority))
+        {
+            return Err(RecordingBlueprintPublicationError::AssociationMismatch.into());
+        }
+        let validated = crate::blueprint::validate_blueprint_rrd(
+            &blueprint.encoded_rrd,
+            blueprint.message_count,
+            &stream.application_id,
+        )
+        .map_err(|error| RecordingBlueprintPublicationError::Invalid(error.to_string()))?;
+        let relative_path = crate::blueprint::blueprint_relative_path(
+            &identity.tenant_id.to_string(),
+            &recording_id.to_string(),
+            blueprint.revision,
+        );
+        let path =
+            crate::blueprint::ensure_blueprint_path(&self.config.spool_root, &relative_path)?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        publish_segment(&path, &blueprint.encoded_rrd)?;
+        let outcome = self
+            .store
+            .commit_recording_blueprint(RecordingBlueprintCommit {
+                draft: RecordingBlueprintDraft {
+                    identity,
+                    recording_id,
+                    stream_id: Some(stream_id),
+                    work_context: recording.work_context,
+                    producer_id: producer.producer_id.clone(),
+                    application_id: stream.application_id,
+                    blueprint_id: validated.store_id.recording_id().as_str().to_owned(),
+                    revision: blueprint.revision,
+                    relative_path: relative_path
+                        .to_str()
+                        .context("recording Blueprint path is not UTF-8")?
+                        .to_owned(),
+                    sha256: hex::encode(&blueprint.sha256),
+                    byte_len: blueprint.encoded_rrd.len() as u64,
+                    message_count: validated.message_count,
+                    maximum_revisions: producer.maximum_blueprint_revisions,
+                },
+                created_at: chrono::Utc::now(),
+            })
+            .await?;
+        Ok(PublishRecordingBlueprintResult {
+            revision: u64::try_from(outcome.blueprint.revision)?,
+            sha256: hex::decode(&outcome.blueprint.sha256)?,
             duplicate: outcome.duplicate,
         })
     }
@@ -818,6 +934,14 @@ fn validate_producer(producer: &AuthorizedRecordingProducer) -> Result<()> {
             && producer.open_stream_days > 0,
         "producer quota and retention limits must be positive"
     );
+    if producer.blueprint_publication_enabled {
+        ensure!(
+            producer.maximum_blueprint_bytes > 0
+                && producer.maximum_blueprint_messages > 0
+                && producer.maximum_blueprint_revisions > 0,
+            "enabled producer Blueprint quotas must be positive"
+        );
+    }
     Ok(())
 }
 

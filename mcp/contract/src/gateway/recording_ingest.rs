@@ -32,10 +32,19 @@ pub struct RecordingProducerRegistration {
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub labels: BTreeSet<DataLabelId>,
     pub quotas: RecordingProducerQuotas,
+    pub blueprints: RecordingProducerBlueprintPolicy,
     pub retention: RecordingRetentionPolicy,
     pub enabled: bool,
     #[serde(default)]
     pub metadata: Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct RecordingProducerBlueprintPolicy {
+    pub enabled: bool,
+    pub maximum_bytes: u64,
+    pub maximum_messages: u64,
+    pub maximum_revisions: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

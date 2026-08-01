@@ -36,6 +36,9 @@ pub(crate) async fn sumo_push(steps: u32) -> Result<()> {
         flush_interval_ms: 10,
         fsync_on_flush: true,
         live_queue_limit_bytes: 256 * 1024 * 1024,
+        blueprint_max_bytes: veoveo_recording_protocol::DEFAULT_MAXIMUM_BLUEPRINT_BYTES,
+        blueprint_max_messages: veoveo_recording_protocol::DEFAULT_MAXIMUM_BLUEPRINT_MESSAGES,
+        blueprint_max_revisions: veoveo_recording_protocol::DEFAULT_MAXIMUM_BLUEPRINT_REVISIONS,
     };
     let flush_interval = config.flush_interval();
     let max_age = config.segment_max_age();

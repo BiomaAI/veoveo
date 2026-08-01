@@ -206,6 +206,12 @@
             "maximum_bytes_per_day": 10737418240,
             "maximum_stream_bytes": 2147483648
           },
+          "blueprints": {
+            "enabled": true,
+            "maximum_bytes": 2097152,
+            "maximum_messages": 10000,
+            "maximum_revisions": 32
+          },
           "retention": {
             "open_stream_days": 7
           },
@@ -338,6 +344,7 @@
             "recording_stream_open",
             "recording_stream_status",
             "recording_batch_append",
+            "recording_blueprint_publish",
             "recording_stream_finish"
           ],
           "protected_resources": [

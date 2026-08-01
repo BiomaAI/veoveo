@@ -25,9 +25,10 @@ use veoveo_recording_protocol::{
     DISCOVERY_PATH, MEDIA_TYPE, PROTOCOL_VERSION, REQUIRED_SCOPE, STREAMS_PATH,
     v1::{
         AuthorizedFinishRecordingStreamRequest, AuthorizedOpenRecordingStreamRequest,
-        AuthorizedRecordingBatchRequest, AuthorizedRecordingProducer, FinishRecordingStreamRequest,
-        IngestError, IngestErrorCode, OpenRecordingStreamRequest, RecordingBatch,
-        RecordingIngestDiscovery, RerunPayloadFormat,
+        AuthorizedRecordingBatchRequest, AuthorizedRecordingBlueprintRequest,
+        AuthorizedRecordingProducer, FinishRecordingStreamRequest, IngestError, IngestErrorCode,
+        OpenRecordingStreamRequest, RecordingBatch, RecordingBlueprint, RecordingIngestDiscovery,
+        RerunPayloadFormat,
     },
 };
 
@@ -66,6 +67,10 @@ pub(super) fn recording_ingest_router(state: RecordingIngestGatewayState) -> Rou
             put(append_batch),
         )
         .route(
+            &format!("{STREAMS_PATH}/{{stream_id}}/blueprints/{{revision}}"),
+            put(publish_blueprint),
+        )
+        .route(
             &format!("{STREAMS_PATH}/{{stream_id}}/finish"),
             post(finish_stream),
         )
@@ -100,6 +105,20 @@ async fn discovery(State(state): State<RecordingIngestGatewayState>) -> Response
             ),
             maximum_batch_bytes: resource.maximum_batch_bytes,
             payload_formats: vec![RerunPayloadFormat::Rrd0350.into()],
+            maximum_blueprint_bytes: resource
+                .producers
+                .iter()
+                .filter(|producer| producer.blueprints.enabled)
+                .map(|producer| producer.blueprints.maximum_bytes)
+                .max()
+                .unwrap_or(0),
+            maximum_blueprint_messages: resource
+                .producers
+                .iter()
+                .filter(|producer| producer.blueprints.enabled)
+                .map(|producer| producer.blueprints.maximum_messages)
+                .max()
+                .unwrap_or(0),
         },
     )
 }
@@ -182,6 +201,41 @@ async fn append_batch(
     .await
 }
 
+async fn publish_blueprint(
+    State(state): State<RecordingIngestGatewayState>,
+    Path((stream_id, revision)): Path<(String, u64)>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let stream_id = match RecordingIngestStreamId::new(&stream_id) {
+        Ok(stream_id) => stream_id,
+        Err(_) => return stream_not_found(),
+    };
+    let blueprint = match decode::<RecordingBlueprint>(&headers, &body) {
+        Ok(blueprint) => blueprint,
+        Err(error) => return error.into_response(),
+    };
+    if blueprint.revision != revision {
+        return ingest_error(
+            StatusCode::BAD_REQUEST,
+            IngestErrorCode::InvalidRequest,
+            "path and Blueprint revisions differ",
+        );
+    }
+    proxy_authorized(
+        &state,
+        &headers,
+        GatewayAction::RecordingBlueprintPublish,
+        Some(&stream_id),
+        format!("{INTERNAL_STREAMS_PATH}/{stream_id}/blueprints/{revision}"),
+        AuthorizedRecordingBlueprintRequest {
+            producer: None,
+            blueprint: Some(blueprint),
+        },
+    )
+    .await
+}
+
 async fn finish_stream(
     State(state): State<RecordingIngestGatewayState>,
     Path(stream_id): Path<String>,
@@ -221,6 +275,12 @@ impl AuthorizedEnvelope for AuthorizedOpenRecordingStreamRequest {
 }
 
 impl AuthorizedEnvelope for AuthorizedRecordingBatchRequest {
+    fn set_producer(&mut self, producer: AuthorizedRecordingProducer) {
+        self.producer = Some(producer);
+    }
+}
+
+impl AuthorizedEnvelope for AuthorizedRecordingBlueprintRequest {
     fn set_producer(&mut self, producer: AuthorizedRecordingProducer) {
         self.producer = Some(producer);
     }
@@ -339,7 +399,10 @@ async fn proxy_authorized(
     );
     let response = match current_http_client(&state.http)
         .request(
-            if action == GatewayAction::RecordingBatchAppend {
+            if matches!(
+                action,
+                GatewayAction::RecordingBatchAppend | GatewayAction::RecordingBlueprintPublish
+            ) {
                 reqwest::Method::PUT
             } else {
                 reqwest::Method::POST
@@ -568,6 +631,10 @@ fn authorized_producer(producer: &RecordingProducerRegistration) -> AuthorizedRe
         maximum_batches_per_minute: producer.quotas.maximum_batches_per_minute,
         maximum_bytes_per_day: producer.quotas.maximum_bytes_per_day,
         open_stream_days: producer.retention.open_stream_days,
+        blueprint_publication_enabled: producer.blueprints.enabled,
+        maximum_blueprint_bytes: producer.blueprints.maximum_bytes,
+        maximum_blueprint_messages: producer.blueprints.maximum_messages,
+        maximum_blueprint_revisions: producer.blueprints.maximum_revisions,
     }
 }
 

@@ -470,6 +470,11 @@ impl GatewayControlPlane {
                     || producer.quotas.maximum_batches_per_minute == 0
                     || producer.quotas.maximum_bytes_per_day == 0
                     || producer.quotas.maximum_stream_bytes == 0
+                    || (producer.blueprints.enabled
+                        && (producer.blueprints.maximum_bytes == 0
+                            || producer.blueprints.maximum_bytes > resource.maximum_batch_bytes
+                            || producer.blueprints.maximum_messages == 0
+                            || producer.blueprints.maximum_revisions == 0))
                     || producer.retention.open_stream_days == 0
                 {
                     return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {

@@ -8,6 +8,7 @@
 //! reading room.
 
 pub mod archive;
+pub mod blueprint;
 pub mod catalog;
 pub mod config;
 mod governance;
@@ -19,11 +20,13 @@ pub mod spool;
 pub mod video;
 
 pub use archive::{ArchiveMaterialization, materialize_archive_shard};
+pub use blueprint::{BlueprintMapProviderSelection, ValidatedBlueprint, validate_blueprint_rrd};
 pub use catalog::{CatalogPolicy, PlatformCatalog, SegmentInspection, inspect_segment};
 pub use config::{DatasetName, DatasetRoute, QUARANTINE_DATASET, SpoolerConfig};
 pub use ingest::{
-    RecordingIngestService, RecordingIngestServiceConfig, ingest_part_paths, ingest_part_sequence,
-    ingest_segment_parts_directory, ingest_stream_static_context_path, live_segment_byte_len,
+    RecordingBlueprintPublicationError, RecordingIngestService, RecordingIngestServiceConfig,
+    ingest_part_paths, ingest_part_sequence, ingest_segment_parts_directory,
+    ingest_stream_static_context_path, live_segment_byte_len,
 };
 pub use ingest_http::recording_ingest_internal_router;
 pub use query::{
@@ -35,7 +38,8 @@ pub use sim::{
     StackReport, TrackPattern, Wave,
 };
 pub use spool::{
-    Counters, FrozenSegment, OpenedSegment, SegmentCatalog, SegmentKey, Spooler, run_blocking,
+    Counters, FrozenSegment, OpenedSegment, PublishedBlueprint, SegmentCatalog, SegmentKey,
+    Spooler, run_blocking,
 };
 pub use veoveo_rrd::video::{
     RrdVideoBoundary, h264_access_unit_is_idr, inspect_log_message_video_boundary,

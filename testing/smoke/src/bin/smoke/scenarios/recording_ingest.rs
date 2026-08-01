@@ -1,16 +1,23 @@
 use anyhow::ensure;
 use re_log_encoding::Decoder;
-use re_log_types::LogMsg;
-use re_sdk::RecordingStreamBuilder;
+use re_log_types::{LogMsg, StoreKind};
+use re_sdk::{
+    RecordingStreamBuilder,
+    blueprint::{Blueprint, MapView},
+};
 use re_sdk_types::archetypes::Scalars;
 use url::Url;
 use veoveo_recording_forwarder::{
     batch::RecordingAccumulator,
+    blueprint::BlueprintAccumulator,
     client::RecordingIngestClient,
     config::ClientAssertionAlgorithm,
     oauth::{OAuthTokenProvider, OAuthTokenProviderConfig},
 };
-use veoveo_recording_hub::{SegmentReadScope, collect_segments, inspect_segment};
+use veoveo_recording_hub::{
+    BlueprintMapProviderSelection, SegmentReadScope, collect_segments, inspect_segment,
+    validate_blueprint_rrd,
+};
 use veoveo_recording_protocol::v1::{
     OpenRecordingStreamRequest, RecordingStreamFinishMode, RecordingStreamState,
 };
@@ -190,6 +197,49 @@ pub(crate) async fn recording_ingest(
             && duplicate.duplicate,
         "idempotent recording retry was not acknowledged: {duplicate:?}"
     );
+
+    Blueprint::new(
+        MapView::new("Map")
+            .with_map_provider(re_sdk_types::blueprint::components::MapProvider::MapboxSatellite),
+    )
+    .send(&recording, Default::default())?;
+    let blueprint_messages = storage
+        .take()
+        .into_iter()
+        .filter(|message| message.store_id().kind() == StoreKind::Blueprint)
+        .collect::<Vec<_>>();
+    let blueprint_store = blueprint_messages
+        .first()
+        .context("Rerun memory sink emitted no Blueprint store")?
+        .store_id()
+        .clone();
+    let mut blueprint_accumulator = BlueprintAccumulator::new(
+        blueprint_store,
+        client.maximum_blueprint_bytes(),
+        client.maximum_blueprint_messages(),
+    )?;
+    for message in blueprint_messages {
+        blueprint_accumulator.push(message)?;
+    }
+    let mut blueprint = blueprint_accumulator.finish()?;
+    blueprint.revision = 1;
+    let published = client
+        .publish_blueprint(&opened.stream_id, &blueprint)
+        .await?;
+    ensure!(
+        published.revision == 1 && published.sha256 == blueprint.sha256 && !published.duplicate,
+        "producer Blueprint was not durably published: {published:?}"
+    );
+    let duplicate_blueprint = client
+        .publish_blueprint(&opened.stream_id, &blueprint)
+        .await?;
+    ensure!(
+        duplicate_blueprint.revision == 1
+            && duplicate_blueprint.sha256 == blueprint.sha256
+            && duplicate_blueprint.duplicate,
+        "idempotent Blueprint retry was not acknowledged: {duplicate_blueprint:?}"
+    );
+
     recording.log("sensor/second", &Scalars::single(84.0))?;
     for message in storage.take() {
         accumulator.push(message)?;
@@ -244,12 +294,47 @@ pub(crate) async fn recording_ingest(
         decoded.len() as u64 == batch.message_count + second_batch.message_count - 1,
         "two ingest batches did not merge into one complete segment: {inspection:?}"
     );
+    let blueprint_files = files_below(&spool_dir.join("blueprints"))?;
+    ensure!(
+        blueprint_files.len() == 1,
+        "expected one immutable Blueprint revision, found {blueprint_files:?}"
+    );
+    let blueprint_bytes = fs::read(&blueprint_files[0])?;
+    let validated_blueprint = validate_blueprint_rrd(
+        &blueprint_bytes,
+        blueprint.message_count,
+        &request.application_id,
+    )?;
+    ensure!(
+        validated_blueprint.store_id.kind() == StoreKind::Blueprint
+            && validated_blueprint.map_provider == BlueprintMapProviderSelection::Mapbox,
+        "published Blueprint lost its store kind or map-provider selection: {validated_blueprint:?}"
+    );
 
     gateway_child.stop();
     hub_child.stop();
     cleanup.remove_on_drop();
-    println!("recording ingest smoke ok: OAuth retry checkpoint merged and resumed");
+    println!(
+        "recording ingest smoke ok: OAuth retry checkpoint and producer Blueprint merged, resumed, and remained distinct"
+    );
     Ok(())
+}
+
+fn files_below(root: &Path) -> Result<Vec<PathBuf>> {
+    let mut pending = vec![root.to_path_buf()];
+    let mut files = Vec::new();
+    while let Some(directory) = pending.pop() {
+        for entry in fs::read_dir(directory)? {
+            let entry = entry?;
+            if entry.file_type()?.is_dir() {
+                pending.push(entry.path());
+            } else {
+                files.push(entry.path());
+            }
+        }
+    }
+    files.sort();
+    Ok(files)
 }
 
 fn rsa_private_key_pem(der_base64: &str) -> String {

@@ -6,8 +6,9 @@ use veoveo_recording_protocol::{
     DISCOVERY_PATH, MEDIA_TYPE, PROTOCOL_VERSION, REQUIRED_SCOPE, STREAMS_PATH,
     v1::{
         AppendRecordingBatchResult, FinishRecordingStreamRequest, FinishRecordingStreamResult,
-        IngestError, IngestErrorCode, OpenRecordingStreamRequest, RecordingBatch,
-        RecordingIngestDiscovery, RecordingIngestQuota, RecordingStream, RecordingStreamFinishMode,
+        IngestError, IngestErrorCode, OpenRecordingStreamRequest, PublishRecordingBlueprintResult,
+        RecordingBatch, RecordingBlueprint, RecordingIngestDiscovery, RecordingIngestQuota,
+        RecordingStream, RecordingStreamFinishMode,
     },
 };
 
@@ -30,6 +31,8 @@ pub struct RecordingIngestClient {
     http: reqwest::Client,
     streams_endpoint: Url,
     maximum_batch_bytes: u64,
+    maximum_blueprint_bytes: u64,
+    maximum_blueprint_messages: u64,
     tokens: OAuthTokenProvider,
 }
 
@@ -61,7 +64,11 @@ impl RecordingIngestClient {
         );
         ensure!(
             discovery.maximum_batch_bytes > 0,
-            "gateway advertised a zero batch limit"
+            "gateway advertised a zero recording batch limit"
+        );
+        ensure!(
+            (discovery.maximum_blueprint_bytes == 0) == (discovery.maximum_blueprint_messages == 0),
+            "gateway advertised inconsistent recording Blueprint limits"
         );
         let issuer = Url::parse(&discovery.authorization_server)?;
         ensure!(
@@ -106,12 +113,22 @@ impl RecordingIngestClient {
             http,
             streams_endpoint,
             maximum_batch_bytes: discovery.maximum_batch_bytes,
+            maximum_blueprint_bytes: discovery.maximum_blueprint_bytes,
+            maximum_blueprint_messages: discovery.maximum_blueprint_messages,
             tokens,
         })
     }
 
     pub fn maximum_batch_bytes(&self) -> u64 {
         self.maximum_batch_bytes
+    }
+
+    pub fn maximum_blueprint_bytes(&self) -> u64 {
+        self.maximum_blueprint_bytes
+    }
+
+    pub fn maximum_blueprint_messages(&self) -> u64 {
+        self.maximum_blueprint_messages
     }
 
     pub async fn open(&self, request: &OpenRecordingStreamRequest) -> Result<RecordingStream> {
@@ -128,6 +145,18 @@ impl RecordingIngestClient {
             .stream_url(stream_id)?
             .join(&format!("batches/{}", batch.sequence))?;
         self.request_protobuf(reqwest::Method::PUT, url, batch)
+            .await
+    }
+
+    pub async fn publish_blueprint(
+        &self,
+        stream_id: &str,
+        blueprint: &RecordingBlueprint,
+    ) -> Result<PublishRecordingBlueprintResult> {
+        let url = self
+            .stream_url(stream_id)?
+            .join(&format!("blueprints/{}", blueprint.revision))?;
+        self.request_protobuf(reqwest::Method::PUT, url, blueprint)
             .await
     }
 

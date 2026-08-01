@@ -8,24 +8,28 @@
 //! never truncated in place, so a crashed segment is always recoverable.
 
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::BufWriter;
+use std::fs::{File, OpenOptions};
+use std::io::{BufWriter, Write as _};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, NaiveDate, Utc};
 use re_build_info::CrateVersion;
+use re_byte_size::SizeBytes as _;
 use re_chunk_store::ChunkStoreConfig;
 use re_entity_db::EntityDb;
 use re_log_channel::{DataSourceMessage, LogReceiver, RecvTimeoutError};
 use re_log_encoding::EncodingOptions;
 use re_log_encoding::rrd::Encoder;
-use re_log_types::{LogMsg, StoreKind};
+use re_log_types::{LogMsg, StoreId, StoreKind};
+use sha2::{Digest, Sha256};
 
 use crate::config::{DatasetName, SpoolerConfig};
+
+const MAXIMUM_INCOMPLETE_BLUEPRINT_STORES: usize = 32;
 
 /// Durable catalog hooks invoked at segment lifecycle boundaries. A hook
 /// failure is fatal to the drain: bytes remain on disk, but the proxy stops
@@ -34,6 +38,12 @@ pub trait SegmentCatalog: Send {
     fn segment_opened(&mut self, segment: &OpenedSegment) -> Result<()>;
     fn segment_frozen(&mut self, segment: &FrozenSegment) -> Result<()>;
     fn recording_finished(&mut self, key: &SegmentKey, ended_at: DateTime<Utc>) -> Result<()>;
+    fn next_blueprint_revision(&mut self, _key: &SegmentKey) -> Result<u64> {
+        Ok(1)
+    }
+    fn blueprint_published(&mut self, _blueprint: &PublishedBlueprint) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -51,6 +61,17 @@ pub struct FrozenSegment {
     pub message_count: u64,
     pub sha256: String,
     pub ended_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PublishedBlueprint {
+    pub key: SegmentKey,
+    pub store_id: StoreId,
+    pub path: PathBuf,
+    pub revision: u64,
+    pub byte_len: u64,
+    pub message_count: u64,
+    pub sha256: String,
 }
 
 #[derive(Default)]
@@ -87,6 +108,8 @@ pub struct Counters {
     pub segments_opened: u64,
     pub segments_frozen: u64,
     pub quarantined: u64,
+    pub blueprints_published: u64,
+    pub blueprints_rejected: u64,
 }
 
 struct SegmentWriter {
@@ -100,6 +123,12 @@ struct SegmentWriter {
     bytes: u64,
     messages: u64,
     video_seen: bool,
+}
+
+#[derive(Default)]
+struct PendingBlueprint {
+    messages: Vec<LogMsg>,
+    retained_bytes: u64,
 }
 
 impl SegmentWriter {
@@ -205,6 +234,7 @@ pub struct Spooler {
     catalog: Box<dyn SegmentCatalog>,
     store_info: HashMap<(String, String), LogMsg>,
     static_context: HashMap<(String, String), EntityDb>,
+    blueprint_messages: HashMap<StoreId, PendingBlueprint>,
 }
 
 impl Spooler {
@@ -220,6 +250,7 @@ impl Spooler {
             catalog: Box::new(NoopCatalog),
             store_info: HashMap::new(),
             static_context: HashMap::new(),
+            blueprint_messages: HashMap::new(),
         })
     }
 
@@ -242,11 +273,14 @@ impl Spooler {
         &self.config.spool_dir
     }
 
-    /// Route and persist one message. Blueprint stores are ignored (they are
-    /// viewer UI state, not recorded world data).
+    /// Route and persist one recording message or one bounded producer Blueprint.
     pub fn ingest(&mut self, msg: &LogMsg) -> Result<()> {
         let store_id = msg.store_id();
-        if store_id.kind() != StoreKind::Recording {
+        if store_id.kind() == StoreKind::Blueprint {
+            if let Err(error) = self.ingest_blueprint(msg) {
+                self.counters.blueprints_rejected += 1;
+                tracing::warn!(%error, store_id = ?store_id, "rejecting producer Blueprint without interrupting recording ingest");
+            }
             return Ok(());
         }
         let application_id = store_id.application_id().as_str().to_owned();
@@ -311,6 +345,115 @@ impl Spooler {
         }
         self.counters.messages += 1;
         self.counters.bytes += n;
+        Ok(())
+    }
+
+    fn ingest_blueprint(&mut self, msg: &LogMsg) -> Result<()> {
+        let store_id = msg.store_id().clone();
+        if !self.blueprint_messages.contains_key(&store_id)
+            && self.blueprint_messages.len()
+                >= (self.config.blueprint_max_revisions as usize)
+                    .min(MAXIMUM_INCOMPLETE_BLUEPRINT_STORES)
+        {
+            anyhow::bail!("too many incomplete producer Blueprints");
+        }
+        let retained_bytes = self
+            .blueprint_messages
+            .values()
+            .map(|pending| pending.retained_bytes)
+            .fold(0_u64, u64::saturating_add);
+        if retained_bytes.saturating_add(msg.total_size_bytes()) > self.config.blueprint_max_bytes {
+            self.blueprint_messages.remove(&store_id);
+            anyhow::bail!("incomplete producer Blueprints exceed their aggregate byte budget");
+        }
+        let pending = self.blueprint_messages.entry(store_id.clone()).or_default();
+        let valid_next = !pending
+            .messages
+            .iter()
+            .any(|message| matches!(message, LogMsg::BlueprintActivationCommand(_)));
+        if !valid_next {
+            self.blueprint_messages.remove(&store_id);
+            anyhow::bail!("malformed producer Blueprint message sequence");
+        }
+        if let LogMsg::BlueprintActivationCommand(command) = msg
+            && !(command.make_active && command.make_default)
+        {
+            self.blueprint_messages.remove(&store_id);
+            anyhow::bail!("governed producer Blueprint must be active and default");
+        }
+        let message_bytes = msg.total_size_bytes();
+        if pending.messages.len() as u64 >= self.config.blueprint_max_messages
+            || pending.retained_bytes.saturating_add(message_bytes)
+                > self.config.blueprint_max_bytes
+        {
+            self.blueprint_messages.remove(&store_id);
+            anyhow::bail!("producer Blueprint exceeds its in-memory budget");
+        }
+        pending.retained_bytes = pending.retained_bytes.saturating_add(message_bytes);
+        pending.messages.push(msg.clone());
+        if !matches!(msg, LogMsg::BlueprintActivationCommand(_)) {
+            return Ok(());
+        }
+        let pending = self
+            .blueprint_messages
+            .remove(&store_id)
+            .expect("completed Blueprint message set exists");
+        let candidates = self
+            .writers
+            .keys()
+            .filter(|key| key.application_id == store_id.application_id().as_str())
+            .cloned()
+            .collect::<Vec<_>>();
+        ensure!(
+            candidates.len() == 1,
+            "producer Blueprint application must have exactly one active recording; found {}",
+            candidates.len()
+        );
+        let key = candidates
+            .into_iter()
+            .next()
+            .expect("one candidate was checked");
+        let mut encoder = Encoder::new_eager(
+            CrateVersion::LOCAL,
+            EncodingOptions::PROTOBUF_COMPRESSED,
+            Vec::new(),
+        )
+        .context("opening direct Blueprint encoder")?;
+        for message in &pending.messages {
+            encoder.append(message)?;
+        }
+        encoder.finish()?;
+        let bytes = encoder.into_inner()?;
+        ensure!(
+            bytes.len() as u64 <= self.config.blueprint_max_bytes,
+            "producer Blueprint exceeds its encoded-byte budget"
+        );
+        crate::blueprint::validate_blueprint_rrd(
+            &bytes,
+            u64::try_from(pending.messages.len())?,
+            &key.application_id,
+        )?;
+        let revision = self.catalog.next_blueprint_revision(&key)?;
+        let directory = self
+            .config
+            .spool_dir
+            .join("blueprints")
+            .join(key.dataset.as_str())
+            .join(key.day.to_string());
+        std::fs::create_dir_all(&directory)?;
+        let path = directory.join(format!("{}.{}.rbl", sanitize(&key.recording), revision));
+        publish_bytes(&path, &bytes)?;
+        let published = PublishedBlueprint {
+            key,
+            store_id,
+            path,
+            revision,
+            byte_len: bytes.len() as u64,
+            message_count: pending.messages.len() as u64,
+            sha256: hex::encode(Sha256::digest(&bytes)),
+        };
+        self.catalog.blueprint_published(&published)?;
+        self.counters.blueprints_published += 1;
         Ok(())
     }
 
@@ -513,4 +656,27 @@ fn sync_parent_dir(path: &Path) -> Result<()> {
         .with_context(|| format!("opening segment directory {}", parent.display()))?
         .sync_all()
         .with_context(|| format!("syncing segment directory {}", parent.display()))
+}
+
+fn publish_bytes(path: &Path, bytes: &[u8]) -> Result<()> {
+    if path.exists() {
+        ensure!(
+            std::fs::read(path)? == bytes,
+            "producer Blueprint revision conflicts with existing bytes"
+        );
+        return Ok(());
+    }
+    let parent = path
+        .parent()
+        .context("producer Blueprint path has no parent")?;
+    let temporary = path.with_extension(format!("rbl.{}.tmp", uuid::Uuid::now_v7()));
+    let mut file = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&temporary)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    std::fs::rename(&temporary, path)?;
+    File::open(parent)?.sync_all()?;
+    Ok(())
 }

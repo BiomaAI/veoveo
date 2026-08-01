@@ -61,6 +61,21 @@ struct Args {
     fsync_on_flush: bool,
     #[arg(long, default_value_t = 1024 * 1024 * 1024)]
     live_queue_limit_bytes: u64,
+    #[arg(
+        long,
+        default_value_t = veoveo_recording_protocol::DEFAULT_MAXIMUM_BLUEPRINT_BYTES
+    )]
+    blueprint_max_bytes: u64,
+    #[arg(
+        long,
+        default_value_t = veoveo_recording_protocol::DEFAULT_MAXIMUM_BLUEPRINT_MESSAGES
+    )]
+    blueprint_max_messages: u64,
+    #[arg(
+        long,
+        default_value_t = veoveo_recording_protocol::DEFAULT_MAXIMUM_BLUEPRINT_REVISIONS
+    )]
+    blueprint_max_revisions: u32,
     /// Write a readiness marker file once the proxy is accepting traffic.
     #[arg(long)]
     ready_file: Option<PathBuf>,
@@ -169,6 +184,9 @@ fn main() -> Result<()> {
         flush_interval_ms: args.flush_interval_ms,
         fsync_on_flush: args.fsync_on_flush,
         live_queue_limit_bytes: args.live_queue_limit_bytes,
+        blueprint_max_bytes: args.blueprint_max_bytes,
+        blueprint_max_messages: args.blueprint_max_messages,
+        blueprint_max_revisions: args.blueprint_max_revisions,
     };
     config.validate()?;
 
@@ -235,6 +253,7 @@ async fn run(config: SpoolerConfig, args: Args) -> Result<()> {
             owner_subject: args.recording_owner_subject.clone(),
             classification: args.recording_classification.clone(),
             labels: args.recording_labels.clone(),
+            maximum_blueprint_revisions: config.blueprint_max_revisions,
         },
         tokio::runtime::Handle::current(),
     )
