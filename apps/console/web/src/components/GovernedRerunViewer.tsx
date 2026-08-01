@@ -5,8 +5,11 @@ import {
   type GovernedRerunSource,
   type OpenedRerunSources,
 } from "../rerunSources";
-import { installConsoleLivePlaybackFetch } from "../recordingLiveFetch";
-import { loadRerunMapViewerOptions } from "../rerunMap";
+import { installConsoleRecordingRrdFetch } from "../recordingLiveFetch";
+import {
+  loadRerunMapViewerOptions,
+  mapProviderCompatibilityError,
+} from "../rerunMap";
 
 type ViewerStatus =
   | { state: "loading"; delayed: boolean }
@@ -22,6 +25,7 @@ function synchronizeSources(
   if (transition.archiveUrlToCloseBeforeOpen) {
     viewer.close(transition.archiveUrlToCloseBeforeOpen);
   }
+  if (transition.blueprintUrlToOpen) viewer.open(transition.blueprintUrlToOpen);
   if (transition.archiveUrlToOpen) viewer.open(transition.archiveUrlToOpen);
   if (transition.liveUrlToOpen) {
     viewer.open(transition.liveUrlToOpen);
@@ -32,6 +36,8 @@ function synchronizeSources(
   opened.redapToken = transition.next.redapToken;
   opened.archive = transition.next.archive;
   opened.liveUrl = transition.next.liveUrl;
+  opened.blueprintUrl = transition.next.blueprintUrl;
+  opened.blueprintMapProvider = transition.next.blueprintMapProvider;
 }
 
 export default function GovernedRerunViewer({
@@ -45,10 +51,18 @@ export default function GovernedRerunViewer({
   const viewerRef = useRef<WebViewer | undefined>(undefined);
   const desiredSourceRef = useRef(source);
   const openedSourcesRef = useRef<OpenedRerunSources>({});
+  const mapSetupRef = useRef<
+    | {
+        provider: "openStreetMap" | "mapbox";
+        configurationError?: string;
+      }
+    | undefined
+  >(undefined);
   const [status, setStatus] = useState<ViewerStatus>({
     state: "loading",
     delayed: false,
   });
+  const [mapError, setMapError] = useState<string>();
 
   useEffect(() => {
     desiredSourceRef.current = source;
@@ -59,6 +73,16 @@ export default function GovernedRerunViewer({
     }
     try {
       synchronizeSources(viewer, openedSourcesRef.current, source);
+      const mapSetup = mapSetupRef.current;
+      if (mapSetup) {
+        setMapError(
+          mapSetup.configurationError ??
+            mapProviderCompatibilityError(
+              mapSetup.provider,
+              source.blueprintMapProvider
+            )
+        );
+      }
     } catch (cause: unknown) {
       const message = cause instanceof Error ? cause.message : "Rerun playback failed";
       console.error("Governed Rerun source update failed", cause);
@@ -68,7 +92,7 @@ export default function GovernedRerunViewer({
 
   useEffect(() => {
     const viewer = new WebViewer();
-    const releaseLivePlaybackFetch = installConsoleLivePlaybackFetch();
+    const releaseRecordingRrdFetch = installConsoleRecordingRrdFetch();
     let active = true;
     let removeOpenListener: (() => void) | undefined;
     let delayedNotice: number | undefined;
@@ -76,14 +100,33 @@ export default function GovernedRerunViewer({
       redapToken: desiredSourceRef.current.redapToken,
     };
     void loadRerunMapViewerOptions()
-      .then((mapOptions) => viewer.start(null, host.current, {
-        width: "100%",
-        height: "100%",
-        hide_welcome_screen: true,
-        allow_fullscreen: true,
-        fallback_token: desiredSourceRef.current.redapToken,
-        ...mapOptions,
+      .catch((cause: unknown) => ({
+        provider: "mapbox" as const,
+        options: {},
+        mapError:
+          cause instanceof Error ? cause.message : "Map provider configuration failed",
       }))
+      .then((mapSetup) => {
+        mapSetupRef.current = {
+          provider: mapSetup.provider,
+          configurationError: mapSetup.mapError,
+        };
+        const providerError =
+          mapSetup.mapError ??
+          mapProviderCompatibilityError(
+            mapSetup.provider,
+            desiredSourceRef.current.blueprintMapProvider
+          );
+        setMapError(providerError);
+        return viewer.start(null, host.current, {
+          width: "100%",
+          height: "100%",
+          hide_welcome_screen: true,
+          allow_fullscreen: true,
+          fallback_token: desiredSourceRef.current.redapToken,
+          ...mapSetup.options,
+        });
+      })
       .then(() => {
         if (!active) return;
         delayedNotice = window.setTimeout(() => {
@@ -113,6 +156,7 @@ export default function GovernedRerunViewer({
     return () => {
       active = false;
       viewerRef.current = undefined;
+      mapSetupRef.current = undefined;
       if (delayedNotice !== undefined) window.clearTimeout(delayedNotice);
       removeOpenListener?.();
       try {
@@ -120,7 +164,7 @@ export default function GovernedRerunViewer({
       } catch (cause) {
         console.warn("Rerun cleanup failed after the viewer stopped", cause);
       }
-      releaseLivePlaybackFetch();
+      releaseRecordingRrdFetch();
     };
   }, [recordingId, source.redapToken]);
 
@@ -149,6 +193,12 @@ export default function GovernedRerunViewer({
               ? "Following bounded live history while immutable layers remain lazy."
               : "Opening the recording catalog; Rerun fetches chunks as the active view needs them."}
           </span>
+        </div>
+      ) : null}
+      {mapError ? (
+        <div className="recording-viewer-map-error" role="alert">
+          <strong>Map background unavailable.</strong>
+          <span>{mapError}</span>
         </div>
       ) : null}
     </div>

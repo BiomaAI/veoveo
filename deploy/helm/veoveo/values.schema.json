@@ -444,6 +444,9 @@
         "segmentMaxBytes",
         "segmentMaxAgeSeconds",
         "liveHistorySeconds",
+        "blueprintMaxBytes",
+        "blueprintMaxMessages",
+        "blueprintMaxRevisions",
         "persistence",
         "hubImage",
         "mcpImage",
@@ -492,6 +495,20 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 3600
+        },
+        "blueprintMaxBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 251658240
+        },
+        "blueprintMaxMessages": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "blueprintMaxRevisions": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
         },
         "persistence": {
           "$ref": "#/definitions/persistence"

@@ -196,7 +196,7 @@ export interface RecordingSummary {
 }
 
 export interface RecordingPlaybackManifest {
-  schema: "veoveo.io/recording-playback/v2";
+  schema: "veoveo.io/recording-playback/v3";
   recording_id: string;
   application_id: string;
   recording_key: string;
@@ -224,6 +224,13 @@ export interface RecordingPlaybackManifest {
     current_byte_len: number;
     history_seconds: number;
     video_preroll_seconds: number;
+  };
+  blueprint?: {
+    blueprint_id: string;
+    revision: number;
+    sha256: string;
+    byte_len: number;
+    map_provider: "none" | "openStreetMap" | "mapbox" | "mixed";
   };
 }
 

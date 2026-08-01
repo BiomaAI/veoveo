@@ -19,11 +19,13 @@ use crate::{
 };
 
 const MAX_MANIFEST_BYTES: u64 = 8 * 1024 * 1024;
-const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v2";
+const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v3";
 const PLAYBACK_SESSION_HEADER: &str = "x-veoveo-playback-session";
 pub(crate) const MANIFEST_PATH: &str = "/console/api/recordings/{recording_id}/playback";
 pub(crate) const LIVE_SEGMENT_PATH: &str =
     "/console/api/recordings/{recording_id}/segments/{segment_id}/live.rrd";
+pub(crate) const BLUEPRINT_PATH: &str =
+    "/console/api/recordings/{recording_id}/blueprints/{revision}/data.rrd";
 
 #[derive(Debug, Deserialize, Serialize)]
 struct PlaybackManifest {
@@ -37,6 +39,7 @@ struct PlaybackManifest {
     access: PlaybackAccess,
     archive: Option<PlaybackArchive>,
     live: Option<PlaybackLiveSegment>,
+    blueprint: Option<PlaybackBlueprint>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -65,6 +68,24 @@ struct PlaybackLiveSegment {
     current_byte_len: u64,
     history_seconds: u64,
     video_preroll_seconds: u64,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct PlaybackBlueprint {
+    blueprint_id: String,
+    revision: u64,
+    sha256: String,
+    byte_len: u64,
+    map_provider: PlaybackMapProvider,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+enum PlaybackMapProvider {
+    None,
+    OpenStreetMap,
+    Mapbox,
+    Mixed,
 }
 
 pub(crate) async fn manifest(
@@ -183,6 +204,63 @@ pub(crate) async fn live_segment(
     response
 }
 
+pub(crate) async fn blueprint(
+    State(state): State<AppState>,
+    Path((recording_id, revision)): Path<(String, u64)>,
+    request_headers: HeaderMap,
+) -> Response {
+    let Some(recording_id) = parse_uuid_v7(&recording_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    if revision == 0 {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let session = match upstream_session_for_apps(&state, &request_headers).await {
+        Ok(session) => session,
+        Err(response) => return response,
+    };
+    let upstream = match state
+        .live_http
+        .get(
+            state
+                .config
+                .recording_blueprint_url(&recording_id.to_string(), revision),
+        )
+        .header(HOST, state.config.gateway_host())
+        .bearer_auth(session.session.access_token)
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(error) => {
+            tracing::error!(%error, %recording_id, revision, "console recording Blueprint upstream failed");
+            return StatusCode::BAD_GATEWAY.into_response();
+        }
+    };
+    binary_rrd_response(upstream)
+}
+
+fn binary_rrd_response(upstream: reqwest::Response) -> Response {
+    let status = upstream.status();
+    let mut headers = HeaderMap::new();
+    for name in [
+        CONTENT_TYPE,
+        CONTENT_LENGTH,
+        CACHE_CONTROL,
+        CONTENT_DISPOSITION,
+        X_CONTENT_TYPE_OPTIONS,
+    ] {
+        if let Some(value) = upstream.headers().get(&name) {
+            headers.insert(name, value.clone());
+        }
+    }
+    headers.insert(CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
+    let mut response = Response::new(Body::from_stream(upstream.bytes_stream()));
+    *response.status_mut() = status;
+    *response.headers_mut() = headers;
+    response
+}
+
 fn parse_uuid_v7(value: &str) -> Option<uuid::Uuid> {
     let id = uuid::Uuid::parse_str(value).ok()?;
     (id.get_version_num() == 7).then_some(id)
@@ -199,6 +277,19 @@ fn validated_manifest_bytes(body: &[u8], recording_id: uuid::Uuid) -> anyhow::Re
         manifest.recording_id == recording_id.to_string(),
         "manifest recording identity does not match its request"
     );
+    if let Some(blueprint) = &manifest.blueprint {
+        ensure!(
+            blueprint.revision > 0
+                && blueprint.byte_len > 0
+                && !blueprint.blueprint_id.trim().is_empty()
+                && blueprint.sha256.len() == 64
+                && blueprint
+                    .sha256
+                    .bytes()
+                    .all(|value| value.is_ascii_hexdigit()),
+            "manifest Blueprint descriptor is invalid"
+        );
+    }
     serde_json::to_vec(&manifest).context("serializing validated playback manifest")
 }
 
@@ -208,8 +299,8 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        LIVE_SEGMENT_PATH, MANIFEST_PATH, PLAYBACK_MANIFEST_SCHEMA, live_segment, manifest,
-        validated_manifest_bytes,
+        BLUEPRINT_PATH, LIVE_SEGMENT_PATH, MANIFEST_PATH, PLAYBACK_MANIFEST_SCHEMA, blueprint,
+        live_segment, manifest, validated_manifest_bytes,
     };
 
     fn manifest_value(recording_id: uuid::Uuid) -> serde_json::Value {
@@ -236,25 +327,34 @@ mod tests {
                 "byte_len": 42,
                 "layer_count": 1
             },
-            "live": null
+            "live": null,
+            "blueprint": {
+                "blueprint_id": "producer-default",
+                "revision": 3,
+                "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "byte_len": 512,
+                "map_provider": "mapbox"
+            }
         })
     }
 
     #[test]
-    fn manifest_v2_is_canonicalized_after_identity_validation() {
+    fn manifest_v3_is_canonicalized_after_identity_validation() {
         let recording_id = uuid::Uuid::now_v7();
         let body = serde_json::to_vec(&manifest_value(recording_id)).unwrap();
         let validated = validated_manifest_bytes(&body, recording_id).unwrap();
         let decoded: serde_json::Value = serde_json::from_slice(&validated).unwrap();
         assert_eq!(decoded["schema"], PLAYBACK_MANIFEST_SCHEMA);
         assert_eq!(decoded["recording_id"], recording_id.to_string());
+        assert_eq!(decoded["blueprint"]["map_provider"], "mapbox");
     }
 
     #[test]
     fn canonical_playback_routes_register_with_axum() {
         let _: Router<crate::AppState> = Router::new()
             .route(MANIFEST_PATH, get(manifest))
-            .route(LIVE_SEGMENT_PATH, get(live_segment));
+            .route(LIVE_SEGMENT_PATH, get(live_segment))
+            .route(BLUEPRINT_PATH, get(blueprint));
     }
 
     #[test]
@@ -271,6 +371,16 @@ mod tests {
         assert!(
             validated_manifest_bytes(
                 &serde_json::to_vec(&manifest_value(other_recording_id)).unwrap(),
+                recording_id
+            )
+            .is_err()
+        );
+
+        let mut unknown_provider = manifest_value(recording_id);
+        unknown_provider["blueprint"]["map_provider"] = json!("silentFallback");
+        assert!(
+            validated_manifest_bytes(
+                &serde_json::to_vec(&unknown_provider).unwrap(),
                 recording_id
             )
             .is_err()

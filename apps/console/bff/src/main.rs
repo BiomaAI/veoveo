@@ -157,6 +157,10 @@ async fn main() -> anyhow::Result<()> {
         .route(
             recording_playback::LIVE_SEGMENT_PATH,
             get(recording_playback::live_segment),
+        )
+        .route(
+            recording_playback::BLUEPRINT_PATH,
+            get(recording_playback::blueprint),
         );
     let router = with_console_static_routes(router, config.asset_dir())?
         .fallback(get(|| async { axum::http::StatusCode::NOT_FOUND }))
@@ -277,7 +281,8 @@ mod static_asset_tests {
         );
 
         let mapbox = console_content_security_policy(&config::RerunMapProvider::Mapbox {
-            access_token: "pk.redacted".to_owned(),
+            access_token: Some("pk.redacted".to_owned()),
+            diagnostic: None,
         })
         .unwrap();
         let mapbox = mapbox.to_str().unwrap();

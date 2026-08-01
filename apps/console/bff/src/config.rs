@@ -12,7 +12,10 @@ use veoveo_mcp_contract::ScopeName;
 #[derive(Clone)]
 pub(crate) enum RerunMapProvider {
     OpenStreetMap,
-    Mapbox { access_token: String },
+    Mapbox {
+        access_token: Option<String>,
+        diagnostic: Option<&'static str>,
+    },
 }
 
 impl RerunMapProvider {
@@ -28,7 +31,11 @@ impl std::fmt::Debug for RerunMapProvider {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::OpenStreetMap => formatter.write_str("OpenStreetMap"),
-            Self::Mapbox { .. } => formatter.write_str("Mapbox { access_token: [REDACTED] }"),
+            Self::Mapbox { diagnostic, .. } => formatter
+                .debug_struct("Mapbox")
+                .field("access_token", &"[REDACTED]")
+                .field("diagnostic", diagnostic)
+                .finish(),
         }
     }
 }
@@ -205,6 +212,15 @@ impl Config {
             .expect("validated profile and recording/segment ids")
     }
 
+    pub(crate) fn recording_blueprint_url(&self, recording_id: &str, revision: u64) -> Url {
+        self.gateway_url
+            .join(&format!(
+                "/recordings/{}/{recording_id}/blueprints/{revision}/data.rrd",
+                self.admin_profile
+            ))
+            .expect("validated profile and recording/Blueprint ids")
+    }
+
     pub(crate) fn gateway_host(&self) -> String {
         let host = self.public_base_url.host_str().expect("validated URL");
         match self.public_base_url.port() {
@@ -281,12 +297,22 @@ fn parse_rerun_map_provider(
             Ok(RerunMapProvider::OpenStreetMap)
         }
         "mapbox" => {
-            let token = mapbox_access_token.context(
-                "RERUN_MAPBOX_ACCESS_TOKEN is required when VEOVEO_CONSOLE_RERUN_MAP_PROVIDER is mapbox",
-            )?;
-            validate_mapbox_access_token(&token)?;
+            let (access_token, diagnostic) = match mapbox_access_token {
+                None => (
+                    None,
+                    Some("Mapbox is selected, but no installation token is mounted"),
+                ),
+                Some(token) if validate_mapbox_access_token(&token).is_ok() => (Some(token), None),
+                Some(_) => (
+                    None,
+                    Some(
+                        "Mapbox is selected, but the installation token is not a browser-safe public token",
+                    ),
+                ),
+            };
             Ok(RerunMapProvider::Mapbox {
-                access_token: token,
+                access_token,
+                diagnostic,
             })
         }
         _ => bail!("VEOVEO_CONSOLE_RERUN_MAP_PROVIDER must be one of openStreetMap or mapbox"),
@@ -485,14 +511,26 @@ mod tests {
     }
 
     #[test]
-    fn rerun_mapbox_requires_one_browser_safe_public_token() {
+    fn rerun_mapbox_is_typed_and_invalid_tokens_become_diagnostics() {
         assert!(matches!(
             parse_rerun_map_provider("openStreetMap", None).unwrap(),
             RerunMapProvider::OpenStreetMap
         ));
         assert!(parse_rerun_map_provider("openStreetMap", Some("pk.example".to_owned())).is_err());
-        assert!(parse_rerun_map_provider("mapbox", None).is_err());
-        assert!(parse_rerun_map_provider("mapbox", Some("sk.secret".to_owned())).is_err());
+        assert!(matches!(
+            parse_rerun_map_provider("mapbox", None).unwrap(),
+            RerunMapProvider::Mapbox {
+                access_token: None,
+                diagnostic: Some(_)
+            }
+        ));
+        assert!(matches!(
+            parse_rerun_map_provider("mapbox", Some("sk.secret".to_owned())).unwrap(),
+            RerunMapProvider::Mapbox {
+                access_token: None,
+                diagnostic: Some(_)
+            }
+        ));
         assert!(matches!(
             parse_rerun_map_provider("mapbox", Some("pk.example-token".to_owned())).unwrap(),
             RerunMapProvider::Mapbox { .. }
@@ -503,7 +541,8 @@ mod tests {
     fn config_debug_never_contains_the_mapbox_token() {
         let mut config = Config::for_test(Url::parse("http://127.0.0.1:8788").unwrap());
         config.rerun_map_provider = RerunMapProvider::Mapbox {
-            access_token: "pk.do-not-print".to_owned(),
+            access_token: Some("pk.do-not-print".to_owned()),
+            diagnostic: None,
         };
         let debug = format!("{config:?}");
         assert!(!debug.contains("pk.do-not-print"));

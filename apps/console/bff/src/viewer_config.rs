@@ -14,6 +14,8 @@ struct RerunMapConfig<'a> {
     provider: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     access_token: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    diagnostic: Option<&'a str>,
 }
 
 impl<'a> From<&'a RerunMapProvider> for RerunMapConfig<'a> {
@@ -22,10 +24,15 @@ impl<'a> From<&'a RerunMapProvider> for RerunMapConfig<'a> {
             RerunMapProvider::OpenStreetMap => Self {
                 provider: "openStreetMap",
                 access_token: None,
+                diagnostic: None,
             },
-            RerunMapProvider::Mapbox { access_token } => Self {
+            RerunMapProvider::Mapbox {
+                access_token,
+                diagnostic,
+            } => Self {
                 provider: "mapbox",
-                access_token: Some(access_token),
+                access_token: access_token.as_deref(),
+                diagnostic: *diagnostic,
             },
         }
     }
@@ -74,13 +81,26 @@ mod tests {
         );
 
         let mapbox = RerunMapProvider::Mapbox {
-            access_token: "pk.browser-token".to_owned(),
+            access_token: Some("pk.browser-token".to_owned()),
+            diagnostic: None,
         };
         assert_eq!(
             serde_json::to_value(RerunMapConfig::from(&mapbox)).unwrap(),
             serde_json::json!({
                 "provider": "mapbox",
                 "accessToken": "pk.browser-token"
+            })
+        );
+
+        let unavailable = RerunMapProvider::Mapbox {
+            access_token: None,
+            diagnostic: Some("installation token is unavailable"),
+        };
+        assert_eq!(
+            serde_json::to_value(RerunMapConfig::from(&unavailable)).unwrap(),
+            serde_json::json!({
+                "provider": "mapbox",
+                "diagnostic": "installation token is unavailable"
             })
         );
     }

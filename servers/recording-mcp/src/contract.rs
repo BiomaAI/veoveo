@@ -84,6 +84,7 @@ pub struct SealRecordingOutput {
     pub recording_id: String,
     pub manifest_artifact_uri: String,
     pub segment_artifact_uris: Vec<String>,
+    pub blueprint_artifact_uri: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
@@ -98,6 +99,7 @@ pub struct PlaybackManifest {
     pub access: PlaybackAccess,
     pub archive: Option<PlaybackArchive>,
     pub live: Option<PlaybackLiveSegment>,
+    pub blueprint: Option<PlaybackBlueprint>,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
@@ -128,12 +130,41 @@ pub struct PlaybackLiveSegment {
     pub video_preroll_seconds: u64,
 }
 
+#[derive(Clone, Debug, Serialize, JsonSchema)]
+pub struct PlaybackBlueprint {
+    pub blueprint_id: String,
+    pub revision: u64,
+    pub sha256: String,
+    pub byte_len: u64,
+    pub map_provider: PlaybackMapProvider,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum PlaybackMapProvider {
+    None,
+    OpenStreetMap,
+    Mapbox,
+    Mixed,
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct RecordingManifest {
     pub schema: String,
     pub recording: RecordingView,
     pub segments: Vec<ManifestSegment>,
+    pub blueprint: Option<ManifestBlueprint>,
     pub sealed_at: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ManifestBlueprint {
+    pub blueprint_id: String,
+    pub revision: i64,
+    pub byte_len: i64,
+    pub message_count: i64,
+    pub sha256: String,
+    pub artifact_uri: String,
 }
 
 #[derive(Clone, Debug, Serialize)]

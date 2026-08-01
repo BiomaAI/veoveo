@@ -17,6 +17,7 @@ pub(super) struct RecordingPlaybackNetworkEvidence {
     manifest_responses: usize,
     redap_responses: usize,
     live_responses: usize,
+    blueprint_responses: usize,
     legacy_archive_requests: usize,
     canceled_playback_requests: usize,
     cancellations: Vec<PlaybackRequestIssue>,
@@ -185,6 +186,7 @@ impl Cdp {
         let mut manifest_responses = 0;
         let mut redap_responses = 0;
         let mut live_responses = 0;
+        let mut blueprint_responses = 0;
         let mut legacy_archive_requests = BTreeSet::new();
         let mut issues = BTreeMap::<String, PlaybackRequestIssue>::new();
         let mut successful_paths = BTreeSet::new();
@@ -253,6 +255,7 @@ impl Cdp {
                             successful_redap_paths.insert(request.path.clone());
                         }
                         PlaybackRequestKind::Live => live_responses += 1,
+                        PlaybackRequestKind::Blueprint => blueprint_responses += 1,
                         PlaybackRequestKind::LegacyArchive => {}
                     }
                 }
@@ -287,6 +290,7 @@ impl Cdp {
             manifest_responses,
             redap_responses,
             live_responses,
+            blueprint_responses,
             legacy_archive_requests: legacy_archive_requests.len(),
             canceled_playback_requests: cancellations.len(),
             cancellations,
@@ -319,6 +323,7 @@ enum PlaybackRequestKind {
     Manifest,
     Redap,
     Live,
+    Blueprint,
     LegacyArchive,
 }
 
@@ -336,6 +341,12 @@ fn playback_request_kind(
     }
     if path.starts_with(recording_prefix) && path.ends_with("/live.rrd") {
         return Some((PlaybackRequestKind::Live, path));
+    }
+    if path.starts_with(recording_prefix)
+        && path.contains("/blueprints/")
+        && path.ends_with("/data.rrd")
+    {
+        return Some((PlaybackRequestKind::Blueprint, path));
     }
     if path.starts_with(recording_prefix)
         && (path.contains("/playback-sessions/")
@@ -425,6 +436,12 @@ mod tests {
                 "https://installation.example/console/api/recordings/019faa9f-acc8-7400-ba67-a9b022da1f63/segments/019faa9f-acc8-7400-ba67-a9b022da1f64/live.rrd"
             ),
             Some(PlaybackRequestKind::Live)
+        );
+        assert_eq!(
+            kind(
+                "https://installation.example/console/api/recordings/019faa9f-acc8-7400-ba67-a9b022da1f63/blueprints/1/data.rrd"
+            ),
+            Some(PlaybackRequestKind::Blueprint)
         );
         assert_eq!(
             kind(

@@ -18,6 +18,44 @@ test("opens one lazy Redap archive receiver", () => {
   assert.deepEqual(transition.urlsToCloseAfterOpen, []);
 });
 
+test("opens the governed producer Blueprint before recording sources", () => {
+  const transition = planRerunSourceTransition(
+    {},
+    {
+      redapToken: "token-a",
+      blueprintUrl: "https://console.example/blueprints/1.rrd",
+      archive: { uri: "rerun://archive", revision: "revision-a" },
+    }
+  );
+
+  assert.equal(
+    transition.blueprintUrlToOpen,
+    "https://console.example/blueprints/1.rrd"
+  );
+  assert.equal(transition.archiveUrlToOpen, "rerun://archive");
+});
+
+test("replaces a producer Blueprint revision without retaining the previous source", () => {
+  const transition = planRerunSourceTransition(
+    {
+      redapToken: "token-a",
+      blueprintUrl: "https://console.example/blueprints/1.rrd",
+    },
+    {
+      redapToken: "token-a",
+      blueprintUrl: "https://console.example/blueprints/2.rrd",
+    }
+  );
+
+  assert.equal(
+    transition.blueprintUrlToOpen,
+    "https://console.example/blueprints/2.rrd"
+  );
+  assert.deepEqual(transition.urlsToCloseAfterOpen, [
+    "https://console.example/blueprints/1.rrd",
+  ]);
+});
+
 test("rollover attaches archive and successor live source before detaching old live", () => {
   const transition = planRerunSourceTransition(
     { redapToken: "token-a", liveUrl: "live-1" },

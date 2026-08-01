@@ -392,29 +392,31 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: RERUN_MAPBOX_ACCESS_TOKEN",
         "name: \"console-browser-map\"",
         "key: \"access-token\"",
+        "optional: true",
     ] {
         contains(console_deployment, expected)?;
     }
     not_contains(console_deployment, "pk.")?;
 
-    let missing_console_mapbox_secret = Command::new("helm")
-        .args([
-            "template",
-            "veoveo",
-            "deploy/helm/veoveo",
-            "--set",
-            "consoleBff.rerunMap.provider=mapbox",
-        ])
-        .output()
-        .context("rendering the platform chart without a Mapbox Secret")?;
-    ensure!(
-        !missing_console_mapbox_secret.status.success(),
-        "Helm must reject Mapbox selection without an installation Secret"
-    );
-    contains(
-        &String::from_utf8_lossy(&missing_console_mapbox_secret.stderr),
-        "consoleBff.rerunMap.mapbox.accessToken.existingSecret is required",
+    let missing_console_mapbox_secret = run_checked(
+        Path::new("helm"),
+        [
+            "template".into(),
+            "veoveo".into(),
+            "deploy/helm/veoveo".into(),
+            "--set".into(),
+            "consoleBff.rerunMap.provider=mapbox".into(),
+        ],
+        [],
     )?;
+    let missing_secret_deployment = missing_console_mapbox_secret
+        .split("\n---\n")
+        .find(|document| {
+            document.contains("kind: Deployment") && document.contains("name: console-bff\n")
+        })
+        .context("finding Console BFF deployment without a Mapbox Secret")?;
+    contains(missing_secret_deployment, "value: \"mapbox\"")?;
+    not_contains(missing_secret_deployment, "name: RERUN_MAPBOX_ACCESS_TOKEN")?;
 
     let streamed_world = run_checked(
         Path::new("helm"),

@@ -3,6 +3,7 @@ use std::path::{Component, Path, PathBuf};
 
 use anyhow::{Context, Result, ensure};
 use chrono::Utc;
+use sha2::Digest as _;
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{
     ArtifactPlane, DataLabelId, GatewayInternalIdentity, PlaneCaller, PutArtifactRequest,
@@ -18,8 +19,8 @@ use veoveo_recording_hub::{
 };
 
 use crate::contract::{
-    ManifestSegment, PlaybackLiveSegment, QueryRecordingOutput, QueryRecordingRequest,
-    RecordingManifest, RecordingView, SealRecordingOutput, SegmentView,
+    ManifestBlueprint, ManifestSegment, PlaybackLiveSegment, QueryRecordingOutput,
+    QueryRecordingRequest, RecordingManifest, RecordingView, SealRecordingOutput, SegmentView,
 };
 
 mod read;
@@ -45,6 +46,7 @@ pub struct RecordingPlaybackPlan {
     pub ended_at: Option<chrono::DateTime<Utc>>,
     pub archive_segments: Vec<PlaybackArchiveSegmentPlan>,
     pub live: Option<PlaybackLiveSegmentPlan>,
+    pub blueprint: Option<PlaybackBlueprintPlan>,
 }
 
 #[derive(Clone, Debug)]
@@ -60,6 +62,16 @@ pub struct PlaybackArchiveSegmentPlan {
 pub struct PlaybackLiveSegmentPlan {
     pub descriptor: PlaybackLiveSegment,
     pub path: PathBuf,
+}
+
+#[derive(Clone, Debug)]
+pub struct PlaybackBlueprintPlan {
+    pub blueprint_id: String,
+    pub revision: u64,
+    pub byte_len: u64,
+    pub sha256: String,
+    pub path: PathBuf,
+    pub map_provider: veoveo_recording_hub::BlueprintMapProviderSelection,
 }
 
 #[derive(Clone)]
@@ -214,7 +226,9 @@ impl RecordingService {
         let Some(plan) = self.read_plan(&authority, recording_id).await? else {
             return Ok(None);
         };
-        let Some((_, recording)) = self.visible_recording(identity, recording_id).await? else {
+        let Some((platform_identity, recording)) =
+            self.visible_recording(identity, recording_id).await?
+        else {
             return Ok(None);
         };
         let segments = plan
@@ -252,6 +266,35 @@ impl RecordingService {
                 })
             })
             .transpose()?;
+        let blueprint = self
+            .store
+            .current_recording_blueprint(platform_identity.tenant_id, recording_id)
+            .await?
+            .map(|blueprint| {
+                let path = self.segment_path(&blueprint.relative_path)?;
+                let bytes = std::fs::read(&path)?;
+                ensure!(
+                    bytes.len() as i64 == blueprint.byte_len
+                        && hex::encode(sha2::Sha256::digest(&bytes)) == blueprint.sha256,
+                    "playback Blueprint no longer matches its governed publication"
+                );
+                let validated = veoveo_recording_hub::validate_blueprint_rrd(
+                    &bytes,
+                    u64::try_from(blueprint.message_count)?,
+                    &recording.application_id,
+                )?;
+                Ok::<_, anyhow::Error>(PlaybackBlueprintPlan {
+                    blueprint_id: blueprint.blueprint_id,
+                    revision: u64::try_from(blueprint.revision)
+                        .context("Blueprint revision is negative")?,
+                    byte_len: u64::try_from(blueprint.byte_len)
+                        .context("Blueprint byte length is negative")?,
+                    sha256: blueprint.sha256,
+                    path,
+                    map_provider: validated.map_provider,
+                })
+            })
+            .transpose()?;
         Ok(Some(RecordingPlaybackPlan {
             recording_id,
             application_id: plan.application_id,
@@ -261,6 +304,7 @@ impl RecordingService {
             ended_at: recording.ended_at,
             archive_segments: segments,
             live,
+            blueprint,
         }))
     }
 
@@ -346,6 +390,24 @@ impl RecordingService {
             );
             self.validate_segment(segment).await?;
         }
+        let blueprint = self
+            .store
+            .current_recording_blueprint(platform_identity.tenant_id, recording_id)
+            .await?;
+        if let Some(blueprint) = &blueprint {
+            let path = self.segment_path(&blueprint.relative_path)?;
+            let bytes = tokio::fs::read(&path).await?;
+            ensure!(
+                bytes.len() as i64 == blueprint.byte_len
+                    && hex::encode(sha2::Sha256::digest(&bytes)) == blueprint.sha256,
+                "recording Blueprint no longer matches its governed publication"
+            );
+            veoveo_recording_hub::validate_blueprint_rrd(
+                &bytes,
+                u64::try_from(blueprint.message_count)?,
+                &recording.application_id,
+            )?;
+        }
 
         self.store
             .begin_recording_seal(&platform_identity, recording_id, None)
@@ -418,6 +480,65 @@ impl RecordingService {
             });
         }
 
+        let manifest_blueprint = if let Some(blueprint) = blueprint {
+            let (artifact_id, artifact_uri) = if let Some(artifact) = &blueprint.artifact {
+                let id =
+                    PlatformArtifactId::from_uuid(record_uuid(artifact, "artifact_occurrence")?);
+                (id, artifact_uri(id))
+            } else {
+                let path = self.segment_path(&blueprint.relative_path)?;
+                let bytes = tokio::fs::read(&path).await?;
+                let metadata = self
+                    .artifacts
+                    .put(
+                        caller,
+                        PutArtifactRequest {
+                            mime_type: Some(RRD_MIME.to_owned()),
+                            filename: Some(format!(
+                                "{}.blueprint.{}.rrd",
+                                recording.recording_key, blueprint.revision
+                            )),
+                            classification: artifact_classification(&recording.classification)?,
+                            data_labels: labels(&recording.labels)?,
+                            retention_expires_at: None,
+                            metadata: serde_json::json!({
+                                "provenance": {
+                                    "kind": "recording_blueprint",
+                                    "recording_id": recording_id,
+                                    "blueprint_id": blueprint.blueprint_id,
+                                    "revision": blueprint.revision,
+                                    "sha256": blueprint.sha256,
+                                    "application_id": recording.application_id,
+                                }
+                            }),
+                        },
+                        bytes,
+                    )
+                    .await?;
+                let artifact_id = PlatformArtifactId::from_uuid(metadata.artifact_id.as_uuid());
+                self.store
+                    .stage_recording_blueprint_artifact(
+                        &platform_identity,
+                        recording_id,
+                        u64::try_from(blueprint.revision)?,
+                        artifact_id,
+                    )
+                    .await?;
+                (artifact_id, metadata.artifact_uri)
+            };
+            let _ = artifact_id;
+            Some(ManifestBlueprint {
+                blueprint_id: blueprint.blueprint_id,
+                revision: blueprint.revision,
+                byte_len: blueprint.byte_len,
+                message_count: blueprint.message_count,
+                sha256: blueprint.sha256,
+                artifact_uri,
+            })
+        } else {
+            None
+        };
+
         let sealed_at = Utc::now();
         let current = self
             .store
@@ -429,9 +550,10 @@ impl RecordingService {
         } else {
             let recording_view = self.view(platform_identity.tenant_id, current).await?;
             let manifest = RecordingManifest {
-                schema: "veoveo.recording-manifest/v1".to_owned(),
+                schema: "veoveo.recording-manifest/v2".to_owned(),
                 recording: recording_view,
                 segments: manifest_segments.clone(),
+                blueprint: manifest_blueprint.clone(),
                 sealed_at: sealed_at.to_rfc3339(),
             };
             let bytes = serde_json::to_vec_pretty(&manifest)?;
@@ -480,6 +602,7 @@ impl RecordingService {
                 .into_iter()
                 .map(|segment| segment.artifact_uri)
                 .collect(),
+            blueprint_artifact_uri: manifest_blueprint.map(|blueprint| blueprint.artifact_uri),
         })
     }
 
@@ -510,6 +633,20 @@ impl RecordingService {
                 )?)))
             })
             .collect::<Result<Vec<_>>>()?;
+        let blueprint_artifact_uri =
+            self.store
+                .current_recording_blueprint(identity.tenant_id, recording_id)
+                .await?
+                .map(|blueprint| {
+                    let artifact = blueprint
+                        .artifact
+                        .as_ref()
+                        .context("sealed recording Blueprint has no artifact")?;
+                    Ok::<_, anyhow::Error>(artifact_uri(PlatformArtifactId::from_uuid(
+                        record_uuid(artifact, "artifact_occurrence")?,
+                    )))
+                })
+                .transpose()?;
         Ok(SealRecordingOutput {
             recording_id: recording_id.to_string(),
             manifest_artifact_uri: artifact_uri(PlatformArtifactId::from_uuid(record_uuid(
@@ -517,6 +654,7 @@ impl RecordingService {
                 "artifact_occurrence",
             )?)),
             segment_artifact_uris,
+            blueprint_artifact_uri,
         })
     }
 

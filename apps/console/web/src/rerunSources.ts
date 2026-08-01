@@ -7,12 +7,16 @@ export interface GovernedRerunSource {
   redapToken: string;
   archive?: GovernedRerunArchive;
   liveUrl?: string;
+  blueprintUrl?: string;
+  blueprintMapProvider?: "none" | "openStreetMap" | "mapbox" | "mixed";
 }
 
 export interface OpenedRerunSources {
   redapToken?: string;
   archive?: GovernedRerunArchive;
   liveUrl?: string;
+  blueprintUrl?: string;
+  blueprintMapProvider?: "none" | "openStreetMap" | "mapbox" | "mixed";
 }
 
 export interface RerunSourceTransition {
@@ -20,6 +24,7 @@ export interface RerunSourceTransition {
   archiveUrlToCloseBeforeOpen?: string;
   archiveUrlToOpen?: string;
   liveUrlToOpen?: string;
+  blueprintUrlToOpen?: string;
   urlsToCloseAfterOpen: string[];
   next: OpenedRerunSources;
 }
@@ -46,6 +51,9 @@ export function planRerunSourceTransition(
   if (opened.liveUrl && opened.liveUrl !== desired.liveUrl) {
     urlsToCloseAfterOpen.push(opened.liveUrl);
   }
+  if (opened.blueprintUrl && opened.blueprintUrl !== desired.blueprintUrl) {
+    urlsToCloseAfterOpen.push(opened.blueprintUrl);
+  }
   return {
     credentialsChanged: opened.redapToken !== desired.redapToken,
     archiveUrlToCloseBeforeOpen: sameArchiveReceiverNeedsRefresh
@@ -56,11 +64,17 @@ export function planRerunSourceTransition(
       desired.liveUrl && desired.liveUrl !== opened.liveUrl
         ? desired.liveUrl
         : undefined,
+    blueprintUrlToOpen:
+      desired.blueprintUrl && desired.blueprintUrl !== opened.blueprintUrl
+        ? desired.blueprintUrl
+        : undefined,
     urlsToCloseAfterOpen,
     next: {
       redapToken: desired.redapToken,
       archive: desired.archive,
       liveUrl: desired.liveUrl,
+      blueprintUrl: desired.blueprintUrl,
+      blueprintMapProvider: desired.blueprintMapProvider,
     },
   };
 }

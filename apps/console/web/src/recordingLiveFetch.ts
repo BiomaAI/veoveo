@@ -1,7 +1,7 @@
 const UUID_V7 =
   "[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
-const LIVE_PLAYBACK_PATH = new RegExp(
-  `^/console/api/recordings/${UUID_V7}/segments/${UUID_V7}/live\\.rrd$`
+const GOVERNED_RRD_PATH = new RegExp(
+  `^/console/api/recordings/${UUID_V7}/(?:segments/${UUID_V7}/live\\.rrd|blueprints/[1-9][0-9]*/data\\.rrd)$`
 );
 
 interface FetchAdapterInstallation {
@@ -12,7 +12,7 @@ interface FetchAdapterInstallation {
 
 let installation: FetchAdapterInstallation | undefined;
 
-export function isConsoleLivePlaybackRequest(
+export function isConsoleRecordingRrdRequest(
   request: Request,
   consoleOrigin: string
 ): boolean {
@@ -22,24 +22,24 @@ export function isConsoleLivePlaybackRequest(
     url.origin === consoleOrigin &&
     url.search === "" &&
     url.hash === "" &&
-    LIVE_PLAYBACK_PATH.test(url.pathname)
+    GOVERNED_RRD_PATH.test(url.pathname)
   );
 }
 
-export function attachConsoleSessionToLivePlayback(
+export function attachConsoleSessionToRecordingRrd(
   request: Request,
   consoleOrigin: string
 ): Request {
   if (
     request.credentials !== "omit" ||
-    !isConsoleLivePlaybackRequest(request, consoleOrigin)
+    !isConsoleRecordingRrdRequest(request, consoleOrigin)
   ) {
     return request;
   }
   return new Request(request, { credentials: "same-origin" });
 }
 
-export function authorizeConsoleLivePlaybackFetch(
+export function authorizeConsoleRecordingRrdFetch(
   input: RequestInfo | URL,
   init: RequestInit | undefined,
   consoleOrigin: string
@@ -60,7 +60,7 @@ export function authorizeConsoleLivePlaybackFetch(
     url.origin !== consoleOrigin ||
     url.search !== "" ||
     url.hash !== "" ||
-    !LIVE_PLAYBACK_PATH.test(url.pathname)
+    !GOVERNED_RRD_PATH.test(url.pathname)
   ) {
     return [input, init];
   }
@@ -84,13 +84,14 @@ export function authorizeConsoleLivePlaybackFetch(
 
 /**
  * Rerun 0.35 deliberately omits credentials on HTTP RRD receivers. Veoveo's
- * bounded live receiver is a same-origin Console resource, so its existing
+ * bounded live receiver and finite producer Blueprint are same-origin Console
+ * resources, so their existing
  * HttpOnly session cookie must be restored at the browser Fetch boundary.
  *
  * The adapter is reversible and exact-path only. It cannot add credentials to
  * Redap, arbitrary HTTP sources, legacy archive routes, or cross-origin URLs.
  */
-export function installConsoleLivePlaybackFetch(): () => void {
+export function installConsoleRecordingRrdFetch(): () => void {
   if (installation) {
     installation.consumers += 1;
     return releaseOnce();
@@ -100,7 +101,7 @@ export function installConsoleLivePlaybackFetch(): () => void {
   const origin = globalThis.location.origin;
   const adapted: typeof globalThis.fetch = (input, init) => {
     const [authorizedInput, authorizedInit] =
-      authorizeConsoleLivePlaybackFetch(input, init, origin);
+      authorizeConsoleRecordingRrdFetch(input, init, origin);
     return original.call(globalThis, authorizedInput, authorizedInit);
   };
   installation = {

@@ -6,8 +6,8 @@
 |---|---|
 | Rerun 0.35.0 gRPC and RRD | Producer-local ingestion and immutable `object-store`-optimized shards with footer manifests. |
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Recording-scoped read subset over HTTP/2 and gRPC-Web. Veoveo does not expose a general Rerun catalog or mutation surface. |
-| Veoveo recording ingest `2026-07-24` | Authenticated protobuf batches preserve native Rerun messages, order, idempotency, and IDR-aligned rollover. |
-| Veoveo recording playback `v2` | `veoveo.io/recording-playback/v2` binds one lazy archive dataset, one optional bounded live source, catalog revision, and scoped session. |
+| Veoveo recording ingest `2026-08-01` | Authenticated protobuf batches and distinct producer Blueprint publications preserve native Rerun store identities, order, idempotency, and IDR-aligned rollover. |
+| Veoveo recording playback `v3` | `veoveo.io/recording-playback/v3` binds one producer Blueprint, one lazy archive dataset, one optional bounded live source, catalog revision, and scoped session. |
 | H.264/AVC Annex B | Decoder-reentrant `VideoStream` access units, sparse keyframe markers, and exact producer timeline indices. |
 | JSON Web Token and SHA-256 | Host-limited Redap read access and immutable shard, layer-revision, and artifact identities. |
 
@@ -56,6 +56,14 @@ bounded temporal queries; and synchronous idempotent sealing. Sealing requires
 artifact occurrences for every segment and a JSON manifest, stages those
 occurrence identities, then changes the recording and its segments to `sealed`
 while publishing the durable outbox event in the same SurrealDB transaction.
+Producer-authored Blueprints are presentation metadata. Hub admits one complete
+Blueprint store only through an explicitly enabled producer policy, binds it to
+the recording's tenant, application, producer, Work Context, and invocation
+authority, and persists immutable monotonic revisions. The current revision is
+published as a separate governed RRD artifact during sealing and appears as a
+separate entry in recording manifest v2. Its layout cannot become simulation,
+mission, or world-data authority.
+
 `started_at` is the first cataloged producer message, `ended_at` is the capture
 boundary, and `sealed_at` records later publication. These timestamps are not
 interchangeable.
@@ -66,13 +74,30 @@ resource policy and audit path, then issues a short-lived internal assertion.
 The BFF authenticates each Console request and passes the manifest through. It
 does not retain playback sessions or proxy archive bytes.
 
-Playback manifest `veoveo.io/recording-playback/v2` establishes a renewable
+Playback manifest `veoveo.io/recording-playback/v3` establishes a renewable
 five-minute server session scoped to one recording and actor. It returns a
 Rerun-compatible read token whose standard Redap claims limit delivery to the
 installation hostname. Active replay renews the session every minute, while
 live manifest refreshes renew it every five seconds. Each renewal rechecks
 recording policy. The opaque session identifier contains no bearer, catalog, or
 filesystem identity.
+
+When a recording has a producer Blueprint, the playback manifest carries its
+store identity, revision, digest, and length. The BFF exposes its bytes on a
+recording-scoped authenticated route. Recording MCP verifies the stored digest
+again and rewrites every Blueprint message, including its activation command,
+to the playback application's identity. Console opens that finite Blueprint
+source before archive and live recording sources, which applies one producer
+layout to live, ready, and sealed playback without mixing the stores.
+
+The installation selects the browser map provider and owns its public browser
+token. A producer Blueprint selects the Rerun map background and layout within
+that provider. Mapbox selection admits only Mapbox network origins in Console's
+content-security policy, so OpenStreetMap cannot silently substitute. Missing,
+malformed, or provider-rejected credentials create a map-scoped viewer
+diagnostic; recording ingest and the 3D view remain available. Tokens stay in
+the installation Secret and authenticated no-store configuration response.
+They do not enter RRD, Blueprint, manifest, MCP, artifact metadata, or logs.
 
 Completed playback opens one stable Rerun Data Protocol dataset-segment URI.
 The recording UUIDv7 supplies the exact dataset id. The producer's logical

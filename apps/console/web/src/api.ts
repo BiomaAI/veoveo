@@ -324,6 +324,11 @@ export function recordingLiveSegmentUrl(
   return new URL(path, window.location.origin).toString();
 }
 
+export function recordingBlueprintUrl(recordingId: string, revision: number): string {
+  const path = `/console/api/recordings/${encodeURIComponent(recordingId)}/blueprints/${encodeURIComponent(revision)}/data.rrd`;
+  return new URL(path, window.location.origin).toString();
+}
+
 export async function loadApps(signal?: AbortSignal): Promise<AppCatalog> {
   const response = await fetch("/console/api/apps", {
     credentials: "same-origin",
