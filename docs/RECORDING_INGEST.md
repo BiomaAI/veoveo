@@ -5,28 +5,47 @@ and Kubernetes routes. A producer sends native Rerun traffic to a loopback forwa
 The forwarder persists bounded batches locally, obtains an OAuth client-credentials token,
 and uploads versioned protobuf envelopes to `/ingest/recordings/v1`.
 
-The OAuth protected resource is installation-specific. Bioma uses
-`https://veoveo.bioma.ai/ingest/recordings` and the `recording:ingest` scope. Public and
+The OAuth protected resource is installation-specific. A representative installation uses
+`https://platform.example/ingest/recordings` and the `recording:ingest` scope. Public and
 split-horizon local DNS select different network routes to the same gateway resource.
 Network location never changes producer authority.
 
 ## Protocol
 
-`platform/recordings/protocol` owns version `2026-07-24` of the wire schema and media
+`platform/recordings/protocol` owns version `2026-08-01` of the wire schema and media
 type. A batch declares its monotonic sequence, exact Rerun 0.35.0 RRD encoding release,
 message count, payload bytes, and SHA-256 digest. Stream creation is idempotent under the
 producer's `source_stream_id`.
 Repeating an accepted sequence with the same digest succeeds without another append.
 A different digest conflicts, and a gap returns the next expected sequence.
 
-The public operations are discovery, open or resume, status, append, and
-finish. They do not expose raw recording bytes or proxy Rerun read operations.
+The public operations are discovery, open or resume, status, append, Blueprint
+publication, and finish. They do not expose raw recording bytes or proxy Rerun read operations.
 Each accepted batch is materialized as an immutable ordered part of the current
 writing segment before its append response advances the materialized
 checkpoint. Segment byte and age limits merge those complete parts into one
 ordinary immutable RRD segment and open the next writing segment. Finishing
 freezes the remaining parts and closes the ordered stream. Sealing and artifact
 publication remain governed Recording MCP operations.
+
+A producer registration separately authorizes Blueprint publication and sets
+byte, message, and retained-revision limits. One publication contains exactly
+one Rerun Blueprint store for the recording application, contains at least one
+`SetStoreInfo`, and ends with one active/default activation command. The
+forwarder associates it only when exactly one local recording for that
+application is active. Hub stores the Blueprint under its distinct store
+identity and the same tenant, recording, producer, Work Context, and invocation
+authority. It never relabels presentation metadata as recording data.
+
+Revisions start at one and advance without gaps. Repeating one revision with
+the same store identity, digest, byte length, and message count is idempotent;
+different content at that revision conflicts. The queue persists Blueprint
+revisions beside recording batches and removes either only after its own
+durable acknowledgment. Invalid or unauthorized presentation metadata is
+rejected with a typed diagnostic while accepted recording batches continue.
+Discovery publishes both Blueprint byte and message ceilings. The forwarder
+applies those ceilings while collecting decoded messages, before a complete
+RRD is retained or queued, and Hub applies the producer-specific limits again.
 
 ## Authentication and policy
 
@@ -49,6 +68,10 @@ network while disconnected from the Internet.
 The forwarder recovers and uploads one queued batch at a time, which keeps memory
 bounded by the negotiated batch limit even when its disk queue is full. It
 removes a local batch only after Recording Hub reports a durable checkpoint.
+Incomplete Blueprint collection is bounded by the negotiated byte and message
+limits. Both native receivers apply one aggregate byte ceiling and admit at
+most 32 incomplete stores; the loopback Hub may lower that count through the
+configured revision budget.
 Persisted enqueue and upload cursors make queue work constant with respect to
 backlog depth. Reconciliation inventories the directory once at startup, then
 normal appends and acknowledgements update the cached byte count and the next
@@ -85,12 +108,11 @@ identity, part sequence, byte length, and SHA-256 without exposing paths.
 
 ## Network routes
 
-The external and local-network origin uses HTTPS. Bioma's public DNS reaches Cloudflare
-and its local DNS resolves the same `veoveo.bioma.ai` name to the installation's LAN
-Traefik address. Traefik presents a certificate for that canonical name in both cases.
-`examples/bioma/lan-values.yaml` enables this route while preserving the public resource
-identity. Kubernetes forwarders also use canonical HTTPS unless an internal gateway
-service presents a certificate valid for that same origin.
+The external and local-network origin uses HTTPS. Public and split-horizon DNS
+may route the same canonical hostname differently, but every route presents a
+certificate for that hostname and preserves the public resource identity.
+Kubernetes forwarders also use canonical HTTPS unless an internal gateway
+service presents a certificate valid for the same origin.
 
 The Helm workloads set `--gateway-transport-url` to the private gateway
 ClusterIP route. This changes only the socket destination. Discovery results,
@@ -125,13 +147,13 @@ sequences restart from one. Playback and governance continue to address one
 recording across every generation.
 
 The producer registration supplies a JWKS public key. The matching private key stays on
-the producer as a PEM file and is selected by key ID and algorithm. A Bioma
-producer uses these canonical settings:
+the producer as a PEM file and is selected by key ID and algorithm. A producer
+uses these canonical settings:
 
 ```sh
 recording-forwarder \
-  --gateway-url https://veoveo.bioma.ai/ \
-  --protected-resource https://veoveo.bioma.ai/ingest/recordings \
+  --gateway-url https://platform.example/ \
+  --protected-resource https://platform.example/ingest/recordings \
   --client-id recording-producer \
   --key-id recording-producer-2026 \
   --private-key-pem-file /run/secrets/recording-producer.pem \
@@ -144,7 +166,7 @@ producer key and a dedicated persistent queue. Kubernetes starts the forwarder
 before the producer container and terminates it after the producer exits.
 
 The same command works on the local network when split-horizon DNS resolves
-`veoveo.bioma.ai` to the LAN ingress. The certificate and OAuth resource identity remain
+`platform.example` to the LAN ingress. The certificate and OAuth resource identity remain
 unchanged.
 
 ## Acceptance

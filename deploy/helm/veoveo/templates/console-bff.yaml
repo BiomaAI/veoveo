@@ -67,12 +67,13 @@ spec:
             {{- end }}
             - name: VEOVEO_CONSOLE_RERUN_MAP_PROVIDER
               value: {{ .Values.consoleBff.rerunMap.provider | quote }}
-            {{- if eq .Values.consoleBff.rerunMap.provider "mapbox" }}
+            {{- if and (eq .Values.consoleBff.rerunMap.provider "mapbox") .Values.consoleBff.rerunMap.mapbox.accessToken.existingSecret }}
             - name: RERUN_MAPBOX_ACCESS_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ required "consoleBff.rerunMap.mapbox.accessToken.existingSecret is required when the mapbox provider is selected" .Values.consoleBff.rerunMap.mapbox.accessToken.existingSecret | quote }}
-                  key: {{ required "consoleBff.rerunMap.mapbox.accessToken.key is required when the mapbox provider is selected" .Values.consoleBff.rerunMap.mapbox.accessToken.key | quote }}
+                  name: {{ .Values.consoleBff.rerunMap.mapbox.accessToken.existingSecret | quote }}
+                  key: {{ .Values.consoleBff.rerunMap.mapbox.accessToken.key | quote }}
+                  optional: true
             {{- end }}
             - name: VEOVEO_CONSOLE_OAUTH_SCOPES
               value: {{ join " " .Values.consoleBff.oauthScopes | quote }}

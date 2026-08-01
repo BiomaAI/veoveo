@@ -11,19 +11,29 @@ export default function GovernedRerunArtifactViewer({
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string>();
+  const [mapError, setMapError] = useState<string>();
 
   useEffect(() => {
     const viewer = new WebViewer();
     const controller = new AbortController();
 
     void loadRerunMapViewerOptions()
-      .then((mapOptions) => viewer.start(null, host.current, {
-        width: "100%",
-        height: "100%",
-        hide_welcome_screen: true,
-        allow_fullscreen: true,
-        ...mapOptions,
+      .catch((cause: unknown) => ({
+        provider: "mapbox" as const,
+        options: {},
+        mapError:
+          cause instanceof Error ? cause.message : "Map provider configuration failed",
       }))
+      .then((mapSetup) => {
+        setMapError(mapSetup.mapError);
+        return viewer.start(null, host.current, {
+          width: "100%",
+          height: "100%",
+          hide_welcome_screen: true,
+          allow_fullscreen: true,
+          ...mapSetup.options,
+        });
+      })
       .then(async () => {
         const response = await fetch(url, {
           credentials: "same-origin",
@@ -62,6 +72,12 @@ export default function GovernedRerunArtifactViewer({
           <span>{error}</span>
         </div>
       )}
+      {mapError ? (
+        <div className="recording-viewer-map-error" role="alert">
+          <strong>Map background unavailable.</strong>
+          <span>{mapError}</span>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -137,6 +137,9 @@ recording:
   segmentMaxBytes: 201326592
   segmentMaxAgeSeconds: 3600
   liveHistorySeconds: 60
+  blueprintMaxBytes: 2097152
+  blueprintMaxMessages: 10000
+  blueprintMaxRevisions: 32
   persistence:
     size: 100Gi
     storageClass: ""

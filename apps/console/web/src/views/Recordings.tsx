@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import {
   loadRecordingPlayback,
+  recordingBlueprintUrl,
   recordingLiveSegmentUrl,
 } from "../api";
 import { EmptyState, SectionHeader, StatusPill } from "../components/primitives";
@@ -247,6 +248,10 @@ export function RecordingsView({
               }
             : undefined,
           liveUrl,
+          blueprintUrl: manifest.blueprint
+            ? recordingBlueprintUrl(manifest.recording_id, manifest.blueprint.revision)
+            : undefined,
+          blueprintMapProvider: manifest.blueprint?.map_provider,
         }
       : undefined;
   }, [manifest]);

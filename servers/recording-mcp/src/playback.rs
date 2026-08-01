@@ -38,10 +38,12 @@ use veoveo_platform_store::{RecordingId, RecordingState};
 
 use crate::{
     RecordingPlaybackPlan,
-    contract::{PlaybackAccess, PlaybackArchive, PlaybackManifest},
+    contract::{
+        PlaybackAccess, PlaybackArchive, PlaybackBlueprint, PlaybackManifest, PlaybackMapProvider,
+    },
 };
 
-pub const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v2";
+pub const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v3";
 pub const PLAYBACK_SESSION_HEADER: &str = "x-veoveo-playback-session";
 const TOKEN_ISSUER: &str = "veoveo-recording-playback";
 const SESSION_TTL: TimeDelta = TimeDelta::minutes(5);
@@ -174,6 +176,26 @@ impl PlaybackManager {
             access,
             archive,
             live: plan.live.map(|live| live.descriptor),
+            blueprint: plan.blueprint.map(|blueprint| PlaybackBlueprint {
+                blueprint_id: blueprint.blueprint_id,
+                revision: blueprint.revision,
+                sha256: blueprint.sha256,
+                byte_len: blueprint.byte_len,
+                map_provider: match blueprint.map_provider {
+                    veoveo_recording_hub::BlueprintMapProviderSelection::None => {
+                        PlaybackMapProvider::None
+                    }
+                    veoveo_recording_hub::BlueprintMapProviderSelection::OpenStreetMap => {
+                        PlaybackMapProvider::OpenStreetMap
+                    }
+                    veoveo_recording_hub::BlueprintMapProviderSelection::Mapbox => {
+                        PlaybackMapProvider::Mapbox
+                    }
+                    veoveo_recording_hub::BlueprintMapProviderSelection::Mixed => {
+                        PlaybackMapProvider::Mixed
+                    }
+                },
+            }),
         })
     }
 
@@ -499,6 +521,10 @@ pub fn playback_store_id(recording_id: RecordingId, segment_id: &str) -> Result<
         playback_dataset_id(recording_id)?.to_string(),
         segment_id,
     ))
+}
+
+pub fn playback_application_id(recording_id: RecordingId) -> Result<String> {
+    Ok(playback_dataset_id(recording_id)?.to_string())
 }
 
 fn playback_dataset_id(recording_id: RecordingId) -> Result<EntryId> {
@@ -831,11 +857,19 @@ mod tests {
         );
         let manager = manager();
         let identity = identity("operator-a");
-        let first_plan = plan(
+        let mut first_plan = plan(
             recording_id,
             recording_key,
-            vec![archive_plan(first_segment, 0, first_path)],
+            vec![archive_plan(first_segment, 0, first_path.clone())],
         );
+        first_plan.blueprint = Some(crate::PlaybackBlueprintPlan {
+            blueprint_id: "producer-default".to_owned(),
+            revision: 2,
+            byte_len: 512,
+            sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_owned(),
+            path: first_path,
+            map_provider: veoveo_recording_hub::BlueprintMapProviderSelection::Mapbox,
+        });
 
         let first_manifest = manager
             .prepare_manifest(&identity, first_plan.clone(), None)
@@ -843,6 +877,13 @@ mod tests {
             .unwrap();
         let first_archive = first_manifest.archive.as_ref().unwrap();
         assert_eq!(first_manifest.schema, PLAYBACK_MANIFEST_SCHEMA);
+        assert!(matches!(
+            first_manifest
+                .blueprint
+                .as_ref()
+                .map(|blueprint| blueprint.map_provider),
+            Some(crate::contract::PlaybackMapProvider::Mapbox)
+        ));
         assert_eq!(first_archive.layer_count, 1);
         assert_eq!(first_archive.segment_id, recording_key);
         assert!(
@@ -1052,6 +1093,7 @@ mod tests {
             ended_at: Some(Utc::now()),
             archive_segments,
             live: None,
+            blueprint: None,
         }
     }
 

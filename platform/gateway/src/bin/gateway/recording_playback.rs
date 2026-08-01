@@ -23,13 +23,14 @@ const PLAYBACK_SESSION_HEADER: &str = "x-veoveo-playback-session";
 enum PlaybackSource {
     Manifest,
     LiveSegment(String),
+    Blueprint(u64),
 }
 
 impl PlaybackSource {
     fn segment_id(&self) -> Option<&str> {
         match self {
             Self::LiveSegment(segment_id) => Some(segment_id),
-            Self::Manifest => None,
+            Self::Manifest | Self::Blueprint(_) => None,
         }
     }
 
@@ -37,6 +38,7 @@ impl PlaybackSource {
         match self {
             Self::Manifest => "manifest",
             Self::LiveSegment(_) => "live-segment",
+            Self::Blueprint(_) => "blueprint",
         }
     }
 
@@ -45,6 +47,9 @@ impl PlaybackSource {
             Self::Manifest => format!("/recordings/{recording_id}/playback"),
             Self::LiveSegment(segment_id) => {
                 format!("/recordings/{recording_id}/segments/{segment_id}/live.rrd")
+            }
+            Self::Blueprint(revision) => {
+                format!("/recordings/{recording_id}/blueprints/{revision}/data.rrd")
             }
         }
     }
@@ -77,6 +82,25 @@ pub(super) async fn playback_live_segment(
         profile,
         recording_id,
         PlaybackSource::LiveSegment(segment_id),
+        subject,
+        HeaderMap::new(),
+    )
+    .await
+}
+
+pub(super) async fn playback_blueprint(
+    State(state): State<RecordingPlaybackState>,
+    Path((profile, recording_id, revision)): Path<(String, String, u64)>,
+    Extension(subject): Extension<AuthenticatedSubject>,
+) -> Response {
+    if revision == 0 {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    proxy_playback(
+        state,
+        profile,
+        recording_id,
+        PlaybackSource::Blueprint(revision),
         subject,
         HeaderMap::new(),
     )

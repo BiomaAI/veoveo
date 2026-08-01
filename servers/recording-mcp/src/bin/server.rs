@@ -41,6 +41,7 @@ use veoveo_mcp_contract::{
     init_server_telemetry, paginate,
 };
 use veoveo_platform_store::{PlatformStore, RecordingId, StoreConfig, StoreCredentials};
+use veoveo_recording_mcp::blueprint_playback::recording_scoped_blueprint;
 use veoveo_recording_mcp::live_playback::stream_live_rrd;
 use veoveo_recording_mcp::{
     RecordingService,
@@ -48,7 +49,9 @@ use veoveo_recording_mcp::{
     contract::{
         QueryRecordingOutput, QueryRecordingRequest, SealRecordingOutput, SealRecordingRequest,
     },
-    playback::{PLAYBACK_SESSION_HEADER, PlaybackManager, playback_store_id},
+    playback::{
+        PLAYBACK_SESSION_HEADER, PlaybackManager, playback_application_id, playback_store_id,
+    },
     uris,
 };
 
@@ -651,6 +654,59 @@ async fn playback_live_segment(
     response
 }
 
+async fn playback_blueprint(
+    State(state): State<Arc<AppState>>,
+    Extension(identity): Extension<veoveo_mcp_contract::GatewayInternalIdentity>,
+    Path((recording_id, revision)): Path<(String, u64)>,
+) -> Response {
+    let Ok(recording_id) = parse_recording_id(&recording_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let plan = match state
+        .recordings
+        .playback_plan(&identity, recording_id)
+        .await
+    {
+        Ok(Some(plan)) => plan,
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Err(error) => {
+            tracing::error!(%error, %recording_id, "recording Blueprint authorization failed");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let Some(blueprint) = plan.blueprint.filter(|value| value.revision == revision) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let application_id = match playback_application_id(recording_id) {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::error!(%error, %recording_id, "Blueprint playback identity construction failed");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let result = tokio::task::spawn_blocking(move || {
+        recording_scoped_blueprint(
+            &blueprint.path,
+            &application_id,
+            &blueprint.blueprint_id,
+            blueprint.byte_len,
+            &blueprint.sha256,
+        )
+    })
+    .await;
+    match result {
+        Ok(Ok(bytes)) => rrd_response(Body::from(bytes)),
+        Ok(Err(error)) => {
+            tracing::error!(%error, %recording_id, revision, "recording Blueprint playback failed");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+        Err(error) => {
+            tracing::error!(%error, %recording_id, revision, "recording Blueprint worker failed");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
 fn rrd_response(body: Body) -> Response {
     let mut response = Response::new(body);
     response.headers_mut().insert(
@@ -749,6 +805,10 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/{recording_id}/segments/{segment_id}/live.rrd",
             get(playback_live_segment),
+        )
+        .route(
+            "/{recording_id}/blueprints/{revision}/data.rrd",
+            get(playback_blueprint),
         )
         .layer(middleware::from_fn_with_state(auth_state, authenticate));
     let redap = tonic::service::Routes::new(RerunCloudServiceServer::new(

@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  attachConsoleSessionToLivePlayback,
-  authorizeConsoleLivePlaybackFetch,
-  isConsoleLivePlaybackRequest,
+  attachConsoleSessionToRecordingRrd,
+  authorizeConsoleRecordingRrdFetch,
+  isConsoleRecordingRrdRequest,
 } from "./recordingLiveFetch.ts";
 
 const ORIGIN = "https://installation.example";
@@ -13,19 +13,29 @@ const SEGMENT_ID = "019faba1-3e9b-77d2-a3b5-b7cc97d0d238";
 const LIVE_URL =
   `${ORIGIN}/console/api/recordings/${RECORDING_ID}` +
   `/segments/${SEGMENT_ID}/live.rrd`;
+const BLUEPRINT_URL =
+  `${ORIGIN}/console/api/recordings/${RECORDING_ID}` +
+  "/blueprints/1/data.rrd";
 
 test("attaches the Console session only to the canonical same-origin live receiver", () => {
   const request = new Request(LIVE_URL, {
     credentials: "omit",
     headers: { Accept: "application/vnd.rerun.rrd" },
   });
-  const authorized = attachConsoleSessionToLivePlayback(request, ORIGIN);
+  const authorized = attachConsoleSessionToRecordingRrd(request, ORIGIN);
 
-  assert.equal(isConsoleLivePlaybackRequest(request, ORIGIN), true);
+  assert.equal(isConsoleRecordingRrdRequest(request, ORIGIN), true);
   assert.notEqual(authorized, request);
   assert.equal(authorized.url, LIVE_URL);
   assert.equal(authorized.credentials, "same-origin");
   assert.equal(authorized.headers.get("accept"), "application/vnd.rerun.rrd");
+});
+
+test("attaches the Console session to the canonical producer Blueprint receiver", () => {
+  const request = new Request(BLUEPRINT_URL, { credentials: "omit" });
+  const authorized = attachConsoleSessionToRecordingRrd(request, ORIGIN);
+  assert.equal(isConsoleRecordingRrdRequest(request, ORIGIN), true);
+  assert.equal(authorized.credentials, "same-origin");
 });
 
 test("does not attach credentials outside the exact live playback boundary", () => {
@@ -40,14 +50,14 @@ test("does not attach credentials outside the exact live playback boundary", () 
       { credentials: "omit" }
     ),
   ]) {
-    assert.equal(isConsoleLivePlaybackRequest(request, ORIGIN), false);
-    assert.equal(attachConsoleSessionToLivePlayback(request, ORIGIN), request);
+    assert.equal(isConsoleRecordingRrdRequest(request, ORIGIN), false);
+    assert.equal(attachConsoleSessionToRecordingRrd(request, ORIGIN), request);
   }
 });
 
 test("preserves an explicitly credentialed canonical request", () => {
   const request = new Request(LIVE_URL, { credentials: "include" });
-  assert.equal(attachConsoleSessionToLivePlayback(request, ORIGIN), request);
+  assert.equal(attachConsoleSessionToRecordingRrd(request, ORIGIN), request);
 });
 
 test("adapts a canonical fetch without reconstructing unrelated requests", async () => {
@@ -55,7 +65,7 @@ test("adapts a canonical fetch without reconstructing unrelated requests", async
     credentials: "omit",
     headers: { Accept: "application/vnd.rerun.rrd" },
   });
-  const [authorizedInput, authorizedInit] = authorizeConsoleLivePlaybackFetch(
+  const [authorizedInput, authorizedInit] = authorizeConsoleRecordingRrdFetch(
     liveRequest,
     undefined,
     ORIGIN
@@ -71,7 +81,7 @@ test("adapts a canonical fetch without reconstructing unrelated requests", async
   });
   await redapRequest.text();
   assert.equal(redapRequest.bodyUsed, true);
-  const untouched = authorizeConsoleLivePlaybackFetch(
+  const untouched = authorizeConsoleRecordingRrdFetch(
     redapRequest,
     undefined,
     ORIGIN

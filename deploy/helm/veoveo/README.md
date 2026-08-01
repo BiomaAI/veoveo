@@ -186,7 +186,7 @@ through the platform release's `installationValues` array.
 ### Embedded Rerun maps
 
 `consoleBff.rerunMap.provider` selects the closed browser-map provider contract. The
-default `openStreetMap` path carries no credential. Selecting `mapbox` requires a
+default `openStreetMap` path carries no credential. A functional `mapbox` background uses a
 browser-safe public token from an installation-owned Secret:
 
 ```yaml
@@ -200,12 +200,14 @@ consoleBff:
 ```
 
 The chart projects the selected Secret key directly into the Console BFF process as
-`RERUN_MAPBOX_ACCESS_TOKEN`. Startup rejects a missing, secret, or malformed token. An
-authenticated no-store endpoint supplies it to the embedded Rerun application option;
+`RERUN_MAPBOX_ACCESS_TOKEN`. The reference is optional at the Kubernetes boundary, so a
+missing key does not remove recording playback. An authenticated no-store endpoint
+reports the missing or malformed installation token as a map-scoped diagnostic and
+supplies a valid token to the embedded Rerun application option;
 RRD data, MCP configuration, gateway responses, and repository values never contain the
-token. A fresh browser validates the token against the provider before starting either
-recording playback or an RRD artifact preview. Authentication, scope, origin-restriction,
-and provider availability failures remain token-free diagnostics in the viewer overlay.
+token. A fresh browser validates the token against the provider before opening the map.
+Authentication, scope, origin-restriction, and provider availability failures remain
+token-free diagnostics in the viewer overlay while recording data and 3D views continue.
 The Console content security policy admits only the selected provider origin.
 
 `time-mcp` runs as one temporal authority process with a persistent

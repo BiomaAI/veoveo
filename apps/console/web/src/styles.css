@@ -235,6 +235,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex="0"]:
 .recording-viewer-state strong { color: var(--viewer-text-strong); font-size: var(--text-sm); }
 .recording-viewer-state span { max-width: 520px; color: var(--viewer-muted); font-size: var(--text-xs); line-height: 18px; }
 .recording-viewer-error { color: var(--red); }
+.recording-viewer-map-error { position: absolute; right: 12px; bottom: 12px; z-index: 4; display: flex; max-width: 520px; flex-direction: column; gap: 4px; border: 1px solid color-mix(in srgb, var(--red) 55%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--viewer-surface) 96%, transparent); padding: 10px 12px; color: var(--viewer-muted); font-size: var(--text-xs); }
+.recording-viewer-map-error strong { color: var(--red); }
 .recording-player-footer { min-height: 37px; display: flex; align-items: center; gap: 7px; padding: 7px 11px; border-top: 1px solid var(--border); background: var(--viewer-surface-raised); color: var(--viewer-text); font-size: var(--text-2xs); }
 .recording-archive-details { position: relative; margin-left: auto; }
 .recording-archive-details summary { cursor: pointer; color: var(--viewer-muted); list-style: none; }

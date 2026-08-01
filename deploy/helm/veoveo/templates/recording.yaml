@@ -103,6 +103,12 @@ spec:
             - {{ printf "%.0f" .Values.recording.segmentMaxBytes | quote }}
             - --segment-max-age-s
             - {{ printf "%.0f" .Values.recording.segmentMaxAgeSeconds | quote }}
+            - --blueprint-max-bytes
+            - {{ printf "%.0f" .Values.recording.blueprintMaxBytes | quote }}
+            - --blueprint-max-messages
+            - {{ printf "%.0f" .Values.recording.blueprintMaxMessages | quote }}
+            - --blueprint-max-revisions
+            - {{ .Values.recording.blueprintMaxRevisions | quote }}
           env:
             {{- include "veoveo.commonEnv" . | nindent 12 }}
             - name: RECORDING_TENANT_KEY

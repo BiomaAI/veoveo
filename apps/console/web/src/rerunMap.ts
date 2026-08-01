@@ -6,18 +6,24 @@ export interface RerunMapViewerOptions {
 
 type RerunMapConfig =
   | { provider: "openStreetMap" }
-  | { provider: "mapbox"; accessToken: string };
+  | { provider: "mapbox"; accessToken?: string; diagnostic?: string };
 
-let optionsPromise: Promise<RerunMapViewerOptions> | undefined;
+export interface RerunMapViewerSetup {
+  provider: "openStreetMap" | "mapbox";
+  options: RerunMapViewerOptions;
+  mapError?: string;
+}
 
-export function loadRerunMapViewerOptions(): Promise<RerunMapViewerOptions> {
+let optionsPromise: Promise<RerunMapViewerSetup> | undefined;
+
+export function loadRerunMapViewerOptions(): Promise<RerunMapViewerSetup> {
   optionsPromise ??= resolveRerunMapViewerOptions(window.fetch.bind(window));
   return optionsPromise;
 }
 
 export async function resolveRerunMapViewerOptions(
   fetcher: typeof fetch,
-): Promise<RerunMapViewerOptions> {
+): Promise<RerunMapViewerSetup> {
   const response = await fetcher("/console/api/viewer/rerun/map-config", {
     credentials: "same-origin",
     cache: "no-store",
@@ -28,26 +34,57 @@ export async function resolveRerunMapViewerOptions(
     throw new Error(`Rerun map configuration returned ${response.status}`);
   }
   const config = decodeRerunMapConfig(await response.json());
-  if (config.provider === "openStreetMap") return {};
+  if (config.provider === "openStreetMap") {
+    return { provider: "openStreetMap", options: {} };
+  }
+  if (!config.accessToken) {
+    return {
+      provider: "mapbox",
+      options: {},
+      mapError:
+        config.diagnostic ?? "Mapbox is selected, but its installation token is unavailable",
+    };
+  }
 
-  await validateMapboxAccessToken(fetcher, config.accessToken);
-  return { mapbox_access_token: config.accessToken };
+  try {
+    await validateMapboxAccessToken(fetcher, config.accessToken);
+    return {
+      provider: "mapbox",
+      options: { mapbox_access_token: config.accessToken },
+    };
+  } catch (cause) {
+    return {
+      provider: "mapbox",
+      options: {},
+      mapError: cause instanceof Error ? cause.message : "Mapbox validation failed",
+    };
+  }
 }
 
 function decodeRerunMapConfig(value: unknown): RerunMapConfig {
   if (!value || typeof value !== "object") {
     throw new Error("Rerun map configuration is malformed");
   }
-  const candidate = value as { provider?: unknown; accessToken?: unknown };
+  const candidate = value as {
+    provider?: unknown;
+    accessToken?: unknown;
+    diagnostic?: unknown;
+  };
   if (candidate.provider === "openStreetMap" && candidate.accessToken === undefined) {
     return { provider: "openStreetMap" };
   }
   if (
     candidate.provider === "mapbox" &&
-    typeof candidate.accessToken === "string" &&
-    isBrowserSafeMapboxToken(candidate.accessToken)
+    (candidate.accessToken === undefined ||
+      (typeof candidate.accessToken === "string" &&
+        isBrowserSafeMapboxToken(candidate.accessToken))) &&
+    (candidate.diagnostic === undefined || typeof candidate.diagnostic === "string")
   ) {
-    return { provider: "mapbox", accessToken: candidate.accessToken };
+    return {
+      provider: "mapbox",
+      accessToken: candidate.accessToken as string | undefined,
+      diagnostic: candidate.diagnostic as string | undefined,
+    };
   }
   throw new Error(
     candidate.provider === "mapbox"
@@ -84,4 +121,20 @@ async function validateMapboxAccessToken(fetcher: typeof fetch, accessToken: str
     );
   }
   throw new Error(`Mapbox token validation returned ${response.status}`);
+}
+
+export function mapProviderCompatibilityError(
+  installationProvider: "openStreetMap" | "mapbox",
+  blueprintProvider: "none" | "openStreetMap" | "mapbox" | "mixed" | undefined,
+): string | undefined {
+  if (blueprintProvider === "mixed") {
+    return "The producer Blueprint mixes map-provider families; every map view must use the installation-selected provider.";
+  }
+  if (installationProvider === "mapbox" && blueprintProvider !== "mapbox") {
+    return "Mapbox is selected, but the producer Blueprint does not select a Mapbox background.";
+  }
+  if (installationProvider === "openStreetMap" && blueprintProvider === "mapbox") {
+    return "The producer Blueprint selects Mapbox, but this installation selects OpenStreetMap.";
+  }
+  return undefined;
 }
