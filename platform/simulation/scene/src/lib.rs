@@ -16,6 +16,8 @@ use veoveo_simulation_pose::{EntityId, EpochId, FrameRevision, Sha256Digest};
 
 /// Canonical Simulation View scene schema.
 pub const SCENE_SCHEMA: &str = "veoveo.io/simulation-view-scene/v1";
+pub const MINIMUM_COLOR_TEMPERATURE_KELVIN: u32 = 1_000;
+pub const MAXIMUM_COLOR_TEMPERATURE_KELVIN: u32 = 10_000;
 
 fn validate_id(value: &str) -> Result<(), SceneContractError> {
     if value.is_empty()
@@ -199,6 +201,19 @@ pub struct SceneLighting {
     pub color_temperature_kelvin: u32,
 }
 
+impl SceneLighting {
+    pub fn validate(self) -> Result<(), SceneContractError> {
+        if self.intensity_lux <= 0.0
+            || !self.intensity_lux.is_finite()
+            || !(MINIMUM_COLOR_TEMPERATURE_KELVIN..=MAXIMUM_COLOR_TEMPERATURE_KELVIN)
+                .contains(&self.color_temperature_kelvin)
+        {
+            return Err(SceneContractError::InvalidScene);
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RendererMode {
@@ -260,9 +275,6 @@ impl SceneDeclaration {
             || self.body.entities.len() > maximum_entities as usize
             || self.body.allowed_camera_kinds.is_empty()
             || self.body.attribution.is_empty()
-            || self.body.lighting.intensity_lux <= 0.0
-            || !self.body.lighting.intensity_lux.is_finite()
-            || !(1_000..=20_000).contains(&self.body.lighting.color_temperature_kelvin)
             || self.body.quality.maximum_pose_age_ms == 0
             || self.body.quality.maximum_texture_dimension == 0
             || self.body.quality.maximum_asset_bytes == 0
@@ -270,6 +282,7 @@ impl SceneDeclaration {
         {
             return Err(SceneContractError::InvalidScene);
         }
+        self.body.lighting.validate()?;
         self.body
             .frame_revision
             .validate()
@@ -408,6 +421,18 @@ mod tests {
         assert!(matches!(
             declaration.validate(128, 1024 * 1024),
             Err(SceneContractError::InvalidArtifact)
+        ));
+    }
+
+    #[test]
+    fn scene_contract_rejects_color_temperature_outside_openusd_range() {
+        let mut body: SceneDeclarationBody =
+            serde_json::from_str(include_str!("../../fixtures/anonymous-scene-body.json")).unwrap();
+        body.lighting.color_temperature_kelvin = MAXIMUM_COLOR_TEMPERATURE_KELVIN + 1;
+        let declaration = SceneDeclaration::from_body(body).unwrap();
+        assert!(matches!(
+            declaration.validate(128, 1024 * 1024),
+            Err(SceneContractError::InvalidScene)
         ));
     }
 }

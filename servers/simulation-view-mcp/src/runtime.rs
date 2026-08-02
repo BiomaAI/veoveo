@@ -15,6 +15,26 @@ use crate::contract::{
 
 pub const RENDERER_PROFILE: &str = "veoveo.io/simulation-view-renderer/isaac-rtx/v1";
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RendererFailureCode {
+    RequiredExtensionMissing,
+    CesiumMdlAssetsMissing,
+    CesiumMaterialSearchPathMissing,
+    CesiumMaterialAllowlistMissing,
+    CesiumTangentFrameMissing,
+    LdrColorPipelineFailed,
+    DiagnosticLightIsolationFailed,
+    RendererInitializationFailed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RendererFailure {
+    pub code: RendererFailureCode,
+    pub message: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RendererReadiness {
@@ -26,6 +46,11 @@ pub struct RendererReadiness {
     pub nvenc_ready: bool,
     pub visible_non_stale_frame: bool,
     pub streamed_world_ready: bool,
+    pub cesium_mdl_ready: bool,
+    pub cesium_tangent_frames_ready: bool,
+    pub governed_lighting_ready: bool,
+    pub color_pipeline_ready: bool,
+    pub failure: Option<RendererFailure>,
 }
 
 impl RendererReadiness {
@@ -38,6 +63,11 @@ impl RendererReadiness {
             && self.nvenc_ready
             && self.visible_non_stale_frame
             && self.streamed_world_ready
+            && self.cesium_mdl_ready
+            && self.cesium_tangent_frames_ready
+            && self.governed_lighting_ready
+            && self.color_pipeline_ready
+            && self.failure.is_none()
     }
 }
 
@@ -426,7 +456,19 @@ impl RuntimeClients {
     }
 
     async fn renderer_readiness(&self) -> anyhow::Result<RendererReadiness> {
-        self.get_json(&self.renderer_endpoint, "readyz").await
+        let endpoint = self.renderer_endpoint.join("readyz")?;
+        let response = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            self.client.get(endpoint).send(),
+        )
+        .await??;
+        anyhow::ensure!(
+            response.status().is_success()
+                || response.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE,
+            "renderer readiness returned {}",
+            response.status()
+        );
+        Ok(response.json().await?)
     }
 
     async fn pose_readiness(&self) -> anyhow::Result<PoseIngressReadiness> {
@@ -603,6 +645,11 @@ mod tests {
             nvenc_ready: true,
             visible_non_stale_frame: true,
             streamed_world_ready: true,
+            cesium_mdl_ready: true,
+            cesium_tangent_frames_ready: true,
+            governed_lighting_ready: true,
+            color_pipeline_ready: true,
+            failure: None,
         };
         assert!(readiness.is_ready());
         readiness.nvidia = false;

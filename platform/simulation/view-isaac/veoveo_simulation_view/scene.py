@@ -19,6 +19,10 @@ from .contracts import (
     identity,
     object_with_keys,
 )
+from .lighting import (
+    DiagnosticScene,
+    author_governed_lighting,
+)
 from .pose import PoseSnapshot
 
 
@@ -273,14 +277,20 @@ class ArtifactStore:
 
 
 class SceneManager:
-    def __init__(self, stage: Any, artifacts: ArtifactStore) -> None:
+    def __init__(
+        self,
+        stage: Any,
+        artifacts: ArtifactStore,
+        diagnostics: DiagnosticScene,
+    ) -> None:
         self._stage = stage
         self._artifacts = artifacts
+        self._diagnostics = diagnostics
         self._scenes: dict[str, SceneBinding] = {}
         self._entities: dict[tuple[str, str], tuple[Any, Any]] = {}
 
     def bind(self, scene: SceneBinding) -> None:
-        from pxr import Gf, UsdGeom, UsdLux
+        from pxr import UsdGeom
 
         existing = self._scenes.get(scene.session_id)
         if existing is not None:
@@ -364,19 +374,17 @@ class SceneManager:
                 visibility,
             )
 
-        lighting = body["lighting"]
-        dome = UsdLux.DomeLight.Define(
-            self._stage, f"{root}/Lighting/Dome"
-        )
-        dome.CreateIntensityAttr(float(lighting["intensityLux"]) / 10.0)
-        sun = UsdLux.DistantLight.Define(
-            self._stage, f"{root}/Lighting/Sun"
-        )
-        sun.CreateIntensityAttr(float(lighting["intensityLux"]) / 2.0)
-        sun.CreateAngleAttr(0.53)
-        UsdGeom.Xformable(sun.GetPrim()).AddRotateXYZOp().Set(
-            Gf.Vec3f(-45.0, -35.0, 0.0)
-        )
+        author_governed_lighting(self._stage, root, scene.lighting)
+        try:
+            self._diagnostics.enter_governed_session()
+        except BaseException:
+            self._stage.RemovePrim(root)
+            self._entities = {
+                key: value
+                for key, value in self._entities.items()
+                if key[0] != scene.session_id
+            }
+            raise
         self._scenes[scene.session_id] = scene
 
     def apply_pose(self, snapshot: PoseSnapshot) -> None:
@@ -406,12 +414,14 @@ class SceneManager:
 
     def close(self, session_id: str) -> None:
         self._stage.RemovePrim(_session_root(session_id))
-        self._scenes.pop(session_id, None)
+        scene = self._scenes.pop(session_id, None)
         self._entities = {
             key: value
             for key, value in self._entities.items()
             if key[0] != session_id
         }
+        if scene is not None:
+            self._diagnostics.leave_governed_session()
 
     def mark_pose_stale(self, session_id: str) -> None:
         from pxr import UsdGeom

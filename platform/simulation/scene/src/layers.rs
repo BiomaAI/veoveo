@@ -400,7 +400,7 @@ mod tests {
     const CATALOG: &str = r#"{
       "schemaVersion":"veoveo.io/simulation-view-layer-catalog/v1",
       "layers":[{
-        "layerId":"front-range",
+        "layerId":"synthetic-world",
         "layerType":"streamed_3d_tiles",
         "source":{"kind":"cesium_ion","assetId":2275207,"serverUrl":"https://ion.example/","apiUrl":"https://api.example/","applicationId":413,"credentialEnvironment":"SIMULATION_VIEW_LAYER_TOKEN"},
         "allowedHosts":["ion.example","api.example"],
@@ -415,7 +415,7 @@ mod tests {
     fn catalog_validates_exact_frame_binding_without_credentials() {
         let catalog = GeospatialLayerCatalog::from_slice(CATALOG.as_bytes()).unwrap();
         let layer = catalog
-            .get(&GeospatialLayerId::new("front-range").unwrap())
+            .get(&GeospatialLayerId::new("synthetic-world").unwrap())
             .unwrap();
         assert_eq!(layer.budgets.maximum_visible_tiles, 4096);
         catalog
@@ -432,7 +432,7 @@ mod tests {
     fn catalog_rejects_unknown_and_mismatched_scene_layers() {
         let catalog = GeospatialLayerCatalog::from_slice(CATALOG.as_bytes()).unwrap();
         let layer = catalog
-            .get(&GeospatialLayerId::new("front-range").unwrap())
+            .get(&GeospatialLayerId::new("synthetic-world").unwrap())
             .unwrap();
         assert!(matches!(
             catalog.validate_scene_binding(

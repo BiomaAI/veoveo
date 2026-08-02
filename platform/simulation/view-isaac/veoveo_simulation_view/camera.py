@@ -13,6 +13,7 @@ import numpy as np
 from .config import RendererConfig
 from .contracts import CameraBinding, ContractError
 from .pose import EntityPose, PoseSnapshot
+from .renderer_setup import RendererFailure, RendererFailureCode
 
 
 RENDER_PRODUCT_PREFIX = "/Render/OmniverseKit/HydraTextures"
@@ -398,18 +399,38 @@ class CameraPool:
             raise ContractError("renderer camera does not exist")
         return runtime.status()
 
-    def readiness(self) -> tuple[bool, bool]:
+    def readiness(
+        self,
+    ) -> tuple[bool, bool, bool, RendererFailure | None]:
         runtimes = [*self._cameras.values(), self._probe]
         now = time.monotonic()
         product_ready = bool(runtimes)
+        try:
+            health = [runtime.probe.health for runtime in runtimes]
+        except RuntimeError:
+            return (
+                False,
+                False,
+                False,
+                RendererFailure(
+                    RendererFailureCode.LDR_COLOR_PIPELINE_FAILED,
+                    "RTX LdrColor render-product validation failed",
+                ),
+            )
+        color_pipeline_ready = any(item is not None for item in health)
         visible = any(
-            health is not None
-            and health.visible
-            and (now - health.observed_at) * 1000.0
+            item is not None
+            and item.visible
+            and (now - item.observed_at) * 1000.0
             <= self._config.frame_stale_after_ms
-            for health in (runtime.probe.health for runtime in runtimes)
+            for item in health
         )
-        return product_ready, visible
+        return (
+            product_ready,
+            color_pipeline_ready,
+            visible,
+            None,
+        )
 
     def close_all(self) -> None:
         for runtime in self._cameras.values():

@@ -25,7 +25,15 @@ from .control import (
 )
 from .gpu import verify_nvidia_gpu_and_nvenc
 from .layers import StreamedWorldManager
+from .lighting import DiagnosticScene
 from .pose import PoseMirror, PoseSnapshot
+from .renderer_setup import (
+    CesiumMaterialStatus,
+    RendererFailure,
+    RendererFailureCode,
+    RendererInitializationError,
+    ensure_cesium_material_runtime,
+)
 from .scene import ArtifactStore, SceneManager
 
 
@@ -46,6 +54,7 @@ class Renderer:
         config: RendererConfig,
         stage: Any,
         commands: queue.Queue[ControlCommand],
+        diagnostics: DiagnosticScene,
     ) -> None:
         self._config = config
         self._commands = commands
@@ -56,9 +65,11 @@ class Renderer:
             ArtifactStore(
                 config.artifact_directory, config.cache_directory
             ),
+            diagnostics,
         )
         self._cameras = CameraPool(stage, config)
         self._layers = StreamedWorldManager(stage, config.layer_catalog)
+        self._diagnostics = diagnostics
 
     def tick(self) -> None:
         self._process_commands()
@@ -78,11 +89,16 @@ class Renderer:
         self._cameras.tick(snapshots, stale_sessions)
         self._layers.tick(self._cameras.active_camera_paths())
 
-    def readiness(self) -> tuple[bool, bool]:
+    def readiness(
+        self,
+    ) -> tuple[bool, bool, bool, RendererFailure | None]:
         return self._cameras.readiness()
 
     def streamed_world_ready(self) -> bool:
         return self._layers.ready()
+
+    def governed_lighting_ready(self) -> bool:
+        return self._diagnostics.isolated()
 
     def close(self) -> None:
         for session in self._sessions.values():
@@ -307,6 +323,8 @@ def run(config: RendererConfig) -> None:
     readiness = ReadinessSlot()
     server = ControlServer(config, commands, readiness)
     renderer: Renderer | None = None
+    material_status: CesiumMaterialStatus | None = None
+    server.start()
     try:
         import carb.settings
         import omni.kit.app
@@ -323,24 +341,49 @@ def run(config: RendererConfig) -> None:
         ):
             manager.set_extension_enabled_immediate(extension, True)
             if not manager.is_extension_enabled(extension):
-                raise RuntimeError(
-                    f"required renderer extension {extension} is unavailable"
+                raise RendererInitializationError(
+                    RendererFailure(
+                        RendererFailureCode.REQUIRED_EXTENSION_MISSING,
+                        "a required renderer extension is unavailable",
+                    )
                 )
-        _verify_stream_settings(carb.settings.get_settings(), config)
+        settings = carb.settings.get_settings()
+        material_status = ensure_cesium_material_runtime(settings)
+        _verify_stream_settings(settings, config)
         context = omni.usd.get_context()
         context.new_stage()
         simulation_app.update()
         stage = context.get_stage()
-        _create_diagnostic_scene(stage)
-        renderer = Renderer(config, stage, commands)
-        server.start()
+        diagnostics = DiagnosticScene(stage)
+        renderer = Renderer(config, stage, commands, diagnostics)
 
         while simulation_app.is_running():
             renderer.tick()
             simulation_app.update()
-            product_ready, visible = renderer.readiness()
+            (
+                product_ready,
+                color_pipeline_ready,
+                visible,
+                pipeline_failure,
+            ) = renderer.readiness()
             streamed_world_ready = renderer.streamed_world_ready()
-            ready = product_ready and visible and streamed_world_ready
+            governed_lighting_ready = (
+                renderer.governed_lighting_ready()
+            )
+            failure = pipeline_failure
+            if not governed_lighting_ready and failure is None:
+                failure = RendererFailure(
+                    RendererFailureCode.DIAGNOSTIC_LIGHT_ISOLATION_FAILED,
+                    "diagnostic lighting isolation did not take effect",
+                )
+            ready = (
+                product_ready
+                and color_pipeline_ready
+                and visible
+                and streamed_world_ready
+                and governed_lighting_ready
+                and failure is None
+            )
             readiness.set(
                 Readiness(
                     ready=ready,
@@ -350,11 +393,34 @@ def run(config: RendererConfig) -> None:
                     nvenc_ready=True,
                     visible_non_stale_frame=visible,
                     streamed_world_ready=streamed_world_ready,
+                    cesium_mdl_ready=(
+                        material_status.mdl_assets_ready
+                        and material_status.material_search_path_ready
+                        and material_status.material_allowlist_ready
+                    ),
+                    cesium_tangent_frames_ready=(
+                        material_status.tangent_frame_ready
+                    ),
+                    governed_lighting_ready=governed_lighting_ready,
+                    color_pipeline_ready=color_pipeline_ready,
+                    failure=failure,
                 )
             )
-    except BaseException:
-        readiness.set(Readiness())
-        raise
+    except RendererInitializationError as error:
+        LOGGER.error("renderer initialization failed: %s", error)
+        readiness.set(Readiness(failure=error.failure))
+        _serve_failed_runtime(simulation_app)
+    except Exception:
+        LOGGER.exception("renderer runtime failed")
+        readiness.set(
+            Readiness(
+                failure=RendererFailure(
+                    RendererFailureCode.RENDERER_INITIALIZATION_FAILED,
+                    "renderer initialization or runtime failed",
+                )
+            )
+        )
+        _serve_failed_runtime(simulation_app)
     finally:
         server.close()
         if renderer is not None:
@@ -362,37 +428,9 @@ def run(config: RendererConfig) -> None:
         simulation_app.close()
 
 
-def _create_diagnostic_scene(stage: Any) -> None:
-    from pxr import Gf, UsdGeom, UsdLux
-
-    stage.DefinePrim("/World/SimulationView", "Xform")
-    stage.DefinePrim("/World/SimulationView/Sessions", "Scope")
-    stage.DefinePrim("/World/SimulationView/Cameras", "Scope")
-    stage.DefinePrim("/World/SimulationView/Diagnostics", "Xform")
-    cube = UsdGeom.Cube.Define(
-        stage, "/World/SimulationView/Diagnostics/Cube"
-    )
-    cube.CreateSizeAttr(2.0)
-    cube.CreateDisplayColorAttr([Gf.Vec3f(0.04, 0.65, 0.85)])
-    ground = UsdGeom.Cube.Define(
-        stage, "/World/SimulationView/Diagnostics/Ground"
-    )
-    ground.CreateSizeAttr(1.0)
-    ground_xform = UsdGeom.Xformable(ground.GetPrim())
-    ground_xform.AddScaleOp().Set(Gf.Vec3f(18.0, 18.0, 0.1))
-    ground_xform.AddTranslateOp().Set(Gf.Vec3d(0.0, 0.0, -1.05))
-    ground.CreateDisplayColorAttr([Gf.Vec3f(0.08, 0.1, 0.14)])
-    sun = UsdLux.DistantLight.Define(
-        stage, "/World/SimulationView/Diagnostics/Sun"
-    )
-    sun.CreateIntensityAttr(3_000.0)
-    UsdGeom.Xformable(sun.GetPrim()).AddRotateXYZOp().Set(
-        Gf.Vec3f(35.0, -25.0, -30.0)
-    )
-    dome = UsdLux.DomeLight.Define(
-        stage, "/World/SimulationView/Diagnostics/Dome"
-    )
-    dome.CreateIntensityAttr(500.0)
+def _serve_failed_runtime(simulation_app: Any) -> None:
+    while simulation_app.is_running():
+        simulation_app.update()
 
 
 def _verify_stream_settings(settings: Any, config: RendererConfig) -> None:
