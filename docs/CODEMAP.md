@@ -108,7 +108,8 @@ Hub, administration, and GPU policy.
 | `configs/stream/` | admitted GStreamer graph, typed profile, TensorRT model, and live-ingress catalog example |
 | `configs/reason/` | world-model checkpoint reason catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
-| `deploy/contract/` | multi-source deployment v4 profiles and locks, platform/workload/extension ownership, exact platform-image closure, split source/installation Helm values, typed registry transport, DRA physical-GPU topology, collision-free publication preflight, schema generation, and pure validation |
+| `deploy/contract/` | multi-source deployment v5 profiles and locks, platform/workload/extension ownership, exact platform-image and managed DRA closure, split source/installation Helm values, typed registry transport, physical-GPU topology, collision-free publication preflight, schema generation, and pure validation |
+| `docs/GPU_PLACEMENT.md` | managed NVIDIA DRA artifacts, installation schema, lifecycle, conflict transition, validation, upgrade, rollback, and recovery contract |
 | `extensions/contract/` | typed external artifact, compatibility-manifest, extension-release, simulation build-lock/result/evidence, and schema contracts |
 | `extensions/examples/` | anonymous external fragment and installation-binding examples |
 | `deploy/local/k3d/` | GPU-capable local Kubernetes cluster and values |
@@ -123,7 +124,8 @@ Hub, administration, and GPU policy.
 | `sdk/` | language SDK workspaces |
 | `deploy/helm/veoveo/` | Kubernetes installation chart, chart-owned first-party service definitions, and typed component/server presets |
 | `deploy/helm/veoveo/templates/simulation-view.yaml` | independently selected Simulation View MCP plus co-located hardware Isaac renderer and mTLS pose ingress, bounded signaling/media Services, shared memory, artifacts, and per-container DRA claim binding |
-| `testing/smoke/src/bin/smoke/deployment.rs` | profile validation and orchestration, durable DRA ResourceClaim compilation, physical-UUID rollout verification, immutable gateway activation, and ordered Helm release inputs |
+| `testing/smoke/src/bin/smoke/deployment.rs` | profile validation and orchestration, immutable gateway activation, and ordered Helm release inputs |
+| `testing/smoke/src/bin/smoke/deployment/gpu.rs` | managed NVIDIA DRA artifact verification and lifecycle, durable ResourceClaim compilation, ResourceSlice preflight, and physical-UUID rollout verification |
 | `deploy/helm/veoveo-extension/` | private reusable extension-chart helper API and immutable chart package source |
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
@@ -132,7 +134,7 @@ Hub, administration, and GPU policy.
 | `sdk/python/` | Python platform package for hosted MCP servers |
 | `templates/python-mcp/` | canonical Python server template (`datasheet`) |
 | `testing/fixtures/extension-helm-consumer/` | anonymous cross-release Helm library acceptance fixture |
-| `testing/fixtures/external-extension-installation/` | anonymous deployment v4 platform selection and exact Artifact/Frames/Map/Media/Recording/RRD image-closure acceptance |
+| `testing/fixtures/external-extension-installation/` | anonymous deployment v5 platform selection and exact Artifact/Frames/Map/Media/Recording/RRD image-closure acceptance |
 | `testing/fixtures/external-simulation-extension/` | isolated Python extension fixture that publishes governed OpenUSD assets and typed latest poses while consuming core Simulation View |
 | `testing/fixtures/external-simulation-installation/` | independent platform/extension source composition, exact Simulation View image closure, installation-owned gateway binding, and exclusive renderer GPU placement |
 | `deploy/contract/tests/multi_repository.rs` | anonymous acceptance using independent platform, extension, and installation Git histories with one combined deployment lock |

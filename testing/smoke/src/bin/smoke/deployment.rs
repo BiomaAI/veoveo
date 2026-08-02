@@ -15,11 +15,15 @@ use sha2::{Digest, Sha256};
 use url::Url;
 use veoveo_deploy_contract::{
     ConfigMapSpec, DeploymentLock, DeploymentSource, DeploymentSourceRole, FirstPartyMcpServer,
-    GpuIsolation, GpuSchedulingProfile, GpuTimeSliceInterval, LoadedProfile, LockedSource,
-    PlannedImage, PlatformComponent, ReleaseSpec, ReleaseValuesContract, SecretFormat, SecretSpec,
-    SourceRepository, load_local_registry,
+    LoadedProfile, LockedSource, PlannedImage, PlatformComponent, ReleaseSpec,
+    ReleaseValuesContract, SecretFormat, SecretSpec, SourceRepository, load_local_registry,
 };
 use veoveo_mcp_contract::{GatewayControlPlane, GatewayInternalTrustBundle};
+
+#[path = "deployment/gpu.rs"]
+mod gpu;
+
+use gpu::{apply_gpu_placement, ensure_gpu_allocator, prepare_gpu_placement, verify_gpu_placement};
 
 const VALIDATION_REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
 const GATEWAY_MOUNT_ROOT: &str = "/etc/veoveo/gateway/";
@@ -81,16 +85,6 @@ struct PreparedGatewayActivation {
     confidential_secret: String,
     required_secret_keys: BTreeSet<String>,
     data: BTreeMap<String, String>,
-}
-
-#[derive(Debug)]
-struct PreparedGpuPlacement {
-    claim_name: String,
-    runtime_class_name: String,
-    evidence_digest: String,
-    workload_requests: BTreeMap<String, String>,
-    workload_replicas: BTreeMap<String, u16>,
-    manifest: Value,
 }
 
 pub(crate) fn profile_validate(path: &Path) -> Result<()> {
@@ -165,12 +159,19 @@ pub(crate) fn profile_cluster_up(path: &Path) -> Result<()> {
         }
     }
     apply_local_cluster_bootstrap(&profile)?;
-    wait_for_cluster_gpu(
-        &profile.definition.kubernetes.context,
-        Duration::from_secs(120),
-    )?;
+    if profile.resolved_platform()?.gpu_scheduling.is_some() {
+        wait_for_cluster_nodes(
+            &profile.definition.kubernetes.context,
+            Duration::from_secs(120),
+        )?;
+    } else {
+        wait_for_cluster_gpu(
+            &profile.definition.kubernetes.context,
+            Duration::from_secs(120),
+        )?;
+    }
     println!(
-        "Deployment profile {} cluster is ready with NVIDIA GPU capacity",
+        "Deployment profile {} cluster is ready",
         profile.definition.name
     );
     Ok(())
@@ -222,7 +223,11 @@ pub(crate) fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
     let platform = profile.resolved_platform()?;
     let context = profile.definition.kubernetes.context.as_str();
     apply_local_cluster_bootstrap(&profile)?;
-    wait_for_cluster_gpu(context, Duration::from_secs(120))?;
+    if platform.gpu_scheduling.is_some() {
+        wait_for_cluster_nodes(context, Duration::from_secs(120))?;
+    } else {
+        wait_for_cluster_gpu(context, Duration::from_secs(120))?;
+    }
 
     kubectl_apply_value(
         context,
@@ -234,13 +239,15 @@ pub(crate) fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
     )?;
 
     if let Some(placement) = prepare_gpu_placement(&profile)? {
+        let scheduling = platform
+            .gpu_scheduling
+            .as_ref()
+            .context("prepared GPU placement has no resolved scheduling profile")?;
+        ensure_gpu_allocator(context, &profile.definition.namespace, scheduling)?;
         apply_gpu_placement(
             context,
             &profile.definition.namespace,
-            platform
-                .gpu_scheduling
-                .as_ref()
-                .context("prepared GPU placement has no resolved scheduling profile")?,
+            scheduling,
             &placement,
         )?;
     }
@@ -874,6 +881,42 @@ fn wait_for_cluster_gpu(context: &str, timeout: Duration) -> Result<()> {
     }
 }
 
+fn wait_for_cluster_nodes(context: &str, timeout: Duration) -> Result<()> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        let output = output_checked(
+            "kubectl",
+            ["--context", context, "get", "nodes", "-o", "json"],
+            None,
+        )?;
+        let inventory =
+            serde_json::from_slice::<Value>(&output).context("decoding node inventory")?;
+        let ready = inventory["items"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|node| {
+                node.pointer("/status/conditions")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .any(|condition| {
+                        condition.get("type").and_then(Value::as_str) == Some("Ready")
+                            && condition.get("status").and_then(Value::as_str) == Some("True")
+                    })
+            });
+        if ready {
+            return Ok(());
+        }
+        ensure!(
+            Instant::now() < deadline,
+            "Kubernetes context {context} has no Ready node after {} seconds",
+            timeout.as_secs()
+        );
+        thread::sleep(Duration::from_secs(1));
+    }
+}
+
 fn cluster_gpu_capacity(context: &str) -> Result<u64> {
     let output = output_checked(
         "kubectl",
@@ -1132,294 +1175,6 @@ fn prepare_gateway_activation(
         required_secret_keys: activation.required_secret_keys.clone(),
         data,
     }))
-}
-
-fn prepare_gpu_placement(profile: &LoadedProfile) -> Result<Option<PreparedGpuPlacement>> {
-    let platform = profile.resolved_platform()?;
-    let Some(scheduling) = platform.gpu_scheduling else {
-        return Ok(None);
-    };
-
-    let mut requests = Vec::new();
-    let mut configuration = Vec::new();
-    let mut workload_requests = BTreeMap::new();
-    let mut workload_replicas = BTreeMap::new();
-    for group in &scheduling.same_physical_device_groups {
-        for workload in &group.workloads {
-            workload_requests.insert(workload.workload.clone(), group.name.clone());
-            workload_replicas.insert(workload.workload.clone(), workload.replicas);
-        }
-        let mut exactly = serde_json::json!({
-            "deviceClassName": match group.isolation {
-                GpuIsolation::Mig => &scheduling.allocator.mig_device_class_name,
-                GpuIsolation::Exclusive | GpuIsolation::MeasuredTimeSlicing => {
-                    &scheduling.allocator.full_device_class_name
-                }
-            },
-            "allocationMode": "ExactCount",
-            "count": 1
-        });
-        if let Some(profile) = &group.mig_profile {
-            exactly["selectors"] = serde_json::json!([{
-                "cel": {
-                    "expression": format!(
-                        "device.driver == 'gpu.nvidia.com' && device.attributes['gpu.nvidia.com'].type == 'mig' && device.attributes['gpu.nvidia.com'].profile == '{}'",
-                        profile
-                    )
-                }
-            }]);
-        }
-        requests.push(serde_json::json!({
-            "name": group.name,
-            "exactly": exactly
-        }));
-        if group.isolation == GpuIsolation::MeasuredTimeSlicing {
-            let interval = match group
-                .time_slice_interval
-                .context("validated measured time-slicing group has no timeSliceInterval")?
-            {
-                GpuTimeSliceInterval::Short => "Short",
-                GpuTimeSliceInterval::Default => "Default",
-                GpuTimeSliceInterval::Long => "Long",
-            };
-            configuration.push(serde_json::json!({
-                "requests": [group.name],
-                "opaque": {
-                    "driver": scheduling.allocator.driver_name,
-                    "parameters": {
-                        "apiVersion": scheduling.allocator.configuration_api_version,
-                        "kind": "GpuConfig",
-                        "sharing": {
-                            "strategy": "TimeSlicing",
-                            "timeSlicingConfig": {"interval": interval}
-                        }
-                    }
-                }
-            }));
-        }
-    }
-
-    let groups = scheduling
-        .same_physical_device_groups
-        .iter()
-        .map(|group| (group.name.as_str(), group))
-        .collect::<BTreeMap<_, _>>();
-    let constraints = scheduling
-        .different_physical_device_groups
-        .iter()
-        .map(|constraint| {
-            let mig = constraint.groups.iter().all(|name| {
-                groups
-                    .get(name.as_str())
-                    .is_some_and(|group| group.isolation == GpuIsolation::Mig)
-            });
-            serde_json::json!({
-                "requests": constraint.groups,
-                "distinctAttribute": if mig {
-                    "gpu.nvidia.com/parentUUID"
-                } else {
-                    "gpu.nvidia.com/uuid"
-                }
-            })
-        })
-        .collect::<Vec<_>>();
-    let manifest = serde_json::json!({
-        "apiVersion": "resource.k8s.io/v1",
-        "kind": "ResourceClaim",
-        "metadata": {
-            "name": scheduling.allocator.claim_name,
-            "namespace": profile.definition.namespace,
-            "labels": {
-                "app.kubernetes.io/managed-by": "veoveo-profile",
-                "veoveo.ai/installation": profile.definition.name
-            },
-            "annotations": {
-                "veoveo.ai/gpu-placement-evidence": scheduling.evidence_digest
-            }
-        },
-        "spec": {
-            "devices": {
-                "requests": requests,
-                "constraints": constraints,
-                "config": configuration
-            }
-        }
-    });
-    Ok(Some(PreparedGpuPlacement {
-        claim_name: scheduling.allocator.claim_name,
-        runtime_class_name: scheduling.runtime_class_name,
-        evidence_digest: scheduling.evidence_digest,
-        workload_requests,
-        workload_replicas,
-        manifest,
-    }))
-}
-
-fn apply_gpu_placement(
-    context: &str,
-    namespace: &str,
-    scheduling: &GpuSchedulingProfile,
-    placement: &PreparedGpuPlacement,
-) -> Result<()> {
-    let mut classes = BTreeSet::new();
-    for group in &scheduling.same_physical_device_groups {
-        classes.insert(match group.isolation {
-            GpuIsolation::Mig => &scheduling.allocator.mig_device_class_name,
-            GpuIsolation::Exclusive | GpuIsolation::MeasuredTimeSlicing => {
-                &scheduling.allocator.full_device_class_name
-            }
-        });
-    }
-    for class in classes {
-        status_checked(
-            "kubectl",
-            ["--context", context, "get", "deviceclass", class],
-            &[],
-            None,
-        )
-        .with_context(|| {
-            format!(
-                "required GPU DRA DeviceClass {class} is unavailable; install the selected allocator before profile-up"
-            )
-        })?;
-    }
-    kubectl_apply_value(context, &placement.manifest).with_context(|| {
-        format!(
-            "applying restart-stable GPU ResourceClaim {namespace}/{}; the cluster must support resource.k8s.io/v1 and distinctAttribute constraints",
-            placement.claim_name
-        )
-    })
-}
-
-fn verify_gpu_placement(
-    context: &str,
-    namespace: &str,
-    scheduling: &GpuSchedulingProfile,
-) -> Result<()> {
-    let claim = output_checked(
-        "kubectl",
-        [
-            "--context",
-            context,
-            "--namespace",
-            namespace,
-            "get",
-            "resourceclaim",
-            scheduling.allocator.claim_name.as_str(),
-            "-o",
-            "json",
-        ],
-        None,
-    )?;
-    let claim: Value = serde_json::from_slice(&claim).context("decoding GPU ResourceClaim")?;
-    let allocated = claim
-        .pointer("/status/allocation/devices/results")
-        .and_then(Value::as_array)
-        .context("GPU ResourceClaim has no allocated device results")?;
-    let allocated_requests = allocated
-        .iter()
-        .filter_map(|item| item.get("request").and_then(Value::as_str))
-        .collect::<BTreeSet<_>>();
-
-    let mut group_uuids = BTreeMap::<String, BTreeSet<String>>::new();
-    for group in &scheduling.same_physical_device_groups {
-        ensure!(
-            allocated_requests.contains(group.name.as_str()),
-            "GPU ResourceClaim did not allocate request {}",
-            group.name
-        );
-        let uuids = group_uuids.entry(group.name.clone()).or_default();
-        for workload in &group.workloads {
-            let pods = output_checked(
-                "kubectl",
-                [
-                    "--context",
-                    context,
-                    "--namespace",
-                    namespace,
-                    "get",
-                    "pods",
-                    "-l",
-                    format!("app.kubernetes.io/component={}", workload.deployment).as_str(),
-                    "-o",
-                    "json",
-                ],
-                None,
-            )?;
-            let pods: Value =
-                serde_json::from_slice(&pods).context("decoding GPU workload pods")?;
-            let pod_names = pods["items"]
-                .as_array()
-                .context("GPU workload pod list has no items")?
-                .iter()
-                .filter_map(|pod| pod.pointer("/metadata/name").and_then(Value::as_str))
-                .collect::<Vec<_>>();
-            ensure!(
-                pod_names.len() == usize::from(workload.replicas),
-                "GPU workload {} expected {} replicas but found {} pods",
-                workload.workload,
-                workload.replicas,
-                pod_names.len()
-            );
-            for pod in pod_names {
-                let output = output_checked(
-                    "kubectl",
-                    [
-                        "--context",
-                        context,
-                        "--namespace",
-                        namespace,
-                        "exec",
-                        pod,
-                        "-c",
-                        workload.container.as_str(),
-                        "--",
-                        "nvidia-smi",
-                        "--query-gpu=uuid",
-                        "--format=csv,noheader,nounits",
-                    ],
-                    None,
-                )?;
-                let visible = String::from_utf8(output)?
-                    .lines()
-                    .map(str::trim)
-                    .filter(|line| !line.is_empty())
-                    .map(ToOwned::to_owned)
-                    .collect::<Vec<_>>();
-                ensure!(
-                    visible.len() == 1,
-                    "GPU workload {} pod {pod} sees {} devices; expected exactly one allocated UUID",
-                    workload.workload,
-                    visible.len()
-                );
-                println!(
-                    "GPU placement ready: workload={} pod={} physicalUuid={} group={}",
-                    workload.workload, pod, visible[0], group.name
-                );
-                uuids.insert(visible[0].clone());
-            }
-        }
-        ensure!(
-            uuids.len() == 1,
-            "same-physical-device group {} resolved to different GPU UUIDs: {uuids:?}",
-            group.name
-        );
-    }
-    for constraint in &scheduling.different_physical_device_groups {
-        let mut seen = BTreeSet::new();
-        for group in &constraint.groups {
-            let uuid = group_uuids
-                .get(group)
-                .and_then(|values| values.first())
-                .with_context(|| format!("GPU group {group} has no verified UUID"))?;
-            ensure!(
-                seen.insert(uuid),
-                "different-physical-device constraint drifted: groups {:?} share UUID {uuid}",
-                constraint.groups
-            );
-        }
-    }
-    Ok(())
 }
 
 fn gateway_mount_key(path: &str) -> Result<String> {
@@ -1964,7 +1719,7 @@ mod tests {
 
     use super::{
         gateway_mount_key, normalize_origin, ordered_release_values, prepare_gateway_activation,
-        prepare_gpu_placement, validate_gateway_public_file,
+        validate_gateway_public_file,
     };
 
     #[test]
@@ -2049,28 +1804,5 @@ mod tests {
         );
         assert!(gateway_mount_key("/tmp/ca.pem").is_err());
         assert!(gateway_mount_key("/etc/veoveo/gateway/trust/ca.pem").is_err());
-    }
-
-    #[test]
-    fn checked_in_profile_compiles_restart_stable_gpu_claim() {
-        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let profile_path =
-            repository.join("testing/fixtures/external-simulation-installation/deployment.json");
-        let profile = LoadedProfile::load(&profile_path, &repository).unwrap();
-        let placement = prepare_gpu_placement(&profile).unwrap().unwrap();
-
-        assert_eq!(placement.claim_name, "anonymous-simulation-gpu");
-        assert_eq!(placement.manifest["apiVersion"], "resource.k8s.io/v1");
-        assert_eq!(
-            placement.manifest.pointer("/spec/devices/requests/0/name"),
-            Some(&serde_json::json!("simulation-view"))
-        );
-        assert_eq!(
-            placement
-                .workload_requests
-                .get("simulation-view-renderer")
-                .map(String::as_str),
-            Some("simulation-view")
-        );
     }
 }

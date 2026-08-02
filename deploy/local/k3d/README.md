@@ -52,15 +52,16 @@ by local deployment profiles.
 
 ## GPU cluster
 
-The node image combines K3s with the NVIDIA Container Toolkit. The cluster passes
-the host GPU through to its server node and installs NVIDIA's Kubernetes device
-plugin with `FAIL_ON_INIT_ERROR=true`. GPU workloads do not have a CPU fallback.
-The node profile publishes seven time-sliced allocations from that device because
+The node image combines K3s with the NVIDIA Container Toolkit and a CDI-enabled
+containerd runtime. It does not embed an allocator. Each deployment profile chooses
+the canonical managed DRA path or explicitly bootstraps the NVIDIA device plugin;
+the two allocators never run on the same node. GPU workloads do not have a CPU fallback.
+The SUMO profile publishes seven time-sliced device-plugin allocations because
 UAV Isaac Sim, Simulation View, View, Stream, Reason, the cuOpt executor, and the
 Rerun viewer MCP run at the same time. Each workload still requests one ordinary
 `nvidia.com/gpu` resource. Time-slicing provides schedulability, not memory or
-fault isolation; a fielded cluster may instead provide physical GPUs or an
-operator-selected partitioning policy.
+fault isolation. Profiles that need restart-stable physical pairing use the managed
+DRA contract in [GPU placement](../../../docs/GPU_PLACEMENT.md).
 
 ```bash
 nvidia-smi
@@ -84,6 +85,10 @@ kubectl --context k3d-veoveo-sumo logs job/veoveo-gpu-probe
 The probe requests one Kubernetes GPU and checks CUDA, the NVIDIA Vulkan ICD, and
 the proprietary Vulkan device. A missing device, runtime, driver library, or
 graphics capability fails the job.
+
+The allocator-free node image is a hard cut. Rebuild the image and recreate any local
+cluster made from the earlier image before selecting managed DRA. A cluster restart
+does not remove a static device-plugin manifest already stored in that node.
 
 ## SUMO profile
 

@@ -21,7 +21,6 @@ RUN apt-get update \
 
 COPY --from=k3s / / --exclude=/bin
 COPY --from=k3s /bin /bin
-COPY nvidia-device-plugin.yaml /var/lib/rancher/k3s/server/manifests/nvidia-device-plugin.yaml
 
 VOLUME /var/lib/kubelet
 VOLUME /var/lib/rancher/k3s

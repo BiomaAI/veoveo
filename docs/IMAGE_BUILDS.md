@@ -323,7 +323,7 @@ through private DNS, an internal network, or a VPN.
 
 The current delivery includes the source-local planner, private Python SDK, standalone
 conformance distribution, gateway composer, Helm library, compatibility release
-generator, named-source deployment v4 coordination, exact platform-image closure
+generator, named-source deployment v5 coordination, exact platform-image closure
 enforcement, and paired hardware simulation-overlay certification.
 
 Multi-source composition passes an explicit source context and immutable artifact

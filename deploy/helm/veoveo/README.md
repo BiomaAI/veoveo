@@ -201,7 +201,7 @@ fails the mount when the ConfigMap or key is absent. The BFF fails startup when 
 mounted file is unreadable, empty, or invalid. These roots augment the standard trust
 store and the projected Kubernetes API root; certificate verification remains enabled.
 Changing the ConfigMap contents requires a Console BFF rollout because clients load the
-bundle at startup. A deployment/v4 installation places these values in a file selected
+bundle at startup. A deployment/v5 installation places these values in a file selected
 through the platform release's `installationValues` array.
 
 ### Embedded Rerun maps
@@ -239,7 +239,7 @@ activation remains serialized within the process.
 
 `view-mcp` runs as one stateful offscreen renderer and consumes one GPU claim request
 under a deployment profile. Direct Helm installations use `nvidia.com/gpu`. Install the
-NVIDIA DRA driver for profile-managed physical placement, provide an `nvidia`
+managed NVIDIA DRA driver for profile-managed physical placement, provide an `nvidia`
 RuntimeClass, and put `google-maps-api-key` in the installation secret. Readiness fails unless Bevy selects an NVIDIA Vulkan
 hardware adapter; the image does not install a Mesa Vulkan software ICD. Its
 non-overlapping replacement preserves the claim allocation.

@@ -4,13 +4,13 @@
 
 | Standard or protocol | Supported profile |
 |---|---|
-| `veoveo.io/deployment/v4` | installation-repository profile with exact platform targets, independently versioned workload and extension sources, split Helm values ownership, and explicit registry transport |
-| `veoveo.io/deployment-lock/v4` | immutable installation revision, registry transport, source-role, OCI image, chart, and platform resolution |
+| `veoveo.io/deployment/v5` | installation-repository profile with exact platform targets, independently versioned workload and extension sources, split Helm values ownership, explicit registry transport, and a managed GPU allocator closure |
+| `veoveo.io/deployment-lock/v5` | immutable installation revision, registry transport, source-role, OCI image, chart, platform resolution, and GPU allocator artifacts |
 | `veoveo.io/local-registry/v1` | repository-owned loopback registry declaration |
 | Docker Buildx Bake | one exact multi-target platform build plus source-owned workload and extension groups |
-| Kubernetes and Helm | typed destination and ordered release inputs; process execution remains outside this crate |
+| Kubernetes/K3s v1.36.2 and Helm v4.2.3 | qualified DRA destination and ordered release inputs; process execution remains outside this crate |
 | Kubernetes Dynamic Resource Allocation `resource.k8s.io/v1` | persistent `ResourceClaim` allocation, named requests, per-container claims, and distinct-device constraints |
-| NVIDIA DRA driver `resource.nvidia.com/v1beta1` | full-GPU and MIG DeviceClasses plus measured time-slicing configuration; this is the internal adapter, not the public placement vocabulary |
+| NVIDIA DRA Driver for GPUs Helm chart `0.4.1` and `resource.nvidia.com/v1beta1` | digest-locked standalone GPU allocation, full-GPU and MIG DeviceClasses, CDI preparation, and measured time-slicing configuration; GPU allocation and `TimeSlicingSettings` remain upstream technology-preview features |
 
 ## Responsibility
 
@@ -43,6 +43,14 @@ by one release invocation. Local development may use source charts; production
 composition replaces source coordinates with digest-addressed private OCI chart
 coordinates.
 
+Deployment v5 also carries the complete managed GPU allocator closure. The profile and
+lock name the standalone NVIDIA chart, its OCI manifest digest, the downloaded archive
+digest, the multi-platform driver image index, and each admitted platform manifest.
+They select eligible nodes, a host driver root, a bounded Helm timeout, and one typed
+transition away from the legacy device plugin. Validation accepts only the qualified
+`0.4.1` release. This is a hard cut from deployment v4; an installation migrates by
+adding `gpuScheduling.allocator.installation` and regenerating its lock.
+
 The platform resolver expands `full`, `extension-foundation`, or a typed custom
 selection. Gateway composition requirements fail closed against that graph. Artifact,
 Frames, Map, Media, Optimization, Recording, and RRD requirements select their actual
@@ -59,7 +67,24 @@ use different physical devices. Each workload declares its replica count, while 
 group bounds all consumers. The profile also records the installation evidence digest
 and the stable DRA claim identity.
 
-`profile-up` compiles that provider-neutral topology into one
+`profile-up` first verifies Kubernetes, eligible Ready nodes, and the locked allocator
+artifacts. It quiesces declared GPU Deployments only when configured removal of a
+conflicting device plugin is actually required. The command then labels the selected
+nodes, rejects undeclared device-plugin pods, and atomically installs the chart-owned
+GPU kubelet plugin, RBAC, DeviceClasses, and ResourceSlices. GPU allocation is explicitly
+enabled, `resource.k8s.io/v1` is fixed, ComputeDomains are disabled, and the alpha
+`TimeSlicingSettings` feature gate is enabled. A host-installed NVIDIA driver uses
+`nvidiaDriverRoot=/`; the platform never replaces or upgrades that driver.
+
+After install, `profile-up` requires the exact Helm chart and digest-pinned image,
+`gpu.nvidia.com` with its `nvidia.com/gpu` extended-resource bridge, one Ready kubelet
+plugin per selected node, complete ResourceSlice coverage, unique physical UUIDs, and
+the declared device count. The qualified integration baseline is Kubernetes/K3s
+v1.36.2, NVIDIA driver 610.43.02, Container Toolkit package 1.19.1-1, and CDI-enabled
+containerd. The Kubernetes and driver versions are checked exactly. The NVIDIA
+device plugin does not remain on DRA-owned nodes.
+
+The installer then compiles the provider-neutral topology into one
 `resource.k8s.io/v1` ResourceClaim before Helm runs. Workloads in one group reference
 the same claim request. Different groups are allocated atomically and use a
 `distinctAttribute` constraint for shared devices. The claim persists through pod

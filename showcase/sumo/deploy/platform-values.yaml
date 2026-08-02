@@ -15,7 +15,7 @@ recording:
   tenantKey: tenant-a
   workContext: traffic-operations
 
-# deployment/v4 installation-owned routing keeps the public OAuth resource in
+# deployment/v5 installation-owned routing keeps the public OAuth resource in
 # the source values while selecting the in-cluster Console MCP transport here.
 consoleBff:
   mcpTransportUrl: http://mcp-gateway:8788/mcp/admin

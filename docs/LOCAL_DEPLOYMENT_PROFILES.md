@@ -13,7 +13,7 @@ The current complete profile is the SUMO development environment:
 | Local image destination | Profile-selected registry host and port with revision-addressed image tags |
 | Platform workload graph | deploy/helm/veoveo |
 | Showcase workload graph | Its adjacent Helm chart |
-| Development composition | A `veoveo.io/deployment/v4` installation-repository JSON profile |
+| Development composition | A `veoveo.io/deployment/v5` installation-repository JSON profile |
 | Local registry lifecycle | deploy/local/k3d/registry.json |
 
 ## Workflow
@@ -59,7 +59,7 @@ paths resolve inside that source's exact checkout. The fields are:
 
 | Field | Meaning |
 |---|---|
-| schemaVersion | `veoveo.io/deployment/v4` |
+| schemaVersion | `veoveo.io/deployment/v5` |
 | name | Stable local environment identity |
 | registry.address | OCI host and port |
 | registry.transport | `tls` or explicitly admitted `insecure-http` |
@@ -79,6 +79,7 @@ paths resolve inside that source's exact checkout. The fields are:
 | gatewayActivation.confidentialSecret | Pre-existing Secret that `profile-up` verifies but never rewrites |
 | gatewayActivation.requiredSecretKeys | Secret data keys required before gateway rollout |
 | platform | Typed installation preset or exact components, MCP servers, and artifact audiences |
+| platform.gpuScheduling.allocator.installation | Exact managed NVIDIA DRA chart and image closure, eligible nodes, conflicting-device-plugin removal, and maturity acceptance |
 | gatewayRequirements | Composer outputs that the selected runtime must satisfy |
 | waitForDeployments | Extra rollout gates |
 
@@ -90,7 +91,7 @@ commit, then resolves each source revision independently.
 The publisher derives only the required platform targets, rejects missing or
 unnecessary platform images and duplicate repository/tag references, and executes the
 platform set once. Workload and extension groups remain source-owned. It writes one
-`veoveo.io/deployment-lock/v4` document with the installation revision, registry
+`veoveo.io/deployment-lock/v5` document with the installation revision, registry
 transport, source repositories and revisions, image manifest digests, chart-content
 digests, and expanded platform graph.
 
@@ -129,9 +130,12 @@ port comes from `registry.address` and the matching local registry declaration; 
 not a Veoveo constant. Nodes pull missing layers into their containerd store through
 the registry. Deleting a cluster leaves the shared registry volume intact.
 
-A profile applies the NVIDIA device-plugin bootstrap and waits for allocatable
-nvidia.com/gpu capacity. The local workflow fails before application installation
-when the GPU contract is unavailable.
+A profile without physical placement may apply the NVIDIA device-plugin bootstrap and
+wait for allocatable `nvidia.com/gpu` capacity. A profile with `gpuScheduling` instead
+manages the exact NVIDIA DRA dependency described in [GPU placement](GPU_PLACEMENT.md).
+`profile-cluster-up` waits for a Ready node; `profile-up` verifies and installs DRA,
+checks its DeviceClass and ResourceSlices, creates the durable claim, and only then
+rolls out applications.
 
 Local k3d schedulers do not share GPU allocation state. A single-GPU
 workstation therefore runs one GPU-bearing profile cluster at a time. Stop a
@@ -148,6 +152,6 @@ cargo xtask smoke profile-cluster-delete --profile "$PROFILE"
 ~~~
 
 A new local showcase may add an image group and adjacent Helm chart, then select those
-surfaces through a `workload` source. A fielded installation may keep deployment v4
+surfaces through a `workload` source. A fielded installation may keep deployment v5
 selection in its private configuration repository, but it consumes published OCI
 artifacts rather than building from a checkout inside the cluster.
