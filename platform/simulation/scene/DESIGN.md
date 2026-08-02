@@ -42,6 +42,22 @@ required attribution, and the exact Frames revision, local ENU frame, and WGS
 84 origin. Simulation View rejects an unknown ID or a revision mismatch before
 sending the scene to the renderer.
 
+## Governed Lighting
+
+`SceneLighting` declares one physical directional illuminant. The renderer
+authors one normalized OpenUSD distant light with exposure `0`. It maps
+`intensityLux` directly to the light intensity without a divisor, and it
+enables OpenUSD color-temperature processing before applying
+`colorTemperatureKelvin`. The fixed sun angular diameter is `0.53` degrees.
+The renderer does not derive dome radiance from illuminance because the two
+quantities do not share a valid conversion.
+
+The accepted color-temperature interval is `1000..=10000` kelvin, matching
+the selected OpenUSD light profile. Scene admission rejects values outside
+that interval. A renderer that cannot apply intensity, normalization,
+exposure, or color temperature rejects the scene rather than silently
+dropping a field.
+
 ## Canonical Identity
 
 `SceneDeclaration::from_body` serializes the typed body with `serde_json` and

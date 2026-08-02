@@ -177,6 +177,7 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         | "view-google-live"
         | "sumo-push"
         | "simulation-certify"
+        | "simulation-view-visual-compare"
         | "help" => &[],
         unknown => bail!(
             "unknown smoke scenario `{unknown}`; run `cargo xtask smoke help` to list scenarios"
