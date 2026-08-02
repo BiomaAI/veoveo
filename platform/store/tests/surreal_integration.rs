@@ -17,11 +17,51 @@ use veoveo_platform_store::{
     OutboxDraft, PlatformIdentity, PlatformStore, PlatformTable, PrincipalKind, RecordIdKey,
     RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingDraft, RecordingId, RecordingSeal,
     RecordingState, SegmentDraft, SegmentId, SegmentSealBinding, SegmentState, ShareLinkId,
-    StoreConfig, StoreCredentials, StoreError, TaskId, TimeAuthorityReleaseDraft,
-    TimeAuthorityReleaseState, TimeDatasetKind, TimeSourceDraft, WorkContextInitialGrantRecord,
-    WorkContextMembershipLevel, decode_changefeed_entry, deterministic_work_context_id,
-    gateway_replay_record_id,
+    SimulationViewStateDraft, StoreConfig, StoreCredentials, StoreError, TaskId,
+    TimeAuthorityReleaseDraft, TimeAuthorityReleaseState, TimeDatasetKind, TimeSourceDraft,
+    WorkContextInitialGrantRecord, WorkContextMembershipLevel, decode_changefeed_entry,
+    deterministic_work_context_id, gateway_replay_record_id,
 };
+
+fn simulation_view_state_draft(
+    desired_revision: u64,
+    realized_revision: u64,
+    digest_byte: char,
+) -> SimulationViewStateDraft {
+    SimulationViewStateDraft {
+        tenant_key: "tenant-simulation-view".to_owned(),
+        owner_key: r#"{"principal":"operator"}"#.to_owned(),
+        work_context_key: "operations".to_owned(),
+        policy_revision: "policy-r1".to_owned(),
+        session_id: "durable-session".to_owned(),
+        epoch_id: "epoch-1".to_owned(),
+        desired_revision,
+        realized_revision,
+        authorization_revision: desired_revision,
+        revoked: false,
+        authorization_expires_at: Some(Utc::now() + TimeDelta::minutes(10)),
+        snapshot_digest: digest_byte.to_string().repeat(64),
+        snapshot: OpenObject::new(BTreeMap::from([
+            ("sessionId".to_owned(), serde_json::json!("durable-session")),
+            (
+                "desiredRevision".to_owned(),
+                serde_json::json!(desired_revision),
+            ),
+        ])),
+        reconciliation: OpenObject::new(BTreeMap::from([
+            (
+                "desiredRevision".to_owned(),
+                serde_json::json!(desired_revision),
+            ),
+            (
+                "realizedRevision".to_owned(),
+                serde_json::json!(realized_revision),
+            ),
+            ("phase".to_owned(), serde_json::json!("pending")),
+        ])),
+        updated_at: Utc::now(),
+    }
+}
 
 fn artifact_authority(identity: &PlatformIdentity) -> InvocationAuthorityRecord {
     InvocationAuthorityRecord {
@@ -1761,4 +1801,64 @@ async fn changefeed_replay_contract_is_pinned() {
         "tenant creation ({tenant_max}) must order before the later principal update \
          ({update_versionstamp}) across tables"
     );
+}
+
+#[tokio::test]
+async fn simulation_view_desired_state_is_revisioned_and_idempotent() {
+    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
+        return;
+    }
+
+    let endpoint =
+        std::env::var("VEOVEO_SURREAL_URL").unwrap_or_else(|_| "ws://127.0.0.1:8000".to_owned());
+    let username = std::env::var("VEOVEO_SURREAL_USER").unwrap_or_else(|_| "root".to_owned());
+    let password = std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".to_owned());
+    let store = PlatformStore::connect(
+        StoreConfig::builder(
+            &endpoint,
+            "veoveo_integration",
+            format!("simulation_view_test_{}", Uuid::now_v7().simple()),
+            StoreCredentials::root(username, SecretString::from(password)),
+        )
+        .migrate_on_connect(true)
+        .build()
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    let first = store
+        .commit_simulation_view_state(simulation_view_state_draft(1, 0, 'a'))
+        .await
+        .unwrap();
+    assert_eq!(first.desired_revision, 1);
+    assert_eq!(first.realized_revision, 0);
+
+    let realized = store
+        .commit_simulation_view_state(simulation_view_state_draft(1, 1, 'a'))
+        .await
+        .unwrap();
+    assert_eq!(realized.realized_revision, 1);
+    assert!(matches!(
+        store
+            .commit_simulation_view_state(simulation_view_state_draft(1, 1, 'b'))
+            .await,
+        Err(StoreError::SimulationViewRevisionConflict { revision: 1 })
+    ));
+    assert!(matches!(
+        store
+            .commit_simulation_view_state(simulation_view_state_draft(3, 1, 'c'))
+            .await,
+        Err(StoreError::SimulationViewRevisionGap {
+            expected: 2,
+            actual: 3
+        })
+    ));
+
+    let second = store
+        .commit_simulation_view_state(simulation_view_state_draft(2, 1, 'b'))
+        .await
+        .unwrap();
+    assert_eq!(second.desired_revision, 2);
+    assert_eq!(store.simulation_view_states().await.unwrap().len(), 1);
 }

@@ -4,14 +4,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::{EpochId, FrameRevision, PoseLimits, SessionId, Sha256Digest};
 
-pub const POSE_INGRESS_CONTROL_SCHEMA: &str = "veoveo.io/simulation-view-pose-ingress-control/v1";
+pub const POSE_INGRESS_CONTROL_SCHEMA: &str = "veoveo.io/simulation-view-pose-ingress-control/v2";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PoseProducerAuthorization {
     pub producer_id: String,
     pub spiffe_id: String,
+    pub authorization_revision: u64,
     pub expires_at: DateTime<Utc>,
+    pub revoked: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -67,7 +69,9 @@ pub struct PoseIngressStatus {
     pub epoch_id: EpochId,
     pub producer_id: String,
     pub producer_spiffe_id: String,
+    pub authorization_revision: u64,
     pub authorized_until: DateTime<Utc>,
+    pub revoked: bool,
     pub stale: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_sequence: Option<u64>,

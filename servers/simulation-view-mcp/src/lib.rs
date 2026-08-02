@@ -4,7 +4,9 @@ pub mod uris;
 
 mod app;
 mod artifacts;
+mod durability;
 mod mcp;
+mod reconciler;
 mod runtime;
 mod server;
 

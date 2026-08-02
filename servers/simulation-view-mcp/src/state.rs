@@ -26,8 +26,9 @@ use crate::{
         CapacityState, CapacityUsage, CloseCameraRequest, CloseLiveViewRequest, CloseResult,
         CloseSessionRequest, CreateCameraRequest, CreateSessionRequest, GeospatialLayerHealth,
         LayerFailureCode, LayerFailureDiagnostic, LayerLifecycle, OpenLiveViewRequest,
-        PoseSourceState, RenewLiveViewRequest, RevokePoseProducerRequest, SessionLifecycle,
-        SetCameraRequest, SimulationViewError, SimulationViewSession,
+        PoseAuthorizationRenewalState, PoseSourceState, ReconciliationFailureCode,
+        ReconciliationPhase, ReconciliationStatus, RenewLiveViewRequest, RevokePoseProducerRequest,
+        SessionLifecycle, SetCameraRequest, SimulationViewError, SimulationViewSession,
     },
     uris,
 };
@@ -71,10 +72,25 @@ impl Default for SimulationViewConfig {
     }
 }
 
-#[derive(Debug)]
-struct Lease {
-    state: LiveViewState,
-    token_hash: [u8; 32],
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) struct Lease {
+    pub state: LiveViewState,
+    pub token_hash: [u8; 32],
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct DurableCamera {
+    pub camera: CameraRecord,
+    pub render_slot: u16,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct DurableSimulationViewState {
+    pub session: SimulationViewSession,
+    pub cameras: Vec<DurableCamera>,
+    pub leases: Vec<Lease>,
 }
 
 #[derive(Debug, Default)]
@@ -131,7 +147,7 @@ impl SimulationViewService {
             .state
             .lock()
             .expect("simulation-view state lock poisoned");
-        if let Some(existing) = state.sessions.get(&request.session_id) {
+        let desired_revision = if let Some(existing) = state.sessions.get(&request.session_id) {
             if existing.owner != owner {
                 return Err(SimulationViewError::Ownership);
             }
@@ -143,7 +159,13 @@ impl SimulationViewService {
                 }
                 return Ok(existing.clone());
             }
-        }
+            existing.reconciliation.desired_revision.saturating_add(1)
+        } else {
+            1
+        };
+        state
+            .leases
+            .retain(|_, lease| lease.state.session_id != request.session_id);
         let now = Utc::now();
         let session = SimulationViewSession {
             session_id: request.session_id,
@@ -151,6 +173,7 @@ impl SimulationViewService {
             owner,
             lifecycle: SessionLifecycle::Created,
             revision: 1,
+            reconciliation: ReconciliationStatus::pending(desired_revision),
             scene: None,
             geospatial_layer: None,
             pose_source: None,
@@ -281,9 +304,18 @@ impl SimulationViewService {
         if session.scene.is_none() || session.lifecycle == SessionLifecycle::Closed {
             return Err(SimulationViewError::Lifecycle);
         }
+        let authorization_lifetime_seconds =
+            u64::try_from(request.expires_at.signed_duration_since(now).num_seconds())
+                .map_err(|_| SimulationViewError::Producer)?;
+        let authorization_revision = session
+            .pose_source
+            .as_ref()
+            .map_or(1, |source| source.authorization_revision.saturating_add(1));
         let source = PoseSourceState {
             producer_id: request.producer_id,
             spiffe_id: request.spiffe_id,
+            authorization_revision,
+            authorization_lifetime_seconds,
             authorized_at: now,
             expires_at: request.expires_at,
             revoked: false,
@@ -293,6 +325,10 @@ impl SimulationViewService {
         };
         session.pose_source = Some(source.clone());
         advance_session(session);
+        session.reconciliation.producer_id = Some(source.producer_id.clone());
+        session.reconciliation.producer_spiffe_id = Some(source.spiffe_id.clone());
+        session.reconciliation.authorization_expires_at = Some(source.expires_at);
+        session.reconciliation.renewal_state = PoseAuthorizationRenewalState::Scheduled;
         Ok(source)
     }
 
@@ -314,8 +350,29 @@ impl SimulationViewService {
             .ok_or(SimulationViewError::Producer)?;
         source.revoked = true;
         source.stale = true;
+        source.authorization_revision = source.authorization_revision.saturating_add(1);
         let result = source.clone();
         advance_session(session);
+        session.reconciliation.phase = ReconciliationPhase::Revoked;
+        session.reconciliation.renewal_state = PoseAuthorizationRenewalState::Revoked;
+        session.reconciliation.producer_id = Some(result.producer_id.clone());
+        session.reconciliation.producer_spiffe_id = Some(result.spiffe_id.clone());
+        session.reconciliation.authorization_expires_at = Some(result.expires_at);
+        for camera in state
+            .cameras
+            .values_mut()
+            .filter(|camera| camera.session_id == request.session_id)
+        {
+            camera.health = LiveCameraHealth::Stale;
+            camera.updated_at = Utc::now();
+        }
+        for lease in state
+            .leases
+            .values_mut()
+            .filter(|lease| lease.state.session_id == request.session_id)
+        {
+            close_lease(lease);
+        }
         Ok(result)
     }
 
@@ -335,6 +392,7 @@ impl SimulationViewService {
             if let Some(source) = session.pose_source.as_mut() {
                 source.revoked = true;
                 source.stale = true;
+                source.authorization_revision = source.authorization_revision.saturating_add(1);
             }
             advance_session(session);
         }
@@ -397,6 +455,9 @@ impl SimulationViewService {
         state
             .cameras
             .insert(camera.camera_id.clone(), camera.clone());
+        if let Some(session) = state.sessions.get_mut(&camera.session_id) {
+            advance_desired(session);
+        }
         Ok(CameraAdmission::Admitted {
             camera: Box::new(camera),
         })
@@ -442,8 +503,12 @@ impl SimulationViewService {
         camera.revision += 1;
         camera.health = LiveCameraHealth::Warming;
         camera.updated_at = Utc::now();
+        let result = camera.clone();
+        if let Some(session) = state.sessions.get_mut(&request.session_id) {
+            advance_desired(session);
+        }
         Ok(CameraAdmission::Admitted {
-            camera: Box::new(camera.clone()),
+            camera: Box::new(result),
         })
     }
 
@@ -473,6 +538,9 @@ impl SimulationViewService {
             .filter(|lease| lease.state.camera_id == request.camera_id)
         {
             close_lease(lease);
+        }
+        if let Some(session) = state.sessions.get_mut(&request.session_id) {
+            advance_desired(session);
         }
         Ok(CloseResult {
             resource_uri: uris::camera(&request.session_id, &request.camera_id),
@@ -576,6 +644,9 @@ impl SimulationViewService {
                 token_hash: token_hash(&token),
             },
         );
+        if let Some(session) = state.sessions.get_mut(&stream.session_id) {
+            advance_desired(session);
+        }
         Ok(LiveViewConnection {
             stream,
             access_token: token,
@@ -605,7 +676,12 @@ impl SimulationViewService {
         ) {
             return Err(SimulationViewError::Lifecycle);
         }
-        rotate_lease(&self.config, lease)
+        let session_id = lease.state.session_id.clone();
+        let connection = rotate_lease(&self.config, lease)?;
+        if let Some(session) = state.sessions.get_mut(&session_id) {
+            advance_desired(session);
+        }
+        Ok(connection)
     }
 
     pub fn close_live_view(
@@ -626,8 +702,13 @@ impl SimulationViewService {
             return Err(SimulationViewError::Ownership);
         }
         close_lease(lease);
+        let session_id = lease.state.session_id.clone();
+        let resource_uri = lease.state.resource_uri.as_str().to_owned();
+        if let Some(session) = state.sessions.get_mut(&session_id) {
+            advance_desired(session);
+        }
         Ok(CloseResult {
-            resource_uri: lease.state.resource_uri.as_str().to_owned(),
+            resource_uri,
             closed: true,
         })
     }
@@ -701,39 +782,6 @@ impl SimulationViewService {
             .filter(|lease| lease.state.owner == *owner)
         {
             close_lease(lease);
-        }
-    }
-
-    pub(crate) fn fail_session(&self, session_id: &LiveSessionId) {
-        let mut state = self
-            .state
-            .lock()
-            .expect("simulation-view state lock poisoned");
-        if let Some(session) = state.sessions.get_mut(session_id) {
-            session.lifecycle = SessionLifecycle::Failed;
-            if let Some(source) = session.pose_source.as_mut() {
-                source.revoked = true;
-                source.stale = true;
-            }
-            advance_session(session);
-        }
-        for camera in state
-            .cameras
-            .values_mut()
-            .filter(|camera| camera.session_id == *session_id)
-        {
-            camera.health = LiveCameraHealth::Failed;
-            camera.updated_at = Utc::now();
-        }
-        for lease in state
-            .leases
-            .values_mut()
-            .filter(|lease| lease.state.session_id == *session_id)
-        {
-            lease.state.lifecycle = LiveViewLifecycle::Failed;
-            lease.state.connected_viewers = 0;
-            lease.token_hash.fill(0);
-            lease.state.expires_at = Utc::now();
         }
     }
 
@@ -867,7 +915,9 @@ impl SimulationViewService {
             || status.epoch_id != session.epoch_id
             || status.producer_id != source.producer_id.as_str()
             || status.producer_spiffe_id != source.spiffe_id
+            || status.authorization_revision != source.authorization_revision
             || status.authorized_until != source.expires_at
+            || status.revoked != source.revoked
         {
             return Err(SimulationViewError::Producer);
         }
@@ -957,6 +1007,346 @@ impl SimulationViewService {
             lease.state.connected_viewers = 0;
             lease.token_hash.fill(0);
             lease.state.expires_at = Utc::now();
+        }
+    }
+
+    pub(crate) fn durable_state(
+        &self,
+        session_id: &LiveSessionId,
+    ) -> Result<DurableSimulationViewState, SimulationViewError> {
+        let state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        let session = state
+            .sessions
+            .get(session_id)
+            .ok_or_else(|| SimulationViewError::SessionNotFound(session_id.clone()))?
+            .clone();
+        let cameras = state
+            .cameras
+            .values()
+            .filter(|camera| camera.session_id == *session_id)
+            .map(|camera| {
+                let render_slot = state
+                    .camera_slots
+                    .get(&camera.camera_id)
+                    .copied()
+                    .ok_or(SimulationViewError::Lifecycle)?;
+                Ok(DurableCamera {
+                    camera: camera.clone(),
+                    render_slot,
+                })
+            })
+            .collect::<Result<Vec<_>, SimulationViewError>>()?;
+        let leases = state
+            .leases
+            .values()
+            .filter(|lease| lease.state.session_id == *session_id)
+            .cloned()
+            .collect();
+        Ok(DurableSimulationViewState {
+            session,
+            cameras,
+            leases,
+        })
+    }
+
+    pub(crate) fn restore_durable_state(
+        &self,
+        mut desired: DurableSimulationViewState,
+    ) -> Result<(), SimulationViewError> {
+        let now = Utc::now();
+        for camera in &mut desired.cameras {
+            camera.camera.health = LiveCameraHealth::Warming;
+            camera.camera.last_pose_sequence = None;
+            camera.camera.last_frame_at = None;
+            camera.camera.updated_at = now;
+        }
+        desired.leases.retain(|lease| {
+            lease.state.expires_at > now
+                && !matches!(
+                    lease.state.lifecycle,
+                    LiveViewLifecycle::Closed | LiveViewLifecycle::Failed
+                )
+        });
+        for lease in &mut desired.leases {
+            lease.state.connected_viewers = 0;
+            lease.state.lifecycle = LiveViewLifecycle::Ready;
+            lease.state.camera_health = LiveCameraHealth::Warming;
+            lease.state.last_frame_at = None;
+        }
+        if let Some(source) = desired.session.pose_source.as_mut() {
+            source.last_sequence = None;
+            source.last_snapshot_at = None;
+            source.stale = true;
+        }
+        if desired.session.lifecycle != SessionLifecycle::Closed {
+            desired.session.lifecycle = if desired.session.scene.is_some() {
+                SessionLifecycle::SceneBound
+            } else {
+                SessionLifecycle::Created
+            };
+        }
+        desired.session.reconciliation.phase = if desired
+            .session
+            .pose_source
+            .as_ref()
+            .is_some_and(|source| source.revoked)
+        {
+            ReconciliationPhase::Revoked
+        } else {
+            ReconciliationPhase::Pending
+        };
+        desired.session.reconciliation.next_attempt_at = Some(now);
+        let session_id = desired.session.session_id.clone();
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        if state.sessions.contains_key(&session_id) {
+            return Err(SimulationViewError::SessionAlreadyExists(session_id));
+        }
+        for durable in desired.cameras {
+            if durable.camera.session_id != session_id
+                || state.cameras.contains_key(&durable.camera.camera_id)
+                || state
+                    .camera_slots
+                    .values()
+                    .any(|slot| *slot == durable.render_slot)
+            {
+                return Err(SimulationViewError::Lifecycle);
+            }
+            state
+                .camera_slots
+                .insert(durable.camera.camera_id.clone(), durable.render_slot);
+            state
+                .cameras
+                .insert(durable.camera.camera_id.clone(), durable.camera);
+        }
+        for lease in desired.leases {
+            if lease.state.session_id != session_id {
+                return Err(SimulationViewError::Lifecycle);
+            }
+            state.leases.insert(lease.state.live_view_id.clone(), lease);
+        }
+        state.sessions.insert(session_id, desired.session);
+        Ok(())
+    }
+
+    pub(crate) fn reconciliation_sessions(&self) -> Vec<SimulationViewSession> {
+        self.state
+            .lock()
+            .expect("simulation-view state lock poisoned")
+            .sessions
+            .values()
+            .cloned()
+            .collect()
+    }
+
+    pub(crate) fn reconciliation_ready(&self) -> bool {
+        self.state
+            .lock()
+            .expect("simulation-view state lock poisoned")
+            .sessions
+            .values()
+            .all(|session| {
+                session.reconciliation.desired_revision == session.reconciliation.realized_revision
+                    && matches!(
+                        session.reconciliation.phase,
+                        ReconciliationPhase::Healthy | ReconciliationPhase::Revoked
+                    )
+            })
+    }
+
+    pub(crate) fn reconciliation_cameras(
+        &self,
+        session_id: &LiveSessionId,
+    ) -> Vec<(CameraRecord, u16)> {
+        let state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        state
+            .cameras
+            .values()
+            .filter(|camera| camera.session_id == *session_id)
+            .filter_map(|camera| {
+                state
+                    .camera_slots
+                    .get(&camera.camera_id)
+                    .copied()
+                    .map(|slot| (camera.clone(), slot))
+            })
+            .collect()
+    }
+
+    pub(crate) fn reconciliation_streams(&self, session_id: &LiveSessionId) -> Vec<LiveViewState> {
+        let now = Utc::now();
+        self.state
+            .lock()
+            .expect("simulation-view state lock poisoned")
+            .leases
+            .values()
+            .filter(|lease| {
+                lease.state.session_id == *session_id
+                    && lease.state.expires_at > now
+                    && !matches!(
+                        lease.state.lifecycle,
+                        LiveViewLifecycle::Closed | LiveViewLifecycle::Failed
+                    )
+            })
+            .map(|lease| lease.state.clone())
+            .collect()
+    }
+
+    pub(crate) fn schedule_pose_renewal(&self, session_id: &LiveSessionId, at: DateTime<Utc>) {
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        if let Some(session) = state.sessions.get_mut(session_id) {
+            session.reconciliation.renewal_state = if session
+                .pose_source
+                .as_ref()
+                .is_some_and(|source| source.revoked)
+            {
+                PoseAuthorizationRenewalState::Revoked
+            } else {
+                PoseAuthorizationRenewalState::Scheduled
+            };
+            session.reconciliation.next_attempt_at = Some(at);
+            session.updated_at = Utc::now();
+        }
+    }
+
+    pub(crate) fn renew_pose_authorization(
+        &self,
+        session_id: &LiveSessionId,
+        now: DateTime<Utc>,
+    ) -> Result<PoseSourceState, SimulationViewError> {
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        let session = state
+            .sessions
+            .get_mut(session_id)
+            .ok_or_else(|| SimulationViewError::SessionNotFound(session_id.clone()))?;
+        let source = session
+            .pose_source
+            .as_mut()
+            .ok_or(SimulationViewError::Lifecycle)?;
+        if source.revoked {
+            return Err(SimulationViewError::ProducerRevoked);
+        }
+        let lifetime = chrono::Duration::seconds(
+            i64::try_from(source.authorization_lifetime_seconds)
+                .map_err(|_| SimulationViewError::Time)?,
+        );
+        source.authorized_at = now;
+        source.expires_at = now
+            .checked_add_signed(lifetime)
+            .ok_or(SimulationViewError::Time)?;
+        source.authorization_revision = source.authorization_revision.saturating_add(1);
+        let result = source.clone();
+        advance_desired(session);
+        session.reconciliation.phase = ReconciliationPhase::PoseAuthorization;
+        session.reconciliation.renewal_state = PoseAuthorizationRenewalState::Renewing;
+        session.reconciliation.authorization_expires_at = Some(result.expires_at);
+        Ok(result)
+    }
+
+    pub(crate) fn mark_reconciliation_phase(
+        &self,
+        session_id: &LiveSessionId,
+        phase: ReconciliationPhase,
+        next_attempt_at: Option<DateTime<Utc>>,
+    ) {
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        if let Some(session) = state.sessions.get_mut(session_id) {
+            session.reconciliation.phase = phase;
+            session.reconciliation.next_attempt_at = next_attempt_at;
+            session.reconciliation.failed_dependency = None;
+            session.reconciliation.failure_code = None;
+            session.reconciliation.diagnostic = None;
+            session.updated_at = Utc::now();
+        }
+    }
+
+    pub(crate) fn mark_reconciliation_failed(
+        &self,
+        session_id: &LiveSessionId,
+        dependency: &str,
+        code: ReconciliationFailureCode,
+        diagnostic: &str,
+        next_attempt_at: DateTime<Utc>,
+    ) {
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        if let Some(session) = state.sessions.get_mut(session_id) {
+            session.reconciliation.phase = ReconciliationPhase::Blocked;
+            session.reconciliation.renewal_state =
+                if code == ReconciliationFailureCode::PoseAuthorizationExpired {
+                    PoseAuthorizationRenewalState::Expired
+                } else {
+                    PoseAuthorizationRenewalState::Blocked
+                };
+            session.reconciliation.failed_dependency = Some(dependency.to_owned());
+            session.reconciliation.failure_code = Some(code);
+            session.reconciliation.diagnostic = Some(diagnostic.to_owned());
+            session.reconciliation.next_attempt_at = Some(next_attempt_at);
+            session.updated_at = Utc::now();
+        }
+    }
+
+    pub(crate) fn mark_reconciliation_healthy(
+        &self,
+        session_id: &LiveSessionId,
+        at: DateTime<Utc>,
+    ) {
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        if let Some(session) = state.sessions.get_mut(session_id) {
+            if session.lifecycle != SessionLifecycle::Closed {
+                session.lifecycle = if session.scene.is_some() {
+                    SessionLifecycle::Ready
+                } else {
+                    SessionLifecycle::Created
+                };
+            }
+            session.reconciliation.realized_revision = session.reconciliation.desired_revision;
+            session.reconciliation.phase = if session
+                .pose_source
+                .as_ref()
+                .is_some_and(|source| source.revoked)
+            {
+                ReconciliationPhase::Revoked
+            } else {
+                ReconciliationPhase::Healthy
+            };
+            session.reconciliation.renewal_state = if session
+                .pose_source
+                .as_ref()
+                .is_some_and(|source| source.revoked)
+            {
+                PoseAuthorizationRenewalState::Revoked
+            } else {
+                PoseAuthorizationRenewalState::Current
+            };
+            session.reconciliation.last_successful_reconciliation_at = Some(at);
+            session.reconciliation.next_attempt_at = None;
+            session.reconciliation.failed_dependency = None;
+            session.reconciliation.failure_code = None;
+            session.reconciliation.diagnostic = None;
+            session.updated_at = at;
         }
     }
 
@@ -1209,6 +1599,17 @@ fn check_revision(actual: u64, expected: u64) -> Result<(), SimulationViewError>
 
 fn advance_session(session: &mut SimulationViewSession) {
     session.revision += 1;
+    advance_desired(session);
+}
+
+fn advance_desired(session: &mut SimulationViewSession) {
+    session.reconciliation.desired_revision =
+        session.reconciliation.desired_revision.saturating_add(1);
+    session.reconciliation.phase = ReconciliationPhase::Pending;
+    session.reconciliation.next_attempt_at = None;
+    session.reconciliation.failed_dependency = None;
+    session.reconciliation.failure_code = None;
+    session.reconciliation.diagnostic = None;
     session.updated_at = Utc::now();
 }
 
@@ -1736,7 +2137,9 @@ mod tests {
                     epoch_id: session.epoch_id.clone(),
                     producer_id: source.producer_id.to_string(),
                     producer_spiffe_id: source.spiffe_id,
+                    authorization_revision: source.authorization_revision,
                     authorized_until: expires_at,
+                    revoked: false,
                     stale: false,
                     last_sequence: Some(42),
                     last_snapshot_at: Some(Utc::now()),
@@ -1749,6 +2152,136 @@ mod tests {
         assert!(!source.stale);
         assert_eq!(source.last_sequence, Some(42));
         assert!(source.last_snapshot_at.is_some());
+    }
+
+    #[test]
+    fn bounded_authorization_renews_and_explicit_revocation_stops_reconciliation() {
+        let service = SimulationViewService::new(SimulationViewConfig::default()).unwrap();
+        let owner = view_owner("issuer#operator");
+        let session = bound_session(&service, &owner);
+        let authorized_at = Utc::now();
+        let source = service
+            .authorize_pose_producer(
+                &owner,
+                AuthorizePoseProducerRequest {
+                    session_id: session.session_id.clone(),
+                    expected_revision: session.revision,
+                    producer_id: ProducerId::new("renewable-producer").unwrap(),
+                    spiffe_id: "spiffe://veoveo.test/renewable-producer".to_owned(),
+                    expires_at: authorized_at + chrono::Duration::seconds(30),
+                },
+            )
+            .unwrap();
+        let renewed = service
+            .renew_pose_authorization(
+                &session.session_id,
+                authorized_at + chrono::Duration::seconds(20),
+            )
+            .unwrap();
+        assert_eq!(
+            renewed.authorization_revision,
+            source.authorization_revision + 1
+        );
+        assert_eq!(
+            renewed.authorization_lifetime_seconds,
+            source.authorization_lifetime_seconds
+        );
+        assert!((29..=30).contains(&renewed.authorization_lifetime_seconds));
+        assert!(renewed.expires_at > source.expires_at);
+
+        let current = service.get_session(&owner, &session.session_id).unwrap();
+        let revoked = service
+            .revoke_pose_producer(
+                &owner,
+                RevokePoseProducerRequest {
+                    session_id: session.session_id.clone(),
+                    expected_revision: current.revision,
+                    producer_id: renewed.producer_id,
+                },
+            )
+            .unwrap();
+        assert!(revoked.revoked);
+        assert!(matches!(
+            service.renew_pose_authorization(&session.session_id, Utc::now()),
+            Err(SimulationViewError::ProducerRevoked)
+        ));
+        let current = service.get_session(&owner, &session.session_id).unwrap();
+        assert_eq!(current.reconciliation.phase, ReconciliationPhase::Revoked);
+        assert_eq!(
+            current.reconciliation.renewal_state,
+            PoseAuthorizationRenewalState::Revoked
+        );
+    }
+
+    #[test]
+    fn durable_state_restores_runtime_intent_without_transient_health() {
+        let service = SimulationViewService::new(SimulationViewConfig::default()).unwrap();
+        let owner = view_owner("issuer#operator");
+        let session = bound_session(&service, &owner);
+        let source = service
+            .authorize_pose_producer(
+                &owner,
+                AuthorizePoseProducerRequest {
+                    session_id: session.session_id.clone(),
+                    expected_revision: session.revision,
+                    producer_id: ProducerId::new("durable-producer").unwrap(),
+                    spiffe_id: "spiffe://veoveo.test/durable-producer".to_owned(),
+                    expires_at: Utc::now() + chrono::Duration::minutes(10),
+                },
+            )
+            .unwrap();
+        let CameraAdmission::Admitted { camera } = service
+            .create_camera(
+                &owner,
+                CreateCameraRequest {
+                    session_id: session.session_id.clone(),
+                    definition: camera_definition(CameraStreamPolicy::OnDemand),
+                },
+            )
+            .unwrap()
+        else {
+            panic!("camera should be admitted");
+        };
+        let stream = service
+            .open_live_view(
+                &owner,
+                OpenLiveViewRequest {
+                    session_id: session.session_id.clone(),
+                    camera_id: camera.camera_id.clone(),
+                },
+            )
+            .unwrap();
+        let desired = service.durable_state(&session.session_id).unwrap();
+
+        let restored = SimulationViewService::new(SimulationViewConfig::default()).unwrap();
+        restored.restore_durable_state(desired).unwrap();
+        let restored_session = restored.get_session(&owner, &session.session_id).unwrap();
+        assert_eq!(restored_session.lifecycle, SessionLifecycle::SceneBound);
+        assert_eq!(
+            restored_session.reconciliation.phase,
+            ReconciliationPhase::Pending
+        );
+        assert_eq!(
+            restored_session
+                .pose_source
+                .as_ref()
+                .unwrap()
+                .authorization_revision,
+            source.authorization_revision
+        );
+        assert!(restored_session.pose_source.as_ref().unwrap().stale);
+        assert_eq!(
+            restored
+                .get_camera(&owner, &camera.camera_id)
+                .unwrap()
+                .health,
+            LiveCameraHealth::Warming
+        );
+        let restored_stream = restored
+            .get_stream(&owner, &stream.stream.live_view_id)
+            .unwrap();
+        assert_eq!(restored_stream.lifecycle, LiveViewLifecycle::Ready);
+        assert_eq!(restored_stream.connected_viewers, 0);
     }
 
     #[test]

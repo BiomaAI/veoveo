@@ -91,11 +91,99 @@ pub enum SessionLifecycle {
     Failed,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ReconciliationPhase {
+    Pending,
+    RendererSession,
+    Scene,
+    PoseAuthorization,
+    Cameras,
+    Streams,
+    Healthy,
+    Blocked,
+    Revoked,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PoseAuthorizationRenewalState {
+    Scheduled,
+    Renewing,
+    Current,
+    Expired,
+    Revoked,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ReconciliationFailureCode {
+    StoreUnavailable,
+    AuditUnavailable,
+    RendererUnavailable,
+    SceneUnavailable,
+    PoseIngressUnavailable,
+    PoseAuthorizationExpired,
+    PoseAuthorizationRevisionConflict,
+    PoseProducerIdentityMismatch,
+    SceneRevisionMismatch,
+    CameraRejected,
+    StreamUnavailable,
+    ProducerRevoked,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ReconciliationStatus {
+    pub desired_revision: u64,
+    pub realized_revision: u64,
+    pub phase: ReconciliationPhase,
+    pub renewal_state: PoseAuthorizationRenewalState,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub producer_id: Option<ProducerId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub producer_spiffe_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authorization_expires_at: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_attempt_at: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_successful_reconciliation_at: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub failed_dependency: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub failure_code: Option<ReconciliationFailureCode>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diagnostic: Option<String>,
+}
+
+impl ReconciliationStatus {
+    pub fn pending(revision: u64) -> Self {
+        Self {
+            desired_revision: revision,
+            realized_revision: 0,
+            phase: ReconciliationPhase::Pending,
+            renewal_state: PoseAuthorizationRenewalState::Scheduled,
+            producer_id: None,
+            producer_spiffe_id: None,
+            authorization_expires_at: None,
+            next_attempt_at: None,
+            last_successful_reconciliation_at: None,
+            failed_dependency: None,
+            failure_code: None,
+            diagnostic: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PoseSourceState {
     pub producer_id: ProducerId,
     pub spiffe_id: String,
+    pub authorization_revision: u64,
+    pub authorization_lifetime_seconds: u64,
     pub authorized_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
     pub revoked: bool,
@@ -114,6 +202,7 @@ pub struct SimulationViewSession {
     pub owner: LiveViewOwner,
     pub lifecycle: SessionLifecycle,
     pub revision: u64,
+    pub reconciliation: ReconciliationStatus,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scene: Option<SceneDeclaration>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -537,6 +626,15 @@ pub enum SimulationViewError {
     CameraKind,
     #[error("pose producer identity is invalid")]
     Producer,
+    #[error("pose producer authorization is revoked")]
+    ProducerRevoked,
+    #[error("pose producer authorization expired")]
+    ProducerAuthorizationExpired,
+    #[error("simulation-view reconciliation is blocked at {dependency}: {code:?}")]
+    ReconciliationBlocked {
+        dependency: String,
+        code: ReconciliationFailureCode,
+    },
     #[error("live view token is invalid or expired")]
     Access,
     #[error("system time overflow")]

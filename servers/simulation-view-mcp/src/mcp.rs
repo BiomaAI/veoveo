@@ -29,6 +29,7 @@ use crate::{
         OpenLiveViewRequest, OpenLiveViewResult, PoseSourceState, RenewLiveViewRequest,
         RevokePoseProducerRequest, SetCameraRequest, SimulationViewError, SimulationViewSession,
     },
+    durability::SimulationViewRepository,
     runtime::RuntimeClients,
     state::SimulationViewService,
     uris,
@@ -52,10 +53,11 @@ pub(crate) static SERVER_DOCS: LazyLock<ServerDocs> =
 
 pub(crate) struct SimulationViewMcpState {
     pub service: Arc<SimulationViewService>,
-    pub subscriptions: SubscriptionHub,
+    pub subscriptions: Arc<SubscriptionHub>,
     pub list_observers: ResourceListObservers,
     runtimes: Arc<RuntimeClients>,
     artifacts: Arc<SceneArtifactMaterializer>,
+    repository: Arc<SimulationViewRepository>,
     app_connect_origin: String,
 }
 
@@ -64,6 +66,7 @@ impl SimulationViewMcpState {
         service: Arc<SimulationViewService>,
         runtimes: Arc<RuntimeClients>,
         artifacts: Arc<SceneArtifactMaterializer>,
+        repository: Arc<SimulationViewRepository>,
         signaling_url: &str,
     ) -> anyhow::Result<Arc<Self>> {
         let signaling_url = url::Url::parse(signaling_url)?;
@@ -74,10 +77,11 @@ impl SimulationViewMcpState {
         );
         Ok(Arc::new(Self {
             service,
-            subscriptions: SubscriptionHub::new(),
+            subscriptions: Arc::new(SubscriptionHub::new()),
             list_observers: ResourceListObservers::new(),
             runtimes,
             artifacts,
+            repository,
             app_connect_origin,
         }))
     }
@@ -97,6 +101,23 @@ impl SimulationViewMcp {
             state,
             tool_router: Self::tool_router(),
         }
+    }
+
+    async fn persist(
+        &self,
+        session_id: &veoveo_mcp_contract::LiveSessionId,
+    ) -> Result<(), McpError> {
+        self.state
+            .repository
+            .persist(&self.state.service, session_id)
+            .await
+            .map_err(|error| {
+                tracing::error!(%error, %session_id, "failed to persist Simulation View desired state");
+                McpError::internal_error(
+                    "Simulation View desired state could not be committed",
+                    None,
+                )
+            })
     }
 
     async fn refresh_pose_status(
@@ -180,6 +201,7 @@ impl SimulationViewMcp {
                 uris::SESSION_TEMPLATE.to_owned(),
                 uris::SCENE_TEMPLATE.to_owned(),
                 uris::POSE_SOURCE_TEMPLATE.to_owned(),
+                uris::RECONCILIATION_TEMPLATE.to_owned(),
                 uris::CAMERAS_TEMPLATE.to_owned(),
                 uris::CAMERA_TEMPLATE.to_owned(),
                 uris::STREAMS_TEMPLATE.to_owned(),
@@ -208,8 +230,8 @@ impl SimulationViewMcp {
             .service
             .create_session(owner, request)
             .map_err(service_error)?;
+        self.persist(&session.session_id).await?;
         if let Err(error) = self.state.runtimes.create_session(&session).await {
-            self.state.service.fail_session(&session.session_id);
             return Err(runtime_error(error));
         }
         self.notify_session_created(&session, &context).await;
@@ -271,8 +293,8 @@ impl SimulationViewMcp {
             .service
             .bind_scene(&owner, request)
             .map_err(service_error)?;
+        self.persist(&session.session_id).await?;
         if let Err(error) = self.state.runtimes.bind_scene(&session).await {
-            self.state.service.fail_session(&session.session_id);
             return Err(runtime_error(error));
         }
         self.notify_session(&session.session_id).await;
@@ -305,8 +327,8 @@ impl SimulationViewMcp {
             .service
             .get_session(&owner, &session_id)
             .map_err(service_error)?;
+        self.persist(&session_id).await?;
         if let Err(error) = self.state.runtimes.bind_pose(&session, &result).await {
-            self.state.service.fail_session(&session_id);
             return Err(runtime_error(error));
         }
         self.notify_session(&session_id).await;
@@ -334,8 +356,13 @@ impl SimulationViewMcp {
             .service
             .revoke_pose_producer(&owner, request)
             .map_err(service_error)?;
-        if let Err(error) = self.state.runtimes.revoke_pose(&session_id).await {
-            self.state.service.fail_session(&session_id);
+        let session = self
+            .state
+            .service
+            .get_session(&owner, &session_id)
+            .map_err(service_error)?;
+        self.persist(&session_id).await?;
+        if let Err(error) = self.state.runtimes.revoke_pose(&session, &result).await {
             return Err(runtime_error(error));
         }
         self.notify_session(&session_id).await;
@@ -364,6 +391,7 @@ impl SimulationViewMcp {
             .create_camera(&owner, request)
             .map_err(service_error)?;
         if let CameraAdmission::Admitted { camera } = &mut result {
+            self.persist(&session_id).await?;
             let render_slot = self
                 .state
                 .service
@@ -413,6 +441,7 @@ impl SimulationViewMcp {
             .set_camera(&owner, request)
             .map_err(service_error)?;
         if let CameraAdmission::Admitted { camera } = &mut result {
+            self.persist(&session_id).await?;
             let render_slot = self
                 .state
                 .service
@@ -469,6 +498,7 @@ impl SimulationViewMcp {
             .service
             .close_camera(&owner, request)
             .map_err(service_error)?;
+        self.persist(&session_id).await?;
         if let Err(error) = self
             .state
             .runtimes
@@ -498,11 +528,19 @@ impl SimulationViewMcp {
     ) -> Result<CallToolResult, McpError> {
         let owner = require_owner(&context, "simulation-view:stream")?;
         let session_id = request.session_id.clone();
+        ensure_pose_authorization_current(
+            &self
+                .state
+                .service
+                .get_session(&owner, &session_id)
+                .map_err(service_error)?,
+        )?;
         let mut result = self
             .state
             .service
             .open_live_view(&owner, request)
             .map_err(service_error)?;
+        self.persist(&session_id).await?;
         let render_slot = self
             .state
             .service
@@ -556,6 +594,7 @@ impl SimulationViewMcp {
             .service
             .renew_live_view(&owner, request)
             .map_err(service_error)?;
+        self.persist(&session_id).await?;
         self.state
             .subscriptions
             .notify_resource_updated(result.stream.resource_uri.as_str())
@@ -589,6 +628,7 @@ impl SimulationViewMcp {
             .service
             .close_live_view(&owner, request)
             .map_err(service_error)?;
+        self.persist(&session_id).await?;
         if let Err(error) = self
             .state
             .runtimes
@@ -644,6 +684,17 @@ impl SimulationViewMcp {
             .service
             .close_session(&owner, request)
             .map_err(service_error)?;
+        self.persist(&session_id).await?;
+        let session = self
+            .state
+            .service
+            .get_session(&owner, &session_id)
+            .map_err(service_error)?;
+        if let Some(source) = session.pose_source.as_ref() {
+            if let Err(error) = self.state.runtimes.revoke_pose(&session, source).await {
+                return Err(runtime_error(error));
+            }
+        }
         if let Err(error) = self.state.runtimes.close_session(&session_id).await {
             return Err(runtime_error(error));
         }
@@ -672,6 +723,7 @@ impl SimulationViewMcp {
             uris::session(session_id),
             uris::scene(session_id),
             uris::pose_source(session_id),
+            uris::reconciliation(session_id),
         ] {
             self.state.subscriptions.notify_resource_updated(uri).await;
         }
@@ -836,6 +888,11 @@ impl ServerHandler for SimulationViewMcp {
                     "Authorized private pose producer health.",
                 ),
                 json_descriptor(
+                    &uris::reconciliation(&session.session_id),
+                    "Simulation reconciliation",
+                    "Desired and realized runtime revisions, bounded authorization renewal, and typed recovery diagnostics.",
+                ),
+                json_descriptor(
                     &uris::cameras(&session.session_id),
                     "Simulation cameras",
                     "Capacity-admitted logical cameras.",
@@ -903,6 +960,11 @@ impl ServerHandler for SimulationViewMcp {
                 uris::POSE_SOURCE_TEMPLATE,
                 "Pose source",
                 "Authorized pose producer health.",
+            ),
+            template(
+                uris::RECONCILIATION_TEMPLATE,
+                "Simulation reconciliation",
+                "Managed runtime reconciliation status.",
             ),
             template(
                 uris::CAMERAS_TEMPLATE,
@@ -1010,6 +1072,14 @@ impl ServerHandler for SimulationViewMcp {
                 .map_err(resource_error)?;
             return json_resource(uri, session.pose_source.as_ref().ok_or_else(not_found)?);
         }
+        if let Some(session_id) = uris::parse_reconciliation(uri) {
+            let session = self
+                .state
+                .service
+                .get_session(&owner, &session_id)
+                .map_err(resource_error)?;
+            return json_resource(uri, &session.reconciliation);
+        }
         if let Some(session_id) = uris::parse_cameras(uri) {
             self.state
                 .service
@@ -1099,6 +1169,7 @@ fn authorize_resource(
     let session_id = uris::parse_session(uri)
         .or_else(|| uris::parse_scene(uri))
         .or_else(|| uris::parse_pose_source(uri))
+        .or_else(|| uris::parse_reconciliation(uri))
         .or_else(|| uris::parse_cameras(uri))
         .or_else(|| uris::parse_streams(uri))
         .or_else(|| uris::parse_camera(uri).map(|(session_id, _)| session_id))
@@ -1162,6 +1233,7 @@ fn is_subscribable(uri: &str) -> bool {
     matches!(uri, uris::SESSIONS | uris::CAPACITY)
         || uris::parse_session(uri).is_some()
         || uris::parse_pose_source(uri).is_some()
+        || uris::parse_reconciliation(uri).is_some()
         || uris::parse_cameras(uri).is_some()
         || uris::parse_camera(uri).is_some()
         || uris::parse_streams(uri).is_some()
@@ -1207,6 +1279,54 @@ fn mcp_page<T>(
 
 fn service_error(error: impl std::fmt::Display) -> McpError {
     McpError::invalid_params(error.to_string(), None)
+}
+
+fn ensure_pose_authorization_current(session: &SimulationViewSession) -> Result<(), McpError> {
+    let source = session.pose_source.as_ref().ok_or_else(|| {
+        typed_runtime_error(
+            "pose_producer_authorization_missing",
+            "pose producer authorization is missing",
+        )
+    })?;
+    if source.revoked {
+        return Err(typed_runtime_error(
+            "pose_producer_revoked",
+            "pose producer authorization is revoked",
+        ));
+    }
+    if source.expires_at <= chrono::Utc::now() {
+        return Err(typed_runtime_error(
+            "pose_producer_authorization_expired",
+            "pose producer authorization expired",
+        ));
+    }
+    if session.reconciliation.phase == crate::contract::ReconciliationPhase::Blocked {
+        let code = session
+            .reconciliation
+            .failure_code
+            .and_then(|code| serde_json::to_value(code).ok())
+            .and_then(|value| value.as_str().map(str::to_owned))
+            .unwrap_or_else(|| "reconciliation_blocked".to_owned());
+        return Err(typed_runtime_error(
+            &code,
+            session
+                .reconciliation
+                .diagnostic
+                .as_deref()
+                .unwrap_or("Simulation View automatic reconciliation is blocked"),
+        ));
+    }
+    Ok(())
+}
+
+fn typed_runtime_error(code: &str, message: &str) -> McpError {
+    McpError::invalid_request(
+        message.to_owned(),
+        Some(serde_json::json!({
+            "schemaVersion": "veoveo.io/simulation-view-error/v1",
+            "code": code,
+        })),
+    )
 }
 
 fn resource_error(error: SimulationViewError) -> McpError {

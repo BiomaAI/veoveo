@@ -128,6 +128,7 @@ fn error_response(error: PoseIngressError) -> Response {
         PoseIngressError::NotFound => StatusCode::NOT_FOUND,
         PoseIngressError::Capacity => StatusCode::TOO_MANY_REQUESTS,
         PoseIngressError::Producer => StatusCode::FORBIDDEN,
+        PoseIngressError::AuthorizationRevision => StatusCode::CONFLICT,
         PoseIngressError::Binding | PoseIngressError::Pose(_) => StatusCode::BAD_REQUEST,
     };
     (status, error.to_string()).into_response()

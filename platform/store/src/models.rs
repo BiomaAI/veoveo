@@ -1714,6 +1714,27 @@ pub struct GatewayRefreshTokenRecord {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct SimulationViewStateRecord {
+    pub id: RecordId,
+    pub tenant_key: String,
+    pub owner_key: String,
+    pub work_context_key: String,
+    pub policy_revision: String,
+    pub session_id: String,
+    pub epoch_id: String,
+    pub desired_revision: i64,
+    pub realized_revision: i64,
+    pub authorization_revision: i64,
+    pub revoked: bool,
+    pub authorization_expires_at: Option<DateTime<Utc>>,
+    pub snapshot_digest: String,
+    pub snapshot: OpenObject,
+    pub reconciliation: OpenObject,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct AuditEventRecord {
     pub id: RecordId,
     pub tenant: Option<RecordId>,

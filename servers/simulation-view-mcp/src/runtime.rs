@@ -241,7 +241,9 @@ impl RuntimeClients {
             producer: PoseProducerAuthorization {
                 producer_id: source.producer_id.to_string(),
                 spiffe_id: source.spiffe_id.clone(),
+                authorization_revision: source.authorization_revision,
                 expires_at: source.expires_at,
+                revoked: source.revoked,
             },
         };
         self.put(
@@ -251,43 +253,20 @@ impl RuntimeClients {
             &declaration,
         )
         .await?;
-        if let Err(error) = self
-            .put_renderer(
-                &format!("v1/sessions/{}/pose-source", session.session_id),
-                &declaration,
-            )
-            .await
-        {
-            let _ = self
-                .delete(
-                    &self.pose_endpoint,
-                    &self.pose_control_token,
-                    &format!("v1/bindings/{}", session.session_id),
-                    true,
-                )
-                .await;
-            return Err(error);
-        }
-        Ok(())
+        self.put_renderer(
+            &format!("v1/sessions/{}/pose-source", session.session_id),
+            &declaration,
+        )
+        .await
     }
 
     pub async fn revoke_pose(
         &self,
-        session_id: &veoveo_mcp_contract::LiveSessionId,
+        session: &SimulationViewSession,
+        source: &PoseSourceState,
     ) -> anyhow::Result<()> {
-        let path = format!("v1/bindings/{session_id}");
-        let pose = self
-            .delete(&self.pose_endpoint, &self.pose_control_token, &path, false)
-            .await;
-        let renderer = self
-            .delete(
-                &self.renderer_endpoint,
-                &self.renderer_control_token,
-                &format!("v1/sessions/{session_id}/pose-source"),
-                true,
-            )
-            .await;
-        pose.and(renderer)
+        anyhow::ensure!(source.revoked, "pose authorization is not revoked");
+        self.bind_pose(session, source).await
     }
 
     pub async fn pose_status(

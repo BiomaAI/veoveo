@@ -7,6 +7,7 @@ import struct
 import tempfile
 import threading
 import unittest
+from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
 from types import ModuleType
@@ -27,7 +28,7 @@ from veoveo_simulation_view.contracts import (
     SessionBinding,
 )
 from veoveo_simulation_view.layers import LayerCatalog
-from veoveo_simulation_view.pose import decode_snapshot
+from veoveo_simulation_view.pose import PoseMirror, decode_snapshot
 from veoveo_simulation_view.scene import ArtifactMaterializer, ArtifactStore
 
 
@@ -441,7 +442,7 @@ class RendererContractsTest(unittest.TestCase):
         binding = PoseSourceBinding.parse(
             {
                 "schemaVersion": (
-                    "veoveo.io/simulation-view-pose-ingress-control/v1"
+                    "veoveo.io/simulation-view-pose-ingress-control/v2"
                 ),
                 "sessionId": "session-1",
                 "epochId": "epoch-1",
@@ -460,7 +461,9 @@ class RendererContractsTest(unittest.TestCase):
                 "producer": {
                     "producerId": "fixture",
                     "spiffeId": "spiffe://example.test/fixture",
+                    "authorizationRevision": 1,
                     "expiresAt": "2026-07-26T12:00:00Z",
+                    "revoked": False,
                 },
             }
         )
@@ -476,9 +479,59 @@ class RendererContractsTest(unittest.TestCase):
             maximum_entities=binding.maximum_entities,
             maximum_message_bytes=binding.maximum_message_bytes,
             stale_after_ms=binding.stale_after_ms,
+            producer_id=binding.producer_id,
+            producer_spiffe_id=binding.producer_spiffe_id,
+            authorization_revision=binding.authorization_revision,
+            expires_at=binding.expires_at,
+            revoked=binding.revoked,
         )
         with self.assertRaises(ContractError):
             decode_snapshot(bytes(encoded), wrong)
+
+    def test_pose_authorization_renewal_preserves_reader_and_latest_state(
+        self,
+    ) -> None:
+        binding = PoseSourceBinding(
+            session_id="session-1",
+            epoch_id="epoch-1",
+            frame_uri="frames://world/synthetic/revision/r1",
+            frame_digest=f"sha256:{'1' * 64}",
+            entity_table_revision=1,
+            entity_table_digest=f"sha256:{'2' * 64}",
+            maximum_entities=8,
+            maximum_message_bytes=65536,
+            stale_after_ms=500,
+            producer_id="fixture",
+            producer_spiffe_id="spiffe://example.test/fixture",
+            authorization_revision=1,
+            expires_at="2026-08-02T12:00:00Z",
+            revoked=False,
+        )
+        reader = object()
+        latest = object()
+        mirror = PoseMirror.__new__(PoseMirror)
+        mirror._directory = Path("/unused")
+        mirror._binding = binding
+        mirror._reader = reader
+        mirror._generation = 7
+        mirror._latest = latest
+        mirror._accepted_at = 4.0
+
+        mirror.renew(
+            replace(
+                binding,
+                authorization_revision=2,
+                expires_at="2026-08-02T12:05:00Z",
+            )
+        )
+
+        self.assertIs(mirror._reader, reader)
+        self.assertIs(mirror._latest, latest)
+        self.assertEqual(mirror._generation, 7)
+        with self.assertRaisesRegex(
+            ContractError, "authorization revision is stale"
+        ):
+            mirror.renew(binding)
 
 
 if __name__ == "__main__":
