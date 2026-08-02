@@ -138,6 +138,7 @@ pub enum ReconciliationFailureCode {
 pub struct ReconciliationStatus {
     pub desired_revision: u64,
     pub realized_revision: u64,
+    pub authorization_revision: u64,
     pub phase: ReconciliationPhase,
     pub renewal_state: PoseAuthorizationRenewalState,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -163,6 +164,7 @@ impl ReconciliationStatus {
         Self {
             desired_revision: revision,
             realized_revision: 0,
+            authorization_revision: 0,
             phase: ReconciliationPhase::Pending,
             renewal_state: PoseAuthorizationRenewalState::Scheduled,
             producer_id: None,

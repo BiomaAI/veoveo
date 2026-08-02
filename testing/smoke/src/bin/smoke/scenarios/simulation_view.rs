@@ -196,7 +196,7 @@ async fn run_acceptance(
     );
 
     let expires_at =
-        (Utc::now() + chrono::Duration::minutes(10)).to_rfc3339_opts(SecondsFormat::Millis, true);
+        (Utc::now() + chrono::Duration::seconds(20)).to_rfc3339_opts(SecondsFormat::Millis, true);
     let authorized = mcp_call(
         session,
         "simulation-view__authorize_pose_producer",
@@ -213,6 +213,7 @@ async fn run_acceptance(
         json_pointer_string(&authorized, "/spiffeId")? == producer_spiffe_id,
         "Simulation View authorized a different pose identity: {authorized}"
     );
+    let initial_authorization_revision = json_pointer_u64(&authorized, "/authorizationRevision")?;
     session_revision += 1;
     cleanup.session_revision = Some(session_revision);
 
@@ -230,6 +231,13 @@ async fn run_acceptance(
     .await?;
     cleanup.producer_started = true;
     wait_for_pose_producer(session, &session_id, timeout).await?;
+    wait_for_pose_authorization_renewals(
+        session,
+        &session_id,
+        initial_authorization_revision,
+        timeout,
+    )
+    .await?;
 
     let capacity = read_mcp_resource_json(session, "simulation-view://capacity").await?;
     let limits = capacity
@@ -588,6 +596,49 @@ async fn wait_for_pose_producer(
             "anonymous pose producer did not reach running state within {timeout:?}: {fixture}"
         );
         tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+}
+
+async fn wait_for_pose_authorization_renewals(
+    session: &SmokeMcpSession,
+    session_id: &str,
+    initial_revision: u64,
+    timeout: Duration,
+) -> Result<()> {
+    let deadline = tokio::time::Instant::now() + timeout;
+    let uri = format!("simulation-view://session/{session_id}");
+    loop {
+        let last_observation = match read_mcp_resource_json(session, &uri).await {
+            Ok(state) => {
+                let revision = state
+                    .pointer("/poseSource/authorizationRevision")
+                    .and_then(Value::as_u64)
+                    .unwrap_or_default();
+                let desired = state
+                    .pointer("/reconciliation/desiredRevision")
+                    .and_then(Value::as_u64);
+                let realized = state
+                    .pointer("/reconciliation/realizedRevision")
+                    .and_then(Value::as_u64);
+                if revision >= initial_revision.saturating_add(2)
+                    && desired == realized
+                    && state
+                        .pointer("/reconciliation/phase")
+                        .and_then(Value::as_str)
+                        == Some("healthy")
+                    && state.pointer("/poseSource/stale").and_then(Value::as_bool) == Some(false)
+                {
+                    return Ok(());
+                }
+                state.to_string()
+            }
+            Err(error) => error.to_string(),
+        };
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "pose authorization did not renew twice within {timeout:?}: {last_observation}"
+        );
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }
 

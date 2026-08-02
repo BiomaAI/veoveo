@@ -293,6 +293,10 @@ simulationView:
     privateKeyKey: tls.key.der
     clientCaKey: ca.crt.der
     allowedCidrs: []
+  reconciliation:
+    intervalSeconds: 10
+    authorizationRenewalLeadSeconds: 300
+    retryMaximumSeconds: 60
   artifacts:
     existingClaim: ""
     size: 20Gi

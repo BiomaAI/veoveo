@@ -225,6 +225,8 @@ impl SimulationViewMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let owner = require_owner(&context, "simulation-view:write")?;
+        let session_id = request.session_id.clone();
+        let _operation = self.state.service.operation_guard(&session_id).await;
         let session = self
             .state
             .service
@@ -288,6 +290,11 @@ impl SimulationViewMcp {
             .materialize(&caller, &request.scene)
             .await
             .map_err(runtime_error)?;
+        let _operation = self
+            .state
+            .service
+            .operation_guard(&request.session_id)
+            .await;
         let session = self
             .state
             .service
@@ -317,6 +324,7 @@ impl SimulationViewMcp {
     ) -> Result<CallToolResult, McpError> {
         let owner = require_owner(&context, "simulation-view:write")?;
         let session_id = request.session_id.clone();
+        let _operation = self.state.service.operation_guard(&session_id).await;
         let result = self
             .state
             .service
@@ -351,6 +359,7 @@ impl SimulationViewMcp {
     ) -> Result<CallToolResult, McpError> {
         let owner = require_owner(&context, "simulation-view:write")?;
         let session_id = request.session_id.clone();
+        let _operation = self.state.service.operation_guard(&session_id).await;
         let result = self
             .state
             .service
@@ -385,6 +394,7 @@ impl SimulationViewMcp {
     ) -> Result<CallToolResult, McpError> {
         let owner = require_owner(&context, "simulation-view:write")?;
         let session_id = request.session_id.clone();
+        let _operation = self.state.service.operation_guard(&session_id).await;
         let mut result = self
             .state
             .service
@@ -434,6 +444,7 @@ impl SimulationViewMcp {
     ) -> Result<CallToolResult, McpError> {
         let owner = require_owner(&context, "simulation-view:write")?;
         let session_id = request.session_id.clone();
+        let _operation = self.state.service.operation_guard(&session_id).await;
         let camera_id = request.camera_id.clone();
         let mut result = self
             .state
@@ -492,6 +503,7 @@ impl SimulationViewMcp {
     ) -> Result<CallToolResult, McpError> {
         let owner = require_owner(&context, "simulation-view:write")?;
         let session_id = request.session_id.clone();
+        let _operation = self.state.service.operation_guard(&session_id).await;
         let camera_id = request.camera_id.clone();
         let result = self
             .state
@@ -528,6 +540,7 @@ impl SimulationViewMcp {
     ) -> Result<CallToolResult, McpError> {
         let owner = require_owner(&context, "simulation-view:stream")?;
         let session_id = request.session_id.clone();
+        let _operation = self.state.service.operation_guard(&session_id).await;
         ensure_pose_authorization_current(
             &self
                 .state
@@ -589,6 +602,7 @@ impl SimulationViewMcp {
     ) -> Result<CallToolResult, McpError> {
         let owner = require_owner(&context, "simulation-view:stream")?;
         let session_id = request.session_id.clone();
+        let _operation = self.state.service.operation_guard(&session_id).await;
         let result = self
             .state
             .service
@@ -622,6 +636,7 @@ impl SimulationViewMcp {
     ) -> Result<CallToolResult, McpError> {
         let owner = require_owner(&context, "simulation-view:stream")?;
         let session_id = request.session_id.clone();
+        let _operation = self.state.service.operation_guard(&session_id).await;
         let stream_id = request.live_view_id.clone();
         let result = self
             .state
@@ -679,6 +694,7 @@ impl SimulationViewMcp {
     ) -> Result<CallToolResult, McpError> {
         let owner = require_owner(&context, "simulation-view:write")?;
         let session_id = request.session_id.clone();
+        let _operation = self.state.service.operation_guard(&session_id).await;
         let result = self
             .state
             .service
@@ -690,10 +706,10 @@ impl SimulationViewMcp {
             .service
             .get_session(&owner, &session_id)
             .map_err(service_error)?;
-        if let Some(source) = session.pose_source.as_ref() {
-            if let Err(error) = self.state.runtimes.revoke_pose(&session, source).await {
-                return Err(runtime_error(error));
-            }
+        if let Some(source) = session.pose_source.as_ref()
+            && let Err(error) = self.state.runtimes.revoke_pose(&session, source).await
+        {
+            return Err(runtime_error(error));
         }
         if let Err(error) = self.state.runtimes.close_session(&session_id).await {
             return Err(runtime_error(error));

@@ -220,7 +220,14 @@ spec:
             - {{ $view.capacity.maximumFrameAgeMs | quote }}
             - --lease-seconds
             - {{ $view.capacity.leaseSeconds | quote }}
+            - --reconcile-interval-seconds
+            - {{ $view.reconciliation.intervalSeconds | quote }}
+            - --authorization-renewal-lead-seconds
+            - {{ $view.reconciliation.authorizationRenewalLeadSeconds | quote }}
+            - --reconcile-retry-max-seconds
+            - {{ $view.reconciliation.retryMaximumSeconds | quote }}
           env:
+            {{- include "veoveo.surrealEnv" . | nindent 12 }}
             - name: PUBLIC_BASE_URL
               value: {{ .Values.global.publicBaseUrl | quote }}
             - name: VEOVEO_INTERNAL_TRUST_JWKS

@@ -764,6 +764,7 @@
         "signaling",
         "media",
         "poseIngress",
+        "reconciliation",
         "artifacts",
         "sharedMemory",
         "cache",
@@ -994,6 +995,32 @@
               }
             }
           ]
+        },
+        "reconciliation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "intervalSeconds",
+            "authorizationRenewalLeadSeconds",
+            "retryMaximumSeconds"
+          ],
+          "properties": {
+            "intervalSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 300
+            },
+            "authorizationRenewalLeadSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 86399
+            },
+            "retryMaximumSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3600
+            }
+          }
         },
         "artifacts": {
           "type": "object",

@@ -25,6 +25,7 @@ footer a{color:var(--cyan)}
     <h1>Simulation View</h1>
     <span id="decode" class="chip">NVIDIA NVENC · H.264</span>
     <span id="status" class="chip">discovering</span>
+    <span id="reconciliation" class="chip">reconciliation discovering</span>
     <span class="spacer"></span>
     <span id="capacity" class="chip">capacity —</span>
   </header>
@@ -58,14 +59,22 @@ const bridge=(()=>{
   });
   return{request,notify:(method,params)=>post({jsonrpc:"2.0",method,params}),on:(method,handler)=>handlers.set(method,handler),post};
 })();
-let session=null,cameras=[],entities=[],capacity=null,refreshTimer=null,lastHeight=0,refreshing=false,tearingDown=false;
+let session=null,cameras=[],entities=[],capacity=null,refreshTimer=null,lastHeight=0,refreshing=false,tearingDown=false,activeErrorKind=null;
 const selected=new Set(),players=new Map();
 function structured(result){if(result&&(result.isError||result.is_error)){const content=Array.isArray(result.content)?result.content:[];throw new Error((content.find((item)=>item.type==="text")||{}).text||"MCP tool failed");}return result&&(result.structuredContent||result.structured_content)||result;}
 async function callTool(name,args){return structured(await bridge.request("tools/call",{name,arguments:args}));}
 async function readJson(uri){const result=await bridge.request("resources/read",{uri});const content=result&&result.contents&&result.contents[0];if(!content||typeof content.text!=="string")throw new Error(`resource ${uri} returned no JSON`);return JSON.parse(content.text);}
-function showError(cause){el("error").textContent=cause instanceof Error?cause.message:String(cause);el("error").hidden=false;}
-function clearError(){el("error").hidden=true;}
+function showError(cause,kind="interaction"){activeErrorKind=kind;el("error").textContent=cause instanceof Error?cause.message:String(cause);el("error").hidden=false;}
+function clearError(kind){if(kind&&activeErrorKind!==kind)return;activeErrorKind=null;el("error").textContent="";el("error").hidden=true;}
 function setStatus(text,live=false,warn=false){el("status").textContent=text;el("status").classList.toggle("live",live);el("status").classList.toggle("warn",warn);}
+function renderReconciliation(current){const chip=el("reconciliation"),status=current?.reconciliation;if(!status){chip.textContent="reconciliation waiting";chip.classList.remove("live");chip.classList.add("warn");clearError("reconciliation");return true;}
+  const expired=status.failureCode==="pose_authorization_expired"||(!current.poseSource?.revoked&&current.poseSource?.expiresAt&&Date.parse(current.poseSource.expiresAt)<=Date.now());
+  const blocked=status.phase==="blocked";chip.textContent=status.phase==="healthy"?`reconciled r${status.realizedRevision}`:status.phase==="revoked"?"producer revoked":`reconciling · ${status.phase.replaceAll("_"," ")}`;chip.classList.toggle("live",status.phase==="healthy");chip.classList.toggle("warn",blocked||expired||status.phase==="revoked");
+  if(expired){const retry=status.nextAttemptAt?` Next automatic attempt: ${new Date(status.nextAttemptAt).toLocaleTimeString()}.`:"";showError(`Pose producer authorization expired.${retry}`,"reconciliation");}
+  else if(blocked){const dependency=status.failedDependency?` at ${status.failedDependency}`:"";showError(`Automatic Simulation View reconciliation is blocked${dependency}: ${status.diagnostic||status.failureCode||"dependency unavailable"}.`,"reconciliation");}
+  else if(status.phase==="healthy"&&status.desiredRevision===status.realizedRevision&&!current.poseSource?.stale){clearError("reconciliation");}
+  return blocked||expired||status.phase==="revoked";
+}
 function renderAttribution(layer){const link=el("attribution");if(!layer){link.hidden=true;link.removeAttribute("href");link.textContent="";return;}link.textContent=layer.attribution;link.href=layer.attributionUrl;link.hidden=false;}
 function reportSize(){requestAnimationFrame(()=>{const height=Math.ceil(document.documentElement.scrollHeight);if(Math.abs(height-lastHeight)<2)return;lastHeight=height;bridge.notify("ui/notifications/size-changed",{height});});}
 function byId(id){return cameras.find((camera)=>camera.cameraId===id);}
@@ -93,7 +102,7 @@ async function openView(cameraId){
       accessToken:value.accessToken,authenticate:true,autoLaunch:true,videoElementId:`video-${cameraId}`,sessionId:stream.liveViewId,
       signalingServer:signal.hostname,signalingPort:Number(signal.port||443),signalingPath:signal.pathname,mediaServer:endpoint.mediaHost,mediaPort:endpoint.mediaPort,forceWSS:signal.protocol==="wss:",
       width:stream.widthPx,height:stream.heightPx,fps:stream.frameRateMillihertz/1000,codec:OV.VideoCodec.H264,localizeTextInput:false,mic:false,nativeTouchEvents:false,
-      onStart:(event)=>{if(event&&event.status===OV.EventStatus.SUCCESS){node.querySelector(".empty").hidden=true;node.querySelector(".health").textContent="live";setStatus(`${players.size} live`,true);}else{retry(cameraId,new Error("NVIDIA stream did not start"));}},
+      onStart:(event)=>{if(event&&event.status===OV.EventStatus.SUCCESS){node.querySelector(".empty").hidden=true;node.querySelector(".health").textContent="live";clearError("stream");setStatus(`${players.size} live`,true);}else{retry(cameraId,new Error("NVIDIA stream did not start"));}},
       onStop:()=>{if(!tearingDown)retry(cameraId,new Error("stream stopped"));},
       onStreamStats:(event)=>{const stats=event&&event.data&&event.data.stats;node.querySelector(".fps").textContent=stats&&stats.fps?`${stats.fps} fps`:`${stream.frameRateMillihertz/1000} fps`;},
     }});
@@ -104,9 +113,9 @@ function scheduleRenew(cameraId){const player=players.get(cameraId);if(!player||
   const delay=Math.max(5000,(Date.parse(player.connection.stream.expiresAt)-Date.now())*.5);
   player.renewTimer=setTimeout(async()=>{try{player.connection=await callTool("renew_live_view",{sessionId:session.sessionId,liveViewId:player.connection.stream.liveViewId});scheduleRenew(cameraId);}catch(cause){retry(cameraId,cause);}},delay);
 }
-function retry(cameraId,cause){showError(cause);void closeView(cameraId,false).then(()=>{if(selected.has(cameraId)&&!tearingDown)setTimeout(()=>void openView(cameraId),2500);});}
+function retry(cameraId,cause){showError(cause,"stream");void closeView(cameraId,false).then(()=>{if(selected.has(cameraId)&&!tearingDown)setTimeout(()=>void openView(cameraId),2500);});}
 async function closeView(cameraId,removeSlot){const player=players.get(cameraId);players.delete(cameraId);if(player){clearTimeout(player.renewTimer);clearTimeout(player.retryTimer);if(player.streamer){try{player.streamer.terminate();}catch(_){}}
-    if(player.connection){try{await callTool("close_live_view",{sessionId:session.sessionId,liveViewId:player.connection.stream.liveViewId});}catch(cause){if(!tearingDown)showError(cause);}}}
+    if(player.connection){try{await callTool("close_live_view",{sessionId:session.sessionId,liveViewId:player.connection.stream.liveViewId});}catch(cause){if(!tearingDown)showError(cause,"stream");}}}
   if(removeSlot)document.getElementById(`view-${cameraId}`)?.remove();if(!players.size)setStatus("ready");renderGridEmpty();
 }
 function renderGridEmpty(){let empty=el("empty-grid");if(players.size||selected.size){empty?.remove();return;}if(!empty){empty=document.createElement("div");empty.id="empty-grid";empty.textContent="Select up to four capacity-admitted cameras.";el("grid").append(empty);}}
@@ -121,23 +130,23 @@ function renderSelectors(){const current=el("camera-select").value;el("camera-se
 }
 async function applyRig(){const camera=byId(el("camera-select").value),target=el("entity-select").value,kind=el("rig-select").value;if(!camera||!target)return;
   const rig=kind==="orbit"?{kind,targetEntity:target,radiusM:12,azimuthDegrees:35,elevationDegrees:25}:kind==="chase_entity"?{kind,targetEntity:target,distanceM:8,heightM:3,smoothingSeconds:.15}:{kind,targetEntity:target,offsetFluM:{x:-6,y:0,z:2.5},smoothingSeconds:.15};
-  try{clearError();const result=await callTool("set_camera",{sessionId:session.sessionId,cameraId:camera.cameraId,expectedRevision:camera.revision,definition:{...camera.definition,rig}});
+  try{clearError("interaction");const result=await callTool("set_camera",{sessionId:session.sessionId,cameraId:camera.cameraId,expectedRevision:camera.revision,definition:{...camera.definition,rig}});
     if(result.status==="rejected")throw new Error(`camera rejected: ${result.rejection.dimension}`);await closeView(camera.cameraId,true);await refresh();
-  }catch(cause){showError(cause);}
+  }catch(cause){showError(cause,"interaction");}
 }
 function updateHealth(streams){let newest=null;for(const stream of streams){const node=document.getElementById(`view-${stream.cameraId}`);if(!node)continue;node.querySelector(".health").textContent=stream.cameraHealth;const age=stream.lastFrameAt?Math.max(0,Date.now()-Date.parse(stream.lastFrameAt)):null;node.querySelector(".age").textContent=age===null?"frame age —":`frame age ${age} ms`;if(age!==null&&(newest===null||age<newest))newest=age;}el("freshness").textContent=newest===null?"frame age —":`freshest frame ${newest} ms`;}
-async function refresh(){if(refreshing||tearingDown)return;refreshing=true;try{capacity=await readJson("simulation-view://capacity");const sessions=await readJson("simulation-view://sessions");session=sessions.find((item)=>item.lifecycle!=="closed"&&item.lifecycle!=="failed")||null;
+async function refresh(){if(refreshing||tearingDown)return;refreshing=true;try{capacity=await readJson("simulation-view://capacity");const sessions=await readJson("simulation-view://sessions"),selectedSession=sessions.find((item)=>item.lifecycle!=="closed"&&item.lifecycle!=="failed")||null;session=selectedSession?await readJson(`simulation-view://session/${selectedSession.sessionId}`):null;
     el("capacity").textContent=`${capacity.usage.streamedCameras}/${capacity.limits.maximumStreamedCameras} streams · ${capacity.usage.renderedCameras}/${capacity.limits.maximumRenderedCameras} render`;
-    if(!session){cameras=[];entities=[];el("session").textContent="No renderer session";renderAttribution(null);setStatus("waiting",false,true);renderSelectors();renderChoices();return;}
+    if(!session){cameras=[];entities=[];el("session").textContent="No renderer session";renderAttribution(null);renderReconciliation(null);setStatus("waiting",false,true);renderSelectors();renderChoices();return;}
     [cameras]=await Promise.all([readJson(sessionUri("/cameras"))]);const scene=await readJson(sessionUri("/scene")).catch(()=>null);entities=scene?.body?.entities||[];const streams=await readJson(sessionUri("/streams"));
-    el("session").textContent=`${session.sessionId} · ${session.lifecycle} · ${session.poseSource?.stale?"pose stale":"pose current"}`;renderAttribution(session.geospatialLayer);setStatus(players.size?`${players.size} live`:"ready",players.size>0,session.poseSource?.stale===true);
+    const reconciliationWarn=renderReconciliation(session);el("session").textContent=`${session.sessionId} · ${session.lifecycle} · ${session.poseSource?.stale?"pose stale":"pose current"}`;renderAttribution(session.geospatialLayer);setStatus(players.size?`${players.size} live`:"ready",players.size>0,reconciliationWarn||session.poseSource?.stale===true);clearError("refresh");
     for(const id of [...selected])if(!byId(id)){selected.delete(id);void closeView(id,true);}renderSelectors();renderChoices();updateHealth(streams);
-  }catch(cause){showError(cause);if(!players.size)setStatus("unavailable",false,true);}finally{refreshing=false;}}
+  }catch(cause){showError(cause,"refresh");if(!players.size)setStatus("unavailable",false,true);}finally{refreshing=false;}}
 bridge.on("ui/notifications/tool-result",()=>void refresh());
 bridge.on("ui/notifications/host-context-changed",(params)=>{const context=params&&(params.hostContext||params);if(context&&(context.theme==="light"||context.theme==="dark"))document.documentElement.dataset.theme=context.theme;});
 bridge.on("ui/resource-teardown",(_params,id)=>{tearingDown=true;clearInterval(refreshTimer);void Promise.all([...players.keys()].map((cameraId)=>closeView(cameraId,true))).finally(()=>{if(id!==undefined)bridge.post({jsonrpc:"2.0",id,result:{}});});});
 el("apply-rig").addEventListener("click",()=>void applyRig());new ResizeObserver(reportSize).observe(el("app"));window.addEventListener("resize",reportSize);
-(async()=>{try{await bridge.request("ui/initialize",{protocolVersion:"2026-01-26",appInfo:{name:"simulation-view-live",version:"1.0.0"},appCapabilities:{availableDisplayModes:["inline"]}});bridge.notify("ui/notifications/initialized",{});await refresh();refreshTimer=setInterval(()=>void refresh(),1000);reportSize();}catch(cause){showError(cause);setStatus("failed");}})();
+(async()=>{try{await bridge.request("ui/initialize",{protocolVersion:"2026-01-26",appInfo:{name:"simulation-view-live",version:"1.0.0"},appCapabilities:{availableDisplayModes:["inline"]}});bridge.notify("ui/notifications/initialized",{});await refresh();refreshTimer=setInterval(()=>void refresh(),1000);reportSize();}catch(cause){showError(cause,"initialize");setStatus("failed");}})();
 </script>
 </body>
 </html>

@@ -41,6 +41,14 @@ pub(crate) fn spawn_reconciler(
                 _ = interval.tick() => {
                     for session in service.reconciliation_sessions() {
                         let session_id = session.session_id.clone();
+                        let _operation = service.operation_guard(&session_id).await;
+                        let session = match service.get_session(&session.owner, &session_id) {
+                            Ok(session) => session,
+                            Err(error) => {
+                                tracing::warn!(%error, %session_id, "Simulation View session disappeared before reconciliation");
+                                continue;
+                            }
+                        };
                         if let Err(error) = reconcile_session(
                             &service,
                             &runtimes,
@@ -75,7 +83,7 @@ async fn reconcile_session(
 ) -> anyhow::Result<()> {
     let now = Utc::now();
     let session_id = session.session_id.clone();
-    repository
+    if let Err(error) = repository
         .audit(
             &session.owner,
             session_id.as_str(),
@@ -84,33 +92,34 @@ async fn reconcile_session(
             ReconciliationAudit::from_session(&session, ReconciliationPhase::Pending, None),
         )
         .await
-        .map_err(|error| {
-            fail(
-                service,
-                &session_id,
-                config,
-                "audit",
-                ReconciliationFailureCode::AuditUnavailable,
-                "reconciliation audit is unavailable",
-            );
-            error
-        })?;
+    {
+        fail(
+            service,
+            &session_id,
+            config,
+            "audit",
+            ReconciliationFailureCode::AuditUnavailable,
+            "reconciliation audit is unavailable",
+        );
+        let _ = repository.persist(service, &session_id).await;
+        return Err(error);
+    }
 
     if session.lifecycle == SessionLifecycle::Closed {
-        if let Some(source) = session.pose_source.as_ref() {
-            if let Err(error) = runtimes.revoke_pose(&session, source).await {
-                return failed_runtime(
-                    service,
-                    repository,
-                    &session,
-                    config,
-                    "pose_ingress",
-                    ReconciliationFailureCode::PoseIngressUnavailable,
-                    "closed-session pose revocation is not yet realized",
-                    error,
-                )
-                .await;
-            }
+        if let Some(source) = session.pose_source.as_ref()
+            && let Err(error) = runtimes.revoke_pose(&session, source).await
+        {
+            return failed_runtime(
+                service,
+                repository,
+                &session,
+                config,
+                "pose_ingress",
+                ReconciliationFailureCode::PoseIngressUnavailable,
+                "closed-session pose revocation is not yet realized",
+                error,
+            )
+            .await;
         }
         if let Err(error) = runtimes.close_session(&session_id).await {
             return failed_runtime(
@@ -125,7 +134,7 @@ async fn reconcile_session(
             )
             .await;
         }
-        return finish(service, repository, &session, now).await;
+        return finish(service, repository, config, &session, now).await;
     }
 
     service.mark_reconciliation_phase(&session_id, ReconciliationPhase::RendererSession, None);
@@ -187,7 +196,7 @@ async fn reconcile_session(
                 repository
                     .persist(service, &session_id)
                     .await
-                    .map_err(|error| {
+                    .inspect_err(|_error| {
                         fail(
                             service,
                             &session_id,
@@ -196,10 +205,9 @@ async fn reconcile_session(
                             ReconciliationFailureCode::StoreUnavailable,
                             "renewed authorization could not be committed",
                         );
-                        error
                     })?;
                 session = service.get_session(&session.owner, &session_id)?;
-                repository
+                if let Err(error) = repository
                     .audit(
                         &session.owner,
                         session_id.as_str(),
@@ -211,7 +219,19 @@ async fn reconcile_session(
                             None,
                         ),
                     )
-                    .await?;
+                    .await
+                {
+                    fail(
+                        service,
+                        &session_id,
+                        config,
+                        "audit",
+                        ReconciliationFailureCode::AuditUnavailable,
+                        "pose authorization renewal audit is unavailable",
+                    );
+                    let _ = repository.persist(service, &session_id).await;
+                    return Err(error);
+                }
             }
             if let Err(error) = runtimes.bind_pose(&session, &source).await {
                 let code = if source.expires_at <= Utc::now() {
@@ -275,7 +295,7 @@ async fn reconcile_session(
         }
     }
 
-    finish(service, repository, &session, Utc::now()).await
+    finish(service, repository, config, &session, Utc::now()).await
 }
 
 fn authorization_renewal_at(
@@ -292,13 +312,24 @@ fn authorization_renewal_at(
 async fn finish(
     service: &SimulationViewService,
     repository: &SimulationViewRepository,
+    config: ReconcilerConfig,
     session: &SimulationViewSession,
     now: DateTime<Utc>,
 ) -> anyhow::Result<()> {
     service.mark_reconciliation_healthy(&session.session_id, now);
-    repository.persist(service, &session.session_id).await?;
+    if let Err(error) = repository.persist(service, &session.session_id).await {
+        fail(
+            service,
+            &session.session_id,
+            config,
+            "store",
+            ReconciliationFailureCode::StoreUnavailable,
+            "realized reconciliation state could not be committed",
+        );
+        return Err(error);
+    }
     let current = service.get_session(&session.owner, &session.session_id)?;
-    repository
+    if let Err(error) = repository
         .audit(
             &session.owner,
             session.session_id.as_str(),
@@ -307,6 +338,19 @@ async fn finish(
             ReconciliationAudit::from_session(&current, current.reconciliation.phase, None),
         )
         .await
+    {
+        fail(
+            service,
+            &session.session_id,
+            config,
+            "audit",
+            ReconciliationFailureCode::AuditUnavailable,
+            "successful reconciliation could not be audited",
+        );
+        let _ = repository.persist(service, &session.session_id).await;
+        return Err(error);
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -364,6 +408,9 @@ fn fail(
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ReconciliationAudit {
+    service_identity: &'static str,
+    work_context: String,
+    policy_revision: String,
     desired_revision: u64,
     realized_revision: u64,
     phase: ReconciliationPhase,
@@ -383,6 +430,9 @@ impl ReconciliationAudit {
         failure_code: Option<ReconciliationFailureCode>,
     ) -> Self {
         Self {
+            service_identity: "simulation-view-mcp",
+            work_context: session.owner.work_context.as_str().to_owned(),
+            policy_revision: session.owner.policy_revision.as_str().to_owned(),
             desired_revision: session.reconciliation.desired_revision,
             realized_revision: session.reconciliation.realized_revision,
             phase,
@@ -398,7 +448,11 @@ impl ReconciliationAudit {
             authorization_revision: session
                 .pose_source
                 .as_ref()
-                .map(|source| source.authorization_revision),
+                .map(|source| source.authorization_revision)
+                .or_else(|| {
+                    (session.reconciliation.authorization_revision > 0)
+                        .then_some(session.reconciliation.authorization_revision)
+                }),
             authorization_expires_at: session.pose_source.as_ref().map(|source| source.expires_at),
             scene_revision: session
                 .scene

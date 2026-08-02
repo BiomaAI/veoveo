@@ -1,7 +1,7 @@
 use std::{
     collections::BTreeMap,
     net::{IpAddr, Ipv4Addr},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, Weak},
     time::Duration,
 };
 
@@ -105,6 +105,7 @@ struct ServiceState {
 pub struct SimulationViewService {
     config: SimulationViewConfig,
     state: Mutex<ServiceState>,
+    operations: tokio::sync::Mutex<BTreeMap<LiveSessionId, Weak<tokio::sync::Mutex<()>>>>,
 }
 
 impl SimulationViewService {
@@ -135,7 +136,26 @@ impl SimulationViewService {
         Ok(Arc::new(Self {
             config,
             state: Mutex::new(ServiceState::default()),
+            operations: tokio::sync::Mutex::new(BTreeMap::new()),
         }))
+    }
+
+    pub(crate) async fn operation_guard(
+        &self,
+        session_id: &LiveSessionId,
+    ) -> tokio::sync::OwnedMutexGuard<()> {
+        let gate = {
+            let mut operations = self.operations.lock().await;
+            operations.retain(|_, gate| gate.strong_count() > 0);
+            if let Some(gate) = operations.get(session_id).and_then(Weak::upgrade) {
+                gate
+            } else {
+                let gate = Arc::new(tokio::sync::Mutex::new(()));
+                operations.insert(session_id.clone(), Arc::downgrade(&gate));
+                gate
+            }
+        };
+        gate.lock_owned().await
     }
 
     pub fn create_session(
@@ -147,33 +167,39 @@ impl SimulationViewService {
             .state
             .lock()
             .expect("simulation-view state lock poisoned");
-        let desired_revision = if let Some(existing) = state.sessions.get(&request.session_id) {
-            if existing.owner != owner {
-                return Err(SimulationViewError::Ownership);
-            }
-            if existing.lifecycle != SessionLifecycle::Closed {
-                if existing.epoch_id != request.epoch_id {
-                    return Err(SimulationViewError::SessionAlreadyExists(
-                        request.session_id,
-                    ));
+        let (desired_revision, authorization_revision) =
+            if let Some(existing) = state.sessions.get(&request.session_id) {
+                if existing.owner != owner {
+                    return Err(SimulationViewError::Ownership);
                 }
-                return Ok(existing.clone());
-            }
-            existing.reconciliation.desired_revision.saturating_add(1)
-        } else {
-            1
-        };
+                if existing.lifecycle != SessionLifecycle::Closed {
+                    if existing.epoch_id != request.epoch_id {
+                        return Err(SimulationViewError::SessionAlreadyExists(
+                            request.session_id,
+                        ));
+                    }
+                    return Ok(existing.clone());
+                }
+                (
+                    existing.reconciliation.desired_revision.saturating_add(1),
+                    existing.reconciliation.authorization_revision,
+                )
+            } else {
+                (1, 0)
+            };
         state
             .leases
             .retain(|_, lease| lease.state.session_id != request.session_id);
         let now = Utc::now();
+        let mut reconciliation = ReconciliationStatus::pending(desired_revision);
+        reconciliation.authorization_revision = authorization_revision;
         let session = SimulationViewSession {
             session_id: request.session_id,
             epoch_id: request.epoch_id,
             owner,
             lifecycle: SessionLifecycle::Created,
             revision: 1,
-            reconciliation: ReconciliationStatus::pending(desired_revision),
+            reconciliation,
             scene: None,
             geospatial_layer: None,
             pose_source: None,
@@ -307,10 +333,13 @@ impl SimulationViewService {
         let authorization_lifetime_seconds =
             u64::try_from(request.expires_at.signed_duration_since(now).num_seconds())
                 .map_err(|_| SimulationViewError::Producer)?;
+        if authorization_lifetime_seconds == 0 {
+            return Err(SimulationViewError::Producer);
+        }
         let authorization_revision = session
-            .pose_source
-            .as_ref()
-            .map_or(1, |source| source.authorization_revision.saturating_add(1));
+            .reconciliation
+            .authorization_revision
+            .saturating_add(1);
         let source = PoseSourceState {
             producer_id: request.producer_id,
             spiffe_id: request.spiffe_id,
@@ -327,6 +356,7 @@ impl SimulationViewService {
         advance_session(session);
         session.reconciliation.producer_id = Some(source.producer_id.clone());
         session.reconciliation.producer_spiffe_id = Some(source.spiffe_id.clone());
+        session.reconciliation.authorization_revision = source.authorization_revision;
         session.reconciliation.authorization_expires_at = Some(source.expires_at);
         session.reconciliation.renewal_state = PoseAuthorizationRenewalState::Scheduled;
         Ok(source)
@@ -357,6 +387,7 @@ impl SimulationViewService {
         session.reconciliation.renewal_state = PoseAuthorizationRenewalState::Revoked;
         session.reconciliation.producer_id = Some(result.producer_id.clone());
         session.reconciliation.producer_spiffe_id = Some(result.spiffe_id.clone());
+        session.reconciliation.authorization_revision = result.authorization_revision;
         session.reconciliation.authorization_expires_at = Some(result.expires_at);
         for camera in state
             .cameras
@@ -393,6 +424,7 @@ impl SimulationViewService {
                 source.revoked = true;
                 source.stale = true;
                 source.authorization_revision = source.authorization_revision.saturating_add(1);
+                session.reconciliation.authorization_revision = source.authorization_revision;
             }
             advance_session(session);
         }
@@ -1140,6 +1172,15 @@ impl SimulationViewService {
             .expect("simulation-view state lock poisoned")
             .sessions
             .values()
+            .filter(|session| {
+                !(session.lifecycle == SessionLifecycle::Closed
+                    && session.reconciliation.desired_revision
+                        == session.reconciliation.realized_revision
+                    && matches!(
+                        session.reconciliation.phase,
+                        ReconciliationPhase::Healthy | ReconciliationPhase::Revoked
+                    ))
+            })
             .cloned()
             .collect()
     }
@@ -1253,6 +1294,7 @@ impl SimulationViewService {
         advance_desired(session);
         session.reconciliation.phase = ReconciliationPhase::PoseAuthorization;
         session.reconciliation.renewal_state = PoseAuthorizationRenewalState::Renewing;
+        session.reconciliation.authorization_revision = result.authorization_revision;
         session.reconciliation.authorization_expires_at = Some(result.expires_at);
         Ok(result)
     }
@@ -1332,17 +1374,20 @@ impl SimulationViewService {
             } else {
                 ReconciliationPhase::Healthy
             };
-            session.reconciliation.renewal_state = if session
-                .pose_source
-                .as_ref()
-                .is_some_and(|source| source.revoked)
-            {
-                PoseAuthorizationRenewalState::Revoked
-            } else {
-                PoseAuthorizationRenewalState::Current
+            session.reconciliation.renewal_state = match session.pose_source.as_ref() {
+                Some(source) if source.revoked => PoseAuthorizationRenewalState::Revoked,
+                Some(_) => PoseAuthorizationRenewalState::Scheduled,
+                None => PoseAuthorizationRenewalState::Current,
             };
             session.reconciliation.last_successful_reconciliation_at = Some(at);
-            session.reconciliation.next_attempt_at = None;
+            if session.pose_source.is_none()
+                || session
+                    .pose_source
+                    .as_ref()
+                    .is_some_and(|source| source.revoked)
+            {
+                session.reconciliation.next_attempt_at = None;
+            }
             session.reconciliation.failed_dependency = None;
             session.reconciliation.failure_code = None;
             session.reconciliation.diagnostic = None;
@@ -2037,6 +2082,29 @@ mod tests {
                 },
             )
             .unwrap();
+        let first = service
+            .bind_scene(
+                &owner,
+                BindSceneRequest {
+                    session_id: first.session_id.clone(),
+                    expected_revision: first.revision,
+                    scene: scene(first.session_id.clone(), first.epoch_id.clone()),
+                },
+            )
+            .unwrap();
+        let first_source = service
+            .authorize_pose_producer(
+                &owner,
+                AuthorizePoseProducerRequest {
+                    session_id: first.session_id.clone(),
+                    expected_revision: first.revision,
+                    producer_id: ProducerId::new("first-epoch-producer").unwrap(),
+                    spiffe_id: "spiffe://veoveo.test/first-epoch-producer".to_owned(),
+                    expires_at: Utc::now() + chrono::Duration::minutes(10),
+                },
+            )
+            .unwrap();
+        let first = service.get_session(&owner, &first.session_id).unwrap();
         service
             .close_session(
                 &owner,
@@ -2060,6 +2128,33 @@ mod tests {
         assert_eq!(restarted.revision, 1);
         assert!(restarted.scene.is_none());
         assert!(restarted.pose_source.is_none());
+        assert!(
+            restarted.reconciliation.authorization_revision > first_source.authorization_revision
+        );
+
+        let restarted = service
+            .bind_scene(
+                &restarted.owner,
+                BindSceneRequest {
+                    session_id: restarted.session_id.clone(),
+                    expected_revision: restarted.revision,
+                    scene: scene(restarted.session_id.clone(), restarted.epoch_id.clone()),
+                },
+            )
+            .unwrap();
+        let second_source = service
+            .authorize_pose_producer(
+                &restarted.owner,
+                AuthorizePoseProducerRequest {
+                    session_id: restarted.session_id,
+                    expected_revision: restarted.revision,
+                    producer_id: ProducerId::new("second-epoch-producer").unwrap(),
+                    spiffe_id: "spiffe://veoveo.test/second-epoch-producer".to_owned(),
+                    expires_at: Utc::now() + chrono::Duration::minutes(10),
+                },
+            )
+            .unwrap();
+        assert!(second_source.authorization_revision > first_source.authorization_revision);
     }
 
     #[test]
