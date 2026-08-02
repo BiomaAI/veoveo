@@ -189,6 +189,7 @@ struct ProbeDurations {
     overlay_boundary: u64,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn simulation_certify(
     deployment_lock: Option<&Path>,
     base_image: &str,
@@ -672,7 +673,7 @@ fn validate_inherited_python_path(
         position += offset + 1;
     }
     ensure!(
-        base_roots.iter().any(|root| *root == "/opt/veoveo/python")
+        base_roots.contains(&"/opt/veoveo/python")
             && base_roots
                 .iter()
                 .any(|root| root.starts_with("/opt/veoveo/isaaclab/source/")),
