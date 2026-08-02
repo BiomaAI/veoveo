@@ -99,6 +99,21 @@ Secret, port allocation, and any admitted producer CIDRs. In-cluster producers c
 the `veoveo.ai/simulation-view-pose-producer: "true"` pod label. Readiness requires the
 named RTX render product, NVENC, and a visible non-stale hardware frame.
 
+`simulationView.reconciliation` configures the platform-owned lifecycle loop.
+`intervalSeconds` controls desired-state convergence, while
+`authorizationRenewalLeadSeconds` sets the maximum lead before a bounded pose
+authorization expires. Shorter authorizations use one third of their lifetime.
+`retryMaximumSeconds` bounds the reported retry delay and must not be shorter
+than the interval. The MCP pod uses the installation database identity and its
+existing private runtime control credentials; no Console or producer
+credential is added.
+
+Simulation View stores its session, scene, producer binding, logical cameras,
+unexpired requested streams, revocation tombstone, and typed reconciliation
+status in the platform store. It restores this desired state after MCP,
+renderer, or pose-ingress replacement. An explicit producer revocation is
+durable and is never renewed automatically.
+
 `simulationView.streamedWorld` supplies the closed live-world catalog. The chart
 can render `catalog` into its owned ConfigMap or mount `existingConfigMap` under
 `catalogKey`. Each `credentialBindings` entry maps a catalog environment name to

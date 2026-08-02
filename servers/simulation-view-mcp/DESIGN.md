@@ -28,7 +28,9 @@ signaling   /simulation-view/signaling
 | MCP Apps SEP-1865 | `ext-apps` release `2026-01-26`; the self-contained generic App uses only its declared tools, resources, and exact signaling origin. |
 | `veoveo.io/simulation-view-scene/v1` | Immutable scene body and SHA-256 digest with governed artifact references, Frames identity, visual prototypes, entities, renderer bounds, and attribution. |
 | `veoveo.io/simulation-view-pose/v1` | Private latest-value binary snapshots in local ENU metres, FLU entity axes, and XYZW quaternions. |
+| `veoveo.io/simulation-view-pose-ingress-control/v2` | Private producer authorization with a monotonic authorization revision, bounded expiry, and explicit revocation tombstone. |
 | `veoveo.io/live-view/v1` | Owner-scoped H.264 WebRTC lease state with NVIDIA NVENC, BT.709 metadata, redacted access tokens, and exact endpoints. |
+| SurrealDB 3.2 | Durable Simulation View desired state, realized revision, reconciliation status, audit records, and transactional outbox events in the installation platform store. This is an internal repository adapter, not a public MCP protocol. |
 | Veoveo Artifact plane | Signed internal HTTP authorization and streaming bulk download for canonical `artifact://{uuidv7}` occurrences. Simulation View forwards bytes only to the private Isaac digest-ingest endpoint. |
 | OpenUSD | Render-only stage, content-addressed visual prototypes, instances, and transform mirroring. Executable scene content and physics authority are rejected. |
 | OGC 3D Tiles | Streamed 3D Tiles selected through an installation-owned layer ID; tile bytes flow from the provider to the renderer. |
@@ -162,6 +164,60 @@ Resource reads refresh this state from the authenticated pose ingress. An
 unavailable ingress marks the public source stale rather than preserving an
 old healthy sample.
 
+## Desired State And Authorization Renewal
+
+Simulation View owns the runtime lifecycle after an authorized caller creates
+a session and binds its scene and producer. The platform store retains the
+owner, Work Context, session, epoch, immutable scene, producer binding,
+logical cameras, active stream leases, and monotonic desired revision. It does
+not retain producer certificates, private runtime tokens, raw live-view access
+tokens, pose messages, or rendered media.
+
+The MCP workload restores this state before it admits traffic. Its reconciler
+then realizes one session in a fixed dependency order:
+
+1. renderer session;
+2. immutable governed scene;
+3. bounded pose-producer authorization;
+4. logical cameras;
+5. unexpired requested stream leases.
+
+Every private transition is idempotent. The durable desired revision advances
+when a caller changes the lifecycle or when the reconciler renews an
+authorization. The realized revision advances only after every dependency has
+accepted that desired state. A restart resets transient camera, pose, stream,
+and renderer health before the same ordered transitions run again.
+
+The initial authorization duration becomes that binding's renewal duration.
+The reconciler schedules renewal before expiry, bounded by the configured
+installation lead and one third of the duration. This rule covers short-lived
+acceptance leases without allowing the lead to consume the entire lifetime.
+Each renewal first commits its new expiry and authorization revision, then
+updates pose ingress and the renderer in place. Pose ingress preserves the
+latest-value store and shared-memory file during renewal, while the renderer
+preserves its mapped reader and latest accepted pose.
+
+Revocation advances the same authorization revision and persists a tombstone.
+Pose ingress records that revision as a floor before it removes the active
+binding. The renderer applies the same floor before it closes its pose mirror.
+A delayed retry or restored older snapshot therefore cannot reauthorize the
+producer. Only a later explicit authorization mutation may create a higher
+active revision. The background reconciler never changes a revoked binding.
+
+The installation authorizes this behavior through the Simulation View MCP
+workload's database identity and its private renderer and pose control
+credentials. Console users continue to hold view and stream authority only.
+They never receive operator-service credentials, certificates, or renewal
+capability.
+
+Each session exposes a reconciliation resource and embeds the same typed
+status in its session representation. The status reports desired and realized
+revisions, phase, producer identity, expiry, renewal state, next attempt, last
+success, failed dependency, failure code, and a bounded diagnostic. Renewal,
+failure, and successful recovery write tenant-scoped audit records and outbox
+events. Each event identifies the installation service controller, Work
+Context, and policy revision without including credentials or pose data.
+
 ## Cameras And Capacity
 
 Logical cameras are Work Context output-owner-scoped records with optimistic
@@ -252,15 +308,18 @@ The bounded tools are:
 | `get_capacity`, `get_session_state` | `simulation-view:read` | capacity or session state |
 
 Resources use the exact `simulation-view://sessions`,
-`simulation-view://capacity`, session, scene, pose-source, camera-collection,
-camera, stream-collection, and stream shapes. Lists and mutable records are
-subscribable. Scene declarations are immutable.
+`simulation-view://capacity`, session, scene, pose-source, reconciliation,
+camera-collection, camera, stream-collection, and stream shapes. Lists and
+mutable records are subscribable. Scene declarations are immutable.
 
 The App displays a selected view or a bounded four-camera grid. Each view has
-an independent lease and health state. The App can change authorized camera
-rigs, reports requested resolution and cadence, measures frame age, identifies
-NVIDIA NVENC, and uses Media Capabilities to distinguish hardware from
-supported smooth software H.264 decode.
+an independent lease and health state. The App reports automatic
+reconciliation as healthy, running, blocked, expired, or revoked. It removes a
+stale failure when pose and stream health recover, which prevents a healthy
+live stream from remaining beside an obsolete error. The App can change
+authorized camera rigs, reports requested resolution and cadence, measures
+frame age, identifies NVIDIA NVENC, and uses Media Capabilities to distinguish
+hardware from supported smooth software H.264 decode.
 
 Camera and stream resource reads refresh the bounded camera collection from
 the authenticated Isaac control boundary concurrently. A failed refresh
@@ -275,7 +334,7 @@ use the diagnostic stub and cannot serve as production streaming evidence.
 ## Readiness And Deployment
 
 The MCP liveness endpoint reports only process health. Readiness calls both
-private workloads and Artifact Service, then fails unless:
+private workloads, Artifact Service, and the platform store, then fails unless:
 
 - the governed artifact plane is reachable;
 - the renderer is hardware accelerated on NVIDIA;
@@ -285,6 +344,8 @@ private workloads and Artifact Service, then fails unless:
 - any selected streamed-world layer remains within its installation budgets;
 - pose ingress implements the exact pose schema and requires mutual
   authentication.
+- durable desired state has reached its realized revision without a blocked
+  dependency.
 
 Kubernetes traffic admission uses the process-health endpoints for the MCP and
 renderer containers. The renderer health server does not start until Kit has
@@ -333,6 +394,13 @@ The App must play an advancing 640-by-360 H.264/NVENC stream, label browser
 decode according to the exact Media Capabilities result, and close the lease
 on teardown. Headless browsers, software adapters, fake media, screenshots,
 and API-only substitutes are rejected as acceptance evidence.
+
+Lifecycle acceptance configures a shortened pose authorization duration and
+keeps the session active across several renewal periods. It restarts the MCP,
+renderer, and pose ingress independently and requires the existing session,
+scene, cameras, and requested streams to recover in dependency order. An
+explicit producer revocation must stop renewal, reject subsequent publication,
+survive restart, and leave an audit trail for the final authorization revision.
 
 The UAV showcase retains its PX4, domain sensor, recording, scene-declaration,
 and pose-producer checks. It consumes Simulation View but does not own generic
