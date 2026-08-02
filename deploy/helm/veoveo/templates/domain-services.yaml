@@ -66,7 +66,7 @@ metadata:
     {{- include "veoveo.labels" $ | nindent 4 }}
     app.kubernetes.io/component: {{ $service.name }}
 spec:
-  replicas: {{ if $gpuWorkload }}{{ include "veoveo.gpuReplicas" (list $ $gpuWorkload) }}{{ else }}1{{ end }}
+  replicas: 1
   strategy:
     type: Recreate
   selector:
