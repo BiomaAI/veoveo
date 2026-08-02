@@ -1084,6 +1084,74 @@ impl SimulationViewService {
         })
     }
 
+    #[cfg(test)]
+    pub(crate) fn mutate_runtime_state_for_test(
+        &self,
+        session_id: &LiveSessionId,
+        camera_ids: &[LiveCameraId],
+        stream_id: &LiveViewId,
+        sequence: u64,
+    ) {
+        let at = Utc::now()
+            + chrono::Duration::seconds(i64::try_from(sequence).expect("test sequence fits i64"));
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        let session = state.sessions.get_mut(session_id).unwrap();
+        session.updated_at = at;
+        session.geospatial_layer = Some(GeospatialLayerHealth {
+            layer_id: crate::contract::GeospatialLayerId::new("synthetic-layer").unwrap(),
+            lifecycle: LayerLifecycle::Ready,
+            resident_bytes: sequence * 1024,
+            visible_tile_count: u32::try_from(sequence).unwrap(),
+            pending_tile_count: u32::try_from(sequence + 1).unwrap(),
+            attribution: "Synthetic map fixture".to_owned(),
+            attribution_url: "https://example.test/map".to_owned(),
+            failure: None,
+        });
+        session.reconciliation.phase = ReconciliationPhase::Cameras;
+        session.reconciliation.next_attempt_at = Some(at);
+        session.reconciliation.last_successful_reconciliation_at = Some(at);
+        if let Some(source) = session.pose_source.as_mut() {
+            source.authorized_at = at;
+            source.expires_at = at + chrono::Duration::minutes(10);
+            source.last_sequence = Some(sequence);
+            source.last_snapshot_at = Some(at);
+            source.stale = sequence.is_multiple_of(2);
+        }
+        for camera_id in camera_ids {
+            let camera = state.cameras.get_mut(camera_id).unwrap();
+            camera.health = if sequence.is_multiple_of(2) {
+                LiveCameraHealth::Healthy
+            } else {
+                LiveCameraHealth::Stale
+            };
+            camera.last_pose_sequence = Some(sequence);
+            camera.last_frame_at = Some(at);
+            camera.updated_at = at;
+        }
+        let lease = state.leases.get_mut(stream_id).unwrap();
+        lease.state.lifecycle = LiveViewLifecycle::Live;
+        lease.state.connected_viewers = 1;
+        lease.state.camera_health = LiveCameraHealth::Healthy;
+        lease.state.last_frame_at = Some(at);
+        lease.state.expires_at = at + chrono::Duration::minutes(2);
+        lease.token_hash = [u8::try_from(sequence).unwrap(); 32];
+    }
+
+    #[cfg(test)]
+    pub(crate) fn mutate_camera_intent_for_test(&self, camera_id: &LiveCameraId) {
+        self.state
+            .lock()
+            .expect("simulation-view state lock poisoned")
+            .cameras
+            .get_mut(camera_id)
+            .unwrap()
+            .definition
+            .width_px += 1;
+    }
+
     pub(crate) fn restore_durable_state(
         &self,
         mut desired: DurableSimulationViewState,
@@ -1167,19 +1235,27 @@ impl SimulationViewService {
     }
 
     pub(crate) fn reconciliation_sessions(&self) -> Vec<SimulationViewSession> {
+        let now = Utc::now();
         self.state
             .lock()
             .expect("simulation-view state lock poisoned")
             .sessions
             .values()
             .filter(|session| {
-                !(session.lifecycle == SessionLifecycle::Closed
-                    && session.reconciliation.desired_revision
-                        == session.reconciliation.realized_revision
-                    && matches!(
-                        session.reconciliation.phase,
-                        ReconciliationPhase::Healthy | ReconciliationPhase::Revoked
-                    ))
+                let waiting_for_retry = session.reconciliation.phase
+                    == ReconciliationPhase::Blocked
+                    && session
+                        .reconciliation
+                        .next_attempt_at
+                        .is_some_and(|next_attempt| next_attempt > now);
+                !waiting_for_retry
+                    && !(session.lifecycle == SessionLifecycle::Closed
+                        && session.reconciliation.desired_revision
+                            == session.reconciliation.realized_revision
+                        && matches!(
+                            session.reconciliation.phase,
+                            ReconciliationPhase::Healthy | ReconciliationPhase::Revoked
+                        ))
             })
             .cloned()
             .collect()
@@ -2377,6 +2453,42 @@ mod tests {
             .unwrap();
         assert_eq!(restored_stream.lifecycle, LiveViewLifecycle::Ready);
         assert_eq!(restored_stream.connected_viewers, 0);
+    }
+
+    #[test]
+    fn blocked_reconciliation_waits_without_hiding_degraded_state() {
+        let service = SimulationViewService::new(SimulationViewConfig::default()).unwrap();
+        let owner = view_owner("issuer#durability-operator");
+        let session = bound_session(&service, &owner);
+        service.mark_reconciliation_failed(
+            &session.session_id,
+            "store",
+            ReconciliationFailureCode::StoreUnavailable,
+            "durable state is unavailable",
+            Utc::now() + chrono::Duration::minutes(1),
+        );
+
+        assert!(service.reconciliation_sessions().is_empty());
+        assert!(!service.reconciliation_ready());
+        let blocked = service.get_session(&owner, &session.session_id).unwrap();
+        assert_eq!(blocked.reconciliation.phase, ReconciliationPhase::Blocked);
+        assert_eq!(
+            blocked.reconciliation.failure_code,
+            Some(ReconciliationFailureCode::StoreUnavailable)
+        );
+        assert_eq!(
+            blocked.reconciliation.failed_dependency.as_deref(),
+            Some("store")
+        );
+
+        service.mark_reconciliation_failed(
+            &session.session_id,
+            "store",
+            ReconciliationFailureCode::StoreUnavailable,
+            "durable state is unavailable",
+            Utc::now() - chrono::Duration::seconds(1),
+        );
+        assert_eq!(service.reconciliation_sessions().len(), 1);
     }
 
     #[test]

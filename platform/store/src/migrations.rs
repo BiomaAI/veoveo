@@ -27,7 +27,7 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 31] = [
+const MIGRATIONS: [Migration; 32] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -213,6 +213,12 @@ const MIGRATIONS: [Migration; 31] = [
         name: "simulation_view_reconciliation",
         filename: "0030_simulation_view_reconciliation.surql",
         sql: include_str!("../migrations/0030_simulation_view_reconciliation.surql"),
+    },
+    Migration {
+        version: 31,
+        name: "simulation_view_desired_digest",
+        filename: "0031_simulation_view_desired_digest.surql",
+        sql: include_str!("../migrations/0031_simulation_view_desired_digest.surql"),
     },
 ];
 

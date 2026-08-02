@@ -100,3 +100,22 @@ fn offline_bundle_manifest_is_immutable_and_complete() {
     assert!(offline_values.contains("offline: true"));
     assert!(offline_values.contains("imagePullPolicy: Never"));
 }
+
+#[test]
+fn simulation_view_uses_durable_readiness_and_process_liveness() {
+    let template = fs::read_to_string(
+        repository_root().join("deploy/helm/veoveo/templates/simulation-view.yaml"),
+    )
+    .expect("read Simulation View Helm template");
+
+    assert_eq!(
+        template.matches("path: /simulation-view/readyz").count(),
+        1,
+        "the MCP readiness probe must use durable reconciliation readiness"
+    );
+    assert_eq!(
+        template.matches("path: /simulation-view/healthz").count(),
+        1,
+        "the MCP liveness probe must remain process-only"
+    );
+}

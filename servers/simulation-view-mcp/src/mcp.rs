@@ -112,7 +112,7 @@ impl SimulationViewMcp {
             .persist(&self.state.service, session_id)
             .await
             .map_err(|error| {
-                tracing::error!(%error, %session_id, "failed to persist Simulation View desired state");
+                tracing::error!(error = ?error, %session_id, "failed to persist Simulation View desired state");
                 McpError::internal_error(
                     "Simulation View desired state could not be committed",
                     None,

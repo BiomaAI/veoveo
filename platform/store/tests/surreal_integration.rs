@@ -16,11 +16,12 @@ use veoveo_platform_store::{
     MapLayerProductDraft, MapLayerPublicationDraft, MapReleaseDraft, MapReleaseState, OpenObject,
     OutboxDraft, PlatformIdentity, PlatformStore, PlatformTable, PrincipalKind, RecordIdKey,
     RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingDraft, RecordingId, RecordingSeal,
-    RecordingState, SegmentDraft, SegmentId, SegmentSealBinding, SegmentState, ShareLinkId,
-    SimulationViewStateDraft, StoreConfig, StoreCredentials, StoreError, TaskId,
-    TimeAuthorityReleaseDraft, TimeAuthorityReleaseState, TimeDatasetKind, TimeSourceDraft,
-    WorkContextInitialGrantRecord, WorkContextMembershipLevel, decode_changefeed_entry,
-    deterministic_work_context_id, gateway_replay_record_id,
+    RecordingState, SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA, SegmentDraft, SegmentId,
+    SegmentSealBinding, SegmentState, ShareLinkId, SimulationViewStateDraft, StoreConfig,
+    StoreCredentials, StoreError, TaskId, TimeAuthorityReleaseDraft, TimeAuthorityReleaseState,
+    TimeDatasetKind, TimeSourceDraft, WorkContextInitialGrantRecord, WorkContextMembershipLevel,
+    decode_changefeed_entry, deterministic_work_context_id, gateway_replay_record_id, migrations,
+    simulation_view_state_record_id,
 };
 
 fn simulation_view_state_draft(
@@ -40,7 +41,8 @@ fn simulation_view_state_draft(
         authorization_revision: desired_revision,
         revoked: false,
         authorization_expires_at: Some(Utc::now() + TimeDelta::minutes(10)),
-        snapshot_digest: digest_byte.to_string().repeat(64),
+        desired_digest: digest_byte.to_string().repeat(64),
+        desired_digest_schema: SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA.to_owned(),
         snapshot: OpenObject::new(BTreeMap::from([
             ("sessionId".to_owned(), serde_json::json!("durable-session")),
             (
@@ -1839,6 +1841,20 @@ async fn simulation_view_desired_state_is_revisioned_and_idempotent() {
         .await
         .unwrap();
     assert_eq!(realized.realized_revision, 1);
+    let mut runtime_update = simulation_view_state_draft(1, 1, 'a');
+    runtime_update.snapshot = OpenObject::new(BTreeMap::from([
+        ("sessionId".to_owned(), serde_json::json!("durable-session")),
+        ("desiredRevision".to_owned(), serde_json::json!(1)),
+        ("lastFrameSequence".to_owned(), serde_json::json!(42)),
+    ]));
+    let runtime_updated = store
+        .commit_simulation_view_state(runtime_update)
+        .await
+        .unwrap();
+    assert_eq!(
+        runtime_updated.snapshot.as_map().get("lastFrameSequence"),
+        Some(&serde_json::json!(42))
+    );
     assert!(matches!(
         store
             .commit_simulation_view_state(simulation_view_state_draft(1, 1, 'b'))
@@ -1861,4 +1877,120 @@ async fn simulation_view_desired_state_is_revisioned_and_idempotent() {
         .unwrap();
     assert_eq!(second.desired_revision, 2);
     assert_eq!(store.simulation_view_states().await.unwrap().len(), 1);
+
+    store
+        .client()
+        .query("UPDATE simulation_view_state SET desired_digest = $legacy_digest, desired_digest_schema = $legacy_schema;")
+        .bind(("legacy_digest", "c".repeat(64)))
+        .bind((
+            "legacy_schema",
+            "veoveo.io/simulation-view-desired-digest/legacy-v1",
+        ))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    let upgraded = store
+        .commit_simulation_view_state(simulation_view_state_draft(2, 2, 'b'))
+        .await
+        .unwrap();
+    assert_eq!(
+        upgraded.desired_digest_schema,
+        SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA
+    );
+    assert!(matches!(
+        store
+            .commit_simulation_view_state(simulation_view_state_draft(2, 2, 'c'))
+            .await,
+        Err(StoreError::SimulationViewRevisionConflict { revision: 2 })
+    ));
+}
+
+#[tokio::test]
+async fn simulation_view_legacy_digest_migration_preserves_state_and_removes_old_field() {
+    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
+        return;
+    }
+
+    let endpoint =
+        std::env::var("VEOVEO_SURREAL_URL").unwrap_or_else(|_| "ws://127.0.0.1:8000".to_owned());
+    let username = std::env::var("VEOVEO_SURREAL_USER").unwrap_or_else(|_| "root".to_owned());
+    let password = std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".to_owned());
+    let store = PlatformStore::connect(
+        StoreConfig::builder(
+            &endpoint,
+            "veoveo_integration",
+            format!("simulation_view_migration_test_{}", Uuid::now_v7().simple()),
+            StoreCredentials::root(username, SecretString::from(password)),
+        )
+        .migrate_on_connect(false)
+        .build()
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    store
+        .client()
+        .query(migrations()[30].sql)
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    let record =
+        simulation_view_state_record_id("tenant-simulation-view", "operations", "durable-session");
+    store
+        .client()
+        .query(
+            "CREATE ONLY $record CONTENT {
+                id: $record,
+                tenant_key: 'tenant-simulation-view',
+                owner_key: '{\"principal\":\"operator\"}',
+                work_context_key: 'operations',
+                policy_revision: 'policy-r1',
+                session_id: 'durable-session',
+                epoch_id: 'epoch-1',
+                desired_revision: 6,
+                realized_revision: 5,
+                authorization_revision: 2,
+                revoked: false,
+                authorization_expires_at: NONE,
+                snapshot_digest: $legacy_digest,
+                snapshot: { sessionId: 'durable-session' },
+                reconciliation: { desiredRevision: 6, realizedRevision: 5 },
+                created_at: time::now(),
+                updated_at: time::now()
+            };",
+        )
+        .bind(("record", record))
+        .bind(("legacy_digest", "a".repeat(64)))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    store
+        .client()
+        .query(migrations()[31].sql)
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+
+    let migrated = store.simulation_view_states().await.unwrap().remove(0);
+    assert_eq!(migrated.desired_revision, 6);
+    assert_eq!(migrated.realized_revision, 5);
+    assert_eq!(migrated.desired_digest, "a".repeat(64));
+    assert_eq!(
+        migrated.desired_digest_schema,
+        "veoveo.io/simulation-view-desired-digest/legacy-v1"
+    );
+    let mut response = store
+        .client()
+        .query("SELECT * FROM simulation_view_state;")
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    let value: surrealdb::types::Value = response.take(0).unwrap();
+    assert!(!format!("{value:?}").contains("snapshot_digest"));
 }

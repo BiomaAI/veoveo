@@ -85,7 +85,10 @@ pub use recording_ingest::{
     RecordingIngestAppendOutcome, RecordingIngestBatchDraft, RecordingIngestStreamDraft,
 };
 pub use recordings::{RecordingDraft, RecordingSeal, SegmentDraft, SegmentSealBinding};
-pub use simulation_view::{SimulationViewStateDraft, simulation_view_state_record_id};
+pub use simulation_view::{
+    SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA, SimulationViewStateDraft,
+    simulation_view_state_record_id,
+};
 pub use store::{PlatformClient, PlatformStore};
 pub use surrealdb::types::{RecordId, RecordIdKey, Value};
 pub use table::PlatformTable;

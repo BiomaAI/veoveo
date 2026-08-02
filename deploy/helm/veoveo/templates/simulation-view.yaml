@@ -272,7 +272,7 @@ spec:
               containerPort: {{ $view.ports.mcp }}
           readinessProbe:
             httpGet:
-              path: /simulation-view/healthz
+              path: /simulation-view/readyz
               port: http
               httpHeaders:
                 - name: Host

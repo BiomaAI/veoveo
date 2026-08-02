@@ -45,7 +45,7 @@ pub(crate) fn spawn_reconciler(
                         let session = match service.get_session(&session.owner, &session_id) {
                             Ok(session) => session,
                             Err(error) => {
-                                tracing::warn!(%error, %session_id, "Simulation View session disappeared before reconciliation");
+                                tracing::warn!(error = ?error, %session_id, "Simulation View session disappeared before reconciliation");
                                 continue;
                             }
                         };
@@ -56,7 +56,7 @@ pub(crate) fn spawn_reconciler(
                             config,
                             session,
                         ).await {
-                            tracing::warn!(%error, "Simulation View desired-state reconciliation failed");
+                            tracing::warn!(error = ?error, %session_id, "Simulation View desired-state reconciliation failed");
                         }
                         for uri in [
                             uris::session(&session_id),
@@ -101,7 +101,13 @@ async fn reconcile_session(
             ReconciliationFailureCode::AuditUnavailable,
             "reconciliation audit is unavailable",
         );
-        let _ = repository.persist(service, &session_id).await;
+        if let Err(persist_error) = repository.persist(service, &session_id).await {
+            tracing::warn!(
+                error = ?persist_error,
+                %session_id,
+                "failed to retain blocked Simulation View reconciliation state"
+            );
+        }
         return Err(error);
     }
 
@@ -229,7 +235,13 @@ async fn reconcile_session(
                         ReconciliationFailureCode::AuditUnavailable,
                         "pose authorization renewal audit is unavailable",
                     );
-                    let _ = repository.persist(service, &session_id).await;
+                    if let Err(persist_error) = repository.persist(service, &session_id).await {
+                        tracing::warn!(
+                            error = ?persist_error,
+                            %session_id,
+                            "failed to retain blocked Simulation View reconciliation state"
+                        );
+                    }
                     return Err(error);
                 }
             }
@@ -347,7 +359,13 @@ async fn finish(
             ReconciliationFailureCode::AuditUnavailable,
             "successful reconciliation could not be audited",
         );
-        let _ = repository.persist(service, &session.session_id).await;
+        if let Err(persist_error) = repository.persist(service, &session.session_id).await {
+            tracing::warn!(
+                error = ?persist_error,
+                session_id = %session.session_id,
+                "failed to retain blocked Simulation View reconciliation state"
+            );
+        }
         return Err(error);
     }
     Ok(())
@@ -364,7 +382,7 @@ async fn failed_runtime(
     diagnostic: &str,
     error: anyhow::Error,
 ) -> anyhow::Result<()> {
-    tracing::warn!(%error, %dependency, ?code, "Simulation View runtime dependency is not reconciled");
+    tracing::warn!(error = ?error, %dependency, ?code, "Simulation View runtime dependency is not reconciled");
     fail(
         service,
         &session.session_id,
