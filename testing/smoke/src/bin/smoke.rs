@@ -565,6 +565,15 @@ enum Cmd {
         #[arg(long, default_value_t = 300)]
         timeout_seconds: u64,
     },
+    /// Compare paired native and Simulation View frames against fixed visual-fidelity bounds.
+    SimulationViewVisualCompare {
+        /// Typed manifest containing pose- and camera-matched local image pairs.
+        #[arg(long)]
+        manifest: PathBuf,
+        /// New immutable JSON evidence file. Existing files are never replaced.
+        #[arg(long)]
+        output: PathBuf,
+    },
     /// Certify an immutable simulation overlay and base on NVIDIA hardware.
     SimulationCertify {
         /// Validated deployment lock authorizing the registry identity and transport.
@@ -926,6 +935,9 @@ async fn main() -> Result<()> {
                 timeout: Duration::from_secs(timeout_seconds),
             })
             .await
+        }
+        Cmd::SimulationViewVisualCompare { manifest, output } => {
+            simulation_view_visual_compare(&manifest, &output)
         }
         Cmd::SimulationCertify {
             deployment_lock,

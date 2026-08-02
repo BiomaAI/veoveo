@@ -342,18 +342,24 @@ private workloads, Artifact Service, and the platform store, then fails unless:
 - NVENC is ready;
 - a visible non-stale frame exists;
 - any selected streamed-world layer remains within its installation budgets;
+- the packaged Cesium MDL module is registered in both material search paths
+  and the material allowlist;
+- RTX tangent-frame mode is enabled before streamed-world admission;
+- diagnostic lighting is isolated from every governed scene;
+- the Hydra `LdrColor` AOV has produced a validated RGBA8 frame;
 - pose ingress implements the exact pose schema and requires mutual
   authentication.
 - durable desired state has reached its realized revision without a blocked
   dependency.
 
 Kubernetes traffic admission uses the process-health endpoints for the MCP and
-renderer containers. The renderer health server does not start until Kit has
-initialized and the NVIDIA GPU and NVENC driver checks have passed. This lets
-an installation admit the producer and acceptance client that create the first
-governed scene and camera. The public `/simulation-view/readyz` contract remains
-the stronger runtime gate above, and visual acceptance must prove it with a
-real non-stale frame before the installation is accepted.
+renderer containers. The renderer starts its private health server after the
+NVIDIA GPU and NVENC driver checks pass. Kit initialization failures leave
+readiness false and return a typed failure code without exposing extension
+paths or renderer settings. Liveness also fails, which permits Kubernetes to
+restart a failed renderer. The public `/simulation-view/readyz` contract
+remains the stronger runtime gate above, and visual acceptance must prove it
+with a real non-stale frame before the installation is accepted.
 
 There is no CPU renderer or software encoder fallback. The Isaac workload
 requests an NVIDIA RuntimeClass, one `nvidia.com/gpu`, writable runtime
@@ -365,6 +371,19 @@ filesystem remains read-only.
 `simulation-view-isaac` starts with a built-in declarative diagnostic scene
 and one RTX health render product. Readiness stays false until CUDA and NVENC
 driver APIs succeed and that product produces a visible, non-stale frame.
+Diagnostic geometry and its sun and dome are visible only while no governed
+scene is bound. Binding the first governed scene hides the geometry and sets
+both diagnostic light intensities to zero. Closing the last governed scene
+restores the diagnostic probe. Governed scenes receive one normalized OpenUSD
+distant light according to the shared scene contract.
+
+The renderer enables the pinned Cesium extension, then idempotently registers
+the exact packaged `cesium.omniverse/mdl` directory in the Kit material path
+and the RTX renderer MDL path. It also allowlists `cesium.mdl` and enables RTX
+tangent-frame mode. Readback must find each registration exactly once before
+the renderer accepts a streamed-world scene. These image-owned paths require
+no installation value.
+
 Each admitted logical camera reconfigures a bounded physical HydraTexture
 slot. Closing a camera pauses that slot without destroying its RTX/NVENC
 product, which keeps session teardown independent from Kit renderer
@@ -394,6 +413,30 @@ The App must play an advancing 640-by-360 H.264/NVENC stream, label browser
 decode according to the exact Media Capabilities result, and close the lease
 on teardown. Headless browsers, software adapters, fake media, screenshots,
 and API-only substitutes are rejected as acceptance evidence.
+
+`smoke simulation-view-visual-compare` owns the paired native-camera fidelity
+gate. Its installation-owned JSON manifest supplies five pose- and
+camera-transform-matched frame pairs for each of `mounted_entity`,
+`chase_entity`, and `formation_overview`. Every image must be `1280x720`.
+The manifest records completion of human visual review. The compiled harness
+measures BT.709 luma, contrast, a 256-bin histogram, clipped highlights,
+percentile dynamic range, and spatial detail. Fixed platform thresholds reject
+washed-out or clipped Simulation View output. Retained evidence contains only
+pair identities, content digests, metrics, and thresholds. Local paths do not
+cross into the evidence document.
+
+Run the comparison after both render paths capture stable tile residency at
+the same pose snapshot and camera transform:
+
+```sh
+cargo xtask smoke simulation-view-visual-compare \
+  --manifest /installation/evidence/render-comparison.json \
+  --output /installation/evidence/render-comparison-result.json
+```
+
+The installation keeps streamed-world credentials and provider-specific
+captures outside the repository. This change introduces no Helm value or scene
+migration beyond rejection of color temperatures above `10000` kelvin.
 
 Lifecycle acceptance configures a shortened pose authorization duration and
 keeps the session active across several renewal periods. It restarts the MCP,
