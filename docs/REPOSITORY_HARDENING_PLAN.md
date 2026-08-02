@@ -29,8 +29,8 @@ profiles:
 | `veoveo.io/image-build-run/v1` | internal immutable record of an image execution, its output mode, elapsed time, result, and Buildx metadata reference |
 | Model Context Protocol | public server protocol governed by `mcp/contract/DESIGN.md`; the current Streamable HTTP verification uses protocol version `2025-11-25` and only claims the repository profile defined there |
 | JSON Schema 2020-12 | canonical MCP tool-input and controlled configuration schemas |
-| `veoveo.io/deployment/v4` | repository-development profile for independently resolved sources, exact platform targets, installation-owned Helm values, and typed registry transport |
-| `veoveo.io/deployment-lock/v4` | immutable installation revision and combined source evidence emitted by repository-development publication |
+| `veoveo.io/deployment/v5` | repository-development profile for independently resolved sources, exact platform targets, installation-owned Helm values, typed registry transport, and a managed GPU allocator closure |
+| `veoveo.io/deployment-lock/v5` | immutable installation revision, combined source evidence, and managed GPU allocator artifacts emitted by repository-development publication |
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned declaration of one hosted server's protocol surface and platform requirements |
 | `veoveo.io/gateway-binding/v1` | installation-owned declaration of exposure, authorization, tenant, policy, and producer bindings |
 | Offline bundle schema version 1 | repository-owned image and payload integrity contract |
@@ -306,7 +306,7 @@ evidence types still carry an explicit source root, resolved revision, artifact
 coordinate, image digest, and chart identity. They do not rely on one global `HEAD`, one
 image tag, or one chart root.
 
-Deployment v4 applies that constraint to named sources. Each source resolves its own
+Deployment v5 applies that constraint to named sources. Each source resolves its own
 revision, chart artifact, image lock, gateway fragment, compatibility manifest, and
 release evidence. Installation status reports the source revision, Helm release, and
 image digest independently. Local development may materialize one detached worktree per
@@ -320,7 +320,7 @@ its Cargo workspace, builder families, cache namespace, and release evidence in 
 repository. Installation composition consumes immutable image coordinates and digests;
 it does not combine external packages into the Veoveo workspace builder.
 
-The deployment v4 release resolver coordinates several explicit source contexts. It
+The deployment v5 release resolver coordinates several explicit source contexts. It
 treats each source revision as an independent graph and never creates one universal
 package list.
 
@@ -703,7 +703,7 @@ Clippy, rustfmt, Ruff, ESLint, Cargo dependency tools, Helm, Docker, protocol
 conformance, or smoke lifecycle behavior.
 
 Process and evidence APIs receive an explicit source context. An individual image
-command uses one source, while deployment v4 coordinates several such contexts. No
+command uses one source, while deployment v5 coordinates several such contexts. No
 command assumes that repository root, current revision, image tag, and chart root are
 universal installation identities.
 
