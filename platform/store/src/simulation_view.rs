@@ -9,6 +9,11 @@ use crate::{
     AuditEventRecord, OpenObject, OutboxDraft, PlatformStore, SimulationViewStateRecord, StoreError,
 };
 
+pub const SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA: &str =
+    "veoveo.io/simulation-view-desired-digest/v1";
+const LEGACY_SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA: &str =
+    "veoveo.io/simulation-view-desired-digest/legacy-v1";
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct SimulationViewStateDraft {
     pub tenant_key: String,
@@ -22,7 +27,8 @@ pub struct SimulationViewStateDraft {
     pub authorization_revision: u64,
     pub revoked: bool,
     pub authorization_expires_at: Option<DateTime<Utc>>,
-    pub snapshot_digest: String,
+    pub desired_digest: String,
+    pub desired_digest_schema: String,
     pub snapshot: OpenObject,
     pub reconciliation: OpenObject,
     pub updated_at: DateTime<Utc>,
@@ -49,7 +55,8 @@ impl PlatformStore {
     ) -> Result<SimulationViewStateRecord, StoreError> {
         if draft.desired_revision == 0
             || draft.realized_revision > draft.desired_revision
-            || draft.snapshot_digest.len() != 64
+            || draft.desired_digest.len() != 64
+            || draft.desired_digest_schema != SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA
         {
             return Err(StoreError::SimulationViewRevisionConflict {
                 revision: draft.desired_revision,
@@ -66,8 +73,14 @@ impl PlatformStore {
             .map_or(draft.updated_at, |value| value.created_at);
         if let Some(current) = &current {
             let current_revision = u64::try_from(current.desired_revision).unwrap_or_default();
+            let upgrades_legacy_digest = current.desired_digest_schema
+                == LEGACY_SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA
+                && draft.desired_digest_schema == SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA;
             if draft.desired_revision == current_revision {
-                if draft.snapshot_digest != current.snapshot_digest {
+                if !upgrades_legacy_digest
+                    && (draft.desired_digest_schema != current.desired_digest_schema
+                        || draft.desired_digest != current.desired_digest)
+                {
                     return Err(StoreError::SimulationViewRevisionConflict {
                         revision: draft.desired_revision,
                     });
@@ -109,7 +122,8 @@ impl PlatformStore {
             })?,
             revoked: draft.revoked,
             authorization_expires_at: draft.authorization_expires_at,
-            snapshot_digest: draft.snapshot_digest,
+            desired_digest: draft.desired_digest,
+            desired_digest_schema: draft.desired_digest_schema,
             snapshot: draft.snapshot,
             reconciliation: draft.reconciliation,
             created_at,
@@ -117,11 +131,12 @@ impl PlatformStore {
         };
         let mut response = if let Some(current) = current {
             self.db
-                .query("UPDATE ONLY $record CONTENT $content WHERE desired_revision = $expected_revision AND snapshot_digest = $expected_digest RETURN AFTER;")
+                .query("UPDATE ONLY $record CONTENT $content WHERE desired_revision = $expected_revision AND desired_digest = $expected_digest AND desired_digest_schema = $expected_digest_schema RETURN AFTER;")
                 .bind(("record", record))
                 .bind(("content", content))
                 .bind(("expected_revision", current.desired_revision))
-                .bind(("expected_digest", current.snapshot_digest))
+                .bind(("expected_digest", current.desired_digest))
+                .bind(("expected_digest_schema", current.desired_digest_schema))
                 .await?
                 .check()?
         } else {

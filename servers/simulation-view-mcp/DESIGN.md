@@ -188,6 +188,22 @@ authorization. The realized revision advances only after every dependency has
 accepted that desired state. A restart resets transient camera, pose, stream,
 and renderer health before the same ordered transitions run again.
 
+Conflict detection uses the canonical
+`veoveo.io/simulation-view-desired-intent/v1` projection. It contains the
+session and epoch identity, owner, immutable scene, producer binding and
+authorization revision, logical camera definitions, and requested stream
+identities. Runtime timestamps do not enter this digest. Pose and frame
+health, geospatial residency counters, render-slot assignments, lease token
+hashes, retry timing, and reconciliation progress remain outside it. The
+store can therefore commit an updated restorable snapshot and realized
+outcome at the same desired revision while still rejecting an unrevisioned
+change to genuine intent.
+
+Store migration 31 marks existing whole-state digests as legacy. The next
+commit may replace that digest once with the canonical projection under the
+same desired revision. Every later same-revision commit must retain the exact
+canonical digest.
+
 The initial authorization duration becomes that binding's renewal duration.
 The reconciler schedules renewal before expiry, bounded by the configured
 installation lead and one third of the duration. This rule covers short-lived
@@ -352,14 +368,16 @@ private workloads, Artifact Service, and the platform store, then fails unless:
 - durable desired state has reached its realized revision without a blocked
   dependency.
 
-Kubernetes traffic admission uses the process-health endpoints for the MCP and
-renderer containers. The renderer starts its private health server after the
-NVIDIA GPU and NVENC driver checks pass. Kit initialization failures leave
-readiness false and return a typed failure code without exposing extension
-paths or renderer settings. Liveness also fails, which permits Kubernetes to
-restart a failed renderer. The public `/simulation-view/readyz` contract
-remains the stronger runtime gate above, and visual acceptance must prove it
-with a real non-stale frame before the installation is accepted.
+Kubernetes traffic admission uses `/simulation-view/readyz` for the MCP
+container and the private readiness endpoint for the renderer. MCP liveness
+continues to use `/simulation-view/healthz`. The renderer starts its private
+health server after the NVIDIA GPU and NVENC driver checks pass. Kit
+initialization failures leave readiness false and return a typed failure code
+without exposing extension paths or renderer settings. Renderer liveness also
+fails, which permits Kubernetes to restart that failed workload. A blocked
+durable reconciliation keeps the MCP pod out of traffic until the desired
+revision is durably realized. Visual acceptance must prove readiness with a
+real non-stale frame before the installation is accepted.
 
 There is no CPU renderer or software encoder fallback. The Isaac workload
 requests an NVIDIA RuntimeClass, one `nvidia.com/gpu`, writable runtime

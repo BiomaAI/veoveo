@@ -108,6 +108,12 @@ than the interval. The MCP pod uses the installation database identity and its
 existing private runtime control credentials; no Console or producer
 credential is added.
 
+The MCP readiness probe calls `/simulation-view/readyz`. A store failure or a
+desired revision that has not been durably realized removes the pod from
+traffic and remains visible as typed reconciliation status. The liveness probe
+continues to call `/simulation-view/healthz`, so a recoverable store outage
+does not restart the control plane or erase its in-memory blocked diagnostic.
+
 Simulation View stores its session, scene, producer binding, logical cameras,
 unexpired requested streams, revocation tombstone, and typed reconciliation
 status in the platform store. It restores this desired state after MCP,

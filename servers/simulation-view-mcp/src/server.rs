@@ -40,7 +40,7 @@ struct Readiness {
     ready: bool,
     artifact_plane_ready: bool,
     store_ready: bool,
-    desired_state_ready: bool,
+    durable_state_ready: bool,
     runtime: crate::runtime::SimulationViewReadiness,
 }
 
@@ -152,15 +152,15 @@ pub async fn run() -> Result<()> {
                 async move {
                     let (runtime, artifact_plane_ready, store_ready) =
                         tokio::join!(readiness.readiness(), artifacts.ready(), repository.ready());
-                    let desired_state_ready = service.reconciliation_ready();
+                    let durable_state_ready = service.reconciliation_ready();
                     let report = Readiness {
                         ready: runtime.ready
                             && artifact_plane_ready
                             && store_ready
-                            && desired_state_ready,
+                            && durable_state_ready,
                         artifact_plane_ready,
                         store_ready,
-                        desired_state_ready,
+                        durable_state_ready,
                         runtime,
                     };
                     let status = if report.ready {
