@@ -7,8 +7,8 @@ Delta over the repository root `AGENTS.md`. The normative server contract is
 
 Operate the provider-neutral, renderer-only simulation visualization control
 plane. The crate owns governed scene binding, pose-producer authorization,
-capacity-admitted logical cameras, live-view leases, authenticated signaling,
-and the generic MCP App.
+durable runtime reconciliation, capacity-admitted logical cameras, live-view
+leases, authenticated signaling, and the generic MCP App.
 
 ## Invariants
 
@@ -23,6 +23,9 @@ and the generic MCP App.
 - Access tokens appear only in open and renew results. State stores hashes,
   signaling compares them in constant time, and resources and logs contain no
   token.
+- Pose authorization remains bounded. Renewal advances a durable monotonic
+  revision, while an explicit revocation writes a tombstone that automatic
+  reconciliation cannot supersede.
 - Camera admission returns a typed rejection. It never silently reduces
   quality or switches away from RTX and NVENC.
 - Readiness fails closed unless the Isaac renderer, NVIDIA hardware path,

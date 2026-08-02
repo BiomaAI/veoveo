@@ -270,6 +270,7 @@ The only durable platform persistence layer.
 | `recording_ingest.rs`, `recording_blueprints.rs` | producer streams, idempotent batch checkpoints, immutable producer Blueprint revisions, and journal state |
 | `usage.rs` | shared domain/media usage records |
 | `outbox.rs`, `changefeed.rs` | transactional events, checkpoints, LIVE acceleration |
+| `simulation_view.rs` | Simulation View-specific desired-state commits, revision guards, restart loading, and reconciliation audit transactions |
 | `store.rs` | connection and transaction helpers over domain records |
 
 Migrations `0001` through the current version live under `migrations/`. Runtime services
@@ -400,7 +401,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/stream-mcp` | admitted live and replay GStreamer execution, typed pipeline profiles and results, encoded preview, and the Stream MCP App |
 | `servers/reason-mcp` | local recorded-video reasoning, grounding, and Rerun annotations |
 | `servers/recording-mcp` | governed recording catalog, queries, subscriptions, and sealing |
-| `servers/simulation-view-mcp` | governed renderer sessions, streamed Artifact-plane scene materialization, immutable visual scenes, pose-producer authorization, logical camera admission, live-view leases, authenticated signaling, and the generic live-view App |
+| `servers/simulation-view-mcp` | governed renderer sessions, streamed Artifact-plane scene materialization, immutable visual scenes, durable pose-producer authorization renewal, ordered runtime reconciliation, logical camera admission, live-view leases, authenticated signaling, and the generic live-view App |
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifacts |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | immutable governed scene compositions, owner and Work Context scoped geospatial views, shared 3D Tiles streaming, GPU overlays, and captured frames |
@@ -549,7 +550,9 @@ Simulation View data-plane ownership:
 |---|---|
 | `platform/simulation/scene/` | typed governed scene body, installation layer catalog, exact Frames/WGS 84 bindings, visual assets, entity bindings, transforms, quality, attribution, health, validation, and canonical digest |
 | `servers/simulation-view-mcp/src/contract.rs` | renderer sessions, generic camera rigs, explicit capacity, direct MCP requests and results, and public re-export of the shared scene contract |
-| `servers/simulation-view-mcp/src/state.rs` | owner-scoped scene, camera, and lease transitions with optimistic revisions and typed admission |
+| `servers/simulation-view-mcp/src/state.rs` | owner-scoped scene, producer, camera, and lease desired-state transitions with optimistic and authorization revisions |
+| `servers/simulation-view-mcp/src/durability.rs` | Simulation View-specific platform-store adapter, normalized desired-state snapshots, restart restoration, and audit emission |
+| `servers/simulation-view-mcp/src/reconciler.rs` | ordered renderer, scene, producer, camera, and stream realization with bounded renewal and typed failure state |
 | `servers/simulation-view-mcp/src/artifacts.rs` | caller-authorized Artifact-plane streaming into the private renderer digest-ingest boundary |
 | `servers/simulation-view-mcp/src/mcp.rs` | canonical tools, resources, subscriptions, well-known surface, and App declarations |
 | `servers/simulation-view-mcp/src/server/` | signed gateway auth, public host checks, fail-closed runtime readiness, administrative docs, and authenticated signaling |

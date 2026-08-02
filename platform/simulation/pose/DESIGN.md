@@ -10,7 +10,7 @@ simulation loop are outside the contract.
 | Standard or protocol | Supported profile |
 |---|---|
 | `veoveo.io/simulation-view-pose/v1` | length-delimited binary snapshots with one fixed canonical coordinate convention |
-| `veoveo.io/simulation-view-pose-ingress-control/v1` | private typed producer-binding declarations and status |
+| `veoveo.io/simulation-view-pose-ingress-control/v2` | private typed producer-binding declarations and status with monotonic authorization revisions and revocation tombstones |
 | POSIX shared memory | double-buffered latest-value slot with acquire/release publication |
 | TLS 1.3 | mutually authenticated private streaming transport with exactly one SPIFFE URI SAN per producer certificate |
 | WGS 84 and local tangent frames | Frames-owned immutable world revision with local ENU positions |
@@ -58,10 +58,17 @@ that identity with the active producer binding before publishing a snapshot.
 
 The installation-secret control endpoint binds, inspects, and revokes
 sessions under `/v1/bindings/{session_id}`. A binding fixes the epoch, Frames
-revision, ordered entity table, producer identity, expiry, and all admission
-limits. Revocation atomically removes the active binding and its shared-memory
-name. Rebinding replaces the shared-memory name without truncating an inode
-that a reader may still have mapped.
+revision, ordered entity table, producer identity, authorization revision,
+expiry, and all admission limits. A higher authorization revision with the
+same immutable identity renews the active declaration in place. The latest
+pose store, sequence, heartbeat, shared-memory inode, and reader mapping remain
+intact.
+
+Revocation is a revisioned binding rather than an unversioned expiry change.
+Ingress records the revoked revision as a floor, removes the active binding,
+and removes its shared-memory name. Any active or revoked declaration at or
+below that floor is rejected. This makes delayed retries fail closed while a
+later explicit authorization can deliberately establish a higher revision.
 
 `/readyz` succeeds only after the mTLS listener has bound and reports the exact
 pose schema with mutual authentication enabled. The shared-memory directory
