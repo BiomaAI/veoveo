@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "veoveo.io/deployment/v4",
+  "schemaVersion": "veoveo.io/deployment/v5",
   "name": "sumo",
   "registry": {
     "address": "k3d-veoveo-registry.localhost:5001",

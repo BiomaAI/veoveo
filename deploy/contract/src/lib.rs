@@ -12,11 +12,45 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 /// Canonical multi-source deployment profile.
-pub const PROFILE_SCHEMA: &str = "veoveo.io/deployment/v4";
+pub const PROFILE_SCHEMA: &str = "veoveo.io/deployment/v5";
 /// Canonical immutable multi-source deployment lock.
-pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.io/deployment-lock/v4";
+pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.io/deployment-lock/v5";
 /// Canonical local OCI registry declaration.
 pub const REGISTRY_SCHEMA: &str = "veoveo.io/local-registry/v1";
+
+/// Qualified NVIDIA DRA driver name selected by the supported GPU adapter.
+pub const NVIDIA_DRA_DRIVER_NAME: &str = "gpu.nvidia.com";
+/// Canonical chart coordinate for the supported NVIDIA DRA driver release.
+pub const NVIDIA_DRA_CHART_COORDINATE: &str =
+    "oci://registry.k8s.io/dra-driver-nvidia/charts/dra-driver-nvidia-gpu";
+/// Latest stable NVIDIA DRA driver release qualified by this contract.
+pub const NVIDIA_DRA_VERSION: &str = "0.4.1";
+/// OCI manifest digest for the qualified NVIDIA DRA Helm chart.
+pub const NVIDIA_DRA_CHART_DIGEST: &str =
+    "sha256:7a00373fdef1025f27ebb1d353719446bbbe6ec4697e9a503c5ffd7e4f1525dd";
+/// Digest of the exact qualified Helm chart archive.
+pub const NVIDIA_DRA_CHART_CONTENT_DIGEST: &str =
+    "sha256:c1c316f6bdcfe5fed3ff649cff1b43be50d27d0cb1aaf9d29e7bdca1eaa331ce";
+/// Canonical container repository used by the qualified NVIDIA DRA chart.
+pub const NVIDIA_DRA_IMAGE_REPOSITORY: &str =
+    "registry.k8s.io/dra-driver-nvidia/dra-driver-nvidia-gpu";
+/// Multi-platform OCI index digest for the qualified NVIDIA DRA image.
+pub const NVIDIA_DRA_IMAGE_DIGEST: &str =
+    "sha256:eefe67396dedea4df74f68a94d5883f33204888b83979babd42b91501a2de1d8";
+/// Linux AMD64 manifest digest within the qualified NVIDIA DRA image index.
+pub const NVIDIA_DRA_IMAGE_AMD64_DIGEST: &str =
+    "sha256:ad86983849542f6ef22f02e963ecbf545706e037455e0c265889ace137863556";
+/// Linux ARM64 manifest digest within the qualified NVIDIA DRA image index.
+pub const NVIDIA_DRA_IMAGE_ARM64_DIGEST: &str =
+    "sha256:b51290bbc1ee6745adf8ffff040d2b917d3e07dbd5cd36fd444b0e371ccc9166";
+/// Exact Kubernetes release qualified for the managed GPU allocator closure.
+pub const NVIDIA_DRA_KUBERNETES_VERSION: &str = "1.36.2";
+/// Exact Helm release qualified for the managed GPU allocator closure.
+pub const NVIDIA_DRA_HELM_VERSION: &str = "4.2.3";
+/// Exact host NVIDIA driver retained by the qualified GPU allocator closure.
+pub const NVIDIA_DRA_HOST_DRIVER_VERSION: &str = "610.43.02";
+/// Exact NVIDIA Container Toolkit package in the qualified repository-managed node image.
+pub const NVIDIA_DRA_CONTAINER_TOOLKIT_PACKAGE_VERSION: &str = "1.19.1-1";
 
 /// A validated multi-source deployment profile.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -420,6 +454,82 @@ pub struct GpuDifferentPhysicalDeviceConstraint {
     pub groups: BTreeSet<String>,
 }
 
+/// Exact OCI Helm chart selected for a managed cluster dependency.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ManagedOciChart {
+    /// Tag-free OCI chart coordinate.
+    pub coordinate: String,
+    /// Exact chart version passed to the OCI registry.
+    pub version: String,
+    /// OCI chart-manifest digest reported by the registry.
+    pub digest: String,
+    /// SHA-256 digest of the downloaded chart archive installed by Helm.
+    pub content_digest: String,
+}
+
+/// Exact multi-platform OCI image selected for a managed cluster dependency.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ManagedOciImage {
+    /// Tag-free container repository.
+    pub repository: String,
+    /// Human-readable immutable release tag retained beside the digest.
+    pub tag: String,
+    /// Multi-platform OCI index digest used in rendered Pod specifications.
+    pub digest: String,
+    /// Exact platform manifests admitted beneath the image index.
+    pub platform_digests: BTreeMap<String, String>,
+}
+
+/// Explicit acceptance of the upstream maturity of NVIDIA GPU allocation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum GpuAllocatorMaturityAcceptance {
+    /// NVIDIA v0.4.1 marks GPU allocation as a technology-preview feature.
+    TechnologyPreview,
+}
+
+/// Authorized removal of a conflicting NVIDIA device plugin from DRA-owned nodes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "mode", rename_all = "kebab-case", deny_unknown_fields)]
+pub enum ConflictingGpuDevicePluginRemoval {
+    /// The installation guarantees that no device plugin runs on selected nodes.
+    RequireAbsent,
+    /// Remove a conflicting installation-owned DaemonSet before DRA claims are created.
+    DeleteDaemonSet { namespace: String, name: String },
+    /// Uninstall a conflicting installation-owned Helm release after checking its chart version.
+    UninstallHelmRelease {
+        namespace: String,
+        release_name: String,
+        expected_chart_version: String,
+    },
+}
+
+/// Complete managed installation of the qualified NVIDIA GPU DRA driver.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ManagedGpuAllocatorInstallation {
+    /// Cluster-wide Helm release identity.
+    pub release_name: String,
+    /// Dedicated namespace for the DRA kubelet plugin and chart-owned RBAC.
+    pub namespace: String,
+    /// Exact upstream chart artifact.
+    pub chart: ManagedOciChart,
+    /// Exact upstream driver image.
+    pub image: ManagedOciImage,
+    /// Host driver root mounted into the kubelet plugin.
+    pub nvidia_driver_root: String,
+    /// Existing installation-owned labels selecting the nodes VeoVeo may manage.
+    pub eligible_node_selector: BTreeMap<String, String>,
+    /// Authorized removal of an existing device plugin that conflicts with DRA ownership.
+    pub conflicting_device_plugin_removal: ConflictingGpuDevicePluginRemoval,
+    /// Required acknowledgment of the upstream GPU allocation maturity.
+    pub maturity_acceptance: GpuAllocatorMaturityAcceptance,
+    /// Bounded atomic Helm operation timeout.
+    pub timeout_seconds: u64,
+}
+
 /// Kubernetes DRA implementation selected by the installation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -434,6 +544,8 @@ pub struct GpuDynamicResourceAllocator {
     pub driver_name: String,
     /// Driver configuration API compiled into opaque DRA parameters.
     pub configuration_api_version: String,
+    /// Managed, digest-pinned installation of the selected allocator.
+    pub installation: ManagedGpuAllocatorInstallation,
 }
 
 /// Installation GPU topology compiled to one durable DRA allocation.
@@ -1411,13 +1523,14 @@ impl ResolvedPlatformSelection {
             &scheduling.allocator.mig_device_class_name,
         )?;
         ensure!(
-            scheduling.allocator.driver_name == "gpu.nvidia.com",
-            "gpuScheduling allocator driverName must be gpu.nvidia.com"
+            scheduling.allocator.driver_name == NVIDIA_DRA_DRIVER_NAME,
+            "gpuScheduling allocator driverName must be {NVIDIA_DRA_DRIVER_NAME}"
         );
         ensure!(
             scheduling.allocator.configuration_api_version == "resource.nvidia.com/v1beta1",
             "gpuScheduling allocator configurationApiVersion must be resource.nvidia.com/v1beta1"
         );
+        validate_managed_gpu_allocator(&scheduling.allocator.installation)?;
         ensure!(
             !scheduling.same_physical_device_groups.is_empty(),
             "gpuScheduling samePhysicalDeviceGroups cannot be empty"
@@ -1887,6 +2000,95 @@ fn validate_release_metadata(
     Ok(())
 }
 
+fn validate_managed_gpu_allocator(installation: &ManagedGpuAllocatorInstallation) -> Result<()> {
+    validate_name("GPU allocator Helm release", &installation.release_name)?;
+    validate_name("GPU allocator namespace", &installation.namespace)?;
+    ensure!(
+        installation.chart.coordinate == NVIDIA_DRA_CHART_COORDINATE,
+        "GPU allocator chart coordinate must be {NVIDIA_DRA_CHART_COORDINATE}"
+    );
+    ensure!(
+        installation.chart.version == NVIDIA_DRA_VERSION,
+        "GPU allocator chart version must be {NVIDIA_DRA_VERSION}"
+    );
+    ensure!(
+        installation.chart.digest == NVIDIA_DRA_CHART_DIGEST,
+        "GPU allocator chart digest must be {NVIDIA_DRA_CHART_DIGEST}"
+    );
+    ensure!(
+        installation.chart.content_digest == NVIDIA_DRA_CHART_CONTENT_DIGEST,
+        "GPU allocator chart contentDigest must be {NVIDIA_DRA_CHART_CONTENT_DIGEST}"
+    );
+    validate_digest(&installation.chart.digest)?;
+    validate_digest(&installation.chart.content_digest)?;
+    ensure!(
+        installation.image.repository == NVIDIA_DRA_IMAGE_REPOSITORY,
+        "GPU allocator image repository must be {NVIDIA_DRA_IMAGE_REPOSITORY}"
+    );
+    ensure!(
+        installation.image.tag == format!("v{NVIDIA_DRA_VERSION}"),
+        "GPU allocator image tag must be v{NVIDIA_DRA_VERSION}"
+    );
+    ensure!(
+        installation.image.digest == NVIDIA_DRA_IMAGE_DIGEST,
+        "GPU allocator image digest must be {NVIDIA_DRA_IMAGE_DIGEST}"
+    );
+    validate_digest(&installation.image.digest)?;
+    let expected_platforms = BTreeMap::from([
+        (
+            "linux/amd64".to_owned(),
+            NVIDIA_DRA_IMAGE_AMD64_DIGEST.to_owned(),
+        ),
+        (
+            "linux/arm64".to_owned(),
+            NVIDIA_DRA_IMAGE_ARM64_DIGEST.to_owned(),
+        ),
+    ]);
+    ensure!(
+        installation.image.platform_digests == expected_platforms,
+        "GPU allocator image platformDigests must match the qualified v{NVIDIA_DRA_VERSION} image index"
+    );
+    for digest in installation.image.platform_digests.values() {
+        validate_digest(digest)?;
+    }
+    ensure!(
+        installation.nvidia_driver_root == "/",
+        "managed standalone GPU allocator nvidiaDriverRoot must be / for a host-installed driver"
+    );
+    ensure!(
+        !installation.eligible_node_selector.is_empty(),
+        "GPU allocator eligibleNodeSelector cannot be empty"
+    );
+    for (key, value) in &installation.eligible_node_selector {
+        validate_label_selector(key, value)?;
+    }
+    match &installation.conflicting_device_plugin_removal {
+        ConflictingGpuDevicePluginRemoval::RequireAbsent => {}
+        ConflictingGpuDevicePluginRemoval::DeleteDaemonSet { namespace, name } => {
+            validate_name("conflicting device-plugin namespace", namespace)?;
+            validate_name("conflicting device-plugin DaemonSet", name)?;
+        }
+        ConflictingGpuDevicePluginRemoval::UninstallHelmRelease {
+            namespace,
+            release_name,
+            expected_chart_version,
+        } => {
+            validate_name("conflicting device-plugin namespace", namespace)?;
+            validate_name("conflicting device-plugin Helm release", release_name)?;
+            ensure!(
+                !expected_chart_version.trim().is_empty()
+                    && !expected_chart_version.chars().any(char::is_whitespace),
+                "conflicting device-plugin expectedChartVersion cannot be empty or contain whitespace"
+            );
+        }
+    }
+    ensure!(
+        (60..=1_800).contains(&installation.timeout_seconds),
+        "GPU allocator timeoutSeconds must be between 60 and 1800"
+    );
+    Ok(())
+}
+
 fn validate_git_url(value: &str) -> Result<()> {
     let url = Url::parse(value).with_context(|| format!("invalid Git source URL {value}"))?;
     ensure!(
@@ -1986,6 +2188,24 @@ fn validate_kubernetes_qualified_name(kind: &str, name: &str) -> Result<()> {
     Ok(())
 }
 
+fn validate_label_selector(key: &str, value: &str) -> Result<()> {
+    let (prefix, name) = key
+        .split_once('/')
+        .with_context(|| format!("GPU allocator node selector key {key} must be qualified"))?;
+    validate_kubernetes_qualified_name("GPU allocator node selector prefix", prefix)?;
+    validate_kubernetes_qualified_name("GPU allocator node selector", name)?;
+    ensure!(
+        value.len() <= 63
+            && (value.is_empty()
+                || (value.bytes().all(|byte| {
+                    byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.')
+                }) && value.as_bytes()[0].is_ascii_alphanumeric()
+                    && value.as_bytes()[value.len() - 1].is_ascii_alphanumeric())),
+        "GPU allocator node selector value {value} is not a Kubernetes label value"
+    );
+    Ok(())
+}
+
 fn validate_data_key(key: &str) -> Result<()> {
     ensure!(!key.is_empty(), "Kubernetes data key cannot be empty");
     ensure!(
@@ -2016,17 +2236,102 @@ fn require_directory(path: &Path, kind: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeSet, fs, path::Path};
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        fs,
+        path::Path,
+    };
 
     use jsonschema::Validator;
 
     use super::{
-        DeploymentLock, DeploymentSourceRole, FirstPartyMcpServer, GatewayDeploymentRequirements,
+        ConflictingGpuDevicePluginRemoval, DeploymentLock, DeploymentSourceRole,
+        FirstPartyMcpServer, GatewayDeploymentRequirements, GpuAllocatorMaturityAcceptance,
         GpuDifferentPhysicalDeviceConstraint, GpuDynamicResourceAllocator, GpuIsolation,
         GpuSamePhysicalDeviceGroup, GpuSchedulingProfile, GpuTimeSliceInterval,
-        GpuWorkloadPlacement, InstallationPreset, LoadedProfile, PlannedImage, PlatformCapability,
+        GpuWorkloadPlacement, InstallationPreset, LoadedProfile, ManagedGpuAllocatorInstallation,
+        ManagedOciChart, ManagedOciImage, NVIDIA_DRA_CHART_CONTENT_DIGEST,
+        NVIDIA_DRA_CHART_COORDINATE, NVIDIA_DRA_CHART_DIGEST, NVIDIA_DRA_IMAGE_AMD64_DIGEST,
+        NVIDIA_DRA_IMAGE_ARM64_DIGEST, NVIDIA_DRA_IMAGE_DIGEST, NVIDIA_DRA_IMAGE_REPOSITORY,
+        NVIDIA_DRA_CONTAINER_TOOLKIT_PACKAGE_VERSION, NVIDIA_DRA_HELM_VERSION,
+        NVIDIA_DRA_KUBERNETES_VERSION, NVIDIA_DRA_VERSION, PlannedImage, PlatformCapability,
         PlatformComponent, PlatformSelection, deployment_lock_schema, deployment_profile_schema,
+        validate_managed_gpu_allocator,
     };
+
+    fn managed_gpu_allocator_installation() -> ManagedGpuAllocatorInstallation {
+        ManagedGpuAllocatorInstallation {
+            release_name: "dra-driver-nvidia-gpu".to_owned(),
+            namespace: "nvidia-dra-driver-gpu".to_owned(),
+            chart: ManagedOciChart {
+                coordinate: NVIDIA_DRA_CHART_COORDINATE.to_owned(),
+                version: NVIDIA_DRA_VERSION.to_owned(),
+                digest: NVIDIA_DRA_CHART_DIGEST.to_owned(),
+                content_digest: NVIDIA_DRA_CHART_CONTENT_DIGEST.to_owned(),
+            },
+            image: ManagedOciImage {
+                repository: NVIDIA_DRA_IMAGE_REPOSITORY.to_owned(),
+                tag: format!("v{NVIDIA_DRA_VERSION}"),
+                digest: NVIDIA_DRA_IMAGE_DIGEST.to_owned(),
+                platform_digests: BTreeMap::from([
+                    (
+                        "linux/amd64".to_owned(),
+                        NVIDIA_DRA_IMAGE_AMD64_DIGEST.to_owned(),
+                    ),
+                    (
+                        "linux/arm64".to_owned(),
+                        NVIDIA_DRA_IMAGE_ARM64_DIGEST.to_owned(),
+                    ),
+                ]),
+            },
+            nvidia_driver_root: "/".to_owned(),
+            eligible_node_selector: BTreeMap::from([(
+                "kubernetes.io/hostname".to_owned(),
+                "gpu-node".to_owned(),
+            )]),
+            conflicting_device_plugin_removal: ConflictingGpuDevicePluginRemoval::RequireAbsent,
+            maturity_acceptance: GpuAllocatorMaturityAcceptance::TechnologyPreview,
+            timeout_seconds: 300,
+        }
+    }
+
+    #[test]
+    fn managed_gpu_allocator_rejects_mutable_or_stale_artifacts() {
+        let qualified = managed_gpu_allocator_installation();
+        validate_managed_gpu_allocator(&qualified).expect("qualified allocator closure");
+
+        let mut stale_chart = qualified.clone();
+        stale_chart.chart.version = "0.4.0".to_owned();
+        assert!(
+            validate_managed_gpu_allocator(&stale_chart)
+                .expect_err("stale chart version must fail")
+                .to_string()
+                .contains("chart version")
+        );
+
+        let mut mutable_image = qualified;
+        mutable_image.image.digest =
+            "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_owned();
+        assert!(
+            validate_managed_gpu_allocator(&mutable_image)
+                .expect_err("unqualified image digest must fail")
+                .to_string()
+                .contains("image digest")
+        );
+    }
+
+    #[test]
+    fn managed_gpu_allocator_uses_repository_runtime_pins() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let versions = fs::read_to_string(repository.join("deploy/local/k3d/versions.env"))
+            .expect("read local runtime versions");
+
+        assert!(versions.contains(&format!("K3S_VERSION=v{NVIDIA_DRA_KUBERNETES_VERSION}-k3s1")));
+        assert!(versions.contains(&format!("HELM_VERSION=v{NVIDIA_DRA_HELM_VERSION}")));
+        assert!(versions.contains(&format!(
+            "NVIDIA_CONTAINER_TOOLKIT_VERSION={NVIDIA_DRA_CONTAINER_TOOLKIT_PACKAGE_VERSION}"
+        )));
+    }
 
     fn exclusive_gpu_scheduling(
         workloads: impl IntoIterator<Item = &'static str>,
@@ -2043,6 +2348,7 @@ mod tests {
                 mig_device_class_name: "mig.nvidia.com".to_owned(),
                 driver_name: "gpu.nvidia.com".to_owned(),
                 configuration_api_version: "resource.nvidia.com/v1beta1".to_owned(),
+                installation: managed_gpu_allocator_installation(),
             },
             same_physical_device_groups: workloads
                 .into_iter()
@@ -2499,6 +2805,7 @@ mod tests {
                 mig_device_class_name: "mig.nvidia.com".to_owned(),
                 driver_name: "gpu.nvidia.com".to_owned(),
                 configuration_api_version: "resource.nvidia.com/v1beta1".to_owned(),
+                installation: managed_gpu_allocator_installation(),
             },
             same_physical_device_groups: vec![
                 group(
