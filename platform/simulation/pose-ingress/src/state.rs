@@ -42,7 +42,7 @@ struct SessionStatus {
 }
 
 struct SessionSlot {
-    declaration: PoseIngressBinding,
+    declaration: Mutex<PoseIngressBinding>,
     path: PathBuf,
     store: LatestPoseStore,
     limits: veoveo_simulation_pose::PoseLimits,
@@ -53,6 +53,8 @@ struct SessionSlot {
 pub(crate) struct PoseIngress {
     config: PoseIngressConfig,
     sessions: RwLock<BTreeMap<SessionId, Arc<SessionSlot>>>,
+    revocation_floors: RwLock<BTreeMap<SessionId, u64>>,
+    control: tokio::sync::Mutex<()>,
     tls_listening: AtomicBool,
 }
 
@@ -68,6 +70,8 @@ impl PoseIngress {
         Ok(Self {
             config,
             sessions: RwLock::new(BTreeMap::new()),
+            revocation_floors: RwLock::new(BTreeMap::new()),
+            control: tokio::sync::Mutex::new(()),
             tls_listening: AtomicBool::new(false),
         })
     }
@@ -94,6 +98,31 @@ impl PoseIngress {
         declaration: PoseIngressBinding,
     ) -> Result<PoseIngressStatus, PoseIngressError> {
         validate_binding(&declaration)?;
+        let _control = self.control.lock().await;
+        if declaration.producer.revoked {
+            let revision = declaration.producer.authorization_revision;
+            let mut floors = self.revocation_floors.write().await;
+            let floor = floors.entry(declaration.session_id.clone()).or_default();
+            *floor = (*floor).max(revision);
+            drop(floors);
+            if let Some(slot) = self.sessions.write().await.remove(&declaration.session_id) {
+                match std::fs::remove_file(&slot.path) {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(error) => return Err(PoseError::Io(error).into()),
+                }
+            }
+            return Ok(revoked_status(&declaration));
+        }
+        if self
+            .revocation_floors
+            .read()
+            .await
+            .get(&declaration.session_id)
+            .is_some_and(|floor| *floor >= declaration.producer.authorization_revision)
+        {
+            return Err(PoseIngressError::AuthorizationRevision);
+        }
         let limits: veoveo_simulation_pose::PoseLimits = declaration.limits.clone().try_into()?;
         let pose_binding = PoseBinding {
             session_id: declaration.session_id.clone(),
@@ -104,9 +133,23 @@ impl PoseIngress {
         };
         let mut sessions = self.sessions.write().await;
         if let Some(existing) = sessions.get(&declaration.session_id) {
-            if existing.declaration == declaration {
+            let mut current = existing
+                .declaration
+                .lock()
+                .expect("pose declaration lock poisoned");
+            if *current == declaration {
+                drop(current);
                 return Ok(status(existing));
             }
+            if declaration.producer.authorization_revision
+                <= current.producer.authorization_revision
+                || !same_binding_identity(&current, &declaration)
+            {
+                return Err(PoseIngressError::AuthorizationRevision);
+            }
+            *current = declaration;
+            drop(current);
+            return Ok(status(existing));
         } else if sessions.len() >= self.config.maximum_sessions {
             return Err(PoseIngressError::Capacity);
         }
@@ -116,7 +159,7 @@ impl PoseIngress {
             .join(format!("{}.pose", declaration.session_id.as_str()));
         let writer = SharedPoseWriter::replace(&path, limits.max_message_bytes)?;
         let slot = Arc::new(SessionSlot {
-            declaration: declaration.clone(),
+            declaration: Mutex::new(declaration.clone()),
             path,
             store: LatestPoseStore::new(pose_binding, limits)?,
             limits,
@@ -168,8 +211,14 @@ impl PoseIngress {
             .get(&snapshot.session_id)
             .cloned()
             .ok_or(PoseIngressError::NotFound)?;
-        if slot.declaration.producer.spiffe_id != producer_spiffe_id
-            || slot.declaration.producer.expires_at <= Utc::now()
+        let declaration = slot
+            .declaration
+            .lock()
+            .expect("pose declaration lock poisoned")
+            .clone();
+        if declaration.producer.spiffe_id != producer_spiffe_id
+            || declaration.producer.revoked
+            || declaration.producer.expires_at <= Utc::now()
         {
             return Err(PoseIngressError::Producer);
         }
@@ -196,6 +245,7 @@ fn validate_binding(declaration: &PoseIngressBinding) -> Result<(), PoseIngressE
     let now = Utc::now();
     if declaration.schema_version != POSE_INGRESS_CONTROL_SCHEMA
         || declaration.entity_table_revision == 0
+        || declaration.producer.authorization_revision == 0
         || declaration.producer.producer_id.is_empty()
         || declaration.producer.producer_id.len() > 128
         || !declaration.producer.spiffe_id.starts_with("spiffe://")
@@ -205,8 +255,9 @@ fn validate_binding(declaration: &PoseIngressBinding) -> Result<(), PoseIngressE
             .spiffe_id
             .chars()
             .any(char::is_whitespace)
-        || declaration.producer.expires_at <= now
-        || declaration.producer.expires_at > now + chrono::Duration::hours(24)
+        || (!declaration.producer.revoked
+            && (declaration.producer.expires_at <= now
+                || declaration.producer.expires_at > now + chrono::Duration::hours(24)))
     {
         return Err(PoseIngressError::Binding);
     }
@@ -216,21 +267,56 @@ fn validate_binding(declaration: &PoseIngressBinding) -> Result<(), PoseIngressE
 }
 
 fn status(slot: &SessionSlot) -> PoseIngressStatus {
+    let declaration = slot
+        .declaration
+        .lock()
+        .expect("pose declaration lock poisoned")
+        .clone();
     let state = slot
         .status
         .lock()
         .expect("pose ingress status lock poisoned");
     PoseIngressStatus {
         schema_version: POSE_INGRESS_CONTROL_SCHEMA.to_owned(),
-        session_id: slot.declaration.session_id.clone(),
-        epoch_id: slot.declaration.epoch_id.clone(),
-        producer_id: slot.declaration.producer.producer_id.clone(),
-        producer_spiffe_id: slot.declaration.producer.spiffe_id.clone(),
-        authorized_until: slot.declaration.producer.expires_at,
-        stale: slot.store.is_stale() || slot.declaration.producer.expires_at <= Utc::now(),
+        session_id: declaration.session_id,
+        epoch_id: declaration.epoch_id,
+        producer_id: declaration.producer.producer_id,
+        producer_spiffe_id: declaration.producer.spiffe_id,
+        authorization_revision: declaration.producer.authorization_revision,
+        authorized_until: declaration.producer.expires_at,
+        revoked: declaration.producer.revoked,
+        stale: slot.store.is_stale() || declaration.producer.expires_at <= Utc::now(),
         last_sequence: state.last_sequence,
         last_snapshot_at: state.last_snapshot_at,
     }
+}
+
+fn revoked_status(declaration: &PoseIngressBinding) -> PoseIngressStatus {
+    PoseIngressStatus {
+        schema_version: POSE_INGRESS_CONTROL_SCHEMA.to_owned(),
+        session_id: declaration.session_id.clone(),
+        epoch_id: declaration.epoch_id.clone(),
+        producer_id: declaration.producer.producer_id.clone(),
+        producer_spiffe_id: declaration.producer.spiffe_id.clone(),
+        authorization_revision: declaration.producer.authorization_revision,
+        authorized_until: declaration.producer.expires_at,
+        revoked: true,
+        stale: true,
+        last_sequence: None,
+        last_snapshot_at: None,
+    }
+}
+
+fn same_binding_identity(left: &PoseIngressBinding, right: &PoseIngressBinding) -> bool {
+    left.schema_version == right.schema_version
+        && left.session_id == right.session_id
+        && left.epoch_id == right.epoch_id
+        && left.frame_revision == right.frame_revision
+        && left.entity_table_revision == right.entity_table_revision
+        && left.entity_table_digest == right.entity_table_digest
+        && left.limits == right.limits
+        && left.producer.producer_id == right.producer.producer_id
+        && left.producer.spiffe_id == right.producer.spiffe_id
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -243,6 +329,8 @@ pub(crate) enum PoseIngressError {
     Capacity,
     #[error("producer identity is not authorized")]
     Producer,
+    #[error("pose authorization revision is stale or conflicts with the current binding")]
+    AuthorizationRevision,
     #[error(transparent)]
     Pose(#[from] PoseError),
 }
@@ -304,7 +392,9 @@ mod tests {
             producer: PoseProducerAuthorization {
                 producer_id: "fixture".to_owned(),
                 spiffe_id: "spiffe://example.test/fixture".to_owned(),
+                authorization_revision: 1,
                 expires_at: Utc::now() + chrono::Duration::minutes(5),
+                revoked: false,
             },
         }
     }
@@ -395,5 +485,57 @@ mod tests {
             Err(PoseIngressError::NotFound)
         ));
         assert!(reader.latest().unwrap().is_some());
+    }
+
+    #[tokio::test]
+    async fn renewal_preserves_pose_state_and_revocation_rejects_stale_replay() {
+        let directory = tempdir().unwrap();
+        let ingress = PoseIngress::new(PoseIngressConfig::new(
+            directory.path().to_owned(),
+            &"a".repeat(32),
+            2,
+        ))
+        .unwrap();
+        let first = binding(SessionId::new("session-renewal").unwrap());
+        ingress.bind(first.clone()).await.unwrap();
+        ingress
+            .publish("spiffe://example.test/fixture", snapshot(&first, 1))
+            .await
+            .unwrap();
+
+        let mut renewed = first.clone();
+        renewed.producer.authorization_revision = 2;
+        renewed.producer.expires_at += chrono::Duration::minutes(5);
+        let renewed_status = ingress.bind(renewed.clone()).await.unwrap();
+        assert_eq!(renewed_status.authorization_revision, 2);
+        assert_eq!(renewed_status.last_sequence, Some(1));
+        ingress
+            .publish("spiffe://example.test/fixture", snapshot(&renewed, 2))
+            .await
+            .unwrap();
+        assert_eq!(
+            ingress
+                .status(&renewed.session_id)
+                .await
+                .unwrap()
+                .last_sequence,
+            Some(2)
+        );
+        assert!(matches!(
+            ingress.bind(first).await,
+            Err(PoseIngressError::AuthorizationRevision)
+        ));
+
+        let mut revoked = renewed.clone();
+        revoked.producer.authorization_revision = 3;
+        revoked.producer.revoked = true;
+        let status = ingress.bind(revoked).await.unwrap();
+        assert!(status.revoked);
+        assert!(status.stale);
+        assert!(!directory.path().join("session-renewal.pose").exists());
+        assert!(matches!(
+            ingress.bind(renewed).await,
+            Err(PoseIngressError::AuthorizationRevision)
+        ));
     }
 }

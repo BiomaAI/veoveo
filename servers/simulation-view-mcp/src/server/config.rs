@@ -1,11 +1,13 @@
 use std::{net::IpAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use clap::Parser;
+use secrecy::SecretString;
 use url::Url;
 use veoveo_mcp_contract::{
     LiveMediaEndpoint, LiveMediaTransport, PublicDeployment, is_valid_live_signaling_url,
     parse_allowed_host_authority,
 };
+use veoveo_platform_store::{StoreAuthLevel, StoreConfig, StoreCredentials};
 use veoveo_simulation_scene::GeospatialLayerCatalog;
 
 use crate::{
@@ -25,6 +27,45 @@ pub(super) struct Args {
     pub public_base_url: String,
     #[arg(long, env = "VEOVEO_INTERNAL_TRUST_JWKS", hide_env_values = true)]
     pub internal_trust_jwks: String,
+    #[arg(long = "surreal-endpoint", env = "VEOVEO_SURREAL_ENDPOINT")]
+    pub surreal_endpoint: String,
+    #[arg(long = "surreal-namespace", env = "VEOVEO_SURREAL_NAMESPACE")]
+    pub surreal_namespace: String,
+    #[arg(long = "surreal-database", env = "VEOVEO_SURREAL_DATABASE")]
+    pub surreal_database: String,
+    #[arg(
+        long = "surreal-auth-level",
+        env = "VEOVEO_SURREAL_AUTH_LEVEL",
+        value_parser = parse_database_auth_level
+    )]
+    pub surreal_auth_level: StoreAuthLevel,
+    #[arg(long = "surreal-username", env = "VEOVEO_SURREAL_USERNAME")]
+    pub surreal_username: String,
+    #[arg(
+        long = "surreal-password",
+        env = "VEOVEO_SURREAL_PASSWORD",
+        hide_env_values = true,
+        value_parser = parse_secret
+    )]
+    pub surreal_password: SecretString,
+    #[arg(
+        long,
+        env = "SIMULATION_VIEW_RECONCILE_INTERVAL_SECONDS",
+        default_value_t = 10
+    )]
+    pub reconcile_interval_seconds: u64,
+    #[arg(
+        long,
+        env = "SIMULATION_VIEW_AUTHORIZATION_RENEWAL_LEAD_SECONDS",
+        default_value_t = 300
+    )]
+    pub authorization_renewal_lead_seconds: u64,
+    #[arg(
+        long,
+        env = "SIMULATION_VIEW_RECONCILE_RETRY_MAX_SECONDS",
+        default_value_t = 60
+    )]
+    pub reconcile_retry_max_seconds: u64,
     #[arg(
         long,
         env = "SIMULATION_VIEW_RENDERER_ENDPOINT",
@@ -137,6 +178,14 @@ impl Args {
         );
         validate_control_token(&self.renderer_control_token)?;
         validate_control_token(&self.pose_control_token)?;
+        anyhow::ensure!(
+            self.reconcile_interval_seconds > 0
+                && self.authorization_renewal_lead_seconds > 0
+                && self.authorization_renewal_lead_seconds < 24 * 60 * 60
+                && self.reconcile_retry_max_seconds >= self.reconcile_interval_seconds,
+            "Simulation View reconciliation timing is invalid"
+        );
+        let _ = self.store_config()?;
         let _ = crate::artifacts::SceneArtifactMaterializer::new(
             &self.artifact_service_url,
             &self.renderer_endpoint,
@@ -144,6 +193,20 @@ impl Args {
         )?;
         let _ = SimulationViewService::new(self.service_config()?)?;
         Ok(())
+    }
+
+    pub fn store_config(&self) -> anyhow::Result<StoreConfig> {
+        Ok(StoreConfig::builder(
+            &self.surreal_endpoint,
+            self.surreal_namespace.clone(),
+            self.surreal_database.clone(),
+            StoreCredentials::new(
+                self.surreal_auth_level,
+                self.surreal_username.clone(),
+                self.surreal_password.clone(),
+            ),
+        )
+        .build()?)
     }
 
     pub fn public_deployment(&self) -> anyhow::Result<PublicDeployment> {
@@ -176,6 +239,20 @@ impl Args {
             layer_catalog: Arc::new(GeospatialLayerCatalog::from_path(&self.layer_catalog)?),
         })
     }
+}
+
+fn parse_database_auth_level(value: &str) -> Result<StoreAuthLevel, String> {
+    match value.parse::<StoreAuthLevel>() {
+        Ok(StoreAuthLevel::Database) => Ok(StoreAuthLevel::Database),
+        Ok(_) => Err("Simulation View requires database-scoped SurrealDB credentials".to_owned()),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+fn parse_secret(value: &str) -> Result<SecretString, String> {
+    (!value.is_empty())
+        .then(|| SecretString::from(value))
+        .ok_or_else(|| "secret must not be empty".to_owned())
 }
 
 fn validate_control_token(value: &str) -> anyhow::Result<()> {

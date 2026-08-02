@@ -64,6 +64,7 @@ pub enum PlatformTable {
     RecordingIngestStream,
     RecordingIngestBatch,
     RecordingBlueprint,
+    SimulationViewState,
     Agent,
     Wake,
     AgentEpisode,
@@ -74,7 +75,7 @@ pub enum PlatformTable {
 }
 
 impl PlatformTable {
-    pub const ALL: [Self; 65] = [
+    pub const ALL: [Self; 66] = [
         Self::Enterprise,
         Self::Tenant,
         Self::Principal,
@@ -133,6 +134,7 @@ impl PlatformTable {
         Self::RecordingIngestStream,
         Self::RecordingIngestBatch,
         Self::RecordingBlueprint,
+        Self::SimulationViewState,
         Self::Agent,
         Self::Wake,
         Self::AgentEpisode,
@@ -202,6 +204,7 @@ impl PlatformTable {
             Self::RecordingIngestStream => "recording_ingest_stream",
             Self::RecordingIngestBatch => "recording_ingest_batch",
             Self::RecordingBlueprint => "recording_blueprint",
+            Self::SimulationViewState => "simulation_view_state",
             Self::Agent => "agent",
             Self::Wake => "wake",
             Self::AgentEpisode => "agent_episode",

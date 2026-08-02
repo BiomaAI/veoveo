@@ -37,6 +37,7 @@ class SessionRuntime:
     binding: SessionBinding
     scene: SceneBinding | None = None
     pose: PoseMirror | None = None
+    pose_authorization_floor: int = 0
 
 
 class Renderer:
@@ -163,11 +164,28 @@ class Renderer:
                 raise ContractError(
                     "pose source does not match the renderer scene"
                 )
+            if (
+                command.value.authorization_revision
+                <= session.pose_authorization_floor
+            ):
+                raise ContractError("pose authorization revision is stale")
+            if command.value.revoked:
+                session.pose_authorization_floor = (
+                    command.value.authorization_revision
+                )
+                if session.pose is not None:
+                    session.pose.revoke()
+                    session.pose = None
+                return _accepted()
             mirror = PoseMirror(self._config.pose_directory)
-            mirror.bind(command.value)
-            if session.pose is not None:
-                session.pose.close()
-            session.pose = mirror
+            if session.pose is None:
+                mirror.bind(command.value)
+                session.pose = mirror
+            else:
+                session.pose.renew(command.value)
+            session.pose_authorization_floor = (
+                command.value.authorization_revision - 1
+            )
             return _accepted()
         if operation == "delete_pose_source":
             if session.pose is not None:

@@ -9,6 +9,7 @@ pub const LIVE_APP_URI: &str = "ui://simulation-view/live.html";
 pub const SESSION_TEMPLATE: &str = "simulation-view://session/{session_id}";
 pub const SCENE_TEMPLATE: &str = "simulation-view://session/{session_id}/scene";
 pub const POSE_SOURCE_TEMPLATE: &str = "simulation-view://session/{session_id}/pose-source";
+pub const RECONCILIATION_TEMPLATE: &str = "simulation-view://session/{session_id}/reconciliation";
 pub const CAMERAS_TEMPLATE: &str = "simulation-view://session/{session_id}/cameras";
 pub const CAMERA_TEMPLATE: &str = "simulation-view://session/{session_id}/camera/{camera_id}";
 pub const STREAMS_TEMPLATE: &str = "simulation-view://session/{session_id}/streams";
@@ -27,6 +28,14 @@ pub fn scene(session_id: &LiveSessionId) -> String {
 
 pub fn pose_source(session_id: &LiveSessionId) -> String {
     format!("{}/{suffix}", session(session_id), suffix = "pose-source")
+}
+
+pub fn reconciliation(session_id: &LiveSessionId) -> String {
+    format!(
+        "{}/{suffix}",
+        session(session_id),
+        suffix = "reconciliation"
+    )
 }
 
 pub fn cameras(session_id: &LiveSessionId) -> String {
@@ -55,6 +64,10 @@ pub fn parse_scene(uri: &str) -> Option<LiveSessionId> {
 
 pub fn parse_pose_source(uri: &str) -> Option<LiveSessionId> {
     parse_session_suffix(uri, "pose-source")
+}
+
+pub fn parse_reconciliation(uri: &str) -> Option<LiveSessionId> {
+    parse_session_suffix(uri, "reconciliation")
 }
 
 pub fn parse_cameras(uri: &str) -> Option<LiveSessionId> {
@@ -119,6 +132,10 @@ mod tests {
         assert_eq!(parse_scene(&scene(&session_id)), Some(session_id.clone()));
         assert_eq!(
             parse_pose_source(&pose_source(&session_id)),
+            Some(session_id.clone())
+        );
+        assert_eq!(
+            parse_reconciliation(&reconciliation(&session_id)),
             Some(session_id.clone())
         );
         assert_eq!(

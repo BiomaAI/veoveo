@@ -12239,6 +12239,7 @@ dependencies = [
  "rmcp",
  "rustls",
  "schemars",
+ "secrecy",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -12255,6 +12256,7 @@ dependencies = [
  "veoveo-artifact-client",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
+ "veoveo-platform-store",
  "veoveo-simulation-pose",
  "veoveo-simulation-scene",
 ]

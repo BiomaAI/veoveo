@@ -131,6 +131,16 @@ class PoseMirror:
         )
         self._binding = binding
 
+    def renew(self, binding: PoseSourceBinding) -> None:
+        current = self._binding
+        if current is None or not _same_pose_data(current, binding):
+            raise ContractError("pose renewal changed immutable source identity")
+        if binding.authorization_revision <= current.authorization_revision:
+            if binding == current:
+                return
+            raise ContractError("pose authorization revision is stale")
+        self._binding = binding
+
     def revoke(self) -> None:
         self.close()
 
@@ -160,6 +170,24 @@ class PoseMirror:
         self._generation = 0
         self._latest = None
         self._accepted_at = 0.0
+
+
+def _same_pose_data(
+    left: PoseSourceBinding, right: PoseSourceBinding
+) -> bool:
+    return (
+        left.session_id == right.session_id
+        and left.epoch_id == right.epoch_id
+        and left.frame_uri == right.frame_uri
+        and left.frame_digest == right.frame_digest
+        and left.entity_table_revision == right.entity_table_revision
+        and left.entity_table_digest == right.entity_table_digest
+        and left.maximum_entities == right.maximum_entities
+        and left.maximum_message_bytes == right.maximum_message_bytes
+        and left.stale_after_ms == right.stale_after_ms
+        and left.producer_id == right.producer_id
+        and left.producer_spiffe_id == right.producer_spiffe_id
+    )
 
 
 class Reader:

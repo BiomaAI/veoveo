@@ -3,13 +3,14 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 
 IDENTITY = re.compile(r"^[A-Za-z0-9_.-]{1,128}$")
 SCENE_SCHEMA = "veoveo.io/simulation-view-scene/v1"
 POSE_CONTROL_SCHEMA = (
-    "veoveo.io/simulation-view-pose-ingress-control/v1"
+    "veoveo.io/simulation-view-pose-ingress-control/v2"
 )
 
 
@@ -41,6 +42,41 @@ def positive_integer(label: str, value: object, maximum: int) -> int:
         or value > maximum
     ):
         raise ContractError(f"{label} must be between 1 and {maximum}")
+    return value
+
+
+def _boolean(label: str, value: object) -> bool:
+    if not isinstance(value, bool):
+        raise ContractError(f"{label} must be a boolean")
+    return value
+
+
+def _nonempty_text(label: str, value: object) -> str:
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value) > 512
+        or any(character.isspace() for character in value)
+    ):
+        raise ContractError(f"{label} is invalid")
+    return value
+
+
+def _spiffe_id(value: object) -> str:
+    value = _nonempty_text("spiffeId", value)
+    if not value.startswith("spiffe://"):
+        raise ContractError("spiffeId must use the spiffe scheme")
+    return value
+
+
+def _timestamp(label: str, value: object) -> str:
+    value = _nonempty_text(label, value)
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise ContractError(f"{label} must be RFC 3339") from error
+    if parsed.tzinfo is None:
+        raise ContractError(f"{label} must include a timezone")
     return value
 
 
@@ -175,6 +211,11 @@ class PoseSourceBinding:
     maximum_entities: int
     maximum_message_bytes: int
     stale_after_ms: int
+    producer_id: str
+    producer_spiffe_id: str
+    authorization_revision: int
+    expires_at: str
+    revoked: bool
 
     @classmethod
     def parse(cls, value: object) -> "PoseSourceBinding":
@@ -207,10 +248,16 @@ class PoseSourceBinding:
                 "staleAfterMs",
             },
         )
-        object_with_keys(
+        producer = object_with_keys(
             "producer",
             body["producer"],
-            {"producerId", "spiffeId", "expiresAt"},
+            {
+                "producerId",
+                "spiffeId",
+                "authorizationRevision",
+                "expiresAt",
+                "revoked",
+            },
         )
         return cls(
             session_id=identity("sessionId", body["sessionId"]),
@@ -234,6 +281,15 @@ class PoseSourceBinding:
             stale_after_ms=positive_integer(
                 "staleAfterMs", limits["staleAfterMs"], 60_000
             ),
+            producer_id=identity("producerId", producer["producerId"]),
+            producer_spiffe_id=_spiffe_id(producer["spiffeId"]),
+            authorization_revision=positive_integer(
+                "authorizationRevision",
+                producer["authorizationRevision"],
+                (1 << 63) - 1,
+            ),
+            expires_at=_timestamp("expiresAt", producer["expiresAt"]),
+            revoked=_boolean("revoked", producer["revoked"]),
         )
 
 
