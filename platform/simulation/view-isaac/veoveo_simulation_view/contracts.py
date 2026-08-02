@@ -4,7 +4,10 @@ import math
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .lighting import GovernedLighting
 
 
 IDENTITY = re.compile(r"^[A-Za-z0-9_.-]{1,128}$")
@@ -125,6 +128,7 @@ class SceneBinding:
     frame_digest: str
     maximum_pose_age_ms: int
     layer_id: str | None
+    lighting: GovernedLighting
     declaration: dict[str, Any]
 
     @classmethod
@@ -174,6 +178,9 @@ class SceneBinding:
         )
         if quality["renderer"] != "raytraced_lighting":
             raise ContractError("only RaytracedLighting is supported")
+        from .lighting import GovernedLighting
+
+        lighting = GovernedLighting.parse(body["lighting"])
         prototypes = body["prototypes"]
         entities = body["entities"]
         if (
@@ -196,6 +203,7 @@ class SceneBinding:
                 if "geospatialLayerId" in body
                 else None
             ),
+            lighting=lighting,
             declaration=declaration,
         )
 

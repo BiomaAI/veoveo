@@ -20,6 +20,7 @@ from .contracts import (
     SessionBinding,
     StreamBinding,
 )
+from .renderer_setup import RendererFailure
 from .scene import ArtifactMaterializer
 
 
@@ -55,6 +56,11 @@ class Readiness:
     nvenc_ready: bool = False
     visible_non_stale_frame: bool = False
     streamed_world_ready: bool = False
+    cesium_mdl_ready: bool = False
+    cesium_tangent_frames_ready: bool = False
+    governed_lighting_ready: bool = False
+    color_pipeline_ready: bool = False
+    failure: RendererFailure | None = None
 
     def response(self) -> dict[str, object]:
         return {
@@ -66,6 +72,17 @@ class Readiness:
             "nvencReady": self.nvenc_ready,
             "visibleNonStaleFrame": self.visible_non_stale_frame,
             "streamedWorldReady": self.streamed_world_ready,
+            "cesiumMdlReady": self.cesium_mdl_ready,
+            "cesiumTangentFramesReady": (
+                self.cesium_tangent_frames_ready
+            ),
+            "governedLightingReady": self.governed_lighting_ready,
+            "colorPipelineReady": self.color_pipeline_ready,
+            "failure": (
+                self.failure.response()
+                if self.failure is not None
+                else None
+            ),
         }
 
 
@@ -140,7 +157,24 @@ class ControlServer:
 
             def do_GET(self) -> None:
                 if self.path == "/healthz":
-                    self._json(HTTPStatus.OK, {"status": "running"})
+                    value = outer._readiness.get()
+                    self._json(
+                        HTTPStatus.OK
+                        if value.failure is None
+                        else HTTPStatus.SERVICE_UNAVAILABLE,
+                        {
+                            "status": (
+                                "running"
+                                if value.failure is None
+                                else "failed"
+                            ),
+                            "failure": (
+                                value.failure.response()
+                                if value.failure is not None
+                                else None
+                            ),
+                        },
+                    )
                     return
                 if self.path == "/readyz":
                     value = outer._readiness.get()
@@ -169,6 +203,8 @@ class ControlServer:
                 self._mutation("DELETE")
 
             def _mutation(self, method: str) -> None:
+                if self._initialization_failed():
+                    return
                 if not self._authorized():
                     self.send_error(HTTPStatus.UNAUTHORIZED)
                     return
@@ -188,6 +224,8 @@ class ControlServer:
                     self.send_error(HTTPStatus.BAD_REQUEST, str(error))
 
             def _query_camera(self, match: re.Match[str]) -> None:
+                if self._initialization_failed():
+                    return
                 if not self._authorized():
                     self.send_error(HTTPStatus.UNAUTHORIZED)
                     return
@@ -212,6 +250,8 @@ class ControlServer:
                     self.send_error(HTTPStatus.BAD_REQUEST, str(error))
 
             def _query_layer(self, match: re.Match[str]) -> None:
+                if self._initialization_failed():
+                    return
                 if not self._authorized():
                     self.send_error(HTTPStatus.UNAUTHORIZED)
                     return
@@ -231,6 +271,8 @@ class ControlServer:
                     self.send_error(HTTPStatus.GATEWAY_TIMEOUT, str(error))
 
             def _materialize_artifact(self, match: re.Match[str]) -> None:
+                if self._initialization_failed():
+                    return
                 if not self._authorized():
                     self.send_error(HTTPStatus.UNAUTHORIZED)
                     return
@@ -269,6 +311,19 @@ class ControlServer:
                 except (ContractError, ValueError) as error:
                     self.close_connection = True
                     self.send_error(HTTPStatus.BAD_REQUEST, str(error))
+
+            def _initialization_failed(self) -> bool:
+                failure = outer._readiness.get().failure
+                if failure is None:
+                    return False
+                self._json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {
+                        "error": failure.message,
+                        "code": failure.code.value,
+                    },
+                )
+                return True
 
             def _command(self, method: str) -> ControlCommand:
                 body = self._body() if method == "PUT" else None

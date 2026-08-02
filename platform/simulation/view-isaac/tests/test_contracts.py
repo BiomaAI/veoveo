@@ -25,14 +25,154 @@ from veoveo_simulation_view.contracts import (
     CameraBinding,
     ContractError,
     PoseSourceBinding,
+    SceneBinding,
     SessionBinding,
 )
 from veoveo_simulation_view.layers import LayerCatalog
+from veoveo_simulation_view.lighting import GovernedLighting
 from veoveo_simulation_view.pose import PoseMirror, decode_snapshot
+from veoveo_simulation_view.renderer_setup import (
+    CESIUM_MDL_MODULE_NAME,
+    MATERIAL_ALLOWLIST_SETTING,
+    MATERIAL_SEARCH_PATH_SETTING,
+    RENDERER_MDL_SEARCH_PATH_SETTING,
+    TANGENT_FRAME_SETTING,
+    RendererFailureCode,
+    RendererInitializationError,
+    ensure_cesium_material_runtime,
+)
 from veoveo_simulation_view.scene import ArtifactMaterializer, ArtifactStore
 
 
+class FakeSettings:
+    def __init__(self, values: dict[str, object] | None = None) -> None:
+        self.values = dict(values or {})
+
+    def get(self, name: str) -> object | None:
+        return self.values.get(name)
+
+    def get_as_string(self, name: str) -> str:
+        value = self.values.get(name, "")
+        if not isinstance(value, str):
+            raise TypeError(f"{name} is not a string")
+        return value
+
+    def set(self, name: str, value: object) -> None:
+        self.values[name] = value
+
+    def set_string_array(self, name: str, value: list[str]) -> None:
+        self.values[name] = list(value)
+
+    def set_string(self, name: str, value: str) -> None:
+        self.values[name] = value
+
+
 class RendererContractsTest(unittest.TestCase):
+    def test_cesium_material_initialization_is_exact_and_idempotent(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            extension = Path(directory) / "cesium.omniverse"
+            mdl = extension / "mdl"
+            mdl.mkdir(parents=True)
+            (mdl / CESIUM_MDL_MODULE_NAME).write_text(
+                "export material tiles() = material();\n",
+                encoding="utf-8",
+            )
+            settings = FakeSettings(
+                {
+                    MATERIAL_SEARCH_PATH_SETTING: [
+                        "/opt/renderer/materials",
+                        str(mdl),
+                        str(mdl),
+                    ],
+                    MATERIAL_ALLOWLIST_SETTING: [
+                        "base.mdl",
+                        CESIUM_MDL_MODULE_NAME,
+                    ],
+                    RENDERER_MDL_SEARCH_PATH_SETTING: (
+                        f"/opt/renderer/mdl;{mdl};{mdl}"
+                    ),
+                }
+            )
+
+            first = ensure_cesium_material_runtime(
+                settings, extension_directory=extension
+            )
+            second = ensure_cesium_material_runtime(
+                settings, extension_directory=extension
+            )
+
+            self.assertEqual(first, second)
+            self.assertTrue(first.mdl_assets_ready)
+            self.assertTrue(first.material_search_path_ready)
+            self.assertTrue(first.material_allowlist_ready)
+            self.assertTrue(first.tangent_frame_ready)
+            self.assertEqual(settings.get(TANGENT_FRAME_SETTING), 1)
+            self.assertEqual(
+                settings.get(MATERIAL_SEARCH_PATH_SETTING),
+                ["/opt/renderer/materials", str(mdl)],
+            )
+            self.assertEqual(
+                settings.get(MATERIAL_ALLOWLIST_SETTING),
+                ["base.mdl", CESIUM_MDL_MODULE_NAME],
+            )
+            self.assertEqual(
+                settings.get(RENDERER_MDL_SEARCH_PATH_SETTING),
+                f"/opt/renderer/mdl;{mdl}",
+            )
+
+    def test_cesium_material_initialization_reports_missing_assets(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(RendererInitializationError) as missing:
+                ensure_cesium_material_runtime(
+                    FakeSettings(),
+                    extension_directory=Path(directory),
+                )
+        self.assertEqual(
+            missing.exception.failure.code,
+            RendererFailureCode.CESIUM_MDL_ASSETS_MISSING,
+        )
+        self.assertNotIn(directory, missing.exception.failure.message)
+
+    def test_governed_lighting_maps_directly_to_normalized_openusd_sun(
+        self,
+    ) -> None:
+        lighting = GovernedLighting.parse(
+            {
+                "intensityLux": 80_000.0,
+                "colorTemperatureKelvin": 6_500,
+            }
+        )
+
+        values = lighting.openusd_settings()
+
+        self.assertEqual(values.intensity, 80_000.0)
+        self.assertEqual(values.exposure, 0.0)
+        self.assertTrue(values.normalize)
+        self.assertTrue(values.enable_color_temperature)
+        self.assertEqual(values.color_temperature_kelvin, 6_500)
+        self.assertEqual(values.angle_degrees, 0.53)
+        self.assertEqual(values.rotation_degrees, (-45.0, -35.0, 0.0))
+
+    def test_scene_rejects_unsupported_color_temperature(self) -> None:
+        body = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "fixtures/anonymous-scene-body.json"
+            ).read_text(encoding="utf-8")
+        )
+        body["lighting"]["colorTemperatureKelvin"] = 10_001
+
+        with self.assertRaisesRegex(
+            ContractError, "colorTemperatureKelvin"
+        ):
+            SceneBinding.parse(
+                {"body": body, "digest": f"sha256:{'1' * 64}"}
+            )
+
     def test_readiness_product_is_not_a_streamed_media_slot(self) -> None:
         config = Mock(
             maximum_render_slots=4,
