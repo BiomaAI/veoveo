@@ -7,10 +7,10 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use veoveo_mcp_contract::{AccessSubject, LiveCameraHealth, LiveViewLifecycle, LiveViewOwner};
+use veoveo_mcp_contract::{LiveCameraHealth, LiveViewLifecycle, LiveViewOwner};
 use veoveo_platform_store::{
     AuditEventId, AuditEventRecord, AuditOutcome, OpenObject, PlatformStore,
-    SimulationViewStateDraft, deterministic_principal_id, deterministic_tenant_id,
+    SimulationViewStateDraft, deterministic_tenant_id,
 };
 
 use crate::{
@@ -85,7 +85,7 @@ impl SimulationViewRepository {
                 epoch_id: desired.session.epoch_id.as_str().to_owned(),
                 desired_revision: reconciliation.desired_revision,
                 realized_revision: reconciliation.realized_revision,
-                authorization_revision: source.map_or(0, |value| value.authorization_revision),
+                authorization_revision: reconciliation.authorization_revision,
                 revoked: source.is_some_and(|value| value.revoked),
                 authorization_expires_at: source.map(|value| value.expires_at),
                 snapshot_digest,
@@ -107,18 +107,12 @@ impl SimulationViewRepository {
         details: impl Serialize,
     ) -> Result<()> {
         let tenant = deterministic_tenant_id(owner.tenant.as_str())?.record_id();
-        let actor = match &owner.subject {
-            AccessSubject::Principal(principal) => Some(
-                deterministic_principal_id(owner.tenant.as_str(), principal.as_str())?.record_id(),
-            ),
-            AccessSubject::Group(_) => None,
-        };
         let occurred_at = Utc::now();
         self.store
             .append_simulation_view_audit(AuditEventRecord {
                 id: AuditEventId::new().record_id(),
                 tenant: Some(tenant),
-                actor,
+                actor: None,
                 action: action.to_owned(),
                 resource_type: "simulation_view_reconciliation".to_owned(),
                 resource_id: Some(session_id.to_owned()),

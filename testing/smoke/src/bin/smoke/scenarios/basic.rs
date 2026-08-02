@@ -639,6 +639,16 @@ pub(crate) async fn helm_config() -> Result<()> {
                 deployment,
                 "readinessProbe:\n            httpGet:\n              path: /simulation-view/healthz",
             )?;
+            for expected in [
+                "--reconcile-interval-seconds",
+                "--authorization-renewal-lead-seconds",
+                "--reconcile-retry-max-seconds",
+                "name: VEOVEO_SURREAL_ENDPOINT",
+                "name: VEOVEO_SURREAL_USERNAME",
+                "name: VEOVEO_SURREAL_PASSWORD",
+            ] {
+                contains(deployment, expected)?;
+            }
         }
         if component == "simulation-view-renderer" {
             ensure!(

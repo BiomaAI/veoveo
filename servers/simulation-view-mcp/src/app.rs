@@ -38,6 +38,9 @@ mod tests {
             "software H.264 decode",
             "hardware H.264 decode",
             "maximumVisibleViews",
+            "reconciling ·",
+            "Pose producer authorization expired.",
+            "Automatic Simulation View reconciliation is blocked",
         ] {
             assert!(html.contains(needle), "missing {needle}");
         }
