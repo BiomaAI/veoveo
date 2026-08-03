@@ -61,11 +61,11 @@ simulationView:
             attributionUrl: https://cloud.google.com/maps-platform/terms
             displayRequired: true
           georeference:
-            world: frames://world/uav-showcase-new-york-fc6344f5d9ddda9f/revision/revision-019fc924-ac40-7860-abb5-06921285bbad
+            world: frames://world/uav-showcase-new-york-f75bf0b755676d08/revision/revision-019fc946-4665-7563-a115-1177c01240a0
             frameRevision:
-              uri: frames://world/uav-showcase-new-york-fc6344f5d9ddda9f/revision/revision-019fc924-ac40-7860-abb5-06921285bbad
-              digest: sha256:4b49d81a65a4917c22f66b17edf2e77d80f9dd57769eca9b8840c8d5a1b7d97c
-            localEnuFrame: frames://world/uav-showcase-new-york-fc6344f5d9ddda9f/revision/revision-019fc924-ac40-7860-abb5-06921285bbad/frame/isaac-world
+              uri: frames://world/uav-showcase-new-york-f75bf0b755676d08/revision/revision-019fc946-4665-7563-a115-1177c01240a0
+              digest: sha256:7941fba19b5edcce73d37e1c1bef82d98f42e9c79b5fdb19671e21d1924e3b8a
+            localEnuFrame: frames://world/uav-showcase-new-york-f75bf0b755676d08/revision/revision-019fc946-4665-7563-a115-1177c01240a0/frame/isaac-world
             origin:
               latitudeDegrees: 40.758
               longitudeDegrees: -73.9855
