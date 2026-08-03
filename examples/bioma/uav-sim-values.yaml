@@ -9,6 +9,8 @@ platform:
 
 session:
   vehicleCount: 4
+  fleetLoop:
+    takeoffTimeoutSeconds: 1800
   camera:
     width: 640
     height: 480
