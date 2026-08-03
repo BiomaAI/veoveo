@@ -98,6 +98,7 @@ def run(config: RuntimeConfig) -> None:
         normalize_rgb_frame,
         should_record_camera_frame,
     )
+    from .fleet_loop import FleetLoopController
     from .px4 import Px4Commander
     from .hydra_camera import HydraRgbCameraSensor
     from .pose import PoseProducer
@@ -134,6 +135,7 @@ def run(config: RuntimeConfig) -> None:
     camera_was_ready: set[str] = set()
     primary_camera_path: str | None = None
     pose_producer: PoseProducer | None = None
+    fleet_loop: FleetLoopController | None = None
 
     try:
         preconfiguration = PreconfigurationApplication(config, world_slot)
@@ -387,6 +389,11 @@ def run(config: RuntimeConfig) -> None:
 
             command_queue.submit(action)
 
+        fleet_loop = FleetLoopController(
+            config.fleet_loop,
+            world_config.georeference_origin,
+            commanders,
+        )
         application = AdapterApplication(
             config,
             state,
@@ -394,6 +401,7 @@ def run(config: RuntimeConfig) -> None:
             commanders,
             recording,
             world_slot,
+            fleet_loop,
         )
         assert server is not None
         server.close()
@@ -428,6 +436,8 @@ def run(config: RuntimeConfig) -> None:
                 raise TimeoutError("PX4 bootstrap did not complete before rendering")
             time.sleep(0.001)
 
+        fleet_loop.start()
+
         cesium_interface = acquire_cesium_omniverse_interface()
         # The Cesium extension starts before this headless application authors
         # its runtime-only tileset. Rebind the completed stage through Cesium's
@@ -456,6 +466,8 @@ def run(config: RuntimeConfig) -> None:
         camera_interval = max(1, round(config.physics_hz / config.camera.fps))
 
         while simulation_app.is_running():
+            assert fleet_loop is not None
+            fleet_loop.raise_if_failed()
             command_queue.drain()
             if timeline.is_playing():
                 render = physics_step % render_interval == 0
@@ -665,6 +677,8 @@ def run(config: RuntimeConfig) -> None:
                 "PX4 connection executor",
                 lambda: connection_executor.shutdown(wait=False, cancel_futures=True),
             )
+        if fleet_loop is not None:
+            _cleanup("default fleet loop", fleet_loop.close)
         if server is not None:
             _cleanup("adapter server", server.close)
         if pose_producer is not None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -18,9 +19,10 @@ from veoveo_uav_sim.camera_quality import (
     normalize_rgb_frame,
     should_record_camera_frame,
 )
-from veoveo_uav_sim.config import RuntimeConfig
+from veoveo_uav_sim.config import FleetLoopConfig, RuntimeConfig
 from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operation
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
+from veoveo_uav_sim.fleet_loop import FleetLoopController, vehicle_loop_route
 from veoveo_uav_sim.pose import PoseProducer, entity_ids
 from veoveo_uav_sim.px4 import Px4Commander
 from veoveo_uav_sim.state import RuntimeState, VehicleTelemetry
@@ -105,6 +107,26 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIn("PoseProducer", app_source)
         self.assertNotIn("livestream", app_source.lower())
         self.assertNotIn("follow_camera", app_source)
+
+    def test_default_fleet_loop_encloses_manhattan(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            loop = RuntimeConfig.from_environment().fleet_loop
+        self.assertEqual(loop.center_east_m, 1_700.0)
+        self.assertEqual(loop.center_north_m, 3_000.0)
+        self.assertEqual(loop.east_radius_m, 2_500.0)
+        self.assertEqual(loop.north_radius_m, 9_000.0)
+        self.assertEqual(loop.relative_altitude_m, 450.0)
+
+    def test_fleet_loop_rejects_an_excessive_separated_altitude(self) -> None:
+        environment = {
+            **VALID_ENVIRONMENT,
+            "UAV_SIM_VEHICLE_COUNT": "4",
+            "UAV_SIM_FLEET_LOOP_RELATIVE_ALTITUDE_M": "490",
+            "UAV_SIM_FLEET_LOOP_VERTICAL_SEPARATION_M": "10",
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            with self.assertRaisesRegex(ValueError, "must not exceed 500"):
+                RuntimeConfig.from_environment()
 
     def test_stream_publication_is_explicit_and_typed(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
@@ -244,6 +266,104 @@ class StreamOutputTests(unittest.TestCase):
             fragment[2:] for fragment in fragments
         )
         self.assertEqual(reconstructed, nal)
+
+
+class FleetLoopTests(unittest.TestCase):
+    def test_routes_are_closed_and_separate_fleet_vehicles(self) -> None:
+        config = FleetLoopConfig(
+            relative_altitude_m=300.0,
+            vertical_separation_m=10.0,
+            center_east_m=1_700.0,
+            center_north_m=3_000.0,
+            east_radius_m=2_500.0,
+            north_radius_m=9_000.0,
+            radial_separation_m=15.0,
+            waypoint_count=12,
+            speed_mps=12.0,
+            hold_seconds=0.0,
+        )
+        first = vehicle_loop_route(config, WORLD.georeference_origin, 0, 4)
+        second = vehicle_loop_route(config, WORLD.georeference_origin, 1, 4)
+
+        self.assertEqual(len(first), 12)
+        self.assertEqual(len(second), 12)
+        self.assertAlmostEqual(
+            first[0].ellipsoid_height_m,
+            WORLD.georeference_origin.ellipsoid_height_m + 300.0,
+            delta=5.0,
+        )
+        self.assertGreater(
+            second[0].ellipsoid_height_m,
+            first[0].ellipsoid_height_m + 5.0,
+        )
+        self.assertNotEqual(
+            (first[0].latitude_degrees, first[0].longitude_degrees),
+            (second[0].latitude_degrees, second[0].longitude_degrees),
+        )
+
+    def test_explicit_control_interrupts_and_relinquishes_default_loop(self) -> None:
+        commander = _FleetLoopCommander()
+        controller = FleetLoopController(
+            FleetLoopConfig(
+                relative_altitude_m=300.0,
+                vertical_separation_m=10.0,
+                center_east_m=1_700.0,
+                center_north_m=3_000.0,
+                east_radius_m=2_500.0,
+                north_radius_m=9_000.0,
+                radial_separation_m=15.0,
+                waypoint_count=4,
+                speed_mps=12.0,
+                hold_seconds=0.0,
+            ),
+            WORLD.georeference_origin,
+            {"uav-1": commander},
+        )
+        controller.start()
+        self.assertTrue(commander.mission_started.wait(2.0))
+
+        controller.take_control(("uav-1",), timeout_seconds=2.0)
+        self.assertTrue(commander.mission_interrupted)
+        self.assertFalse(commander.interrupt.is_set())
+        controller.close()
+
+
+class _FleetLoopStatus:
+    def __init__(self, flight_state: str) -> None:
+        self.flight_state = flight_state
+
+
+class _FleetLoopCommander:
+    def __init__(self) -> None:
+        self.flight_state = "standby"
+        self.interrupt = threading.Event()
+        self.mission_started = threading.Event()
+        self.mission_interrupted = False
+
+    def status(self) -> _FleetLoopStatus:
+        return _FleetLoopStatus(self.flight_state)
+
+    def arm(self) -> None:
+        self.flight_state = "armed"
+
+    def takeoff(self, _relative_altitude_m: float) -> None:
+        self.flight_state = "flying"
+
+    def execute_mission(
+        self, _waypoints: tuple[object, ...], timeout_seconds: float = 1_800.0
+    ) -> int:
+        del timeout_seconds
+        self.mission_started.set()
+        if not self.interrupt.wait(2.0):
+            return 1
+        self.mission_interrupted = True
+        raise RuntimeError("mission interrupted")
+
+    def interrupt_mission(self) -> None:
+        self.interrupt.set()
+
+    def clear_mission_interrupt(self) -> None:
+        self.interrupt.clear()
 
 
 class PoseProducerTests(unittest.TestCase):

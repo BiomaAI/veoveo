@@ -63,6 +63,26 @@
   value: {{ .root.Values.session.renderingHz | quote }}
 - name: UAV_SIM_TILE_READY_FRAMES
   value: {{ .root.Values.session.tileReadyFrames | quote }}
+- name: UAV_SIM_FLEET_LOOP_RELATIVE_ALTITUDE_M
+  value: {{ .root.Values.session.fleetLoop.relativeAltitudeM | quote }}
+- name: UAV_SIM_FLEET_LOOP_VERTICAL_SEPARATION_M
+  value: {{ .root.Values.session.fleetLoop.verticalSeparationM | quote }}
+- name: UAV_SIM_FLEET_LOOP_CENTER_EAST_M
+  value: {{ .root.Values.session.fleetLoop.centerEastM | quote }}
+- name: UAV_SIM_FLEET_LOOP_CENTER_NORTH_M
+  value: {{ .root.Values.session.fleetLoop.centerNorthM | quote }}
+- name: UAV_SIM_FLEET_LOOP_EAST_RADIUS_M
+  value: {{ .root.Values.session.fleetLoop.eastRadiusM | quote }}
+- name: UAV_SIM_FLEET_LOOP_NORTH_RADIUS_M
+  value: {{ .root.Values.session.fleetLoop.northRadiusM | quote }}
+- name: UAV_SIM_FLEET_LOOP_RADIAL_SEPARATION_M
+  value: {{ .root.Values.session.fleetLoop.radialSeparationM | quote }}
+- name: UAV_SIM_FLEET_LOOP_WAYPOINT_COUNT
+  value: {{ .root.Values.session.fleetLoop.waypointCount | quote }}
+- name: UAV_SIM_FLEET_LOOP_SPEED_MPS
+  value: {{ .root.Values.session.fleetLoop.speedMps | quote }}
+- name: UAV_SIM_FLEET_LOOP_HOLD_SECONDS
+  value: {{ .root.Values.session.fleetLoop.holdSeconds | quote }}
 - name: UAV_SIM_CAMERA_WIDTH
   value: {{ .root.Values.session.camera.width | quote }}
 - name: UAV_SIM_CAMERA_HEIGHT

@@ -164,6 +164,12 @@ class Px4Commander:
         finally:
             self._mission_interrupt.clear()
 
+    def interrupt_mission(self) -> None:
+        self._mission_interrupt.set()
+
+    def clear_mission_interrupt(self) -> None:
+        self._mission_interrupt.clear()
+
     def execute_mission(self, waypoints: tuple[Waypoint, ...], timeout_seconds: float = 1_800.0) -> int:
         with self._lock:
             self._require_connection()

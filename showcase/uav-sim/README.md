@@ -1,6 +1,6 @@
 # Isaac Sim UAV showcase
 
-This first-party showcase runs PX4-backed UAV dynamics over Google
+This first-party showcase runs a PX4-backed UAV fleet over Google
 Photorealistic 3D Tiles in Isaac Sim. It demonstrates how a domain extension
 uses Veoveo contracts without implementing platform camera or live-view
 features itself.
@@ -62,9 +62,9 @@ Cesium georeference, Pegasus coordinates, local WGS84 conversion, mission
 guard, recording metadata, and pose frame identity.
 
 The scenario tree contains the ECEF root, Times Square ENU anchor, Isaac stage,
-vehicle body, IMU, and nadir sensor. Operator camera frames are not part of the
-domain simulator tree; Simulation View camera rigs derive them from mirrored
-entity poses.
+and the body, IMU, and nadir-sensor frames for every fleet vehicle. Operator
+camera frames are not part of the domain simulator tree; Simulation View
+camera rigs derive them from mirrored entity poses.
 
 ## Domain Rendering And Sensors
 
@@ -103,6 +103,23 @@ SDK keeps only the newest unsent snapshot and performs DNS, certificate
 loading, TLS handshakes, reconnection, and socket writes on its worker thread.
 A disconnected Simulation View never backpressures physics.
 
+## Always-On Fleet
+
+The reference installation runs four vehicles. After PX4 connects, each
+vehicle arms and enters a closed route derived from the immutable Times Square
+ENU origin. The elongated circuit encloses Manhattan from the harbor to the
+northern end of the island, keeping the cityscape inside the camera path.
+Nested ellipses and separate altitudes keep the vehicles distinct. The loop
+continues for the life of the simulator process, and a pod restart reconstructs
+it from Helm configuration.
+
+An explicit mission or direct flight command first claims every named vehicle.
+That claim interrupts its default loop and waits for the MAVLink channel before
+the requested command runs. The default loop stays retired for that vehicle;
+vehicles not named by the command keep flying. This makes the fleet useful as
+an always-on review source without allowing background control to compete with
+operator intent.
+
 ## Recording
 
 The runtime publishes vehicle poses, ENU and NED state, PX4 connection,
@@ -128,6 +145,8 @@ The chart requires:
 - a producer-only PEM Secret containing a client certificate, private key,
   and the Simulation View pose-ingress CA;
 - exact producer, SPIFFE, epoch, endpoint, and entity-table identities;
+- bounded fleet-loop center offsets, radii, altitude, separation, waypoint
+  count, and speed;
 - platform database and recording-forwarder credentials;
 - `nvidia.com/gpu: 1` and the NVIDIA runtime class;
 - pinned image digests in production.
