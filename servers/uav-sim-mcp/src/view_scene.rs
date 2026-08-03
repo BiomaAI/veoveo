@@ -18,6 +18,9 @@ use veoveo_simulation_scene::{
     VisualAssetFormat, VisualPrototype,
 };
 
+const PHOTOREALISTIC_DAYLIGHT_INTENSITY_LUX: f32 = 20_000.0;
+const PHOTOREALISTIC_DAYLIGHT_TEMPERATURE_KELVIN: u32 = 5_500;
+
 use crate::contract::{PreparedViewScene, SessionId, SimulationState};
 
 const ASSET_SCHEMA: &str = "veoveo.io/uav-simulation-view-asset/v1";
@@ -186,8 +189,8 @@ fn build_prepared_scene(
             LiveCameraSource::FormationOverview,
         ],
         lighting: SceneLighting {
-            intensity_lux: 80_000.0,
-            color_temperature_kelvin: 6_500,
+            intensity_lux: PHOTOREALISTIC_DAYLIGHT_INTENSITY_LUX,
+            color_temperature_kelvin: PHOTOREALISTIC_DAYLIGHT_TEMPERATURE_KELVIN,
         },
         quality: SceneQualityPolicy {
             renderer: RendererMode::RaytracedLighting,
@@ -330,6 +333,13 @@ mod tests {
                 LiveCameraSource::MountedEntity,
                 LiveCameraSource::FormationOverview,
             ]
+        );
+        assert_eq!(
+            prepared.scene.body.lighting,
+            SceneLighting {
+                intensity_lux: PHOTOREALISTIC_DAYLIGHT_INTENSITY_LUX,
+                color_temperature_kelvin: PHOTOREALISTIC_DAYLIGHT_TEMPERATURE_KELVIN,
+            }
         );
     }
 
