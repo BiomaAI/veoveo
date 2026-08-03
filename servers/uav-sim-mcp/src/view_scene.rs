@@ -18,7 +18,10 @@ use veoveo_simulation_scene::{
     VisualAssetFormat, VisualPrototype,
 };
 
-const PHOTOREALISTIC_DAYLIGHT_INTENSITY_LUX: f32 = 20_000.0;
+// Photogrammetry carries baked daylight. Match the reference Isaac camera's
+// bounded environment contribution instead of adding a second full-sun load
+// that clips the LDR render product.
+const PHOTOREALISTIC_DAYLIGHT_INTENSITY_LUX: f32 = 1_000.0;
 const PHOTOREALISTIC_DAYLIGHT_TEMPERATURE_KELVIN: u32 = 5_500;
 
 use crate::contract::{PreparedViewScene, SessionId, SimulationState};
