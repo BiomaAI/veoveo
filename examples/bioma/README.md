@@ -466,6 +466,9 @@ Then run the full GPU delivery proof:
 ~~~bash
 VEOVEO_CUOPT_EXECUTOR_IMAGE=veoveo/cuopt-executor:0.1.0 \
   cargo xtask smoke agent-pilot
+cargo xtask smoke uav-showcase-up \
+  --context k3d-veoveo-bioma \
+  --public-base-url https://veoveo.bioma.ai
 cargo xtask smoke uav-domain-verify \
   --context k3d-veoveo-bioma \
   --public-base-url https://veoveo.bioma.ai
@@ -474,6 +477,10 @@ cargo xtask smoke uav-showcase-verify \
   --public-base-url https://veoveo.bioma.ai \
   --chrome-cdp-url http://127.0.0.1:9222
 ~~~
+
+`uav-showcase-up` converges the immutable Frames world, starts the perpetual fleet
+loop, and leaves its governed Simulation View camera live. The verification commands
+exercise bounded missions and may take temporary ownership of individual vehicles.
 
 The Pilot acceptance starts the real cuOpt executor on the host GPU, sends a typed
 MILP through the gateway as a durable task, verifies the solution independently,

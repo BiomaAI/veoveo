@@ -263,6 +263,103 @@ pub(crate) async fn uav_showcase_verify(
     Ok(())
 }
 
+pub(crate) async fn uav_showcase_up(
+    conformance: &Path,
+    scenario_path: &Path,
+    context: &str,
+    namespace: &str,
+    public_base_url: &str,
+) -> Result<()> {
+    let scenario = UavAcceptanceScenario::load(scenario_path)?;
+    assert_executable(conformance)?;
+    let public_base_url = public_base_url.trim_end_matches('/');
+    ensure!(
+        url::Url::parse(public_base_url)?.scheme() == "https",
+        "composed UAV showcase activation requires public HTTPS"
+    );
+    assert_showcase_gpu_workloads(context, namespace)?;
+
+    let operator = OperatorClient {
+        conformance,
+        base: public_base_url,
+    };
+    ensure_world_configured(&operator, &scenario).await?;
+    close_existing_view(&operator, &scenario.session_id).await?;
+    let prepared = wait_for_prepared_scene(
+        &operator,
+        &scenario,
+        Duration::from_secs(scenario.world_ready_timeout_seconds),
+    )
+    .await?;
+    let scene = prepared
+        .get("scene")
+        .cloned()
+        .context("UAV scene preparation omitted scene")?;
+    let epoch_id = json_string(&prepared, "/scene/body/epochId")?.to_owned();
+    let producer_id = json_string(&prepared, "/producer_id")?.to_owned();
+    let producer_spiffe_id = json_string(&prepared, "/producer_spiffe_id")?.to_owned();
+    let resources = create_view(
+        &operator,
+        &scenario,
+        scene,
+        &epoch_id,
+        &producer_id,
+        &producer_spiffe_id,
+    )
+    .await?;
+    let sequence = wait_for_live_camera(
+        &operator,
+        &scenario,
+        &resources.camera_id,
+        Duration::from_secs(scenario.view.timeout_seconds),
+    )
+    .await?;
+
+    println!(
+        "UAV showcase is live: session={}, camera={}, poseSequence={sequence}",
+        resources.session_id, resources.camera_id
+    );
+    Ok(())
+}
+
+async fn wait_for_live_camera(
+    operator: &OperatorClient<'_>,
+    scenario: &UavAcceptanceScenario,
+    camera_id: &str,
+    timeout: Duration,
+) -> Result<u64> {
+    let deadline = tokio::time::Instant::now() + timeout;
+    let camera_uri = format!(
+        "simulation-view://session/{}/camera/{camera_id}",
+        scenario.session_id
+    );
+    loop {
+        let state = simulation_state(operator, scenario).await?;
+        let camera = read_json_resource(operator, &camera_uri).await?;
+        let sequence = camera
+            .get("lastPoseSequence")
+            .and_then(Value::as_u64)
+            .unwrap_or_default();
+        if json_string(&state, "/lifecycle").ok() == Some("running")
+            && state.pointer("/vehicles/0").is_some()
+            && json_string(&state, "/pose_publication/lifecycle").ok() == Some("ready")
+            && json_string(&camera, "/health").ok() == Some("healthy")
+            && camera.get("lastFrameAt").and_then(Value::as_str).is_some()
+            && sequence > 0
+        {
+            return Ok(sequence);
+        }
+        ensure!(
+            json_string(&state, "/lifecycle").ok() != Some("failed")
+                && json_string(&camera, "/health").ok() != Some("failed")
+                && tokio::time::Instant::now() < deadline,
+            "UAV showcase did not reach an advancing healthy live camera within {timeout:?}: \
+             simulation={state}, camera={camera}"
+        );
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+}
+
 async fn close_existing_view(operator: &OperatorClient<'_>, session_id: &str) -> Result<()> {
     let state = match operator
         .call_tool(
