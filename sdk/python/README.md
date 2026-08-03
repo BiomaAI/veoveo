@@ -7,7 +7,7 @@ client, schema helpers, pagination, host validation, telemetry boundary, and the
 provider-neutral Simulation View scene declaration and pose-producer contracts.
 
 `veoveo_mcp.simulation_view` owns the strongly typed
-`veoveo.io/simulation-view-scene/v1` declaration. It validates governed visual
+`veoveo.io/simulation-view-scene/v2` declaration. It validates governed visual
 artifacts, frame bindings, entity and prototype identities, camera policy, and
 the exact canonical digest accepted by the Rust control plane. External
 extensions publish their own assets and construct this declaration without

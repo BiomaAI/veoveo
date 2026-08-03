@@ -9,7 +9,7 @@ that its scene admits. Simulation View validates and renders that declaration.
 
 | Standard or protocol | Supported profile |
 |---|---|
-| `veoveo.io/simulation-view-scene/v1` | one canonical JSON scene body and SHA-256 digest |
+| `veoveo.io/simulation-view-scene/v2` | one canonical JSON scene body and SHA-256 digest |
 | JSON Schema 2020-12 | generated schemas for the complete typed declaration |
 | OpenUSD | governed `.usd` and `.usdz` environment and prototype assets |
 | glTF 2.0 | governed `.gltf` and `.glb` prototype assets |
@@ -44,19 +44,21 @@ sending the scene to the renderer.
 
 ## Governed Lighting
 
-`SceneLighting` declares one physical directional illuminant. The renderer
-authors one normalized OpenUSD distant light with exposure `0`. It maps
-`intensityLux` directly to the light intensity without a divisor, and it
-enables OpenUSD color-temperature processing before applying
+`SceneLighting` declares independent sun and sky illumination. The renderer
+authors a normalized OpenUSD distant light with exposure `0` and maps
+`sunIntensityLux` directly to its intensity. It authors an unnormalized,
+texture-free OpenUSD dome light with exposure `0` and maps `skyIntensity`
+directly to its intensity. `skyIntensity` uses the OpenUSD dome-light scale;
+it is not illuminance. The renderer never derives one value from the other.
+
+Both sources enable OpenUSD color-temperature processing and apply the declared
 `colorTemperatureKelvin`. The fixed sun angular diameter is `0.53` degrees.
-The renderer does not derive dome radiance from illuminance because the two
-quantities do not share a valid conversion.
 
 The accepted color-temperature interval is `1000..=10000` kelvin, matching
 the selected OpenUSD light profile. Scene admission rejects values outside
 that interval. A renderer that cannot apply intensity, normalization,
 exposure, or color temperature rejects the scene rather than silently
-dropping a field.
+dropping a field. Sun and sky intensities must both be finite and positive.
 
 ## Canonical Identity
 

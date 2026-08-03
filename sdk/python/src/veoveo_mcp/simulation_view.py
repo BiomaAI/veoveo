@@ -2,7 +2,7 @@
 
 External simulation extensions own their scene declarations and governed
 visual assets. This module gives Python producers the exact
-``veoveo.io/simulation-view-scene/v1`` shape and the same deterministic
+``veoveo.io/simulation-view-scene/v2`` shape and the same deterministic
 SHA-256 body digest as the Rust control plane.
 """
 
@@ -27,7 +27,7 @@ from pydantic import (
 from pydantic.alias_generators import to_camel
 
 
-SCENE_SCHEMA = "veoveo.io/simulation-view-scene/v1"
+SCENE_SCHEMA = "veoveo.io/simulation-view-scene/v2"
 _IDENTITY_CHARACTERS = frozenset(
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_."
 )
@@ -218,8 +218,9 @@ class SceneAttribution(ContractModel):
 
 
 class SceneLighting(ContractModel):
-    intensity_lux: PositiveFloat
-    color_temperature_kelvin: int = Field(ge=1_000, le=20_000)
+    sun_intensity_lux: PositiveFloat
+    sky_intensity: PositiveFloat
+    color_temperature_kelvin: int = Field(ge=1_000, le=10_000)
 
 
 class SceneQualityPolicy(ContractModel):

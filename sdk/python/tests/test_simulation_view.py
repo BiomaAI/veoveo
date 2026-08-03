@@ -61,7 +61,8 @@ def _body() -> SceneDeclarationBody:
             CameraRigKind.FORMATION_OVERVIEW,
         ),
         lighting=SceneLighting(
-            intensity_lux=80_000.0,
+            sun_intensity_lux=80_000.0,
+            sky_intensity=1_000.0,
             color_temperature_kelvin=6_500,
         ),
         quality=SceneQualityPolicy(
@@ -93,7 +94,7 @@ def test_scene_digest_matches_rust_field_order_fixture() -> None:
     assert body == _body()
     declaration = SceneDeclaration.from_body(body)
     assert declaration.digest == (
-        "sha256:67291c10c39898b2ea11ac9bbe12643148b0112bd868ed44579aaa818fea48e4"
+        "sha256:8d07fb517b2a0349fa67252e85e41b2efb70dc7d99b6291228d2530cdef33c96"
     )
     assert list(declaration.wire()["body"]) == [
         "schemaVersion",

@@ -15,7 +15,7 @@ use veoveo_mcp_contract::{
 use veoveo_simulation_pose::{EntityId, EpochId, FrameRevision, Sha256Digest};
 
 /// Canonical Simulation View scene schema.
-pub const SCENE_SCHEMA: &str = "veoveo.io/simulation-view-scene/v1";
+pub const SCENE_SCHEMA: &str = "veoveo.io/simulation-view-scene/v2";
 pub const MINIMUM_COLOR_TEMPERATURE_KELVIN: u32 = 1_000;
 pub const MAXIMUM_COLOR_TEMPERATURE_KELVIN: u32 = 10_000;
 
@@ -197,14 +197,17 @@ pub struct SceneAttribution {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SceneLighting {
-    pub intensity_lux: f32,
+    pub sun_intensity_lux: f32,
+    pub sky_intensity: f32,
     pub color_temperature_kelvin: u32,
 }
 
 impl SceneLighting {
     pub fn validate(self) -> Result<(), SceneContractError> {
-        if self.intensity_lux <= 0.0
-            || !self.intensity_lux.is_finite()
+        if self.sun_intensity_lux <= 0.0
+            || !self.sun_intensity_lux.is_finite()
+            || self.sky_intensity <= 0.0
+            || !self.sky_intensity.is_finite()
             || !(MINIMUM_COLOR_TEMPERATURE_KELVIN..=MAXIMUM_COLOR_TEMPERATURE_KELVIN)
                 .contains(&self.color_temperature_kelvin)
         {
@@ -407,7 +410,7 @@ mod tests {
         let declaration = SceneDeclaration::from_body(body).unwrap();
         assert_eq!(
             declaration.digest.as_str(),
-            "sha256:67291c10c39898b2ea11ac9bbe12643148b0112bd868ed44579aaa818fea48e4"
+            "sha256:8d07fb517b2a0349fa67252e85e41b2efb70dc7d99b6291228d2530cdef33c96"
         );
         declaration.validate(128, 1024 * 1024).unwrap();
     }

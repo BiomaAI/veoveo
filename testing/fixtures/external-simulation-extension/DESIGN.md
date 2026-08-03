@@ -13,7 +13,7 @@ renderer or importing platform source.
 | OpenUSD USDA 1.0 | Self-contained, non-executable environment and prototype assets |
 | SPIFFE URI | Installation-bound pose-producer identity carried by the mTLS client certificate |
 | TLS 1.3 | Private latest-pose stream with mutual authentication |
-| `veoveo.io/simulation-view-scene/v1` | Content-addressed scene declaration with governed Artifact URIs |
+| `veoveo.io/simulation-view-scene/v2` | Content-addressed scene declaration with governed Artifact URIs |
 | `veoveo.io/simulation-view-pose/v1` | Complete, atomic newest-pose snapshots; this is a private adapter protocol, not MCP |
 | `veoveo.io/gateway-server-fragment/v1` | Extension-owned gateway contribution |
 | `veoveo.io/extension-release/v1` | Immutable independently published release inventory |

@@ -21,7 +21,8 @@ DIAGNOSTIC_DOME = f"{DIAGNOSTIC_ROOT}/Dome"
 
 @dataclass(frozen=True, slots=True)
 class GovernedLighting:
-    intensity_lux: float
+    sun_intensity_lux: float
+    sky_intensity: float
     color_temperature_kelvin: int
 
     @classmethod
@@ -29,12 +30,23 @@ class GovernedLighting:
         body = object_with_keys(
             "scene lighting",
             value,
-            {"intensityLux", "colorTemperatureKelvin"},
+            {
+                "sunIntensityLux",
+                "skyIntensity",
+                "colorTemperatureKelvin",
+            },
         )
-        intensity = finite_number("intensityLux", body["intensityLux"])
+        sun_intensity = finite_number(
+            "sunIntensityLux", body["sunIntensityLux"]
+        )
+        sky_intensity = finite_number(
+            "skyIntensity", body["skyIntensity"]
+        )
         temperature = body["colorTemperatureKelvin"]
-        if intensity <= 0.0:
-            raise ContractError("intensityLux must be positive")
+        if sun_intensity <= 0.0:
+            raise ContractError("sunIntensityLux must be positive")
+        if sky_intensity <= 0.0:
+            raise ContractError("skyIntensity must be positive")
         if (
             not isinstance(temperature, int)
             or isinstance(temperature, bool)
@@ -46,19 +58,29 @@ class GovernedLighting:
                 "colorTemperatureKelvin must be between 1000 and 10000"
             )
         return cls(
-            intensity_lux=intensity,
+            sun_intensity_lux=sun_intensity,
+            sky_intensity=sky_intensity,
             color_temperature_kelvin=temperature,
         )
 
-    def openusd_settings(self) -> "OpenUsdDistantLightSettings":
-        return OpenUsdDistantLightSettings(
-            intensity=self.intensity_lux,
-            exposure=0.0,
-            normalize=True,
-            enable_color_temperature=True,
-            color_temperature_kelvin=self.color_temperature_kelvin,
-            angle_degrees=SUN_ANGULAR_DIAMETER_DEGREES,
-            rotation_degrees=SUN_ROTATION_DEGREES,
+    def openusd_settings(self) -> "OpenUsdLightingSettings":
+        return OpenUsdLightingSettings(
+            sun=OpenUsdDistantLightSettings(
+                intensity=self.sun_intensity_lux,
+                exposure=0.0,
+                normalize=True,
+                enable_color_temperature=True,
+                color_temperature_kelvin=self.color_temperature_kelvin,
+                angle_degrees=SUN_ANGULAR_DIAMETER_DEGREES,
+                rotation_degrees=SUN_ROTATION_DEGREES,
+            ),
+            sky=OpenUsdDomeLightSettings(
+                intensity=self.sky_intensity,
+                exposure=0.0,
+                normalize=False,
+                enable_color_temperature=True,
+                color_temperature_kelvin=self.color_temperature_kelvin,
+            ),
         )
 
 
@@ -71,6 +93,21 @@ class OpenUsdDistantLightSettings:
     color_temperature_kelvin: int
     angle_degrees: float
     rotation_degrees: tuple[float, float, float]
+
+
+@dataclass(frozen=True, slots=True)
+class OpenUsdDomeLightSettings:
+    intensity: float
+    exposure: float
+    normalize: bool
+    enable_color_temperature: bool
+    color_temperature_kelvin: int
+
+
+@dataclass(frozen=True, slots=True)
+class OpenUsdLightingSettings:
+    sun: OpenUsdDistantLightSettings
+    sky: OpenUsdDomeLightSettings
 
 
 class DiagnosticScene:
@@ -188,17 +225,25 @@ def author_governed_lighting(
     lighting_root = f"{session_root}/Lighting"
     stage.DefinePrim(lighting_root, "Scope")
     sun = UsdLux.DistantLight.Define(stage, f"{lighting_root}/Sun")
-    sun.CreateIntensityAttr(values.intensity)
-    sun.CreateExposureAttr(values.exposure)
-    sun.CreateNormalizeAttr(values.normalize)
+    sun.CreateIntensityAttr(values.sun.intensity)
+    sun.CreateExposureAttr(values.sun.exposure)
+    sun.CreateNormalizeAttr(values.sun.normalize)
     sun.CreateEnableColorTemperatureAttr(
-        values.enable_color_temperature
+        values.sun.enable_color_temperature
     )
-    sun.CreateColorTemperatureAttr(values.color_temperature_kelvin)
-    sun.CreateAngleAttr(values.angle_degrees)
+    sun.CreateColorTemperatureAttr(values.sun.color_temperature_kelvin)
+    sun.CreateAngleAttr(values.sun.angle_degrees)
     UsdGeom.Xformable(sun.GetPrim()).AddRotateXYZOp().Set(
-        Gf.Vec3f(*values.rotation_degrees)
+        Gf.Vec3f(*values.sun.rotation_degrees)
     )
+    sky = UsdLux.DomeLight.Define(stage, f"{lighting_root}/Sky")
+    sky.CreateIntensityAttr(values.sky.intensity)
+    sky.CreateExposureAttr(values.sky.exposure)
+    sky.CreateNormalizeAttr(values.sky.normalize)
+    sky.CreateEnableColorTemperatureAttr(
+        values.sky.enable_color_temperature
+    )
+    sky.CreateColorTemperatureAttr(values.sky.color_temperature_kelvin)
 
 
 def _close(actual: object, expected: float) -> bool:
