@@ -169,6 +169,7 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         | "profile-cluster-stop"
         | "profile-cluster-delete"
         | "profile-up"
+        | "profile-gpu-verify"
         | "profile-down"
         | "gpu-allocation-verify"
         | "bioma-verify"

@@ -137,6 +137,7 @@ cargo xtask smoke profile-cluster-up --profile deploy/deployment.json
 cargo xtask smoke profile-up \
   --profile deploy/deployment.json \
   --lock deploy/deployment.lock.json
+cargo xtask smoke profile-gpu-verify --profile deploy/deployment.json
 kubectl --context <context> get deviceclass gpu.nvidia.com
 kubectl --context <context> get daemonset -n <allocator-namespace> \
   -l app.kubernetes.io/component=kubelet-plugin
@@ -149,6 +150,13 @@ also prints the claim UID, allocated request-to-device mapping, and the one UUID
 observed in every declared workload container. CUDA, Vulkan, RTX, and NVENC remain
 application readiness concerns and must still pass on hardware; DRA supplies the
 physical allocation and CDI device injection.
+
+`profile-gpu-verify` repeats the live workload proof without changing the allocator,
+claim, or application releases. It derives each Pod selector from the Deployment,
+selects the sole current ReplicaSet by controller UID and rollout revision, rejects
+terminating or stale Pods, and runs `nvidia-smi` only in Ready declared containers.
+Use it after a Pod replacement when a complete `profile-up` reconciliation is not
+otherwise required.
 
 ## Upgrade, rollback, and recovery
 
