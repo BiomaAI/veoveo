@@ -43,28 +43,21 @@ VALID_ENVIRONMENT = {
     "UAV_SIM_TILE_CACHE_POLICY": "persistent",
     "UAV_SIM_WORLD_SOURCE": "google_photorealistic_3d_tiles",
     "UAV_SIM_POSE_PRODUCER_ID": "uav-sim",
-    "UAV_SIM_POSE_PRODUCER_SPIFFE_ID": (
-        "spiffe://veoveo.local/simulation/uav-sim"
-    ),
+    "UAV_SIM_POSE_PRODUCER_SPIFFE_ID": ("spiffe://veoveo.local/simulation/uav-sim"),
     "UAV_SIM_POSE_EPOCH_ID": "epoch-1",
     "UAV_SIM_POSE_INGRESS_HOST": "simulation-view-pose",
     "UAV_SIM_POSE_INGRESS_PORT": "7443",
     "UAV_SIM_POSE_SERVER_HOSTNAME": "simulation-view-pose.veoveo.svc",
     "UAV_SIM_POSE_CA_CERTIFICATE": "/run/secrets/simulation-view-pose/ca.crt",
-    "UAV_SIM_POSE_CLIENT_CERTIFICATE": (
-        "/run/secrets/simulation-view-pose/tls.crt"
-    ),
-    "UAV_SIM_POSE_CLIENT_PRIVATE_KEY": (
-        "/run/secrets/simulation-view-pose/tls.key"
-    ),
+    "UAV_SIM_POSE_CLIENT_CERTIFICATE": ("/run/secrets/simulation-view-pose/tls.crt"),
+    "UAV_SIM_POSE_CLIENT_PRIVATE_KEY": ("/run/secrets/simulation-view-pose/tls.key"),
 }
 
 WORLD = WorldConfiguration(
     revision_uri="frames://world/uav-showcase-new-york/revision/revision-1",
     spec_sha256="1" * 64,
     simulation_frame_uri=(
-        "frames://world/uav-showcase-new-york/revision/revision-1/"
-        "frame/isaac-world"
+        "frames://world/uav-showcase-new-york/revision/revision-1/frame/isaac-world"
     ),
     georeference_origin=GeoreferenceOrigin(
         latitude_degrees=40.758,
@@ -113,9 +106,7 @@ class RuntimeConfigTests(unittest.TestCase):
         runtime_root = Path(__file__).parents[1]
         dockerfile = (runtime_root / "Dockerfile").read_text()
         px4_patch = (
-            runtime_root
-            / "patches"
-            / "px4-1.17.0-multi-instance-gcs.patch"
+            runtime_root / "patches" / "px4-1.17.0-multi-instance-gcs.patch"
         ).read_text()
         self.assertIn("git -C px4 apply --check /tmp/px4.patch", dockerfile)
         self.assertIn("udp_gcs_port_remote=$((14550+px4_instance))", px4_patch)
@@ -212,9 +203,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(camera["encoder"], "nvidia_nvenc")
 
         recording_source = (
-            Path(__file__).parents[1]
-            / "veoveo_uav_sim"
-            / "recording.py"
+            Path(__file__).parents[1] / "veoveo_uav_sim" / "recording.py"
         ).read_text()
         self.assertIn('add_stream("h264_nvenc"', recording_source)
         self.assertNotIn("libx264", recording_source)
@@ -340,6 +329,7 @@ class FleetLoopTests(unittest.TestCase):
 
         controller.take_control(("uav-1",), timeout_seconds=2.0)
         self.assertTrue(commander.mission_interrupted)
+        self.assertIsNone(commander.last_timeout_seconds)
         self.assertFalse(commander.interrupt.is_set())
         controller.close()
 
@@ -355,6 +345,7 @@ class _FleetLoopCommander:
         self.interrupt = threading.Event()
         self.mission_started = threading.Event()
         self.mission_interrupted = False
+        self.last_timeout_seconds: float | None = 1_800.0
 
     def status(self) -> _FleetLoopStatus:
         return _FleetLoopStatus(self.flight_state)
@@ -366,9 +357,11 @@ class _FleetLoopCommander:
         self.flight_state = "flying"
 
     def execute_mission(
-        self, _waypoints: tuple[object, ...], timeout_seconds: float = 1_800.0
+        self,
+        _waypoints: tuple[object, ...],
+        timeout_seconds: float | None = 1_800.0,
     ) -> int:
-        del timeout_seconds
+        self.last_timeout_seconds = timeout_seconds
         self.mission_started.set()
         if not self.interrupt.wait(2.0):
             return 1
@@ -431,9 +424,7 @@ class PoseProducerTests(unittest.TestCase):
             snapshots[0].entity_table_digest,
             entity_table_digest(1, entity_ids(1)),
         )
-        self.assertTrue(
-            any(update["lifecycle"] == "ready" for update in updates)
-        )
+        self.assertTrue(any(update["lifecycle"] == "ready" for update in updates))
         self.assertEqual(updates[-1]["lifecycle"], "stopped")
 
     def test_incomplete_entity_snapshots_are_rejected(self) -> None:
@@ -588,18 +579,12 @@ class _MavlinkConnection:
                 )
             )
             if command == mavutil.mavlink.MAV_CMD_DO_SET_MODE:
-                _base_mode, custom_mode, custom_sub_mode = mavutil.px4_map[
-                    "LOITER"
-                ]
+                _base_mode, custom_mode, custom_sub_mode = mavutil.px4_map["LOITER"]
                 self._messages.append(
                     _MavlinkMessage(
                         "HEARTBEAT",
-                        base_mode=(
-                            mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED
-                        ),
-                        custom_mode=(
-                            custom_mode << 16 | custom_sub_mode << 24
-                        ),
+                        base_mode=(mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED),
+                        custom_mode=(custom_mode << 16 | custom_sub_mode << 24),
                     )
                 )
         self._messages.append(
@@ -618,9 +603,7 @@ class _MavlinkConnection:
 
 class Px4CommanderTests(unittest.TestCase):
     def test_initial_arm_retries_temporary_preflight_rejection(self) -> None:
-        connection = _MavlinkConnection(
-            [mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM]
-        )
+        connection = _MavlinkConnection([mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM])
         connection._messages.insert(
             0,
             _MavlinkMessage(
@@ -676,9 +659,7 @@ class Px4CommanderTests(unittest.TestCase):
         commander._connection = connection
         commander._connected = True
         commander._has_flown = True
-        commander._landed_state = (
-            mavutil.mavlink.MAV_LANDED_STATE_ON_GROUND
-        )
+        commander._landed_state = mavutil.mavlink.MAV_LANDED_STATE_ON_GROUND
 
         commander.arm()
 
@@ -702,9 +683,7 @@ class Px4CommanderTests(unittest.TestCase):
         )
 
     def test_initial_arm_does_not_change_flight_mode(self) -> None:
-        connection = _MavlinkConnection(
-            [mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM]
-        )
+        connection = _MavlinkConnection([mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM])
         commander = Px4Commander(instance=0, origin_height_m=-17.0)
         commander._connection = connection
         commander._connected = True
@@ -730,9 +709,7 @@ class WorldConfigurationTests(unittest.TestCase):
         payload["simulation_frame_uri"] = (
             "frames://world/other/revision/revision-2/frame/isaac-world"
         )
-        with self.assertRaisesRegex(
-            WorldConfigurationError, "frame in revision_uri"
-        ):
+        with self.assertRaisesRegex(WorldConfigurationError, "frame in revision_uri"):
             WorldConfiguration.from_request(
                 {"session_id": "uav-showcase", "world": payload},
                 "uav-showcase",
@@ -743,9 +720,7 @@ class WorldConfigurationTests(unittest.TestCase):
         self.assertEqual(slot.configure(WORLD), WORLD)
         self.assertEqual(slot.configure(WORLD), WORLD)
         other = WorldConfiguration(
-            revision_uri=(
-                "frames://world/uav-showcase-new-york/revision/revision-2"
-            ),
+            revision_uri=("frames://world/uav-showcase-new-york/revision/revision-2"),
             spec_sha256="2" * 64,
             simulation_frame_uri=(
                 "frames://world/uav-showcase-new-york/revision/revision-2/"

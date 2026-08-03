@@ -29,9 +29,7 @@ class Px4CommandRejected(RuntimeError):
     def __init__(self, command: int, result: int) -> None:
         self.command = command
         self.result = result
-        super().__init__(
-            f"PX4 rejected MAVLink command {command} with result {result}"
-        )
+        super().__init__(f"PX4 rejected MAVLink command {command} with result {result}")
 
     @property
     def temporary(self) -> bool:
@@ -75,8 +73,13 @@ class Px4Commander:
             self._connection.clients.add(("127.0.0.1", 18_570 + self.instance))
             while time.monotonic() < deadline:
                 self._send_gcs_heartbeat_locked()
-                message = self._connection.recv_match(type="HEARTBEAT", blocking=True, timeout=1.0)
-                if message is not None and message.get_srcSystem() == self._target_system:
+                message = self._connection.recv_match(
+                    type="HEARTBEAT", blocking=True, timeout=1.0
+                )
+                if (
+                    message is not None
+                    and message.get_srcSystem() == self._target_system
+                ):
                     self._target_component = message.get_srcComponent()
                     self._consume(message)
                     self._connected = True
@@ -119,17 +122,14 @@ class Px4Commander:
             self._require_connection()
             if (
                 self._has_flown
-                and self._landed_state
-                == mavutil.mavlink.MAV_LANDED_STATE_ON_GROUND
+                and self._landed_state == mavutil.mavlink.MAV_LANDED_STATE_ON_GROUND
             ):
                 # PX4 remains in AUTO_LAND after a successful landing, and
                 # AUTO_LAND intentionally rejects a later arm request. This
                 # headless showcase has no manual-control input, so POSCTL is
                 # also unarmable. AUTO_LOITER provides the stationary,
                 # autonomous landed state required before re-arming.
-                base_mode, custom_mode, custom_sub_mode = mavutil.px4_map[
-                    "LOITER"
-                ]
+                base_mode, custom_mode, custom_sub_mode = mavutil.px4_map["LOITER"]
                 self._send_command_locked(
                     mavutil.mavlink.MAV_CMD_DO_SET_MODE,
                     base_mode,
@@ -140,7 +140,9 @@ class Px4Commander:
             self._arm_when_ready_locked()
 
     def takeoff(self, relative_altitude_m: float) -> None:
-        target_altitude = max(self._absolute_altitude_m, self._origin_height_m) + relative_altitude_m
+        target_altitude = (
+            max(self._absolute_altitude_m, self._origin_height_m) + relative_altitude_m
+        )
         self._command(
             mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
             math.nan,
@@ -174,7 +176,11 @@ class Px4Commander:
     def clear_mission_interrupt(self) -> None:
         self._mission_interrupt.clear()
 
-    def execute_mission(self, waypoints: tuple[Waypoint, ...], timeout_seconds: float = 1_800.0) -> int:
+    def execute_mission(
+        self,
+        waypoints: tuple[Waypoint, ...],
+        timeout_seconds: float | None = 1_800.0,
+    ) -> int:
         with self._lock:
             self._require_connection()
             if self._mission_interrupt.is_set():
@@ -182,14 +188,18 @@ class Px4Commander:
             if not self._armed:
                 self._arm_when_ready_locked()
 
-            deadline = time.monotonic() + timeout_seconds
+            deadline = (
+                None if timeout_seconds is None else time.monotonic() + timeout_seconds
+            )
             completed = 0
             for waypoint in waypoints:
                 self._send_reposition_locked(waypoint)
                 reached_at: float | None = None
-                while time.monotonic() < deadline:
+                while deadline is None or time.monotonic() < deadline:
                     if self._mission_interrupt.is_set():
-                        raise RuntimeError(f"mission on {self.vehicle_id} was interrupted")
+                        raise RuntimeError(
+                            f"mission on {self.vehicle_id} was interrupted"
+                        )
                     self._send_gcs_heartbeat_locked_if_due()
                     message = self._connection.recv_match(blocking=True, timeout=1.0)
                     if message is not None:
@@ -304,9 +314,7 @@ class Px4Commander:
             return
         raise TimeoutError(f"PX4 did not acknowledge MAVLink command {command}")
 
-    def _await_px4_mode_locked(
-        self, custom_mode: int, custom_sub_mode: int
-    ) -> None:
+    def _await_px4_mode_locked(self, custom_mode: int, custom_sub_mode: int) -> None:
         deadline = time.monotonic() + 15.0
         while time.monotonic() < deadline:
             if (
@@ -319,8 +327,7 @@ class Px4Commander:
             if message is not None:
                 self._consume(message)
         raise TimeoutError(
-            f"PX4 did not enter main mode {custom_mode} "
-            f"sub-mode {custom_sub_mode}"
+            f"PX4 did not enter main mode {custom_mode} sub-mode {custom_sub_mode}"
         )
 
     def _waypoint_reached_locked(self, waypoint: Waypoint) -> bool:
@@ -340,11 +347,12 @@ class Px4Commander:
 
     def _consume(self, message) -> None:
         message_type = message.get_type()
-        if message_type == "HEARTBEAT" and message.get_srcSystem() == self._target_system:
+        if (
+            message_type == "HEARTBEAT"
+            and message.get_srcSystem() == self._target_system
+        ):
             base_mode = int(message.base_mode)
-            self._armed = bool(
-                base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
-            )
+            self._armed = bool(base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
             if base_mode & mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED:
                 packed_mode = int(message.custom_mode)
                 self._px4_main_mode = (packed_mode >> 16) & 0xFF
@@ -372,7 +380,10 @@ class Px4Commander:
         self._last_gcs_heartbeat_at = time.monotonic()
 
     def _send_gcs_heartbeat_locked_if_due(self) -> None:
-        if time.monotonic() - self._last_gcs_heartbeat_at >= GCS_HEARTBEAT_INTERVAL_SECONDS:
+        if (
+            time.monotonic() - self._last_gcs_heartbeat_at
+            >= GCS_HEARTBEAT_INTERVAL_SECONDS
+        ):
             self._send_gcs_heartbeat_locked()
 
     def _require_connection(self) -> None:
