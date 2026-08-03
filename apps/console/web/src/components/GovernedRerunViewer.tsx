@@ -22,20 +22,13 @@ function synchronizeSources(
   desired: GovernedRerunSource
 ) {
   const transition = planRerunSourceTransition(opened, desired);
-  if (transition.archiveUrlToCloseBeforeOpen) {
-    viewer.close(transition.archiveUrlToCloseBeforeOpen);
+  if (transition.urlsToCloseBeforeOpen.length > 0) {
+    viewer.close(transition.urlsToCloseBeforeOpen);
   }
   if (transition.blueprintUrlToOpen) viewer.open(transition.blueprintUrlToOpen);
-  if (transition.archiveUrlToOpen) viewer.open(transition.archiveUrlToOpen);
-  if (transition.liveUrlToOpen) {
-    viewer.open(transition.liveUrlToOpen);
-  }
-  if (transition.urlsToCloseAfterOpen.length > 0) {
-    viewer.close(transition.urlsToCloseAfterOpen);
-  }
+  if (transition.receiverUrlToOpen) viewer.open(transition.receiverUrlToOpen);
   opened.redapToken = transition.next.redapToken;
-  opened.archive = transition.next.archive;
-  opened.liveUrl = transition.next.liveUrl;
+  opened.receiver = transition.next.receiver;
   opened.blueprintUrl = transition.next.blueprintUrl;
   opened.blueprintMapProvider = transition.next.blueprintMapProvider;
 }
@@ -182,14 +175,14 @@ export default function GovernedRerunViewer({
           <strong>
             {status.delayed
               ? "The recording is still loading"
-              : source.liveUrl
+              : source.receiver.kind === "live"
                 ? "Connecting to live capture"
                 : "Preparing replay"}
           </strong>
           <span>
             {status.delayed
               ? "Rerun is still fetching the selected time window. Playback will open automatically."
-              : source.liveUrl
+              : source.receiver.kind === "live"
               ? "Following bounded live history while immutable layers remain lazy."
               : "Opening the recording catalog; Rerun fetches chunks as the active view needs them."}
           </span>
