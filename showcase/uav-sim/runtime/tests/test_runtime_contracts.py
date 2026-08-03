@@ -24,7 +24,7 @@ from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operati
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
 from veoveo_uav_sim.fleet_loop import FleetLoopController, vehicle_loop_route
 from veoveo_uav_sim.pose import PoseProducer, entity_ids
-from veoveo_uav_sim.px4 import Px4Commander
+from veoveo_uav_sim.px4 import Px4CommandRejected, Px4Commander
 from veoveo_uav_sim.state import RuntimeState, VehicleTelemetry
 from veoveo_uav_sim.stream_output import _annex_b_nals, _packetize_nal
 from veoveo_uav_sim.world_config import (
@@ -601,6 +601,54 @@ class _MavlinkConnection:
 
 
 class Px4CommanderTests(unittest.TestCase):
+    def test_initial_arm_retries_temporary_preflight_rejection(self) -> None:
+        connection = _MavlinkConnection(
+            [mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM]
+        )
+        connection._messages.insert(
+            0,
+            _MavlinkMessage(
+                "COMMAND_ACK",
+                command=mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+                result=mavutil.mavlink.MAV_RESULT_TEMPORARILY_REJECTED,
+            ),
+        )
+        commander = Px4Commander(instance=0, origin_height_m=-17.0)
+        commander._connection = connection
+        commander._connected = True
+
+        with patch("veoveo_uav_sim.px4.ARM_RETRY_INTERVAL_SECONDS", 0.0):
+            commander.arm()
+
+        self.assertEqual(
+            [command for command, _parameters in connection.mav.commands],
+            [
+                mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+                mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+            ],
+        )
+
+    def test_initial_arm_fails_immediately_on_permanent_rejection(self) -> None:
+        connection = _MavlinkConnection([])
+        connection._messages.insert(
+            0,
+            _MavlinkMessage(
+                "COMMAND_ACK",
+                command=mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+                result=mavutil.mavlink.MAV_RESULT_DENIED,
+            ),
+        )
+        commander = Px4Commander(instance=0, origin_height_m=-17.0)
+        commander._connection = connection
+        commander._connected = True
+
+        with self.assertRaises(Px4CommandRejected) as rejected:
+            commander.arm()
+        self.assertEqual(
+            rejected.exception.result,
+            mavutil.mavlink.MAV_RESULT_DENIED,
+        )
+
     def test_rearm_exits_land_mode_before_arming(self) -> None:
         connection = _MavlinkConnection(
             [
