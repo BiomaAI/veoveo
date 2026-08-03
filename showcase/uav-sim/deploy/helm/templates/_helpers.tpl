@@ -67,6 +67,8 @@
   value: {{ .root.Values.session.fleetLoop.relativeAltitudeM | quote }}
 - name: UAV_SIM_FLEET_LOOP_VERTICAL_SEPARATION_M
   value: {{ .root.Values.session.fleetLoop.verticalSeparationM | quote }}
+- name: UAV_SIM_FLEET_LOOP_TAKEOFF_TIMEOUT_SECONDS
+  value: {{ .root.Values.session.fleetLoop.takeoffTimeoutSeconds | quote }}
 - name: UAV_SIM_FLEET_LOOP_CENTER_EAST_M
   value: {{ .root.Values.session.fleetLoop.centerEastM | quote }}
 - name: UAV_SIM_FLEET_LOOP_CENTER_NORTH_M

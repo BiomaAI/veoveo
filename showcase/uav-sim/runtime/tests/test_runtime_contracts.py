@@ -116,6 +116,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(loop.east_radius_m, 2_500.0)
         self.assertEqual(loop.north_radius_m, 9_000.0)
         self.assertEqual(loop.relative_altitude_m, 450.0)
+        self.assertEqual(loop.takeoff_timeout_seconds, 420.0)
 
     def test_fleet_loop_rejects_an_excessive_separated_altitude(self) -> None:
         environment = {
@@ -273,6 +274,7 @@ class FleetLoopTests(unittest.TestCase):
         config = FleetLoopConfig(
             relative_altitude_m=300.0,
             vertical_separation_m=10.0,
+            takeoff_timeout_seconds=420.0,
             center_east_m=1_700.0,
             center_north_m=3_000.0,
             east_radius_m=2_500.0,
@@ -307,6 +309,7 @@ class FleetLoopTests(unittest.TestCase):
             FleetLoopConfig(
                 relative_altitude_m=300.0,
                 vertical_separation_m=10.0,
+                takeoff_timeout_seconds=420.0,
                 center_east_m=1_700.0,
                 center_north_m=3_000.0,
                 east_radius_m=2_500.0,
