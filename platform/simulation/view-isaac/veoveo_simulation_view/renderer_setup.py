@@ -23,6 +23,7 @@ MATERIAL_ALLOWLIST_SETTING = (
 )
 RENDERER_MDL_SEARCH_PATH_SETTING = "/renderer/mdl/searchPaths/custom"
 CESIUM_MDL_MODULE_NAME = "cesium.mdl"
+VIEWPORT_GRID_ENABLED_SETTING = "/app/viewport/grid/enabled"
 
 
 class RendererFailureCode(str, Enum):
@@ -72,6 +73,18 @@ def configure_headless_cesium_extension(settings: Any) -> None:
             RendererFailure(
                 RendererFailureCode.RENDERER_INITIALIZATION_FAILED,
                 "Cesium interactive UI suppression did not take effect",
+            )
+        )
+
+
+def disable_render_product_grid(settings: Any) -> None:
+    """Keep the interactive Kit grid out of governed camera products."""
+    settings.set(VIEWPORT_GRID_ENABLED_SETTING, False)
+    if settings.get(VIEWPORT_GRID_ENABLED_SETTING) is not False:
+        raise RendererInitializationError(
+            RendererFailure(
+                RendererFailureCode.RENDERER_INITIALIZATION_FAILED,
+                "renderer viewport grid suppression did not take effect",
             )
         )
 

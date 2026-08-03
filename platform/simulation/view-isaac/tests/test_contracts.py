@@ -60,8 +60,10 @@ from veoveo_simulation_view.renderer_setup import (
     RendererFailureCode,
     RendererInitializationError,
     configure_headless_cesium_extension,
+    disable_render_product_grid,
     ensure_cesium_material_runtime,
     suppress_interactive_cesium_viewport_updates,
+    VIEWPORT_GRID_ENABLED_SETTING,
 )
 from veoveo_simulation_view.runtime import Renderer, SessionRuntime
 from veoveo_simulation_view.scene import ArtifactMaterializer, ArtifactStore
@@ -99,6 +101,13 @@ class RendererContractsTest(unittest.TestCase):
         configure_headless_cesium_extension(settings)
 
         self.assertIs(settings.get(CESIUM_SHOW_ON_STARTUP_SETTING), False)
+
+    def test_headless_renderer_disables_grid_in_render_products(self) -> None:
+        settings = FakeSettings({VIEWPORT_GRID_ENABLED_SETTING: True})
+
+        disable_render_product_grid(settings)
+
+        self.assertIs(settings.get(VIEWPORT_GRID_ENABLED_SETTING), False)
 
     def test_headless_renderer_detaches_only_interactive_cesium_updates(
         self,

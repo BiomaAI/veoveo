@@ -38,6 +38,7 @@ from .renderer_setup import (
     RendererFailureCode,
     RendererInitializationError,
     configure_headless_cesium_extension,
+    disable_render_product_grid,
     ensure_cesium_material_runtime,
     suppress_interactive_cesium_viewport_updates,
 )
@@ -409,6 +410,7 @@ def run(config: RendererConfig) -> None:
                         "a required renderer extension is unavailable",
                     )
                 )
+        disable_render_product_grid(settings)
         suppress_interactive_cesium_viewport_updates(manager)
         material_status = ensure_cesium_material_runtime(settings)
         _verify_stream_settings(settings, config)
