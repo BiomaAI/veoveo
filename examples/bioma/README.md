@@ -64,8 +64,9 @@ Production workloads use the repository and digest map in images.lock.yaml. The
 platform Application selects chart 0.1.0-628ee1df1027, published from commit
 628ee1df1027ae653adc5dc8c00c2d8600c00fbe. The Simulation View renderer
 was published from commit 4a632d3dade497191bbb033acdddb36f1b314925. The UAV Application
-selects chart 0.1.0-628ee1df1027. Its MCP and runtime images were published from
-commit 628ee1df1027ae653adc5dc8c00c2d8600c00fbe. Each selected digest is the
+selects chart 0.1.0-628ee1df1027. Its MCP image was published from commit
+62240dec971f49471fdc0b3d89927a266c7ff5b1, and its runtime image was published
+from commit 628ee1df1027ae653adc5dc8c00c2d8600c00fbe. Each selected digest is the
 workload's release identity. A release-input commit advances the coordinated runtime
 closure.
 
