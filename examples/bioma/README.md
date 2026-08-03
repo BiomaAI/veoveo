@@ -209,6 +209,8 @@ jq -n '{
     "refresh-delivery-key-b64": env.VEOVEO_REFRESH_DELIVERY_KEY_B64,
     "console-session-key": env.VEOVEO_CONSOLE_SESSION_KEY,
     "recording-playback-token-key": env.VEOVEO_RECORDING_PLAYBACK_TOKEN_KEY,
+    "simulation-view-renderer-control-token": env.SIMULATION_VIEW_RENDERER_CONTROL_TOKEN,
+    "simulation-view-pose-control-token": env.SIMULATION_VIEW_POSE_CONTROL_TOKEN,
     "object-store-access-key": env.VEOVEO_OBJECT_STORE_ACCESS_KEY,
     "object-store-secret-key": env.VEOVEO_OBJECT_STORE_SECRET_KEY,
     "media-provider-api-key": env.MEDIA_PROVIDER_API_KEY,
@@ -241,11 +243,78 @@ jq -n '{
   type: "Opaque",
   stringData: {token: env.CLOUDFLARED_TUNNEL_TOKEN}
 }' | kubectl --context k3d-veoveo-bioma apply -f -
+
+pose_tls_dir=$(mktemp -d)
+trap 'rm -rf "$pose_tls_dir"' EXIT
+umask 077
+
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 \
+  -out "$pose_tls_dir/ca.key.pem"
+openssl req -x509 -new -sha256 -days 30 \
+  -key "$pose_tls_dir/ca.key.pem" \
+  -subj '/CN=VeoVeo Reference Pose CA' \
+  -out "$pose_tls_dir/ca.crt.pem"
+
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 \
+  -out "$pose_tls_dir/server.key.pem"
+openssl req -new -sha256 \
+  -key "$pose_tls_dir/server.key.pem" \
+  -subj '/CN=simulation-view-pose' \
+  -addext 'subjectAltName=DNS:simulation-view-pose,DNS:simulation-view-pose.veoveo.svc,DNS:simulation-view-pose.veoveo.svc.cluster.local' \
+  -addext 'extendedKeyUsage=serverAuth' \
+  -out "$pose_tls_dir/server.csr.pem"
+openssl x509 -req -sha256 -days 30 -copy_extensions copy \
+  -in "$pose_tls_dir/server.csr.pem" \
+  -CA "$pose_tls_dir/ca.crt.pem" \
+  -CAkey "$pose_tls_dir/ca.key.pem" \
+  -CAcreateserial \
+  -out "$pose_tls_dir/server.crt.pem"
+
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 \
+  -out "$pose_tls_dir/producer.key.pem"
+openssl req -new -sha256 \
+  -key "$pose_tls_dir/producer.key.pem" \
+  -subj '/CN=uav-sim' \
+  -addext 'subjectAltName=URI:spiffe://veoveo.local/simulation/uav-sim' \
+  -addext 'extendedKeyUsage=clientAuth' \
+  -out "$pose_tls_dir/producer.csr.pem"
+openssl x509 -req -sha256 -days 30 -copy_extensions copy \
+  -in "$pose_tls_dir/producer.csr.pem" \
+  -CA "$pose_tls_dir/ca.crt.pem" \
+  -CAkey "$pose_tls_dir/ca.key.pem" \
+  -CAcreateserial \
+  -out "$pose_tls_dir/producer.crt.pem"
+
+openssl x509 -in "$pose_tls_dir/ca.crt.pem" -outform DER \
+  -out "$pose_tls_dir/ca.crt.der"
+openssl x509 -in "$pose_tls_dir/server.crt.pem" -outform DER \
+  -out "$pose_tls_dir/server.crt.der"
+openssl pkcs8 -topk8 -nocrypt -inform PEM -outform DER \
+  -in "$pose_tls_dir/server.key.pem" \
+  -out "$pose_tls_dir/server.key.der"
+
+kubectl --context k3d-veoveo-bioma -n veoveo create secret generic \
+  simulation-view-pose-tls \
+  --from-file=tls.crt.der="$pose_tls_dir/server.crt.der" \
+  --from-file=tls.key.der="$pose_tls_dir/server.key.der" \
+  --from-file=ca.crt.der="$pose_tls_dir/ca.crt.der" \
+  --dry-run=client -o yaml | \
+  kubectl --context k3d-veoveo-bioma apply -f -
+
+kubectl --context k3d-veoveo-bioma -n veoveo create secret generic \
+  uav-sim-pose-producer-tls \
+  --from-file=ca.crt="$pose_tls_dir/ca.crt.pem" \
+  --from-file=tls.crt="$pose_tls_dir/producer.crt.pem" \
+  --from-file=tls.key="$pose_tls_dir/producer.key.pem" \
+  --dry-run=client -o yaml | \
+  kubectl --context k3d-veoveo-bioma apply -f -
 ~~~
 
 A production installation projects the same keys from its secret manager. The UAV,
 Cloudflare, and recording-producer credentials remain separate least-privilege
-Secrets. The committed JWKS files contain public keys only. Bioma mounts the
+Secrets. The local pose certificates above expire after 30 days and exist only for
+the disposable reference cluster. Rotate them through the installation secret manager
+in a fielded deployment. The committed JWKS files contain public keys only. Bioma mounts the
 installation-owned machine-client JWKS with the gateway control plane, which keeps
 local client assertions independent of an external JWKS endpoint.
 
