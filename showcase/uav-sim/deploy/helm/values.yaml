@@ -74,6 +74,17 @@ session:
   renderingHz: 20
   tileReadyFrames: 30
   privacyConsent: false
+  fleetLoop:
+    relativeAltitudeM: 450
+    verticalSeparationM: 15
+    centerEastM: 1700
+    centerNorthM: 3000
+    eastRadiusM: 2500
+    northRadiusM: 9000
+    radialSeparationM: 100
+    waypointCount: 32
+    speedMps: 25
+    holdSeconds: 0
   camera:
     width: 640
     height: 480

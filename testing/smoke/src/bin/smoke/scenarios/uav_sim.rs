@@ -1698,7 +1698,17 @@ mod tests {
         assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v9");
         assert_eq!(scenario.session_id, "uav-showcase");
         assert_eq!(scenario.world.world_id.as_str(), "uav-showcase-new-york");
-        assert_eq!(scenario.world.tree.frames.len(), 6);
+        assert_eq!(scenario.world.tree.frames.len(), 15);
+        for vehicle in 1..=4 {
+            assert!(
+                scenario
+                    .world
+                    .tree
+                    .frames
+                    .iter()
+                    .any(|frame| { frame.frame_id.as_str() == format!("uav-{vehicle}-body") })
+            );
+        }
         let origin = scenario.world.origin().unwrap();
         assert_eq!(origin.latitude_degrees, 40.758);
         assert_eq!(origin.longitude_degrees, -73.9855);

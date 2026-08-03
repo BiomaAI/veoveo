@@ -10,7 +10,14 @@ from typing import Callable
 from aiohttp import web
 
 from .config import RuntimeConfig
-from .contracts import ContractError, DirectCommand, DurableOperation, parse_command, parse_operation
+from .contracts import (
+    ContractError,
+    DirectCommand,
+    DurableOperation,
+    parse_command,
+    parse_operation,
+)
+from .fleet_loop import FleetLoopController
 from .pose import initial_pose_publication
 from .px4 import Px4Commander
 from .recording import RecordingPublisher
@@ -129,6 +136,7 @@ class AdapterApplication:
         commanders: dict[str, Px4Commander],
         recording: RecordingPublisher,
         world_slot: WorldConfigurationSlot,
+        fleet_loop: FleetLoopController,
     ) -> None:
         self._config = config
         self._state = state
@@ -136,6 +144,7 @@ class AdapterApplication:
         self._commanders = commanders
         self._recording = recording
         self._world_slot = world_slot
+        self._fleet_loop = fleet_loop
         self._app = web.Application(client_max_size=2 * 1024 * 1024)
         self._app.add_routes(
             [
@@ -246,6 +255,7 @@ class AdapterApplication:
             resource_uri = f"uav-sim://session/{command.session_id}/world"
         else:
             assert command.vehicle_id is not None
+            self._fleet_loop.take_control((command.vehicle_id,))
             commander = self._commander(command.vehicle_id)
             if command.command == "arm":
                 commander.arm()
@@ -326,6 +336,7 @@ class AdapterApplication:
         vehicle_ids = [mission.vehicle_id for mission in operation.vehicles]
         if len(vehicle_ids) != len(set(vehicle_ids)):
             raise ValueError("a mission may name each vehicle only once")
+        self._fleet_loop.take_control(tuple(vehicle_ids))
         started_at = _timestamp()
         self._recording.log_mission(
             operation.mission_id, "running", {"vehicle_ids": vehicle_ids}

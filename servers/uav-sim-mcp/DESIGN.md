@@ -157,8 +157,19 @@ recording inputs. They are not operator views.
 
 The pod-local GCS link binds `14550 + instance` and the matching PX4 endpoint
 at `18570 + instance`. Commands require explicit accepted acknowledgements.
-Arm completion also requires an armed heartbeat. A land command interrupts an
-active waypoint loop before acquiring the MAVLink command channel.
+Arm completion also requires an armed heartbeat.
+
+The runtime starts one default closed route per configured vehicle after every
+process start. Routes derive from the immutable ENU origin and use separate
+east and north radii, center offsets, radial separation, and vertical
+separation. Each vehicle arms, takes off, and repeats its route while the
+simulation remains available.
+
+An explicit vehicle command or mission claims the named vehicle before it
+uses the MAVLink channel. Claiming interrupts the default route and waits for
+its worker to relinquish control. The new command then becomes authoritative;
+the default route does not resume behind it. Other fleet vehicles continue
+their routes. A land command uses the same takeover boundary.
 
 ## Typed Domain Model
 

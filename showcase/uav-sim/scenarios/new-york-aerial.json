@@ -4,8 +4,8 @@
   "geospatial_layer_id": "photorealistic-world",
   "world": {
     "world_id": "uav-showcase-new-york",
-    "display_name": "UAV showcase — New York",
-    "description": "Complete Earth, Isaac, vehicle, and camera frame hierarchy for the New York aerial showcase.",
+    "display_name": "UAV fleet showcase — New York",
+    "description": "Complete Earth, Isaac, fleet, and camera frame hierarchy for the New York aerial showcase.",
     "simulation_frame_id": "isaac-world",
     "tree": {
       "frames": [
@@ -77,6 +77,123 @@
             "kind": "optical_rdf"
           },
           "parent_frame_id": "uav-1-body",
+          "parent_transform": {
+            "kind": "static_rigid",
+            "translation_m": [0.6, 0.0, 0.05],
+            "rotation_xyzw": [0.0, 0.0, -0.7071067811865476, 0.7071067811865476]
+          },
+          "description": "RTX nadir camera optical frame."
+        },
+        {
+          "frame_id": "uav-2-body",
+          "basis": {
+            "kind": "frd"
+          },
+          "parent_frame_id": "isaac-world",
+          "parent_transform": {
+            "kind": "dynamic_stream",
+            "stream_uri": "uav-sim://session/uav-showcase",
+            "entity_path": "/world/uav-sim/uav-showcase/vehicle/uav-2"
+          },
+          "description": "PX4 vehicle body frame resolved from the live pose stream."
+        },
+        {
+          "frame_id": "uav-2-imu",
+          "basis": {
+            "kind": "frd"
+          },
+          "parent_frame_id": "uav-2-body",
+          "parent_transform": {
+            "kind": "static_rigid",
+            "translation_m": [0.0, 0.0, 0.0],
+            "rotation_xyzw": [0.0, 0.0, 0.0, 1.0]
+          },
+          "description": "Vehicle inertial measurement frame."
+        },
+        {
+          "frame_id": "uav-2-down-camera",
+          "basis": {
+            "kind": "optical_rdf"
+          },
+          "parent_frame_id": "uav-2-body",
+          "parent_transform": {
+            "kind": "static_rigid",
+            "translation_m": [0.6, 0.0, 0.05],
+            "rotation_xyzw": [0.0, 0.0, -0.7071067811865476, 0.7071067811865476]
+          },
+          "description": "RTX nadir camera optical frame."
+        },
+        {
+          "frame_id": "uav-3-body",
+          "basis": {
+            "kind": "frd"
+          },
+          "parent_frame_id": "isaac-world",
+          "parent_transform": {
+            "kind": "dynamic_stream",
+            "stream_uri": "uav-sim://session/uav-showcase",
+            "entity_path": "/world/uav-sim/uav-showcase/vehicle/uav-3"
+          },
+          "description": "PX4 vehicle body frame resolved from the live pose stream."
+        },
+        {
+          "frame_id": "uav-3-imu",
+          "basis": {
+            "kind": "frd"
+          },
+          "parent_frame_id": "uav-3-body",
+          "parent_transform": {
+            "kind": "static_rigid",
+            "translation_m": [0.0, 0.0, 0.0],
+            "rotation_xyzw": [0.0, 0.0, 0.0, 1.0]
+          },
+          "description": "Vehicle inertial measurement frame."
+        },
+        {
+          "frame_id": "uav-3-down-camera",
+          "basis": {
+            "kind": "optical_rdf"
+          },
+          "parent_frame_id": "uav-3-body",
+          "parent_transform": {
+            "kind": "static_rigid",
+            "translation_m": [0.6, 0.0, 0.05],
+            "rotation_xyzw": [0.0, 0.0, -0.7071067811865476, 0.7071067811865476]
+          },
+          "description": "RTX nadir camera optical frame."
+        },
+        {
+          "frame_id": "uav-4-body",
+          "basis": {
+            "kind": "frd"
+          },
+          "parent_frame_id": "isaac-world",
+          "parent_transform": {
+            "kind": "dynamic_stream",
+            "stream_uri": "uav-sim://session/uav-showcase",
+            "entity_path": "/world/uav-sim/uav-showcase/vehicle/uav-4"
+          },
+          "description": "PX4 vehicle body frame resolved from the live pose stream."
+        },
+        {
+          "frame_id": "uav-4-imu",
+          "basis": {
+            "kind": "frd"
+          },
+          "parent_frame_id": "uav-4-body",
+          "parent_transform": {
+            "kind": "static_rigid",
+            "translation_m": [0.0, 0.0, 0.0],
+            "rotation_xyzw": [0.0, 0.0, 0.0, 1.0]
+          },
+          "description": "Vehicle inertial measurement frame."
+        },
+        {
+          "frame_id": "uav-4-down-camera",
+          "basis": {
+            "kind": "optical_rdf"
+          },
+          "parent_frame_id": "uav-4-body",
           "parent_transform": {
             "kind": "static_rigid",
             "translation_m": [0.6, 0.0, 0.05],

@@ -123,6 +123,55 @@ class CameraConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class FleetLoopConfig:
+    relative_altitude_m: float
+    vertical_separation_m: float
+    center_east_m: float
+    center_north_m: float
+    east_radius_m: float
+    north_radius_m: float
+    radial_separation_m: float
+    waypoint_count: int
+    speed_mps: float
+    hold_seconds: float
+
+    @classmethod
+    def from_environment(cls) -> "FleetLoopConfig":
+        return cls(
+            relative_altitude_m=_float(
+                "UAV_SIM_FLEET_LOOP_RELATIVE_ALTITUDE_M", "450.0", 1.0, 500.0
+            ),
+            vertical_separation_m=_float(
+                "UAV_SIM_FLEET_LOOP_VERTICAL_SEPARATION_M", "15.0", 0.0, 100.0
+            ),
+            center_east_m=_float(
+                "UAV_SIM_FLEET_LOOP_CENTER_EAST_M", "1700.0", -100_000.0, 100_000.0
+            ),
+            center_north_m=_float(
+                "UAV_SIM_FLEET_LOOP_CENTER_NORTH_M", "3000.0", -100_000.0, 100_000.0
+            ),
+            east_radius_m=_float(
+                "UAV_SIM_FLEET_LOOP_EAST_RADIUS_M", "2500.0", 10.0, 100_000.0
+            ),
+            north_radius_m=_float(
+                "UAV_SIM_FLEET_LOOP_NORTH_RADIUS_M", "9000.0", 10.0, 100_000.0
+            ),
+            radial_separation_m=_float(
+                "UAV_SIM_FLEET_LOOP_RADIAL_SEPARATION_M", "100.0", 0.0, 1_000.0
+            ),
+            waypoint_count=_int(
+                "UAV_SIM_FLEET_LOOP_WAYPOINT_COUNT", "32", 4, 256
+            ),
+            speed_mps=_float(
+                "UAV_SIM_FLEET_LOOP_SPEED_MPS", "25.0", 0.1, 100.0
+            ),
+            hold_seconds=_float(
+                "UAV_SIM_FLEET_LOOP_HOLD_SECONDS", "0.0", 0.0, 3_600.0
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class StreamPublicationConfig:
     host: str
     port: int
@@ -256,6 +305,7 @@ class RuntimeConfig:
     recording_proxy: str
     recording_key: uuid.UUID
     camera: CameraConfig
+    fleet_loop: FleetLoopConfig
     stream_publication: StreamPublicationConfig | None
     pose_publication: PosePublisherConfig
     extension_directory: str
@@ -263,6 +313,13 @@ class RuntimeConfig:
     def __post_init__(self) -> None:
         if self.rendering_hz != self.camera.fps:
             raise ValueError("UAV_SIM_RENDERING_HZ must match UAV_SIM_CAMERA_FPS")
+        highest_loop_altitude = self.fleet_loop.relative_altitude_m + (
+            self.vehicle_count - 1
+        ) * self.fleet_loop.vertical_separation_m
+        if highest_loop_altitude > 500.0:
+            raise ValueError(
+                "fleet loop altitude plus vehicle separation must not exceed 500 metres"
+            )
 
     @classmethod
     def from_environment(cls) -> "RuntimeConfig":
@@ -314,6 +371,7 @@ class RuntimeConfig:
             ),
             recording_key=recording_key,
             camera=CameraConfig.from_environment(),
+            fleet_loop=FleetLoopConfig.from_environment(),
             stream_publication=StreamPublicationConfig.from_environment(),
             pose_publication=PosePublisherConfig.from_environment(),
             extension_directory=os.environ.get(

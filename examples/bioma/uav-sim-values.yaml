@@ -8,6 +8,7 @@ platform:
   recordingTenantKey: bioma
 
 session:
+  vehicleCount: 4
   camera:
     width: 640
     height: 480
