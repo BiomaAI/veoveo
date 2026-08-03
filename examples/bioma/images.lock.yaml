@@ -26,6 +26,6 @@ global:
     veoveo/simulation-view-pose: sha256:dabbbe2175a1f47c16e43d634953616c8c57a3538cfd465a9cd9c6ba899f703a
     veoveo/time-mcp: sha256:35ed379cda0a01447691ea6b5f5a7f5ca4da526c2333e731e8afa85d50898bd8
     veoveo/timeseries-mcp: sha256:9f5822fc5320e777932e3dd2800a445b8d7472fd7750471b845312d90594381e
-    veoveo/uav-sim-mcp: sha256:f8a50e98b863d93d1360c4af2ba9390dec9bbd8e06b6e7cc42da16dbc41cbdef
+    veoveo/uav-sim-mcp: sha256:f268e839d37f017a57bf9de7a36639f44e05af1c7b1adf1b330e00a8f6d51044
     veoveo/uav-sim-runtime: sha256:b108c551920e33b78394b83e5f962d91fa02925045bb36633cec42945ba975b9
     veoveo/view-mcp: sha256:bc014a5a5c252d7faff7c02576bcbba53168e8d8cc61799fa9f052792c40ac26
