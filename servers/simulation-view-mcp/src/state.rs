@@ -1029,16 +1029,17 @@ impl SimulationViewService {
         }
     }
 
-    pub(crate) fn abort_stream(&self, stream_id: &LiveViewId) {
+    pub(crate) fn cancel_stream_admission(&self, stream_id: &LiveViewId) {
         let mut state = self
             .state
             .lock()
             .expect("simulation-view state lock poisoned");
         if let Some(lease) = state.leases.get_mut(stream_id) {
-            lease.state.lifecycle = LiveViewLifecycle::Failed;
-            lease.state.connected_viewers = 0;
-            lease.token_hash.fill(0);
-            lease.state.expires_at = Utc::now();
+            close_lease(lease);
+            let session_id = lease.state.session_id.clone();
+            if let Some(session) = state.sessions.get_mut(&session_id) {
+                advance_desired(session);
+            }
         }
     }
 
@@ -1386,7 +1387,15 @@ impl SimulationViewService {
             .lock()
             .expect("simulation-view state lock poisoned");
         if let Some(session) = state.sessions.get_mut(session_id) {
-            session.reconciliation.phase = phase;
+            let verifying_converged_state = session.reconciliation.desired_revision
+                == session.reconciliation.realized_revision
+                && matches!(
+                    session.reconciliation.phase,
+                    ReconciliationPhase::Healthy | ReconciliationPhase::Revoked
+                );
+            if !verifying_converged_state {
+                session.reconciliation.phase = phase;
+            }
             session.reconciliation.next_attempt_at = next_attempt_at;
             session.reconciliation.failed_dependency = None;
             session.reconciliation.failure_code = None;
@@ -2432,6 +2441,13 @@ mod tests {
             restored_session.reconciliation.phase,
             ReconciliationPhase::Pending
         );
+        assert!(!restored.reconciliation_ready());
+        restored.mark_reconciliation_phase(
+            &session.session_id,
+            ReconciliationPhase::RendererSession,
+            None,
+        );
+        assert!(!restored.reconciliation_ready());
         assert_eq!(
             restored_session
                 .pose_source
@@ -2489,6 +2505,29 @@ mod tests {
             Utc::now() - chrono::Duration::seconds(1),
         );
         assert_eq!(service.reconciliation_sessions().len(), 1);
+    }
+
+    #[test]
+    fn routine_reconciliation_keeps_converged_durable_state_ready() {
+        let service = SimulationViewService::new(SimulationViewConfig::default()).unwrap();
+        let owner = view_owner("issuer#durability-operator");
+        let session = bound_session(&service, &owner);
+        service.mark_reconciliation_healthy(&session.session_id, Utc::now());
+
+        assert!(service.reconciliation_ready());
+        service.mark_reconciliation_phase(
+            &session.session_id,
+            ReconciliationPhase::RendererSession,
+            None,
+        );
+
+        assert!(service.reconciliation_ready());
+        let current = service.get_session(&owner, &session.session_id).unwrap();
+        assert_eq!(current.reconciliation.phase, ReconciliationPhase::Healthy);
+        assert_eq!(
+            current.reconciliation.desired_revision,
+            current.reconciliation.realized_revision
+        );
     }
 
     #[test]
@@ -2592,6 +2631,55 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(streams[0].stream.endpoint.media_port, 47998);
         assert_eq!(streams[1].stream.endpoint.media_port, 47999);
+    }
+
+    #[test]
+    fn cancelled_stream_admission_is_durable_desired_state() {
+        let service = SimulationViewService::new(SimulationViewConfig::default()).unwrap();
+        let owner = view_owner("issuer#operator");
+        let session = bound_session(&service, &owner);
+        let CameraAdmission::Admitted { camera } = service
+            .create_camera(
+                &owner,
+                CreateCameraRequest {
+                    session_id: session.session_id.clone(),
+                    definition: camera_definition(CameraStreamPolicy::OnDemand),
+                },
+            )
+            .unwrap()
+        else {
+            panic!("camera should be admitted");
+        };
+        let opened = service
+            .open_live_view(
+                &owner,
+                OpenLiveViewRequest {
+                    session_id: session.session_id.clone(),
+                    camera_id: camera.camera_id,
+                },
+            )
+            .unwrap();
+        let revision_after_open = service
+            .get_session(&owner, &session.session_id)
+            .unwrap()
+            .reconciliation
+            .desired_revision;
+
+        service.cancel_stream_admission(&opened.stream.live_view_id);
+
+        let cancelled = service
+            .get_stream(&owner, &opened.stream.live_view_id)
+            .unwrap();
+        assert_eq!(cancelled.lifecycle, LiveViewLifecycle::Closed);
+        assert_eq!(cancelled.connected_viewers, 0);
+        let desired = service.durable_state(&session.session_id).unwrap();
+        assert_eq!(desired.leases.len(), 1);
+        assert_eq!(desired.leases[0].state.lifecycle, LiveViewLifecycle::Closed);
+        assert_eq!(desired.leases[0].token_hash, [0; 32]);
+        assert_eq!(
+            desired.session.reconciliation.desired_revision,
+            revision_after_open + 1
+        );
     }
 
     #[test]

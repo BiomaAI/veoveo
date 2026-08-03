@@ -266,6 +266,7 @@ simulationView:
     digest: ""
   publicSignalingUrl: wss://veoveo.enterprise.example/simulation-view/signaling
   publicMediaIp: 192.0.2.10
+  streamTargetFps: 30
   ports:
     mcp: 8808
     rendererControl: 8810
@@ -309,6 +310,7 @@ simulationView:
   streamedWorld:
     enabled: false
     existingConfigMap: ""
+    catalogDigest: ""
     catalogKey: layers.json
     catalog:
       schemaVersion: veoveo.io/simulation-view-layer-catalog/v1

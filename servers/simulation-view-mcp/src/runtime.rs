@@ -15,6 +15,10 @@ use crate::contract::{
 
 pub const RENDERER_PROFILE: &str = "veoveo.io/simulation-view-renderer/isaac-rtx/v1";
 
+const RENDERER_STREAM_READY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+const RENDERER_STREAM_READY_POLL_INTERVAL: std::time::Duration =
+    std::time::Duration::from_millis(100);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RendererFailureCode {
@@ -416,29 +420,57 @@ impl RuntimeClients {
             stream.endpoint.media_port == expected_media_port,
             "live-view endpoint does not match its physical media slot"
         );
-        let status: RendererStreamStatus = self
-            .put_renderer_json(
-                &format!(
-                    "v1/sessions/{}/streams/{}",
-                    stream.session_id, stream.live_view_id
-                ),
-                &RendererStreamBinding {
-                    session_id: &stream.session_id,
-                    camera_id: &stream.camera_id,
-                    live_view_id: &stream.live_view_id,
-                    render_slot,
-                    media_port: stream.endpoint.media_port,
-                },
-            )
-            .await?;
-        anyhow::ensure!(
-            status.live_view_id == stream.live_view_id
-                && status.ready
-                && status.signal_port == expected_signal_port
-                && status.media_port == expected_media_port,
-            "renderer stream did not become ready on its admitted media slot"
+        let path = format!(
+            "v1/sessions/{}/streams/{}",
+            stream.session_id, stream.live_view_id
         );
-        Ok(status)
+        let binding = RendererStreamBinding {
+            session_id: &stream.session_id,
+            camera_id: &stream.camera_id,
+            live_view_id: &stream.live_view_id,
+            render_slot,
+            media_port: stream.endpoint.media_port,
+        };
+        self.await_stream_ready(
+            &path,
+            &binding,
+            &stream.live_view_id,
+            expected_signal_port,
+            expected_media_port,
+            RENDERER_STREAM_READY_TIMEOUT,
+            RENDERER_STREAM_READY_POLL_INTERVAL,
+        )
+        .await
+    }
+
+    async fn await_stream_ready(
+        &self,
+        path: &str,
+        binding: &RendererStreamBinding<'_>,
+        expected_live_view_id: &veoveo_mcp_contract::LiveViewId,
+        expected_signal_port: u16,
+        expected_media_port: u16,
+        timeout: std::time::Duration,
+        poll_interval: std::time::Duration,
+    ) -> anyhow::Result<RendererStreamStatus> {
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            let status: RendererStreamStatus = self.put_renderer_json(&path, &binding).await?;
+            anyhow::ensure!(
+                status.live_view_id == *expected_live_view_id
+                    && status.signal_port == expected_signal_port
+                    && status.media_port == expected_media_port,
+                "renderer stream did not remain on its admitted media slot"
+            );
+            if status.ready {
+                return Ok(status);
+            }
+            anyhow::ensure!(
+                tokio::time::Instant::now() < deadline,
+                "renderer stream did not become ready on its admitted media slot"
+            );
+            tokio::time::sleep(poll_interval).await;
+        }
     }
 
     pub async fn close_stream(
@@ -632,7 +664,88 @@ fn validate_control_token(token: &str) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use axum::{Json, Router, extract::State, routing::put};
+    use serde_json::{Value, json};
+    use veoveo_mcp_contract::{LiveCameraId, LiveSessionId, LiveViewId};
+
     use super::*;
+
+    #[derive(Clone)]
+    struct StreamFixture {
+        requests: Arc<AtomicUsize>,
+        ready_after: usize,
+        signal_port: u16,
+        media_port: u16,
+        live_view_id: LiveViewId,
+    }
+
+    async fn stream_fixture(
+        State(fixture): State<StreamFixture>,
+        Json(_body): Json<Value>,
+    ) -> Json<Value> {
+        let request = fixture.requests.fetch_add(1, Ordering::SeqCst) + 1;
+        Json(json!({
+            "liveViewId": fixture.live_view_id,
+            "ready": request >= fixture.ready_after,
+            "signalPort": fixture.signal_port,
+            "mediaPort": fixture.media_port,
+            "lastPoseSequence": 42,
+            "lastFrameAt": "2026-08-03T03:00:00Z"
+        }))
+    }
+
+    async fn runtime_with_stream_fixture(
+        fixture: StreamFixture,
+    ) -> (RuntimeClients, tokio::task::JoinHandle<()>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let router = Router::new()
+            .route("/{*path}", put(stream_fixture))
+            .with_state(fixture);
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router).await.unwrap();
+        });
+        let token = "a".repeat(32);
+        let runtime = RuntimeClients::new(
+            &format!("http://{address}"),
+            &format!("http://{address}"),
+            &token,
+            &token,
+            "ws://renderer:49100",
+            47998,
+        )
+        .unwrap();
+        (runtime, server)
+    }
+
+    async fn await_fixture_stream(
+        runtime: &RuntimeClients,
+        live_view_id: &LiveViewId,
+        timeout: std::time::Duration,
+    ) -> anyhow::Result<RendererStreamStatus> {
+        let session_id = LiveSessionId::new("session-1").unwrap();
+        let camera_id = LiveCameraId::new("camera-1").unwrap();
+        let binding = RendererStreamBinding {
+            session_id: &session_id,
+            camera_id: &camera_id,
+            live_view_id,
+            render_slot: 0,
+            media_port: 47998,
+        };
+        runtime
+            .await_stream_ready(
+                "v1/stream",
+                &binding,
+                live_view_id,
+                49100,
+                47998,
+                timeout,
+                std::time::Duration::from_millis(1),
+            )
+            .await
+    }
 
     #[test]
     fn renderer_readiness_fails_closed() {
@@ -703,5 +816,73 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[tokio::test]
+    async fn stream_open_retries_idempotently_until_the_renderer_is_ready() {
+        let live_view_id = LiveViewId::new("stream-1").unwrap();
+        let requests = Arc::new(AtomicUsize::new(0));
+        let fixture = StreamFixture {
+            requests: requests.clone(),
+            ready_after: 3,
+            signal_port: 49100,
+            media_port: 47998,
+            live_view_id: live_view_id.clone(),
+        };
+        let (runtime, server) = runtime_with_stream_fixture(fixture).await;
+
+        let status =
+            await_fixture_stream(&runtime, &live_view_id, std::time::Duration::from_secs(1))
+                .await
+                .unwrap();
+
+        assert!(status.ready);
+        assert_eq!(requests.load(Ordering::SeqCst), 3);
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn stream_open_rejects_renderer_slot_drift() {
+        let live_view_id = LiveViewId::new("stream-1").unwrap();
+        let fixture = StreamFixture {
+            requests: Arc::new(AtomicUsize::new(0)),
+            ready_after: 1,
+            signal_port: 49101,
+            media_port: 47998,
+            live_view_id: live_view_id.clone(),
+        };
+        let (runtime, server) = runtime_with_stream_fixture(fixture).await;
+
+        let error =
+            await_fixture_stream(&runtime, &live_view_id, std::time::Duration::from_secs(1))
+                .await
+                .unwrap_err();
+
+        assert!(error.to_string().contains("admitted media slot"));
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn stream_open_times_out_when_frames_never_become_ready() {
+        let live_view_id = LiveViewId::new("stream-1").unwrap();
+        let fixture = StreamFixture {
+            requests: Arc::new(AtomicUsize::new(0)),
+            ready_after: usize::MAX,
+            signal_port: 49100,
+            media_port: 47998,
+            live_view_id: live_view_id.clone(),
+        };
+        let (runtime, server) = runtime_with_stream_fixture(fixture).await;
+
+        let error = await_fixture_stream(
+            &runtime,
+            &live_view_id,
+            std::time::Duration::from_millis(10),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error.to_string().contains("did not become ready"));
+        server.abort();
     }
 }

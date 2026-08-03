@@ -29,7 +29,7 @@ use crate::{
         OpenLiveViewRequest, OpenLiveViewResult, PoseSourceState, RenewLiveViewRequest,
         RevokePoseProducerRequest, SetCameraRequest, SimulationViewError, SimulationViewSession,
     },
-    durability::SimulationViewRepository,
+    durability::{SimulationViewRepository, sanitized_error_chain},
     runtime::RuntimeClients,
     state::SimulationViewService,
     uris,
@@ -112,7 +112,7 @@ impl SimulationViewMcp {
             .persist(&self.state.service, session_id)
             .await
             .map_err(|error| {
-                tracing::error!(error = ?error, %session_id, "failed to persist Simulation View desired state");
+                tracing::error!(causes = ?sanitized_error_chain(&error), %session_id, "failed to persist Simulation View desired state");
                 McpError::internal_error(
                     "Simulation View desired state could not be committed",
                     None,
@@ -567,7 +567,22 @@ impl SimulationViewMcp {
         {
             Ok(status) => status,
             Err(error) => {
-                self.state.service.abort_stream(&result.stream.live_view_id);
+                if let Err(cleanup_error) = self
+                    .state
+                    .runtimes
+                    .close_stream(&result.stream.session_id, &result.stream.live_view_id)
+                    .await
+                {
+                    tracing::warn!(
+                        %cleanup_error,
+                        live_view_id = %result.stream.live_view_id,
+                        "failed to remove renderer stream after an unsuccessful open"
+                    );
+                }
+                self.state
+                    .service
+                    .cancel_stream_admission(&result.stream.live_view_id);
+                self.persist(&session_id).await?;
                 return Err(runtime_error(error));
             }
         };

@@ -15,6 +15,7 @@ MCP         /simulation-view/mcp
 App         ui://simulation-view/live.html
 health      /simulation-view/healthz
 readiness   /simulation-view/readyz
+runtime     /simulation-view/runtimez
 signaling   /simulation-view/signaling
 ```
 
@@ -349,8 +350,14 @@ use the diagnostic stub and cannot serve as production streaming evidence.
 
 ## Readiness And Deployment
 
-The MCP liveness endpoint reports only process health. Readiness calls both
-private workloads, Artifact Service, and the platform store, then fails unless:
+The MCP liveness endpoint reports only process health. Kubernetes readiness at
+`/simulation-view/readyz` admits the control plane when Artifact Service and the
+platform store are reachable. It deliberately does not remove the reconciler
+from traffic when a private runtime is recovering.
+
+Full runtime readiness is reported at `/simulation-view/runtimez`. The
+deployment profile probes this endpoint after rollout and fails installation
+unless:
 
 - the governed artifact plane is reachable;
 - the renderer is hardware accelerated on NVIDIA;
@@ -372,12 +379,14 @@ Kubernetes traffic admission uses `/simulation-view/readyz` for the MCP
 container and the private readiness endpoint for the renderer. MCP liveness
 continues to use `/simulation-view/healthz`. The renderer starts its private
 health server after the NVIDIA GPU and NVENC driver checks pass. Kit
-initialization failures leave readiness false and return a typed failure code
-without exposing extension paths or renderer settings. Renderer liveness also
-fails, which permits Kubernetes to restart that failed workload. A blocked
-durable reconciliation keeps the MCP pod out of traffic until the desired
-revision is durably realized. Visual acceptance must prove readiness with a
-real non-stale frame before the installation is accepted.
+initialization failures leave runtime readiness false and return a typed
+failure code without exposing extension paths or renderer settings. Renderer
+liveness also fails, which permits Kubernetes to restart that failed workload.
+A blocked durable reconciliation remains reachable through MCP and appears as
+a failed `/runtimez` report. `profile-up` waits for that report after rollout,
+so it cannot accept a deployment whose desired revision is not durably
+realized. Visual acceptance must prove runtime readiness with a real non-stale
+frame before the installation is accepted.
 
 There is no CPU renderer or software encoder fallback. The Isaac workload
 requests an NVIDIA RuntimeClass, one `nvidia.com/gpu`, writable runtime
@@ -395,12 +404,17 @@ both diagnostic light intensities to zero. Closing the last governed scene
 restores the diagnostic probe. Governed scenes receive one normalized OpenUSD
 distant light according to the shared scene contract.
 
-The renderer enables the pinned Cesium extension, then idempotently registers
+The renderer enables the exact `cesium.omniverse-0.29.0` extension, then idempotently registers
 the exact packaged `cesium.omniverse/mdl` directory in the Kit material path
 and the RTX renderer MDL path. It also allowlists `cesium.mdl` and enables RTX
 tangent-frame mode. Readback must find each registration exactly once before
-the renderer accepts a streamed-world scene. These image-owned paths require
-no installation value.
+the renderer accepts a streamed-world scene. The private pinned adapter
+disables Cesium's interactive window UI and detaches only that version's
+interactive viewport callback. Offscreen Hydra render products then submit the
+complete authoritative viewport set once per Kit update. A missing or changed
+private extension shape fails renderer initialization instead of silently
+competing for tile visibility. These image-owned paths require no installation
+value.
 
 Each admitted logical camera reconfigures a bounded physical HydraTexture
 slot. Closing a camera pauses that slot without destroying its RTX/NVENC
@@ -410,6 +424,15 @@ Media travels from the RTX AOV to NVIDIA's WebRTC extension without CPU
 readback. A low-cadence frame-health probe currently copies a diagnostic AOV
 for visibility reduction and is marked `TODO(GPU)` at the exact migration
 path. It is not the media data plane.
+
+`simulationView.streamTargetFps` configures every admitted NVENC/WebRTC render
+slot and is bounded to 1 through 120 frames per second. Camera frame cadence
+remains part of each typed camera definition; the renderer never invents a CPU
+frame path when either cadence cannot be met. An installation-owned external
+streamed-world ConfigMap must also declare
+`simulationView.streamedWorld.catalogDigest`. That digest drives renderer
+rollout when the mounted catalog changes without exposing its contents or any
+provider credential.
 
 Production uses a separate GPU from a GPU simulation workload. A shared GPU
 profile is invalid without measured memory, cadence, context-contention,

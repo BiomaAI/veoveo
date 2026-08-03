@@ -45,6 +45,7 @@ class RendererConfig:
     signaling_port_base: int
     media_port_base: int
     public_media_ip: str
+    stream_target_fps: int
     probe_width: int
     probe_height: int
     probe_fps: int
@@ -99,6 +100,9 @@ class RendererConfig:
             signaling_port_base=signaling_base,
             media_port_base=media_base,
             public_media_ip=_required("SIMULATION_VIEW_PUBLIC_MEDIA_IP"),
+            stream_target_fps=_integer(
+                "SIMULATION_VIEW_STREAM_TARGET_FPS", 30, 1, 120
+            ),
             probe_width=_integer(
                 "SIMULATION_VIEW_PROBE_WIDTH", 640, 64, 4096
             ),

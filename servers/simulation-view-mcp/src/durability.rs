@@ -12,7 +12,8 @@ use veoveo_mcp_contract::{
 };
 use veoveo_platform_store::{
     AuditEventId, AuditEventRecord, AuditOutcome, OpenObject, PlatformStore,
-    SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA, SimulationViewStateDraft, deterministic_tenant_id,
+    SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA, SimulationViewStateDraft, StoreError,
+    deterministic_tenant_id,
 };
 use veoveo_simulation_pose::EpochId;
 
@@ -24,6 +25,43 @@ use crate::{
 };
 
 const DESIRED_INTENT_SCHEMA: &str = "veoveo.io/simulation-view-desired-intent/v1";
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct SanitizedErrorCause {
+    depth: usize,
+    kind: &'static str,
+}
+
+pub(crate) fn sanitized_error_chain(error: &anyhow::Error) -> Vec<SanitizedErrorCause> {
+    error
+        .chain()
+        .enumerate()
+        .map(|(depth, cause)| SanitizedErrorCause {
+            depth,
+            kind: if let Some(store) = cause.downcast_ref::<StoreError>() {
+                match store {
+                    StoreError::SimulationViewStateNotFound(_) => "simulation_view_state_not_found",
+                    StoreError::SimulationViewRevisionGap { .. } => "simulation_view_revision_gap",
+                    StoreError::SimulationViewRevisionConflict { .. } => {
+                        "simulation_view_revision_conflict"
+                    }
+                    StoreError::Database(_) => "platform_store_database",
+                    StoreError::Config(_) => "platform_store_config",
+                    StoreError::Migration(_) => "platform_store_migration",
+                    _ => "platform_store",
+                }
+            } else if cause.is::<serde_json::Error>() {
+                "serialization"
+            } else if cause.is::<std::io::Error>() {
+                "io"
+            } else if cause.is::<crate::contract::SimulationViewError>() {
+                "simulation_view_state"
+            } else {
+                "dependency_or_context"
+            },
+        })
+        .collect()
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -557,6 +595,27 @@ mod tests {
                 .as_map(),
             &BTreeMap::from([("healthy".to_owned(), serde_json::json!(true))])
         );
+    }
+
+    #[test]
+    fn persistence_logs_keep_the_complete_typed_chain_without_values() {
+        let error = anyhow::Error::new(StoreError::SimulationViewRevisionConflict { revision: 7 })
+            .context("commit Simulation View desired state");
+
+        assert_eq!(
+            sanitized_error_chain(&error),
+            vec![
+                SanitizedErrorCause {
+                    depth: 0,
+                    kind: "dependency_or_context",
+                },
+                SanitizedErrorCause {
+                    depth: 1,
+                    kind: "simulation_view_revision_conflict",
+                },
+            ]
+        );
+        assert!(!format!("{:?}", sanitized_error_chain(&error)).contains('7'));
     }
 
     #[tokio::test]
