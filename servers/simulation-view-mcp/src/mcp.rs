@@ -26,8 +26,9 @@ use crate::{
         AuthorizePoseProducerRequest, BindSceneRequest, CameraAdmission, CapacityState,
         CloseCameraRequest, CloseLiveViewRequest, CloseResult, CloseSessionRequest,
         CreateCameraRequest, CreateSessionRequest, GetCapacityRequest, GetSessionStateRequest,
-        OpenLiveViewRequest, OpenLiveViewResult, PoseSourceState, RenewLiveViewRequest,
-        RevokePoseProducerRequest, SetCameraRequest, SimulationViewError, SimulationViewSession,
+        OpenLiveViewRequest, OpenLiveViewResult, PoseInterpolationStatus, PoseSourceResource,
+        PoseSourceState, RenewLiveViewRequest, RevokePoseProducerRequest, SetCameraRequest,
+        SimulationViewError, SimulationViewSession,
     },
     durability::{SimulationViewRepository, sanitized_error_chain},
     runtime::RuntimeClients,
@@ -1101,7 +1102,26 @@ impl ServerHandler for SimulationViewMcp {
                 .service
                 .get_session(&owner, &session_id)
                 .map_err(resource_error)?;
-            return json_resource(uri, session.pose_source.as_ref().ok_or_else(not_found)?);
+            let source = session.pose_source.clone().ok_or_else(not_found)?;
+            let interpolation = match self.state.runtimes.interpolation_status(&session).await {
+                Ok(status) => status,
+                Err(_) => PoseInterpolationStatus::unavailable(
+                    session
+                        .scene
+                        .as_ref()
+                        .ok_or_else(not_found)?
+                        .body
+                        .quality
+                        .interpolation,
+                ),
+            };
+            return json_resource(
+                uri,
+                &PoseSourceResource {
+                    source,
+                    interpolation,
+                },
+            );
         }
         if let Some(session_id) = uris::parse_reconciliation(uri) {
             let session = self

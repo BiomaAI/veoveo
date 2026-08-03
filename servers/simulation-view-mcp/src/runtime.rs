@@ -10,7 +10,8 @@ use veoveo_simulation_pose::{
 };
 
 use crate::contract::{
-    CameraDefinition, CameraRecord, GeospatialLayerHealth, PoseSourceState, SimulationViewSession,
+    CameraDefinition, CameraRecord, GeospatialLayerHealth, PoseInterpolationStatus,
+    PoseSourceState, SimulationViewSession,
 };
 
 pub const RENDERER_PROFILE: &str = "veoveo.io/simulation-view-renderer/isaac-rtx/v1";
@@ -318,6 +319,31 @@ impl RuntimeClients {
             status.schema_version == POSE_INGRESS_CONTROL_SCHEMA
                 && status.session_id.as_str() == session_id.as_str(),
             "pose ingress returned status for a different session"
+        );
+        Ok(status)
+    }
+
+    pub async fn interpolation_status(
+        &self,
+        session: &SimulationViewSession,
+    ) -> anyhow::Result<PoseInterpolationStatus> {
+        let status: PoseInterpolationStatus = self
+            .get_json_authenticated(
+                &self.renderer_endpoint,
+                &self.renderer_control_token,
+                &format!("v1/sessions/{}/pose-source", session.session_id),
+            )
+            .await?;
+        let expected = session
+            .scene
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("session scene is missing"))?
+            .body
+            .quality
+            .interpolation;
+        anyhow::ensure!(
+            status.policy == expected,
+            "renderer returned interpolation status for a different policy"
         );
         Ok(status)
     }

@@ -196,6 +196,77 @@ pub struct PoseSourceState {
     pub stale: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PoseInterpolationRuntimeState {
+    Unavailable,
+    Reset,
+    Warming,
+    HoldLatest,
+    Interpolating,
+    Holding,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PoseInterpolationResetReason {
+    PoseSourceChanged,
+    AuthorizationRevisionChanged,
+    EntityTableChanged,
+    SequenceGap,
+    SequenceRepeated,
+    SequenceReversed,
+    TimestampNotIncreasing,
+    Stale,
+    Revoked,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PoseInterpolationStatus {
+    pub policy: InterpolationPolicy,
+    pub state: PoseInterpolationRuntimeState,
+    pub previous_source_sequence: Option<u64>,
+    pub current_source_sequence: Option<u64>,
+    pub previous_simulation_timestamp_ns: Option<i64>,
+    pub current_simulation_timestamp_ns: Option<i64>,
+    pub rendered_simulation_timestamp_ns: Option<i64>,
+    pub interpolation_alpha: Option<f64>,
+    pub interpolation_delay_ns: u64,
+    pub discontinuity_reset_count: u64,
+    pub repeated_source_sample_count: u64,
+    pub skipped_source_sample_count: u64,
+    pub last_reset_reason: Option<PoseInterpolationResetReason>,
+}
+
+impl PoseInterpolationStatus {
+    pub fn unavailable(policy: InterpolationPolicy) -> Self {
+        Self {
+            policy,
+            state: PoseInterpolationRuntimeState::Unavailable,
+            previous_source_sequence: None,
+            current_source_sequence: None,
+            previous_simulation_timestamp_ns: None,
+            current_simulation_timestamp_ns: None,
+            rendered_simulation_timestamp_ns: None,
+            interpolation_alpha: None,
+            interpolation_delay_ns: 0,
+            discontinuity_reset_count: 0,
+            repeated_source_sample_count: 0,
+            skipped_source_sample_count: 0,
+            last_reset_reason: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PoseSourceResource {
+    #[serde(flatten)]
+    pub source: PoseSourceState,
+    pub interpolation: PoseInterpolationStatus,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SimulationViewSession {
@@ -725,5 +796,38 @@ mod tests {
         ] {
             assert!(!schema.contains(&format!("\"{field}\"")));
         }
+    }
+
+    #[test]
+    fn interpolation_status_is_typed_bounded_and_credential_free() {
+        let status = PoseInterpolationStatus {
+            policy: InterpolationPolicy::Linear,
+            state: PoseInterpolationRuntimeState::Interpolating,
+            previous_source_sequence: Some(41),
+            current_source_sequence: Some(42),
+            previous_simulation_timestamp_ns: Some(2_050_000_000),
+            current_simulation_timestamp_ns: Some(2_100_000_000),
+            rendered_simulation_timestamp_ns: Some(2_075_000_000),
+            interpolation_alpha: Some(0.5),
+            interpolation_delay_ns: 50_000_000,
+            discontinuity_reset_count: 2,
+            repeated_source_sample_count: 1,
+            skipped_source_sample_count: 3,
+            last_reset_reason: Some(PoseInterpolationResetReason::SequenceGap),
+        };
+
+        let value = serde_json::to_value(&status).unwrap();
+
+        assert_eq!(value["policy"], "linear");
+        assert_eq!(value["state"], "interpolating");
+        assert_eq!(value["interpolationAlpha"], 0.5);
+        assert_eq!(value["lastResetReason"], "sequence_gap");
+        let encoded = value.to_string();
+        assert!(!encoded.contains("producer"));
+        assert!(!encoded.contains("spiffe"));
+        assert_eq!(
+            serde_json::from_value::<PoseInterpolationStatus>(value).unwrap(),
+            status
+        );
     }
 }
