@@ -159,11 +159,30 @@ message size, cadence, and sequence. Shared memory and streaming framing feed
 the same latest-value store. An epoch replacement invalidates the previous
 snapshot immediately. Renderer disconnection cannot block the producer.
 
+The scene quality policy selects `hold_latest` or `linear`. The renderer
+validates that selection before scene admission. Hold-latest applies the newest
+authorized source pose exactly. Linear rendering retains a bounded source
+bracket and delays its render clock by one observed source interval. Position
+uses component-wise linear interpolation, while orientation uses normalized
+shortest-arc quaternion SLERP. One rendered pose frame drives every entity
+transform and camera rig during a render tick. The clock never advances beyond
+the newest source timestamp because the pose protocol declares no velocity or
+extrapolation contract.
+
+Session, epoch, source, authorization revision, entity-table identity,
+sequence, timestamp, stale, and revocation discontinuities clear the temporal
+bracket. A source gap re-primes from the new accepted pose. Repeated, reversed,
+malformed, expired, and revoked samples never become renderer state.
+
 The pose resource contains identity, expiry, sequence, heartbeat, and stale
-state. It never contains a socket path, certificate, or bearer credential.
-Resource reads refresh this state from the authenticated pose ingress. An
-unavailable ingress marks the public source stale rather than preserving an
-old healthy sample.
+state plus live interpolation diagnostics from the authenticated renderer.
+Diagnostics report policy, source bracket, rendered simulation timestamp,
+alpha, delay, reset reason, and bounded discontinuity counters. They remain
+realized runtime health and never enter the durable desired-intent digest. The
+resource never contains a socket path, certificate, bearer credential, or raw
+pose payload. Resource reads refresh producer state from the authenticated pose
+ingress. An unavailable ingress marks the public source stale, while an
+unavailable renderer reports the interpolation state as `unavailable`.
 
 ## Desired State And Authorization Renewal
 
@@ -212,7 +231,9 @@ acceptance leases without allowing the lead to consume the entire lifetime.
 Each renewal first commits its new expiry and authorization revision, then
 updates pose ingress and the renderer in place. Pose ingress preserves the
 latest-value store and shared-memory file during renewal, while the renderer
-preserves its mapped reader and latest accepted pose.
+preserves its mapped reader and latest accepted source pose but clears the
+interpolation bracket. The next authorized sample re-primes rendering without
+carrying temporal state across revisions.
 
 Revocation advances the same authorization revision and persists a tombstone.
 Pose ingress records that revision as a floor before it removes the active
