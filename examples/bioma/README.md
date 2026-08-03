@@ -62,10 +62,10 @@ published and its server contract is registered in the gateway control plane.
 
 Production workloads use the repository and digest map in images.lock.yaml. The
 platform Application selects chart 0.1.0-628ee1df1027, published from commit
-628ee1df1027ae653adc5dc8c00c2d8600c00fbe. The Simulation View renderer
-was published from commit 4a632d3dade497191bbb033acdddb36f1b314925. The UAV Application
+628ee1df1027ae653adc5dc8c00c2d8600c00fbe. The Simulation View renderer and
+control plane were published from commit 5dde0d7bbd6edefc8a8118b9acdbe21af0847ba2. The UAV Application
 selects chart 0.1.0-628ee1df1027. Its MCP image was published from commit
-e75ed4f53883f3e35d217c55f21d73286f6fe1ef, and its runtime image was published
+5dde0d7bbd6edefc8a8118b9acdbe21af0847ba2, and its runtime image was published
 from commit 628ee1df1027ae653adc5dc8c00c2d8600c00fbe. Each selected digest is the
 workload's release identity. A release-input commit advances the coordinated runtime
 closure.
