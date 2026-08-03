@@ -11,9 +11,9 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use veoveo_deploy_contract::{
     ConflictingGpuDevicePluginRemoval, GpuIsolation, GpuSchedulingProfile, GpuTimeSliceInterval,
-    GpuWorkloadPlacement, LoadedProfile, ManagedGpuAllocatorInstallation,
-    NVIDIA_DRA_CONTAINER_TOOLKIT_PACKAGE_VERSION, NVIDIA_DRA_DRIVER_NAME, NVIDIA_DRA_HELM_VERSION,
-    NVIDIA_DRA_HOST_DRIVER_VERSION, NVIDIA_DRA_KUBERNETES_VERSION,
+    LoadedProfile, ManagedGpuAllocatorInstallation, NVIDIA_DRA_CONTAINER_TOOLKIT_PACKAGE_VERSION,
+    NVIDIA_DRA_DRIVER_NAME, NVIDIA_DRA_HELM_VERSION, NVIDIA_DRA_HOST_DRIVER_VERSION,
+    NVIDIA_DRA_KUBERNETES_VERSION,
 };
 
 use super::{kubectl_apply_value, output_checked, status_checked};
@@ -22,12 +22,15 @@ use super::{kubectl_apply_value, output_checked, status_checked};
 mod admission;
 #[path = "gpu/helm.rs"]
 mod helm;
+#[path = "gpu/workloads.rs"]
+mod workloads;
 
 use admission::{validate_kubelet_daemon_set_contract, validate_kubelet_daemon_set_readiness};
 use helm::{
     install_allocator_chart, pull_and_verify_chart, verify_allocator_chart_render,
     verify_allocator_release_metadata,
 };
+use workloads::ready_gpu_workload_pods;
 
 const MANAGED_NODE_LABEL: &str = "nvidia.com/dra-kubelet-plugin";
 const MANAGED_NODE_LABEL_VALUE: &str = "true";
@@ -1110,38 +1113,7 @@ pub(super) fn verify_gpu_placement(
         );
         let uuids = group_uuids.entry(group.name.clone()).or_default();
         for workload in &group.workloads {
-            verify_gpu_workload_replicas(context, namespace, workload)?;
-            let pods = output_checked(
-                "kubectl",
-                [
-                    "--context",
-                    context,
-                    "--namespace",
-                    namespace,
-                    "get",
-                    "pods",
-                    "-l",
-                    format!("app.kubernetes.io/component={}", workload.deployment).as_str(),
-                    "-o",
-                    "json",
-                ],
-                None,
-            )?;
-            let pods: Value =
-                serde_json::from_slice(&pods).context("decoding GPU workload pods")?;
-            let pod_names = pods["items"]
-                .as_array()
-                .context("GPU workload pod list has no items")?
-                .iter()
-                .filter_map(|pod| pod.pointer("/metadata/name").and_then(Value::as_str))
-                .collect::<Vec<_>>();
-            ensure!(
-                pod_names.len() == usize::from(workload.replicas),
-                "GPU workload {} expected {} replicas but found {} pods",
-                workload.workload,
-                workload.replicas,
-                pod_names.len()
-            );
+            let pod_names = ready_gpu_workload_pods(context, namespace, workload)?;
             for pod in pod_names {
                 let output = output_checked(
                     "kubectl",
@@ -1151,7 +1123,7 @@ pub(super) fn verify_gpu_placement(
                         "--namespace",
                         namespace,
                         "exec",
-                        pod,
+                        pod.as_str(),
                         "-c",
                         workload.container.as_str(),
                         "--",
@@ -1200,50 +1172,6 @@ pub(super) fn verify_gpu_placement(
             );
         }
     }
-    Ok(())
-}
-
-fn verify_gpu_workload_replicas(
-    context: &str,
-    namespace: &str,
-    workload: &GpuWorkloadPlacement,
-) -> Result<()> {
-    let deployment = output_checked(
-        "kubectl",
-        [
-            "--context",
-            context,
-            "--namespace",
-            namespace,
-            "get",
-            "deployment",
-            workload.deployment.as_str(),
-            "-o",
-            "json",
-        ],
-        None,
-    )?;
-    let deployment: Value =
-        serde_json::from_slice(&deployment).context("decoding GPU workload Deployment")?;
-    let expected = u64::from(workload.replicas);
-    let desired = deployment
-        .pointer("/spec/replicas")
-        .and_then(Value::as_u64)
-        .unwrap_or(1);
-    let ready = deployment
-        .pointer("/status/readyReplicas")
-        .and_then(Value::as_u64)
-        .unwrap_or(0);
-    let available = deployment
-        .pointer("/status/availableReplicas")
-        .and_then(Value::as_u64)
-        .unwrap_or(0);
-    ensure!(
-        desired == expected && ready == expected && available == expected,
-        "GPU workload {} Deployment {} has desired={desired} ready={ready} available={available}; expected exactly {expected}",
-        workload.workload,
-        workload.deployment
-    );
     Ok(())
 }
 

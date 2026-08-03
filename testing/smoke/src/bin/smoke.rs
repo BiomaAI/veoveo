@@ -109,6 +109,12 @@ enum Cmd {
         #[arg(long)]
         lock: PathBuf,
     },
+    /// Verify the live GPU placement selected by a deployment profile without mutating it.
+    ProfileGpuVerify {
+        /// Deployment profile JSON.
+        #[arg(long)]
+        profile: PathBuf,
+    },
     /// Uninstall every Helm release selected by a deployment profile.
     ProfileDown {
         /// Deployment profile JSON.
@@ -655,6 +661,7 @@ async fn main() -> Result<()> {
         Cmd::ProfileClusterStop { profile } => profile_cluster_stop(&profile),
         Cmd::ProfileClusterDelete { profile } => profile_cluster_delete(&profile),
         Cmd::ProfileUp { profile, lock } => profile_up(&profile, &lock),
+        Cmd::ProfileGpuVerify { profile } => profile_gpu_verify(&profile),
         Cmd::ProfileDown { profile } => profile_down(&profile),
         Cmd::GpuAllocationVerify {
             context,

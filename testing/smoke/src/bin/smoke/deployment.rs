@@ -326,6 +326,25 @@ pub(crate) fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
     Ok(())
 }
 
+pub(crate) fn profile_gpu_verify(path: &Path) -> Result<()> {
+    let profile = load_profile(path)?;
+    let platform = profile.resolved_platform()?;
+    let scheduling = platform
+        .gpu_scheduling
+        .as_ref()
+        .context("deployment profile does not declare managed GPU scheduling")?;
+    verify_gpu_placement(
+        profile.definition.kubernetes.context.as_str(),
+        profile.definition.namespace.as_str(),
+        scheduling,
+    )?;
+    println!(
+        "Deployment profile {} GPU placement is healthy",
+        profile.definition.name
+    );
+    Ok(())
+}
+
 pub(crate) fn profile_down(path: &Path) -> Result<()> {
     let profile = load_profile(path)?;
     let context = profile.definition.kubernetes.context.as_str();
