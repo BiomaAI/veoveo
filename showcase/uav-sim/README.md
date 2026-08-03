@@ -113,6 +113,8 @@ Nested ellipses and separate altitudes keep the vehicles distinct. The loop
 continues for the life of the simulator process, and a pod restart reconstructs
 it from Helm configuration. The typed takeoff deadline covers the full climb to
 the configured showcase altitude and fails the runtime if PX4 never completes it.
+Each PX4 instance has a distinct pod-local GCS send and receive port pair, which
+keeps command and telemetry heartbeats isolated during concurrent cold starts.
 
 An explicit mission or direct flight command first claims every named vehicle.
 That claim interrupts its default loop and waits for the MAVLink channel before

@@ -13,7 +13,10 @@ ARG CESIUM_SHA256=fe38d6195974620e87d7cdad32bb4b38d5933389523d56e75bbae23bcf4da5
 WORKDIR /src
 RUN git clone https://github.com/PX4/PX4-Autopilot.git px4 \
     && git -C px4 checkout --detach "${PX4_COMMIT}" \
-    && git -C px4 submodule update --init --recursive \
+    && git -C px4 submodule update --init --recursive
+COPY patches/px4-1.17.0-multi-instance-gcs.patch /tmp/px4.patch
+RUN git -C px4 apply --check /tmp/px4.patch \
+    && git -C px4 apply /tmp/px4.patch \
     && make -C px4 px4_sitl_default \
     && rm -rf px4/.git px4/build/px4_sitl_default/build_gtest
 
