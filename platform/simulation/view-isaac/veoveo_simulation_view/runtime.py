@@ -226,6 +226,7 @@ class Renderer:
                 session.interpolation.reset(InterpolationResetReason.REVOKED)
                 session.pose_stale = True
                 session.last_applied_pose = None
+                self._scenes.mark_pose_stale(command.session_id)
                 session.pose_binding = command.value
                 return _accepted()
             mirror = PoseMirror(self._config.pose_directory)
@@ -260,6 +261,7 @@ class Renderer:
             session.pose_binding = None
             session.pose_stale = True
             session.last_applied_pose = None
+            self._scenes.mark_pose_stale(command.session_id)
             return CommandResult(HTTPStatus.NO_CONTENT)
         if operation == "put_camera":
             _scene(session)

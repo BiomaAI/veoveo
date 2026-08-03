@@ -35,7 +35,10 @@ from veoveo_simulation_view.contracts import (
     SceneBinding,
     SessionBinding,
 )
-from veoveo_simulation_view.interpolation import PoseInterpolator
+from veoveo_simulation_view.interpolation import (
+    InterpolationResetReason,
+    PoseInterpolator,
+)
 from veoveo_simulation_view.layers import LayerCatalog, StreamedWorldManager
 from veoveo_simulation_view.lighting import GovernedLighting
 from veoveo_simulation_view.pose import (
@@ -1213,6 +1216,99 @@ class RendererContractsTest(unittest.TestCase):
         self.assertEqual(result.body["discontinuityResetCount"], 0)
         self.assertNotIn("producer", json.dumps(result.body))
         self.assertNotIn("spiffe", json.dumps(result.body))
+
+    def test_authorization_renewal_and_revocation_reset_interpolation(
+        self,
+    ) -> None:
+        binding = SessionBinding("session-1", "epoch-1")
+        scene_body = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "fixtures/anonymous-scene-body.json"
+            ).read_text(encoding="utf-8")
+        )
+        scene_body["sessionId"] = binding.session_id
+        scene_body["epochId"] = binding.epoch_id
+        scene = SceneBinding.parse(
+            {"body": scene_body, "digest": f"sha256:{'1' * 64}"}
+        )
+        source = PoseSourceBinding(
+            session_id=binding.session_id,
+            epoch_id=binding.epoch_id,
+            frame_uri=scene.frame_uri,
+            frame_digest=scene.frame_digest,
+            entity_table_revision=1,
+            entity_table_digest=f"sha256:{'2' * 64}",
+            maximum_entities=20,
+            maximum_message_bytes=4 * 1024 * 1024,
+            maximum_cadence_hz=120,
+            stale_after_ms=500,
+            producer_id="producer-1",
+            producer_spiffe_id="spiffe://example.test/producer-1",
+            authorization_revision=1,
+            expires_at="2026-08-03T03:00:00Z",
+            revoked=False,
+        )
+        interpolation = PoseInterpolator(
+            scene.interpolation,
+            source.maximum_cadence_hz,
+            source.stale_after_ms,
+            clock_ns=lambda: 0,
+        )
+        mirror = Mock()
+        renderer = Renderer.__new__(Renderer)
+        renderer._config = Mock(pose_directory=Path("/unused"))
+        renderer._scenes = Mock()
+        renderer._sessions = {
+            binding.session_id: SessionRuntime(
+                binding=binding,
+                scene=scene,
+                pose=mirror,
+                pose_binding=source,
+                interpolation=interpolation,
+            )
+        }
+        renewed = replace(
+            source,
+            authorization_revision=2,
+            expires_at="2026-08-03T04:00:00Z",
+        )
+
+        renderer._execute(
+            Mock(
+                operation="put_pose_source",
+                session_id=binding.session_id,
+                value=renewed,
+            )
+        )
+
+        mirror.renew.assert_called_once_with(renewed)
+        self.assertEqual(
+            interpolation.diagnostics().last_reset_reason,
+            InterpolationResetReason.AUTHORIZATION_REVISION_CHANGED,
+        )
+        revoked = replace(
+            renewed,
+            authorization_revision=3,
+            revoked=True,
+        )
+
+        renderer._execute(
+            Mock(
+                operation="put_pose_source",
+                session_id=binding.session_id,
+                value=revoked,
+            )
+        )
+
+        mirror.revoke.assert_called_once_with()
+        renderer._scenes.mark_pose_stale.assert_called_once_with(
+            binding.session_id
+        )
+        self.assertEqual(
+            interpolation.diagnostics().last_reset_reason,
+            InterpolationResetReason.REVOKED,
+        )
 
     def test_changed_pose_binding_requires_a_new_authorization_revision(
         self,
