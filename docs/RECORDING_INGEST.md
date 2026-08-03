@@ -77,11 +77,13 @@ backlog depth. Reconciliation inventories the directory once at startup, then
 normal appends and acknowledgements update the cached byte count and the next
 ordered path directly.
 
-Recording Hub first validates the complete Rerun payload, then
-writes a deterministic batch journal file through fsync and atomic rename. A
+Recording Hub first validates the complete Rerun payload, then writes a
+deterministic batch journal file through fsync and an atomic no-clobber link. A
 SurrealDB transaction records the batch digest and advances the stream
 checkpoint only after that file exists durably. Startup reconciliation
-completes a transaction interrupted after rename.
+completes a transaction interrupted after publication. Concurrent publication
+accepts identical bytes but cannot replace an existing sequence or Blueprint
+revision with different bytes.
 
 One ordered materializer converts a journal batch into an immutable sequence
 part beneath one cataloged writing segment before the append completes. A batch

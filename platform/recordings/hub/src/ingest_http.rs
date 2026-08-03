@@ -500,6 +500,10 @@ fn service_error(error: anyhow::Error) -> Response {
             None,
         );
     }
+    tracing::warn!(
+        error_code = "untyped_ingest_failure",
+        "recording ingest request failed without a typed protocol error"
+    );
     ingest_error(
         StatusCode::FORBIDDEN,
         IngestErrorCode::Forbidden,
