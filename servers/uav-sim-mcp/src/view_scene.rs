@@ -18,10 +18,9 @@ use veoveo_simulation_scene::{
     VisualAssetFormat, VisualPrototype,
 };
 
-// Photogrammetry carries baked daylight. Match the reference Isaac camera's
-// bounded environment contribution instead of adding a second full-sun load
-// that clips the LDR render product.
-const PHOTOREALISTIC_DAYLIGHT_INTENSITY_LUX: f32 = 1_000.0;
+// Photogrammetry carries baked daylight. Keep the governed sun below a full
+// clear-sky load so the LDR render product retains facade and street detail.
+const PHOTOREALISTIC_DAYLIGHT_INTENSITY_LUX: f32 = 5_000.0;
 const PHOTOREALISTIC_DAYLIGHT_TEMPERATURE_KELVIN: u32 = 5_500;
 
 use crate::contract::{PreparedViewScene, SessionId, SimulationState};
@@ -344,6 +343,15 @@ mod tests {
                 color_temperature_kelvin: PHOTOREALISTIC_DAYLIGHT_TEMPERATURE_KELVIN,
             }
         );
+    }
+
+    #[test]
+    fn streamed_world_environment_does_not_add_reference_geometry() {
+        let environment = std::str::from_utf8(ENVIRONMENT_USDA).unwrap();
+
+        assert!(!environment.contains("def Mesh"));
+        assert!(!environment.contains("def Cylinder"));
+        assert!(!environment.contains("def Cube"));
     }
 
     #[test]
