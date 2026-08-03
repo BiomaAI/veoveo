@@ -27,7 +27,9 @@ class FleetCommander(Protocol):
     def takeoff(self, relative_altitude_m: float) -> None: ...
 
     def execute_mission(
-        self, waypoints: tuple[Waypoint, ...], timeout_seconds: float = 1_800.0
+        self,
+        waypoints: tuple[Waypoint, ...],
+        timeout_seconds: float | None = 1_800.0,
     ) -> int: ...
 
     def interrupt_mission(self) -> None: ...
@@ -44,12 +46,8 @@ def vehicle_loop_route(
     if vehicle_index < 0 or vehicle_index >= vehicle_count:
         raise ValueError("vehicle_index must identify one configured fleet vehicle")
     phase = 2.0 * math.pi * vehicle_index / vehicle_count
-    east_radius_m = (
-        config.east_radius_m + config.radial_separation_m * vehicle_index
-    )
-    north_radius_m = (
-        config.north_radius_m + config.radial_separation_m * vehicle_index
-    )
+    east_radius_m = config.east_radius_m + config.radial_separation_m * vehicle_index
+    north_radius_m = config.north_radius_m + config.radial_separation_m * vehicle_index
     altitude_m = (
         config.relative_altitude_m + config.vertical_separation_m * vehicle_index
     )
@@ -85,9 +83,7 @@ class FleetLoopController:
     ) -> None:
         self._commanders = commanders
         self._routes = {
-            vehicle_id: vehicle_loop_route(
-                config, origin, index, len(commanders)
-            )
+            vehicle_id: vehicle_loop_route(config, origin, index, len(commanders))
             for index, (vehicle_id, _commander) in enumerate(commanders.items())
         }
         self._takeoff_altitudes = {
@@ -155,13 +151,9 @@ class FleetLoopController:
             failure = self._failure
         if failure is not None:
             vehicle_id, error = failure
-            raise RuntimeError(
-                f"default fleet loop failed for {vehicle_id}"
-            ) from error
+            raise RuntimeError(f"default fleet loop failed for {vehicle_id}") from error
 
-    def _run_vehicle(
-        self, vehicle_id: str, commander: FleetCommander
-    ) -> None:
+    def _run_vehicle(self, vehicle_id: str, commander: FleetCommander) -> None:
         try:
             if self._is_overridden(vehicle_id):
                 return
@@ -180,7 +172,13 @@ class FleetLoopController:
                     )
                 time.sleep(0.25)
             while not self._stop.is_set() and not self._is_overridden(vehicle_id):
-                commander.execute_mission(self._routes[vehicle_id])
+                # The default route is durable background behavior, not a bounded
+                # task. It remains interruptible for explicit mission ownership,
+                # but it must not inherit the public task execution deadline and
+                # terminate an otherwise healthy always-on runtime.
+                commander.execute_mission(
+                    self._routes[vehicle_id], timeout_seconds=None
+                )
         except BaseException as error:
             if not self._stop.is_set() and not self._is_overridden(vehicle_id):
                 with self._lock:
