@@ -153,7 +153,9 @@ must advertise its routable signaling origin and UDP media address instead.
 Install the local platform fixture separately:
 
 ~~~bash
-kubectl --context k3d-veoveo-bioma apply -k examples/bioma/platform
+kubectl --context k3d-veoveo-bioma apply \
+  --server-side --force-conflicts \
+  -k examples/bioma/platform
 kubectl --context k3d-veoveo-bioma -n argocd wait   --for=condition=Available deployment --all --timeout=5m
 ~~~
 
