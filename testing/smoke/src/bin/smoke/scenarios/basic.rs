@@ -713,10 +713,14 @@ pub(crate) async fn helm_config() -> Result<()> {
         }
         if component == "simulation-view-renderer" {
             ensure!(
-                deployment.matches("path: /healthz").count() >= 3,
-                "Simulation View renderer must use process health for Kubernetes startup, \
-                 readiness, and liveness"
+                deployment.matches("path: /healthz").count() >= 2,
+                "Simulation View renderer must use process health for Kubernetes startup \
+                 and liveness"
             );
+            contains(
+                deployment,
+                "readinessProbe:\n            httpGet:\n              path: /readyz\n              port: render-control",
+            )?;
             contains(
                 deployment,
                 "livenessProbe:\n            httpGet:\n              path: /healthz\n              port: render-control\n            initialDelaySeconds: 30\n            failureThreshold: 3\n            periodSeconds: 10\n            timeoutSeconds: 10",

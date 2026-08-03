@@ -118,4 +118,9 @@ fn simulation_view_uses_durable_readiness_and_process_liveness() {
         1,
         "the MCP liveness probe must remain process-only"
     );
+    assert_eq!(
+        template.matches("path: /readyz").count(),
+        2,
+        "the pose sidecar and Isaac renderer must both expose readiness"
+    );
 }
