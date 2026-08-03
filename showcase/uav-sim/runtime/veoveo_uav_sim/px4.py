@@ -12,6 +12,8 @@ from .geo import horizontal_distance_m
 
 
 GCS_HEARTBEAT_INTERVAL_SECONDS = 1.0
+ARM_READINESS_TIMEOUT_SECONDS = 120.0
+ARM_RETRY_INTERVAL_SECONDS = 1.0
 WAYPOINT_HORIZONTAL_TOLERANCE_M = 1.0
 WAYPOINT_VERTICAL_TOLERANCE_M = 0.75
 
@@ -21,6 +23,19 @@ class Px4Status:
     connected: bool
     flight_state: str
     battery_percent: float
+
+
+class Px4CommandRejected(RuntimeError):
+    def __init__(self, command: int, result: int) -> None:
+        self.command = command
+        self.result = result
+        super().__init__(
+            f"PX4 rejected MAVLink command {command} with result {result}"
+        )
+
+    @property
+    def temporary(self) -> bool:
+        return self.result == mavutil.mavlink.MAV_RESULT_TEMPORARILY_REJECTED
 
 
 class Px4Commander:
@@ -122,18 +137,7 @@ class Px4Commander:
                     custom_sub_mode,
                 )
                 self._await_px4_mode_locked(custom_mode, custom_sub_mode)
-            self._send_command_locked(
-                mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 1.0
-            )
-            deadline = time.monotonic() + 15.0
-            while time.monotonic() < deadline:
-                self._send_gcs_heartbeat_locked_if_due()
-                message = self._connection.recv_match(blocking=True, timeout=1.0)
-                if message is not None:
-                    self._consume(message)
-                if self._armed:
-                    return
-        raise TimeoutError(f"PX4 did not report {self.vehicle_id} armed")
+            self._arm_when_ready_locked()
 
     def takeoff(self, relative_altitude_m: float) -> None:
         target_altitude = max(self._absolute_altitude_m, self._origin_height_m) + relative_altitude_m
@@ -176,7 +180,7 @@ class Px4Commander:
             if self._mission_interrupt.is_set():
                 raise RuntimeError(f"mission on {self.vehicle_id} was interrupted")
             if not self._armed:
-                self._send_command_locked(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 1.0)
+                self._arm_when_ready_locked()
 
             deadline = time.monotonic() + timeout_seconds
             completed = 0
@@ -225,6 +229,45 @@ class Px4Commander:
         )
         self._await_command_ack_locked(command)
 
+    def _arm_when_ready_locked(
+        self, timeout_seconds: float = ARM_READINESS_TIMEOUT_SECONDS
+    ) -> None:
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            try:
+                self._send_command_locked(
+                    mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 1.0
+                )
+            except Px4CommandRejected as error:
+                if not error.temporary:
+                    raise
+                retry_deadline = min(
+                    deadline, time.monotonic() + ARM_RETRY_INTERVAL_SECONDS
+                )
+                while time.monotonic() < retry_deadline:
+                    self._send_gcs_heartbeat_locked_if_due()
+                    message = self._connection.recv_match(
+                        blocking=True,
+                        timeout=min(1.0, retry_deadline - time.monotonic()),
+                    )
+                    if message is not None:
+                        self._consume(message)
+                continue
+
+            report_deadline = min(deadline, time.monotonic() + 15.0)
+            while time.monotonic() < report_deadline:
+                self._send_gcs_heartbeat_locked_if_due()
+                message = self._connection.recv_match(blocking=True, timeout=1.0)
+                if message is not None:
+                    self._consume(message)
+                if self._armed:
+                    return
+            break
+        raise TimeoutError(
+            f"PX4 did not become ready to arm {self.vehicle_id} within "
+            f"{timeout_seconds:g} seconds"
+        )
+
     def _send_reposition_locked(self, waypoint: Waypoint) -> None:
         self._send_gcs_heartbeat_locked()
         self._connection.mav.command_int_send(
@@ -257,9 +300,7 @@ class Px4Commander:
             if int(message.result) == mavutil.mavlink.MAV_RESULT_IN_PROGRESS:
                 continue
             if int(message.result) != mavutil.mavlink.MAV_RESULT_ACCEPTED:
-                raise RuntimeError(
-                    f"PX4 rejected MAVLink command {command} with result {message.result}"
-                )
+                raise Px4CommandRejected(command, int(message.result))
             return
         raise TimeoutError(f"PX4 did not acknowledge MAVLink command {command}")
 
