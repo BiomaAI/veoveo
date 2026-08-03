@@ -692,8 +692,10 @@ class RendererContractsTest(unittest.TestCase):
         manager = StreamedWorldManager.__new__(StreamedWorldManager)
         manager._interface = Mock()
         manager._interface.get_render_statistics.return_value = FakeStatistics()
+        manager._author = Mock()
         manager._sessions = {
             "session-1": {
+                "sessionId": "session-1",
                 "layer": Mock(
                     budgets={
                         "maximumCacheBytes": 4096,
@@ -795,8 +797,10 @@ class RendererContractsTest(unittest.TestCase):
         manager = StreamedWorldManager.__new__(StreamedWorldManager)
         manager._interface = Mock()
         manager._interface.get_render_statistics.return_value = FakeStatistics()
+        manager._author = Mock()
         manager._sessions = {
             "session-1": {
+                "sessionId": "session-1",
                 "layer": Mock(
                     budgets={
                         "maximumCacheBytes": 4096,
@@ -806,6 +810,7 @@ class RendererContractsTest(unittest.TestCase):
                 ),
                 "tilesetPath": "/layer/Tileset",
                 "startedAt": time.monotonic(),
+                "providerAuthored": False,
                 "lifecycle": "ready",
                 "failure": None,
             }
@@ -840,6 +845,7 @@ class RendererContractsTest(unittest.TestCase):
             manager._update_provider(())
 
         manager._interface.on_update_frame.assert_called_once_with([], False)
+        manager._author.assert_not_called()
         self.assertEqual(manager._sessions["session-1"]["lifecycle"], "loading")
 
     def test_mounted_camera_composes_mount_in_entity_local_space(
