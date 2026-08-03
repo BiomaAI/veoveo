@@ -61,13 +61,11 @@ published and its server contract is registered in the gateway control plane.
 ## Release publication
 
 Production workloads use the repository and digest map in images.lock.yaml. Both
-Applications select chart set 0.1.0-9f2bf28ea70d, published from commit
-9f2bf28ea70de583411b6a86de7bb3059b66a490. The six `platform-core` images use
-commit 64071ed34887c80e169d228e5b4bddafb50aa74f. The remaining platform images and
-both UAV showcase images use the immutable digests published from commit
-ee7f279d717030bb451424c5b7dccbf04540e9f7. The selected digest for each workload
-is its release identity; a mixed-revision lock does not republish an unchanged image
-merely to align a source label.
+Applications select chart set 0.1.0-6bfaece90a99. Every platform and UAV showcase
+image in the lock was published from commit
+6bfaece90a9968ce9bd20bab9ed90369e6159712. The selected digest for each workload
+is its release identity, and the reference advances the complete runtime closure
+together.
 
 Publish a new local release directly to the shared registry:
 
