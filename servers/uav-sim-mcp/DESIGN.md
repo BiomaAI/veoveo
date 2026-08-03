@@ -12,7 +12,7 @@ high-rate state through the Veoveo gateway.
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Strict typed session, world, vehicle, mission, command, recording, and pose-publication health shapes. |
 | [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; scenarios, missions, and dataset captures use `interrupted_indeterminate` recovery. |
 | Veoveo Frames contract | One immutable ECEF-rooted world revision and one revision-scoped ENU simulation frame bind each session. |
-| `veoveo.io/simulation-view-scene/v1` | Strongly typed governed scene declaration prepared from the authoritative UAV session and shared through `veoveo-simulation-scene`. |
+| `veoveo.io/simulation-view-scene/v2` | Strongly typed governed scene declaration prepared from the authoritative UAV session and shared through `veoveo-simulation-scene`. |
 | `veoveo.io/simulation-view-pose/v1` | Complete newest-value entity snapshots in local ENU metres with FLU entity axes and XYZW quaternions. This server reports publication health; snapshots travel on the private data plane. |
 | Veoveo Artifact plane | Caller-authorized publication of self-contained declarative OpenUSD environment and UAV prototype assets. |
 | SPIFFE and TLS 1.3 | Installation-issued producer identity and mutually authenticated private transport to Simulation View pose ingress. No certificate, private key, or ingress endpoint appears in MCP state. |

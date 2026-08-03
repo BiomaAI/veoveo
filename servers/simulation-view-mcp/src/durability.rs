@@ -451,7 +451,8 @@ mod tests {
             }],
             allowed_camera_kinds: vec![veoveo_mcp_contract::LiveCameraSource::FollowEntity],
             lighting: SceneLighting {
-                intensity_lux: 10_000.0,
+                sun_intensity_lux: 10_000.0,
+                sky_intensity: 500.0,
                 color_temperature_kelvin: 6500,
             },
             quality: SceneQualityPolicy {

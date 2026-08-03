@@ -233,25 +233,33 @@ class RendererContractsTest(unittest.TestCase):
         )
         self.assertNotIn(directory, missing.exception.failure.message)
 
-    def test_governed_lighting_maps_directly_to_normalized_openusd_sun(
+    def test_governed_lighting_maps_independent_openusd_sun_and_sky(
         self,
     ) -> None:
         lighting = GovernedLighting.parse(
             {
-                "intensityLux": 80_000.0,
+                "sunIntensityLux": 80_000.0,
+                "skyIntensity": 1_000.0,
                 "colorTemperatureKelvin": 6_500,
             }
         )
 
         values = lighting.openusd_settings()
 
-        self.assertEqual(values.intensity, 80_000.0)
-        self.assertEqual(values.exposure, 0.0)
-        self.assertTrue(values.normalize)
-        self.assertTrue(values.enable_color_temperature)
-        self.assertEqual(values.color_temperature_kelvin, 6_500)
-        self.assertEqual(values.angle_degrees, 0.53)
-        self.assertEqual(values.rotation_degrees, (-45.0, -35.0, 0.0))
+        self.assertEqual(values.sun.intensity, 80_000.0)
+        self.assertEqual(values.sun.exposure, 0.0)
+        self.assertTrue(values.sun.normalize)
+        self.assertTrue(values.sun.enable_color_temperature)
+        self.assertEqual(values.sun.color_temperature_kelvin, 6_500)
+        self.assertEqual(values.sun.angle_degrees, 0.53)
+        self.assertEqual(
+            values.sun.rotation_degrees, (-45.0, -35.0, 0.0)
+        )
+        self.assertEqual(values.sky.intensity, 1_000.0)
+        self.assertEqual(values.sky.exposure, 0.0)
+        self.assertFalse(values.sky.normalize)
+        self.assertTrue(values.sky.enable_color_temperature)
+        self.assertEqual(values.sky.color_temperature_kelvin, 6_500)
 
     def test_scene_rejects_unsupported_color_temperature(self) -> None:
         body = json.loads(

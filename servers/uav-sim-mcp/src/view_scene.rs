@@ -20,7 +20,8 @@ use veoveo_simulation_scene::{
 
 // Photogrammetry carries baked daylight. Keep the governed sun below a full
 // clear-sky load so the LDR render product retains facade and street detail.
-const PHOTOREALISTIC_DAYLIGHT_INTENSITY_LUX: f32 = 5_000.0;
+const PHOTOREALISTIC_SUN_INTENSITY_LUX: f32 = 500.0;
+const PHOTOREALISTIC_SKY_INTENSITY: f32 = 1_000.0;
 const PHOTOREALISTIC_DAYLIGHT_TEMPERATURE_KELVIN: u32 = 5_500;
 
 use crate::contract::{PreparedViewScene, SessionId, SimulationState};
@@ -191,7 +192,8 @@ fn build_prepared_scene(
             LiveCameraSource::FormationOverview,
         ],
         lighting: SceneLighting {
-            intensity_lux: PHOTOREALISTIC_DAYLIGHT_INTENSITY_LUX,
+            sun_intensity_lux: PHOTOREALISTIC_SUN_INTENSITY_LUX,
+            sky_intensity: PHOTOREALISTIC_SKY_INTENSITY,
             color_temperature_kelvin: PHOTOREALISTIC_DAYLIGHT_TEMPERATURE_KELVIN,
         },
         quality: SceneQualityPolicy {
@@ -339,7 +341,8 @@ mod tests {
         assert_eq!(
             prepared.scene.body.lighting,
             SceneLighting {
-                intensity_lux: PHOTOREALISTIC_DAYLIGHT_INTENSITY_LUX,
+                sun_intensity_lux: PHOTOREALISTIC_SUN_INTENSITY_LUX,
+                sky_intensity: PHOTOREALISTIC_SKY_INTENSITY,
                 color_temperature_kelvin: PHOTOREALISTIC_DAYLIGHT_TEMPERATURE_KELVIN,
             }
         );

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "veoveo.io/simulation-view-scene/v1",
+  "schemaVersion": "veoveo.io/simulation-view-scene/v2",
   "sessionId": "anonymous-session",
   "epochId": "epoch-1",
   "frameRevision": {
@@ -39,7 +39,8 @@
     "formation_overview"
   ],
   "lighting": {
-    "intensityLux": 80000.0,
+    "sunIntensityLux": 80000.0,
+    "skyIntensity": 1000.0,
     "colorTemperatureKelvin": 6500
   },
   "quality": {

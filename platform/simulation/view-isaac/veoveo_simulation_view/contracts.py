@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 IDENTITY = re.compile(r"^[A-Za-z0-9_.-]{1,128}$")
-SCENE_SCHEMA = "veoveo.io/simulation-view-scene/v1"
+SCENE_SCHEMA = "veoveo.io/simulation-view-scene/v2"
 POSE_CONTROL_SCHEMA = "veoveo.io/simulation-view-pose-ingress-control/v2"
 
 
