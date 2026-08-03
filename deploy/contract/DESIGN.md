@@ -47,7 +47,7 @@ Deployment v5 also carries the complete managed GPU allocator closure. The profi
 lock name the standalone NVIDIA chart, its OCI manifest digest, the downloaded archive
 digest, the multi-platform driver image index, and each admitted platform manifest.
 They select eligible nodes, a host driver root, a bounded Helm timeout, and one typed
-transition away from the legacy device plugin. Validation accepts only the qualified
+removal of a conflicting device plugin. Validation accepts only the qualified
 `0.4.1` release. This is a hard cut from deployment v4; an installation migrates by
 adding `gpuScheduling.allocator.installation` and regenerating its lock.
 
@@ -70,28 +70,37 @@ and the stable DRA claim identity.
 `profile-up` first verifies Kubernetes, eligible Ready nodes, and the locked allocator
 artifacts. It quiesces declared GPU Deployments only when configured removal of a
 conflicting device plugin is actually required. The command then labels the selected
-nodes, rejects undeclared device-plugin pods, and atomically installs the chart-owned
-GPU kubelet plugin, RBAC, DeviceClasses, and ResourceSlices. GPU allocation is explicitly
-enabled, `resource.k8s.io/v1` is fixed, ComputeDomains are disabled, and the alpha
-`TimeSlicingSettings` feature gate is enabled. A host-installed NVIDIA driver uses
-`nvidiaDriverRoot=/`; the platform never replaces or upgrades that driver.
+nodes, rejects undeclared device-plugin pods, and renders the verified chart archive.
+The render must use the exact image, the platform-managed selector, and no required node
+affinity. The managed selector is the sole admission predicate, so neither manual
+hardware labels nor a separate node-discovery installation is required. The command
+then atomically installs the chart-owned GPU kubelet plugin, RBAC, DeviceClasses, and
+ResourceSlices. GPU allocation is explicitly enabled, `resource.k8s.io/v1` is fixed,
+ComputeDomains are disabled, and the alpha `TimeSlicingSettings` feature gate is
+enabled. A host-installed NVIDIA driver uses `nvidiaDriverRoot=/`; the platform never
+replaces or upgrades that driver.
 
-After install, `profile-up` requires the exact Helm chart and digest-pinned image,
-`gpu.nvidia.com` with its `nvidia.com/gpu` extended-resource bridge, one Ready kubelet
-plugin per selected node, complete ResourceSlice coverage, unique physical UUIDs, and
-the declared device count. The qualified integration baseline is Kubernetes/K3s
-v1.36.2, NVIDIA driver 610.43.02, Container Toolkit package 1.19.1-1, and CDI-enabled
-containerd. The Kubernetes and driver versions are checked exactly. The NVIDIA
-device plugin does not remain on DRA-owned nodes.
+After install, `profile-up` reads the exact Helm v4 release row and verifies its
+namespace, deployed status, positive revision, chart, and application version. The OCI
+manifest, downloaded archive, and rendered image retain their independent digest
+checks. It requires `gpu.nvidia.com` with its `nvidia.com/gpu` extended-resource bridge,
+one desired, current, Ready, and available kubelet plugin per selected node, complete
+ResourceSlice coverage, nonempty product names, unique physical UUIDs, and the declared
+device count. The qualified integration baseline is Kubernetes/K3s v1.36.2, NVIDIA
+driver 610.43.02, Container Toolkit package 1.19.1-1, and CDI-enabled containerd. The
+Kubernetes and driver versions are checked exactly. The NVIDIA device plugin does not
+remain on DRA-owned nodes.
 
 The installer then compiles the provider-neutral topology into one
 `resource.k8s.io/v1` ResourceClaim before Helm runs. Workloads in one group reference
 the same claim request. Different groups are allocated atomically and use a
 `distinctAttribute` constraint for shared devices. The claim persists through pod
-replacement, node restart, and Helm upgrade. NVIDIA full-device and MIG DeviceClasses
-are implementation details selected by the installation. Measured time slicing adds
-opaque driver configuration and requires its own evidence digest; exclusive groups
-permit one consumer only.
+replacement, node restart, and Helm upgrade. `profile-up` creates it only when absent;
+an existing claim must retain its UID and match the canonical spec and evidence digest
+exactly. Drift is reported without mutating or replacing the claim. NVIDIA full-device
+and MIG DeviceClasses are implementation details selected by the installation. Measured
+time slicing adds opaque driver configuration and requires its own evidence digest;
+exclusive groups permit one consumer only.
 
 Simulation View selects Frames MCP, its provider-neutral MCP server, the Artifact
 service with the `simulation-view` audience, the canonical runtime support component,
@@ -99,9 +108,11 @@ and one renderer GPU. A profile whose physical-device groups exceed installation
 capacity fails during pure profile resolution.
 
 After rollout, `profile-up` reads the allocated claim and executes `nvidia-smi` inside
-every declared GPU container. It reports the one visible physical UUID for each replica.
-Same-device drift, different-device drift, a missing replica, or more than one visible
-device fails the command with the exact workload and group.
+every declared GPU container. It reports the retained claim UID, allocated devices, and
+the one visible physical UUID for each replica. Each GPU Deployment must retain the
+exact replica count declared by the profile. Same-device drift, different-device drift,
+a missing replica, or more than one visible device fails the command with the exact
+workload and group.
 
 The same resolution produces the exact Veoveo-owned OCI image closure. Platform
 components contribute their runtime images, each selected MCP server contributes its

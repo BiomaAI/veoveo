@@ -38,6 +38,12 @@ exact Kubernetes and driver versions. The repository-managed K3s node image pins
 Toolkit package; claim preparation and the final workload UUID gate prove CDI injection.
 ComputeDomains are disabled and impose no IMEX or NVLink prerequisite.
 
+Helm v4 reports release state and chart identity through the exact release row returned
+by `helm list --output json`. `profile-up` verifies its namespace, deployed status,
+positive revision, chart version, and application version. Registry and archive digest
+checks remain the source of artifact provenance; `helm status` is not treated as chart
+metadata.
+
 ## Profile contract
 
 `platform.gpuScheduling` describes groups, not vendor scheduler objects. Workloads in a
@@ -55,6 +61,12 @@ The allocator section supplies:
 - one explicit conflicting-device-plugin removal authorization;
 - `maturityAcceptance: technology-preview`; and
 - an atomic Helm timeout from 60 through 1,800 seconds.
+
+The platform labels every selected Ready node after proving it matches the
+installation-owned selector. It then renders the qualified chart with
+`kubeletPlugin.affinity=null`, making the managed
+`nvidia.com/dra-kubelet-plugin=true` selector the sole required scheduling predicate.
+No Node Feature Discovery, GPU Operator label, or manual presence label is required.
 
 Use `require-absent` when selected nodes do not run the NVIDIA device plugin.
 Use `delete-daemon-set` for an installation-owned raw DaemonSet. Use
@@ -77,7 +89,7 @@ Helm release uses the explicit `conflictingDevicePluginRemoval` authorization in
 ## Managed lifecycle
 
 `profile-cluster-up` starts the cluster and waits for a Ready node. It does not wait for
-the legacy extended resource when DRA is selected. `profile-up` then performs this
+the device-plugin extended resource when DRA is selected. `profile-up` then performs this
 ordered transaction:
 
 1. Validate the profile, lock, Kubernetes API version, and selected Ready nodes.
@@ -86,15 +98,20 @@ ordered transaction:
 3. If the declared conflicting allocator exists, scale declared GPU Deployments to zero and
    perform only the selected removal action.
 4. Mark eligible nodes with the chart selector and reject remaining device-plugin pods.
-5. Run an atomic Helm upgrade with chart-owned RBAC. The values fix
+5. Render the verified archive and require the managed selector, no required node
+   affinity, and the exact digest-qualified image before touching the release.
+6. Run an atomic Helm upgrade with chart-owned RBAC. The values fix
    `resource.k8s.io/v1`, enable GPU resources and `TimeSlicingSettings`, disable
-   ComputeDomains, and pin the driver image index.
-6. Verify the Helm chart, rendered image, DeviceClass, Ready kubelet plugins,
-   ResourceSlice node coverage, driver floor, physical UUID uniqueness, and device
-   count.
-7. Create or reuse the persistent ResourceClaim, run the application Helm releases,
-   wait for their one-replica Deployments, and inspect `nvidia-smi` in every declared
-   container.
+   ComputeDomains, clear discovery affinity, and pin the driver image index.
+7. Verify the Helm v4 release row and require the kubelet-plugin DaemonSet desired,
+   current, Ready, and available counts to match the selected-node count.
+8. Verify the DeviceClass and ResourceSlices, including exact driver version, nonempty
+   product name, node coverage, physical UUID uniqueness, and device count.
+9. Create the persistent ResourceClaim only when absent. An existing claim must retain
+   its UID and match the canonical spec and placement evidence exactly; drift fails
+   without mutation or replacement.
+10. Run the application Helm releases, require each declared GPU Deployment to retain
+    its exact replica count, and inspect `nvidia-smi` in every declared container.
 
 The UUID gate proves equality inside each same-device group and inequality across every
 different-device constraint. It also rejects zero devices, multiple visible devices,
@@ -105,6 +122,10 @@ The GPU-only chart profile has no controller Deployment. NVIDIA's controller bel
 to ComputeDomains, which this contract disables. The GPU kubelet-plugin DaemonSet
 publishes ResourceSlices and prepares CDI devices; Kubernetes' scheduler allocates the
 claim. `profile-up` verifies one Ready plugin pod on every selected node.
+
+When admission fails, diagnostics name the exact predicate. They report the managed
+selector value, node readiness and schedulability, untolerated taints, DaemonSet
+counts, and any plugin container waiting reason.
 
 ## Validation
 
@@ -117,11 +138,15 @@ cargo xtask smoke profile-up \
   --profile deploy/deployment.json \
   --lock deploy/deployment.lock.json
 kubectl --context <context> get deviceclass gpu.nvidia.com
+kubectl --context <context> get daemonset -n <allocator-namespace> \
+  -l app.kubernetes.io/component=kubelet-plugin
+kubectl --context <context> get resourceslice
 kubectl --context <context> get resourceclaim -n <namespace> <claim> -o json
 ```
 
-Successful `profile-up` prints the ResourceSlice physical UUID inventory and the one
-UUID observed in every declared workload container. CUDA, Vulkan, RTX, and NVENC remain
+Successful `profile-up` prints each ResourceSlice product, physical UUID, and node. It
+also prints the claim UID, allocated request-to-device mapping, and the one UUID
+observed in every declared workload container. CUDA, Vulkan, RTX, and NVENC remain
 application readiness concerns and must still pass on hardware; DRA supplies the
 physical allocation and CDI device injection.
 
@@ -151,3 +176,12 @@ allocated but a node no longer advertises its recorded UUID, keep consumers stop
 and repair the node, driver, Toolkit, CDI runtime, or hardware. Claim deletion is a
 last-resort topology replacement and requires all consumers to be down because it may
 select different physical devices.
+
+Continuity certification begins with a successful clean installation. Record the claim
+UID, request allocation, workload UUIDs, and replica counts, then rerun `profile-up`
+unchanged. Delete only the DRA plugin pod, wait for its DaemonSet replacement, and rerun
+the profile. Repeat after a cluster stop and start, then after the supported
+digest-locked application Helm upgrade through `profile-up`. Every stage must preserve
+the claim UID, allocation, same-device and different-device relationships, and declared
+replica counts. Recreating the cluster is a separate clean-install test because cluster
+deletion also deletes the persistent claim.
