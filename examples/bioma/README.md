@@ -60,12 +60,12 @@ published and its server contract is registered in the gateway control plane.
 
 ## Release publication
 
-Production workloads use the repository and digest map in images.lock.yaml. Both
-Applications select chart set 0.1.0-6bfaece90a99. Every platform and UAV showcase
-image in the lock was published from commit
-6bfaece90a9968ce9bd20bab9ed90369e6159712. The selected digest for each workload
-is its release identity, and the reference advances the complete runtime closure
-together.
+Production workloads use the repository and digest map in images.lock.yaml. The
+platform Application selects chart 0.1.0-6bfaece90a99, whose images were published
+from commit 6bfaece90a9968ce9bd20bab9ed90369e6159712. The UAV Application selects
+chart 0.1.0-e6c55fb5b105, whose two images were published from commit
+e6c55fb5b105d8074bb03fa2e41a63ffa7f436b9. Each selected digest is the workload's
+release identity. A release-input commit advances the coordinated runtime closure.
 
 Publish a new local release directly to the shared registry:
 
@@ -478,11 +478,13 @@ MILP through the gateway as a durable task, verifies the solution independently,
 wakes the sleeping agent from task completion, and checks its durable decision
 record.
 
-The UAV acceptance requires Google Photorealistic 3D Tiles resident in Isaac, flies a
-PX4 mission, verifies direct Stream results from newly arrived camera frames,
-then runs reproducible Stream replay and Reason over acknowledged recording
-parts before archive rollover. It confirms the concurrent GPU deployments
-remain available. Its runtime inputs come from
+The live reference keeps four PX4 vehicles on nested loops over Manhattan until an
+explicit mission or direct flight command takes control of an individual vehicle. The
+UAV acceptance requires Google Photorealistic 3D Tiles resident in Isaac, claims one
+vehicle for a governed PX4 mission, verifies direct Stream results from newly arrived
+camera frames, then runs reproducible Stream replay and Reason over acknowledged
+recording parts before archive rollover. The other vehicles continue their loops while
+the acceptance confirms that concurrent GPU deployments remain available. Its runtime inputs come from
 showcase/uav-sim/scenarios/new-york-aerial.json. The acceptance client creates
 the complete world through Frames MCP and binds the returned immutable revision
 to the simulator before Isaac constructs its stage.
