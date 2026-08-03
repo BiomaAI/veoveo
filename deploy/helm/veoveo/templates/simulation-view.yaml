@@ -459,7 +459,7 @@ spec:
             timeoutSeconds: 3
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: /readyz
               port: render-control
             periodSeconds: 5
             timeoutSeconds: 3
