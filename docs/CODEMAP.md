@@ -129,6 +129,7 @@ Hub, administration, and GPU policy.
 | `testing/smoke/src/bin/smoke/deployment/gpu/helm.rs` | Helm v4 release metadata, exact allocator artifact and render verification, and atomic installation |
 | `testing/smoke/src/bin/smoke/deployment/gpu/admission.rs` | kubelet-plugin selector, DaemonSet readiness, node taint, and pod scheduling diagnostics |
 | `testing/smoke/src/bin/smoke/deployment/gpu/workloads.rs` | typed Deployment selector, current ReplicaSet ownership, Ready Pod/container, replica-count, and in-container GPU evidence targeting |
+| `testing/smoke/src/bin/smoke/deployment/readiness.rs` | post-rollout Simulation View control-plane port-forward and full durable-runtime convergence gate |
 | `deploy/helm/veoveo-extension/` | private reusable extension-chart helper API and immutable chart package source |
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
@@ -560,7 +561,7 @@ Simulation View data-plane ownership:
 | `servers/simulation-view-mcp/src/reconciler.rs` | ordered renderer, scene, producer, camera, and stream realization with bounded renewal and typed failure state |
 | `servers/simulation-view-mcp/src/artifacts.rs` | caller-authorized Artifact-plane streaming into the private renderer digest-ingest boundary |
 | `servers/simulation-view-mcp/src/mcp.rs` | canonical tools, resources, subscriptions, well-known surface, and App declarations |
-| `servers/simulation-view-mcp/src/server/` | signed gateway auth, public host checks, fail-closed runtime readiness, administrative docs, and authenticated signaling |
+| `servers/simulation-view-mcp/src/server/` | signed gateway auth, public host checks, control-plane traffic readiness, full durable-runtime status, administrative docs, and authenticated signaling |
 | `servers/simulation-view-mcp/assets/live.html` | self-contained selected-view and bounded multi-camera MCP App |
 | `servers/simulation-view-mcp/dependencies.lock.json` | verified NVIDIA browser client release and byte identities |
 | `platform/simulation/pose/src/contract.rs` | session, epoch, Frames, entity-table, coordinate, limit, and pose types |

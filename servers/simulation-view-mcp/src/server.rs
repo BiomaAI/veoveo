@@ -36,7 +36,15 @@ pub(crate) const SERVER_SLUG: &str = "simulation-view";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct Readiness {
+struct ControlPlaneReadiness {
+    ready: bool,
+    artifact_plane_ready: bool,
+    store_ready: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RuntimeReadiness {
     ready: bool,
     artifact_plane_ready: bool,
     store_ready: bool,
@@ -136,24 +144,48 @@ pub async fn run() -> Result<()> {
         authenticate_internal,
     ));
 
-    let readiness = runtimes.clone();
-    let readiness_artifacts = artifacts;
-    let readiness_repository = repository;
-    let readiness_service = service;
+    let control_artifacts = artifacts.clone();
+    let control_repository = repository.clone();
+    let runtime_readiness = runtimes.clone();
+    let runtime_artifacts = artifacts;
+    let runtime_repository = repository;
+    let runtime_service = service;
     let service_router = Router::new()
         .route("/healthz", get(|| async { StatusCode::OK }))
         .route(
             "/readyz",
             get(move || {
-                let readiness = readiness.clone();
-                let artifacts = readiness_artifacts.clone();
-                let repository = readiness_repository.clone();
-                let service = readiness_service.clone();
+                let artifacts = control_artifacts.clone();
+                let repository = control_repository.clone();
+                async move {
+                    let (artifact_plane_ready, store_ready) =
+                        tokio::join!(artifacts.ready(), repository.ready());
+                    let report = ControlPlaneReadiness {
+                        ready: artifact_plane_ready && store_ready,
+                        artifact_plane_ready,
+                        store_ready,
+                    };
+                    let status = if report.ready {
+                        StatusCode::OK
+                    } else {
+                        StatusCode::SERVICE_UNAVAILABLE
+                    };
+                    (status, Json(report))
+                }
+            }),
+        )
+        .route(
+            "/runtimez",
+            get(move || {
+                let readiness = runtime_readiness.clone();
+                let artifacts = runtime_artifacts.clone();
+                let repository = runtime_repository.clone();
+                let service = runtime_service.clone();
                 async move {
                     let (runtime, artifact_plane_ready, store_ready) =
                         tokio::join!(readiness.readiness(), artifacts.ready(), repository.ready());
                     let durable_state_ready = service.reconciliation_ready();
-                    let report = Readiness {
+                    let report = RuntimeReadiness {
                         ready: runtime.ready
                             && artifact_plane_ready
                             && store_ready
@@ -194,6 +226,7 @@ pub async fn run() -> Result<()> {
         %address,
         mcp_path = public_endpoint.path("mcp"),
         readiness_path = public_endpoint.path("readyz"),
+        runtime_readiness_path = public_endpoint.path("runtimez"),
         signaling_path = public_endpoint.path("signaling"),
         "listening"
     );

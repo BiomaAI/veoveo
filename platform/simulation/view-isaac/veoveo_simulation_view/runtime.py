@@ -32,7 +32,9 @@ from .renderer_setup import (
     RendererFailure,
     RendererFailureCode,
     RendererInitializationError,
+    configure_headless_cesium_extension,
     ensure_cesium_material_runtime,
+    suppress_interactive_cesium_viewport_updates,
 )
 from .scene import ArtifactStore, SceneManager
 
@@ -45,6 +47,7 @@ class SessionRuntime:
     binding: SessionBinding
     scene: SceneBinding | None = None
     pose: PoseMirror | None = None
+    pose_binding: PoseSourceBinding | None = None
     pose_authorization_floor: int = 0
 
 
@@ -87,7 +90,7 @@ class Renderer:
             elif session.pose.latest is not None:
                 snapshots[session_id] = session.pose.latest
         self._cameras.tick(snapshots, stale_sessions)
-        self._layers.tick(self._cameras.active_camera_paths())
+        self._layers.tick(self._cameras.render_viewports())
 
     def readiness(
         self,
@@ -142,7 +145,7 @@ class Renderer:
                 )
             return _accepted()
         if operation == "delete_session":
-            session = self._sessions.pop(command.session_id, None)
+            session = self._sessions.get(command.session_id)
             if session is None:
                 return CommandResult(HTTPStatus.NO_CONTENT)
             if session.pose is not None:
@@ -155,12 +158,15 @@ class Renderer:
                 for stream_id, stream in self._streams.items()
                 if stream.session_id != command.session_id
             }
+            self._sessions.pop(command.session_id, None)
             return CommandResult(HTTPStatus.NO_CONTENT)
         session = self._session(command.session_id)
         if operation == "put_scene":
             assert isinstance(command.value, SceneBinding)
             if command.value.epoch_id != session.binding.epoch_id:
                 raise ContractError("scene epoch does not match the session")
+            if session.scene == command.value:
+                return _accepted()
             self._layers.bind(command.value)
             try:
                 self._scenes.bind(command.value)
@@ -171,6 +177,16 @@ class Renderer:
             return _accepted()
         if operation == "put_pose_source":
             assert isinstance(command.value, PoseSourceBinding)
+            if session.pose_binding == command.value:
+                return _accepted()
+            if (
+                session.pose_binding is not None
+                and session.pose_binding.authorization_revision
+                == command.value.authorization_revision
+            ):
+                raise ContractError(
+                    "pose authorization revision is immutable"
+                )
             scene = _scene(session)
             if (
                 command.value.epoch_id != session.binding.epoch_id
@@ -192,6 +208,7 @@ class Renderer:
                 if session.pose is not None:
                     session.pose.revoke()
                     session.pose = None
+                session.pose_binding = command.value
                 return _accepted()
             mirror = PoseMirror(self._config.pose_directory)
             if session.pose is None:
@@ -202,11 +219,13 @@ class Renderer:
             session.pose_authorization_floor = (
                 command.value.authorization_revision - 1
             )
+            session.pose_binding = command.value
             return _accepted()
         if operation == "delete_pose_source":
             if session.pose is not None:
                 session.pose.revoke()
                 session.pose = None
+            session.pose_binding = None
             return CommandResult(HTTPStatus.NO_CONTENT)
         if operation == "put_camera":
             _scene(session)
@@ -330,6 +349,8 @@ def run(config: RendererConfig) -> None:
         import omni.kit.app
         import omni.usd
 
+        settings = carb.settings.get_settings()
+        configure_headless_cesium_extension(settings)
         manager = omni.kit.app.get_app().get_extension_manager()
         manager.add_path("/opt/veoveo/extensions")
         for extension in (
@@ -347,7 +368,7 @@ def run(config: RendererConfig) -> None:
                         "a required renderer extension is unavailable",
                     )
                 )
-        settings = carb.settings.get_settings()
+        suppress_interactive_cesium_viewport_updates(manager)
         material_status = ensure_cesium_material_runtime(settings)
         _verify_stream_settings(settings, config)
         context = omni.usd.get_context()

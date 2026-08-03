@@ -11,7 +11,11 @@ CESIUM_EXTENSION_DIRECTORY = Path(
 )
 CESIUM_MDL_DIRECTORY = CESIUM_EXTENSION_DIRECTORY / "mdl"
 CESIUM_MDL_MODULE = CESIUM_MDL_DIRECTORY / "cesium.mdl"
+CESIUM_EXTENSION_ID = "cesium.omniverse-0.29.0"
 
+CESIUM_SHOW_ON_STARTUP_SETTING = (
+    "/exts/cesium.omniverse/showOnStartup"
+)
 TANGENT_FRAME_SETTING = "/rtx/hydra/TBNFrameMode"
 MATERIAL_SEARCH_PATH_SETTING = "materialConfig/searchPaths/custom"
 MATERIAL_ALLOWLIST_SETTING = (
@@ -59,6 +63,81 @@ class CesiumMaterialStatus:
     material_search_path_ready: bool
     material_allowlist_ready: bool
     tangent_frame_ready: bool
+
+
+def configure_headless_cesium_extension(settings: Any) -> None:
+    settings.set(CESIUM_SHOW_ON_STARTUP_SETTING, False)
+    if settings.get(CESIUM_SHOW_ON_STARTUP_SETTING) is not False:
+        raise RendererInitializationError(
+            RendererFailure(
+                RendererFailureCode.RENDERER_INITIALIZATION_FAILED,
+                "Cesium interactive UI suppression did not take effect",
+            )
+        )
+
+
+def suppress_interactive_cesium_viewport_updates(
+    extension_manager: Any,
+    *,
+    extension_registry: dict[str, Any] | None = None,
+) -> None:
+    """Make offscreen Simulation View cameras the sole Cesium view authority.
+
+    Cesium for Omniverse 0.29.0 always installs an update callback for the
+    interactive viewport windows. A headless renderer has no such windows, so
+    that callback submits an empty viewport collection every frame. Simulation
+    View submits its offscreen Hydra camera collection later in the same Kit
+    update; leaving both callbacks active makes provider visibility oscillate
+    between empty and non-empty collections.
+
+    The pinned extension exposes no supported headless switch for this
+    callback. Detach only that subscription while leaving the extension,
+    native provider interface, stage listener, and material runtime active.
+    Fail closed if the exact pinned Python extension shape is unavailable.
+    """
+    extension_id = extension_manager.get_enabled_extension_id(
+        "cesium.omniverse"
+    )
+    if extension_id != CESIUM_EXTENSION_ID:
+        raise RendererInitializationError(
+            RendererFailure(
+                RendererFailureCode.RENDERER_INITIALIZATION_FAILED,
+                "enabled Cesium extension does not match the pinned renderer profile",
+            )
+        )
+    if extension_registry is None:
+        from omni.ext._impl import _internal
+
+        extension_registry = _internal._extensions
+    modules = extension_registry.get(extension_id)
+    started = getattr(modules, "_started_extensions", ())
+    matches = [
+        instance
+        for instance, module_name in started
+        if module_name == "cesium.omniverse"
+        and instance.__class__.__name__ == "CesiumOmniverseExtension"
+    ]
+    if len(matches) != 1:
+        raise RendererInitializationError(
+            RendererFailure(
+                RendererFailureCode.RENDERER_INITIALIZATION_FAILED,
+                "pinned Cesium interactive update owner is unavailable",
+            )
+        )
+    extension = matches[0]
+    subscription = getattr(extension, "_on_update_subscription", None)
+    if subscription is None:
+        raise RendererInitializationError(
+            RendererFailure(
+                RendererFailureCode.RENDERER_INITIALIZATION_FAILED,
+                (
+                    "pinned Cesium interactive update subscription "
+                    "is unavailable"
+                ),
+            )
+        )
+    subscription.unsubscribe()
+    extension._on_update_subscription = None
 
 
 def ensure_cesium_material_runtime(

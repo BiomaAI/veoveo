@@ -109,6 +109,24 @@ pub(crate) async fn surreal_integration() -> Result<()> {
             environment.clone(),
         )?;
     }
+    println!(
+        "==> live SurrealDB test: veoveo-simulation-view-mcp/durability::tests::real_store_commits_realized_state_across_transient_updates"
+    );
+    run_checked(
+        Path::new("cargo"),
+        [
+            "test".into(),
+            "-p".into(),
+            "veoveo-simulation-view-mcp".into(),
+            "--lib".into(),
+            "durability::tests::real_store_commits_realized_state_across_transient_updates".into(),
+            "--".into(),
+            "--exact".into(),
+            "--nocapture".into(),
+            "--test-threads=1".into(),
+        ],
+        environment,
+    )?;
     println!("surreal integration smoke ok");
     Ok(())
 }
@@ -448,6 +466,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         contains(&streamed_world, expected)?;
     }
     contains(renderer, "name: SIMULATION_VIEW_LAYER_TOKEN")?;
+    contains(renderer, "checksum/simulation-view-layer-catalog:")?;
     let mcp = streamed_world
         .split("\n---\n")
         .find(|document| {
@@ -457,6 +476,48 @@ pub(crate) async fn helm_config() -> Result<()> {
         .context("finding streamed-world MCP deployment")?;
     not_contains(mcp, "name: SIMULATION_VIEW_LAYER_TOKEN")?;
     not_contains(&streamed_world, "browser-safe-secret")?;
+
+    let missing_external_catalog_digest = Command::new("helm")
+        .args([
+            "template",
+            "veoveo",
+            "deploy/helm/veoveo",
+            "--set",
+            "simulationView.streamedWorld.existingConfigMap=installation-worlds",
+        ])
+        .output()
+        .context("rendering an external streamed-world catalog without its digest")?;
+    ensure!(
+        !missing_external_catalog_digest.status.success(),
+        "Helm must reject an external streamed-world catalog without its digest"
+    );
+    contains(
+        &String::from_utf8_lossy(&missing_external_catalog_digest.stderr),
+        "/simulationView/streamedWorld/catalogDigest",
+    )?;
+
+    let catalog_digest = format!("sha256:{}", "a".repeat(64));
+    let external_catalog = run_checked(
+        Path::new("helm"),
+        [
+            "template".into(),
+            "veoveo".into(),
+            "deploy/helm/veoveo".into(),
+            "--set".into(),
+            "simulationView.streamedWorld.existingConfigMap=installation-worlds".into(),
+            "--set".into(),
+            format!("simulationView.streamedWorld.catalogDigest={catalog_digest}").into(),
+        ],
+        [],
+    )?;
+    contains(
+        &external_catalog,
+        &format!("checksum/simulation-view-layer-catalog: \"{catalog_digest}\""),
+    )?;
+    not_contains(
+        &external_catalog,
+        "app.kubernetes.io/component: simulation-view-layer-catalog",
+    )?;
 
     let missing_streamed_world_egress = Command::new("helm")
         .args([
@@ -637,7 +698,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         if component == "simulation-view-mcp" {
             contains(
                 deployment,
-                "readinessProbe:\n            httpGet:\n              path: /simulation-view/healthz",
+                "readinessProbe:\n            httpGet:\n              path: /simulation-view/readyz",
             )?;
             for expected in [
                 "--reconcile-interval-seconds",
@@ -656,6 +717,10 @@ pub(crate) async fn helm_config() -> Result<()> {
                 "Simulation View renderer must use process health for Kubernetes startup, \
                  readiness, and liveness"
             );
+            contains(
+                deployment,
+                "livenessProbe:\n            httpGet:\n              path: /healthz\n              port: render-control\n            initialDelaySeconds: 30\n            failureThreshold: 3\n            periodSeconds: 10\n            timeoutSeconds: 10",
+            )?;
         }
     }
     let bioma_tunnel = fs::read_to_string("examples/bioma/gitops/cloudflared.yaml")?;

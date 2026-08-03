@@ -108,11 +108,13 @@ than the interval. The MCP pod uses the installation database identity and its
 existing private runtime control credentials; no Console or producer
 credential is added.
 
-The MCP readiness probe calls `/simulation-view/readyz`. A store failure or a
-desired revision that has not been durably realized removes the pod from
-traffic and remains visible as typed reconciliation status. The liveness probe
-continues to call `/simulation-view/healthz`, so a recoverable store outage
-does not restart the control plane or erase its in-memory blocked diagnostic.
+The MCP readiness probe calls `/simulation-view/readyz` and admits the control
+plane when its store and Artifact dependency are reachable. The liveness probe
+continues to call `/simulation-view/healthz`, so a recoverable private-runtime
+failure does not restart or isolate the reconciler. Full renderer, pose-ingress,
+and durable desired-state convergence appears at
+`/simulation-view/runtimez`. `profile-up` probes that endpoint after rollout
+and fails with its typed report if the desired revision remains unrealized.
 
 Simulation View stores its session, scene, producer binding, logical cameras,
 unexpired requested streams, revocation tombstone, and typed reconciliation
@@ -122,12 +124,20 @@ durable and is never renewed automatically.
 
 `simulationView.streamedWorld` supplies the closed live-world catalog. The chart
 can render `catalog` into its owned ConfigMap or mount `existingConfigMap` under
-`catalogKey`. Each `credentialBindings` entry maps a catalog environment name to
-one key in an installation Secret; only the Isaac renderer receives those
-values. `egressCidrs` admits provider and redirect address ranges over HTTPS,
-while the catalog admits their exact hostnames. Enabling streamed worlds without
-at least one egress CIDR fails chart rendering. Keep provider credentials out of
-the catalog and scene declarations.
+`catalogKey`. An external ConfigMap requires the exact lowercase SHA-256 value
+in `catalogDigest`; changing it rolls the renderer even though Helm does not own
+the ConfigMap bytes. Inline catalogs derive that digest automatically. Each
+`credentialBindings` entry maps a catalog environment name to one key in an
+installation Secret; only the Isaac renderer receives those values.
+`egressCidrs` admits provider and redirect address ranges over HTTPS, while the
+catalog admits their exact hostnames. Enabling streamed worlds without at least
+one egress CIDR fails chart rendering. Keep provider credentials out of the
+catalog and scene declarations.
+
+`simulationView.streamTargetFps` is the exact hardware stream target applied to
+every bounded renderer slot. Existing external layer catalogs must add
+`streamedWorld.catalogDigest` before upgrade. Chart-owned inline catalogs need
+no migration value.
 
 Every MCP workload has one active pod and uses `Recreate`. This includes the
 gateway MCP endpoint, domain servers, GPU servers, and the stdio bridge that

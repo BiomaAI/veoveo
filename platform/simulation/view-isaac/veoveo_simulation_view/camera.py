@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 
 from .config import RendererConfig
-from .contracts import CameraBinding, ContractError
+from .contracts import CameraBinding, ContractError, RenderViewport
 from .pose import EntityPose, PoseSnapshot
 from .renderer_setup import RendererFailure, RendererFailureCode
 
@@ -48,7 +48,7 @@ def livestream_aov_arguments(config: RendererConfig) -> list[str]:
             "signalPort": str(config.signaling_port_base + slot),
             "streamPort": str(config.media_port_base + slot),
             "publicIp": config.public_media_ip,
-            "targetFps": "120",
+            "targetFps": str(config.stream_target_fps),
             "allowDynamicResize": "false",
             "authenticateBearer": "false",
         }
@@ -89,6 +89,9 @@ class HydraRenderProductProbe:
         self._closed = False
         self._generation = 0
         self._health: FrameHealth | None = None
+        self._last_drawable_at: float | None = None
+        self._last_drawable_at_iso: str | None = None
+        self._viewport: RenderViewport | None = None
         self._failure: BaseException | None = None
         self._hydra_texture = create_hydra_texture(
             name,
@@ -121,9 +124,27 @@ class HydraRenderProductProbe:
         with self._lock:
             failure = self._failure
             health = self._health
+            last_drawable_at = self._last_drawable_at
+            last_drawable_at_iso = self._last_drawable_at_iso
         if failure is not None:
             raise RuntimeError("RTX render-product health probe failed") from failure
+        if (
+            health is not None
+            and last_drawable_at is not None
+            and last_drawable_at_iso is not None
+        ):
+            return FrameHealth(
+                sequence=health.sequence,
+                observed_at=last_drawable_at,
+                observed_at_iso=last_drawable_at_iso,
+                visible=health.visible,
+            )
         return health
+
+    @property
+    def viewport(self) -> RenderViewport | None:
+        with self._lock:
+            return self._viewport
 
     def close(self) -> None:
         self.pause()
@@ -136,6 +157,9 @@ class HydraRenderProductProbe:
             self._generation += 1
             self._capture_pending = False
             self._health = None
+            self._last_drawable_at = None
+            self._last_drawable_at_iso = None
+            self._viewport = None
             self._failure = None
         self._hydra_texture.updates_enabled = False
 
@@ -183,11 +207,44 @@ class HydraRenderProductProbe:
             )
             if resource is None:
                 return
+            frame = self._hydra_texture.get_frame_info(event["result_handle"])
+            view = tuple(float(value) for value in frame.get("view", ()))
+            projection = tuple(
+                float(value) for value in frame.get("projection", ())
+            )
+            resolution = tuple(
+                int(value) for value in frame.get("resolution", ())
+            )
+            if (
+                len(view) != 16
+                or len(projection) != 16
+                or len(resolution) != 2
+                or resolution[0] < 1
+                or resolution[1] < 1
+            ):
+                raise RuntimeError(
+                    "RTX render-product viewport metadata is invalid"
+                )
+            viewport = RenderViewport(
+                view=view,
+                projection=projection,
+                width=resolution[0],
+                height=resolution[1],
+            )
             now = time.monotonic()
+            now_iso = _timestamp()
             with self._lock:
+                if self._closed:
+                    return
+                # Drawable events are the authoritative frame-production
+                # clock. Pixel visibility validation intentionally runs at a
+                # lower cadence, so its completion time must not make a live
+                # render product appear stale between readbacks.
+                self._last_drawable_at = now
+                self._last_drawable_at_iso = now_iso
+                self._viewport = viewport
                 if (
-                    self._closed
-                    or self._capture_pending
+                    self._capture_pending
                     or now - self._last_capture_requested < 0.5
                 ):
                     return
@@ -334,6 +391,8 @@ class CameraPool:
         if existing is not None:
             if existing.binding.render_slot != binding.render_slot:
                 raise ContractError("renderer camera slot is immutable")
+            if existing.binding == binding:
+                return existing.status()
             self._configure_camera(existing, binding)
             return existing.status()
         runtime = self._idle.pop(binding.render_slot, None)
@@ -392,6 +451,17 @@ class CameraPool:
                 key=lambda item: item[1].binding.render_slot,
             )
         )
+
+    def render_viewports(self) -> tuple[RenderViewport, ...]:
+        viewports: list[RenderViewport] = []
+        for _, runtime in sorted(
+            self._cameras.items(),
+            key=lambda item: item[1].binding.render_slot,
+        ):
+            viewport = runtime.probe.viewport
+            if viewport is not None:
+                viewports.append(viewport)
+        return tuple(viewports)
 
     def status(self, camera_id: str) -> dict[str, object]:
         runtime = self._cameras.get(camera_id)
@@ -637,6 +707,11 @@ def _rig_matrix(
 
     target = _entity(entities, rig["targetEntity"])
     position = target.position_enu_m
+    if kind == "mounted_entity":
+        mount = rig["mount"]
+        return _transform_matrix(mount) * _pose_matrix(
+            position, target.orientation_xyzw
+        ), None
     if kind == "orbit":
         azimuth = math.radians(float(rig["azimuthDegrees"]))
         elevation = math.radians(float(rig["elevationDegrees"]))
@@ -663,11 +738,6 @@ def _rig_matrix(
         )
         eye = tuple(position[index] + backward[index] for index in range(3))
         return _look_at(eye, position), eye
-    if kind == "mounted_entity":
-        mount = rig["mount"]
-        return _pose_matrix(
-            position, target.orientation_xyzw
-        ) * _transform_matrix(mount), None
     raise ContractError("camera rig is unsupported")
 
 

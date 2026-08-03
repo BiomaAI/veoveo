@@ -10,7 +10,12 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from .contracts import ContractError, identity, object_with_keys
+from .contracts import (
+    ContractError,
+    RenderViewport,
+    identity,
+    object_with_keys,
+)
 
 CATALOG_SCHEMA = "veoveo.io/simulation-view-layer-catalog/v1"
 ENVIRONMENT = re.compile(r"^SIMULATION_VIEW_LAYER_[A-Z0-9_]{1,106}$")
@@ -316,12 +321,28 @@ class StreamedWorldManager:
         from cesium.omniverse.bindings import (
             acquire_cesium_omniverse_interface,
         )
+        import omni.kit.app
 
         self._stage = stage
         self._catalog = catalog
         self._interface = acquire_cesium_omniverse_interface()
         self._sessions: dict[str, dict[str, Any]] = {}
-        self._camera_index = 0
+        self._render_viewports: tuple[RenderViewport, ...] = ()
+        # Cesium's interactive extension submits its viewport windows at the
+        # default update order (0). Simulation View renders through offscreen
+        # Hydra render products instead, so submit their complete viewport set
+        # later in the same Kit update. This makes the controlled render
+        # products the final authoritative view of streamed-world LOD
+        # selection for the frame without modifying the vendor extension.
+        self._update_subscription = (
+            omni.kit.app.get_app()
+            .get_update_event_stream()
+            .create_subscription_to_pop(
+                self._on_update_frame,
+                order=100,
+                name="veoveo.simulation_view.STREAMED_WORLD_VIEWPORTS",
+            )
+        )
 
     def bind(self, scene: Any) -> dict[str, object] | None:
         layer_id = scene.layer_id
@@ -342,31 +363,41 @@ class StreamedWorldManager:
         self._sessions[scene.session_id] = health
         return self.status(scene.session_id)
 
-    def tick(self, camera_paths: tuple[str, ...]) -> None:
+    def tick(self, render_viewports: tuple[RenderViewport, ...]) -> None:
+        self._render_viewports = render_viewports
+
+    def _on_update_frame(self, _: object) -> None:
+        self._update_provider(self._render_viewports)
+
+    def _update_provider(
+        self, render_viewports: tuple[RenderViewport, ...]
+    ) -> None:
         if not self._sessions:
             return
-        from cesium.omniverse.bindings import Viewport as CesiumViewport
-        from cesium.usd.plugins.CesiumUsdSchemas import Tileset
-        from omni.kit.viewport.utility import get_active_viewport
-
-        viewport = get_active_viewport()
-        if viewport is None:
-            self._fail_all("provider_unavailable", "active renderer viewport is unavailable")
-            return
-        if camera_paths:
-            camera_path = camera_paths[self._camera_index % len(camera_paths)]
-            self._camera_index += 1
-            viewport.set_active_camera(camera_path)
-        cesium_viewport = CesiumViewport()
-        cesium_viewport.viewMatrix = viewport.view
-        cesium_viewport.projMatrix = viewport.projection
-        cesium_viewport.width = float(viewport.resolution[0])
-        cesium_viewport.height = float(viewport.resolution[1])
         try:
-            self._interface.on_update_frame([cesium_viewport], False)
+            from cesium.omniverse.bindings import Viewport as CesiumViewport
+            from cesium.usd.plugins.CesiumUsdSchemas import Tileset
+            from pxr import Gf
+
+            provider_viewports: list[Any] = []
+            for render_viewport in render_viewports:
+                cesium_viewport = CesiumViewport()
+                cesium_viewport.viewMatrix = Gf.Matrix4d(
+                    *render_viewport.view
+                )
+                cesium_viewport.projMatrix = Gf.Matrix4d(
+                    *render_viewport.projection
+                )
+                cesium_viewport.width = float(render_viewport.width)
+                cesium_viewport.height = float(render_viewport.height)
+                provider_viewports.append(cesium_viewport)
+            self._interface.on_update_frame(provider_viewports, False)
             statistics = self._interface.get_render_statistics()
         except Exception:  # noqa: BLE001 - provider faults become typed health
-            self._fail_all("provider_unavailable", "streamed-world provider update failed")
+            self._fail_all(
+                "provider_unavailable",
+                "streamed-world provider update failed",
+            )
             return
         resident_bytes = int(statistics.tileset_cached_bytes)
         visible_tiles = int(statistics.tiles_rendered)
@@ -436,7 +467,7 @@ class StreamedWorldManager:
         from cesium.usd.plugins.CesiumUsdSchemas import Tileset
         from pxr import Usd
 
-        runtime = self._sessions.pop(session_id, None)
+        runtime = self._sessions.get(session_id)
         if runtime is None:
             return
         previous = self._stage.GetEditTarget()
@@ -444,14 +475,34 @@ class StreamedWorldManager:
         try:
             tileset = Tileset.Get(self._stage, runtime["tilesetPath"])
             if tileset.GetPrim().IsValid():
-                tileset.GetIonAccessTokenAttr().Clear()
-            self._stage.RemovePrim(runtime["rootPath"])
+                # Suspending is a provider-supported quiesce boundary. Do not
+                # clear ionAccessToken: Cesium 0.29 treats that as a tileset
+                # reload and may start an asynchronous troubleshooting request
+                # immediately before the prim is destroyed.
+                tileset.GetSuspendUpdateAttr().Set(True)
+                self._interface.on_update_frame([], False)
+            removed = self._stage.RemovePrim(runtime["rootPath"])
+            if removed is False:
+                raise RuntimeError("streamed-world root removal was rejected")
+            # Process the queued USD removal while this control transition is
+            # still synchronous, so the caller cannot receive a successful
+            # close before provider-owned tileset resources are detached.
+            self._interface.on_update_frame([], False)
+        except Exception as error:
+            raise ContractError(
+                "streamed-world provider teardown failed"
+            ) from error
         finally:
             self._stage.SetEditTarget(previous)
+        self._sessions.pop(session_id, None)
 
     def close_all(self) -> None:
         for session_id in tuple(self._sessions):
             self.close(session_id)
+        subscription = getattr(self, "_update_subscription", None)
+        if subscription is not None:
+            subscription.unsubscribe()
+            self._update_subscription = None
 
     def _author(
         self, session_id: str, layer: LayerDefinition

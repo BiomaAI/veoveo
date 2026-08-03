@@ -1000,6 +1000,7 @@ fn verify_workloads_and_gpu(context: &str, namespace: &str, timeout: Duration) -
                         "XDG_DATA_HOME",
                         "/var/lib/veoveo/runtime-cache/simulation-view/xdg-data",
                     ),
+                    ("SIMULATION_VIEW_FRAME_STALE_AFTER_MS", "500"),
                 ] {
                     let actual = environment.iter().find_map(|entry| {
                         (entry.get("name").and_then(Value::as_str) == Some(variable))

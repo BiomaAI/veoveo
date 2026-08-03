@@ -11,7 +11,7 @@ use crate::{
         PoseSourceState, ReconciliationFailureCode, ReconciliationPhase, SessionLifecycle,
         SimulationViewSession,
     },
-    durability::SimulationViewRepository,
+    durability::{SimulationViewRepository, sanitized_error_chain},
     runtime::RuntimeClients,
     state::SimulationViewService,
     uris,
@@ -56,7 +56,7 @@ pub(crate) fn spawn_reconciler(
                             config,
                             session,
                         ).await {
-                            tracing::warn!(error = ?error, %session_id, "Simulation View desired-state reconciliation failed");
+                            tracing::warn!(causes = ?sanitized_error_chain(&error), %session_id, "Simulation View desired-state reconciliation failed");
                         }
                         for uri in [
                             uris::session(&session_id),
@@ -103,7 +103,7 @@ async fn reconcile_session(
         );
         if let Err(persist_error) = repository.persist(service, &session_id).await {
             tracing::warn!(
-                error = ?persist_error,
+                causes = ?sanitized_error_chain(&persist_error),
                 %session_id,
                 "failed to retain blocked Simulation View reconciliation state"
             );
@@ -237,7 +237,7 @@ async fn reconcile_session(
                     );
                     if let Err(persist_error) = repository.persist(service, &session_id).await {
                         tracing::warn!(
-                            error = ?persist_error,
+                            causes = ?sanitized_error_chain(&persist_error),
                             %session_id,
                             "failed to retain blocked Simulation View reconciliation state"
                         );
@@ -361,7 +361,7 @@ async fn finish(
         );
         if let Err(persist_error) = repository.persist(service, &session.session_id).await {
             tracing::warn!(
-                error = ?persist_error,
+                causes = ?sanitized_error_chain(&persist_error),
                 session_id = %session.session_id,
                 "failed to retain blocked Simulation View reconciliation state"
             );
@@ -382,7 +382,7 @@ async fn failed_runtime(
     diagnostic: &str,
     error: anyhow::Error,
 ) -> anyhow::Result<()> {
-    tracing::warn!(error = ?error, %dependency, ?code, "Simulation View runtime dependency is not reconciled");
+    tracing::warn!(causes = ?sanitized_error_chain(&error), %dependency, ?code, "Simulation View runtime dependency is not reconciled");
     fail(
         service,
         &session.session_id,

@@ -2,6 +2,10 @@
 {{- $view := .Values.simulationView -}}
 {{- $slots := int $view.capacity.maximumRenderedCameras -}}
 {{- $layerCatalogName := default (printf "%s-simulation-view-layers" (include "veoveo.fullname" .)) $view.streamedWorld.existingConfigMap -}}
+{{- if and $view.streamedWorld.existingConfigMap (empty $view.streamedWorld.catalogDigest) -}}
+{{- fail "simulationView.streamedWorld.catalogDigest is required with existingConfigMap" -}}
+{{- end -}}
+{{- $layerCatalogDigest := ternary $view.streamedWorld.catalogDigest (printf "sha256:%s" (toPrettyJson $view.streamedWorld.catalog | sha256sum)) (not (empty $view.streamedWorld.existingConfigMap)) -}}
 {{- if and $view.streamedWorld.enabled (empty $view.streamedWorld.egressCidrs) -}}
 {{- fail "simulationView.streamedWorld.egressCidrs must admit the configured provider when streamedWorld is enabled" -}}
 {{- end -}}
@@ -332,6 +336,7 @@ spec:
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
         {{- include "veoveo.gpuPodAnnotations" (list . "simulation-view-renderer") | nindent 8 }}
+        checksum/simulation-view-layer-catalog: {{ $layerCatalogDigest | quote }}
         veoveo.ai/chart-revision: {{ .Chart.Version | quote }}
     spec:
       runtimeClassName: {{ include "veoveo.gpuRuntimeClass" (list . (required "simulationView.runtimeClassName is required" $view.runtimeClassName)) }}
@@ -422,6 +427,10 @@ spec:
               value: {{ $view.ports.rendererControl | quote }}
             - name: SIMULATION_VIEW_MAXIMUM_RENDER_SLOTS
               value: {{ $view.capacity.maximumRenderedCameras | quote }}
+            - name: SIMULATION_VIEW_STREAM_TARGET_FPS
+              value: {{ $view.streamTargetFps | quote }}
+            - name: SIMULATION_VIEW_FRAME_STALE_AFTER_MS
+              value: {{ $view.capacity.maximumFrameAgeMs | quote }}
             - name: SIMULATION_VIEW_SIGNALING_PORT_BASE
               value: {{ $view.ports.signalingBase | quote }}
             - name: SIMULATION_VIEW_MEDIA_PORT_BASE
@@ -454,12 +463,19 @@ spec:
               port: render-control
             periodSeconds: 5
             timeoutSeconds: 3
+          # Isaac/RTX can retain the Python GIL for more than Kubernetes'
+          # one-second default while it commits streamed-world and render-
+          # product work. Readiness still reports those transient stalls;
+          # liveness must allow one bounded render transition to complete
+          # instead of SIGKILLing an otherwise healthy renderer.
           livenessProbe:
             httpGet:
               path: /healthz
               port: render-control
             initialDelaySeconds: 30
+            failureThreshold: 3
             periodSeconds: 10
+            timeoutSeconds: 10
           securityContext:
             {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
           resources:

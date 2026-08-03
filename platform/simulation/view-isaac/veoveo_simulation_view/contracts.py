@@ -21,6 +21,14 @@ class ContractError(ValueError):
     pass
 
 
+@dataclass(frozen=True, slots=True)
+class RenderViewport:
+    view: tuple[float, ...]
+    projection: tuple[float, ...]
+    width: int
+    height: int
+
+
 def identity(label: str, value: object) -> str:
     if not isinstance(value, str) or IDENTITY.fullmatch(value) is None:
         raise ContractError(f"{label} is not a valid identity")
