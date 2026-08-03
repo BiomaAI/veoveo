@@ -50,11 +50,11 @@ simulationView:
           allowedRedirectHosts:
             - assets.cesium.com
           budgets:
-            maximumCacheBytes: 17179869184
-            maximumTileBytes: 134217728
-            maximumVisibleTiles: 4096
-            maximumPendingTiles: 64
-            maximumScreenSpaceError: 16
+            maximumCacheBytes: 2147483648
+            maximumTileBytes: 67108864
+            maximumVisibleTiles: 1024
+            maximumPendingTiles: 16
+            maximumScreenSpaceError: 24
           license:
             identifier: google-maps-platform-terms
             attribution: Google Photorealistic 3D Tiles
