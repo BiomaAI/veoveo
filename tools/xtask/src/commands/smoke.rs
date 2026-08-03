@@ -133,6 +133,7 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         "contract-schemas"
         | "sumo-verify"
         | "uav-domain-verify"
+        | "uav-showcase-up"
         | "uav-showcase-verify"
         | "simulation-view-verify" => &[CONFORMANCE],
         "otel"
@@ -233,6 +234,10 @@ mod tests {
         assert_eq!(
             scenario_binaries("agent-gateway").unwrap(),
             &[CONFORMANCE, DUCKDB, GATEWAY, ARTIFACT_SERVICE]
+        );
+        assert_eq!(
+            scenario_binaries("uav-showcase-up").unwrap(),
+            &[CONFORMANCE]
         );
         assert_eq!(
             scenario_binaries("datasheet-mcp").unwrap(),

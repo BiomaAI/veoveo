@@ -520,6 +520,25 @@ enum Cmd {
         #[arg(long)]
         public_base_url: String,
     },
+    /// Converge the always-on UAV loop and its governed Simulation View camera.
+    UavShowcaseUp {
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        #[arg(
+            long,
+            default_value = "showcase/uav-sim/scenarios/new-york-aerial.json"
+        )]
+        scenario: PathBuf,
+        /// Kubernetes context containing the composed showcase.
+        #[arg(long)]
+        context: String,
+        /// Namespace containing the platform and showcase releases.
+        #[arg(long, default_value = "veoveo")]
+        namespace: String,
+        /// Public installation base URL used by MCP.
+        #[arg(long)]
+        public_base_url: String,
+    },
     /// Run UAV flight and prove its independent Simulation View follow camera in the real Console.
     UavShowcaseVerify {
         #[arg(long, default_value = "target/debug/conformance")]
@@ -901,6 +920,22 @@ async fn main() -> Result<()> {
             context,
             public_base_url,
         } => uav_sim_verify(&conformance_bin, &scenario, &context, &public_base_url).await,
+        Cmd::UavShowcaseUp {
+            conformance_bin,
+            scenario,
+            context,
+            namespace,
+            public_base_url,
+        } => {
+            uav_showcase_up(
+                &conformance_bin,
+                &scenario,
+                &context,
+                &namespace,
+                &public_base_url,
+            )
+            .await
+        }
         Cmd::UavShowcaseVerify {
             conformance_bin,
             scenario,
