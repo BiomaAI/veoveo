@@ -534,6 +534,224 @@ class RendererContractsTest(unittest.TestCase):
         self.assertEqual((second.width, second.height), (640.0, 360.0))
         self.assertEqual(manager._sessions["session-1"]["lifecycle"], "ready")
 
+    def test_streamed_world_registers_provider_after_first_drawable_viewport(
+        self,
+    ) -> None:
+        class FakeMatrix4d:
+            def __init__(self, *values: float) -> None:
+                self.values = tuple(values)
+
+        class FakeCesiumViewport:
+            pass
+
+        class FakeAttribute:
+            def __init__(self) -> None:
+                self.values: list[bool] = []
+
+            def Set(self, value: bool) -> None:
+                self.values.append(value)
+
+        suspend = FakeAttribute()
+
+        class FakeTileset:
+            def GetSuspendUpdateAttr(self) -> FakeAttribute:
+                return suspend
+
+        class Tileset:
+            @staticmethod
+            def Get(stage: object, path: str) -> FakeTileset:
+                self.assertIs(stage, manager._stage)
+                self.assertEqual(path, "/layer/Tileset")
+                return FakeTileset()
+
+        class FakeStatistics:
+            tileset_cached_bytes = 1024
+            tiles_rendered = 1
+            tiles_loading_worker = 0
+            tiles_loading_main = 0
+
+        self_outer = self
+
+        class FakeInterface:
+            def __init__(self) -> None:
+                self.stage_changes: list[int] = []
+
+            def on_stage_change(self, stage_id: int) -> None:
+                self.stage_changes.append(stage_id)
+
+            def on_update_frame(self, viewports: list[object], wait: bool) -> None:
+                self_outer.assertTrue(viewports)
+                self_outer.assertIs(wait, False)
+
+            def get_render_statistics(self) -> FakeStatistics:
+                return FakeStatistics()
+
+        manager = StreamedWorldManager.__new__(StreamedWorldManager)
+        manager._stage = object()
+        manager._interface = FakeInterface()
+        manager._sessions = {
+            "session-1": {
+                "layer": Mock(
+                    budgets={
+                        "maximumCacheBytes": 4096,
+                        "maximumVisibleTiles": 16,
+                        "maximumPendingTiles": 4,
+                    }
+                ),
+                "tilesetPath": "/layer/Tileset",
+                "providerRegistered": False,
+                "coverageStartedAt": None,
+                "lifecycle": "loading",
+                "failure": None,
+            }
+        }
+        viewports = (
+            RenderViewport(
+                tuple(float(value) for value in range(16)),
+                tuple(float(value) for value in range(16, 32)),
+                1280,
+                720,
+            ),
+        )
+        bindings = ModuleType("cesium.omniverse.bindings")
+        bindings.Viewport = FakeCesiumViewport
+        schemas = ModuleType("cesium.usd.plugins.CesiumUsdSchemas")
+        schemas.Tileset = Tileset
+        cesium = ModuleType("cesium")
+        cesium.__path__ = []
+        cesium_omniverse = ModuleType("cesium.omniverse")
+        cesium_omniverse.__path__ = []
+        cesium_usd = ModuleType("cesium.usd")
+        cesium_usd.__path__ = []
+        cesium_plugins = ModuleType("cesium.usd.plugins")
+        cesium_plugins.__path__ = []
+        pxr = ModuleType("pxr")
+        gf = ModuleType("pxr.Gf")
+        gf.Matrix4d = FakeMatrix4d
+        pxr.Gf = gf
+        omni = ModuleType("omni")
+        omni.__path__ = []
+        omni_usd = ModuleType("omni.usd")
+        omni_usd.get_context = lambda: Mock(get_stage_id=lambda: 73)
+        omni.usd = omni_usd
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "cesium": cesium,
+                "cesium.omniverse": cesium_omniverse,
+                "cesium.omniverse.bindings": bindings,
+                "cesium.usd": cesium_usd,
+                "cesium.usd.plugins": cesium_plugins,
+                "cesium.usd.plugins.CesiumUsdSchemas": schemas,
+                "omni": omni,
+                "omni.usd": omni_usd,
+                "pxr": pxr,
+                "pxr.Gf": gf,
+            },
+        ):
+            manager._update_provider(viewports)
+
+        self.assertEqual(manager._interface.stage_changes, [0, 73])
+        self.assertEqual(suspend.values, [False])
+        self.assertTrue(manager._sessions["session-1"]["providerRegistered"])
+        self.assertIsNotNone(
+            manager._sessions["session-1"]["coverageStartedAt"]
+        )
+        self.assertEqual(manager._sessions["session-1"]["lifecycle"], "ready")
+
+    def test_unavailable_coverage_remains_eligible_for_recovery(self) -> None:
+        class FakeMatrix4d:
+            def __init__(self, *values: float) -> None:
+                self.values = tuple(values)
+
+        class FakeCesiumViewport:
+            pass
+
+        class ForbiddenAttribute:
+            def Set(self, value: bool) -> None:
+                raise AssertionError(
+                    f"unavailable coverage must not suspend the tileset: {value}"
+                )
+
+        class FakeTileset:
+            def GetSuspendUpdateAttr(self) -> ForbiddenAttribute:
+                return ForbiddenAttribute()
+
+        class Tileset:
+            @staticmethod
+            def Get(stage: object, path: str) -> FakeTileset:
+                return FakeTileset()
+
+        class FakeStatistics:
+            tileset_cached_bytes = 0
+            tiles_rendered = 0
+            tiles_loading_worker = 0
+            tiles_loading_main = 0
+
+        manager = StreamedWorldManager.__new__(StreamedWorldManager)
+        manager._interface = Mock()
+        manager._interface.get_render_statistics.return_value = FakeStatistics()
+        manager._sessions = {
+            "session-1": {
+                "layer": Mock(
+                    budgets={
+                        "maximumCacheBytes": 4096,
+                        "maximumVisibleTiles": 16,
+                        "maximumPendingTiles": 4,
+                    }
+                ),
+                "tilesetPath": "/layer/Tileset",
+                "providerRegistered": True,
+                "coverageStartedAt": time.monotonic() - 121.0,
+                "lifecycle": "loading",
+                "failure": None,
+            }
+        }
+        bindings = ModuleType("cesium.omniverse.bindings")
+        bindings.Viewport = FakeCesiumViewport
+        schemas = ModuleType("cesium.usd.plugins.CesiumUsdSchemas")
+        schemas.Tileset = Tileset
+        cesium = ModuleType("cesium")
+        cesium.__path__ = []
+        cesium_omniverse = ModuleType("cesium.omniverse")
+        cesium_omniverse.__path__ = []
+        cesium_usd = ModuleType("cesium.usd")
+        cesium_usd.__path__ = []
+        cesium_plugins = ModuleType("cesium.usd.plugins")
+        cesium_plugins.__path__ = []
+        pxr = ModuleType("pxr")
+        gf = ModuleType("pxr.Gf")
+        gf.Matrix4d = FakeMatrix4d
+        pxr.Gf = gf
+        viewport = RenderViewport(
+            tuple(float(value) for value in range(16)),
+            tuple(float(value) for value in range(16, 32)),
+            1280,
+            720,
+        )
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "cesium": cesium,
+                "cesium.omniverse": cesium_omniverse,
+                "cesium.omniverse.bindings": bindings,
+                "cesium.usd": cesium_usd,
+                "cesium.usd.plugins": cesium_plugins,
+                "cesium.usd.plugins.CesiumUsdSchemas": schemas,
+                "pxr": pxr,
+                "pxr.Gf": gf,
+            },
+        ):
+            manager._update_provider((viewport,))
+
+        self.assertEqual(manager._sessions["session-1"]["lifecycle"], "failed")
+        self.assertEqual(
+            manager._sessions["session-1"]["failure"]["code"],
+            "unavailable_coverage",
+        )
+
     def test_streamed_world_converts_binding_failures_to_typed_health(
         self,
     ) -> None:

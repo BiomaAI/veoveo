@@ -379,6 +379,34 @@ class StreamedWorldManager:
             from cesium.usd.plugins.CesiumUsdSchemas import Tileset
             from pxr import Gf
 
+            if render_viewports and any(
+                not runtime.get("providerRegistered", True)
+                for runtime in self._sessions.values()
+            ):
+                # Cesium's native stage transition may initialize provider
+                # resources synchronously. Register only after an admitted
+                # hardware render product has produced authoritative viewport
+                # matrices. Binding a scene before its camera exists can
+                # otherwise block the renderer command loop and starts a
+                # meaningless coverage deadline with no view to service.
+                self._interface.on_stage_change(0)
+                import omni.usd
+
+                self._interface.on_stage_change(
+                    omni.usd.get_context().get_stage_id()
+                )
+                started_at = time.monotonic()
+                for runtime in self._sessions.values():
+                    if runtime.get("providerRegistered", True):
+                        continue
+                    Tileset.Get(
+                        self._stage, runtime["tilesetPath"]
+                    ).GetSuspendUpdateAttr().Set(False)
+                    runtime.update(
+                        providerRegistered=True,
+                        coverageStartedAt=started_at,
+                    )
+
             provider_viewports: list[Any] = []
             for render_viewport in render_viewports:
                 cesium_viewport = CesiumViewport()
@@ -427,10 +455,10 @@ class StreamedWorldManager:
                 )
             elif visible_tiles > 0:
                 runtime.update(lifecycle="ready", failure=None)
-            elif time.monotonic() - runtime["startedAt"] > 120.0:
-                Tileset.Get(
-                    self._stage, runtime["tilesetPath"]
-                ).GetSuspendUpdateAttr().Set(True)
+            elif (
+                runtime.get("coverageStartedAt") is not None
+                and time.monotonic() - runtime["coverageStartedAt"] > 120.0
+            ):
                 runtime.update(
                     lifecycle="failed",
                     failure={
@@ -561,12 +589,9 @@ class StreamedWorldManager:
                 budgets["maximumPendingTiles"]
             )
             tileset.GetShowCreditsOnScreenAttr().Set(True)
+            tileset.GetSuspendUpdateAttr().Set(False)
         finally:
             self._stage.SetEditTarget(previous)
-        self._interface.on_stage_change(0)
-        import omni.usd
-
-        self._interface.on_stage_change(omni.usd.get_context().get_stage_id())
         return {
             "layer": layer,
             "rootPath": root,
@@ -576,7 +601,8 @@ class StreamedWorldManager:
             "visibleTileCount": 0,
             "pendingTileCount": 0,
             "failure": None,
-            "startedAt": time.monotonic(),
+            "providerRegistered": False,
+            "coverageStartedAt": None,
         }
 
     def _fail_all(self, code: str, message: str) -> None:
