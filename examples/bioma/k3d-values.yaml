@@ -30,6 +30,52 @@ simulationView:
   media:
     exposure: NodePort
     nodePortBase: 30998
+  streamedWorld:
+    enabled: true
+    catalog:
+      schemaVersion: veoveo.io/simulation-view-layer-catalog/v1
+      layers:
+        - layerId: photorealistic-world
+          layerType: streamed_3d_tiles
+          source:
+            kind: cesium_ion
+            assetId: 2275207
+            serverUrl: https://ion.cesium.com/
+            apiUrl: https://api.cesium.com/
+            applicationId: 413
+            credentialEnvironment: SIMULATION_VIEW_LAYER_CESIUM_ION_TOKEN
+          allowedHosts:
+            - ion.cesium.com
+            - api.cesium.com
+          allowedRedirectHosts:
+            - assets.cesium.com
+          budgets:
+            maximumCacheBytes: 17179869184
+            maximumTileBytes: 134217728
+            maximumVisibleTiles: 4096
+            maximumPendingTiles: 64
+            maximumScreenSpaceError: 16
+          license:
+            identifier: google-maps-platform-terms
+            attribution: Google Photorealistic 3D Tiles
+            attributionUrl: https://cloud.google.com/maps-platform/terms
+            displayRequired: true
+          georeference:
+            world: frames://world/uav-showcase-new-york-fc6344f5d9ddda9f/revision/revision-019fc924-ac40-7860-abb5-06921285bbad
+            frameRevision:
+              uri: frames://world/uav-showcase-new-york-fc6344f5d9ddda9f/revision/revision-019fc924-ac40-7860-abb5-06921285bbad
+              digest: sha256:4b49d81a65a4917c22f66b17edf2e77d80f9dd57769eca9b8840c8d5a1b7d97c
+            localEnuFrame: frames://world/uav-showcase-new-york-fc6344f5d9ddda9f/revision/revision-019fc924-ac40-7860-abb5-06921285bbad/frame/isaac-world
+            origin:
+              latitudeDegrees: 40.758
+              longitudeDegrees: -73.9855
+              ellipsoidHeightM: -17
+    credentialBindings:
+      - environment: SIMULATION_VIEW_LAYER_CESIUM_ION_TOKEN
+        existingSecret: veoveo-uav-sim-secrets
+        key: cesium-ion-access-token
+    egressCidrs:
+      - 0.0.0.0/0
 networkPolicy:
   enabled: false
 podDisruptionBudget:
