@@ -60,7 +60,7 @@ class Px4Commander:
         self._last_gcs_heartbeat_at = 0.0
         self._mission_interrupt = threading.Event()
 
-    def connect(self, timeout_seconds: float = 60.0) -> None:
+    def connect(self, timeout_seconds: float) -> None:
         deadline = time.monotonic() + timeout_seconds
         with self._lock:
             self._connection = mavutil.mavlink_connection(

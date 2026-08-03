@@ -73,6 +73,7 @@ session:
   physicsHz: 250
   renderingHz: 20
   tileReadyFrames: 30
+  px4ConnectTimeoutSeconds: 180
   privacyConsent: false
   fleetLoop:
     relativeAltitudeM: 450

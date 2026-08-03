@@ -176,6 +176,7 @@
         "physicsHz",
         "renderingHz",
         "tileReadyFrames",
+        "px4ConnectTimeoutSeconds",
         "privacyConsent",
         "fleetLoop",
         "camera"
@@ -186,6 +187,7 @@
         "physicsHz": {"type": "integer", "minimum": 30, "maximum": 1000},
         "renderingHz": {"type": "integer", "minimum": 1, "maximum": 120},
         "tileReadyFrames": {"type": "integer", "minimum": 1, "maximum": 600},
+        "px4ConnectTimeoutSeconds": {"type": "number", "minimum": 30, "maximum": 600},
         "privacyConsent": {"type": "boolean"},
         "fleetLoop": {
           "type": "object",

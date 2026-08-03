@@ -97,6 +97,7 @@ class RuntimeConfigTests(unittest.TestCase):
             config = RuntimeConfig.from_environment()
         self.assertEqual(config.rendering_hz, 20)
         self.assertEqual(config.rendering_hz, config.camera.fps)
+        self.assertEqual(config.px4_connect_timeout_seconds, 180.0)
 
         app_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py"

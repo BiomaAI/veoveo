@@ -413,7 +413,9 @@ def run(config: RuntimeConfig) -> None:
             max_workers=config.vehicle_count, thread_name_prefix="px4-connect"
         )
         connection_futures = {
-            vehicle_id: connection_executor.submit(commander.connect)
+            vehicle_id: connection_executor.submit(
+                commander.connect, config.px4_connect_timeout_seconds
+            )
             for vehicle_id, commander in commanders.items()
         }
 
@@ -421,7 +423,9 @@ def run(config: RuntimeConfig) -> None:
         # PX4 connection deadline. Advance physics without rendering until the
         # Simulator MAVLink and GCS handshakes are complete, then let the normal
         # loop render Google Photorealistic 3D Tiles and camera frames.
-        px4_bootstrap_deadline = time.monotonic() + 120.0
+        px4_bootstrap_deadline = (
+            time.monotonic() + config.px4_connect_timeout_seconds + 15.0
+        )
         while not all(future.done() for future in connection_futures.values()):
             world.step(render=False)
             physics_step += 1
