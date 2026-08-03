@@ -109,6 +109,18 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertNotIn("livestream", app_source.lower())
         self.assertNotIn("follow_camera", app_source)
 
+    def test_multi_instance_px4_has_distinct_gcs_ports(self) -> None:
+        runtime_root = Path(__file__).parents[1]
+        dockerfile = (runtime_root / "Dockerfile").read_text()
+        px4_patch = (
+            runtime_root
+            / "patches"
+            / "px4-1.17.0-multi-instance-gcs.patch"
+        ).read_text()
+        self.assertIn("git -C px4 apply --check /tmp/px4.patch", dockerfile)
+        self.assertIn("udp_gcs_port_remote=$((14550+px4_instance))", px4_patch)
+        self.assertIn("-o $udp_gcs_port_remote", px4_patch)
+
     def test_default_fleet_loop_encloses_manhattan(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             loop = RuntimeConfig.from_environment().fleet_loop
