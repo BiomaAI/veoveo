@@ -24,9 +24,14 @@ from .control import (
     ReadinessSlot,
 )
 from .gpu import verify_nvidia_gpu_and_nvenc
+from .interpolation import (
+    InterpolationResetReason,
+    PoseInterpolator,
+    RenderedPoseFrame,
+)
 from .layers import StreamedWorldManager
 from .lighting import DiagnosticScene
-from .pose import PoseMirror, PoseSnapshot
+from .pose import PoseMirror
 from .renderer_setup import (
     CesiumMaterialStatus,
     RendererFailure,
@@ -38,7 +43,6 @@ from .renderer_setup import (
 )
 from .scene import ArtifactStore, SceneManager
 
-
 LOGGER = logging.getLogger("veoveo.simulation_view")
 
 
@@ -49,6 +53,9 @@ class SessionRuntime:
     pose: PoseMirror | None = None
     pose_binding: PoseSourceBinding | None = None
     pose_authorization_floor: int = 0
+    interpolation: PoseInterpolator | None = None
+    pose_stale: bool = True
+    last_applied_pose: tuple[int, int] | None = None
 
 
 class Renderer:
@@ -65,9 +72,7 @@ class Renderer:
         self._streams: dict[str, StreamBinding] = {}
         self._scenes = SceneManager(
             stage,
-            ArtifactStore(
-                config.artifact_directory, config.cache_directory
-            ),
+            ArtifactStore(config.artifact_directory, config.cache_directory),
             diagnostics,
         )
         self._cameras = CameraPool(stage, config)
@@ -76,19 +81,35 @@ class Renderer:
 
     def tick(self) -> None:
         self._process_commands()
-        snapshots: dict[str, PoseSnapshot] = {}
+        snapshots: dict[str, RenderedPoseFrame] = {}
         stale_sessions: set[str] = set()
         for session_id, session in self._sessions.items():
             if session.pose is None:
                 continue
-            snapshot = session.pose.poll()
-            if snapshot is not None:
-                self._scenes.apply_pose(snapshot)
+            result = session.pose.poll()
+            if result is not None and session.interpolation is not None:
+                session.interpolation.observe(result)
             if session.pose.latest is not None and session.pose.stale:
+                if not session.pose_stale and session.interpolation is not None:
+                    session.interpolation.reset(InterpolationResetReason.STALE)
+                session.pose_stale = True
                 stale_sessions.add(session_id)
                 self._scenes.mark_pose_stale(session_id)
-            elif session.pose.latest is not None:
-                snapshots[session_id] = session.pose.latest
+                continue
+            if session.pose.latest is None or session.interpolation is None:
+                continue
+            session.pose_stale = False
+            frame = session.interpolation.render()
+            if frame is None:
+                continue
+            applied_pose = (
+                frame.source_sequence,
+                frame.simulation_timestamp_ns,
+            )
+            if applied_pose != session.last_applied_pose:
+                self._scenes.apply_pose(frame)
+                session.last_applied_pose = applied_pose
+            snapshots[session_id] = frame
         self._cameras.tick(snapshots, stale_sessions)
         self._layers.tick(self._cameras.render_viewports())
 
@@ -119,13 +140,9 @@ class Renderer:
             try:
                 result = self._execute(command)
             except ContractError as error:
-                result = CommandResult(
-                    HTTPStatus.CONFLICT, {"error": str(error)}
-                )
+                result = CommandResult(HTTPStatus.CONFLICT, {"error": str(error)})
             except BaseException:
-                LOGGER.exception(
-                    "renderer command failed: %s", command.operation
-                )
+                LOGGER.exception("renderer command failed: %s", command.operation)
                 result = CommandResult(
                     HTTPStatus.INTERNAL_SERVER_ERROR,
                     {"error": "renderer transition failed"},
@@ -174,6 +191,7 @@ class Renderer:
                 self._layers.close(command.session_id)
                 raise
             session.scene = command.value
+            session.last_applied_pose = None
             return _accepted()
         if operation == "put_pose_source":
             assert isinstance(command.value, PoseSourceBinding)
@@ -184,48 +202,64 @@ class Renderer:
                 and session.pose_binding.authorization_revision
                 == command.value.authorization_revision
             ):
-                raise ContractError(
-                    "pose authorization revision is immutable"
-                )
+                raise ContractError("pose authorization revision is immutable")
             scene = _scene(session)
             if (
                 command.value.epoch_id != session.binding.epoch_id
                 or command.value.frame_uri != scene.frame_uri
                 or command.value.frame_digest != scene.frame_digest
             ):
-                raise ContractError(
-                    "pose source does not match the renderer scene"
-                )
-            if (
-                command.value.authorization_revision
-                <= session.pose_authorization_floor
-            ):
+                raise ContractError("pose source does not match the renderer scene")
+            if command.value.authorization_revision <= session.pose_authorization_floor:
                 raise ContractError("pose authorization revision is stale")
             if command.value.revoked:
-                session.pose_authorization_floor = (
-                    command.value.authorization_revision
-                )
+                session.pose_authorization_floor = command.value.authorization_revision
                 if session.pose is not None:
                     session.pose.revoke()
                     session.pose = None
+                if session.interpolation is None:
+                    session.interpolation = PoseInterpolator(
+                        scene.interpolation,
+                        command.value.maximum_cadence_hz,
+                        command.value.stale_after_ms,
+                    )
+                session.interpolation.reset(InterpolationResetReason.REVOKED)
+                session.pose_stale = True
+                session.last_applied_pose = None
                 session.pose_binding = command.value
                 return _accepted()
             mirror = PoseMirror(self._config.pose_directory)
             if session.pose is None:
                 mirror.bind(command.value)
                 session.pose = mirror
+                session.interpolation = PoseInterpolator(
+                    scene.interpolation,
+                    command.value.maximum_cadence_hz,
+                    command.value.stale_after_ms,
+                )
             else:
                 session.pose.renew(command.value)
-            session.pose_authorization_floor = (
-                command.value.authorization_revision - 1
-            )
+                assert session.interpolation is not None
+                session.interpolation.reset(
+                    InterpolationResetReason.AUTHORIZATION_REVISION_CHANGED
+                )
+            session.pose_stale = True
+            session.last_applied_pose = None
+            session.pose_authorization_floor = command.value.authorization_revision - 1
             session.pose_binding = command.value
             return _accepted()
         if operation == "delete_pose_source":
             if session.pose is not None:
                 session.pose.revoke()
                 session.pose = None
+            if session.interpolation is not None:
+                session.interpolation.reset(
+                    InterpolationResetReason.POSE_SOURCE_CHANGED
+                )
+                session.interpolation = None
             session.pose_binding = None
+            session.pose_stale = True
+            session.last_applied_pose = None
             return CommandResult(HTTPStatus.NO_CONTENT)
         if operation == "put_camera":
             _scene(session)
@@ -235,14 +269,21 @@ class Renderer:
                 for stream_id, stream in self._streams.items()
                 if stream.camera_id != command.value.camera_id
             }
-            return CommandResult(
-                HTTPStatus.OK, self._cameras.upsert(command.value)
-            )
+            return CommandResult(HTTPStatus.OK, self._cameras.upsert(command.value))
         if operation == "get_camera":
             assert command.resource_id is not None
             return CommandResult(
                 HTTPStatus.OK,
                 self._cameras.status(command.resource_id),
+            )
+        if operation == "get_pose_source":
+            if session.pose_binding is None:
+                return CommandResult(HTTPStatus.NO_CONTENT)
+            if session.interpolation is None:
+                raise ContractError("renderer pose interpolation is unavailable")
+            return CommandResult(
+                HTTPStatus.OK,
+                session.interpolation.diagnostics().response(),
             )
         if operation == "get_layer":
             status = self._layers.status(command.session_id)
@@ -262,8 +303,7 @@ class Renderer:
             assert isinstance(command.value, StreamBinding)
             binding = command.value
             if (
-                self._cameras.camera_for_slot(binding.render_slot)
-                != binding.camera_id
+                self._cameras.camera_for_slot(binding.render_slot) != binding.camera_id
                 or binding.media_port
                 != self._config.media_port_base + binding.render_slot
             ):
@@ -281,8 +321,7 @@ class Renderer:
                     "liveViewId": binding.live_view_id,
                     "ready": status["ready"],
                     "signalPort": (
-                        self._config.signaling_port_base
-                        + binding.render_slot
+                        self._config.signaling_port_base + binding.render_slot
                     ),
                     "mediaPort": binding.media_port,
                     "lastPoseSequence": status["lastPoseSequence"],
@@ -388,9 +427,7 @@ def run(config: RendererConfig) -> None:
                 pipeline_failure,
             ) = renderer.readiness()
             streamed_world_ready = renderer.streamed_world_ready()
-            governed_lighting_ready = (
-                renderer.governed_lighting_ready()
-            )
+            governed_lighting_ready = renderer.governed_lighting_ready()
             failure = pipeline_failure
             if not governed_lighting_ready and failure is None:
                 failure = RendererFailure(
@@ -419,9 +456,7 @@ def run(config: RendererConfig) -> None:
                         and material_status.material_search_path_ready
                         and material_status.material_allowlist_ready
                     ),
-                    cesium_tangent_frames_ready=(
-                        material_status.tangent_frame_ready
-                    ),
+                    cesium_tangent_frames_ready=(material_status.tangent_frame_ready),
                     governed_lighting_ready=governed_lighting_ready,
                     color_pipeline_ready=color_pipeline_ready,
                     failure=failure,

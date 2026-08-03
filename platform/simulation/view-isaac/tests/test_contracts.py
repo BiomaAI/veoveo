@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import queue
 import struct
 import tempfile
 import threading
@@ -28,14 +29,23 @@ from veoveo_simulation_view.config import RendererConfig
 from veoveo_simulation_view.contracts import (
     CameraBinding,
     ContractError,
+    InterpolationPolicy,
     PoseSourceBinding,
     RenderViewport,
     SceneBinding,
     SessionBinding,
 )
+from veoveo_simulation_view.interpolation import PoseInterpolator
 from veoveo_simulation_view.layers import LayerCatalog, StreamedWorldManager
 from veoveo_simulation_view.lighting import GovernedLighting
-from veoveo_simulation_view.pose import PoseMirror, decode_snapshot
+from veoveo_simulation_view.pose import (
+    EntityPose,
+    PoseMirror,
+    PosePollResult,
+    PoseSampleKind,
+    PoseSnapshot,
+    decode_snapshot,
+)
 from veoveo_simulation_view.renderer_setup import (
     CESIUM_EXTENSION_ID,
     CESIUM_MDL_MODULE_NAME,
@@ -85,9 +95,7 @@ class RendererContractsTest(unittest.TestCase):
 
         configure_headless_cesium_extension(settings)
 
-        self.assertIs(
-            settings.get(CESIUM_SHOW_ON_STARTUP_SETTING), False
-        )
+        self.assertIs(settings.get(CESIUM_SHOW_ON_STARTUP_SETTING), False)
 
     def test_headless_renderer_detaches_only_interactive_cesium_updates(
         self,
@@ -98,9 +106,7 @@ class RendererContractsTest(unittest.TestCase):
 
         class Modules:
             def __init__(self, extension: object) -> None:
-                self._started_extensions = [
-                    (extension, "cesium.omniverse")
-                ]
+                self._started_extensions = [(extension, "cesium.omniverse")]
 
         manager = Mock()
         manager.get_enabled_extension_id.return_value = CESIUM_EXTENSION_ID
@@ -109,9 +115,7 @@ class RendererContractsTest(unittest.TestCase):
 
         suppress_interactive_cesium_viewport_updates(
             manager,
-            extension_registry={
-                CESIUM_EXTENSION_ID: Modules(extension)
-            },
+            extension_registry={CESIUM_EXTENSION_ID: Modules(extension)},
         )
 
         subscription.unsubscribe.assert_called_once_with()
@@ -138,9 +142,7 @@ class RendererContractsTest(unittest.TestCase):
         self,
     ) -> None:
         manager = Mock()
-        manager.get_enabled_extension_id.return_value = (
-            "cesium.omniverse-0.30.0"
-        )
+        manager.get_enabled_extension_id.return_value = "cesium.omniverse-0.30.0"
 
         with self.assertRaises(RendererInitializationError) as caught:
             suppress_interactive_cesium_viewport_updates(
@@ -248,12 +250,24 @@ class RendererContractsTest(unittest.TestCase):
         )
         body["lighting"]["colorTemperatureKelvin"] = 10_001
 
-        with self.assertRaisesRegex(
-            ContractError, "colorTemperatureKelvin"
-        ):
-            SceneBinding.parse(
-                {"body": body, "digest": f"sha256:{'1' * 64}"}
-            )
+        with self.assertRaisesRegex(ContractError, "colorTemperatureKelvin"):
+            SceneBinding.parse({"body": body, "digest": f"sha256:{'1' * 64}"})
+
+    def test_scene_preserves_and_validates_interpolation_policy(self) -> None:
+        body = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "fixtures/anonymous-scene-body.json"
+            ).read_text(encoding="utf-8")
+        )
+        body["quality"]["interpolation"] = "linear"
+
+        binding = SceneBinding.parse({"body": body, "digest": f"sha256:{'1' * 64}"})
+
+        self.assertEqual(binding.interpolation, InterpolationPolicy.LINEAR)
+        body["quality"]["interpolation"] = "cubic"
+        with self.assertRaisesRegex(ContractError, "interpolation"):
+            SceneBinding.parse({"body": body, "digest": f"sha256:{'1' * 64}"})
 
     def test_readiness_product_is_not_a_streamed_media_slot(self) -> None:
         config = Mock(
@@ -340,9 +354,7 @@ class RendererContractsTest(unittest.TestCase):
     ) -> None:
         resource = object()
         texture = Mock()
-        texture.get_aov_info.return_value = [
-            {"texture": {"rp_resource": resource}}
-        ]
+        texture.get_aov_info.return_value = [{"texture": {"rp_resource": resource}}]
         texture.get_frame_info.return_value = {
             "view": [float(value) for value in range(16)],
             "projection": [float(value + 16) for value in range(16)],
@@ -390,9 +402,7 @@ class RendererContractsTest(unittest.TestCase):
             probe.viewport,
             RenderViewport(
                 view=tuple(float(value) for value in range(16)),
-                projection=tuple(
-                    float(value + 16) for value in range(16)
-                ),
+                projection=tuple(float(value + 16) for value in range(16)),
                 width=1280,
                 height=720,
             ),
@@ -441,9 +451,7 @@ class RendererContractsTest(unittest.TestCase):
             def __init__(self) -> None:
                 self.viewports: list[object] = []
 
-            def on_update_frame(
-                self, viewports: list[object], wait: bool
-            ) -> None:
+            def on_update_frame(self, viewports: list[object], wait: bool) -> None:
                 self_outer.assertIs(wait, False)
                 self.viewports = viewports
 
@@ -521,9 +529,7 @@ class RendererContractsTest(unittest.TestCase):
         self.assertEqual(second.viewMatrix.values, viewports[1].view)
         self.assertEqual(second.projMatrix.values, viewports[1].projection)
         self.assertEqual((second.width, second.height), (640.0, 360.0))
-        self.assertEqual(
-            manager._sessions["session-1"]["lifecycle"], "ready"
-        )
+        self.assertEqual(manager._sessions["session-1"]["lifecycle"], "ready")
 
     def test_streamed_world_converts_binding_failures_to_typed_health(
         self,
@@ -549,9 +555,7 @@ class RendererContractsTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(
-            manager._sessions["session-1"]["lifecycle"], "failed"
-        )
+        self.assertEqual(manager._sessions["session-1"]["lifecycle"], "failed")
         self.assertEqual(
             manager._sessions["session-1"]["failure"]["code"],
             "provider_unavailable",
@@ -569,9 +573,7 @@ class RendererContractsTest(unittest.TestCase):
 
         manager = StreamedWorldManager.__new__(StreamedWorldManager)
         manager._interface = Mock()
-        manager._interface.get_render_statistics.return_value = (
-            FakeStatistics()
-        )
+        manager._interface.get_render_statistics.return_value = FakeStatistics()
         manager._sessions = {
             "session-1": {
                 "layer": Mock(
@@ -617,9 +619,7 @@ class RendererContractsTest(unittest.TestCase):
             manager._update_provider(())
 
         manager._interface.on_update_frame.assert_called_once_with([], False)
-        self.assertEqual(
-            manager._sessions["session-1"]["lifecycle"], "loading"
-        )
+        self.assertEqual(manager._sessions["session-1"]["lifecycle"], "loading")
 
     def test_mounted_camera_composes_mount_in_entity_local_space(
         self,
@@ -666,9 +666,7 @@ class RendererContractsTest(unittest.TestCase):
                 return_value=Matrix("mount"),
             ),
         ):
-            matrix, eye = _rig_matrix(
-                rig, {"aircraft-1": entity}, previous_eye=None
-            )
+            matrix, eye = _rig_matrix(rig, {"aircraft-1": entity}, previous_eye=None)
 
         self.assertEqual(matrix.label, "mount * entity")
         self.assertIsNone(eye)
@@ -713,9 +711,7 @@ class RendererContractsTest(unittest.TestCase):
         runtime.probe.pause.assert_called_once_with()
         self.assertIs(pool._idle[first.render_slot], runtime)
 
-        def configure(
-            reused: FakeRuntime, binding: CameraBinding
-        ) -> None:
+        def configure(reused: FakeRuntime, binding: CameraBinding) -> None:
             reused.binding = binding
 
         with (
@@ -757,9 +753,7 @@ class RendererContractsTest(unittest.TestCase):
             status = pool.upsert(binding)
 
         configure_camera.assert_not_called()
-        self.assertEqual(
-            status, {"cameraId": binding.camera_id, "ready": True}
-        )
+        self.assertEqual(status, {"cameraId": binding.camera_id, "ready": True})
 
     def test_slot_zero_is_idle_without_reconfiguring_readiness_probe(
         self,
@@ -825,9 +819,7 @@ class RendererContractsTest(unittest.TestCase):
             self.assertEqual(config.signaling_port_base + 3, 49103)
             self.assertEqual(config.media_port_base + 3, 48001)
             self.assertEqual(config.stream_target_fps, 15)
-            self.assertEqual(
-                config.maximum_artifact_bytes, 4 * 1024 * 1024 * 1024
-            )
+            self.assertEqual(config.maximum_artifact_bytes, 4 * 1024 * 1024 * 1024)
 
     def test_layer_catalog_requires_secret_without_exposing_it(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -929,9 +921,7 @@ class RendererContractsTest(unittest.TestCase):
                 return FakeTileset()
 
         class FakeInterface:
-            def on_update_frame(
-                self, viewports: list[object], wait: bool
-            ) -> None:
+            def on_update_frame(self, viewports: list[object], wait: bool) -> None:
                 self_outer.assertEqual(viewports, [])
                 self_outer.assertIs(wait, False)
                 events.append("provider_update")
@@ -1002,13 +992,9 @@ class RendererContractsTest(unittest.TestCase):
     def test_renderer_retains_session_when_provider_teardown_fails(
         self,
     ) -> None:
-        binding = SessionBinding.parse(
-            {"sessionId": "session-1", "epochId": "epoch-1"}
-        )
+        binding = SessionBinding.parse({"sessionId": "session-1", "epochId": "epoch-1"})
         renderer = Renderer.__new__(Renderer)
-        renderer._sessions = {
-            binding.session_id: SessionRuntime(binding=binding)
-        }
+        renderer._sessions = {binding.session_id: SessionRuntime(binding=binding)}
         renderer._cameras = Mock()
         renderer._layers = Mock()
         renderer._layers.close.side_effect = ContractError(
@@ -1021,27 +1007,19 @@ class RendererContractsTest(unittest.TestCase):
             session_id=binding.session_id,
         )
 
-        with self.assertRaisesRegex(
-            ContractError, "provider teardown failed"
-        ):
+        with self.assertRaisesRegex(ContractError, "provider teardown failed"):
             renderer._execute(command)
 
         self.assertIn(binding.session_id, renderer._sessions)
-        renderer._cameras.close_session.assert_called_once_with(
-            binding.session_id
-        )
+        renderer._cameras.close_session.assert_called_once_with(binding.session_id)
         renderer._scenes.close.assert_not_called()
 
     def test_renderer_retries_a_partially_completed_session_teardown(
         self,
     ) -> None:
-        binding = SessionBinding.parse(
-            {"sessionId": "session-1", "epochId": "epoch-1"}
-        )
+        binding = SessionBinding.parse({"sessionId": "session-1", "epochId": "epoch-1"})
         renderer = Renderer.__new__(Renderer)
-        renderer._sessions = {
-            binding.session_id: SessionRuntime(binding=binding)
-        }
+        renderer._sessions = {binding.session_id: SessionRuntime(binding=binding)}
         renderer._cameras = Mock()
         renderer._layers = Mock()
         renderer._layers.close.side_effect = [
@@ -1068,9 +1046,7 @@ class RendererContractsTest(unittest.TestCase):
     def test_identical_scene_and_pose_puts_do_not_mutate_native_runtime(
         self,
     ) -> None:
-        binding = SessionBinding.parse(
-            {"sessionId": "session-1", "epochId": "epoch-1"}
-        )
+        binding = SessionBinding.parse({"sessionId": "session-1", "epochId": "epoch-1"})
         scene_body = json.loads(
             (
                 Path(__file__).resolve().parents[2]
@@ -1079,9 +1055,7 @@ class RendererContractsTest(unittest.TestCase):
         )
         scene_body["sessionId"] = binding.session_id
         scene_body["epochId"] = binding.epoch_id
-        scene = SceneBinding.parse(
-            {"body": scene_body, "digest": f"sha256:{'1' * 64}"}
-        )
+        scene = SceneBinding.parse({"body": scene_body, "digest": f"sha256:{'1' * 64}"})
         pose = PoseSourceBinding(
             session_id=binding.session_id,
             epoch_id=binding.epoch_id,
@@ -1091,6 +1065,7 @@ class RendererContractsTest(unittest.TestCase):
             entity_table_digest=f"sha256:{'2' * 64}",
             maximum_entities=20,
             maximum_message_bytes=4 * 1024 * 1024,
+            maximum_cadence_hz=120,
             stale_after_ms=500,
             producer_id="producer-1",
             producer_spiffe_id="spiffe://example.test/producer-1",
@@ -1132,12 +1107,117 @@ class RendererContractsTest(unittest.TestCase):
         renderer._scenes.bind.assert_not_called()
         mirror.renew.assert_not_called()
 
+    def test_scene_and_all_cameras_consume_the_same_rendered_pose_frame(
+        self,
+    ) -> None:
+        class Clock:
+            now = 0
+
+            def __call__(self) -> int:
+                return self.now
+
+        def source(sequence: int, timestamp: int, x: float) -> PoseSnapshot:
+            return PoseSnapshot(
+                session_id="session-1",
+                epoch_id="epoch-1",
+                sequence=sequence,
+                simulation_timestamp_ns=timestamp,
+                frame_uri="frames://world/synthetic/revision/r1",
+                frame_digest=f"sha256:{'1' * 64}",
+                entity_table_revision=1,
+                entity_table_digest=f"sha256:{'2' * 64}",
+                entities=(
+                    EntityPose(
+                        entity_id="entity-1",
+                        position_enu_m=(x, 0.0, 0.0),
+                        orientation_xyzw=(0.0, 0.0, 0.0, 1.0),
+                        active=True,
+                        visible=True,
+                    ),
+                ),
+            )
+
+        first = source(1, 0, 0.0)
+        second = source(2, 50_000_000, 10.0)
+        pose = Mock(
+            latest=second,
+            stale=False,
+        )
+        pose.poll.side_effect = [
+            PosePollResult(PoseSampleKind.ACCEPTED, first),
+            PosePollResult(PoseSampleKind.ACCEPTED, second),
+            None,
+        ]
+        clock = Clock()
+        interpolation = PoseInterpolator(
+            InterpolationPolicy.LINEAR,
+            maximum_cadence_hz=120,
+            stale_after_ms=500,
+            clock_ns=clock,
+        )
+        renderer = Renderer.__new__(Renderer)
+        renderer._commands = queue.Queue()
+        renderer._sessions = {
+            "session-1": SessionRuntime(
+                binding=SessionBinding("session-1", "epoch-1"),
+                pose=pose,
+                interpolation=interpolation,
+            )
+        }
+        renderer._scenes = Mock()
+        renderer._cameras = Mock()
+        renderer._cameras.render_viewports.return_value = ()
+        renderer._layers = Mock()
+
+        renderer.tick()
+        clock.now = 50_000_000
+        renderer.tick()
+        clock.now = 75_000_000
+        renderer.tick()
+
+        scene_frame = renderer._scenes.apply_pose.call_args.args[0]
+        camera_frames = renderer._cameras.tick.call_args.args[0]
+        self.assertIs(scene_frame, camera_frames["session-1"])
+        self.assertEqual(scene_frame.simulation_timestamp_ns, 25_000_000)
+        self.assertEqual(scene_frame.entities[0].position_enu_m[0], 5.0)
+
+    def test_pose_source_status_exposes_bounded_interpolation_diagnostics(
+        self,
+    ) -> None:
+        interpolation = PoseInterpolator(
+            InterpolationPolicy.LINEAR,
+            maximum_cadence_hz=120,
+            stale_after_ms=500,
+            clock_ns=lambda: 0,
+        )
+        renderer = Renderer.__new__(Renderer)
+        renderer._sessions = {
+            "session-1": SessionRuntime(
+                binding=SessionBinding("session-1", "epoch-1"),
+                pose_binding=Mock(),
+                interpolation=interpolation,
+            )
+        }
+
+        result = renderer._execute(
+            Mock(
+                operation="get_pose_source",
+                session_id="session-1",
+            )
+        )
+
+        self.assertEqual(result.status, 200)
+        assert result.body is not None
+        self.assertEqual(result.body["policy"], "linear")
+        self.assertEqual(result.body["state"], "reset")
+        self.assertEqual(result.body["discontinuityResetCount"], 0)
+        self.assertNotIn("producer", json.dumps(result.body))
+        self.assertNotIn("spiffe", json.dumps(result.body))
+
     def test_changed_pose_binding_requires_a_new_authorization_revision(
         self,
     ) -> None:
-        binding = SessionBinding.parse(
-            {"sessionId": "session-1", "epochId": "epoch-1"}
-        )
+        binding = SessionBinding.parse({"sessionId": "session-1", "epochId": "epoch-1"})
         scene_body = json.loads(
             (
                 Path(__file__).resolve().parents[2]
@@ -1146,9 +1226,7 @@ class RendererContractsTest(unittest.TestCase):
         )
         scene_body["sessionId"] = binding.session_id
         scene_body["epochId"] = binding.epoch_id
-        scene = SceneBinding.parse(
-            {"body": scene_body, "digest": f"sha256:{'1' * 64}"}
-        )
+        scene = SceneBinding.parse({"body": scene_body, "digest": f"sha256:{'1' * 64}"})
         pose = PoseSourceBinding(
             session_id=binding.session_id,
             epoch_id=binding.epoch_id,
@@ -1158,6 +1236,7 @@ class RendererContractsTest(unittest.TestCase):
             entity_table_digest=f"sha256:{'2' * 64}",
             maximum_entities=20,
             maximum_message_bytes=4 * 1024 * 1024,
+            maximum_cadence_hz=120,
             stale_after_ms=500,
             producer_id="producer-1",
             producer_spiffe_id="spiffe://example.test/producer-1",
@@ -1191,9 +1270,7 @@ class RendererContractsTest(unittest.TestCase):
         mirror.renew.assert_not_called()
 
     def test_private_bindings_are_exact_and_typed(self) -> None:
-        session = SessionBinding.parse(
-            {"sessionId": "session-1", "epochId": "epoch-1"}
-        )
+        session = SessionBinding.parse({"sessionId": "session-1", "epochId": "epoch-1"})
         self.assertEqual(session.session_id, "session-1")
         with self.assertRaises(ContractError):
             SessionBinding.parse(
@@ -1289,9 +1366,7 @@ class RendererContractsTest(unittest.TestCase):
                 materializer.materialize(
                     wrong_digest, "usd", len(payload), BytesIO(payload)
                 )
-            self.assertFalse(
-                (artifacts / "sha256" / f"{wrong_digest}.usd").exists()
-            )
+            self.assertFalse((artifacts / "sha256" / f"{wrong_digest}.usd").exists())
 
     def test_pose_decoder_rejects_binding_mismatch(self) -> None:
         entity_id = b"entity-1"
@@ -1332,9 +1407,7 @@ class RendererContractsTest(unittest.TestCase):
         encoded[12:16] = struct.pack(">I", len(encoded))
         binding = PoseSourceBinding.parse(
             {
-                "schemaVersion": (
-                    "veoveo.io/simulation-view-pose-ingress-control/v2"
-                ),
+                "schemaVersion": ("veoveo.io/simulation-view-pose-ingress-control/v2"),
                 "sessionId": "session-1",
                 "epochId": "epoch-1",
                 "frameRevision": {
@@ -1369,6 +1442,7 @@ class RendererContractsTest(unittest.TestCase):
             entity_table_digest=binding.entity_table_digest,
             maximum_entities=binding.maximum_entities,
             maximum_message_bytes=binding.maximum_message_bytes,
+            maximum_cadence_hz=binding.maximum_cadence_hz,
             stale_after_ms=binding.stale_after_ms,
             producer_id=binding.producer_id,
             producer_spiffe_id=binding.producer_spiffe_id,
@@ -1391,6 +1465,7 @@ class RendererContractsTest(unittest.TestCase):
             entity_table_digest=f"sha256:{'2' * 64}",
             maximum_entities=8,
             maximum_message_bytes=65536,
+            maximum_cadence_hz=120,
             stale_after_ms=500,
             producer_id="fixture",
             producer_spiffe_id="spiffe://example.test/fixture",
@@ -1419,9 +1494,7 @@ class RendererContractsTest(unittest.TestCase):
         self.assertIs(mirror._reader, reader)
         self.assertIs(mirror._latest, latest)
         self.assertEqual(mirror._generation, 7)
-        with self.assertRaisesRegex(
-            ContractError, "authorization revision is stale"
-        ):
+        with self.assertRaisesRegex(ContractError, "authorization revision is stale"):
             mirror.renew(binding)
 
 

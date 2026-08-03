@@ -4,6 +4,7 @@ import math
 import re
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -12,13 +13,27 @@ if TYPE_CHECKING:
 
 IDENTITY = re.compile(r"^[A-Za-z0-9_.-]{1,128}$")
 SCENE_SCHEMA = "veoveo.io/simulation-view-scene/v1"
-POSE_CONTROL_SCHEMA = (
-    "veoveo.io/simulation-view-pose-ingress-control/v2"
-)
+POSE_CONTROL_SCHEMA = "veoveo.io/simulation-view-pose-ingress-control/v2"
 
 
 class ContractError(ValueError):
     pass
+
+
+class InterpolationPolicy(str, Enum):
+    HOLD_LATEST = "hold_latest"
+    LINEAR = "linear"
+
+    @classmethod
+    def parse(cls, value: object) -> "InterpolationPolicy":
+        if not isinstance(value, str):
+            raise ContractError("interpolation must be hold_latest or linear")
+        try:
+            return cls(value)
+        except ValueError as error:
+            raise ContractError(
+                "interpolation must be hold_latest or linear"
+            ) from error
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,13 +50,9 @@ def identity(label: str, value: object) -> str:
     return value
 
 
-def object_with_keys(
-    label: str, value: object, required: set[str]
-) -> dict[str, Any]:
+def object_with_keys(label: str, value: object, required: set[str]) -> dict[str, Any]:
     if not isinstance(value, dict) or set(value) != required:
-        raise ContractError(
-            f"{label} must contain exactly {sorted(required)!r}"
-        )
+        raise ContractError(f"{label} must contain exactly {sorted(required)!r}")
     return value
 
 
@@ -119,9 +130,7 @@ class SessionBinding:
 
     @classmethod
     def parse(cls, value: object) -> "SessionBinding":
-        body = object_with_keys(
-            "renderer session", value, {"sessionId", "epochId"}
-        )
+        body = object_with_keys("renderer session", value, {"sessionId", "epochId"})
         return cls(
             session_id=identity("sessionId", body["sessionId"]),
             epoch_id=identity("epochId", body["epochId"]),
@@ -135,15 +144,14 @@ class SceneBinding:
     frame_uri: str
     frame_digest: str
     maximum_pose_age_ms: int
+    interpolation: InterpolationPolicy
     layer_id: str | None
     lighting: GovernedLighting
     declaration: dict[str, Any]
 
     @classmethod
     def parse(cls, value: object) -> "SceneBinding":
-        declaration = object_with_keys(
-            "scene declaration", value, {"body", "digest"}
-        )
+        declaration = object_with_keys("scene declaration", value, {"body", "digest"})
         _digest(declaration["digest"])
         body = declaration["body"]
         if not isinstance(body, dict):
@@ -206,6 +214,7 @@ class SceneBinding:
             maximum_pose_age_ms=positive_integer(
                 "maximumPoseAgeMs", quality["maximumPoseAgeMs"], 60_000
             ),
+            interpolation=InterpolationPolicy.parse(quality["interpolation"]),
             layer_id=(
                 identity("geospatialLayerId", body["geospatialLayerId"])
                 if "geospatialLayerId" in body
@@ -226,6 +235,7 @@ class PoseSourceBinding:
     entity_table_digest: str
     maximum_entities: int
     maximum_message_bytes: int
+    maximum_cadence_hz: int
     stale_after_ms: int
     producer_id: str
     producer_spiffe_id: str
@@ -294,6 +304,9 @@ class PoseSourceBinding:
                 limits["maximumMessageBytes"],
                 64 * 1024 * 1024,
             ),
+            maximum_cadence_hz=positive_integer(
+                "maximumCadenceHz", limits["maximumCadenceHz"], 1_000
+            ),
             stale_after_ms=positive_integer(
                 "staleAfterMs", limits["staleAfterMs"], 60_000
             ),
@@ -331,15 +344,11 @@ class CameraBinding:
             },
         )
         definition = _camera_definition(body["definition"])
-        slot = nonnegative_integer(
-            "renderSlot", body["renderSlot"], maximum_slots - 1
-        )
+        slot = nonnegative_integer("renderSlot", body["renderSlot"], maximum_slots - 1)
         return cls(
             session_id=identity("sessionId", body["sessionId"]),
             camera_id=identity("cameraId", body["cameraId"]),
-            revision=positive_integer(
-                "revision", body["revision"], (1 << 63) - 1
-            ),
+            revision=positive_integer("revision", body["revision"], (1 << 63) - 1),
             render_slot=slot,
             definition=definition,
         )
@@ -366,17 +375,13 @@ class StreamBinding:
                 "mediaPort",
             },
         )
-        slot = nonnegative_integer(
-            "renderSlot", body["renderSlot"], maximum_slots - 1
-        )
+        slot = nonnegative_integer("renderSlot", body["renderSlot"], maximum_slots - 1)
         return cls(
             session_id=identity("sessionId", body["sessionId"]),
             camera_id=identity("cameraId", body["cameraId"]),
             live_view_id=identity("liveViewId", body["liveViewId"]),
             render_slot=slot,
-            media_port=positive_integer(
-                "mediaPort", body["mediaPort"], 65535
-            ),
+            media_port=positive_integer("mediaPort", body["mediaPort"], 65535),
         )
 
 
@@ -404,8 +409,7 @@ def _frame_uri(value: object) -> str:
 def _vector(label: str, value: object) -> tuple[float, float, float]:
     body = object_with_keys(label, value, {"x", "y", "z"})
     return tuple(
-        finite_number(f"{label}.{axis}", body[axis])
-        for axis in ("x", "y", "z")
+        finite_number(f"{label}.{axis}", body[axis]) for axis in ("x", "y", "z")
     )
 
 
@@ -427,9 +431,7 @@ def _camera_definition(value: object) -> dict[str, Any]:
     )
     positive_integer("widthPx", body["widthPx"], 16_384)
     positive_integer("heightPx", body["heightPx"], 16_384)
-    positive_integer(
-        "frameRateMillihertz", body["frameRateMillihertz"], 240_000
-    )
+    positive_integer("frameRateMillihertz", body["frameRateMillihertz"], 240_000)
     fov = finite_number("verticalFovDegrees", body["verticalFovDegrees"])
     near = finite_number("nearClipM", body["nearClipM"])
     far = finite_number("farClipM", body["farClipM"])
@@ -483,33 +485,24 @@ def _camera_rig(value: object) -> None:
         if field in value:
             identity(field, value[field])
     if kind == "look_at":
-        if _vector("eyeM", value["eyeM"]) == _vector(
-            "targetM", value["targetM"]
-        ):
+        if _vector("eyeM", value["eyeM"]) == _vector("targetM", value["targetM"]):
             raise ContractError("look-at eye and target must differ")
     elif kind == "follow_entity":
         _vector("offsetFluM", value["offsetFluM"])
-        if finite_number(
-            "smoothingSeconds", value["smoothingSeconds"]
-        ) < 0.0:
+        if finite_number("smoothingSeconds", value["smoothingSeconds"]) < 0.0:
             raise ContractError("smoothingSeconds cannot be negative")
     elif kind == "fixed":
         _local_pose("pose", value["pose"])
     elif kind == "orbit":
         radius = finite_number("radiusM", value["radiusM"])
-        elevation = finite_number(
-            "elevationDegrees", value["elevationDegrees"]
-        )
+        elevation = finite_number("elevationDegrees", value["elevationDegrees"])
         finite_number("azimuthDegrees", value["azimuthDegrees"])
         if radius <= 0.1 or not -89.9 <= elevation <= 89.9:
             raise ContractError("orbit rig is invalid")
     elif kind == "chase_entity":
         if (
             finite_number("distanceM", value["distanceM"]) <= 0.1
-            or finite_number(
-                "smoothingSeconds", value["smoothingSeconds"]
-            )
-            < 0.0
+            or finite_number("smoothingSeconds", value["smoothingSeconds"]) < 0.0
         ):
             raise ContractError("chase rig is invalid")
         finite_number("heightM", value["heightM"])
@@ -517,20 +510,12 @@ def _camera_rig(value: object) -> None:
         _transform("mount", value["mount"])
     elif kind == "formation_overview":
         targets = value["targetEntities"]
-        if (
-            not isinstance(targets, list)
-            or not targets
-            or len(targets) > 256
-        ):
-            raise ContractError(
-                "formation targets must be sorted and unique"
-            )
+        if not isinstance(targets, list) or not targets or len(targets) > 256:
+            raise ContractError("formation targets must be sorted and unique")
         for target in targets:
             identity("targetEntity", target)
         if targets != sorted(set(targets)):
-            raise ContractError(
-                "formation targets must be sorted and unique"
-            )
+            raise ContractError("formation targets must be sorted and unique")
         if finite_number("paddingM", value["paddingM"]) < 0.0:
             raise ContractError("formation padding cannot be negative")
 
@@ -538,8 +523,7 @@ def _camera_rig(value: object) -> None:
 def _quaternion(label: str, value: object) -> tuple[float, float, float, float]:
     body = object_with_keys(label, value, {"x", "y", "z", "w"})
     quaternion = tuple(
-        finite_number(f"{label}.{axis}", body[axis])
-        for axis in ("x", "y", "z", "w")
+        finite_number(f"{label}.{axis}", body[axis]) for axis in ("x", "y", "z", "w")
     )
     if abs(sum(component * component for component in quaternion) - 1.0) > 1e-3:
         raise ContractError(f"{label} must be normalized")
@@ -547,17 +531,13 @@ def _quaternion(label: str, value: object) -> tuple[float, float, float, float]:
 
 
 def _local_pose(label: str, value: object) -> None:
-    body = object_with_keys(
-        label, value, {"positionM", "orientationXyzw"}
-    )
+    body = object_with_keys(label, value, {"positionM", "orientationXyzw"})
     _vector(f"{label}.positionM", body["positionM"])
     _quaternion(f"{label}.orientationXyzw", body["orientationXyzw"])
 
 
 def _transform(label: str, value: object) -> None:
-    body = object_with_keys(
-        label, value, {"translationM", "orientationXyzw", "scale"}
-    )
+    body = object_with_keys(label, value, {"translationM", "orientationXyzw", "scale"})
     _vector(f"{label}.translationM", body["translationM"])
     _quaternion(f"{label}.orientationXyzw", body["orientationXyzw"])
     scale = _vector(f"{label}.scale", body["scale"])
