@@ -63,9 +63,9 @@ published and its server contract is registered in the gateway control plane.
 Production workloads use the repository and digest map in images.lock.yaml. The
 platform Application selects chart 0.1.0-6bfaece90a99, whose images were published
 from commit 6bfaece90a9968ce9bd20bab9ed90369e6159712. The UAV Application selects
-chart 0.1.0-80e6559d9b36. Its MCP image was published from commit
+chart 0.1.0-af345d763a40. Its MCP image was published from commit
 e6c55fb5b105d8074bb03fa2e41a63ffa7f436b9, and its runtime image was published
-from commit 80e6559d9b365d256ee452be6cf2d85c2c893ac4. Each selected digest is the workload's
+from commit af345d763a4073e93ca82642d87efa58f0cd9697. Each selected digest is the workload's
 release identity. A release-input commit advances the coordinated runtime closure.
 
 Publish a new local release directly to the shared registry:
