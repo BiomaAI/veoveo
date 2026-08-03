@@ -95,6 +95,7 @@ class FleetLoopController:
             + config.vertical_separation_m * index
             for index, vehicle_id in enumerate(commanders)
         }
+        self._takeoff_timeout_seconds = config.takeoff_timeout_seconds
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._overridden: set[str] = set()
@@ -168,13 +169,14 @@ class FleetLoopController:
             if status.flight_state in {"standby", "landed"}:
                 commander.arm()
                 commander.takeoff(self._takeoff_altitudes[vehicle_id])
-            deadline = time.monotonic() + 180.0
+            deadline = time.monotonic() + self._takeoff_timeout_seconds
             while not self._stop.is_set() and not self._is_overridden(vehicle_id):
                 if commander.status().flight_state == "flying":
                     break
                 if time.monotonic() >= deadline:
                     raise TimeoutError(
-                        f"{vehicle_id} did not reach its default fleet loop altitude"
+                        f"{vehicle_id} did not reach its default fleet loop altitude "
+                        f"within {self._takeoff_timeout_seconds:g} seconds"
                     )
                 time.sleep(0.25)
             while not self._stop.is_set() and not self._is_overridden(vehicle_id):

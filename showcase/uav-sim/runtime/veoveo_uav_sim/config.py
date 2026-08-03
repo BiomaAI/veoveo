@@ -126,6 +126,7 @@ class CameraConfig:
 class FleetLoopConfig:
     relative_altitude_m: float
     vertical_separation_m: float
+    takeoff_timeout_seconds: float
     center_east_m: float
     center_north_m: float
     east_radius_m: float
@@ -143,6 +144,12 @@ class FleetLoopConfig:
             ),
             vertical_separation_m=_float(
                 "UAV_SIM_FLEET_LOOP_VERTICAL_SEPARATION_M", "15.0", 0.0, 100.0
+            ),
+            takeoff_timeout_seconds=_float(
+                "UAV_SIM_FLEET_LOOP_TAKEOFF_TIMEOUT_SECONDS",
+                "420.0",
+                30.0,
+                1_800.0,
             ),
             center_east_m=_float(
                 "UAV_SIM_FLEET_LOOP_CENTER_EAST_M", "1700.0", -100_000.0, 100_000.0
