@@ -572,6 +572,7 @@ Simulation View data-plane ownership:
 | `platform/simulation/pose/src/ingress.rs` | typed private producer-binding control declarations and readiness |
 | `platform/simulation/pose-ingress/` | TLS 1.3 mutual-authentication ingress, SPIFFE producer authorization, private control endpoint, and shared-memory publication |
 | `platform/simulation/view-isaac/` | hardware-only Isaac/RTX renderer, atomic digest-addressed artifact ingest and preflight, render-only USD mirroring, installation-configured 3D Tiles streaming, pose consumption, generic camera rigs, AOV/NVENC slot pools, and private runtime control |
+| `platform/simulation/view-isaac/veoveo_simulation_view/interpolation.py` | typed hold-latest and bounded delayed-linear pose timeline, shortest-arc quaternion interpolation, discontinuity resets, shared rendered frames, and credential-free runtime diagnostics |
 
 ## Recordings
 

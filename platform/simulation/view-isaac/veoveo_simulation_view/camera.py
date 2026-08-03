@@ -12,9 +12,9 @@ import numpy as np
 
 from .config import RendererConfig
 from .contracts import CameraBinding, ContractError, RenderViewport
-from .pose import EntityPose, PoseSnapshot
+from .interpolation import RenderedPoseFrame
+from .pose import EntityPose
 from .renderer_setup import RendererFailure, RendererFailureCode
-
 
 RENDER_PRODUCT_PREFIX = "/Render/OmniverseKit/HydraTextures"
 RGBA8_TEXTURE_FORMAT = "TextureFormat.RGBA8_UNORM"
@@ -36,13 +36,8 @@ def render_product_path(name: str) -> str:
 def livestream_aov_arguments(config: RendererConfig) -> list[str]:
     arguments: list[str] = []
     for slot in range(config.maximum_render_slots):
-        aov = (
-            "Render.OmniverseKit.HydraTextures."
-            f"{render_product_name(slot)}.LdrColor"
-        )
-        prefix = (
-            f"--/exts/omni.kit.livestream.aov/{aov}/spectatorStream/0"
-        )
+        aov = f"Render.OmniverseKit.HydraTextures.{render_product_name(slot)}.LdrColor"
+        prefix = f"--/exts/omni.kit.livestream.aov/{aov}/spectatorStream/0"
         settings = {
             "streamType": "webrtc",
             "signalPort": str(config.signaling_port_base + slot),
@@ -52,9 +47,7 @@ def livestream_aov_arguments(config: RendererConfig) -> list[str]:
             "allowDynamicResize": "false",
             "authenticateBearer": "false",
         }
-        arguments.extend(
-            f"{prefix}/{name}={value}" for name, value in settings.items()
-        )
+        arguments.extend(f"{prefix}/{name}={value}" for name, value in settings.items())
     return arguments
 
 
@@ -106,12 +99,8 @@ class HydraRenderProductProbe:
         actual = self._hydra_texture.get_render_product_path()
         if actual != render_product_path(name):
             self.close()
-            raise RuntimeError(
-                f"RTX HydraTexture returned unexpected path {actual!r}"
-            )
-        self._capture = (
-            omni.kit.renderer_capture.acquire_renderer_capture_interface()
-        )
+            raise RuntimeError(f"RTX HydraTexture returned unexpected path {actual!r}")
+        self._capture = omni.kit.renderer_capture.acquire_renderer_capture_interface()
         self._subscription = get_eventdispatcher().observe_event(
             observer_name=f"veoveo_simulation_view_{name}",
             event_name=omni.hydratexture.GLOBAL_EVENT_DRAWABLE_CHANGED,
@@ -200,21 +189,13 @@ class HydraRenderProductProbe:
             if not aovs:
                 return
             texture = aovs[0].get("texture")
-            resource = (
-                texture.get("rp_resource")
-                if isinstance(texture, dict)
-                else None
-            )
+            resource = texture.get("rp_resource") if isinstance(texture, dict) else None
             if resource is None:
                 return
             frame = self._hydra_texture.get_frame_info(event["result_handle"])
             view = tuple(float(value) for value in frame.get("view", ()))
-            projection = tuple(
-                float(value) for value in frame.get("projection", ())
-            )
-            resolution = tuple(
-                int(value) for value in frame.get("resolution", ())
-            )
+            projection = tuple(float(value) for value in frame.get("projection", ()))
+            resolution = tuple(int(value) for value in frame.get("resolution", ()))
             if (
                 len(view) != 16
                 or len(projection) != 16
@@ -222,9 +203,7 @@ class HydraRenderProductProbe:
                 or resolution[0] < 1
                 or resolution[1] < 1
             ):
-                raise RuntimeError(
-                    "RTX render-product viewport metadata is invalid"
-                )
+                raise RuntimeError("RTX render-product viewport metadata is invalid")
             viewport = RenderViewport(
                 view=view,
                 projection=projection,
@@ -243,10 +222,7 @@ class HydraRenderProductProbe:
                 self._last_drawable_at = now
                 self._last_drawable_at_iso = now_iso
                 self._viewport = viewport
-                if (
-                    self._capture_pending
-                    or now - self._last_capture_requested < 0.5
-                ):
+                if self._capture_pending or now - self._last_capture_requested < 0.5:
                     return
                 self._capture_pending = True
                 self._last_capture_requested = now
@@ -289,16 +265,12 @@ class HydraRenderProductProbe:
                 or buffer_size != expected
                 or str(pixel_format) != RGBA8_TEXTURE_FORMAT
             ):
-                raise RuntimeError(
-                    "RTX render-product capture shape or format changed"
-                )
+                raise RuntimeError("RTX render-product capture shape or format changed")
             pointer = _capsule_pointer(buffer, None)
             if pointer is None:
                 raise RuntimeError("RTX render-product returned a null buffer")
             rgba_buffer = (ctypes.c_uint8 * buffer_size).from_address(pointer)
-            rgba = np.ctypeslib.as_array(rgba_buffer).reshape(
-                (height, width, 4)
-            )
+            rgba = np.ctypeslib.as_array(rgba_buffer).reshape((height, width, 4))
             # TODO(GPU): Replace this low-cadence health-only readback and
             # reduction with a CUDA reduction over the AOV resource. Media
             # remains on the GPU and enters NVENC directly through the NVIDIA
@@ -306,8 +278,7 @@ class HydraRenderProductProbe:
             rgb = rgba[:, :, :3]
             visible = bool(
                 int(rgb.max()) - int(rgb.min()) >= 8
-                and np.count_nonzero(np.any(rgb > 8, axis=2))
-                >= width * height * 0.02
+                and np.count_nonzero(np.any(rgb > 8, axis=2)) >= width * height * 0.02
             )
             with self._lock:
                 if generation != self._generation or self._closed:
@@ -349,15 +320,9 @@ class CameraRuntime:
         health = self.probe.health
         return {
             "cameraId": self.binding.camera_id,
-            "ready": bool(
-                health and health.visible and not self.pose_stale
-            ),
+            "ready": bool(health and health.visible and not self.pose_stale),
             "lastPoseSequence": self.last_pose_sequence,
-            "lastFrameAt": (
-                health.observed_at_iso
-                if health is not None
-                else None
-            ),
+            "lastFrameAt": (health.observed_at_iso if health is not None else None),
         }
 
 
@@ -382,10 +347,7 @@ class CameraPool:
 
     def upsert(self, binding: CameraBinding) -> dict[str, object]:
         existing_camera = self._slots.get(binding.render_slot)
-        if (
-            existing_camera is not None
-            and existing_camera != binding.camera_id
-        ):
+        if existing_camera is not None and existing_camera != binding.camera_id:
             raise ContractError("renderer slot is already assigned")
         existing = self._cameras.get(binding.camera_id)
         if existing is not None:
@@ -426,18 +388,14 @@ class CameraPool:
 
     def tick(
         self,
-        snapshots: dict[str, PoseSnapshot],
+        snapshots: dict[str, RenderedPoseFrame],
         stale_sessions: set[str],
     ) -> None:
         for runtime in self._cameras.values():
             snapshot = snapshots.get(runtime.binding.session_id)
-            runtime.pose_stale = (
-                _rig_requires_pose(runtime.binding.definition["rig"])
-                and (
-                    snapshot is None
-                    or runtime.binding.session_id in stale_sessions
-                )
-            )
+            runtime.pose_stale = _rig_requires_pose(
+                runtime.binding.definition["rig"]
+            ) and (snapshot is None or runtime.binding.session_id in stale_sessions)
             self._update_camera(runtime, snapshot)
 
     def camera_for_slot(self, slot: int) -> str | None:
@@ -491,8 +449,7 @@ class CameraPool:
         visible = any(
             item is not None
             and item.visible
-            and (now - item.observed_at) * 1000.0
-            <= self._config.frame_stale_after_ms
+            and (now - item.observed_at) * 1000.0 <= self._config.frame_stale_after_ms
             for item in health
         )
         return (
@@ -512,27 +469,18 @@ class CameraPool:
         self._idle.clear()
         self._probe.probe.close()
 
-    def _configure_camera(
-        self, runtime: CameraRuntime, binding: CameraBinding
-    ) -> None:
+    def _configure_camera(self, runtime: CameraRuntime, binding: CameraBinding) -> None:
         from pxr import Gf, UsdGeom
 
         definition = binding.definition
         camera = UsdGeom.Camera.Define(self._stage, runtime.camera_path)
-        aspect = float(definition["widthPx"]) / float(
-            definition["heightPx"]
-        )
+        aspect = float(definition["widthPx"]) / float(definition["heightPx"])
         vertical_aperture = 24.0
         focal = vertical_aperture / (
-            2.0
-            * math.tan(
-                math.radians(float(definition["verticalFovDegrees"])) / 2.0
-            )
+            2.0 * math.tan(math.radians(float(definition["verticalFovDegrees"])) / 2.0)
         )
         camera.CreateVerticalApertureAttr().Set(vertical_aperture)
-        camera.CreateHorizontalApertureAttr().Set(
-            vertical_aperture * aspect
-        )
+        camera.CreateHorizontalApertureAttr().Set(vertical_aperture * aspect)
         camera.CreateFocalLengthAttr().Set(focal)
         camera.CreateClippingRangeAttr().Set(
             Gf.Vec2f(
@@ -560,20 +508,12 @@ class CameraPool:
         from pxr import Gf, UsdGeom
 
         definition = binding.definition
-        path = (
-            "/World/SimulationView/Cameras/"
-            f"slot_{binding.render_slot}"
-        )
+        path = f"/World/SimulationView/Cameras/slot_{binding.render_slot}"
         camera = UsdGeom.Camera.Define(self._stage, path)
-        aspect = float(definition["widthPx"]) / float(
-            definition["heightPx"]
-        )
+        aspect = float(definition["widthPx"]) / float(definition["heightPx"])
         vertical_aperture = 24.0
         focal = vertical_aperture / (
-            2.0
-            * math.tan(
-                math.radians(float(definition["verticalFovDegrees"])) / 2.0
-            )
+            2.0 * math.tan(math.radians(float(definition["verticalFovDegrees"])) / 2.0)
         )
         camera.CreateVerticalApertureAttr(vertical_aperture)
         camera.CreateHorizontalApertureAttr(vertical_aperture * aspect)
@@ -586,9 +526,7 @@ class CameraPool:
         )
         xform = UsdGeom.Xformable(camera.GetPrim())
         xform.ClearXformOpOrder()
-        operation = xform.AddTransformOp(
-            precision=UsdGeom.XformOp.PrecisionDouble
-        )
+        operation = xform.AddTransformOp(precision=UsdGeom.XformOp.PrecisionDouble)
         runtime = CameraRuntime(
             binding=binding,
             camera_path=path,
@@ -617,9 +555,7 @@ class CameraPool:
         camera.CreateHorizontalApertureAttr(36.0)
         camera.CreateClippingRangeAttr(Gf.Vec2f(0.1, 1_000.0))
         xform = UsdGeom.Xformable(camera.GetPrim())
-        operation = xform.AddTransformOp(
-            precision=UsdGeom.XformOp.PrecisionDouble
-        )
+        operation = xform.AddTransformOp(precision=UsdGeom.XformOp.PrecisionDouble)
         operation.Set(
             Gf.Matrix4d()
             .SetLookAt(
@@ -642,7 +578,7 @@ class CameraPool:
     def _update_camera(
         self,
         runtime: CameraRuntime,
-        snapshot: PoseSnapshot | None,
+        snapshot: RenderedPoseFrame | None,
     ) -> None:
         from pxr import Gf
 
@@ -676,7 +612,7 @@ class CameraPool:
         runtime.transform_operation.Set(Gf.Matrix4d(matrix))
         runtime.last_update = now
         if snapshot is not None:
-            runtime.last_pose_sequence = snapshot.sequence
+            runtime.last_pose_sequence = snapshot.source_sequence
 
 
 def _rig_matrix(
@@ -699,10 +635,14 @@ def _rig_matrix(
         targets = [_entity(entities, value) for value in rig["targetEntities"]]
         points = [target.position_enu_m for target in targets]
         center = tuple(sum(values) / len(points) for values in zip(*points))
-        radius = max(
-            math.dist(center, point) for point in points
-        ) + float(rig["paddingM"])
-        eye = (center[0], center[1] - max(radius * 2.0, 2.0), center[2] + max(radius, 2.0))
+        radius = max(math.dist(center, point) for point in points) + float(
+            rig["paddingM"]
+        )
+        eye = (
+            center[0],
+            center[1] - max(radius * 2.0, 2.0),
+            center[2] + max(radius, 2.0),
+        )
         return _look_at(eye, center), eye
 
     target = _entity(entities, rig["targetEntity"])
@@ -753,9 +693,7 @@ def _target_for_rig(
     return _entity(entities, rig["targetEntity"]).position_enu_m
 
 
-def _entity(
-    entities: dict[str, EntityPose], entity_id: str
-) -> EntityPose:
+def _entity(entities: dict[str, EntityPose], entity_id: str) -> EntityPose:
     entity = entities.get(entity_id)
     if entity is None:
         return EntityPose(
@@ -794,9 +732,7 @@ def _pose_matrix(
     transform = Gf.Transform()
     transform.SetTranslation(Gf.Vec3d(*position))
     transform.SetRotation(
-        Gf.Rotation(
-            Gf.Quatd(orientation[3], Gf.Vec3d(*orientation[:3]))
-        )
+        Gf.Rotation(Gf.Quatd(orientation[3], Gf.Vec3d(*orientation[:3])))
     )
     return transform.GetMatrix()
 
@@ -808,9 +744,7 @@ def _transform_matrix(value: dict[str, Any]) -> Any:
     transform.SetTranslation(Gf.Vec3d(*_xyz(value["translationM"])))
     orientation = _xyzw(value["orientationXyzw"])
     transform.SetRotation(
-        Gf.Rotation(
-            Gf.Quatd(orientation[3], Gf.Vec3d(*orientation[:3]))
-        )
+        Gf.Rotation(Gf.Quatd(orientation[3], Gf.Vec3d(*orientation[:3])))
     )
     transform.SetScale(Gf.Vec3d(*_xyz(value["scale"])))
     return transform.GetMatrix()
@@ -820,9 +754,7 @@ def _xyz(value: dict[str, object]) -> tuple[float, float, float]:
     return (float(value["x"]), float(value["y"]), float(value["z"]))
 
 
-def _xyzw(
-    value: dict[str, object]
-) -> tuple[float, float, float, float]:
+def _xyzw(value: dict[str, object]) -> tuple[float, float, float, float]:
     return (
         float(value["x"]),
         float(value["y"]),

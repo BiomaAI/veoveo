@@ -23,7 +23,6 @@ from .contracts import (
 from .renderer_setup import RendererFailure
 from .scene import ArtifactMaterializer
 
-
 LOGGER = logging.getLogger("veoveo.simulation_view.control")
 MAXIMUM_BODY_BYTES = 4 * 1024 * 1024
 SESSION = r"(?P<session>[A-Za-z0-9_.-]{1,128})"
@@ -37,13 +36,9 @@ ARTIFACT_PATH = re.compile(
 SESSION_PATH = re.compile(rf"^/v1/sessions/{SESSION}$")
 SCENE_PATH = re.compile(rf"^/v1/sessions/{SESSION}/scene$")
 POSE_PATH = re.compile(rf"^/v1/sessions/{SESSION}/pose-source$")
-CAMERA_PATH = re.compile(
-    rf"^/v1/sessions/{SESSION}/cameras/{CAMERA}$"
-)
+CAMERA_PATH = re.compile(rf"^/v1/sessions/{SESSION}/cameras/{CAMERA}$")
 LAYER_PATH = re.compile(rf"^/v1/sessions/{SESSION}/layer$")
-STREAM_PATH = re.compile(
-    rf"^/v1/sessions/{SESSION}/streams/{STREAM}$"
-)
+STREAM_PATH = re.compile(rf"^/v1/sessions/{SESSION}/streams/{STREAM}$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,16 +68,10 @@ class Readiness:
             "visibleNonStaleFrame": self.visible_non_stale_frame,
             "streamedWorldReady": self.streamed_world_ready,
             "cesiumMdlReady": self.cesium_mdl_ready,
-            "cesiumTangentFramesReady": (
-                self.cesium_tangent_frames_ready
-            ),
+            "cesiumTangentFramesReady": (self.cesium_tangent_frames_ready),
             "governedLightingReady": self.governed_lighting_ready,
             "colorPipelineReady": self.color_pipeline_ready,
-            "failure": (
-                self.failure.response()
-                if self.failure is not None
-                else None
-            ),
+            "failure": (self.failure.response() if self.failure is not None else None),
         }
 
 
@@ -164,9 +153,7 @@ class ControlServer:
                         else HTTPStatus.SERVICE_UNAVAILABLE,
                         {
                             "status": (
-                                "running"
-                                if value.failure is None
-                                else "failed"
+                                "running" if value.failure is None else "failed"
                             ),
                             "failure": (
                                 value.failure.response()
@@ -187,6 +174,9 @@ class ControlServer:
                     return
                 if match := CAMERA_PATH.fullmatch(self.path):
                     self._query_camera(match)
+                    return
+                if match := POSE_PATH.fullmatch(self.path):
+                    self._query_pose_source(match)
                     return
                 if match := LAYER_PATH.fullmatch(self.path):
                     self._query_layer(match)
@@ -249,6 +239,32 @@ class ControlServer:
                 except (ContractError, ValueError) as error:
                     self.send_error(HTTPStatus.BAD_REQUEST, str(error))
 
+            def _query_pose_source(self, match: re.Match[str]) -> None:
+                if self._initialization_failed():
+                    return
+                if not self._authorized():
+                    self.send_error(HTTPStatus.UNAUTHORIZED)
+                    return
+                try:
+                    command = ControlCommand(
+                        "get_pose_source",
+                        match.group("session"),
+                        None,
+                        None,
+                    )
+                    outer._commands.put_nowait(command)
+                    result = command.wait(120.0)
+                    self._json(result.status, result.body)
+                except queue.Full:
+                    self.send_error(
+                        HTTPStatus.SERVICE_UNAVAILABLE,
+                        "renderer command queue is full",
+                    )
+                except TimeoutError as error:
+                    self.send_error(HTTPStatus.GATEWAY_TIMEOUT, str(error))
+                except (ContractError, ValueError) as error:
+                    self.send_error(HTTPStatus.BAD_REQUEST, str(error))
+
             def _query_layer(self, match: re.Match[str]) -> None:
                 if self._initialization_failed():
                     return
@@ -278,26 +294,18 @@ class ControlServer:
                     return
                 try:
                     if self.headers.get("Transfer-Encoding") is not None:
-                        raise ContractError(
-                            "chunked artifact uploads are unsupported"
-                        )
+                        raise ContractError("chunked artifact uploads are unsupported")
                     raw_length = self.headers.get("Content-Length")
                     if raw_length is None:
-                        raise ContractError(
-                            "artifact Content-Length is required"
-                        )
+                        raise ContractError("artifact Content-Length is required")
                     try:
                         length = int(raw_length)
                     except ValueError as error:
                         raise ContractError(
                             "artifact Content-Length is invalid"
                         ) from error
-                    content_type = self.headers.get(
-                        "Content-Type", ""
-                    ).split(";", 1)[0]
-                    if content_type.strip().lower() != (
-                        "application/octet-stream"
-                    ):
+                    content_type = self.headers.get("Content-Type", "").split(";", 1)[0]
+                    if content_type.strip().lower() != ("application/octet-stream"):
                         raise ContractError(
                             "artifact upload must use application/octet-stream"
                         )
@@ -327,9 +335,10 @@ class ControlServer:
 
             def _command(self, method: str) -> ControlCommand:
                 body = self._body() if method == "PUT" else None
-                if method == "DELETE" and self.headers.get(
-                    "Content-Length", "0"
-                ) != "0":
+                if (
+                    method == "DELETE"
+                    and self.headers.get("Content-Length", "0") != "0"
+                ):
                     raise ContractError("DELETE requests cannot carry a body")
 
                 if match := SESSION_PATH.fullmatch(self.path):
@@ -337,12 +346,8 @@ class ControlServer:
                     if method == "PUT":
                         value = SessionBinding.parse(body)
                         _match_identity(session, value.session_id)
-                        return ControlCommand(
-                            "put_session", session, None, value
-                        )
-                    return ControlCommand(
-                        "delete_session", session, None, None
-                    )
+                        return ControlCommand("put_session", session, None, value)
+                    return ControlCommand("delete_session", session, None, None)
                 if match := SCENE_PATH.fullmatch(self.path):
                     if method != "PUT":
                         raise ContractError("scene deletion is unsupported")
@@ -355,12 +360,8 @@ class ControlServer:
                     if method == "PUT":
                         value = PoseSourceBinding.parse(body)
                         _match_identity(session, value.session_id)
-                        return ControlCommand(
-                            "put_pose_source", session, None, value
-                        )
-                    return ControlCommand(
-                        "delete_pose_source", session, None, None
-                    )
+                        return ControlCommand("put_pose_source", session, None, value)
+                    return ControlCommand("delete_pose_source", session, None, None)
                 if match := CAMERA_PATH.fullmatch(self.path):
                     session = match.group("session")
                     camera = match.group("camera")
@@ -370,12 +371,8 @@ class ControlServer:
                         )
                         _match_identity(session, value.session_id)
                         _match_identity(camera, value.camera_id)
-                        return ControlCommand(
-                            "put_camera", session, camera, value
-                        )
-                    return ControlCommand(
-                        "delete_camera", session, camera, None
-                    )
+                        return ControlCommand("put_camera", session, camera, value)
+                    return ControlCommand("delete_camera", session, camera, None)
                 if match := STREAM_PATH.fullmatch(self.path):
                     session = match.group("session")
                     stream = match.group("stream")
@@ -385,12 +382,8 @@ class ControlServer:
                         )
                         _match_identity(session, value.session_id)
                         _match_identity(stream, value.live_view_id)
-                        return ControlCommand(
-                            "put_stream", session, stream, value
-                        )
-                    return ControlCommand(
-                        "delete_stream", session, stream, None
-                    )
+                        return ControlCommand("put_stream", session, stream, value)
+                    return ControlCommand("delete_stream", session, stream, None)
                 raise ContractError("renderer control path is unsupported")
 
             def _body(self) -> object:
@@ -405,9 +398,7 @@ class ControlServer:
                     raise ContractError("Content-Length is invalid") from error
                 if length < 2 or length > MAXIMUM_BODY_BYTES:
                     raise ContractError("request body size is invalid")
-                content_type = self.headers.get("Content-Type", "").split(
-                    ";", 1
-                )[0]
+                content_type = self.headers.get("Content-Type", "").split(";", 1)[0]
                 if content_type.strip().lower() != "application/json":
                     raise ContractError("application/json is required")
                 try:
@@ -422,14 +413,10 @@ class ControlServer:
                 return (
                     separator == " "
                     and scheme.lower() == "bearer"
-                    and secrets.compare_digest(
-                        token, outer._config.control_token
-                    )
+                    and secrets.compare_digest(token, outer._config.control_token)
                 )
 
-            def _json(
-                self, status: int, value: dict[str, object] | None
-            ) -> None:
+            def _json(self, status: int, value: dict[str, object] | None) -> None:
                 payload = (
                     b""
                     if value is None

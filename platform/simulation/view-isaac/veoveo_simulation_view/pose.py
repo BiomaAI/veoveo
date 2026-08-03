@@ -6,10 +6,10 @@ import mmap
 import struct
 import time
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 
 from .contracts import ContractError, PoseSourceBinding, identity
-
 
 POSE_MAGIC = b"VVPOSE01"
 SHARED_MAGIC = b"VVPSHM01"
@@ -39,18 +39,27 @@ class PoseSnapshot:
     entities: tuple[EntityPose, ...]
 
 
+class PoseSampleKind(str, Enum):
+    ACCEPTED = "accepted"
+    REPEATED = "repeated"
+    SEQUENCE_REVERSED = "sequence_reversed"
+    TIMESTAMP_NOT_INCREASING = "timestamp_not_increasing"
+
+
+@dataclass(frozen=True, slots=True)
+class PosePollResult:
+    kind: PoseSampleKind
+    snapshot: PoseSnapshot | None = None
+    skipped_samples: int = 0
+
+
 class SharedPoseReader:
     def __init__(self, path: Path, maximum_message_bytes: int) -> None:
         self._file = path.open("rb")
         length = path.stat().st_size
-        if (
-            length < SHARED_HEADER_BYTES
-            or (length - SHARED_HEADER_BYTES) % 2 != 0
-        ):
+        if length < SHARED_HEADER_BYTES or (length - SHARED_HEADER_BYTES) % 2 != 0:
             raise ContractError("shared pose file has an invalid length")
-        self._map = mmap.mmap(
-            self._file.fileno(), length, access=mmap.ACCESS_READ
-        )
+        self._map = mmap.mmap(self._file.fileno(), length, access=mmap.ACCESS_READ)
         if self._map[:8] != SHARED_MAGIC:
             self.close()
             raise ContractError("shared pose file magic is invalid")
@@ -82,10 +91,7 @@ class SharedPoseReader:
                 raise ContractError("shared pose payload length is invalid")
             start = SHARED_HEADER_BYTES + active * self._slot_capacity
             payload = self._map[start : start + length]
-            if (
-                generation == self._native_u64(16)
-                and active == self._native_u64(24)
-            ):
+            if generation == self._native_u64(16) and active == self._native_u64(24):
                 return generation // 2, payload
         return None
 
@@ -119,16 +125,13 @@ class PoseMirror:
         return (
             binding is None
             or self._latest is None
-            or (time.monotonic() - self._accepted_at) * 1000.0
-            > binding.stale_after_ms
+            or (time.monotonic() - self._accepted_at) * 1000.0 > binding.stale_after_ms
         )
 
     def bind(self, binding: PoseSourceBinding) -> None:
         self.close()
         path = self._directory / f"{binding.session_id}.pose"
-        self._reader = SharedPoseReader(
-            path, binding.maximum_message_bytes
-        )
+        self._reader = SharedPoseReader(path, binding.maximum_message_bytes)
         self._binding = binding
 
     def renew(self, binding: PoseSourceBinding) -> None:
@@ -144,23 +147,39 @@ class PoseMirror:
     def revoke(self) -> None:
         self.close()
 
-    def poll(self) -> PoseSnapshot | None:
+    def poll(self) -> PosePollResult | None:
         if self._reader is None or self._binding is None:
             return None
         value = self._reader.latest()
         if value is None or value[0] <= self._generation:
             return None
         snapshot = decode_snapshot(value[1], self._binding)
+        latest = self._latest
+        if latest is not None and snapshot.sequence <= latest.sequence:
+            self._generation = value[0]
+            return PosePollResult(
+                kind=(
+                    PoseSampleKind.REPEATED
+                    if snapshot.sequence == latest.sequence
+                    else PoseSampleKind.SEQUENCE_REVERSED
+                )
+            )
         if (
-            self._latest is not None
-            and snapshot.sequence <= self._latest.sequence
+            latest is not None
+            and snapshot.simulation_timestamp_ns <= latest.simulation_timestamp_ns
         ):
             self._generation = value[0]
-            return None
+            return PosePollResult(kind=PoseSampleKind.TIMESTAMP_NOT_INCREASING)
         self._generation = value[0]
         self._latest = snapshot
         self._accepted_at = time.monotonic()
-        return snapshot
+        return PosePollResult(
+            kind=PoseSampleKind.ACCEPTED,
+            snapshot=snapshot,
+            skipped_samples=(
+                0 if latest is None else snapshot.sequence - latest.sequence - 1
+            ),
+        )
 
     def close(self) -> None:
         if self._reader is not None:
@@ -172,9 +191,7 @@ class PoseMirror:
         self._accepted_at = 0.0
 
 
-def _same_pose_data(
-    left: PoseSourceBinding, right: PoseSourceBinding
-) -> bool:
+def _same_pose_data(left: PoseSourceBinding, right: PoseSourceBinding) -> bool:
     return (
         left.session_id == right.session_id
         and left.epoch_id == right.epoch_id
@@ -184,6 +201,7 @@ def _same_pose_data(
         and left.entity_table_digest == right.entity_table_digest
         and left.maximum_entities == right.maximum_entities
         and left.maximum_message_bytes == right.maximum_message_bytes
+        and left.maximum_cadence_hz == right.maximum_cadence_hz
         and left.stale_after_ms == right.stale_after_ms
         and left.producer_id == right.producer_id
         and left.producer_spiffe_id == right.producer_spiffe_id
@@ -219,13 +237,8 @@ class Reader:
         return value
 
 
-def decode_snapshot(
-    value: bytes, binding: PoseSourceBinding
-) -> PoseSnapshot:
-    if (
-        len(value) < POSE_HEADER_BYTES
-        or len(value) > binding.maximum_message_bytes
-    ):
+def decode_snapshot(value: bytes, binding: PoseSourceBinding) -> PoseSnapshot:
+    if len(value) < POSE_HEADER_BYTES or len(value) > binding.maximum_message_bytes:
         raise ContractError("pose snapshot size is invalid")
     reader = Reader(value)
     if reader.take(8) != POSE_MAGIC:
@@ -245,9 +258,7 @@ def decode_snapshot(
     ) = reader.unpack(">QqQIHHHH")
     frame_digest = f"sha256:{reader.take(32).hex()}"
     entity_table_digest = f"sha256:{reader.take(32).hex()}"
-    session_id = identity(
-        "sessionId", reader.text(session_length, "sessionId")
-    )
+    session_id = identity("sessionId", reader.text(session_length, "sessionId"))
     epoch_id = identity("epochId", reader.text(epoch_length, "epochId"))
     frame_uri = reader.text(frame_length, "frameRevision")
     if (
@@ -277,12 +288,7 @@ def decode_snapshot(
         if not all(math.isfinite(component) for component in values):
             raise ContractError("pose entity transform is non-finite")
         quaternion = tuple(float(component) for component in values[3:])
-        if (
-            abs(
-                sum(component * component for component in quaternion) - 1.0
-            )
-            > 1e-3
-        ):
+        if abs(sum(component * component for component in quaternion) - 1.0) > 1e-3:
             raise ContractError("pose entity quaternion is not normalized")
         if entity_flags & 0x04:
             velocity = reader.unpack(">6f")
@@ -291,13 +297,9 @@ def decode_snapshot(
         if entity_flags & 0x08:
             reader.take(4)
             reader.unpack(">H")
-        entity_id = identity(
-            "entityId", reader.text(entity_length, "entityId")
-        )
+        entity_id = identity("entityId", reader.text(entity_length, "entityId"))
         if entity_id <= previous:
-            raise ContractError(
-                "pose entity identities are not strictly ordered"
-            )
+            raise ContractError("pose entity identities are not strictly ordered")
         previous = entity_id
         encoded_identity = entity_id.encode("utf-8")
         identity_hasher.update(struct.pack(">H", len(encoded_identity)))
@@ -305,9 +307,7 @@ def decode_snapshot(
         entities.append(
             EntityPose(
                 entity_id=entity_id,
-                position_enu_m=tuple(
-                    float(component) for component in values[:3]
-                ),
+                position_enu_m=tuple(float(component) for component in values[:3]),
                 orientation_xyzw=quaternion,
                 active=bool(entity_flags & 0x01),
                 visible=bool(entity_flags & 0x02),
@@ -315,10 +315,7 @@ def decode_snapshot(
         )
     if reader.remaining:
         raise ContractError("pose snapshot has trailing bytes")
-    if (
-        f"sha256:{identity_hasher.hexdigest()}"
-        != binding.entity_table_digest
-    ):
+    if f"sha256:{identity_hasher.hexdigest()}" != binding.entity_table_digest:
         raise ContractError("pose entity table digest is invalid")
     return PoseSnapshot(
         session_id=session_id,

@@ -19,12 +19,11 @@ from .contracts import (
     identity,
     object_with_keys,
 )
+from .interpolation import RenderedPoseFrame
 from .lighting import (
     DiagnosticScene,
     author_governed_lighting,
 )
-from .pose import PoseSnapshot
-
 
 FORBIDDEN_CONTENT = (
     b"http:",
@@ -84,8 +83,7 @@ class ArtifactMaterializer:
         ):
             raise ContractError("artifact materialization declaration is invalid")
         destination = (
-            self._sha_directory
-            / f"{hexadecimal}{FORMAT_SUFFIX[asset_format]}"
+            self._sha_directory / f"{hexadecimal}{FORMAT_SUFFIX[asset_format]}"
         )
         with self._lock:
             if destination.exists() or destination.is_symlink():
@@ -126,22 +124,16 @@ class ArtifactMaterializer:
                     os.close(descriptor)
                 temporary.unlink(missing_ok=True)
 
-    def _verify_existing(
-        self, path: Path, hexadecimal: str, byte_length: int
-    ) -> None:
+    def _verify_existing(self, path: Path, hexadecimal: str, byte_length: int) -> None:
         if path.is_symlink() or not path.is_file():
-            raise ContractError(
-                "materialized artifact path is not a regular file"
-            )
+            raise ContractError("materialized artifact path is not a regular file")
         resolved = path.resolve()
         if not resolved.is_relative_to(self._directory):
             raise ContractError(
                 "materialized artifact escaped its materialization root"
             )
         if resolved.stat().st_size != byte_length:
-            raise ContractError(
-                "materialized artifact byte length does not match"
-            )
+            raise ContractError("materialized artifact byte length does not match")
         digest = hashlib.sha256()
         with resolved.open("rb") as existing:
             while chunk := existing.read(1024 * 1024):
@@ -182,9 +174,7 @@ class ArtifactStore:
         if any(character not in "0123456789abcdef" for character in hexadecimal):
             raise ContractError("governed artifact digest is invalid")
         path = (
-            self._directory
-            / "sha256"
-            / f"{hexadecimal}{FORMAT_SUFFIX[asset_format]}"
+            self._directory / "sha256" / f"{hexadecimal}{FORMAT_SUFFIX[asset_format]}"
         )
         if path.is_symlink() or not path.is_file():
             raise ContractError("governed artifact is not materialized")
@@ -197,9 +187,7 @@ class ArtifactStore:
         if hashlib.sha256(data).hexdigest() != hexadecimal:
             raise ContractError("governed artifact digest does not match")
         load_path = self._preflight(asset_format, hexadecimal, data, resolved)
-        return ResolvedArtifact(
-            path=load_path, digest=digest, format=asset_format
-        )
+        return ResolvedArtifact(path=load_path, digest=digest, format=asset_format)
 
     def _preflight(
         self,
@@ -249,8 +237,7 @@ class ArtifactStore:
                     or not relative.name
                     or member.is_dir()
                     or member.file_size < 1
-                    or relative.suffix.lower()
-                    in {".py", ".so", ".dll", ".exe", ".sh"}
+                    or relative.suffix.lower() in {".py", ".so", ".dll", ".exe", ".sh"}
                 ):
                     raise ContractError("USDZ archive contains an unsafe member")
                 total_bytes += member.file_size
@@ -316,9 +303,7 @@ class SceneManager:
 
         root = _session_root(scene.session_id)
         self._stage.DefinePrim(root, "Xform")
-        environment_prim = self._stage.DefinePrim(
-            f"{root}/Environment", "Xform"
-        )
+        environment_prim = self._stage.DefinePrim(f"{root}/Environment", "Xform")
         environment_prim.GetReferences().AddReference(str(environment.path))
 
         prototype_root = f"{root}/Prototypes"
@@ -387,23 +372,19 @@ class SceneManager:
             raise
         self._scenes[scene.session_id] = scene
 
-    def apply_pose(self, snapshot: PoseSnapshot) -> None:
+    def apply_pose(self, snapshot: RenderedPoseFrame) -> None:
         from pxr import Gf, UsdGeom
 
         if snapshot.session_id not in self._scenes:
             raise ContractError("pose session has no bound renderer scene")
         for entity in snapshot.entities:
-            binding = self._entities.get(
-                (snapshot.session_id, entity.entity_id)
-            )
+            binding = self._entities.get((snapshot.session_id, entity.entity_id))
             if binding is None:
                 raise ContractError("pose entity is absent from the scene")
             operation, visibility = binding
             x, y, z, w = entity.orientation_xyzw
             transform = Gf.Transform()
-            transform.SetRotation(
-                Gf.Rotation(Gf.Quatd(w, Gf.Vec3d(x, y, z)))
-            )
+            transform.SetRotation(Gf.Rotation(Gf.Quatd(w, Gf.Vec3d(x, y, z))))
             transform.SetTranslation(Gf.Vec3d(*entity.position_enu_m))
             operation.Set(transform.GetMatrix())
             visibility.Set(
@@ -416,9 +397,7 @@ class SceneManager:
         self._stage.RemovePrim(_session_root(session_id))
         scene = self._scenes.pop(session_id, None)
         self._entities = {
-            key: value
-            for key, value in self._entities.items()
-            if key[0] != session_id
+            key: value for key, value in self._entities.items() if key[0] != session_id
         }
         if scene is not None:
             self._diagnostics.leave_governed_session()
@@ -441,7 +420,9 @@ def _validate_usda(
         raise ContractError("only declarative USDA layers are supported")
     lower = data.lower()
     if any(token in lower for token in FORBIDDEN_CONTENT):
-        raise ContractError("USD layer contains forbidden executable or network content")
+        raise ContractError(
+            "USD layer contains forbidden executable or network content"
+        )
     references = USD_ASSET_REFERENCE.findall(data)
     if references and not allow_relative_assets:
         raise ContractError("standalone USD must be self-contained")
@@ -490,10 +471,7 @@ def _validate_gltf(value: object) -> None:
                 or len(uri) > 64 * 1024 * 1024
             ):
                 raise ContractError("glTF external resources are forbidden")
-    if any(
-        key.lower().startswith(("script", "physics"))
-        for key in value
-    ):
+    if any(key.lower().startswith(("script", "physics")) for key in value):
         raise ContractError("glTF executable or physics content is forbidden")
     _reject_gltf_content(value)
 
@@ -503,9 +481,7 @@ def _reject_gltf_content(value: object) -> None:
         for key, child in value.items():
             lowered = str(key).lower()
             if "script" in lowered or "physics" in lowered:
-                raise ContractError(
-                    "glTF executable or physics content is forbidden"
-                )
+                raise ContractError("glTF executable or physics content is forbidden")
             _reject_gltf_content(child)
     elif isinstance(value, list):
         for child in value:
@@ -534,9 +510,7 @@ def _set_transform(xform: Any, value: dict[str, Any]) -> Any:
     orientation = value["orientationXyzw"]
     scale = value["scale"]
     xform.ClearXformOpOrder()
-    operation = xform.AddTransformOp(
-        precision=UsdGeom.XformOp.PrecisionDouble
-    )
+    operation = xform.AddTransformOp(precision=UsdGeom.XformOp.PrecisionDouble)
     transform = Gf.Transform()
     transform.SetRotation(
         Gf.Rotation(
