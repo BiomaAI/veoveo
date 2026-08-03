@@ -63,6 +63,8 @@
   value: {{ .root.Values.session.renderingHz | quote }}
 - name: UAV_SIM_TILE_READY_FRAMES
   value: {{ .root.Values.session.tileReadyFrames | quote }}
+- name: UAV_SIM_PX4_CONNECT_TIMEOUT_SECONDS
+  value: {{ .root.Values.session.px4ConnectTimeoutSeconds | quote }}
 - name: UAV_SIM_FLEET_LOOP_RELATIVE_ALTITUDE_M
   value: {{ .root.Values.session.fleetLoop.relativeAltitudeM | quote }}
 - name: UAV_SIM_FLEET_LOOP_VERTICAL_SEPARATION_M
