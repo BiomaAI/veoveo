@@ -1,7 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs,
-    path::{Path, PathBuf},
+    path::Path,
     process::Command,
     thread,
     time::{Duration, Instant},
@@ -12,15 +11,27 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use veoveo_deploy_contract::{
     ConflictingGpuDevicePluginRemoval, GpuIsolation, GpuSchedulingProfile, GpuTimeSliceInterval,
-    LoadedProfile, ManagedGpuAllocatorInstallation, NVIDIA_DRA_CONTAINER_TOOLKIT_PACKAGE_VERSION,
-    NVIDIA_DRA_DRIVER_NAME, NVIDIA_DRA_HELM_VERSION, NVIDIA_DRA_HOST_DRIVER_VERSION,
-    NVIDIA_DRA_KUBERNETES_VERSION,
+    GpuWorkloadPlacement, LoadedProfile, ManagedGpuAllocatorInstallation,
+    NVIDIA_DRA_CONTAINER_TOOLKIT_PACKAGE_VERSION, NVIDIA_DRA_DRIVER_NAME, NVIDIA_DRA_HELM_VERSION,
+    NVIDIA_DRA_HOST_DRIVER_VERSION, NVIDIA_DRA_KUBERNETES_VERSION,
 };
 
 use super::{kubectl_apply_value, output_checked, status_checked};
 
+#[path = "gpu/admission.rs"]
+mod admission;
+#[path = "gpu/helm.rs"]
+mod helm;
+
+use admission::{validate_kubelet_daemon_set_contract, validate_kubelet_daemon_set_readiness};
+use helm::{
+    install_allocator_chart, pull_and_verify_chart, verify_allocator_chart_render,
+    verify_allocator_release_metadata,
+};
+
 const MANAGED_NODE_LABEL: &str = "nvidia.com/dra-kubelet-plugin";
 const MANAGED_NODE_LABEL_VALUE: &str = "true";
+const MANAGED_NODE_LABEL_POINTER: &str = "/metadata/labels/nvidia.com~1dra-kubelet-plugin";
 
 #[derive(Debug)]
 pub(super) struct PreparedGpuPlacement {
@@ -194,6 +205,7 @@ pub(super) fn ensure_gpu_allocator(
     })?;
     let nodes = select_eligible_nodes(context, installation)?;
     let chart = pull_and_verify_chart(installation)?;
+    verify_allocator_chart_render(installation, &chart)?;
 
     remove_conflicting_device_plugin(context, workload_namespace, scheduling, installation)?;
     label_managed_nodes(context, &nodes)?;
@@ -306,62 +318,6 @@ fn select_eligible_nodes(
     Ok(names)
 }
 
-fn pull_and_verify_chart(installation: &ManagedGpuAllocatorInstallation) -> Result<VerifiedChart> {
-    let directory = tempfile::Builder::new()
-        .prefix("veoveo-nvidia-dra-")
-        .tempdir()
-        .context("creating NVIDIA DRA chart verification directory")?;
-    let output = Command::new("helm")
-        .args([
-            "pull",
-            installation.chart.coordinate.as_str(),
-            "--version",
-            installation.chart.version.as_str(),
-            "--destination",
-            path_str(directory.path())?,
-        ])
-        .output()
-        .context("pulling locked NVIDIA DRA chart")?;
-    ensure!(
-        output.status.success(),
-        "Helm failed to pull locked NVIDIA DRA chart with {}\nstdout:\n{}\nstderr:\n{}",
-        output.status,
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let report = format!(
-        "{}\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    ensure!(
-        report.contains(&format!("Digest: {}", installation.chart.digest)),
-        "Helm pulled NVIDIA DRA chart without the locked OCI manifest digest {}; output was:\n{report}",
-        installation.chart.digest
-    );
-    let archive = directory.path().join(format!(
-        "dra-driver-nvidia-gpu-{}.tgz",
-        installation.chart.version
-    ));
-    let bytes = fs::read(&archive)
-        .with_context(|| format!("reading pulled NVIDIA DRA chart {}", archive.display()))?;
-    let digest = format!("sha256:{}", hex::encode(Sha256::digest(&bytes)));
-    ensure!(
-        digest == installation.chart.content_digest,
-        "NVIDIA DRA chart archive digest is {digest}, expected {}",
-        installation.chart.content_digest
-    );
-    Ok(VerifiedChart {
-        archive,
-        _directory: directory,
-    })
-}
-
-struct VerifiedChart {
-    archive: PathBuf,
-    _directory: tempfile::TempDir,
-}
-
 fn remove_conflicting_device_plugin(
     context: &str,
     workload_namespace: &str,
@@ -398,39 +354,15 @@ fn remove_conflicting_device_plugin(
             release_name,
             expected_chart_version,
         } => {
-            let output = Command::new("helm")
-                .args([
-                    "--kube-context",
-                    context,
-                    "status",
-                    release_name,
-                    "--namespace",
-                    namespace,
-                    "-o",
-                    "json",
-                ])
-                .output()
-                .context("checking declared conflicting NVIDIA device-plugin Helm release")?;
-            if !output.status.success() {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                if stderr.contains("release: not found") || stderr.contains("not found") {
-                    return Ok(());
-                }
-                bail!(
-                    "Helm failed while checking conflicting NVIDIA device-plugin release {namespace}/{release_name} with {}: {}",
-                    output.status,
-                    stderr.trim()
-                );
-            }
-            let release: Value = serde_json::from_slice(&output.stdout)
-                .context("decoding conflicting NVIDIA device-plugin Helm release")?;
-            let chart = release
-                .get("chart")
-                .and_then(Value::as_str)
-                .context("conflicting NVIDIA device-plugin Helm status omits chart")?;
+            let Some(release) = helm::release_metadata(context, namespace, release_name)? else {
+                return Ok(());
+            };
             ensure!(
-                chart.ends_with(&format!("-{expected_chart_version}")),
-                "conflicting NVIDIA device-plugin release {namespace}/{release_name} runs chart {chart}, expected version {expected_chart_version}"
+                release
+                    .chart
+                    .ends_with(&format!("-{expected_chart_version}")),
+                "conflicting NVIDIA device-plugin release {namespace}/{release_name} runs chart {}, expected version {expected_chart_version}",
+                release.chart
             );
             quiesce_gpu_workloads(context, workload_namespace, scheduling)?;
             status_checked(
@@ -601,97 +533,12 @@ fn conflicting_device_plugin_pods(inventory: &Value, nodes: &[String]) -> Result
     Ok(conflicts)
 }
 
-fn allocator_helm_args(
-    context: &str,
-    installation: &ManagedGpuAllocatorInstallation,
-    archive: &Path,
-) -> Result<Vec<String>> {
-    Ok(vec![
-        "--kube-context".to_owned(),
-        context.to_owned(),
-        "upgrade".to_owned(),
-        "--install".to_owned(),
-        installation.release_name.clone(),
-        path_str(archive)?.to_owned(),
-        "--namespace".to_owned(),
-        installation.namespace.clone(),
-        "--create-namespace".to_owned(),
-        "--atomic".to_owned(),
-        "--wait".to_owned(),
-        "--timeout".to_owned(),
-        format!("{}s", installation.timeout_seconds),
-        "--set-string".to_owned(),
-        format!("nvidiaDriverRoot={}", installation.nvidia_driver_root),
-        "--set".to_owned(),
-        "gpuResourcesEnabledOverride=true".to_owned(),
-        "--set-string".to_owned(),
-        "resourceApiVersion=resource.k8s.io/v1".to_owned(),
-        "--set".to_owned(),
-        "resources.gpus.enabled=true".to_owned(),
-        "--set".to_owned(),
-        "resources.computeDomains.enabled=false".to_owned(),
-        "--set".to_owned(),
-        "featureGates.TimeSlicingSettings=true".to_owned(),
-        "--set".to_owned(),
-        "webhook.enabled=false".to_owned(),
-        "--set-json".to_owned(),
-        format!(
-            "kubeletPlugin.nodeSelector={}",
-            serde_json::to_string(&BTreeMap::from([(
-                MANAGED_NODE_LABEL,
-                MANAGED_NODE_LABEL_VALUE
-            )]))?
-        ),
-        "--set-string".to_owned(),
-        format!("image.repository={}", installation.image.repository),
-        "--set-string".to_owned(),
-        format!(
-            "image.tag={}@{}",
-            installation.image.tag, installation.image.digest
-        ),
-    ])
-}
-
-fn install_allocator_chart(
-    context: &str,
-    installation: &ManagedGpuAllocatorInstallation,
-    chart: &VerifiedChart,
-) -> Result<()> {
-    let args = allocator_helm_args(context, installation, &chart.archive)?;
-    status_checked("helm", args.iter().map(String::as_str), &[], None)
-        .context("installing the locked NVIDIA DRA driver")
-}
-
 fn verify_allocator_release(
     context: &str,
     installation: &ManagedGpuAllocatorInstallation,
     nodes: &[String],
 ) -> Result<()> {
-    let release = output_checked(
-        "helm",
-        [
-            "--kube-context",
-            context,
-            "status",
-            installation.release_name.as_str(),
-            "--namespace",
-            installation.namespace.as_str(),
-            "-o",
-            "json",
-        ],
-        None,
-    )?;
-    let release: Value =
-        serde_json::from_slice(&release).context("decoding NVIDIA DRA Helm release")?;
-    let chart = release
-        .get("chart")
-        .and_then(Value::as_str)
-        .context("NVIDIA DRA Helm status omits chart")?;
-    ensure!(
-        chart == format!("dra-driver-nvidia-gpu-{}", installation.chart.version),
-        "NVIDIA DRA Helm release uses chart {chart}, expected {}",
-        installation.chart.version
-    );
+    verify_allocator_release_metadata(context, installation)?;
 
     let daemon_sets = output_checked(
         "kubectl",
@@ -711,10 +558,32 @@ fn verify_allocator_release(
     )?;
     let daemon_sets: Value =
         serde_json::from_slice(&daemon_sets).context("decoding NVIDIA DRA DaemonSets")?;
+    let kubelet = daemon_sets["items"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|daemon_set| {
+            daemon_set
+                .pointer("/metadata/name")
+                .and_then(Value::as_str)
+                .is_some_and(|name| name.contains("kubelet-plugin"))
+        })
+        .context("NVIDIA DRA release has no kubelet-plugin DaemonSet")?;
+    validate_kubelet_daemon_set_contract(kubelet)?;
+
     let expected_image = format!(
         "{}:{}@{}",
         installation.image.repository, installation.image.tag, installation.image.digest
     );
+    let image = kubelet
+        .pointer("/spec/template/spec/containers/0/image")
+        .and_then(Value::as_str)
+        .context("NVIDIA DRA kubelet-plugin has no image")?;
+    ensure!(
+        image == expected_image,
+        "NVIDIA DRA kubelet-plugin image is {image}, expected {expected_image}"
+    );
+
     let pods = output_checked(
         "kubectl",
         [
@@ -732,6 +601,8 @@ fn verify_allocator_release(
         None,
     )?;
     let pods: Value = serde_json::from_slice(&pods).context("decoding NVIDIA DRA pods")?;
+    validate_kubelet_daemon_set_readiness(context, kubelet, &pods, nodes)?;
+
     let mut container_count = 0_usize;
     for pod in pods["items"]
         .as_array()
@@ -765,34 +636,6 @@ fn verify_allocator_release(
         "NVIDIA DRA release has no running containers to verify"
     );
     verify_container_toolkit_versions(context, installation, &pods, nodes)?;
-    let kubelet = daemon_sets["items"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .find(|daemon_set| {
-            daemon_set
-                .pointer("/metadata/name")
-                .and_then(Value::as_str)
-                .is_some_and(|name| name.contains("kubelet-plugin"))
-        })
-        .context("NVIDIA DRA release has no kubelet-plugin DaemonSet")?;
-    let image = kubelet
-        .pointer("/spec/template/spec/containers/0/image")
-        .and_then(Value::as_str)
-        .context("NVIDIA DRA kubelet-plugin has no image")?;
-    ensure!(
-        image == expected_image,
-        "NVIDIA DRA kubelet-plugin image is {image}, expected {expected_image}"
-    );
-    let ready = kubelet
-        .pointer("/status/numberReady")
-        .and_then(Value::as_u64)
-        .unwrap_or(0);
-    ensure!(
-        ready == u64::try_from(nodes.len()).expect("node count fits u64"),
-        "NVIDIA DRA kubelet-plugin has {ready} Ready pods for {} selected nodes",
-        nodes.len()
-    );
     Ok(())
 }
 
@@ -921,7 +764,7 @@ fn verify_resource_slices(
     timeout: Duration,
 ) -> Result<()> {
     let deadline = Instant::now() + timeout;
-    let uuids = loop {
+    let devices = loop {
         let slices = output_checked(
             "kubectl",
             ["--context", context, "get", "resourceslices", "-o", "json"],
@@ -930,7 +773,7 @@ fn verify_resource_slices(
         let slices: Value =
             serde_json::from_slice(&slices).context("decoding NVIDIA DRA ResourceSlices")?;
         match validate_resource_slices(&slices, nodes, expected_devices) {
-            Ok(uuids) => break uuids,
+            Ok(devices) => break devices,
             Err(error) if Instant::now() < deadline => {
                 eprintln!("waiting for complete NVIDIA DRA ResourceSlices: {error:#}");
                 thread::sleep(Duration::from_secs(1));
@@ -944,21 +787,32 @@ fn verify_resource_slices(
         }
     };
     println!(
-        "NVIDIA DRA ready: driver={} nodes={} physicalGpuUuids={}",
+        "NVIDIA DRA ready: driver={} nodes={} physicalGpus={}",
         NVIDIA_DRA_DRIVER_NAME,
         nodes.join(","),
-        uuids.into_iter().collect::<Vec<_>>().join(",")
+        devices
+            .values()
+            .map(|device| format!("{}:{}@{}", device.product_name, device.uuid, device.node))
+            .collect::<Vec<_>>()
+            .join(",")
     );
     Ok(())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PhysicalGpuEvidence {
+    node: String,
+    uuid: String,
+    product_name: String,
 }
 
 fn validate_resource_slices(
     slices: &Value,
     nodes: &[String],
     expected_devices: u16,
-) -> Result<BTreeSet<String>> {
+) -> Result<BTreeMap<String, PhysicalGpuEvidence>> {
     let selected = nodes.iter().map(String::as_str).collect::<BTreeSet<_>>();
-    let mut uuids = BTreeSet::new();
+    let mut devices = BTreeMap::new();
     let mut seen_nodes = BTreeSet::new();
     for slice in slices["items"]
         .as_array()
@@ -997,6 +851,12 @@ fn validate_resource_slices(
                 .and_then(|value| value.get("string"))
                 .and_then(Value::as_str)
                 .context("NVIDIA DRA physical GPU device has no UUID")?;
+            let product_name = attributes
+                .get("productName")
+                .and_then(|value| value.get("string"))
+                .and_then(Value::as_str)
+                .filter(|value| !value.trim().is_empty())
+                .context("NVIDIA DRA physical GPU device has no productName")?;
             let driver = attributes
                 .get("driverVersion")
                 .and_then(|value| value.get("version"))
@@ -1011,7 +871,16 @@ fn validate_resource_slices(
                 "NVIDIA DRA GPU {uuid} exposes driver version {driver:?}; the qualified installation pins {NVIDIA_DRA_HOST_DRIVER_VERSION}"
             );
             ensure!(
-                uuids.insert(uuid.to_owned()),
+                devices
+                    .insert(
+                        uuid.to_owned(),
+                        PhysicalGpuEvidence {
+                            node: node.to_owned(),
+                            uuid: uuid.to_owned(),
+                            product_name: product_name.to_owned(),
+                        },
+                    )
+                    .is_none(),
                 "NVIDIA DRA ResourceSlices duplicate physical GPU UUID {uuid}"
             );
         }
@@ -1021,11 +890,11 @@ fn validate_resource_slices(
         "NVIDIA DRA ResourceSlices cover nodes {seen_nodes:?}, expected {selected:?}"
     );
     ensure!(
-        uuids.len() == usize::from(expected_devices),
+        devices.len() == usize::from(expected_devices),
         "NVIDIA DRA exposes {} unique physical GPUs on selected nodes, profile requires {expected_devices}",
-        uuids.len()
+        devices.len()
     );
-    Ok(uuids)
+    Ok(devices)
 }
 
 pub(super) fn apply_gpu_placement(
@@ -1047,12 +916,127 @@ pub(super) fn apply_gpu_placement(
     for (class, require_extended_resource) in classes {
         verify_device_class(context, class, require_extended_resource)?;
     }
+    if let Some(existing) = read_resource_claim(context, namespace, &placement.claim_name)? {
+        let uid = validate_existing_resource_claim(&existing, namespace, placement)?;
+        println!(
+            "Preserved restart-stable GPU ResourceClaim {namespace}/{} uid={uid}",
+            placement.claim_name
+        );
+        return Ok(());
+    }
+
     kubectl_apply_value(context, &placement.manifest).with_context(|| {
         format!(
-            "applying restart-stable GPU ResourceClaim {namespace}/{}",
+            "creating restart-stable GPU ResourceClaim {namespace}/{}",
             placement.claim_name
         )
-    })
+    })?;
+    let created = read_resource_claim(context, namespace, &placement.claim_name)?
+        .context("created GPU ResourceClaim is not readable")?;
+    let uid = validate_existing_resource_claim(&created, namespace, placement)?;
+    println!(
+        "Created restart-stable GPU ResourceClaim {namespace}/{} uid={uid}",
+        placement.claim_name
+    );
+    Ok(())
+}
+
+fn read_resource_claim(context: &str, namespace: &str, name: &str) -> Result<Option<Value>> {
+    let output = Command::new("kubectl")
+        .args([
+            "--context",
+            context,
+            "--namespace",
+            namespace,
+            "get",
+            "resourceclaim",
+            name,
+            "-o",
+            "json",
+        ])
+        .output()
+        .with_context(|| format!("reading GPU ResourceClaim {namespace}/{name}"))?;
+    if output.status.success() {
+        return serde_json::from_slice(&output.stdout)
+            .with_context(|| format!("decoding GPU ResourceClaim {namespace}/{name}"))
+            .map(Some);
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if stderr.contains("NotFound") || stderr.contains("not found") {
+        return Ok(None);
+    }
+    bail!(
+        "kubectl failed while reading GPU ResourceClaim {namespace}/{name} with {}: {}",
+        output.status,
+        stderr.trim()
+    )
+}
+
+fn validate_existing_resource_claim(
+    existing: &Value,
+    namespace: &str,
+    placement: &PreparedGpuPlacement,
+) -> Result<String> {
+    ensure!(
+        existing.get("apiVersion").and_then(Value::as_str) == Some("resource.k8s.io/v1")
+            && existing.get("kind").and_then(Value::as_str) == Some("ResourceClaim"),
+        "existing GPU ResourceClaim {namespace}/{} does not use resource.k8s.io/v1 ResourceClaim",
+        placement.claim_name
+    );
+    ensure!(
+        existing.pointer("/metadata/name").and_then(Value::as_str)
+            == Some(placement.claim_name.as_str())
+            && existing
+                .pointer("/metadata/namespace")
+                .and_then(Value::as_str)
+                == Some(namespace),
+        "existing GPU ResourceClaim identity differs from {namespace}/{}",
+        placement.claim_name
+    );
+    ensure!(
+        existing
+            .pointer("/metadata/deletionTimestamp")
+            .is_none_or(Value::is_null),
+        "existing GPU ResourceClaim {namespace}/{} is terminating and will not be recreated",
+        placement.claim_name
+    );
+    let existing_spec = existing
+        .get("spec")
+        .context("existing GPU ResourceClaim has no spec")?;
+    let desired_spec = placement
+        .manifest
+        .get("spec")
+        .context("compiled GPU ResourceClaim has no spec")?;
+    ensure!(
+        existing_spec == desired_spec,
+        "existing GPU ResourceClaim {namespace}/{} has desired-spec digest {}, expected {}; profile-up will not replace or mutate an allocated claim",
+        placement.claim_name,
+        json_digest(existing_spec)?,
+        json_digest(desired_spec)?
+    );
+    let existing_evidence = existing
+        .pointer("/metadata/annotations/veoveo.ai~1gpu-placement-evidence")
+        .and_then(Value::as_str);
+    ensure!(
+        existing_evidence == Some(placement.evidence_digest.as_str()),
+        "existing GPU ResourceClaim {namespace}/{} carries placement evidence {:?}, expected {:?}; profile-up will not replace it",
+        placement.claim_name,
+        existing_evidence,
+        placement.evidence_digest
+    );
+    existing
+        .pointer("/metadata/uid")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .context("existing GPU ResourceClaim has no Kubernetes UID")
+}
+
+fn json_digest(value: &Value) -> Result<String> {
+    Ok(format!(
+        "sha256:{}",
+        hex::encode(Sha256::digest(serde_json::to_vec(value)?))
+    ))
 }
 
 pub(super) fn verify_gpu_placement(
@@ -1076,6 +1060,11 @@ pub(super) fn verify_gpu_placement(
         None,
     )?;
     let claim: Value = serde_json::from_slice(&claim).context("decoding GPU ResourceClaim")?;
+    let claim_uid = claim
+        .pointer("/metadata/uid")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+        .context("GPU ResourceClaim has no Kubernetes UID")?;
     let allocated = claim
         .pointer("/status/allocation/devices/results")
         .and_then(Value::as_array)
@@ -1084,6 +1073,33 @@ pub(super) fn verify_gpu_placement(
         .iter()
         .filter_map(|item| item.get("request").and_then(Value::as_str))
         .collect::<BTreeSet<_>>();
+    let allocation_evidence = allocated
+        .iter()
+        .map(|item| {
+            let request = item
+                .get("request")
+                .and_then(Value::as_str)
+                .context("GPU allocation result has no request")?;
+            let driver = item
+                .get("driver")
+                .and_then(Value::as_str)
+                .context("GPU allocation result has no driver")?;
+            let pool = item
+                .get("pool")
+                .and_then(Value::as_str)
+                .context("GPU allocation result has no pool")?;
+            let device = item
+                .get("device")
+                .and_then(Value::as_str)
+                .context("GPU allocation result has no device")?;
+            Ok(format!("{request}={driver}/{pool}/{device}"))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    println!(
+        "GPU ResourceClaim allocated: namespace={namespace} claim={} uid={claim_uid} devices={}",
+        scheduling.allocator.claim_name,
+        allocation_evidence.join(",")
+    );
 
     let mut group_uuids = BTreeMap::<String, BTreeSet<String>>::new();
     for group in &scheduling.same_physical_device_groups {
@@ -1094,6 +1110,7 @@ pub(super) fn verify_gpu_placement(
         );
         let uuids = group_uuids.entry(group.name.clone()).or_default();
         for workload in &group.workloads {
+            verify_gpu_workload_replicas(context, namespace, workload)?;
             let pods = output_checked(
                 "kubectl",
                 [
@@ -1186,6 +1203,50 @@ pub(super) fn verify_gpu_placement(
     Ok(())
 }
 
+fn verify_gpu_workload_replicas(
+    context: &str,
+    namespace: &str,
+    workload: &GpuWorkloadPlacement,
+) -> Result<()> {
+    let deployment = output_checked(
+        "kubectl",
+        [
+            "--context",
+            context,
+            "--namespace",
+            namespace,
+            "get",
+            "deployment",
+            workload.deployment.as_str(),
+            "-o",
+            "json",
+        ],
+        None,
+    )?;
+    let deployment: Value =
+        serde_json::from_slice(&deployment).context("decoding GPU workload Deployment")?;
+    let expected = u64::from(workload.replicas);
+    let desired = deployment
+        .pointer("/spec/replicas")
+        .and_then(Value::as_u64)
+        .unwrap_or(1);
+    let ready = deployment
+        .pointer("/status/readyReplicas")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let available = deployment
+        .pointer("/status/availableReplicas")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    ensure!(
+        desired == expected && ready == expected && available == expected,
+        "GPU workload {} Deployment {} has desired={desired} ready={ready} available={available}; expected exactly {expected}",
+        workload.workload,
+        workload.deployment
+    );
+    Ok(())
+}
+
 fn parse_version(raw: &str) -> Result<(u64, u64, u64)> {
     let raw = raw.trim().trim_start_matches('v');
     let numeric = raw
@@ -1217,8 +1278,9 @@ mod tests {
     };
 
     use super::{
-        allocator_helm_args, compile_gpu_placement, conflicting_device_plugin_pods,
-        debian_package_version, parse_version, prepare_gpu_placement, validate_resource_slices,
+        compile_gpu_placement, conflicting_device_plugin_pods, debian_package_version,
+        parse_version, prepare_gpu_placement, validate_existing_resource_claim,
+        validate_resource_slices,
     };
 
     #[test]
@@ -1279,25 +1341,25 @@ mod tests {
     }
 
     #[test]
-    fn allocator_helm_values_enable_v1_gpu_time_slicing_and_pin_image() {
+    fn existing_resource_claim_is_preserved_only_for_identical_intent() {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let profile_path =
             repository.join("testing/fixtures/external-simulation-installation/deployment.json");
         let profile = LoadedProfile::load(&profile_path, &repository).unwrap();
-        let scheduling = profile.resolved_platform().unwrap().gpu_scheduling.unwrap();
-        let args = allocator_helm_args(
-            "example",
-            &scheduling.allocator.installation,
-            Path::new("/tmp/driver.tgz"),
-        )
-        .unwrap();
-        let rendered = args.join(" ");
+        let placement = prepare_gpu_placement(&profile).unwrap().unwrap();
+        let mut existing = placement.manifest.clone();
+        existing["metadata"]["uid"] = json!("claim-uid");
 
-        assert!(rendered.contains("resourceApiVersion=resource.k8s.io/v1"));
-        assert!(rendered.contains("featureGates.TimeSlicingSettings=true"));
-        assert!(rendered.contains("resources.computeDomains.enabled=false"));
-        assert!(rendered.contains("gpuResourcesEnabledOverride=true"));
-        assert!(rendered.contains("@sha256:eefe6739"));
+        assert_eq!(
+            validate_existing_resource_claim(&existing, "veoveo", &placement).unwrap(),
+            "claim-uid"
+        );
+
+        existing["spec"]["devices"]["requests"][0]["exactly"]["count"] = json!(2);
+        let error = validate_existing_resource_claim(&existing, "veoveo", &placement)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("will not replace or mutate"));
     }
 
     #[test]
@@ -1310,11 +1372,13 @@ mod tests {
                     {"attributes": {
                         "type": {"string": "gpu"},
                         "uuid": {"string": "GPU-a"},
+                        "productName": {"string": "NVIDIA L40S"},
                         "driverVersion": {"version": "610.43.02"}
                     }},
                     {"attributes": {
                         "type": {"string": "gpu"},
                         "uuid": {"string": "GPU-b"},
+                        "productName": {"string": "NVIDIA L40S"},
                         "driverVersion": {"version": "610.43.02"}
                     }}
                 ]
@@ -1322,18 +1386,22 @@ mod tests {
         }]});
         let nodes = vec!["gpu-node".to_owned()];
 
-        assert_eq!(
-            validate_resource_slices(&inventory, &nodes, 2).unwrap(),
-            ["GPU-a".to_owned(), "GPU-b".to_owned()]
-                .into_iter()
-                .collect()
-        );
+        let devices = validate_resource_slices(&inventory, &nodes, 2).unwrap();
+        assert_eq!(devices.len(), 2);
+        assert_eq!(devices["GPU-a"].product_name, "NVIDIA L40S");
         assert!(validate_resource_slices(&inventory, &nodes, 3).is_err());
 
-        let mut stale = inventory;
+        let mut stale = inventory.clone();
         stale["items"][0]["spec"]["devices"][0]["attributes"]["driverVersion"]["version"] =
             json!("570.0.0");
         assert!(validate_resource_slices(&stale, &nodes, 2).is_err());
+
+        let mut incomplete = inventory;
+        incomplete["items"][0]["spec"]["devices"][0]["attributes"]
+            .as_object_mut()
+            .unwrap()
+            .remove("productName");
+        assert!(validate_resource_slices(&incomplete, &nodes, 2).is_err());
     }
 
     #[test]
