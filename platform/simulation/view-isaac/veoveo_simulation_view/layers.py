@@ -359,8 +359,21 @@ class StreamedWorldManager:
             raise ContractError(
                 f"geospatial layer {layer_id!r} does not match the scene Frames revision"
             )
-        health = self._author(scene.session_id, layer)
-        self._sessions[scene.session_id] = health
+        root = f"/World/SimulationView/StreamedWorld/{_prim_name(scene.session_id)}"
+        self._sessions[scene.session_id] = {
+            "sessionId": scene.session_id,
+            "layer": layer,
+            "rootPath": root,
+            "tilesetPath": f"{root}/Tileset",
+            "lifecycle": "loading",
+            "residentBytes": 0,
+            "visibleTileCount": 0,
+            "pendingTileCount": 0,
+            "failure": None,
+            "providerAuthored": False,
+            "providerRegistered": False,
+            "coverageStartedAt": None,
+        }
         return self.status(scene.session_id)
 
     def tick(self, render_viewports: tuple[RenderViewport, ...]) -> None:
@@ -378,6 +391,15 @@ class StreamedWorldManager:
             from cesium.omniverse.bindings import Viewport as CesiumViewport
             from cesium.usd.plugins.CesiumUsdSchemas import Tileset
             from pxr import Gf
+
+            if render_viewports:
+                for runtime in self._sessions.values():
+                    if runtime.get("providerAuthored", True):
+                        continue
+                    authored = self._author(
+                        runtime["sessionId"], runtime["layer"]
+                    )
+                    runtime.update(authored, providerAuthored=True)
 
             if render_viewports and any(
                 not runtime.get("providerRegistered", True)
@@ -498,6 +520,9 @@ class StreamedWorldManager:
         runtime = self._sessions.get(session_id)
         if runtime is None:
             return
+        if not runtime.get("providerAuthored", True):
+            self._sessions.pop(session_id, None)
+            return
         previous = self._stage.GetEditTarget()
         self._stage.SetEditTarget(Usd.EditTarget(self._stage.GetSessionLayer()))
         try:
@@ -601,6 +626,7 @@ class StreamedWorldManager:
             "visibleTileCount": 0,
             "pendingTileCount": 0,
             "failure": None,
+            "providerAuthored": True,
             "providerRegistered": False,
             "coverageStartedAt": None,
         }
