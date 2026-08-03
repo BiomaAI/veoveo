@@ -403,7 +403,7 @@ impl RecordingIngestService {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        publish_segment(&path, &blueprint.encoded_rrd)?;
+        publish_blueprint_segment(&path, &blueprint.encoded_rrd, blueprint.revision)?;
         let outcome = self
             .store
             .commit_recording_blueprint(RecordingBlueprintCommit {
@@ -642,23 +642,7 @@ impl RecordingIngestService {
         std::fs::create_dir_all(&directory)?;
         let path = directory.join(format!("{:020}.pb", batch.sequence));
         let encoded = batch.encode_to_vec();
-        if path.exists() {
-            ensure!(std::fs::read(&path)? == encoded, "journal batch conflict");
-        } else {
-            let temporary = directory.join(format!(
-                ".{:020}.{}.tmp",
-                batch.sequence,
-                uuid::Uuid::now_v7()
-            ));
-            let mut file = OpenOptions::new()
-                .create_new(true)
-                .write(true)
-                .open(&temporary)?;
-            file.write_all(&encoded)?;
-            file.sync_all()?;
-            std::fs::rename(&temporary, &path)?;
-            sync_directory(&directory)?;
-        }
+        publish_segment(&path, &encoded).context("journal batch conflict")?;
         let relative = path
             .strip_prefix(&self.config.journal_root)?
             .to_str()
@@ -972,6 +956,26 @@ fn materialized_through(stream: &RecordingIngestStreamRecord) -> Result<u64> {
         .unwrap_or(0))
 }
 
+struct TemporaryPublication(Option<PathBuf>);
+
+impl TemporaryPublication {
+    fn remove(mut self) -> std::io::Result<()> {
+        let path = self
+            .0
+            .take()
+            .expect("temporary publication path is present");
+        std::fs::remove_file(path)
+    }
+}
+
+impl Drop for TemporaryPublication {
+    fn drop(&mut self) {
+        if let Some(path) = self.0.take() {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+}
+
 fn publish_segment(path: &Path, bytes: &[u8]) -> Result<()> {
     if path.exists() {
         ensure!(
@@ -982,14 +986,42 @@ fn publish_segment(path: &Path, bytes: &[u8]) -> Result<()> {
     }
     let directory = path.parent().context("segment path has no parent")?;
     let temporary = path.with_extension(format!("rrd.{}.tmp", uuid::Uuid::now_v7()));
+    let temporary_guard = TemporaryPublication(Some(temporary.clone()));
     let mut file = OpenOptions::new()
         .create_new(true)
         .write(true)
         .open(&temporary)?;
     file.write_all(bytes)?;
     file.sync_all()?;
-    std::fs::rename(&temporary, path)?;
-    sync_directory(directory)
+    drop(file);
+    let publication: Result<()> = match std::fs::hard_link(&temporary, path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            ensure!(
+                Sha256::digest(std::fs::read(path)?) == Sha256::digest(bytes),
+                "materialized segment conflict"
+            );
+            Ok(())
+        }
+        Err(error) => Err(error.into()),
+    };
+    let cleanup = temporary_guard.remove();
+    let directory_sync = sync_directory(directory);
+    publication?;
+    cleanup?;
+    directory_sync
+}
+
+fn publish_blueprint_segment(path: &Path, bytes: &[u8], revision: u64) -> Result<()> {
+    match publish_segment(path, bytes) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            if path.exists() && Sha256::digest(std::fs::read(path)?) != Sha256::digest(bytes) {
+                return Err(StoreError::RecordingBlueprintRevisionConflict { revision }.into());
+            }
+            Err(error)
+        }
+    }
 }
 
 pub fn ingest_part_paths(parts_directory: &Path) -> Result<Vec<PathBuf>> {
@@ -1256,6 +1288,69 @@ mod tests {
             segment_max_age_seconds: 60,
         };
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn conflicting_blueprint_file_is_a_typed_revision_conflict() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("00000000000000000001.rbl");
+        publish_blueprint_segment(&path, b"first", 1).unwrap();
+
+        let error = publish_blueprint_segment(&path, b"second", 1).unwrap_err();
+
+        assert!(matches!(
+            error.downcast_ref::<StoreError>(),
+            Some(StoreError::RecordingBlueprintRevisionConflict { revision: 1 })
+        ));
+        assert_eq!(std::fs::read(path).unwrap(), b"first");
+    }
+
+    #[test]
+    fn duplicate_blueprint_file_is_idempotent() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("00000000000000000001.rbl");
+        publish_blueprint_segment(&path, b"same", 1).unwrap();
+        publish_blueprint_segment(&path, b"same", 1).unwrap();
+    }
+
+    #[test]
+    fn concurrent_blueprint_writers_cannot_replace_the_winning_revision() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("00000000000000000001.rbl");
+        let barrier = Arc::new(std::sync::Barrier::new(3));
+        let writers = [b"first".as_slice(), b"second".as_slice()]
+            .into_iter()
+            .map(|bytes| {
+                let path = path.clone();
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    publish_blueprint_segment(&path, bytes, 1)
+                })
+            })
+            .collect::<Vec<_>>();
+        barrier.wait();
+        let outcomes = writers
+            .into_iter()
+            .map(|writer| writer.join().unwrap())
+            .collect::<Vec<_>>();
+
+        assert_eq!(outcomes.iter().filter(|result| result.is_ok()).count(), 1);
+        assert_eq!(
+            outcomes
+                .iter()
+                .filter(|result| matches!(
+                    result,
+                    Err(error) if matches!(
+                        error.downcast_ref::<StoreError>(),
+                        Some(StoreError::RecordingBlueprintRevisionConflict { revision: 1 })
+                    )
+                ))
+                .count(),
+            1
+        );
+        let published = std::fs::read(path).unwrap();
+        assert!(published == b"first" || published == b"second");
     }
 
     #[test]
