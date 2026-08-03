@@ -7,7 +7,7 @@
 | Rerun 0.35.0 gRPC and RRD | Producer-local ingestion and immutable `object-store`-optimized shards with footer manifests. |
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Recording-scoped read subset over HTTP/2 and gRPC-Web. Veoveo does not expose a general Rerun catalog or mutation surface. |
 | Veoveo recording ingest `2026-08-01` | Authenticated protobuf batches and distinct producer Blueprint publications preserve native Rerun store identities, order, idempotency, and IDR-aligned rollover. |
-| Veoveo recording playback `v3` | `veoveo.io/recording-playback/v3` binds one producer Blueprint, one lazy archive dataset, one optional bounded live source, catalog revision, and scoped session. |
+| Veoveo recording playback `v3` | `veoveo.io/recording-playback/v3` binds one producer Blueprint, one lazy archive dataset, one optional bounded live source, catalog revision, and scoped session. Console selects exactly one recording receiver at a time. |
 | H.264/AVC Annex B | Decoder-reentrant `VideoStream` access units, sparse keyframe markers, and exact producer timeline indices. |
 | JSON Web Token and SHA-256 | Host-limited Redap read access and immutable shard, layer-revision, and artifact identities. |
 
@@ -87,7 +87,7 @@ store identity, revision, digest, and length. The BFF exposes its bytes on a
 recording-scoped authenticated route. Recording MCP verifies the stored digest
 again and rewrites every Blueprint message, including its activation command,
 to the playback application's identity. Console opens that finite Blueprint
-source before archive and live recording sources, which applies one producer
+source before the selected recording receiver, which applies one producer
 layout to live, ready, and sealed playback without mixing the stores.
 
 The installation selects the browser map provider and owns its public browser
@@ -139,19 +139,22 @@ snapshot and recent parts instead of scanning the full active hour. Direct nativ
 writers are decoded through the same temporal filter while the decoder follows
 the growing file.
 
-Rerun opens the lazy archive dataset and the current live HTTP response in one
-viewer. Recording MCP rewrites every live message to the archive dataset and
-segment identity, so camera and telemetry appear before shard freeze while
-earlier history remains on the same timeline. The canonical camera producer
+Console exposes explicit Live and History modes because Rerun 0.35 cannot keep
+two receivers with the same recording Store ID open safely. Live selects only
+the current bounded HTTP RRD receiver. History selects only the lazy immutable
+archive dataset. A producer Blueprint remains a distinct presentation store and
+opens before either selected receiver. The canonical camera producer
 emits the IDR first at each GoP timestamp, then reasserts pinhole metadata. Its
 one-second GoP bounds rollover delay and supplies the declared live preroll.
 Once the producer's world is ready, diagnostic image quality does not interrupt
 encoding or the IDR cadence.
 
-At rollover, the live response ends. Console refreshes the stable archive URI
-when its revision changes, opens the successor live response, then detaches the
-prior receiver. The persistent viewer retains its layout, selection, and
-timeline state. Rerun's web API accepts a generic Redap token only as the
+At rollover, the live response ends. Console closes that receiver before it
+opens the successor live response. An archive revision change follows the same
+close-before-open rule at its stable URI, which prevents overlapping Store
+identities. Mode changes close the current recording receiver before opening
+the other mode. The persistent viewer retains its producer layout, selection,
+and timeline state. Rerun's web API accepts a generic Redap token only as the
 viewer's fallback token at startup. Token rotation therefore replaces the
 viewer credential context instead of misclassifying the token as a Rerun Cloud
 OAuth credential; rollover within one token lifetime keeps the viewer intact.
@@ -162,9 +165,10 @@ the complete ingest parts visible at request or task start. Stream replay and
 Reason copy those live parts into bounded task-local storage, verify their byte
 length and SHA-256 identity, and load them with prior immutable shards as one
 logical Rerun store. Hub writes each part under an exact UUIDv7 staging name and
-publishes it by atomic rename; readers do not admit that staging identity until
-the canonical sequence-named part exists. Unexpected directory entries remain
-an error. If Hub freezes the writing shard during capture, Recording
+atomically links it to a previously absent canonical sequence name. A competing
+writer can prove identical bytes for idempotency but cannot replace the winning
+file. Readers do not admit the staging identity until the canonical name exists.
+Unexpected directory entries remain an error. If Hub freezes the writing shard during capture, Recording
 MCP discards that attempt, resolves the authorized catalog again, and captures
 one coherent successor view. Later batches remain outside that task. This path
 never reads the producer proxy or an incomplete part.

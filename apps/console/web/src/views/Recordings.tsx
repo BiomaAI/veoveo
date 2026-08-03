@@ -22,6 +22,10 @@ import {
   recordingLiveSegmentUrl,
 } from "../api";
 import { EmptyState, SectionHeader, StatusPill } from "../components/primitives";
+import {
+  selectExclusiveRerunPlaybackReceiver,
+  type RerunPlaybackMode,
+} from "../rerunSources";
 import { formatBytes, formatDate } from "../format";
 import type {
   InstallationSnapshot,
@@ -120,6 +124,8 @@ export function RecordingsView({
   const [playbackError, setPlaybackError] = useState<string>();
   const [reloadToken, setReloadToken] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [requestedPlaybackMode, setRequestedPlaybackMode] =
+    useState<RerunPlaybackMode>("live");
 
   const recordings = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -213,6 +219,7 @@ export function RecordingsView({
     setPlaybackError(undefined);
     setLoading(true);
     setSelectedId(recordingId);
+    setRequestedPlaybackMode("live");
     onRecordingSelect(recordingId);
   };
 
@@ -230,7 +237,7 @@ export function RecordingsView({
     window.setTimeout(() => setCopied(false), 1500);
   };
 
-  const playbackSource = useMemo(() => {
+  const playback = useMemo(() => {
     if (!manifest) return undefined;
     const liveUrl = manifest.live
       ? recordingLiveSegmentUrl(
@@ -238,23 +245,34 @@ export function RecordingsView({
           manifest.live.segment_id
         )
       : undefined;
-    return manifest.archive || liveUrl
+    const receiver = selectExclusiveRerunPlaybackReceiver(
+      requestedPlaybackMode,
+      manifest.archive
+        ? {
+            uri: manifest.archive.uri,
+            revision: manifest.archive.revision,
+          }
+        : undefined,
+      liveUrl
+    );
+    const source = receiver.receiver
       ? {
           redapToken: manifest.access.redap_token,
-          archive: manifest.archive
-            ? {
-                uri: manifest.archive.uri,
-                revision: manifest.archive.revision,
-              }
-            : undefined,
-          liveUrl,
+          receiver: receiver.receiver,
           blueprintUrl: manifest.blueprint
             ? recordingBlueprintUrl(manifest.recording_id, manifest.blueprint.revision)
             : undefined,
           blueprintMapProvider: manifest.blueprint?.map_provider,
         }
       : undefined;
-  }, [manifest]);
+    return {
+      source,
+      mode: receiver.mode,
+      viewerKey: manifest.recording_id,
+    };
+  }, [manifest, requestedPlaybackMode]);
+  const playbackSource = playback?.source;
+  const playbackMode = playback?.mode ?? requestedPlaybackMode;
 
   return (
     <div className="recordings-workspace">
@@ -288,6 +306,7 @@ export function RecordingsView({
         <div className="recording-list">
           {recordings.map((recording) => (
             <button
+              type="button"
               key={recording.id}
               className={recording.id === resolvedSelectedId ? "recording-card recording-card-active" : "recording-card"}
               onClick={() => selectRecording(recording.id)}
@@ -320,6 +339,7 @@ export function RecordingsView({
                 <span>Rerun recording · {selected.application}</span>
                 <h2>{selected.recordingKey}</h2>
                 <button
+                  type="button"
                   className="recording-uri"
                   onClick={() => void copyRecordingUri()}
                   title="Copy canonical recording URI"
@@ -350,7 +370,7 @@ export function RecordingsView({
                 <div className="recording-viewer-state recording-viewer-error">
                   <strong>Playback unavailable</strong>
                   <span>{playbackError}</span>
-                  <button className="button button-secondary" onClick={reloadPlayback}>
+                  <button type="button" className="button button-secondary" onClick={reloadPlayback}>
                     <RefreshCw size={14} /> Retry
                   </button>
                 </div>
@@ -372,7 +392,7 @@ export function RecordingsView({
                       {selected.playableSegmentCount === 1 ? "" : "s"}, but the playback manifest
                       returned none.
                     </span>
-                    <button className="button button-secondary" onClick={reloadPlayback}>
+                    <button type="button" className="button button-secondary" onClick={reloadPlayback}>
                       <RefreshCw size={14} /> Reload manifest
                     </button>
                   </div>
@@ -390,7 +410,7 @@ export function RecordingsView({
                 <ViewerBoundary recordingId={selected.id}>
                   <Suspense fallback={<div className="recording-viewer-state"><div className="loading-mark" /><span>Loading Rerun 0.35.0…</span></div>}>
                     <GovernedRerunViewer
-                      key={selected.id}
+                      key={playback?.viewerKey ?? selected.id}
                       recordingId={selected.id}
                       source={playbackSource}
                     />
@@ -402,11 +422,51 @@ export function RecordingsView({
               <footer className="recording-player-footer">
                 <Play size={14} />
                 {manifest.live ? (
-                  <span>
-                    Live · {manifest.live.history_seconds}s recent history plus{" "}
-                    {manifest.live.video_preroll_seconds}s video preroll · archived history remains
-                    available on this timeline
-                  </span>
+                  <>
+                    {manifest.archive && (
+                      <div
+                        className="recording-playback-modes"
+                        role="group"
+                        aria-label="Recording playback mode"
+                      >
+                        <button
+                          type="button"
+                          aria-pressed={playbackMode === "live"}
+                          className={
+                            playbackMode === "live"
+                              ? "recording-playback-mode recording-playback-mode-active"
+                              : "recording-playback-mode"
+                          }
+                          onClick={() => setRequestedPlaybackMode("live")}
+                        >
+                          Live
+                        </button>
+                        <button
+                          type="button"
+                          aria-pressed={playbackMode === "archive"}
+                          className={
+                            playbackMode === "archive"
+                              ? "recording-playback-mode recording-playback-mode-active"
+                              : "recording-playback-mode"
+                          }
+                          onClick={() => setRequestedPlaybackMode("archive")}
+                        >
+                          History
+                        </button>
+                      </div>
+                    )}
+                    {playbackMode === "live" ? (
+                      <span>
+                        Live · {manifest.live.history_seconds}s recent history plus{" "}
+                        {manifest.live.video_preroll_seconds}s video preroll
+                        {manifest.archive
+                          ? " · switch to History for immutable archive"
+                          : " · archive is not available yet"}
+                      </span>
+                    ) : (
+                      <span>History · immutable archive snapshot · live updates paused</span>
+                    )}
+                  </>
                 ) : (
                   <span>Replay · complete authorized recording history</span>
                 )}

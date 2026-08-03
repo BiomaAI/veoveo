@@ -3,76 +3,101 @@ export interface GovernedRerunArchive {
   revision: string;
 }
 
+export type GovernedRerunReceiver =
+  | { kind: "live"; url: string }
+  | { kind: "archive"; archive: GovernedRerunArchive };
+
 export interface GovernedRerunSource {
   redapToken: string;
-  archive?: GovernedRerunArchive;
-  liveUrl?: string;
+  receiver: GovernedRerunReceiver;
   blueprintUrl?: string;
   blueprintMapProvider?: "none" | "openStreetMap" | "mapbox" | "mixed";
 }
 
 export interface OpenedRerunSources {
   redapToken?: string;
-  archive?: GovernedRerunArchive;
-  liveUrl?: string;
+  receiver?: GovernedRerunReceiver;
   blueprintUrl?: string;
   blueprintMapProvider?: "none" | "openStreetMap" | "mapbox" | "mixed";
 }
 
+export type RerunPlaybackMode = "live" | "archive";
+
+export interface SelectedRerunPlaybackReceiver {
+  mode: RerunPlaybackMode;
+  receiver?: GovernedRerunReceiver;
+}
+
+export function selectExclusiveRerunPlaybackReceiver(
+  requestedMode: RerunPlaybackMode,
+  archive: GovernedRerunArchive | undefined,
+  liveUrl: string | undefined
+): SelectedRerunPlaybackReceiver {
+  if (requestedMode === "live" && liveUrl) {
+    return { mode: "live", receiver: { kind: "live", url: liveUrl } };
+  }
+  if (archive) {
+    return { mode: "archive", receiver: { kind: "archive", archive } };
+  }
+  if (liveUrl) {
+    return { mode: "live", receiver: { kind: "live", url: liveUrl } };
+  }
+  return { mode: requestedMode };
+}
+
 export interface RerunSourceTransition {
   credentialsChanged: boolean;
-  archiveUrlToCloseBeforeOpen?: string;
-  archiveUrlToOpen?: string;
-  liveUrlToOpen?: string;
+  urlsToCloseBeforeOpen: string[];
   blueprintUrlToOpen?: string;
-  urlsToCloseAfterOpen: string[];
+  receiverUrlToOpen?: string;
   next: OpenedRerunSources;
+}
+
+function receiverUrl(receiver: GovernedRerunReceiver | undefined) {
+  return receiver?.kind === "archive" ? receiver.archive.uri : receiver?.url;
+}
+
+function receiversEqual(
+  opened: GovernedRerunReceiver | undefined,
+  desired: GovernedRerunReceiver
+) {
+  if (!opened || opened.kind !== desired.kind) return false;
+  if (opened.kind === "live" && desired.kind === "live") {
+    return opened.url === desired.url;
+  }
+  if (opened.kind === "archive" && desired.kind === "archive") {
+    return (
+      opened.archive.uri === desired.archive.uri &&
+      opened.archive.revision === desired.archive.revision
+    );
+  }
+  return false;
 }
 
 export function planRerunSourceTransition(
   opened: OpenedRerunSources,
   desired: GovernedRerunSource
 ): RerunSourceTransition {
-  const archiveChanged =
-    opened.archive?.uri !== desired.archive?.uri ||
-    opened.archive?.revision !== desired.archive?.revision;
-  const sameArchiveReceiverNeedsRefresh =
-    archiveChanged &&
-    opened.archive?.uri !== undefined &&
-    opened.archive.uri === desired.archive?.uri;
-  const urlsToCloseAfterOpen: string[] = [];
-  if (
-    archiveChanged &&
-    opened.archive &&
-    opened.archive.uri !== desired.archive?.uri
-  ) {
-    urlsToCloseAfterOpen.push(opened.archive.uri);
+  const receiverChanged = !receiversEqual(opened.receiver, desired.receiver);
+  const blueprintChanged = opened.blueprintUrl !== desired.blueprintUrl;
+  const urlsToCloseBeforeOpen: string[] = [];
+  if (receiverChanged) {
+    const openedReceiverUrl = receiverUrl(opened.receiver);
+    if (openedReceiverUrl) urlsToCloseBeforeOpen.push(openedReceiverUrl);
   }
-  if (opened.liveUrl && opened.liveUrl !== desired.liveUrl) {
-    urlsToCloseAfterOpen.push(opened.liveUrl);
-  }
-  if (opened.blueprintUrl && opened.blueprintUrl !== desired.blueprintUrl) {
-    urlsToCloseAfterOpen.push(opened.blueprintUrl);
+  if (blueprintChanged && opened.blueprintUrl) {
+    urlsToCloseBeforeOpen.push(opened.blueprintUrl);
   }
   return {
     credentialsChanged: opened.redapToken !== desired.redapToken,
-    archiveUrlToCloseBeforeOpen: sameArchiveReceiverNeedsRefresh
-      ? opened.archive?.uri
+    urlsToCloseBeforeOpen,
+    blueprintUrlToOpen: blueprintChanged ? desired.blueprintUrl : undefined,
+    receiverUrlToOpen: receiverChanged
+      ? receiverUrl(desired.receiver)
       : undefined,
-    archiveUrlToOpen: archiveChanged ? desired.archive?.uri : undefined,
-    liveUrlToOpen:
-      desired.liveUrl && desired.liveUrl !== opened.liveUrl
-        ? desired.liveUrl
-        : undefined,
-    blueprintUrlToOpen:
-      desired.blueprintUrl && desired.blueprintUrl !== opened.blueprintUrl
-        ? desired.blueprintUrl
-        : undefined,
-    urlsToCloseAfterOpen,
     next: {
       redapToken: desired.redapToken,
-      archive: desired.archive,
-      liveUrl: desired.liveUrl,
+      receiver: desired.receiver,
       blueprintUrl: desired.blueprintUrl,
       blueprintMapProvider: desired.blueprintMapProvider,
     },

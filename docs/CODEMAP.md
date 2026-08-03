@@ -743,12 +743,12 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 |---|---|
 | `App.tsx` | application shell: platform navigation plus catalog-driven MCP App entries, topbar, view routing, drawer mounting |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
-| `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `recordingLiveFetch.ts`, `rerunMap.ts` | persistent WebViewer lifecycle within a generic Redap fallback-token context, producer Blueprint-first opening, exact-path same-origin live authorization without touching unrelated Fetch bodies, stable archive revision refresh, credential-context rotation, live-to-archive transitions, and installation-owned browser map-provider activation |
+| `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `recordingLiveFetch.ts`, `rerunMap.ts` | persistent WebViewer lifecycle within a generic Redap fallback-token context, producer Blueprint-first opening, exact-path same-origin live authorization without touching unrelated Fetch bodies, one discriminated Live-or-History recording receiver, close-before-open replacement, credential-context rotation, and installation-owned browser map-provider activation |
 | `views/` | remaining platform-plane views (overview, work, artifacts, agents, MCP, apps, access, audit, cluster); domain views ship as MCP Apps, never here |
 | `drawers/ArtifactDrawer.tsx` | artifact preview, recording provenance, download, release, grant, and share-link workflows |
 | `drawers/` | remaining detail drawers with mutation workflows |
 | `components/ArtifactPreview.tsx` | bounded text and inline image/audio/video/PDF previews with explicit governed-access failures |
-| `components/GovernedRerunViewer.tsx` | recording-scoped Redap archive and bounded live delivery into one isolated Rerun timeline |
+| `components/GovernedRerunViewer.tsx` | recording-scoped exclusive Redap archive or bounded-live delivery with a separate producer Blueprint presentation store |
 | `components/` | reusable primitives, tables, toolbar, and the promise-based confirm dialog |
 | `queries.ts`, `queryClient.ts` | TanStack Query keys, snapshot/apps/cluster queries, mutation hooks with targeted cache patches |
 | `live.ts` | EventSource console stream feeding row upserts into the snapshot cache |
