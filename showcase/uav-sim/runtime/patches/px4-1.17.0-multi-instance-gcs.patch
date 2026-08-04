@@ -14,11 +14,10 @@ diff --git a/ROMFS/px4fmu_common/init.d-posix/px4-rc.mavlink b/ROMFS/px4fmu_comm
  mavlink stream -r 50 -s LOCAL_POSITION_NED -u $udp_gcs_port_local
  mavlink stream -r 50 -s GLOBAL_POSITION_INT -u $udp_gcs_port_local
 diff --git a/ROMFS/px4fmu_common/init.d-posix/airframes/10015_gazebo-classic_iris b/ROMFS/px4fmu_common/init.d-posix/airframes/10015_gazebo-classic_iris
+index 66391b2..18d03ae 100644
 --- a/ROMFS/px4fmu_common/init.d-posix/airframes/10015_gazebo-classic_iris
 +++ b/ROMFS/px4fmu_common/init.d-posix/airframes/10015_gazebo-classic_iris
-@@ -11 +11,4 @@
--. ${R}etc/init.d/rc.mc_defaults
-+. ${R}etc/init.d/rc.mc_defaults
+@@ -10,0 +11,3 @@
 +# Governed Rerun telemetry is the always-on reference flight record. Disable
 +# PX4's duplicate, unbounded pod-local ULog backend.
 +param set-default SDLOG_BACKEND 0
