@@ -339,7 +339,9 @@ class _RecordingSink:
         self._world = world
         self._root = f"/world/uav-sim/{config.session_id}"
         self._recording = rr.RecordingStream(
-            "veoveo-uav-sim", recording_id=config.recording_key
+            "veoveo-uav-sim",
+            recording_id=config.recording_key,
+            batcher_config=rr.ChunkBatcherConfig.DEFAULT(),
         )
         self._recording.connect_grpc(config.recording_proxy)
         rr.send_blueprint(
@@ -442,7 +444,7 @@ class _RecordingSink:
                 positions,
                 labels=labels,
                 colors=colors,
-                radii=[8.0] * len(positions),
+                radii=[rr.Radius.ui_points(8.0)] * len(positions),
                 show_labels=True,
             ),
         )
@@ -466,7 +468,11 @@ class _RecordingSink:
         ]
         self._recording.log(
             f"{fleet}/geographic_positions",
-            rr.GeoPoints(lat_lon=lat_lon, colors=colors, radii=[8.0] * len(lat_lon)),
+            rr.GeoPoints(
+                lat_lon=lat_lon,
+                colors=colors,
+                radii=[rr.Radius.ui_points(8.0)] * len(lat_lon),
+            ),
         )
         imu_by_vehicle = {sample.vehicle_id: sample for sample in event.imu}
         self._recording.log(

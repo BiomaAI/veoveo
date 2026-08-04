@@ -129,6 +129,12 @@ Redap and arbitrary HTTP sources remain untouched. The adapter inspects
 unrelated Fetch inputs without reconstructing their `Request` objects because
 Rerun's streaming Redap requests may already own a one-use body.
 
+The same adapter observes natural completion of the live response. Segment
+rollover therefore refreshes the manifest from the stream-end event instead of
+polling it every five seconds. Playback credentials renew once at 80 percent of
+their exact lifetime. Cancelling a response during viewer cleanup or bounded
+window rotation is not a rollover signal.
+
 Live playback is a distinct governed projection. The manifest identifies the
 current writing segment and declares the configured history window. The
 production default sends 60 seconds of recent temporal data plus two seconds of
@@ -137,7 +143,14 @@ chunks are retained even when they predate the temporal cutoff. Authenticated
 ingest maintains a compact static-context snapshot, so a late viewer reads that
 snapshot and recent parts instead of scanning the full active hour. Direct native
 writers are decoded through the same temporal filter while the decoder follows
-the growing file.
+the growing file. Filesystem notifications wake both follow paths when bytes or
+parts arrive; an idle recording performs no 100 ms directory scan.
+
+Rerun 0.35 retains chunks received by an open HTTP source. Console closes and
+reopens only the live receiver once per configured history window, leaving the
+distinct producer Blueprint and viewer instance in place. Each reopen receives
+a fresh bounded projection, so browser residency remains at no more than two
+history windows rather than growing for the duration of the simulation.
 
 Console exposes explicit Live and History modes because Rerun 0.35 cannot keep
 two receivers with the same recording Store ID open safely. Live selects only
