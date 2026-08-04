@@ -126,11 +126,15 @@ not power efficient, it selects `prefer-software` and identifies software
 H.264 decode in the UI. This browser-only decode exception does not change the
 hardware GPU requirement for Stream processing or visual acceptance.
 The App waits for a retained keyframe before decoding and discards already
-observed sequence numbers. Its session selector switches among live streams
-visible to the operator's Work Context without changing their pipelines or
-transport. This permits a logged-in human to inspect a stream started by an
-authorized automation principal without granting that human ownership of the
-pipeline.
+observed sequence numbers. Refreshes are serialized because MCP resource
+notifications and the bounded refresh timer may arrive together. A sequence
+gap or asynchronous decoder failure returns the decoder to its keyframe gate;
+the next retained random-access unit reconstructs decoder state without
+restarting the Stream session. Its session selector switches among live
+streams visible to the operator's Work Context without changing their
+pipelines or transport. This permits a logged-in human to inspect a stream
+started by an authorized automation principal without granting that human
+ownership of the pipeline.
 
 The preview resource is meant for an operator view, not bulk media
 distribution. It keeps the MCP boundary portable across Console and external

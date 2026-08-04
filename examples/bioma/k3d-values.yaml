@@ -12,6 +12,11 @@ recording:
   persistence:
     size: 20Gi
 stream:
+  liveInput:
+    width: 640
+    height: 480
+    frameRate: 2
+    expectedBitrateBps: 750000
   modelCache:
     size: 5Gi
 reason:
