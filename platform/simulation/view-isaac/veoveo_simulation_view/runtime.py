@@ -366,6 +366,33 @@ class Renderer:
         return session
 
 
+def simulation_app_settings(config: RendererConfig) -> dict[str, object]:
+    return {
+        "headless": True,
+        "renderer": "RaytracedLighting",
+        "width": config.probe_width,
+        "height": config.probe_height,
+        # A streamed world is an asynchronous data plane. Waiting for every
+        # tile/material load inside SimulationApp.update() stops pose and
+        # camera interpolation and turns normal provider latency into visible
+        # frame hitches.
+        "sync_loads": False,
+        "extra_args": [
+            "--ext-folder",
+            "/opt/veoveo/extensions",
+            "--enable",
+            "cesium.usd.plugins",
+            "--enable",
+            "omni.kit.livestream.webrtc",
+            "--enable",
+            "omni.kit.livestream.aov",
+            *livestream_aov_arguments(config),
+            "--portable-root",
+            str(config.cache_directory / "kit-portable"),
+        ],
+    }
+
+
 def run(config: RendererConfig) -> None:
     config.prepare_directories()
     gpu = verify_nvidia_gpu_and_nvenc()
@@ -379,28 +406,7 @@ def run(config: RendererConfig) -> None:
 
     from isaacsim import SimulationApp
 
-    simulation_app = SimulationApp(
-        {
-            "headless": True,
-            "renderer": "RaytracedLighting",
-            "width": config.probe_width,
-            "height": config.probe_height,
-            "sync_loads": True,
-            "extra_args": [
-                "--ext-folder",
-                "/opt/veoveo/extensions",
-                "--enable",
-                "cesium.usd.plugins",
-                "--enable",
-                "omni.kit.livestream.webrtc",
-                "--enable",
-                "omni.kit.livestream.aov",
-                *livestream_aov_arguments(config),
-                "--portable-root",
-                str(config.cache_directory / "kit-portable"),
-            ],
-        }
-    )
+    simulation_app = SimulationApp(simulation_app_settings(config))
 
     commands: queue.Queue[ControlCommand] = queue.Queue(maxsize=128)
     readiness = ReadinessSlot()

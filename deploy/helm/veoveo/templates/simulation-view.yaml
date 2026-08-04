@@ -1,6 +1,7 @@
 {{- if include "veoveo.mcpServerEnabled" (list . "simulation-view") }}
 {{- $view := .Values.simulationView -}}
 {{- $slots := int $view.capacity.maximumRenderedCameras -}}
+{{- $cacheRoot := printf "/var/lib/veoveo/runtime-cache/%s/simulation-view" $view.cache.version -}}
 {{- $layerCatalogName := default (printf "%s-simulation-view-layers" (include "veoveo.fullname" .)) $view.streamedWorld.existingConfigMap -}}
 {{- if and $view.streamedWorld.existingConfigMap (empty $view.streamedWorld.catalogDigest) -}}
 {{- fail "simulationView.streamedWorld.catalogDigest is required with existingConfigMap" -}}
@@ -44,6 +45,25 @@ spec:
     requests:
       storage: {{ $view.artifacts.size }}
   {{- with $view.artifacts.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+---
+{{- end }}
+{{- if not $view.cache.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: simulation-view-renderer-cache
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: simulation-view-renderer-cache
+spec:
+  accessModes:
+    {{- toYaml $view.cache.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ $view.cache.size }}
+  {{- with $view.cache.storageClass }}
   storageClassName: {{ . | quote }}
   {{- end }}
 ---
@@ -412,17 +432,17 @@ spec:
             - name: SIMULATION_VIEW_POSE_DIRECTORY
               value: /dev/shm/veoveo/simulation-view
             - name: SIMULATION_VIEW_RENDERER_CACHE_DIRECTORY
-              value: /var/lib/veoveo/runtime-cache/simulation-view
+              value: {{ $cacheRoot | quote }}
             - name: HOME
-              value: /var/lib/veoveo/runtime-cache/simulation-view/home
+              value: {{ printf "%s/home" $cacheRoot | quote }}
             - name: MPLCONFIGDIR
-              value: /var/lib/veoveo/runtime-cache/simulation-view/matplotlib
+              value: {{ printf "%s/matplotlib" $cacheRoot | quote }}
             - name: WARP_CACHE_PATH
-              value: /var/lib/veoveo/runtime-cache/simulation-view/warp
+              value: {{ printf "%s/warp" $cacheRoot | quote }}
             - name: XDG_CACHE_HOME
-              value: /var/lib/veoveo/runtime-cache/simulation-view/xdg-cache
+              value: {{ printf "%s/xdg-cache" $cacheRoot | quote }}
             - name: XDG_DATA_HOME
-              value: /var/lib/veoveo/runtime-cache/simulation-view/xdg-data
+              value: {{ printf "%s/xdg-data" $cacheRoot | quote }}
             - name: SIMULATION_VIEW_RENDERER_CONTROL_PORT
               value: {{ $view.ports.rendererControl | quote }}
             - name: SIMULATION_VIEW_MAXIMUM_RENDER_SLOTS
@@ -559,8 +579,8 @@ spec:
             medium: Memory
             sizeLimit: {{ $view.sharedMemory.sizeLimit }}
         - name: renderer-cache
-          emptyDir:
-            sizeLimit: {{ $view.cache.sizeLimit }}
+          persistentVolumeClaim:
+            claimName: {{ default "simulation-view-renderer-cache" $view.cache.existingClaim }}
         - name: renderer-tmp
           emptyDir: {}
         - name: pose-tmp

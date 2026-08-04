@@ -123,7 +123,7 @@ Hub, administration, and GPU policy.
 | `testing/` | conformance tooling and multi-process smoke harnesses |
 | `sdk/` | language SDK workspaces |
 | `deploy/helm/veoveo/` | Kubernetes installation chart, chart-owned first-party service definitions, and typed component/server presets |
-| `deploy/helm/veoveo/templates/simulation-view.yaml` | independently selected Simulation View MCP plus co-located hardware Isaac renderer and mTLS pose ingress, bounded signaling/media Services, shared memory, artifacts, and per-container DRA claim binding |
+| `deploy/helm/veoveo/templates/simulation-view.yaml` | independently selected Simulation View MCP plus co-located hardware Isaac renderer and mTLS pose ingress, bounded signaling/media Services, shared memory, artifacts, versioned persistent renderer cache, and per-container DRA claim binding |
 | `testing/smoke/src/bin/smoke/deployment.rs` | profile validation and orchestration, immutable gateway activation, and ordered Helm release inputs |
 | `testing/smoke/src/bin/smoke/deployment/gpu.rs` | managed NVIDIA DRA orchestration, ResourceSlice inventory, persistent-claim preservation, and workload placement proof |
 | `testing/smoke/src/bin/smoke/deployment/gpu/helm.rs` | Helm v4 release metadata, exact allocator artifact and render verification, and atomic installation |
