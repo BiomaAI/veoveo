@@ -7,7 +7,6 @@ from collections.abc import Callable
 
 from .config import RuntimeConfig
 
-
 LOGGER = logging.getLogger("veoveo.uav_sim")
 
 
@@ -92,16 +91,17 @@ def run(config: RuntimeConfig) -> None:
     from pegasus.simulator.logic.vehicles.multirotor import Multirotor, MultirotorConfig
     from pegasus.simulator.params import ROBOTS
 
-    from .command_queue import MainThreadQueue
     from .camera_quality import (
         measure_camera_frame,
         normalize_rgb_frame,
         should_record_camera_frame,
     )
+    from .command_queue import MainThreadQueue
     from .fleet_loop import FleetLoopController
-    from .px4 import Px4Commander
     from .hydra_camera import HydraRgbCameraSensor
-    from .pose import PoseProducer
+    from .physics_batch import IsaacFleetPhysicsBatch
+    from .pose import PhysicsCadenceGate, PoseProducer
+    from .px4 import Px4Commander
     from .recording import RecordingPublisher
     from .server import (
         AdapterApplication,
@@ -135,6 +135,7 @@ def run(config: RuntimeConfig) -> None:
     camera_was_ready: set[str] = set()
     primary_camera_path: str | None = None
     pose_producer: PoseProducer | None = None
+    physics_batch: IsaacFleetPhysicsBatch | None = None
     fleet_loop: FleetLoopController | None = None
 
     try:
@@ -323,6 +324,20 @@ def run(config: RuntimeConfig) -> None:
 
         world.reset()
 
+        rigid_body_paths = tuple(
+            f"{vehicle_callback_prefixes[vehicle_id]}/{body_name}"
+            for vehicle_id in vehicles
+            for body_name in ("body", "rotor0", "rotor1", "rotor2", "rotor3")
+        )
+        physics_batch = IsaacFleetPhysicsBatch(rigid_body_paths)
+        for vehicle in vehicles.values():
+            vehicle.bind_physics_batch(physics_batch)
+        LOGGER.info(
+            "UAV fleet physics batch ready: bodies=%d device=%s",
+            physics_batch.body_count,
+            physics_batch.device,
+        )
+
         def bind_pegasus_physics_callbacks() -> None:
             # Isaac 6 recreates its physics simulation interface during reset.
             # Pegasus 5.1 registers callback subscriptions before that first
@@ -330,19 +345,28 @@ def run(config: RuntimeConfig) -> None:
             # complete vehicle contract to the active interface so state,
             # sensors, dynamics, ground truth, and PX4 advance exactly once per
             # physics step.
-            for vehicle_id, vehicle in vehicles.items():
+            assert physics_batch is not None
+            for vehicle_id in vehicles.keys():
                 prefix = vehicle_callback_prefixes[vehicle_id]
-                callbacks = (
-                    ("/state", vehicle.update_state),
-                    ("/update", vehicle.update),
-                    ("/Sensors", vehicle.update_sensors),
-                    ("/mav_state", vehicle.update_sim_state),
-                )
-                for suffix, callback in callbacks:
+                for suffix in ("/state", "/update", "/Sensors", "/mav_state"):
                     callback_name = prefix + suffix
                     if world.physics_callback_exists(callback_name):
                         world.remove_physics_callback(callback_name)
-                    world.add_physics_callback(callback_name, callback)
+
+            callback_name = "/World/veoveo_uav_fleet/physics_batch"
+            if world.physics_callback_exists(callback_name):
+                world.remove_physics_callback(callback_name)
+
+            def update_fleet(dt: float) -> None:
+                physics_batch.refresh_states()
+                for vehicle in vehicles.values():
+                    vehicle.update_state(dt)
+                    vehicle.update(dt)
+                    vehicle.update_sensors(dt)
+                    vehicle.update_sim_state(dt)
+                physics_batch.flush_forces()
+
+            world.add_physics_callback(callback_name, update_fleet)
 
         bind_pegasus_physics_callbacks()
 
@@ -366,9 +390,14 @@ def run(config: RuntimeConfig) -> None:
                 assert world is not None
                 was_playing = timeline.is_playing()
                 world.reset()
+                assert physics_batch is not None
+                physics_batch.rebind()
+                for vehicle in vehicles.values():
+                    vehicle.bind_physics_batch(physics_batch)
                 bind_pegasus_physics_callbacks()
                 physics_step = 0
                 simulation_time_s = 0.0
+                pose_cadence.reset()
                 state.advance(simulation_time_s, physics_step)
                 state.set_lifecycle("running" if was_playing else "paused")
 
@@ -468,6 +497,9 @@ def run(config: RuntimeConfig) -> None:
         tile_started_at = time.monotonic()
         render_interval = max(1, round(config.physics_hz / config.rendering_hz))
         camera_interval = max(1, round(config.physics_hz / config.camera.fps))
+        pose_cadence = PhysicsCadenceGate(
+            config.physics_hz, config.rendering_hz
+        )
 
         while simulation_app.is_running():
             assert fleet_loop is not None
@@ -506,7 +538,7 @@ def run(config: RuntimeConfig) -> None:
                     )
                 )
 
-            if render:
+            if pose_cadence.due(physics_step):
                 assert pose_producer is not None
                 pose_producer.offer(telemetry)
 
