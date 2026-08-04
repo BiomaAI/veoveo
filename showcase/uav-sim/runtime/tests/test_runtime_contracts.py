@@ -406,6 +406,7 @@ class RigidBodyBatchTests(unittest.TestCase):
             batch_factory=lambda _paths, _simulation_view: (
                 events.append("create") or batch
             ),
+            after_step=lambda _dt: events.append("after"),
         )
 
         self.assertIs(lifecycle.reset(), batch)
@@ -437,7 +438,15 @@ class RigidBodyBatchTests(unittest.TestCase):
         callback(0.004)  # type: ignore[operator]
         self.assertEqual(
             events,
-            ["refresh", "state", "dynamics", "sensors", "backend", "flush"],
+            [
+                "refresh",
+                "state",
+                "dynamics",
+                "sensors",
+                "backend",
+                "flush",
+                "after",
+            ],
         )
 
     def test_force_at_position_is_reduced_to_force_and_torque(self) -> None:

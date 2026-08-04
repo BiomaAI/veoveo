@@ -168,10 +168,14 @@ class IsaacFleetPhysicsBatch:
         self._rigid_body_view = rigid_body_view
         self._warp = wp
         self._device = device
-        self._force_host = wp.from_numpy(self._accumulator.forces)
-        self._torque_host = wp.from_numpy(self._accumulator.torques)
-        self._force_device = wp.zeros((count, 3), dtype=wp.float32, device=device)
-        self._torque_device = wp.zeros((count, 3), dtype=wp.float32, device=device)
+        # Warp infers an anonymous vector type from a NumPy (N, 3) array,
+        # which is not copy-compatible with a scalar float tensor. PhysX's
+        # public tensor frontend accepts the documented contiguous N*3 form,
+        # so retain flat scalar views on both sides of the reusable copy.
+        self._force_host = wp.from_numpy(self._accumulator.forces.reshape(-1))
+        self._torque_host = wp.from_numpy(self._accumulator.torques.reshape(-1))
+        self._force_device = wp.zeros(count * 3, dtype=wp.float32, device=device)
+        self._torque_device = wp.zeros(count * 3, dtype=wp.float32, device=device)
         self._indices_device = wp.array(
             np.arange(count, dtype=np.uint32), dtype=wp.uint32, device=device
         )
@@ -238,6 +242,7 @@ class FleetPhysicsLifecycle:
         callback_prefixes: Mapping[str, str],
         body_paths: Sequence[str],
         batch_factory: Callable[[Sequence[str], Any], Any] = IsaacFleetPhysicsBatch,
+        after_step: Callable[[float], None] | None = None,
     ) -> None:
         if set(vehicles) != set(callback_prefixes):
             raise ValueError(
@@ -248,6 +253,7 @@ class FleetPhysicsLifecycle:
         self._callback_prefixes = callback_prefixes
         self._body_paths = tuple(body_paths)
         self._batch_factory = batch_factory
+        self._after_step = after_step
         self._batch: Any = None
 
     @property
@@ -292,6 +298,8 @@ class FleetPhysicsLifecycle:
             vehicle.update_sensors(dt)
             vehicle.update_sim_state(dt)
         batch.flush_forces()
+        if self._after_step is not None:
+            self._after_step(dt)
 
 
 def _vector3(value: Sequence[float], label: str) -> tuple[float, float, float]:
