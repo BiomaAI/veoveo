@@ -10,6 +10,7 @@ use rustls::{
     pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer},
     server::WebPkiClientVerifier,
 };
+use url::Url;
 
 use crate::state::PoseIngressConfig;
 
@@ -35,6 +36,8 @@ pub(crate) struct Args {
         hide_env_values = true
     )]
     pub control_token: String,
+    #[arg(long, env = "SIMULATION_VIEW_RUNTIME_EVENT_URL")]
+    pub runtime_event_url: String,
     #[arg(long, env = "SIMULATION_VIEW_POSE_TLS_CERT_DER")]
     pub tls_certificate_der: PathBuf,
     #[arg(long, env = "SIMULATION_VIEW_POSE_TLS_KEY_DER", hide_env_values = true)]
@@ -53,6 +56,7 @@ impl Args {
             self.http_port > 0 && self.tls_port > 0 && self.http_port != self.tls_port,
             "HTTP and TLS ports must be positive and distinct"
         );
+        self.runtime_event_url()?;
         anyhow::ensure!(
             self.pose_directory.is_absolute()
                 && self.pose_directory != Path::new("/")
@@ -70,6 +74,21 @@ impl Args {
             "pose ingress limits must be positive"
         );
         Ok(())
+    }
+
+    pub fn runtime_event_url(&self) -> anyhow::Result<Url> {
+        let url = Url::parse(&self.runtime_event_url)?;
+        anyhow::ensure!(
+            url.scheme() == "http"
+                && url.host_str().is_some()
+                && url.username().is_empty()
+                && url.password().is_none()
+                && url.query().is_none()
+                && url.fragment().is_none()
+                && url.path().ends_with("/runtime-events/pose-ingress"),
+            "runtime event URL must be a credential-free internal HTTP pose-ingress event URL"
+        );
+        Ok(url)
     }
 
     pub fn http_address(&self) -> SocketAddr {

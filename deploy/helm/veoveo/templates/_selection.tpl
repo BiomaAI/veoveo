@@ -108,7 +108,4 @@
 {{- if and (has "gpu-renderer" $components) (eq .Values.simulationView.signaling.exposure "Ingress") (or (not (has "ingress" $components)) (not .Values.ingress.enabled)) -}}
 {{- fail "simulationView signaling exposure Ingress requires the enabled ingress component" -}}
 {{- end -}}
-{{- if and (has "gpu-renderer" $components) (lt (int .Values.simulationView.reconciliation.retryMaximumSeconds) (int .Values.simulationView.reconciliation.intervalSeconds)) -}}
-{{- fail "simulationView reconciliation retryMaximumSeconds must be greater than or equal to intervalSeconds" -}}
-{{- end -}}
 {{- end -}}

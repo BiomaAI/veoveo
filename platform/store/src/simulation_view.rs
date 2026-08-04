@@ -6,7 +6,8 @@ use sha2::{Digest, Sha256};
 use surrealdb::types::RecordId;
 
 use crate::{
-    AuditEventRecord, OpenObject, OutboxDraft, PlatformStore, SimulationViewStateRecord, StoreError,
+    AuditEventRecord, OpenObject, OutboxDraft, PlatformStore, SimulationViewStateRecord,
+    StoreError, deterministic_tenant_id, store::primary_transaction_error,
 };
 
 pub const SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA: &str =
@@ -99,6 +100,27 @@ impl PlatformStore {
                 actual: draft.desired_revision,
             });
         }
+        let outbox = OutboxDraft::now(
+            Some(deterministic_tenant_id(&draft.tenant_key)?.record_id()),
+            "simulation_view",
+            draft.session_id.clone(),
+            "simulation_view.state_committed",
+            1,
+            OpenObject::new(BTreeMap::from([
+                (
+                    "sessionId".into(),
+                    serde_json::json!(draft.session_id.clone()),
+                ),
+                (
+                    "desiredRevision".into(),
+                    serde_json::json!(draft.desired_revision),
+                ),
+                (
+                    "realizedRevision".into(),
+                    serde_json::json!(draft.realized_revision),
+                ),
+            ])),
+        );
         let content = SimulationViewStateRecord {
             id: record.clone(),
             tenant_key: draft.tenant_key,
@@ -133,26 +155,37 @@ impl PlatformStore {
         };
         let mut response = if let Some(current) = current {
             self.db
-                .query("UPDATE ONLY $record CONTENT $content WHERE desired_revision = $expected_revision AND desired_digest = $expected_digest AND desired_digest_schema = $expected_digest_schema RETURN AFTER;")
-                .bind(("record", record))
+                .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $record CONTENT $content WHERE desired_revision = $expected_revision AND desired_digest = $expected_digest AND desired_digest_schema = $expected_digest_schema RETURN AFTER); IF $updated = NONE { THROW 'simulation_view_revision_conflict'; }; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+                .bind(("record", record.clone()))
                 .bind(("content", content))
                 .bind(("expected_revision", current.desired_revision))
                 .bind(("expected_digest", current.desired_digest))
                 .bind(("expected_digest_schema", current.desired_digest_schema))
+                .bind(("outbox", outbox))
                 .await?
-                .check()?
         } else {
             self.db
-                .query("CREATE ONLY $record CONTENT $content RETURN AFTER;")
-                .bind(("record", record))
+                .query("BEGIN TRANSACTION; CREATE ONLY $record CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+                .bind(("record", record.clone()))
                 .bind(("content", content))
+                .bind(("outbox", outbox))
                 .await?
-                .check()?
         };
-        response
-            .take::<Option<SimulationViewStateRecord>>(0)?
-            .ok_or(StoreError::SimulationViewRevisionConflict {
-                revision: draft.desired_revision,
+        if let Some(error) = primary_transaction_error(response.take_errors()) {
+            if error
+                .to_string()
+                .contains("simulation_view_revision_conflict")
+            {
+                return Err(StoreError::SimulationViewRevisionConflict {
+                    revision: draft.desired_revision,
+                });
+            }
+            return Err(error.into());
+        }
+        self.simulation_view_state(record)
+            .await?
+            .ok_or(StoreError::MissingRecord {
+                operation: "simulation view state commit readback",
             })
     }
 

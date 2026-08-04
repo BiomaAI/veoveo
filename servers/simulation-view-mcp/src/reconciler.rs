@@ -1,6 +1,7 @@
-use std::{sync::Arc, time::Duration};
+use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
 use chrono::{DateTime, TimeDelta, Utc};
+use futures::StreamExt;
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::SubscriptionHub;
@@ -19,9 +20,75 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ReconcilerConfig {
-    pub interval: Duration,
     pub authorization_renewal_lead: Duration,
-    pub retry_max: Duration,
+    pub retry_delay: Duration,
+}
+
+#[derive(Clone)]
+pub(crate) struct ReconcilerHandle {
+    events: tokio::sync::watch::Sender<u64>,
+}
+
+impl ReconcilerHandle {
+    pub(crate) fn channel() -> (Self, tokio::sync::watch::Receiver<u64>) {
+        let (events, receiver) = tokio::sync::watch::channel(0);
+        (Self { events }, receiver)
+    }
+
+    pub(crate) fn notify(&self) {
+        self.events.send_modify(|revision| {
+            *revision = revision.wrapping_add(1);
+        });
+    }
+}
+
+pub(crate) fn spawn_store_wake(
+    repository: Arc<SimulationViewRepository>,
+    reconciler: ReconcilerHandle,
+    reconnect_delay: Duration,
+    cancellation: CancellationToken,
+) {
+    tokio::spawn(async move {
+        loop {
+            let mut wake = match repository.outbox_wake().await {
+                Ok(wake) => wake,
+                Err(error) => {
+                    tracing::warn!(
+                        causes = ?sanitized_error_chain(&error),
+                        "Simulation View durable event wake is unavailable"
+                    );
+                    tokio::select! {
+                        _ = cancellation.cancelled() => break,
+                        _ = tokio::time::sleep(reconnect_delay) => continue,
+                    }
+                }
+            };
+            reconciler.notify();
+            loop {
+                tokio::select! {
+                    _ = cancellation.cancelled() => return,
+                    event = wake.next() => match event {
+                        Some(Ok(event))
+                            if event.data.aggregate_type == "simulation_view"
+                                && event.data.event_type == "simulation_view.state_committed" =>
+                        {
+                            reconciler.notify();
+                        }
+                        Some(Ok(_)) => {}
+                        Some(Err(error)) => {
+                            tracing::warn!(%error, "Simulation View durable event wake disconnected");
+                            break;
+                        }
+                        None => break,
+                    }
+                }
+            }
+            tokio::select! {
+                _ = cancellation.cancelled() => break,
+                _ = tokio::time::sleep(reconnect_delay) => {},
+            }
+        }
+    });
 }
 
 pub(crate) fn spawn_reconciler(
@@ -30,44 +97,56 @@ pub(crate) fn spawn_reconciler(
     repository: Arc<SimulationViewRepository>,
     subscriptions: Arc<SubscriptionHub>,
     config: ReconcilerConfig,
+    mut events: tokio::sync::watch::Receiver<u64>,
     cancellation: CancellationToken,
 ) {
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(config.interval);
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
-            tokio::select! {
-                _ = cancellation.cancelled() => break,
-                _ = interval.tick() => {
-                    for session in service.reconciliation_sessions() {
-                        let session_id = session.session_id.clone();
-                        let _operation = service.operation_guard(&session_id).await;
-                        let session = match service.get_session(&session.owner, &session_id) {
-                            Ok(session) => session,
-                            Err(error) => {
-                                tracing::warn!(error = ?error, %session_id, "Simulation View session disappeared before reconciliation");
-                                continue;
-                            }
-                        };
-                        if let Err(error) = reconcile_session(
-                            &service,
-                            &runtimes,
-                            &repository,
-                            config,
-                            session,
-                        ).await {
-                            tracing::warn!(causes = ?sanitized_error_chain(&error), %session_id, "Simulation View desired-state reconciliation failed");
-                        }
-                        for uri in [
-                            uris::session(&session_id),
-                            uris::pose_source(&session_id),
-                            uris::reconciliation(&session_id),
-                            uris::cameras(&session_id),
-                            uris::streams(&session_id),
-                        ] {
-                            subscriptions.notify_resource_updated(uri).await;
-                        }
+            for session in service.reconciliation_sessions() {
+                let session_id = session.session_id.clone();
+                let _operation = service.operation_guard(&session_id).await;
+                let session = match service.get_session(&session.owner, &session_id) {
+                    Ok(session) => session,
+                    Err(error) => {
+                        tracing::warn!(error = ?error, %session_id, "Simulation View session disappeared before reconciliation");
+                        continue;
                     }
+                };
+                if let Err(error) =
+                    reconcile_session(&service, &runtimes, &repository, config, session).await
+                {
+                    tracing::warn!(causes = ?sanitized_error_chain(&error), %session_id, "Simulation View desired-state reconciliation failed");
+                }
+                for uri in [
+                    uris::session(&session_id),
+                    uris::pose_source(&session_id),
+                    uris::reconciliation(&session_id),
+                    uris::cameras(&session_id),
+                    uris::streams(&session_id),
+                ] {
+                    subscriptions.notify_resource_updated(uri).await;
+                }
+            }
+
+            if let Some(next) = service.next_reconciliation_at() {
+                let delay = (next - Utc::now()).to_std().unwrap_or_default();
+                tokio::select! {
+                    _ = cancellation.cancelled() => break,
+                    changed = events.changed() => {
+                        if changed.is_err() {
+                            break;
+                        }
+                    },
+                    _ = tokio::time::sleep(delay) => {},
+                }
+            } else {
+                tokio::select! {
+                    _ = cancellation.cancelled() => break,
+                    changed = events.changed() => {
+                        if changed.is_err() {
+                            break;
+                        }
+                    },
                 }
             }
         }
@@ -93,22 +172,11 @@ async fn reconcile_session(
         )
         .await
     {
-        fail(
-            service,
-            &session_id,
-            config,
-            "audit",
-            ReconciliationFailureCode::AuditUnavailable,
-            "reconciliation audit is unavailable",
+        tracing::warn!(
+            causes = ?sanitized_error_chain(&error),
+            %session_id,
+            "Simulation View reconciliation start audit is unavailable"
         );
-        if let Err(persist_error) = repository.persist(service, &session_id).await {
-            tracing::warn!(
-                causes = ?sanitized_error_chain(&persist_error),
-                %session_id,
-                "failed to retain blocked Simulation View reconciliation state"
-            );
-        }
-        return Err(error);
     }
 
     if session.lifecycle == SessionLifecycle::Closed {
@@ -227,22 +295,11 @@ async fn reconcile_session(
                     )
                     .await
                 {
-                    fail(
-                        service,
-                        &session_id,
-                        config,
-                        "audit",
-                        ReconciliationFailureCode::AuditUnavailable,
-                        "pose authorization renewal audit is unavailable",
+                    tracing::warn!(
+                        causes = ?sanitized_error_chain(&error),
+                        %session_id,
+                        "Simulation View pose renewal audit is unavailable"
                     );
-                    if let Err(persist_error) = repository.persist(service, &session_id).await {
-                        tracing::warn!(
-                            causes = ?sanitized_error_chain(&persist_error),
-                            %session_id,
-                            "failed to retain blocked Simulation View reconciliation state"
-                        );
-                    }
-                    return Err(error);
                 }
             }
             if let Err(error) = runtimes.bind_pose(&session, &source).await {
@@ -273,7 +330,54 @@ async fn reconcile_session(
     }
 
     service.mark_reconciliation_phase(&session_id, ReconciliationPhase::Cameras, None);
-    for (camera, render_slot) in service.reconciliation_cameras(&session_id) {
+    let cameras = service.reconciliation_cameras(&session_id);
+    let desired_camera_ids = cameras
+        .iter()
+        .map(|(camera, _)| camera.camera_id.clone())
+        .collect::<BTreeSet<_>>();
+    let inventory = match runtimes.renderer_inventory(&session_id).await {
+        Ok(inventory) => inventory,
+        Err(error) => {
+            return failed_runtime(
+                service,
+                repository,
+                &session,
+                config,
+                "renderer_inventory",
+                ReconciliationFailureCode::RendererUnavailable,
+                "renderer observed inventory is unavailable",
+                error,
+            )
+            .await;
+        }
+    };
+    for camera_id in inventory
+        .camera_ids
+        .iter()
+        .filter(|camera_id| !desired_camera_ids.contains(*camera_id))
+    {
+        if let Err(error) = runtimes.close_camera(&session_id, camera_id).await {
+            return failed_runtime(
+                service,
+                repository,
+                &session,
+                config,
+                "camera_inventory",
+                ReconciliationFailureCode::CameraRejected,
+                "orphaned logical camera could not be removed",
+                error,
+            )
+            .await;
+        }
+    }
+    tracing::debug!(
+        generation = %inventory.generation,
+        cameras = inventory.camera_ids.len(),
+        stream_products = inventory.stream_product_ids.len(),
+        %session_id,
+        "Simulation View renderer inventory observed"
+    );
+    for (camera, render_slot) in cameras {
         if let Err(error) = runtimes.upsert_camera(&camera, render_slot).await {
             return failed_runtime(
                 service,
@@ -333,22 +437,11 @@ async fn finish(
         )
         .await
     {
-        fail(
-            service,
-            &session.session_id,
-            config,
-            "audit",
-            ReconciliationFailureCode::AuditUnavailable,
-            "successful reconciliation could not be audited",
+        tracing::warn!(
+            causes = ?sanitized_error_chain(&error),
+            session_id = %session.session_id,
+            "Simulation View reconciliation success audit is unavailable"
         );
-        if let Err(persist_error) = repository.persist(service, &session.session_id).await {
-            tracing::warn!(
-                causes = ?sanitized_error_chain(&persist_error),
-                session_id = %session.session_id,
-                "failed to retain blocked Simulation View reconciliation state"
-            );
-        }
-        return Err(error);
     }
     Ok(())
 }
@@ -394,8 +487,7 @@ fn fail(
     code: ReconciliationFailureCode,
     diagnostic: &str,
 ) {
-    let retry = config.retry_max.min(config.interval.saturating_mul(2));
-    let retry = TimeDelta::from_std(retry).unwrap_or_else(|_| TimeDelta::seconds(10));
+    let retry = TimeDelta::from_std(config.retry_delay).unwrap_or_else(|_| TimeDelta::seconds(2));
     service.mark_reconciliation_failed(
         session_id,
         dependency,
@@ -486,9 +578,8 @@ mod tests {
         let renewal = authorization_renewal_at(
             &source,
             ReconcilerConfig {
-                interval: Duration::from_secs(1),
                 authorization_renewal_lead: Duration::from_secs(300),
-                retry_max: Duration::from_secs(10),
+                retry_delay: Duration::from_secs(2),
             },
             now,
         );

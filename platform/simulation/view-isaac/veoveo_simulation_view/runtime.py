@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import queue
+import uuid
 from dataclasses import dataclass
 from http import HTTPStatus
 from typing import Any
@@ -43,6 +44,7 @@ from .renderer_setup import (
     suppress_interactive_cesium_viewport_updates,
 )
 from .scene import ArtifactStore, SceneManager
+from .events import announce_runtime_generation
 
 LOGGER = logging.getLogger("veoveo.simulation_view")
 
@@ -68,6 +70,7 @@ class Renderer:
         diagnostics: DiagnosticScene,
     ) -> None:
         self._config = config
+        self._generation = str(uuid.uuid4())
         self._commands = commands
         self._sessions: dict[str, SessionRuntime] = {}
         self._streams: dict[str, StreamBinding] = {}
@@ -79,6 +82,10 @@ class Renderer:
         self._cameras = CameraPool(stage, config)
         self._layers = StreamedWorldManager(stage, config.layer_catalog)
         self._diagnostics = diagnostics
+
+    @property
+    def generation(self) -> str:
+        return self._generation
 
     def tick(self) -> None:
         self._process_commands()
@@ -273,6 +280,21 @@ class Renderer:
                 if stream.camera_id != command.value.camera_id
             }
             return CommandResult(HTTPStatus.OK, self._cameras.upsert(command.value))
+        if operation == "get_inventory":
+            return CommandResult(
+                HTTPStatus.OK,
+                {
+                    "generation": self._generation,
+                    "cameraIds": self._cameras.active_camera_ids(
+                        command.session_id
+                    ),
+                    "streamProductIds": tuple(
+                        stream_id
+                        for stream_id, stream in sorted(self._streams.items())
+                        if stream.session_id == command.session_id
+                    ),
+                },
+            )
         if operation == "get_camera":
             assert command.resource_id is not None
             return CommandResult(
@@ -420,6 +442,7 @@ def run(config: RendererConfig) -> None:
         stage = context.get_stage()
         diagnostics = DiagnosticScene(stage)
         renderer = Renderer(config, stage, commands, diagnostics)
+        announce_runtime_generation(config, renderer.generation)
 
         while simulation_app.is_running():
             renderer.tick()

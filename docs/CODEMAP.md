@@ -556,12 +556,12 @@ Simulation View data-plane ownership:
 |---|---|
 | `platform/simulation/scene/` | typed governed scene body, installation layer catalog, exact Frames/WGS 84 bindings, visual assets, entity bindings, transforms, quality, attribution, health, validation, and canonical digest |
 | `servers/simulation-view-mcp/src/contract.rs` | renderer sessions, generic camera rigs, explicit capacity, direct MCP requests and results, and public re-export of the shared scene contract |
-| `servers/simulation-view-mcp/src/state.rs` | owner-scoped scene, producer, camera, and lease desired-state transitions with optimistic and authorization revisions |
+| `servers/simulation-view-mcp/src/state.rs` | owner-scoped scene, producer, camera, ephemeral viewer-lease transitions, and desired-state revisions |
 | `servers/simulation-view-mcp/src/durability.rs` | Simulation View-specific platform-store adapter, normalized desired-state snapshots, restart restoration, and audit emission |
-| `servers/simulation-view-mcp/src/reconciler.rs` | ordered renderer, scene, producer, camera, and stream realization with bounded renewal and typed failure state |
+| `servers/simulation-view-mcp/src/reconciler.rs` | outbox- and generation-woken renderer, scene, producer, and camera realization with exact renewal/retry timers and typed failure state |
 | `servers/simulation-view-mcp/src/artifacts.rs` | caller-authorized Artifact-plane streaming into the private renderer digest-ingest boundary |
 | `servers/simulation-view-mcp/src/mcp.rs` | canonical tools, resources, subscriptions, well-known surface, and App declarations |
-| `servers/simulation-view-mcp/src/server/` | signed gateway auth, public host checks, control-plane traffic readiness, full durable-runtime status, administrative docs, and authenticated signaling |
+| `servers/simulation-view-mcp/src/server/` | signed gateway auth, public host checks, control-plane readiness, authenticated runtime-generation events, durable-runtime status, administrative docs, and signaling |
 | `servers/simulation-view-mcp/assets/live.html` | self-contained selected-view and bounded multi-camera MCP App |
 | `servers/simulation-view-mcp/dependencies.lock.json` | verified NVIDIA browser client release and byte identities |
 | `platform/simulation/pose/src/contract.rs` | session, epoch, Frames, entity-table, coordinate, limit, and pose types |

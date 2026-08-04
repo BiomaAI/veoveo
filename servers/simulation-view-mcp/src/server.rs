@@ -2,6 +2,7 @@ mod admin;
 mod auth;
 mod config;
 mod host;
+mod runtime_events;
 mod signaling;
 
 use std::{net::SocketAddr, sync::Arc};
@@ -21,7 +22,7 @@ use crate::{
     artifacts::SceneArtifactMaterializer,
     durability::SimulationViewRepository,
     mcp::{SimulationViewMcp, SimulationViewMcpState},
-    reconciler::{ReconcilerConfig, spawn_reconciler},
+    reconciler::{ReconcilerConfig, ReconcilerHandle, spawn_reconciler, spawn_store_wake},
     runtime::RuntimeClients,
     state::SimulationViewService,
 };
@@ -89,11 +90,19 @@ pub async fn run() -> Result<()> {
         &args.renderer_endpoint,
         &args.renderer_control_token,
     )?;
+    let (reconciler, reconcile_events) = ReconcilerHandle::channel();
+    let runtime_event_router = runtime_events::router(
+        service.clone(),
+        reconciler.clone(),
+        &args.renderer_control_token,
+        &args.pose_control_token,
+    );
     let mcp_state = SimulationViewMcpState::new(
         service.clone(),
         runtimes.clone(),
         artifacts.clone(),
         repository.clone(),
+        reconciler,
         &args.public_signaling_url,
     )?;
     let signaling = SignalingState::new(
@@ -104,18 +113,24 @@ pub async fn run() -> Result<()> {
     )?;
 
     let cancellation = tokio_util::sync::CancellationToken::new();
+    spawn_store_wake(
+        repository.clone(),
+        mcp_state.reconciler.clone(),
+        std::time::Duration::from_secs(args.reconcile_retry_delay_seconds),
+        cancellation.child_token(),
+    );
     spawn_reconciler(
         service.clone(),
         runtimes.clone(),
         repository.clone(),
         mcp_state.subscriptions.clone(),
         ReconcilerConfig {
-            interval: std::time::Duration::from_secs(args.reconcile_interval_seconds),
             authorization_renewal_lead: std::time::Duration::from_secs(
                 args.authorization_renewal_lead_seconds,
             ),
-            retry_max: std::time::Duration::from_secs(args.reconcile_retry_max_seconds),
+            retry_delay: std::time::Duration::from_secs(args.reconcile_retry_delay_seconds),
         },
+        reconcile_events,
         cancellation.child_token(),
     );
     let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
@@ -207,6 +222,7 @@ pub async fn run() -> Result<()> {
         .route("/signaling", get(signaling::upgrade))
         .route("/signaling/{*tail}", get(signaling::upgrade))
         .with_state(signaling)
+        .merge(runtime_event_router)
         .nest("/admin", admin_router)
         .nest("/mcp", mcp_router);
     let router = Router::new()

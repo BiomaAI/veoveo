@@ -59,7 +59,7 @@ const bridge=(()=>{
   });
   return{request,notify:(method,params)=>post({jsonrpc:"2.0",method,params}),on:(method,handler)=>handlers.set(method,handler),post};
 })();
-let session=null,cameras=[],entities=[],capacity=null,refreshTimer=null,lastHeight=0,refreshing=false,tearingDown=false,activeErrorKind=null;
+let session=null,cameras=[],entities=[],capacity=null,refreshWakeTimer=null,lastHeight=0,refreshing=false,tearingDown=false,activeErrorKind=null;
 const selected=new Set(),players=new Map(),viewerInstanceId=crypto.randomUUID();
 function structured(result){if(result&&(result.isError||result.is_error)){const content=Array.isArray(result.content)?result.content:[];throw new Error((content.find((item)=>item.type==="text")||{}).text||"MCP tool failed");}return result&&(result.structuredContent||result.structured_content)||result;}
 async function callTool(name,args){return structured(await bridge.request("tools/call",{name,arguments:args}));}
@@ -67,12 +67,14 @@ async function readJson(uri){const result=await bridge.request("resources/read",
 function showError(cause,kind="interaction"){activeErrorKind=kind;el("error").textContent=cause instanceof Error?cause.message:String(cause);el("error").hidden=false;}
 function clearError(kind){if(kind&&activeErrorKind!==kind)return;activeErrorKind=null;el("error").textContent="";el("error").hidden=true;}
 function setStatus(text,live=false,warn=false){el("status").textContent=text;el("status").classList.toggle("live",live);el("status").classList.toggle("warn",warn);}
+function scheduleRefresh(delay=0){clearTimeout(refreshWakeTimer);refreshWakeTimer=setTimeout(()=>void refresh(),Math.max(0,delay));}
 function renderReconciliation(current){const chip=el("reconciliation"),status=current?.reconciliation;if(!status){chip.textContent="reconciliation waiting";chip.classList.remove("live");chip.classList.add("warn");clearError("reconciliation");return true;}
   const expired=status.failureCode==="pose_authorization_expired"||(!current.poseSource?.revoked&&current.poseSource?.expiresAt&&Date.parse(current.poseSource.expiresAt)<=Date.now());
   const blocked=status.phase==="blocked";chip.textContent=status.phase==="healthy"?`reconciled r${status.realizedRevision}`:status.phase==="revoked"?"producer revoked":`reconciling · ${status.phase.replaceAll("_"," ")}`;chip.classList.toggle("live",status.phase==="healthy");chip.classList.toggle("warn",blocked||expired||status.phase==="revoked");
   if(expired){const retry=status.nextAttemptAt?` Next automatic attempt: ${new Date(status.nextAttemptAt).toLocaleTimeString()}.`:"";showError(`Pose producer authorization expired.${retry}`,"reconciliation");}
   else if(blocked){const dependency=status.failedDependency?` at ${status.failedDependency}`:"";showError(`Automatic Simulation View reconciliation is blocked${dependency}: ${status.diagnostic||status.failureCode||"dependency unavailable"}.`,"reconciliation");}
   else if(status.phase==="healthy"&&status.desiredRevision===status.realizedRevision&&!current.poseSource?.stale){clearError("reconciliation");}
+  if(status.nextAttemptAt){scheduleRefresh(Math.max(250,Date.parse(status.nextAttemptAt)-Date.now()+50));}
   return blocked||expired||status.phase==="revoked";
 }
 function renderAttribution(layer){const link=el("attribution");if(!layer){link.hidden=true;link.removeAttribute("href");link.textContent="";return;}link.textContent=layer.attribution;link.href=layer.attributionUrl;link.hidden=false;}
@@ -102,7 +104,7 @@ async function openView(cameraId){
       accessToken:value.accessToken,authenticate:true,autoLaunch:true,videoElementId:`video-${cameraId}`,sessionId:stream.liveViewId,
       signalingServer:signal.hostname,signalingPort:Number(signal.port||443),signalingPath:signal.pathname,mediaServer:endpoint.mediaHost,mediaPort:endpoint.mediaPort,forceWSS:signal.protocol==="wss:",
       width:stream.widthPx,height:stream.heightPx,fps:stream.frameRateMillihertz/1000,codec:OV.VideoCodec.H264,localizeTextInput:false,mic:false,nativeTouchEvents:false,
-      onStart:(event)=>{if(event&&event.status===OV.EventStatus.SUCCESS){node.querySelector(".empty").hidden=true;node.querySelector(".health").textContent="live";clearError("stream");setStatus(`${players.size} live`,true);}else{retry(cameraId,new Error("NVIDIA stream did not start"));}},
+      onStart:(event)=>{if(event&&event.status===OV.EventStatus.SUCCESS){node.querySelector(".empty").hidden=true;node.querySelector(".health").textContent="live";clearError("stream");setStatus(`${players.size} live`,true);scheduleRefresh();}else{retry(cameraId,new Error("NVIDIA stream did not start"));}},
       onStop:()=>{if(!tearingDown)retry(cameraId,new Error("stream stopped"));},
       onStreamStats:(event)=>{const stats=event&&event.data&&event.data.stats;node.querySelector(".fps").textContent=stats&&stats.fps?`${stats.fps} fps`:`${stream.frameRateMillihertz/1000} fps`;},
     }});
@@ -111,11 +113,11 @@ async function openView(cameraId){
 }
 function scheduleRenew(cameraId){const player=players.get(cameraId);if(!player||!player.connection)return;clearTimeout(player.renewTimer);
   const delay=Math.max(5000,(Date.parse(player.connection.stream.expiresAt)-Date.now())*.5);
-  player.renewTimer=setTimeout(async()=>{try{player.connection=await callTool("renew_live_view",{sessionId:session.sessionId,liveViewId:player.connection.stream.liveViewId,viewerInstanceId});scheduleRenew(cameraId);}catch(cause){retry(cameraId,cause);}},delay);
+  player.renewTimer=setTimeout(async()=>{try{player.connection=await callTool("renew_live_view",{sessionId:session.sessionId,liveViewId:player.connection.stream.liveViewId,viewerInstanceId});scheduleRenew(cameraId);scheduleRefresh();}catch(cause){retry(cameraId,cause);}},delay);
 }
 function retry(cameraId,cause){showError(cause,"stream");void closeView(cameraId,false).then(()=>{if(selected.has(cameraId)&&!tearingDown)setTimeout(()=>void openView(cameraId),2500);});}
 async function closeView(cameraId,removeSlot){const player=players.get(cameraId);players.delete(cameraId);if(player){clearTimeout(player.renewTimer);clearTimeout(player.retryTimer);if(player.streamer){try{player.streamer.terminate();}catch(_){}}
-    if(player.connection){try{await callTool("close_live_view",{sessionId:session.sessionId,liveViewId:player.connection.stream.liveViewId,viewerInstanceId});}catch(cause){if(!tearingDown)showError(cause,"stream");}}}
+    if(player.connection){try{await callTool("close_live_view",{sessionId:session.sessionId,liveViewId:player.connection.stream.liveViewId,viewerInstanceId});scheduleRefresh();}catch(cause){if(!tearingDown)showError(cause,"stream");}}}
   if(removeSlot)document.getElementById(`view-${cameraId}`)?.remove();if(!players.size)setStatus("ready");renderGridEmpty();
 }
 function renderGridEmpty(){let empty=el("empty-grid");if(players.size||selected.size){empty?.remove();return;}if(!empty){empty=document.createElement("div");empty.id="empty-grid";empty.textContent="Select up to four capacity-admitted cameras.";el("grid").append(empty);}}
@@ -142,11 +144,11 @@ async function refresh(){if(refreshing||tearingDown)return;refreshing=true;try{c
     const reconciliationWarn=renderReconciliation(session);el("session").textContent=`${session.sessionId} · ${session.lifecycle} · ${session.poseSource?.stale?"pose stale":"pose current"}`;renderAttribution(session.geospatialLayer);setStatus(players.size?`${players.size} live`:"ready",players.size>0,reconciliationWarn||session.poseSource?.stale===true);clearError("refresh");
     for(const id of [...selected])if(!byId(id)){selected.delete(id);void closeView(id,true);}renderSelectors();renderChoices();updateHealth(streams);
   }catch(cause){showError(cause,"refresh");if(!players.size)setStatus("unavailable",false,true);}finally{refreshing=false;}}
-bridge.on("ui/notifications/tool-result",()=>void refresh());
+bridge.on("ui/notifications/tool-result",()=>scheduleRefresh());
 bridge.on("ui/notifications/host-context-changed",(params)=>{const context=params&&(params.hostContext||params);if(context&&(context.theme==="light"||context.theme==="dark"))document.documentElement.dataset.theme=context.theme;});
-bridge.on("ui/resource-teardown",(_params,id)=>{tearingDown=true;clearInterval(refreshTimer);void Promise.all([...players.keys()].map((cameraId)=>closeView(cameraId,true))).finally(()=>{if(id!==undefined)bridge.post({jsonrpc:"2.0",id,result:{}});});});
+bridge.on("ui/resource-teardown",(_params,id)=>{tearingDown=true;clearTimeout(refreshWakeTimer);void Promise.all([...players.keys()].map((cameraId)=>closeView(cameraId,true))).finally(()=>{if(id!==undefined)bridge.post({jsonrpc:"2.0",id,result:{}});});});
 el("apply-rig").addEventListener("click",()=>void applyRig());new ResizeObserver(reportSize).observe(el("app"));window.addEventListener("resize",reportSize);
-(async()=>{try{await bridge.request("ui/initialize",{protocolVersion:"2026-01-26",appInfo:{name:"simulation-view-live",version:"1.0.0"},appCapabilities:{availableDisplayModes:["inline"]}});bridge.notify("ui/notifications/initialized",{});await refresh();refreshTimer=setInterval(()=>void refresh(),1000);reportSize();}catch(cause){showError(cause,"initialize");setStatus("failed");}})();
+(async()=>{try{await bridge.request("ui/initialize",{protocolVersion:"2026-01-26",appInfo:{name:"simulation-view-live",version:"1.0.0"},appCapabilities:{availableDisplayModes:["inline"]}});bridge.notify("ui/notifications/initialized",{});await refresh();reportSize();}catch(cause){showError(cause,"initialize");setStatus("failed");}})();
 </script>
 </body>
 </html>

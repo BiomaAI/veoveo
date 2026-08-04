@@ -410,6 +410,13 @@ class CameraPool:
             )
         )
 
+    def active_camera_ids(self, session_id: str) -> tuple[str, ...]:
+        return tuple(
+            camera_id
+            for camera_id, runtime in sorted(self._cameras.items())
+            if runtime.binding.session_id == session_id
+        )
+
     def render_viewports(self) -> tuple[RenderViewport, ...]:
         viewports: list[RenderViewport] = []
         for _, runtime in sorted(

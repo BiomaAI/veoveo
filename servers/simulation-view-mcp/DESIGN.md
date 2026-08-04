@@ -198,20 +198,39 @@ logical cameras, and monotonic desired revision. It does not retain browser
 viewer leases, producer certificates, private runtime tokens, raw live-view
 access tokens, pose messages, or rendered media.
 
-The MCP workload restores this state before it admits traffic. Its reconciler
-then realizes one session in a fixed dependency order:
+The MCP workload restores this state before it admits traffic. A caller mutation
+commits intent and its transactional outbox event before one controller realizes
+the session in this fixed dependency order:
 
 1. renderer session;
 2. immutable governed scene;
 3. bounded pose-producer authorization;
 4. logical cameras.
 
-Every private transition is idempotent. The durable desired revision advances
-when a caller changes the lifecycle or when the reconciler renews an
+Every private transition is idempotent. MCP mutations do not also perform a
+second synchronous realization path. The durable desired revision advances
+when a caller changes the lifecycle or when the controller renews an
 authorization. The realized revision advances only after every dependency has
 accepted that desired state. A restart resets transient camera, pose, and
 renderer health before the same ordered transitions run again. An active App
 opens a new ephemeral viewer lease after a control-plane or renderer restart.
+
+The controller is reactive. An in-process watch wakes it immediately after a
+local commit, while a SurrealDB LIVE subscription to transactional outbox events
+wakes other replicas. Renderer and pose-ingress processes announce a UUID boot
+generation through authenticated internal callbacks. A changed generation marks
+live sessions pending; a duplicate callback is a no-op. The controller uses the
+renderer inventory to remove cameras absent from desired state before it
+upserts the current definitions. It does not replay healthy sessions on a
+periodic interval.
+
+Only two clocks schedule work: the exact pose-authorization renewal instant and
+the exact retry instant recorded after a failed transition. A disconnected LIVE
+subscription retries its connection because events are only an acceleration;
+the durable revision remains authoritative. Audit delivery cannot turn an
+otherwise healthy renderer session into a blocked session. The audit records
+actual reconciliation attempts, mutations, renewals, failures, and recoveries,
+not healthy no-op passes.
 
 Conflict detection uses the canonical
 `veoveo.io/simulation-view-desired-intent/v2` projection. It contains the
@@ -320,6 +339,11 @@ private renderer connection, preserves the renderer signaling path, and
 disconnects as soon as a lease event closes it or its exact expiry is reached.
 There is no lease-status polling. One URI or camera identity does not grant
 media access.
+
+The App has no periodic state refresh. Tool results, WebRTC lifecycle events,
+lease renewal, and the controller's exact `nextAttemptAt` instant drive its
+resource reads. A healthy view produces media traffic and one bounded lease
+renewal without a one-second MCP query loop.
 
 NVIDIA AOV streams require a unique TCP signaling port and UDP media port per
 physical slot. The MCP proxy derives the private signaling port from the

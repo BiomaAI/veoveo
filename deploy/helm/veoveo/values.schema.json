@@ -1038,12 +1038,11 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "intervalSeconds",
-            "authorizationRenewalLeadSeconds",
-            "retryMaximumSeconds"
+            "retryDelaySeconds",
+            "authorizationRenewalLeadSeconds"
           ],
           "properties": {
-            "intervalSeconds": {
+            "retryDelaySeconds": {
               "type": "integer",
               "minimum": 1,
               "maximum": 300
@@ -1052,11 +1051,6 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 86399
-            },
-            "retryMaximumSeconds": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 3600
             }
           }
         },

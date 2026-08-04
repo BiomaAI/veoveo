@@ -1,4 +1,5 @@
 mod config;
+mod events;
 mod http;
 mod state;
 mod tls;
@@ -24,6 +25,11 @@ async fn main() -> Result<()> {
     args.validate()?;
     let ingress = Arc::new(PoseIngress::new(args.state_config())?);
     let cancellation = CancellationToken::new();
+    tokio::spawn(events::announce_runtime_generation(
+        args.runtime_event_url()?,
+        args.control_token.clone(),
+        cancellation.child_token(),
+    ));
     let http = http::serve(
         args.http_address(),
         ingress.clone(),

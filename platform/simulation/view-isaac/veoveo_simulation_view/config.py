@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from .layers import LayerCatalog
 
@@ -32,11 +33,28 @@ def _absolute_directory(name: str, default: str) -> Path:
     return path
 
 
+def _internal_http_url(name: str) -> str:
+    value = _required(name)
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme != "http"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or not parsed.path.endswith("/runtime-events/renderer")
+    ):
+        raise ValueError(f"{name} must be a credential-free internal HTTP renderer event URL")
+    return value.rstrip("/")
+
+
 @dataclass(frozen=True, slots=True)
 class RendererConfig:
     control_host: str
     control_port: int
     control_token: str
+    runtime_event_url: str
     artifact_directory: Path
     maximum_artifact_bytes: int
     pose_directory: Path
@@ -78,6 +96,9 @@ class RendererConfig:
                 "SIMULATION_VIEW_RENDERER_CONTROL_PORT", 8810, 1, 65535
             ),
             control_token=token,
+            runtime_event_url=_internal_http_url(
+                "SIMULATION_VIEW_RUNTIME_EVENT_URL"
+            ),
             artifact_directory=_absolute_directory(
                 "SIMULATION_VIEW_ARTIFACT_DIRECTORY",
                 "/var/lib/veoveo/simulation-view/artifacts",

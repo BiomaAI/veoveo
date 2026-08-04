@@ -59,6 +59,7 @@ pub(crate) struct SimulationViewMcpState {
     runtimes: Arc<RuntimeClients>,
     artifacts: Arc<SceneArtifactMaterializer>,
     repository: Arc<SimulationViewRepository>,
+    pub(crate) reconciler: crate::reconciler::ReconcilerHandle,
     app_connect_origin: String,
 }
 
@@ -68,6 +69,7 @@ impl SimulationViewMcpState {
         runtimes: Arc<RuntimeClients>,
         artifacts: Arc<SceneArtifactMaterializer>,
         repository: Arc<SimulationViewRepository>,
+        reconciler: crate::reconciler::ReconcilerHandle,
         signaling_url: &str,
     ) -> anyhow::Result<Arc<Self>> {
         let signaling_url = url::Url::parse(signaling_url)?;
@@ -83,6 +85,7 @@ impl SimulationViewMcpState {
             runtimes,
             artifacts,
             repository,
+            reconciler,
             app_connect_origin,
         }))
     }
@@ -118,7 +121,9 @@ impl SimulationViewMcp {
                     "Simulation View desired state could not be committed",
                     None,
                 )
-            })
+            })?;
+        self.state.reconciler.notify();
+        Ok(())
     }
 
     async fn refresh_pose_status(
@@ -234,9 +239,6 @@ impl SimulationViewMcp {
             .create_session(owner, request)
             .map_err(service_error)?;
         self.persist(&session.session_id).await?;
-        if let Err(error) = self.state.runtimes.create_session(&session).await {
-            return Err(runtime_error(error));
-        }
         self.notify_session_created(&session, &context).await;
         structured_result(
             format!("created {}", uris::session(&session.session_id)),
@@ -302,9 +304,6 @@ impl SimulationViewMcp {
             .bind_scene(&owner, request)
             .map_err(service_error)?;
         self.persist(&session.session_id).await?;
-        if let Err(error) = self.state.runtimes.bind_scene(&session).await {
-            return Err(runtime_error(error));
-        }
         self.notify_session(&session.session_id).await;
         structured_result(
             format!("bound {}", uris::scene(&session.session_id)),
@@ -331,15 +330,7 @@ impl SimulationViewMcp {
             .service
             .authorize_pose_producer(&owner, request)
             .map_err(service_error)?;
-        let session = self
-            .state
-            .service
-            .get_session(&owner, &session_id)
-            .map_err(service_error)?;
         self.persist(&session_id).await?;
-        if let Err(error) = self.state.runtimes.bind_pose(&session, &result).await {
-            return Err(runtime_error(error));
-        }
         self.notify_session(&session_id).await;
         structured_result(
             format!("authorized {}", uris::pose_source(&session_id)),
@@ -366,15 +357,7 @@ impl SimulationViewMcp {
             .service
             .revoke_pose_producer(&owner, request)
             .map_err(service_error)?;
-        let session = self
-            .state
-            .service
-            .get_session(&owner, &session_id)
-            .map_err(service_error)?;
         self.persist(&session_id).await?;
-        if let Err(error) = self.state.runtimes.revoke_pose(&session, &result).await {
-            return Err(runtime_error(error));
-        }
         self.notify_session(&session_id).await;
         structured_result(
             format!("revoked {}", uris::pose_source(&session_id)),
@@ -396,35 +379,13 @@ impl SimulationViewMcp {
         let owner = require_owner(&context, "simulation-view:write")?;
         let session_id = request.session_id.clone();
         let _operation = self.state.service.operation_guard(&session_id).await;
-        let mut result = self
+        let result = self
             .state
             .service
             .create_camera(&owner, request)
             .map_err(service_error)?;
-        if let CameraAdmission::Admitted { camera } = &mut result {
+        if let CameraAdmission::Admitted { .. } = &result {
             self.persist(&session_id).await?;
-            let render_slot = self
-                .state
-                .service
-                .render_slot(&camera.camera_id)
-                .map_err(service_error)?;
-            match self.state.runtimes.upsert_camera(camera, render_slot).await {
-                Ok(status) if status.ready => {
-                    self.state.service.apply_camera_status(
-                        &camera.camera_id,
-                        status.last_pose_sequence,
-                        status.last_frame_at,
-                    );
-                    camera.health = veoveo_mcp_contract::LiveCameraHealth::Healthy;
-                    camera.last_pose_sequence = status.last_pose_sequence;
-                    camera.last_frame_at = status.last_frame_at;
-                }
-                Ok(_) => {}
-                Err(error) => {
-                    self.state.service.fail_camera(&camera.camera_id);
-                    return Err(runtime_error(error));
-                }
-            }
         }
         if matches!(result, CameraAdmission::Admitted { .. }) {
             self.notify_cameras(&session_id, &context).await;
@@ -445,37 +406,15 @@ impl SimulationViewMcp {
     ) -> Result<CallToolResult, McpError> {
         let owner = require_owner(&context, "simulation-view:write")?;
         let session_id = request.session_id.clone();
-        let _operation = self.state.service.operation_guard(&session_id).await;
         let camera_id = request.camera_id.clone();
-        let mut result = self
+        let _operation = self.state.service.operation_guard(&session_id).await;
+        let result = self
             .state
             .service
             .set_camera(&owner, request)
             .map_err(service_error)?;
-        if let CameraAdmission::Admitted { camera } = &mut result {
+        if let CameraAdmission::Admitted { .. } = &result {
             self.persist(&session_id).await?;
-            let render_slot = self
-                .state
-                .service
-                .render_slot(&camera.camera_id)
-                .map_err(service_error)?;
-            match self.state.runtimes.upsert_camera(camera, render_slot).await {
-                Ok(status) if status.ready => {
-                    self.state.service.apply_camera_status(
-                        &camera.camera_id,
-                        status.last_pose_sequence,
-                        status.last_frame_at,
-                    );
-                    camera.health = veoveo_mcp_contract::LiveCameraHealth::Healthy;
-                    camera.last_pose_sequence = status.last_pose_sequence;
-                    camera.last_frame_at = status.last_frame_at;
-                }
-                Ok(_) => {}
-                Err(error) => {
-                    self.state.service.fail_camera(&camera.camera_id);
-                    return Err(runtime_error(error));
-                }
-            }
         }
         if matches!(result, CameraAdmission::Admitted { .. }) {
             self.state
@@ -505,21 +444,12 @@ impl SimulationViewMcp {
         let owner = require_owner(&context, "simulation-view:write")?;
         let session_id = request.session_id.clone();
         let _operation = self.state.service.operation_guard(&session_id).await;
-        let camera_id = request.camera_id.clone();
         let result = self
             .state
             .service
             .close_camera(&owner, request)
             .map_err(service_error)?;
         self.persist(&session_id).await?;
-        if let Err(error) = self
-            .state
-            .runtimes
-            .close_camera(&session_id, &camera_id)
-            .await
-        {
-            return Err(runtime_error(error));
-        }
         self.notify_cameras(&session_id, &context).await;
         self.state
             .subscriptions
@@ -569,6 +499,10 @@ impl SimulationViewMcp {
         {
             Ok(status) => status,
             Err(error) => {
+                self.state
+                    .service
+                    .request_runtime_reconciliation(&session_id);
+                self.state.reconciler.notify();
                 if starts_product
                     && let Err(cleanup_error) = self
                         .state
@@ -729,19 +663,6 @@ impl SimulationViewMcp {
             .close_session(&owner, request)
             .map_err(service_error)?;
         self.persist(&session_id).await?;
-        let session = self
-            .state
-            .service
-            .get_session(&owner, &session_id)
-            .map_err(service_error)?;
-        if let Some(source) = session.pose_source.as_ref()
-            && let Err(error) = self.state.runtimes.revoke_pose(&session, source).await
-        {
-            return Err(runtime_error(error));
-        }
-        if let Err(error) = self.state.runtimes.close_session(&session_id).await {
-            return Err(runtime_error(error));
-        }
         self.notify_session(&session_id).await;
         self.notify_cameras(&session_id, &context).await;
         self.notify_streams(&session_id, &context).await;
