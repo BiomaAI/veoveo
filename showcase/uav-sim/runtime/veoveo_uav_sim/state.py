@@ -30,6 +30,26 @@ class VehicleTelemetry:
     collision_count: int = 0
 
 
+def initial_runtime_timing(config: RuntimeConfig) -> dict[str, int | float]:
+    return {
+        "physics_hz": config.physics_hz,
+        "native_rendering_hz": config.rendering_hz,
+        "pose_cadence_hz": config.pose_cadence_hz,
+        "pose_buffer_duration_ms": config.pose_buffer_duration_ms,
+        "pose_queued_snapshots": 0,
+        "pose_buffer_target_snapshots": max(
+            2,
+            math.ceil(
+                config.pose_cadence_hz
+                * config.pose_buffer_duration_ms
+                / 1_000
+            ),
+        ),
+        "realtime_rebases": 0,
+        "discarded_wall_seconds": 0.0,
+    }
+
+
 class RuntimeState:
     def __init__(self, config: RuntimeConfig, world: WorldConfiguration) -> None:
         self._config = config
@@ -41,23 +61,7 @@ class RuntimeState:
             "lifecycle": "starting",
             "simulation_time_s": 0.0,
             "physics_step": 0,
-            "timing": {
-                "physics_hz": config.physics_hz,
-                "native_rendering_hz": config.rendering_hz,
-                "pose_cadence_hz": config.pose_cadence_hz,
-                "pose_buffer_duration_ms": config.pose_buffer_duration_ms,
-                "pose_queued_snapshots": 0,
-                "pose_buffer_target_snapshots": max(
-                    2,
-                    math.ceil(
-                        config.pose_cadence_hz
-                        * config.pose_buffer_duration_ms
-                        / 1_000
-                    ),
-                ),
-                "realtime_rebases": 0,
-                "discarded_wall_seconds": 0.0,
-            },
+            "timing": initial_runtime_timing(config),
             "world": world.as_dict(),
             "tiles": {
                 "lifecycle": "connecting",

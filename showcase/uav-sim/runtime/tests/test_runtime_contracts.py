@@ -31,7 +31,11 @@ from veoveo_uav_sim.physics_batch import (
 from veoveo_uav_sim.pose import PhysicsCadenceGate, PoseProducer, entity_ids
 from veoveo_uav_sim.px4 import Px4Commander, Px4CommandRejected
 from veoveo_uav_sim.realtime import PeriodicDeadline, RealtimePhysicsClock
-from veoveo_uav_sim.state import RuntimeState, VehicleTelemetry
+from veoveo_uav_sim.state import (
+    RuntimeState,
+    VehicleTelemetry,
+    initial_runtime_timing,
+)
 from veoveo_uav_sim.stream_output import _annex_b_nals, _packetize_nal
 from veoveo_uav_sim.world_config import (
     GeoreferenceOrigin,
@@ -110,6 +114,26 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIn("PoseProducer", app_source)
         self.assertNotIn("livestream", app_source.lower())
         self.assertNotIn("follow_camera", app_source)
+
+    def test_preconfiguration_state_uses_the_pose_timing_contract(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            config = RuntimeConfig.from_environment()
+
+        timing = initial_runtime_timing(config)
+        self.assertEqual(timing["physics_hz"], 60)
+        self.assertEqual(timing["native_rendering_hz"], 2)
+        self.assertEqual(timing["pose_cadence_hz"], 20)
+        self.assertEqual(timing["pose_buffer_target_snapshots"], 10)
+
+        server_source = (
+            Path(__file__).parents[1] / "veoveo_uav_sim" / "server.py"
+        ).read_text()
+        self.assertIn('"timing": initial_runtime_timing(self._config)', server_source)
+        self.assertIn("self._config.pose_cadence_hz", server_source)
+        self.assertNotIn(
+            "self._config.vehicle_count,\n                    self._config.rendering_hz",
+            server_source,
+        )
 
     def test_multi_instance_px4_has_distinct_gcs_ports(self) -> None:
         runtime_root = Path(__file__).parents[1]
