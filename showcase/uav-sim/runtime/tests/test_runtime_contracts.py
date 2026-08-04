@@ -23,7 +23,10 @@ from veoveo_uav_sim.config import FleetLoopConfig, RuntimeConfig
 from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operation
 from veoveo_uav_sim.fleet_loop import FleetLoopController, vehicle_loop_route
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
-from veoveo_uav_sim.physics_batch import RigidBodyBatchAccumulator
+from veoveo_uav_sim.physics_batch import (
+    FleetPhysicsLifecycle,
+    RigidBodyBatchAccumulator,
+)
 from veoveo_uav_sim.pose import PhysicsCadenceGate, PoseProducer, entity_ids
 from veoveo_uav_sim.px4 import Px4Commander, Px4CommandRejected
 from veoveo_uav_sim.state import RuntimeState, VehicleTelemetry
@@ -336,6 +339,104 @@ class FleetLoopTests(unittest.TestCase):
 
 
 class RigidBodyBatchTests(unittest.TestCase):
+    def test_fleet_batch_is_bound_only_after_reset_and_rebinds_atomically(self) -> None:
+        events: list[str] = []
+        prefix = "/World/uav_1"
+
+        class FakeWorld:
+            def __init__(self) -> None:
+                self.callbacks = {
+                    prefix + suffix: object()
+                    for suffix in ("/state", "/update", "/Sensors", "/mav_state")
+                }
+
+            def physics_callback_exists(self, name: str) -> bool:
+                return name in self.callbacks
+
+            def remove_physics_callback(self, name: str) -> None:
+                events.append(f"remove:{name}")
+                del self.callbacks[name]
+
+            def reset(self) -> None:
+                self.assert_no_callbacks_during_reset()
+                events.append("reset")
+
+            def assert_no_callbacks_during_reset(self) -> None:
+                if self.callbacks:
+                    raise AssertionError("physics callback survived reset boundary")
+
+            def add_physics_callback(self, name: str, callback: object) -> None:
+                events.append(f"add:{name}")
+                self.callbacks[name] = callback
+
+        class FakeBatch:
+            def rebind(self) -> None:
+                events.append("rebind")
+
+            def refresh_states(self) -> None:
+                events.append("refresh")
+
+            def flush_forces(self) -> None:
+                events.append("flush")
+
+        class FakeVehicle:
+            def bind_physics_batch(self, _batch: FakeBatch) -> None:
+                events.append("bind")
+
+            def update_state(self, _dt: float) -> None:
+                events.append("state")
+
+            def update(self, _dt: float) -> None:
+                events.append("dynamics")
+
+            def update_sensors(self, _dt: float) -> None:
+                events.append("sensors")
+
+            def update_sim_state(self, _dt: float) -> None:
+                events.append("backend")
+
+        world = FakeWorld()
+        batch = FakeBatch()
+        lifecycle = FleetPhysicsLifecycle(
+            world,
+            {"uav-1": FakeVehicle()},
+            {"uav-1": prefix},
+            (prefix + "/body",),
+            batch_factory=lambda _paths: (events.append("create") or batch),
+        )
+
+        self.assertIs(lifecycle.reset(), batch)
+        self.assertEqual(
+            events[-4:],
+            [
+                "reset",
+                "create",
+                "bind",
+                "add:/World/veoveo_uav_fleet/physics_batch",
+            ],
+        )
+
+        events.clear()
+        self.assertIs(lifecycle.reset(), batch)
+        self.assertEqual(
+            events,
+            [
+                "remove:/World/veoveo_uav_fleet/physics_batch",
+                "reset",
+                "rebind",
+                "bind",
+                "add:/World/veoveo_uav_fleet/physics_batch",
+            ],
+        )
+
+        events.clear()
+        callback = world.callbacks["/World/veoveo_uav_fleet/physics_batch"]
+        callback(0.004)  # type: ignore[operator]
+        self.assertEqual(
+            events,
+            ["refresh", "state", "dynamics", "sensors", "backend", "flush"],
+        )
+
     def test_force_at_position_is_reduced_to_force_and_torque(self) -> None:
         batch = RigidBodyBatchAccumulator(("/World/uav_1/body",))
         batch.queue_force(
