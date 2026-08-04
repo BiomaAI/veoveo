@@ -363,11 +363,29 @@ pub struct RecordingState {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+pub struct RuntimeTimingState {
+    #[schemars(range(min = 30, max = 1000))]
+    pub physics_hz: u32,
+    #[schemars(range(min = 1, max = 120))]
+    pub native_rendering_hz: u32,
+    #[schemars(range(min = 1, max = 120))]
+    pub pose_cadence_hz: u32,
+    #[schemars(range(min = 50, max = 5000))]
+    pub pose_buffer_duration_ms: u32,
+    pub pose_queued_snapshots: u32,
+    pub pose_buffer_target_snapshots: u32,
+    pub realtime_rebases: u64,
+    pub discarded_wall_seconds: f64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SimulationState {
     pub session_id: SessionId,
     pub lifecycle: SimulationLifecycle,
     pub simulation_time_s: f64,
     pub physics_step: u64,
+    pub timing: RuntimeTimingState,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub world: Option<SimulationWorldBinding>,
     pub tiles: TileState,

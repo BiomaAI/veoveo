@@ -16,8 +16,8 @@ use crate::{
         CameraState, CaptureDatasetResult, CommandAcknowledgement, ConfigureWorldOutput,
         ConfigureWorldRequest, DurableOperation, DurableOperationResult, MissionId,
         MissionLifecycle, MissionResult, PosePublicationState, RecordingId, RecordingState,
-        ScenarioResult, SessionId, SimulationCommand, SimulationLifecycle, SimulationState,
-        SimulationWorldBinding, TileState, VehicleFlightState, VehicleState,
+        RuntimeTimingState, ScenarioResult, SessionId, SimulationCommand, SimulationLifecycle,
+        SimulationState, SimulationWorldBinding, TileState, VehicleFlightState, VehicleState,
     },
     uris,
 };
@@ -43,6 +43,7 @@ struct AdapterSimulationState {
     lifecycle: SimulationLifecycle,
     simulation_time_s: f64,
     physics_step: u64,
+    timing: RuntimeTimingState,
     world: Option<SimulationWorldBinding>,
     tiles: TileState,
     cameras: Vec<CameraState>,
@@ -150,6 +151,7 @@ impl HttpAdapter {
             lifecycle: state.lifecycle,
             simulation_time_s: state.simulation_time_s,
             physics_step: state.physics_step,
+            timing: state.timing,
             world: state.world,
             tiles: state.tiles,
             cameras: state.cameras,
@@ -442,7 +444,8 @@ impl FakeAdapter {
                     ));
                 }
                 self.state.physics_step += u64::from(request.steps);
-                self.state.simulation_time_s += f64::from(request.steps) / 250.0;
+                self.state.simulation_time_s +=
+                    f64::from(request.steps) / f64::from(self.state.timing.physics_hz);
                 (
                     format!("advanced {} physics step(s)", request.steps),
                     uris::world(&request.session_id),
@@ -684,6 +687,16 @@ mod tests {
             lifecycle: SimulationLifecycle::Running,
             simulation_time_s: 1.0,
             physics_step: 250,
+            timing: RuntimeTimingState {
+                physics_hz: 60,
+                native_rendering_hz: 2,
+                pose_cadence_hz: 20,
+                pose_buffer_duration_ms: 500,
+                pose_queued_snapshots: 10,
+                pose_buffer_target_snapshots: 10,
+                realtime_rebases: 0,
+                discarded_wall_seconds: 0.0,
+            },
             world: Some(fake_world()),
             tiles: TileState {
                 lifecycle: TileLifecycle::Ready,
@@ -783,7 +796,8 @@ mod tests {
             .unwrap();
         assert_eq!(adapter.state().lifecycle, SimulationLifecycle::Paused);
         assert_eq!(adapter.state().physics_step, 275);
-        assert!((adapter.state().simulation_time_s - 1.1).abs() < f64::EPSILON);
+        let expected_time = 1.0 + 25.0 / 60.0;
+        assert!((adapter.state().simulation_time_s - expected_time).abs() < f64::EPSILON);
     }
 
     #[test]

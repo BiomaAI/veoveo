@@ -61,6 +61,10 @@
   value: {{ .root.Values.session.physicsHz | quote }}
 - name: UAV_SIM_RENDERING_HZ
   value: {{ .root.Values.session.renderingHz | quote }}
+- name: UAV_SIM_POSE_CADENCE_HZ
+  value: {{ .root.Values.posePublication.cadenceHz | quote }}
+- name: UAV_SIM_POSE_BUFFER_DURATION_MS
+  value: {{ .root.Values.posePublication.bufferDurationMs | quote }}
 - name: UAV_SIM_TILE_READY_FRAMES
   value: {{ .root.Values.session.tileReadyFrames | quote }}
 - name: UAV_SIM_PX4_CONNECT_TIMEOUT_SECONDS

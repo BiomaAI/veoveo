@@ -102,6 +102,7 @@ def run(config: RuntimeConfig) -> None:
     from .physics_batch import FleetPhysicsLifecycle
     from .pose import PhysicsCadenceGate, PoseProducer
     from .px4 import Px4Commander
+    from .realtime import PeriodicDeadline, RealtimePhysicsClock
     from .recording import RecordingPublisher
     from .server import (
         AdapterApplication,
@@ -159,7 +160,8 @@ def run(config: RuntimeConfig) -> None:
             session_id=config.session_id,
             world=world_config,
             vehicle_count=config.vehicle_count,
-            cadence_hz=config.rendering_hz,
+            cadence_hz=config.pose_cadence_hz,
+            buffer_duration_ms=config.pose_buffer_duration_ms,
             update_state=state.update_pose_publication,
         )
         recording = RecordingPublisher(config, world_config)
@@ -257,7 +259,11 @@ def run(config: RuntimeConfig) -> None:
                         "px4_autolaunch": True,
                         "px4_dir": config.px4_directory,
                         "px4_vehicle_model": "gazebo-classic_iris",
-                        "enable_lockstep": True,
+                        # This process owns the one real-time physics clock.
+                        # Waiting serially for four independent PX4 actuator
+                        # replies here would multiply their latency and make
+                        # native rendering stall the authoritative timeline.
+                        "enable_lockstep": False,
                         "update_rate": float(config.physics_hz),
                     }
                 )
@@ -330,8 +336,10 @@ def run(config: RuntimeConfig) -> None:
             for body_name in ("body", "rotor0", "rotor1", "rotor2", "rotor3")
         )
         pose_cadence = PhysicsCadenceGate(
-            config.physics_hz, config.rendering_hz
+            config.physics_hz, config.pose_cadence_hz
         )
+        physics_clock = RealtimePhysicsClock(config.physics_hz)
+        render_deadline = PeriodicDeadline(config.rendering_hz)
 
         def telemetry_snapshot() -> list[VehicleTelemetry]:
             telemetry: list[VehicleTelemetry] = []
@@ -405,6 +413,8 @@ def run(config: RuntimeConfig) -> None:
         def pause() -> None:
             def action() -> None:
                 timeline.pause()
+                physics_clock.reset(physics_step)
+                render_deadline.reset()
                 state.set_lifecycle("paused")
 
             command_queue.submit(action)
@@ -412,6 +422,8 @@ def run(config: RuntimeConfig) -> None:
         def resume() -> None:
             def action() -> None:
                 timeline.play()
+                physics_clock.reset(physics_step)
+                render_deadline.reset()
                 state.set_lifecycle("running")
 
             command_queue.submit(action)
@@ -426,6 +438,8 @@ def run(config: RuntimeConfig) -> None:
                 physics_step = 0
                 simulation_time_s = 0.0
                 pose_cadence.reset()
+                physics_clock.reset(physics_step)
+                render_deadline.reset()
                 state.advance(simulation_time_s, physics_step)
                 state.set_lifecycle("running" if was_playing else "paused")
 
@@ -436,10 +450,14 @@ def run(config: RuntimeConfig) -> None:
                 nonlocal physics_step, simulation_time_s
                 assert world is not None
                 timeline.play()
+                simulation_app.update()
                 for _ in range(steps):
                     world.step(render=False)
                 world.render()
                 timeline.pause()
+                simulation_app.update()
+                physics_clock.reset(physics_step)
+                render_deadline.reset()
                 state.advance(simulation_time_s, physics_step)
                 state.set_lifecycle("paused")
 
@@ -519,19 +537,35 @@ def run(config: RuntimeConfig) -> None:
 
         tile_resident_frames = 0
         tile_started_at = time.monotonic()
-        render_interval = max(1, round(config.physics_hz / config.rendering_hz))
-        camera_interval = max(1, round(config.physics_hz / config.camera.fps))
+        physics_clock.reset(physics_step)
+        render_deadline.reset()
 
         while simulation_app.is_running():
             assert fleet_loop is not None
             fleet_loop.raise_if_failed()
             command_queue.drain()
             if timeline.is_playing():
-                render = physics_step % render_interval == 0
-                world.step(render=False)
+                now = time.monotonic()
+                due_steps = physics_clock.due_steps(physics_step, now=now)
+                for _ in range(due_steps):
+                    world.step(render=False)
+                render = render_deadline.due(now=time.monotonic())
                 if render:
                     world.render()
-                update_cesium_viewport()
+                    update_cesium_viewport()
+                    clock_status = physics_clock.status()
+                    state.update_realtime_clock(
+                        clock_status.rebases,
+                        clock_status.discarded_wall_seconds,
+                    )
+                elif due_steps == 0:
+                    wait_seconds = min(
+                        physics_clock.seconds_until_next_step(physics_step),
+                        render_deadline.seconds_until_due(),
+                        0.005,
+                    )
+                    if wait_seconds > 0:
+                        time.sleep(wait_seconds)
             else:
                 simulation_app.update()
                 update_cesium_viewport()
@@ -540,7 +574,7 @@ def run(config: RuntimeConfig) -> None:
                 time.sleep(0.005)
                 continue
 
-            if physics_step % camera_interval == 0:
+            if render:
                 for vehicle_id, sensor in camera_sensors.items():
                     frame = sensor.latest_frame(
                         after_sequence=camera_sensor_sequences[vehicle_id]

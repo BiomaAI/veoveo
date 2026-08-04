@@ -929,6 +929,16 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
         lifecycle: SimulationLifecycle::Ready,
         simulation_time_s: 0.0,
         physics_step: 0,
+        timing: crate::contract::RuntimeTimingState {
+            physics_hz: 60,
+            native_rendering_hz: 2,
+            pose_cadence_hz: 20,
+            pose_buffer_duration_ms: 500,
+            pose_queued_snapshots: 10,
+            pose_buffer_target_snapshots: 10,
+            realtime_rebases: 0,
+            discarded_wall_seconds: 0.0,
+        },
         world: Some(crate::contract::SimulationWorldBinding {
             revision_uri: revision_uri.clone(),
             spec_sha256: "a".repeat(64),
@@ -1170,6 +1180,7 @@ fn session_summary(state: &SimulationState) -> serde_json::Value {
         "vehicle_count": state.vehicles.len(),
         "recording_count": state.recordings.len(),
         "pose_publication": state.pose_publication,
+        "timing": state.timing,
         "updated_at": state.updated_at,
     })
 }
@@ -1179,6 +1190,7 @@ fn world_view(state: &SimulationState) -> serde_json::Value {
         "session_id": state.session_id,
         "simulation_time_s": state.simulation_time_s,
         "physics_step": state.physics_step,
+        "timing": state.timing,
         "world": state.world,
         "updated_at": state.updated_at,
     })

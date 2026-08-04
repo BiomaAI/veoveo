@@ -108,7 +108,7 @@ class CameraConfig:
         return cls(
             width=_int("UAV_SIM_CAMERA_WIDTH", "640", 64, 3_840),
             height=_int("UAV_SIM_CAMERA_HEIGHT", "480", 64, 2_160),
-            fps=_int("UAV_SIM_CAMERA_FPS", "20", 1, 60),
+            fps=_int("UAV_SIM_CAMERA_FPS", "2", 1, 60),
             focal_length_mm=_float(
                 "UAV_SIM_CAMERA_FOCAL_LENGTH_MM", "8.0", 0.1, 1_000.0
             ),
@@ -307,6 +307,8 @@ class RuntimeConfig:
     adapter_port: int
     physics_hz: int
     rendering_hz: int
+    pose_cadence_hz: int
+    pose_buffer_duration_ms: int
     tile_ready_frames: int
     px4_connect_timeout_seconds: float
     px4_directory: str
@@ -321,6 +323,8 @@ class RuntimeConfig:
     def __post_init__(self) -> None:
         if self.rendering_hz != self.camera.fps:
             raise ValueError("UAV_SIM_RENDERING_HZ must match UAV_SIM_CAMERA_FPS")
+        if self.pose_cadence_hz > self.physics_hz:
+            raise ValueError("UAV_SIM_POSE_CADENCE_HZ must not exceed UAV_SIM_PHYSICS_HZ")
         highest_loop_altitude = self.fleet_loop.relative_altitude_m + (
             self.vehicle_count - 1
         ) * self.fleet_loop.vertical_separation_m
@@ -370,8 +374,12 @@ class RuntimeConfig:
             vehicle_count=_int("UAV_SIM_VEHICLE_COUNT", "1", 1, 16),
             adapter_host=os.environ.get("UAV_SIM_ADAPTER_HOST", "127.0.0.1"),
             adapter_port=_int("UAV_SIM_ADAPTER_PORT", "8810", 1, 65_535),
-            physics_hz=_int("UAV_SIM_PHYSICS_HZ", "250", 30, 1_000),
-            rendering_hz=_int("UAV_SIM_RENDERING_HZ", "20", 1, 120),
+            physics_hz=_int("UAV_SIM_PHYSICS_HZ", "60", 30, 1_000),
+            rendering_hz=_int("UAV_SIM_RENDERING_HZ", "2", 1, 120),
+            pose_cadence_hz=_int("UAV_SIM_POSE_CADENCE_HZ", "20", 1, 120),
+            pose_buffer_duration_ms=_int(
+                "UAV_SIM_POSE_BUFFER_DURATION_MS", "500", 50, 5_000
+            ),
             tile_ready_frames=_int("UAV_SIM_TILE_READY_FRAMES", "30", 1, 600),
             px4_connect_timeout_seconds=_float(
                 "UAV_SIM_PX4_CONNECT_TIMEOUT_SECONDS", "180.0", 30.0, 600.0
