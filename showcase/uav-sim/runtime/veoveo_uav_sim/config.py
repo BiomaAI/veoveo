@@ -64,6 +64,7 @@ class CameraMount:
 
 @dataclass(frozen=True, slots=True)
 class CameraConfig:
+    vehicle_id: str
     width: int
     height: int
     fps: int
@@ -106,6 +107,10 @@ class CameraConfig:
             ),
         )
         return cls(
+            vehicle_id=_identity(
+                "UAV_SIM_CAMERA_VEHICLE_ID",
+                os.environ.get("UAV_SIM_CAMERA_VEHICLE_ID", "uav-1"),
+            ),
             width=_int("UAV_SIM_CAMERA_WIDTH", "640", 64, 3_840),
             height=_int("UAV_SIM_CAMERA_HEIGHT", "480", 64, 2_160),
             fps=_int("UAV_SIM_CAMERA_FPS", "2", 1, 60),
@@ -325,6 +330,20 @@ class RuntimeConfig:
             raise ValueError("UAV_SIM_RENDERING_HZ must match UAV_SIM_CAMERA_FPS")
         if self.pose_cadence_hz > self.physics_hz:
             raise ValueError("UAV_SIM_POSE_CADENCE_HZ must not exceed UAV_SIM_PHYSICS_HZ")
+        admitted_vehicle_ids = {
+            f"uav-{index + 1}" for index in range(self.vehicle_count)
+        }
+        if self.camera.vehicle_id not in admitted_vehicle_ids:
+            raise ValueError(
+                "UAV_SIM_CAMERA_VEHICLE_ID must identify an admitted fleet vehicle"
+            )
+        if (
+            self.stream_publication is not None
+            and self.stream_publication.source_vehicle_id != self.camera.vehicle_id
+        ):
+            raise ValueError(
+                "UAV_SIM_STREAM_SOURCE_VEHICLE_ID must match UAV_SIM_CAMERA_VEHICLE_ID"
+            )
         highest_loop_altitude = self.fleet_loop.relative_altitude_m + (
             self.vehicle_count - 1
         ) * self.fleet_loop.vertical_separation_m

@@ -222,8 +222,9 @@
         "camera": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["width", "height", "fps", "optics", "mount"],
+          "required": ["vehicleId", "width", "height", "fps", "optics", "mount"],
           "properties": {
+            "vehicleId": {"$ref": "#/definitions/identity"},
             "width": {"type": "integer", "minimum": 64, "maximum": 3840},
             "height": {"type": "integer", "minimum": 64, "maximum": 2160},
             "fps": {"type": "integer", "minimum": 1, "maximum": 60},

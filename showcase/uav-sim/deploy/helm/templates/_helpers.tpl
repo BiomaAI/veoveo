@@ -61,6 +61,8 @@
   value: {{ .root.Values.session.physicsHz | quote }}
 - name: UAV_SIM_RENDERING_HZ
   value: {{ .root.Values.session.renderingHz | quote }}
+- name: UAV_SIM_CAMERA_VEHICLE_ID
+  value: {{ .root.Values.session.camera.vehicleId | quote }}
 - name: UAV_SIM_POSE_CADENCE_HZ
   value: {{ .root.Values.posePublication.cadenceHz | quote }}
 - name: UAV_SIM_POSE_BUFFER_DURATION_MS

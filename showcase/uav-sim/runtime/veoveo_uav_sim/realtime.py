@@ -13,23 +13,17 @@ class RealtimeClockStatus:
 
 
 class RealtimePhysicsClock:
-    """Maps a bounded wall-clock timeline onto fixed Isaac physics steps."""
+    """Paces fixed Isaac steps without replaying missed actuator intervals."""
 
     def __init__(
         self,
         frequency_hz: int,
         *,
-        maximum_catchup_seconds: float = 0.5,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         if frequency_hz < 1:
             raise ValueError("physics frequency must be positive")
-        if not math.isfinite(maximum_catchup_seconds) or maximum_catchup_seconds <= 0:
-            raise ValueError("maximum catch-up duration must be positive and finite")
         self._frequency_hz = frequency_hz
-        self._maximum_catchup_steps = max(
-            1, round(frequency_hz * maximum_catchup_seconds)
-        )
         self._clock = clock
         self._anchor_step = 0
         self._anchor_wall = clock()
@@ -52,16 +46,14 @@ class RealtimePhysicsClock:
         elapsed = max(0.0, current_wall - self._anchor_wall)
         expected_step = self._anchor_step + math.floor(elapsed * self._frequency_hz)
         lag = expected_step - physics_step
-        if lag > self._maximum_catchup_steps:
-            discarded_steps = lag - self._maximum_catchup_steps
+        if lag > 1:
+            discarded_steps = lag - 1
             self._discarded_wall_seconds += discarded_steps / self._frequency_hz
             self._rebases += 1
             self._anchor_step = physics_step
-            self._anchor_wall = current_wall - (
-                self._maximum_catchup_steps / self._frequency_hz
-            )
-            return self._maximum_catchup_steps
-        return max(0, lag)
+            self._anchor_wall = current_wall - (1.0 / self._frequency_hz)
+            return 1
+        return max(0, min(1, lag))
 
     def seconds_until_next_step(
         self, physics_step: int, *, now: float | None = None

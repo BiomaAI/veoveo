@@ -88,6 +88,7 @@ session:
     speedMps: 25
     holdSeconds: 0
   camera:
+    vehicleId: uav-1
     width: 640
     height: 480
     fps: 2

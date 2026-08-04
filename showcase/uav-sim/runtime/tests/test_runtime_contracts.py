@@ -38,6 +38,12 @@ from veoveo_uav_sim.state import (
     VehicleTelemetry,
     initial_runtime_timing,
 )
+from veoveo_uav_sim.vehicle_model import (
+    PX4_IRIS_MOMENT_CONSTANT,
+    PX4_IRIS_MOTOR_CONSTANT,
+    PX4_IRIS_YAW_MOMENT_COEFFICIENT,
+    Px4IrisThrustCurve,
+)
 from veoveo_uav_sim.stream_output import _annex_b_nals, _packetize_nal
 from veoveo_uav_sim.world_config import (
     GeoreferenceOrigin,
@@ -236,8 +242,13 @@ class RuntimeConfigTests(unittest.TestCase):
                         RuntimeConfig.from_environment()
 
     def test_nadir_camera_is_the_only_canonical_stream(self) -> None:
-        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+        with patch.dict(
+            os.environ,
+            {**VALID_ENVIRONMENT, "UAV_SIM_VEHICLE_COUNT": "4"},
+            clear=True,
+        ):
             state = RuntimeState(RuntimeConfig.from_environment(), WORLD).snapshot()
+        self.assertEqual(len(state["cameras"]), 1)
         camera = state["cameras"][0]
         camera_path = camera["entity_path"]
         recording_path = state["recordings"][0]["camera_streams"][0]
@@ -246,6 +257,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertNotIn("front", camera_path)
         self.assertEqual(camera["codec"], "h264")
         self.assertEqual(camera["encoder"], "nvidia_nvenc")
+        self.assertEqual(state["recordings"][0]["camera_streams"], [camera_path])
 
         recording_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "recording.py"
@@ -267,6 +279,32 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(camera.clipping_near_m, 0.1)
         self.assertEqual(camera.clipping_far_m, 50_000.0)
         self.assertEqual(camera.mount.translation_xyz_m, (0.75, 0.0, 0.05))
+
+    def test_camera_vehicle_must_be_admitted_and_own_direct_stream(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                **VALID_ENVIRONMENT,
+                "UAV_SIM_VEHICLE_COUNT": "4",
+                "UAV_SIM_CAMERA_VEHICLE_ID": "uav-5",
+            },
+            clear=True,
+        ):
+            with self.assertRaisesRegex(ValueError, "admitted fleet vehicle"):
+                RuntimeConfig.from_environment()
+        with patch.dict(
+            os.environ,
+            {
+                **VALID_ENVIRONMENT,
+                "UAV_SIM_VEHICLE_COUNT": "4",
+                "UAV_SIM_CAMERA_VEHICLE_ID": "uav-1",
+                "UAV_SIM_STREAM_HOST": "stream-mcp",
+                "UAV_SIM_STREAM_SOURCE_VEHICLE_ID": "uav-2",
+            },
+            clear=True,
+        ):
+            with self.assertRaisesRegex(ValueError, "must match"):
+                RuntimeConfig.from_environment()
 
     def test_camera_mount_rejects_a_non_unit_quaternion(self) -> None:
         environment = {
@@ -822,27 +860,25 @@ class PoseProducerTests(unittest.TestCase):
 
 
 class RealtimeClockTests(unittest.TestCase):
-    def test_physics_clock_catches_up_without_advancing_ahead_of_wall_time(self) -> None:
+    def test_physics_clock_never_batches_missed_actuator_intervals(self) -> None:
         now = [100.0]
         clock = RealtimePhysicsClock(60, clock=lambda: now[0])
 
         self.assertEqual(clock.due_steps(0), 0)
         now[0] += 0.09
-        self.assertEqual(clock.due_steps(0), 5)
-        self.assertEqual(clock.due_steps(5), 0)
-        self.assertGreater(clock.seconds_until_next_step(5), 0.0)
+        self.assertEqual(clock.due_steps(0), 1)
+        self.assertEqual(clock.due_steps(1), 0)
+        self.assertGreater(clock.seconds_until_next_step(1), 0.0)
 
-    def test_physics_clock_rebases_after_a_bounded_startup_stall(self) -> None:
+    def test_physics_clock_discards_wall_lag_instead_of_replaying_it(self) -> None:
         now = [10.0]
-        clock = RealtimePhysicsClock(
-            60, maximum_catchup_seconds=0.5, clock=lambda: now[0]
-        )
+        clock = RealtimePhysicsClock(60, clock=lambda: now[0])
         now[0] += 2.0
 
-        self.assertEqual(clock.due_steps(0), 30)
+        self.assertEqual(clock.due_steps(0), 1)
         status = clock.status()
         self.assertEqual(status.rebases, 1)
-        self.assertAlmostEqual(status.discarded_wall_seconds, 1.5)
+        self.assertAlmostEqual(status.discarded_wall_seconds, 119 / 60)
 
     def test_render_deadline_skips_missed_periods(self) -> None:
         now = [20.0]
@@ -852,6 +888,36 @@ class RealtimeClockTests(unittest.TestCase):
         now[0] += 1.6
         self.assertTrue(deadline.due())
         self.assertGreater(deadline.seconds_until_due(), 0.0)
+
+
+class Px4IrisVehicleModelTests(unittest.TestCase):
+    def test_yaw_coefficient_matches_pinned_px4_iris_contract(self) -> None:
+        self.assertEqual(PX4_IRIS_MOTOR_CONSTANT, 5.84e-6)
+        self.assertEqual(PX4_IRIS_MOMENT_CONSTANT, 0.06)
+        self.assertAlmostEqual(
+            PX4_IRIS_YAW_MOMENT_COEFFICIENT,
+            PX4_IRIS_MOTOR_CONSTANT * PX4_IRIS_MOMENT_CONSTANT,
+        )
+
+    def test_motor_response_uses_bounded_asymmetric_first_order_dynamics(self) -> None:
+        model = Px4IrisThrustCurve()
+        model.set_input_reference([1100.0] * 4)
+        force, rising_velocity, moment = model.update(None, 1.0 / 60.0)
+        self.assertTrue(all(0.0 < value < 1100.0 for value in rising_velocity))
+        self.assertTrue(all(value > 0.0 for value in force))
+        self.assertAlmostEqual(moment, 0.0)
+
+        model.set_input_reference([0.0] * 4)
+        _, falling_velocity, _ = model.update(None, 1.0 / 60.0)
+        self.assertTrue(
+            all(0.0 < after < before for after, before in zip(falling_velocity, rising_velocity))
+        )
+
+    def test_motor_model_preserves_px4_rotor_yaw_directions(self) -> None:
+        model = Px4IrisThrustCurve()
+        model.set_input_reference([900.0, 900.0, 300.0, 300.0])
+        _, _, moment = model.update(None, 1.0)
+        self.assertLess(moment, 0.0)
 
 
 class _FakePosePublisher:
