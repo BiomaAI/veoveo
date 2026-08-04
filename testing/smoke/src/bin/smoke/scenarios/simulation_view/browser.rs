@@ -17,7 +17,8 @@ use url::Url;
 
 use super::*;
 use recording_acceptance::{
-    ElementBounds, RecordingPlaybackNetworkEvidence, RerunRenderEvidence, analyze_rerun_render,
+    ElementBounds, RecordingPlaybackMode, RecordingPlaybackNetworkEvidence, RerunRenderEvidence,
+    analyze_rerun_render,
 };
 
 #[path = "browser/recording_acceptance.rs"]
@@ -534,10 +535,13 @@ async fn capture_console_recording_inner(
             capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
         let render = analyze_rerun_render(screenshot_path, viewer_bounds)?;
         render.validate()?;
-        let network = cdp.recording_playback_network_evidence(recording_id)?;
+        let network = cdp.recording_playback_network_evidence(
+            recording_id,
+            RecordingPlaybackMode::Live,
+        )?;
         cdp.assert_no_software_renderer_events()?;
         Ok(ConsoleRecordingCaptureEvidence {
-            schema: "veoveo.io/uav-console-recording-capture/v2",
+            schema: "veoveo.io/uav-console-recording-capture/v3",
             captured_at: chrono::Utc::now(),
             page_url: page_url.to_owned(),
             recording_id: recording_id.to_owned(),

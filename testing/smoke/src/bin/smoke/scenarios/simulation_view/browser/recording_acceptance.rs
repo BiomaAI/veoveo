@@ -14,6 +14,7 @@ use super::Cdp;
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct RecordingPlaybackNetworkEvidence {
+    playback_mode: RecordingPlaybackMode,
     manifest_responses: usize,
     redap_responses: usize,
     live_responses: usize,
@@ -25,6 +26,36 @@ pub(super) struct RecordingPlaybackNetworkEvidence {
     failures: Vec<PlaybackRequestIssue>,
     redap_paths: Vec<String>,
     successful_redap_paths: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum RecordingPlaybackMode {
+    Live,
+    Archive,
+}
+
+impl RecordingPlaybackNetworkEvidence {
+    fn validate(&self) -> Result<()> {
+        let transport_is_exclusive = match self.playback_mode {
+            RecordingPlaybackMode::Live => self.live_responses > 0 && self.redap_responses == 0,
+            RecordingPlaybackMode::Archive => {
+                self.live_responses == 0
+                    && self.redap_responses > 0
+                    && required_redap_paths_succeeded(&self.successful_redap_paths)
+            }
+        };
+        ensure!(
+            self.manifest_responses > 0
+                && self.blueprint_responses > 0
+                && self.legacy_archive_requests == 0
+                && self.failed_playback_requests == 0
+                && transport_is_exclusive,
+            "Console did not complete exclusive governed {:?} Rerun playback: {self:?}",
+            self.playback_mode
+        );
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -180,6 +211,7 @@ impl Cdp {
     pub(super) fn recording_playback_network_evidence(
         &self,
         recording_id: &str,
+        playback_mode: RecordingPlaybackMode,
     ) -> Result<RecordingPlaybackNetworkEvidence> {
         let recording_prefix = format!("/console/api/recordings/{recording_id}/");
         let mut requests = BTreeMap::<String, PlaybackRequest>::new();
@@ -287,6 +319,7 @@ impl Cdp {
         let (cancellations, failures) =
             classify_playback_issues(issues.into_values(), &successful_paths);
         let evidence = RecordingPlaybackNetworkEvidence {
+            playback_mode,
             manifest_responses,
             redap_responses,
             live_responses,
@@ -299,15 +332,7 @@ impl Cdp {
             redap_paths: redap_paths.into_iter().collect(),
             successful_redap_paths: successful_redap_paths.into_iter().collect(),
         };
-        ensure!(
-            evidence.manifest_responses > 0
-                && evidence.redap_responses > 0
-                && evidence.legacy_archive_requests == 0
-                && evidence.failed_playback_requests == 0
-                && required_redap_paths_succeeded(&evidence.successful_redap_paths),
-            "Console did not complete scoped lazy Redap playback without legacy archive traffic: \
-             {evidence:?}"
-        );
+        evidence.validate()?;
         Ok(evidence)
     }
 }
@@ -513,6 +538,31 @@ mod tests {
         .map(|method| format!("/rerun.cloud.v1alpha1.RerunCloudService/{method}"));
         assert!(required_redap_paths_succeeded(&paths));
         assert!(!required_redap_paths_succeeded(&paths[..4]));
+    }
+
+    #[test]
+    fn live_playback_requires_only_the_live_receiver() {
+        let evidence = RecordingPlaybackNetworkEvidence {
+            playback_mode: RecordingPlaybackMode::Live,
+            manifest_responses: 1,
+            redap_responses: 0,
+            live_responses: 1,
+            blueprint_responses: 1,
+            legacy_archive_requests: 0,
+            canceled_playback_requests: 0,
+            cancellations: Vec::new(),
+            failed_playback_requests: 0,
+            failures: Vec::new(),
+            redap_paths: Vec::new(),
+            successful_redap_paths: Vec::new(),
+        };
+        evidence.validate().unwrap();
+
+        let mixed = RecordingPlaybackNetworkEvidence {
+            redap_responses: 1,
+            ..evidence
+        };
+        assert!(mixed.validate().is_err());
     }
 
     #[test]
