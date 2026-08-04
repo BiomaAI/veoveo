@@ -18,6 +18,7 @@ use crate::{
     process,
 };
 
+mod affected;
 mod buildkit;
 
 const PLAN_SCHEMA: &str = "veoveo.io/image-build-plan/v2";
@@ -397,6 +398,14 @@ pub(crate) fn plan_command(
         }
     }
     Ok(())
+}
+
+pub(crate) fn affected_command(
+    repository: &RepositoryContext,
+    since: &str,
+    format: PlanFormat,
+) -> Result<()> {
+    affected::command(repository, since, format)
 }
 
 pub(crate) fn build_command(
