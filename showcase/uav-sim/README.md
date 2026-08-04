@@ -89,9 +89,10 @@ disabled because the governed recording is the declared always-on evidence path.
 The designated leader nadir camera is a simulation sensor and governed recording
 input. Followers carry no RTX camera or recorded video stream. The fleet still
 publishes every vehicle's physics, pose, mission, and telemetry state. The sensor is
-not an operator view. The runtime fails closed when NVIDIA rendering,
-required extensions, tiles, PX4, recording, or visible sensor content is
-unavailable.
+not an operator view. Camera and streamed-world health are observational. Missing
+tiles or black sensor frames produce typed diagnostics and may recover, but they do
+not stop physics, control, pose publication, or telemetry. Startup still requires
+the assigned NVIDIA GPU and the pinned Isaac and Cesium extensions.
 
 The sensor encoder fails closed on PyAV's NVIDIA `h264_nvenc` implementation.
 One Annex B packet stream feeds live Stream publication and Rerun recording

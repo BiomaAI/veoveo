@@ -137,7 +137,9 @@ class H264CameraStream:
             static=True,
         )
 
-    def encode(self, rgb: np.ndarray, simulation_time_s: float, physics_step: int) -> None:
+    def encode(
+        self, rgb: np.ndarray, simulation_time_s: float, physics_step: int
+    ) -> None:
         frame = av.VideoFrame.from_ndarray(normalize_rgb_frame(rgb), format="rgb24")
         for packet in self._stream.encode(frame):
             sample = bytes(packet)
@@ -160,13 +162,14 @@ class H264CameraStream:
     def close(self, simulation_time_s: float, physics_step: int) -> None:
         for packet in self._stream.encode(None):
             sample = bytes(packet)
-            if self._stream_output is not None:
-                self._stream_output.publish(sample, simulation_time_s)
             self._set_time(simulation_time_s, physics_step)
             self._recording.log(
                 self._entity_path,
                 _video_packet(sample, is_keyframe=packet.is_keyframe),
             )
+        # Encoder drain packets belong to the durable recording at the final
+        # simulation timestamp. They are not a new live frame and must not be
+        # assigned a duplicate RTP timestamp.
         self._container.close()
         if self._stream_output is not None:
             self._stream_output.close()
@@ -320,7 +323,9 @@ class RecordingPublisher:
                     sink.handle(event)
             except Exception as error:
                 message = _bounded_diagnostic(error)
-                LOGGER.exception("governed recording worker failed; simulation continues")
+                LOGGER.exception(
+                    "governed recording worker failed; simulation continues"
+                )
                 self._set_status("degraded", message)
                 if sink is not None:
                     sink.abort()
@@ -366,9 +371,7 @@ class _RecordingSink:
             ),
             static=True,
         )
-        camera_entity = (
-            f"{self._root}/vehicle/{config.camera.vehicle_id}/camera/down"
-        )
+        camera_entity = f"{self._root}/vehicle/{config.camera.vehicle_id}/camera/down"
         stream_output = (
             RtpH264Publisher(config.stream_publication)
             if config.stream_publication is not None
@@ -395,9 +398,7 @@ class _RecordingSink:
         if isinstance(event, _FrameEvent):
             self._log_frame(event)
         elif isinstance(event, _CameraEvent):
-            self._camera.encode(
-                event.rgb, event.simulation_time_s, event.physics_step
-            )
+            self._camera.encode(event.rgb, event.simulation_time_s, event.physics_step)
         elif isinstance(event, _CameraQualityEvent):
             self._log_camera_quality(event)
         elif isinstance(event, _TilesEvent):
@@ -433,7 +434,8 @@ class _RecordingSink:
         velocities = [vehicle.linear_velocity_enu_mps for vehicle in event.vehicles]
         labels = [vehicle.vehicle_id for vehicle in event.vehicles]
         colors = [
-            [0, 170, 255] if vehicle.vehicle_id == self._config.camera.vehicle_id
+            [0, 170, 255]
+            if vehicle.vehicle_id == self._config.camera.vehicle_id
             else [255, 190, 0]
             for vehicle in event.vehicles
         ]

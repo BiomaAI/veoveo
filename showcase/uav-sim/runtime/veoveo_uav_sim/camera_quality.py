@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 
@@ -19,6 +20,38 @@ class CameraFrameQuality:
     visible: bool
 
 
+type CameraLifecycle = Literal["warming", "ready", "degraded"]
+
+
+@dataclass(frozen=True, slots=True)
+class CameraHealth:
+    lifecycle: CameraLifecycle
+    diagnostic: str | None
+
+
+def assess_camera_health(
+    quality: CameraFrameQuality,
+    *,
+    operational_streak: int,
+    black_streak_after_tiles: int,
+    was_ready: bool,
+    prolonged_black_threshold: int,
+) -> CameraHealth:
+    """Classify sensor health without making it simulation authority."""
+    if prolonged_black_threshold < 1:
+        raise ValueError("prolonged black threshold must be positive")
+    if operational_streak >= 3:
+        return CameraHealth("ready", None)
+    if black_streak_after_tiles >= prolonged_black_threshold:
+        return CameraHealth(
+            "degraded",
+            "camera remained black after streamed-world content became ready",
+        )
+    lifecycle: CameraLifecycle = "degraded" if was_ready else "warming"
+    diagnostic = "camera RGB frame is black" if not quality.operational else None
+    return CameraHealth(lifecycle, diagnostic)
+
+
 def normalize_rgb_frame(pixels: np.ndarray) -> np.ndarray:
     """Return the camera frame as contiguous RGB8 bytes."""
     if pixels.ndim != 3 or pixels.shape[2] < 3:
@@ -30,7 +63,9 @@ def normalize_rgb_frame(pixels: np.ndarray) -> np.ndarray:
         finite = np.nan_to_num(rgb, nan=0.0, posinf=1.0, neginf=0.0)
         if finite.size and float(finite.max()) <= 1.0:
             finite = finite * 255.0
-        return np.ascontiguousarray(np.clip(finite, 0.0, 255.0).round().astype(np.uint8))
+        return np.ascontiguousarray(
+            np.clip(finite, 0.0, 255.0).round().astype(np.uint8)
+        )
     return np.ascontiguousarray(np.clip(rgb, 0, 255).astype(np.uint8))
 
 
@@ -46,9 +81,7 @@ def measure_camera_frame(rgb: np.ndarray) -> CameraFrameQuality:
         + normalized[..., 2].astype(np.float32) * 0.0722
     )
     mean_luma = float(luma.mean()) if luma.size else 0.0
-    dynamic_range = (
-        int(round(float(luma.max() - luma.min()))) if luma.size else 0
-    )
+    dynamic_range = int(round(float(luma.max() - luma.min()))) if luma.size else 0
     non_black_fraction = (
         float(np.count_nonzero(np.any(normalized > MIN_DYNAMIC_RANGE, axis=2)))
         / float(normalized.shape[0] * normalized.shape[1])
@@ -56,8 +89,7 @@ def measure_camera_frame(rgb: np.ndarray) -> CameraFrameQuality:
         else 0.0
     )
     operational = (
-        mean_luma >= MIN_MEAN_LUMA
-        and non_black_fraction >= MIN_NON_BLACK_FRACTION
+        mean_luma >= MIN_MEAN_LUMA and non_black_fraction >= MIN_NON_BLACK_FRACTION
     )
     visible = operational and dynamic_range >= MIN_DYNAMIC_RANGE
     return CameraFrameQuality(
@@ -69,8 +101,6 @@ def measure_camera_frame(rgb: np.ndarray) -> CameraFrameQuality:
     )
 
 
-def should_record_camera_frame(
-    quality: CameraFrameQuality, tiles_ready: bool
-) -> bool:
+def should_record_camera_frame(quality: CameraFrameQuality, tiles_ready: bool) -> bool:
     """Keep the encoded camera timeline continuous once its world is ready."""
     return tiles_ready or quality.visible
