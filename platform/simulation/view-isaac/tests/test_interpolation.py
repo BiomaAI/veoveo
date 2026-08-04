@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import math
 import unittest
-from unittest.mock import patch
 
 from veoveo_simulation_view.contracts import InterpolationPolicy
 from veoveo_simulation_view.interpolation import (
@@ -12,9 +11,9 @@ from veoveo_simulation_view.interpolation import (
 )
 from veoveo_simulation_view.pose import (
     EntityPose,
-    PoseMirror,
     PosePollResult,
     PoseSampleKind,
+    PoseSampleQueue,
     PoseSnapshot,
 )
 
@@ -226,48 +225,53 @@ class PoseInterpolatorTest(unittest.TestCase):
         )
 
     def test_pose_mirror_reports_repeated_and_out_of_order_samples(self) -> None:
-        class Reader:
-            def __init__(self) -> None:
-                self.generation = 2
-
-            def latest(self) -> tuple[int, bytes]:
-                self.generation += 1
-                return self.generation, b"encoded"
-
         first = snapshot(5, 250_000_000, (0.0, 0.0, 0.0))
-        mirror = PoseMirror.__new__(PoseMirror)
-        mirror._binding = object()
-        mirror._reader = Reader()
-        mirror._generation = 2
-        mirror._latest = first
-        mirror._accepted_at = 0.0
+        samples = PoseSampleQueue(8)
+        samples.observe(first, 1.0)
+        samples.observe(snapshot(5, 250_000_000, (1.0, 0.0, 0.0)), 2.0)
+        samples.observe(snapshot(4, 300_000_000, (1.0, 0.0, 0.0)), 3.0)
+        samples.observe(snapshot(6, 200_000_000, (1.0, 0.0, 0.0)), 4.0)
 
-        with patch(
-            "veoveo_simulation_view.pose.decode_snapshot",
-            return_value=snapshot(5, 250_000_000, (1.0, 0.0, 0.0)),
-        ):
-            repeated = mirror.poll()
-        with patch(
-            "veoveo_simulation_view.pose.decode_snapshot",
-            return_value=snapshot(4, 300_000_000, (1.0, 0.0, 0.0)),
-        ):
-            reversed_sequence = mirror.poll()
-        with patch(
-            "veoveo_simulation_view.pose.decode_snapshot",
-            return_value=snapshot(6, 200_000_000, (1.0, 0.0, 0.0)),
-        ):
-            reversed_time = mirror.poll()
+        accepted_first = samples.poll()
+        repeated = samples.poll()
+        reversed_sequence = samples.poll()
+        reversed_time = samples.poll()
 
+        assert accepted_first is not None
         assert repeated is not None
         assert reversed_sequence is not None
         assert reversed_time is not None
+        self.assertEqual(accepted_first.kind, PoseSampleKind.ACCEPTED)
         self.assertEqual(repeated.kind, PoseSampleKind.REPEATED)
         self.assertEqual(reversed_sequence.kind, PoseSampleKind.SEQUENCE_REVERSED)
         self.assertEqual(
             reversed_time.kind,
             PoseSampleKind.TIMESTAMP_NOT_INCREASING,
         )
-        self.assertIs(mirror.latest, first)
+        self.assertIs(samples.latest, first)
+
+    def test_pose_queue_preserves_source_pairs_while_rendering_is_slower(
+        self,
+    ) -> None:
+        samples = PoseSampleQueue(16)
+        for sequence in range(1, 7):
+            samples.observe(
+                snapshot(
+                    sequence,
+                    (sequence - 1) * 50_000_000,
+                    (float(sequence - 1), 0.0, 0.0),
+                ),
+                sequence * 0.05,
+            )
+
+        while result := samples.poll():
+            self.timeline.observe(result)
+
+        diagnostics = self.timeline.diagnostics()
+        self.assertEqual(diagnostics.previous_source_sequence, 5)
+        self.assertEqual(diagnostics.current_source_sequence, 6)
+        self.assertEqual(diagnostics.skipped_source_sample_count, 0)
+        self.assertEqual(diagnostics.discontinuity_reset_count, 0)
 
 
 if __name__ == "__main__":

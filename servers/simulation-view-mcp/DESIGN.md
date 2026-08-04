@@ -161,13 +161,17 @@ snapshot immediately. Renderer disconnection cannot block the producer.
 
 The scene quality policy selects `hold_latest` or `linear`. The renderer
 validates that selection before scene admission. Hold-latest applies the newest
-authorized source pose exactly. Linear rendering retains a bounded source
-bracket and delays its render clock by one observed source interval. Position
-uses component-wise linear interpolation, while orientation uses normalized
-shortest-arc quaternion SLERP. One rendered pose frame drives every entity
-transform and camera rig during a render tick. The clock never advances beyond
-the newest source timestamp because the pose protocol declares no velocity or
-extrapolation contract.
+authorized source pose exactly. A dedicated mirror reader samples the
+latest-value transport at twice its admitted maximum cadence and transfers
+every observed sample through a stale-window-sized bounded queue. The render
+thread drains that queue before selecting a frame, so a slower RTX tick does
+not collapse consecutive source pairs. Linear rendering retains the resulting
+source bracket and delays its render clock by one observed source interval.
+Position uses component-wise linear interpolation, while orientation uses
+normalized shortest-arc quaternion SLERP. One rendered pose frame drives every
+entity transform and camera rig during a render tick. The clock never advances
+beyond the newest source timestamp because the pose protocol declares no
+velocity or extrapolation contract.
 
 Session, epoch, source, authorization revision, entity-table identity,
 sequence, timestamp, stale, and revocation discontinuities clear the temporal

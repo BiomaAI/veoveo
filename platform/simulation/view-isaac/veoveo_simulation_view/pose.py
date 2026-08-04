@@ -4,7 +4,9 @@ import hashlib
 import math
 import mmap
 import struct
+import threading
 import time
+from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -15,6 +17,9 @@ POSE_MAGIC = b"VVPOSE01"
 SHARED_MAGIC = b"VVPSHM01"
 POSE_HEADER_BYTES = 116
 SHARED_HEADER_BYTES = 64
+MAXIMUM_PENDING_SAMPLES = 4096
+MINIMUM_POLL_INTERVAL_SECONDS = 0.001
+MAXIMUM_POLL_INTERVAL_SECONDS = 0.05
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +56,77 @@ class PosePollResult:
     kind: PoseSampleKind
     snapshot: PoseSnapshot | None = None
     skipped_samples: int = 0
+
+
+class PoseSampleQueue:
+    """Bounded, ordered handoff from pose ingress to the render thread."""
+
+    def __init__(self, capacity: int) -> None:
+        if capacity < 2 or capacity > MAXIMUM_PENDING_SAMPLES:
+            raise ContractError("pose sample queue capacity is invalid")
+        self._capacity = capacity
+        self._lock = threading.Lock()
+        self._pending: deque[PosePollResult] = deque()
+        self._latest: PoseSnapshot | None = None
+        self._last_delivered: PoseSnapshot | None = None
+        self._accepted_at = 0.0
+
+    @property
+    def latest(self) -> PoseSnapshot | None:
+        with self._lock:
+            return self._latest
+
+    @property
+    def accepted_at(self) -> float:
+        with self._lock:
+            return self._accepted_at
+
+    def observe(self, snapshot: PoseSnapshot, accepted_at: float) -> None:
+        with self._lock:
+            latest = self._latest
+            if latest is not None and snapshot.sequence <= latest.sequence:
+                result = PosePollResult(
+                    kind=(
+                        PoseSampleKind.REPEATED
+                        if snapshot.sequence == latest.sequence
+                        else PoseSampleKind.SEQUENCE_REVERSED
+                    )
+                )
+            elif (
+                latest is not None
+                and snapshot.simulation_timestamp_ns <= latest.simulation_timestamp_ns
+            ):
+                result = PosePollResult(kind=PoseSampleKind.TIMESTAMP_NOT_INCREASING)
+            else:
+                self._latest = snapshot
+                self._accepted_at = accepted_at
+                result = PosePollResult(
+                    kind=PoseSampleKind.ACCEPTED,
+                    snapshot=snapshot,
+                )
+            if len(self._pending) == self._capacity:
+                self._pending.popleft()
+            self._pending.append(result)
+
+    def poll(self) -> PosePollResult | None:
+        with self._lock:
+            if not self._pending:
+                return None
+            result = self._pending.popleft()
+            snapshot = result.snapshot
+            if result.kind != PoseSampleKind.ACCEPTED or snapshot is None:
+                return result
+            previous = self._last_delivered
+            self._last_delivered = snapshot
+            return PosePollResult(
+                kind=result.kind,
+                snapshot=snapshot,
+                skipped_samples=(
+                    0
+                    if previous is None
+                    else max(0, snapshot.sequence - previous.sequence - 1)
+                ),
+            )
 
 
 class SharedPoseReader:
@@ -112,20 +188,25 @@ class PoseMirror:
         self._binding: PoseSourceBinding | None = None
         self._reader: SharedPoseReader | None = None
         self._generation = 0
-        self._latest: PoseSnapshot | None = None
-        self._accepted_at = 0.0
+        self._samples = PoseSampleQueue(2)
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._failure: Exception | None = None
+        self._failure_lock = threading.Lock()
 
     @property
     def latest(self) -> PoseSnapshot | None:
-        return self._latest
+        return self._samples.latest
 
     @property
     def stale(self) -> bool:
         binding = self._binding
+        latest = self._samples.latest
         return (
             binding is None
-            or self._latest is None
-            or (time.monotonic() - self._accepted_at) * 1000.0 > binding.stale_after_ms
+            or latest is None
+            or (time.monotonic() - self._samples.accepted_at) * 1000.0
+            > binding.stale_after_ms
         )
 
     def bind(self, binding: PoseSourceBinding) -> None:
@@ -133,6 +214,17 @@ class PoseMirror:
         path = self._directory / f"{binding.session_id}.pose"
         self._reader = SharedPoseReader(path, binding.maximum_message_bytes)
         self._binding = binding
+        self._samples = PoseSampleQueue(_sample_capacity(binding))
+        self._stop = threading.Event()
+        with self._failure_lock:
+            self._failure = None
+        self._thread = threading.Thread(
+            target=self._read_loop,
+            args=(binding,),
+            name=f"pose-mirror-{binding.session_id}",
+            daemon=True,
+        )
+        self._thread.start()
 
     def renew(self, binding: PoseSourceBinding) -> None:
         current = self._binding
@@ -148,47 +240,59 @@ class PoseMirror:
         self.close()
 
     def poll(self) -> PosePollResult | None:
-        if self._reader is None or self._binding is None:
-            return None
-        value = self._reader.latest()
-        if value is None or value[0] <= self._generation:
-            return None
-        snapshot = decode_snapshot(value[1], self._binding)
-        latest = self._latest
-        if latest is not None and snapshot.sequence <= latest.sequence:
-            self._generation = value[0]
-            return PosePollResult(
-                kind=(
-                    PoseSampleKind.REPEATED
-                    if snapshot.sequence == latest.sequence
-                    else PoseSampleKind.SEQUENCE_REVERSED
-                )
-            )
-        if (
-            latest is not None
-            and snapshot.simulation_timestamp_ns <= latest.simulation_timestamp_ns
-        ):
-            self._generation = value[0]
-            return PosePollResult(kind=PoseSampleKind.TIMESTAMP_NOT_INCREASING)
-        self._generation = value[0]
-        self._latest = snapshot
-        self._accepted_at = time.monotonic()
-        return PosePollResult(
-            kind=PoseSampleKind.ACCEPTED,
-            snapshot=snapshot,
-            skipped_samples=(
-                0 if latest is None else snapshot.sequence - latest.sequence - 1
-            ),
-        )
+        with self._failure_lock:
+            failure = self._failure
+        if failure is not None:
+            raise ContractError(f"pose mirror reader failed: {failure}") from failure
+        return self._samples.poll()
 
     def close(self) -> None:
+        self._stop.set()
+        thread = self._thread
+        if thread is not None:
+            thread.join(timeout=1.0)
+            if thread.is_alive():
+                raise ContractError("pose mirror reader did not stop")
         if self._reader is not None:
             self._reader.close()
         self._binding = None
         self._reader = None
         self._generation = 0
-        self._latest = None
-        self._accepted_at = 0.0
+        self._samples = PoseSampleQueue(2)
+        self._thread = None
+        with self._failure_lock:
+            self._failure = None
+
+    def _read_loop(self, binding: PoseSourceBinding) -> None:
+        reader = self._reader
+        assert reader is not None
+        interval = _poll_interval_seconds(binding.maximum_cadence_hz)
+        try:
+            while not self._stop.is_set():
+                value = reader.latest()
+                if value is not None and value[0] > self._generation:
+                    snapshot = decode_snapshot(value[1], binding)
+                    self._generation = value[0]
+                    self._samples.observe(snapshot, time.monotonic())
+                self._stop.wait(interval)
+        except (ContractError, OSError, ValueError) as error:
+            with self._failure_lock:
+                self._failure = error
+            self._stop.set()
+
+
+def _sample_capacity(binding: PoseSourceBinding) -> int:
+    stale_window = math.ceil(
+        binding.maximum_cadence_hz * binding.stale_after_ms / 1000.0
+    )
+    return max(2, min(MAXIMUM_PENDING_SAMPLES, stale_window + 2))
+
+
+def _poll_interval_seconds(maximum_cadence_hz: int) -> float:
+    return max(
+        MINIMUM_POLL_INTERVAL_SECONDS,
+        min(MAXIMUM_POLL_INTERVAL_SECONDS, 0.5 / maximum_cadence_hz),
+    )
 
 
 def _same_pose_data(left: PoseSourceBinding, right: PoseSourceBinding) -> bool:
