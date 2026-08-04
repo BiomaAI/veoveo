@@ -62,10 +62,12 @@ published and its server contract is registered in the gateway control plane.
 
 Production workloads use the repository and digest map in images.lock.yaml. The
 platform and UAV Applications select immutable chart versions independently. The
-platform and UAV Applications currently select chart `0.1.0-171ed16f8b99`. Their
-images were published from commit `171ed16f8b992625be86e3dfbf8c996be8e59f36`.
-Each selected digest is the workload's release identity. A release-input commit
-advances the coordinated runtime closure.
+platform and UAV Applications currently select chart `0.1.0-171ed16f8b99`. The
+coordinated image closure was published from commit
+`171ed16f8b992625be86e3dfbf8c996be8e59f36`; the Gateway image includes the schema
+correction published from `b84bd89a62721440ee41f542e154e9ade3720e6e`. Each
+selected digest is the workload's release identity. A release-input commit advances
+the coordinated runtime closure.
 
 Publish a new local release directly to the shared registry:
 
