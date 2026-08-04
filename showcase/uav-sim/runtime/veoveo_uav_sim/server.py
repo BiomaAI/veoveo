@@ -21,7 +21,7 @@ from .fleet_loop import FleetLoopController
 from .pose import initial_pose_publication
 from .px4 import Px4Commander
 from .recording import RecordingPublisher
-from .state import RuntimeState
+from .state import RuntimeState, initial_runtime_timing
 from .world_config import (
     WorldConfiguration,
     WorldConfigurationError,
@@ -90,6 +90,7 @@ class PreconfigurationApplication:
                 "lifecycle": "starting" if world is not None else "unconfigured",
                 "simulation_time_s": 0.0,
                 "physics_step": 0,
+                "timing": initial_runtime_timing(self._config),
                 "world": world.as_dict() if world is not None else None,
                 "tiles": {
                     "lifecycle": "connecting",
@@ -103,7 +104,7 @@ class PreconfigurationApplication:
                 "pose_publication": initial_pose_publication(
                     self._config.pose_publication,
                     self._config.vehicle_count,
-                    self._config.rendering_hz,
+                    self._config.pose_cadence_hz,
                 ),
                 "vehicles": [],
                 "recordings": [],
