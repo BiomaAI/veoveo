@@ -701,14 +701,22 @@ pub(crate) async fn helm_config() -> Result<()> {
                 "readinessProbe:\n            httpGet:\n              path: /simulation-view/readyz",
             )?;
             for expected in [
-                "--reconcile-interval-seconds",
+                "--reconcile-retry-delay-seconds",
                 "--authorization-renewal-lead-seconds",
-                "--reconcile-retry-max-seconds",
                 "name: VEOVEO_SURREAL_ENDPOINT",
                 "name: VEOVEO_SURREAL_USERNAME",
                 "name: VEOVEO_SURREAL_PASSWORD",
             ] {
                 contains(deployment, expected)?;
+            }
+            for obsolete_polling_argument in [
+                "--reconcile-interval-seconds",
+                "--reconcile-retry-max-seconds",
+            ] {
+                ensure!(
+                    !deployment.contains(obsolete_polling_argument),
+                    "event-driven Simulation View reconciliation must not render obsolete polling argument {obsolete_polling_argument}"
+                );
             }
         }
         if component == "simulation-view-renderer" {
