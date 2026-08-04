@@ -4,12 +4,12 @@
 
 | Boundary | Measurement profile |
 |---|---|
-| `veoveo.io/image-build-plan/v1` | resolved targets, Cargo units, builder family, and cache identity |
-| `veoveo.io/image-build-run/v1` | operation, source state, elapsed time, result, and metadata reference |
+| `veoveo.io/image-build-plan/v2` | resolved targets, Cargo units, builder family, cache identity, and source epoch |
+| `veoveo.io/image-build-run/v2` | operation, elapsed time, result, raw BuildKit events, and phase timings |
 | Docker Buildx 0.35.0 | Bake client and local Docker exporter |
 | Docker BuildKit 0.31.2 | digest-pinned OCI worker with checked-in garbage-collection policy |
 | OCI image manifest digest | artifact-identity comparison |
-| `SOURCE_DATE_EPOCH=0` | reproducible output timestamp input |
+| Git commit timestamp | reproducible output timestamp input that preserves older inherited layers |
 
 ## Result
 
@@ -22,6 +22,30 @@ digests as the cold build. A source-only gateway edit compiled only
 The measurements are local engineering evidence, not a shared-runner service-level
 objective. The graph invariants and digest comparisons are the durable acceptance
 conditions.
+
+The current development path separates runtime staging from release qualification.
+One warm `chart-mcp` stage completed in 8.846 seconds. A subsequent qualified build
+completed in 9.376 seconds and retained the same runnable digest. In both runs,
+timestamp-normalized export accounted for about 6.8 seconds; compilation was fully
+cached. The v2 evidence preserves the raw BuildKit event stream behind those totals.
+
+## Clean Reproducibility Experiment
+
+Two independent BuildKit 0.31.2 daemons built the same clean source archive from
+separate directories with deliberately different checkout modification times. Both
+used the source commit timestamp `1785884846`, timestamp rewriting, and the same
+`linux/amd64` target. The exported OCI archives had the identical SHA-256 digest:
+
+```text
+793edd1cf7b4f0712e91cfe15ae0d93bbc8faad222c4c04e0052bca4064dc1fd
+```
+
+Both exports selected runtime manifest
+`sha256:0a560a48b44275da4ddd08ad4c2c59d4ef4c4c2f9dcce109ec16dc13f1bb4e0a`.
+This proves reproducibility without rewriting inherited base layers. An earlier
+experiment with an epoch older than checkout files correctly failed identity equality,
+because BuildKit clamps only timestamps newer than the epoch. The planner now derives
+the epoch from the selected commit and rejects zero.
 
 ## Measurement Environment
 

@@ -9,8 +9,11 @@
 | Dockerfile frontend 1.25.0 | digest-pinned Dockerfile parser for touched Rust images |
 | Docker Buildx Bake | checked-in image catalog and named-context graph |
 | OCI images | `linux/amd64` release output with immutable Git revision tags |
-| `veoveo.io/image-build-plan/v1` | repository-owned resolved build-plan evidence |
-| `veoveo.io/image-build-run/v1` | repository-owned immutable execution record |
+| `veoveo.io/image-build-plan/v2` | repository-owned resolved build-plan evidence with the source commit timestamp |
+| `veoveo.io/image-build-run/v2` | repository-owned immutable execution record with BuildKit phase timings |
+| `veoveo.io/image-affected-plan/v1` | changed-path to image-consumer closure |
+| `veoveo.io/image-stage-evidence/v1` | non-release runnable identity from a staged registry publication |
+| `veoveo.io/development-image-lock/v1` | complete development-only image closure derived from a qualified lock |
 | Cargo metadata version 1 | package and production-binary discovery |
 
 ## Build-System Boundary
@@ -57,9 +60,16 @@ cargo xtask image builder ensure
 
 cargo xtask image plan --target mcp-gateway
 cargo xtask image plan --group platform-full --format json
+cargo xtask image affected --since origin/main --format json
 
 cargo xtask image build --target mcp-gateway
 cargo xtask image build --group showcase-sumo
+
+cargo xtask image stage \
+  --target mcp-gateway \
+  --registry registry.example.com \
+  --revision "$(git rev-parse HEAD)" \
+  --evidence-output output/stage/mcp-gateway.json
 ```
 
 Local builds load selected images into Docker. Raw `docker buildx bake` remains useful
@@ -121,9 +131,42 @@ cargo xtask image certification-cache-prune \
   --confirm veoveo-simulation-certify-cache
 ```
 
-## Release Publication
+## Development Staging
 
-A direct release resolves one source commit. A profile release resolves the profile's
+Staging publishes the runnable image without SBOM or provenance attestations. It is the
+fast path for a development cluster and can never become release evidence. The evidence
+document records `releaseEligible: false`, the source revision, the staging index, and
+the exact runnable platform-manifest digest.
+
+`image affected` computes the consumer closure before staging. It includes committed
+changes since the selected baseline and current working-tree changes. Cargo reverse
+dependencies, Dockerfile `COPY` and `ADD` inputs, Bake named contexts, and target
+consumers participate in the result. The plan reports Helm, SDK, generated-contract,
+and lock-input changes separately. A graph-wide input broadens the result and records
+the reason.
+
+A development image lock starts from one validated qualified deployment lock. Each
+staged image replaces the matching source/target/repository tuple, while every
+unchanged image retains its qualified runnable digest. The command emits the typed lock
+and Helm-compatible values:
+
+```bash
+cargo xtask image development-lock \
+  --base-lock deploy/deployment.lock.json \
+  --stage-evidence output/stage/mcp-gateway.json \
+  --output output/development/image-lock.json \
+  --values-output output/development/images.values.json
+```
+
+The resulting values are an immutable GitOps input. They select
+`global.veoveoRegistry` and the complete `global.imageDigests` map, so a controller
+changes only workloads whose runnable digest changed. The development lock is
+intentionally not accepted as a release `DeploymentLock`; release rollout continues to
+require the attested qualified closure.
+
+## Release Qualification
+
+A direct qualification resolves one source commit. A profile release resolves the profile's
 installation-repository commit and every independently selected source commit. It holds
 each tool-owned publication worktree lock and the shared builder lease while planning
 and pushing the result. The profile path may be in another Git worktree.
@@ -137,6 +180,12 @@ cargo xtask release images \
   --group platform-full \
   --registry registry.example.com \
   --revision "$(git rev-parse HEAD)"
+
+cargo xtask release images \
+  --target mcp-gateway \
+  --registry registry.example.com \
+  --revision "$(git rev-parse HEAD)" \
+  --stage-evidence output/stage/mcp-gateway.json
 ```
 
 The persistent source lives under:
@@ -159,9 +208,11 @@ target/veoveo-xtask/evidence/<revision>/
     buildx-metadata.json
 ```
 
-`plan.json` records the resolved source, dirty state, targets, packages, binaries,
-families, cache identities, tags, and platform. `run.json` records the operation,
-output mode, start time, duration, exit status, and metadata filename. The Buildx file
+`plan.json` records the resolved source, dirty state, source commit timestamp, targets,
+packages, binaries, families, cache identities, tags, and platform. `run.json` records
+the operation, output mode, start time, duration, exit status, raw BuildKit trace, and
+phase windows for compilation, SBOM, provenance, timestamp normalization, export, and
+push. The Buildx file
 contains the exporter result and attested publication-index digests reported by
 BuildKit. A failed execution also retains its plan and terminal record. Publication
 inspects the immutable `repository@publicationDigest` coordinate through ordinary
@@ -170,14 +221,19 @@ private development registry at its configured address. Direct publication admit
 transport only for a loopback registry. Private production registries remain
 TLS-verified.
 
-Image execution sets `SOURCE_DATE_EPOCH=0`. Registry publication rewrites timestamps,
-which removes wall-clock creation time from the release image. A local build uses the
+Image execution sets `SOURCE_DATE_EPOCH` to the selected Git commit timestamp. BuildKit
+clamps newer filesystem metadata to that stable boundary without rewriting older
+inherited base layers. Registry publication rewrites output timestamps at export. A
+local build uses the
 Docker exporter and is a disposable developer artifact; its image identity is not
 release evidence. Cold and warm registry builds of one source state must produce the
 same runnable platform-manifest digest. Build cache remains an optimization and never
 supplies the source identity or release tag.
 
-Every registry release attaches BuildKit SBOM and maximum-mode provenance attestations.
+Every qualified registry release attaches BuildKit SBOM and maximum-mode provenance
+attestations. Qualification supplied with stage evidence must produce the same runnable
+digest; a mismatch fails before evidence is accepted. Staging never attaches these
+release attestations.
 Those attestations contain run identity and build timestamps, so their enclosing OCI
 index is publication evidence rather than a reproducible artifact identity. Each locked
 image records `digest` for the single runnable `linux/amd64` manifest consumed by Helm
