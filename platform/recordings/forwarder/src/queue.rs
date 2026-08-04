@@ -41,6 +41,18 @@ pub struct QueuedBlueprint {
     pub blueprint: RecordingBlueprint,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueueDiagnostics {
+    pub queued_bytes: u64,
+    pub maximum_bytes: u64,
+    pub stream_count: usize,
+    pub open_stream_count: usize,
+    pub pending_batch_count: u64,
+    pub pending_blueprint_count: u64,
+    pub finishing_stream_count: usize,
+}
+
 #[derive(Debug)]
 pub struct DurableQueue {
     root: PathBuf,
@@ -159,6 +171,37 @@ impl DurableQueue {
         }
         streams.sort_by(|left, right| left.key.cmp(&right.key));
         Ok(streams)
+    }
+
+    pub fn diagnostics(&self) -> Result<QueueDiagnostics> {
+        let streams = self.streams()?;
+        Ok(QueueDiagnostics {
+            queued_bytes: self.queued_bytes,
+            maximum_bytes: self.maximum_bytes,
+            stream_count: streams.len(),
+            open_stream_count: streams
+                .iter()
+                .filter(|stream| stream.remote_stream_id.is_some())
+                .count(),
+            pending_batch_count: streams.iter().fold(0_u64, |total, stream| {
+                total.saturating_add(
+                    stream
+                        .next_enqueue_sequence
+                        .saturating_sub(stream.next_upload_sequence),
+                )
+            }),
+            pending_blueprint_count: streams.iter().fold(0_u64, |total, stream| {
+                total.saturating_add(
+                    stream
+                        .next_enqueue_blueprint_revision
+                        .saturating_sub(stream.next_upload_blueprint_revision),
+                )
+            }),
+            finishing_stream_count: streams
+                .iter()
+                .filter(|stream| stream.finish_requested)
+                .count(),
+        })
     }
 
     pub fn next_batch(&self, stream: &QueueStream) -> Result<Option<QueuedBatch>> {
@@ -652,6 +695,35 @@ mod tests {
         assert!(queue.enqueue("camera", "run-a", &batch()).is_err());
         queue.acknowledge(&stream, sequence).unwrap();
         assert!(queue.enqueue("camera", "run-a", &batch()).is_ok());
+    }
+
+    #[test]
+    fn diagnostics_report_bounded_backlog_without_stream_identity() {
+        let temporary = TempDir::new().unwrap();
+        let mut queue = DurableQueue::open(temporary.path().join("queue"), 1_000_000).unwrap();
+        let (stream, first) = queue.enqueue("camera", "run-a", &batch()).unwrap();
+        queue.enqueue("camera", "run-a", &batch()).unwrap();
+        queue
+            .enqueue_blueprint("camera", "run-a", &blueprint())
+            .unwrap();
+        queue.request_finish_all().unwrap();
+
+        let diagnostics = queue.diagnostics().unwrap();
+        assert_eq!(diagnostics.stream_count, 1);
+        assert_eq!(diagnostics.open_stream_count, 0);
+        assert_eq!(diagnostics.pending_batch_count, 2);
+        assert_eq!(diagnostics.pending_blueprint_count, 1);
+        assert_eq!(diagnostics.finishing_stream_count, 1);
+        assert!(diagnostics.queued_bytes > 0);
+        assert_eq!(diagnostics.maximum_bytes, 1_000_000);
+        assert!(
+            !serde_json::to_string(&diagnostics)
+                .unwrap()
+                .contains("run-a")
+        );
+
+        queue.acknowledge(&stream, first).unwrap();
+        assert_eq!(queue.diagnostics().unwrap().pending_batch_count, 1);
     }
 
     #[test]

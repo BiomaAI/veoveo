@@ -13,7 +13,7 @@ use re_grpc_server::{MemoryLimit, PlaybackBehavior, ServerOptions, shutdown};
 use re_log_channel::{DataSourceMessage, RecvTimeoutError};
 use re_log_types::{LogMsg, StoreId, StoreKind};
 use reqwest::header::{HOST, HeaderMap, HeaderValue};
-use tokio::sync::mpsc;
+use tokio::sync::{Notify, mpsc};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 use veoveo_recording_protocol::v1::{
@@ -26,7 +26,7 @@ use crate::{
     client::{IngestRequestError, RecordingIngestClient},
     config::ForwarderConfig,
     oauth::{OAuthTokenProvider, OAuthTokenProviderConfig},
-    queue::{DurableQueue, QueueFull},
+    queue::{DurableQueue, QueueDiagnostics, QueueFull},
 };
 
 const MAXIMUM_INCOMPLETE_BLUEPRINT_STORES: usize = 32;
@@ -37,6 +37,12 @@ struct RerunIngestLimits {
     blueprint_bytes: u64,
     blueprint_messages: u64,
     batch_messages: usize,
+}
+
+#[derive(Debug, Default)]
+struct QueueEvents {
+    work_available: Notify,
+    capacity_available: Notify,
 }
 
 pub async fn run(config: ForwarderConfig) -> Result<()> {
@@ -90,9 +96,11 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
         config.queue_dir.clone(),
         config.maximum_queue_bytes,
     )?));
+    let queue_events = Arc::new(QueueEvents::default());
     let uploader_stop = CancellationToken::new();
     let uploader = tokio::spawn(upload_loop(
         queue.clone(),
+        queue_events.clone(),
         client.clone(),
         uploader_stop.child_token(),
     ));
@@ -141,7 +149,7 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
                 break;
             }
             _ = flush.tick() => {
-                flush_accumulators(&mut accumulators, &queue, client.maximum_batch_bytes()).await?;
+                flush_accumulators(&mut accumulators, &queue, &queue_events, client.maximum_batch_bytes()).await?;
             }
             message = message_rx.recv() => {
                 let Some(message) = message else { break; };
@@ -150,6 +158,7 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
                     &mut accumulators,
                     &mut blueprint_accumulators,
                     &queue,
+                    &queue_events,
                     limits,
                 )
                 .await?;
@@ -168,6 +177,7 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
             &mut accumulators,
             &mut blueprint_accumulators,
             &queue,
+            &queue_events,
             limits,
         )
         .await?;
@@ -175,11 +185,18 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
     for (store_id, _) in blueprint_accumulators.drain() {
         warn!(store_id = ?store_id, "discarding incomplete Rerun Blueprint at shutdown");
     }
-    flush_accumulators(&mut accumulators, &queue, client.maximum_batch_bytes()).await?;
+    flush_accumulators(
+        &mut accumulators,
+        &queue,
+        &queue_events,
+        client.maximum_batch_bytes(),
+    )
+    .await?;
     queue
         .lock()
         .expect("durable queue mutex poisoned")
         .request_finish_all()?;
+    queue_events.work_available.notify_one();
     uploader_stop.cancel();
     uploader
         .await
@@ -200,6 +217,7 @@ async fn handle_rerun_message(
     accumulators: &mut HashMap<StoreId, RecordingAccumulator>,
     blueprint_accumulators: &mut HashMap<StoreId, BlueprintAccumulator>,
     queue: &Arc<Mutex<DurableQueue>>,
+    queue_events: &Arc<QueueEvents>,
     limits: RerunIngestLimits,
 ) -> Result<()> {
     let store_id = message.store_id().clone();
@@ -212,14 +230,14 @@ async fn handle_rerun_message(
                 }
             };
             if accumulator.boundary_before(&message)? == BatchBoundary::StartVideoGop {
-                flush_accumulator(accumulator, queue, limits.batch_bytes).await?;
+                flush_accumulator(accumulator, queue, queue_events, limits.batch_bytes).await?;
             }
             if matches!(message, LogMsg::SetStoreInfo(_)) && accumulator.pending_len() > 0 {
-                flush_accumulator(accumulator, queue, limits.batch_bytes).await?;
+                flush_accumulator(accumulator, queue, queue_events, limits.batch_bytes).await?;
             }
             accumulator.push(message)?;
             if accumulator.pending_len() >= limits.batch_messages {
-                flush_accumulator(accumulator, queue, limits.batch_bytes).await?;
+                flush_accumulator(accumulator, queue, queue_events, limits.batch_bytes).await?;
             }
         }
         StoreKind::Blueprint => {
@@ -283,6 +301,7 @@ async fn handle_rerun_message(
                 }
             };
             loop {
+                let capacity_available = queue_events.capacity_available.notified();
                 let result = queue
                     .lock()
                     .expect("durable queue mutex poisoned")
@@ -292,9 +311,12 @@ async fn handle_rerun_message(
                         &blueprint,
                     );
                 match result {
-                    Ok(_) => break,
+                    Ok(_) => {
+                        queue_events.work_available.notify_one();
+                        break;
+                    }
                     Err(error) if error.downcast_ref::<QueueFull>().is_some() => {
-                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        capacity_available.await;
                     }
                     Err(error) => return Err(error),
                 }
@@ -337,10 +359,11 @@ fn canonical_authority(url: &url::Url) -> Result<String> {
 async fn flush_accumulators(
     accumulators: &mut HashMap<StoreId, RecordingAccumulator>,
     queue: &Arc<Mutex<DurableQueue>>,
+    queue_events: &Arc<QueueEvents>,
     maximum_batch_bytes: u64,
 ) -> Result<()> {
     for accumulator in accumulators.values_mut() {
-        flush_accumulator(accumulator, queue, maximum_batch_bytes).await?;
+        flush_accumulator(accumulator, queue, queue_events, maximum_batch_bytes).await?;
     }
     Ok(())
 }
@@ -348,6 +371,7 @@ async fn flush_accumulators(
 async fn flush_accumulator(
     accumulator: &mut RecordingAccumulator,
     queue: &Arc<Mutex<DurableQueue>>,
+    queue_events: &Arc<QueueEvents>,
     maximum_batch_bytes: u64,
 ) -> Result<()> {
     let batches = accumulator.drain_encoded(maximum_batch_bytes)?;
@@ -355,15 +379,19 @@ async fn flush_accumulator(
     let recording_id = accumulator.store_id().recording_id().as_str().to_owned();
     for batch in batches {
         loop {
+            let capacity_available = queue_events.capacity_available.notified();
             let result = queue.lock().expect("durable queue mutex poisoned").enqueue(
                 &application_id,
                 &recording_id,
                 &batch,
             );
             match result {
-                Ok(_) => break,
+                Ok(_) => {
+                    queue_events.work_available.notify_one();
+                    break;
+                }
                 Err(error) if error.downcast_ref::<QueueFull>().is_some() => {
-                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    capacity_available.await;
                 }
                 Err(error) => return Err(error),
             }
@@ -374,25 +402,30 @@ async fn flush_accumulator(
 
 async fn upload_loop(
     queue: Arc<Mutex<DurableQueue>>,
+    queue_events: Arc<QueueEvents>,
     client: RecordingIngestClient,
     stop: CancellationToken,
 ) -> Result<()> {
     let mut backoff = Duration::from_millis(250);
+    let mut previous_diagnostics = None;
     loop {
         if stop.is_cancelled() {
             return Ok(());
         }
-        match upload_pass(&queue, &client, false).await {
+        let work_available = queue_events.work_available.notified();
+        match upload_pass(&queue, &queue_events, &client, false).await {
             Ok(progress) => {
                 backoff = Duration::from_millis(250);
+                log_queue_diagnostics(&queue, &mut previous_diagnostics)?;
                 if !progress {
                     tokio::select! {
                         _ = stop.cancelled() => return Ok(()),
-                        _ = tokio::time::sleep(Duration::from_millis(100)) => {}
+                        _ = work_available => {}
                     }
                 }
             }
             Err(error) => {
+                log_queue_diagnostics(&queue, &mut previous_diagnostics)?;
                 warn!(%error, retry_milliseconds = backoff.as_millis(), "recording upload deferred");
                 tokio::select! {
                     _ = stop.cancelled() => return Ok(()),
@@ -408,8 +441,9 @@ async fn drain_and_finish(
     queue: Arc<Mutex<DurableQueue>>,
     client: &RecordingIngestClient,
 ) -> Result<()> {
+    let queue_events = QueueEvents::default();
     loop {
-        upload_pass(&queue, client, true).await?;
+        upload_pass(&queue, &queue_events, client, true).await?;
         if queue
             .lock()
             .expect("durable queue mutex poisoned")
@@ -424,6 +458,7 @@ async fn drain_and_finish(
 
 async fn upload_pass(
     queue: &Arc<Mutex<DurableQueue>>,
+    queue_events: &QueueEvents,
     client: &RecordingIngestClient,
     finish_empty: bool,
 ) -> Result<bool> {
@@ -508,6 +543,7 @@ async fn upload_pass(
                 .lock()
                 .expect("durable queue mutex poisoned")
                 .acknowledge(&stream, queued.local_sequence)?;
+            queue_events.capacity_available.notify_waiters();
             progress = true;
         }
         loop {
@@ -541,6 +577,7 @@ async fn upload_pass(
                     .lock()
                     .expect("durable queue mutex poisoned")
                     .acknowledge_blueprint(&stream, queued.revision)?;
+                queue_events.capacity_available.notify_waiters();
                 progress = true;
                 continue;
             }
@@ -553,6 +590,7 @@ async fn upload_pass(
                 .lock()
                 .expect("durable queue mutex poisoned")
                 .acknowledge_blueprint(&stream, queued.revision)?;
+            queue_events.capacity_available.notify_waiters();
             progress = true;
         }
         if (finish_empty || stream.finish_requested)
@@ -578,6 +616,30 @@ async fn upload_pass(
         }
     }
     Ok(progress)
+}
+
+fn log_queue_diagnostics(
+    queue: &Arc<Mutex<DurableQueue>>,
+    previous: &mut Option<QueueDiagnostics>,
+) -> Result<()> {
+    let current = queue
+        .lock()
+        .expect("durable queue mutex poisoned")
+        .diagnostics()?;
+    if previous.as_ref() != Some(&current) {
+        info!(
+            queued_bytes = current.queued_bytes,
+            maximum_bytes = current.maximum_bytes,
+            streams = current.stream_count,
+            open_streams = current.open_stream_count,
+            pending_batches = current.pending_batch_count,
+            pending_blueprints = current.pending_blueprint_count,
+            finishing_streams = current.finishing_stream_count,
+            "recording forwarder queue state changed"
+        );
+        *previous = Some(current);
+    }
+    Ok(())
 }
 
 fn stream_rollover(error: &anyhow::Error) -> Option<bool> {
