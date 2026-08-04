@@ -292,7 +292,10 @@ class RuntimeConfigTests(unittest.TestCase):
         ).read_text()
         self.assertIn('add_stream("h264_nvenc"', recording_source)
         self.assertNotIn("libx264", recording_source)
-        self.assertIn("default_blueprint=_recording_blueprint", recording_source)
+        self.assertIn("rr.send_blueprint(", recording_source)
+        self.assertIn("make_active=True", recording_source)
+        self.assertIn("make_default=True", recording_source)
+        self.assertNotIn("default_blueprint=", recording_source)
         self.assertIn("rrb.MapView", recording_source)
 
     def test_recording_degradation_is_visible_without_blocking_readiness(self) -> None:
