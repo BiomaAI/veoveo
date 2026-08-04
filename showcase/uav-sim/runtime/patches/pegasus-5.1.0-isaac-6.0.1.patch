@@ -256,3 +256,90 @@ diff --git a/extensions/pegasus.simulator/pegasus/simulator/logic/backends/px4_m
 @@ -717 +728 @@ class PX4MavlinkBackend(Backend):
 -                self._sensor_data.altitude,
 +                self._sensor_data.temperature,
+diff --git a/extensions/pegasus.simulator/config/extension.toml b/extensions/pegasus.simulator/config/extension.toml
+--- a/extensions/pegasus.simulator/config/extension.toml
++++ b/extensions/pegasus.simulator/config/extension.toml
+@@ -41 +40,0 @@ icon = "data/icon.png"
+-"isaacsim.core.experimental.prims" = {}
+@@ -43,0 +43 @@ icon = "data/icon.png"
++"omni.physics.tensors" = {}
+diff --git a/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/multirotor.py b/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/multirotor.py
+--- a/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/multirotor.py
++++ b/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/multirotor.py
+@@ -89,6 +88,0 @@ class Multirotor(Vehicle):
+-        # Experimental RigidPrim wrappers must exist before the first physics
+-        # play event so Isaac can populate their tensor views.
+-        self.get_rigid_prim("/body")
+-        for rotor_index in range(self._thrusters._num_rotors):
+-            self.get_rigid_prim(f"/rotor{rotor_index}")
+-
+diff --git a/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/vehicle.py b/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/vehicle.py
+--- a/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/vehicle.py
++++ b/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/vehicle.py
+@@ -20 +19,0 @@ from isaacsim.core.api.robots.robot import Robot
+-from isaacsim.core.experimental.prims import RigidPrim
+@@ -96 +95 @@ class Vehicle(Robot):
+-        self._rigid_prims = {}
++        self._physics_batch = None
+@@ -257,8 +256,3 @@ class Vehicle(Robot):
+-        body = self.get_rigid_prim(body_part)
+-        if not body.is_physics_tensor_entity_valid():
+-            return
+-        body.apply_forces_and_torques_at_pos(
+-            forces=np.asarray([force], dtype=np.float32),
+-            positions=np.asarray([pos], dtype=np.float32),
+-            local_frame=True,
+-        )
++        if self._physics_batch is None:
++            raise RuntimeError("vehicle physics batch is not bound")
++        self._physics_batch.queue_force(self._stage_prefix + body_part, force, pos)
+@@ -275,7 +269,3 @@ class Vehicle(Robot):
+-        body = self.get_rigid_prim(body_part)
+-        if not body.is_physics_tensor_entity_valid():
+-            return
+-        body.apply_forces_and_torques_at_pos(
+-            torques=np.asarray([torque], dtype=np.float32),
+-            local_frame=True,
+-        )
++        if self._physics_batch is None:
++            raise RuntimeError("vehicle physics batch is not bound")
++        self._physics_batch.queue_torque(self._stage_prefix + body_part, torque)
+@@ -292,9 +282,7 @@ class Vehicle(Robot):
+-        body = self.get_rigid_prim("/body")
+-        if not body.is_physics_tensor_entity_valid():
+-            return
+-        positions, orientations = body.get_world_poses()
+-        linear_velocities, angular_velocities = body.get_velocities()
+-        position = positions.numpy()[0]
+-        orientation_wxyz = orientations.numpy()[0]
+-        linear_vel = linear_velocities.numpy()[0]
+-        ang_vel = angular_velocities.numpy()[0]
++        if self._physics_batch is None:
++            raise RuntimeError("vehicle physics batch is not bound")
++        body_state = self._physics_batch.state(self._stage_prefix + "/body")
++        position = body_state.position_xyz
++        orientation_xyzw = body_state.orientation_xyzw
++        linear_vel = body_state.linear_velocity_xyz
++        ang_vel = body_state.angular_velocity_xyz
+@@ -310,3 +298 @@ class Vehicle(Robot):
+-        self._state.attitude = np.array(
+-            [orientation_wxyz[1], orientation_wxyz[2], orientation_wxyz[3], orientation_wxyz[0]]
+-        )
++        self._state.attitude = np.array(orientation_xyzw)
+@@ -401,12 +387,4 @@ class Vehicle(Robot):
+-    def get_rigid_prim(self, body_part: str) -> RigidPrim:
+-        path = self._stage_prefix + body_part
+-        body = self._rigid_prims.get(path)
+-        if body is None or not body.is_physics_tensor_entity_valid():
+-            refreshed = RigidPrim(path)
+-            # Before the first physics-ready event, keep one subscribed
+-            # wrapper. Once physics is ready, replace it with the wrapper
+-            # whose tensor view was populated immediately.
+-            if body is None or refreshed.is_physics_tensor_entity_valid():
+-                body = refreshed
+-                self._rigid_prims[path] = body
+-        return body
++    def bind_physics_batch(self, physics_batch):
++        if physics_batch is None:
++            raise ValueError("vehicle physics batch cannot be None")
++        self._physics_batch = physics_batch

@@ -21,10 +21,11 @@ from veoveo_uav_sim.camera_quality import (
 )
 from veoveo_uav_sim.config import FleetLoopConfig, RuntimeConfig
 from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operation
-from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
 from veoveo_uav_sim.fleet_loop import FleetLoopController, vehicle_loop_route
-from veoveo_uav_sim.pose import PoseProducer, entity_ids
-from veoveo_uav_sim.px4 import Px4CommandRejected, Px4Commander
+from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
+from veoveo_uav_sim.physics_batch import RigidBodyBatchAccumulator
+from veoveo_uav_sim.pose import PhysicsCadenceGate, PoseProducer, entity_ids
+from veoveo_uav_sim.px4 import Px4Commander, Px4CommandRejected
 from veoveo_uav_sim.state import RuntimeState, VehicleTelemetry
 from veoveo_uav_sim.stream_output import _annex_b_nals, _packetize_nal
 from veoveo_uav_sim.world_config import (
@@ -334,6 +335,69 @@ class FleetLoopTests(unittest.TestCase):
         controller.close()
 
 
+class RigidBodyBatchTests(unittest.TestCase):
+    def test_force_at_position_is_reduced_to_force_and_torque(self) -> None:
+        batch = RigidBodyBatchAccumulator(("/World/uav_1/body",))
+        batch.queue_force(
+            "/World/uav_1/body",
+            (0.0, 0.0, 4.0),
+            (0.0, 2.0, 0.0),
+        )
+        batch.queue_torque("/World/uav_1/body", (0.0, 0.0, 3.0))
+
+        np.testing.assert_array_equal(batch.forces, [[0.0, 0.0, 4.0]])
+        np.testing.assert_array_equal(batch.torques, [[8.0, 0.0, 3.0]])
+
+        forces = batch.forces
+        torques = batch.torques
+        batch.clear_forces()
+        self.assertIs(batch.forces, forces)
+        self.assertIs(batch.torques, torques)
+        np.testing.assert_array_equal(batch.forces, np.zeros((1, 3)))
+        np.testing.assert_array_equal(batch.torques, np.zeros((1, 3)))
+
+    def test_one_state_batch_serves_distinct_vehicle_bodies(self) -> None:
+        paths = ("/World/uav_1/body", "/World/uav_2/body")
+        batch = RigidBodyBatchAccumulator(paths)
+        transforms = np.array(
+            [
+                [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0],
+                [4.0, 5.0, 6.0, 0.0, 0.0, 1.0, 0.0],
+            ],
+            dtype=np.float32,
+        )
+        velocities = np.array(
+            [
+                [7.0, 8.0, 9.0, 0.1, 0.2, 0.3],
+                [10.0, 11.0, 12.0, 0.4, 0.5, 0.6],
+            ],
+            dtype=np.float32,
+        )
+        batch.update_states(transforms, velocities)
+
+        first = batch.state(paths[0])
+        second = batch.state(paths[1])
+        np.testing.assert_array_equal(first.position_xyz, [1.0, 2.0, 3.0])
+        np.testing.assert_array_equal(
+            first.orientation_xyzw, [0.0, 0.0, 0.0, 1.0]
+        )
+        np.testing.assert_array_equal(
+            second.linear_velocity_xyz, [10.0, 11.0, 12.0]
+        )
+        np.testing.assert_allclose(
+            second.angular_velocity_xyz, [0.4, 0.5, 0.6]
+        )
+
+    def test_unknown_body_and_non_finite_input_fail_closed(self) -> None:
+        batch = RigidBodyBatchAccumulator(("/World/uav_1/body",))
+        with self.assertRaisesRegex(RuntimeError, "outside the admitted fleet"):
+            batch.queue_torque("/World/uav_2/body", (0.0, 0.0, 0.0))
+        with self.assertRaisesRegex(RuntimeError, "non-finite"):
+            batch.queue_force(
+                "/World/uav_1/body", (float("nan"), 0.0, 0.0), (0.0, 0.0, 0.0)
+            )
+
+
 class _FleetLoopStatus:
     def __init__(self, flight_state: str) -> None:
         self.flight_state = flight_state
@@ -376,6 +440,19 @@ class _FleetLoopCommander:
 
 
 class PoseProducerTests(unittest.TestCase):
+    def test_pose_cadence_is_exact_and_independent_of_render_steps(self) -> None:
+        gate = PhysicsCadenceGate(physics_hz=250, output_hz=20)
+        due_steps = [step for step in range(1, 251) if gate.due(step)]
+        self.assertEqual(len(due_steps), 20)
+        self.assertEqual(due_steps[0], 13)
+        self.assertEqual(due_steps[-1], 250)
+        self.assertEqual(set(np.diff(due_steps)), {12, 13})
+
+        gate.reset()
+        self.assertFalse(gate.due(1))
+        with self.assertRaisesRegex(RuntimeError, "increase monotonically"):
+            gate.due(1)
+
     def test_complete_snapshots_keep_a_monotonic_renderer_timeline(self) -> None:
         publishers: list[_FakePosePublisher] = []
 
