@@ -14,7 +14,8 @@ from veoveo_mcp.simulation_pose import (
     EnuPosition,
     EpochId,
     FrameRevision,
-    LatestPosePublisher,
+    OrderedPosePublisher,
+    PosePublisherBufferFull,
     PoseSnapshot,
     PoseTlsConfig,
     QuaternionXyzw,
@@ -119,7 +120,7 @@ class PoseProducer:
         self._queue: deque[PoseSnapshot] = deque()
         self._closing = False
         self._emission_started = False
-        self._publisher = LatestPosePublisher(
+        self._publisher = OrderedPosePublisher(
             PoseTlsConfig(
                 host=config.ingress_host,
                 port=config.ingress_port,
@@ -128,6 +129,7 @@ class PoseProducer:
                 client_certificate=config.client_certificate,
                 client_private_key=config.client_private_key,
             ),
+            queue_capacity=self._buffer_snapshots,
             thread_name=f"uav-pose-{config.producer_id}",
         )
         self._emitter = threading.Thread(
@@ -162,8 +164,9 @@ class PoseProducer:
         )
         with self._condition:
             self._condition.wait_for(
-                lambda: self._closing
-                or len(self._queue) < self._maximum_queued_snapshots
+                lambda: (
+                    self._closing or len(self._queue) < self._maximum_queued_snapshots
+                )
             )
             if self._closing:
                 raise RuntimeError("pose producer closed while accepting a snapshot")
@@ -226,10 +229,16 @@ class PoseProducer:
         while True:
             with self._condition:
                 self._condition.wait_for(
-                    lambda: self._closing
-                    or (
-                        len(self._queue)
-                        >= (self._buffer_snapshots if not self._emission_started else 1)
+                    lambda: (
+                        self._closing
+                        or (
+                            len(self._queue)
+                            >= (
+                                self._buffer_snapshots
+                                if not self._emission_started
+                                else 1
+                            )
+                        )
                     )
                 )
                 if self._closing:
@@ -239,10 +248,8 @@ class PoseProducer:
                 self._condition.notify_all()
 
             if initial_delivery:
-                # LatestPosePublisher connects lazily on its first offer. Do
-                # not feed the cadence into its one-value slot until that
-                # priming snapshot is acknowledged, or healthy TLS startup
-                # is incorrectly recorded as a series of replacements.
+                # The transport connects lazily on its first offer. Keep the
+                # declared simulation-time lead while TLS becomes ready.
                 self._publisher.offer(snapshot)
                 while True:
                     status = self._publisher.status()
@@ -275,7 +282,18 @@ class PoseProducer:
                 deadline = time.monotonic()
             if self._closing:
                 return
-            self._publisher.offer(snapshot)
+            while True:
+                try:
+                    self._publisher.offer(snapshot)
+                    break
+                except PosePublisherBufferFull:
+                    self.poll()
+                    with self._condition:
+                        self._condition.wait_for(
+                            lambda: self._closing, timeout=min(period, 0.01)
+                        )
+                        if self._closing:
+                            return
             self.poll()
             deadline += period
 
@@ -285,9 +303,7 @@ class PoseProducer:
             self._last_publication = publication
 
     @staticmethod
-    def _entity_pose(
-        entity_id: EntityId, telemetry: VehicleTelemetry
-    ) -> EntityPose:
+    def _entity_pose(entity_id: EntityId, telemetry: VehicleTelemetry) -> EntityPose:
         east, north, up = telemetry.position_enu
         x, y, z, w = telemetry.attitude_xyzw
         return EntityPose(

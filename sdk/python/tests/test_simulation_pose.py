@@ -1,9 +1,9 @@
 import hashlib
 import struct
+import time
 from pathlib import Path
 
 import pytest
-
 from veoveo_mcp.simulation_pose import (
     CoordinateConvention,
     EntityId,
@@ -12,8 +12,10 @@ from veoveo_mcp.simulation_pose import (
     EpochId,
     FluVelocity,
     FrameRevision,
+    OrderedPosePublisher,
     PoseLimits,
     PoseProtocolError,
+    PosePublisherBufferFull,
     PoseSnapshot,
     PoseTlsConfig,
     QuaternionXyzw,
@@ -25,6 +27,8 @@ from veoveo_mcp.simulation_pose import (
     encode_stream_frame,
     entity_table_digest,
 )
+
+
 def _snapshot(sequence: int = 7) -> PoseSnapshot:
     entities = [
         EntityPose(
@@ -142,3 +146,92 @@ def test_tls_configuration_is_fail_closed() -> None:
             client_certificate=Path("/cert.crt"),
             client_private_key=Path("/key.pem"),
         )
+
+
+def test_ordered_publisher_retains_a_bounded_sequence(tmp_path: Path) -> None:
+    config = PoseTlsConfig(
+        host="simulation-view-pose",
+        port=7443,
+        server_hostname="simulation-view-pose.veoveo.svc",
+        ca_certificate=tmp_path / "missing-ca.crt",
+        client_certificate=tmp_path / "missing-client.crt",
+        client_private_key=tmp_path / "missing-client.key",
+    )
+    publisher = OrderedPosePublisher(config, queue_capacity=2)
+    try:
+        publisher.offer(_snapshot(7))
+        publisher.offer(_snapshot(8))
+        with pytest.raises(PosePublisherBufferFull, match="2/2 snapshots"):
+            publisher.offer(_snapshot(9))
+
+        status = publisher.status()
+        assert status.offered_snapshots == 2
+        assert status.sent_snapshots == 0
+        assert status.replaced_snapshots == 0
+    finally:
+        publisher.close()
+
+
+def test_ordered_publisher_rejects_invalid_capacity(tmp_path: Path) -> None:
+    config = PoseTlsConfig(
+        host="simulation-view-pose",
+        port=7443,
+        server_hostname="simulation-view-pose.veoveo.svc",
+        ca_certificate=tmp_path / "ca.crt",
+        client_certificate=tmp_path / "client.crt",
+        client_private_key=tmp_path / "client.key",
+    )
+    with pytest.raises(PoseProtocolError, match="between 2 and 4096"):
+        OrderedPosePublisher(config, queue_capacity=1)
+
+
+def test_ordered_publisher_retries_the_same_sequence_without_duplication() -> None:
+    sent: list[bytes] = []
+    connect_count = 0
+
+    class TestConfig:
+        reconnect_initial_seconds = 0.001
+        reconnect_maximum_seconds = 0.001
+
+        @staticmethod
+        def create_context() -> object:
+            return object()
+
+    class TestSocket:
+        def __init__(self, *, fail: bool) -> None:
+            self._fail = fail
+
+        def sendall(self, frame: bytes) -> None:
+            if self._fail:
+                self._fail = False
+                raise OSError("transient send failure")
+            sent.append(frame)
+
+        def close(self) -> None:
+            pass
+
+    publisher = OrderedPosePublisher(TestConfig(), queue_capacity=4)  # type: ignore[arg-type]
+
+    def connect(_context: object) -> TestSocket:
+        nonlocal connect_count
+        connect_count += 1
+        return TestSocket(fail=connect_count == 1)
+
+    publisher._connect = connect  # type: ignore[method-assign]
+    snapshots = [_snapshot(sequence) for sequence in (7, 8, 9)]
+    try:
+        for snapshot in snapshots:
+            publisher.offer(snapshot)
+        deadline = time.monotonic() + 1.0
+        while publisher.status().sent_snapshots < 3 and time.monotonic() < deadline:
+            time.sleep(0.001)
+
+        assert sent == [encode_stream_frame(snapshot) for snapshot in snapshots]
+        assert connect_count == 2
+        status = publisher.status()
+        assert status.offered_snapshots == 3
+        assert status.sent_snapshots == 3
+        assert status.replaced_snapshots == 0
+        assert status.last_sent_sequence == 9
+    finally:
+        publisher.close()

@@ -1,10 +1,9 @@
-"""Provider-neutral Simulation View latest-pose producer SDK.
+"""Provider-neutral Simulation View pose producer SDK.
 
 The binary layout in this module is the Python implementation of
 ``veoveo.io/simulation-view-pose/v1``. A producer offers complete snapshots to
-``LatestPosePublisher`` without waiting for DNS, TLS, or network I/O. The
-publisher keeps only the newest offered snapshot and performs TLS 1.3 mutual
-authentication on its own worker thread.
+an asynchronous publisher without waiting for DNS, TLS, or network I/O. The
+publisher performs TLS 1.3 mutual authentication on its own worker thread.
 """
 
 from __future__ import annotations
@@ -15,12 +14,12 @@ import socket
 import ssl
 import struct
 import threading
+from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from types import TracebackType
 from typing import Final, Self
-
 
 POSE_PROTOCOL_VERSION: Final = 1
 POSE_PROTOCOL_SCHEMA: Final = "veoveo.io/simulation-view-pose/v1"
@@ -33,6 +32,10 @@ _IDENTITY_CHARACTERS: Final = frozenset(
 
 class PoseProtocolError(ValueError):
     """A pose snapshot or producer configuration violates the public contract."""
+
+
+class PosePublisherBufferFull(RuntimeError):
+    """An ordered pose publisher has reached its declared bounded capacity."""
 
 
 def _validate_identifier(kind: str, value: str) -> str:
@@ -337,7 +340,9 @@ class PoseSnapshot:
             or not isinstance(self.sequence, int)
             or not 1 <= self.sequence <= 2**64 - 1
         ):
-            raise PoseProtocolError("sequence must be a nonzero unsigned 64-bit integer")
+            raise PoseProtocolError(
+                "sequence must be a nonzero unsigned 64-bit integer"
+            )
         if (
             isinstance(self.simulation_timestamp_ns, bool)
             or not isinstance(self.simulation_timestamp_ns, int)
@@ -387,7 +392,9 @@ def entity_table_digest(
         or not isinstance(revision, int)
         or not 0 <= revision <= 2**64 - 1
     ):
-        raise PoseProtocolError("entity table revision must be an unsigned 64-bit integer")
+        raise PoseProtocolError(
+            "entity table revision must be an unsigned 64-bit integer"
+        )
     hasher = hashlib.sha256()
     hasher.update(struct.pack("!Q", revision))
     for entity_id in entity_ids:
@@ -399,9 +406,7 @@ def entity_table_digest(
     return Sha256Digest.from_bytes(hasher.digest())
 
 
-def encode_snapshot(
-    snapshot: PoseSnapshot, limits: PoseLimits = PoseLimits()
-) -> bytes:
+def encode_snapshot(snapshot: PoseSnapshot, limits: PoseLimits = PoseLimits()) -> bytes:
     """Validate and deterministically encode one complete latest-pose snapshot."""
 
     snapshot.validate(limits)
@@ -555,9 +560,7 @@ class PoseTlsConfig:
                 "reconnect_initial_seconds must be between 0.01 and 30"
             )
         if not (
-            self.reconnect_initial_seconds
-            <= self.reconnect_maximum_seconds
-            <= 60.0
+            self.reconnect_initial_seconds <= self.reconnect_maximum_seconds <= 60.0
         ):
             raise PoseProtocolError(
                 "reconnect_maximum_seconds must be at least the initial delay "
@@ -762,3 +765,112 @@ class LatestPosePublisher:
         with self._condition:
             self._condition.wait_for(lambda: self._stopping, duration_seconds)
             return self._stopping
+
+
+class OrderedPosePublisher(LatestPosePublisher):
+    """Bounded ordered publisher for linearly interpolated pose streams.
+
+    Accepted snapshots remain in sequence order across bounded TLS stalls and
+    reconnects. ``offer`` never performs network I/O and rejects a snapshot
+    explicitly when the configured capacity is exhausted.
+    """
+
+    def __init__(
+        self,
+        config: PoseTlsConfig,
+        *,
+        queue_capacity: int,
+        limits: PoseLimits = PoseLimits(),
+        thread_name: str = "veoveo-simulation-pose-ordered",
+    ) -> None:
+        if not 2 <= queue_capacity <= 4096:
+            raise PoseProtocolError("queue_capacity must be between 2 and 4096")
+        self._config = config
+        self._limits = limits
+        self._condition = threading.Condition()
+        self._queue_capacity = queue_capacity
+        self._queue: deque[tuple[bytes, int]] = deque()
+        self._inflight = False
+        self._stopping = False
+        self._connected = False
+        self._offered_snapshots = 0
+        self._sent_snapshots = 0
+        self._replaced_snapshots = 0
+        self._last_sent_sequence: int | None = None
+        self._last_error: str | None = None
+        self._socket: ssl.SSLSocket | None = None
+        self._thread = threading.Thread(
+            target=self._run,
+            name=thread_name,
+            daemon=True,
+        )
+        self._thread.start()
+
+    def offer(self, snapshot: PoseSnapshot) -> None:
+        """Queue one snapshot in order and return without network I/O."""
+
+        frame = encode_stream_frame(snapshot, self._limits)
+        with self._condition:
+            if self._stopping:
+                raise RuntimeError("pose publisher is closed")
+            occupied = len(self._queue) + int(self._inflight)
+            if occupied >= self._queue_capacity:
+                raise PosePublisherBufferFull(
+                    "ordered pose publisher buffer is full "
+                    f"({occupied}/{self._queue_capacity} snapshots)"
+                )
+            self._queue.append((frame, snapshot.sequence))
+            self._offered_snapshots += 1
+            self._condition.notify()
+
+    def _run(self) -> None:
+        context: ssl.SSLContext | None = None
+        reconnect_delay = self._config.reconnect_initial_seconds
+        pending = self._await_ordered()
+        while pending is not None:
+            frame, sequence = pending
+            connection: ssl.SSLSocket | None = None
+            try:
+                if context is None:
+                    context = self._config.create_context()
+                connection = self._connect(context)
+                reconnect_delay = self._config.reconnect_initial_seconds
+                while True:
+                    connection.sendall(frame)
+                    with self._condition:
+                        self._sent_snapshots += 1
+                        self._last_sent_sequence = sequence
+                        self._last_error = None
+                        self._inflight = False
+                        self._condition.notify_all()
+                    pending = self._await_ordered()
+                    if pending is None:
+                        return
+                    frame, sequence = pending
+            except (OSError, ssl.SSLError) as error:
+                with self._condition:
+                    self._connected = False
+                    self._last_error = f"{type(error).__name__}: {error}"
+                if self._wait_or_stop(reconnect_delay):
+                    return
+                reconnect_delay = min(
+                    reconnect_delay * 2.0,
+                    self._config.reconnect_maximum_seconds,
+                )
+            finally:
+                with self._condition:
+                    self._socket = None
+                    self._connected = False
+                if connection is not None:
+                    try:
+                        connection.close()
+                    except OSError:
+                        pass
+
+    def _await_ordered(self) -> tuple[bytes, int] | None:
+        with self._condition:
+            self._condition.wait_for(lambda: bool(self._queue) or self._stopping)
+            if self._stopping:
+                return None
+            self._inflight = True
+            return self._queue.popleft()

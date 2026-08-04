@@ -14,10 +14,10 @@ extensions publish their own assets and construct this declaration without
 copying Veoveo server types.
 
 `veoveo_mcp.simulation_pose` implements the exact
-`veoveo.io/simulation-view-pose/v1` binary schema. Its newest-value publisher
-performs TLS 1.3 mutual authentication on a worker thread and replaces unsent
-snapshots, which keeps connection loss and renderer backpressure out of a
-simulator loop. The installation binds the producer certificate identity,
+`veoveo.io/simulation-view-pose/v1` binary schema. Its asynchronous publishers
+perform TLS 1.3 mutual authentication on a worker thread. Linear interpolation
+uses a bounded ordered queue, while hold-latest workloads may explicitly replace
+unsent snapshots. The installation binds the producer certificate identity,
 session, epoch, immutable Frames revision, and ordered entity table before the
 producer connects.
 
