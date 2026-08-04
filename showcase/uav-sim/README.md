@@ -73,6 +73,12 @@ NVIDIA GPU. Cesium asset `2275207` streams Google Photorealistic 3D Tiles.
 The active Kit viewport follows the primary nadir sensor because Cesium uses
 viewport state for tile selection.
 
+Fleet dynamics use one CUDA-backed PhysX tensor view for every admitted body.
+The reusable Warp host tensors are also the NumPy accumulator storage; each
+physics step uploads those live force and torque values before clearing the
+buffers. This ownership is deliberate because Warp 1.15 copies
+`wp.from_numpy` input instead of retaining a shared view.
+
 Nadir cameras are simulation sensors and governed recording inputs. They are
 not live operator views. The runtime fails closed when NVIDIA rendering,
 required extensions, tiles, PX4, recording, or visible sensor content is
