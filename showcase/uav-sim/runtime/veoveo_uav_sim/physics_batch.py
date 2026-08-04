@@ -19,14 +19,20 @@ class RigidBodyState:
 class RigidBodyBatchAccumulator:
     """Allocation-stable host side of the Isaac rigid-body tensor batch."""
 
-    def __init__(self, body_paths: Sequence[str]) -> None:
+    def __init__(
+        self,
+        body_paths: Sequence[str],
+        *,
+        forces: np.ndarray | None = None,
+        torques: np.ndarray | None = None,
+    ) -> None:
         paths = tuple(body_paths)
         if not paths or len(set(paths)) != len(paths):
             raise ValueError("rigid-body batch paths must be nonempty and unique")
         self._paths = paths
         self._indices = {path: index for index, path in enumerate(paths)}
-        self.forces = np.zeros((len(paths), 3), dtype=np.float32)
-        self.torques = np.zeros((len(paths), 3), dtype=np.float32)
+        self.forces = _batch_vector_buffer(forces, len(paths), "force")
+        self.torques = _batch_vector_buffer(torques, len(paths), "torque")
         self._transforms = np.zeros((len(paths), 7), dtype=np.float32)
         self._velocities = np.zeros((len(paths), 6), dtype=np.float32)
         self._state_ready = False
@@ -160,20 +166,25 @@ class IsaacFleetPhysicsBatch:
                 "UAV fleet physics requires a CUDA-backed Isaac tensor view"
             )
 
-        # Isaac determines tensor row order. Rebuild the host accumulator in
-        # that exact order, then create every host/device buffer once per view.
-        self._accumulator = RigidBodyBatchAccumulator(actual_paths)
+        # Isaac determines tensor row order. Create Warp-owned host tensors
+        # first and write through their NumPy views. ``wp.from_numpy`` copies
+        # its input in Warp 1.15; retaining a wrapper created from an initially
+        # zero NumPy accumulator would therefore submit frozen zero forces for
+        # every later physics step.
         count = len(actual_paths)
         self._simulation_view = simulation_view
         self._rigid_body_view = rigid_body_view
         self._warp = wp
         self._device = device
-        # Warp infers an anonymous vector type from a NumPy (N, 3) array,
-        # which is not copy-compatible with a scalar float tensor. PhysX's
-        # public tensor frontend accepts the documented contiguous N*3 form,
-        # so retain flat scalar views on both sides of the reusable copy.
-        self._force_host = wp.from_numpy(self._accumulator.forces.reshape(-1))
-        self._torque_host = wp.from_numpy(self._accumulator.torques.reshape(-1))
+        self._force_host = wp.zeros(count * 3, dtype=wp.float32, device="cpu")
+        self._torque_host = wp.zeros(count * 3, dtype=wp.float32, device="cpu")
+        self._accumulator = RigidBodyBatchAccumulator(
+            actual_paths,
+            forces=self._force_host.numpy().reshape(count, 3),
+            torques=self._torque_host.numpy().reshape(count, 3),
+        )
+        # PhysX's public tensor frontend accepts the documented contiguous N*3
+        # form, so retain flat scalar views on both sides of the reusable copy.
         self._force_device = wp.zeros(count * 3, dtype=wp.float32, device=device)
         self._torque_device = wp.zeros(count * 3, dtype=wp.float32, device=device)
         self._indices_device = wp.array(
@@ -219,6 +230,9 @@ class IsaacFleetPhysicsBatch:
     def flush_forces(self) -> None:
         self._warp.copy(self._force_device, self._force_host)
         self._warp.copy(self._torque_device, self._torque_host)
+        # The host buffers are also the writable accumulator. Complete the two
+        # small H2D transfers before clearing them for the next physics step.
+        self._warp.synchronize_stream(self._device)
         self._rigid_body_view.apply_forces_and_torques_at_position(
             self._force_device,
             self._torque_device,
@@ -309,3 +323,21 @@ def _vector3(value: Sequence[float], label: str) -> tuple[float, float, float]:
     if not all(math.isfinite(component) for component in result):
         raise RuntimeError(f"{label} contains a non-finite component")
     return result
+
+
+def _batch_vector_buffer(
+    value: np.ndarray | None, count: int, label: str
+) -> np.ndarray:
+    if value is None:
+        return np.zeros((count, 3), dtype=np.float32)
+    if value.shape != (count, 3):
+        raise ValueError(
+            f"rigid-body {label} buffer has shape {value.shape}; "
+            f"expected {(count, 3)}"
+        )
+    if value.dtype != np.float32 or not value.flags.c_contiguous:
+        raise ValueError(
+            f"rigid-body {label} buffer must be contiguous float32 storage"
+        )
+    value.fill(0.0)
+    return value

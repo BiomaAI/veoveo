@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import threading
 import time
 import unittest
@@ -26,6 +27,7 @@ from veoveo_uav_sim.fleet_loop import FleetLoopController, vehicle_loop_route
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
 from veoveo_uav_sim.physics_batch import (
     FleetPhysicsLifecycle,
+    IsaacFleetPhysicsBatch,
     RigidBodyBatchAccumulator,
 )
 from veoveo_uav_sim.pose import PhysicsCadenceGate, PoseProducer, entity_ids
@@ -507,6 +509,101 @@ class RigidBodyBatchTests(unittest.TestCase):
         self.assertIs(batch.torques, torques)
         np.testing.assert_array_equal(batch.forces, np.zeros((1, 3)))
         np.testing.assert_array_equal(batch.torques, np.zeros((1, 3)))
+
+    def test_submitted_tensor_uses_the_live_warp_owned_accumulator(self) -> None:
+        class FakeArray:
+            def __init__(self, value: np.ndarray) -> None:
+                self.value = value
+
+            def numpy(self) -> np.ndarray:
+                return self.value
+
+        class FakeDevice:
+            is_cuda = True
+
+            def __str__(self) -> str:
+                return "cuda:0"
+
+        class FakeWarp:
+            float32 = np.float32
+            uint32 = np.uint32
+
+            def __init__(self) -> None:
+                self.synchronized = False
+
+            def get_device(self, _device: object) -> FakeDevice:
+                return FakeDevice()
+
+            def zeros(
+                self,
+                shape: int | tuple[int, ...],
+                *,
+                dtype: object,
+                device: object,
+            ) -> FakeArray:
+                return FakeArray(np.zeros(shape, dtype=dtype))
+
+            def array(
+                self,
+                value: np.ndarray,
+                *,
+                dtype: object,
+                device: object,
+            ) -> FakeArray:
+                return FakeArray(np.array(value, dtype=dtype, copy=True))
+
+            def copy(self, target: FakeArray, source: FakeArray) -> None:
+                np.copyto(target.value, source.value)
+
+            def synchronize_stream(self, _device: object) -> None:
+                self.synchronized = True
+
+        class FakeRigidBodyView:
+            prim_paths = ("/World/uav_1/body",)
+
+            def __init__(self) -> None:
+                self.submitted_forces: np.ndarray | None = None
+
+            def apply_forces_and_torques_at_position(
+                self,
+                forces: FakeArray,
+                _torques: FakeArray,
+                _positions: object,
+                _indices: FakeArray,
+                _is_global: bool,
+            ) -> None:
+                self.submitted_forces = forces.value.copy()
+
+        class FakeSimulationView:
+            device = "cuda:0"
+
+            def __init__(self) -> None:
+                self.rigid_body_view = FakeRigidBodyView()
+
+            def set_subspace_roots(self, _root: str) -> None:
+                pass
+
+            def create_rigid_body_view(
+                self, _paths: list[str]
+            ) -> FakeRigidBodyView:
+                return self.rigid_body_view
+
+        fake_warp = FakeWarp()
+        simulation_view = FakeSimulationView()
+        with patch.dict(sys.modules, {"warp": fake_warp}):
+            batch = IsaacFleetPhysicsBatch(
+                ("/World/uav_1/body",), simulation_view
+            )
+            batch.queue_force(
+                "/World/uav_1/body", (0.0, 0.0, 4.0), (0.0, 0.0, 0.0)
+            )
+            batch.flush_forces()
+
+        self.assertTrue(fake_warp.synchronized)
+        np.testing.assert_array_equal(
+            simulation_view.rigid_body_view.submitted_forces,
+            [0.0, 0.0, 4.0],
+        )
 
     def test_one_state_batch_serves_distinct_vehicle_bodies(self) -> None:
         paths = ("/World/uav_1/body", "/World/uav_2/body")
