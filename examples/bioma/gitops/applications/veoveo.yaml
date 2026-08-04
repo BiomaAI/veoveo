@@ -12,7 +12,7 @@ spec:
   sources:
     - repoURL: charts-registry.argocd.svc.cluster.local/charts
       chart: veoveo
-      targetRevision: 0.1.0-628ee1df1027
+      targetRevision: 0.1.0-134eb182dccd
       helm:
         releaseName: veoveo
         valueFiles:
