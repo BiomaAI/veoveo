@@ -329,9 +329,71 @@ def run(config: RuntimeConfig) -> None:
             for vehicle_id in vehicles
             for body_name in ("body", "rotor0", "rotor1", "rotor2", "rotor3")
         )
+        pose_cadence = PhysicsCadenceGate(
+            config.physics_hz, config.rendering_hz
+        )
+
+        def telemetry_snapshot() -> list[VehicleTelemetry]:
+            telemetry: list[VehicleTelemetry] = []
+            for vehicle_id, vehicle in vehicles.items():
+                px4_status = commanders[vehicle_id].status()
+                vehicle_state = vehicle.state
+                telemetry.append(
+                    VehicleTelemetry(
+                        vehicle_id=vehicle_id,
+                        position_enu=tuple(
+                            float(value) for value in vehicle_state.position
+                        ),
+                        attitude_xyzw=tuple(
+                            float(value) for value in vehicle_state.attitude
+                        ),
+                        linear_velocity_enu_mps=tuple(
+                            float(value) for value in vehicle_state.linear_velocity
+                        ),
+                        flight_state=px4_status.flight_state,
+                        battery_percent=px4_status.battery_percent,
+                        px4_connected=px4_status.connected,
+                    )
+                )
+            return telemetry
+
+        def advance_physics(_dt: float) -> None:
+            nonlocal physics_step, simulation_time_s
+            physics_step += 1
+            simulation_time_s = physics_step / config.physics_hz
+            state.advance(simulation_time_s, physics_step)
+            publish_pose = pose_cadence.due(physics_step)
+            publish_recording = physics_step % 5 == 0
+            if not publish_pose and not publish_recording:
+                return
+            telemetry = telemetry_snapshot()
+            if publish_pose:
+                assert pose_producer is not None
+                pose_producer.offer(telemetry)
+            if publish_recording:
+                state.update_vehicles(telemetry)
+                recording.log_frame(telemetry, simulation_time_s, physics_step)
+                for vehicle_id, vehicle in vehicles.items():
+                    vehicle_state = vehicle.state
+                    recording.log_imu(
+                        vehicle_id,
+                        tuple(
+                            float(value)
+                            for value in vehicle_state.linear_acceleration
+                        ),
+                        tuple(
+                            float(value) for value in vehicle_state.angular_velocity
+                        ),
+                        simulation_time_s,
+                        physics_step,
+                    )
 
         physics_lifecycle = FleetPhysicsLifecycle(
-            world, vehicles, vehicle_callback_prefixes, rigid_body_paths
+            world,
+            vehicles,
+            vehicle_callback_prefixes,
+            rigid_body_paths,
+            after_step=advance_physics,
         )
         physics_batch = physics_lifecycle.reset()
         LOGGER.info(
@@ -374,10 +436,9 @@ def run(config: RuntimeConfig) -> None:
                 nonlocal physics_step, simulation_time_s
                 assert world is not None
                 timeline.play()
-                for offset in range(steps):
-                    world.step(render=(offset == steps - 1))
-                    physics_step += 1
-                    simulation_time_s = physics_step / config.physics_hz
+                for _ in range(steps):
+                    world.step(render=False)
+                world.render()
                 timeline.pause()
                 state.advance(simulation_time_s, physics_step)
                 state.set_lifecycle("paused")
@@ -423,9 +484,6 @@ def run(config: RuntimeConfig) -> None:
         )
         while not all(future.done() for future in connection_futures.values()):
             world.step(render=False)
-            physics_step += 1
-            simulation_time_s = physics_step / config.physics_hz
-            state.advance(simulation_time_s, physics_step)
             for vehicle_id, future in connection_futures.items():
                 if future.done() and future.exception() is not None:
                     raise RuntimeError(
@@ -463,9 +521,6 @@ def run(config: RuntimeConfig) -> None:
         tile_started_at = time.monotonic()
         render_interval = max(1, round(config.physics_hz / config.rendering_hz))
         camera_interval = max(1, round(config.physics_hz / config.camera.fps))
-        pose_cadence = PhysicsCadenceGate(
-            config.physics_hz, config.rendering_hz
-        )
 
         while simulation_app.is_running():
             assert fleet_loop is not None
@@ -473,10 +528,9 @@ def run(config: RuntimeConfig) -> None:
             command_queue.drain()
             if timeline.is_playing():
                 render = physics_step % render_interval == 0
-                world.step(render=render)
-                physics_step += 1
-                simulation_time_s = physics_step / config.physics_hz
-                state.advance(simulation_time_s, physics_step)
+                world.step(render=False)
+                if render:
+                    world.render()
                 update_cesium_viewport()
             else:
                 simulation_app.update()
@@ -485,41 +539,6 @@ def run(config: RuntimeConfig) -> None:
                 pose_producer.poll()
                 time.sleep(0.005)
                 continue
-
-            telemetry: list[VehicleTelemetry] = []
-            for vehicle_id, vehicle in vehicles.items():
-                px4_status = commanders[vehicle_id].status()
-                vehicle_state = vehicle.state
-                telemetry.append(
-                    VehicleTelemetry(
-                        vehicle_id=vehicle_id,
-                        position_enu=tuple(float(value) for value in vehicle_state.position),
-                        attitude_xyzw=tuple(float(value) for value in vehicle_state.attitude),
-                        linear_velocity_enu_mps=tuple(
-                            float(value) for value in vehicle_state.linear_velocity
-                        ),
-                        flight_state=px4_status.flight_state,
-                        battery_percent=px4_status.battery_percent,
-                        px4_connected=px4_status.connected,
-                    )
-                )
-
-            if pose_cadence.due(physics_step):
-                assert pose_producer is not None
-                pose_producer.offer(telemetry)
-
-            if physics_step % 5 == 0:
-                state.update_vehicles(telemetry)
-                recording.log_frame(telemetry, simulation_time_s, physics_step)
-                for vehicle_id, vehicle in vehicles.items():
-                    vehicle_state = vehicle.state
-                    recording.log_imu(
-                        vehicle_id,
-                        tuple(float(value) for value in vehicle_state.linear_acceleration),
-                        tuple(float(value) for value in vehicle_state.angular_velocity),
-                        simulation_time_s,
-                        physics_step,
-                    )
 
             if physics_step % camera_interval == 0:
                 for vehicle_id, sensor in camera_sensors.items():
