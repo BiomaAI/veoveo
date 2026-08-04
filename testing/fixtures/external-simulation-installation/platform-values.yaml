@@ -16,4 +16,4 @@ simulationView:
   artifacts:
     size: 2Gi
   cache:
-    sizeLimit: 12Gi
+    size: 12Gi

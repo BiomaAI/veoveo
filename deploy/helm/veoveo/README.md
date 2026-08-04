@@ -141,6 +141,13 @@ every bounded renderer slot. Existing external layer catalogs must add
 `streamedWorld.catalogDigest` before upgrade. Chart-owned inline catalogs need
 no migration value.
 
+`simulationView.cache` is a persistent, versioned renderer cache. The chart
+creates its `ReadWriteOnce` claim unless `existingClaim` names an
+installation-owned claim. Isaac portable state, compiled Warp and MDL data,
+and streamed-world provider caches live beneath the declared `version`
+directory. Change that version only when the pinned Isaac/Cesium cache format
+changes; older directories remain isolated and available for rollback.
+
 Every MCP workload has one active pod and uses `Recreate`. This includes the
 gateway MCP endpoint, domain servers, GPU servers, and the stdio bridge that
 owns its child process. The chart does not expose replica or rollout controls

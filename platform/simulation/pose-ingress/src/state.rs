@@ -1,6 +1,7 @@
 use std::{
     collections::BTreeMap,
     os::unix::fs::PermissionsExt,
+    os::unix::net::UnixDatagram,
     path::PathBuf,
     sync::{
         Arc, Mutex,
@@ -47,6 +48,8 @@ struct SessionSlot {
     store: LatestPoseStore,
     limits: veoveo_simulation_pose::PoseLimits,
     writer: Mutex<SharedPoseWriter>,
+    notifier: UnixDatagram,
+    notification_path: PathBuf,
     status: Mutex<SessionStatus>,
 }
 
@@ -159,12 +162,19 @@ impl PoseIngress {
             .join(format!("{}.pose", declaration.session_id.as_str()));
         let history_slots = shared_pose_history_slots(&limits)?;
         let writer = SharedPoseWriter::replace(&path, limits.max_message_bytes, history_slots)?;
+        let notifier = UnixDatagram::unbound().map_err(PoseError::from)?;
+        notifier.set_nonblocking(true).map_err(PoseError::from)?;
         let slot = Arc::new(SessionSlot {
             declaration: Mutex::new(declaration.clone()),
             path,
             store: LatestPoseStore::new(pose_binding, limits)?,
             limits,
             writer: Mutex::new(writer),
+            notifier,
+            notification_path: pose_notification_path(
+                &self.config.directory,
+                &declaration.session_id,
+            ),
             status: Mutex::new(SessionStatus {
                 last_sequence: None,
                 last_snapshot_at: None,
@@ -227,19 +237,40 @@ impl PoseIngress {
         let encoded = encode_snapshot(&snapshot, &slot.limits)?;
         let disposition = slot.store.publish(snapshot)?;
         if disposition == PublishDisposition::Accepted {
-            slot.writer
+            let generation = slot
+                .writer
                 .lock()
                 .expect("pose shared-memory writer lock poisoned")
                 .publish(&encoded)?;
-            let mut state = slot
-                .status
-                .lock()
-                .expect("pose ingress status lock poisoned");
-            state.last_sequence = Some(sequence);
-            state.last_snapshot_at = Some(Utc::now());
+            {
+                let mut state = slot
+                    .status
+                    .lock()
+                    .expect("pose ingress status lock poisoned");
+                state.last_sequence = Some(sequence);
+                state.last_snapshot_at = Some(Utc::now());
+            }
+            // The shared ring is authoritative. Notification is a best-effort
+            // wake edge only, so a missing or saturated renderer can never
+            // apply backpressure to simulation pose publication. The next
+            // delivered edge drains every retained generation.
+            let _ = slot
+                .notifier
+                .send_to(&generation.to_ne_bytes(), &slot.notification_path);
         }
         Ok(disposition)
     }
+}
+
+fn pose_notification_path(directory: &std::path::Path, session_id: &SessionId) -> PathBuf {
+    let digest = Sha256::digest(session_id.as_str().as_bytes());
+    let mut name = String::with_capacity(32 + ".notify".len());
+    for byte in &digest[..16] {
+        use std::fmt::Write as _;
+        write!(&mut name, "{byte:02x}").expect("writing to a String cannot fail");
+    }
+    name.push_str(".notify");
+    directory.join(name)
 }
 
 fn shared_pose_history_slots(
@@ -489,6 +520,15 @@ mod tests {
 
         let declaration = binding(SessionId::new("session-1").unwrap());
         ingress.bind(declaration.clone()).await.unwrap();
+        let notification_path = pose_notification_path(directory.path(), &declaration.session_id);
+        assert_eq!(
+            notification_path.file_name().unwrap(),
+            "84097828fc31a8c8d29210df48901a85.notify"
+        );
+        let notification = UnixDatagram::bind(&notification_path).unwrap();
+        notification
+            .set_read_timeout(Some(std::time::Duration::from_secs(1)))
+            .unwrap();
         assert!(matches!(
             ingress
                 .publish("spiffe://example.test/other", snapshot(&declaration, 1))
@@ -502,6 +542,9 @@ mod tests {
                 .unwrap(),
             PublishDisposition::Accepted
         );
+        let mut generation = [0_u8; 8];
+        assert_eq!(notification.recv(&mut generation).unwrap(), 8);
+        assert_eq!(u64::from_ne_bytes(generation), 1);
         assert_eq!(
             ingress
                 .publish("spiffe://example.test/fixture", snapshot(&declaration, 1))

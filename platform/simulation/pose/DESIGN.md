@@ -11,7 +11,7 @@ simulation loop are outside the contract.
 |---|---|
 | `veoveo.io/simulation-view-pose/v1` | length-delimited binary snapshots with one fixed canonical coordinate convention |
 | `veoveo.io/simulation-view-pose-ingress-control/v2` | private typed producer-binding declarations and status with monotonic authorization revisions and revocation tombstones |
-| POSIX shared memory | bounded ordered snapshot ring with acquire/release publication |
+| POSIX shared memory and Unix datagrams | bounded ordered snapshot ring with acquire/release publication and best-effort renderer wake edges |
 | TLS 1.3 | mutually authenticated private streaming transport with exactly one SPIFFE URI SAN per producer certificate |
 | WGS 84 and local tangent frames | Frames-owned immutable world revision with local ENU positions |
 | SI | metres, seconds, metres per second, and radians per second |
@@ -52,6 +52,11 @@ the payload and length under a per-slot generation marker, then advances the
 latest generation with release ordering. A reader drains every retained
 generation in order and accepts a slot only when its marker remains stable.
 An overrun remains visible as a source sequence gap instead of being hidden.
+After advancing the shared generation, ingress sends its value to a private
+per-session Unix datagram socket. The renderer blocks on that edge and drains
+every retained generation when it wakes. A missing or saturated socket never
+blocks or rejects publication because the shared ring remains authoritative;
+the next delivered edge drains the accumulated history.
 
 The streaming implementation prefixes the exact same snapshot with a
 big-endian 32-bit length. `simulation-view-pose` is the canonical ingress

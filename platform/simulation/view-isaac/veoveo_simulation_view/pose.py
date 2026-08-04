@@ -3,6 +3,9 @@ from __future__ import annotations
 import hashlib
 import math
 import mmap
+import os
+import select
+import socket
 import struct
 import threading
 import time
@@ -19,8 +22,6 @@ POSE_HEADER_BYTES = 116
 SHARED_HEADER_BYTES = 64
 SHARED_SLOT_HEADER_BYTES = 16
 MAXIMUM_PENDING_SAMPLES = 4096
-MINIMUM_POLL_INTERVAL_SECONDS = 0.001
-MAXIMUM_POLL_INTERVAL_SECONDS = 0.05
 
 
 @dataclass(frozen=True, slots=True)
@@ -209,6 +210,10 @@ class PoseMirror:
         self._samples = PoseSampleQueue(2)
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self._notification: socket.socket | None = None
+        self._notification_path: Path | None = None
+        self._stop_reader: socket.socket | None = None
+        self._stop_writer: socket.socket | None = None
         self._failure: Exception | None = None
         self._failure_lock = threading.Lock()
 
@@ -231,6 +236,17 @@ class PoseMirror:
         self.close()
         path = self._directory / f"{binding.session_id}.pose"
         self._reader = SharedPoseReader(path, binding.maximum_message_bytes)
+        try:
+            (
+                self._notification,
+                self._notification_path,
+                self._stop_reader,
+                self._stop_writer,
+            ) = _open_pose_notification(self._directory, binding.session_id)
+        except BaseException:
+            self._reader.close()
+            self._reader = None
+            raise
         self._binding = binding
         self._samples = PoseSampleQueue(_sample_capacity(binding))
         self._stop = threading.Event()
@@ -266,6 +282,11 @@ class PoseMirror:
 
     def close(self) -> None:
         self._stop.set()
+        if self._stop_writer is not None:
+            try:
+                self._stop_writer.send(b"stop")
+            except OSError:
+                pass
         thread = self._thread
         if thread is not None:
             thread.join(timeout=1.0)
@@ -273,8 +294,24 @@ class PoseMirror:
                 raise ContractError("pose mirror reader did not stop")
         if self._reader is not None:
             self._reader.close()
+        for endpoint in (
+            self._notification,
+            self._stop_reader,
+            self._stop_writer,
+        ):
+            if endpoint is not None:
+                endpoint.close()
+        if self._notification_path is not None:
+            try:
+                self._notification_path.unlink()
+            except FileNotFoundError:
+                pass
         self._binding = None
         self._reader = None
+        self._notification = None
+        self._notification_path = None
+        self._stop_reader = None
+        self._stop_writer = None
         self._generation = 0
         self._samples = PoseSampleQueue(2)
         self._thread = None
@@ -283,15 +320,19 @@ class PoseMirror:
 
     def _read_loop(self, binding: PoseSourceBinding) -> None:
         reader = self._reader
-        assert reader is not None
-        interval = _poll_interval_seconds(binding.maximum_cadence_hz)
+        notification = self._notification
+        stop_reader = self._stop_reader
+        assert reader is not None and notification is not None and stop_reader is not None
         try:
             while not self._stop.is_set():
                 for value in reader.pending(self._generation):
                     snapshot = decode_snapshot(value[1], binding)
                     self._generation = value[0]
                     self._samples.observe(snapshot, time.monotonic())
-                self._stop.wait(interval)
+                readable, _, _ = select.select([notification, stop_reader], [], [])
+                if stop_reader in readable:
+                    return
+                notification.recv(64)
         except (ContractError, OSError, ValueError) as error:
             with self._failure_lock:
                 self._failure = error
@@ -305,11 +346,34 @@ def _sample_capacity(binding: PoseSourceBinding) -> int:
     return max(2, min(MAXIMUM_PENDING_SAMPLES, stale_window + 2))
 
 
-def _poll_interval_seconds(maximum_cadence_hz: int) -> float:
-    return max(
-        MINIMUM_POLL_INTERVAL_SECONDS,
-        min(MAXIMUM_POLL_INTERVAL_SECONDS, 0.5 / maximum_cadence_hz),
-    )
+def pose_notification_path(directory: Path, session_id: str) -> Path:
+    digest = hashlib.sha256(session_id.encode("utf-8")).hexdigest()[:32]
+    return directory / f"{digest}.notify"
+
+
+def _open_pose_notification(
+    directory: Path, session_id: str
+) -> tuple[socket.socket, Path, socket.socket, socket.socket]:
+    path = pose_notification_path(directory, session_id)
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+    notification = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        notification.bind(str(path))
+        os.chmod(path, 0o600)
+        stop_reader, stop_writer = socket.socketpair(
+            socket.AF_UNIX, socket.SOCK_DGRAM
+        )
+    except BaseException:
+        notification.close()
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+    return notification, path, stop_reader, stop_writer
 
 
 def _same_pose_data(left: PoseSourceBinding, right: PoseSourceBinding) -> bool:

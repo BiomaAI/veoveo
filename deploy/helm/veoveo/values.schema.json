@@ -1089,7 +1089,41 @@
           "$ref": "#/definitions/sizeLimit"
         },
         "cache": {
-          "$ref": "#/definitions/sizeLimit"
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "existingClaim",
+            "size",
+            "storageClass",
+            "accessModes",
+            "version"
+          ],
+          "properties": {
+            "existingClaim": {
+              "type": "string",
+              "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+            },
+            "size": {
+              "type": "string",
+              "minLength": 1
+            },
+            "storageClass": {
+              "type": "string"
+            },
+            "accessModes": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^[a-z0-9](?:[-a-z0-9.]*[a-z0-9])?$"
+            }
+          }
         },
         "streamedWorld": {
           "type": "object",

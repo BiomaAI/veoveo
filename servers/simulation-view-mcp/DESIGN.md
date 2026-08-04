@@ -157,14 +157,16 @@ accepts `simulation-view-pose/v1` messages.
 Admission checks session, epoch, Frames revision, ordered entity table,
 message size, cadence, and sequence. Streaming admission feeds one latest-value
 authority and an ordered shared-memory history bounded by the declared stale
-window. An epoch replacement invalidates the previous snapshot immediately.
-Renderer disconnection cannot block the producer.
+window. A best-effort Unix datagram edge wakes the renderer after publication;
+it carries no pose authority and cannot apply backpressure to the producer. An
+epoch replacement invalidates the previous snapshot immediately. Renderer
+disconnection cannot block the producer.
 
 The scene quality policy selects `hold_latest` or `linear`. The renderer
 validates that selection before scene admission. Hold-latest applies the newest
 authorized source pose exactly. A dedicated mirror reader drains the ordered
-shared-memory ring at twice its admitted maximum cadence and transfers every
-retained sample through a stale-window-sized bounded queue. The render thread
+shared-memory ring after each wake edge and transfers every retained sample
+through a stale-window-sized bounded queue. The render thread
 drains that queue before selecting a frame, so a slower RTX tick does not
 collapse consecutive source pairs. Linear rendering retains the resulting
 source bracket and delays its render clock by one observed source interval.
@@ -445,10 +447,12 @@ frame before the installation is accepted.
 
 There is no CPU renderer or software encoder fallback. The Isaac workload
 requests an NVIDIA RuntimeClass, one `nvidia.com/gpu`, writable runtime
-caches, and at least 2 GiB of memory-backed `/dev/shm`. Isaac Kit portable
-state, the renderer user's home, Warp kernels, Matplotlib state, and XDG cache
-and data all resolve beneath that runtime-cache mount while the container root
-filesystem remains read-only.
+caches, and at least 2 GiB of memory-backed `/dev/shm`. A `ReadWriteOnce` PVC
+retains Isaac Kit portable state, streamed-world provider data, the renderer
+user's home, Warp kernels, Matplotlib state, and XDG cache and data beneath an
+exact cache-version directory while the container root remains read-only.
+Streamed-world tile and material work is asynchronous; provider latency never
+blocks the render update that advances poses and cameras.
 
 `simulation-view-isaac` starts with a built-in declarative diagnostic scene
 and one RTX health render product. Readiness stays false until CUDA and NVENC

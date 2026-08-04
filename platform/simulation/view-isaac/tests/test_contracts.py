@@ -50,6 +50,7 @@ from veoveo_simulation_view.pose import (
     PoseSnapshot,
     SharedPoseReader,
     decode_snapshot,
+    pose_notification_path,
 )
 from veoveo_simulation_view.renderer_setup import (
     CESIUM_EXTENSION_ID,
@@ -67,7 +68,11 @@ from veoveo_simulation_view.renderer_setup import (
     suppress_interactive_cesium_viewport_updates,
     VIEWPORT_GRID_ENABLED_SETTING,
 )
-from veoveo_simulation_view.runtime import Renderer, SessionRuntime
+from veoveo_simulation_view.runtime import (
+    Renderer,
+    SessionRuntime,
+    simulation_app_settings,
+)
 from veoveo_simulation_view.scene import ArtifactMaterializer, ArtifactStore
 
 
@@ -308,6 +313,26 @@ class RendererContractsTest(unittest.TestCase):
         self.assertNotIn(
             READINESS_RENDER_PRODUCT_NAME,
             {render_product_name(slot) for slot in range(4)},
+        )
+
+    def test_streamed_world_loads_never_block_the_render_loop(self) -> None:
+        config = Mock(
+            probe_width=640,
+            probe_height=360,
+            maximum_render_slots=1,
+            signaling_port_base=49100,
+            media_port_base=47998,
+            public_media_ip="192.0.2.42",
+            stream_target_fps=30,
+            cache_directory=Path("/var/lib/veoveo/runtime-cache/profile/simulation-view"),
+        )
+
+        settings = simulation_app_settings(config)
+
+        self.assertIs(settings["sync_loads"], False)
+        self.assertIn(
+            "/var/lib/veoveo/runtime-cache/profile/simulation-view/kit-portable",
+            settings["extra_args"],
         )
 
     def test_render_product_is_reconfigured_without_recreation(self) -> None:
@@ -1826,6 +1851,12 @@ class RendererContractsTest(unittest.TestCase):
                 self.assertEqual(reader.pending(6), [])
             finally:
                 reader.close()
+
+    def test_pose_notification_name_matches_the_ingress_contract(self) -> None:
+        self.assertEqual(
+            pose_notification_path(Path("/run/pose"), "session-1"),
+            Path("/run/pose/84097828fc31a8c8d29210df48901a85.notify"),
+        )
 
     def test_pose_authorization_renewal_preserves_reader_and_latest_state(
         self,

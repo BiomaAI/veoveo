@@ -310,7 +310,11 @@ simulationView:
   sharedMemory:
     sizeLimit: 2Gi
   cache:
-    sizeLimit: 20Gi
+    existingClaim: ""
+    size: 20Gi
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+    version: isaac-6.0.1-cesium-0.29.0-v1
   streamedWorld:
     enabled: false
     existingConfigMap: ""
