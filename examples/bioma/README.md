@@ -65,9 +65,11 @@ platform and UAV Applications select immutable chart versions independently. The
 platform and UAV Applications currently select chart `0.1.0-171ed16f8b99`. The
 coordinated image closure was published from commit
 `171ed16f8b992625be86e3dfbf8c996be8e59f36`; the Gateway image includes the schema
-correction published from `b84bd89a62721440ee41f542e154e9ade3720e6e`. Each
-selected digest is the workload's release identity. A release-input commit advances
-the coordinated runtime closure.
+correction published from `b84bd89a62721440ee41f542e154e9ade3720e6e`. The UAV
+runtime includes the visual-health isolation correction published from
+`a10d43f0f4b4fed36c6d2acf1836d7d40105f0fb`. Each selected digest is the
+workload's release identity. A release-input commit advances the coordinated runtime
+closure.
 
 Publish a new local release directly to the shared registry:
 
