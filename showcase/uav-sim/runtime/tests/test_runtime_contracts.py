@@ -186,6 +186,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIn("for _ in range(256):", pegasus_patch)
         self.assertIn("recv_match(blocking=False)", pegasus_patch)
         self.assertIn("-o $udp_gcs_port_remote", px4_patch)
+        self.assertIn("param set-default SDLOG_BACKEND 0", px4_patch)
 
     def test_default_fleet_loop_encloses_manhattan(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
