@@ -341,9 +341,12 @@ class _RecordingSink:
         self._recording = rr.RecordingStream(
             "veoveo-uav-sim", recording_id=config.recording_key
         )
-        self._recording.connect_grpc(
-            config.recording_proxy,
-            default_blueprint=_recording_blueprint(config, self._root),
+        self._recording.connect_grpc(config.recording_proxy)
+        rr.send_blueprint(
+            _recording_blueprint(config, self._root),
+            make_active=True,
+            make_default=True,
+            recording=self._recording,
         )
         self._last_vehicle_status: dict[str, tuple[object, ...]] = {}
         self._last_tiles: tuple[int, int, str] | None = None
