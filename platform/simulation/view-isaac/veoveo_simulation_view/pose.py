@@ -14,9 +14,10 @@ from pathlib import Path
 from .contracts import ContractError, PoseSourceBinding, identity
 
 POSE_MAGIC = b"VVPOSE01"
-SHARED_MAGIC = b"VVPSHM01"
+SHARED_MAGIC = b"VVPSHM02"
 POSE_HEADER_BYTES = 116
 SHARED_HEADER_BYTES = 64
+SHARED_SLOT_HEADER_BYTES = 16
 MAXIMUM_PENDING_SAMPLES = 4096
 MINIMUM_POLL_INTERVAL_SECONDS = 0.001
 MAXIMUM_POLL_INTERVAL_SECONDS = 0.05
@@ -133,43 +134,60 @@ class SharedPoseReader:
     def __init__(self, path: Path, maximum_message_bytes: int) -> None:
         self._file = path.open("rb")
         length = path.stat().st_size
-        if length < SHARED_HEADER_BYTES or (length - SHARED_HEADER_BYTES) % 2 != 0:
+        if length < SHARED_HEADER_BYTES:
             raise ContractError("shared pose file has an invalid length")
         self._map = mmap.mmap(self._file.fileno(), length, access=mmap.ACCESS_READ)
         if self._map[:8] != SHARED_MAGIC:
             self.close()
             raise ContractError("shared pose file magic is invalid")
         version = int.from_bytes(self._map[8:10], byteorder="little")
-        slot_capacity = (length - SHARED_HEADER_BYTES) // 2
-        declared = int.from_bytes(self._map[48:56], byteorder="little")
+        slot_capacity = self._native_u64(24)
+        slot_count = self._native_u64(32)
+        slot_stride = self._native_u64(40)
+        expected_stride = (SHARED_SLOT_HEADER_BYTES + slot_capacity + 7) & ~7
         if (
-            version != 1
+            version != 2
             or slot_capacity < 1
-            or slot_capacity != declared
             or slot_capacity > maximum_message_bytes
+            or slot_count < 2
+            or slot_count > MAXIMUM_PENDING_SAMPLES
+            or slot_stride != expected_stride
+            or length != SHARED_HEADER_BYTES + slot_count * slot_stride
         ):
             self.close()
-            raise ContractError("shared pose slot declaration is invalid")
+            raise ContractError("shared pose history declaration is invalid")
         self._slot_capacity = slot_capacity
+        self._slot_count = slot_count
+        self._slot_stride = slot_stride
 
-    def latest(self) -> tuple[int, bytes] | None:
+    def pending(self, generation: int) -> list[tuple[int, bytes]]:
         for _ in range(3):
-            generation = self._native_u64(16)
-            if generation == 0:
-                return None
-            if generation & 1:
-                continue
-            active = self._native_u64(24)
-            if active not in (0, 1):
-                raise ContractError("shared pose active slot is invalid")
-            length = self._native_u64(32 if active == 0 else 40)
-            if length < 1 or length > self._slot_capacity:
-                raise ContractError("shared pose payload length is invalid")
-            start = SHARED_HEADER_BYTES + active * self._slot_capacity
-            payload = self._map[start : start + length]
-            if generation == self._native_u64(16) and active == self._native_u64(24):
-                return generation // 2, payload
-        return None
+            latest = self._native_u64(16)
+            if latest <= generation:
+                return []
+            oldest = max(1, latest - self._slot_count + 1)
+            first = max(generation + 1, oldest)
+            snapshots: list[tuple[int, bytes]] = []
+            stable = True
+            for expected in range(first, latest + 1):
+                slot = (expected - 1) % self._slot_count
+                start = SHARED_HEADER_BYTES + slot * self._slot_stride
+                marker = expected * 2
+                if self._native_u64(start) != marker:
+                    stable = False
+                    break
+                payload_length = self._native_u64(start + 8)
+                if payload_length < 1 or payload_length > self._slot_capacity:
+                    raise ContractError("shared pose payload length is invalid")
+                payload_start = start + SHARED_SLOT_HEADER_BYTES
+                payload = self._map[payload_start : payload_start + payload_length]
+                if self._native_u64(start) != marker:
+                    stable = False
+                    break
+                snapshots.append((expected, payload))
+            if stable:
+                return snapshots
+        raise ContractError("shared pose history changed during read")
 
     def close(self) -> None:
         if hasattr(self, "_map"):
@@ -269,8 +287,7 @@ class PoseMirror:
         interval = _poll_interval_seconds(binding.maximum_cadence_hz)
         try:
             while not self._stop.is_set():
-                value = reader.latest()
-                if value is not None and value[0] > self._generation:
+                for value in reader.pending(self._generation):
                     snapshot = decode_snapshot(value[1], binding)
                     self._generation = value[0]
                     self._samples.observe(snapshot, time.monotonic())

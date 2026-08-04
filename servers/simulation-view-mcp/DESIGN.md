@@ -155,17 +155,18 @@ The private ingress requires that SPIFFE identity over TLS 1.3 before it
 accepts `simulation-view-pose/v1` messages.
 
 Admission checks session, epoch, Frames revision, ordered entity table,
-message size, cadence, and sequence. Shared memory and streaming framing feed
-the same latest-value store. An epoch replacement invalidates the previous
-snapshot immediately. Renderer disconnection cannot block the producer.
+message size, cadence, and sequence. Streaming admission feeds one latest-value
+authority and an ordered shared-memory history bounded by the declared stale
+window. An epoch replacement invalidates the previous snapshot immediately.
+Renderer disconnection cannot block the producer.
 
 The scene quality policy selects `hold_latest` or `linear`. The renderer
 validates that selection before scene admission. Hold-latest applies the newest
-authorized source pose exactly. A dedicated mirror reader samples the
-latest-value transport at twice its admitted maximum cadence and transfers
-every observed sample through a stale-window-sized bounded queue. The render
-thread drains that queue before selecting a frame, so a slower RTX tick does
-not collapse consecutive source pairs. Linear rendering retains the resulting
+authorized source pose exactly. A dedicated mirror reader drains the ordered
+shared-memory ring at twice its admitted maximum cadence and transfers every
+retained sample through a stale-window-sized bounded queue. The render thread
+drains that queue before selecting a frame, so a slower RTX tick does not
+collapse consecutive source pairs. Linear rendering retains the resulting
 source bracket and delays its render clock by one observed source interval.
 Position uses component-wise linear interpolation, while orientation uses
 normalized shortest-arc quaternion SLERP. One rendered pose frame drives every

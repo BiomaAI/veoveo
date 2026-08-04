@@ -13,9 +13,9 @@ use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 use tokio::sync::RwLock;
 use veoveo_simulation_pose::{
-    LatestPoseStore, POSE_INGRESS_CONTROL_SCHEMA, PoseBinding, PoseError, PoseIngressBinding,
-    PoseIngressReadiness, PoseIngressStatus, PoseSnapshot, PublishDisposition, SessionId,
-    SharedPoseWriter, encode_snapshot,
+    LatestPoseStore, MAXIMUM_SHARED_POSE_SLOTS, POSE_INGRESS_CONTROL_SCHEMA, PoseBinding,
+    PoseError, PoseIngressBinding, PoseIngressReadiness, PoseIngressStatus, PoseSnapshot,
+    PublishDisposition, SessionId, SharedPoseWriter, encode_snapshot,
 };
 
 #[derive(Debug, Clone)]
@@ -157,7 +157,8 @@ impl PoseIngress {
             .config
             .directory
             .join(format!("{}.pose", declaration.session_id.as_str()));
-        let writer = SharedPoseWriter::replace(&path, limits.max_message_bytes)?;
+        let history_slots = shared_pose_history_slots(&limits)?;
+        let writer = SharedPoseWriter::replace(&path, limits.max_message_bytes, history_slots)?;
         let slot = Arc::new(SessionSlot {
             declaration: Mutex::new(declaration.clone()),
             path,
@@ -239,6 +240,28 @@ impl PoseIngress {
         }
         Ok(disposition)
     }
+}
+
+fn shared_pose_history_slots(
+    limits: &veoveo_simulation_pose::PoseLimits,
+) -> Result<usize, PoseIngressError> {
+    let cadence = u128::from(limits.max_cadence_hz);
+    let stale_nanoseconds = limits.stale_after.as_nanos();
+    let samples = cadence
+        .checked_mul(stale_nanoseconds)
+        .and_then(|value| value.checked_add(999_999_999))
+        .map(|value| value / 1_000_000_000)
+        .and_then(|value| value.checked_add(2))
+        .ok_or_else(|| PoseError::SharedSlot("shared pose history size overflow".to_owned()))?;
+    let slots = usize::try_from(samples)
+        .map_err(|_| PoseError::SharedSlot("shared pose history size overflow".to_owned()))?;
+    if slots > MAXIMUM_SHARED_POSE_SLOTS {
+        return Err(PoseError::SharedSlot(
+            "pose cadence and stale window exceed shared history capacity".to_owned(),
+        )
+        .into());
+    }
+    Ok(slots.max(2))
 }
 
 fn validate_binding(declaration: &PoseIngressBinding) -> Result<(), PoseIngressError> {
@@ -429,6 +452,24 @@ mod tests {
                 display: None,
             }],
         }
+    }
+
+    #[test]
+    fn shared_history_covers_the_complete_stale_window() {
+        let limits = veoveo_simulation_pose::PoseLimits {
+            max_entities: 8,
+            max_message_bytes: 64 * 1024,
+            max_cadence_hz: 120,
+            stale_after: std::time::Duration::from_millis(500),
+        };
+        assert_eq!(shared_pose_history_slots(&limits).unwrap(), 62);
+
+        let excessive = veoveo_simulation_pose::PoseLimits {
+            max_cadence_hz: 1_000,
+            stale_after: std::time::Duration::from_secs(5),
+            ..limits
+        };
+        assert!(shared_pose_history_slots(&excessive).is_err());
     }
 
     #[tokio::test]
