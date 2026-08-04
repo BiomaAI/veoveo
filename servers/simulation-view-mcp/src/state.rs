@@ -13,8 +13,9 @@ use uuid::Uuid;
 use veoveo_mcp_contract::{
     LIVE_VIEW_SCHEMA, LiveCameraHealth, LiveCameraId, LiveColorMatrix, LiveColorMetadata,
     LiveColorPrimaries, LiveColorRange, LiveColorTransfer, LiveMediaEndpoint, LiveMediaTransport,
-    LiveSessionId, LiveViewAccessToken, LiveViewCodec, LiveViewConnection, LiveViewHardwareEncoder,
-    LiveViewId, LiveViewLifecycle, LiveViewOwner, LiveViewState, LiveViewUri,
+    LiveSessionId, LiveStreamProductId, LiveViewAccessToken, LiveViewCodec, LiveViewConnection,
+    LiveViewHardwareEncoder, LiveViewId, LiveViewLifecycle, LiveViewOwner, LiveViewState,
+    LiveViewUri, PrincipalId,
 };
 use veoveo_simulation_pose::PoseIngressStatus;
 use veoveo_simulation_scene::GeospatialLayerCatalog;
@@ -72,10 +73,23 @@ impl Default for SimulationViewConfig {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone)]
 pub(crate) struct Lease {
     pub state: LiveViewState,
     pub token_hash: [u8; 32],
+    events: tokio::sync::watch::Sender<LeaseSignal>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LeaseSignal {
+    pub active: bool,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct SignalingAuthorization {
+    pub state: LiveViewState,
+    pub events: tokio::sync::watch::Receiver<LeaseSignal>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -90,7 +104,6 @@ pub(crate) struct DurableCamera {
 pub(crate) struct DurableSimulationViewState {
     pub session: SimulationViewSession,
     pub cameras: Vec<DurableCamera>,
-    pub leases: Vec<Lease>,
 }
 
 #[derive(Debug, Default)]
@@ -583,6 +596,7 @@ impl SimulationViewService {
     pub fn open_live_view(
         &self,
         owner: &LiveViewOwner,
+        viewer_actor: &PrincipalId,
         request: OpenLiveViewRequest,
     ) -> Result<LiveViewConnection, SimulationViewError> {
         let mut state = self
@@ -607,6 +621,8 @@ impl SimulationViewService {
         }
         if let Some(existing_id) = state.leases.iter().find_map(|(id, lease)| {
             (lease.state.owner == *owner
+                && lease.state.viewer_actor == *viewer_actor
+                && lease.state.viewer_instance_id == request.viewer_instance_id
                 && lease.state.camera_id == request.camera_id
                 && !matches!(
                     lease.state.lifecycle,
@@ -617,7 +633,12 @@ impl SimulationViewService {
         }) {
             return rotate_lease(&self.config, state.leases.get_mut(&existing_id).unwrap());
         }
-        if camera.definition.stream_policy == CameraStreamPolicy::OnDemand {
+        let stream_product_active = state
+            .leases
+            .values()
+            .any(|lease| lease.state.camera_id == request.camera_id && active_lease(&lease.state));
+        if camera.definition.stream_policy == CameraStreamPolicy::OnDemand && !stream_product_active
+        {
             let usage = capacity_usage(&state, None);
             if usage.streamed_cameras >= self.config.capacity.maximum_streamed_cameras
                 || usage.nvenc_sessions >= self.config.capacity.maximum_nvenc_sessions
@@ -639,9 +660,12 @@ impl SimulationViewService {
         let stream = LiveViewState {
             schema_version: LIVE_VIEW_SCHEMA.to_owned(),
             live_view_id: live_view_id.clone(),
+            stream_product_id: stream_product_id(&request.camera_id),
             resource_uri: LiveViewUri::new(uris::stream(&request.session_id, &live_view_id))
                 .map_err(|_| SimulationViewError::Access)?,
             owner: owner.clone(),
+            viewer_actor: viewer_actor.clone(),
+            viewer_instance_id: request.viewer_instance_id,
             session_id: request.session_id,
             camera_id: request.camera_id,
             lifecycle: LiveViewLifecycle::Starting,
@@ -669,16 +693,15 @@ impl SimulationViewService {
             expires_at,
         };
         stream.validate().map_err(|_| SimulationViewError::Access)?;
+        let (events, _) = tokio::sync::watch::channel(lease_signal(&stream));
         state.leases.insert(
             live_view_id,
             Lease {
                 state: stream.clone(),
                 token_hash: token_hash(&token),
+                events,
             },
         );
-        if let Some(session) = state.sessions.get_mut(&stream.session_id) {
-            advance_desired(session);
-        }
         Ok(LiveViewConnection {
             stream,
             access_token: token,
@@ -688,6 +711,7 @@ impl SimulationViewService {
     pub fn renew_live_view(
         &self,
         owner: &LiveViewOwner,
+        viewer_actor: &PrincipalId,
         request: RenewLiveViewRequest,
     ) -> Result<LiveViewConnection, SimulationViewError> {
         let mut state = self
@@ -699,7 +723,10 @@ impl SimulationViewService {
             .get_mut(&request.live_view_id)
             .filter(|lease| lease.state.session_id == request.session_id)
             .ok_or_else(|| SimulationViewError::LiveViewNotFound(request.live_view_id.clone()))?;
-        if &lease.state.owner != owner {
+        if &lease.state.owner != owner
+            || &lease.state.viewer_actor != viewer_actor
+            || lease.state.viewer_instance_id != request.viewer_instance_id
+        {
             return Err(SimulationViewError::Ownership);
         }
         if matches!(
@@ -708,17 +735,13 @@ impl SimulationViewService {
         ) {
             return Err(SimulationViewError::Lifecycle);
         }
-        let session_id = lease.state.session_id.clone();
-        let connection = rotate_lease(&self.config, lease)?;
-        if let Some(session) = state.sessions.get_mut(&session_id) {
-            advance_desired(session);
-        }
-        Ok(connection)
+        rotate_lease(&self.config, lease)
     }
 
     pub fn close_live_view(
         &self,
         owner: &LiveViewOwner,
+        viewer_actor: &PrincipalId,
         request: CloseLiveViewRequest,
     ) -> Result<CloseResult, SimulationViewError> {
         let mut state = self
@@ -730,26 +753,25 @@ impl SimulationViewService {
             .get_mut(&request.live_view_id)
             .filter(|lease| lease.state.session_id == request.session_id)
             .ok_or_else(|| SimulationViewError::LiveViewNotFound(request.live_view_id.clone()))?;
-        if &lease.state.owner != owner {
+        if &lease.state.owner != owner
+            || &lease.state.viewer_actor != viewer_actor
+            || lease.state.viewer_instance_id != request.viewer_instance_id
+        {
             return Err(SimulationViewError::Ownership);
         }
         close_lease(lease);
-        let session_id = lease.state.session_id.clone();
         let resource_uri = lease.state.resource_uri.as_str().to_owned();
-        if let Some(session) = state.sessions.get_mut(&session_id) {
-            advance_desired(session);
-        }
         Ok(CloseResult {
             resource_uri,
             closed: true,
         })
     }
 
-    pub fn authorize_signaling(
+    pub(crate) fn authorize_signaling(
         &self,
         live_view_id: &LiveViewId,
         token: &str,
-    ) -> Result<LiveViewState, SimulationViewError> {
+    ) -> Result<SignalingAuthorization, SimulationViewError> {
         let supplied: [u8; 32] = Sha256::digest(token.as_bytes()).into();
         let mut state = self
             .state
@@ -771,22 +793,10 @@ impl SimulationViewService {
         }
         lease.state.connected_viewers += 1;
         lease.state.lifecycle = LiveViewLifecycle::Live;
-        Ok(lease.state.clone())
-    }
-
-    pub fn signaling_active(&self, live_view_id: &LiveViewId) -> bool {
-        self.state
-            .lock()
-            .expect("simulation-view state lock poisoned")
-            .leases
-            .get(live_view_id)
-            .is_some_and(|lease| {
-                lease.state.expires_at > Utc::now()
-                    && matches!(
-                        lease.state.lifecycle,
-                        LiveViewLifecycle::Ready | LiveViewLifecycle::Live
-                    )
-            })
+        Ok(SignalingAuthorization {
+            state: lease.state.clone(),
+            events: lease.events.subscribe(),
+        })
     }
 
     pub fn disconnect_signaling(&self, live_view_id: &LiveViewId) {
@@ -835,6 +845,7 @@ impl SimulationViewService {
             lease.state.connected_viewers = 0;
             lease.token_hash.fill(0);
             lease.state.expires_at = Utc::now();
+            let _ = lease.events.send(lease_signal(&lease.state));
         }
     }
 
@@ -1019,12 +1030,16 @@ impl SimulationViewService {
         }
     }
 
-    pub(crate) fn mark_stream_ready(&self, stream_id: &LiveViewId) {
+    pub(crate) fn mark_stream_product_ready(&self, camera_id: &LiveCameraId) {
         let mut state = self
             .state
             .lock()
             .expect("simulation-view state lock poisoned");
-        if let Some(lease) = state.leases.get_mut(stream_id) {
+        for lease in state
+            .leases
+            .values_mut()
+            .filter(|lease| lease.state.camera_id == *camera_id && active_lease(&lease.state))
+        {
             lease.state.lifecycle = LiveViewLifecycle::Ready;
         }
     }
@@ -1036,10 +1051,6 @@ impl SimulationViewService {
             .expect("simulation-view state lock poisoned");
         if let Some(lease) = state.leases.get_mut(stream_id) {
             close_lease(lease);
-            let session_id = lease.state.session_id.clone();
-            if let Some(session) = state.sessions.get_mut(&session_id) {
-                advance_desired(session);
-            }
         }
     }
 
@@ -1072,17 +1083,7 @@ impl SimulationViewService {
                 })
             })
             .collect::<Result<Vec<_>, SimulationViewError>>()?;
-        let leases = state
-            .leases
-            .values()
-            .filter(|lease| lease.state.session_id == *session_id)
-            .cloned()
-            .collect();
-        Ok(DurableSimulationViewState {
-            session,
-            cameras,
-            leases,
-        })
+        Ok(DurableSimulationViewState { session, cameras })
     }
 
     #[cfg(test)]
@@ -1164,19 +1165,6 @@ impl SimulationViewService {
             camera.camera.last_frame_at = None;
             camera.camera.updated_at = now;
         }
-        desired.leases.retain(|lease| {
-            lease.state.expires_at > now
-                && !matches!(
-                    lease.state.lifecycle,
-                    LiveViewLifecycle::Closed | LiveViewLifecycle::Failed
-                )
-        });
-        for lease in &mut desired.leases {
-            lease.state.connected_viewers = 0;
-            lease.state.lifecycle = LiveViewLifecycle::Ready;
-            lease.state.camera_health = LiveCameraHealth::Warming;
-            lease.state.last_frame_at = None;
-        }
         if let Some(source) = desired.session.pose_source.as_mut() {
             source.last_sequence = None;
             source.last_snapshot_at = None;
@@ -1224,12 +1212,6 @@ impl SimulationViewService {
             state
                 .cameras
                 .insert(durable.camera.camera_id.clone(), durable.camera);
-        }
-        for lease in desired.leases {
-            if lease.state.session_id != session_id {
-                return Err(SimulationViewError::Lifecycle);
-            }
-            state.leases.insert(lease.state.live_view_id.clone(), lease);
         }
         state.sessions.insert(session_id, desired.session);
         Ok(())
@@ -1296,25 +1278,6 @@ impl SimulationViewService {
                     .copied()
                     .map(|slot| (camera.clone(), slot))
             })
-            .collect()
-    }
-
-    pub(crate) fn reconciliation_streams(&self, session_id: &LiveSessionId) -> Vec<LiveViewState> {
-        let now = Utc::now();
-        self.state
-            .lock()
-            .expect("simulation-view state lock poisoned")
-            .leases
-            .values()
-            .filter(|lease| {
-                lease.state.session_id == *session_id
-                    && lease.state.expires_at > now
-                    && !matches!(
-                        lease.state.lifecycle,
-                        LiveViewLifecycle::Closed | LiveViewLifecycle::Failed
-                    )
-            })
-            .map(|lease| lease.state.clone())
             .collect()
     }
 
@@ -1558,6 +1521,7 @@ impl SimulationViewService {
     pub fn list_streams(
         &self,
         owner: &LiveViewOwner,
+        viewer_actor: &PrincipalId,
         session_id: &LiveSessionId,
     ) -> Vec<LiveViewState> {
         self.state
@@ -1565,7 +1529,11 @@ impl SimulationViewService {
             .expect("simulation-view state lock poisoned")
             .leases
             .values()
-            .filter(|lease| lease.state.owner == *owner && lease.state.session_id == *session_id)
+            .filter(|lease| {
+                lease.state.owner == *owner
+                    && lease.state.viewer_actor == *viewer_actor
+                    && lease.state.session_id == *session_id
+            })
             .map(|lease| lease.state.clone())
             .collect()
     }
@@ -1580,9 +1548,54 @@ impl SimulationViewService {
             .ok_or_else(|| SimulationViewError::CameraNotFound(camera_id.clone()))
     }
 
+    pub(crate) fn stream_product_admission(
+        &self,
+        stream_id: &LiveViewId,
+    ) -> Result<(LiveStreamProductId, u16, bool), SimulationViewError> {
+        let state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        let stream = &state
+            .leases
+            .get(stream_id)
+            .ok_or_else(|| SimulationViewError::LiveViewNotFound(stream_id.clone()))?
+            .state;
+        let render_slot = state
+            .camera_slots
+            .get(&stream.camera_id)
+            .copied()
+            .ok_or(SimulationViewError::Lifecycle)?;
+        let active_demand = state
+            .leases
+            .values()
+            .filter(|lease| lease.state.camera_id == stream.camera_id && active_lease(&lease.state))
+            .count();
+        Ok((
+            stream.stream_product_id.clone(),
+            render_slot,
+            active_demand == 1,
+        ))
+    }
+
+    pub(crate) fn stream_product_can_stop(&self, camera_id: &LiveCameraId) -> bool {
+        let state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        state.cameras.get(camera_id).is_some_and(|camera| {
+            camera.definition.stream_policy == CameraStreamPolicy::OnDemand
+                && !state
+                    .leases
+                    .values()
+                    .any(|lease| lease.state.camera_id == *camera_id && active_lease(&lease.state))
+        })
+    }
+
     pub fn get_stream(
         &self,
         owner: &LiveViewOwner,
+        viewer_actor: &PrincipalId,
         stream_id: &LiveViewId,
     ) -> Result<LiveViewState, SimulationViewError> {
         let state = self
@@ -1594,7 +1607,7 @@ impl SimulationViewService {
             .get(stream_id)
             .ok_or_else(|| SimulationViewError::LiveViewNotFound(stream_id.clone()))?
             .state;
-        if &stream.owner != owner {
+        if &stream.owner != owner || &stream.viewer_actor != viewer_actor {
             return Err(SimulationViewError::Ownership);
         }
         Ok(stream.clone())
@@ -1830,21 +1843,24 @@ fn capacity_usage(state: &ServiceState, excluding: Option<&LiveCameraId>) -> Cap
             usage.nvenc_sessions += 1;
         }
     }
-    for lease in state.leases.values().filter(|lease| {
-        !matches!(
-            lease.state.lifecycle,
-            LiveViewLifecycle::Closed | LiveViewLifecycle::Failed
-        ) && lease.state.expires_at > Utc::now()
-    }) {
-        if state
-            .cameras
-            .get(&lease.state.camera_id)
-            .is_some_and(|camera| camera.definition.stream_policy == CameraStreamPolicy::OnDemand)
-        {
-            usage.streamed_cameras += 1;
-            usage.nvenc_sessions += 1;
-        }
-    }
+    let demanded_on_demand_cameras = state
+        .leases
+        .values()
+        .filter(|lease| active_lease(&lease.state))
+        .filter_map(|lease| {
+            state
+                .cameras
+                .get(&lease.state.camera_id)
+                .filter(|camera| camera.definition.stream_policy == CameraStreamPolicy::OnDemand)
+                .map(|_| lease.state.camera_id.clone())
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    usage.streamed_cameras = usage
+        .streamed_cameras
+        .saturating_add(u32::try_from(demanded_on_demand_cameras.len()).unwrap_or(u32::MAX));
+    usage.nvenc_sessions = usage
+        .nvenc_sessions
+        .saturating_add(u32::try_from(demanded_on_demand_cameras.len()).unwrap_or(u32::MAX));
     usage
 }
 
@@ -1853,6 +1869,23 @@ fn camera_memory(definition: &CameraDefinition) -> u64 {
         .saturating_mul(u64::from(definition.height_px))
         .saturating_mul(16)
         .saturating_mul(3)
+}
+
+fn active_lease(stream: &LiveViewState) -> bool {
+    !matches!(
+        stream.lifecycle,
+        LiveViewLifecycle::Closed | LiveViewLifecycle::Failed
+    ) && stream.expires_at > Utc::now()
+}
+
+fn stream_product_id(camera_id: &LiveCameraId) -> LiveStreamProductId {
+    let digest = Sha256::digest(camera_id.as_str().as_bytes());
+    let suffix = digest[..16]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    LiveStreamProductId::new(format!("product-{suffix}"))
+        .expect("digest-derived stream product identifier is valid")
 }
 
 fn rejection(
@@ -1910,6 +1943,7 @@ fn rotate_lease(
     let token = new_token()?;
     lease.token_hash = token_hash(&token);
     lease.state.expires_at = expiry(Utc::now(), config.lease_duration)?;
+    let _ = lease.events.send(lease_signal(&lease.state));
     Ok(LiveViewConnection {
         stream: lease.state.clone(),
         access_token: token,
@@ -1921,6 +1955,17 @@ fn close_lease(lease: &mut Lease) {
     lease.state.connected_viewers = 0;
     lease.token_hash.fill(0);
     lease.state.expires_at = Utc::now();
+    let _ = lease.events.send(lease_signal(&lease.state));
+}
+
+fn lease_signal(state: &LiveViewState) -> LeaseSignal {
+    LeaseSignal {
+        active: !matches!(
+            state.lifecycle,
+            LiveViewLifecycle::Closed | LiveViewLifecycle::Failed
+        ),
+        expires_at: state.expires_at,
+    }
 }
 
 #[cfg(test)]
@@ -1929,8 +1974,8 @@ mod tests {
 
     use veoveo_mcp_contract::{
         AccessSubject, ArtifactId, FrameId, FrameWorldId, FrameWorldRevisionId,
-        FrameWorldRevisionUri, GroupId, PolicyVersion, PrincipalId, TenantId, WorkContextId,
-        WorldFrameUri,
+        FrameWorldRevisionUri, GroupId, LiveViewerInstanceId, PolicyVersion, PrincipalId, TenantId,
+        WorkContextId, WorldFrameUri,
     };
     use veoveo_simulation_pose::{
         EntityId, EpochId, FrameRevision, POSE_INGRESS_CONTROL_SCHEMA, PoseIngressStatus,
@@ -1961,6 +2006,14 @@ mod tests {
         let mut owner = view_owner(principal);
         owner.subject = AccessSubject::Group(GroupId::new("flight").unwrap());
         owner
+    }
+
+    fn viewer_actor() -> PrincipalId {
+        PrincipalId::new("issuer#viewer").unwrap()
+    }
+
+    fn viewer_instance(value: &str) -> LiveViewerInstanceId {
+        LiveViewerInstanceId::new(value).unwrap()
     }
 
     fn identity_transform() -> LocalTransform {
@@ -2426,9 +2479,11 @@ mod tests {
         let stream = service
             .open_live_view(
                 &owner,
+                &viewer_actor(),
                 OpenLiveViewRequest {
                     session_id: session.session_id.clone(),
                     camera_id: camera.camera_id.clone(),
+                    viewer_instance_id: viewer_instance("browser-1"),
                 },
             )
             .unwrap();
@@ -2465,11 +2520,10 @@ mod tests {
                 .health,
             LiveCameraHealth::Warming
         );
-        let restored_stream = restored
-            .get_stream(&owner, &stream.stream.live_view_id)
-            .unwrap();
-        assert_eq!(restored_stream.lifecycle, LiveViewLifecycle::Ready);
-        assert_eq!(restored_stream.connected_viewers, 0);
+        assert!(matches!(
+            restored.get_stream(&owner, &viewer_actor(), &stream.stream.live_view_id),
+            Err(SimulationViewError::LiveViewNotFound(_))
+        ));
     }
 
     #[test]
@@ -2551,9 +2605,11 @@ mod tests {
         let first = service
             .open_live_view(
                 &owner,
+                &viewer_actor(),
                 OpenLiveViewRequest {
                     session_id: session.session_id.clone(),
                     camera_id: camera.camera_id,
+                    viewer_instance_id: viewer_instance("browser-1"),
                 },
             )
             .unwrap();
@@ -2565,9 +2621,11 @@ mod tests {
         let second = service
             .renew_live_view(
                 &owner,
+                &viewer_actor(),
                 RenewLiveViewRequest {
                     session_id: session.session_id,
                     live_view_id: first.stream.live_view_id.clone(),
+                    viewer_instance_id: viewer_instance("browser-1"),
                 },
             )
             .unwrap();
@@ -2591,6 +2649,101 @@ mod tests {
                 )
                 .is_ok()
         );
+    }
+
+    #[test]
+    fn shared_camera_uses_distinct_actor_leases_and_one_stream_product() {
+        let service = SimulationViewService::new(SimulationViewConfig::default()).unwrap();
+        let owner = shared_view_owner("issuer#session-creator");
+        let session = bound_session(&service, &owner);
+        let CameraAdmission::Admitted { camera } = service
+            .create_camera(
+                &owner,
+                CreateCameraRequest {
+                    session_id: session.session_id.clone(),
+                    definition: camera_definition(CameraStreamPolicy::OnDemand),
+                },
+            )
+            .unwrap()
+        else {
+            panic!("camera should be admitted");
+        };
+        let actor_a = PrincipalId::new("issuer#viewer-a").unwrap();
+        let actor_b = PrincipalId::new("issuer#viewer-b").unwrap();
+        let first = service
+            .open_live_view(
+                &owner,
+                &actor_a,
+                OpenLiveViewRequest {
+                    session_id: session.session_id.clone(),
+                    camera_id: camera.camera_id.clone(),
+                    viewer_instance_id: viewer_instance("browser-a"),
+                },
+            )
+            .unwrap();
+        let second = service
+            .open_live_view(
+                &owner,
+                &actor_b,
+                OpenLiveViewRequest {
+                    session_id: session.session_id.clone(),
+                    camera_id: camera.camera_id,
+                    viewer_instance_id: viewer_instance("browser-b"),
+                },
+            )
+            .unwrap();
+
+        assert_ne!(first.stream.live_view_id, second.stream.live_view_id);
+        assert_eq!(
+            first.stream.stream_product_id,
+            second.stream.stream_product_id
+        );
+        assert_eq!(service.capacity().usage.streamed_cameras, 1);
+        assert_eq!(service.capacity().usage.nvenc_sessions, 1);
+        assert!(
+            service
+                .authorize_signaling(
+                    &first.stream.live_view_id,
+                    first.access_token.expose_for_signaling()
+                )
+                .is_ok()
+        );
+        assert!(
+            service
+                .authorize_signaling(
+                    &second.stream.live_view_id,
+                    second.access_token.expose_for_signaling()
+                )
+                .is_ok()
+        );
+        assert!(matches!(
+            service.close_live_view(
+                &owner,
+                &actor_b,
+                CloseLiveViewRequest {
+                    session_id: session.session_id.clone(),
+                    live_view_id: first.stream.live_view_id.clone(),
+                    viewer_instance_id: viewer_instance("browser-b"),
+                },
+            ),
+            Err(SimulationViewError::Ownership)
+        ));
+        service
+            .close_live_view(
+                &owner,
+                &actor_b,
+                CloseLiveViewRequest {
+                    session_id: session.session_id,
+                    live_view_id: second.stream.live_view_id,
+                    viewer_instance_id: viewer_instance("browser-b"),
+                },
+            )
+            .unwrap();
+        assert!(active_lease(
+            &service
+                .get_stream(&owner, &actor_a, &first.stream.live_view_id)
+                .unwrap()
+        ));
     }
 
     #[test]
@@ -2622,9 +2775,11 @@ mod tests {
                 service
                     .open_live_view(
                         &owner,
+                        &viewer_actor(),
                         OpenLiveViewRequest {
                             session_id: session.session_id.clone(),
                             camera_id: camera.camera_id,
+                            viewer_instance_id: viewer_instance("browser-1"),
                         },
                     )
                     .unwrap()
@@ -2635,7 +2790,7 @@ mod tests {
     }
 
     #[test]
-    fn cancelled_stream_admission_is_durable_desired_state() {
+    fn cancelled_stream_admission_does_not_change_durable_intent() {
         let service = SimulationViewService::new(SimulationViewConfig::default()).unwrap();
         let owner = view_owner("issuer#operator");
         let session = bound_session(&service, &owner);
@@ -2654,9 +2809,11 @@ mod tests {
         let opened = service
             .open_live_view(
                 &owner,
+                &viewer_actor(),
                 OpenLiveViewRequest {
                     session_id: session.session_id.clone(),
                     camera_id: camera.camera_id,
+                    viewer_instance_id: viewer_instance("browser-1"),
                 },
             )
             .unwrap();
@@ -2669,17 +2826,14 @@ mod tests {
         service.cancel_stream_admission(&opened.stream.live_view_id);
 
         let cancelled = service
-            .get_stream(&owner, &opened.stream.live_view_id)
+            .get_stream(&owner, &viewer_actor(), &opened.stream.live_view_id)
             .unwrap();
         assert_eq!(cancelled.lifecycle, LiveViewLifecycle::Closed);
         assert_eq!(cancelled.connected_viewers, 0);
         let desired = service.durable_state(&session.session_id).unwrap();
-        assert_eq!(desired.leases.len(), 1);
-        assert_eq!(desired.leases[0].state.lifecycle, LiveViewLifecycle::Closed);
-        assert_eq!(desired.leases[0].token_hash, [0; 32]);
         assert_eq!(
             desired.session.reconciliation.desired_revision,
-            revision_after_open + 1
+            revision_after_open
         );
     }
 
@@ -2703,9 +2857,11 @@ mod tests {
         let stream = service
             .open_live_view(
                 &owner,
+                &viewer_actor(),
                 OpenLiveViewRequest {
                     session_id: session.session_id.clone(),
                     camera_id: camera.camera_id.clone(),
+                    viewer_instance_id: viewer_instance("browser-1"),
                 },
             )
             .unwrap();
@@ -2722,7 +2878,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             service
-                .get_stream(&owner, &stream.stream.live_view_id)
+                .get_stream(&owner, &viewer_actor(), &stream.stream.live_view_id)
                 .unwrap()
                 .lifecycle,
             LiveViewLifecycle::Closed

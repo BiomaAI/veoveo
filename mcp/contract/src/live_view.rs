@@ -9,7 +9,7 @@ use crate::{
     AccessSubject, DataLabelId, GatewayInternalIdentity, PolicyVersion, TenantId, WorkContextId,
 };
 
-pub const LIVE_VIEW_SCHEMA: &str = "veoveo.io/live-view/v1";
+pub const LIVE_VIEW_SCHEMA: &str = "veoveo.io/live-view/v2";
 
 fn validate_id(value: &str) -> Result<(), LiveViewIdentityError> {
     if value.is_empty()
@@ -76,6 +76,8 @@ macro_rules! id_type {
 id_type!(LiveViewId);
 id_type!(LiveSessionId);
 id_type!(LiveCameraId);
+id_type!(LiveViewerInstanceId);
+id_type!(LiveStreamProductId);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LiveViewIdentityError(String);
@@ -323,8 +325,11 @@ pub enum LiveCameraHealth {
 pub struct LiveViewState {
     pub schema_version: String,
     pub live_view_id: LiveViewId,
+    pub stream_product_id: LiveStreamProductId,
     pub resource_uri: LiveViewUri,
     pub owner: LiveViewOwner,
+    pub viewer_actor: crate::PrincipalId,
+    pub viewer_instance_id: LiveViewerInstanceId,
     pub session_id: LiveSessionId,
     pub camera_id: LiveCameraId,
     pub lifecycle: LiveViewLifecycle,

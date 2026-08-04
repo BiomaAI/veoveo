@@ -313,15 +313,15 @@ class Renderer:
                 raise ContractError(
                     "stream does not match its camera or physical media slot"
                 )
-            existing = self._streams.get(binding.live_view_id)
+            existing = self._streams.get(binding.stream_product_id)
             if existing is not None and existing != binding:
                 raise ContractError("renderer stream identity is immutable")
-            self._streams[binding.live_view_id] = binding
+            self._streams[binding.stream_product_id] = binding
             status = self._cameras.status(binding.camera_id)
             return CommandResult(
                 HTTPStatus.OK,
                 {
-                    "liveViewId": binding.live_view_id,
+                    "streamProductId": binding.stream_product_id,
                     "ready": status["ready"],
                     "signalPort": (
                         self._config.signaling_port_base + binding.render_slot

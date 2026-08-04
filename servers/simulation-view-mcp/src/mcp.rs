@@ -530,7 +530,7 @@ impl SimulationViewMcp {
 
     #[tool(
         title = "Open simulation live view",
-        description = "Open or rotate an owner-scoped H.264 NVENC WebRTC lease for one admitted logical camera.",
+        description = "Open or rotate an actor- and browser-instance-scoped H.264 WebRTC lease over one admitted camera's shared NVENC stream product.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<OpenLiveViewResult>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = true)
     )]
@@ -539,7 +539,9 @@ impl SimulationViewMcp {
         Parameters(request): Parameters<OpenLiveViewRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let owner = require_owner(&context, "simulation-view:stream")?;
+        let identity = require_identity(&context, "simulation-view:stream")?;
+        let owner = LiveViewOwner::from_identity(&identity);
+        let viewer_actor = identity.actor.id;
         let session_id = request.session_id.clone();
         let _operation = self.state.service.operation_guard(&session_id).await;
         ensure_pose_authorization_current(
@@ -552,38 +554,37 @@ impl SimulationViewMcp {
         let mut result = self
             .state
             .service
-            .open_live_view(&owner, request)
+            .open_live_view(&owner, &viewer_actor, request)
             .map_err(service_error)?;
-        self.persist(&session_id).await?;
-        let render_slot = self
+        let (stream_product_id, render_slot, starts_product) = self
             .state
             .service
-            .render_slot(&result.stream.camera_id)
+            .stream_product_admission(&result.stream.live_view_id)
             .map_err(service_error)?;
         let status = match self
             .state
             .runtimes
-            .open_stream(&result.stream, render_slot)
+            .open_stream(&result.stream, &stream_product_id, render_slot)
             .await
         {
             Ok(status) => status,
             Err(error) => {
-                if let Err(cleanup_error) = self
-                    .state
-                    .runtimes
-                    .close_stream(&result.stream.session_id, &result.stream.live_view_id)
-                    .await
+                if starts_product
+                    && let Err(cleanup_error) = self
+                        .state
+                        .runtimes
+                        .close_stream_product(&result.stream.session_id, &stream_product_id)
+                        .await
                 {
                     tracing::warn!(
                         %cleanup_error,
-                        live_view_id = %result.stream.live_view_id,
-                        "failed to remove renderer stream after an unsuccessful open"
+                        %stream_product_id,
+                        "failed to remove renderer stream product after an unsuccessful open"
                     );
                 }
                 self.state
                     .service
                     .cancel_stream_admission(&result.stream.live_view_id);
-                self.persist(&session_id).await?;
                 return Err(runtime_error(error));
             }
         };
@@ -594,7 +595,7 @@ impl SimulationViewMcp {
         );
         self.state
             .service
-            .mark_stream_ready(&result.stream.live_view_id);
+            .mark_stream_product_ready(&result.stream.camera_id);
         result.stream.lifecycle = veoveo_mcp_contract::LiveViewLifecycle::Ready;
         result.stream.camera_health = veoveo_mcp_contract::LiveCameraHealth::Healthy;
         result.stream.last_frame_at = status.last_frame_at;
@@ -607,7 +608,7 @@ impl SimulationViewMcp {
 
     #[tool(
         title = "Renew simulation live view",
-        description = "Rotate the secret access token and renew an unexpired owner-scoped live-view lease.",
+        description = "Rotate the secret access token and renew only the calling actor and browser instance's unexpired live-view lease.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<OpenLiveViewResult>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = true)
     )]
@@ -616,15 +617,16 @@ impl SimulationViewMcp {
         Parameters(request): Parameters<RenewLiveViewRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let owner = require_owner(&context, "simulation-view:stream")?;
+        let identity = require_identity(&context, "simulation-view:stream")?;
+        let owner = LiveViewOwner::from_identity(&identity);
+        let viewer_actor = identity.actor.id;
         let session_id = request.session_id.clone();
         let _operation = self.state.service.operation_guard(&session_id).await;
         let result = self
             .state
             .service
-            .renew_live_view(&owner, request)
+            .renew_live_view(&owner, &viewer_actor, request)
             .map_err(service_error)?;
-        self.persist(&session_id).await?;
         self.state
             .subscriptions
             .notify_resource_updated(result.stream.resource_uri.as_str())
@@ -641,7 +643,7 @@ impl SimulationViewMcp {
 
     #[tool(
         title = "Close simulation live view",
-        description = "Revoke one owner-scoped live-view lease and its signaling token.",
+        description = "Revoke only the calling actor and browser instance's live-view lease and signaling token.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<CloseResult>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
@@ -650,23 +652,33 @@ impl SimulationViewMcp {
         Parameters(request): Parameters<CloseLiveViewRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let owner = require_owner(&context, "simulation-view:stream")?;
+        let identity = require_identity(&context, "simulation-view:stream")?;
+        let owner = LiveViewOwner::from_identity(&identity);
+        let viewer_actor = identity.actor.id;
         let session_id = request.session_id.clone();
         let _operation = self.state.service.operation_guard(&session_id).await;
         let stream_id = request.live_view_id.clone();
+        let stream = self
+            .state
+            .service
+            .get_stream(&owner, &viewer_actor, &stream_id)
+            .map_err(service_error)?;
+        let camera_id = stream.camera_id.clone();
+        let stream_product_id = stream.stream_product_id.clone();
         let result = self
             .state
             .service
-            .close_live_view(&owner, request)
+            .close_live_view(&owner, &viewer_actor, request)
             .map_err(service_error)?;
-        self.persist(&session_id).await?;
-        if let Err(error) = self
-            .state
-            .runtimes
-            .close_stream(&session_id, &stream_id)
-            .await
-        {
-            return Err(runtime_error(error));
+        if self.state.service.stream_product_can_stop(&camera_id) {
+            if let Err(error) = self
+                .state
+                .runtimes
+                .close_stream_product(&session_id, &stream_product_id)
+                .await
+            {
+                return Err(runtime_error(error));
+            }
         }
         self.state
             .subscriptions
@@ -951,7 +963,7 @@ impl ServerHandler for SimulationViewMcp {
             resources.extend(
                 self.state
                     .service
-                    .list_streams(&owner, &session.session_id)
+                    .list_streams(&owner, &identity.actor.id, &session.session_id)
                     .into_iter()
                     .map(|stream| {
                         json_descriptor(
@@ -1157,14 +1169,20 @@ impl ServerHandler for SimulationViewMcp {
                 .get_session(&owner, &session_id)
                 .map_err(resource_error)?;
             self.refresh_camera_statuses(&owner, &session_id).await;
-            return json_resource(uri, &self.state.service.list_streams(&owner, &session_id));
+            return json_resource(
+                uri,
+                &self
+                    .state
+                    .service
+                    .list_streams(&owner, &identity.actor.id, &session_id),
+            );
         }
         if let Some((session_id, stream_id)) = uris::parse_stream(uri) {
             self.refresh_camera_statuses(&owner, &session_id).await;
             let stream = self
                 .state
                 .service
-                .get_stream(&owner, &stream_id)
+                .get_stream(&owner, &identity.actor.id, &stream_id)
                 .map_err(resource_error)?;
             if stream.session_id != session_id {
                 return Err(not_found());
