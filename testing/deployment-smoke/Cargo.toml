@@ -1,0 +1,23 @@
+[package]
+name = "veoveo-deployment-smoke"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "deployment-smoke"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+dotenvy.workspace = true
+hex.workspace = true
+jsonwebtoken.workspace = true
+reqwest = { workspace = true, features = ["rustls-no-provider"] }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tempfile = "3"
+url.workspace = true
+veoveo-deploy-contract.workspace = true
+veoveo-mcp-contract.workspace = true
