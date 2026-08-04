@@ -211,7 +211,7 @@ async fn reconcile_session(
         return finish(service, repository, config, &session, now).await;
     }
 
-    service.mark_reconciliation_phase(&session_id, ReconciliationPhase::RendererSession, None);
+    service.mark_reconciliation_phase(&session_id, ReconciliationPhase::RendererSession);
     if let Err(error) = runtimes.create_session(&session).await {
         return failed_runtime(
             service,
@@ -227,7 +227,7 @@ async fn reconcile_session(
     }
 
     if session.scene.is_some() {
-        service.mark_reconciliation_phase(&session_id, ReconciliationPhase::Scene, None);
+        service.mark_reconciliation_phase(&session_id, ReconciliationPhase::Scene);
         if let Err(error) = runtimes.bind_scene(&session).await {
             return failed_runtime(
                 service,
@@ -244,11 +244,7 @@ async fn reconcile_session(
     }
 
     if let Some(mut source) = session.pose_source.clone() {
-        service.mark_reconciliation_phase(
-            &session_id,
-            ReconciliationPhase::PoseAuthorization,
-            None,
-        );
+        service.mark_reconciliation_phase(&session_id, ReconciliationPhase::PoseAuthorization);
         if source.revoked {
             if let Err(error) = runtimes.revoke_pose(&session, &source).await {
                 return failed_runtime(
@@ -329,7 +325,7 @@ async fn reconcile_session(
         }
     }
 
-    service.mark_reconciliation_phase(&session_id, ReconciliationPhase::Cameras, None);
+    service.mark_reconciliation_phase(&session_id, ReconciliationPhase::Cameras);
     let cameras = service.reconciliation_cameras(&session_id);
     let desired_camera_ids = cameras
         .iter()
