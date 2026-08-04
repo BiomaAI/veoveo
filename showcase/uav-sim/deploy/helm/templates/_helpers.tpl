@@ -99,6 +99,14 @@
   value: {{ .root.Values.session.camera.height | quote }}
 - name: UAV_SIM_CAMERA_FPS
   value: {{ .root.Values.session.camera.fps | quote }}
+- name: UAV_SIM_CAMERA_BIT_RATE_BPS
+  value: {{ .root.Values.session.camera.bitRateBps | quote }}
+- name: UAV_SIM_RECORDING_TELEMETRY_HZ
+  value: {{ .root.Values.recording.telemetryHz | quote }}
+- name: UAV_SIM_RECORDING_QUEUE_CAPACITY
+  value: {{ .root.Values.recording.queueCapacity | quote }}
+- name: UAV_SIM_RECORDING_MAP_PROVIDER
+  value: {{ .root.Values.recording.mapProvider | quote }}
 - name: UAV_SIM_CAMERA_FOCAL_LENGTH_MM
   value: {{ .root.Values.session.camera.optics.focalLengthMm | quote }}
 - name: UAV_SIM_CAMERA_CLIPPING_NEAR_M

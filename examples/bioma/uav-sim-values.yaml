@@ -7,6 +7,9 @@ platform:
   cesiumSecret: veoveo-uav-sim-secrets
   recordingTenantKey: bioma
 
+recording:
+  mapProvider: mapboxSatellite
+
 session:
   vehicleCount: 4
   physicsHz: 60
@@ -18,6 +21,7 @@ session:
     width: 640
     height: 480
     fps: 2
+    bitRateBps: 750000
     optics:
       focalLengthMm: 8.0
       clippingRangeM:

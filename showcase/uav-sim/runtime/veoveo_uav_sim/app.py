@@ -103,7 +103,7 @@ def run(config: RuntimeConfig) -> None:
     from .pose import PhysicsCadenceGate, PoseProducer
     from .px4 import Px4Commander
     from .realtime import PeriodicDeadline, RealtimePhysicsClock
-    from .recording import RecordingPublisher
+    from .recording import ImuTelemetry, RecordingPublisher
     from .server import (
         AdapterApplication,
         AdapterServer,
@@ -323,7 +323,6 @@ def run(config: RuntimeConfig) -> None:
                 camera_operational_streaks[vehicle_id] = 0
                 camera_black_streaks_after_tiles[vehicle_id] = 0
                 sensor_camera_path = camera_path
-                recording.add_camera(vehicle_id)
 
         viewport = get_active_viewport()
         if viewport is None or sensor_camera_path is None:
@@ -339,6 +338,9 @@ def run(config: RuntimeConfig) -> None:
         )
         pose_cadence = PhysicsCadenceGate(
             config.physics_hz, config.pose_cadence_hz
+        )
+        recording_cadence = PhysicsCadenceGate(
+            config.physics_hz, config.recording.telemetry_hz
         )
         physics_clock = RealtimePhysicsClock(config.physics_hz)
         render_deadline = PeriodicDeadline(config.rendering_hz)
@@ -373,7 +375,7 @@ def run(config: RuntimeConfig) -> None:
             simulation_time_s = physics_step / config.physics_hz
             state.advance(simulation_time_s, physics_step)
             publish_pose = pose_cadence.due(physics_step)
-            publish_recording = physics_step % 5 == 0
+            publish_recording = recording_cadence.due(physics_step)
             if not publish_pose and not publish_recording:
                 return
             telemetry = telemetry_snapshot()
@@ -382,21 +384,25 @@ def run(config: RuntimeConfig) -> None:
                 pose_producer.offer(telemetry)
             if publish_recording:
                 state.update_vehicles(telemetry)
-                recording.log_frame(telemetry, simulation_time_s, physics_step)
-                for vehicle_id, vehicle in vehicles.items():
-                    vehicle_state = vehicle.state
-                    recording.log_imu(
-                        vehicle_id,
-                        tuple(
-                            float(value)
-                            for value in vehicle_state.linear_acceleration
-                        ),
-                        tuple(
-                            float(value) for value in vehicle_state.angular_velocity
-                        ),
-                        simulation_time_s,
-                        physics_step,
-                    )
+                recording.offer_frame(
+                    telemetry,
+                    [
+                        ImuTelemetry(
+                            vehicle_id=vehicle_id,
+                            linear_acceleration_mps2=tuple(
+                                float(value)
+                                for value in vehicle.state.linear_acceleration
+                            ),
+                            angular_velocity_rps=tuple(
+                                float(value)
+                                for value in vehicle.state.angular_velocity
+                            ),
+                        )
+                        for vehicle_id, vehicle in vehicles.items()
+                    ],
+                    simulation_time_s,
+                    physics_step,
+                )
 
         physics_lifecycle = FleetPhysicsLifecycle(
             world,
@@ -440,6 +446,7 @@ def run(config: RuntimeConfig) -> None:
                 physics_step = 0
                 simulation_time_s = 0.0
                 pose_cadence.reset()
+                recording_cadence.reset()
                 physics_clock.reset(physics_step)
                 render_deadline.reset()
                 state.advance(simulation_time_s, physics_step)
@@ -622,14 +629,13 @@ def run(config: RuntimeConfig) -> None:
                             diagnostic,
                         )
                         recording.log_camera_quality(
-                            vehicle_id,
                             quality,
                             camera_lifecycle,
                             simulation_time_s,
                             physics_step,
                         )
                         if should_record_camera_frame(quality, tiles_ready):
-                            recording.camera(vehicle_id).encode(
+                            recording.offer_camera_frame(
                                 rgb, simulation_time_s, physics_step
                             )
                         if camera_black_streaks_after_tiles[vehicle_id] >= (
@@ -667,6 +673,13 @@ def run(config: RuntimeConfig) -> None:
                 state.set_tiles(tile_lifecycle, resident, loading)
                 recording.log_tiles(
                     resident, loading, tile_lifecycle, simulation_time_s, physics_step
+                )
+                recording_status = recording.status()
+                state.update_recording_publisher(
+                    recording_status.lifecycle,
+                    recording_status.queued_events,
+                    recording_status.dropped_events,
+                    recording_status.last_error,
                 )
                 if resident == 0 and time.monotonic() - tile_started_at > 600.0:
                     state.set_tiles(

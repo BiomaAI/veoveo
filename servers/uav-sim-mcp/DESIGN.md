@@ -20,7 +20,7 @@ high-rate state through the Veoveo gateway.
 | ROS 2 | Optional private simulator data plane. High-rate topics are not MCP tools or resources. |
 | OGC 3D Tiles | Google Photorealistic 3D Tiles stream through Cesium ion into the domain simulator. Tile readiness and residency are session state. |
 | WGS 84, ECEF, ENU, NED, FRD, and FLU | Immutable world identity, local simulation, PX4 navigation, vehicle telemetry, and renderer pose publication use explicit mappings. |
-| [Rerun 0.35.0](https://rerun.io/docs/) RRD and `VideoStream` | Vehicle, sensor, transform, mission, tile, and nadir-camera evidence. |
+| [Rerun 0.35.0](https://rerun.io/docs/) RRD, Blueprint, and `VideoStream` | Batched fleet, sensor, mission, tile, leader-camera, and producer-authored presentation evidence. |
 | Veoveo recording ingest | Version `2026-08-01`; a producer-local forwarder carries native Rerun recording and Blueprint stores to Recording Hub. |
 | Cluster-private HTTP/JSON | Typed MCP-server-to-simulator adapter boundary. Simulator, MAVLink, ROS 2, pose TLS, and recording ports are not public gateway routes. |
 
@@ -156,9 +156,21 @@ replace domain-simulator tile acceptance.
 only into the anonymous USD session layer required by Cesium, clears the
 attribute during shutdown, and never exports that layer.
 
-The active viewport follows the primary nadir sensor because Cesium performs
-tile selection from a Kit viewport. Nadir cameras remain domain sensors and
-recording inputs. They are not operator views.
+The active viewport follows the designated leader nadir sensor because Cesium
+performs tile selection from a Kit viewport. Followers do not instantiate RTX
+sensors or publish video. The leader sensor remains a domain recording input;
+it is not an operator view.
+
+Physics publishes bounded newest-value recording events without waiting for
+serialization, NVENC, Stream delivery, Recording Hub, or its forwarder. One
+worker owns those operations and retries independently. Recording state reports
+its queue depth, replacement count, lifecycle, and redacted diagnostic. A
+degraded recorder never stops or delays the authoritative simulation.
+
+The producer Blueprint opens a fleet 3D view, the leader camera, and a fleet map.
+Telemetry batches fleet positions, velocities, geographic points, and IMU vectors.
+Status fields publish on change. The installation selects the map background;
+provider credentials remain in the Console and never enter RRD or the Blueprint.
 
 The pod-local GCS link binds `14550 + instance` and the matching PX4 endpoint
 at `18570 + instance`. Commands require explicit accepted acknowledgements.
@@ -185,7 +197,7 @@ Controlled types include:
 - `SimulationLifecycle`, `TileLifecycle`, `CameraLifecycle`, `CameraCodec`,
   `CameraEncoder`, `PosePublicationLifecycle`, `VehicleFlightState`, and
   `MissionLifecycle`;
-- WGS84, ENU, NED, quaternion, vehicle, sensor, recording, and publication
+- WGS84, ENU, NED, quaternion, vehicle, sensor, recording-publisher, and publication
   records;
 - tagged `SimulationCommand` and `DurableOperation` enums.
 

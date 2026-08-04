@@ -154,9 +154,24 @@ operator intent.
 
 ## Recording
 
-The runtime publishes fleet poses, ENU and NED state, PX4 connection, battery,
-collision counts, IMU samples, the leader camera transform and nadir H.264 samples,
-tile residency, and mission state as native Rerun messages.
+The runtime publishes one bounded fleet recording. Vehicle poses, velocities,
+geographic positions, and IMU vectors are emitted as four-vehicle batches at the
+configured telemetry cadence. Status and tile-health values are emitted when they
+change. Only the admitted leader owns an RTX camera and H.264 stream; the other three
+vehicles remain visible as fleet telemetry without duplicating camera capture or
+encoding work.
+
+The producer authors the default Rerun Blueprint. It opens a fleet 3D view, the leader
+camera, and a geographic fleet map without asking the browser to infer a layout from
+every recorded entity. The installation selects the map provider. Browser-safe map
+credentials remain Console configuration and never enter the recording or Blueprint.
+
+Recording work runs on a bounded worker queue outside the physics callback. Rerun
+serialization, NVENC, direct RTP publication, and network retries can degrade or shed
+old queued observations, but they cannot delay simulation time or actuator updates.
+The runtime state exposes the publisher lifecycle, queue depth, capacity, dropped-event
+count, and a bounded diagnostic. The leader H.264 bitrate is installation-configured;
+the reference profile uses 750 kbit/s at 640x480 and 2 Hz.
 
 A producer-local forwarder carries those messages to Recording Hub. Public
 resources contain only canonical
@@ -181,6 +196,8 @@ The chart requires:
 - bounded fleet-loop center offsets, radii, altitude, separation, waypoint
   count, and speed;
 - one admitted leader vehicle identity for RTX camera and direct-stream ownership;
+- bounded Recording telemetry cadence, queue capacity, map provider, and leader H.264
+  bitrate;
 - platform database and recording-forwarder credentials;
 - `nvidia.com/gpu: 1` and the NVIDIA runtime class;
 - pinned image digests in production.
