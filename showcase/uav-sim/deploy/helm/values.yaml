@@ -56,6 +56,11 @@ recordingForwarder:
       cpu: "1"
       memory: 2Gi
 
+recording:
+  telemetryHz: 5
+  queueCapacity: 256
+  mapProvider: openStreetMap
+
 world:
   source: google_photorealistic_3d_tiles
   cesiumIonAssetId: 2275207
@@ -92,6 +97,7 @@ session:
     width: 640
     height: 480
     fps: 2
+    bitRateBps: 750000
     optics:
       focalLengthMm: 8.0
       clippingRangeM:

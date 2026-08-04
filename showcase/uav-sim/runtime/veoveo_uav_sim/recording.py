@@ -1,17 +1,96 @@
 from __future__ import annotations
 
 import json
-from typing import Iterable
+import logging
+import queue
+import threading
+from dataclasses import dataclass
 
 import av
 import numpy as np
 import rerun as rr
+import rerun.blueprint as rrb
 
-from .config import RuntimeConfig
 from .camera_quality import CameraFrameQuality, normalize_rgb_frame
+from .config import RecordingMapProvider, RuntimeConfig
+from .event_queue import NonBlockingEventQueue
+from .geo import enu_to_geodetic
 from .state import VehicleTelemetry
 from .stream_output import RtpH264Publisher
 from .world_config import WorldConfiguration
+
+
+LOGGER = logging.getLogger("veoveo.uav_sim.recording")
+
+
+@dataclass(frozen=True, slots=True)
+class ImuTelemetry:
+    vehicle_id: str
+    linear_acceleration_mps2: tuple[float, float, float]
+    angular_velocity_rps: tuple[float, float, float]
+
+
+@dataclass(frozen=True, slots=True)
+class RecordingPublisherStatus:
+    lifecycle: str
+    queued_events: int
+    dropped_events: int
+    last_error: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class _FrameEvent:
+    vehicles: tuple[VehicleTelemetry, ...]
+    imu: tuple[ImuTelemetry, ...]
+    simulation_time_s: float
+    physics_step: int
+
+
+@dataclass(frozen=True, slots=True)
+class _CameraEvent:
+    rgb: np.ndarray
+    simulation_time_s: float
+    physics_step: int
+
+
+@dataclass(frozen=True, slots=True)
+class _CameraQualityEvent:
+    quality: CameraFrameQuality
+    lifecycle: str
+    simulation_time_s: float
+    physics_step: int
+
+
+@dataclass(frozen=True, slots=True)
+class _TilesEvent:
+    resident_tiles: int
+    loading_tiles: int
+    lifecycle: str
+    simulation_time_s: float
+    physics_step: int
+
+
+@dataclass(frozen=True, slots=True)
+class _MissionEvent:
+    mission_id: str
+    lifecycle: str
+    detail_json: str
+
+
+@dataclass(frozen=True, slots=True)
+class _StopEvent:
+    simulation_time_s: float
+    physics_step: int
+
+
+type _RecordingEvent = (
+    _FrameEvent
+    | _CameraEvent
+    | _CameraQualityEvent
+    | _TilesEvent
+    | _MissionEvent
+    | _StopEvent
+)
 
 
 class H264CameraStream:
@@ -25,6 +104,7 @@ class H264CameraStream:
         width: int,
         height: int,
         fps: int,
+        bit_rate_bps: int,
         stream_output: RtpH264Publisher | None,
     ) -> None:
         self._recording = recording
@@ -36,6 +116,7 @@ class H264CameraStream:
         self._stream = self._container.add_stream("h264_nvenc", rate=fps)
         self._stream.width = width
         self._stream.height = height
+        self._stream.bit_rate = bit_rate_bps
         self._stream.pix_fmt = "yuv420p"
         self._stream.max_b_frames = 0
         self._stream.codec_context.gop_size = fps
@@ -45,6 +126,7 @@ class H264CameraStream:
             "tune": "ull",
             "zerolatency": "1",
             "forced-idr": "1",
+            "rc": "cbr",
         }
         if self._stream.codec_context.codec.name != "h264_nvenc":
             raise RuntimeError("UAV camera H.264 encoder is not NVIDIA NVENC")
@@ -62,10 +144,11 @@ class H264CameraStream:
             if self._stream_output is not None:
                 self._stream_output.publish(sample, simulation_time_s)
             self._set_time(simulation_time_s, physics_step)
+            self._recording.log(
+                self._entity_path,
+                _video_packet(sample, is_keyframe=packet.is_keyframe),
+            )
             if packet.is_keyframe:
-                self._recording.log(
-                    self._entity_path, _video_packet(sample, is_keyframe=True)
-                )
                 self._recording.log(
                     self._entity_path,
                     rr.Pinhole(
@@ -73,8 +156,6 @@ class H264CameraStream:
                         focal_length=self._width / 2.0,
                     ),
                 )
-            else:
-                self._recording.log(self._entity_path, _video_packet(sample))
 
     def close(self, simulation_time_s: float, physics_step: int) -> None:
         for packet in self._stream.encode(None):
@@ -95,9 +176,7 @@ class H264CameraStream:
         self._recording.set_time("physics_step", sequence=physics_step)
 
 
-def _video_packet(
-    sample: bytes, *, is_keyframe: bool = False
-) -> rr.VideoStream:
+def _video_packet(sample: bytes, *, is_keyframe: bool = False) -> rr.VideoStream:
     fields: dict[str, object] = {
         "codec": rr.VideoCodec.H264,
         "sample": sample,
@@ -108,14 +187,166 @@ def _video_packet(
 
 
 class RecordingPublisher:
+    """Nonblocking simulation-side facade over one retrying recording worker."""
+
     def __init__(self, config: RuntimeConfig, world: WorldConfiguration) -> None:
         self._config = config
+        self._world = world
+        self._events = NonBlockingEventQueue[_RecordingEvent](
+            config.recording.queue_capacity
+        )
+        self._status_lock = threading.Lock()
+        self._lifecycle = "connecting"
+        self._last_error: str | None = None
+        self._closed = threading.Event()
+        self._worker = threading.Thread(
+            target=self._run,
+            name="uav-recording",
+            daemon=True,
+        )
+        self._worker.start()
+
+    @property
+    def recording_key(self) -> str:
+        return str(self._config.recording_key)
+
+    def offer_frame(
+        self,
+        telemetry: list[VehicleTelemetry],
+        imu: list[ImuTelemetry],
+        simulation_time_s: float,
+        physics_step: int,
+    ) -> None:
+        self._events.offer(
+            _FrameEvent(
+                vehicles=tuple(telemetry),
+                imu=tuple(imu),
+                simulation_time_s=simulation_time_s,
+                physics_step=physics_step,
+            )
+        )
+
+    def offer_camera_frame(
+        self, rgb: np.ndarray, simulation_time_s: float, physics_step: int
+    ) -> None:
+        self._events.offer(
+            _CameraEvent(
+                rgb=np.ascontiguousarray(rgb).copy(),
+                simulation_time_s=simulation_time_s,
+                physics_step=physics_step,
+            )
+        )
+
+    def log_camera_quality(
+        self,
+        quality: CameraFrameQuality,
+        lifecycle: str,
+        simulation_time_s: float,
+        physics_step: int,
+    ) -> None:
+        self._events.offer(
+            _CameraQualityEvent(
+                quality=quality,
+                lifecycle=lifecycle,
+                simulation_time_s=simulation_time_s,
+                physics_step=physics_step,
+            )
+        )
+
+    def log_tiles(
+        self,
+        resident_tiles: int,
+        loading_tiles: int,
+        lifecycle: str,
+        simulation_time_s: float,
+        physics_step: int,
+    ) -> None:
+        self._events.offer(
+            _TilesEvent(
+                resident_tiles=resident_tiles,
+                loading_tiles=loading_tiles,
+                lifecycle=lifecycle,
+                simulation_time_s=simulation_time_s,
+                physics_step=physics_step,
+            )
+        )
+
+    def log_mission(
+        self, mission_id: str, lifecycle: str, detail: dict[str, object]
+    ) -> None:
+        self._events.offer(
+            _MissionEvent(
+                mission_id=mission_id,
+                lifecycle=lifecycle,
+                detail_json=json.dumps(detail, sort_keys=True),
+            )
+        )
+
+    def status(self) -> RecordingPublisherStatus:
+        with self._status_lock:
+            return RecordingPublisherStatus(
+                lifecycle=self._lifecycle,
+                queued_events=self._events.depth(),
+                dropped_events=self._events.dropped(),
+                last_error=self._last_error,
+            )
+
+    def close(self, simulation_time_s: float, physics_step: int) -> None:
+        if self._closed.is_set():
+            return
+        self._closed.set()
+        self._events.offer(_StopEvent(simulation_time_s, physics_step))
+        self._worker.join(timeout=30.0)
+        if self._worker.is_alive():
+            LOGGER.error("recording worker did not stop within 30 seconds")
+
+    def _run(self) -> None:
+        while not self._closed.is_set():
+            sink: _RecordingSink | None = None
+            try:
+                sink = _RecordingSink(self._config, self._world)
+                self._set_status("ready", None)
+                while True:
+                    try:
+                        event = self._events.take(0.5)
+                    except queue.Empty:
+                        if self._closed.is_set():
+                            return
+                        continue
+                    if isinstance(event, _StopEvent):
+                        sink.close(event.simulation_time_s, event.physics_step)
+                        self._set_status("stopped", None)
+                        return
+                    sink.handle(event)
+            except Exception as error:
+                message = _bounded_diagnostic(error)
+                LOGGER.exception("governed recording worker failed; simulation continues")
+                self._set_status("degraded", message)
+                if sink is not None:
+                    sink.abort()
+                if self._closed.wait(2.0):
+                    return
+
+    def _set_status(self, lifecycle: str, error: str | None) -> None:
+        with self._status_lock:
+            self._lifecycle = lifecycle
+            self._last_error = error
+
+
+class _RecordingSink:
+    def __init__(self, config: RuntimeConfig, world: WorldConfiguration) -> None:
+        self._config = config
+        self._world = world
         self._root = f"/world/uav-sim/{config.session_id}"
         self._recording = rr.RecordingStream(
             "veoveo-uav-sim", recording_id=config.recording_key
         )
-        self._recording.connect_grpc(config.recording_proxy)
-        self._cameras: dict[str, H264CameraStream] = {}
+        self._recording.connect_grpc(
+            config.recording_proxy,
+            default_blueprint=_recording_blueprint(config, self._root),
+        )
+        self._last_vehicle_status: dict[str, tuple[object, ...]] = {}
+        self._last_tiles: tuple[int, int, str] | None = None
         self._recording.log(
             self._root,
             rr.AnyValues(
@@ -130,130 +361,224 @@ class RecordingPublisher:
             ),
             static=True,
         )
-
-    @property
-    def recording_key(self) -> str:
-        return str(self._config.recording_key)
-
-    def add_camera(self, vehicle_id: str) -> H264CameraStream:
-        entity_path = f"{self._root}/vehicle/{vehicle_id}/camera/down"
+        camera_entity = (
+            f"{self._root}/vehicle/{config.camera.vehicle_id}/camera/down"
+        )
         stream_output = (
-            RtpH264Publisher(self._config.stream_publication)
-            if self._config.stream_publication is not None
-            and vehicle_id
-            == self._config.stream_publication.source_vehicle_id
+            RtpH264Publisher(config.stream_publication)
+            if config.stream_publication is not None
             else None
         )
-        camera = H264CameraStream(
+        self._camera = H264CameraStream(
             self._recording,
-            entity_path,
-            self._config.camera.width,
-            self._config.camera.height,
-            self._config.camera.fps,
+            camera_entity,
+            config.camera.width,
+            config.camera.height,
+            config.camera.fps,
+            config.camera.bit_rate_bps,
             stream_output,
         )
-        self._cameras[vehicle_id] = camera
-        return camera
 
-    def camera(self, vehicle_id: str) -> H264CameraStream:
-        return self._cameras[vehicle_id]
-
-    def log_frame(
+    def handle(
         self,
-        telemetry: Iterable[VehicleTelemetry],
-        simulation_time_s: float,
-        physics_step: int,
+        event: _FrameEvent
+        | _CameraEvent
+        | _CameraQualityEvent
+        | _TilesEvent
+        | _MissionEvent,
     ) -> None:
-        self._set_time(simulation_time_s, physics_step)
-        for vehicle in telemetry:
-            base = f"{self._root}/vehicle/{vehicle.vehicle_id}"
+        if isinstance(event, _FrameEvent):
+            self._log_frame(event)
+        elif isinstance(event, _CameraEvent):
+            self._camera.encode(
+                event.rgb, event.simulation_time_s, event.physics_step
+            )
+        elif isinstance(event, _CameraQualityEvent):
+            self._log_camera_quality(event)
+        elif isinstance(event, _TilesEvent):
+            self._log_tiles(event)
+        else:
             self._recording.log(
-                base,
-                rr.Transform3D(
-                    translation=vehicle.position_enu,
-                    quaternion=rr.Quaternion(xyzw=vehicle.attitude_xyzw),
+                f"{self._root}/mission/{event.mission_id}",
+                rr.TextLog(
+                    json.dumps(
+                        {
+                            "lifecycle": event.lifecycle,
+                            **json.loads(event.detail_json),
+                        },
+                        sort_keys=True,
+                    )
                 ),
             )
-            self._recording.log(
-                f"{base}/velocity_enu_mps",
-                rr.Arrows3D(vectors=[vehicle.linear_velocity_enu_mps]),
-            )
-            self._recording.log(
-                f"{base}/battery_percent", rr.Scalars([vehicle.battery_percent])
-            )
-            self._recording.log(
-                f"{base}/collision_count", rr.Scalars([vehicle.collision_count])
-            )
-            self._recording.log(
-                f"{base}/flight_state", rr.TextLog(vehicle.flight_state)
-            )
-
-    def log_imu(
-        self,
-        vehicle_id: str,
-        linear_acceleration: tuple[float, float, float],
-        angular_velocity: tuple[float, float, float],
-        simulation_time_s: float,
-        physics_step: int,
-    ) -> None:
-        self._set_time(simulation_time_s, physics_step)
-        base = f"{self._root}/vehicle/{vehicle_id}/imu"
-        self._recording.log(
-            f"{base}/linear_acceleration_mps2", rr.Arrows3D(vectors=[linear_acceleration])
-        )
-        self._recording.log(
-            f"{base}/angular_velocity_rps", rr.Arrows3D(vectors=[angular_velocity])
-        )
-
-    def log_tiles(
-        self,
-        resident_tiles: int,
-        loading_tiles: int,
-        lifecycle: str,
-        simulation_time_s: float,
-        physics_step: int,
-    ) -> None:
-        self._set_time(simulation_time_s, physics_step)
-        base = f"{self._root}/tiles"
-        self._recording.log(f"{base}/resident", rr.Scalars([resident_tiles]))
-        self._recording.log(f"{base}/loading", rr.Scalars([loading_tiles]))
-        self._recording.log(f"{base}/lifecycle", rr.TextLog(lifecycle))
-
-    def log_camera_quality(
-        self,
-        vehicle_id: str,
-        quality: CameraFrameQuality,
-        lifecycle: str,
-        simulation_time_s: float,
-        physics_step: int,
-    ) -> None:
-        self._set_time(simulation_time_s, physics_step)
-        base = f"{self._root}/vehicle/{vehicle_id}/camera/down/quality"
-        self._recording.log(f"{base}/mean_luma", rr.Scalars([quality.mean_luma]))
-        self._recording.log(
-            f"{base}/dynamic_range", rr.Scalars([quality.dynamic_range])
-        )
-        self._recording.log(
-            f"{base}/non_black_fraction",
-            rr.Scalars([quality.non_black_fraction]),
-        )
-        self._recording.log(f"{base}/lifecycle", rr.TextLog(lifecycle))
-
-    def log_mission(self, mission_id: str, lifecycle: str, detail: dict[str, object]) -> None:
-        self._recording.log(
-            f"{self._root}/mission/{mission_id}",
-            rr.TextLog(json.dumps({"lifecycle": lifecycle, **detail}, sort_keys=True)),
-        )
 
     def close(self, simulation_time_s: float, physics_step: int) -> None:
-        for camera in self._cameras.values():
-            camera.close(simulation_time_s, physics_step)
+        self._camera.close(simulation_time_s, physics_step)
         self._recording.flush()
-        # Closing the network sink is the producer's explicit capture boundary.
-        # Recording Hub freezes the final segment after its short idle grace
-        # period and records the timestamp of the last received message.
         self._recording.disconnect()
+
+    def abort(self) -> None:
+        try:
+            self._recording.disconnect()
+        except Exception:
+            LOGGER.exception("recording sink disconnect failed")
+
+    def _log_frame(self, event: _FrameEvent) -> None:
+        self._set_time(event.simulation_time_s, event.physics_step)
+        positions = [vehicle.position_enu for vehicle in event.vehicles]
+        velocities = [vehicle.linear_velocity_enu_mps for vehicle in event.vehicles]
+        labels = [vehicle.vehicle_id for vehicle in event.vehicles]
+        colors = [
+            [0, 170, 255] if vehicle.vehicle_id == self._config.camera.vehicle_id
+            else [255, 190, 0]
+            for vehicle in event.vehicles
+        ]
+        fleet = f"{self._root}/fleet"
+        self._recording.log(
+            f"{fleet}/vehicles",
+            rr.Points3D(
+                positions,
+                labels=labels,
+                colors=colors,
+                radii=[8.0] * len(positions),
+                show_labels=True,
+            ),
+        )
+        self._recording.log(
+            f"{fleet}/velocities",
+            rr.Arrows3D(
+                origins=positions,
+                vectors=velocities,
+                labels=labels,
+                colors=colors,
+            ),
+        )
+        lat_lon = [
+            enu_to_geodetic(
+                *vehicle.position_enu,
+                self._world.georeference_origin.latitude_degrees,
+                self._world.georeference_origin.longitude_degrees,
+                self._world.georeference_origin.ellipsoid_height_m,
+            )[:2]
+            for vehicle in event.vehicles
+        ]
+        self._recording.log(
+            f"{fleet}/geographic_positions",
+            rr.GeoPoints(lat_lon=lat_lon, colors=colors, radii=[8.0] * len(lat_lon)),
+        )
+        imu_by_vehicle = {sample.vehicle_id: sample for sample in event.imu}
+        self._recording.log(
+            f"{fleet}/imu/linear_acceleration",
+            rr.Arrows3D(
+                origins=positions,
+                vectors=[
+                    imu_by_vehicle[vehicle.vehicle_id].linear_acceleration_mps2
+                    for vehicle in event.vehicles
+                ],
+                colors=colors,
+            ),
+        )
+        self._recording.log(
+            f"{fleet}/imu/angular_velocity",
+            rr.Arrows3D(
+                origins=positions,
+                vectors=[
+                    imu_by_vehicle[vehicle.vehicle_id].angular_velocity_rps
+                    for vehicle in event.vehicles
+                ],
+                colors=colors,
+            ),
+        )
+        for vehicle in event.vehicles:
+            status = (
+                round(vehicle.battery_percent, 1),
+                vehicle.collision_count,
+                vehicle.flight_state,
+                vehicle.px4_connected,
+            )
+            if self._last_vehicle_status.get(vehicle.vehicle_id) == status:
+                continue
+            self._last_vehicle_status[vehicle.vehicle_id] = status
+            self._recording.log(
+                f"{self._root}/vehicle/{vehicle.vehicle_id}/status",
+                rr.AnyValues(
+                    battery_percent=status[0],
+                    collision_count=status[1],
+                    flight_state=status[2],
+                    px4_connected=status[3],
+                ),
+            )
+
+    def _log_camera_quality(self, event: _CameraQualityEvent) -> None:
+        self._set_time(event.simulation_time_s, event.physics_step)
+        self._recording.log(
+            f"{self._root}/vehicle/{self._config.camera.vehicle_id}/camera/down/quality",
+            rr.AnyValues(
+                mean_luma=event.quality.mean_luma,
+                dynamic_range=event.quality.dynamic_range,
+                non_black_fraction=event.quality.non_black_fraction,
+                lifecycle=event.lifecycle,
+            ),
+        )
+
+    def _log_tiles(self, event: _TilesEvent) -> None:
+        status = (event.resident_tiles, event.loading_tiles, event.lifecycle)
+        if status == self._last_tiles:
+            return
+        self._last_tiles = status
+        self._set_time(event.simulation_time_s, event.physics_step)
+        self._recording.log(
+            f"{self._root}/tiles",
+            rr.AnyValues(
+                resident=event.resident_tiles,
+                loading=event.loading_tiles,
+                lifecycle=event.lifecycle,
+            ),
+        )
 
     def _set_time(self, simulation_time_s: float, physics_step: int) -> None:
         self._recording.set_time("simulation_time", duration=simulation_time_s)
         self._recording.set_time("physics_step", sequence=physics_step)
+
+
+def _recording_blueprint(config: RuntimeConfig, root: str) -> rrb.Blueprint:
+    camera = f"{root}/vehicle/{config.camera.vehicle_id}/camera/down"
+    fleet = f"{root}/fleet"
+    map_provider = (
+        rrb.MapProvider.MapboxSatellite
+        if config.recording.map_provider is RecordingMapProvider.MAPBOX_SATELLITE
+        else rrb.MapProvider.OpenStreetMap
+    )
+    return rrb.Blueprint(
+        rrb.Horizontal(
+            rrb.Spatial3DView(
+                origin=fleet,
+                contents=[f"{fleet}/vehicles", f"{fleet}/velocities"],
+                name="Fleet 3D",
+                line_grid=False,
+            ),
+            rrb.Vertical(
+                rrb.Spatial2DView(
+                    origin=camera,
+                    contents=[camera],
+                    name="Leader camera",
+                ),
+                rrb.MapView(
+                    origin=f"{fleet}/geographic_positions",
+                    contents=[f"{fleet}/geographic_positions"],
+                    name="Fleet map",
+                    zoom=11.0,
+                    background=map_provider,
+                ),
+                row_shares=[0.55, 0.45],
+            ),
+            column_shares=[0.6, 0.4],
+        ),
+        auto_layout=False,
+        auto_views=False,
+        collapse_panels=True,
+    )
+
+
+def _bounded_diagnostic(error: Exception) -> str:
+    message = " ".join(str(error).split())
+    return f"{type(error).__name__}: {message}"[:512]

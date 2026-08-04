@@ -49,6 +49,11 @@ class TileCachePolicy(str, Enum):
     PERSISTENT = "persistent"
 
 
+class RecordingMapProvider(str, Enum):
+    OPEN_STREET_MAP = "openStreetMap"
+    MAPBOX_SATELLITE = "mapboxSatellite"
+
+
 @dataclass(frozen=True, slots=True)
 class CameraMount:
     translation_xyz_m: tuple[float, float, float]
@@ -68,6 +73,7 @@ class CameraConfig:
     width: int
     height: int
     fps: int
+    bit_rate_bps: int
     focal_length_mm: float
     clipping_near_m: float
     clipping_far_m: float
@@ -114,6 +120,9 @@ class CameraConfig:
             width=_int("UAV_SIM_CAMERA_WIDTH", "640", 64, 3_840),
             height=_int("UAV_SIM_CAMERA_HEIGHT", "480", 64, 2_160),
             fps=_int("UAV_SIM_CAMERA_FPS", "2", 1, 60),
+            bit_rate_bps=_int(
+                "UAV_SIM_CAMERA_BIT_RATE_BPS", "750000", 100_000, 50_000_000
+            ),
             focal_length_mm=_float(
                 "UAV_SIM_CAMERA_FOCAL_LENGTH_MM", "8.0", 0.1, 1_000.0
             ),
@@ -180,6 +189,36 @@ class FleetLoopConfig:
             hold_seconds=_float(
                 "UAV_SIM_FLEET_LOOP_HOLD_SECONDS", "0.0", 0.0, 3_600.0
             ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class RecordingConfig:
+    telemetry_hz: int
+    queue_capacity: int
+    map_provider: RecordingMapProvider
+
+    @classmethod
+    def from_environment(cls) -> "RecordingConfig":
+        try:
+            map_provider = RecordingMapProvider(
+                os.environ.get(
+                    "UAV_SIM_RECORDING_MAP_PROVIDER",
+                    RecordingMapProvider.OPEN_STREET_MAP.value,
+                )
+            )
+        except ValueError as error:
+            raise ValueError(
+                "UAV_SIM_RECORDING_MAP_PROVIDER must be openStreetMap or mapboxSatellite"
+            ) from error
+        return cls(
+            telemetry_hz=_int(
+                "UAV_SIM_RECORDING_TELEMETRY_HZ", "5", 1, 120
+            ),
+            queue_capacity=_int(
+                "UAV_SIM_RECORDING_QUEUE_CAPACITY", "256", 16, 65_536
+            ),
+            map_provider=map_provider,
         )
 
 
@@ -319,6 +358,7 @@ class RuntimeConfig:
     px4_directory: str
     recording_proxy: str
     recording_key: uuid.UUID
+    recording: RecordingConfig
     camera: CameraConfig
     fleet_loop: FleetLoopConfig
     stream_publication: StreamPublicationConfig | None
@@ -330,6 +370,10 @@ class RuntimeConfig:
             raise ValueError("UAV_SIM_RENDERING_HZ must match UAV_SIM_CAMERA_FPS")
         if self.pose_cadence_hz > self.physics_hz:
             raise ValueError("UAV_SIM_POSE_CADENCE_HZ must not exceed UAV_SIM_PHYSICS_HZ")
+        if self.recording.telemetry_hz > self.physics_hz:
+            raise ValueError(
+                "UAV_SIM_RECORDING_TELEMETRY_HZ must not exceed UAV_SIM_PHYSICS_HZ"
+            )
         admitted_vehicle_ids = {
             f"uav-{index + 1}" for index in range(self.vehicle_count)
         }
@@ -408,6 +452,7 @@ class RuntimeConfig:
                 "UAV_SIM_RECORDING_PROXY", "rerun+http://127.0.0.1:9876/proxy"
             ),
             recording_key=recording_key,
+            recording=RecordingConfig.from_environment(),
             camera=CameraConfig.from_environment(),
             fleet_loop=FleetLoopConfig.from_environment(),
             stream_publication=StreamPublicationConfig.from_environment(),

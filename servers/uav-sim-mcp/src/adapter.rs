@@ -15,9 +15,10 @@ use crate::{
     contract::{
         CameraState, CaptureDatasetResult, CommandAcknowledgement, ConfigureWorldOutput,
         ConfigureWorldRequest, DurableOperation, DurableOperationResult, MissionId,
-        MissionLifecycle, MissionResult, PosePublicationState, RecordingId, RecordingState,
-        RuntimeTimingState, ScenarioResult, SessionId, SimulationCommand, SimulationLifecycle,
-        SimulationState, SimulationWorldBinding, TileState, VehicleFlightState, VehicleState,
+        MissionLifecycle, MissionResult, PosePublicationState, RecordingId,
+        RecordingPublisherLifecycle, RecordingState, RuntimeTimingState, ScenarioResult, SessionId,
+        SimulationCommand, SimulationLifecycle, SimulationState, SimulationWorldBinding, TileState,
+        VehicleFlightState, VehicleState,
     },
     uris,
 };
@@ -32,6 +33,12 @@ struct AdapterRecordingState {
     application_id: String,
     recording_key: String,
     active: bool,
+    publisher_lifecycle: RecordingPublisherLifecycle,
+    queue_capacity: u32,
+    queued_events: u32,
+    dropped_events: u64,
+    #[serde(default)]
+    diagnostic: Option<String>,
     camera_streams: Vec<String>,
     started_at: DateTime<Utc>,
 }
@@ -142,6 +149,11 @@ impl HttpAdapter {
                 recording_id,
                 recording_uri,
                 active: recording.active,
+                publisher_lifecycle: recording.publisher_lifecycle,
+                queue_capacity: recording.queue_capacity,
+                queued_events: recording.queued_events,
+                dropped_events: recording.dropped_events,
+                diagnostic: recording.diagnostic,
                 camera_streams: recording.camera_streams,
                 started_at: recording.started_at,
             });
@@ -821,6 +833,10 @@ mod tests {
             "application_id": "veoveo-uav-sim",
             "recording_key": "019f7122-3d89-7d21-8312-8940d1e0f510",
             "active": true,
+            "publisher_lifecycle": "ready",
+            "queue_capacity": 256,
+            "queued_events": 0,
+            "dropped_events": 0,
             "camera_streams": ["/world/uav-sim/session-alpha/vehicle/uav-1/camera/down"],
             "started_at": "2026-07-16T18:00:00Z"
         }))
@@ -861,6 +877,10 @@ mod tests {
             "recording_key": "019f7122-3d89-7d21-8312-8940d1e0f510",
             "recording_uri": "recording://recordings/not-cataloged",
             "active": true,
+            "publisher_lifecycle": "ready",
+            "queue_capacity": 256,
+            "queued_events": 0,
+            "dropped_events": 0,
             "camera_streams": [],
             "started_at": "2026-07-16T18:00:00Z"
         }))

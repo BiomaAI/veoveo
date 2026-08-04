@@ -217,6 +217,15 @@ pub enum CameraEncoder {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RecordingPublisherLifecycle {
+    Connecting,
+    Ready,
+    Degraded,
+    Stopped,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub enum PoseProtocolSchema {
     #[serde(rename = "veoveo.io/simulation-view-pose/v1")]
     SimulationViewPoseV1,
@@ -357,6 +366,12 @@ pub struct RecordingState {
     pub recording_id: RecordingId,
     pub recording_uri: String,
     pub active: bool,
+    pub publisher_lifecycle: RecordingPublisherLifecycle,
+    pub queue_capacity: u32,
+    pub queued_events: u32,
+    pub dropped_events: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diagnostic: Option<String>,
     pub camera_streams: Vec<String>,
     pub started_at: DateTime<Utc>,
 }

@@ -24,6 +24,7 @@ from veoveo_uav_sim.camera_quality import (
 from veoveo_uav_sim.config import FleetLoopConfig, RuntimeConfig
 from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operation
 from veoveo_uav_sim.fleet_loop import FleetLoopController, vehicle_loop_route
+from veoveo_uav_sim.event_queue import NonBlockingEventQueue
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
 from veoveo_uav_sim.physics_batch import (
     FleetPhysicsLifecycle,
@@ -112,6 +113,11 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(config.pose_cadence_hz, 20)
         self.assertEqual(config.pose_buffer_duration_ms, 500)
         self.assertEqual(config.px4_connect_timeout_seconds, 180.0)
+        self.assertEqual(config.camera.vehicle_id, "uav-1")
+        self.assertEqual(config.camera.bit_rate_bps, 750_000)
+        self.assertEqual(config.recording.telemetry_hz, 5)
+        self.assertEqual(config.recording.queue_capacity, 256)
+        self.assertEqual(config.recording.map_provider.value, "openStreetMap")
 
         app_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py"
@@ -122,6 +128,27 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIn("PoseProducer", app_source)
         self.assertNotIn("livestream", app_source.lower())
         self.assertNotIn("follow_camera", app_source)
+
+    def test_recording_policy_is_typed_and_bounded(self) -> None:
+        environment = {
+            **VALID_ENVIRONMENT,
+            "UAV_SIM_RECORDING_MAP_PROVIDER": "mapboxSatellite",
+            "UAV_SIM_RECORDING_TELEMETRY_HZ": "4",
+            "UAV_SIM_RECORDING_QUEUE_CAPACITY": "128",
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            config = RuntimeConfig.from_environment()
+        self.assertEqual(config.recording.map_provider.value, "mapboxSatellite")
+        self.assertEqual(config.recording.telemetry_hz, 4)
+        self.assertEqual(config.recording.queue_capacity, 128)
+
+        invalid = {
+            **VALID_ENVIRONMENT,
+            "UAV_SIM_RECORDING_MAP_PROVIDER": "automatic",
+        }
+        with patch.dict(os.environ, invalid, clear=True):
+            with self.assertRaisesRegex(ValueError, "openStreetMap or mapboxSatellite"):
+                RuntimeConfig.from_environment()
 
     def test_preconfiguration_state_uses_the_pose_timing_contract(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
@@ -264,6 +291,21 @@ class RuntimeConfigTests(unittest.TestCase):
         ).read_text()
         self.assertIn('add_stream("h264_nvenc"', recording_source)
         self.assertNotIn("libx264", recording_source)
+        self.assertIn("default_blueprint=_recording_blueprint", recording_source)
+        self.assertIn("rrb.MapView", recording_source)
+
+    def test_recording_degradation_is_visible_without_blocking_readiness(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            config = RuntimeConfig.from_environment()
+        state = RuntimeState(config, WORLD)
+        state.update_recording_publisher("degraded", 17, 9, "network unavailable")
+        recording = state.snapshot()["recordings"][0]
+        self.assertTrue(recording["active"])
+        self.assertEqual(recording["publisher_lifecycle"], "degraded")
+        self.assertEqual(recording["queue_capacity"], 256)
+        self.assertEqual(recording["queued_events"], 17)
+        self.assertEqual(recording["dropped_events"], 9)
+        self.assertEqual(recording["diagnostic"], "network unavailable")
 
     def test_camera_optics_and_mount_are_typed_runtime_inputs(self) -> None:
         environment = {
@@ -352,6 +394,31 @@ class StreamOutputTests(unittest.TestCase):
             fragment[2:] for fragment in fragments
         )
         self.assertEqual(reconstructed, nal)
+
+
+class RecordingIsolationTests(unittest.TestCase):
+    def test_bounded_queue_replaces_oldest_without_waiting(self) -> None:
+        events = NonBlockingEventQueue[int](2)
+        events.offer(1)
+        events.offer(2)
+        events.offer(3)
+
+        self.assertEqual(events.depth(), 2)
+        self.assertEqual(events.dropped(), 1)
+        self.assertEqual(events.take(0.01), 2)
+        self.assertEqual(events.take(0.01), 3)
+
+    def test_recording_work_never_runs_in_physics_callback(self) -> None:
+        app_source = (
+            Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py"
+        ).read_text()
+        callback = app_source.split("def advance_physics", maxsplit=1)[1].split(
+            "physics_lifecycle =", maxsplit=1
+        )[0]
+        self.assertIn("recording.offer_frame", callback)
+        self.assertNotIn("recording.log_frame", callback)
+        self.assertNotIn("recording.log_imu", callback)
+        self.assertNotIn(".encode(", callback)
 
 
 class FleetLoopTests(unittest.TestCase):

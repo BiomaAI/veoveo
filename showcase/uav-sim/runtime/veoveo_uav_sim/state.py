@@ -100,6 +100,10 @@ class RuntimeState:
                     "application_id": "veoveo-uav-sim",
                     "recording_key": str(config.recording_key),
                     "active": True,
+                    "publisher_lifecycle": "connecting",
+                    "queue_capacity": config.recording.queue_capacity,
+                    "queued_events": 0,
+                    "dropped_events": 0,
                     "camera_streams": [
                         f"/world/uav-sim/{config.session_id}/vehicle/"
                         f"{config.camera.vehicle_id}/camera/down"
@@ -209,6 +213,26 @@ class RuntimeState:
     def set_recording_active(self, active: bool) -> None:
         with self._condition:
             self._state["recordings"][0]["active"] = active
+            self._touch()
+
+    def update_recording_publisher(
+        self,
+        lifecycle: str,
+        queued_events: int,
+        dropped_events: int,
+        diagnostic: str | None,
+    ) -> None:
+        with self._condition:
+            recording = self._state["recordings"][0]
+            recording.update(
+                publisher_lifecycle=lifecycle,
+                queued_events=max(0, queued_events),
+                dropped_events=max(0, dropped_events),
+            )
+            if diagnostic:
+                recording["diagnostic"] = diagnostic
+            else:
+                recording.pop("diagnostic", None)
             self._touch()
 
     def wait_for_simulation_delta(self, duration_seconds: float, timeout_seconds: float) -> float:
