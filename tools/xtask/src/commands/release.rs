@@ -11,8 +11,10 @@ use std::{
 use anyhow::{Context, Result, bail, ensure};
 use sha2::{Digest, Sha256};
 use veoveo_deploy_contract::{
-    DEPLOYMENT_LOCK_SCHEMA, DeploymentLock, DeploymentSource, DeploymentSourceRole, LoadedProfile,
-    LockedChart, LockedImage, LockedSource, PlannedImage, RegistryTransport, SourceRepository,
+    DEPLOYMENT_LOCK_SCHEMA, DEVELOPMENT_IMAGE_LOCK_SCHEMA, DeploymentLock, DeploymentSource,
+    DeploymentSourceRole, DevelopmentImageLock, DevelopmentImageOrigin, DevelopmentLockedImage,
+    LoadedProfile, LockedChart, LockedImage, LockedSource, PlannedImage, RegistryTransport,
+    SourceRepository,
 };
 
 const IMAGE_RELEASE_EVIDENCE_SCHEMA: &str = "veoveo.io/image-release-evidence/v1";
@@ -90,8 +92,8 @@ struct PreparedSourceRelease {
 }
 
 use crate::{
-    ImageStageArgs, ReleaseCompatibilityArgs, ReleaseHelmChartsArgs, ReleaseImagesArgs,
-    ReleasePythonSdkArgs, ReleaseSimulationRuntimeArgs,
+    ImageDevelopmentLockArgs, ImageStageArgs, ReleaseCompatibilityArgs, ReleaseHelmChartsArgs,
+    ReleaseImagesArgs, ReleasePythonSdkArgs, ReleaseSimulationRuntimeArgs,
     commands::{
         builder, compatibility as compatibility_release, helm,
         image::{self, OutputMode, Selection},
@@ -100,6 +102,19 @@ use crate::{
     },
     context::RepositoryContext,
 };
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DevelopmentHelmValues {
+    global: DevelopmentGlobalValues,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DevelopmentGlobalValues {
+    veoveo_registry: String,
+    image_digests: BTreeMap<String, String>,
+}
 
 pub(crate) fn simulation_runtime(
     repository: &RepositoryContext,
@@ -324,6 +339,147 @@ pub(crate) fn stage_images(repository: &RepositoryContext, args: &ImageStageArgs
     println!("Staged image evidence: {}", output.display());
     println!(
         "Staged runtime images are immutable development inputs and are not release-qualified"
+    );
+    Ok(())
+}
+
+pub(crate) fn development_image_lock(
+    repository: &RepositoryContext,
+    args: &ImageDevelopmentLockArgs,
+) -> Result<()> {
+    let base_path = absolute_output(repository, &args.base_lock);
+    let base_bytes = fs::read(&base_path)
+        .with_context(|| format!("reading qualified deployment lock {}", base_path.display()))?;
+    let base: DeploymentLock = serde_json::from_slice(&base_bytes)
+        .with_context(|| format!("decoding qualified deployment lock {}", base_path.display()))?;
+    base.validate()?;
+
+    let mut images = base
+        .sources
+        .iter()
+        .flat_map(|source| {
+            source.images.iter().map(|image| DevelopmentLockedImage {
+                source: source.name.clone(),
+                target: image.name.clone(),
+                repository: image.repository.clone(),
+                source_revision: source.revision.clone(),
+                runtime_digest: image.digest.clone(),
+                origin: DevelopmentImageOrigin::Qualified {
+                    publication_digest: image.publication_digest.clone(),
+                },
+            })
+        })
+        .collect::<Vec<_>>();
+    let mut replaced = BTreeSet::new();
+    for evidence_path in &args.stage_evidence {
+        let evidence_path = absolute_output(repository, evidence_path);
+        let evidence_bytes = fs::read(&evidence_path)
+            .with_context(|| format!("reading stage evidence {}", evidence_path.display()))?;
+        let evidence: ImageStageEvidenceInput = serde_json::from_slice(&evidence_bytes)
+            .with_context(|| format!("decoding stage evidence {}", evidence_path.display()))?;
+        ensure!(
+            evidence.schema_version == IMAGE_STAGE_EVIDENCE_SCHEMA,
+            "stage evidence {} uses unsupported schema {}",
+            evidence_path.display(),
+            evidence.schema_version
+        );
+        ensure!(
+            !evidence.release_eligible,
+            "stage evidence {} must declare releaseEligible=false",
+            evidence_path.display()
+        );
+        ensure!(
+            evidence.registry == base.registry,
+            "stage evidence registry {} does not match qualified base registry {}",
+            evidence.registry,
+            base.registry
+        );
+        ensure!(
+            !evidence.images.is_empty(),
+            "stage evidence {} contains no images",
+            evidence_path.display()
+        );
+        let evidence_digest = format!("sha256:{}", hex::encode(Sha256::digest(&evidence_bytes)));
+        for staged in evidence.images {
+            ensure!(
+                staged.platform == "linux/amd64",
+                "staged image {} uses unsupported platform {}",
+                staged.target,
+                staged.platform
+            );
+            validate_oci_digest(&staged.runtime_digest, "staged runtime")?;
+            validate_oci_digest(&staged.staging_index_digest, "staging index")?;
+            let index = images
+                .iter()
+                .position(|base_image| {
+                    base_image.target == staged.target && base_image.repository == staged.repository
+                })
+                .with_context(|| {
+                    format!(
+                        "staged image {} at {} is absent from the qualified base closure",
+                        staged.target, staged.repository
+                    )
+                })?;
+            ensure!(
+                replaced.insert(staged.repository.clone()),
+                "staged repository {} is supplied more than once",
+                staged.repository
+            );
+            images[index].source_revision = evidence.source_revision.clone();
+            images[index].runtime_digest = staged.runtime_digest;
+            images[index].origin = DevelopmentImageOrigin::Staged {
+                staging_index_digest: staged.staging_index_digest,
+                stage_evidence_digest: evidence_digest.clone(),
+            };
+        }
+    }
+    ensure!(
+        !replaced.is_empty(),
+        "development image lock requires at least one staged replacement"
+    );
+    images.sort_by(|left, right| left.repository.cmp(&right.repository));
+    let lock = DevelopmentImageLock {
+        schema_version: DEVELOPMENT_IMAGE_LOCK_SCHEMA.to_owned(),
+        release_eligible: false,
+        base_deployment_lock_digest: format!("sha256:{}", hex::encode(Sha256::digest(&base_bytes))),
+        registry: base.registry.clone(),
+        images,
+    };
+    lock.validate()?;
+
+    let registry_prefix = format!("{}/", lock.registry);
+    let image_digests = lock
+        .images
+        .iter()
+        .map(|image| {
+            let repository = image
+                .repository
+                .strip_prefix(&registry_prefix)
+                .expect("development lock validation checked registry ownership")
+                .to_owned();
+            (repository, image.runtime_digest.clone())
+        })
+        .collect::<BTreeMap<_, _>>();
+    let values = DevelopmentHelmValues {
+        global: DevelopmentGlobalValues {
+            veoveo_registry: lock.registry.clone(),
+            image_digests,
+        },
+    };
+    let lock_output = absolute_output(repository, &args.output);
+    let values_output = absolute_output(repository, &args.values_output);
+    ensure!(
+        lock_output != values_output,
+        "development lock and Helm values outputs must be distinct"
+    );
+    write_json(&lock_output, &lock)?;
+    write_json(&values_output, &values)?;
+    println!("Development image lock: {}", lock_output.display());
+    println!("Development Helm values: {}", values_output.display());
+    println!(
+        "Merged {} staged repositories into a {}-image non-release closure",
+        replaced.len(),
+        lock.images.len()
     );
     Ok(())
 }
@@ -1151,9 +1307,15 @@ mod tests {
     use std::{fs, path::Path, process::Command};
 
     use tempfile::tempdir;
+    use veoveo_deploy_contract::{DevelopmentImageLock, DevelopmentImageOrigin};
 
-    use super::profile_location;
-    use crate::context::RepositoryContext;
+    use super::{development_image_lock, profile_location};
+    use crate::{ImageDevelopmentLockArgs, context::RepositoryContext};
+
+    const STAGED_RUNTIME: &str =
+        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const STAGED_INDEX: &str =
+        "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
     fn git_init(path: &Path) {
         fs::create_dir(path).expect("create repository");
@@ -1188,5 +1350,74 @@ mod tests {
         );
         assert_eq!(resolved, fs::canonicalize(&profile).unwrap());
         assert_eq!(relative, Path::new("environments/example/deployment.json"));
+    }
+
+    #[test]
+    fn development_lock_replaces_only_staged_runtime_identity() {
+        let repository = RepositoryContext::discover(Path::new(env!("CARGO_MANIFEST_DIR")))
+            .expect("discover repository");
+        let temporary = tempdir().expect("create output directory");
+        let base = repository
+            .root()
+            .join("testing/fixtures/external-simulation-installation/deployment.lock.json");
+        let stage = temporary.path().join("stage.json");
+        fs::write(
+            &stage,
+            serde_json::to_vec_pretty(&serde_json::json!({
+                "schemaVersion": "veoveo.io/image-stage-evidence/v1",
+                "sourceRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "registry": "k3d-veoveo-registry.localhost:5001",
+                "releaseEligible": false,
+                "images": [{
+                    "target": "simulation-view-mcp",
+                    "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-view-mcp",
+                    "runtimeDigest": STAGED_RUNTIME,
+                    "stagingIndexDigest": STAGED_INDEX,
+                    "platform": "linux/amd64"
+                }]
+            }))
+            .unwrap(),
+        )
+        .expect("write stage evidence");
+        let output = temporary.path().join("development.lock.json");
+        let values = temporary.path().join("development.values.json");
+        development_image_lock(
+            &repository,
+            &ImageDevelopmentLockArgs {
+                base_lock: base,
+                stage_evidence: vec![stage],
+                output: output.clone(),
+                values_output: values.clone(),
+            },
+        )
+        .expect("build development closure");
+
+        let lock: DevelopmentImageLock =
+            serde_json::from_slice(&fs::read(output).unwrap()).unwrap();
+        lock.validate().unwrap();
+        let replaced = lock
+            .images
+            .iter()
+            .find(|image| image.target == "simulation-view-mcp")
+            .unwrap();
+        assert_eq!(replaced.runtime_digest, STAGED_RUNTIME);
+        assert!(matches!(
+            replaced.origin,
+            DevelopmentImageOrigin::Staged { .. }
+        ));
+        let unchanged = lock
+            .images
+            .iter()
+            .find(|image| image.target == "artifact-mcp")
+            .unwrap();
+        assert!(matches!(
+            unchanged.origin,
+            DevelopmentImageOrigin::Qualified { .. }
+        ));
+        let values: serde_json::Value = serde_json::from_slice(&fs::read(values).unwrap()).unwrap();
+        assert_eq!(
+            values["global"]["imageDigests"]["veoveo/simulation-view-mcp"],
+            STAGED_RUNTIME
+        );
     }
 }

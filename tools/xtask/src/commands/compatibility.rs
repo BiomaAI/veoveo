@@ -8,7 +8,10 @@ use std::{
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use veoveo_deploy_contract::{PROFILE_SCHEMA, deployment_lock_schema, deployment_profile_schema};
+use veoveo_deploy_contract::{
+    PROFILE_SCHEMA, deployment_lock_schema, deployment_profile_schema,
+    development_image_lock_schema,
+};
 use veoveo_extension_contract::{
     ArtifactCoordinate, ArtifactDescriptor, ArtifactDigest, ArtifactKind, ArtifactName,
     CompatibilityManifest, CompatibilityManifestSchema, CompatibilityReleaseId,
@@ -256,6 +259,10 @@ pub(crate) fn generate(
         (
             "deployment-lock.schema.json",
             serde_json::to_value(deployment_lock_schema())?,
+        ),
+        (
+            "development-image-lock.schema.json",
+            serde_json::to_value(development_image_lock_schema())?,
         ),
         (
             "gateway-server-fragment.schema.json",

@@ -15,6 +15,8 @@ use url::Url;
 pub const PROFILE_SCHEMA: &str = "veoveo.io/deployment/v5";
 /// Canonical immutable multi-source deployment lock.
 pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.io/deployment-lock/v5";
+/// Canonical non-release image closure used by development GitOps deployments.
+pub const DEVELOPMENT_IMAGE_LOCK_SCHEMA: &str = "veoveo.io/development-image-lock/v1";
 /// Canonical local OCI registry declaration.
 pub const REGISTRY_SCHEMA: &str = "veoveo.io/local-registry/v1";
 
@@ -621,6 +623,46 @@ pub struct DeploymentLock {
     pub registry_transport: RegistryTransport,
     pub sources: Vec<LockedSource>,
     pub platform: ResolvedPlatformSelection,
+}
+
+/// Digest-locked development image closure derived from one qualified deployment lock.
+///
+/// This contract deliberately cannot be consumed as a [`DeploymentLock`]. Staged images
+/// retain runnable identity but do not carry the release attestations required by the
+/// qualified deployment path.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DevelopmentImageLock {
+    pub schema_version: String,
+    pub release_eligible: bool,
+    pub base_deployment_lock_digest: String,
+    pub registry: String,
+    pub images: Vec<DevelopmentLockedImage>,
+}
+
+/// One runnable image identity in a development closure.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DevelopmentLockedImage {
+    pub source: String,
+    pub target: String,
+    pub repository: String,
+    pub source_revision: String,
+    pub runtime_digest: String,
+    pub origin: DevelopmentImageOrigin,
+}
+
+/// Evidence lineage for one development image identity.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub enum DevelopmentImageOrigin {
+    /// The runnable digest came unchanged from the qualified base closure.
+    Qualified { publication_digest: String },
+    /// The runnable digest came from a runtime-only staging publication.
+    Staged {
+        staging_index_digest: String,
+        stage_evidence_digest: String,
+    },
 }
 
 /// Immutable resolution and artifact inventory for one source.
@@ -1868,6 +1910,71 @@ impl DeploymentLock {
     }
 }
 
+impl DevelopmentImageLock {
+    /// Validates a development-only runnable image closure and its evidence lineage.
+    pub fn validate(&self) -> Result<()> {
+        ensure!(
+            self.schema_version == DEVELOPMENT_IMAGE_LOCK_SCHEMA,
+            "development image lock schemaVersion must be {DEVELOPMENT_IMAGE_LOCK_SCHEMA}"
+        );
+        ensure!(
+            !self.release_eligible,
+            "development image lock must declare releaseEligible=false"
+        );
+        validate_digest(&self.base_deployment_lock_digest)?;
+        validate_registry_address(&self.registry)?;
+        ensure!(
+            !self.images.is_empty(),
+            "development image lock must contain at least one image"
+        );
+        ensure_unique(
+            "development image repository",
+            self.images.iter().map(|image| &image.repository),
+        )?;
+        let mut identities = BTreeSet::new();
+        for image in &self.images {
+            validate_name("development image source", &image.source)?;
+            validate_name("development image target", &image.target)?;
+            ensure!(
+                identities.insert((image.source.clone(), image.target.clone())),
+                "development image {}:{} is duplicated",
+                image.source,
+                image.target
+            );
+            ensure!(
+                image.repository.starts_with(&format!("{}/", self.registry)),
+                "development image repository {} is outside registry {}",
+                image.repository,
+                self.registry
+            );
+            ensure!(
+                !image.repository.contains('@') && !image.repository.ends_with(":latest"),
+                "development image repository must not carry a mutable tag or digest"
+            );
+            validate_revision(&image.source_revision)?;
+            validate_digest(&image.runtime_digest)?;
+            match &image.origin {
+                DevelopmentImageOrigin::Qualified { publication_digest } => {
+                    validate_digest(publication_digest)?;
+                    ensure!(
+                        publication_digest != &image.runtime_digest,
+                        "qualified development image {} must retain a distinct attested publication digest",
+                        image.target
+                    );
+                }
+                DevelopmentImageOrigin::Staged {
+                    staging_index_digest,
+                    stage_evidence_digest,
+                } => {
+                    validate_digest(staging_index_digest)?;
+                    validate_digest(stage_evidence_digest)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 impl LocalRegistrySpec {
     /// Returns the registry address visible from k3d nodes.
     pub fn address(&self) -> Result<String> {
@@ -1928,6 +2035,12 @@ pub fn deployment_profile_schema() -> schemars::Schema {
 #[must_use]
 pub fn deployment_lock_schema() -> schemars::Schema {
     schemars::schema_for!(DeploymentLock)
+}
+
+/// Generates the canonical non-release development image lock schema.
+#[must_use]
+pub fn development_image_lock_schema() -> schemars::Schema {
+    schemars::schema_for!(DevelopmentImageLock)
 }
 
 fn validate_releases(
@@ -2256,7 +2369,8 @@ mod tests {
         NVIDIA_DRA_IMAGE_AMD64_DIGEST, NVIDIA_DRA_IMAGE_ARM64_DIGEST, NVIDIA_DRA_IMAGE_DIGEST,
         NVIDIA_DRA_IMAGE_REPOSITORY, NVIDIA_DRA_KUBERNETES_VERSION, NVIDIA_DRA_VERSION,
         PlannedImage, PlatformCapability, PlatformComponent, PlatformSelection,
-        deployment_lock_schema, deployment_profile_schema, validate_managed_gpu_allocator,
+        deployment_lock_schema, deployment_profile_schema, development_image_lock_schema,
+        validate_managed_gpu_allocator,
     };
 
     fn managed_gpu_allocator_installation() -> ManagedGpuAllocatorInstallation {
@@ -2867,7 +2981,11 @@ mod tests {
 
     #[test]
     fn generated_schemas_are_closed_and_compile() {
-        for schema in [deployment_profile_schema(), deployment_lock_schema()] {
+        for schema in [
+            deployment_profile_schema(),
+            deployment_lock_schema(),
+            development_image_lock_schema(),
+        ] {
             let value = serde_json::to_value(schema).expect("serialize schema");
             Validator::new(&value).expect("compile schema");
         }
