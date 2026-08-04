@@ -46,6 +46,7 @@ from veoveo_simulation_view.pose import (
     PoseMirror,
     PosePollResult,
     PoseSampleKind,
+    PoseSampleQueue,
     PoseSnapshot,
     decode_snapshot,
 )
@@ -1389,7 +1390,9 @@ class RendererContractsTest(unittest.TestCase):
         )
         pose.poll.side_effect = [
             PosePollResult(PoseSampleKind.ACCEPTED, first),
+            None,
             PosePollResult(PoseSampleKind.ACCEPTED, second),
+            None,
             None,
         ]
         clock = Clock()
@@ -1811,14 +1814,15 @@ class RendererContractsTest(unittest.TestCase):
             revoked=False,
         )
         reader = object()
-        latest = object()
+        latest = Mock(sequence=7, simulation_timestamp_ns=350_000_000)
+        samples = PoseSampleQueue(2)
+        samples.observe(latest, 4.0)
         mirror = PoseMirror.__new__(PoseMirror)
         mirror._directory = Path("/unused")
         mirror._binding = binding
         mirror._reader = reader
         mirror._generation = 7
-        mirror._latest = latest
-        mirror._accepted_at = 4.0
+        mirror._samples = samples
 
         mirror.renew(
             replace(
@@ -1829,7 +1833,7 @@ class RendererContractsTest(unittest.TestCase):
         )
 
         self.assertIs(mirror._reader, reader)
-        self.assertIs(mirror._latest, latest)
+        self.assertIs(mirror.latest, latest)
         self.assertEqual(mirror._generation, 7)
         with self.assertRaisesRegex(ContractError, "authorization revision is stale"):
             mirror.renew(binding)

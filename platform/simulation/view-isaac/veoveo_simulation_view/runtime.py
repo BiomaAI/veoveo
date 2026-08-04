@@ -87,9 +87,9 @@ class Renderer:
         for session_id, session in self._sessions.items():
             if session.pose is None:
                 continue
-            result = session.pose.poll()
-            if result is not None and session.interpolation is not None:
-                session.interpolation.observe(result)
+            while result := session.pose.poll():
+                if session.interpolation is not None:
+                    session.interpolation.observe(result)
             if session.pose.latest is not None and session.pose.stale:
                 if not session.pose_stale and session.interpolation is not None:
                     session.interpolation.reset(InterpolationResetReason.STALE)
