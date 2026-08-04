@@ -104,9 +104,13 @@ Sequence and renderer timestamp remain monotonic across a domain reset. A
 paces complete snapshots before they reach the SDK's newest-value transport.
 The fixed-step scheduler owns real-time pacing; PX4 actuator replies are
 consumed asynchronously instead of serializing one lockstep wait per vehicle.
+Each physics step drains a bounded number of pending MAVLink packets, which
+keeps current actuator controls ahead of lower-rate telemetry without letting
+one vehicle monopolize Kit's simulation thread.
 The SDK performs DNS, certificate loading, TLS handshakes, reconnection, and
-socket writes on its worker thread. A disconnected Simulation View never
-backpressures physics.
+socket writes on its worker thread. The cadence emitter acknowledges its first
+snapshot before filling the newest-value slot. A disconnected Simulation View
+never backpressures physics after that initial admission boundary.
 
 The reference profile runs physics at 60 Hz, native nadir-camera rendering at
 2 Hz, and Simulation View pose publication at 20 Hz. These clocks are separate

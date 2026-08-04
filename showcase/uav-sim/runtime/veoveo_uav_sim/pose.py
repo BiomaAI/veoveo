@@ -234,11 +234,36 @@ class PoseProducer:
                 )
                 if self._closing:
                     return
-                if not self._emission_started:
-                    self._emission_started = True
-                    deadline = time.monotonic()
+                initial_delivery = not self._emission_started
                 snapshot = self._queue.popleft()
                 self._condition.notify_all()
+
+            if initial_delivery:
+                # LatestPosePublisher connects lazily on its first offer. Do
+                # not feed the cadence into its one-value slot until that
+                # priming snapshot is acknowledged, or healthy TLS startup
+                # is incorrectly recorded as a series of replacements.
+                self._publisher.offer(snapshot)
+                while True:
+                    status = self._publisher.status()
+                    self.poll()
+                    if (
+                        status.last_sent_sequence is not None
+                        and status.last_sent_sequence >= snapshot.sequence
+                    ):
+                        with self._condition:
+                            self._emission_started = True
+                        deadline = time.monotonic() + period
+                        break
+                    if not status.running:
+                        return
+                    with self._condition:
+                        self._condition.wait_for(
+                            lambda: self._closing, timeout=min(period, 0.01)
+                        )
+                        if self._closing:
+                            return
+                continue
 
             remaining = deadline - time.monotonic()
             if remaining > 0:

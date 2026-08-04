@@ -108,8 +108,9 @@ body FLU.
 The domain runtime stages 500 ms of complete physics-derived snapshots and
 emits them at the declared wall-clock cadence. This buffer absorbs the
 serialized Isaac/Cesium render boundary without changing snapshot timestamps.
-The SDK then keeps one unsent network value. A disconnected renderer causes
-newest-value replacement rather than transport backpressure.
+The first snapshot completes the lazy TLS connection before cadence emission
+begins. The SDK then keeps one unsent network value. A disconnected renderer
+causes newest-value replacement rather than transport backpressure.
 
 `PosePublicationState` exposes:
 

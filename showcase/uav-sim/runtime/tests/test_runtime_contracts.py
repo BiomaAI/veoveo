@@ -143,6 +143,13 @@ class RuntimeConfigTests(unittest.TestCase):
         ).read_text()
         self.assertIn("git -C px4 apply --check /tmp/px4.patch", dockerfile)
         self.assertIn("udp_gcs_port_remote=$((14550+px4_instance))", px4_patch)
+
+        pegasus_patch = (
+            runtime_root / "patches" / "pegasus-5.1.0-isaac-6.0.1.patch"
+        ).read_text()
+        self.assertIn("if self._enable_lockstep:", pegasus_patch)
+        self.assertIn("for _ in range(256):", pegasus_patch)
+        self.assertIn("recv_match(blocking=False)", pegasus_patch)
         self.assertIn("-o $udp_gcs_port_remote", px4_patch)
 
     def test_default_fleet_loop_encloses_manhattan(self) -> None:
@@ -673,6 +680,49 @@ class PoseProducerTests(unittest.TestCase):
                 producer.offer([])
             producer.close()
 
+    def test_lazy_tls_startup_does_not_replace_buffered_poses(self) -> None:
+        publishers: list[_LazyFakePosePublisher] = []
+
+        def create_publisher(*args: object, **kwargs: object) -> _LazyFakePosePublisher:
+            publisher = _LazyFakePosePublisher(*args, **kwargs)
+            publishers.append(publisher)
+            return publisher
+
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            config = RuntimeConfig.from_environment()
+        with patch(
+            "veoveo_uav_sim.pose.LatestPosePublisher",
+            side_effect=create_publisher,
+        ):
+            producer = PoseProducer(
+                config=config.pose_publication,
+                session_id=config.session_id,
+                world=WORLD,
+                vehicle_count=1,
+                cadence_hz=20,
+                buffer_duration_ms=50,
+                update_state=lambda _publication: None,
+            )
+            telemetry = VehicleTelemetry(
+                vehicle_id="uav-1",
+                position_enu=(1.0, 2.0, 3.0),
+                attitude_xyzw=(0.0, 0.0, 0.0, 1.0),
+                linear_velocity_enu_mps=(4.0, 5.0, 6.0),
+                flight_state="flying",
+                battery_percent=90.0,
+                px4_connected=True,
+            )
+            producer.offer([telemetry])
+            producer.offer([telemetry])
+            deadline = time.monotonic() + 1.0
+            while publishers[0].sent_snapshots < 2 and time.monotonic() < deadline:
+                time.sleep(0.005)
+            producer.close()
+
+        self.assertEqual(publishers[0].offered_snapshots, 2)
+        self.assertEqual(publishers[0].sent_snapshots, 2)
+        self.assertEqual(publishers[0].replaced_snapshots, 0)
+
 
 class RealtimeClockTests(unittest.TestCase):
     def test_physics_clock_catches_up_without_advancing_ahead_of_wall_time(self) -> None:
@@ -727,6 +777,45 @@ class _FakePosePublisher:
             sent_snapshots=sent,
             replaced_snapshots=0,
             last_sent_sequence=last_sequence,
+            last_error=None,
+        )
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _LazyFakePosePublisher:
+    def __init__(self, *_args: object, **_kwargs: object) -> None:
+        self.closed = False
+        self.offered_snapshots = 0
+        self.sent_snapshots = 0
+        self.replaced_snapshots = 0
+        self._pending_sequence: int | None = None
+        self._pending_since = 0.0
+        self._last_sent_sequence: int | None = None
+
+    def offer(self, snapshot: object) -> None:
+        self.offered_snapshots += 1
+        if self._pending_sequence is not None:
+            self.replaced_snapshots += 1
+        self._pending_sequence = int(getattr(snapshot, "sequence"))
+        self._pending_since = time.monotonic()
+
+    def status(self) -> PosePublisherStatus:
+        if (
+            self._pending_sequence is not None
+            and time.monotonic() - self._pending_since >= 0.05
+        ):
+            self.sent_snapshots += 1
+            self._last_sent_sequence = self._pending_sequence
+            self._pending_sequence = None
+        return PosePublisherStatus(
+            running=not self.closed,
+            connected=self.sent_snapshots > 0 and not self.closed,
+            offered_snapshots=self.offered_snapshots,
+            sent_snapshots=self.sent_snapshots,
+            replaced_snapshots=self.replaced_snapshots,
+            last_sent_sequence=self._last_sent_sequence,
             last_error=None,
         )
 
