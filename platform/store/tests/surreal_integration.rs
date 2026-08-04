@@ -1919,7 +1919,7 @@ async fn simulation_view_desired_state_is_revisioned_and_idempotent() {
 }
 
 #[tokio::test]
-async fn simulation_view_legacy_digest_migration_preserves_state_and_removes_old_field() {
+async fn simulation_view_migrations_preserve_intent_and_reject_durable_viewer_leases() {
     if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
         return;
     }
@@ -1968,7 +1968,10 @@ async fn simulation_view_legacy_digest_migration_preserves_state_and_removes_old
                 revoked: false,
                 authorization_expires_at: NONE,
                 snapshot_digest: $legacy_digest,
-                snapshot: { sessionId: 'durable-session' },
+                snapshot: {
+                    sessionId: 'durable-session',
+                    leases: [{ leaseId: 'obsolete-lease' }]
+                },
                 reconciliation: { desiredRevision: 6, realizedRevision: 5 },
                 created_at: time::now(),
                 updated_at: time::now()
@@ -1983,6 +1986,29 @@ async fn simulation_view_legacy_digest_migration_preserves_state_and_removes_old
     store
         .client()
         .query(migrations()[31].sql)
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    store
+        .client()
+        .query(migrations()[32].sql)
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+
+    // An old pod can still write between a pre-upgrade migration and replacement.
+    store
+        .client()
+        .query("UPDATE simulation_view_state SET snapshot.leases = [{ leaseId: 'late-obsolete-lease' }];")
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    store
+        .client()
+        .query(migrations()[33].sql)
         .await
         .unwrap()
         .check()
@@ -2005,4 +2031,13 @@ async fn simulation_view_legacy_digest_migration_preserves_state_and_removes_old
         .unwrap();
     let value: surrealdb::types::Value = response.take(0).unwrap();
     assert!(!format!("{value:?}").contains("snapshot_digest"));
+    assert!(!format!("{value:?}").contains("leases"));
+
+    let obsolete_writer = store
+        .client()
+        .query("UPDATE simulation_view_state SET snapshot.leases = [{ leaseId: 'rejected-obsolete-lease' }];")
+        .await
+        .unwrap()
+        .check();
+    assert!(obsolete_writer.is_err());
 }
