@@ -8,7 +8,7 @@ platform:
   recordingTenantKey: bioma
 
 recording:
-  mapProvider: mapboxSatellite
+  mapProvider: openStreetMap
 
 session:
   vehicleCount: 4
