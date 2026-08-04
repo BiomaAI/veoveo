@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import math
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -40,6 +41,23 @@ class RuntimeState:
             "lifecycle": "starting",
             "simulation_time_s": 0.0,
             "physics_step": 0,
+            "timing": {
+                "physics_hz": config.physics_hz,
+                "native_rendering_hz": config.rendering_hz,
+                "pose_cadence_hz": config.pose_cadence_hz,
+                "pose_buffer_duration_ms": config.pose_buffer_duration_ms,
+                "pose_queued_snapshots": 0,
+                "pose_buffer_target_snapshots": max(
+                    2,
+                    math.ceil(
+                        config.pose_cadence_hz
+                        * config.pose_buffer_duration_ms
+                        / 1_000
+                    ),
+                ),
+                "realtime_rebases": 0,
+                "discarded_wall_seconds": 0.0,
+            },
             "world": world.as_dict(),
             "tiles": {
                 "lifecycle": "connecting",
@@ -71,7 +89,7 @@ class RuntimeState:
             "pose_publication": initial_pose_publication(
                 config.pose_publication,
                 config.vehicle_count,
-                config.rendering_hz,
+                config.pose_cadence_hz,
             ),
             "vehicles": [],
             "recordings": [
@@ -130,6 +148,16 @@ class RuntimeState:
             self._state["physics_step"] = physics_step
             self._touch()
 
+    def update_realtime_clock(
+        self, rebases: int, discarded_wall_seconds: float
+    ) -> None:
+        with self._condition:
+            self._state["timing"].update(
+                realtime_rebases=max(0, rebases),
+                discarded_wall_seconds=max(0.0, discarded_wall_seconds),
+            )
+            self._touch()
+
     def update_camera(
         self,
         vehicle_id: str,
@@ -163,7 +191,16 @@ class RuntimeState:
 
     def update_pose_publication(self, publication: dict[str, Any]) -> None:
         with self._condition:
-            self._state["pose_publication"] = copy.deepcopy(publication)
+            sanitized = copy.deepcopy(publication)
+            queued = sanitized.pop("queued_snapshots", None)
+            target = sanitized.pop("buffer_target_snapshots", None)
+            if queued is not None:
+                self._state["timing"]["pose_queued_snapshots"] = max(0, queued)
+            if target is not None:
+                self._state["timing"]["pose_buffer_target_snapshots"] = max(
+                    2, target
+                )
+            self._state["pose_publication"] = sanitized
             self._touch()
 
     def set_recording_active(self, active: bool) -> None:

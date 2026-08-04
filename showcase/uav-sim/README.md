@@ -92,16 +92,26 @@ acceptance evidence.
 - establishes stable `uav-1` through `uav-N` entity identities;
 - binds snapshots to the exact Frames revision and renderer epoch;
 - maps Pegasus ENU position and XYZW attitude into typed entity poses;
-- offers one complete snapshot at render cadence;
+- selects complete snapshots from fixed physics steps at an exact 20 Hz;
+- emits them on a bounded wall-clock queue independently of native camera rendering;
 - reports publisher counters and lifecycle through domain state.
 
 The adapter deliberately omits velocity. Pegasus exposes the available value
 in world ENU, while the pose protocol's optional velocity is body FLU.
 
-Sequence and renderer timestamp remain monotonic across a domain reset. The
-SDK keeps only the newest unsent snapshot and performs DNS, certificate
-loading, TLS handshakes, reconnection, and socket writes on its worker thread.
-A disconnected Simulation View never backpressures physics.
+Sequence and renderer timestamp remain monotonic across a domain reset. A
+500 ms producer queue absorbs the serialized Isaac/Cesium render boundary and
+paces complete snapshots before they reach the SDK's newest-value transport.
+The fixed-step scheduler owns real-time pacing; PX4 actuator replies are
+consumed asynchronously instead of serializing one lockstep wait per vehicle.
+The SDK performs DNS, certificate loading, TLS handshakes, reconnection, and
+socket writes on its worker thread. A disconnected Simulation View never
+backpressures physics.
+
+The reference profile runs physics at 60 Hz, native nadir-camera rendering at
+2 Hz, and Simulation View pose publication at 20 Hz. These clocks are separate
+because four RTX/Cesium sensor products share Kit's render thread, while the
+independent Simulation View renderer requires uniform authoritative poses.
 
 ## Always-On Fleet
 
@@ -148,6 +158,7 @@ The chart requires:
 - a producer-only PEM Secret containing a client certificate, private key,
   and the Simulation View pose-ingress CA;
 - exact producer, SPIFFE, epoch, endpoint, and entity-table identities;
+- an explicit pose cadence and bounded producer buffer duration;
 - bounded fleet-loop center offsets, radii, altitude, separation, waypoint
   count, and speed;
 - platform database and recording-forwarder credentials;

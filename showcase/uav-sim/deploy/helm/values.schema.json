@@ -265,6 +265,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "cadenceHz",
+        "bufferDurationMs",
         "producerId",
         "producerSpiffeId",
         "epochId",
@@ -278,6 +280,8 @@
         "clientPrivateKeyKey"
       ],
       "properties": {
+        "cadenceHz": {"type": "integer", "minimum": 1, "maximum": 120},
+        "bufferDurationMs": {"type": "integer", "minimum": 50, "maximum": 5000},
         "producerId": {"$ref": "#/definitions/identity"},
         "producerSpiffeId": {
           "type": "string",

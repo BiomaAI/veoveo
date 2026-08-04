@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -29,6 +30,7 @@ from veoveo_uav_sim.physics_batch import (
 )
 from veoveo_uav_sim.pose import PhysicsCadenceGate, PoseProducer, entity_ids
 from veoveo_uav_sim.px4 import Px4Commander, Px4CommandRejected
+from veoveo_uav_sim.realtime import PeriodicDeadline, RealtimePhysicsClock
 from veoveo_uav_sim.state import RuntimeState, VehicleTelemetry
 from veoveo_uav_sim.stream_output import _annex_b_nals, _packetize_nal
 from veoveo_uav_sim.world_config import (
@@ -92,8 +94,11 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_default_render_cadence_matches_the_camera(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             config = RuntimeConfig.from_environment()
-        self.assertEqual(config.rendering_hz, 20)
+        self.assertEqual(config.physics_hz, 60)
+        self.assertEqual(config.rendering_hz, 2)
         self.assertEqual(config.rendering_hz, config.camera.fps)
+        self.assertEqual(config.pose_cadence_hz, 20)
+        self.assertEqual(config.pose_buffer_duration_ms, 500)
         self.assertEqual(config.px4_connect_timeout_seconds, 180.0)
 
         app_source = (
@@ -174,7 +179,10 @@ class RuntimeConfigTests(unittest.TestCase):
             "spiffe://veoveo.local/simulation/uav-sim",
         )
         self.assertEqual(publication["epoch_id"], "epoch-1")
-        self.assertEqual(publication["cadence_hz"], config.rendering_hz)
+        self.assertEqual(publication["cadence_hz"], config.pose_cadence_hz)
+        self.assertEqual(state["timing"]["physics_hz"], 60)
+        self.assertEqual(state["timing"]["native_rendering_hz"], 2)
+        self.assertEqual(state["timing"]["pose_cadence_hz"], 20)
         self.assertEqual(
             publication["entity_table_digest"],
             str(entity_table_digest(1, entity_ids(config.vehicle_count))),
@@ -587,6 +595,7 @@ class PoseProducerTests(unittest.TestCase):
                 world=WORLD,
                 vehicle_count=1,
                 cadence_hz=20,
+                buffer_duration_ms=50,
                 update_state=updates.append,
             )
             telemetry = VehicleTelemetry(
@@ -600,6 +609,9 @@ class PoseProducerTests(unittest.TestCase):
             )
             producer.offer([telemetry])
             producer.offer([telemetry])
+            deadline = time.monotonic() + 1.0
+            while len(publishers[0].snapshots) < 2 and time.monotonic() < deadline:
+                time.sleep(0.005)
             producer.close()
 
         snapshots = publishers[0].snapshots
@@ -630,11 +642,45 @@ class PoseProducerTests(unittest.TestCase):
                 world=WORLD,
                 vehicle_count=1,
                 cadence_hz=20,
+                buffer_duration_ms=50,
                 update_state=lambda _publication: None,
             )
             with self.assertRaisesRegex(RuntimeError, "complete snapshot"):
                 producer.offer([])
             producer.close()
+
+
+class RealtimeClockTests(unittest.TestCase):
+    def test_physics_clock_catches_up_without_advancing_ahead_of_wall_time(self) -> None:
+        now = [100.0]
+        clock = RealtimePhysicsClock(60, clock=lambda: now[0])
+
+        self.assertEqual(clock.due_steps(0), 0)
+        now[0] += 0.09
+        self.assertEqual(clock.due_steps(0), 5)
+        self.assertEqual(clock.due_steps(5), 0)
+        self.assertGreater(clock.seconds_until_next_step(5), 0.0)
+
+    def test_physics_clock_rebases_after_a_bounded_startup_stall(self) -> None:
+        now = [10.0]
+        clock = RealtimePhysicsClock(
+            60, maximum_catchup_seconds=0.5, clock=lambda: now[0]
+        )
+        now[0] += 2.0
+
+        self.assertEqual(clock.due_steps(0), 30)
+        status = clock.status()
+        self.assertEqual(status.rebases, 1)
+        self.assertAlmostEqual(status.discarded_wall_seconds, 1.5)
+
+    def test_render_deadline_skips_missed_periods(self) -> None:
+        now = [20.0]
+        deadline = PeriodicDeadline(2, clock=lambda: now[0])
+        self.assertTrue(deadline.due())
+        self.assertFalse(deadline.due())
+        now[0] += 1.6
+        self.assertTrue(deadline.due())
+        self.assertGreater(deadline.seconds_until_due(), 0.0)
 
 
 class _FakePosePublisher:

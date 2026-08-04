@@ -57,10 +57,12 @@ operator cameras, load the NVIDIA live-stream extensions, expose signaling or
 media ports, or implement a domain live-view App.
 
 The UAV runtime publishes poses through the reusable Python SDK. Its adapter
-only maps UAV telemetry into SDK types and reports publisher status. Encoding,
-framing, bounded newest-value buffering, TLS 1.3, and reconnect behavior live
-in the SDK. DNS, certificate loading, TLS handshakes, and socket writes run on
-the SDK worker and never block physics or rendering.
+maps UAV telemetry into SDK types, selects an exact physics-derived cadence,
+and stages a bounded wall-clock queue that isolates pose delivery from native
+camera rendering. Encoding, framing, newest-value network buffering, TLS 1.3,
+and reconnect behavior live in the SDK. DNS, certificate loading, TLS
+handshakes, and socket writes run on the SDK worker and never block physics or
+rendering.
 
 ## World And Frame Binding
 
@@ -93,19 +95,21 @@ digest.
 
 One snapshot contains every declared UAV entity. Entity order is canonical,
 identities are stable, and sequence numbers are strictly increasing within
-the configured renderer epoch. The renderer timestamp advances at render
-cadence independently of a domain timeline reset. This prevents a reset from
-moving the Simulation View epoch backward.
+the configured renderer epoch. The renderer timestamp advances at the
+declared pose cadence independently of native camera rendering and a domain
+timeline reset. This prevents either boundary from moving the Simulation View
+epoch backward.
 
 Each entity includes local ENU position and normalized XYZW orientation. FLU
 velocity is optional. The first adapter omits velocity because its source
 velocity is expressed in world ENU; it does not mislabel ENU components as
 body FLU.
 
-The publisher keeps one unsent value. A new offer replaces an older pending
-snapshot, while the simulation thread performs only validation, deterministic
-encoding, and a bounded lock acquisition. A disconnected renderer causes
-newest-value replacement rather than backpressure.
+The domain runtime stages 500 ms of complete physics-derived snapshots and
+emits them at the declared wall-clock cadence. This buffer absorbs the
+serialized Isaac/Cesium render boundary without changing snapshot timestamps.
+The SDK then keeps one unsent network value. A disconnected renderer causes
+newest-value replacement rather than transport backpressure.
 
 `PosePublicationState` exposes:
 
