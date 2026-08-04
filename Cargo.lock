@@ -11639,6 +11639,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-deployment-smoke"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "dotenvy",
+ "hex",
+ "jsonwebtoken",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tempfile",
+ "url",
+ "veoveo-deploy-contract",
+ "veoveo-mcp-contract",
+]
+
+[[package]]
 name = "veoveo-duckdb-mcp"
 version = "0.1.0"
 dependencies = [

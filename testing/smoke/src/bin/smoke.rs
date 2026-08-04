@@ -33,6 +33,7 @@ use veoveo_mcp_contract::{
     GatewayTaskStatusDocument, GatewayTaskStatusKind, RELATED_TASK_META_KEY,
 };
 
+#[allow(dead_code)]
 #[path = "smoke/deployment.rs"]
 mod deployment;
 #[path = "smoke/scenarios.rs"]
@@ -40,7 +41,6 @@ mod scenarios;
 #[path = "smoke/support.rs"]
 mod support;
 
-use deployment::*;
 use scenarios::*;
 
 fn install_rustls_provider() {
@@ -70,57 +70,6 @@ enum Cmd {
     HelmConfig,
     /// Build and test the external simulation fixture from an authenticated published SDK wheel.
     ExternalSimulationFixture,
-    /// Validate one typed deployment profile and every selected build and Helm surface.
-    ProfileValidate {
-        /// Deployment profile JSON.
-        #[arg(long)]
-        profile: PathBuf,
-    },
-    /// Start the standalone local registry selected by a deployment profile.
-    ProfileRegistryUp {
-        /// Deployment profile JSON.
-        #[arg(long)]
-        profile: PathBuf,
-    },
-    /// Create or start the local k3d cluster selected by a deployment profile.
-    ProfileClusterUp {
-        /// Deployment profile JSON.
-        #[arg(long)]
-        profile: PathBuf,
-    },
-    /// Stop the local k3d cluster selected by a deployment profile.
-    ProfileClusterStop {
-        /// Deployment profile JSON.
-        #[arg(long)]
-        profile: PathBuf,
-    },
-    /// Delete the local k3d cluster selected by a deployment profile.
-    ProfileClusterDelete {
-        /// Deployment profile JSON.
-        #[arg(long)]
-        profile: PathBuf,
-    },
-    /// Apply a profile's resources and independently resolved Helm releases.
-    ProfileUp {
-        /// Deployment profile JSON.
-        #[arg(long)]
-        profile: PathBuf,
-        /// Immutable deployment lock produced by `cargo xtask release images --profile`.
-        #[arg(long)]
-        lock: PathBuf,
-    },
-    /// Verify the live GPU placement selected by a deployment profile without mutating it.
-    ProfileGpuVerify {
-        /// Deployment profile JSON.
-        #[arg(long)]
-        profile: PathBuf,
-    },
-    /// Uninstall every Helm release selected by a deployment profile.
-    ProfileDown {
-        /// Deployment profile JSON.
-        #[arg(long)]
-        profile: PathBuf,
-    },
     /// Prove exclusive NVIDIA device-plugin allocation with two one-GPU pods on one node.
     GpuAllocationVerify {
         /// Kubernetes context containing the exclusive multi-GPU node.
@@ -674,14 +623,6 @@ async fn main() -> Result<()> {
         } => gateway_suite(&control_plane, &smoke_control_plane).await,
         Cmd::HelmConfig => helm_config().await,
         Cmd::ExternalSimulationFixture => external_simulation_fixture(),
-        Cmd::ProfileValidate { profile } => profile_validate(&profile),
-        Cmd::ProfileRegistryUp { profile } => profile_registry_up(&profile),
-        Cmd::ProfileClusterUp { profile } => profile_cluster_up(&profile),
-        Cmd::ProfileClusterStop { profile } => profile_cluster_stop(&profile),
-        Cmd::ProfileClusterDelete { profile } => profile_cluster_delete(&profile),
-        Cmd::ProfileUp { profile, lock } => profile_up(&profile, &lock),
-        Cmd::ProfileGpuVerify { profile } => profile_gpu_verify(&profile),
-        Cmd::ProfileDown { profile } => profile_down(&profile),
         Cmd::GpuAllocationVerify {
             context,
             node,

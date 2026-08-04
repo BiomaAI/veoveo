@@ -19,6 +19,10 @@ const SMOKE: CargoBinary = CargoBinary {
     package: "veoveo-smoke",
     binary: "smoke",
 };
+const DEPLOYMENT_SMOKE: CargoBinary = CargoBinary {
+    package: "veoveo-deployment-smoke",
+    binary: "deployment-smoke",
+};
 const CONFORMANCE: CargoBinary = CargoBinary {
     package: "veoveo-mcp-conformance",
     binary: "conformance",
@@ -61,6 +65,7 @@ const AGENT: CargoBinary = CargoBinary {
 };
 
 pub(crate) fn run(repository: &RepositoryContext, arguments: &[OsString]) -> Result<()> {
+    let dispatcher = dispatcher_binary(arguments)?;
     let build_arguments = cargo_build_arguments(arguments)?;
     process::cargo_status(&build_arguments, Some(repository.root()))?;
     let target = env::var_os("CARGO_TARGET_DIR")
@@ -72,7 +77,7 @@ pub(crate) fn run(repository: &RepositoryContext, arguments: &[OsString]) -> Res
         repository.root().join(target)
     };
     let dependencies = target.join("debug/deps");
-    let executable = target.join("debug/smoke");
+    let executable = target.join("debug").join(dispatcher.binary);
     let mut command = Command::new(&executable);
     command
         .args(arguments)
@@ -92,8 +97,9 @@ pub(crate) fn run(repository: &RepositoryContext, arguments: &[OsString]) -> Res
 }
 
 fn cargo_build_arguments(arguments: &[OsString]) -> Result<Vec<&'static str>> {
-    let mut binaries = vec![SMOKE];
-    if !requests_help(arguments) {
+    let dispatcher = dispatcher_binary(arguments)?;
+    let mut binaries = vec![dispatcher];
+    if !requests_help(arguments) && dispatcher == SMOKE {
         binaries.push(CONFORMANCE);
         let scenario = arguments
             .first()
@@ -112,6 +118,32 @@ fn cargo_build_arguments(arguments: &[OsString]) -> Result<Vec<&'static str>> {
         build_arguments.extend(["--package", binary.package, "--bin", binary.binary]);
     }
     Ok(build_arguments)
+}
+
+fn dispatcher_binary(arguments: &[OsString]) -> Result<CargoBinary> {
+    if requests_help(arguments) && arguments.is_empty() {
+        return Ok(SMOKE);
+    }
+    let scenario = arguments
+        .first()
+        .context("smoke scenario is required")?
+        .to_str()
+        .context("smoke scenario is not valid UTF-8")?;
+    if matches!(
+        scenario,
+        "profile-validate"
+            | "profile-registry-up"
+            | "profile-cluster-up"
+            | "profile-cluster-stop"
+            | "profile-cluster-delete"
+            | "profile-up"
+            | "profile-gpu-verify"
+            | "profile-down"
+    ) {
+        Ok(DEPLOYMENT_SMOKE)
+    } else {
+        Ok(SMOKE)
+    }
 }
 
 fn requests_help(arguments: &[OsString]) -> bool {
@@ -246,6 +278,22 @@ mod tests {
         assert_eq!(scenario_binaries("profile-up").unwrap(), &[]);
         assert_eq!(scenario_binaries("gpu-allocation-verify").unwrap(), &[]);
         assert!(scenario_binaries("unmapped-scenario").is_err());
+    }
+
+    #[test]
+    fn profile_commands_build_only_the_focused_deployment_harness() {
+        let arguments = [OsString::from("profile-up")];
+        assert_eq!(
+            cargo_build_arguments(&arguments).unwrap(),
+            [
+                "build",
+                "--locked",
+                "--package",
+                "veoveo-deployment-smoke",
+                "--bin",
+                "deployment-smoke",
+            ]
+        );
     }
 
     #[test]
