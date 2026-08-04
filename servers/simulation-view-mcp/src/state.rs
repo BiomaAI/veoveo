@@ -827,28 +827,6 @@ impl SimulationViewService {
         }
     }
 
-    pub(crate) fn fail_camera(&self, camera_id: &LiveCameraId) {
-        let mut state = self
-            .state
-            .lock()
-            .expect("simulation-view state lock poisoned");
-        if let Some(camera) = state.cameras.get_mut(camera_id) {
-            camera.health = LiveCameraHealth::Failed;
-            camera.updated_at = Utc::now();
-        }
-        for lease in state
-            .leases
-            .values_mut()
-            .filter(|lease| lease.state.camera_id == *camera_id)
-        {
-            lease.state.lifecycle = LiveViewLifecycle::Failed;
-            lease.state.connected_viewers = 0;
-            lease.token_hash.fill(0);
-            lease.state.expires_at = Utc::now();
-            let _ = lease.events.send(lease_signal(&lease.state));
-        }
-    }
-
     pub(crate) fn apply_camera_status(
         &self,
         camera_id: &LiveCameraId,
@@ -1225,23 +1203,74 @@ impl SimulationViewService {
             .sessions
             .values()
             .filter(|session| {
-                let waiting_for_retry = session.reconciliation.phase
-                    == ReconciliationPhase::Blocked
-                    && session
-                        .reconciliation
-                        .next_attempt_at
-                        .is_some_and(|next_attempt| next_attempt > now);
-                !waiting_for_retry
-                    && !(session.lifecycle == SessionLifecycle::Closed
-                        && session.reconciliation.desired_revision
-                            == session.reconciliation.realized_revision
-                        && matches!(
-                            session.reconciliation.phase,
-                            ReconciliationPhase::Healthy | ReconciliationPhase::Revoked
-                        ))
+                let due = session
+                    .reconciliation
+                    .next_attempt_at
+                    .is_some_and(|next_attempt| next_attempt <= now);
+                if session.reconciliation.phase == ReconciliationPhase::Blocked {
+                    due
+                } else {
+                    session.reconciliation.desired_revision
+                        > session.reconciliation.realized_revision
+                        || session.reconciliation.phase == ReconciliationPhase::Pending
+                        || due
+                }
             })
             .cloned()
             .collect()
+    }
+
+    pub(crate) fn next_reconciliation_at(&self) -> Option<DateTime<Utc>> {
+        let now = Utc::now();
+        let state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        if state.sessions.values().any(|session| {
+            session.reconciliation.phase != ReconciliationPhase::Blocked
+                && (session.reconciliation.desired_revision
+                    > session.reconciliation.realized_revision
+                    || session.reconciliation.phase == ReconciliationPhase::Pending)
+        }) {
+            return Some(now);
+        }
+        state
+            .sessions
+            .values()
+            .filter_map(|session| session.reconciliation.next_attempt_at)
+            .min()
+    }
+
+    pub(crate) fn request_runtime_reconciliation(&self, session_id: &LiveSessionId) {
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        let Some(session) = state.sessions.get_mut(session_id) else {
+            return;
+        };
+        if session.lifecycle != SessionLifecycle::Closed {
+            session.reconciliation.phase = ReconciliationPhase::Pending;
+            session.reconciliation.next_attempt_at = Some(Utc::now());
+            session.updated_at = Utc::now();
+        }
+    }
+
+    pub(crate) fn request_all_runtime_reconciliation(&self) {
+        let now = Utc::now();
+        let mut state = self
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        for session in state
+            .sessions
+            .values_mut()
+            .filter(|session| session.lifecycle != SessionLifecycle::Closed)
+        {
+            session.reconciliation.phase = ReconciliationPhase::Pending;
+            session.reconciliation.next_attempt_at = Some(now);
+            session.updated_at = now;
+        }
     }
 
     pub(crate) fn reconciliation_ready(&self) -> bool {
@@ -1428,7 +1457,8 @@ impl SimulationViewService {
                 None => PoseAuthorizationRenewalState::Current,
             };
             session.reconciliation.last_successful_reconciliation_at = Some(at);
-            if session.pose_source.is_none()
+            if session.lifecycle == SessionLifecycle::Closed
+                || session.pose_source.is_none()
                 || session
                     .pose_source
                     .as_ref()
@@ -1538,6 +1568,7 @@ impl SimulationViewService {
             .collect()
     }
 
+    #[cfg(test)]
     pub(crate) fn render_slot(&self, camera_id: &LiveCameraId) -> Result<u16, SimulationViewError> {
         self.state
             .lock()

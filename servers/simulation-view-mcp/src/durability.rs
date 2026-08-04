@@ -9,9 +9,9 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{LiveCameraHealth, LiveCameraId, LiveSessionId, LiveViewOwner};
 use veoveo_platform_store::{
-    AuditEventId, AuditEventRecord, AuditOutcome, OpenObject, PlatformStore,
-    SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA, SimulationViewStateDraft, StoreError,
-    deterministic_tenant_id,
+    AuditEventId, AuditEventRecord, AuditOutcome, LiveStream, OpenObject, OutboxEventRecord,
+    PlatformStore, PlatformTable, SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA, SimulationViewStateDraft,
+    StoreError, deterministic_tenant_id,
 };
 use veoveo_simulation_pose::EpochId;
 
@@ -113,6 +113,10 @@ impl SimulationViewRepository {
 
     pub async fn ready(&self) -> bool {
         self.store.client().health().await.is_ok()
+    }
+
+    pub async fn outbox_wake(&self) -> Result<LiveStream<OutboxEventRecord>> {
+        Ok(self.store.live(PlatformTable::OutboxEvent).await?)
     }
 
     pub async fn restore(&self, service: &SimulationViewService) -> Result<usize> {

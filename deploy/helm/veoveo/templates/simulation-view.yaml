@@ -224,12 +224,10 @@ spec:
             - {{ $view.capacity.maximumFrameAgeMs | quote }}
             - --lease-seconds
             - {{ $view.capacity.leaseSeconds | quote }}
-            - --reconcile-interval-seconds
-            - {{ $view.reconciliation.intervalSeconds | quote }}
+            - --reconcile-retry-delay-seconds
+            - {{ $view.reconciliation.retryDelaySeconds | quote }}
             - --authorization-renewal-lead-seconds
             - {{ $view.reconciliation.authorizationRenewalLeadSeconds | quote }}
-            - --reconcile-retry-max-seconds
-            - {{ $view.reconciliation.retryMaximumSeconds | quote }}
           env:
             {{- include "veoveo.surrealEnv" . | nindent 12 }}
             - name: PUBLIC_BASE_URL
@@ -396,6 +394,8 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.global.existingSecret }}
                   key: simulation-view-renderer-control-token
+            - name: SIMULATION_VIEW_RUNTIME_EVENT_URL
+              value: {{ printf "http://simulation-view-mcp:%v/simulation-view/runtime-events/renderer" $view.ports.mcp | quote }}
             - name: SIMULATION_VIEW_LAYER_CATALOG
               value: /etc/veoveo/simulation-view/layers.json
             {{- range $binding := $view.streamedWorld.credentialBindings }}
@@ -513,6 +513,8 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.global.existingSecret }}
                   key: simulation-view-pose-control-token
+            - name: SIMULATION_VIEW_RUNTIME_EVENT_URL
+              value: {{ printf "http://simulation-view-mcp:%v/simulation-view/runtime-events/pose-ingress" $view.ports.mcp | quote }}
             - name: SIMULATION_VIEW_POSE_TLS_CERT_DER
               value: {{ printf "/run/secrets/pose-tls/%s" $view.poseIngress.certificateKey | quote }}
             - name: SIMULATION_VIEW_POSE_TLS_KEY_DER

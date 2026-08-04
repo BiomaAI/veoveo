@@ -300,9 +300,8 @@ simulationView:
     clientCaKey: ca.crt.der
     allowedCidrs: []
   reconciliation:
-    intervalSeconds: 10
+    retryDelaySeconds: 2
     authorizationRenewalLeadSeconds: 300
-    retryMaximumSeconds: 60
   artifacts:
     existingClaim: ""
     size: 20Gi

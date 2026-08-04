@@ -1904,6 +1904,18 @@ async fn simulation_view_desired_state_is_revisioned_and_idempotent() {
             .await,
         Err(StoreError::SimulationViewRevisionConflict { revision: 2 })
     ));
+    let outbox = store.read_outbox(0, 100).await.unwrap();
+    let committed = outbox
+        .events
+        .iter()
+        .filter(|event| event.event_type == "simulation_view.state_committed")
+        .collect::<Vec<_>>();
+    assert_eq!(committed.len(), 5);
+    assert!(committed.iter().all(|event| {
+        event.aggregate_type == "simulation_view"
+            && event.aggregate_id == "durable-session"
+            && event.tenant.is_some()
+    }));
 }
 
 #[tokio::test]

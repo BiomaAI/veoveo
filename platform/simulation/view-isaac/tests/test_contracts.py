@@ -1046,6 +1046,10 @@ class RendererContractsTest(unittest.TestCase):
             )
             values = {
                 "SIMULATION_VIEW_RENDERER_CONTROL_TOKEN": "a" * 32,
+                "SIMULATION_VIEW_RUNTIME_EVENT_URL": (
+                    "http://simulation-view-mcp:8788/simulation-view/"
+                    "runtime-events/renderer"
+                ),
                 "SIMULATION_VIEW_PUBLIC_MEDIA_IP": "192.0.2.42",
                 "SIMULATION_VIEW_ARTIFACT_DIRECTORY": f"{directory}/artifacts",
                 "SIMULATION_VIEW_POSE_DIRECTORY": f"{directory}/pose",

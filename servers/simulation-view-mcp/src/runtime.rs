@@ -16,10 +16,6 @@ use crate::contract::{
 
 pub const RENDERER_PROFILE: &str = "veoveo.io/simulation-view-renderer/isaac-rtx/v1";
 
-const RENDERER_STREAM_READY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
-const RENDERER_STREAM_READY_POLL_INTERVAL: std::time::Duration =
-    std::time::Duration::from_millis(100);
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RendererFailureCode {
@@ -143,6 +139,14 @@ pub struct RendererStreamStatus {
     pub media_port: u16,
     pub last_pose_sequence: Option<u64>,
     pub last_frame_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RendererInventory {
+    pub generation: uuid::Uuid,
+    pub camera_ids: Vec<veoveo_mcp_contract::LiveCameraId>,
+    pub stream_product_ids: Vec<veoveo_mcp_contract::LiveStreamProductId>,
 }
 
 #[derive(Clone)]
@@ -429,6 +433,18 @@ impl RuntimeClients {
         .await
     }
 
+    pub async fn renderer_inventory(
+        &self,
+        session_id: &veoveo_mcp_contract::LiveSessionId,
+    ) -> anyhow::Result<RendererInventory> {
+        self.get_json_authenticated(
+            &self.renderer_endpoint,
+            &self.renderer_control_token,
+            &format!("v1/sessions/{session_id}/inventory"),
+        )
+        .await
+    }
+
     pub async fn open_stream(
         &self,
         stream: &veoveo_mcp_contract::LiveViewState,
@@ -458,46 +474,18 @@ impl RuntimeClients {
             render_slot,
             media_port: stream.endpoint.media_port,
         };
-        self.await_stream_ready(
-            &path,
-            &binding,
-            stream_product_id,
-            expected_signal_port,
-            expected_media_port,
-            RENDERER_STREAM_READY_TIMEOUT,
-            RENDERER_STREAM_READY_POLL_INTERVAL,
-        )
-        .await
-    }
-
-    async fn await_stream_ready(
-        &self,
-        path: &str,
-        binding: &RendererStreamBinding<'_>,
-        expected_stream_product_id: &veoveo_mcp_contract::LiveStreamProductId,
-        expected_signal_port: u16,
-        expected_media_port: u16,
-        timeout: std::time::Duration,
-        poll_interval: std::time::Duration,
-    ) -> anyhow::Result<RendererStreamStatus> {
-        let deadline = tokio::time::Instant::now() + timeout;
-        loop {
-            let status: RendererStreamStatus = self.put_renderer_json(&path, &binding).await?;
-            anyhow::ensure!(
-                status.stream_product_id == *expected_stream_product_id
-                    && status.signal_port == expected_signal_port
-                    && status.media_port == expected_media_port,
-                "renderer stream did not remain on its admitted media slot"
-            );
-            if status.ready {
-                return Ok(status);
-            }
-            anyhow::ensure!(
-                tokio::time::Instant::now() < deadline,
-                "renderer stream did not become ready on its admitted media slot"
-            );
-            tokio::time::sleep(poll_interval).await;
-        }
+        let status: RendererStreamStatus = self.put_renderer_json(&path, &binding).await?;
+        anyhow::ensure!(
+            status.stream_product_id == *stream_product_id
+                && status.signal_port == expected_signal_port
+                && status.media_port == expected_media_port,
+            "renderer stream did not remain on its admitted media slot"
+        );
+        anyhow::ensure!(
+            status.ready,
+            "renderer stream product is not ready on its admitted media slot"
+        );
+        Ok(status)
     }
 
     pub async fn close_stream_product(
@@ -750,7 +738,6 @@ mod tests {
     async fn await_fixture_stream(
         runtime: &RuntimeClients,
         stream_product_id: &LiveStreamProductId,
-        timeout: std::time::Duration,
     ) -> anyhow::Result<RendererStreamStatus> {
         let session_id = LiveSessionId::new("session-1").unwrap();
         let camera_id = LiveCameraId::new("camera-1").unwrap();
@@ -761,17 +748,18 @@ mod tests {
             render_slot: 0,
             media_port: 47998,
         };
-        runtime
-            .await_stream_ready(
-                "v1/stream",
-                &binding,
-                stream_product_id,
-                49100,
-                47998,
-                timeout,
-                std::time::Duration::from_millis(1),
-            )
-            .await
+        let status: RendererStreamStatus = runtime.put_renderer_json("v1/stream", &binding).await?;
+        anyhow::ensure!(
+            status.stream_product_id == *stream_product_id
+                && status.signal_port == 49100
+                && status.media_port == 47998,
+            "renderer stream did not remain on its admitted media slot"
+        );
+        anyhow::ensure!(
+            status.ready,
+            "renderer stream product is not ready on its admitted media slot"
+        );
+        Ok(status)
     }
 
     #[test]
@@ -846,28 +834,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn stream_open_retries_idempotently_until_the_renderer_is_ready() {
+    async fn stream_open_uses_one_reactive_renderer_request() {
         let stream_product_id = LiveStreamProductId::new("product-1").unwrap();
         let requests = Arc::new(AtomicUsize::new(0));
         let fixture = StreamFixture {
             requests: requests.clone(),
-            ready_after: 3,
+            ready_after: 1,
             signal_port: 49100,
             media_port: 47998,
             stream_product_id: stream_product_id.clone(),
         };
         let (runtime, server) = runtime_with_stream_fixture(fixture).await;
 
-        let status = await_fixture_stream(
-            &runtime,
-            &stream_product_id,
-            std::time::Duration::from_secs(1),
-        )
-        .await
-        .unwrap();
+        let status = await_fixture_stream(&runtime, &stream_product_id)
+            .await
+            .unwrap();
 
         assert!(status.ready);
-        assert_eq!(requests.load(Ordering::SeqCst), 3);
+        assert_eq!(requests.load(Ordering::SeqCst), 1);
         server.abort();
     }
 
@@ -883,23 +867,20 @@ mod tests {
         };
         let (runtime, server) = runtime_with_stream_fixture(fixture).await;
 
-        let error = await_fixture_stream(
-            &runtime,
-            &stream_product_id,
-            std::time::Duration::from_secs(1),
-        )
-        .await
-        .unwrap_err();
+        let error = await_fixture_stream(&runtime, &stream_product_id)
+            .await
+            .unwrap_err();
 
         assert!(error.to_string().contains("admitted media slot"));
         server.abort();
     }
 
     #[tokio::test]
-    async fn stream_open_times_out_when_frames_never_become_ready() {
+    async fn stream_open_reports_not_ready_without_polling() {
         let stream_product_id = LiveStreamProductId::new("product-1").unwrap();
+        let requests = Arc::new(AtomicUsize::new(0));
         let fixture = StreamFixture {
-            requests: Arc::new(AtomicUsize::new(0)),
+            requests: requests.clone(),
             ready_after: usize::MAX,
             signal_port: 49100,
             media_port: 47998,
@@ -907,15 +888,12 @@ mod tests {
         };
         let (runtime, server) = runtime_with_stream_fixture(fixture).await;
 
-        let error = await_fixture_stream(
-            &runtime,
-            &stream_product_id,
-            std::time::Duration::from_millis(10),
-        )
-        .await
-        .unwrap_err();
+        let error = await_fixture_stream(&runtime, &stream_product_id)
+            .await
+            .unwrap_err();
 
-        assert!(error.to_string().contains("did not become ready"));
+        assert!(error.to_string().contains("is not ready"));
+        assert_eq!(requests.load(Ordering::SeqCst), 1);
         server.abort();
     }
 }

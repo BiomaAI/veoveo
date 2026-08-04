@@ -99,14 +99,16 @@ Secret, port allocation, and any admitted producer CIDRs. In-cluster producers c
 the `veoveo.ai/simulation-view-pose-producer: "true"` pod label. Readiness requires the
 named RTX render product, NVENC, and a visible non-stale hardware frame.
 
-`simulationView.reconciliation` configures the platform-owned lifecycle loop.
-`intervalSeconds` controls desired-state convergence, while
-`authorizationRenewalLeadSeconds` sets the maximum lead before a bounded pose
-authorization expires. Shorter authorizations use one third of their lifetime.
-`retryMaximumSeconds` bounds the reported retry delay and must not be shorter
-than the interval. The MCP pod uses the installation database identity and its
-existing private runtime control credentials; no Console or producer
-credential is added.
+`simulationView.reconciliation` configures the platform-owned lifecycle
+controller. Durable commits wake the controller through the transactional
+outbox, and renderer or pose-ingress boot generations wake it through an
+authenticated internal event. Healthy sessions are not replayed on an
+interval. `authorizationRenewalLeadSeconds` sets the maximum lead before a
+bounded pose authorization expires; shorter authorizations use one third of
+their lifetime. `retryDelaySeconds` is the exact delay after a failed runtime
+transition or disconnected durable event stream. The MCP pod uses the
+installation database identity and its existing private runtime control
+credentials; no Console or producer credential is added.
 
 The MCP readiness probe calls `/simulation-view/readyz` and admits the control
 plane when its store and Artifact dependency are reachable. The liveness probe
@@ -117,8 +119,8 @@ and durable desired-state convergence appears at
 and fails with its typed report if the desired revision remains unrealized.
 
 Simulation View stores its session, scene, producer binding, logical cameras,
-unexpired requested streams, revocation tombstone, and typed reconciliation
-status in the platform store. It restores this desired state after MCP,
+revocation tombstone, and typed reconciliation status in the platform store.
+Browser viewer leases remain ephemeral. It restores durable intent after MCP,
 renderer, or pose-ingress replacement. An explicit producer revocation is
 durable and is never renewed automatically.
 

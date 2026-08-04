@@ -50,22 +50,16 @@ pub(super) struct Args {
     pub surreal_password: SecretString,
     #[arg(
         long,
-        env = "SIMULATION_VIEW_RECONCILE_INTERVAL_SECONDS",
-        default_value_t = 10
+        env = "SIMULATION_VIEW_RECONCILE_RETRY_DELAY_SECONDS",
+        default_value_t = 2
     )]
-    pub reconcile_interval_seconds: u64,
+    pub reconcile_retry_delay_seconds: u64,
     #[arg(
         long,
         env = "SIMULATION_VIEW_AUTHORIZATION_RENEWAL_LEAD_SECONDS",
         default_value_t = 300
     )]
     pub authorization_renewal_lead_seconds: u64,
-    #[arg(
-        long,
-        env = "SIMULATION_VIEW_RECONCILE_RETRY_MAX_SECONDS",
-        default_value_t = 60
-    )]
-    pub reconcile_retry_max_seconds: u64,
     #[arg(
         long,
         env = "SIMULATION_VIEW_RENDERER_ENDPOINT",
@@ -179,10 +173,9 @@ impl Args {
         validate_control_token(&self.renderer_control_token)?;
         validate_control_token(&self.pose_control_token)?;
         anyhow::ensure!(
-            self.reconcile_interval_seconds > 0
+            self.reconcile_retry_delay_seconds > 0
                 && self.authorization_renewal_lead_seconds > 0
-                && self.authorization_renewal_lead_seconds < 24 * 60 * 60
-                && self.reconcile_retry_max_seconds >= self.reconcile_interval_seconds,
+                && self.authorization_renewal_lead_seconds < 24 * 60 * 60,
             "Simulation View reconciliation timing is invalid"
         );
         let _ = self.store_config()?;

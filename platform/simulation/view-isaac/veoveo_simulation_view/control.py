@@ -39,6 +39,7 @@ POSE_PATH = re.compile(rf"^/v1/sessions/{SESSION}/pose-source$")
 CAMERA_PATH = re.compile(rf"^/v1/sessions/{SESSION}/cameras/{CAMERA}$")
 LAYER_PATH = re.compile(rf"^/v1/sessions/{SESSION}/layer$")
 STREAM_PATH = re.compile(rf"^/v1/sessions/{SESSION}/streams/{STREAM}$")
+INVENTORY_PATH = re.compile(rf"^/v1/sessions/{SESSION}/inventory$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -175,6 +176,9 @@ class ControlServer:
                 if match := CAMERA_PATH.fullmatch(self.path):
                     self._query_camera(match)
                     return
+                if match := INVENTORY_PATH.fullmatch(self.path):
+                    self._query_inventory(match)
+                    return
                 if match := POSE_PATH.fullmatch(self.path):
                     self._query_pose_source(match)
                     return
@@ -225,6 +229,29 @@ class ControlServer:
                         match.group("session"),
                         match.group("camera"),
                         None,
+                    )
+                    outer._commands.put_nowait(command)
+                    result = command.wait(120.0)
+                    self._json(result.status, result.body)
+                except queue.Full:
+                    self.send_error(
+                        HTTPStatus.SERVICE_UNAVAILABLE,
+                        "renderer command queue is full",
+                    )
+                except TimeoutError as error:
+                    self.send_error(HTTPStatus.GATEWAY_TIMEOUT, str(error))
+                except (ContractError, ValueError) as error:
+                    self.send_error(HTTPStatus.BAD_REQUEST, str(error))
+
+            def _query_inventory(self, match: re.Match[str]) -> None:
+                if self._initialization_failed():
+                    return
+                if not self._authorized():
+                    self.send_error(HTTPStatus.UNAUTHORIZED)
+                    return
+                try:
+                    command = ControlCommand(
+                        "get_inventory", match.group("session"), None, None
                     )
                     outer._commands.put_nowait(command)
                     result = command.wait(120.0)
@@ -381,7 +408,7 @@ class ControlServer:
                             body, outer._config.maximum_render_slots
                         )
                         _match_identity(session, value.session_id)
-                        _match_identity(stream, value.live_view_id)
+                        _match_identity(stream, value.stream_product_id)
                         return ControlCommand("put_stream", session, stream, value)
                     return ControlCommand("delete_stream", session, stream, None)
                 raise ContractError("renderer control path is unsupported")
