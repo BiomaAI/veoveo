@@ -78,7 +78,12 @@ class PreconfigurationApplication:
     async def _ready(self, _request: web.Request) -> web.Response:
         status = "starting" if self._world_slot.get() is not None else "unconfigured"
         return web.json_response(
-            {"ready": True, "simulation_ready": False, "status": status}
+            {
+                "ready": True,
+                "simulation_ready": False,
+                "visual_ready": False,
+                "status": status,
+            }
         )
 
     async def _get_state(self, _request: web.Request) -> web.Response:
@@ -171,19 +176,21 @@ class AdapterApplication:
         snapshot = self._state.snapshot()
         simulation_ready = (
             snapshot["lifecycle"] in {"ready", "running", "paused"}
-            and snapshot["tiles"]["lifecycle"] == "ready"
-            and bool(snapshot["cameras"])
-            and all(camera["lifecycle"] == "ready" for camera in snapshot["cameras"])
             and snapshot["pose_publication"]["lifecycle"] == "ready"
             and snapshot["pose_publication"]["sent_snapshots"] > 0
             and bool(snapshot["vehicles"])
             and all(vehicle["px4_connected"] for vehicle in snapshot["vehicles"])
-            and snapshot["recordings"][0]["active"]
+        )
+        visual_ready = (
+            snapshot["tiles"]["lifecycle"] == "ready"
+            and bool(snapshot["cameras"])
+            and all(camera["lifecycle"] == "ready" for camera in snapshot["cameras"])
         )
         return web.json_response(
             {
                 "ready": snapshot["lifecycle"] != "failed",
                 "simulation_ready": simulation_ready,
+                "visual_ready": visual_ready,
                 "status": snapshot["lifecycle"],
             },
             status=503 if snapshot["lifecycle"] == "failed" else 200,
@@ -400,7 +407,9 @@ class AdapterServer:
         self._error: BaseException | None = None
 
     def start(self) -> None:
-        self._thread = threading.Thread(target=self._run, name="uav-adapter-http", daemon=True)
+        self._thread = threading.Thread(
+            target=self._run, name="uav-adapter-http", daemon=True
+        )
         self._thread.start()
         if not self._started.wait(30.0):
             raise TimeoutError("UAV adapter HTTP server did not start")
@@ -409,7 +418,9 @@ class AdapterServer:
 
     def close(self) -> None:
         if self._loop is not None and self._runner is not None:
-            future = asyncio.run_coroutine_threadsafe(self._runner.cleanup(), self._loop)
+            future = asyncio.run_coroutine_threadsafe(
+                self._runner.cleanup(), self._loop
+            )
             future.result(timeout=30.0)
             self._loop.call_soon_threadsafe(self._loop.stop)
         if self._thread is not None:
@@ -436,8 +447,7 @@ def _identity(field: str, value: object) -> str:
     if not isinstance(value, str) or not 1 <= len(value) <= 128:
         raise ValueError(f"{field} must be a 1-128 character identity")
     if not all(
-        character.isascii()
-        and (character.isalnum() or character in {"_", "-", "."})
+        character.isascii() and (character.isalnum() or character in {"_", "-", "."})
         for character in value
     ):
         raise ValueError(

@@ -92,6 +92,7 @@ def run(config: RuntimeConfig) -> None:
     from pegasus.simulator.params import ROBOTS
 
     from .camera_quality import (
+        assess_camera_health,
         measure_camera_frame,
         normalize_rgb_frame,
         should_record_camera_frame,
@@ -113,6 +114,7 @@ def run(config: RuntimeConfig) -> None:
     from .state import RuntimeState, VehicleTelemetry
     from .vehicle_model import Px4IrisThrustCurve
     from .world_config import WorldConfiguration, WorldConfigurationSlot
+    from .world_health import assess_tile_health
 
     state: RuntimeState | None = None
     world_config: WorldConfiguration | None = None
@@ -336,9 +338,7 @@ def run(config: RuntimeConfig) -> None:
             for vehicle_id in vehicles
             for body_name in ("body", "rotor0", "rotor1", "rotor2", "rotor3")
         )
-        pose_cadence = PhysicsCadenceGate(
-            config.physics_hz, config.pose_cadence_hz
-        )
+        pose_cadence = PhysicsCadenceGate(config.physics_hz, config.pose_cadence_hz)
         recording_cadence = PhysicsCadenceGate(
             config.physics_hz, config.recording.telemetry_hz
         )
@@ -394,8 +394,7 @@ def run(config: RuntimeConfig) -> None:
                                 for value in vehicle.state.linear_acceleration
                             ),
                             angular_velocity_rps=tuple(
-                                float(value)
-                                for value in vehicle.state.angular_velocity
+                                float(value) for value in vehicle.state.angular_velocity
                             ),
                         )
                         for vehicle_id, vehicle in vehicles.items()
@@ -545,7 +544,8 @@ def run(config: RuntimeConfig) -> None:
             cesium_interface.on_update_frame([cesium_viewport], False)
 
         tile_resident_frames = 0
-        tile_started_at = time.monotonic()
+        tile_absent_since: float | None = time.monotonic()
+        tile_unavailable_reported = False
         physics_clock.reset(physics_step)
         render_deadline.reset()
 
@@ -601,36 +601,33 @@ def run(config: RuntimeConfig) -> None:
                             if quality.operational
                             else 0
                         )
-                        tiles_ready = (
-                            state.snapshot()["tiles"]["lifecycle"] == "ready"
-                        )
+                        tiles_ready = state.snapshot()["tiles"]["lifecycle"] == "ready"
                         camera_black_streaks_after_tiles[vehicle_id] = (
                             camera_black_streaks_after_tiles[vehicle_id] + 1
                             if tiles_ready and not quality.operational
                             else 0
                         )
-                        if camera_operational_streaks[vehicle_id] >= 3:
-                            camera_was_ready.add(vehicle_id)
-                            camera_lifecycle = "ready"
-                        elif vehicle_id in camera_was_ready:
-                            camera_lifecycle = "degraded"
-                        else:
-                            camera_lifecycle = "warming"
-                        diagnostic = (
-                            "camera RGB frame is black"
-                            if not quality.operational
-                            else None
+                        camera_health = assess_camera_health(
+                            quality,
+                            operational_streak=camera_operational_streaks[vehicle_id],
+                            black_streak_after_tiles=(
+                                camera_black_streaks_after_tiles[vehicle_id]
+                            ),
+                            was_ready=vehicle_id in camera_was_ready,
+                            prolonged_black_threshold=config.camera.fps * 30,
                         )
+                        if camera_health.lifecycle == "ready":
+                            camera_was_ready.add(vehicle_id)
                         state.update_camera(
                             vehicle_id,
-                            camera_lifecycle,
+                            camera_health.lifecycle,
                             camera_frames_observed[vehicle_id],
                             quality,
-                            diagnostic,
+                            camera_health.diagnostic,
                         )
                         recording.log_camera_quality(
                             quality,
-                            camera_lifecycle,
+                            camera_health.lifecycle,
                             simulation_time_s,
                             physics_step,
                         )
@@ -638,22 +635,13 @@ def run(config: RuntimeConfig) -> None:
                             recording.offer_camera_frame(
                                 rgb, simulation_time_s, physics_step
                             )
-                        if camera_black_streaks_after_tiles[vehicle_id] >= (
+                        if camera_black_streaks_after_tiles[vehicle_id] == (
                             config.camera.fps * 30
                         ):
-                            state.update_camera(
+                            LOGGER.error(
+                                "down camera for %s remained black after streamed-world "
+                                "content became ready; simulation continues",
                                 vehicle_id,
-                                "failed",
-                                camera_frames_observed[vehicle_id],
-                                quality,
-                                (
-                                    "camera remained black for 30 seconds after "
-                                    "Google 3D Tiles became ready"
-                                ),
-                            )
-                            raise RuntimeError(
-                                f"down camera for {vehicle_id} remained black after "
-                                "Google 3D Tiles became ready"
                             )
 
             if render:
@@ -662,17 +650,33 @@ def run(config: RuntimeConfig) -> None:
                 loading = int(statistics.tiles_loading_worker) + int(
                     statistics.tiles_loading_main
                 )
-                tile_resident_frames = tile_resident_frames + 1 if resident > 0 else 0
-                tile_lifecycle = (
-                    "ready"
-                    if tile_resident_frames >= config.tile_ready_frames
-                    else "streaming"
-                    if resident > 0 or loading > 0
-                    else "connecting"
+                now = time.monotonic()
+                if resident > 0:
+                    tile_absent_since = None
+                elif tile_absent_since is None:
+                    tile_absent_since = now
+                tile_health = assess_tile_health(
+                    resident_tiles=resident,
+                    loading_tiles=loading,
+                    resident_frames=tile_resident_frames,
+                    ready_frames=config.tile_ready_frames,
+                    absent_seconds=(
+                        0.0 if tile_absent_since is None else now - tile_absent_since
+                    ),
                 )
-                state.set_tiles(tile_lifecycle, resident, loading)
+                tile_resident_frames = tile_health.resident_frames
+                state.set_tiles(
+                    tile_health.lifecycle,
+                    resident,
+                    loading,
+                    diagnostic=tile_health.diagnostic,
+                )
                 recording.log_tiles(
-                    resident, loading, tile_lifecycle, simulation_time_s, physics_step
+                    resident,
+                    loading,
+                    tile_health.lifecycle,
+                    simulation_time_s,
+                    physics_step,
                 )
                 recording_status = recording.status()
                 state.update_recording_publisher(
@@ -681,28 +685,23 @@ def run(config: RuntimeConfig) -> None:
                     recording_status.dropped_events,
                     recording_status.last_error,
                 )
-                if resident == 0 and time.monotonic() - tile_started_at > 600.0:
-                    state.set_tiles(
-                        "failed",
-                        0,
-                        loading,
-                        diagnostic="Google Photorealistic 3D Tiles did not become resident",
+                if tile_health.lifecycle == "failed" and not tile_unavailable_reported:
+                    tile_unavailable_reported = True
+                    LOGGER.error(
+                        "Google Photorealistic 3D Tiles are unavailable; simulation continues"
                     )
-                    raise RuntimeError("Google Photorealistic 3D Tiles readiness timed out")
+                elif tile_health.lifecycle != "failed":
+                    tile_unavailable_reported = False
 
             for vehicle_id, future in connection_futures.items():
                 if future.done() and future.exception() is not None:
-                    raise RuntimeError(f"PX4 connection failed for {vehicle_id}") from future.exception()
+                    raise RuntimeError(
+                        f"PX4 connection failed for {vehicle_id}"
+                    ) from future.exception()
 
             snapshot = state.snapshot()
             if (
                 snapshot["lifecycle"] == "starting"
-                and snapshot["tiles"]["lifecycle"] == "ready"
-                and snapshot["cameras"]
-                and all(
-                    camera["lifecycle"] == "ready"
-                    for camera in snapshot["cameras"]
-                )
                 and snapshot["vehicles"]
                 and all(vehicle["px4_connected"] for vehicle in snapshot["vehicles"])
                 and snapshot["pose_publication"]["lifecycle"] == "ready"
@@ -712,13 +711,13 @@ def run(config: RuntimeConfig) -> None:
                 LOGGER.info(
                     (
                         "UAV simulation and Simulation View pose publication ready: "
-                        "session=%s vehicles=%d "
-                        "resident_tiles=%d camera_mean_luma=%.2f"
+                        "session=%s vehicles=%d tile_lifecycle=%s "
+                        "camera_lifecycle=%s"
                     ),
                     config.session_id,
                     config.vehicle_count,
-                    snapshot["tiles"]["resident_tiles"],
-                    snapshot["cameras"][0]["mean_luma"],
+                    snapshot["tiles"]["lifecycle"],
+                    snapshot["cameras"][0]["lifecycle"],
                 )
 
     except BaseException:
@@ -730,6 +729,7 @@ def run(config: RuntimeConfig) -> None:
         if state is not None:
             state.set_lifecycle("stopping")
         if tileset_path is not None:
+
             def clear_ion_token() -> None:
                 stage = omni.usd.get_context().get_stage()
                 previous_target = stage.GetEditTarget()

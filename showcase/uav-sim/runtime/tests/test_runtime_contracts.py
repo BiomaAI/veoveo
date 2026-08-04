@@ -17,6 +17,7 @@ from veoveo_mcp.simulation_pose import (
     entity_table_digest,
 )
 from veoveo_uav_sim.camera_quality import (
+    assess_camera_health,
     measure_camera_frame,
     normalize_rgb_frame,
     should_record_camera_frame,
@@ -52,6 +53,7 @@ from veoveo_uav_sim.world_config import (
     WorldConfigurationError,
     WorldConfigurationSlot,
 )
+from veoveo_uav_sim.world_health import assess_tile_health
 
 
 VALID_ENVIRONMENT = {
@@ -298,7 +300,9 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertNotIn("default_blueprint=", recording_source)
         self.assertIn("rrb.MapView", recording_source)
         self.assertIn("rr.Radius.ui_points(8.0)", recording_source)
-        self.assertIn("batcher_config=rr.ChunkBatcherConfig.DEFAULT()", recording_source)
+        self.assertIn(
+            "batcher_config=rr.ChunkBatcherConfig.DEFAULT()", recording_source
+        )
 
     def test_recording_degradation_is_visible_without_blocking_readiness(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
@@ -694,20 +698,14 @@ class RigidBodyBatchTests(unittest.TestCase):
             def set_subspace_roots(self, _root: str) -> None:
                 pass
 
-            def create_rigid_body_view(
-                self, _paths: list[str]
-            ) -> FakeRigidBodyView:
+            def create_rigid_body_view(self, _paths: list[str]) -> FakeRigidBodyView:
                 return self.rigid_body_view
 
         fake_warp = FakeWarp()
         simulation_view = FakeSimulationView()
         with patch.dict(sys.modules, {"warp": fake_warp}):
-            batch = IsaacFleetPhysicsBatch(
-                ("/World/uav_1/body",), simulation_view
-            )
-            batch.queue_force(
-                "/World/uav_1/body", (0.0, 0.0, 4.0), (0.0, 0.0, 0.0)
-            )
+            batch = IsaacFleetPhysicsBatch(("/World/uav_1/body",), simulation_view)
+            batch.queue_force("/World/uav_1/body", (0.0, 0.0, 4.0), (0.0, 0.0, 0.0))
             batch.flush_forces()
 
         self.assertTrue(fake_warp.synchronized)
@@ -738,15 +736,9 @@ class RigidBodyBatchTests(unittest.TestCase):
         first = batch.state(paths[0])
         second = batch.state(paths[1])
         np.testing.assert_array_equal(first.position_xyz, [1.0, 2.0, 3.0])
-        np.testing.assert_array_equal(
-            first.orientation_xyzw, [0.0, 0.0, 0.0, 1.0]
-        )
-        np.testing.assert_array_equal(
-            second.linear_velocity_xyz, [10.0, 11.0, 12.0]
-        )
-        np.testing.assert_allclose(
-            second.angular_velocity_xyz, [0.4, 0.5, 0.6]
-        )
+        np.testing.assert_array_equal(first.orientation_xyzw, [0.0, 0.0, 0.0, 1.0])
+        np.testing.assert_array_equal(second.linear_velocity_xyz, [10.0, 11.0, 12.0])
+        np.testing.assert_allclose(second.angular_velocity_xyz, [0.4, 0.5, 0.6])
 
     def test_unknown_body_and_non_finite_input_fail_closed(self) -> None:
         batch = RigidBodyBatchAccumulator(("/World/uav_1/body",))
@@ -983,7 +975,10 @@ class Px4IrisVehicleModelTests(unittest.TestCase):
         model.set_input_reference([0.0] * 4)
         _, falling_velocity, _ = model.update(None, 1.0 / 60.0)
         self.assertTrue(
-            all(0.0 < after < before for after, before in zip(falling_velocity, rising_velocity))
+            all(
+                0.0 < after < before
+                for after, before in zip(falling_velocity, rising_velocity)
+            )
         )
 
     def test_motor_model_preserves_px4_rotor_yaw_directions(self) -> None:
@@ -1357,6 +1352,87 @@ class CameraQualityTests(unittest.TestCase):
         normalized = normalize_rgb_frame(frame)
         self.assertEqual(normalized.dtype, np.uint8)
         self.assertEqual(int(normalized[0, 0, 0]), 128)
+
+    def test_prolonged_black_camera_degrades_without_becoming_authority(self) -> None:
+        quality = measure_camera_frame(np.zeros((48, 64, 3), dtype=np.uint8))
+        health = assess_camera_health(
+            quality,
+            operational_streak=0,
+            black_streak_after_tiles=60,
+            was_ready=True,
+            prolonged_black_threshold=60,
+        )
+        self.assertEqual(health.lifecycle, "degraded")
+        self.assertIn("remained black", health.diagnostic or "")
+
+    def test_camera_recovers_after_three_operational_frames(self) -> None:
+        frame = np.zeros((48, 64, 3), dtype=np.uint8)
+        frame[8:40, 8:56] = (32, 128, 224)
+        health = assess_camera_health(
+            measure_camera_frame(frame),
+            operational_streak=3,
+            black_streak_after_tiles=0,
+            was_ready=True,
+            prolonged_black_threshold=60,
+        )
+        self.assertEqual(health.lifecycle, "ready")
+        self.assertIsNone(health.diagnostic)
+
+
+class StreamedWorldHealthTests(unittest.TestCase):
+    def test_absent_tiles_degrade_without_becoming_simulation_authority(self) -> None:
+        health = assess_tile_health(
+            resident_tiles=0,
+            loading_tiles=0,
+            resident_frames=0,
+            ready_frames=30,
+            absent_seconds=600.0,
+        )
+        self.assertEqual(health.lifecycle, "failed")
+        self.assertIn("unavailable", health.diagnostic or "")
+
+    def test_tiles_recover_after_the_required_resident_frames(self) -> None:
+        health = assess_tile_health(
+            resident_tiles=4,
+            loading_tiles=2,
+            resident_frames=29,
+            ready_frames=30,
+            absent_seconds=0.0,
+        )
+        self.assertEqual(health.lifecycle, "ready")
+        self.assertEqual(health.resident_frames, 30)
+        self.assertIsNone(health.diagnostic)
+
+    def test_visual_health_is_not_simulation_authority(self) -> None:
+        source = (Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py").read_text()
+        self.assertIn("assess_camera_health(", source)
+        self.assertIn("assess_tile_health(", source)
+        self.assertNotIn('raise RuntimeError("Google Photorealistic', source)
+        self.assertNotIn(
+            'raise RuntimeError(\n                                f"down camera', source
+        )
+
+        server_source = (
+            Path(__file__).parents[1] / "veoveo_uav_sim" / "server.py"
+        ).read_text()
+        simulation_ready = server_source.split(
+            "        simulation_ready = (", maxsplit=1
+        )[1].split("        )\n", maxsplit=1)[0]
+        self.assertNotIn('snapshot["tiles"]', simulation_ready)
+        self.assertNotIn('snapshot["cameras"]', simulation_ready)
+        self.assertNotIn('snapshot["recordings"]', simulation_ready)
+        self.assertIn("visual_ready", server_source)
+
+    def test_encoder_drain_packets_do_not_enter_live_rtp(self) -> None:
+        source = (
+            Path(__file__).parents[1] / "veoveo_uav_sim" / "recording.py"
+        ).read_text()
+        close_body = source.split(
+            "    def close(self, simulation_time_s: float, physics_step: int) -> None:\n",
+            maxsplit=1,
+        )[1].split("\n\n", maxsplit=1)[0]
+        self.assertIn("for packet in self._stream.encode(None):", close_body)
+        self.assertNotIn("self._stream_output.publish", close_body)
 
 
 if __name__ == "__main__":
