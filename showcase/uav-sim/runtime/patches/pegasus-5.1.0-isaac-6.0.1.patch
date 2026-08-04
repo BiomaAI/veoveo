@@ -343,3 +343,71 @@ diff --git a/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/vehic
 +        if physics_batch is None:
 +            raise ValueError("vehicle physics batch cannot be None")
 +        self._physics_batch = physics_batch
+diff --git a/extensions/pegasus.simulator/pegasus/simulator/logic/backends/px4_mavlink_backend.py b/extensions/pegasus.simulator/pegasus/simulator/logic/backends/px4_mavlink_backend.py
+--- a/extensions/pegasus.simulator/pegasus/simulator/logic/backends/px4_mavlink_backend.py
++++ b/extensions/pegasus.simulator/pegasus/simulator/logic/backends/px4_mavlink_backend.py
+@@ -627,28 +627,38 @@ class PX4MavlinkBackend(Backend):
+-        # Check if we need to lock and wait for actuator control data
+-        needs_to_wait_for_actuator: bool = self._received_first_actuator and self._enable_lockstep
+-
+         # Start by assuming that we have not received data for the actuators for the current step
+         self._received_actuator = False
+-
++
+-        # Use this loop to emulate a do-while loop (make sure this runs at least once)
+-        while True:
+-
+-            # Try to get a message
+-            msg = self._connection.recv_match(blocking=needs_to_wait_for_actuator)
+-
+-            # If a message was received
+-            if msg is not None:
+-
+-                # Check if it is of the type that contains actuator controls
+-                if msg.id == mavutil.mavlink.MAVLINK_MSG_ID_HIL_ACTUATOR_CONTROLS:
+-
+-                    self._received_first_actuator = True
+-                    self._received_actuator = True
+-
+-                    # Handle the control of the actuation commands received by PX4
+-                    self.handle_control(msg.time_usec, msg.controls, msg.mode, msg.flags)
+-
+-            # Check if we do not need to wait for an actuator message or we just received actuator input
+-            # If so, break out of the infinite loop
+-            if not needs_to_wait_for_actuator or self._received_actuator:
+-                break
++        if self._enable_lockstep:
++            needs_to_wait_for_actuator = self._received_first_actuator
++            # Preserve Pegasus lockstep semantics for installations that
++            # explicitly select them.
++            while True:
++                msg = self._connection.recv_match(
++                    blocking=needs_to_wait_for_actuator
++                )
++                if (
++                    msg is not None
++                    and msg.id
++                    == mavutil.mavlink.MAVLINK_MSG_ID_HIL_ACTUATOR_CONTROLS
++                ):
++                    self._received_first_actuator = True
++                    self._received_actuator = True
++                    self.handle_control(
++                        msg.time_usec, msg.controls, msg.mode, msg.flags
++                    )
++                if not needs_to_wait_for_actuator or self._received_actuator:
++                    return
++
++        # Async mode must drain the socket. Reading one packet per physics
++        # step lets PX4 telemetry outrun the consumer and indefinitely hides
++        # current actuator controls behind an expanding receive backlog.
++        # The bound prevents a noisy peer from monopolizing the Kit thread.
++        for _ in range(256):
++            msg = self._connection.recv_match(blocking=False)
++            if msg is None:
++                return
++            if msg.id == mavutil.mavlink.MAVLINK_MSG_ID_HIL_ACTUATOR_CONTROLS:
++                self._received_first_actuator = True
++                self._received_actuator = True
++                self.handle_control(
++                    msg.time_usec, msg.controls, msg.mode, msg.flags
++                )
