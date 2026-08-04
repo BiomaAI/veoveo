@@ -714,7 +714,7 @@ class PoseProducerTests(unittest.TestCase):
             config = RuntimeConfig.from_environment()
         updates: list[dict[str, object]] = []
         with patch(
-            "veoveo_uav_sim.pose.LatestPosePublisher",
+            "veoveo_uav_sim.pose.OrderedPosePublisher",
             side_effect=create_publisher,
         ):
             producer = PoseProducer(
@@ -761,7 +761,7 @@ class PoseProducerTests(unittest.TestCase):
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             config = RuntimeConfig.from_environment()
         with patch(
-            "veoveo_uav_sim.pose.LatestPosePublisher",
+            "veoveo_uav_sim.pose.OrderedPosePublisher",
             _FakePosePublisher,
         ):
             producer = PoseProducer(
@@ -788,7 +788,7 @@ class PoseProducerTests(unittest.TestCase):
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             config = RuntimeConfig.from_environment()
         with patch(
-            "veoveo_uav_sim.pose.LatestPosePublisher",
+            "veoveo_uav_sim.pose.OrderedPosePublisher",
             side_effect=create_publisher,
         ):
             producer = PoseProducer(
