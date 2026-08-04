@@ -529,6 +529,7 @@
       "required": [
         "runtimeClassName",
         "image",
+        "liveInput",
         "recordingOutput",
         "modelCache",
         "builderResources",
@@ -541,6 +542,37 @@
         },
         "image": {
           "$ref": "#/definitions/image"
+        },
+        "liveInput": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "width",
+            "height",
+            "frameRate",
+            "expectedBitrateBps"
+          ],
+          "properties": {
+            "width": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 16384
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 16384
+            },
+            "frameRate": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 240
+            },
+            "expectedBitrateBps": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
         },
         "recordingOutput": {
           "type": "object",

@@ -166,6 +166,11 @@ stream:
     repository: veoveo/stream-mcp
     tag: 0.1.0
     digest: ""
+  liveInput:
+    width: 640
+    height: 480
+    frameRate: 20
+    expectedBitrateBps: 4000000
   recordingOutput:
     enabled: false
     proxyUrl: rerun+http://127.0.0.1:9876/proxy
