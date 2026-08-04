@@ -9,6 +9,7 @@ use crate::scenarios::simulation_view::browser::{
 };
 
 const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-acceptance-evidence/v2";
+const BROWSER_EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-browser-evidence/v1";
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -61,6 +62,157 @@ struct FlightEvidence {
     recording_id: String,
     checkpoints: Vec<FlightCheckpointEvidence>,
     stream: ConsoleStreamCaptureEvidence,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BrowserAcceptanceEvidence {
+    schema: &'static str,
+    completed_at: chrono::DateTime<Utc>,
+    source_revision: String,
+    run_id: String,
+    scenario_path: String,
+    session_id: String,
+    camera_id: String,
+    recording_id: String,
+    initial_pose_sequence: u64,
+    final_pose_sequence: u64,
+    live: ConsoleLiveCaptureEvidence,
+    stream: ConsoleStreamCaptureEvidence,
+    recording: ConsoleRecordingCaptureEvidence,
+}
+
+pub(crate) async fn uav_showcase_browser_verify(
+    conformance: &Path,
+    scenario_path: &Path,
+    public_base_url: &str,
+    chrome_cdp_url: &str,
+    evidence_root: &Path,
+) -> Result<()> {
+    let scenario = UavAcceptanceScenario::load(scenario_path)?;
+    assert_executable(conformance)?;
+    let public_base_url = public_base_url.trim_end_matches('/');
+    ensure!(
+        url::Url::parse(public_base_url)?.scheme() == "https",
+        "focused UAV browser acceptance requires public HTTPS"
+    );
+    let operator = OperatorClient {
+        conformance,
+        base: public_base_url,
+    };
+    let state = simulation_state(&operator, &scenario).await?;
+    ensure!(
+        json_string(&state, "/lifecycle")? == "running",
+        "focused browser acceptance requires the existing simulation to remain running: {state}"
+    );
+    let recording_id = recording_id(&state)?;
+    let cameras = read_json_resource(
+        &operator,
+        &format!("simulation-view://session/{}/cameras", scenario.session_id),
+    )
+    .await?;
+    let cameras = cameras
+        .as_array()
+        .context("Simulation View camera collection is not an array")?;
+    let camera = cameras
+        .iter()
+        .find(|camera| {
+            camera
+                .pointer("/definition/rig/targetEntity")
+                .and_then(Value::as_str)
+                == Some(scenario.vehicle_id.as_str())
+                && camera.get("health").and_then(Value::as_str) == Some("healthy")
+        })
+        .context("existing UAV showcase has no healthy leader follow camera")?;
+    let camera_id = json_string(camera, "/cameraId")?.to_owned();
+    let initial_pose_sequence = camera
+        .get("lastPoseSequence")
+        .and_then(Value::as_u64)
+        .context("existing UAV follow camera has no admitted pose sequence")?;
+
+    let source_revision = run_checked(
+        Path::new("git"),
+        ["rev-parse", "HEAD"].map(OsString::from),
+        [],
+    )?
+    .trim()
+    .to_owned();
+    let run_id = uuid::Uuid::now_v7().to_string();
+    let evidence_directory = evidence_root.join(&source_revision).join(&run_id);
+    fs::create_dir_all(&evidence_directory).with_context(|| {
+        format!(
+            "creating focused UAV browser evidence directory {}",
+            evidence_directory.display()
+        )
+    })?;
+    let timeout = Duration::from_secs(scenario.view.timeout_seconds);
+    let live = capture_console_live_app(
+        chrome_cdp_url,
+        public_base_url,
+        &camera_id,
+        &evidence_directory.join("simulation-view.png"),
+        timeout,
+    )
+    .await?;
+    let stream = capture_console_stream_app(
+        chrome_cdp_url,
+        public_base_url,
+        &evidence_directory.join("stream.png"),
+        timeout,
+    )
+    .await?;
+    let recording = capture_console_recording(
+        chrome_cdp_url,
+        public_base_url,
+        &recording_id,
+        &evidence_directory.join("recording.png"),
+        timeout,
+    )
+    .await?;
+    let final_camera = read_json_resource(
+        &operator,
+        &format!(
+            "simulation-view://session/{}/camera/{camera_id}",
+            scenario.session_id
+        ),
+    )
+    .await?;
+    let final_pose_sequence = final_camera
+        .get("lastPoseSequence")
+        .and_then(Value::as_u64)
+        .context("UAV follow camera lost its admitted pose sequence")?;
+    ensure!(
+        final_pose_sequence > initial_pose_sequence,
+        "UAV pose sequence did not advance during focused browser acceptance: {initial_pose_sequence} -> {final_pose_sequence}"
+    );
+    let final_state = simulation_state(&operator, &scenario).await?;
+    ensure!(
+        json_string(&final_state, "/lifecycle")? == "running",
+        "focused browser acceptance altered the running simulation: {final_state}"
+    );
+    let evidence = BrowserAcceptanceEvidence {
+        schema: BROWSER_EVIDENCE_SCHEMA,
+        completed_at: Utc::now(),
+        source_revision,
+        run_id,
+        scenario_path: scenario_path.display().to_string(),
+        session_id: scenario.session_id,
+        camera_id,
+        recording_id,
+        initial_pose_sequence,
+        final_pose_sequence,
+        live,
+        stream,
+        recording,
+    };
+    let manifest = evidence_directory.join("evidence.json");
+    fs::write(&manifest, serde_json::to_vec_pretty(&evidence)?)
+        .with_context(|| format!("writing focused browser evidence {}", manifest.display()))?;
+    println!(
+        "Focused UAV browser acceptance passed without restarting or commanding the simulation. Evidence: {}",
+        manifest.display()
+    );
+    Ok(())
 }
 
 pub(crate) async fn uav_showcase_verify(

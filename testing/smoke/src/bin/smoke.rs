@@ -513,6 +513,25 @@ enum Cmd {
         #[arg(long, default_value = "output/acceptance/uav")]
         evidence_root: PathBuf,
     },
+    /// Repeat headed Console acceptance against the already-running UAV showcase.
+    UavShowcaseBrowserVerify {
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        #[arg(
+            long,
+            default_value = "showcase/uav-sim/scenarios/new-york-aerial.json"
+        )]
+        scenario: PathBuf,
+        /// Public installation base URL used by MCP and the authenticated Console.
+        #[arg(long)]
+        public_base_url: String,
+        /// HTTP discovery or direct ws:// browser endpoint for headed hardware-backed Chrome.
+        #[arg(long, default_value = "http://127.0.0.1:9222")]
+        chrome_cdp_url: String,
+        /// Root for revision- and run-qualified JSON and PNG evidence.
+        #[arg(long, default_value = "output/acceptance/uav-browser")]
+        evidence_root: PathBuf,
+    },
     /// Verify the independent Simulation View renderer with an anonymous pose producer and headed hardware browser.
     SimulationViewVerify {
         #[arg(long, default_value = "target/debug/conformance")]
@@ -891,6 +910,22 @@ async fn main() -> Result<()> {
                 &scenario,
                 &context,
                 &namespace,
+                &public_base_url,
+                &chrome_cdp_url,
+                &evidence_root,
+            )
+            .await
+        }
+        Cmd::UavShowcaseBrowserVerify {
+            conformance_bin,
+            scenario,
+            public_base_url,
+            chrome_cdp_url,
+            evidence_root,
+        } => {
+            uav_showcase_browser_verify(
+                &conformance_bin,
+                &scenario,
                 &public_base_url,
                 &chrome_cdp_url,
                 &evidence_root,
