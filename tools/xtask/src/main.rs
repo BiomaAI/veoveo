@@ -67,6 +67,8 @@ enum ImageCommand {
     Build(ImageSelectionArgs),
     /// Publish immutable runtime images for a development cluster without release attestations.
     Stage(ImageStageArgs),
+    /// Merge staged runtime identities into a non-release, digest-locked GitOps closure.
+    DevelopmentLock(ImageDevelopmentLockArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -158,6 +160,22 @@ struct ImageStageArgs {
     /// Create-only staging evidence output.
     #[arg(long)]
     evidence_output: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+struct ImageDevelopmentLockArgs {
+    /// Qualified deployment lock that supplies the complete unchanged image closure.
+    #[arg(long)]
+    base_lock: PathBuf,
+    /// Runtime-only staging evidence to merge; repeat for independently staged selections.
+    #[arg(long, required = true)]
+    stage_evidence: Vec<PathBuf>,
+    /// Typed non-release development image lock output.
+    #[arg(long)]
+    output: PathBuf,
+    /// Helm-compatible JSON values containing the merged registry and image digests.
+    #[arg(long)]
+    values_output: PathBuf,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -317,6 +335,9 @@ fn main() -> Result<()> {
             }
             ImageCommand::Build(selection) => image::build_command(&repository, &selection),
             ImageCommand::Stage(args) => release::stage_images(&repository, &args),
+            ImageCommand::DevelopmentLock(args) => {
+                release::development_image_lock(&repository, &args)
+            }
         },
         Command::Release { command } => match command {
             ReleaseCommand::Images(args) => release::images(&repository, &args),
