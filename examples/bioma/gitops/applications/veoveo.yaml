@@ -20,7 +20,7 @@ spec:
           - $configuration/examples/bioma/k3d-values.yaml
           - $configuration/examples/bioma/images.lock.yaml
     - repoURL: https://github.com/BiomaAI/veoveo.git
-      targetRevision: 52d80f665e93c67b32efd1987bcad58a69575ae8
+      targetRevision: 6680ebe06109be949adc3034bbb95fbe2c29291b
       ref: configuration
   destination:
     server: https://kubernetes.default.svc
