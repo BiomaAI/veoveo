@@ -111,6 +111,7 @@ def run(config: RuntimeConfig) -> None:
         TimelineControls,
     )
     from .state import RuntimeState, VehicleTelemetry
+    from .vehicle_model import Px4IrisThrustCurve
     from .world_config import WorldConfiguration, WorldConfigurationSlot
 
     state: RuntimeState | None = None
@@ -134,7 +135,7 @@ def run(config: RuntimeConfig) -> None:
     camera_operational_streaks: dict[str, int] = {}
     camera_black_streaks_after_tiles: dict[str, int] = {}
     camera_was_ready: set[str] = set()
-    primary_camera_path: str | None = None
+    sensor_camera_path: str | None = None
     pose_producer: PoseProducer | None = None
     physics_lifecycle: FleetPhysicsLifecycle | None = None
     fleet_loop: FleetLoopController | None = None
@@ -252,6 +253,7 @@ def run(config: RuntimeConfig) -> None:
             vehicle_id = f"uav-{index + 1}"
             vehicle_prim_path = f"/World/uav_{index + 1}"
             multirotor_config = MultirotorConfig()
+            multirotor_config.thrust_curve = Px4IrisThrustCurve()
             px4_backend = PX4MavlinkBackend(
                 PX4MavlinkBackendConfig(
                     {
@@ -297,38 +299,38 @@ def run(config: RuntimeConfig) -> None:
             )
             commanders[vehicle_id] = commander
 
-            camera_path = f"{vehicle_prim_path}/body/down_camera"
-            camera = RtxCamera(
-                camera_path,
-                tick_rate=float(config.camera.fps),
-                translations=camera_translation_xyz,
-                orientations=camera_rotation_wxyz,
-            )
-            camera.camera.set_focal_lengths(config.camera.focal_length_mm)
-            camera.camera.set_clipping_ranges(
-                config.camera.clipping_near_m, config.camera.clipping_far_m
-            )
-            camera_sensors[vehicle_id] = HydraRgbCameraSensor(
-                name=f"uav_{index + 1}_nadir_camera",
-                camera_path=camera_path,
-                width=config.camera.width,
-                height=config.camera.height,
-                fps=config.camera.fps,
-            )
-            camera_sensor_sequences[vehicle_id] = 0
-            camera_frames_observed[vehicle_id] = 0
-            camera_operational_streaks[vehicle_id] = 0
-            camera_black_streaks_after_tiles[vehicle_id] = 0
-            if primary_camera_path is None:
-                primary_camera_path = camera_path
-            recording.add_camera(vehicle_id)
+            if vehicle_id == config.camera.vehicle_id:
+                camera_path = f"{vehicle_prim_path}/body/down_camera"
+                camera = RtxCamera(
+                    camera_path,
+                    tick_rate=float(config.camera.fps),
+                    translations=camera_translation_xyz,
+                    orientations=camera_rotation_wxyz,
+                )
+                camera.camera.set_focal_lengths(config.camera.focal_length_mm)
+                camera.camera.set_clipping_ranges(
+                    config.camera.clipping_near_m, config.camera.clipping_far_m
+                )
+                camera_sensors[vehicle_id] = HydraRgbCameraSensor(
+                    name=f"uav_{index + 1}_nadir_camera",
+                    camera_path=camera_path,
+                    width=config.camera.width,
+                    height=config.camera.height,
+                    fps=config.camera.fps,
+                )
+                camera_sensor_sequences[vehicle_id] = 0
+                camera_frames_observed[vehicle_id] = 0
+                camera_operational_streaks[vehicle_id] = 0
+                camera_black_streaks_after_tiles[vehicle_id] = 0
+                sensor_camera_path = camera_path
+                recording.add_camera(vehicle_id)
 
         viewport = get_active_viewport()
-        if viewport is None or primary_camera_path is None:
+        if viewport is None or sensor_camera_path is None:
             raise RuntimeError("Cesium requires an active UAV viewport camera")
         # Cesium for Omniverse drives tile selection from Kit viewports. The
         # RTX sensor render product alone is not a Cesium streaming camera.
-        viewport.set_active_camera(primary_camera_path)
+        viewport.set_active_camera(sensor_camera_path)
 
         rigid_body_paths = tuple(
             f"{vehicle_callback_prefixes[vehicle_id]}/{body_name}"

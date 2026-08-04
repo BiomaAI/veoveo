@@ -54,7 +54,7 @@ revision. The acceptance client:
 
 1. creates and publishes the complete ECEF-rooted frame tree;
 2. binds the UAV session to that revision and its `isaac-world` frame;
-3. waits for Isaac, Cesium, nadir cameras, PX4, recording, and pose delivery;
+3. waits for Isaac, Cesium, the leader nadir camera, PX4, recording, and pose delivery;
 4. separately declares a render-only scene and cameras to Simulation View.
 
 Helm supplies no origin or frame URI. The accepted revision determines the
@@ -79,8 +79,17 @@ physics step uploads those live force and torque values before clearing the
 buffers. This ownership is deliberate because Warp 1.15 copies
 `wp.from_numpy` input instead of retaining a shared view.
 
-Nadir cameras are simulation sensors and governed recording inputs. They are
-not live operator views. The runtime fails closed when NVIDIA rendering,
+The Pegasus thrust curve uses the pinned PX4 Iris motor constant, yaw-moment
+ratio, rotor directions, speed limits, and asymmetric motor time constants.
+The fixed-step clock advances at most one physics interval per scheduler pass.
+When rendering misses a deadline, simulation time slows instead of replaying a
+burst of stale actuator commands. PX4's duplicate pod-local ULog backend is
+disabled because the governed recording is the declared always-on evidence path.
+
+The designated leader nadir camera is a simulation sensor and governed recording
+input. Followers carry no RTX camera or recorded video stream. The fleet still
+publishes every vehicle's physics, pose, mission, and telemetry state. The sensor is
+not an operator view. The runtime fails closed when NVIDIA rendering,
 required extensions, tiles, PX4, recording, or visible sensor content is
 unavailable.
 
@@ -118,10 +127,10 @@ socket writes on its worker thread. The cadence emitter acknowledges its first
 snapshot before filling the newest-value slot. A disconnected Simulation View
 never backpressures physics after that initial admission boundary.
 
-The reference profile runs physics at 60 Hz, native nadir-camera rendering at
+The reference profile runs physics at 60 Hz, leader nadir-camera rendering at
 2 Hz, and Simulation View pose publication at 20 Hz. These clocks are separate
-because four RTX/Cesium sensor products share Kit's render thread, while the
-independent Simulation View renderer requires uniform authoritative poses.
+because sensor capture must not pace the authoritative physics timeline, while
+the independent Simulation View renderer requires uniform authoritative poses.
 
 ## Always-On Fleet
 
@@ -145,9 +154,9 @@ operator intent.
 
 ## Recording
 
-The runtime publishes vehicle poses, ENU and NED state, PX4 connection,
-battery, collision counts, IMU samples, camera transforms, nadir H.264
-samples, tile residency, and mission state as native Rerun messages.
+The runtime publishes fleet poses, ENU and NED state, PX4 connection, battery,
+collision counts, IMU samples, the leader camera transform and nadir H.264 samples,
+tile residency, and mission state as native Rerun messages.
 
 A producer-local forwarder carries those messages to Recording Hub. Public
 resources contain only canonical
@@ -171,6 +180,7 @@ The chart requires:
 - an explicit pose cadence and bounded producer buffer duration;
 - bounded fleet-loop center offsets, radii, altitude, separation, waypoint
   count, and speed;
+- one admitted leader vehicle identity for RTX camera and direct-stream ownership;
 - platform database and recording-forwarder credentials;
 - `nvidia.com/gpu: 1` and the NVIDIA runtime class;
 - pinned image digests in production.

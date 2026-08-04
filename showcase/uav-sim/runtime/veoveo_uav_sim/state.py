@@ -73,10 +73,10 @@ class RuntimeState:
             },
             "cameras": [
                 {
-                    "vehicle_id": f"uav-{index + 1}",
+                    "vehicle_id": config.camera.vehicle_id,
                     "entity_path": (
                         f"/world/uav-sim/{config.session_id}/vehicle/"
-                        f"uav-{index + 1}/camera/down"
+                        f"{config.camera.vehicle_id}/camera/down"
                     ),
                     "lifecycle": "warming",
                     "width": config.camera.width,
@@ -88,7 +88,6 @@ class RuntimeState:
                     "dynamic_range": 0,
                     "non_black_fraction": 0.0,
                 }
-                for index in range(config.vehicle_count)
             ],
             "pose_publication": initial_pose_publication(
                 config.pose_publication,
@@ -102,8 +101,8 @@ class RuntimeState:
                     "recording_key": str(config.recording_key),
                     "active": True,
                     "camera_streams": [
-                        f"/world/uav-sim/{config.session_id}/vehicle/uav-{index + 1}/camera/down"
-                        for index in range(config.vehicle_count)
+                        f"/world/uav-sim/{config.session_id}/vehicle/"
+                        f"{config.camera.vehicle_id}/camera/down"
                     ],
                     "started_at": started_at,
                 }
