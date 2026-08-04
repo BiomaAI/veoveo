@@ -70,6 +70,63 @@ pub(crate) fn inspect(
     parse(&output.stdout, publication_digest, platform, &reference)
 }
 
+pub(crate) fn inspect_staged(
+    repository: &str,
+    staging_digest: &str,
+    platform: &str,
+    allow_insecure_registry: bool,
+) -> Result<PublishedImageDigests> {
+    let reference = format!("{repository}@{staging_digest}");
+    let mut arguments = vec!["manifest", "inspect"];
+    if allow_insecure_registry {
+        arguments.push("--insecure");
+    }
+    arguments.extend(["--verbose", &reference]);
+    let output = process::output("docker", arguments, None)
+        .with_context(|| format!("inspecting immutable staged OCI image {reference}"))?;
+    parse_staged(&output.stdout, staging_digest, platform, &reference)
+}
+
+fn parse_staged(
+    bytes: &[u8],
+    staging_digest: &str,
+    platform: &str,
+    reference: &str,
+) -> Result<PublishedImageDigests> {
+    validate_digest(staging_digest, "staging index")?;
+    let (expected_os, expected_architecture) = platform
+        .split_once('/')
+        .context("expected OCI platform must use os/architecture")?;
+    let value = serde_json::from_slice::<serde_json::Value>(bytes)
+        .with_context(|| format!("decoding staged OCI inspection for {reference}"))?;
+    let records = if value.is_array() {
+        serde_json::from_value::<Vec<ManifestRecord>>(value)
+    } else {
+        serde_json::from_value::<ManifestRecord>(value).map(|record| vec![record])
+    }
+    .with_context(|| format!("decoding staged OCI records for {reference}"))?;
+    ensure!(
+        records.len() == 1,
+        "staged OCI image {reference} must contain one runtime descriptor and no attestations"
+    );
+    let runtime = &records[0];
+    ensure!(
+        runtime.descriptor.platform.os == expected_os
+            && runtime.descriptor.platform.architecture == expected_architecture,
+        "staged OCI image {reference} does not contain runtime platform {platform}"
+    );
+    ensure!(
+        runtime.descriptor.media_type == OCI_IMAGE_MANIFEST,
+        "staged OCI image {reference} runtime descriptor uses unsupported media type {}",
+        runtime.descriptor.media_type
+    );
+    validate_digest(&runtime.descriptor.digest, "runtime")?;
+    Ok(PublishedImageDigests {
+        runtime: runtime.descriptor.digest.clone(),
+        publication: staging_digest.to_owned(),
+    })
+}
+
 fn parse(
     bytes: &[u8],
     publication_digest: &str,
@@ -177,7 +234,7 @@ fn validate_digest(digest: &str, kind: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{PublishedImageDigests, parse};
+    use super::{PublishedImageDigests, parse, parse_staged};
 
     const PUBLICATION: &str =
         "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -266,5 +323,28 @@ mod tests {
                 .to_string()
                 .contains("must carry SPDX SBOM and SLSA provenance")
         );
+    }
+
+    #[test]
+    fn staged_image_contains_only_the_runtime_manifest() {
+        let bytes = format!(
+            r#"[{{
+              "Descriptor": {{
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "digest": "{RUNTIME}",
+                "platform": {{"architecture": "amd64", "os": "linux"}}
+              }},
+              "OCIManifest": {{"layers": []}}
+            }}]"#
+        );
+        let actual = parse_staged(
+            bytes.as_bytes(),
+            PUBLICATION,
+            "linux/amd64",
+            "registry.example/image@staging",
+        )
+        .unwrap();
+        assert_eq!(actual.runtime, RUNTIME);
+        assert_eq!(actual.publication, PUBLICATION);
     }
 }

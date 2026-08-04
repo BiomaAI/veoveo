@@ -18,9 +18,10 @@ use crate::{
     process,
 };
 
-const PLAN_SCHEMA: &str = "veoveo.io/image-build-plan/v1";
-const RUN_SCHEMA: &str = "veoveo.io/image-build-run/v1";
-const SOURCE_DATE_EPOCH: &str = "0";
+mod buildkit;
+
+const PLAN_SCHEMA: &str = "veoveo.io/image-build-plan/v2";
+const RUN_SCHEMA: &str = "veoveo.io/image-build-run/v2";
 const MODE_LABEL: &str = "io.veoveo.build.mode";
 const PACKAGE_LABEL: &str = "io.veoveo.build.package";
 const BINARIES_LABEL: &str = "io.veoveo.build.binaries";
@@ -99,10 +100,21 @@ pub(crate) struct BuildPlanV1 {
     schema_version: &'static str,
     selection: Selection,
     source: SourceRevision,
-    source_date_epoch: &'static str,
+    source_date_epoch: u64,
+    planning: PlanningTimings,
     source_revision_targets: Vec<String>,
     targets: Vec<ImageTarget>,
     families: Vec<FamilyPlan>,
+}
+
+#[derive(Clone, Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanningTimings {
+    graph_resolution_millis: u64,
+    cargo_metadata_millis: u64,
+    source_identity_millis: u64,
+    validation_millis: u64,
+    total_millis: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -262,6 +274,7 @@ pub(crate) struct EvidenceRun {
     operation: String,
     directory: PathBuf,
     metadata: PathBuf,
+    buildkit_trace: PathBuf,
     record: PathBuf,
     started_at_unix_millis: u64,
     started: Instant,
@@ -275,7 +288,7 @@ struct BuildRunV1<'a> {
     output_mode: OutputMode,
     selection: &'a Selection,
     source: &'a SourceRevision,
-    source_date_epoch: &'static str,
+    source_date_epoch: u64,
     started_at_unix_millis: u64,
     elapsed_millis: u64,
     result: BuildRunResult,
@@ -283,6 +296,8 @@ struct BuildRunV1<'a> {
     error: Option<&'a str>,
     plan_file: &'static str,
     buildx_metadata_file: Option<&'static str>,
+    buildkit_trace_file: Option<&'static str>,
+    phases: buildkit::PhaseTimings,
 }
 
 #[derive(Debug, Deserialize)]
@@ -418,6 +433,9 @@ pub(crate) fn prepare_with_builder(
     selection: Selection,
     environment: &BTreeMap<String, String>,
 ) -> Result<PreparedPlan> {
+    let total_started = Instant::now();
+    let mut planning = PlanningTimings::default();
+    let graph_started = Instant::now();
     let checked = bake_print(
         builder_repository,
         source_repository.root(),
@@ -425,6 +443,8 @@ pub(crate) fn prepare_with_builder(
         environment,
         &[],
     )?;
+    planning.graph_resolution_millis = elapsed_millis(graph_started);
+    let validation_started = Instant::now();
     let direct_targets = selected_targets(&checked, &selection)?;
     let source_revision_targets = target_dependency_closure(&checked, &direct_targets)?;
     let needs_cargo_metadata = direct_targets.iter().try_fold(false, |needed, name| {
@@ -434,10 +454,25 @@ pub(crate) fn prepare_with_builder(
             .with_context(|| format!("Bake selection references missing target {name}"))?;
         Ok::<_, anyhow::Error>(needed | rust_labels_present(name, target)?)
     })?;
+    planning.validation_millis = elapsed_millis(validation_started);
+    let metadata_started = Instant::now();
     let metadata = needs_cargo_metadata
         .then(|| cargo_metadata(source_repository.root()))
         .transpose()?;
+    planning.cargo_metadata_millis = elapsed_millis(metadata_started);
+    let identity_started = Instant::now();
     let source_hash = source::source_hash(source_repository)?;
+    let source_date_epoch = git_output(
+        source_repository.root(),
+        ["show", "-s", "--format=%ct", "HEAD"],
+    )?
+    .trim()
+    .parse::<u64>()
+    .context("source commit timestamp is not a positive Unix epoch")?;
+    ensure!(
+        source_date_epoch > 0,
+        "source commit timestamp must be after the Unix epoch"
+    );
     let source_revision = SourceRevision {
         revision: git_output(source_repository.root(), ["rev-parse", "HEAD"])?
             .trim()
@@ -449,6 +484,8 @@ pub(crate) fn prepare_with_builder(
         .trim()
         .is_empty(),
     };
+    planning.source_identity_millis = elapsed_millis(identity_started);
+    let validation_started = Instant::now();
     let package_index = metadata
         .as_ref()
         .map(|metadata| {
@@ -493,11 +530,23 @@ pub(crate) fn prepare_with_builder(
         });
     }
 
-    let all_targets = family_units
+    let all_targets = if family_units
         .keys()
         .any(|family| family.shared_artifact_target().is_some())
-        .then(|| bake_print_all(builder_repository, source_repository.root(), environment))
-        .transpose()?;
+    {
+        let started = Instant::now();
+        let result = Some(bake_print_all(
+            builder_repository,
+            source_repository.root(),
+            environment,
+        )?);
+        planning.graph_resolution_millis = planning
+            .graph_resolution_millis
+            .saturating_add(elapsed_millis(started));
+        result
+    } else {
+        None
+    };
     let mut families = Vec::new();
     for (family, selected_units) in &family_units {
         validate_family_modes(*family, selected_units)?;
@@ -547,11 +596,15 @@ pub(crate) fn prepare_with_builder(
         });
     }
 
-    let plan = BuildPlanV1 {
+    planning.validation_millis = planning
+        .validation_millis
+        .saturating_add(elapsed_millis(validation_started));
+    let mut plan = BuildPlanV1 {
         schema_version: PLAN_SCHEMA,
         selection,
         source: source_revision,
-        source_date_epoch: SOURCE_DATE_EPOCH,
+        source_date_epoch,
+        planning,
         source_revision_targets,
         targets,
         families,
@@ -561,6 +614,7 @@ pub(crate) fn prepare_with_builder(
     serde_json::to_writer_pretty(&mut override_file, &override_definition)?;
     override_file.flush()?;
 
+    let graph_started = Instant::now();
     let resolved = bake_print(
         builder_repository,
         source_repository.root(),
@@ -568,7 +622,17 @@ pub(crate) fn prepare_with_builder(
         environment,
         &[override_file.path()],
     )?;
+    plan.planning.graph_resolution_millis = plan
+        .planning
+        .graph_resolution_millis
+        .saturating_add(elapsed_millis(graph_started));
+    let validation_started = Instant::now();
     verify_override(&plan, &resolved)?;
+    plan.planning.validation_millis = plan
+        .planning
+        .validation_millis
+        .saturating_add(elapsed_millis(validation_started));
+    plan.planning.total_millis = elapsed_millis(total_started);
     Ok(PreparedPlan {
         plan,
         override_file,
@@ -579,7 +643,8 @@ pub(crate) fn prepare_with_builder(
 #[serde(rename_all = "kebab-case")]
 pub(crate) enum OutputMode {
     Load,
-    Push,
+    Staged,
+    Qualified,
 }
 
 impl OutputMode {
@@ -589,7 +654,10 @@ impl OutputMode {
             // inherited layer makes a tiny Isaac overlay re-export the full
             // multi-gigabyte base without strengthening release evidence.
             Self::Load => "type=docker",
-            Self::Push => "type=registry,rewrite-timestamp=true",
+            // The source commit timestamp is later than every admitted pinned
+            // parent image. BuildKit therefore retains inherited layer blobs and
+            // normalizes only newer entries produced by this source build.
+            Self::Staged | Self::Qualified => "type=registry,rewrite-timestamp=true",
         }
     }
 }
@@ -604,8 +672,8 @@ pub(crate) fn execute(
 ) -> Result<()> {
     let bake = source_repository.root().join("docker-bake.hcl");
     let mut attestation_override = match mode {
-        OutputMode::Load => None,
-        OutputMode::Push => {
+        OutputMode::Load | OutputMode::Staged => None,
+        OutputMode::Qualified => {
             let definition = BakeAttestationOverride {
                 target: prepared
                     .plan
@@ -637,22 +705,26 @@ pub(crate) fn execute(
     if let Some(override_file) = attestation_override.as_mut() {
         command.arg("-f").arg(override_file.path());
     }
+    if matches!(mode, OutputMode::Staged) {
+        command.args(["--provenance=false", "--sbom=false"]);
+    }
     command
         .args(prepared.plan.selection.bake_patterns())
         .arg("--metadata-file")
         .arg(evidence.metadata_path())
-        .env("SOURCE_DATE_EPOCH", SOURCE_DATE_EPOCH)
+        .env(
+            "SOURCE_DATE_EPOCH",
+            prepared.plan.source_date_epoch.to_string(),
+        )
         .envs(environment)
-        .stdin(Stdio::null())
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit());
+        .stdin(Stdio::null());
     for target in &prepared.plan.targets {
         command
             .arg("--set")
             .arg(format!("{}.output={}", target.name, mode.exporter()));
     }
-    match command.status() {
-        Ok(status) => {
+    match buildkit::execute(&mut command, evidence.buildkit_trace_path()) {
+        Ok((status, phases)) => {
             let error =
                 (!status.success()).then(|| format!("Docker Buildx Bake failed with {status}"));
             evidence.finish(
@@ -665,6 +737,7 @@ pub(crate) fn execute(
                 },
                 status.code(),
                 error.as_deref(),
+                phases,
             )?;
             ensure!(status.success(), "Docker Buildx Bake failed with {status}");
             Ok(())
@@ -677,6 +750,7 @@ pub(crate) fn execute(
                 BuildRunResult::Failed,
                 None,
                 Some(&message),
+                buildkit::PhaseTimings::default(),
             )?;
             Err(error).context("running Docker Buildx Bake")
         }
@@ -738,6 +812,7 @@ pub(crate) fn evidence_run(
     Ok(EvidenceRun {
         operation: operation.to_owned(),
         metadata: directory.join("buildx-metadata.json"),
+        buildkit_trace: directory.join("buildkit-events.jsonl"),
         record: directory.join("run.json"),
         directory,
         started_at_unix_millis,
@@ -752,6 +827,10 @@ impl EvidenceRun {
 
     fn metadata_path(&self) -> &Path {
         &self.metadata
+    }
+
+    fn buildkit_trace_path(&self) -> &Path {
+        &self.buildkit_trace
     }
 
     pub(crate) fn publication_index_digests(
@@ -774,6 +853,7 @@ impl EvidenceRun {
         result: BuildRunResult,
         exit_code: Option<i32>,
         error: Option<&str>,
+        phases: buildkit::PhaseTimings,
     ) -> Result<()> {
         let elapsed_millis = u64::try_from(self.started.elapsed().as_millis()).unwrap_or(u64::MAX);
         let run = BuildRunV1 {
@@ -782,7 +862,7 @@ impl EvidenceRun {
             output_mode,
             selection: &plan.selection,
             source: &plan.source,
-            source_date_epoch: SOURCE_DATE_EPOCH,
+            source_date_epoch: plan.source_date_epoch,
             started_at_unix_millis: self.started_at_unix_millis,
             elapsed_millis,
             result,
@@ -790,6 +870,11 @@ impl EvidenceRun {
             error,
             plan_file: "plan.json",
             buildx_metadata_file: self.metadata.exists().then_some("buildx-metadata.json"),
+            buildkit_trace_file: self
+                .buildkit_trace
+                .exists()
+                .then_some("buildkit-events.jsonl"),
+            phases,
         };
         let mut record = fs::OpenOptions::new()
             .create_new(true)
@@ -1314,6 +1399,10 @@ fn print_human(plan: &BuildPlanV1) {
         plan.targets.len(),
         non_rust
     );
+}
+
+fn elapsed_millis(started: Instant) -> u64 {
+    u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
 }
 
 fn validate_identifier(kind: &str, value: &str) -> Result<()> {

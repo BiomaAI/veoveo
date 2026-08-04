@@ -63,6 +63,8 @@ enum ImageCommand {
     Plan(ImagePlanArgs),
     /// Build selected images from the current checkout and load them into Docker.
     Build(ImageSelectionArgs),
+    /// Publish immutable runtime images for a development cluster without release attestations.
+    Stage(ImageStageArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -131,6 +133,21 @@ struct ImagePlanArgs {
     format: PlanFormat,
 }
 
+#[derive(Debug, Args)]
+struct ImageStageArgs {
+    #[command(flatten)]
+    selection: ImageSelectionArgs,
+    /// OCI registry receiving the immutable staged runtime image.
+    #[arg(long)]
+    registry: String,
+    /// Exact committed source revision to stage.
+    #[arg(long)]
+    revision: String,
+    /// Create-only staging evidence output.
+    #[arg(long)]
+    evidence_output: Option<PathBuf>,
+}
+
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum PlanFormat {
     Human,
@@ -163,6 +180,9 @@ struct ReleaseImagesArgs {
     /// Immutable image release evidence output for a direct release.
     #[arg(long, conflicts_with = "profile")]
     evidence_output: Option<PathBuf>,
+    /// Staged-image evidence whose runnable digests must survive qualification unchanged.
+    #[arg(long, conflicts_with = "profile")]
+    stage_evidence: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -281,6 +301,7 @@ fn main() -> Result<()> {
                 image::plan_command(&repository, &args.selection, args.format)
             }
             ImageCommand::Build(selection) => image::build_command(&repository, &selection),
+            ImageCommand::Stage(args) => release::stage_images(&repository, &args),
         },
         Command::Release { command } => match command {
             ReleaseCommand::Images(args) => release::images(&repository, &args),

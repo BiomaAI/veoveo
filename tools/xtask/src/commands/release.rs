@@ -16,6 +16,7 @@ use veoveo_deploy_contract::{
 };
 
 const IMAGE_RELEASE_EVIDENCE_SCHEMA: &str = "veoveo.io/image-release-evidence/v1";
+const IMAGE_STAGE_EVIDENCE_SCHEMA: &str = "veoveo.io/image-stage-evidence/v1";
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -24,6 +25,46 @@ struct ImageReleaseEvidence<'a> {
     source_revision: &'a str,
     registry: &'a str,
     images: &'a [LockedImage],
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ImageStageEvidence<'a> {
+    schema_version: &'static str,
+    source_revision: &'a str,
+    registry: &'a str,
+    release_eligible: bool,
+    images: &'a [StagedImage],
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct StagedImage {
+    target: String,
+    repository: String,
+    runtime_digest: String,
+    staging_index_digest: String,
+    platform: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct StagedImageInput {
+    target: String,
+    repository: String,
+    runtime_digest: String,
+    staging_index_digest: String,
+    platform: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ImageStageEvidenceInput {
+    schema_version: String,
+    source_revision: String,
+    registry: String,
+    release_eligible: bool,
+    images: Vec<StagedImageInput>,
 }
 
 struct PreparedImagePhase {
@@ -49,8 +90,8 @@ struct PreparedSourceRelease {
 }
 
 use crate::{
-    ReleaseCompatibilityArgs, ReleaseHelmChartsArgs, ReleaseImagesArgs, ReleasePythonSdkArgs,
-    ReleaseSimulationRuntimeArgs,
+    ImageStageArgs, ReleaseCompatibilityArgs, ReleaseHelmChartsArgs, ReleaseImagesArgs,
+    ReleasePythonSdkArgs, ReleaseSimulationRuntimeArgs,
     commands::{
         builder, compatibility as compatibility_release, helm,
         image::{self, OutputMode, Selection},
@@ -204,6 +245,89 @@ pub(crate) fn images(repository: &RepositoryContext, args: &ReleaseImagesArgs) -
     }
 }
 
+pub(crate) fn stage_images(repository: &RepositoryContext, args: &ImageStageArgs) -> Result<()> {
+    let selection = Selection::from_args(&args.selection)?;
+    validate_registry(&args.registry)?;
+    let allow_insecure_registry = registry_is_loopback(&args.registry)?;
+    let transport = if allow_insecure_registry {
+        RegistryTransport::InsecureHttp
+    } else {
+        RegistryTransport::Tls
+    };
+    let _builder = builder::ensure_for_registry(repository, &args.registry, transport)?;
+    let publication = PublicationSource::prepare(repository, &args.revision)?;
+    let source_repository = RepositoryContext::discover(publication.path())?;
+    let environment = publication_environment(&args.registry, publication.revision());
+    let prepared =
+        image::prepare_with_builder(repository, &source_repository, selection, &environment)?;
+    for (_, reference) in prepared.image_references() {
+        validate_revision_reference(&reference, &args.registry, publication.revision())?;
+    }
+    let evidence = image::evidence_run(repository, &prepared.plan, "stage")?;
+    image::execute(
+        repository,
+        &source_repository,
+        &prepared,
+        &environment,
+        OutputMode::Staged,
+        &evidence,
+    )?;
+    let staging_digests = evidence.publication_index_digests(&prepared)?;
+    let staged = prepared
+        .image_outputs()
+        .into_iter()
+        .map(|output| {
+            let staging_index_digest = staging_digests
+                .get(&output.target)
+                .with_context(|| format!("Buildx metadata omitted staged image {}", output.target))?
+                .clone();
+            let repository = output
+                .reference
+                .strip_suffix(&format!(":{}", publication.revision()))
+                .with_context(|| {
+                    format!(
+                        "staged image {} does not use the source revision tag",
+                        output.reference
+                    )
+                })?
+                .to_owned();
+            let digests = image_manifest::inspect_staged(
+                &repository,
+                &staging_index_digest,
+                &output.platform,
+                allow_insecure_registry,
+            )?;
+            Ok(StagedImage {
+                target: output.target,
+                repository,
+                runtime_digest: digests.runtime,
+                staging_index_digest,
+                platform: output.platform,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let output = args
+        .evidence_output
+        .as_ref()
+        .map(|path| absolute_output(repository, path))
+        .unwrap_or_else(|| evidence.directory().join("staging.json"));
+    write_create_only_json(
+        &output,
+        &ImageStageEvidence {
+            schema_version: IMAGE_STAGE_EVIDENCE_SCHEMA,
+            source_revision: publication.revision(),
+            registry: &args.registry,
+            release_eligible: false,
+            images: &staged,
+        },
+    )?;
+    println!("Staged image evidence: {}", output.display());
+    println!(
+        "Staged runtime images are immutable development inputs and are not release-qualified"
+    );
+    Ok(())
+}
+
 fn release_direct_images(repository: &RepositoryContext, args: &ReleaseImagesArgs) -> Result<()> {
     ensure!(
         args.profile_revision.is_none() && args.lock_output.is_none(),
@@ -240,6 +364,15 @@ fn release_direct_images(repository: &RepositoryContext, args: &ReleaseImagesArg
         vec![selection],
         allow_insecure_registry,
     )?;
+    if let Some(stage_evidence) = &args.stage_evidence {
+        validate_qualified_runtime_identity(
+            repository,
+            stage_evidence,
+            publication.revision(),
+            registry,
+            &images,
+        )?;
+    }
     let output = args.evidence_output.clone().unwrap_or_else(|| {
         repository
             .root()
@@ -284,7 +417,8 @@ fn release_profile_images(
             && args.group.is_none()
             && args.registry.is_none()
             && args.revision.is_none()
-            && args.evidence_output.is_none(),
+            && args.evidence_output.is_none()
+            && args.stage_evidence.is_none(),
         "--profile cannot be combined with direct image release arguments"
     );
     let profile_revision = args
@@ -496,7 +630,7 @@ fn publish_prepared_source(
             &source.repository,
             &phase.plan,
             &environment,
-            OutputMode::Push,
+            OutputMode::Qualified,
             &evidence,
         )?;
         let digests = evidence.publication_index_digests(&phase.plan)?;
@@ -589,7 +723,7 @@ fn publish_image_selections(
             source_repository,
             &phase.plan,
             &environment,
-            OutputMode::Push,
+            OutputMode::Qualified,
             &evidence,
         )?;
         let digests = evidence.publication_index_digests(&phase.plan)?;
@@ -650,6 +784,94 @@ fn lock_published_images(
             })
         })
         .collect()
+}
+
+fn validate_qualified_runtime_identity(
+    repository: &RepositoryContext,
+    stage_evidence: &Path,
+    revision: &str,
+    registry: &str,
+    qualified: &[LockedImage],
+) -> Result<()> {
+    let path = absolute_output(repository, stage_evidence);
+    let bytes = fs::read(&path)
+        .with_context(|| format!("reading staged image evidence {}", path.display()))?;
+    let staged: ImageStageEvidenceInput = serde_json::from_slice(&bytes)
+        .with_context(|| format!("decoding staged image evidence {}", path.display()))?;
+    ensure!(
+        staged.schema_version == IMAGE_STAGE_EVIDENCE_SCHEMA,
+        "staged image evidence uses unsupported schema {}",
+        staged.schema_version
+    );
+    ensure!(
+        !staged.release_eligible,
+        "staged image evidence must declare releaseEligible=false"
+    );
+    ensure!(
+        staged.source_revision == revision,
+        "staged source revision {} does not match qualified revision {revision}",
+        staged.source_revision
+    );
+    ensure!(
+        staged.registry == registry,
+        "staged registry {} does not match qualified registry {registry}",
+        staged.registry
+    );
+    let staged = staged
+        .images
+        .into_iter()
+        .map(|image| {
+            ensure!(
+                image.platform == "linux/amd64",
+                "staged image {} uses unsupported platform {}",
+                image.target,
+                image.platform
+            );
+            validate_oci_digest(&image.runtime_digest, "staged runtime")?;
+            validate_oci_digest(&image.staging_index_digest, "staging index")?;
+            Ok((image.target.clone(), image))
+        })
+        .collect::<Result<BTreeMap<_, _>>>()?;
+    ensure!(
+        staged.len() == qualified.len(),
+        "staged evidence contains {} images while qualification produced {}",
+        staged.len(),
+        qualified.len()
+    );
+    for image in qualified {
+        let prior = staged
+            .get(&image.name)
+            .with_context(|| format!("staged evidence omits qualified image {}", image.name))?;
+        ensure!(
+            prior.repository == image.repository,
+            "qualified image {} changed repository from {} to {}",
+            image.name,
+            prior.repository,
+            image.repository
+        );
+        ensure!(
+            prior.runtime_digest == image.digest,
+            "qualified image {} changed runnable digest from {} to {}; qualification may attach attestations but must not rebuild runtime identity",
+            image.name,
+            prior.runtime_digest,
+            image.digest
+        );
+    }
+    Ok(())
+}
+
+fn validate_oci_digest(value: &str, kind: &str) -> Result<()> {
+    let digest = value
+        .strip_prefix("sha256:")
+        .with_context(|| format!("{kind} digest must start with sha256:"))?;
+    ensure!(
+        digest.len() == 64
+            && digest
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)),
+        "{kind} digest must contain 64 lowercase hexadecimal digits"
+    );
+    Ok(())
 }
 
 fn publication_environment(registry: &str, revision: &str) -> BTreeMap<String, String> {
@@ -850,6 +1072,23 @@ fn write_json(path: &Path, value: &impl serde::Serialize) -> Result<()> {
     file.persist(path)
         .map_err(|error| error.error)
         .with_context(|| format!("publishing deployment lock {}", path.display()))?;
+    Ok(())
+}
+
+fn write_create_only_json(path: &Path, value: &impl serde::Serialize) -> Result<()> {
+    let parent = path
+        .parent()
+        .context("evidence output has no parent directory")?;
+    fs::create_dir_all(parent)
+        .with_context(|| format!("creating evidence directory {}", parent.display()))?;
+    let mut file = fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(path)
+        .with_context(|| format!("creating immutable evidence {}", path.display()))?;
+    serde_json::to_writer_pretty(&mut file, value)?;
+    file.write_all(b"\n")?;
+    file.sync_all()?;
     Ok(())
 }
 
