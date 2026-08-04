@@ -1,10 +1,6 @@
 # syntax=docker/dockerfile:1.7
 FROM node:26-slim@sha256:715e55e4b84e4bb0ff48e49b398a848f08e55daed8eb6a0ea1839ae53bc57583
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
-
 RUN npm install --global npm@12.0.1 \
     && npm install --global flint-chart-mcp@0.4.1 \
     && printf '#!/bin/sh\nexec node /usr/local/lib/node_modules/flint-chart-mcp/veoveo-server.mjs "$@"\n' > /usr/local/bin/chart-mcp \
