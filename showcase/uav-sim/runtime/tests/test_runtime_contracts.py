@@ -345,6 +345,7 @@ class RigidBodyBatchTests(unittest.TestCase):
 
         class FakeWorld:
             def __init__(self) -> None:
+                self.physics_sim_view = object()
                 self.callbacks = {
                     prefix + suffix: object()
                     for suffix in ("/state", "/update", "/Sensors", "/mav_state")
@@ -370,7 +371,7 @@ class RigidBodyBatchTests(unittest.TestCase):
                 self.callbacks[name] = callback
 
         class FakeBatch:
-            def rebind(self) -> None:
+            def rebind(self, _simulation_view: object) -> None:
                 events.append("rebind")
 
             def refresh_states(self) -> None:
@@ -402,7 +403,9 @@ class RigidBodyBatchTests(unittest.TestCase):
             {"uav-1": FakeVehicle()},
             {"uav-1": prefix},
             (prefix + "/body",),
-            batch_factory=lambda _paths: (events.append("create") or batch),
+            batch_factory=lambda _paths, _simulation_view: (
+                events.append("create") or batch
+            ),
         )
 
         self.assertIs(lifecycle.reset(), batch)
