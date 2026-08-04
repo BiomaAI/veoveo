@@ -167,6 +167,8 @@ def run(config: RuntimeConfig) -> None:
             physics_dt=1.0 / config.physics_hz,
             rendering_dt=1.0 / config.rendering_hz,
             stage_units_in_meters=1.0,
+            backend="warp",
+            device="cuda:0",
         )
         launch_surface_material = PhysicsMaterial(
             prim_path="/World/Physics_Materials/uav_launch_surface",

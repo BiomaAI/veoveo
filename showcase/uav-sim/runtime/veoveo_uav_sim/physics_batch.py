@@ -112,7 +112,7 @@ class RigidBodyBatchAccumulator:
 class IsaacFleetPhysicsBatch:
     """One reusable GPU tensor path for all Pegasus vehicle bodies."""
 
-    def __init__(self, body_paths: Sequence[str]) -> None:
+    def __init__(self, body_paths: Sequence[str], simulation_view: Any) -> None:
         self._accumulator = RigidBodyBatchAccumulator(body_paths)
         self._simulation_view: Any = None
         self._rigid_body_view: Any = None
@@ -127,7 +127,7 @@ class IsaacFleetPhysicsBatch:
         self._velocities_host: Any = None
         self._transforms_numpy: np.ndarray | None = None
         self._velocities_numpy: np.ndarray | None = None
-        self.rebind()
+        self.rebind(simulation_view)
 
     @property
     def device(self) -> str:
@@ -137,11 +137,11 @@ class IsaacFleetPhysicsBatch:
     def body_count(self) -> int:
         return len(self._accumulator.paths)
 
-    def rebind(self) -> None:
-        import omni.physics.tensors as physics_tensors
+    def rebind(self, simulation_view: Any) -> None:
         import warp as wp
 
-        simulation_view = physics_tensors.create_simulation_view("warp")
+        if simulation_view is None:
+            raise RuntimeError("Isaac World did not initialize its physics tensor view")
         simulation_view.set_subspace_roots("/")
         rigid_body_view = simulation_view.create_rigid_body_view(
             list(self._accumulator.paths)
@@ -237,7 +237,7 @@ class FleetPhysicsLifecycle:
         vehicles: Mapping[str, Any],
         callback_prefixes: Mapping[str, str],
         body_paths: Sequence[str],
-        batch_factory: Callable[[Sequence[str]], Any] = IsaacFleetPhysicsBatch,
+        batch_factory: Callable[[Sequence[str], Any], Any] = IsaacFleetPhysicsBatch,
     ) -> None:
         if set(vehicles) != set(callback_prefixes):
             raise ValueError(
@@ -261,10 +261,13 @@ class FleetPhysicsLifecycle:
         # stage or an as-yet-unbound batch during that transition.
         self.remove_callbacks()
         self._world.reset()
+        simulation_view = self._world.physics_sim_view
+        if simulation_view is None:
+            raise RuntimeError("Isaac World reset without a physics tensor view")
         if self._batch is None:
-            self._batch = self._batch_factory(self._body_paths)
+            self._batch = self._batch_factory(self._body_paths, simulation_view)
         else:
-            self._batch.rebind()
+            self._batch.rebind(simulation_view)
         for vehicle in self._vehicles.values():
             vehicle.bind_physics_batch(self._batch)
         self._world.add_physics_callback(self._CALLBACK_NAME, self._update)
