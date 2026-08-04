@@ -167,6 +167,7 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         | "uav-domain-verify"
         | "uav-showcase-up"
         | "uav-showcase-verify"
+        | "uav-showcase-browser-verify"
         | "simulation-view-verify" => &[CONFORMANCE],
         "otel"
         | "gateway-http"

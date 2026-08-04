@@ -19,7 +19,7 @@ use super::*;
 #[path = "uav_sim/showcase.rs"]
 mod showcase;
 
-pub(crate) use showcase::{uav_showcase_up, uav_showcase_verify};
+pub(crate) use showcase::{uav_showcase_browser_verify, uav_showcase_up, uav_showcase_verify};
 
 const NAMESPACE: &str = "veoveo";
 const GOOGLE_PHOTOREALISTIC_3D_TILES_ASSET_ID: u64 = 2_275_207;
