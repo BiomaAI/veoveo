@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -223,6 +223,72 @@ class IsaacFleetPhysicsBatch:
             False,
         )
         self._accumulator.clear_forces()
+
+
+class FleetPhysicsLifecycle:
+    """Own the reset-safe transition to one admitted fleet callback."""
+
+    _CALLBACK_NAME = "/World/veoveo_uav_fleet/physics_batch"
+    _PEGASUS_CALLBACK_SUFFIXES = ("/state", "/update", "/Sensors", "/mav_state")
+
+    def __init__(
+        self,
+        world: Any,
+        vehicles: Mapping[str, Any],
+        callback_prefixes: Mapping[str, str],
+        body_paths: Sequence[str],
+        batch_factory: Callable[[Sequence[str]], Any] = IsaacFleetPhysicsBatch,
+    ) -> None:
+        if set(vehicles) != set(callback_prefixes):
+            raise ValueError(
+                "fleet vehicles and Pegasus callback prefixes must have identical identities"
+            )
+        self._world = world
+        self._vehicles = vehicles
+        self._callback_prefixes = callback_prefixes
+        self._body_paths = tuple(body_paths)
+        self._batch_factory = batch_factory
+        self._batch: Any = None
+
+    @property
+    def batch(self) -> Any:
+        if self._batch is None:
+            raise RuntimeError("fleet physics batch has not been initialized")
+        return self._batch
+
+    def reset(self) -> Any:
+        # World.reset advances PhysX. No callback may reference the old tensor
+        # stage or an as-yet-unbound batch during that transition.
+        self.remove_callbacks()
+        self._world.reset()
+        if self._batch is None:
+            self._batch = self._batch_factory(self._body_paths)
+        else:
+            self._batch.rebind()
+        for vehicle in self._vehicles.values():
+            vehicle.bind_physics_batch(self._batch)
+        self._world.add_physics_callback(self._CALLBACK_NAME, self._update)
+        return self._batch
+
+    def remove_callbacks(self) -> None:
+        for vehicle_id in self._vehicles:
+            prefix = self._callback_prefixes[vehicle_id]
+            for suffix in self._PEGASUS_CALLBACK_SUFFIXES:
+                callback_name = prefix + suffix
+                if self._world.physics_callback_exists(callback_name):
+                    self._world.remove_physics_callback(callback_name)
+        if self._world.physics_callback_exists(self._CALLBACK_NAME):
+            self._world.remove_physics_callback(self._CALLBACK_NAME)
+
+    def _update(self, dt: float) -> None:
+        batch = self.batch
+        batch.refresh_states()
+        for vehicle in self._vehicles.values():
+            vehicle.update_state(dt)
+            vehicle.update(dt)
+            vehicle.update_sensors(dt)
+            vehicle.update_sim_state(dt)
+        batch.flush_forces()
 
 
 def _vector3(value: Sequence[float], label: str) -> tuple[float, float, float]:

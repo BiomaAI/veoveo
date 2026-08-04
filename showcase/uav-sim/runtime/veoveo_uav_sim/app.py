@@ -99,7 +99,7 @@ def run(config: RuntimeConfig) -> None:
     from .command_queue import MainThreadQueue
     from .fleet_loop import FleetLoopController
     from .hydra_camera import HydraRgbCameraSensor
-    from .physics_batch import IsaacFleetPhysicsBatch
+    from .physics_batch import FleetPhysicsLifecycle
     from .pose import PhysicsCadenceGate, PoseProducer
     from .px4 import Px4Commander
     from .recording import RecordingPublisher
@@ -135,7 +135,7 @@ def run(config: RuntimeConfig) -> None:
     camera_was_ready: set[str] = set()
     primary_camera_path: str | None = None
     pose_producer: PoseProducer | None = None
-    physics_batch: IsaacFleetPhysicsBatch | None = None
+    physics_lifecycle: FleetPhysicsLifecycle | None = None
     fleet_loop: FleetLoopController | None = None
 
     try:
@@ -322,53 +322,21 @@ def run(config: RuntimeConfig) -> None:
         # RTX sensor render product alone is not a Cesium streaming camera.
         viewport.set_active_camera(primary_camera_path)
 
-        world.reset()
-
         rigid_body_paths = tuple(
             f"{vehicle_callback_prefixes[vehicle_id]}/{body_name}"
             for vehicle_id in vehicles
             for body_name in ("body", "rotor0", "rotor1", "rotor2", "rotor3")
         )
-        physics_batch = IsaacFleetPhysicsBatch(rigid_body_paths)
-        for vehicle in vehicles.values():
-            vehicle.bind_physics_batch(physics_batch)
+
+        physics_lifecycle = FleetPhysicsLifecycle(
+            world, vehicles, vehicle_callback_prefixes, rigid_body_paths
+        )
+        physics_batch = physics_lifecycle.reset()
         LOGGER.info(
             "UAV fleet physics batch ready: bodies=%d device=%s",
             physics_batch.body_count,
             physics_batch.device,
         )
-
-        def bind_pegasus_physics_callbacks() -> None:
-            # Isaac 6 recreates its physics simulation interface during reset.
-            # Pegasus 5.1 registers callback subscriptions before that first
-            # reset, leaving them attached to the retired interface. Rebind the
-            # complete vehicle contract to the active interface so state,
-            # sensors, dynamics, ground truth, and PX4 advance exactly once per
-            # physics step.
-            assert physics_batch is not None
-            for vehicle_id in vehicles.keys():
-                prefix = vehicle_callback_prefixes[vehicle_id]
-                for suffix in ("/state", "/update", "/Sensors", "/mav_state"):
-                    callback_name = prefix + suffix
-                    if world.physics_callback_exists(callback_name):
-                        world.remove_physics_callback(callback_name)
-
-            callback_name = "/World/veoveo_uav_fleet/physics_batch"
-            if world.physics_callback_exists(callback_name):
-                world.remove_physics_callback(callback_name)
-
-            def update_fleet(dt: float) -> None:
-                physics_batch.refresh_states()
-                for vehicle in vehicles.values():
-                    vehicle.update_state(dt)
-                    vehicle.update(dt)
-                    vehicle.update_sensors(dt)
-                    vehicle.update_sim_state(dt)
-                physics_batch.flush_forces()
-
-            world.add_physics_callback(callback_name, update_fleet)
-
-        bind_pegasus_physics_callbacks()
 
         def pause() -> None:
             def action() -> None:
@@ -389,12 +357,8 @@ def run(config: RuntimeConfig) -> None:
                 nonlocal physics_step, simulation_time_s
                 assert world is not None
                 was_playing = timeline.is_playing()
-                world.reset()
-                assert physics_batch is not None
-                physics_batch.rebind()
-                for vehicle in vehicles.values():
-                    vehicle.bind_physics_batch(physics_batch)
-                bind_pegasus_physics_callbacks()
+                assert physics_lifecycle is not None
+                physics_lifecycle.reset()
                 physics_step = 0
                 simulation_time_s = 0.0
                 pose_cadence.reset()
