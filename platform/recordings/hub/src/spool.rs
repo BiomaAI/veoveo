@@ -628,6 +628,8 @@ pub fn run_blocking(
                 segments_opened = c.segments_opened,
                 segments_frozen = c.segments_frozen,
                 quarantined = c.quarantined,
+                blueprints_published = c.blueprints_published,
+                blueprints_rejected = c.blueprints_rejected,
                 "hub counters"
             );
             last_counters = Instant::now();

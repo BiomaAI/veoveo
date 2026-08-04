@@ -631,6 +631,14 @@ async fn playback_live_segment(
     else {
         return StatusCode::NOT_FOUND.into_response();
     };
+    tracing::info!(
+        %recording_id,
+        %segment_id,
+        current_byte_len = live.descriptor.current_byte_len,
+        history_seconds = live.descriptor.history_seconds,
+        video_preroll_seconds = live.descriptor.video_preroll_seconds,
+        "bounded live recording playback opened"
+    );
     let playback_store_id = match playback_store_id(recording_id, &plan.recording_key) {
         Ok(store_id) => store_id,
         Err(error) => {
