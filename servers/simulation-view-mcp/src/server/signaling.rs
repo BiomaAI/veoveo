@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use axum::{
     extract::{
@@ -21,7 +21,10 @@ use url::Url;
 use veoveo_mcp_contract::LiveViewId;
 
 use crate::{
-    contract::SimulationViewError, mcp::SimulationViewMcpState, state::SimulationViewService, uris,
+    contract::SimulationViewError,
+    mcp::SimulationViewMcpState,
+    state::{LeaseSignal, SimulationViewService},
+    uris,
 };
 
 const TOKEN_PROTOCOL_PREFIX: &str = "authorization.bearer.";
@@ -98,6 +101,7 @@ pub(super) async fn upgrade(
         Err(error) => return signaling_error(error),
     };
     let Some(render_slot) = authorized
+        .state
         .endpoint
         .media_port
         .checked_sub(state.public_media_port_base)
@@ -122,11 +126,12 @@ pub(super) async fn upgrade(
         .on_upgrade(move |socket| {
             bridge(
                 state,
-                authorized.session_id,
+                authorized.state.session_id,
                 live_view_id,
                 session_protocol,
                 upstream_url,
                 socket,
+                authorized.events,
             )
         })
 }
@@ -138,15 +143,9 @@ async fn bridge(
     session_protocol: String,
     upstream_url: Url,
     downstream: WebSocket,
+    lease_events: tokio::sync::watch::Receiver<LeaseSignal>,
 ) {
-    let result = bridge_inner(
-        &state,
-        &live_view_id,
-        &session_protocol,
-        upstream_url,
-        downstream,
-    )
-    .await;
+    let result = bridge_inner(&session_protocol, upstream_url, downstream, lease_events).await;
     state.service.disconnect_signaling(&live_view_id);
     state
         .mcp
@@ -164,11 +163,10 @@ async fn bridge(
 }
 
 async fn bridge_inner(
-    state: &SignalingState,
-    live_view_id: &LiveViewId,
     session_protocol: &str,
     upstream_url: Url,
     downstream: WebSocket,
+    lease_events: tokio::sync::watch::Receiver<LeaseSignal>,
 ) -> anyhow::Result<()> {
     let mut request = upstream_url.as_str().into_client_request()?;
     request.headers_mut().insert(
@@ -204,19 +202,33 @@ async fn bridge_inner(
         }
         anyhow::Ok(())
     };
-    let lease = async {
-        let mut interval = tokio::time::interval(Duration::from_secs(1));
-        loop {
-            interval.tick().await;
-            if !state.service.signaling_active(live_view_id) {
-                return anyhow::Ok(());
-            }
-        }
-    };
+    let lease = wait_for_lease_end(lease_events);
     tokio::select! {
         result = downstream_to_upstream => result,
         result = upstream_to_downstream => result,
         result = lease => result,
+    }
+}
+
+async fn wait_for_lease_end(
+    mut events: tokio::sync::watch::Receiver<LeaseSignal>,
+) -> anyhow::Result<()> {
+    loop {
+        let current = events.borrow().clone();
+        if !current.active || current.expires_at <= chrono::Utc::now() {
+            return Ok(());
+        }
+        let remaining = (current.expires_at - chrono::Utc::now())
+            .to_std()
+            .unwrap_or_default();
+        tokio::select! {
+            _ = tokio::time::sleep(remaining) => return Ok(()),
+            changed = events.changed() => {
+                if changed.is_err() {
+                    return Ok(());
+                }
+            }
+        }
     }
 }
 

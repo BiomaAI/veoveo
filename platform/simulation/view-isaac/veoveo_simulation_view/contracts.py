@@ -358,7 +358,7 @@ class CameraBinding:
 class StreamBinding:
     session_id: str
     camera_id: str
-    live_view_id: str
+    stream_product_id: str
     render_slot: int
     media_port: int
 
@@ -370,7 +370,7 @@ class StreamBinding:
             {
                 "sessionId",
                 "cameraId",
-                "liveViewId",
+                "streamProductId",
                 "renderSlot",
                 "mediaPort",
             },
@@ -379,7 +379,9 @@ class StreamBinding:
         return cls(
             session_id=identity("sessionId", body["sessionId"]),
             camera_id=identity("cameraId", body["cameraId"]),
-            live_view_id=identity("liveViewId", body["liveViewId"]),
+            stream_product_id=identity(
+                "streamProductId", body["streamProductId"]
+            ),
             render_slot=slot,
             media_port=positive_integer("mediaPort", body["mediaPort"], 65535),
         )

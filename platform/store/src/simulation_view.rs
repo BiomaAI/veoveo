@@ -10,9 +10,11 @@ use crate::{
 };
 
 pub const SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA: &str =
-    "veoveo.io/simulation-view-desired-digest/v1";
-const LEGACY_SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA: &str =
-    "veoveo.io/simulation-view-desired-digest/legacy-v1";
+    "veoveo.io/simulation-view-desired-digest/v2";
+const PREVIOUS_SIMULATION_VIEW_DESIRED_DIGEST_SCHEMAS: [&str; 2] = [
+    "veoveo.io/simulation-view-desired-digest/legacy-v1",
+    "veoveo.io/simulation-view-desired-digest/v1",
+];
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SimulationViewStateDraft {
@@ -73,8 +75,8 @@ impl PlatformStore {
             .map_or(draft.updated_at, |value| value.created_at);
         if let Some(current) = &current {
             let current_revision = u64::try_from(current.desired_revision).unwrap_or_default();
-            let upgrades_legacy_digest = current.desired_digest_schema
-                == LEGACY_SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA
+            let upgrades_legacy_digest = PREVIOUS_SIMULATION_VIEW_DESIRED_DIGEST_SCHEMAS
+                .contains(&current.desired_digest_schema.as_str())
                 && draft.desired_digest_schema == SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA;
             if draft.desired_revision == current_revision {
                 if !upgrades_legacy_digest

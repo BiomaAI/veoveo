@@ -60,7 +60,7 @@ const bridge=(()=>{
   return{request,notify:(method,params)=>post({jsonrpc:"2.0",method,params}),on:(method,handler)=>handlers.set(method,handler),post};
 })();
 let session=null,cameras=[],entities=[],capacity=null,refreshTimer=null,lastHeight=0,refreshing=false,tearingDown=false,activeErrorKind=null;
-const selected=new Set(),players=new Map();
+const selected=new Set(),players=new Map(),viewerInstanceId=crypto.randomUUID();
 function structured(result){if(result&&(result.isError||result.is_error)){const content=Array.isArray(result.content)?result.content:[];throw new Error((content.find((item)=>item.type==="text")||{}).text||"MCP tool failed");}return result&&(result.structuredContent||result.structured_content)||result;}
 async function callTool(name,args){return structured(await bridge.request("tools/call",{name,arguments:args}));}
 async function readJson(uri){const result=await bridge.request("resources/read",{uri});const content=result&&result.contents&&result.contents[0];if(!content||typeof content.text!=="string")throw new Error(`resource ${uri} returned no JSON`);return JSON.parse(content.text);}
@@ -94,7 +94,7 @@ async function openView(cameraId){
   const node=slot(cameraId);node.querySelector(".name").textContent=`${camera.definition.rig.kind} · ${cameraId}`;
   const player={connection:null,streamer:null,renewTimer:null,retryTimer:null};players.set(cameraId,player);
   try{
-    player.connection=await callTool("open_live_view",{sessionId:session.sessionId,cameraId});
+    player.connection=await callTool("open_live_view",{sessionId:session.sessionId,cameraId,viewerInstanceId});
     const value=player.connection,stream=value.stream,endpoint=stream.endpoint,signal=new URL(endpoint.signalingUrl),OV=globalThis.OVWebRTC;
     if(!OV||globalThis.__VEOVEO_WEBRTC_STUB__)throw new Error("NVIDIA WebRTC client is unavailable in this build");
     await verifyDecode(stream);player.streamer=new OV.AppStreamer();
@@ -111,11 +111,11 @@ async function openView(cameraId){
 }
 function scheduleRenew(cameraId){const player=players.get(cameraId);if(!player||!player.connection)return;clearTimeout(player.renewTimer);
   const delay=Math.max(5000,(Date.parse(player.connection.stream.expiresAt)-Date.now())*.5);
-  player.renewTimer=setTimeout(async()=>{try{player.connection=await callTool("renew_live_view",{sessionId:session.sessionId,liveViewId:player.connection.stream.liveViewId});scheduleRenew(cameraId);}catch(cause){retry(cameraId,cause);}},delay);
+  player.renewTimer=setTimeout(async()=>{try{player.connection=await callTool("renew_live_view",{sessionId:session.sessionId,liveViewId:player.connection.stream.liveViewId,viewerInstanceId});scheduleRenew(cameraId);}catch(cause){retry(cameraId,cause);}},delay);
 }
 function retry(cameraId,cause){showError(cause,"stream");void closeView(cameraId,false).then(()=>{if(selected.has(cameraId)&&!tearingDown)setTimeout(()=>void openView(cameraId),2500);});}
 async function closeView(cameraId,removeSlot){const player=players.get(cameraId);players.delete(cameraId);if(player){clearTimeout(player.renewTimer);clearTimeout(player.retryTimer);if(player.streamer){try{player.streamer.terminate();}catch(_){}}
-    if(player.connection){try{await callTool("close_live_view",{sessionId:session.sessionId,liveViewId:player.connection.stream.liveViewId});}catch(cause){if(!tearingDown)showError(cause,"stream");}}}
+    if(player.connection){try{await callTool("close_live_view",{sessionId:session.sessionId,liveViewId:player.connection.stream.liveViewId,viewerInstanceId});}catch(cause){if(!tearingDown)showError(cause,"stream");}}}
   if(removeSlot)document.getElementById(`view-${cameraId}`)?.remove();if(!players.size)setStatus("ready");renderGridEmpty();
 }
 function renderGridEmpty(){let empty=el("empty-grid");if(players.size||selected.size){empty?.remove();return;}if(!empty){empty=document.createElement("div");empty.id="empty-grid";empty.textContent="Select up to four capacity-admitted cameras.";el("grid").append(empty);}}

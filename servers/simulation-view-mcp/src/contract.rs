@@ -631,6 +631,7 @@ pub struct CapacityState {
 pub struct OpenLiveViewRequest {
     pub session_id: LiveSessionId,
     pub camera_id: LiveCameraId,
+    pub viewer_instance_id: veoveo_mcp_contract::LiveViewerInstanceId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -638,6 +639,7 @@ pub struct OpenLiveViewRequest {
 pub struct RenewLiveViewRequest {
     pub session_id: LiveSessionId,
     pub live_view_id: LiveViewId,
+    pub viewer_instance_id: veoveo_mcp_contract::LiveViewerInstanceId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -645,6 +647,7 @@ pub struct RenewLiveViewRequest {
 pub struct CloseLiveViewRequest {
     pub session_id: LiveSessionId,
     pub live_view_id: LiveViewId,
+    pub viewer_instance_id: veoveo_mcp_contract::LiveViewerInstanceId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

@@ -30,7 +30,7 @@ signaling   /simulation-view/signaling
 | `veoveo.io/simulation-view-scene/v2` | Immutable scene body and SHA-256 digest with governed artifact references, Frames identity, visual prototypes, entities, renderer bounds, and attribution. |
 | `veoveo.io/simulation-view-pose/v1` | Private latest-value binary snapshots in local ENU metres, FLU entity axes, and XYZW quaternions. |
 | `veoveo.io/simulation-view-pose-ingress-control/v2` | Private producer authorization with a monotonic authorization revision, bounded expiry, and explicit revocation tombstone. |
-| `veoveo.io/live-view/v1` | Owner-scoped H.264 WebRTC lease state with NVIDIA NVENC, BT.709 metadata, redacted access tokens, and exact endpoints. |
+| `veoveo.io/live-view/v2` | Actor- and browser-instance-scoped H.264 WebRTC leases over Work Context-owned camera stream products, with NVIDIA NVENC, BT.709 metadata, redacted access tokens, and exact endpoints. |
 | SurrealDB 3.2 | Durable Simulation View desired state, realized revision, reconciliation status, audit records, and transactional outbox events in the installation platform store. This is an internal repository adapter, not a public MCP protocol. |
 | Veoveo Artifact plane | Signed internal HTTP authorization and streaming bulk download for canonical `artifact://{uuidv7}` occurrences. Simulation View forwards bytes only to the private Isaac digest-ingest endpoint. |
 | OpenUSD | Render-only stage, content-addressed visual prototypes, instances, and transform mirroring. Executable scene content and physics authority are rejected. |
@@ -194,9 +194,9 @@ unavailable renderer reports the interpolation state as `unavailable`.
 Simulation View owns the runtime lifecycle after an authorized caller creates
 a session and binds its scene and producer. The platform store retains the
 owner, Work Context, session, epoch, immutable scene, producer binding,
-logical cameras, active stream leases, and monotonic desired revision. It does
-not retain producer certificates, private runtime tokens, raw live-view access
-tokens, pose messages, or rendered media.
+logical cameras, and monotonic desired revision. It does not retain browser
+viewer leases, producer certificates, private runtime tokens, raw live-view
+access tokens, pose messages, or rendered media.
 
 The MCP workload restores this state before it admits traffic. Its reconciler
 then realizes one session in a fixed dependency order:
@@ -204,30 +204,29 @@ then realizes one session in a fixed dependency order:
 1. renderer session;
 2. immutable governed scene;
 3. bounded pose-producer authorization;
-4. logical cameras;
-5. unexpired requested stream leases.
+4. logical cameras.
 
 Every private transition is idempotent. The durable desired revision advances
 when a caller changes the lifecycle or when the reconciler renews an
 authorization. The realized revision advances only after every dependency has
-accepted that desired state. A restart resets transient camera, pose, stream,
-and renderer health before the same ordered transitions run again.
+accepted that desired state. A restart resets transient camera, pose, and
+renderer health before the same ordered transitions run again. An active App
+opens a new ephemeral viewer lease after a control-plane or renderer restart.
 
 Conflict detection uses the canonical
-`veoveo.io/simulation-view-desired-intent/v1` projection. It contains the
+`veoveo.io/simulation-view-desired-intent/v2` projection. It contains the
 session and epoch identity, owner, immutable scene, producer binding and
-authorization revision, logical camera definitions, and requested stream
-identities. Runtime timestamps do not enter this digest. Pose and frame
+authorization revision, and logical camera definitions. Runtime timestamps do
+not enter this digest. Pose and frame
 health, geospatial residency counters, render-slot assignments, lease token
 hashes, retry timing, and reconciliation progress remain outside it. The
 store can therefore commit an updated restorable snapshot and realized
 outcome at the same desired revision while still rejecting an unrevisioned
 change to genuine intent.
 
-Store migration 31 marks existing whole-state digests as legacy. The next
-commit may replace that digest once with the canonical projection under the
-same desired revision. Every later same-revision commit must retain the exact
-canonical digest.
+Store migration 32 removes viewer leases from existing restorable snapshots
+and admits one same-revision upgrade to the version 2 intent digest. Every
+later same-revision commit must retain the exact canonical digest.
 
 The initial authorization duration becomes that binding's renewal duration.
 The reconciler schedules renewal before expiry, bounded by the configured
@@ -303,9 +302,10 @@ evidence tied to the image and GPU.
 ## Live Views And Signaling
 
 An open or renew result is the only serialization that carries a secret
-access token. Stored resources contain the stream state without the token.
-The service stores only SHA-256 token hashes and compares supplied hashes in
-constant time.
+access token. Stream resources contain lease state without the token. The
+service stores only SHA-256 token hashes and compares supplied hashes in
+constant time. Viewer leases are ephemeral and never advance the governed
+session's desired revision.
 
 Public signaling uses credential-free HTTPS or WSS. The checked-in local
 development profile may use WS only when URL parsing proves the host is the
@@ -317,8 +317,9 @@ The WebSocket proxy accepts NVIDIA OV WebRTC 6.6.0's
 `authorization.bearer.{token}` subprotocol and the live-view identity in the
 `x-nv-sessionid.{id}` subprotocol. It removes the token before opening the
 private renderer connection, preserves the renderer signaling path, and
-disconnects when the lease closes or expires. One URI or camera identity does
-not grant media access.
+disconnects as soon as a lease event closes it or its exact expiry is reached.
+There is no lease-status polling. One URI or camera identity does not grant
+media access.
 
 NVIDIA AOV streams require a unique TCP signaling port and UDP media port per
 physical slot. The MCP proxy derives the private signaling port from the
@@ -330,13 +331,17 @@ installation-owned public media IP. Chart validation and component-profile
 validation treat both port ranges as one bounded unit. A second camera never
 silently shares or replaces another camera's renderer port.
 
-Lease ownership includes the typed Work Context output owner, tenant, Work
-Context, policy revision, and output data labels. Authorized automation and
-Console members compose over the same view state when the gateway resolves the
-same output owner. Gateway profiles remain authorization projections and do
-not partition governed state. Another Work Context, tenant, policy revision,
-or output label set remains isolated. Close, expiry, camera replacement,
-session close, App teardown, and explicit authority revocation remove access.
+The session, scene, and logical camera belong to the typed Work Context output
+owner. One stable stream-product identity binds each active camera to its RTX
+product, NVENC encoder, and physical media slot. Concurrent viewers of that
+camera share the product and consume one streamed-camera and NVENC capacity
+unit.
+
+Each viewer lease belongs to the gateway actor and a browser-generated
+instance identity in addition to the output owner. Tabs and users therefore
+receive distinct lease IDs and tokens. Renewal rotates only that instance's
+token, and close revokes only that lease. Another Work Context, tenant, policy
+revision, output label set, actor, or browser instance cannot manage it.
 
 ## MCP Surface
 
@@ -508,9 +513,10 @@ migration beyond rejection of color temperatures above `10000` kelvin.
 Lifecycle acceptance configures a shortened pose authorization duration and
 keeps the session active across several renewal periods. It restarts the MCP,
 renderer, and pose ingress independently and requires the existing session,
-scene, cameras, and requested streams to recover in dependency order. An
-explicit producer revocation must stop renewal, reject subsequent publication,
-survive restart, and leave an audit trail for the final authorization revision.
+scene, and cameras to recover in dependency order. The App must open fresh
+viewer leases after recovery. An explicit producer revocation must stop
+renewal, reject subsequent publication, survive restart, and leave an audit
+trail for the final authorization revision.
 
 The UAV showcase retains its PX4, domain sensor, recording, scene-declaration,
 and pose-producer checks. It consumes Simulation View but does not own generic

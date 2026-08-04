@@ -7,9 +7,7 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use veoveo_mcp_contract::{
-    LiveCameraHealth, LiveCameraId, LiveSessionId, LiveViewId, LiveViewLifecycle, LiveViewOwner,
-};
+use veoveo_mcp_contract::{LiveCameraHealth, LiveCameraId, LiveSessionId, LiveViewOwner};
 use veoveo_platform_store::{
     AuditEventId, AuditEventRecord, AuditOutcome, OpenObject, PlatformStore,
     SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA, SimulationViewStateDraft, StoreError,
@@ -24,7 +22,7 @@ use crate::{
     state::{DurableSimulationViewState, SimulationViewService},
 };
 
-const DESIRED_INTENT_SCHEMA: &str = "veoveo.io/simulation-view-desired-intent/v1";
+const DESIRED_INTENT_SCHEMA: &str = "veoveo.io/simulation-view-desired-intent/v2";
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct SanitizedErrorCause {
@@ -69,7 +67,6 @@ struct DesiredSimulationViewIntent<'a> {
     schema_version: &'static str,
     session: DesiredSessionIntent<'a>,
     cameras: Vec<DesiredCameraIntent<'a>>,
-    streams: Vec<DesiredStreamIntent<'a>>,
 }
 
 #[derive(Serialize)]
@@ -102,17 +99,6 @@ struct DesiredCameraIntent<'a> {
     owner: &'a LiveViewOwner,
     revision: u64,
     definition: &'a CameraDefinition,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct DesiredStreamIntent<'a> {
-    live_view_id: &'a LiveViewId,
-    session_id: &'a LiveSessionId,
-    camera_id: &'a LiveCameraId,
-    owner: &'a LiveViewOwner,
-    camera_revision: u64,
-    requested: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -262,19 +248,6 @@ pub(crate) fn desired_intent_digest(durable: &DurableSimulationViewState) -> Res
         })
         .collect::<Vec<_>>();
     cameras.sort_by(|left, right| left.camera_id.as_str().cmp(right.camera_id.as_str()));
-    let mut streams = durable
-        .leases
-        .iter()
-        .map(|lease| DesiredStreamIntent {
-            live_view_id: &lease.state.live_view_id,
-            session_id: &lease.state.session_id,
-            camera_id: &lease.state.camera_id,
-            owner: &lease.state.owner,
-            camera_revision: lease.state.camera_revision,
-            requested: lease.state.lifecycle != LiveViewLifecycle::Closed,
-        })
-        .collect::<Vec<_>>();
-    streams.sort_by(|left, right| left.live_view_id.as_str().cmp(right.live_view_id.as_str()));
     let intent = DesiredSimulationViewIntent {
         schema_version: DESIRED_INTENT_SCHEMA,
         session: DesiredSessionIntent {
@@ -287,7 +260,6 @@ pub(crate) fn desired_intent_digest(durable: &DurableSimulationViewState) -> Res
             pose_producer,
         },
         cameras,
-        streams,
     };
     Ok(hex_digest(&serde_json::to_vec(&intent)?))
 }
@@ -311,17 +283,6 @@ fn normalize_restorable_state(desired: &mut DurableSimulationViewState) {
         durable.camera.health = LiveCameraHealth::Warming;
         durable.camera.last_pose_sequence = None;
         durable.camera.last_frame_at = None;
-    }
-    for lease in &mut desired.leases {
-        lease.state.connected_viewers = 0;
-        if !matches!(
-            lease.state.lifecycle,
-            LiveViewLifecycle::Closed | LiveViewLifecycle::Failed
-        ) {
-            lease.state.lifecycle = LiveViewLifecycle::Ready;
-            lease.state.camera_health = LiveCameraHealth::Warming;
-            lease.state.last_frame_at = None;
-        }
     }
 }
 
@@ -350,7 +311,8 @@ mod tests {
     use uuid::Uuid;
     use veoveo_mcp_contract::{
         AccessSubject, ArtifactId, FrameId, FrameWorldId, FrameWorldRevisionId,
-        FrameWorldRevisionUri, PolicyVersion, PrincipalId, TenantId, WorkContextId, WorldFrameUri,
+        FrameWorldRevisionUri, LiveViewId, LiveViewerInstanceId, PolicyVersion, PrincipalId,
+        TenantId, WorkContextId, WorldFrameUri,
     };
     use veoveo_platform_store::{StoreConfig, StoreCredentials};
     use veoveo_simulation_pose::{EntityId, FrameRevision, Sha256Digest};
@@ -562,9 +524,11 @@ mod tests {
         let stream_id = service
             .open_live_view(
                 &owner,
+                &PrincipalId::new("issuer#viewer").unwrap(),
                 OpenLiveViewRequest {
                     session_id: session_id.clone(),
                     camera_id: camera_ids[0].clone(),
+                    viewer_instance_id: LiveViewerInstanceId::new("browser-1").unwrap(),
                 },
             )
             .unwrap()

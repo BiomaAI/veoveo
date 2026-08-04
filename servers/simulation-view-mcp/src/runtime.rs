@@ -120,7 +120,7 @@ struct RendererCameraBinding<'a> {
 struct RendererStreamBinding<'a> {
     session_id: &'a veoveo_mcp_contract::LiveSessionId,
     camera_id: &'a veoveo_mcp_contract::LiveCameraId,
-    live_view_id: &'a veoveo_mcp_contract::LiveViewId,
+    stream_product_id: &'a veoveo_mcp_contract::LiveStreamProductId,
     render_slot: u16,
     media_port: u16,
 }
@@ -137,7 +137,7 @@ pub struct RendererCameraStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RendererStreamStatus {
-    pub live_view_id: veoveo_mcp_contract::LiveViewId,
+    pub stream_product_id: veoveo_mcp_contract::LiveStreamProductId,
     pub ready: bool,
     pub signal_port: u16,
     pub media_port: u16,
@@ -432,6 +432,7 @@ impl RuntimeClients {
     pub async fn open_stream(
         &self,
         stream: &veoveo_mcp_contract::LiveViewState,
+        stream_product_id: &veoveo_mcp_contract::LiveStreamProductId,
         render_slot: u16,
     ) -> anyhow::Result<RendererStreamStatus> {
         let expected_signal_port = self
@@ -448,19 +449,19 @@ impl RuntimeClients {
         );
         let path = format!(
             "v1/sessions/{}/streams/{}",
-            stream.session_id, stream.live_view_id
+            stream.session_id, stream_product_id
         );
         let binding = RendererStreamBinding {
             session_id: &stream.session_id,
             camera_id: &stream.camera_id,
-            live_view_id: &stream.live_view_id,
+            stream_product_id,
             render_slot,
             media_port: stream.endpoint.media_port,
         };
         self.await_stream_ready(
             &path,
             &binding,
-            &stream.live_view_id,
+            stream_product_id,
             expected_signal_port,
             expected_media_port,
             RENDERER_STREAM_READY_TIMEOUT,
@@ -473,7 +474,7 @@ impl RuntimeClients {
         &self,
         path: &str,
         binding: &RendererStreamBinding<'_>,
-        expected_live_view_id: &veoveo_mcp_contract::LiveViewId,
+        expected_stream_product_id: &veoveo_mcp_contract::LiveStreamProductId,
         expected_signal_port: u16,
         expected_media_port: u16,
         timeout: std::time::Duration,
@@ -483,7 +484,7 @@ impl RuntimeClients {
         loop {
             let status: RendererStreamStatus = self.put_renderer_json(&path, &binding).await?;
             anyhow::ensure!(
-                status.live_view_id == *expected_live_view_id
+                status.stream_product_id == *expected_stream_product_id
                     && status.signal_port == expected_signal_port
                     && status.media_port == expected_media_port,
                 "renderer stream did not remain on its admitted media slot"
@@ -499,15 +500,15 @@ impl RuntimeClients {
         }
     }
 
-    pub async fn close_stream(
+    pub async fn close_stream_product(
         &self,
         session_id: &veoveo_mcp_contract::LiveSessionId,
-        stream_id: &veoveo_mcp_contract::LiveViewId,
+        stream_product_id: &veoveo_mcp_contract::LiveStreamProductId,
     ) -> anyhow::Result<()> {
         self.delete(
             &self.renderer_endpoint,
             &self.renderer_control_token,
-            &format!("v1/sessions/{session_id}/streams/{stream_id}"),
+            &format!("v1/sessions/{session_id}/streams/{stream_product_id}"),
             false,
         )
         .await
@@ -694,7 +695,7 @@ mod tests {
 
     use axum::{Json, Router, extract::State, routing::put};
     use serde_json::{Value, json};
-    use veoveo_mcp_contract::{LiveCameraId, LiveSessionId, LiveViewId};
+    use veoveo_mcp_contract::{LiveCameraId, LiveSessionId, LiveStreamProductId};
 
     use super::*;
 
@@ -704,7 +705,7 @@ mod tests {
         ready_after: usize,
         signal_port: u16,
         media_port: u16,
-        live_view_id: LiveViewId,
+        stream_product_id: LiveStreamProductId,
     }
 
     async fn stream_fixture(
@@ -713,7 +714,7 @@ mod tests {
     ) -> Json<Value> {
         let request = fixture.requests.fetch_add(1, Ordering::SeqCst) + 1;
         Json(json!({
-            "liveViewId": fixture.live_view_id,
+            "streamProductId": fixture.stream_product_id,
             "ready": request >= fixture.ready_after,
             "signalPort": fixture.signal_port,
             "mediaPort": fixture.media_port,
@@ -748,7 +749,7 @@ mod tests {
 
     async fn await_fixture_stream(
         runtime: &RuntimeClients,
-        live_view_id: &LiveViewId,
+        stream_product_id: &LiveStreamProductId,
         timeout: std::time::Duration,
     ) -> anyhow::Result<RendererStreamStatus> {
         let session_id = LiveSessionId::new("session-1").unwrap();
@@ -756,7 +757,7 @@ mod tests {
         let binding = RendererStreamBinding {
             session_id: &session_id,
             camera_id: &camera_id,
-            live_view_id,
+            stream_product_id,
             render_slot: 0,
             media_port: 47998,
         };
@@ -764,7 +765,7 @@ mod tests {
             .await_stream_ready(
                 "v1/stream",
                 &binding,
-                live_view_id,
+                stream_product_id,
                 49100,
                 47998,
                 timeout,
@@ -846,21 +847,24 @@ mod tests {
 
     #[tokio::test]
     async fn stream_open_retries_idempotently_until_the_renderer_is_ready() {
-        let live_view_id = LiveViewId::new("stream-1").unwrap();
+        let stream_product_id = LiveStreamProductId::new("product-1").unwrap();
         let requests = Arc::new(AtomicUsize::new(0));
         let fixture = StreamFixture {
             requests: requests.clone(),
             ready_after: 3,
             signal_port: 49100,
             media_port: 47998,
-            live_view_id: live_view_id.clone(),
+            stream_product_id: stream_product_id.clone(),
         };
         let (runtime, server) = runtime_with_stream_fixture(fixture).await;
 
-        let status =
-            await_fixture_stream(&runtime, &live_view_id, std::time::Duration::from_secs(1))
-                .await
-                .unwrap();
+        let status = await_fixture_stream(
+            &runtime,
+            &stream_product_id,
+            std::time::Duration::from_secs(1),
+        )
+        .await
+        .unwrap();
 
         assert!(status.ready);
         assert_eq!(requests.load(Ordering::SeqCst), 3);
@@ -869,20 +873,23 @@ mod tests {
 
     #[tokio::test]
     async fn stream_open_rejects_renderer_slot_drift() {
-        let live_view_id = LiveViewId::new("stream-1").unwrap();
+        let stream_product_id = LiveStreamProductId::new("product-1").unwrap();
         let fixture = StreamFixture {
             requests: Arc::new(AtomicUsize::new(0)),
             ready_after: 1,
             signal_port: 49101,
             media_port: 47998,
-            live_view_id: live_view_id.clone(),
+            stream_product_id: stream_product_id.clone(),
         };
         let (runtime, server) = runtime_with_stream_fixture(fixture).await;
 
-        let error =
-            await_fixture_stream(&runtime, &live_view_id, std::time::Duration::from_secs(1))
-                .await
-                .unwrap_err();
+        let error = await_fixture_stream(
+            &runtime,
+            &stream_product_id,
+            std::time::Duration::from_secs(1),
+        )
+        .await
+        .unwrap_err();
 
         assert!(error.to_string().contains("admitted media slot"));
         server.abort();
@@ -890,19 +897,19 @@ mod tests {
 
     #[tokio::test]
     async fn stream_open_times_out_when_frames_never_become_ready() {
-        let live_view_id = LiveViewId::new("stream-1").unwrap();
+        let stream_product_id = LiveStreamProductId::new("product-1").unwrap();
         let fixture = StreamFixture {
             requests: Arc::new(AtomicUsize::new(0)),
             ready_after: usize::MAX,
             signal_port: 49100,
             media_port: 47998,
-            live_view_id: live_view_id.clone(),
+            stream_product_id: stream_product_id.clone(),
         };
         let (runtime, server) = runtime_with_stream_fixture(fixture).await;
 
         let error = await_fixture_stream(
             &runtime,
-            &live_view_id,
+            &stream_product_id,
             std::time::Duration::from_millis(10),
         )
         .await

@@ -289,24 +289,6 @@ async fn reconcile_session(
         }
     }
 
-    service.mark_reconciliation_phase(&session_id, ReconciliationPhase::Streams, None);
-    for stream in service.reconciliation_streams(&session_id) {
-        let render_slot = service.render_slot(&stream.camera_id)?;
-        if let Err(error) = runtimes.open_stream(&stream, render_slot).await {
-            return failed_runtime(
-                service,
-                repository,
-                &session,
-                config,
-                "stream",
-                ReconciliationFailureCode::StreamUnavailable,
-                "requested stream could not be realized",
-                error,
-            )
-            .await;
-        }
-    }
-
     finish(service, repository, config, &session, Utc::now()).await
 }
 
