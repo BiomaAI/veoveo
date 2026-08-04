@@ -62,8 +62,8 @@ published and its server contract is registered in the gateway control plane.
 
 Production workloads use the repository and digest map in images.lock.yaml. The
 platform and UAV Applications select immutable chart versions independently. The UAV
-Application currently selects chart `0.1.0-830fe1791176`; its MCP and runtime images
-were published from commit `830fe1791176dc24a523c44e4c129113b3ecdf88`. Each
+Application currently selects chart `0.1.0-18b9e0537390`; its MCP and runtime images
+were published from commit `18b9e0537390255625be99e44234ee3f21bcee92`. Each
 selected digest is the workload's release identity. A release-input commit advances
 the coordinated runtime closure.
 
