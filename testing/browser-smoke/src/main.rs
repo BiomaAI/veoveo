@@ -118,6 +118,7 @@ impl OperatorClient<'_> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let _ = rustls::crypto::ring::default_provider().install_default();
     match Args::parse().command {
         SmokeCommand::UavShowcaseBrowserVerify {
             conformance_bin,
