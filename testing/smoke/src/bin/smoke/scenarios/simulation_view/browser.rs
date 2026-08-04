@@ -478,6 +478,7 @@ async fn capture_console_recording_inner(
                       canvasCount:document.querySelectorAll(".rerun-web-viewer-host canvas").length,
                       loading:Boolean(document.querySelector(".recording-viewer-state")),
                       error:document.querySelector(".recording-viewer-error")?.textContent ?? "",
+                      mapError:document.querySelector(".recording-viewer-map-error")?.textContent ?? "",
                       bodyText:document.body?.innerText ?? ""
                     }))()"#,
                     false,
@@ -490,6 +491,14 @@ async fn capture_console_recording_inner(
             ensure!(
                 state.get("error").and_then(Value::as_str).unwrap_or("").is_empty(),
                 "Console Rerun viewer failed: {state}"
+            );
+            ensure!(
+                state
+                    .get("mapError")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .is_empty(),
+                "Console Rerun map provider failed: {state}"
             );
             ensure!(
                 !software_renderer(&body.to_ascii_lowercase()),
