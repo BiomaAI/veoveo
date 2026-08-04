@@ -61,6 +61,8 @@ enum ImageCommand {
     CertificationCachePrune(CertificationCachePruneArgs),
     /// Resolve and validate an image build plan.
     Plan(ImagePlanArgs),
+    /// Explain the image and release surfaces affected since one source revision.
+    Affected(ImageAffectedArgs),
     /// Build selected images from the current checkout and load them into Docker.
     Build(ImageSelectionArgs),
     /// Publish immutable runtime images for a development cluster without release attestations.
@@ -128,6 +130,16 @@ struct ImageSelectionArgs {
 struct ImagePlanArgs {
     #[command(flatten)]
     selection: ImageSelectionArgs,
+    /// Plan output encoding.
+    #[arg(long, value_enum, default_value_t = PlanFormat::Human)]
+    format: PlanFormat,
+}
+
+#[derive(Debug, Args)]
+struct ImageAffectedArgs {
+    /// Baseline Git revision compared with the current working tree.
+    #[arg(long)]
+    since: String,
     /// Plan output encoding.
     #[arg(long, value_enum, default_value_t = PlanFormat::Human)]
     format: PlanFormat,
@@ -299,6 +311,9 @@ fn main() -> Result<()> {
             }
             ImageCommand::Plan(args) => {
                 image::plan_command(&repository, &args.selection, args.format)
+            }
+            ImageCommand::Affected(args) => {
+                image::affected_command(&repository, &args.since, args.format)
             }
             ImageCommand::Build(selection) => image::build_command(&repository, &selection),
             ImageCommand::Stage(args) => release::stage_images(&repository, &args),
