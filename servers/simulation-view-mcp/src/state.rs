@@ -1274,17 +1274,24 @@ impl SimulationViewService {
     }
 
     pub(crate) fn reconciliation_ready(&self) -> bool {
+        let now = Utc::now();
         self.state
             .lock()
             .expect("simulation-view state lock poisoned")
             .sessions
             .values()
             .all(|session| {
+                let pose_authorization_ready = session.pose_source.as_ref().is_none_or(|source| {
+                    source.revoked
+                        || (source.expires_at > now
+                            && session.reconciliation.next_attempt_at.is_some())
+                });
                 session.reconciliation.desired_revision == session.reconciliation.realized_revision
                     && matches!(
                         session.reconciliation.phase,
                         ReconciliationPhase::Healthy | ReconciliationPhase::Revoked
                     )
+                    && pose_authorization_ready
             })
     }
 
@@ -1372,7 +1379,6 @@ impl SimulationViewService {
         &self,
         session_id: &LiveSessionId,
         phase: ReconciliationPhase,
-        next_attempt_at: Option<DateTime<Utc>>,
     ) {
         let mut state = self
             .state
@@ -1388,7 +1394,6 @@ impl SimulationViewService {
             if !verifying_converged_state {
                 session.reconciliation.phase = phase;
             }
-            session.reconciliation.next_attempt_at = next_attempt_at;
             session.reconciliation.failed_dependency = None;
             session.reconciliation.failure_code = None;
             session.reconciliation.diagnostic = None;
@@ -2529,11 +2534,8 @@ mod tests {
             ReconciliationPhase::Pending
         );
         assert!(!restored.reconciliation_ready());
-        restored.mark_reconciliation_phase(
-            &session.session_id,
-            ReconciliationPhase::RendererSession,
-            None,
-        );
+        restored
+            .mark_reconciliation_phase(&session.session_id, ReconciliationPhase::RendererSession);
         assert!(!restored.reconciliation_ready());
         assert_eq!(
             restored_session
@@ -2601,11 +2603,8 @@ mod tests {
         service.mark_reconciliation_healthy(&session.session_id, Utc::now());
 
         assert!(service.reconciliation_ready());
-        service.mark_reconciliation_phase(
-            &session.session_id,
-            ReconciliationPhase::RendererSession,
-            None,
-        );
+        service
+            .mark_reconciliation_phase(&session.session_id, ReconciliationPhase::RendererSession);
 
         assert!(service.reconciliation_ready());
         let current = service.get_session(&owner, &session.session_id).unwrap();
@@ -2614,6 +2613,55 @@ mod tests {
             current.reconciliation.desired_revision,
             current.reconciliation.realized_revision
         );
+    }
+
+    #[test]
+    fn pose_renewal_deadline_survives_later_reconciliation_phases() {
+        let service = SimulationViewService::new(SimulationViewConfig::default()).unwrap();
+        let owner = view_owner("issuer#renewal-operator");
+        let session = bound_session(&service, &owner);
+        let source = service
+            .authorize_pose_producer(
+                &owner,
+                AuthorizePoseProducerRequest {
+                    session_id: session.session_id.clone(),
+                    expected_revision: session.revision,
+                    producer_id: ProducerId::new("renewed-producer").unwrap(),
+                    spiffe_id: "spiffe://veoveo.test/renewed-producer".to_owned(),
+                    expires_at: Utc::now() + chrono::Duration::minutes(10),
+                },
+            )
+            .unwrap();
+        let renewal_at = source.expires_at - chrono::Duration::minutes(3);
+
+        service.schedule_pose_renewal(&session.session_id, renewal_at);
+        service.mark_reconciliation_phase(&session.session_id, ReconciliationPhase::Cameras);
+        service.mark_reconciliation_healthy(&session.session_id, Utc::now());
+
+        let current = service.get_session(&owner, &session.session_id).unwrap();
+        assert_eq!(current.reconciliation.next_attempt_at, Some(renewal_at));
+        assert!(service.reconciliation_ready());
+
+        service
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned")
+            .sessions
+            .get_mut(&session.session_id)
+            .unwrap()
+            .reconciliation
+            .next_attempt_at = None;
+        assert!(!service.reconciliation_ready());
+
+        let mut state = service
+            .state
+            .lock()
+            .expect("simulation-view state lock poisoned");
+        let session = state.sessions.get_mut(&session.session_id).unwrap();
+        session.reconciliation.next_attempt_at = Some(renewal_at);
+        session.pose_source.as_mut().unwrap().expires_at = Utc::now();
+        drop(state);
+        assert!(!service.reconciliation_ready());
     }
 
     #[test]
