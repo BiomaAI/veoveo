@@ -44,6 +44,7 @@ members = [
     "servers/view-mcp",
     "showcase/sumo/sumo-mcp",
     "testing/deployment-smoke",
+    "testing/browser-smoke",
     "testing/smoke",
     "tools/image-build/control",
     "tools/xtask",

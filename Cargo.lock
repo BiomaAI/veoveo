@@ -11595,6 +11595,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-browser-smoke"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "chrono",
+ "clap",
+ "futures",
+ "hex",
+ "image",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tokio",
+ "tokio-tungstenite 0.30.0",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "veoveo-console-bff"
 version = "0.1.0"
 dependencies = [

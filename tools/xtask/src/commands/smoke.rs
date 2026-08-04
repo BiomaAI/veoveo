@@ -23,6 +23,10 @@ const DEPLOYMENT_SMOKE: CargoBinary = CargoBinary {
     package: "veoveo-deployment-smoke",
     binary: "deployment-smoke",
 };
+const BROWSER_SMOKE: CargoBinary = CargoBinary {
+    package: "veoveo-browser-smoke",
+    binary: "browser-smoke",
+};
 const CONFORMANCE: CargoBinary = CargoBinary {
     package: "veoveo-mcp-conformance",
     binary: "conformance",
@@ -99,7 +103,9 @@ pub(crate) fn run(repository: &RepositoryContext, arguments: &[OsString]) -> Res
 fn cargo_build_arguments(arguments: &[OsString]) -> Result<Vec<&'static str>> {
     let dispatcher = dispatcher_binary(arguments)?;
     let mut binaries = vec![dispatcher];
-    if !requests_help(arguments) && dispatcher == SMOKE {
+    if !requests_help(arguments) && dispatcher == BROWSER_SMOKE {
+        binaries.push(CONFORMANCE);
+    } else if !requests_help(arguments) && dispatcher == SMOKE {
         binaries.push(CONFORMANCE);
         let scenario = arguments
             .first()
@@ -141,6 +147,8 @@ fn dispatcher_binary(arguments: &[OsString]) -> Result<CargoBinary> {
             | "profile-down"
     ) {
         Ok(DEPLOYMENT_SMOKE)
+    } else if scenario == "uav-showcase-browser-verify" {
+        Ok(BROWSER_SMOKE)
     } else {
         Ok(SMOKE)
     }
@@ -167,7 +175,6 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         | "uav-domain-verify"
         | "uav-showcase-up"
         | "uav-showcase-verify"
-        | "uav-showcase-browser-verify"
         | "simulation-view-verify" => &[CONFORMANCE],
         "otel"
         | "gateway-http"
@@ -293,6 +300,26 @@ mod tests {
                 "veoveo-deployment-smoke",
                 "--bin",
                 "deployment-smoke",
+            ]
+        );
+    }
+
+    #[test]
+    fn repeated_browser_acceptance_builds_only_its_focused_harness() {
+        let arguments = [OsString::from("uav-showcase-browser-verify")];
+        assert_eq!(
+            cargo_build_arguments(&arguments).unwrap(),
+            [
+                "build",
+                "--locked",
+                "--package",
+                "veoveo-browser-smoke",
+                "--bin",
+                "browser-smoke",
+                "--package",
+                "veoveo-mcp-conformance",
+                "--bin",
+                "conformance",
             ]
         );
     }
