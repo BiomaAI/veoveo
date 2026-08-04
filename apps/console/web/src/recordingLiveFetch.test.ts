@@ -5,6 +5,7 @@ import {
   attachConsoleSessionToRecordingRrd,
   authorizeConsoleRecordingRrdFetch,
   isConsoleRecordingRrdRequest,
+  observeRecordingLiveResponseEnd,
 } from "./recordingLiveFetch.ts";
 
 const ORIGIN = "https://installation.example";
@@ -88,4 +89,29 @@ test("adapts a canonical fetch without reconstructing unrelated requests", async
   );
   assert.equal(untouched[0], redapRequest);
   assert.equal(untouched[1], undefined);
+});
+
+test("reports natural live response completion without treating cancellation as rollover", async () => {
+  let completions = 0;
+  const complete = observeRecordingLiveResponseEnd(
+    new Response(new Uint8Array([1, 2, 3])),
+    () => {
+      completions += 1;
+    }
+  );
+  assert.deepEqual(new Uint8Array(await complete.arrayBuffer()), new Uint8Array([1, 2, 3]));
+  assert.equal(completions, 1);
+
+  const pending = observeRecordingLiveResponseEnd(
+    new Response(
+      new ReadableStream<Uint8Array>({
+        pull() {},
+      })
+    ),
+    () => {
+      completions += 1;
+    }
+  );
+  await pending.body?.cancel();
+  assert.equal(completions, 1);
 });

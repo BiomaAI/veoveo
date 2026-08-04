@@ -36,13 +36,18 @@ function synchronizeSources(
 export default function GovernedRerunViewer({
   recordingId,
   source,
+  liveHistorySeconds,
+  onLiveReceiverEnded,
 }: {
   recordingId: string;
   source: GovernedRerunSource;
+  liveHistorySeconds?: number;
+  onLiveReceiverEnded?: () => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<WebViewer | undefined>(undefined);
   const desiredSourceRef = useRef(source);
+  const liveReceiverEndedRef = useRef(onLiveReceiverEnded);
   const openedSourcesRef = useRef<OpenedRerunSources>({});
   const mapSetupRef = useRef<
     | {
@@ -56,6 +61,11 @@ export default function GovernedRerunViewer({
     delayed: false,
   });
   const [mapError, setMapError] = useState<string>();
+  const liveReceiverUrl = source.receiver.kind === "live" ? source.receiver.url : undefined;
+
+  useEffect(() => {
+    liveReceiverEndedRef.current = onLiveReceiverEnded;
+  }, [onLiveReceiverEnded]);
 
   useEffect(() => {
     desiredSourceRef.current = source;
@@ -85,7 +95,15 @@ export default function GovernedRerunViewer({
 
   useEffect(() => {
     const viewer = new WebViewer();
-    const releaseRecordingRrdFetch = installConsoleRecordingRrdFetch();
+    const releaseRecordingRrdFetch = installConsoleRecordingRrdFetch((url) => {
+      const receiver = desiredSourceRef.current.receiver;
+      if (
+        receiver.kind === "live" &&
+        new URL(receiver.url, window.location.href).toString() === url
+      ) {
+        liveReceiverEndedRef.current?.();
+      }
+    });
     let active = true;
     let removeOpenListener: (() => void) | undefined;
     let delayedNotice: number | undefined;
@@ -160,6 +178,37 @@ export default function GovernedRerunViewer({
       releaseRecordingRrdFetch();
     };
   }, [recordingId, source.redapToken]);
+
+  useEffect(() => {
+    if (!liveReceiverUrl) return;
+    const receiverUrl = liveReceiverUrl;
+    const rotationMilliseconds = Math.max(30_000, (liveHistorySeconds ?? 60) * 1_000);
+    let active = true;
+    let timer: number | undefined;
+    const rotate = () => {
+      if (!active) return;
+      const viewer = viewerRef.current;
+      const opened = openedSourcesRef.current.receiver;
+      if (viewer && opened?.kind === "live" && opened.url === receiverUrl) {
+        try {
+          viewer.close([receiverUrl]);
+          viewer.open(receiverUrl);
+        } catch (cause: unknown) {
+          const message =
+            cause instanceof Error ? cause.message : "Rerun live-window rotation failed";
+          console.error("Governed Rerun live-window rotation failed", cause);
+          setStatus({ state: "error", message });
+          return;
+        }
+      }
+      timer = window.setTimeout(rotate, rotationMilliseconds);
+    };
+    timer = window.setTimeout(rotate, rotationMilliseconds);
+    return () => {
+      active = false;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [liveHistorySeconds, liveReceiverUrl, recordingId]);
 
   return (
     <div className="rerun-web-viewer">

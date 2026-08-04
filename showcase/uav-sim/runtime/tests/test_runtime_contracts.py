@@ -297,6 +297,8 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIn("make_default=True", recording_source)
         self.assertNotIn("default_blueprint=", recording_source)
         self.assertIn("rrb.MapView", recording_source)
+        self.assertIn("rr.Radius.ui_points(8.0)", recording_source)
+        self.assertIn("batcher_config=rr.ChunkBatcherConfig.DEFAULT()", recording_source)
 
     def test_recording_degradation_is_visible_without_blocking_readiness(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):

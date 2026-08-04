@@ -15,6 +15,7 @@ use std::{
 
 use anyhow::{Context, Result, ensure};
 use bytes::Bytes;
+use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use re_build_info::CrateVersion;
 use re_chunk::Chunk;
 use re_log_encoding::{Decoder, EncodingOptions, rrd::Encoder};
@@ -82,6 +83,10 @@ fn stream_ingest_parts(
     let modified_cutoff = SystemTime::now()
         .checked_sub(history)
         .context("live history exceeds system clock")?;
+    if !parts_directory.exists() {
+        return Ok(());
+    }
+    let wake = FilesystemWake::watch(&parts_directory)?;
     let mut encoder = live_encoder(sender)?;
     let static_context = ingest_stream_static_context_path(segment_path)?;
     if static_context.exists() {
@@ -147,7 +152,7 @@ fn stream_ingest_parts(
             return Ok(());
         }
         if !appended {
-            std::thread::sleep(Duration::from_millis(100));
+            wake.wait()?;
         }
     }
 }
@@ -186,14 +191,17 @@ struct FollowingFile {
     file: File,
     path: PathBuf,
     sender: mpsc::Sender<Result<Bytes, io::Error>>,
+    wake: FilesystemWake,
 }
 
 impl FollowingFile {
     fn open(path: &Path, sender: mpsc::Sender<Result<Bytes, io::Error>>) -> io::Result<Self> {
+        let wake = FilesystemWake::watch(path).map_err(io::Error::other)?;
         Ok(Self {
             file: File::open(path)?,
             path: path.to_owned(),
             sender,
+            wake,
         })
     }
 
@@ -223,8 +231,37 @@ impl Read for FollowingFile {
             if read > 0 || self.sender.is_closed() || self.path_was_replaced()? {
                 return Ok(read);
             }
-            std::thread::sleep(Duration::from_millis(100));
+            self.wake.wait().map_err(io::Error::other)?;
         }
+    }
+}
+
+struct FilesystemWake {
+    _watcher: RecommendedWatcher,
+    receiver: std::sync::mpsc::Receiver<notify::Result<notify::Event>>,
+}
+
+impl FilesystemWake {
+    fn watch(path: &Path) -> Result<Self> {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let mut watcher = notify::recommended_watcher(move |event| {
+            let _ = sender.send(event);
+        })?;
+        watcher.watch(path, RecursiveMode::NonRecursive)?;
+        Ok(Self {
+            _watcher: watcher,
+            receiver,
+        })
+    }
+
+    fn wait(&self) -> Result<()> {
+        self.receiver
+            .recv()
+            .context("live recording filesystem event channel closed")??;
+        while let Ok(event) = self.receiver.try_recv() {
+            event?;
+        }
+        Ok(())
     }
 }
 

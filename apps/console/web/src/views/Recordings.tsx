@@ -2,8 +2,10 @@ import {
   Component,
   Suspense,
   lazy,
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ErrorInfo,
   type ReactNode,
@@ -36,8 +38,7 @@ import type {
 const GovernedRerunViewer = lazy(() => import("../components/GovernedRerunViewer"));
 
 type RecordingStateFilter = "all" | RecordingSummary["state"];
-const LIVE_MANIFEST_REFRESH_MS = 5_000;
-const PLAYBACK_SESSION_RENEW_MS = 60_000;
+const PLAYBACK_SESSION_RENEWAL_FRACTION = 0.8;
 
 const lifecycleDetail: Record<RecordingSummary["state"], string> = {
   live: "Receiving data",
@@ -126,6 +127,7 @@ export function RecordingsView({
   const [copied, setCopied] = useState(false);
   const [requestedPlaybackMode, setRequestedPlaybackMode] =
     useState<RerunPlaybackMode>("live");
+  const refreshingManifest = useRef(false);
 
   const recordings = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -147,6 +149,11 @@ export function RecordingsView({
   const selected = snapshot.recordings.find(
     (recording) => recording.id === resolvedSelectedId
   );
+  const selectedRecordingRef = useRef(resolvedSelectedId);
+
+  useEffect(() => {
+    selectedRecordingRef.current = resolvedSelectedId;
+  }, [resolvedSelectedId]);
 
   useEffect(() => {
     if (!resolvedSelectedId) return;
@@ -168,50 +175,46 @@ export function RecordingsView({
     return () => controller.abort();
   }, [reloadToken, resolvedSelectedId]);
 
-  useEffect(() => {
-    if (!resolvedSelectedId || !manifest) return;
-    const currentLiveSegmentId = manifest?.live?.segment_id;
-    const currentManifestState = manifest?.state;
+  const refreshPlaybackManifest = useCallback(async () => {
+    if (!resolvedSelectedId || !manifest || refreshingManifest.current) return;
+    const currentLiveSegmentId = manifest.live?.segment_id;
+    const currentManifestState = manifest.state;
     const currentArchiveRevision = manifest.archive?.revision;
     const currentPlaybackSession = manifest.access.session_id;
-    let disposed = false;
-    let refreshing = false;
-    const refreshPlaybackManifest = async () => {
-      if (refreshing) return;
-      refreshing = true;
-      try {
-        const value = await loadRecordingPlayback(resolvedSelectedId, {
-          playbackSession: currentPlaybackSession,
-        });
-        if (
-          disposed ||
-          (value.live?.segment_id === currentLiveSegmentId &&
-            value.state === currentManifestState &&
-            value.archive?.revision === currentArchiveRevision &&
-            value.access.session_id === currentPlaybackSession &&
-            value.access.redap_token === manifest.access.redap_token)
-        ) {
-          return;
-        }
-        setManifest(value);
-        setPlaybackError(undefined);
-      } catch (cause: unknown) {
-        if (!disposed) {
-          console.warn("Recording playback session refresh failed", cause);
-        }
-      } finally {
-        refreshing = false;
+    refreshingManifest.current = true;
+    try {
+      const value = await loadRecordingPlayback(resolvedSelectedId, {
+        playbackSession: currentPlaybackSession,
+      });
+      if (selectedRecordingRef.current !== resolvedSelectedId) return;
+      if (
+        value.live?.segment_id === currentLiveSegmentId &&
+        value.state === currentManifestState &&
+        value.archive?.revision === currentArchiveRevision &&
+        value.access.session_id === currentPlaybackSession &&
+        value.access.redap_token === manifest.access.redap_token &&
+        value.access.expires_at === manifest.access.expires_at
+      ) {
+        return;
       }
-    };
-    const interval = window.setInterval(
-      () => void refreshPlaybackManifest(),
-      manifest.live ? LIVE_MANIFEST_REFRESH_MS : PLAYBACK_SESSION_RENEW_MS
-    );
-    return () => {
-      disposed = true;
-      window.clearInterval(interval);
-    };
+      setManifest(value);
+      setPlaybackError(undefined);
+    } catch (cause: unknown) {
+      console.warn("Recording playback session refresh failed", cause);
+    } finally {
+      refreshingManifest.current = false;
+    }
   }, [manifest, resolvedSelectedId]);
+
+  useEffect(() => {
+    if (!manifest) return;
+    const remaining = Date.parse(manifest.access.expires_at) - Date.now();
+    const delay = Math.max(1_000, remaining * PLAYBACK_SESSION_RENEWAL_FRACTION);
+    const timeout = window.setTimeout(() => {
+      void refreshPlaybackManifest();
+    }, delay);
+    return () => window.clearTimeout(timeout);
+  }, [manifest, refreshPlaybackManifest]);
 
   const selectRecording = (recordingId: string) => {
     if (recordingId === resolvedSelectedId) return;
@@ -413,6 +416,8 @@ export function RecordingsView({
                       key={playback?.viewerKey ?? selected.id}
                       recordingId={selected.id}
                       source={playbackSource}
+                      liveHistorySeconds={manifest?.live?.history_seconds}
+                      onLiveReceiverEnded={() => void refreshPlaybackManifest()}
                     />
                   </Suspense>
                 </ViewerBoundary>

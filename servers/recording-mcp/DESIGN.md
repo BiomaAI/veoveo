@@ -62,8 +62,10 @@ the viewer is mounted and upgrades only this exact same-origin route to
 HttpOnly Console session reaches the BFF policy boundary, and no access token
 enters a URL or browser-readable cookie. Unrelated Fetch inputs pass through
 without constructing replacement `Request` objects, preserving Redap's
-one-use streaming bodies. While the recording remains live, Console refreshes
-the manifest every five seconds. It selects exactly one recording receiver:
+one-use streaming bodies. Natural completion of the live response triggers
+manifest refresh at segment rollover, while the playback credential renews at
+80 percent of its exact lifetime. There is no manifest status polling. Console
+selects exactly one recording receiver:
 Live uses the bounded HTTP source and History uses the lazy archive dataset.
 Rollover closes the prior live receiver before opening its successor. Archive
 revision refresh and mode changes use the same close-before-open order, which
@@ -71,6 +73,11 @@ prevents overlapping native Store identities. The distinct producer Blueprint
 opens before the selected recording receiver. The viewer instance and operator state remain intact until the
 generic Redap fallback token rotates. Rotation creates a new viewer credential
 context because Rerun's mutable credential API is specific to Rerun Cloud OAuth.
+The live receiver itself rotates once per history window, without closing the
+Blueprint or viewer, because Rerun 0.35 does not evict older chunks from an open
+HTTP store. This keeps browser residency within two windows. Filesystem events
+wake the live projection when the active file or acknowledged part directory
+changes; idle playback does not scan on an interval.
 
 Governed query and analysis plans include complete acknowledged ingest parts
 from the current writing shard. An analysis consumer captures one ordered
