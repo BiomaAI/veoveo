@@ -11,7 +11,7 @@ simulation loop are outside the contract.
 |---|---|
 | `veoveo.io/simulation-view-pose/v1` | length-delimited binary snapshots with one fixed canonical coordinate convention |
 | `veoveo.io/simulation-view-pose-ingress-control/v2` | private typed producer-binding declarations and status with monotonic authorization revisions and revocation tombstones |
-| POSIX shared memory | double-buffered latest-value slot with acquire/release publication |
+| POSIX shared memory | bounded ordered snapshot ring with acquire/release publication |
 | TLS 1.3 | mutually authenticated private streaming transport with exactly one SPIFFE URI SAN per producer certificate |
 | WGS 84 and local tangent frames | Frames-owned immutable world revision with local ENU positions |
 | SI | metres, seconds, metres per second, and radians per second |
@@ -45,10 +45,13 @@ staleness policy permits.
 
 ## Transports
 
-The shared-memory implementation uses two fixed-capacity slots. A producer
-writes the inactive payload, publishes its length, flips the active slot, and
-increments a generation with release ordering. A reader copies one slot and
-accepts it only when generation and active slot remain stable.
+The shared-memory implementation uses a fixed-capacity ordered ring. Its slot
+count covers the admitted cadence across the complete stale window, with two
+additional samples for the active interpolation bracket. A producer publishes
+the payload and length under a per-slot generation marker, then advances the
+latest generation with release ordering. A reader drains every retained
+generation in order and accepts a slot only when its marker remains stable.
+An overrun remains visible as a source sequence gap instead of being hidden.
 
 The streaming implementation prefixes the exact same snapshot with a
 big-endian 32-bit length. `simulation-view-pose` is the canonical ingress
@@ -61,8 +64,8 @@ sessions under `/v1/bindings/{session_id}`. A binding fixes the epoch, Frames
 revision, ordered entity table, producer identity, authorization revision,
 expiry, and all admission limits. A higher authorization revision with the
 same immutable identity renews the active declaration in place. The latest
-pose store, sequence, heartbeat, shared-memory inode, and reader mapping remain
-intact.
+pose store, sequence, heartbeat, shared-memory inode, ordered history, and
+reader mapping remain intact.
 
 Revocation is a revisioned binding rather than an unversioned expiry change.
 Ingress records the revoked revision as a floor, removes the active binding,

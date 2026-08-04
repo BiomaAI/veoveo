@@ -150,7 +150,7 @@ fn latest_store_drops_old_sequences_and_reset_invalidates_old_epoch() {
 fn shared_memory_swaps_complete_snapshots() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("latest.pose");
-    let mut writer = SharedPoseWriter::create(&path, 4096).unwrap();
+    let mut writer = SharedPoseWriter::create(&path, 4096, 4).unwrap();
     let reader = SharedPoseReader::open(&path).unwrap();
     assert!(reader.latest().unwrap().is_none());
 
@@ -160,4 +160,43 @@ fn shared_memory_swaps_complete_snapshots() {
     assert_eq!(reader.latest().unwrap().unwrap(), (1, first));
     assert_eq!(writer.publish(&second).unwrap(), 2);
     assert_eq!(reader.latest().unwrap().unwrap(), (2, second));
+}
+
+#[test]
+fn shared_memory_retains_ordered_history_across_reader_stalls() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("history.pose");
+    let mut writer = SharedPoseWriter::create(&path, 4096, 4).unwrap();
+    let reader = SharedPoseReader::open(&path).unwrap();
+    let encoded: Vec<_> = (1..=6)
+        .map(|sequence| {
+            encode_snapshot(
+                &snapshot(sequence, sequence as i64 * 10_000_000, "epoch-a"),
+                &limits(),
+            )
+            .unwrap()
+        })
+        .collect();
+
+    for value in &encoded[..4] {
+        writer.publish(value).unwrap();
+    }
+    assert_eq!(
+        reader.snapshots_after(0).unwrap(),
+        encoded[..4]
+            .iter()
+            .enumerate()
+            .map(|(index, value)| (index as u64 + 1, value.clone()))
+            .collect::<Vec<_>>()
+    );
+    writer.publish(&encoded[4]).unwrap();
+    writer.publish(&encoded[5]).unwrap();
+    assert_eq!(
+        reader.snapshots_after(1).unwrap(),
+        encoded[2..]
+            .iter()
+            .enumerate()
+            .map(|(index, value)| (index as u64 + 3, value.clone()))
+            .collect::<Vec<_>>()
+    );
 }

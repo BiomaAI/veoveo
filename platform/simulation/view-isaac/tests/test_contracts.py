@@ -48,6 +48,7 @@ from veoveo_simulation_view.pose import (
     PoseSampleKind,
     PoseSampleQueue,
     PoseSnapshot,
+    SharedPoseReader,
     decode_snapshot,
 )
 from veoveo_simulation_view.renderer_setup import (
@@ -253,9 +254,7 @@ class RendererContractsTest(unittest.TestCase):
         self.assertTrue(values.sun.enable_color_temperature)
         self.assertEqual(values.sun.color_temperature_kelvin, 6_500)
         self.assertEqual(values.sun.angle_degrees, 0.53)
-        self.assertEqual(
-            values.sun.rotation_degrees, (-45.0, -35.0, 0.0)
-        )
+        self.assertEqual(values.sun.rotation_degrees, (-45.0, -35.0, 0.0))
         self.assertEqual(values.sky.intensity, 1_000.0)
         self.assertEqual(values.sky.exposure, 0.0)
         self.assertFalse(values.sky.normalize)
@@ -673,9 +672,7 @@ class RendererContractsTest(unittest.TestCase):
         self.assertEqual(manager._interface.stage_changes, [0, 73])
         self.assertEqual(suspend.values, [False])
         self.assertTrue(manager._sessions["session-1"]["providerRegistered"])
-        self.assertIsNotNone(
-            manager._sessions["session-1"]["coverageStartedAt"]
-        )
+        self.assertIsNotNone(manager._sessions["session-1"]["coverageStartedAt"])
         self.assertEqual(manager._sessions["session-1"]["lifecycle"], "ready")
 
     def test_unavailable_coverage_remains_eligible_for_recovery(self) -> None:
@@ -1473,9 +1470,7 @@ class RendererContractsTest(unittest.TestCase):
         )
         scene_body["sessionId"] = binding.session_id
         scene_body["epochId"] = binding.epoch_id
-        scene = SceneBinding.parse(
-            {"body": scene_body, "digest": f"sha256:{'1' * 64}"}
-        )
+        scene = SceneBinding.parse({"body": scene_body, "digest": f"sha256:{'1' * 64}"})
         source = PoseSourceBinding(
             session_id=binding.session_id,
             epoch_id=binding.epoch_id,
@@ -1546,9 +1541,7 @@ class RendererContractsTest(unittest.TestCase):
         )
 
         mirror.revoke.assert_called_once_with()
-        renderer._scenes.mark_pose_stale.assert_called_once_with(
-            binding.session_id
-        )
+        renderer._scenes.mark_pose_stale.assert_called_once_with(binding.session_id)
         self.assertEqual(
             interpolation.diagnostics().last_reset_reason,
             InterpolationResetReason.REVOKED,
@@ -1792,6 +1785,43 @@ class RendererContractsTest(unittest.TestCase):
         )
         with self.assertRaises(ContractError):
             decode_snapshot(bytes(encoded), wrong)
+
+    def test_shared_pose_reader_drains_ordered_bounded_history(self) -> None:
+        slot_capacity = 32
+        slot_count = 4
+        slot_stride = 48
+        contents = bytearray(64 + slot_count * slot_stride)
+        contents[:8] = b"VVPSHM02"
+        struct.pack_into("=H", contents, 8, 2)
+        struct.pack_into("=Q", contents, 16, 6)
+        struct.pack_into("=Q", contents, 24, slot_capacity)
+        struct.pack_into("=Q", contents, 32, slot_count)
+        struct.pack_into("=Q", contents, 40, slot_stride)
+        for generation in range(3, 7):
+            payload = f"pose-{generation}".encode()
+            slot = (generation - 1) % slot_count
+            start = 64 + slot * slot_stride
+            struct.pack_into("=Q", contents, start, generation * 2)
+            struct.pack_into("=Q", contents, start + 8, len(payload))
+            contents[start + 16 : start + 16 + len(payload)] = payload
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "session.pose"
+            path.write_bytes(contents)
+            reader = SharedPoseReader(path, slot_capacity)
+            try:
+                self.assertEqual(
+                    reader.pending(1),
+                    [
+                        (3, b"pose-3"),
+                        (4, b"pose-4"),
+                        (5, b"pose-5"),
+                        (6, b"pose-6"),
+                    ],
+                )
+                self.assertEqual(reader.pending(6), [])
+            finally:
+                reader.close()
 
     def test_pose_authorization_renewal_preserves_reader_and_latest_state(
         self,
