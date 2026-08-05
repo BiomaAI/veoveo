@@ -539,8 +539,7 @@ async fn capture_console_recording_inner(
         }
         let (initial_live_follow, initial_follow_seconds) =
             wait_for_rerun_live_follow(&mut cdp, &session_id).await?;
-        let initial_responsiveness =
-            sample_rerun_responsiveness(&mut cdp, &session_id).await?;
+        let initial_responsiveness = sample_rerun_responsiveness(&mut cdp, &session_id).await?;
         initial_responsiveness.validate()?;
         let mut live_follow = verify_rerun_live_stability(
             &mut cdp,
@@ -2179,6 +2178,7 @@ struct Cdp {
     socket: WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>,
     next_id: u64,
     events: Vec<Value>,
+    software_renderer_event: bool,
 }
 
 impl Cdp {
@@ -2197,6 +2197,7 @@ impl Cdp {
             socket,
             next_id: 1,
             events: Vec::new(),
+            software_renderer_event: false,
         })
     }
 
@@ -2234,7 +2235,13 @@ impl Cdp {
                         }
                         return Ok(value.get("result").cloned().unwrap_or(Value::Null));
                     }
-                    self.events.push(value);
+                    if !self.software_renderer_event {
+                        let encoded = serde_json::to_string(&value)?.to_ascii_lowercase();
+                        self.software_renderer_event = software_renderer(&encoded);
+                    }
+                    if retain_cdp_event(&value) {
+                        self.events.push(value);
+                    }
                 }
                 Message::Ping(value) => self.socket.send(Message::Pong(value)).await?,
                 Message::Close(frame) => {
@@ -2304,13 +2311,10 @@ impl Cdp {
     }
 
     fn assert_no_software_renderer_events(&self) -> Result<()> {
-        for event in &self.events {
-            let encoded = serde_json::to_string(event)?.to_ascii_lowercase();
-            ensure!(
-                !software_renderer(&encoded),
-                "headed Chrome emitted a software-renderer event"
-            );
-        }
+        ensure!(
+            !self.software_renderer_event,
+            "headed Chrome emitted a software-renderer event"
+        );
         Ok(())
     }
 
@@ -2326,6 +2330,22 @@ impl Cdp {
             format!("Chrome WebSocket diagnostics: {}", events.join("; "))
         })
     }
+}
+
+fn retain_cdp_event(event: &Value) -> bool {
+    matches!(
+        event.get("method").and_then(Value::as_str),
+        Some(
+            "Network.requestWillBeSent"
+                | "Network.responseReceived"
+                | "Network.loadingFinished"
+                | "Network.loadingFailed"
+                | "Network.webSocketCreated"
+                | "Network.webSocketHandshakeResponseReceived"
+                | "Network.webSocketFrameError"
+                | "Network.webSocketClosed"
+        )
+    )
 }
 
 fn stream_event_summary(event: &Value) -> Option<String> {
@@ -2886,6 +2906,22 @@ mod tests {
         assert!(software_renderer("mesa llvmpipe"));
         assert!(software_renderer("software rasterizer warning"));
         assert!(!software_renderer("nvidia geforce rtx 4090"));
+    }
+
+    #[test]
+    fn cdp_retains_only_events_used_by_acceptance_evidence() {
+        assert!(retain_cdp_event(&serde_json::json!({
+            "method": "Network.requestWillBeSent"
+        })));
+        assert!(retain_cdp_event(&serde_json::json!({
+            "method": "Network.webSocketFrameError"
+        })));
+        assert!(!retain_cdp_event(&serde_json::json!({
+            "method": "Runtime.consoleAPICalled"
+        })));
+        assert!(!retain_cdp_event(&serde_json::json!({
+            "method": "Page.lifecycleEvent"
+        })));
     }
 
     #[test]
