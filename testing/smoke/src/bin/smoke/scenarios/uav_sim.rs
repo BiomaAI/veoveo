@@ -440,12 +440,17 @@ pub(crate) async fn uav_sim_verify(
         .await
 }
 
+struct UavVisualHolds {
+    stream_capture_complete: oneshot::Receiver<()>,
+    moving_recording_capture_complete: oneshot::Receiver<()>,
+}
+
 async fn uav_sim_verify_with_visual_hold(
     conformance: &Path,
     scenario_path: &Path,
     context: &str,
     public_base_url: &str,
-    visual_stream_capture: Option<oneshot::Receiver<()>>,
+    visual_holds: Option<UavVisualHolds>,
 ) -> Result<()> {
     let scenario = UavAcceptanceScenario::load(scenario_path)?;
     assert_executable(conformance)?;
@@ -547,7 +552,13 @@ async fn uav_sim_verify_with_visual_hold(
     let live_session_id = live.session_id;
     let live_preview_uri = live.preview_uri;
     let mut live_session_stopped = false;
-    let mut visual_stream_capture = visual_stream_capture;
+    let (mut visual_stream_capture, mut moving_recording_capture) = match visual_holds {
+        Some(holds) => (
+            Some(holds.stream_capture_complete),
+            Some(holds.moving_recording_capture_complete),
+        ),
+        None => (None, None),
+    };
 
     let flight_result: Result<String> = async {
         let initial_flight_state = json_string(
@@ -787,6 +798,16 @@ async fn uav_sim_verify_with_visual_hold(
             download_governed_json_artifact(conformance, public_base_url, &reason_artifact_id)
                 .await?;
         assert_live_recording_snapshot(&reason_results, "Reason")?;
+
+        if let Some(captured) = moving_recording_capture.take() {
+            let timeout = Duration::from_secs(scenario.view.timeout_seconds.saturating_add(30));
+            if tokio::time::timeout(timeout, captured).await.is_err() {
+                bail!(
+                    "composed visual acceptance did not release the moving Rerun capture hold \
+                     within {timeout:?}"
+                );
+            }
+        }
 
         Ok(governed_artifact_id)
     }

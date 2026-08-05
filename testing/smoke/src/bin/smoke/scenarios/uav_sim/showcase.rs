@@ -71,6 +71,13 @@ struct FlightEvidence {
     recording_id: String,
     checkpoints: Vec<FlightCheckpointEvidence>,
     stream: ConsoleStreamCaptureEvidence,
+    recording: ConsoleRecordingCaptureEvidence,
+    recording_source_latency: RecordingSourceLatencyEvidence,
+}
+
+struct VisualCaptureSignals {
+    stream_complete: tokio::sync::oneshot::Sender<()>,
+    moving_recording_complete: tokio::sync::oneshot::Sender<()>,
 }
 
 pub(crate) async fn uav_showcase_verify(
@@ -174,12 +181,16 @@ pub(crate) async fn uav_showcase_verify(
     })?;
 
     let (stream_capture_complete, hold_live_stream) = tokio::sync::oneshot::channel();
+    let (recording_capture_complete, hold_landing) = tokio::sync::oneshot::channel();
     let domain = uav_sim_verify_with_visual_hold(
         conformance,
         scenario_path,
         context,
         public_base_url,
-        Some(hold_live_stream),
+        Some(UavVisualHolds {
+            stream_capture_complete: hold_live_stream,
+            moving_recording_capture_complete: hold_landing,
+        }),
     );
     let visual = monitor_flight(
         &operator,
@@ -188,7 +199,10 @@ pub(crate) async fn uav_showcase_verify(
         public_base_url,
         &resources.camera_id,
         &evidence_directory,
-        stream_capture_complete,
+        VisualCaptureSignals {
+            stream_complete: stream_capture_complete,
+            moving_recording_complete: recording_capture_complete,
+        },
     );
     // Do not cancel domain acceptance when visual acceptance fails after
     // takeoff. The domain future owns postflight landing recovery and must run
@@ -220,54 +234,8 @@ pub(crate) async fn uav_showcase_verify(
         }
     };
 
-    let recording = capture_console_recording(
-        chrome_cdp_url,
-        public_base_url,
-        &flight.recording_id,
-        &evidence_directory.join("recording-rerun.png"),
-        Duration::from_secs(scenario.view.timeout_seconds),
-    )
-    .await;
-    let recording = match recording {
-        Ok(recording) => recording,
-        Err(error) => {
-            let cleanup = cleanup_view(&operator, &mut resources).await;
-            return Err(with_cleanup_error(
-                error.context("capturing composed UAV Rerun evidence"),
-                cleanup,
-            ));
-        }
-    };
-    let source_state = simulation_state(&operator, &scenario).await;
     let cleanup = cleanup_view(&operator, &mut resources).await;
-    let source_state = match source_state {
-        Ok(source_state) => {
-            cleanup?;
-            source_state
-        }
-        Err(error) => {
-            return Err(with_cleanup_error(
-                error.context("reading the live source timeline after Rerun capture"),
-                cleanup,
-            ));
-        }
-    };
-    let source_timeline_seconds = source_state
-        .get("simulation_time_s")
-        .and_then(Value::as_f64)
-        .context("UAV state omitted simulation_time_s")?;
-    let viewer_timeline_seconds = recording.final_timeline_seconds();
-    let source_to_viewer_seconds = source_timeline_seconds - viewer_timeline_seconds;
-    ensure!(
-        (-0.25..=1.0).contains(&source_to_viewer_seconds),
-        "Rerun live playback is not close to its authoritative simulation timeline: source={source_timeline_seconds:.3}s viewer={viewer_timeline_seconds:.3}s lag={source_to_viewer_seconds:.3}s"
-    );
-    let recording_source_latency = RecordingSourceLatencyEvidence {
-        sampled_at: Utc::now(),
-        source_timeline_seconds,
-        viewer_timeline_seconds,
-        source_to_viewer_seconds,
-    };
+    cleanup?;
 
     let evidence = ShowcaseEvidence {
         schema: EVIDENCE_SCHEMA,
@@ -284,8 +252,8 @@ pub(crate) async fn uav_showcase_verify(
         recording_id: flight.recording_id,
         checkpoints: flight.checkpoints,
         stream: flight.stream,
-        recording,
-        recording_source_latency,
+        recording: flight.recording,
+        recording_source_latency: flight.recording_source_latency,
     };
     let manifest_path = evidence_directory.join("evidence.json");
     fs::write(&manifest_path, serde_json::to_vec_pretty(&evidence)?)
@@ -558,7 +526,7 @@ async fn monitor_flight(
     public_base_url: &str,
     camera_id: &str,
     evidence_directory: &Path,
-    stream_capture_complete: tokio::sync::oneshot::Sender<()>,
+    capture_signals: VisualCaptureSignals,
 ) -> Result<FlightEvidence> {
     let timeout = Duration::from_secs(scenario.view.timeout_seconds);
     let takeoff = wait_for_checkpoint(
@@ -620,7 +588,37 @@ async fn monitor_flight(
         timeout,
     )
     .await?;
-    let _ = stream_capture_complete.send(());
+    let _ = capture_signals.stream_complete.send(());
+
+    let recording = capture_console_recording(
+        chrome_cdp_url,
+        public_base_url,
+        &recording_id,
+        &evidence_directory.join("recording-rerun.png"),
+        timeout,
+    )
+    .await
+    .context("capturing composed UAV Rerun evidence while its camera is airborne")?;
+    let source_state = simulation_state(operator, scenario)
+        .await
+        .context("reading the live source timeline after Rerun capture")?;
+    let source_timeline_seconds = source_state
+        .get("simulation_time_s")
+        .and_then(Value::as_f64)
+        .context("UAV state omitted simulation_time_s")?;
+    let viewer_timeline_seconds = recording.final_timeline_seconds();
+    let source_to_viewer_seconds = source_timeline_seconds - viewer_timeline_seconds;
+    ensure!(
+        (-0.25..=1.0).contains(&source_to_viewer_seconds),
+        "Rerun live playback is not close to its authoritative simulation timeline: source={source_timeline_seconds:.3}s viewer={viewer_timeline_seconds:.3}s lag={source_to_viewer_seconds:.3}s"
+    );
+    let recording_source_latency = RecordingSourceLatencyEvidence {
+        sampled_at: Utc::now(),
+        source_timeline_seconds,
+        viewer_timeline_seconds,
+        source_to_viewer_seconds,
+    };
+    let _ = capture_signals.moving_recording_complete.send(());
 
     let landing = wait_for_checkpoint(
         operator,
@@ -656,6 +654,8 @@ async fn monitor_flight(
         recording_id,
         checkpoints: vec![takeoff_evidence, mission_evidence, landing_evidence],
         stream,
+        recording,
+        recording_source_latency,
     })
 }
 
