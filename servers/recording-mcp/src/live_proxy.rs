@@ -124,6 +124,7 @@ impl MessageProxyService for AuthorizedLiveMessageProxy {
                 let segment_id = live.descriptor.segment_id.clone();
                 let mut receiver = stream_live_messages(
                     live.path,
+                    recording_id,
                     history,
                     playback_store_id.clone(),
                 );
@@ -217,8 +218,12 @@ mod tests {
         std::fs::write(&path, encoder.into_inner().unwrap()).unwrap();
 
         let playback_store_id = StoreId::recording("playback-dataset", "source-recording");
-        let mut receiver =
-            stream_live_messages(path, Duration::from_secs(60), playback_store_id.clone());
+        let mut receiver = stream_live_messages(
+            path,
+            RecordingId::new(),
+            Duration::from_secs(60),
+            playback_store_id.clone(),
+        );
         let messages = [
             receiver.recv().await.unwrap(),
             receiver.recv().await.unwrap(),
