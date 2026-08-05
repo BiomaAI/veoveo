@@ -174,9 +174,11 @@ The runtime state exposes the publisher lifecycle, queue depth, capacity, droppe
 count, and a bounded diagnostic. The leader H.264 bitrate is installation-configured;
 the reference profile uses 750 kbit/s at 640x480 and 2 Hz.
 
-A producer-local forwarder carries those messages to Recording Hub. Public
-resources contain only canonical
-`recording://recordings/{recording_id}` identities.
+A producer-local forwarder carries those messages to Recording Hub. Runtime
+state reports the producer recording key and a typed catalog lifecycle without
+waiting. Once the catalog admits the recording, the same state adds its
+canonical `recording://recordings/{recording_id}` identity. Catalog delay never
+stalls simulation or pose publication.
 
 The domain acceptance starts a Stream live session before flight and sends each
 newly encoded camera access unit directly to its admitted RTP/H.264 ingress.

@@ -37,9 +37,11 @@ the thin telemetry adapter that uses the shared Simulation View pose SDK.
 - `CESIUM_ION_ACCESS_TOKEN` comes only from the dedicated Kubernetes Secret.
   It is never a tool argument, ConfigMap value, resource field, log field, or
   exported USD content.
-- Recordings publish only the canonical
-  `recording://recordings/{recording_id}` identity resolved through the
-  platform catalog; native Recording Hub ports stay private.
+- Recording state publishes its producer key and typed catalog lifecycle
+  immediately. The canonical `recording://recordings/{recording_id}` identity
+  appears only after catalog resolution; catalog delay or failure never blocks
+  simulation, pose publication, or scene preparation. Native Recording Hub
+  ports stay private.
 
 ## Build And Test
 

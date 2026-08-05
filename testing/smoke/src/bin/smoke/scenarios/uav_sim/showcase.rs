@@ -47,6 +47,16 @@ struct ShowcaseEvidence {
     checkpoints: Vec<FlightCheckpointEvidence>,
     stream: ConsoleStreamCaptureEvidence,
     recording: ConsoleRecordingCaptureEvidence,
+    recording_source_latency: RecordingSourceLatencyEvidence,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RecordingSourceLatencyEvidence {
+    sampled_at: chrono::DateTime<Utc>,
+    source_timeline_seconds: f64,
+    viewer_timeline_seconds: f64,
+    source_to_viewer_seconds: f64,
 }
 
 #[derive(Debug)]
@@ -218,18 +228,45 @@ pub(crate) async fn uav_showcase_verify(
         Duration::from_secs(scenario.view.timeout_seconds),
     )
     .await;
-    let cleanup = cleanup_view(&operator, &mut resources).await;
     let recording = match recording {
-        Ok(recording) => {
-            cleanup?;
-            recording
-        }
+        Ok(recording) => recording,
         Err(error) => {
+            let cleanup = cleanup_view(&operator, &mut resources).await;
             return Err(with_cleanup_error(
                 error.context("capturing composed UAV Rerun evidence"),
                 cleanup,
             ));
         }
+    };
+    let source_state = simulation_state(&operator, &scenario).await;
+    let cleanup = cleanup_view(&operator, &mut resources).await;
+    let source_state = match source_state {
+        Ok(source_state) => {
+            cleanup?;
+            source_state
+        }
+        Err(error) => {
+            return Err(with_cleanup_error(
+                error.context("reading the live source timeline after Rerun capture"),
+                cleanup,
+            ));
+        }
+    };
+    let source_timeline_seconds = source_state
+        .get("simulation_time_s")
+        .and_then(Value::as_f64)
+        .context("UAV state omitted simulation_time_s")?;
+    let viewer_timeline_seconds = recording.final_timeline_seconds();
+    let source_to_viewer_seconds = source_timeline_seconds - viewer_timeline_seconds;
+    ensure!(
+        (-0.25..=1.0).contains(&source_to_viewer_seconds),
+        "Rerun live playback is not close to its authoritative simulation timeline: source={source_timeline_seconds:.3}s viewer={viewer_timeline_seconds:.3}s lag={source_to_viewer_seconds:.3}s"
+    );
+    let recording_source_latency = RecordingSourceLatencyEvidence {
+        sampled_at: Utc::now(),
+        source_timeline_seconds,
+        viewer_timeline_seconds,
+        source_to_viewer_seconds,
     };
 
     let evidence = ShowcaseEvidence {
@@ -248,6 +285,7 @@ pub(crate) async fn uav_showcase_verify(
         checkpoints: flight.checkpoints,
         stream: flight.stream,
         recording,
+        recording_source_latency,
     };
     let manifest_path = evidence_directory.join("evidence.json");
     fs::write(&manifest_path, serde_json::to_vec_pretty(&evidence)?)
@@ -695,6 +733,11 @@ fn checkpoint_evidence(
 }
 
 fn recording_id(state: &Value) -> Result<String> {
+    ensure!(
+        json_string(state, "/recordings/0/catalog_lifecycle")? == "ready",
+        "UAV recording has not reached the governed catalog: {}",
+        state.pointer("/recordings/0").unwrap_or(&Value::Null)
+    );
     let uri = json_string(state, "/recordings/0/recording_uri")?;
     let id = uri
         .strip_prefix("recording://recordings/")

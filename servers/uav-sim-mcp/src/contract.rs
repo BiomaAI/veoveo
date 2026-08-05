@@ -112,6 +112,7 @@ domain_id!(
 );
 domain_id!(MissionId, "Stable identity of one submitted mission.");
 domain_id!(RecordingId, "Stable identity of one governed recording.");
+domain_id!(RecordingKey, "Producer identity of one recording stream.");
 domain_id!(
     PoseProducerId,
     "Stable identity authorized to publish this simulator's complete pose snapshots."
@@ -363,17 +364,32 @@ pub struct CameraState {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RecordingState {
-    pub recording_id: RecordingId,
-    pub recording_uri: String,
+    pub recording_key: RecordingKey,
+    pub catalog_lifecycle: RecordingCatalogLifecycle,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recording_id: Option<RecordingId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recording_uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catalog_diagnostic: Option<String>,
     pub active: bool,
     pub publisher_lifecycle: RecordingPublisherLifecycle,
     pub queue_capacity: u32,
     pub queued_events: u32,
     pub dropped_events: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub diagnostic: Option<String>,
+    pub publisher_diagnostic: Option<String>,
     pub camera_streams: Vec<String>,
     pub started_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RecordingCatalogLifecycle {
+    Pending,
+    Ready,
+    Unavailable,
+    Invalid,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
