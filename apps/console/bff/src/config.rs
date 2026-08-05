@@ -203,10 +203,10 @@ impl Config {
             .expect("validated profile and recording id")
     }
 
-    pub(crate) fn recording_live_proxy_url(&self, recording_id: &str) -> Url {
+    pub(crate) fn recording_live_rrd_stream_url(&self, recording_id: &str) -> Url {
         self.gateway_url
             .join(&format!(
-                "/recordings/{}/{recording_id}/live/proxy",
+                "/recordings/{}/{recording_id}/live/rrd-stream",
                 self.admin_profile
             ))
             .expect("validated profile and recording id")

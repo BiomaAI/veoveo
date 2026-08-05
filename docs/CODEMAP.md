@@ -345,7 +345,7 @@ The runtime is the source of truth. The extension is transport only.
 | `admin/console/health.rs` | background MCP server health prober and cache |
 | `admin/server_proxy.rs` | generic policy-checked proxy to a hosted server's contract-defined admin API |
 | `artifact_download.rs` | authorized/audited large download proxy |
-| `recording_playback.rs` | authorized/audited playback-manifest and bounded-live proxy |
+| `recording_playback.rs` | authorized/audited playback manifest and framed live-stream pass-through |
 | `audit.rs` | common admin authorization and operation audit helpers |
 
 `gateway.rs` remains the thin CLI/serve entrypoint.
@@ -631,15 +631,15 @@ instead of a private video path.
 
 ### `servers/recording-mcp`
 
-`contract.rs` owns query, publication, playback-manifest v4, archive-catalog, Blueprint, and live
+`contract.rs` owns query, publication, playback-manifest v7, archive-catalog, Blueprint, and live
 descriptor types. `service.rs` resolves authorized MCP and playback plans.
 `playback.rs` owns stable dataset identity, bounded playback sessions, the derived
 append-only Rerun catalog, finite governed Blueprint source, and the recording-scoped read-only Redap service.
 `live_playback.rs` retains recording-scoped static context across ingest generations, filters
-bounded temporal history, rewrites messages to the stable playback identity, and feeds the
-authorized native Rerun MessageProxy stream.
+bounded temporal history, and rewrites messages to the stable playback identity.
+`live_stream.rs` frames complete RRD batches for the authorized WebViewer `LogChannel`.
 `uris.rs` owns recording identities, and `bin/server.rs` composes
-the authenticated manifest/live routes with gRPC-Web and MCP.
+the authenticated manifest, framed live route, Redap, and MCP transports.
 `bin/server/state.rs` composes platform store, spool access, playback, subscriptions, and
 artifact publication.
 
@@ -743,7 +743,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `oauth.rs` | PKCE login, token exchange, refresh rotation |
 | `session.rs` | XChaCha20-Poly1305 cookies and CSRF material |
 | `api.rs` | snapshot, SSE, mutation, and artifact preview/download BFF projections |
-| `recording_playback.rs` | authenticated playback-manifest pass-through and per-request bounded-live proxy; no archive bytes or BFF session store |
+| `recording_playback.rs` | authenticated playback-manifest and framed live-stream pass-through; no archive bytes or BFF session store |
 | `apps.rs`, `mcp_client.rs` | MCP Apps host backend: gateway MCP session pool over the independently selected transport, public gateway authority preservation, app catalog, sandboxed frame serving, allowlisted tool calls, implicit own-server reads, and gateway-projected cross-server reads |
 | `config.rs`, `viewer_config.rs` | validated public/gateway/OAuth-resource/MCP-transport and embedded-map configuration, exact profile binding, redacted provider credentials, and the authenticated no-store Rerun map projection |
 | `outbound_http.rs` | additive installation CA trust shared by Console HTTP, streaming, live, MCP, and Kubernetes clients |

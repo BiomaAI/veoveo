@@ -156,7 +156,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .route(
             recording_playback::LIVE_RECORDING_PATH,
-            post(recording_playback::live_recording),
+            get(recording_playback::live_recording),
         )
         .route(
             recording_playback::BLUEPRINT_PATH,
@@ -226,19 +226,9 @@ where
             CACHE_CONTROL,
             HeaderValue::from_static("public, max-age=31536000, immutable"),
         ));
-    let live_proxy_worker = Router::<S>::new()
-        .route_service(
-            "/console/recording-live-proxy-sw.js",
-            ServeFile::new(asset_dir.join("recording-live-proxy-sw.js")),
-        )
-        .layer(SetResponseHeaderLayer::overriding(
-            CACHE_CONTROL,
-            HeaderValue::from_static("no-store"),
-        ));
     let root_index = index;
 
     Ok(router
-        .merge(live_proxy_worker)
         // Hashed Vite assets are the only immutable Console surface. Their
         // dedicated route makes a missing bundle a real 404 instead of
         // serving index.html as JavaScript.
@@ -314,11 +304,6 @@ mod static_asset_tests {
             "document.body.textContent='ready';",
         )
         .unwrap();
-        fs::write(
-            root.join("recording-live-proxy-sw.js"),
-            "self.addEventListener('fetch', () => {});",
-        )
-        .unwrap();
         root
     }
 
@@ -360,17 +345,6 @@ mod static_asset_tests {
             asset.headers()[CACHE_CONTROL],
             "public, max-age=31536000, immutable"
         );
-
-        let worker = router
-            .oneshot(
-                Request::get("/console/recording-live-proxy-sw.js")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(worker.status(), StatusCode::OK);
-        assert_eq!(worker.headers()[CACHE_CONTROL], "no-store");
 
         fs::remove_dir_all(root).unwrap();
     }

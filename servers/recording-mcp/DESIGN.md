@@ -11,16 +11,16 @@ in [`docs/RECORDINGS.md`](../../docs/RECORDINGS.md).
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP for discovery, bounded queries, resources, templates, subscriptions, notifications, and artifact publication. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Recording query, manifest, subscription, and structured-result contracts. |
 | [Rerun 0.35.0](https://rerun.io/docs/) RRD and Rerun Data Protocol | Immutable frozen and sealed shards are layers of one recording-scoped dataset segment. The public service implements the viewer's read subset of the `rerun.cloud.v1alpha1.RerunCloudService` protocol over HTTP/2 or gRPC-Web. It does not claim the catalog, mutation, table, task, or maintenance profiles. |
-| Rerun 0.35.0 MessageProxy | Live playback implements the generated `rerun.sdk_comms.v1alpha1.MessageProxyService/ReadMessages` server-streaming RPC over gRPC-Web. Every service instance is bound to one authorized recording, follows its writing segments in order, and rejects producer writes and table operations. |
-| [Service Workers](https://www.w3.org/TR/service-workers/) and [Fetch Standard](https://fetch.spec.whatwg.org/) | A Console-scoped worker routes Rerun's fixed same-origin MessageProxy request to the selected recording route. Routing is isolated by controlled browser client and carries the HttpOnly Console session. This adapter is not a public recording protocol. Console restores `same-origin` credentials for finite producer Blueprint RRD sources separately. |
+| Rerun 0.35.0 WebViewer `LogChannel` | Live playback uses the public `WebViewer.open_channel` and `LogChannel.send_rrd` API. Each send contains one complete independently decodable RRD byte array, as required by the pinned JavaScript SDK. |
+| [Fetch Standard](https://fetch.spec.whatwg.org/) and Veoveo framed RRD stream v1 | Console performs one authenticated same-origin GET. The response media type is `application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=1`; each frame is an unsigned four-byte big-endian length followed by one complete RRD. This is an internal browser adapter, not a public recording protocol. |
 | Veoveo recording ingest | Version `2026-08-01`; authenticated protobuf batches and distinct Blueprint publications carry native Rerun stores from a producer-local forwarder through the gateway to Recording Hub. |
-| Veoveo recording playback manifest | Version `veoveo.io/recording-playback/v6`; one finite producer Blueprint, one stable Redap archive URI, one optional recording-scoped `rerun_message_proxy_grpc` source, a catalog revision, and recording-scoped access material. |
+| Veoveo recording playback manifest | Version `veoveo.io/recording-playback/v7`; one finite producer Blueprint, one stable Redap archive URI, one optional recording-scoped `rerun_rrd_channel_v1` source, a catalog revision, and recording-scoped access material. |
 | [JSON Web Token](https://www.rfc-editor.org/rfc/rfc7519) | Rerun-compatible HS256 read tokens carry the standard Redap audience and an exact installation hostname. A server-side session binds each token subject to one recording and one authorized Veoveo actor. |
 | H.264 Annex B in Rerun `VideoStream` | The governed video profile stores decoder-reentrant access units, keyframe markers, and original timeline indices inside RRD. |
 | SHA-256 | Frozen shard and artifact manifests bind immutable bytes to a digest. |
 
 The MCP surface owns recording discovery, bounded queries, subscriptions, and
-artifact publication. The authenticated manifest and bounded live MessageProxy routes
+artifact publication. The authenticated manifest and bounded live RRD stream routes
 sit beside the MCP endpoint because neither is an MCP content block. Gateway
 policy and audit target `recording://recordings/{id}` before either route
 reaches this server.
@@ -52,7 +52,7 @@ exposing another recording. Writes, registration, tables, tasks, and
 maintenance are denied. The BFF never stores playback session state and never
 proxies archive bytes.
 
-Live playback is a generated Rerun message stream over the recording's current
+Live playback is a Rerun-native message projection over the recording's current
 writing shard. It emits store information and static context, retains a bounded
 row-ID history window, then follows newly durable data. The bounded bootstrap
 is compacted once with Rerun's `live` optimization profile before delivery.
@@ -67,18 +67,22 @@ protobuf transport. A typed catalog subscription advances the same response to
 the next writing shard after rollover. It never replays a shard already sent to
 that receiver.
 
-WebViewer opens one canonical same-origin `rerun+https` proxy URI. Its generated
-gRPC-Web client posts the empty `ReadMessages` request to Rerun's fixed RPC
-path. A Console-scoped service worker resolves that request to the current
-recording route by controlled client identity. Route updates are acknowledged
-before WebViewer opens the receiver, and a tab cannot rotate another tab's
-route. The BFF authenticates the read-only POST through the HttpOnly Console
-session and streams the standard gRPC-Web response without buffering. No access
-token enters a URL or browser-readable cookie. Catalog SSE events refresh
-recording metadata, while the recording-scoped MessageProxy follows segment
-rollover within its existing response. A rollover does not reopen the
-WebViewer, producer layout, or operator state. History remains the lazy archive
-dataset and is the only mode that renews a Redap credential.
+WebViewer opens one `LogChannel` for the selected live recording. Console fetches
+the recording-scoped stream through the HttpOnly session and parses only enough
+bytes to recover each complete framed RRD. It passes that array directly to
+`LogChannel.send_rrd`. The channel remains open when the HTTP transport
+reconnects, which preserves the producer Blueprint and viewer state. The BFF
+streams the response without buffering. No access token enters a URL or a
+browser-readable cookie. Catalog SSE events refresh recording metadata, while
+the recording-scoped stream follows segment rollover within its existing
+response. History remains the lazy archive dataset and is the only mode that
+renews a Redap credential.
+
+Rerun 0.35 persists standalone-viewer state unconditionally. Before starting an
+embedded viewer, Console clears the pinned Rerun state keys. A previously opened
+Redap server therefore cannot restore catalog queries or watch traffic into Live
+mode. The governed producer Blueprint is opened again as the presentation
+authority.
 There is no manifest status polling. Filesystem events wake the projection when
 the active file or acknowledged part directory changes; idle playback does not
 scan on an interval.
@@ -96,13 +100,13 @@ parts directory with its frozen shard during capture. A missing part or an
 uncovered writing segment restarts the complete authorized read-plan capture;
 one snapshot never combines paths from two catalog views.
 
-`contract.rs` owns playback manifest v6. `service.rs` resolves an authorized
+`contract.rs` owns playback manifest v7. `service.rs` resolves an authorized
 playback plan from durable identities, while `service/read.rs` owns governed
 analysis snapshots. `playback.rs` owns session authorization, stable identity,
 derived catalogs, and the scoped Redap service. Its `redap` Cargo feature is
 required by the server binary but excluded from library consumers, which keeps
 recording analysis and smoke builds out of the DataFusion-backed server graph.
-`live_playback.rs` owns the bounded follow projection. `live_proxy.rs` owns the
-authorized recording-scoped Rerun MessageProxy and advances that one native
-receiver from segment to segment through the typed store change stream.
+`live_playback.rs` owns the bounded follow projection. `live_stream.rs` owns the
+authorized framed RRD transport and advances one WebViewer channel from segment
+to segment through the typed store change stream.
 `bin/server.rs` owns HTTP and gRPC-Web composition.

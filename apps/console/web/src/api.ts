@@ -316,8 +316,8 @@ export async function loadRecordingPlayback(
   return response.json() as Promise<RecordingPlaybackManifest>;
 }
 
-export function recordingLiveProxyRoute(recordingId: string): string {
-  const path = `/console/api/recordings/${encodeURIComponent(recordingId)}/live/proxy`;
+export function recordingLiveRrdStreamRoute(recordingId: string): string {
+  const path = `/console/api/recordings/${encodeURIComponent(recordingId)}/live/rrd-stream`;
   return new URL(path, window.location.origin).toString();
 }
 
