@@ -43,7 +43,7 @@ use crate::{
     },
 };
 
-pub const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v5";
+pub const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v6";
 pub const PLAYBACK_SESSION_HEADER: &str = "x-veoveo-playback-session";
 const TOKEN_ISSUER: &str = "veoveo-recording-playback";
 const SESSION_TTL: TimeDelta = TimeDelta::minutes(5);

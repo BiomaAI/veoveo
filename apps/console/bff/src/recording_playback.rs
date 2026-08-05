@@ -19,12 +19,11 @@ use crate::{
 };
 
 const MAX_MANIFEST_BYTES: u64 = 8 * 1024 * 1024;
-const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v5";
+const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v6";
 const PLAYBACK_SESSION_HEADER: &str = "x-veoveo-playback-session";
 const MAX_GRPC_WEB_REQUEST_BYTES: usize = 1024;
 pub(crate) const MANIFEST_PATH: &str = "/console/api/recordings/{recording_id}/playback";
-pub(crate) const LIVE_SEGMENT_PATH: &str =
-    "/console/api/recordings/{recording_id}/segments/{segment_id}/live/proxy";
+pub(crate) const LIVE_RECORDING_PATH: &str = "/console/api/recordings/{recording_id}/live/proxy";
 pub(crate) const BLUEPRINT_PATH: &str =
     "/console/api/recordings/{recording_id}/blueprints/{revision}/data.rrd";
 
@@ -156,14 +155,12 @@ pub(crate) async fn manifest(
     (headers, body).into_response()
 }
 
-pub(crate) async fn live_segment(
+pub(crate) async fn live_recording(
     State(state): State<AppState>,
-    Path((recording_id, segment_id)): Path<(String, String)>,
+    Path(recording_id): Path<String>,
     request: Request,
 ) -> Response {
-    let (Some(recording_id), Some(segment_id)) =
-        (parse_uuid_v7(&recording_id), parse_uuid_v7(&segment_id))
-    else {
+    let Some(recording_id) = parse_uuid_v7(&recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     if !request_is_grpc_web(&request) {
@@ -187,7 +184,7 @@ pub(crate) async fn live_segment(
         .post(
             state
                 .config
-                .recording_live_proxy_url(&recording_id.to_string(), &segment_id.to_string()),
+                .recording_live_proxy_url(&recording_id.to_string()),
         )
         .header(HOST, state.config.gateway_host())
         .header(
@@ -233,11 +230,9 @@ pub(crate) fn is_read_only_live_proxy_request(request: &Request) -> bool {
             "api",
             "recordings",
             recording_id,
-            "segments",
-            segment_id,
             "live",
             "proxy"
-        ] if parse_uuid_v7(recording_id).is_some() && parse_uuid_v7(segment_id).is_some()
+        ] if parse_uuid_v7(recording_id).is_some()
     )
 }
 
@@ -388,8 +383,8 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        BLUEPRINT_PATH, LIVE_SEGMENT_PATH, MANIFEST_PATH, PLAYBACK_MANIFEST_SCHEMA,
-        binary_rrd_headers, blueprint, is_read_only_live_proxy_request, live_segment, manifest,
+        BLUEPRINT_PATH, LIVE_RECORDING_PATH, MANIFEST_PATH, PLAYBACK_MANIFEST_SCHEMA,
+        binary_rrd_headers, blueprint, is_read_only_live_proxy_request, live_recording, manifest,
         validated_manifest_bytes,
     };
 
@@ -429,7 +424,7 @@ mod tests {
     }
 
     #[test]
-    fn manifest_v5_is_canonicalized_after_identity_validation() {
+    fn manifest_v6_is_canonicalized_after_identity_validation() {
         let recording_id = uuid::Uuid::now_v7();
         let mut manifest = manifest_value(recording_id);
         manifest["live"] = json!({
@@ -471,16 +466,14 @@ mod tests {
     fn canonical_playback_routes_register_with_axum() {
         let _: Router<crate::AppState> = Router::new()
             .route(MANIFEST_PATH, get(manifest))
-            .route(LIVE_SEGMENT_PATH, post(live_segment))
+            .route(LIVE_RECORDING_PATH, post(live_recording))
             .route(BLUEPRINT_PATH, get(blueprint));
     }
 
     #[test]
     fn only_the_canonical_uuid_scoped_proxy_post_is_read_only() {
         let recording_id = uuid::Uuid::now_v7();
-        let segment_id = uuid::Uuid::now_v7();
-        let path =
-            format!("/console/api/recordings/{recording_id}/segments/{segment_id}/live/proxy");
+        let path = format!("/console/api/recordings/{recording_id}/live/proxy");
         let request = Request::builder()
             .method(Method::POST)
             .uri(&path)
@@ -491,7 +484,7 @@ mod tests {
         for invalid in [
             format!("{path}?token=forbidden"),
             path.replace("/live/proxy", "/live.rrd"),
-            "/console/api/recordings/not-a-recording/segments/not-a-segment/live/proxy".to_owned(),
+            "/console/api/recordings/not-a-recording/live/proxy".to_owned(),
         ] {
             let request = Request::builder()
                 .method(Method::POST)

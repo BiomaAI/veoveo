@@ -15,6 +15,7 @@ required-features = ["redap"]
 [features]
 default = []
 redap = [
+    "dep:async-stream",
     "dep:base64",
     "dep:re_auth",
     "dep:re_protos",
@@ -27,6 +28,7 @@ redap = [
 
 [dependencies]
 anyhow.workspace = true
+async-stream = { version = "=0.3.6", optional = true }
 axum.workspace = true
 base64 = { workspace = true, optional = true }
 bytes.workspace = true

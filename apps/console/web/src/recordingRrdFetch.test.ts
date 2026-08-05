@@ -26,7 +26,7 @@ test("does not alter noncanonical recording requests", () => {
       credentials: "omit",
     }),
     new Request(
-      `${ORIGIN}/console/api/recordings/${RECORDING_ID}/segments/019faba1-3e9b-77d2-a3b5-b7cc97d0d238/live/proxy`,
+      `${ORIGIN}/console/api/recordings/${RECORDING_ID}/live/proxy`,
       { credentials: "omit" }
     ),
   ]) {

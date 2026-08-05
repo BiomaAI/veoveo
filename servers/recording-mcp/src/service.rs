@@ -738,12 +738,27 @@ fn authorized_live_segment_path(spool_root: &Path, relative: &str) -> Result<Pat
         return Ok(canonical);
     }
     let parts = ingest_segment_parts_directory(&path);
-    let canonical_parts = parts
+    if parts.exists() {
+        let canonical_parts = parts
+            .canonicalize()
+            .with_context(|| format!("canonicalizing live segment parts {}", parts.display()))?;
+        ensure!(
+            canonical_parts.starts_with(spool_root) && canonical_parts.is_dir(),
+            "live segment parts escape the configured spool root"
+        );
+        return Ok(path);
+    }
+    // The catalog commits a writing segment immediately before Hub creates
+    // its parts directory. Admit that short, valid state by proving the
+    // existing parent is confined; the live reader then waits on filesystem
+    // notification for the source to appear.
+    let parent = path.parent().context("live segment path has no parent")?;
+    let canonical_parent = parent
         .canonicalize()
-        .with_context(|| format!("canonicalizing live segment parts {}", parts.display()))?;
+        .with_context(|| format!("canonicalizing live segment parent {}", parent.display()))?;
     ensure!(
-        canonical_parts.starts_with(spool_root) && canonical_parts.is_dir(),
-        "live segment parts escape the configured spool root"
+        canonical_parent.starts_with(spool_root) && canonical_parent.is_dir(),
+        "live segment parent escapes the configured spool root"
     );
     Ok(path)
 }
