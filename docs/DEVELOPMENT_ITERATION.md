@@ -108,9 +108,10 @@ therefore be retried without repeating a flight. The command has its own
 an actual run requires it.
 
 The Recording-only command does not depend on a Stream or Simulation View session. It
-holds one live Rerun receiver for 70 seconds, compares its final simulation timeline
-against the running source, rejects more than five seconds of end-to-end lag, and
-requires the leader-camera pane to change without remounting the viewer.
+holds one live Rerun receiver for 120 seconds, requires native Following mode within two
+seconds, compares its final simulation timeline against the running source, rejects more
+than one second of end-to-end lag, and requires the leader-camera pane to change without
+remounting the viewer.
 
 The full UAV acceptance remains the gate for mission, takeoff, landing, simulator epoch,
 or producer behavior. It is not a routine browser retry.
