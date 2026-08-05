@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, path::Path, sync::Arc};
 
+#[cfg(test)]
 use anyhow::anyhow;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use futures::{SinkExt, StreamExt};
@@ -63,6 +64,7 @@ pub(crate) struct ConsoleRecordingCaptureEvidence {
 }
 
 impl ConsoleRecordingCaptureEvidence {
+    #[allow(dead_code)] // Used by the focused browser binary that includes this module.
     pub(crate) fn final_timeline_seconds(&self) -> f64 {
         self.live_follow.final_time / 1_000_000_000.0
     }
@@ -529,7 +531,7 @@ async fn capture_console_recording_inner(
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
         let initial_live_follow = wait_for_rerun_live_follow(&mut cdp, &session_id).await?;
-        let live_follow = verify_rerun_live_stability(
+        let mut live_follow = verify_rerun_live_stability(
             &mut cdp,
             &session_id,
             initial_live_follow,
@@ -568,6 +570,11 @@ async fn capture_console_recording_inner(
         let camera_render =
             analyze_rerun_camera_render(&before_path, screenshot_path, viewer_bounds)?;
         camera_render.validate()?;
+        let final_live_state: RerunLiveFollowState = cdp
+            .evaluate(&session_id, RERUN_LIVE_FOLLOW_STATE, false)
+            .await?;
+        final_live_state.validate_surface()?;
+        live_follow.update_from(&final_live_state)?;
         let network = cdp.recording_playback_network_evidence(
             recording_id,
             RecordingPlaybackMode::Live,
@@ -1706,6 +1713,26 @@ struct RerunLiveFollowEvidence {
     final_lag_seconds: f64,
     initial_time_update_count: u64,
     final_time_update_count: u64,
+}
+
+impl RerunLiveFollowEvidence {
+    fn update_from(&mut self, state: &RerunLiveFollowState) -> Result<()> {
+        ensure!(
+            state.is_current()
+                && state.viewer_instance == self.viewer_instance
+                && state.recording_id == self.recording_id
+                && state.timeline == self.timeline
+                && state.current_time >= self.final_time
+                && state.newest_time >= self.final_newest_time
+                && state.time_update_count >= self.final_time_update_count,
+            "Rerun stopped following its live source during visual capture: {self:?} -> {state:?}"
+        );
+        self.final_time = state.current_time;
+        self.final_newest_time = state.newest_time;
+        self.final_lag_seconds = state.lag_seconds;
+        self.final_time_update_count = state.time_update_count;
+        Ok(())
+    }
 }
 
 impl StreamAppState {

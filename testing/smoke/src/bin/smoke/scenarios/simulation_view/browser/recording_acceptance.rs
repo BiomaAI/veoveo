@@ -103,7 +103,7 @@ pub(super) struct RerunCameraRenderEvidence {
 
 impl RerunCameraRenderEvidence {
     pub(super) fn validate(&self) -> Result<()> {
-        self.render.validate()?;
+        self.render.validate_content(240, 120)?;
         ensure!(
             self.changed_pixel_ratio >= 0.005,
             "Rerun leader camera did not visibly advance: {self:?}"
@@ -114,8 +114,14 @@ impl RerunCameraRenderEvidence {
 
 impl RerunRenderEvidence {
     pub(super) fn validate(&self) -> Result<()> {
+        self.validate_content(320, 240)
+    }
+
+    fn validate_content(&self, minimum_width: u32, minimum_height: u32) -> Result<()> {
         ensure!(
-            self.sample_width >= 320 && self.sample_height >= 240 && self.sampled_pixels >= 10_000,
+            self.sample_width >= minimum_width
+                && self.sample_height >= minimum_height
+                && self.sampled_pixels >= 10_000,
             "Rerun render sample is too small to establish visual evidence: {self:?}"
         );
         ensure!(

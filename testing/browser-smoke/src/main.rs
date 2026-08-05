@@ -62,6 +62,22 @@ enum SmokeCommand {
         #[arg(long, default_value = "output/acceptance/uav-browser")]
         evidence_root: PathBuf,
     },
+    /// Verify only governed live Recording playback against the running source.
+    UavRecordingBrowserVerify {
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        #[arg(
+            long,
+            default_value = "showcase/uav-sim/scenarios/new-york-aerial.json"
+        )]
+        scenario: PathBuf,
+        #[arg(long)]
+        public_base_url: String,
+        #[arg(long, default_value = "http://127.0.0.1:9222")]
+        chrome_cdp_url: String,
+        #[arg(long, default_value = "output/acceptance/uav-recording-browser")]
+        evidence_root: PathBuf,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -97,15 +113,31 @@ struct BrowserAcceptanceEvidence {
     recording: ConsoleRecordingCaptureEvidence,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RecordingBrowserAcceptanceEvidence {
+    schema: &'static str,
+    completed_at: chrono::DateTime<Utc>,
+    source_revision: String,
+    run_id: String,
+    scenario_path: String,
+    session_id: String,
+    recording_id: String,
+    source_simulation_time_seconds: f64,
+    recording_simulation_time_seconds: f64,
+    recording_source_lag_seconds: f64,
+    recording: ConsoleRecordingCaptureEvidence,
+}
+
 struct OperatorClient<'a> {
     conformance: &'a Path,
     base: &'a str,
+    token: &'a str,
 }
 
 impl OperatorClient<'_> {
     async fn conformance(&self, operation: &[&str], timeout: Duration) -> Result<String> {
-        let token = gateway_token(self.conformance, self.base).await?;
-        gateway_conformance(self.conformance, self.base, &token, operation, timeout).await
+        gateway_conformance(self.conformance, self.base, self.token, operation, timeout).await
     }
 
     async fn call_tool(&self, tool: &str, arguments: Value) -> Result<Value> {
@@ -140,7 +172,114 @@ async fn main() -> Result<()> {
             )
             .await
         }
+        SmokeCommand::UavRecordingBrowserVerify {
+            conformance_bin,
+            scenario,
+            public_base_url,
+            chrome_cdp_url,
+            evidence_root,
+        } => {
+            verify_running_recording(
+                &conformance_bin,
+                &scenario,
+                &public_base_url,
+                &chrome_cdp_url,
+                &evidence_root,
+            )
+            .await
+        }
     }
+}
+
+async fn verify_running_recording(
+    conformance: &Path,
+    scenario_path: &Path,
+    public_base_url: &str,
+    chrome_cdp_url: &str,
+    evidence_root: &Path,
+) -> Result<()> {
+    ensure!(
+        conformance.is_file(),
+        "required binary does not exist: {}",
+        conformance.display()
+    );
+    let scenario: FocusedScenario = serde_json::from_slice(
+        &fs::read(scenario_path)
+            .with_context(|| format!("reading scenario {}", scenario_path.display()))?,
+    )
+    .with_context(|| format!("decoding scenario {}", scenario_path.display()))?;
+    let public_base_url = public_base_url.trim_end_matches('/');
+    ensure!(
+        url::Url::parse(public_base_url)?.scheme() == "https",
+        "focused browser acceptance requires public HTTPS"
+    );
+    let token = gateway_token(conformance, public_base_url).await?;
+    let operator = OperatorClient {
+        conformance,
+        base: public_base_url,
+        token: &token,
+    };
+    let initial_state = simulation_state(&operator, &scenario.session_id).await?;
+    ensure!(
+        json_string(&initial_state, "/lifecycle")? == "running",
+        "recording browser acceptance requires the simulation to remain running: {initial_state}"
+    );
+    let recording_id = recording_id(&initial_state)?;
+    let source_revision = git_revision()?;
+    let run_id = uuid::Uuid::now_v7().to_string();
+    let evidence_directory = evidence_root.join(&source_revision).join(&run_id);
+    fs::create_dir_all(&evidence_directory).with_context(|| {
+        format!(
+            "creating recording browser evidence directory {}",
+            evidence_directory.display()
+        )
+    })?;
+    let recording = capture_console_recording(
+        chrome_cdp_url,
+        public_base_url,
+        &recording_id,
+        &evidence_directory.join("recording.png"),
+        Duration::from_secs(scenario.view.timeout_seconds),
+    )
+    .await?;
+    let final_state = simulation_state(&operator, &scenario.session_id).await?;
+    ensure!(
+        json_string(&final_state, "/lifecycle")? == "running",
+        "recording browser acceptance altered the running simulation: {final_state}"
+    );
+    let source_simulation_time_seconds = final_state
+        .get("simulation_time_s")
+        .and_then(Value::as_f64)
+        .context("running simulation omitted simulation_time_s")?;
+    let recording_simulation_time_seconds = recording.final_timeline_seconds();
+    let recording_source_lag_seconds =
+        source_simulation_time_seconds - recording_simulation_time_seconds;
+    ensure!(
+        recording_source_lag_seconds >= 0.0
+            && recording_source_lag_seconds <= MAX_RECORDING_SOURCE_LAG_SECONDS,
+        "live Rerun playback is not current with its simulation source: source={source_simulation_time_seconds:.3}s recording={recording_simulation_time_seconds:.3}s lag={recording_source_lag_seconds:.3}s"
+    );
+    let evidence = RecordingBrowserAcceptanceEvidence {
+        schema: "veoveo.io/uav-recording-browser-evidence/v1",
+        completed_at: Utc::now(),
+        source_revision,
+        run_id,
+        scenario_path: scenario_path.display().to_string(),
+        session_id: scenario.session_id,
+        recording_id,
+        source_simulation_time_seconds,
+        recording_simulation_time_seconds,
+        recording_source_lag_seconds,
+        recording,
+    };
+    let manifest = evidence_directory.join("evidence.json");
+    fs::write(&manifest, serde_json::to_vec_pretty(&evidence)?)
+        .with_context(|| format!("writing recording browser evidence {}", manifest.display()))?;
+    println!(
+        "Focused recording browser acceptance passed without restarting or commanding the simulation. Evidence: {}",
+        manifest.display()
+    );
+    Ok(())
 }
 
 async fn verify_running_showcase(
@@ -165,9 +304,11 @@ async fn verify_running_showcase(
         url::Url::parse(public_base_url)?.scheme() == "https",
         "focused browser acceptance requires public HTTPS"
     );
+    let token = gateway_token(conformance, public_base_url).await?;
     let operator = OperatorClient {
         conformance,
         base: public_base_url,
+        token: &token,
     };
     let state = simulation_state(&operator, &scenario.session_id).await?;
     ensure!(
