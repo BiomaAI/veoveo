@@ -53,7 +53,13 @@ export default function GovernedRerunViewer({
   const viewerRef = useRef<WebViewer | undefined>(undefined);
   const liveChannelRef = useRef<LogChannel | undefined>(undefined);
   const liveAbortRef = useRef<AbortController | undefined>(undefined);
-  const liveTotalsRef = useRef({ frames: 0, payloadBytes: 0, connections: 0 });
+  const liveTotalsRef = useRef({
+    frames: 0,
+    payloadBytes: 0,
+    connections: 0,
+    sendRrdTotalMs: 0,
+    sendRrdMaximumMs: 0,
+  });
   const viewerOpenRef = useRef(false);
   const desiredSourceRef = useRef(source);
   const liveReceiverEndedRef = useRef(onLiveReceiverEnded);
@@ -84,10 +90,35 @@ export default function GovernedRerunViewer({
       if (!host.current) return;
       liveTotalsRef.current.frames = base.frames + stats.frames;
       liveTotalsRef.current.payloadBytes = base.payloadBytes + stats.payloadBytes;
+      liveTotalsRef.current.sendRrdTotalMs =
+        base.sendRrdTotalMs + stats.sendRrdTotalMs;
+      liveTotalsRef.current.sendRrdMaximumMs = Math.max(
+        base.sendRrdMaximumMs,
+        stats.sendRrdMaximumMs
+      );
       host.current.dataset.rerunLiveFrameCount = String(liveTotalsRef.current.frames);
       host.current.dataset.rerunLivePayloadBytes = String(
         liveTotalsRef.current.payloadBytes
       );
+      host.current.dataset.rerunSendRrdTotalMs = String(
+        liveTotalsRef.current.sendRrdTotalMs
+      );
+      host.current.dataset.rerunSendRrdMaximumMs = String(
+        liveTotalsRef.current.sendRrdMaximumMs
+      );
+      const viewer = viewerRef.current;
+      const recordingId = host.current.dataset.rerunRecordingId;
+      const timeline = host.current.dataset.rerunTimeline;
+      if (viewer && recordingId && timeline) {
+        const range = viewer.get_time_range(recordingId, timeline);
+        if (range) {
+          host.current.dataset.rerunNewestTime = String(range.max);
+          const current = Number(host.current.dataset.rerunCurrentTime ?? range.max);
+          host.current.dataset.rerunLiveLagSeconds = String(
+            Math.max(0, range.max - current) / 1_000_000_000
+          );
+        }
+      }
       if (!viewerOpenRef.current) {
         viewerOpenRef.current = true;
         setStatus({ state: "open" });
@@ -178,7 +209,13 @@ export default function GovernedRerunViewer({
       .then(() => {
         if (!active) return;
         if (desiredSourceRef.current.receiver.kind === "live") {
-          liveTotalsRef.current = { frames: 0, payloadBytes: 0, connections: 0 };
+          liveTotalsRef.current = {
+            frames: 0,
+            payloadBytes: 0,
+            connections: 0,
+            sendRrdTotalMs: 0,
+            sendRrdMaximumMs: 0,
+          };
           liveChannelRef.current = viewer.open_channel("governed-recording-live");
         }
         removeOpenListener = viewer.on("recording_open", (event) => {
@@ -194,17 +231,18 @@ export default function GovernedRerunViewer({
         });
         removeTimeUpdateListener = viewer.on("time_update", (event) => {
           if (!active || desiredSourceRef.current.receiver.kind !== "live") return;
-          const timeline = viewer.get_active_timeline(event.recording_id);
+          const timeline =
+            host.current?.dataset.rerunTimeline ||
+            viewer.get_active_timeline(event.recording_id);
           if (!timeline) return;
-          const range = viewer.get_time_range(event.recording_id, timeline);
-          if (!range || !host.current) return;
+          if (!host.current) return;
           const updates = Number(host.current.dataset.rerunTimeUpdateCount ?? 0) + 1;
           host.current.dataset.rerunRecordingId = event.recording_id;
           host.current.dataset.rerunTimeline = timeline;
           host.current.dataset.rerunCurrentTime = String(event.time);
-          host.current.dataset.rerunNewestTime = String(range.max);
+          const newest = Number(host.current.dataset.rerunNewestTime ?? event.time);
           host.current.dataset.rerunLiveLagSeconds = String(
-            Math.max(0, range.max - event.time) / 1_000_000_000
+            Math.max(0, newest - event.time) / 1_000_000_000
           );
           host.current.dataset.rerunTimeUpdateCount = String(updates);
         });

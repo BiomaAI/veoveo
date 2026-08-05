@@ -8,6 +8,8 @@ const MAGIC = new TextEncoder().encode("VVRL0001");
 export interface RerunLiveFrameStats {
   frames: number;
   payloadBytes: number;
+  sendRrdTotalMs: number;
+  sendRrdMaximumMs: number;
 }
 
 export class RerunLiveFrameDecoder {
@@ -97,7 +99,12 @@ export async function pumpRerunLiveFrames(
   }
   const decoder = new RerunLiveFrameDecoder();
   const reader = response.body.getReader();
-  const stats: RerunLiveFrameStats = { frames: 0, payloadBytes: 0 };
+  const stats: RerunLiveFrameStats = {
+    frames: 0,
+    payloadBytes: 0,
+    sendRrdTotalMs: 0,
+    sendRrdMaximumMs: 0,
+  };
   try {
     while (true) {
       const next = await reader.read();
@@ -106,9 +113,13 @@ export async function pumpRerunLiveFrames(
         if (!channel.ready) {
           throw new Error("Rerun live channel closed while receiving recording data.");
         }
+        const startedAt = performance.now();
         channel.send_rrd(frame);
+        const sendRrdMs = performance.now() - startedAt;
         stats.frames += 1;
         stats.payloadBytes += frame.byteLength;
+        stats.sendRrdTotalMs += sendRrdMs;
+        stats.sendRrdMaximumMs = Math.max(stats.sendRrdMaximumMs, sendRrdMs);
         onStats?.({ ...stats });
       });
     }
