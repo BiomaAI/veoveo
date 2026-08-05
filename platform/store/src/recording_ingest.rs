@@ -204,6 +204,29 @@ impl PlatformStore {
             .ok_or_else(|| {
                 StoreError::RecordingIngestStreamNotFound(draft.stream_id.to_string())
             })?;
+        self.commit_recording_ingest_batch_at_checkpoint(stream, draft)
+            .await
+    }
+
+    /// Commits one batch against a checkpoint already held by the serialized
+    /// recording materializer.
+    ///
+    /// The database transaction still compares the checkpoint revision and
+    /// sequence. A successful commit is reconstructed from the exact values
+    /// written by that transaction instead of issuing redundant readbacks.
+    pub async fn commit_recording_ingest_batch_at_checkpoint(
+        &self,
+        mut stream: RecordingIngestStreamRecord,
+        draft: RecordingIngestBatchDraft,
+    ) -> Result<RecordingIngestAppendOutcome, StoreError> {
+        validate_batch_draft(&draft)?;
+        if stream.id != draft.stream_id.record_id()
+            || stream.tenant != draft.identity.tenant_id.record_id()
+        {
+            return Err(StoreError::RecordingIngestStreamNotFound(
+                draft.stream_id.to_string(),
+            ));
+        }
         classify_sequence(&stream, &draft, self).await?;
         if draft.sequence < u64::try_from(stream.next_sequence).unwrap_or_default() {
             return duplicate_outcome(stream, &draft, self).await;
@@ -266,18 +289,49 @@ impl PlatformStore {
             classify_sequence(&current, &draft, self).await?;
             return Err(classify_database_error(error));
         }
-        let stream = self
-            .recording_ingest_stream(draft.identity.tenant_id, draft.stream_id)
-            .await?
-            .ok_or(StoreError::MissingRecord {
-                operation: "recording ingest stream checkpoint readback",
-            })?;
-        let batch = self
-            .recording_ingest_batch(draft.identity.tenant_id, draft.stream_id, draft.sequence)
-            .await?
-            .ok_or(StoreError::MissingRecord {
-                operation: "recording ingest batch creation readback",
-            })?;
+        stream.next_sequence =
+            stream
+                .next_sequence
+                .checked_add(1)
+                .ok_or(StoreError::InvalidRecordingIngestField {
+                    field: "next_sequence",
+                    reason: "exceeds the persistence range",
+                })?;
+        stream.byte_len = stream.byte_len.checked_add(byte_len).ok_or(
+            StoreError::InvalidRecordingIngestField {
+                field: "byte_len",
+                reason: "exceeds the persistence range",
+            },
+        )?;
+        stream.message_count = stream.message_count.checked_add(message_count).ok_or(
+            StoreError::InvalidRecordingIngestField {
+                field: "message_count",
+                reason: "exceeds the persistence range",
+            },
+        )?;
+        stream.updated_at = now;
+        stream.revision =
+            stream
+                .revision
+                .checked_add(1)
+                .ok_or(StoreError::InvalidRecordingIngestField {
+                    field: "revision",
+                    reason: "exceeds the persistence range",
+                })?;
+        let batch = RecordingIngestBatchRecord {
+            id: batch_id.record_id(),
+            tenant: draft.identity.tenant_id.record_id(),
+            stream: draft.stream_id.record_id(),
+            sequence,
+            payload_format: draft.payload_format,
+            sha256: draft.sha256,
+            relative_path: draft.relative_path,
+            byte_len,
+            message_count,
+            state: RecordingIngestBatchState::Durable,
+            created_at: now,
+            materialized_at: None,
+        };
         Ok(RecordingIngestAppendOutcome {
             stream,
             batch,
@@ -333,30 +387,81 @@ impl PlatformStore {
         stream_id: RecordingIngestStreamId,
         through_sequence: u64,
     ) -> Result<RecordingIngestStreamRecord, StoreError> {
-        let through = checked_i64("through_sequence", through_sequence)?;
         let stream = self
             .recording_ingest_stream(tenant_id, stream_id)
             .await?
             .ok_or_else(|| StoreError::RecordingIngestStreamNotFound(stream_id.to_string()))?;
+        self.mark_recording_ingest_materialized_at_checkpoint(
+            tenant_id,
+            stream_id,
+            stream,
+            through_sequence,
+        )
+        .await
+    }
+
+    /// Advances a materialization checkpoint held by the serialized recording
+    /// materializer without rereading it before and after the transaction.
+    pub async fn mark_recording_ingest_materialized_at_checkpoint(
+        &self,
+        tenant_id: TenantId,
+        stream_id: RecordingIngestStreamId,
+        mut stream: RecordingIngestStreamRecord,
+        through_sequence: u64,
+    ) -> Result<RecordingIngestStreamRecord, StoreError> {
+        if stream.id != stream_id.record_id() || stream.tenant != tenant_id.record_id() {
+            return Err(StoreError::RecordingIngestStreamNotFound(
+                stream_id.to_string(),
+            ));
+        }
+        let through = checked_i64("through_sequence", through_sequence)?;
         if through >= stream.next_sequence {
             return Err(StoreError::InvalidRecordingIngestField {
                 field: "through_sequence",
                 reason: "must identify a durable batch",
             });
         }
-        self.db
-            .query("BEGIN TRANSACTION; UPDATE recording_ingest_batch SET state = 'materialized', materialized_at = $now WHERE tenant = $tenant AND stream = $stream AND sequence <= $through AND state = 'durable' RETURN NONE; UPDATE ONLY $stream SET materialized_through_sequence = $through, updated_at = $now, revision += 1 WHERE materialized_through_sequence = NONE OR materialized_through_sequence < $through RETURN NONE; COMMIT TRANSACTION;")
+        if stream
+            .materialized_through_sequence
+            .is_some_and(|materialized| materialized >= through)
+        {
+            return Ok(stream);
+        }
+        let now = Utc::now();
+        let committed = self
+            .db
+            .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $stream SET materialized_through_sequence = $through, updated_at = $now, revision += 1 WHERE (materialized_through_sequence = NONE OR materialized_through_sequence < $through) AND revision = $revision RETURN AFTER); IF $updated = NONE { THROW 'recording_ingest_checkpoint_conflict'; }; UPDATE recording_ingest_batch SET state = 'materialized', materialized_at = $now WHERE tenant = $tenant AND stream = $stream AND sequence <= $through AND state = 'durable' RETURN NONE; COMMIT TRANSACTION;")
             .bind(("tenant", tenant_id.record_id()))
             .bind(("stream", stream_id.record_id()))
             .bind(("through", through))
-            .bind(("now", Utc::now()))
-            .await?
-            .check()?;
-        self.recording_ingest_stream(tenant_id, stream_id)
-            .await?
-            .ok_or(StoreError::MissingRecord {
-                operation: "recording ingest materialization readback",
-            })
+            .bind(("revision", stream.revision))
+            .bind(("now", now))
+            .await
+            .and_then(|response| response.check());
+        if let Err(error) = committed {
+            let current = self
+                .recording_ingest_stream(tenant_id, stream_id)
+                .await?
+                .ok_or_else(|| StoreError::RecordingIngestStreamNotFound(stream_id.to_string()))?;
+            if current
+                .materialized_through_sequence
+                .is_some_and(|materialized| materialized >= through)
+            {
+                return Ok(current);
+            }
+            return Err(classify_database_error(error));
+        }
+        stream.materialized_through_sequence = Some(through);
+        stream.updated_at = now;
+        stream.revision =
+            stream
+                .revision
+                .checked_add(1)
+                .ok_or(StoreError::InvalidRecordingIngestField {
+                    field: "revision",
+                    reason: "exceeds the persistence range",
+                })?;
+        Ok(stream)
     }
 
     pub async fn finish_recording_ingest_stream(
