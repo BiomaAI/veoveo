@@ -50,6 +50,7 @@ async function controlledServiceWorker(): Promise<ServiceWorker> {
         "/console/recording-live-proxy-sw.js",
         { scope: "/console/", updateViaCache: "none" }
       );
+      await registration.update();
       const pending = registration.installing ?? registration.waiting;
       if (pending && pending.state !== "activated") {
         await new Promise<void>((resolve, reject) => {
@@ -67,15 +68,22 @@ async function controlledServiceWorker(): Promise<ServiceWorker> {
         });
       }
       await navigator.serviceWorker.ready;
-      if (navigator.serviceWorker.controller) {
+      const expected = pending ?? registration.active;
+      if (
+        navigator.serviceWorker.controller &&
+        (!expected || navigator.serviceWorker.controller === expected)
+      ) {
         return navigator.serviceWorker.controller;
       }
       return new Promise<ServiceWorker>((resolve) => {
-        navigator.serviceWorker.addEventListener(
-          "controllerchange",
-          () => resolve(navigator.serviceWorker.controller!),
-          { once: true }
-        );
+        const changed = () => {
+          const controller = navigator.serviceWorker.controller;
+          if (!controller || (expected && controller !== expected)) return;
+          navigator.serviceWorker.removeEventListener("controllerchange", changed);
+          resolve(controller);
+        };
+        navigator.serviceWorker.addEventListener("controllerchange", changed);
+        changed();
       });
     })().catch((cause) => {
       controllerPromise = undefined;
