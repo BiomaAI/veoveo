@@ -85,6 +85,10 @@ function renderAttribution(layer){const link=el("attribution");if(!layer){link.h
 function reportSize(){requestAnimationFrame(()=>{const height=Math.ceil(document.documentElement.scrollHeight);if(Math.abs(height-lastHeight)<2)return;lastHeight=height;bridge.notify("ui/notifications/size-changed",{height});});}
 function byId(id){return cameras.find((camera)=>camera.cameraId===id);}
 function sessionUri(suffix=""){return`simulation-view://session/${session.sessionId}${suffix}`;}
+function disableUnavailableComputePressure(){const policy=document.permissionsPolicy||document.featurePolicy;
+  if(typeof globalThis.PressureObserver!=="function"||!policy||typeof policy.allowsFeature!=="function"||policy.allowsFeature("compute-pressure"))return;
+  Object.defineProperty(globalThis,"PressureObserver",{value:undefined,writable:true,configurable:true});
+}
 async function verifyDecode(stream){if(!navigator.mediaCapabilities||!navigator.mediaCapabilities.decodingInfo)throw new Error("The browser cannot assess smooth H.264 decoding");
   const result=await navigator.mediaCapabilities.decodingInfo({type:"webrtc",video:{contentType:'video/H264; codecs="avc1.42E01E"',width:stream.widthPx,height:stream.heightPx,bitrate:8000000,framerate:stream.frameRateMillihertz/1000}});
   if(!result.supported||!result.smooth)throw new Error("Supported, smooth H.264 decoding is required");
@@ -103,7 +107,7 @@ async function openView(cameraId){
     player.connection=await callTool("open_live_view",{sessionId:session.sessionId,cameraId,viewerInstanceId});
     const value=player.connection,stream=value.stream,endpoint=stream.endpoint,signal=new URL(endpoint.signalingUrl),OV=globalThis.OVWebRTC;
     if(!OV||globalThis.__VEOVEO_WEBRTC_STUB__)throw new Error("NVIDIA WebRTC client is unavailable in this build");
-    await verifyDecode(stream);player.streamer=new OV.AppStreamer();
+    disableUnavailableComputePressure();await verifyDecode(stream);player.streamer=new OV.AppStreamer();
     await player.streamer.connect({streamSource:OV.StreamType.DIRECT,logLevel:OV.LogLevel.WARN,streamConfig:{
       accessToken:value.accessToken,authenticate:true,autoLaunch:true,videoElementId:`video-${cameraId}`,
       signalingServer:signal.hostname,signalingPort:Number(signal.port||443),signalingPath:signal.pathname,signalingQuery:new URLSearchParams({live_view_id:stream.liveViewId}),mediaServer:endpoint.mediaHost,mediaPort:endpoint.mediaPort,forceWSS:signal.protocol==="wss:",

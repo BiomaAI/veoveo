@@ -408,6 +408,12 @@ The production MCP image embeds the exact NVIDIA 6.6.0 UMD client recorded in
 archive and the extracted UMD digest before Cargo runs, while the build script
 verifies the UMD digest again before embedding it. Ordinary local test builds
 use the diagnostic stub and cannot serve as production streaming evidence.
+The pinned client treats a present `PressureObserver` as usable without first
+checking the embedding document's Permissions Policy. The App checks that
+policy before client construction and removes the unavailable optional API
+from feature detection when `compute-pressure` is denied. This keeps the MCP
+App sandbox opaque and does not grant client telemetry a new browser
+permission.
 
 ## Readiness And Deployment
 
