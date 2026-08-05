@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   FramedRrdDecoder,
   MAX_RRD_FRAME_BYTES,
+  liveRrdRequestHeaders,
   validateConsoleRerunLiveRoute,
 } from "./rerunLiveChannel.ts";
 
@@ -58,4 +59,15 @@ test("accepts only the recording-scoped same-origin stream route", () => {
   ]) {
     assert.throws(() => validateConsoleRerunLiveRoute(invalid, origin), /governed/);
   }
+});
+
+test("declares bootstrap and resume-head delivery without changing channels", () => {
+  assert.deepEqual(liveRrdRequestHeaders("bootstrap"), {
+    accept: "application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=2",
+    "x-veoveo-rerun-live-start": "bootstrap",
+  });
+  assert.deepEqual(liveRrdRequestHeaders("resume-head"), {
+    accept: "application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=2",
+    "x-veoveo-rerun-live-start": "resume-head",
+  });
 });

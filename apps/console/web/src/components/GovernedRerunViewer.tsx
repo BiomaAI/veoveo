@@ -26,6 +26,7 @@ interface LiveRuntime {
   connection?: RerunLiveConnection;
   route?: string;
   disconnected: boolean;
+  seeded: boolean;
 }
 
 function errorMessage(cause: unknown): string {
@@ -47,6 +48,7 @@ function startLiveConnection(
   reportConnected: () => void,
   reportError: (message: string) => void
 ): void {
+  const start = runtime.seeded ? "resume-head" : "bootstrap";
   closeLiveConnection(runtime);
   const channel = runtime.channel ?? viewer.open_channel("governed-recording-live");
   runtime.channel = channel;
@@ -54,7 +56,7 @@ function startLiveConnection(
   runtime.disconnected = false;
   if (host) host.dataset.rerunLiveState = "connecting";
 
-  const connection = connectConsoleRerunLiveChannel(channel, route, {
+  const connection = connectConsoleRerunLiveChannel(channel, route, start, {
     onConnected() {
       if (runtime.connection !== connection || !host) return;
       runtime.disconnected = false;
@@ -66,6 +68,7 @@ function startLiveConnection(
     },
     onFrame(byteLength) {
       if (runtime.connection !== connection || !host) return;
+      runtime.seeded = true;
       host.dataset.rerunLiveFrameCount = String(
         Number(host.dataset.rerunLiveFrameCount ?? 0) + 1
       );
@@ -140,7 +143,7 @@ export default function GovernedRerunViewer({
   const desiredSourceRef = useRef(source);
   const openedSourcesRef = useRef<OpenedRerunSources>({});
   const sourceSynchronizationRef = useRef<Promise<void>>(Promise.resolve());
-  const liveRuntimeRef = useRef<LiveRuntime>({ disconnected: false });
+  const liveRuntimeRef = useRef<LiveRuntime>({ disconnected: false, seeded: false });
   const mapSetupRef = useRef<
     | {
         provider: "openStreetMap" | "mapbox";
@@ -195,7 +198,7 @@ export default function GovernedRerunViewer({
     let removeOpenListener: (() => void) | undefined;
     let removeTimeUpdateListener: (() => void) | undefined;
     openedSourcesRef.current = { redapToken: desiredSourceRef.current.redapToken };
-    liveRuntimeRef.current = { disconnected: false };
+    liveRuntimeRef.current = { disconnected: false, seeded: false };
 
     const disconnect = () => {
       const desired = desiredSourceRef.current;

@@ -19,7 +19,7 @@ storage, and playback contract is normative in
 - Frozen and sealed shards are immutable layers of one recording-scoped Redap
   dataset segment. The durable catalog and shards are authoritative; the
   in-memory Rerun catalog is derived, bounded, and reconstructible.
-- Playback manifest v7 returns one stable Redap archive URI, its deterministic
+- Playback manifest v8 returns one stable Redap archive URI, its deterministic
   layer revision, one optional live source, and recording-scoped access
   material. Do not return archive shard URLs or add a whole-recording RRD
   route.

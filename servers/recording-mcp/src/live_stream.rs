@@ -18,13 +18,30 @@ use veoveo_mcp_contract::GatewayInternalIdentity;
 use veoveo_platform_store::{PlatformTable, RecordingId, RecordingState, SegmentRecord};
 
 use crate::{
-    live_playback::stream_live_message_batches,
+    live_playback::{LiveMessageStart, stream_live_message_batches},
     service::{PlaybackLiveSegmentPlan, RecordingService},
 };
 
 pub const FRAMED_RRD_CONTENT_TYPE: &str =
-    "application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=1";
+    "application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=2";
+pub const LIVE_RRD_START_HEADER: &str = "x-veoveo-rerun-live-start";
 pub const MAX_RRD_FRAME_BYTES: usize = 64 * 1024 * 1024;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LiveRrdStart {
+    Bootstrap,
+    ResumeHead,
+}
+
+impl LiveRrdStart {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "bootstrap" => Some(Self::Bootstrap),
+            "resume-head" => Some(Self::ResumeHead),
+            _ => None,
+        }
+    }
+}
 
 pub type LiveRrdStream = Pin<Box<dyn Stream<Item = Result<Bytes, io::Error>> + Send + 'static>>;
 
@@ -34,6 +51,7 @@ pub fn authorized_live_rrd_stream(
     recording_id: RecordingId,
     history: Duration,
     playback_store_id: StoreId,
+    start: LiveRrdStart,
 ) -> LiveRrdStream {
     let stream = async_stream::try_stream! {
         // Subscribe before projecting the current writing segment. A rollover racing
@@ -45,6 +63,7 @@ pub fn authorized_live_rrd_stream(
             .map_err(|error| io::Error::other(format!("subscribe to recording segments: {error}")))?;
         let mut last_ordinal = None;
         let mut store_info_sent = false;
+        let mut first_segment = true;
 
         loop {
             let next = loop {
@@ -71,11 +90,20 @@ pub fn authorized_live_rrd_stream(
             let Some(live) = next else { break; };
             let ordinal = live.descriptor.ordinal;
             let segment_id = live.descriptor.segment_id.clone();
+            let message_start = if first_segment {
+                match start {
+                    LiveRrdStart::Bootstrap => LiveMessageStart::Bootstrap,
+                    LiveRrdStart::ResumeHead => LiveMessageStart::ResumeHead,
+                }
+            } else {
+                LiveMessageStart::ContinuedSegment
+            };
             let mut receiver = stream_live_message_batches(
                 live.path,
                 recording_id,
                 history,
                 playback_store_id.clone(),
+                message_start,
             );
             tracing::info!(
                 %recording_id,
@@ -98,6 +126,7 @@ pub fn authorized_live_rrd_stream(
                 }
                 yield encode_frame(batch)?;
             }
+            first_segment = false;
             last_ordinal = Some(ordinal);
         }
     };
@@ -161,6 +190,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn start_header_has_two_exact_channel_states() {
+        assert_eq!(
+            LiveRrdStart::parse("bootstrap"),
+            Some(LiveRrdStart::Bootstrap)
+        );
+        assert_eq!(
+            LiveRrdStart::parse("resume-head"),
+            Some(LiveRrdStart::ResumeHead)
+        );
+        assert_eq!(LiveRrdStart::parse("resume"), None);
+        assert_eq!(LiveRrdStart::parse(""), None);
+    }
+
+    #[test]
     fn frame_contains_one_complete_rerun_rrd_payload() {
         let (recording, storage) = RecordingStreamBuilder::new("inspection-camera")
             .recording_id("source-recording")
@@ -192,7 +235,7 @@ mod tests {
                     current_byte_len: 0,
                     history_seconds: 1,
                     video_preroll_seconds: 2,
-                    transport: crate::contract::PlaybackLiveTransport::RerunRrdChannelV1,
+                    transport: crate::contract::PlaybackLiveTransport::RerunRrdChannelV2,
                 },
                 path: std::path::PathBuf::from("/tmp/recording.rrd"),
             }

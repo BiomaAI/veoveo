@@ -26,11 +26,33 @@ use veoveo_recording_hub::{
 
 pub type LiveMessageBatchReceiver = mpsc::Receiver<Result<Vec<LogMsg>, io::Error>>;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LiveMessageStart {
+    Bootstrap,
+    ResumeHead,
+    ContinuedSegment,
+}
+
+impl LiveMessageStart {
+    fn includes_static_context(self) -> bool {
+        self == Self::Bootstrap
+    }
+
+    fn includes_existing_parts(self) -> bool {
+        self != Self::ResumeHead
+    }
+
+    fn store_info_already_sent(self) -> bool {
+        self != Self::Bootstrap
+    }
+}
+
 pub fn stream_live_message_batches(
     segment_path: PathBuf,
     recording_id: RecordingId,
     history: Duration,
     playback_store_id: StoreId,
+    start: LiveMessageStart,
 ) -> LiveMessageBatchReceiver {
     let (sender, receiver) = mpsc::channel(32);
     tokio::task::spawn_blocking(move || {
@@ -38,13 +60,14 @@ pub fn stream_live_message_batches(
         let result = (|| {
             wait_for_live_source(&segment_path, &sender)?;
             if segment_path.exists() {
-                stream_growing_file(&segment_path, history, &playback_store_id, &sender)
+                stream_growing_file(&segment_path, history, &playback_store_id, start, &sender)
             } else {
                 stream_ingest_parts(
                     &segment_path,
                     recording_id,
                     history,
                     &playback_store_id,
+                    start,
                     &sender,
                 )
             }
@@ -81,10 +104,18 @@ fn stream_growing_file(
     path: &Path,
     history: Duration,
     playback_store_id: &StoreId,
+    start: LiveMessageStart,
     sender: &mpsc::Sender<Result<Vec<LogMsg>, io::Error>>,
 ) -> Result<()> {
-    let cutoff = history_cutoff(history)?;
-    let mut message_state = LiveMessageState::default();
+    let cutoff = match start {
+        LiveMessageStart::ResumeHead => history_cutoff(Duration::from_nanos(1))?,
+        LiveMessageStart::Bootstrap | LiveMessageStart::ContinuedSegment => {
+            history_cutoff(history)?
+        }
+    };
+    let mut message_state = LiveMessageState {
+        store_info_sent: start.store_info_already_sent(),
+    };
     let reader = FollowingFile::open(path, sender.clone())?;
     let decoder = Decoder::<LogMsg>::decode_eager(BufReader::new(reader))
         .with_context(|| format!("opening live RRD {}", path.display()))?;
@@ -92,7 +123,7 @@ fn stream_growing_file(
         let mut message =
             message.with_context(|| format!("decoding live RRD {}", path.display()))?;
         message.set_store_id(playback_store_id.clone());
-        if message_is_in_live_window(&message, cutoff)? {
+        if message_is_in_live_window(&message, cutoff, start.includes_static_context())? {
             append_message_batch(vec![message], &mut message_state, sender)?;
         }
     }
@@ -104,6 +135,7 @@ fn stream_ingest_parts(
     recording_id: RecordingId,
     history: Duration,
     playback_store_id: &StoreId,
+    start: LiveMessageStart,
     sender: &mpsc::Sender<Result<Vec<LogMsg>, io::Error>>,
 ) -> Result<()> {
     let parts_directory = ingest_segment_parts_directory(segment_path);
@@ -115,22 +147,26 @@ fn stream_ingest_parts(
         return Ok(());
     }
     let wake = FilesystemWake::watch(&parts_directory)?;
-    let mut message_state = LiveMessageState::default();
+    let mut message_state = LiveMessageState {
+        store_info_sent: start.store_info_already_sent(),
+    };
     let mut bootstrap_messages = Vec::new();
     let static_context = ingest_recording_static_context_path(segment_path, recording_id)?;
-    if static_context.exists() {
+    if start.includes_static_context() && static_context.exists() {
         bootstrap_messages.extend(read_file_messages(&static_context, 0, playback_store_id)?);
     }
     let initial_parts = ordered_parts(&parts_directory)?;
     let latest_initial_sequence = initial_parts.last().map(|part| part.sequence);
-    for part in initial_parts {
-        if part.modified < modified_cutoff && Some(part.sequence) != latest_initial_sequence {
-            continue;
-        }
-        match read_part_messages(&part.path, cutoff, playback_store_id)? {
-            Some(messages) => bootstrap_messages.extend(messages),
-            None if !parts_directory.exists() => return Ok(()),
-            None => {}
+    if start.includes_existing_parts() {
+        for part in initial_parts {
+            if part.modified < modified_cutoff && Some(part.sequence) != latest_initial_sequence {
+                continue;
+            }
+            match read_part_messages(&part.path, cutoff, playback_store_id)? {
+                Some(messages) => bootstrap_messages.extend(messages),
+                None if !parts_directory.exists() => return Ok(()),
+                None => {}
+            }
         }
     }
     if !bootstrap_messages.is_empty() {
@@ -237,7 +273,7 @@ fn read_reader_messages(
         let mut message =
             message.with_context(|| format!("decoding live RRD {}", path.display()))?;
         message.set_store_id(playback_store_id.clone());
-        if message_is_in_live_window(&message, cutoff)? {
+        if message_is_in_live_window(&message, cutoff, true)? {
             messages.push(message);
         }
     }
@@ -282,12 +318,16 @@ fn history_cutoff(history: Duration) -> Result<u64> {
         .saturating_sub(u64::try_from(history_nanos).context("live history exceeds u64 nanos")?))
 }
 
-fn message_is_in_live_window(message: &LogMsg, cutoff_nanos: u64) -> Result<bool> {
+fn message_is_in_live_window(
+    message: &LogMsg,
+    cutoff_nanos: u64,
+    include_static: bool,
+) -> Result<bool> {
     let LogMsg::ArrowMsg(_, arrow) = message else {
         return Ok(true);
     };
     let chunk = Chunk::from_arrow_msg(arrow).context("decoding live Rerun chunk")?;
-    Ok(chunk.is_static()
+    Ok((include_static && chunk.is_static())
         || chunk
             .row_ids()
             .any(|row_id| row_id.nanos_since_epoch() >= cutoff_nanos))
@@ -464,6 +504,7 @@ mod tests {
             RecordingId::new(),
             Duration::from_secs(60),
             playback_store_id.clone(),
+            LiveMessageStart::Bootstrap,
         );
         let first_batch = tokio::time::timeout(Duration::from_secs(2), receiver.recv())
             .await
@@ -528,6 +569,65 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn resumed_channel_starts_after_the_existing_live_head() {
+        let (recording, storage) = RecordingStreamBuilder::new("inspection-camera")
+            .recording_id("run-a")
+            .memory()
+            .unwrap();
+        recording
+            .log("sensor/value", &Scalars::single(42.0))
+            .unwrap();
+        let initial = storage.take();
+        let store_info = initial
+            .iter()
+            .find(|message| matches!(message, LogMsg::SetStoreInfo(_)))
+            .unwrap();
+        let initial_data = initial
+            .iter()
+            .find(|message| matches!(message, LogMsg::ArrowMsg(_, _)))
+            .unwrap();
+
+        let directory = tempfile::tempdir().unwrap();
+        let day_directory = directory.path().join("dataset").join("2026-08-04");
+        std::fs::create_dir_all(&day_directory).unwrap();
+        let segment_path =
+            day_directory.join(format!("recording.ingest-{}-s0.rrd", uuid::Uuid::now_v7()));
+        let parts_directory = ingest_segment_parts_directory(&segment_path);
+        std::fs::create_dir(&parts_directory).unwrap();
+        write_part(&parts_directory, 0, store_info, &[initial_data]);
+
+        let mut receiver = stream_live_message_batches(
+            segment_path,
+            RecordingId::new(),
+            Duration::from_secs(60),
+            StoreId::recording("playback-dataset", "run-a"),
+            LiveMessageStart::ResumeHead,
+        );
+        assert!(
+            tokio::time::timeout(Duration::from_millis(100), receiver.recv())
+                .await
+                .is_err(),
+            "resuming an existing channel must not replay its bounded bootstrap"
+        );
+
+        recording
+            .log("sensor/value", &Scalars::single(43.0))
+            .unwrap();
+        let next_data = storage
+            .take()
+            .into_iter()
+            .find(|message| matches!(message, LogMsg::ArrowMsg(_, _)))
+            .unwrap();
+        write_part(&parts_directory, 1, store_info, &[&next_data]);
+        let resumed = tokio::time::timeout(Duration::from_secs(2), receiver.recv())
+            .await
+            .expect("new live part did not wake the resumed channel")
+            .expect("resumed channel ended before new live data")
+            .expect("resumed live data failed");
+        assert!(matches!(resumed.as_slice(), [LogMsg::ArrowMsg(_, _)]));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn reopened_ingest_stream_receives_recording_static_context() {
         let (recording, storage) = RecordingStreamBuilder::new("inspection-camera")
             .recording_id("run-a")
@@ -579,6 +679,7 @@ mod tests {
             recording_id,
             Duration::from_secs(60),
             StoreId::recording("playback-dataset", "run-a"),
+            LiveMessageStart::Bootstrap,
         );
         let mut streamed = Vec::new();
         while streamed
@@ -633,6 +734,7 @@ mod tests {
             RecordingId::new(),
             Duration::from_secs(60),
             playback_store_id,
+            LiveMessageStart::Bootstrap,
         );
 
         assert!(
@@ -753,7 +855,7 @@ mod tests {
         let future_cutoff = u64::MAX;
         let selected = messages
             .iter()
-            .filter(|message| message_is_in_live_window(message, future_cutoff).unwrap())
+            .filter(|message| message_is_in_live_window(message, future_cutoff, true).unwrap())
             .collect::<Vec<_>>();
         assert!(
             selected

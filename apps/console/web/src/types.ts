@@ -196,7 +196,7 @@ export interface RecordingSummary {
 }
 
 export interface RecordingPlaybackManifest {
-  schema: "veoveo.io/recording-playback/v7";
+  schema: "veoveo.io/recording-playback/v8";
   recording_id: string;
   application_id: string;
   recording_key: string;
@@ -224,7 +224,7 @@ export interface RecordingPlaybackManifest {
     current_byte_len: number;
     history_seconds: number;
     video_preroll_seconds: number;
-    transport: "rerun_rrd_channel_v1";
+    transport: "rerun_rrd_channel_v2";
   };
   blueprint?: {
     blueprint_id: string;
