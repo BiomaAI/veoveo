@@ -19,7 +19,8 @@ use re_log_encoding::Decoder;
 use re_log_types::{LogMsg, StoreId};
 use tokio::sync::mpsc;
 use veoveo_recording_hub::{
-    ingest_part_sequence, ingest_segment_parts_directory, ingest_stream_static_context_path,
+    LiveRrdBatchKind, ingest_part_sequence, ingest_segment_parts_directory,
+    ingest_stream_static_context_path,
 };
 
 pub type LiveMessageReceiver = mpsc::Receiver<Result<LogMsg, io::Error>>;
@@ -124,8 +125,11 @@ fn stream_ingest_parts(
         }
     }
     if !bootstrap_messages.is_empty() {
-        let optimized = veoveo_recording_hub::optimize_live_rrd_messages(bootstrap_messages)
-            .context("optimizing bounded live RRD bootstrap")?;
+        let optimized = veoveo_recording_hub::optimize_live_rrd_messages(
+            bootstrap_messages,
+            LiveRrdBatchKind::Bootstrap,
+        )
+        .context("optimizing bounded live RRD bootstrap")?;
         append_messages(optimized, &mut message_state, sender)?;
     }
     let mut next_sequence = latest_initial_sequence.map(|sequence| sequence.saturating_add(1));
@@ -170,10 +174,16 @@ fn send_part(
         return Ok(false);
     };
     if !messages.is_empty() {
-        // The producer SDK has already micro-batched these messages. Preserve those
-        // chunks on the live edge. Recompacting an isolated part has too little context
-        // to help and re-runs Rerun's video GOP analysis for every P-frame part.
-        append_messages(messages, message_state, sender)?;
+        // A durable part is the forwarder's reactive boundary, not an SDK chunk-quality
+        // guarantee. Rerun producers commonly contribute one-row chunks for each entity
+        // and archetype. Apply Rerun's own live profile before the browser indexes the
+        // newly durable batch, just as we do for the bounded bootstrap.
+        let optimized = veoveo_recording_hub::optimize_live_rrd_messages(
+            messages,
+            LiveRrdBatchKind::Incremental,
+        )
+        .with_context(|| format!("optimizing live RRD part {}", path.display()))?;
+        append_messages(optimized, message_state, sender)?;
     }
     Ok(true)
 }
@@ -413,11 +423,16 @@ mod tests {
         recording
             .log("sensor/value", &Scalars::single(43.0))
             .unwrap();
+        recording.flush_blocking().unwrap();
+        recording
+            .log("sensor/value", &Scalars::single(44.0))
+            .unwrap();
         let second_messages = storage.take();
         let second_data = second_messages
             .iter()
-            .find(|message| !matches!(message, LogMsg::SetStoreInfo(_)))
-            .unwrap();
+            .filter(|message| !matches!(message, LogMsg::SetStoreInfo(_)))
+            .collect::<Vec<_>>();
+        assert_eq!(second_data.len(), 2);
 
         let directory = tempfile::tempdir().unwrap();
         let segment_path = directory
@@ -425,7 +440,7 @@ mod tests {
             .join(format!("recording.ingest-{}-s0.rrd", uuid::Uuid::now_v7()));
         let parts_directory = ingest_segment_parts_directory(&segment_path);
         std::fs::create_dir(&parts_directory).unwrap();
-        write_part(&parts_directory, 0, store_info, first_data);
+        write_part(&parts_directory, 0, store_info, &[first_data]);
 
         let playback_store_id = StoreId::recording("playback-dataset", "run-a");
         let mut receiver = stream_live_messages(
@@ -444,12 +459,20 @@ mod tests {
             .expect("live stream ended before initial data")
             .expect("initial live data failed");
 
-        write_part(&parts_directory, 1, store_info, second_data);
+        write_part(&parts_directory, 1, store_info, &second_data);
         let second_data = tokio::time::timeout(Duration::from_secs(2), receiver.recv())
             .await
             .expect("reactive live part was not emitted")
             .expect("live stream ended before reactive part")
             .expect("reactive live part failed");
+        assert!(
+            matches!(
+                &second_data,
+                LogMsg::ArrowMsg(_, arrow)
+                    if Chunk::from_arrow_msg(arrow).unwrap().num_rows() == 2
+            ),
+            "newly durable one-row chunks must be compacted before browser delivery"
+        );
         assert!(
             tokio::time::timeout(Duration::from_millis(100), receiver.recv())
                 .await
@@ -522,7 +545,7 @@ mod tests {
             "a cataloged segment must wait instead of ending before its parts directory exists"
         );
         std::fs::create_dir(&parts_directory).unwrap();
-        write_part(&parts_directory, 0, store_info, data);
+        write_part(&parts_directory, 0, store_info, &[data]);
         let first = tokio::time::timeout(Duration::from_secs(2), receiver.recv())
             .await
             .expect("filesystem publication did not wake live playback")
@@ -531,7 +554,7 @@ mod tests {
         assert!(matches!(first, LogMsg::SetStoreInfo(_)));
     }
 
-    fn write_part(directory: &Path, sequence: u64, store_info: &LogMsg, data: &LogMsg) {
+    fn write_part(directory: &Path, sequence: u64, store_info: &LogMsg, data: &[&LogMsg]) {
         let mut encoder = Encoder::new_eager(
             CrateVersion::LOCAL,
             EncodingOptions::PROTOBUF_COMPRESSED,
@@ -539,7 +562,9 @@ mod tests {
         )
         .unwrap();
         encoder.append(store_info).unwrap();
-        encoder.append(data).unwrap();
+        for message in data {
+            encoder.append(message).unwrap();
+        }
         encoder.finish().unwrap();
         std::fs::write(
             directory.join(format!("{sequence:020}.rrd")),
