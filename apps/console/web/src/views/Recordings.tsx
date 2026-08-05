@@ -152,6 +152,10 @@ export function RecordingsView({
     (recording) => recording.id === resolvedSelectedId
   );
   const selectedRecordingRef = useRef(resolvedSelectedId);
+  const selectedCatalogVersion = selected
+    ? `${selected.state}:${selected.segmentCount}:${selected.playableSegmentCount}:${selected.playableByteLength}`
+    : "";
+  const observedCatalogVersion = useRef(selectedCatalogVersion);
 
   useEffect(() => {
     selectedRecordingRef.current = resolvedSelectedId;
@@ -272,6 +276,12 @@ export function RecordingsView({
   }, [liveReceiverGeneration, manifest, requestedPlaybackMode]);
   const playbackSource = playback?.source;
   const playbackMode = playback?.mode ?? requestedPlaybackMode;
+
+  useEffect(() => {
+    if (observedCatalogVersion.current === selectedCatalogVersion) return;
+    observedCatalogVersion.current = selectedCatalogVersion;
+    void refreshPlaybackManifest();
+  }, [refreshPlaybackManifest, selectedCatalogVersion]);
 
   useEffect(() => {
     if (!manifest || !requiresPlaybackCredentialRenewal(playbackSource?.receiver)) return;
@@ -429,7 +439,6 @@ export function RecordingsView({
                       key={playback?.viewerKey ?? selected.id}
                       recordingId={selected.id}
                       source={playbackSource}
-                      onLiveReceiverEnded={() => void refreshPlaybackManifest(true)}
                     />
                   </Suspense>
                 </ViewerBoundary>

@@ -471,7 +471,7 @@ fn playback_request_kind(
     if path.contains("/rerun.cloud.v1alpha1.RerunCloudService") {
         return Some((PlaybackRequestKind::Redap, path));
     }
-    if path.starts_with(recording_prefix) && path.ends_with("/live.rrd-frames") {
+    if path.starts_with(recording_prefix) && path.ends_with("/live.rrd") {
         return Some((PlaybackRequestKind::Live, path));
     }
     if path.starts_with(recording_prefix)
@@ -565,7 +565,7 @@ mod tests {
         );
         assert_eq!(
             kind(
-                "https://installation.example/console/api/recordings/019faa9f-acc8-7400-ba67-a9b022da1f63/segments/019faa9f-acc8-7400-ba67-a9b022da1f64/live.rrd-frames"
+                "https://installation.example/console/api/recordings/019faa9f-acc8-7400-ba67-a9b022da1f63/segments/019faa9f-acc8-7400-ba67-a9b022da1f64/live.rrd"
             ),
             Some(PlaybackRequestKind::Live)
         );
@@ -593,7 +593,7 @@ mod tests {
         record_playback_issue(
             &mut issues,
             "request-1",
-            "/console/api/recordings/id/segments/id/live.rrd-frames",
+            "/console/api/recordings/id/segments/id/live.rrd",
             Some(401),
             None,
             false,
@@ -601,7 +601,7 @@ mod tests {
         record_playback_issue(
             &mut issues,
             "request-1",
-            "/console/api/recordings/id/segments/id/live.rrd-frames",
+            "/console/api/recordings/id/segments/id/live.rrd",
             None,
             Some("net::ERR_ABORTED"),
             false,

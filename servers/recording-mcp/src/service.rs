@@ -261,7 +261,7 @@ impl RecordingService {
                         current_byte_len: live_segment_byte_len(&segment.path)?,
                         history_seconds: self.live_history_seconds,
                         video_preroll_seconds: LIVE_VIDEO_PREROLL_SECONDS,
-                        transport: crate::contract::PlaybackLiveTransport::RerunJsChannelRrdFrames,
+                        transport: crate::contract::PlaybackLiveTransport::RerunHttpRrdStream,
                     },
                     path: segment.path.clone(),
                 })

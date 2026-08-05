@@ -13,14 +13,14 @@ test("active recording defaults to one live receiver", () => {
   const selected = selectExclusiveRerunPlaybackReceiver(
     "live",
     archive,
-    "https://console.example/live.rrd-frames"
+    "https://console.example/live.rrd"
   );
 
   assert.deepEqual(selected, {
     mode: "live",
     receiver: {
       kind: "live",
-      url: "https://console.example/live.rrd-frames",
+      url: "https://console.example/live.rrd",
       generation: 0,
     },
   });
@@ -30,7 +30,7 @@ test("history mode selects one immutable archive receiver", () => {
   const selected = selectExclusiveRerunPlaybackReceiver(
     "archive",
     archive,
-    "https://console.example/live.rrd-frames"
+    "https://console.example/live.rrd"
   );
 
   assert.deepEqual(selected, {
@@ -48,13 +48,13 @@ test("requested playback mode falls back to the available receiver", () => {
     selectExclusiveRerunPlaybackReceiver(
       "archive",
       undefined,
-      "https://console.example/live.rrd-frames"
+      "https://console.example/live.rrd"
     ),
     {
       mode: "live",
       receiver: {
         kind: "live",
-        url: "https://console.example/live.rrd-frames",
+        url: "https://console.example/live.rrd",
         generation: 0,
       },
     }
@@ -103,7 +103,7 @@ test("replaces a Blueprint by closing its old store before opening the revision"
   assert.equal(transition.receiverUrlToOpen, undefined);
 });
 
-test("switches live to history without treating the JsChannel as a viewer URL", () => {
+test("switches the native live RRD receiver to history without overlap", () => {
   const transition = planRerunSourceTransition(
     {
       redapToken: "token-a",
@@ -115,7 +115,7 @@ test("switches live to history without treating the JsChannel as a viewer URL", 
     }
   );
 
-  assert.deepEqual(transition.urlsToCloseBeforeOpen, []);
+  assert.deepEqual(transition.urlsToCloseBeforeOpen, ["live-1"]);
   assert.equal(transition.receiverUrlToOpen, "rerun://archive");
 });
 
@@ -158,20 +158,20 @@ test("session renewal changes credentials without churning the receiver", () => 
   assert.deepEqual(transition.urlsToCloseBeforeOpen, []);
 });
 
-test("live receiver is handled by the persistent JsChannel, not viewer.open", () => {
+test("opens live playback through Rerun's native streaming receiver", () => {
   const transition = planRerunSourceTransition(
     {},
     {
       redapToken: "token-a",
       receiver: {
         kind: "live",
-        url: "https://console.example/live.rrd-frames",
+        url: "https://console.example/live.rrd",
         generation: 0,
       },
     }
   );
 
-  assert.equal(transition.receiverUrlToOpen, undefined);
+  assert.equal(transition.receiverUrlToOpen, "https://console.example/live.rrd");
   assert.deepEqual(transition.urlsToCloseBeforeOpen, []);
 });
 
@@ -179,7 +179,7 @@ test("only Redap archive playback schedules credential renewal", () => {
   assert.equal(
     requiresPlaybackCredentialRenewal({
       kind: "live",
-      url: "https://console.example/live.rrd-frames",
+      url: "https://console.example/live.rrd",
       generation: 0,
     }),
     false
@@ -194,7 +194,7 @@ test("only Redap archive playback schedules credential renewal", () => {
   assert.equal(requiresPlaybackCredentialRenewal(undefined), false);
 });
 
-test("a completed live receiver reopens without changing its canonical URL", () => {
+test("a reconnect replaces the native live receiver without overlapping it", () => {
   const transition = planRerunSourceTransition(
     {
       redapToken: "token-a",
@@ -206,6 +206,6 @@ test("a completed live receiver reopens without changing its canonical URL", () 
     }
   );
 
-  assert.deepEqual(transition.urlsToCloseBeforeOpen, []);
-  assert.equal(transition.receiverUrlToOpen, undefined);
+  assert.deepEqual(transition.urlsToCloseBeforeOpen, ["live-1"]);
+  assert.equal(transition.receiverUrlToOpen, "live-1");
 });

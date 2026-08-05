@@ -224,7 +224,7 @@ export interface RecordingPlaybackManifest {
     current_byte_len: number;
     history_seconds: number;
     video_preroll_seconds: number;
-    transport: "rerun_js_channel_rrd_frames";
+    transport: "rerun_http_rrd_stream";
   };
   blueprint?: {
     blueprint_id: string;

@@ -134,7 +134,7 @@ pub struct PlaybackLiveSegment {
 #[derive(Clone, Copy, Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum PlaybackLiveTransport {
-    RerunJsChannelRrdFrames,
+    RerunHttpRrdStream,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]

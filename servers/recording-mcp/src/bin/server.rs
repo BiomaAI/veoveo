@@ -42,7 +42,7 @@ use veoveo_mcp_contract::{
 };
 use veoveo_platform_store::{PlatformStore, RecordingId, StoreConfig, StoreCredentials};
 use veoveo_recording_mcp::blueprint_playback::recording_scoped_blueprint;
-use veoveo_recording_mcp::live_playback::{LIVE_RRD_FRAMES_CONTENT_TYPE, stream_live_rrd_frames};
+use veoveo_recording_mcp::live_playback::{LIVE_RRD_CONTENT_TYPE, stream_live_rrd};
 use veoveo_recording_mcp::{
     RecordingService,
     admin::{self, SERVER_DOCS},
@@ -647,14 +647,14 @@ async fn playback_live_segment(
         }
     };
     let stream = stream::unfold(
-        stream_live_rrd_frames(
+        stream_live_rrd(
             live.path,
             state.recordings.live_history(),
             playback_store_id,
         ),
         |mut receiver| async move { receiver.recv().await.map(|item| (item, receiver)) },
     );
-    let mut response = live_rrd_frames_response(Body::from_stream(stream));
+    let mut response = live_rrd_response(Body::from_stream(stream));
     response.headers_mut().insert(
         header::HeaderName::from_static("x-accel-buffering"),
         header::HeaderValue::from_static("no"),
@@ -736,11 +736,11 @@ fn rrd_response(body: Body) -> Response {
     response
 }
 
-fn live_rrd_frames_response(body: Body) -> Response {
+fn live_rrd_response(body: Body) -> Response {
     let mut response = Response::new(body);
     response.headers_mut().insert(
         header::CONTENT_TYPE,
-        header::HeaderValue::from_static(LIVE_RRD_FRAMES_CONTENT_TYPE),
+        header::HeaderValue::from_static(LIVE_RRD_CONTENT_TYPE),
     );
     response.headers_mut().insert(
         header::CACHE_CONTROL,
@@ -828,7 +828,7 @@ async fn main() -> anyhow::Result<()> {
     let playback = Router::new()
         .route("/{recording_id}/playback", get(playback_manifest))
         .route(
-            "/{recording_id}/segments/{segment_id}/live.rrd-frames",
+            "/{recording_id}/segments/{segment_id}/live.rrd",
             get(playback_live_segment),
         )
         .route(
