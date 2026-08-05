@@ -335,7 +335,7 @@ class _RecordingSink:
         self._recording = rr.RecordingStream(
             "veoveo-uav-sim",
             recording_id=config.recording_key,
-            batcher_config=rr.ChunkBatcherConfig.DEFAULT(),
+            batcher_config=rr.ChunkBatcherConfig.LOW_LATENCY(),
         )
         self._recording.connect_grpc(config.recording_proxy)
         rr.send_blueprint(
