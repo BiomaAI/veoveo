@@ -19,11 +19,12 @@ use crate::{
 };
 
 const MAX_MANIFEST_BYTES: u64 = 8 * 1024 * 1024;
-const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v3";
+const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v4";
 const PLAYBACK_SESSION_HEADER: &str = "x-veoveo-playback-session";
+const LIVE_RRD_FRAMES_CONTENT_TYPE: &str = "application/vnd.veoveo.rerun-live-frames; version=1";
 pub(crate) const MANIFEST_PATH: &str = "/console/api/recordings/{recording_id}/playback";
 pub(crate) const LIVE_SEGMENT_PATH: &str =
-    "/console/api/recordings/{recording_id}/segments/{segment_id}/live.rrd";
+    "/console/api/recordings/{recording_id}/segments/{segment_id}/live.rrd-frames";
 pub(crate) const BLUEPRINT_PATH: &str =
     "/console/api/recordings/{recording_id}/blueprints/{revision}/data.rrd";
 
@@ -68,6 +69,13 @@ struct PlaybackLiveSegment {
     current_byte_len: u64,
     history_seconds: u64,
     video_preroll_seconds: u64,
+    transport: PlaybackLiveTransport,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum PlaybackLiveTransport {
+    RerunJsChannelRrdFrames,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -185,6 +193,16 @@ pub(crate) async fn live_segment(
         }
     };
     let status = upstream.status();
+    if status.is_success()
+        && upstream
+            .headers()
+            .get(CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            != Some(LIVE_RRD_FRAMES_CONTENT_TYPE)
+    {
+        tracing::error!("console live recording source returned an invalid content type");
+        return (session_headers, StatusCode::BAD_GATEWAY).into_response();
+    }
     let headers = binary_rrd_headers(upstream.headers(), session_headers);
     let mut response = Response::new(Body::from_stream(upstream.bytes_stream()));
     *response.status_mut() = status;
@@ -342,14 +360,42 @@ mod tests {
     }
 
     #[test]
-    fn manifest_v3_is_canonicalized_after_identity_validation() {
+    fn manifest_v4_is_canonicalized_after_identity_validation() {
         let recording_id = uuid::Uuid::now_v7();
-        let body = serde_json::to_vec(&manifest_value(recording_id)).unwrap();
+        let mut manifest = manifest_value(recording_id);
+        manifest["live"] = json!({
+            "segment_id": uuid::Uuid::now_v7(),
+            "ordinal": 0,
+            "current_byte_len": 1024,
+            "history_seconds": 1,
+            "video_preroll_seconds": 2,
+            "transport": "rerun_js_channel_rrd_frames"
+        });
+        let body = serde_json::to_vec(&manifest).unwrap();
         let validated = validated_manifest_bytes(&body, recording_id).unwrap();
         let decoded: serde_json::Value = serde_json::from_slice(&validated).unwrap();
         assert_eq!(decoded["schema"], PLAYBACK_MANIFEST_SCHEMA);
         assert_eq!(decoded["recording_id"], recording_id.to_string());
         assert_eq!(decoded["blueprint"]["map_provider"], "mapbox");
+        assert_eq!(decoded["live"]["transport"], "rerun_js_channel_rrd_frames");
+    }
+
+    #[test]
+    fn manifest_rejects_an_unknown_live_transport() {
+        let recording_id = uuid::Uuid::now_v7();
+        let mut manifest = manifest_value(recording_id);
+        manifest["live"] = json!({
+            "segment_id": uuid::Uuid::now_v7(),
+            "ordinal": 0,
+            "current_byte_len": 1024,
+            "history_seconds": 1,
+            "video_preroll_seconds": 2,
+            "transport": "http_rrd"
+        });
+        assert!(
+            validated_manifest_bytes(&serde_json::to_vec(&manifest).unwrap(), recording_id)
+                .is_err()
+        );
     }
 
     #[test]

@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  newestLiveTime,
   planRerunSourceTransition,
   requiresPlaybackCredentialRenewal,
   selectExclusiveRerunPlaybackReceiver,
@@ -14,14 +13,14 @@ test("active recording defaults to one live receiver", () => {
   const selected = selectExclusiveRerunPlaybackReceiver(
     "live",
     archive,
-    "https://console.example/live.rrd"
+    "https://console.example/live.rrd-frames"
   );
 
   assert.deepEqual(selected, {
     mode: "live",
     receiver: {
       kind: "live",
-      url: "https://console.example/live.rrd",
+      url: "https://console.example/live.rrd-frames",
       generation: 0,
     },
   });
@@ -31,7 +30,7 @@ test("history mode selects one immutable archive receiver", () => {
   const selected = selectExclusiveRerunPlaybackReceiver(
     "archive",
     archive,
-    "https://console.example/live.rrd"
+    "https://console.example/live.rrd-frames"
   );
 
   assert.deepEqual(selected, {
@@ -49,13 +48,13 @@ test("requested playback mode falls back to the available receiver", () => {
     selectExclusiveRerunPlaybackReceiver(
       "archive",
       undefined,
-      "https://console.example/live.rrd"
+      "https://console.example/live.rrd-frames"
     ),
     {
       mode: "live",
       receiver: {
         kind: "live",
-        url: "https://console.example/live.rrd",
+        url: "https://console.example/live.rrd-frames",
         generation: 0,
       },
     }
@@ -104,7 +103,7 @@ test("replaces a Blueprint by closing its old store before opening the revision"
   assert.equal(transition.receiverUrlToOpen, undefined);
 });
 
-test("switches live to history by closing the old recording receiver first", () => {
+test("switches live to history without treating the JsChannel as a viewer URL", () => {
   const transition = planRerunSourceTransition(
     {
       redapToken: "token-a",
@@ -116,7 +115,7 @@ test("switches live to history by closing the old recording receiver first", () 
     }
   );
 
-  assert.deepEqual(transition.urlsToCloseBeforeOpen, ["live-1"]);
+  assert.deepEqual(transition.urlsToCloseBeforeOpen, []);
   assert.equal(transition.receiverUrlToOpen, "rerun://archive");
 });
 
@@ -159,35 +158,28 @@ test("session renewal changes credentials without churning the receiver", () => 
   assert.deepEqual(transition.urlsToCloseBeforeOpen, []);
 });
 
-test("live receiver opens once without source rotation", () => {
+test("live receiver is handled by the persistent JsChannel, not viewer.open", () => {
   const transition = planRerunSourceTransition(
     {},
     {
       redapToken: "token-a",
       receiver: {
         kind: "live",
-        url: "https://console.example/live.rrd",
+        url: "https://console.example/live.rrd-frames",
         generation: 0,
       },
     }
   );
 
-  assert.equal(transition.receiverUrlToOpen, "https://console.example/live.rrd");
+  assert.equal(transition.receiverUrlToOpen, undefined);
   assert.deepEqual(transition.urlsToCloseBeforeOpen, []);
-});
-
-test("live time follows the newest Rerun sample without moving history playback", () => {
-  assert.equal(newestLiveTime(10, { min: 1, max: 50 }, true), 50);
-  assert.equal(newestLiveTime(50, { min: 1, max: 50 }, true), undefined);
-  assert.equal(newestLiveTime(10, { min: 1, max: 50 }, false), undefined);
-  assert.equal(newestLiveTime(10, null, true), undefined);
 });
 
 test("only Redap archive playback schedules credential renewal", () => {
   assert.equal(
     requiresPlaybackCredentialRenewal({
       kind: "live",
-      url: "https://console.example/live.rrd",
+      url: "https://console.example/live.rrd-frames",
       generation: 0,
     }),
     false
@@ -214,6 +206,6 @@ test("a completed live receiver reopens without changing its canonical URL", () 
     }
   );
 
-  assert.deepEqual(transition.urlsToCloseBeforeOpen, ["live-1"]);
-  assert.equal(transition.receiverUrlToOpen, "live-1");
+  assert.deepEqual(transition.urlsToCloseBeforeOpen, []);
+  assert.equal(transition.receiverUrlToOpen, undefined);
 });

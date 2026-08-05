@@ -283,6 +283,13 @@ export function RecordingsView({
     return () => window.clearTimeout(timeout);
   }, [manifest, playbackSource?.receiver, refreshPlaybackManifest]);
 
+  useEffect(() => {
+    if (playbackSource?.receiver.kind !== "live") return;
+    const reconnect = () => void refreshPlaybackManifest(true);
+    window.addEventListener("online", reconnect);
+    return () => window.removeEventListener("online", reconnect);
+  }, [playbackSource?.receiver, refreshPlaybackManifest]);
+
   return (
     <div className="recordings-workspace">
       <section className="panel recordings-browser">

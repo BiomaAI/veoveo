@@ -190,7 +190,6 @@ claims:
     "signingAlgorithm" $config.signingAlgorithm
     "maximumQueueBytes" (printf "%.0f" $config.maximumQueueBytes)
     "batchMessageLimit" $config.batchMessageLimit
-    "batchFlushMilliseconds" $config.batchFlushMilliseconds
     "grpcMemoryLimitBytes" (printf "%.0f" $config.grpcMemoryLimitBytes)
     "resources" $config.resources
   ) -}}

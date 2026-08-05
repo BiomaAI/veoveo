@@ -128,6 +128,13 @@ pub struct PlaybackLiveSegment {
     pub current_byte_len: u64,
     pub history_seconds: u64,
     pub video_preroll_seconds: u64,
+    pub transport: PlaybackLiveTransport,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PlaybackLiveTransport {
+    RerunJsChannelRrdFrames,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]

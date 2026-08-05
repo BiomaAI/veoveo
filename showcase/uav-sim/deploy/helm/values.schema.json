@@ -103,7 +103,6 @@
         "privateKey",
         "maximumQueueBytes",
         "batchMessageLimit",
-        "batchFlushMilliseconds",
         "grpcMemoryLimitBytes",
         "persistence",
         "resources"
@@ -124,7 +123,6 @@
         },
         "maximumQueueBytes": {"type": "integer", "minimum": 8388608},
         "batchMessageLimit": {"type": "integer", "minimum": 1, "maximum": 65536},
-        "batchFlushMilliseconds": {"type": "integer", "minimum": 1, "maximum": 60000},
         "grpcMemoryLimitBytes": {"type": "integer", "minimum": 8388608},
         "persistence": {
           "type": "object",

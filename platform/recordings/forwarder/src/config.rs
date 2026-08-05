@@ -59,9 +59,6 @@ pub struct ForwarderConfig {
     #[arg(long, default_value_t = 4_096)]
     pub batch_message_limit: usize,
 
-    #[arg(long, default_value_t = 1_000)]
-    pub batch_flush_milliseconds: u64,
-
     #[arg(long, default_value_t = 64 * 1024 * 1024)]
     pub grpc_memory_limit_bytes: u64,
 
@@ -135,10 +132,6 @@ impl ForwarderConfig {
             "batch message limit must be in 1..=65536"
         );
         ensure!(
-            self.batch_flush_milliseconds > 0,
-            "batch flush interval must be positive"
-        );
-        ensure!(
             self.grpc_memory_limit_bytes > 0,
             "gRPC memory limit must be positive"
         );
@@ -147,10 +140,6 @@ impl ForwarderConfig {
             "shutdown drain window must be positive"
         );
         Ok(())
-    }
-
-    pub fn flush_interval(&self) -> Duration {
-        Duration::from_millis(self.batch_flush_milliseconds)
     }
 
     pub fn gateway_transport_url(&self) -> &Url {
@@ -185,7 +174,6 @@ mod tests {
             queue_dir: PathBuf::from("/var/lib/forwarder"),
             maximum_queue_bytes: 1024,
             batch_message_limit: 10,
-            batch_flush_milliseconds: 100,
             grpc_memory_limit_bytes: 1024,
             shutdown_drain_seconds: 10,
         }

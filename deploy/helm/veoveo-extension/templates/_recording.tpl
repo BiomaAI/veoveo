@@ -28,8 +28,6 @@
     - {{ required "recordingForwarder requires maximumQueueBytes" .maximumQueueBytes | quote }}
     - --batch-message-limit
     - {{ required "recordingForwarder requires batchMessageLimit" .batchMessageLimit | quote }}
-    - --batch-flush-milliseconds
-    - {{ required "recordingForwarder requires batchFlushMilliseconds" .batchFlushMilliseconds | quote }}
     - --grpc-memory-limit-bytes
     - {{ required "recordingForwarder requires grpcMemoryLimitBytes" .grpcMemoryLimitBytes | quote }}
   startupProbe:

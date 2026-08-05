@@ -1,19 +1,19 @@
-import { useEffect, useRef, useState } from "react";
-import { WebViewer } from "@rerun-io/web-viewer";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { WebViewer, type LogChannel } from "@rerun-io/web-viewer";
 import {
-  newestLiveTime,
   planRerunSourceTransition,
   type GovernedRerunSource,
   type OpenedRerunSources,
 } from "../rerunSources";
-import { installConsoleRecordingRrdFetch } from "../recordingLiveFetch";
+import { installConsoleRecordingBlueprintFetch } from "../recordingBlueprintFetch";
+import { pumpRerunLiveFrames } from "../rerunLiveChannel";
 import {
   loadRerunMapViewerOptions,
   mapProviderCompatibilityError,
 } from "../rerunMap";
 
 type ViewerStatus =
-  | { state: "loading"; delayed: boolean }
+  | { state: "loading" }
   | { state: "open" }
   | { state: "error"; message: string };
 
@@ -30,7 +30,7 @@ function synchronizeSources(
     viewer.close(transition.urlsToCloseBeforeOpen);
   }
   if (transition.blueprintUrlToOpen) viewer.open(transition.blueprintUrlToOpen);
-  if (transition.receiverUrlToOpen) {
+  if (transition.receiverUrlToOpen && desired.receiver.kind === "archive") {
     viewer.open(transition.receiverUrlToOpen);
   }
   opened.redapToken = transition.next.redapToken;
@@ -51,6 +51,10 @@ export default function GovernedRerunViewer({
   const host = useRef<HTMLDivElement>(null);
   const [viewerInstance] = useState(() => crypto.randomUUID());
   const viewerRef = useRef<WebViewer | undefined>(undefined);
+  const liveChannelRef = useRef<LogChannel | undefined>(undefined);
+  const liveAbortRef = useRef<AbortController | undefined>(undefined);
+  const liveTotalsRef = useRef({ frames: 0, payloadBytes: 0, connections: 0 });
+  const viewerOpenRef = useRef(false);
   const desiredSourceRef = useRef(source);
   const liveReceiverEndedRef = useRef(onLiveReceiverEnded);
   const openedSourcesRef = useRef<OpenedRerunSources>({});
@@ -63,9 +67,45 @@ export default function GovernedRerunViewer({
   >(undefined);
   const [status, setStatus] = useState<ViewerStatus>({
     state: "loading",
-    delayed: false,
   });
   const [mapError, setMapError] = useState<string>();
+  const startLiveReceiver = useCallback((url: string, channel: LogChannel) => {
+    liveAbortRef.current?.abort();
+    const abort = new AbortController();
+    liveAbortRef.current = abort;
+    const base = { ...liveTotalsRef.current };
+    liveTotalsRef.current.connections += 1;
+    if (host.current) {
+      host.current.dataset.rerunLiveConnectionCount = String(
+        liveTotalsRef.current.connections
+      );
+    }
+    void pumpRerunLiveFrames(url, channel, abort.signal, (stats) => {
+      if (!host.current) return;
+      liveTotalsRef.current.frames = base.frames + stats.frames;
+      liveTotalsRef.current.payloadBytes = base.payloadBytes + stats.payloadBytes;
+      host.current.dataset.rerunLiveFrameCount = String(liveTotalsRef.current.frames);
+      host.current.dataset.rerunLivePayloadBytes = String(
+        liveTotalsRef.current.payloadBytes
+      );
+      if (!viewerOpenRef.current) {
+        viewerOpenRef.current = true;
+        setStatus({ state: "open" });
+      }
+    })
+      .then(() => {
+        if (!abort.signal.aborted) liveReceiverEndedRef.current?.();
+      })
+      .catch((cause: unknown) => {
+        if (abort.signal.aborted) return;
+        const message = cause instanceof Error ? cause.message : "Live recording failed";
+        console.error("Governed Rerun live receiver failed", cause);
+        viewerOpenRef.current = false;
+        setStatus({ state: "error", message });
+        liveReceiverEndedRef.current?.();
+      });
+  }, []);
+
   useEffect(() => {
     liveReceiverEndedRef.current = onLiveReceiverEnded;
   }, [onLiveReceiverEnded]);
@@ -76,6 +116,11 @@ export default function GovernedRerunViewer({
     if (!viewer) return;
     try {
       synchronizeSources(viewer, openedSourcesRef.current, source);
+      if (source.receiver.kind === "live") {
+        const channel = liveChannelRef.current;
+        if (!channel) throw new Error("Rerun live channel is unavailable.");
+        startLiveReceiver(source.receiver.url, channel);
+      }
       const mapSetup = mapSetupRef.current;
       if (mapSetup) {
         setMapError(
@@ -91,23 +136,14 @@ export default function GovernedRerunViewer({
       console.error("Governed Rerun source update failed", cause);
       queueMicrotask(() => setStatus({ state: "error", message }));
     }
-  }, [source]);
+  }, [source, startLiveReceiver]);
 
   useEffect(() => {
     const viewer = new WebViewer();
-    const releaseRecordingRrdFetch = installConsoleRecordingRrdFetch((url) => {
-      const receiver = desiredSourceRef.current.receiver;
-      if (
-        receiver.kind === "live" &&
-        new URL(receiver.url, window.location.href).toString() === url
-      ) {
-        liveReceiverEndedRef.current?.();
-      }
-    });
+    const releaseRecordingBlueprintFetch = installConsoleRecordingBlueprintFetch();
     let active = true;
     let removeOpenListener: (() => void) | undefined;
     let removeTimeUpdateListener: (() => void) | undefined;
-    let delayedNotice: number | undefined;
     openedSourcesRef.current = {
       redapToken: desiredSourceRef.current.redapToken,
     };
@@ -141,26 +177,19 @@ export default function GovernedRerunViewer({
       })
       .then(() => {
         if (!active) return;
-        delayedNotice = window.setTimeout(() => {
-          if (active) {
-            setStatus({
-              state: "loading",
-              delayed: true,
-            });
-          }
-        }, 20_000);
+        if (desiredSourceRef.current.receiver.kind === "live") {
+          liveTotalsRef.current = { frames: 0, payloadBytes: 0, connections: 0 };
+          liveChannelRef.current = viewer.open_channel("governed-recording-live");
+        }
         removeOpenListener = viewer.on("recording_open", (event) => {
           if (!active) return;
           removeOpenListener?.();
           removeOpenListener = undefined;
-          if (delayedNotice !== undefined) window.clearTimeout(delayedNotice);
-          if (desiredSourceRef.current.receiver.kind === "live") {
-            viewer.set_playing(event.recording_id, true);
-          }
           if (host.current) {
             host.current.dataset.rerunRecordingId = event.recording_id;
             host.current.dataset.rerunViewerState = "open";
           }
+          viewerOpenRef.current = true;
           setStatus({ state: "open" });
         });
         removeTimeUpdateListener = viewer.on("time_update", (event) => {
@@ -168,33 +197,26 @@ export default function GovernedRerunViewer({
           const timeline = viewer.get_active_timeline(event.recording_id);
           if (!timeline) return;
           const range = viewer.get_time_range(event.recording_id, timeline);
-          const target = newestLiveTime(
-            event.time,
-            range,
-            true
+          if (!range || !host.current) return;
+          const updates = Number(host.current.dataset.rerunTimeUpdateCount ?? 0) + 1;
+          host.current.dataset.rerunRecordingId = event.recording_id;
+          host.current.dataset.rerunTimeline = timeline;
+          host.current.dataset.rerunCurrentTime = String(event.time);
+          host.current.dataset.rerunNewestTime = String(range.max);
+          host.current.dataset.rerunLiveLagSeconds = String(
+            Math.max(0, range.max - event.time) / 1_000_000_000
           );
-          if (target !== undefined) {
-            viewer.set_current_time(event.recording_id, timeline, target);
-          }
-          if (host.current && range) {
-            const renderedTime = target ?? event.time;
-            const updates = Number(host.current.dataset.rerunTimeUpdateCount ?? 0) + 1;
-            host.current.dataset.rerunRecordingId = event.recording_id;
-            host.current.dataset.rerunTimeline = timeline;
-            host.current.dataset.rerunCurrentTime = String(renderedTime);
-            host.current.dataset.rerunNewestTime = String(range.max);
-            host.current.dataset.rerunLiveLagSeconds = String(
-              Math.max(0, range.max - renderedTime) / 1_000_000_000
-            );
-            host.current.dataset.rerunTimeUpdateCount = String(updates);
-          }
+          host.current.dataset.rerunTimeUpdateCount = String(updates);
         });
         viewerRef.current = viewer;
         synchronizeSources(viewer, openedSourcesRef.current, desiredSourceRef.current);
+        const receiver = desiredSourceRef.current.receiver;
+        if (receiver.kind === "live") {
+          startLiveReceiver(receiver.url, liveChannelRef.current!);
+        }
       })
       .catch((cause: unknown) => {
         if (!active) return;
-        if (delayedNotice !== undefined) window.clearTimeout(delayedNotice);
         const message = cause instanceof Error ? cause.message : "Rerun playback failed";
         console.error("Governed Rerun source failed", cause);
         setStatus({ state: "error", message });
@@ -202,9 +224,13 @@ export default function GovernedRerunViewer({
 
     return () => {
       active = false;
+      liveAbortRef.current?.abort();
+      liveAbortRef.current = undefined;
+      liveChannelRef.current?.close();
+      liveChannelRef.current = undefined;
       viewerRef.current = undefined;
+      viewerOpenRef.current = false;
       mapSetupRef.current = undefined;
-      if (delayedNotice !== undefined) window.clearTimeout(delayedNotice);
       removeOpenListener?.();
       removeTimeUpdateListener?.();
       try {
@@ -212,9 +238,9 @@ export default function GovernedRerunViewer({
       } catch (cause) {
         console.warn("Rerun cleanup failed after the viewer stopped", cause);
       }
-      releaseRecordingRrdFetch();
+      releaseRecordingBlueprintFetch();
     };
-  }, [recordingId]);
+  }, [recordingId, source.receiver.kind, startLiveReceiver]);
 
   return (
     <div className="rerun-web-viewer">
@@ -233,16 +259,12 @@ export default function GovernedRerunViewer({
         <div className="recording-viewer-state recording-viewer-overlay">
           <div className="loading-mark" />
           <strong>
-            {status.delayed
-              ? "The recording is still loading"
-              : source.receiver.kind === "live"
+            {source.receiver.kind === "live"
                 ? "Connecting to live capture"
                 : "Preparing replay"}
           </strong>
           <span>
-            {status.delayed
-              ? "Rerun is still fetching the selected time window. Playback will open automatically."
-              : source.receiver.kind === "live"
+            {source.receiver.kind === "live"
               ? "Following bounded live history while immutable layers remain lazy."
               : "Opening the recording catalog; Rerun fetches chunks as the active view needs them."}
           </span>

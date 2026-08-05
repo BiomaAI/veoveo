@@ -66,19 +66,8 @@ export interface RerunSourceTransition {
   next: OpenedRerunSources;
 }
 
-export function newestLiveTime(
-  currentTime: number,
-  range: { min: number; max: number } | null,
-  live: boolean
-): number | undefined {
-  if (!live || !range || !Number.isFinite(currentTime) || !Number.isFinite(range.max)) {
-    return undefined;
-  }
-  return range.max > currentTime ? range.max : undefined;
-}
-
 function receiverUrl(receiver: GovernedRerunReceiver | undefined) {
-  return receiver?.kind === "archive" ? receiver.archive.uri : receiver?.url;
+  return receiver?.kind === "archive" ? receiver.archive.uri : undefined;
 }
 
 function receiversEqual(
