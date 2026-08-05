@@ -21,9 +21,8 @@ import {
 import {
   loadRecordingPlayback,
   recordingBlueprintUrl,
-  recordingLiveProxyRoute,
+  recordingLiveRrdStreamRoute,
 } from "../api";
-import { consoleRerunMessageProxyUri } from "../rerunLiveProxy";
 import { EmptyState, SectionHeader, StatusPill } from "../components/primitives";
 import {
   requiresPlaybackCredentialRenewal,
@@ -129,7 +128,6 @@ export function RecordingsView({
   const [copied, setCopied] = useState(false);
   const [requestedPlaybackMode, setRequestedPlaybackMode] =
     useState<RerunPlaybackMode>("live");
-  const [liveReceiverGeneration, setLiveReceiverGeneration] = useState(0);
   const refreshingManifest = useRef(false);
 
   const recordings = useMemo(() => {
@@ -240,7 +238,7 @@ export function RecordingsView({
   const playback = useMemo(() => {
     if (!manifest) return undefined;
     const liveRoute = manifest.live
-      ? recordingLiveProxyRoute(manifest.recording_id)
+      ? recordingLiveRrdStreamRoute(manifest.recording_id)
       : undefined;
     const receiver = selectExclusiveRerunPlaybackReceiver(
       requestedPlaybackMode,
@@ -250,9 +248,7 @@ export function RecordingsView({
             revision: manifest.archive.revision,
           }
         : undefined,
-      liveRoute,
-      liveRoute ? consoleRerunMessageProxyUri() : undefined,
-      liveReceiverGeneration
+      liveRoute
     );
     const source = receiver.receiver
       ? {
@@ -267,9 +263,9 @@ export function RecordingsView({
     return {
       source,
       mode: receiver.mode,
-      viewerKey: manifest.recording_id,
+      viewerKey: `${manifest.recording_id}:${receiver.mode}`,
     };
-  }, [liveReceiverGeneration, manifest, requestedPlaybackMode]);
+  }, [manifest, requestedPlaybackMode]);
   const playbackSource = playback?.source;
   const playbackMode = playback?.mode ?? requestedPlaybackMode;
 
@@ -288,20 +284,6 @@ export function RecordingsView({
     }, delay);
     return () => window.clearTimeout(timeout);
   }, [manifest, playbackSource?.receiver, refreshPlaybackManifest]);
-
-  useEffect(() => {
-    if (playbackSource?.receiver.kind !== "live") return;
-    const reconnect = () => {
-      // Rerun 0.35's MessageProxy read client ends when its transport ends; it does
-      // not reconnect the read stream itself. Reopen the stable proxy URI immediately
-      // when the browser reports restored connectivity. Do not couple this signal to a
-      // catalog refresh that may already be in flight, because that would lose the edge.
-      setLiveReceiverGeneration((generation) => generation + 1);
-      void refreshPlaybackManifest();
-    };
-    window.addEventListener("online", reconnect);
-    return () => window.removeEventListener("online", reconnect);
-  }, [playbackSource?.receiver, refreshPlaybackManifest]);
 
   return (
     <div className="recordings-workspace">

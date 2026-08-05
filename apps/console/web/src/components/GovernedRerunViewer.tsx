@@ -1,29 +1,104 @@
 import { useEffect, useRef, useState } from "react";
-import { WebViewer } from "@rerun-io/web-viewer";
+import { WebViewer, type LogChannel } from "@rerun-io/web-viewer";
+import { installConsoleRecordingRrdFetch } from "../recordingRrdFetch";
+import { resetRerunEmbeddedViewerState } from "../rerunEmbeddedState";
+import {
+  connectConsoleRerunLiveChannel,
+  type RerunLiveConnection,
+} from "../rerunLiveChannel";
 import {
   planRerunSourceTransition,
   type GovernedRerunSource,
   type OpenedRerunSources,
 } from "../rerunSources";
-import { installConsoleRecordingRrdFetch } from "../recordingRrdFetch";
 import {
   loadRerunMapViewerOptions,
   mapProviderCompatibilityError,
 } from "../rerunMap";
-import {
-  clearConsoleRerunLiveProxyRoute,
-  setConsoleRerunLiveProxyRoute,
-} from "../rerunLiveProxy";
 
 type ViewerStatus =
   | { state: "loading" }
   | { state: "open" }
   | { state: "error"; message: string };
 
+interface LiveRuntime {
+  channel?: LogChannel;
+  connection?: RerunLiveConnection;
+  route?: string;
+  disconnected: boolean;
+}
+
+function errorMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : "Rerun playback failed";
+}
+
+function closeLiveConnection(runtime: LiveRuntime): void {
+  const connection = runtime.connection;
+  runtime.connection = undefined;
+  runtime.route = undefined;
+  connection?.close();
+}
+
+function startLiveConnection(
+  viewer: WebViewer,
+  runtime: LiveRuntime,
+  route: string,
+  host: HTMLDivElement | null,
+  reportConnected: () => void,
+  reportError: (message: string) => void
+): void {
+  closeLiveConnection(runtime);
+  const channel = runtime.channel ?? viewer.open_channel("governed-recording-live");
+  runtime.channel = channel;
+  runtime.route = route;
+  runtime.disconnected = false;
+  if (host) host.dataset.rerunLiveState = "connecting";
+
+  const connection = connectConsoleRerunLiveChannel(channel, route, {
+    onConnected() {
+      if (runtime.connection !== connection || !host) return;
+      runtime.disconnected = false;
+      host.dataset.rerunLiveState = "connected";
+      host.dataset.rerunLiveConnectionCount = String(
+        Number(host.dataset.rerunLiveConnectionCount ?? 0) + 1
+      );
+      reportConnected();
+    },
+    onFrame(byteLength) {
+      if (runtime.connection !== connection || !host) return;
+      host.dataset.rerunLiveFrameCount = String(
+        Number(host.dataset.rerunLiveFrameCount ?? 0) + 1
+      );
+      host.dataset.rerunLiveNewestFrameBytes = String(byteLength);
+    },
+  });
+  runtime.connection = connection;
+  void connection.done.then(
+    () => {
+      if (runtime.connection !== connection) return;
+      runtime.connection = undefined;
+      runtime.disconnected = true;
+      if (host) host.dataset.rerunLiveState = "ended";
+      reportError("Live recording delivery ended. Reconnect after connectivity is restored.");
+    },
+    (cause: unknown) => {
+      if (runtime.connection !== connection) return;
+      runtime.connection = undefined;
+      runtime.disconnected = true;
+      if (host) host.dataset.rerunLiveState = "error";
+      reportError(errorMessage(cause));
+    }
+  );
+}
+
 async function synchronizeSources(
   viewer: WebViewer,
   opened: OpenedRerunSources,
-  desired: GovernedRerunSource
+  desired: GovernedRerunSource,
+  live: LiveRuntime,
+  host: HTMLDivElement | null,
+  reportConnected: () => void,
+  reportError: (message: string) => void
 ) {
   const transition = planRerunSourceTransition(opened, desired);
   if (transition.credentialsChanged) {
@@ -32,15 +107,19 @@ async function synchronizeSources(
   if (transition.urlsToCloseBeforeOpen.length > 0) {
     viewer.close(transition.urlsToCloseBeforeOpen);
   }
-  if (transition.receiverUrlToOpen) {
-    if (desired.receiver.kind === "live") {
-      await setConsoleRerunLiveProxyRoute(desired.receiver.route);
-    } else if (opened.receiver?.kind === "live") {
-      await clearConsoleRerunLiveProxyRoute();
-    }
-  }
+  if (transition.closeLiveConnection) closeLiveConnection(live);
   if (transition.blueprintUrlToOpen) viewer.open(transition.blueprintUrlToOpen);
-  if (transition.receiverUrlToOpen) viewer.open(transition.receiverUrlToOpen);
+  if (transition.archiveUrlToOpen) viewer.open(transition.archiveUrlToOpen);
+  if (transition.liveRouteToOpen) {
+    startLiveConnection(
+      viewer,
+      live,
+      transition.liveRouteToOpen,
+      host,
+      reportConnected,
+      reportError
+    );
+  }
   opened.redapToken = transition.next.redapToken;
   opened.receiver = transition.next.receiver;
   opened.blueprintUrl = transition.next.blueprintUrl;
@@ -61,6 +140,7 @@ export default function GovernedRerunViewer({
   const desiredSourceRef = useRef(source);
   const openedSourcesRef = useRef<OpenedRerunSources>({});
   const sourceSynchronizationRef = useRef<Promise<void>>(Promise.resolve());
+  const liveRuntimeRef = useRef<LiveRuntime>({ disconnected: false });
   const mapSetupRef = useRef<
     | {
         provider: "openStreetMap" | "mapbox";
@@ -68,10 +148,12 @@ export default function GovernedRerunViewer({
       }
     | undefined
   >(undefined);
-  const [status, setStatus] = useState<ViewerStatus>({
-    state: "loading",
-  });
+  const [status, setStatus] = useState<ViewerStatus>({ state: "loading" });
   const [mapError, setMapError] = useState<string>();
+
+  const reportPlaybackError = (message: string) => {
+    setStatus({ state: "error", message });
+  };
 
   useEffect(() => {
     desiredSourceRef.current = source;
@@ -79,15 +161,15 @@ export default function GovernedRerunViewer({
     if (!viewer) return;
     sourceSynchronizationRef.current = sourceSynchronizationRef.current
       .then(async () => {
-        const transition = await synchronizeSources(
+        await synchronizeSources(
           viewer,
           openedSourcesRef.current,
-          source
+          source,
+          liveRuntimeRef.current,
+          host.current,
+          () => setStatus({ state: "open" }),
+          reportPlaybackError
         );
-        if (source.receiver.kind === "live" && transition.receiverUrlToOpen && host.current) {
-          const connections = Number(host.current.dataset.rerunLiveConnectionCount ?? 0) + 1;
-          host.current.dataset.rerunLiveConnectionCount = String(connections);
-        }
         const mapSetup = mapSetupRef.current;
         if (mapSetup) {
           setMapError(
@@ -100,21 +182,44 @@ export default function GovernedRerunViewer({
         }
       })
       .catch((cause: unknown) => {
-        const message = cause instanceof Error ? cause.message : "Rerun playback failed";
         console.error("Governed Rerun source update failed", cause);
-        setStatus({ state: "error", message });
+        reportPlaybackError(errorMessage(cause));
       });
   }, [source]);
 
   useEffect(() => {
+    resetRerunEmbeddedViewerState();
     const viewer = new WebViewer();
     const releaseRecordingRrdFetch = installConsoleRecordingRrdFetch();
     let active = true;
     let removeOpenListener: (() => void) | undefined;
     let removeTimeUpdateListener: (() => void) | undefined;
-    openedSourcesRef.current = {
-      redapToken: desiredSourceRef.current.redapToken,
+    openedSourcesRef.current = { redapToken: desiredSourceRef.current.redapToken };
+    liveRuntimeRef.current = { disconnected: false };
+
+    const reconnect = () => {
+      const desired = desiredSourceRef.current;
+      const runtime = liveRuntimeRef.current;
+      if (
+        !active ||
+        desired.receiver.kind !== "live" ||
+        !runtime.disconnected ||
+        !viewerRef.current
+      ) {
+        return;
+      }
+      setStatus({ state: "loading" });
+      startLiveConnection(
+        viewer,
+        runtime,
+        desired.receiver.route,
+        host.current,
+        () => setStatus({ state: "open" }),
+        reportPlaybackError
+      );
     };
+    window.addEventListener("online", reconnect);
+
     void loadRerunMapViewerOptions()
       .catch((cause: unknown) => ({
         provider: "mapbox" as const,
@@ -137,9 +242,6 @@ export default function GovernedRerunViewer({
         return viewer.start(null, host.current, {
           width: "100%",
           height: "100%",
-          // Rerun 0.35 supports this hardware backend explicitly. It keeps presentation
-          // off the WebGPU queue shared with long-running CUDA/RTX workloads without
-          // changing Rerun's native MessageProxy transport.
           render_backend: "webgl",
           hide_welcome_screen: true,
           allow_fullscreen: true,
@@ -151,8 +253,6 @@ export default function GovernedRerunViewer({
         if (!active) return;
         removeOpenListener = viewer.on("recording_open", (event) => {
           if (!active) return;
-          removeOpenListener?.();
-          removeOpenListener = undefined;
           if (host.current) {
             host.current.dataset.rerunRecordingId = event.recording_id;
             host.current.dataset.rerunViewerState = "open";
@@ -164,13 +264,14 @@ export default function GovernedRerunViewer({
           const timeline =
             host.current?.dataset.rerunTimeline ||
             viewer.get_active_timeline(event.recording_id);
-          if (!timeline) return;
-          if (!host.current) return;
+          if (!timeline || !host.current) return;
           const range = viewer.get_time_range(event.recording_id, timeline);
-          const updates = Number(host.current.dataset.rerunTimeUpdateCount ?? 0) + 1;
           host.current.dataset.rerunRecordingId = event.recording_id;
           host.current.dataset.rerunTimeline = timeline;
           host.current.dataset.rerunCurrentTime = String(event.time);
+          host.current.dataset.rerunTimeUpdateCount = String(
+            Number(host.current.dataset.rerunTimeUpdateCount ?? 0) + 1
+          );
           if (range) {
             host.current.dataset.rerunNewestTime = String(range.max);
             if (timeline === "simulation_time") {
@@ -181,36 +282,35 @@ export default function GovernedRerunViewer({
               delete host.current.dataset.rerunLiveLagSeconds;
             }
           }
-          host.current.dataset.rerunTimeUpdateCount = String(updates);
         });
         viewerRef.current = viewer;
-        sourceSynchronizationRef.current = sourceSynchronizationRef.current.then(async () => {
-          const transition = await synchronizeSources(
+        sourceSynchronizationRef.current = sourceSynchronizationRef.current.then(() =>
+          synchronizeSources(
             viewer,
             openedSourcesRef.current,
-            desiredSourceRef.current
-          );
-          if (
-            desiredSourceRef.current.receiver.kind === "live" &&
-            transition.receiverUrlToOpen &&
-            host.current
-          ) {
-            host.current.dataset.rerunLiveConnectionCount = "1";
-          }
-        });
+            desiredSourceRef.current,
+            liveRuntimeRef.current,
+            host.current,
+            () => setStatus({ state: "open" }),
+            reportPlaybackError
+          ).then(() => undefined)
+        );
         return sourceSynchronizationRef.current;
       })
       .catch((cause: unknown) => {
         if (!active) return;
-        const message = cause instanceof Error ? cause.message : "Rerun playback failed";
         console.error("Governed Rerun source failed", cause);
-        setStatus({ state: "error", message });
+        reportPlaybackError(errorMessage(cause));
       });
 
     return () => {
       active = false;
+      window.removeEventListener("online", reconnect);
       viewerRef.current = undefined;
       mapSetupRef.current = undefined;
+      closeLiveConnection(liveRuntimeRef.current);
+      liveRuntimeRef.current.channel?.close();
+      liveRuntimeRef.current.channel = undefined;
       removeOpenListener?.();
       removeTimeUpdateListener?.();
       try {
@@ -219,7 +319,6 @@ export default function GovernedRerunViewer({
         console.warn("Rerun cleanup failed after the viewer stopped", cause);
       }
       releaseRecordingRrdFetch();
-      void clearConsoleRerunLiveProxyRoute();
     };
   }, [recordingId]);
 
@@ -241,12 +340,12 @@ export default function GovernedRerunViewer({
           <div className="loading-mark" />
           <strong>
             {source.receiver.kind === "live"
-                ? "Connecting to live capture"
-                : "Preparing replay"}
+              ? "Connecting to live capture"
+              : "Preparing replay"}
           </strong>
           <span>
             {source.receiver.kind === "live"
-              ? "Following bounded live history while immutable layers remain lazy."
+              ? "Following the current Rerun stream through an incremental channel."
               : "Opening the recording catalog; Rerun fetches chunks as the active view needs them."}
           </span>
         </div>

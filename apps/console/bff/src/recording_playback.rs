@@ -1,7 +1,7 @@
 use anyhow::{Context as _, ensure};
 use axum::{
-    body::{Body, to_bytes},
-    extract::{Path, Request, State},
+    body::Body,
+    extract::{Path, State},
     http::{
         HeaderMap, HeaderValue, StatusCode,
         header::{
@@ -19,11 +19,13 @@ use crate::{
 };
 
 const MAX_MANIFEST_BYTES: u64 = 8 * 1024 * 1024;
-const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v6";
+const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v7";
 const PLAYBACK_SESSION_HEADER: &str = "x-veoveo-playback-session";
-const MAX_GRPC_WEB_REQUEST_BYTES: usize = 1024;
+const LIVE_RRD_STREAM_CONTENT_TYPE: &str =
+    "application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=1";
 pub(crate) const MANIFEST_PATH: &str = "/console/api/recordings/{recording_id}/playback";
-pub(crate) const LIVE_RECORDING_PATH: &str = "/console/api/recordings/{recording_id}/live/proxy";
+pub(crate) const LIVE_RECORDING_PATH: &str =
+    "/console/api/recordings/{recording_id}/live/rrd-stream";
 pub(crate) const BLUEPRINT_PATH: &str =
     "/console/api/recordings/{recording_id}/blueprints/{revision}/data.rrd";
 
@@ -74,7 +76,7 @@ struct PlaybackLiveSegment {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum PlaybackLiveTransport {
-    RerunMessageProxyGrpc,
+    RerunRrdChannelV1,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -158,20 +160,12 @@ pub(crate) async fn manifest(
 pub(crate) async fn live_recording(
     State(state): State<AppState>,
     Path(recording_id): Path<String>,
-    request: Request,
+    request_headers: HeaderMap,
 ) -> Response {
     let Some(recording_id) = parse_uuid_v7(&recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    if !request_is_grpc_web(&request) {
-        return StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response();
-    }
-    let (request_parts, request_body) = request.into_parts();
-    let request_body = match to_bytes(request_body, MAX_GRPC_WEB_REQUEST_BYTES).await {
-        Ok(body) => body,
-        Err(_) => return StatusCode::PAYLOAD_TOO_LARGE.into_response(),
-    };
-    let session = match upstream_session_for_apps(&state, &request_parts.headers).await {
+    let session = match upstream_session_for_apps(&state, &request_headers).await {
         Ok(session) => session,
         Err(response) => return response,
     };
@@ -181,84 +175,46 @@ pub(crate) async fn live_recording(
     };
     let upstream = match state
         .live_http
-        .post(
+        .get(
             state
                 .config
-                .recording_live_proxy_url(&recording_id.to_string()),
+                .recording_live_rrd_stream_url(&recording_id.to_string()),
         )
         .header(HOST, state.config.gateway_host())
-        .header(
-            CONTENT_TYPE,
-            request_parts
-                .headers
-                .get(CONTENT_TYPE)
-                .expect("validated gRPC-Web content type"),
-        )
         .bearer_auth(session.session.access_token)
-        .body(request_body)
         .send()
         .await
     {
         Ok(response) => response,
         Err(error) => {
-            tracing::error!(%error, "console live recording MessageProxy upstream failed");
+            tracing::error!(%error, "console live RRD stream upstream failed");
             return (session_headers, StatusCode::BAD_GATEWAY).into_response();
         }
     };
     let status = upstream.status();
-    if status.is_success() && !headers_are_grpc_web(upstream.headers()) {
-        tracing::error!("console live recording MessageProxy returned an invalid content type");
+    if status.is_success() && !headers_are_live_rrd_stream(upstream.headers()) {
+        tracing::error!("console live RRD stream returned an invalid content type");
         return (session_headers, StatusCode::BAD_GATEWAY).into_response();
     }
-    let headers = live_proxy_headers(upstream.headers(), session_headers);
+    let headers = live_rrd_stream_headers(upstream.headers(), session_headers);
     let mut response = Response::new(Body::from_stream(upstream.bytes_stream()));
     *response.status_mut() = status;
     *response.headers_mut() = headers;
     response
 }
 
-pub(crate) fn is_read_only_live_proxy_request(request: &Request) -> bool {
-    if request.method() != axum::http::Method::POST || request.uri().query().is_some() {
-        return false;
-    }
-    let segments = request.uri().path().split('/').collect::<Vec<_>>();
-    matches!(
-        segments.as_slice(),
-        [
-            "",
-            "console",
-            "api",
-            "recordings",
-            recording_id,
-            "live",
-            "proxy"
-        ] if parse_uuid_v7(recording_id).is_some()
-    )
+fn headers_are_live_rrd_stream(headers: &HeaderMap) -> bool {
+    headers
+        .get(CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        == Some(LIVE_RRD_STREAM_CONTENT_TYPE)
 }
 
-fn request_is_grpc_web(request: &Request) -> bool {
-    request.method() == axum::http::Method::POST && headers_are_grpc_web(request.headers())
-}
-
-fn headers_are_grpc_web(headers: &HeaderMap) -> bool {
-    matches!(
-        headers
-            .get(CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok()),
-        Some(
-            "application/grpc-web"
-                | "application/grpc-web+proto"
-                | "application/grpc-web-text"
-                | "application/grpc-web-text+proto"
-        )
-    )
-}
-
-fn live_proxy_headers(upstream: &HeaderMap, mut headers: HeaderMap) -> HeaderMap {
+fn live_rrd_stream_headers(upstream: &HeaderMap, mut headers: HeaderMap) -> HeaderMap {
     for name in [
         CONTENT_TYPE,
-        axum::http::HeaderName::from_static("grpc-encoding"),
-        axum::http::HeaderName::from_static("grpc-accept-encoding"),
+        X_CONTENT_TYPE_OPTIONS,
+        axum::http::HeaderName::from_static("x-accel-buffering"),
     ] {
         if let Some(value) = upstream.get(&name) {
             headers.insert(name, value.clone());
@@ -376,16 +332,14 @@ fn validated_manifest_bytes(body: &[u8], recording_id: uuid::Uuid) -> anyhow::Re
 mod tests {
     use axum::{
         Router,
-        body::Body,
-        http::{HeaderMap, HeaderName, HeaderValue, Method, Request, header},
-        routing::{get, post},
+        http::{HeaderMap, HeaderName, HeaderValue, header},
+        routing::get,
     };
     use serde_json::json;
 
     use super::{
-        BLUEPRINT_PATH, LIVE_RECORDING_PATH, MANIFEST_PATH, PLAYBACK_MANIFEST_SCHEMA,
-        binary_rrd_headers, blueprint, is_read_only_live_proxy_request, live_recording, manifest,
-        validated_manifest_bytes,
+        BLUEPRINT_PATH, LIVE_RECORDING_PATH, MANIFEST_PATH, PLAYBACK_MANIFEST_SCHEMA, blueprint,
+        live_recording, live_rrd_stream_headers, manifest, validated_manifest_bytes,
     };
 
     fn manifest_value(recording_id: uuid::Uuid) -> serde_json::Value {
@@ -424,7 +378,7 @@ mod tests {
     }
 
     #[test]
-    fn manifest_v6_is_canonicalized_after_identity_validation() {
+    fn manifest_v7_is_canonicalized_after_identity_validation() {
         let recording_id = uuid::Uuid::now_v7();
         let mut manifest = manifest_value(recording_id);
         manifest["live"] = json!({
@@ -433,7 +387,7 @@ mod tests {
             "current_byte_len": 1024,
             "history_seconds": 1,
             "video_preroll_seconds": 2,
-            "transport": "rerun_message_proxy_grpc"
+            "transport": "rerun_rrd_channel_v1"
         });
         let body = serde_json::to_vec(&manifest).unwrap();
         let validated = validated_manifest_bytes(&body, recording_id).unwrap();
@@ -441,7 +395,7 @@ mod tests {
         assert_eq!(decoded["schema"], PLAYBACK_MANIFEST_SCHEMA);
         assert_eq!(decoded["recording_id"], recording_id.to_string());
         assert_eq!(decoded["blueprint"]["map_provider"], "mapbox");
-        assert_eq!(decoded["live"]["transport"], "rerun_message_proxy_grpc");
+        assert_eq!(decoded["live"]["transport"], "rerun_rrd_channel_v1");
     }
 
     #[test]
@@ -466,37 +420,12 @@ mod tests {
     fn canonical_playback_routes_register_with_axum() {
         let _: Router<crate::AppState> = Router::new()
             .route(MANIFEST_PATH, get(manifest))
-            .route(LIVE_RECORDING_PATH, post(live_recording))
+            .route(LIVE_RECORDING_PATH, get(live_recording))
             .route(BLUEPRINT_PATH, get(blueprint));
     }
 
     #[test]
-    fn only_the_canonical_uuid_scoped_proxy_post_is_read_only() {
-        let recording_id = uuid::Uuid::now_v7();
-        let path = format!("/console/api/recordings/{recording_id}/live/proxy");
-        let request = Request::builder()
-            .method(Method::POST)
-            .uri(&path)
-            .body(Body::empty())
-            .unwrap();
-        assert!(is_read_only_live_proxy_request(&request));
-
-        for invalid in [
-            format!("{path}?token=forbidden"),
-            path.replace("/live/proxy", "/live.rrd"),
-            "/console/api/recordings/not-a-recording/live/proxy".to_owned(),
-        ] {
-            let request = Request::builder()
-                .method(Method::POST)
-                .uri(invalid)
-                .body(Body::empty())
-                .unwrap();
-            assert!(!is_read_only_live_proxy_request(&request));
-        }
-    }
-
-    #[test]
-    fn binary_rrd_proxy_preserves_rotated_console_session_headers() {
+    fn framed_rrd_stream_preserves_rotated_console_session_headers() {
         let mut session = HeaderMap::new();
         session.insert(
             header::SET_COOKIE,
@@ -509,14 +438,14 @@ mod tests {
         let mut upstream = HeaderMap::new();
         upstream.insert(
             header::CONTENT_TYPE,
-            HeaderValue::from_static("application/vnd.rerun.rrd"),
+            HeaderValue::from_static(super::LIVE_RRD_STREAM_CONTENT_TYPE),
         );
         upstream.insert(
             HeaderName::from_static("x-accel-buffering"),
             HeaderValue::from_static("no"),
         );
 
-        let headers = binary_rrd_headers(&upstream, session);
+        let headers = live_rrd_stream_headers(&upstream, session);
 
         assert_eq!(
             headers.get(header::SET_COOKIE).unwrap(),
@@ -525,7 +454,7 @@ mod tests {
         assert_eq!(headers.get("x-veoveo-csrf").unwrap(), "rotated-csrf");
         assert_eq!(
             headers.get(header::CONTENT_TYPE).unwrap(),
-            "application/vnd.rerun.rrd"
+            super::LIVE_RRD_STREAM_CONTENT_TYPE
         );
         assert_eq!(headers.get("x-accel-buffering").unwrap(), "no");
         assert_eq!(

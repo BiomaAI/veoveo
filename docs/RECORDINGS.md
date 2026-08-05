@@ -6,9 +6,10 @@
 |---|---|
 | Rerun 0.35.0 gRPC and RRD | Producer-local ingestion and immutable `object-store`-optimized shards with footer manifests. |
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Recording-scoped read subset over HTTP/2 and gRPC-Web. Veoveo does not expose a general Rerun catalog or mutation surface. |
-| Rerun MessageProxy `rerun.sdk_comms.v1alpha1` | Recording-scoped `ReadMessages` server stream over gRPC-Web for the bounded live projection. Write and table methods are unavailable. |
+| Rerun 0.35.0 WebViewer `LogChannel` | Console opens one incremental channel with `WebViewer.open_channel` and sends complete RRD arrays with `LogChannel.send_rrd`. |
+| Fetch Standard and Veoveo framed RRD stream v1 | One authenticated same-origin GET carries unsigned four-byte big-endian lengths followed by complete RRD payloads. The exact media type is `application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=1`. |
 | Veoveo recording ingest `2026-08-01` | Authenticated protobuf batches and distinct producer Blueprint publications preserve native Rerun store identities, order, idempotency, and IDR-aligned rollover. |
-| Veoveo recording playback `v6` | `veoveo.io/recording-playback/v6` binds one producer Blueprint, one lazy archive dataset, one optional recording-scoped `rerun_message_proxy_grpc` live source, catalog revision, and scoped session. Console selects exactly one recording receiver at a time. |
+| Veoveo recording playback `v7` | `veoveo.io/recording-playback/v7` binds one producer Blueprint, one lazy archive dataset, one optional recording-scoped `rerun_rrd_channel_v1` live source, catalog revision, and scoped session. Console selects exactly one recording receiver at a time. |
 | H.264/AVC Annex B | Decoder-reentrant `VideoStream` access units, sparse keyframe markers, and exact producer timeline indices. |
 | JSON Web Token and SHA-256 | Host-limited Redap read access and immutable shard, layer-revision, and artifact identities. |
 
@@ -75,14 +76,14 @@ resource policy and audit path, then issues a short-lived internal assertion.
 The BFF authenticates each Console request and passes the manifest through. It
 does not retain playback sessions or proxy archive bytes.
 
-Playback manifest `veoveo.io/recording-playback/v6` establishes a renewable
+Playback manifest `veoveo.io/recording-playback/v7` establishes a renewable
 five-minute server session scoped to one recording and actor. It returns a
 Rerun-compatible read token whose standard Redap claims limit delivery to the
 installation hostname. History mode renews that session once at 80 percent of
 its exact lifetime because the archive receiver consumes the Redap token. Live
 mode does not schedule credential renewal. Console owns the same-origin stream
-request and supplies its HttpOnly session normally. One native MessageProxy
-receiver stays open for the recording. Catalog notifications advance it across
+request and supplies its HttpOnly session normally. One native WebViewer
+channel stays open for the recording. Catalog notifications advance it across
 writing-segment rollovers without reopening the WebViewer, replaying prior row
 identities, or disturbing the producer Blueprint. The opaque session
 identifier contains no bearer, catalog, or filesystem identity.
@@ -124,19 +125,23 @@ the durable Veoveo catalog and immutable RRD files rebuild it after restart or
 eviction. There are no archive-byte proxy routes and no whole-recording RRD
 concatenation endpoint.
 
-The current writing shard is delivered through Rerun 0.35's generated
-MessageProxy `ReadMessages` stream. Recording MCP converts each selected native
-`LogMsg` with Rerun's LZ4 protobuf transport and streams it over gRPC-Web. It
-does not rebuild an indefinitely open RRD file in the browser path.
+The current writing shard is delivered through Rerun 0.35's public incremental
+channel API. Recording MCP collects each reactive durable batch into one
+complete RRD and writes its length and bytes to the authenticated stream.
+Console recovers those exact boundaries and calls `LogChannel.send_rrd`. It
+does not rebuild an indefinitely open RRD file or ask Rerun to treat the live
+source as a Redap server.
 
-WebViewer opens one canonical same-origin `rerun+https` proxy URI. Rerun's WASM
-client posts to the fixed MessageProxy RPC path, and a Console-scoped service
-worker routes that request to the selected recording by controlled browser
-client identity. The route carries no bearer. The normal HttpOnly Console
-session reaches the BFF and gateway policy boundary, while another tab cannot
-select or close this tab's recording stream. The route is acknowledged before
-WebViewer opens the receiver. Console never drives the cursor from
-`time_update` events.
+WebViewer opens one channel for the selected recording. The normal HttpOnly
+Console session reaches the BFF and gateway policy boundary. Another tab owns
+its own fetch and cannot select or close this tab's stream. Console never drives
+the cursor from `time_update` events. Rerun's own live play state follows the
+newest arriving data.
+
+The embedded viewer clears Rerun 0.35's persisted standalone state before it
+starts. This prevents a prior Redap selection from restoring catalog discovery,
+archive downloads, or watch traffic into Live mode. Console then opens the
+governed producer Blueprint and the selected recording source explicitly.
 
 The Console snapshot stream announces catalog changes. A segment rollover
 refreshes the manifest from that event and replaces the completed receiver;
@@ -156,7 +161,7 @@ Filesystem notifications advance authenticated parts by their next exact
 sequence. Neither ingest rollover accounting nor live following rescans the
 active segment for every batch; an idle recording performs no periodic scan.
 
-Console opens one native Rerun MessageProxy receiver for Live mode. History remains user-scrubbable.
+Console opens one native Rerun `LogChannel` for Live mode. History remains user-scrubbable.
 The bounded history stays behind the live playhead without replaying at
 wall-clock speed. Console never rotates an active receiver or mutates its cursor
 on a timer. Browser residency belongs to Rerun's store budget; the server-side
@@ -165,7 +170,9 @@ history bound controls reconnect bootstrap rather than forcing a viewer restart.
 Rerun gRPC does not carry an SDK-flush marker. The producer forwarder groups its
 chunks by monotonic source-generation span and H.264 access-unit boundaries,
 then wakes the durable uploader immediately. It does not add a batch-flush
-clock. Every discovery, OAuth, and ingest request has a bounded deadline, and
+clock. A producer that streams directly to this viewer path uses Rerun 0.35's
+documented `ChunkBatcherConfig.LOW_LATENCY` profile rather than the 200 ms
+general-purpose default. Every discovery, OAuth, and ingest request has a bounded deadline, and
 shutdown cancels an in-flight request before draining the durable queue.
 Filesystem events publish newly acknowledged Hub parts to live receivers.
 Backoff remains limited to failed durable uploads and does not pace healthy
@@ -173,7 +180,7 @@ live delivery.
 
 Console exposes explicit Live and History modes because Rerun 0.35 cannot keep
 two receivers with the same recording Store ID open safely. Live selects only
-the current bounded MessageProxy stream. History selects only the lazy immutable
+the current bounded channel stream. History selects only the lazy immutable
 archive dataset. A producer Blueprint remains a distinct presentation store and
 opens before either selected receiver. The canonical camera producer
 emits the IDR first at each GoP timestamp, then reasserts pinhole metadata. Its
@@ -181,8 +188,9 @@ one-second GoP bounds rollover delay and supplies the declared live preroll.
 Once the producer's world is ready, diagnostic image quality does not interrupt
 encoding or the IDR cadence.
 
-At rollover, the live response ends. Console opens the successor response
-without rebuilding the WebViewer. An archive revision change follows the same
+The live response crosses rollover without closing. Recording MCP reacts to the
+catalog change, attaches the successor writing segment, and keeps the same
+WebViewer channel. An archive revision change follows the same
 close-before-open rule at its stable URI, which prevents overlapping Store
 identities. Mode changes close the current recording receiver before opening
 the other mode. The persistent viewer retains its producer layout, selection,

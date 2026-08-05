@@ -24,14 +24,14 @@ use veoveo_recording_hub::{
     ingest_segment_parts_directory,
 };
 
-pub type LiveMessageReceiver = mpsc::Receiver<Result<LogMsg, io::Error>>;
+pub type LiveMessageBatchReceiver = mpsc::Receiver<Result<Vec<LogMsg>, io::Error>>;
 
-pub fn stream_live_messages(
+pub fn stream_live_message_batches(
     segment_path: PathBuf,
     recording_id: RecordingId,
     history: Duration,
     playback_store_id: StoreId,
-) -> LiveMessageReceiver {
+) -> LiveMessageBatchReceiver {
     let (sender, receiver) = mpsc::channel(32);
     tokio::task::spawn_blocking(move || {
         let error_sender = sender.clone();
@@ -58,7 +58,7 @@ pub fn stream_live_messages(
 
 fn wait_for_live_source(
     segment_path: &Path,
-    sender: &mpsc::Sender<Result<LogMsg, io::Error>>,
+    sender: &mpsc::Sender<Result<Vec<LogMsg>, io::Error>>,
 ) -> Result<()> {
     let parts_directory = ingest_segment_parts_directory(segment_path);
     if segment_path.exists() || parts_directory.exists() {
@@ -81,7 +81,7 @@ fn stream_growing_file(
     path: &Path,
     history: Duration,
     playback_store_id: &StoreId,
-    sender: &mpsc::Sender<Result<LogMsg, io::Error>>,
+    sender: &mpsc::Sender<Result<Vec<LogMsg>, io::Error>>,
 ) -> Result<()> {
     let cutoff = history_cutoff(history)?;
     let mut message_state = LiveMessageState::default();
@@ -93,7 +93,7 @@ fn stream_growing_file(
             message.with_context(|| format!("decoding live RRD {}", path.display()))?;
         message.set_store_id(playback_store_id.clone());
         if message_is_in_live_window(&message, cutoff)? {
-            append_messages(std::iter::once(message), &mut message_state, sender)?;
+            append_message_batch(vec![message], &mut message_state, sender)?;
         }
     }
     Ok(())
@@ -104,7 +104,7 @@ fn stream_ingest_parts(
     recording_id: RecordingId,
     history: Duration,
     playback_store_id: &StoreId,
-    sender: &mpsc::Sender<Result<LogMsg, io::Error>>,
+    sender: &mpsc::Sender<Result<Vec<LogMsg>, io::Error>>,
 ) -> Result<()> {
     let parts_directory = ingest_segment_parts_directory(segment_path);
     let cutoff = history_cutoff(history)?;
@@ -139,7 +139,7 @@ fn stream_ingest_parts(
             LiveRrdBatchKind::Bootstrap,
         )
         .context("optimizing bounded live RRD bootstrap")?;
-        append_messages(optimized, &mut message_state, sender)?;
+        append_message_batch(optimized, &mut message_state, sender)?;
     }
     let mut next_sequence = latest_initial_sequence.map(|sequence| sequence.saturating_add(1));
     loop {
@@ -177,7 +177,7 @@ fn send_part(
     cutoff: u64,
     playback_store_id: &StoreId,
     message_state: &mut LiveMessageState,
-    sender: &mpsc::Sender<Result<LogMsg, io::Error>>,
+    sender: &mpsc::Sender<Result<Vec<LogMsg>, io::Error>>,
 ) -> Result<bool> {
     let Some(messages) = read_part_messages(path, cutoff, playback_store_id)? else {
         return Ok(false);
@@ -195,7 +195,7 @@ fn send_part(
     let optimized =
         veoveo_recording_hub::optimize_live_rrd_messages(messages, LiveRrdBatchKind::Incremental)
             .with_context(|| format!("optimizing live RRD part {}", path.display()))?;
-    append_messages(optimized, message_state, sender)?;
+    append_message_batch(optimized, message_state, sender)?;
     Ok(true)
 }
 
@@ -249,11 +249,12 @@ struct LiveMessageState {
     store_info_sent: bool,
 }
 
-fn append_messages(
+fn append_message_batch(
     messages: impl IntoIterator<Item = LogMsg>,
     state: &mut LiveMessageState,
-    sender: &mpsc::Sender<Result<LogMsg, io::Error>>,
+    sender: &mpsc::Sender<Result<Vec<LogMsg>, io::Error>>,
 ) -> Result<()> {
+    let mut batch = Vec::new();
     for message in messages {
         if matches!(message, LogMsg::SetStoreInfo(_)) {
             if state.store_info_sent {
@@ -261,8 +262,11 @@ fn append_messages(
             }
             state.store_info_sent = true;
         }
+        batch.push(message);
+    }
+    if !batch.is_empty() {
         sender
-            .blocking_send(Ok(message))
+            .blocking_send(Ok(batch))
             .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "live Rerun client closed"))?;
     }
     Ok(())
@@ -292,12 +296,12 @@ fn message_is_in_live_window(message: &LogMsg, cutoff_nanos: u64) -> Result<bool
 struct FollowingFile {
     file: File,
     path: PathBuf,
-    sender: mpsc::Sender<Result<LogMsg, io::Error>>,
+    sender: mpsc::Sender<Result<Vec<LogMsg>, io::Error>>,
     wake: FilesystemWake,
 }
 
 impl FollowingFile {
-    fn open(path: &Path, sender: mpsc::Sender<Result<LogMsg, io::Error>>) -> io::Result<Self> {
+    fn open(path: &Path, sender: mpsc::Sender<Result<Vec<LogMsg>, io::Error>>) -> io::Result<Self> {
         let wake = FilesystemWake::watch(path).map_err(io::Error::other)?;
         Ok(Self {
             file: File::open(path)?,
@@ -455,33 +459,31 @@ mod tests {
         write_part(&parts_directory, 0, store_info, &[first_data]);
 
         let playback_store_id = StoreId::recording("playback-dataset", "run-a");
-        let mut receiver = stream_live_messages(
+        let mut receiver = stream_live_message_batches(
             segment_path,
             RecordingId::new(),
             Duration::from_secs(60),
             playback_store_id.clone(),
         );
-        let first_store_info = tokio::time::timeout(Duration::from_secs(2), receiver.recv())
+        let first_batch = tokio::time::timeout(Duration::from_secs(2), receiver.recv())
             .await
             .expect("initial live part was not emitted")
             .expect("live stream ended before initial part")
             .expect("initial live part failed");
-        let first_data = tokio::time::timeout(Duration::from_secs(2), receiver.recv())
-            .await
-            .expect("initial live data was not emitted")
-            .expect("live stream ended before initial data")
-            .expect("initial live data failed");
+        assert_eq!(first_batch.len(), 2);
+        assert!(matches!(first_batch[0], LogMsg::SetStoreInfo(_)));
+        assert!(matches!(first_batch[1], LogMsg::ArrowMsg(_, _)));
 
         write_part(&parts_directory, 1, store_info, &second_data);
-        let second_data = tokio::time::timeout(Duration::from_secs(2), receiver.recv())
+        let second_batch = tokio::time::timeout(Duration::from_secs(2), receiver.recv())
             .await
             .expect("reactive live part was not emitted")
             .expect("live stream ended before reactive part")
             .expect("reactive live part failed");
         assert!(
             matches!(
-                &second_data,
-                LogMsg::ArrowMsg(_, arrow)
+                second_batch.as_slice(),
+                [LogMsg::ArrowMsg(_, arrow)]
                     if Chunk::from_arrow_msg(arrow).unwrap().num_rows() == 2
             ),
             "newly durable one-row chunks must be compacted before browser delivery"
@@ -493,13 +495,14 @@ mod tests {
             "one durable part must not repeat store metadata"
         );
 
-        let mut streamed = vec![first_store_info, first_data, second_data];
+        let mut streamed = first_batch;
+        streamed.extend(second_batch);
         std::fs::remove_dir_all(parts_directory).unwrap();
         while let Some(result) = tokio::time::timeout(Duration::from_secs(2), receiver.recv())
             .await
             .expect("live stream did not end after rollover")
         {
-            streamed.push(result.unwrap());
+            streamed.extend(result.unwrap());
         }
 
         assert_eq!(
@@ -571,7 +574,7 @@ mod tests {
         std::fs::create_dir(&parts_directory).unwrap();
         write_part(&parts_directory, 0, store_info, &[temporal_data]);
 
-        let mut receiver = stream_live_messages(
+        let mut receiver = stream_live_message_batches(
             second_path,
             recording_id,
             Duration::from_secs(60),
@@ -584,7 +587,7 @@ mod tests {
             .count()
             < 2
         {
-            streamed.push(
+            streamed.extend(
                 tokio::time::timeout(Duration::from_secs(2), receiver.recv())
                     .await
                     .expect("recording context was not emitted")
@@ -625,7 +628,7 @@ mod tests {
             day_directory.join(format!("recording.ingest-{}-s0.rrd", uuid::Uuid::now_v7()));
         let parts_directory = ingest_segment_parts_directory(&segment_path);
         let playback_store_id = StoreId::recording("playback-dataset", "run-a");
-        let mut receiver = stream_live_messages(
+        let mut receiver = stream_live_message_batches(
             segment_path,
             RecordingId::new(),
             Duration::from_secs(60),
@@ -645,7 +648,7 @@ mod tests {
             .expect("filesystem publication did not wake live playback")
             .expect("live playback ended before its first durable part")
             .expect("live playback failed after its first durable part");
-        assert!(matches!(first, LogMsg::SetStoreInfo(_)));
+        assert!(matches!(first.as_slice(), [LogMsg::SetStoreInfo(_), ..]));
     }
 
     #[tokio::test(flavor = "multi_thread")]
