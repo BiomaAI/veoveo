@@ -21,7 +21,7 @@ use browser::{
 };
 
 const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-browser-evidence/v2";
-const MAX_RECORDING_SOURCE_LAG_SECONDS: f64 = 5.0;
+const MAX_RECORDING_SOURCE_LAG_SECONDS: f64 = 1.0;
 const OPERATOR_PROFILE_SCOPES: &[&str] = &[
     "operator:use",
     "simulation-view:read",
@@ -547,6 +547,11 @@ fn json_string<'a>(value: &'a Value, pointer: &str) -> Result<&'a str> {
 }
 
 fn recording_id(state: &Value) -> Result<String> {
+    ensure!(
+        json_string(state, "/recordings/0/catalog_lifecycle")? == "ready",
+        "simulation recording has not reached the governed catalog: {}",
+        state.pointer("/recordings/0").unwrap_or(&Value::Null)
+    );
     let uri = json_string(state, "/recordings/0/recording_uri")?;
     let id = uri
         .strip_prefix("recording://recordings/")
