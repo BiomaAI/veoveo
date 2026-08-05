@@ -46,6 +46,8 @@ mod tests {
             "OV.EventStatus.CANCELED",
             "signaling retry",
             "await player.streamer.connect",
+            "policy.allowsFeature(\"compute-pressure\")",
+            "disableUnavailableComputePressure();await verifyDecode",
             "[redacted token]",
         ] {
             assert!(html.contains(needle), "missing {needle}");
