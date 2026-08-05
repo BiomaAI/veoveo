@@ -172,20 +172,23 @@ export function observeRecordingLiveResponseEnd(
 ): Response {
   const reader = response.body!.getReader();
   let ended = false;
+  const notifyEnd = () => {
+    if (ended) return;
+    ended = true;
+    onEnd();
+  };
   const body = new ReadableStream<Uint8Array>({
     async pull(controller) {
       try {
         const next = await reader.read();
         if (next.done) {
           controller.close();
-          if (!ended) {
-            ended = true;
-            onEnd();
-          }
+          notifyEnd();
         } else {
           controller.enqueue(next.value);
         }
       } catch (cause) {
+        notifyEnd();
         controller.error(cause);
       }
     },

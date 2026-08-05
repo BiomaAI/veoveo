@@ -4,7 +4,7 @@ export interface GovernedRerunArchive {
 }
 
 export type GovernedRerunReceiver =
-  | { kind: "live"; url: string }
+  | { kind: "live"; url: string; generation: number }
   | { kind: "archive"; archive: GovernedRerunArchive };
 
 export interface GovernedRerunSource {
@@ -37,16 +37,23 @@ export interface SelectedRerunPlaybackReceiver {
 export function selectExclusiveRerunPlaybackReceiver(
   requestedMode: RerunPlaybackMode,
   archive: GovernedRerunArchive | undefined,
-  liveUrl: string | undefined
+  liveUrl: string | undefined,
+  liveGeneration = 0
 ): SelectedRerunPlaybackReceiver {
   if (requestedMode === "live" && liveUrl) {
-    return { mode: "live", receiver: { kind: "live", url: liveUrl } };
+    return {
+      mode: "live",
+      receiver: { kind: "live", url: liveUrl, generation: liveGeneration },
+    };
   }
   if (archive) {
     return { mode: "archive", receiver: { kind: "archive", archive } };
   }
   if (liveUrl) {
-    return { mode: "live", receiver: { kind: "live", url: liveUrl } };
+    return {
+      mode: "live",
+      receiver: { kind: "live", url: liveUrl, generation: liveGeneration },
+    };
   }
   return { mode: requestedMode };
 }
@@ -80,7 +87,10 @@ function receiversEqual(
 ) {
   if (!opened || opened.kind !== desired.kind) return false;
   if (opened.kind === "live" && desired.kind === "live") {
-    return opened.url === desired.url;
+    return (
+      opened.url === desired.url &&
+      opened.generation === desired.generation
+    );
   }
   if (opened.kind === "archive" && desired.kind === "archive") {
     return (

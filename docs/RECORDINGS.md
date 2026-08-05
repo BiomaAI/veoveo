@@ -138,14 +138,17 @@ replacement is not a rollover signal.
 
 Live playback is a distinct governed projection. The manifest identifies the
 current writing segment and declares the configured history window. The
-production default sends 60 seconds of recent temporal data plus two seconds of
-video preroll, followed by newly durable batches. Store information and static
-chunks are retained even when they predate the temporal cutoff. Authenticated
-ingest maintains a compact static-context snapshot, so a late viewer reads that
-snapshot and recent parts instead of scanning the full active hour. Direct native
-writers are decoded through the same temporal filter while the decoder follows
-the growing file. Filesystem notifications wake both follow paths when bytes or
-parts arrive; an idle recording performs no 100 ms directory scan.
+production default sends one second of recent temporal state plus two seconds
+of video preroll, followed by newly durable batches. Store information and
+static chunks are retained even when they predate the temporal cutoff. Full
+recording history remains on the lazy History path. Authenticated ingest
+maintains a compact static-context snapshot, so a late viewer reads that
+snapshot and the decoder-reentrant live tail instead of loading a minute of
+data before reaching the present. Direct native writers are decoded through
+the same temporal filter while the decoder follows the growing file.
+Filesystem notifications advance authenticated parts by their next exact
+sequence. Neither ingest rollover accounting nor live following rescans the
+active segment for every batch; an idle recording performs no periodic scan.
 
 Console opens the live HTTP receiver once. Rerun 0.35 classifies an HTTP RRD as
 a finite source and initializes it in `Playing` mode, so Console uses Rerun's

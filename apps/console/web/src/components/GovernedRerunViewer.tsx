@@ -49,7 +49,7 @@ export default function GovernedRerunViewer({
   onLiveReceiverEnded?: () => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
-  const viewerInstance = useRef(crypto.randomUUID());
+  const [viewerInstance] = useState(() => crypto.randomUUID());
   const viewerRef = useRef<WebViewer | undefined>(undefined);
   const desiredSourceRef = useRef(source);
   const liveReceiverEndedRef = useRef(onLiveReceiverEnded);
@@ -184,7 +184,7 @@ export default function GovernedRerunViewer({
             host.current.dataset.rerunCurrentTime = String(renderedTime);
             host.current.dataset.rerunNewestTime = String(range.max);
             host.current.dataset.rerunLiveLagSeconds = String(
-              Math.max(0, range.max - renderedTime)
+              Math.max(0, range.max - renderedTime) / 1_000_000_000
             );
             host.current.dataset.rerunTimeUpdateCount = String(updates);
           }
@@ -221,7 +221,7 @@ export default function GovernedRerunViewer({
       <div
         ref={host}
         className="rerun-web-viewer-host"
-        data-rerun-viewer-instance={viewerInstance.current}
+        data-rerun-viewer-instance={viewerInstance}
         data-rerun-viewer-state="starting"
       />
       {status.state === "error" ? (

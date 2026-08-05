@@ -115,3 +115,22 @@ test("reports natural live response completion without treating cancellation as 
   await pending.body?.cancel();
   assert.equal(completions, 1);
 });
+
+test("reports a failed live response as a reactive reconnect event", async () => {
+  let completions = 0;
+  const failed = observeRecordingLiveResponseEnd(
+    new Response(
+      new ReadableStream<Uint8Array>({
+        pull(controller) {
+          controller.error(new Error("connection lost"));
+        },
+      })
+    ),
+    () => {
+      completions += 1;
+    }
+  );
+
+  await assert.rejects(failed.arrayBuffer(), /connection lost/);
+  assert.equal(completions, 1);
+});

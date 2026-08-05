@@ -128,6 +128,7 @@ export function RecordingsView({
   const [copied, setCopied] = useState(false);
   const [requestedPlaybackMode, setRequestedPlaybackMode] =
     useState<RerunPlaybackMode>("live");
+  const [liveReceiverGeneration, setLiveReceiverGeneration] = useState(0);
   const refreshingManifest = useRef(false);
 
   const recordings = useMemo(() => {
@@ -176,7 +177,7 @@ export function RecordingsView({
     return () => controller.abort();
   }, [reloadToken, resolvedSelectedId]);
 
-  const refreshPlaybackManifest = useCallback(async () => {
+  const refreshPlaybackManifest = useCallback(async (reopenLiveReceiver = false) => {
     if (!resolvedSelectedId || !manifest || refreshingManifest.current) return;
     const currentLiveSegmentId = manifest.live?.segment_id;
     const currentManifestState = manifest.state;
@@ -196,6 +197,9 @@ export function RecordingsView({
         value.access.redap_token === manifest.access.redap_token &&
         value.access.expires_at === manifest.access.expires_at
       ) {
+        if (reopenLiveReceiver) {
+          setLiveReceiverGeneration((generation) => generation + 1);
+        }
         return;
       }
       setManifest(value);
@@ -247,7 +251,8 @@ export function RecordingsView({
             revision: manifest.archive.revision,
           }
         : undefined,
-      liveUrl
+      liveUrl,
+      liveReceiverGeneration
     );
     const source = receiver.receiver
       ? {
@@ -264,7 +269,7 @@ export function RecordingsView({
       mode: receiver.mode,
       viewerKey: manifest.recording_id,
     };
-  }, [manifest, requestedPlaybackMode]);
+  }, [liveReceiverGeneration, manifest, requestedPlaybackMode]);
   const playbackSource = playback?.source;
   const playbackMode = playback?.mode ?? requestedPlaybackMode;
 
@@ -276,7 +281,7 @@ export function RecordingsView({
       void refreshPlaybackManifest();
     }, delay);
     return () => window.clearTimeout(timeout);
-  }, [manifest, playbackSource?.receiver.kind, refreshPlaybackManifest]);
+  }, [manifest, playbackSource?.receiver, refreshPlaybackManifest]);
 
   return (
     <div className="recordings-workspace">
@@ -417,7 +422,7 @@ export function RecordingsView({
                       key={playback?.viewerKey ?? selected.id}
                       recordingId={selected.id}
                       source={playbackSource}
-                      onLiveReceiverEnded={() => void refreshPlaybackManifest()}
+                      onLiveReceiverEnded={() => void refreshPlaybackManifest(true)}
                     />
                   </Suspense>
                 </ViewerBoundary>

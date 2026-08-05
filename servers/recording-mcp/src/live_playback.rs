@@ -6,7 +6,6 @@
 //! shard from being replayed from byte zero whenever a viewer connects.
 
 use std::{
-    collections::BTreeSet,
     fs::File,
     io::{self, BufReader, Read, Write},
     path::{Path, PathBuf},
@@ -104,48 +103,43 @@ fn stream_ingest_parts(
         }
         encoder.flush_blocking()?;
     }
-    let mut streamed = BTreeSet::new();
-    let mut initial_snapshot = true;
-    loop {
-        let parts = ordered_parts(&parts_directory)?;
-        let latest_sequence = parts.last().map(|part| part.sequence);
-        let mut appended = false;
-        for part in parts {
-            if streamed.contains(&part.sequence) {
-                continue;
-            }
-            if initial_snapshot
-                && part.modified < modified_cutoff
-                && Some(part.sequence) != latest_sequence
-            {
-                streamed.insert(part.sequence);
-                continue;
-            }
-            let file = match File::open(&part.path) {
-                Ok(file) => file,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
-                Err(error) => {
-                    return Err(error).with_context(|| {
-                        format!("opening live ingest part {}", part.path.display())
-                    });
-                }
-            };
-            let decoder = Decoder::<LogMsg>::decode_eager(BufReader::new(file))
-                .with_context(|| format!("decoding live ingest part {}", part.path.display()))?;
-            for message in decoder {
-                let mut message = message.with_context(|| {
-                    format!("decoding live ingest part {}", part.path.display())
-                })?;
-                message.set_store_id(playback_store_id.clone());
-                if message_is_in_live_window(&message, cutoff)? {
-                    encoder.append(&message)?;
-                }
-            }
+    let initial_parts = ordered_parts(&parts_directory)?;
+    let latest_initial_sequence = initial_parts.last().map(|part| part.sequence);
+    for part in initial_parts {
+        if part.modified < modified_cutoff && Some(part.sequence) != latest_initial_sequence {
+            continue;
+        }
+        if !append_part(&part.path, cutoff, playback_store_id, &mut encoder)?
+            && !parts_directory.exists()
+        {
+            encoder.finish()?;
             encoder.flush_blocking()?;
-            streamed.insert(part.sequence);
+            return Ok(());
+        }
+    }
+    encoder.flush_blocking()?;
+    let mut next_sequence = latest_initial_sequence.map(|sequence| sequence.saturating_add(1));
+    loop {
+        if next_sequence.is_none() {
+            next_sequence = ordered_parts(&parts_directory)?
+                .first()
+                .map(|part| part.sequence);
+        }
+        let mut appended = false;
+        while let Some(sequence) = next_sequence {
+            let path = parts_directory.join(format!("{sequence:020}.rrd"));
+            if !path.exists() {
+                break;
+            }
+            if !append_part(&path, cutoff, playback_store_id, &mut encoder)? {
+                break;
+            }
+            next_sequence = Some(sequence.saturating_add(1));
             appended = true;
         }
-        initial_snapshot = false;
+        if appended {
+            encoder.flush_blocking()?;
+        }
         if !parts_directory.exists() {
             encoder.finish()?;
             encoder.flush_blocking()?;
@@ -155,6 +149,33 @@ fn stream_ingest_parts(
             wake.wait()?;
         }
     }
+}
+
+fn append_part(
+    path: &Path,
+    cutoff: u64,
+    playback_store_id: &StoreId,
+    encoder: &mut Encoder<ChannelWriter>,
+) -> Result<bool> {
+    let file = match File::open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => {
+            return Err(error)
+                .with_context(|| format!("opening live ingest part {}", path.display()));
+        }
+    };
+    let decoder = Decoder::<LogMsg>::decode_eager(BufReader::new(file))
+        .with_context(|| format!("decoding live ingest part {}", path.display()))?;
+    for message in decoder {
+        let mut message =
+            message.with_context(|| format!("decoding live ingest part {}", path.display()))?;
+        message.set_store_id(playback_store_id.clone());
+        if message_is_in_live_window(&message, cutoff)? {
+            encoder.append(&message)?;
+        }
+    }
+    Ok(true)
 }
 
 fn live_encoder(sender: mpsc::Sender<Result<Bytes, io::Error>>) -> Result<Encoder<ChannelWriter>> {
