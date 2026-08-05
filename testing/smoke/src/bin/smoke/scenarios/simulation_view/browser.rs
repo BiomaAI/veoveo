@@ -54,6 +54,7 @@ pub(crate) struct ConsoleRecordingCaptureEvidence {
     screenshot_path: String,
     screenshot_sha256: String,
     hardware: HardwareIdentity,
+    live_follow: RerunLiveFollowEvidence,
     network: RecordingPlaybackNetworkEvidence,
     render: RerunRenderEvidence,
 }
@@ -518,6 +519,14 @@ async fn capture_console_recording_inner(
             assert_page_visible(&mut cdp, &session_id).await?;
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
+        let initial_live_follow = wait_for_rerun_live_follow(&mut cdp, &session_id).await?;
+        let live_follow = verify_rerun_live_stability(
+            &mut cdp,
+            &session_id,
+            initial_live_follow,
+            Duration::from_secs(70),
+        )
+        .await?;
         assert_page_visible(&mut cdp, &session_id).await?;
         let final_hardware: HardwareIdentity =
             cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
@@ -550,13 +559,14 @@ async fn capture_console_recording_inner(
         )?;
         cdp.assert_no_software_renderer_events()?;
         Ok(ConsoleRecordingCaptureEvidence {
-            schema: "veoveo.io/uav-console-recording-capture/v3",
+            schema: "veoveo.io/uav-console-recording-capture/v4",
             captured_at: chrono::Utc::now(),
             page_url: page_url.to_owned(),
             recording_id: recording_id.to_owned(),
             screenshot_path: screenshot_path.display().to_string(),
             screenshot_sha256,
             hardware: final_hardware,
+            live_follow,
             network,
             render,
         })
@@ -566,6 +576,76 @@ async fn capture_console_recording_inner(
     let evidence = acceptance?;
     close?;
     Ok(evidence)
+}
+
+async fn wait_for_rerun_live_follow(
+    cdp: &mut Cdp,
+    session_id: &str,
+) -> Result<RerunLiveFollowState> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    loop {
+        let state: RerunLiveFollowState = cdp
+            .evaluate(session_id, RERUN_LIVE_FOLLOW_STATE, false)
+            .await?;
+        state.validate_surface()?;
+        if state.is_current() {
+            return Ok(state);
+        }
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "Rerun did not reach the newest live recording time: {state:?}"
+        );
+        assert_page_visible(cdp, session_id).await?;
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+}
+
+async fn verify_rerun_live_stability(
+    cdp: &mut Cdp,
+    session_id: &str,
+    initial: RerunLiveFollowState,
+    duration: Duration,
+) -> Result<RerunLiveFollowEvidence> {
+    let deadline = tokio::time::Instant::now() + duration;
+    let final_state = loop {
+        assert_page_visible(cdp, session_id).await?;
+        cdp.assert_no_software_renderer_events()?;
+        let state: RerunLiveFollowState = cdp
+            .evaluate(session_id, RERUN_LIVE_FOLLOW_STATE, false)
+            .await?;
+        state.validate_surface()?;
+        ensure!(
+            state.document_epoch_ms == initial.document_epoch_ms
+                && state.viewer_instance == initial.viewer_instance
+                && state.recording_id == initial.recording_id,
+            "Rerun remounted or replaced its live recording while following it: \
+             {initial:?} -> {state:?}"
+        );
+        if tokio::time::Instant::now() >= deadline {
+            break state;
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    };
+    ensure!(
+        final_state.is_current()
+            && final_state.time_update_count > initial.time_update_count
+            && final_state.current_time > initial.current_time
+            && final_state.newest_time > initial.newest_time,
+        "Rerun did not remain current and advancing through the live stability window: \
+         {initial:?} -> {final_state:?}"
+    );
+    Ok(RerunLiveFollowEvidence {
+        stability_seconds: duration.as_secs(),
+        viewer_instance: final_state.viewer_instance,
+        recording_id: final_state.recording_id,
+        timeline: final_state.timeline,
+        initial_time: initial.current_time,
+        final_time: final_state.current_time,
+        final_newest_time: final_state.newest_time,
+        final_lag_seconds: final_state.lag_seconds,
+        initial_time_update_count: initial.time_update_count,
+        final_time_update_count: final_state.time_update_count,
+    })
 }
 
 async fn open_headed_target(cdp_base: &str, page_url: &str) -> Result<(Cdp, String, String)> {
@@ -1554,6 +1634,64 @@ struct StreamAppState {
     body_text: String,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RerunLiveFollowState {
+    document_epoch_ms: f64,
+    viewer_instance: String,
+    viewer_state: String,
+    recording_id: String,
+    timeline: String,
+    current_time: f64,
+    newest_time: f64,
+    lag_seconds: f64,
+    time_update_count: u64,
+    canvas_count: u64,
+    loading: bool,
+    error: String,
+    map_error: String,
+}
+
+impl RerunLiveFollowState {
+    fn validate_surface(&self) -> Result<()> {
+        ensure!(
+            self.viewer_state == "open"
+                && !self.viewer_instance.is_empty()
+                && !self.recording_id.is_empty()
+                && !self.timeline.is_empty()
+                && self.current_time.is_finite()
+                && self.newest_time.is_finite()
+                && self.lag_seconds.is_finite()
+                && self.time_update_count > 0
+                && self.canvas_count > 0
+                && !self.loading
+                && self.error.is_empty()
+                && self.map_error.is_empty(),
+            "Rerun live surface is not healthy: {self:?}"
+        );
+        Ok(())
+    }
+
+    fn is_current(&self) -> bool {
+        self.lag_seconds <= 0.25 && self.current_time <= self.newest_time
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RerunLiveFollowEvidence {
+    stability_seconds: u64,
+    viewer_instance: String,
+    recording_id: String,
+    timeline: String,
+    initial_time: f64,
+    final_time: f64,
+    final_newest_time: f64,
+    final_lag_seconds: f64,
+    initial_time_update_count: u64,
+    final_time_update_count: u64,
+}
+
 impl StreamAppState {
     fn is_ready(&self) -> bool {
         self.lifecycle == "running"
@@ -2255,6 +2393,25 @@ const STREAM_APP_DECODE_IDENTITY: &str = r#"(async () => {
     smooth:result.smooth,
     powerEfficient:result.powerEfficient,
     label:document.getElementById("decode")?.textContent ?? ""
+  };
+})()"#;
+
+const RERUN_LIVE_FOLLOW_STATE: &str = r#"(() => {
+  const host=document.querySelector(".rerun-web-viewer-host");
+  return {
+    documentEpochMs:performance.timeOrigin,
+    viewerInstance:host?.dataset.rerunViewerInstance ?? "",
+    viewerState:host?.dataset.rerunViewerState ?? "",
+    recordingId:host?.dataset.rerunRecordingId ?? "",
+    timeline:host?.dataset.rerunTimeline ?? "",
+    currentTime:Number(host?.dataset.rerunCurrentTime ?? NaN),
+    newestTime:Number(host?.dataset.rerunNewestTime ?? NaN),
+    lagSeconds:Number(host?.dataset.rerunLiveLagSeconds ?? NaN),
+    timeUpdateCount:Number(host?.dataset.rerunTimeUpdateCount ?? 0),
+    canvasCount:host?.querySelectorAll("canvas").length ?? 0,
+    loading:Boolean(document.querySelector(".recording-viewer-state")),
+    error:document.querySelector(".recording-viewer-error")?.textContent ?? "",
+    mapError:document.querySelector(".recording-viewer-map-error")?.textContent ?? ""
   };
 })()"#;
 

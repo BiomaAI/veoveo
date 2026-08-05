@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   newestLiveTime,
   planRerunSourceTransition,
+  requiresPlaybackCredentialRenewal,
   selectExclusiveRerunPlaybackReceiver,
 } from "./rerunSources.ts";
 
@@ -168,4 +169,22 @@ test("live time follows the newest Rerun sample without moving history playback"
   assert.equal(newestLiveTime(50, { min: 1, max: 50 }, true), undefined);
   assert.equal(newestLiveTime(10, { min: 1, max: 50 }, false), undefined);
   assert.equal(newestLiveTime(10, null, true), undefined);
+});
+
+test("only Redap archive playback schedules credential renewal", () => {
+  assert.equal(
+    requiresPlaybackCredentialRenewal({
+      kind: "live",
+      url: "https://console.example/live.rrd",
+    }),
+    false
+  );
+  assert.equal(
+    requiresPlaybackCredentialRenewal({
+      kind: "archive",
+      archive: { uri: "rerun+https://console.example/dataset/entry", revision: "r1" },
+    }),
+    true
+  );
+  assert.equal(requiresPlaybackCredentialRenewal(undefined), false);
 });

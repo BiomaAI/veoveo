@@ -49,6 +49,7 @@ export default function GovernedRerunViewer({
   onLiveReceiverEnded?: () => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
+  const viewerInstance = useRef(crypto.randomUUID());
   const viewerRef = useRef<WebViewer | undefined>(undefined);
   const desiredSourceRef = useRef(source);
   const liveReceiverEndedRef = useRef(onLiveReceiverEnded);
@@ -156,19 +157,36 @@ export default function GovernedRerunViewer({
           if (desiredSourceRef.current.receiver.kind === "live") {
             viewer.set_playing(event.recording_id, true);
           }
+          if (host.current) {
+            host.current.dataset.rerunRecordingId = event.recording_id;
+            host.current.dataset.rerunViewerState = "open";
+          }
           setStatus({ state: "open" });
         });
         removeTimeUpdateListener = viewer.on("time_update", (event) => {
           if (!active || desiredSourceRef.current.receiver.kind !== "live") return;
           const timeline = viewer.get_active_timeline(event.recording_id);
           if (!timeline) return;
+          const range = viewer.get_time_range(event.recording_id, timeline);
           const target = newestLiveTime(
             event.time,
-            viewer.get_time_range(event.recording_id, timeline),
+            range,
             true
           );
           if (target !== undefined) {
             viewer.set_current_time(event.recording_id, timeline, target);
+          }
+          if (host.current && range) {
+            const renderedTime = target ?? event.time;
+            const updates = Number(host.current.dataset.rerunTimeUpdateCount ?? 0) + 1;
+            host.current.dataset.rerunRecordingId = event.recording_id;
+            host.current.dataset.rerunTimeline = timeline;
+            host.current.dataset.rerunCurrentTime = String(renderedTime);
+            host.current.dataset.rerunNewestTime = String(range.max);
+            host.current.dataset.rerunLiveLagSeconds = String(
+              Math.max(0, range.max - renderedTime)
+            );
+            host.current.dataset.rerunTimeUpdateCount = String(updates);
           }
         });
         viewerRef.current = viewer;
@@ -200,7 +218,12 @@ export default function GovernedRerunViewer({
 
   return (
     <div className="rerun-web-viewer">
-      <div ref={host} className="rerun-web-viewer-host" />
+      <div
+        ref={host}
+        className="rerun-web-viewer-host"
+        data-rerun-viewer-instance={viewerInstance.current}
+        data-rerun-viewer-state="starting"
+      />
       {status.state === "error" ? (
         <div className="recording-viewer-state recording-viewer-overlay recording-viewer-error">
           <strong>Rerun could not open this recording.</strong>

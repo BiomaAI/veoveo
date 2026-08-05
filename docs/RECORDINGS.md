@@ -77,10 +77,12 @@ does not retain playback sessions or proxy archive bytes.
 Playback manifest `veoveo.io/recording-playback/v3` establishes a renewable
 five-minute server session scoped to one recording and actor. It returns a
 Rerun-compatible read token whose standard Redap claims limit delivery to the
-installation hostname. Active replay renews the session every minute, while
-live manifest refreshes renew it every five seconds. Each renewal rechecks
-recording policy. The opaque session identifier contains no bearer, catalog, or
-filesystem identity.
+installation hostname. History mode renews that session once at 80 percent of
+its exact lifetime because the archive receiver consumes the Redap token. Live
+mode does not schedule credential renewal: the BFF authorizes the same-origin
+HTTP request when the stream opens, and natural stream completion is the event
+that rechecks policy and resolves the next segment. The opaque session
+identifier contains no bearer, catalog, or filesystem identity.
 
 When a recording has a producer Blueprint, the playback manifest carries its
 store identity, revision, digest, and length. The BFF exposes its bytes on a
@@ -131,9 +133,8 @@ Rerun's streaming Redap requests may already own a one-use body.
 
 The same adapter observes natural completion of the live response. Segment
 rollover therefore refreshes the manifest from the stream-end event instead of
-polling it every five seconds. Playback credentials renew once at 80 percent of
-their exact lifetime. Cancelling a response during viewer cleanup or bounded
-source replacement is not a rollover signal.
+polling it. Cancelling a response during viewer cleanup or bounded source
+replacement is not a rollover signal.
 
 Live playback is a distinct governed projection. The manifest identifies the
 current writing segment and declares the configured history window. The
