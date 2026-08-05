@@ -187,8 +187,8 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             get(playback_manifest),
         )
         .route(
-            "/recordings/{profile}/{recording_id}/segments/{segment_id}/live.rrd",
-            get(playback_live_segment),
+            "/recordings/{profile}/{recording_id}/segments/{segment_id}/live/proxy",
+            post(playback_live_segment),
         )
         .route(
             "/recordings/{profile}/{recording_id}/blueprints/{revision}/data.rrd",

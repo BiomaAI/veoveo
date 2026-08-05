@@ -316,11 +316,11 @@ export async function loadRecordingPlayback(
   return response.json() as Promise<RecordingPlaybackManifest>;
 }
 
-export function recordingLiveSegmentUrl(
+export function recordingLiveProxyRoute(
   recordingId: string,
   segmentId: string
 ): string {
-  const path = `/console/api/recordings/${encodeURIComponent(recordingId)}/segments/${encodeURIComponent(segmentId)}/live.rrd`;
+  const path = `/console/api/recordings/${encodeURIComponent(recordingId)}/segments/${encodeURIComponent(segmentId)}/live/proxy`;
   return new URL(path, window.location.origin).toString();
 }
 

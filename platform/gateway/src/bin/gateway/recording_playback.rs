@@ -1,9 +1,9 @@
 use std::{collections::BTreeMap, time::Instant};
 
 use axum::{
-    body::Body,
-    extract::{Extension, Path, State},
-    http::{HeaderMap, StatusCode},
+    body::{Body, Bytes, to_bytes},
+    extract::{Extension, Path, Request, State},
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
 };
 use chrono::{TimeDelta, Utc};
@@ -18,18 +18,19 @@ use crate::runtime::{RecordingPlaybackState, current_catalog};
 const RECORDING_SERVER: &str = "recording";
 const INTERNAL_PLAYBACK_TOKEN_TTL_SECONDS: i64 = 60;
 const PLAYBACK_SESSION_HEADER: &str = "x-veoveo-playback-session";
+const MAX_GRPC_WEB_REQUEST_BYTES: usize = 1024;
 
 #[derive(Clone, Debug)]
 enum PlaybackSource {
     Manifest,
-    LiveSegment(String),
+    LiveProxy(String),
     Blueprint(u64),
 }
 
 impl PlaybackSource {
     fn segment_id(&self) -> Option<&str> {
         match self {
-            Self::LiveSegment(segment_id) => Some(segment_id),
+            Self::LiveProxy(segment_id) => Some(segment_id),
             Self::Manifest | Self::Blueprint(_) => None,
         }
     }
@@ -37,7 +38,7 @@ impl PlaybackSource {
     fn mode(&self) -> &'static str {
         match self {
             Self::Manifest => "manifest",
-            Self::LiveSegment(_) => "live-segment",
+            Self::LiveProxy(_) => "live-proxy",
             Self::Blueprint(_) => "blueprint",
         }
     }
@@ -45,8 +46,8 @@ impl PlaybackSource {
     fn upstream_path(&self, recording_id: &str) -> String {
         match self {
             Self::Manifest => format!("/recordings/{recording_id}/playback"),
-            Self::LiveSegment(segment_id) => {
-                format!("/recordings/{recording_id}/segments/{segment_id}/live.rrd")
+            Self::LiveProxy(segment_id) => {
+                format!("/recordings/{recording_id}/segments/{segment_id}/live/proxy")
             }
             Self::Blueprint(revision) => {
                 format!("/recordings/{recording_id}/blueprints/{revision}/data.rrd")
@@ -68,6 +69,7 @@ pub(super) async fn playback_manifest(
         PlaybackSource::Manifest,
         subject,
         headers,
+        None,
     )
     .await
 }
@@ -76,14 +78,21 @@ pub(super) async fn playback_live_segment(
     State(state): State<RecordingPlaybackState>,
     Path((profile, recording_id, segment_id)): Path<(String, String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
+    request: Request,
 ) -> Response {
+    let (parts, body) = request.into_parts();
+    let body = match to_bytes(body, MAX_GRPC_WEB_REQUEST_BYTES).await {
+        Ok(body) => body,
+        Err(_) => return StatusCode::PAYLOAD_TOO_LARGE.into_response(),
+    };
     proxy_playback(
         state,
         profile,
         recording_id,
-        PlaybackSource::LiveSegment(segment_id),
+        PlaybackSource::LiveProxy(segment_id),
         subject,
-        HeaderMap::new(),
+        parts.headers,
+        Some(body),
     )
     .await
 }
@@ -103,6 +112,7 @@ pub(super) async fn playback_blueprint(
         PlaybackSource::Blueprint(revision),
         subject,
         HeaderMap::new(),
+        None,
     )
     .await
 }
@@ -114,6 +124,7 @@ async fn proxy_playback(
     source: PlaybackSource,
     subject: AuthenticatedSubject,
     headers: HeaderMap,
+    body: Option<Bytes>,
 ) -> Response {
     let started_at = Instant::now();
     let Ok(profile) = GatewayProfileId::new(profile) else {
@@ -229,7 +240,21 @@ async fn proxy_playback(
     let path = source.upstream_path(&recording_id);
     url.set_path(&path);
     url.set_query(None);
-    let mut request = client.get(url).bearer_auth(internal_token.bearer_token);
+    let mut request = if matches!(source, PlaybackSource::LiveProxy(_)) {
+        let Some(body) = body else {
+            return StatusCode::BAD_REQUEST.into_response();
+        };
+        let Some(content_type) = headers.get(header::CONTENT_TYPE) else {
+            return StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response();
+        };
+        client
+            .post(url)
+            .header(header::CONTENT_TYPE, content_type)
+            .body(body)
+    } else {
+        client.get(url)
+    }
+    .bearer_auth(internal_token.bearer_token);
     if matches!(source, PlaybackSource::Manifest)
         && let Some(value) = headers.get(PLAYBACK_SESSION_HEADER)
     {
@@ -254,6 +279,8 @@ fn proxy_response(upstream: reqwest::Response) -> Response {
         axum::http::header::CACHE_CONTROL,
         axum::http::header::CONTENT_DISPOSITION,
         axum::http::header::X_CONTENT_TYPE_OPTIONS,
+        axum::http::HeaderName::from_static("grpc-encoding"),
+        axum::http::HeaderName::from_static("grpc-accept-encoding"),
     ] {
         if let Some(value) = upstream.headers().get(&name) {
             headers.insert(name, value.clone());

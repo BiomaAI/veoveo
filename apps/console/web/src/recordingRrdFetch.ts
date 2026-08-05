@@ -3,9 +3,6 @@ const UUID_V7 =
 const BLUEPRINT_RRD_PATH = new RegExp(
   `^/console/api/recordings/${UUID_V7}/blueprints/[1-9][0-9]*/data\\.rrd$`
 );
-const LIVE_RRD_PATH = new RegExp(
-  `^/console/api/recordings/${UUID_V7}/segments/${UUID_V7}/live\\.rrd$`
-);
 
 let installation:
   | { consumers: number; original: typeof globalThis.fetch; adapted: typeof globalThis.fetch }
@@ -21,7 +18,7 @@ export function isConsoleRecordingRrdRequest(
     url.origin === consoleOrigin &&
     url.search === "" &&
     url.hash === "" &&
-    (BLUEPRINT_RRD_PATH.test(url.pathname) || LIVE_RRD_PATH.test(url.pathname))
+    BLUEPRINT_RRD_PATH.test(url.pathname)
   );
 }
 
@@ -45,7 +42,7 @@ export function authorizeConsoleRecordingRrdFetch(
     url.origin !== consoleOrigin ||
     url.search !== "" ||
     url.hash !== "" ||
-    !(BLUEPRINT_RRD_PATH.test(url.pathname) || LIVE_RRD_PATH.test(url.pathname))
+    !BLUEPRINT_RRD_PATH.test(url.pathname)
   ) {
     return [input, init];
   }
