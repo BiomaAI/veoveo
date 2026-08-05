@@ -67,7 +67,8 @@ export interface RerunSourceTransition {
 }
 
 function receiverUrl(receiver: GovernedRerunReceiver | undefined) {
-  return receiver?.kind === "archive" ? receiver.archive.uri : undefined;
+  if (!receiver) return undefined;
+  return receiver.kind === "live" ? receiver.url : receiver.archive.uri;
 }
 
 function receiversEqual(

@@ -320,7 +320,7 @@ export function recordingLiveSegmentUrl(
   recordingId: string,
   segmentId: string
 ): string {
-  const path = `/console/api/recordings/${encodeURIComponent(recordingId)}/segments/${encodeURIComponent(segmentId)}/live.rrd-frames`;
+  const path = `/console/api/recordings/${encodeURIComponent(recordingId)}/segments/${encodeURIComponent(segmentId)}/live.rrd`;
   return new URL(path, window.location.origin).toString();
 }
 

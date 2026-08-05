@@ -21,10 +21,10 @@ use crate::{
 const MAX_MANIFEST_BYTES: u64 = 8 * 1024 * 1024;
 const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v4";
 const PLAYBACK_SESSION_HEADER: &str = "x-veoveo-playback-session";
-const LIVE_RRD_FRAMES_CONTENT_TYPE: &str = "application/vnd.veoveo.rerun-live-frames; version=1";
+const LIVE_RRD_CONTENT_TYPE: &str = "application/vnd.rerun.rrd";
 pub(crate) const MANIFEST_PATH: &str = "/console/api/recordings/{recording_id}/playback";
 pub(crate) const LIVE_SEGMENT_PATH: &str =
-    "/console/api/recordings/{recording_id}/segments/{segment_id}/live.rrd-frames";
+    "/console/api/recordings/{recording_id}/segments/{segment_id}/live.rrd";
 pub(crate) const BLUEPRINT_PATH: &str =
     "/console/api/recordings/{recording_id}/blueprints/{revision}/data.rrd";
 
@@ -75,7 +75,7 @@ struct PlaybackLiveSegment {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum PlaybackLiveTransport {
-    RerunJsChannelRrdFrames,
+    RerunHttpRrdStream,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -198,7 +198,7 @@ pub(crate) async fn live_segment(
             .headers()
             .get(CONTENT_TYPE)
             .and_then(|value| value.to_str().ok())
-            != Some(LIVE_RRD_FRAMES_CONTENT_TYPE)
+            != Some(LIVE_RRD_CONTENT_TYPE)
     {
         tracing::error!("console live recording source returned an invalid content type");
         return (session_headers, StatusCode::BAD_GATEWAY).into_response();
@@ -369,7 +369,7 @@ mod tests {
             "current_byte_len": 1024,
             "history_seconds": 1,
             "video_preroll_seconds": 2,
-            "transport": "rerun_js_channel_rrd_frames"
+            "transport": "rerun_http_rrd_stream"
         });
         let body = serde_json::to_vec(&manifest).unwrap();
         let validated = validated_manifest_bytes(&body, recording_id).unwrap();
@@ -377,7 +377,7 @@ mod tests {
         assert_eq!(decoded["schema"], PLAYBACK_MANIFEST_SCHEMA);
         assert_eq!(decoded["recording_id"], recording_id.to_string());
         assert_eq!(decoded["blueprint"]["map_provider"], "mapbox");
-        assert_eq!(decoded["live"]["transport"], "rerun_js_channel_rrd_frames");
+        assert_eq!(decoded["live"]["transport"], "rerun_http_rrd_stream");
     }
 
     #[test]

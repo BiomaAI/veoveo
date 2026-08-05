@@ -11,10 +11,10 @@ in [`docs/RECORDINGS.md`](../../docs/RECORDINGS.md).
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP for discovery, bounded queries, resources, templates, subscriptions, notifications, and artifact publication. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Recording query, manifest, subscription, and structured-result contracts. |
 | [Rerun 0.35.0](https://rerun.io/docs/) RRD and Rerun Data Protocol | Immutable frozen and sealed shards are layers of one recording-scoped dataset segment. The public service implements the viewer's read subset of the `rerun.cloud.v1alpha1.RerunCloudService` protocol over HTTP/2 or gRPC-Web. It does not claim the catalog, mutation, table, task, or maintenance profiles. |
-| [Fetch Standard](https://fetch.spec.whatwg.org/) credentials mode | Console fetches the canonical live-frame route with `same-origin` credentials. Its internal adapter restores that mode only for Rerun's finite Blueprint request. This adapter is not a public recording protocol. |
+| [Fetch Standard](https://fetch.spec.whatwg.org/) credentials mode | Console restores `same-origin` credentials only for canonical recording Blueprint and live-RRD paths opened by the embedded Rerun viewer. This adapter is not a public recording protocol. |
 | Veoveo recording ingest | Version `2026-08-01`; authenticated protobuf batches and distinct Blueprint publications carry native Rerun stores from a producer-local forwarder through the gateway to Recording Hub. |
-| Veoveo recording playback manifest | Version `veoveo.io/recording-playback/v4`; one finite producer Blueprint, one stable Redap archive URI, one optional `rerun_js_channel_rrd_frames` source, a catalog revision, and recording-scoped access material. |
-| Veoveo Rerun live frames | Internal adapter protocol `VVRL0001`; a stream preface followed by big-endian `u32` lengths and complete RRD payloads capped at 16 MiB. It is not a public Rerun wire protocol. |
+| Veoveo recording playback manifest | Version `veoveo.io/recording-playback/v4`; one finite producer Blueprint, one stable Redap archive URI, one optional `rerun_http_rrd_stream` source, a catalog revision, and recording-scoped access material. |
+| Rerun RRD HTTP stream | The live route is one ordinary RRD 0.35 byte stream. Rerun's native HTTP receiver incrementally decodes it for the response lifetime. |
 | [JSON Web Token](https://www.rfc-editor.org/rfc/rfc7519) | Rerun-compatible HS256 read tokens carry the standard Redap audience and an exact installation hostname. A server-side session binds each token subject to one recording and one authorized Veoveo actor. |
 | H.264 Annex B in Rerun `VideoStream` | The governed video profile stores decoder-reentrant access units, keyframe markers, and original timeline indices inside RRD. |
 | SHA-256 | Frozen shard and artifact manifests bind immutable bytes to a digest. |
@@ -60,15 +60,15 @@ and H.264 groups of pictures while preventing the browser from indexing the
 producer's many one-row SDK chunks during its first interactive frames. Every
 outgoing message is rewritten to the
 same dataset and segment identity used by Redap. The live URL is bound to one
-writing shard identity and ends at rollover. The response begins with the
-`VVRL0001` preface and frames each complete RRD payload with a big-endian `u32`
-length. Console validates the bounded framing and sends each payload through
-one persistent Rerun `LogChannel`. Rerun classifies that `JsChannel` as live and
-keeps its native Following state; Console issues no playback or cursor commands.
+writing shard identity and ends at rollover. One footer-free RRD encoder writes
+the response header once, then appends compacted messages as filesystem events
+commit them. Console opens the URL with Rerun's native HTTP receiver, which
+keeps one incremental decoder for the response lifetime; Console issues no
+playback or cursor commands.
 The exact same-origin Fetch carries the HttpOnly Console session, while no
-access token enters a URL or browser-readable cookie. Natural completion of the
-response triggers manifest refresh. Its successor feeds the existing channel,
-preserving the WebViewer, producer layout, and operator state. History remains
+access token enters a URL or browser-readable cookie. Catalog SSE events expose
+segment rollover and refresh the manifest. Its successor replaces the completed
+receiver without rebuilding the WebViewer, producer layout, or operator state. History remains
 the lazy archive dataset and is the only mode that renews a Redap credential.
 There is no manifest status polling. Filesystem events wake the projection when
 the active file or acknowledged part directory changes; idle playback does not

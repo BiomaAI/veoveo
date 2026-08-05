@@ -604,7 +604,7 @@ async fn capture_console_recording_inner(
         )?;
         cdp.assert_no_software_renderer_events()?;
         Ok(ConsoleRecordingCaptureEvidence {
-            schema: "veoveo.io/uav-console-recording-capture/v5",
+            schema: "veoveo.io/uav-console-recording-capture/v6",
             captured_at: chrono::Utc::now(),
             page_url: page_url.to_owned(),
             recording_id: recording_id.to_owned(),
@@ -684,8 +684,6 @@ async fn verify_rerun_live_stability(
     ensure!(
         final_state.is_current()
             && final_state.time_update_count > initial.time_update_count
-            && final_state.live_frame_count > initial.live_frame_count
-            && final_state.live_payload_bytes > initial.live_payload_bytes
             && final_state.current_time > initial.current_time
             && final_state.newest_time > initial.newest_time,
         "Rerun did not remain current and advancing through the live stability window: \
@@ -703,12 +701,7 @@ async fn verify_rerun_live_stability(
         final_lag_seconds: final_state.lag_seconds,
         initial_time_update_count: initial.time_update_count,
         final_time_update_count: final_state.time_update_count,
-        initial_live_frame_count: initial.live_frame_count,
-        final_live_frame_count: final_state.live_frame_count,
-        final_live_payload_bytes: final_state.live_payload_bytes,
         final_live_connection_count: final_state.live_connection_count,
-        final_send_rrd_total_ms: final_state.send_rrd_total_ms,
-        final_send_rrd_maximum_ms: final_state.send_rrd_maximum_ms,
     })
 }
 
@@ -737,7 +730,7 @@ async fn verify_rerun_live_reconnect(
             "Rerun rebuilt its viewer while reconnecting the live transport: {before:?} -> {state:?}"
         );
         if state.live_connection_count > before.live_connection_count
-            && state.live_frame_count > before.live_frame_count
+            && state.time_update_count > before.time_update_count
             && state.is_current()
         {
             return Ok(state);
@@ -1802,11 +1795,7 @@ struct RerunLiveFollowState {
     newest_time: f64,
     lag_seconds: f64,
     time_update_count: u64,
-    live_frame_count: u64,
-    live_payload_bytes: u64,
     live_connection_count: u64,
-    send_rrd_total_ms: f64,
-    send_rrd_maximum_ms: f64,
     canvas_count: u64,
     loading: bool,
     error: String,
@@ -1824,11 +1813,7 @@ impl RerunLiveFollowState {
                 && self.newest_time.is_finite()
                 && self.lag_seconds.is_finite()
                 && self.time_update_count > 0
-                && self.live_frame_count > 0
-                && self.live_payload_bytes > 0
                 && self.live_connection_count > 0
-                && self.send_rrd_total_ms.is_finite()
-                && self.send_rrd_maximum_ms.is_finite()
                 && self.canvas_count > 0
                 && !self.loading
                 && self.error.is_empty()
@@ -1857,12 +1842,7 @@ struct RerunLiveFollowEvidence {
     final_lag_seconds: f64,
     initial_time_update_count: u64,
     final_time_update_count: u64,
-    initial_live_frame_count: u64,
-    final_live_frame_count: u64,
-    final_live_payload_bytes: u64,
     final_live_connection_count: u64,
-    final_send_rrd_total_ms: f64,
-    final_send_rrd_maximum_ms: f64,
 }
 
 impl RerunLiveFollowEvidence {
@@ -1875,8 +1855,6 @@ impl RerunLiveFollowEvidence {
                 && state.current_time >= self.final_time
                 && state.newest_time >= self.final_newest_time
                 && state.time_update_count >= self.final_time_update_count
-                && state.live_frame_count >= self.final_live_frame_count
-                && state.live_payload_bytes >= self.final_live_payload_bytes
                 && state.live_connection_count >= self.final_live_connection_count,
             "Rerun stopped following its live source during visual capture: {self:?} -> {state:?}"
         );
@@ -1884,11 +1862,7 @@ impl RerunLiveFollowEvidence {
         self.final_newest_time = state.newest_time;
         self.final_lag_seconds = state.lag_seconds;
         self.final_time_update_count = state.time_update_count;
-        self.final_live_frame_count = state.live_frame_count;
-        self.final_live_payload_bytes = state.live_payload_bytes;
         self.final_live_connection_count = state.live_connection_count;
-        self.final_send_rrd_total_ms = state.send_rrd_total_ms;
-        self.final_send_rrd_maximum_ms = state.send_rrd_maximum_ms;
         Ok(())
     }
 }
@@ -2605,15 +2579,11 @@ const RERUN_LIVE_FOLLOW_STATE: &str = r#"(() => {
     viewerState:host?.dataset.rerunViewerState ?? "",
     recordingId:host?.dataset.rerunRecordingId ?? "",
     timeline:host?.dataset.rerunTimeline ?? "",
-    currentTime:Number(host?.dataset.rerunCurrentTime ?? NaN),
-    newestTime:Number(host?.dataset.rerunNewestTime ?? NaN),
-    lagSeconds:Number(host?.dataset.rerunLiveLagSeconds ?? NaN),
+    currentTime:Number(host?.dataset.rerunCurrentTime ?? 0),
+    newestTime:Number(host?.dataset.rerunNewestTime ?? 0),
+    lagSeconds:Number(host?.dataset.rerunLiveLagSeconds ?? 0),
     timeUpdateCount:Number(host?.dataset.rerunTimeUpdateCount ?? 0),
-    liveFrameCount:Number(host?.dataset.rerunLiveFrameCount ?? 0),
-    livePayloadBytes:Number(host?.dataset.rerunLivePayloadBytes ?? 0),
     liveConnectionCount:Number(host?.dataset.rerunLiveConnectionCount ?? 0),
-    sendRrdTotalMs:Number(host?.dataset.rerunSendRrdTotalMs ?? 0),
-    sendRrdMaximumMs:Number(host?.dataset.rerunSendRrdMaximumMs ?? 0),
     canvasCount:host?.querySelectorAll("canvas").length ?? 0,
     loading:Boolean(document.querySelector(".recording-viewer-state")),
     error:document.querySelector(".recording-viewer-error")?.textContent ?? "",

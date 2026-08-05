@@ -3,12 +3,15 @@ const UUID_V7 =
 const BLUEPRINT_RRD_PATH = new RegExp(
   `^/console/api/recordings/${UUID_V7}/blueprints/[1-9][0-9]*/data\\.rrd$`
 );
+const LIVE_RRD_PATH = new RegExp(
+  `^/console/api/recordings/${UUID_V7}/segments/${UUID_V7}/live\\.rrd$`
+);
 
 let installation:
   | { consumers: number; original: typeof globalThis.fetch; adapted: typeof globalThis.fetch }
   | undefined;
 
-export function isConsoleRecordingBlueprintRequest(
+export function isConsoleRecordingRrdRequest(
   request: Request,
   consoleOrigin: string
 ): boolean {
@@ -18,11 +21,11 @@ export function isConsoleRecordingBlueprintRequest(
     url.origin === consoleOrigin &&
     url.search === "" &&
     url.hash === "" &&
-    BLUEPRINT_RRD_PATH.test(url.pathname)
+    (BLUEPRINT_RRD_PATH.test(url.pathname) || LIVE_RRD_PATH.test(url.pathname))
   );
 }
 
-export function authorizeConsoleRecordingBlueprintFetch(
+export function authorizeConsoleRecordingRrdFetch(
   input: RequestInfo | URL,
   init: RequestInit | undefined,
   consoleOrigin: string
@@ -42,7 +45,7 @@ export function authorizeConsoleRecordingBlueprintFetch(
     url.origin !== consoleOrigin ||
     url.search !== "" ||
     url.hash !== "" ||
-    !BLUEPRINT_RRD_PATH.test(url.pathname)
+    !(BLUEPRINT_RRD_PATH.test(url.pathname) || LIVE_RRD_PATH.test(url.pathname))
   ) {
     return [input, init];
   }
@@ -52,7 +55,7 @@ export function authorizeConsoleRecordingBlueprintFetch(
   return [input, { ...init, credentials: "same-origin" }];
 }
 
-export function installConsoleRecordingBlueprintFetch(): () => void {
+export function installConsoleRecordingRrdFetch(): () => void {
   if (installation) {
     installation.consumers += 1;
     return releaseOnce();
@@ -60,7 +63,7 @@ export function installConsoleRecordingBlueprintFetch(): () => void {
   const original = globalThis.fetch;
   const origin = globalThis.location.origin;
   const adapted: typeof globalThis.fetch = async (input, init) => {
-    const [authorizedInput, authorizedInit] = authorizeConsoleRecordingBlueprintFetch(
+    const [authorizedInput, authorizedInit] = authorizeConsoleRecordingRrdFetch(
       input,
       init,
       origin
