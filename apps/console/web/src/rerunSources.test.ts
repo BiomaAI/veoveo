@@ -108,6 +108,7 @@ test("switches live to history by closing the old recording receiver first", () 
 
   assert.deepEqual(transition.urlsToCloseBeforeOpen, ["live-1"]);
   assert.equal(transition.receiverUrlToOpen, "rerun://archive");
+  assert.equal(transition.followReceiver, false);
 });
 
 test("new archive layers replace the same receiver without overlapping Store IDs", () => {
@@ -146,5 +147,19 @@ test("session renewal changes credentials without churning the receiver", () => 
 
   assert.equal(transition.credentialsChanged, true);
   assert.equal(transition.receiverUrlToOpen, undefined);
+  assert.deepEqual(transition.urlsToCloseBeforeOpen, []);
+});
+
+test("live receiver opens in Rerun follow mode without source rotation", () => {
+  const transition = planRerunSourceTransition(
+    {},
+    {
+      redapToken: "token-a",
+      receiver: { kind: "live", url: "https://console.example/live.rrd" },
+    }
+  );
+
+  assert.equal(transition.receiverUrlToOpen, "https://console.example/live.rrd");
+  assert.equal(transition.followReceiver, true);
   assert.deepEqual(transition.urlsToCloseBeforeOpen, []);
 });

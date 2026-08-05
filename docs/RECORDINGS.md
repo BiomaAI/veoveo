@@ -133,7 +133,7 @@ The same adapter observes natural completion of the live response. Segment
 rollover therefore refreshes the manifest from the stream-end event instead of
 polling it every five seconds. Playback credentials renew once at 80 percent of
 their exact lifetime. Cancelling a response during viewer cleanup or bounded
-window rotation is not a rollover signal.
+source replacement is not a rollover signal.
 
 Live playback is a distinct governed projection. The manifest identifies the
 current writing segment and declares the configured history window. The
@@ -146,11 +146,13 @@ writers are decoded through the same temporal filter while the decoder follows
 the growing file. Filesystem notifications wake both follow paths when bytes or
 parts arrive; an idle recording performs no 100 ms directory scan.
 
-Rerun 0.35 retains chunks received by an open HTTP source. Console closes and
-reopens only the live receiver once per configured history window, leaving the
-distinct producer Blueprint and viewer instance in place. Each reopen receives
-a fresh bounded projection, so browser residency remains at no more than two
-history windows rather than growing for the duration of the simulation.
+Console opens the live HTTP receiver once with Rerun's `follow_if_http` option.
+The bounded history remains available behind the playhead, while the first
+visible frame follows the newest data instead of replaying the history window at
+wall-clock speed. Console never rotates an active receiver on a timer. Browser
+residency after connection belongs to Rerun's own store budget; the server-side
+history bound controls reconnect bootstrap rather than forcing a visible viewer
+restart.
 
 Console exposes explicit Live and History modes because Rerun 0.35 cannot keep
 two receivers with the same recording Store ID open safely. Live selects only
@@ -167,10 +169,10 @@ opens the successor live response. An archive revision change follows the same
 close-before-open rule at its stable URI, which prevents overlapping Store
 identities. Mode changes close the current recording receiver before opening
 the other mode. The persistent viewer retains its producer layout, selection,
-and timeline state. Rerun's web API accepts a generic Redap token only as the
-viewer's fallback token at startup. Token rotation therefore replaces the
-viewer credential context instead of misclassifying the token as a Rerun Cloud
-OAuth credential; rollover within one token lifetime keeps the viewer intact.
+and timeline state. The initial Redap token enters as the viewer fallback token;
+later rotations use Rerun's credential-update API in place. They do not rebuild
+the viewer, reopen the recording, or misclassify the token as a Rerun Cloud OAuth
+credential.
 
 Governed queries and bounded analysis use the same acknowledged writing data
 without waiting for rollover. Recording MCP captures one ordered snapshot of

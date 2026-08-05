@@ -50,6 +50,7 @@ export interface RerunSourceTransition {
   urlsToCloseBeforeOpen: string[];
   blueprintUrlToOpen?: string;
   receiverUrlToOpen?: string;
+  followReceiver: boolean;
   next: OpenedRerunSources;
 }
 
@@ -95,6 +96,7 @@ export function planRerunSourceTransition(
     receiverUrlToOpen: receiverChanged
       ? receiverUrl(desired.receiver)
       : undefined,
+    followReceiver: receiverChanged && desired.receiver.kind === "live",
     next: {
       redapToken: desired.redapToken,
       receiver: desired.receiver,
