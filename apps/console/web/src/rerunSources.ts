@@ -23,6 +23,12 @@ export interface OpenedRerunSources {
 
 export type RerunPlaybackMode = "live" | "archive";
 
+export function requiresPlaybackCredentialRenewal(
+  receiver: GovernedRerunReceiver | undefined
+): boolean {
+  return receiver?.kind === "archive";
+}
+
 export interface SelectedRerunPlaybackReceiver {
   mode: RerunPlaybackMode;
   receiver?: GovernedRerunReceiver;

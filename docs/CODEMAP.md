@@ -436,7 +436,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | runtime world publication and binding plus credentialed Google tiles, PX4, independent live Stream processing, Recording Hub replay, Reason, and concurrent GPU acceptance |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim/showcase.rs` | showcase-owned UAV scene composition with independent Simulation View, real authenticated Console follow-camera checkpoints, governed Rerun playback, and revision-qualified evidence |
 | `testing/smoke/src/bin/smoke/scenarios/simulation_view/browser.rs` | headed authenticated Chrome attachment, hardware WebGPU-or-WebGL enforcement, Console App interaction, screenshots, and shared CDP transport |
-| `testing/smoke/src/bin/smoke/scenarios/simulation_view/browser/recording_acceptance.rs` | scoped Redap network evidence, legacy archive-request rejection, and nonblank Rerun viewport measurement |
+| `testing/smoke/src/bin/smoke/scenarios/simulation_view/browser/recording_acceptance.rs` | scoped Redap network evidence, live-source continuity, legacy archive-request rejection, and nonblank Rerun viewport measurement |
 
 ### Geospatial Domains
 
@@ -753,7 +753,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 |---|---|
 | `App.tsx` | application shell: platform navigation plus catalog-driven MCP App entries, topbar, view routing, drawer mounting |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
-| `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `recordingLiveFetch.ts`, `rerunMap.ts` | persistent WebViewer lifecycle within a generic Redap fallback-token context, producer Blueprint-first opening, exact-path same-origin live authorization without touching unrelated Fetch bodies, one discriminated Live-or-History recording receiver, close-before-open replacement, credential-context rotation, and installation-owned browser map-provider activation |
+| `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `recordingLiveFetch.ts`, `rerunMap.ts` | persistent WebViewer lifecycle, producer Blueprint-first opening, exact-path same-origin live authorization without touching unrelated Fetch bodies, one discriminated Live-or-History recording receiver, event-driven live rollover, newest-sample following, archive-only credential renewal, close-before-open replacement, and installation-owned browser map-provider activation |
 | `views/` | remaining platform-plane views (overview, work, artifacts, agents, MCP, apps, access, audit, cluster); domain views ship as MCP Apps, never here |
 | `drawers/ArtifactDrawer.tsx` | artifact preview, recording provenance, download, release, grant, and share-link workflows |
 | `drawers/` | remaining detail drawers with mutation workflows |

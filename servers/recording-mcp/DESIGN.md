@@ -63,21 +63,24 @@ HttpOnly Console session reaches the BFF policy boundary, and no access token
 enters a URL or browser-readable cookie. Unrelated Fetch inputs pass through
 without constructing replacement `Request` objects, preserving Redap's
 one-use streaming bodies. Natural completion of the live response triggers
-manifest refresh at segment rollover, while the playback credential renews at
-80 percent of its exact lifetime. There is no manifest status polling. Console
+manifest refresh at segment rollover. Live mode has no credential-renewal
+deadline because the BFF authorizes the stream once at open; a Redap credential
+change would terminate Rerun 0.35's active HTTP receiver. History mode alone
+renews its playback credential at 80 percent of its exact lifetime. There is no
+manifest status polling. Console
 selects exactly one recording receiver:
 Live uses the bounded HTTP source and History uses the lazy archive dataset.
 Rollover closes the prior live receiver before opening its successor. Archive
 revision refresh and mode changes use the same close-before-open order, which
 prevents overlapping native Store identities. The distinct producer Blueprint
-opens before the selected recording receiver. The viewer instance and operator state remain intact until the
-generic Redap fallback token rotates. Rotation creates a new viewer credential
-context because Rerun's mutable credential API is specific to Rerun Cloud OAuth.
-The live receiver itself rotates once per history window, without closing the
-Blueprint or viewer, because Rerun 0.35 does not evict older chunks from an open
-HTTP store. This keeps browser residency within two windows. Filesystem events
-wake the live projection when the active file or acknowledged part directory
-changes; idle playback does not scan on an interval.
+opens before the selected recording receiver. The viewer instance and operator
+state remain intact. Rerun 0.35 classifies an HTTP RRD receiver as a finite
+source, so Console listens to its time-update events and moves Live mode to the
+newest reported range bound. The active receiver remains open for the writing
+segment; the bounded history applies only when a viewer connects or a segment
+rollover supplies a new receiver. Filesystem events wake the live projection
+when the active file or acknowledged part directory changes; idle playback does
+not scan on an interval.
 
 Governed query and analysis plans include complete acknowledged ingest parts
 from the current writing shard. An analysis consumer captures one ordered
@@ -92,7 +95,7 @@ parts directory with its frozen shard during capture. A missing part or an
 uncovered writing segment restarts the complete authorized read-plan capture;
 one snapshot never combines paths from two catalog views.
 
-`contract.rs` owns playback manifest v2. `service.rs` resolves an authorized
+`contract.rs` owns playback manifest v3. `service.rs` resolves an authorized
 playback plan from durable identities, while `service/read.rs` owns governed
 analysis snapshots. `playback.rs` owns session authorization, stable identity,
 derived catalogs, and the scoped Redap service. Its `redap` Cargo feature is

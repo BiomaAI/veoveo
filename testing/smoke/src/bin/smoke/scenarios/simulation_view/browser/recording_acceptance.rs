@@ -11,13 +11,14 @@ use url::Url;
 
 use super::Cdp;
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct RecordingPlaybackNetworkEvidence {
     playback_mode: RecordingPlaybackMode,
     manifest_responses: usize,
     redap_responses: usize,
     live_responses: usize,
+    completed_live_responses: usize,
     blueprint_responses: usize,
     legacy_archive_requests: usize,
     canceled_playback_requests: usize,
@@ -48,6 +49,10 @@ impl RecordingPlaybackNetworkEvidence {
         ensure!(
             self.manifest_responses > 0
                 && self.blueprint_responses > 0
+                && (matches!(self.playback_mode, RecordingPlaybackMode::Archive)
+                    || (self.manifest_responses == 1
+                        && self.live_responses == 1
+                        && self.completed_live_responses == 0))
                 && self.legacy_archive_requests == 0
                 && self.failed_playback_requests == 0
                 && transport_is_exclusive,
@@ -218,6 +223,7 @@ impl Cdp {
         let mut manifest_responses = 0;
         let mut redap_responses = 0;
         let mut live_responses = 0;
+        let mut completed_live_responses = BTreeSet::new();
         let mut blueprint_responses = 0;
         let mut legacy_archive_requests = BTreeSet::new();
         let mut issues = BTreeMap::<String, PlaybackRequestIssue>::new();
@@ -312,6 +318,19 @@ impl Cdp {
                             .unwrap_or(false),
                     );
                 }
+                "Network.loadingFinished" => {
+                    let Some(request_id) =
+                        event.pointer("/params/requestId").and_then(Value::as_str)
+                    else {
+                        continue;
+                    };
+                    if requests
+                        .get(request_id)
+                        .is_some_and(|request| request.kind == PlaybackRequestKind::Live)
+                    {
+                        completed_live_responses.insert(request_id.to_owned());
+                    }
+                }
                 _ => {}
             }
         }
@@ -323,6 +342,7 @@ impl Cdp {
             manifest_responses,
             redap_responses,
             live_responses,
+            completed_live_responses: completed_live_responses.len(),
             blueprint_responses,
             legacy_archive_requests: legacy_archive_requests.len(),
             canceled_playback_requests: cancellations.len(),
@@ -547,6 +567,7 @@ mod tests {
             manifest_responses: 1,
             redap_responses: 0,
             live_responses: 1,
+            completed_live_responses: 0,
             blueprint_responses: 1,
             legacy_archive_requests: 0,
             canceled_playback_requests: 0,
@@ -560,9 +581,15 @@ mod tests {
 
         let mixed = RecordingPlaybackNetworkEvidence {
             redap_responses: 1,
-            ..evidence
+            ..evidence.clone()
         };
         assert!(mixed.validate().is_err());
+
+        let completed = RecordingPlaybackNetworkEvidence {
+            completed_live_responses: 1,
+            ..evidence
+        };
+        assert!(completed.validate().is_err());
     }
 
     #[test]

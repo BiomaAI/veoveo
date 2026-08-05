@@ -25,6 +25,7 @@ import {
 } from "../api";
 import { EmptyState, SectionHeader, StatusPill } from "../components/primitives";
 import {
+  requiresPlaybackCredentialRenewal,
   selectExclusiveRerunPlaybackReceiver,
   type RerunPlaybackMode,
 } from "../rerunSources";
@@ -206,16 +207,6 @@ export function RecordingsView({
     }
   }, [manifest, resolvedSelectedId]);
 
-  useEffect(() => {
-    if (!manifest) return;
-    const remaining = Date.parse(manifest.access.expires_at) - Date.now();
-    const delay = Math.max(1_000, remaining * PLAYBACK_SESSION_RENEWAL_FRACTION);
-    const timeout = window.setTimeout(() => {
-      void refreshPlaybackManifest();
-    }, delay);
-    return () => window.clearTimeout(timeout);
-  }, [manifest, refreshPlaybackManifest]);
-
   const selectRecording = (recordingId: string) => {
     if (recordingId === resolvedSelectedId) return;
     setManifest(undefined);
@@ -276,6 +267,16 @@ export function RecordingsView({
   }, [manifest, requestedPlaybackMode]);
   const playbackSource = playback?.source;
   const playbackMode = playback?.mode ?? requestedPlaybackMode;
+
+  useEffect(() => {
+    if (!manifest || !requiresPlaybackCredentialRenewal(playbackSource?.receiver)) return;
+    const remaining = Date.parse(manifest.access.expires_at) - Date.now();
+    const delay = Math.max(1_000, remaining * PLAYBACK_SESSION_RENEWAL_FRACTION);
+    const timeout = window.setTimeout(() => {
+      void refreshPlaybackManifest();
+    }, delay);
+    return () => window.clearTimeout(timeout);
+  }, [manifest, playbackSource?.receiver.kind, refreshPlaybackManifest]);
 
   return (
     <div className="recordings-workspace">
