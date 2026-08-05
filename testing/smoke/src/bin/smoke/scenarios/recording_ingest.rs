@@ -59,7 +59,10 @@ pub(crate) async fn recording_ingest(
     let source = source
         .replace(PUBLIC_BASE_URL, &gateway_base)
         .replace("http://recording-hub:9878", &hub_base);
-    fs::write(&control_plane, source)?;
+    let mut source: serde_json::Value = serde_json::from_str(&source)?;
+    source["recording_ingest_resources"][0]["producers"][0]["quotas"]["maximum_batches_per_minute"] =
+        serde_json::json!(2);
+    fs::write(&control_plane, serde_json::to_vec_pretty(&source)?)?;
 
     let private_key_der_b64 = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
     fs::write(
@@ -259,6 +262,28 @@ pub(crate) async fn recording_ingest(
         "second recording batch was not durably materialized: {appended:?}"
     );
 
+    recording.log("sensor/quota", &Scalars::single(126.0))?;
+    for message in storage.take() {
+        accumulator.push(message)?;
+    }
+    let mut quota_batches = accumulator.drain_encoded(client.maximum_batch_bytes())?;
+    ensure!(
+        quota_batches.len() == 1,
+        "quota smoke recording batch unexpectedly split"
+    );
+    let mut quota_batch = quota_batches.remove(0);
+    quota_batch.sequence = 3;
+    let quota_error = client
+        .append(&opened.stream_id, &quota_batch)
+        .await
+        .expect_err("third unique batch must exceed the fixed UTC minute quota");
+    ensure!(
+        quota_error
+            .to_string()
+            .contains("maximum_batches_per_minute"),
+        "minute quota returned the wrong diagnostic: {quota_error:#}"
+    );
+
     let resumed = client.open(&request).await?;
     ensure!(
         resumed.stream_id == opened.stream_id && resumed.next_sequence == 3,
@@ -315,7 +340,7 @@ pub(crate) async fn recording_ingest(
     hub_child.stop();
     cleanup.remove_on_drop();
     println!(
-        "recording ingest smoke ok: OAuth retry checkpoint and producer Blueprint merged, resumed, and remained distinct"
+        "recording ingest smoke ok: OAuth retry checkpoint, atomic quota window, and producer Blueprint merged, resumed, and remained distinct"
     );
     Ok(())
 }

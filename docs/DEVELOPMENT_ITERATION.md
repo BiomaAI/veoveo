@@ -184,6 +184,8 @@ The current controls address the main observed sinks:
 | Repeating a flight after browser failure | browser-only acceptance over the running session |
 | Polling an empty recording queue | enqueue and capacity notifications |
 | Re-reading an unchanged ingest identity and committed checkpoint for every live sample | serialized authorized-stream checkpoint with transactional revision and sequence comparison |
+| Aggregating retained producer batches for every quota decision | deterministic fixed UTC quota-window counters updated atomically with the accepted batch |
+| Rediscovering the same writing segment for every source batch | active-segment checkpoint evicted before rollover and rehydrated from the catalog after restart |
 | Replaying healthy Simulation View state | durable event wake plus exact deadline scheduling |
 | Guessing where Recording latency lives | boundary-specific queue, ingest, playback, and browser counters |
 
