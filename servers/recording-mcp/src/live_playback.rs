@@ -90,9 +90,10 @@ fn stream_ingest_parts(
         return Ok(());
     }
     let wake = FilesystemWake::watch(&parts_directory)?;
+    let mut bootstrap_messages = Vec::new();
     let static_context = ingest_stream_static_context_path(segment_path)?;
     if static_context.exists() {
-        send_file_frame(&static_context, 0, playback_store_id, &sender)?;
+        bootstrap_messages.extend(read_file_messages(&static_context, 0, playback_store_id)?);
     }
     let initial_parts = ordered_parts(&parts_directory)?;
     let latest_initial_sequence = initial_parts.last().map(|part| part.sequence);
@@ -100,11 +101,16 @@ fn stream_ingest_parts(
         if part.modified < modified_cutoff && Some(part.sequence) != latest_initial_sequence {
             continue;
         }
-        if !send_part_frame(&part.path, cutoff, playback_store_id, &sender)?
-            && !parts_directory.exists()
-        {
-            return Ok(());
+        match read_part_messages(&part.path, cutoff, playback_store_id)? {
+            Some(messages) => bootstrap_messages.extend(messages),
+            None if !parts_directory.exists() => return Ok(()),
+            None => {}
         }
+    }
+    if !bootstrap_messages.is_empty() {
+        let optimized = veoveo_recording_hub::optimize_live_rrd_messages(bootstrap_messages)
+            .context("optimizing bounded live RRD bootstrap")?;
+        send_message_frame(optimized, &sender)?;
     }
     let mut next_sequence = latest_initial_sequence.map(|sequence| sequence.saturating_add(1));
     loop {
@@ -140,47 +146,44 @@ fn send_part_frame(
     playback_store_id: &StoreId,
     sender: &mpsc::Sender<Result<Bytes, io::Error>>,
 ) -> Result<bool> {
+    let Some(messages) = read_part_messages(path, cutoff, playback_store_id)? else {
+        return Ok(false);
+    };
+    send_message_frame(messages, sender)?;
+    Ok(true)
+}
+
+fn read_part_messages(
+    path: &Path,
+    cutoff: u64,
+    playback_store_id: &StoreId,
+) -> Result<Option<Vec<LogMsg>>> {
     let file = match File::open(path) {
         Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => {
             return Err(error)
                 .with_context(|| format!("opening live ingest part {}", path.display()));
         }
     };
-    send_reader_frame(
-        BufReader::new(file),
-        path,
-        cutoff,
-        playback_store_id,
-        sender,
-    )?;
-    Ok(true)
+    read_reader_messages(BufReader::new(file), path, cutoff, playback_store_id).map(Some)
 }
 
-fn send_file_frame(
+fn read_file_messages(
     path: &Path,
     cutoff: u64,
     playback_store_id: &StoreId,
-    sender: &mpsc::Sender<Result<Bytes, io::Error>>,
-) -> Result<()> {
+) -> Result<Vec<LogMsg>> {
     let file = File::open(path).with_context(|| format!("opening live RRD {}", path.display()))?;
-    send_reader_frame(
-        BufReader::new(file),
-        path,
-        cutoff,
-        playback_store_id,
-        sender,
-    )
+    read_reader_messages(BufReader::new(file), path, cutoff, playback_store_id)
 }
 
-fn send_reader_frame(
+fn read_reader_messages(
     reader: impl io::BufRead,
     path: &Path,
     cutoff: u64,
     playback_store_id: &StoreId,
-    sender: &mpsc::Sender<Result<Bytes, io::Error>>,
-) -> Result<()> {
+) -> Result<Vec<LogMsg>> {
     let decoder = Decoder::<LogMsg>::decode_eager(reader)
         .with_context(|| format!("decoding live RRD {}", path.display()))?;
     let mut messages = Vec::new();
@@ -192,7 +195,7 @@ fn send_reader_frame(
             messages.push(message);
         }
     }
-    send_message_frame(messages, sender)
+    Ok(messages)
 }
 
 fn send_message_frame(
@@ -443,7 +446,7 @@ mod tests {
         }
 
         let decoded = decode_live_rrd_frames(&streamed);
-        assert_eq!(decoded.len(), 4);
+        assert_eq!(decoded.len(), 2);
         assert!(
             decoded
                 .iter()

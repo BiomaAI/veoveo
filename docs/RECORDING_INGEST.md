@@ -111,8 +111,11 @@ at-least-once transport with append-once stored batches; it does not claim
 network-level exactly-once delivery.
 
 The writing row is also the live playback identity. Recording MCP decodes new
-parts in sequence and emits each bounded durable batch as one complete RRD frame
-on a persistent, versioned stream. A rollover ends that response; Console then
+parts in sequence. A late viewer's bounded bootstrap is first compacted with
+Rerun 0.35's live-viewer profile, which removes repeated store metadata and
+merges adjacent one-row chunks before they reach the browser. Newly durable
+batches then remain complete RRD frames on the persistent, versioned stream so
+their publication adds no interval timer. A rollover ends that response; Console then
 opens the successor response on the same Rerun JavaScript channel. Batch
 boundaries never appear as catalog segments or independent recordings.
 

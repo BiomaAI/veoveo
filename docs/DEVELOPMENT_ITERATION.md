@@ -141,8 +141,9 @@ renewal or failed-dependency retry deadline when no event is pending. A converge
 session is absent from the reconciliation selection and causes no runtime replay.
 
 Recording live playback watches filesystem changes and transmits only static context,
-the configured recent-history window, and newly durable data. It does not scan an entire
-active recording for every new viewer.
+one live-profile-compacted recent-history bootstrap, and newly durable data. It does not
+scan an entire active recording for every new viewer or leave initial compaction on the
+browser rendering thread.
 
 ## Iteration Budgets
 
