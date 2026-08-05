@@ -147,7 +147,10 @@ fn dispatcher_binary(arguments: &[OsString]) -> Result<CargoBinary> {
             | "profile-down"
     ) {
         Ok(DEPLOYMENT_SMOKE)
-    } else if scenario == "uav-showcase-browser-verify" {
+    } else if matches!(
+        scenario,
+        "uav-showcase-browser-verify" | "uav-recording-browser-verify"
+    ) {
         Ok(BROWSER_SMOKE)
     } else {
         Ok(SMOKE)
@@ -322,6 +325,12 @@ mod tests {
                 "conformance",
             ]
         );
+    }
+
+    #[test]
+    fn recording_browser_acceptance_uses_the_focused_harness() {
+        let arguments = [OsString::from("uav-recording-browser-verify")];
+        assert_eq!(dispatcher_binary(&arguments).unwrap(), BROWSER_SMOKE);
     }
 
     #[test]

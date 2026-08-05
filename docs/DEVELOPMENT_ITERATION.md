@@ -12,7 +12,8 @@
 | Rerun 0.35.0 RRD | bounded live history and governed archive playback |
 | `veoveo.io/image-affected-plan/v1` | repository-owned affected-surface closure |
 | `veoveo.io/development-image-lock/v1` | repository-owned non-release deployment closure |
-| `veoveo.io/uav-showcase-browser-evidence/v1` | focused visual evidence over a running simulation |
+| `veoveo.io/uav-showcase-browser-evidence/v2` | focused visual evidence over a running simulation |
+| `veoveo.io/uav-recording-browser-evidence/v1` | source-clock and camera-pane evidence for one live governed recording |
 
 ## Operating Model
 
@@ -93,14 +94,23 @@ The focused browser pass never starts, stops, pauses, or commands the simulator:
 cargo xtask smoke uav-showcase-browser-verify \
   --public-base-url https://installation.example \
   --chrome-cdp-url http://127.0.0.1:9222
+
+cargo xtask smoke uav-recording-browser-verify \
+  --public-base-url https://installation.example \
+  --chrome-cdp-url http://127.0.0.1:9222
 ```
 
-It reads the running simulation and current leader camera, opens dedicated Console tabs
+The complete command reads the running simulation and current leader camera, opens dedicated Console tabs
 for Simulation View, Stream, and Recording, verifies headed hardware graphics, captures
 evidence, closes the tabs, and proves that pose sequence advanced. A browser failure can
 therefore be retried without repeating a flight. The command has its own
 `veoveo-browser-smoke` dependency graph and builds the MCP conformance client only when
 an actual run requires it.
+
+The Recording-only command does not depend on a Stream or Simulation View session. It
+holds one live Rerun receiver for 70 seconds, compares its final simulation timeline
+against the running source, rejects more than five seconds of end-to-end lag, and
+requires the leader-camera pane to change without remounting the viewer.
 
 The full UAV acceptance remains the gate for mission, takeoff, landing, simulator epoch,
 or producer behavior. It is not a routine browser retry.
@@ -178,6 +188,14 @@ The current controls address the main observed sinks:
 Remaining misses must be added here with the evidence path, measured phase, cache state,
 and exact command. Wall time without phase evidence is not enough to choose an
 optimization.
+
+The latest measured misses remain open:
+
+| Sink | Observed cost | Required correction |
+|---|---:|---|
+| A chart-version annotation changes the simulator pod template during an otherwise unrelated platform chart rollout | one full cached Isaac restart | decouple application chart publication from platform-only chart changes and remove non-runtime release metadata from the pod template |
+| `uav-showcase-up` builds the broad smoke binary after a focused browser edit | 30.74 s warm compile | move always-on showcase convergence into its own focused harness |
+| Separate reverse-dependent stages repeat overlapping optimized Rust compilation | about 40 s per cold target cache | execute one exact multi-target Bake stage and emit per-target evidence from the shared invocation |
 
 ## Qualification
 
