@@ -15,10 +15,10 @@ use crate::{
     contract::{
         CameraState, CaptureDatasetResult, CommandAcknowledgement, ConfigureWorldOutput,
         ConfigureWorldRequest, DurableOperation, DurableOperationResult, MissionId,
-        MissionLifecycle, MissionResult, PosePublicationState, RecordingId,
-        RecordingPublisherLifecycle, RecordingState, RuntimeTimingState, ScenarioResult, SessionId,
-        SimulationCommand, SimulationLifecycle, SimulationState, SimulationWorldBinding, TileState,
-        VehicleFlightState, VehicleState,
+        MissionLifecycle, MissionResult, PosePublicationState, RecordingCatalogLifecycle,
+        RecordingId, RecordingKey, RecordingPublisherLifecycle, RecordingState, RuntimeTimingState,
+        ScenarioResult, SessionId, SimulationCommand, SimulationLifecycle, SimulationState,
+        SimulationWorldBinding, TileState, VehicleFlightState, VehicleState,
     },
     uris,
 };
@@ -143,17 +143,55 @@ impl HttpAdapter {
                     recording.application_id
                 )));
             }
-            let (recording_id, recording_uri) =
-                self.resolve_recording(&recording.recording_key).await?;
+            let recording_key = RecordingKey::new(recording.recording_key.clone())
+                .map_err(|error| AdapterError::InvalidRecordingCatalog(error.to_string()))?;
+            let (catalog_lifecycle, recording_id, recording_uri, catalog_diagnostic) = match self
+                .resolve_recording_once(&recording.recording_key)
+                .await
+            {
+                Ok(Some((recording_id, recording_uri))) => (
+                    RecordingCatalogLifecycle::Ready,
+                    Some(recording_id),
+                    Some(recording_uri),
+                    None,
+                ),
+                Ok(None) => (
+                    RecordingCatalogLifecycle::Pending,
+                    None,
+                    None,
+                    Some("recording catalog publication is pending".to_owned()),
+                ),
+                Err(AdapterError::Catalog(error)) => {
+                    tracing::warn!(error = ?error, recording_key = %recording_key, "recording catalog lookup is unavailable; simulation state remains readable");
+                    (
+                        RecordingCatalogLifecycle::Unavailable,
+                        None,
+                        None,
+                        Some("recording catalog is unavailable".to_owned()),
+                    )
+                }
+                Err(error) => {
+                    tracing::error!(error = ?error, recording_key = %recording_key, "recording catalog entry is invalid; simulation state remains readable");
+                    (
+                        RecordingCatalogLifecycle::Invalid,
+                        None,
+                        None,
+                        Some("recording catalog entry is invalid".to_owned()),
+                    )
+                }
+            };
             recordings.push(RecordingState {
+                recording_key,
+                catalog_lifecycle,
                 recording_id,
                 recording_uri,
+                catalog_diagnostic,
                 active: recording.active,
                 publisher_lifecycle: recording.publisher_lifecycle,
                 queue_capacity: recording.queue_capacity,
                 queued_events: recording.queued_events,
                 dropped_events: recording.dropped_events,
-                diagnostic: recording.diagnostic,
+                publisher_diagnostic: recording.diagnostic,
                 camera_streams: recording.camera_streams,
                 started_at: recording.started_at,
             });
@@ -265,45 +303,51 @@ impl HttpAdapter {
         recording_key: &str,
     ) -> Result<(RecordingId, String), AdapterError> {
         for _ in 0..RECORDING_CATALOG_ATTEMPTS {
-            if let Some(recording) = self
-                .platform_store
-                .recording_by_key(
-                    self.recording_tenant_id,
-                    RECORDING_APPLICATION_ID,
-                    recording_key,
-                )
-                .await
-                .map_err(AdapterError::Catalog)?
-            {
-                let uuid = match recording.id.key {
-                    RecordIdKey::Uuid(value) => *value,
-                    RecordIdKey::String(value) => {
-                        uuid::Uuid::parse_str(&value).map_err(|error| {
-                            AdapterError::InvalidRecordingCatalog(error.to_string())
-                        })?
-                    }
-                    key => {
-                        return Err(AdapterError::InvalidRecordingCatalog(format!(
-                            "recording catalog returned unsupported record key {key:?}"
-                        )));
-                    }
-                };
-                if recording.id.table.as_str() != PlatformRecordingId::TABLE
-                    || uuid.get_version_num() != 7
-                {
-                    return Err(AdapterError::InvalidRecordingCatalog(format!(
-                        "recording key {recording_key:?} resolved to a non-UUIDv7 recording"
-                    )));
-                }
-                let id = RecordingId::new(uuid.to_string())
-                    .map_err(|error| AdapterError::InvalidRecordingCatalog(error.to_string()))?;
-                return Ok((id, format!("recording://recordings/{uuid}")));
+            if let Some(recording) = self.resolve_recording_once(recording_key).await? {
+                return Ok(recording);
             }
             tokio::time::sleep(RECORDING_CATALOG_RETRY).await;
         }
         Err(AdapterError::RecordingCatalogTimeout(
             recording_key.to_owned(),
         ))
+    }
+
+    async fn resolve_recording_once(
+        &self,
+        recording_key: &str,
+    ) -> Result<Option<(RecordingId, String)>, AdapterError> {
+        let Some(recording) = self
+            .platform_store
+            .recording_by_key(
+                self.recording_tenant_id,
+                RECORDING_APPLICATION_ID,
+                recording_key,
+            )
+            .await
+            .map_err(AdapterError::Catalog)?
+        else {
+            return Ok(None);
+        };
+        let uuid = match recording.id.key {
+            RecordIdKey::Uuid(value) => *value,
+            RecordIdKey::String(value) => uuid::Uuid::parse_str(&value)
+                .map_err(|error| AdapterError::InvalidRecordingCatalog(error.to_string()))?,
+            key => {
+                return Err(AdapterError::InvalidRecordingCatalog(format!(
+                    "recording catalog returned unsupported record key {key:?}"
+                )));
+            }
+        };
+        if recording.id.table.as_str() != PlatformRecordingId::TABLE || uuid.get_version_num() != 7
+        {
+            return Err(AdapterError::InvalidRecordingCatalog(format!(
+                "recording key {recording_key:?} resolved to a non-UUIDv7 recording"
+            )));
+        }
+        let id = RecordingId::new(uuid.to_string())
+            .map_err(|error| AdapterError::InvalidRecordingCatalog(error.to_string()))?;
+        Ok(Some((id, format!("recording://recordings/{uuid}"))))
     }
 
     async fn get<T>(&self, path: &str) -> Result<T, AdapterError>
@@ -584,7 +628,7 @@ impl FakeAdapter {
         self.state
             .recordings
             .iter()
-            .map(|recording| recording.recording_uri.clone())
+            .filter_map(|recording| recording.recording_uri.clone())
             .collect()
     }
 }

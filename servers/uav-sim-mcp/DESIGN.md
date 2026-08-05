@@ -192,11 +192,11 @@ their routes. A land command uses the same takeover boundary.
 
 Controlled types include:
 
-- `SessionId`, `VehicleId`, `MissionId`, `RecordingId`, `PoseProducerId`,
+- `SessionId`, `VehicleId`, `MissionId`, `RecordingKey`, `RecordingId`, `PoseProducerId`,
   `SpiffeId`, `EpochId`, `FrameWorldRevisionUri`, and `WorldFrameUri`;
 - `SimulationLifecycle`, `TileLifecycle`, `CameraLifecycle`, `CameraCodec`,
-  `CameraEncoder`, `PosePublicationLifecycle`, `VehicleFlightState`, and
-  `MissionLifecycle`;
+  `CameraEncoder`, `PosePublicationLifecycle`, `RecordingCatalogLifecycle`,
+  `VehicleFlightState`, and `MissionLifecycle`;
 - WGS84, ENU, NED, quaternion, vehicle, sensor, recording-publisher, and publication
   records;
 - tagged `SimulationCommand` and `DurableOperation` enums.
@@ -258,9 +258,11 @@ reuses the shared usage model.
 The simulator emits vehicle poses, transforms, IMU samples, vehicle state,
 mission state, collision events, tile diagnostics, and nadir camera samples.
 The adapter publishes native Rerun messages and reports only its private
-application and recording keys. The MCP server resolves those keys through
-the recording catalog and returns canonical
-`recording://recordings/{recording_id}` identities.
+application and recording keys. Simulation state reports a typed recording
+catalog lifecycle without waiting for catalog publication. A ready entry carries
+its canonical `recording://recordings/{recording_id}` identity; pending,
+unavailable, and invalid entries retain bounded diagnostics while simulation,
+pose publication, and scene preparation remain live.
 
 The camera encoder fails closed on PyAV's NVIDIA `h264_nvenc`
 implementation. Its one Annex B packet stream feeds live Stream publication

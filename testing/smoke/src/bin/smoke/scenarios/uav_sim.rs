@@ -504,6 +504,7 @@ async fn uav_sim_verify_with_visual_hold(
             && json_string(&state, "/cameras/0/encoder")? == "nvidia_nvenc",
         "UAV camera did not fail closed on the canonical NVIDIA NVENC H.264 path: {state}"
     );
+    state = wait_for_recording_catalog(&operator, &scenario, Duration::from_secs(30)).await?;
     let recording_uri = json_string(&state, "/recordings/0/recording_uri")?.to_owned();
     let recording_id = recording_uri
         .strip_prefix("recording://recordings/")
@@ -1547,6 +1548,31 @@ async fn simulation_state(
         }
     }
     Err(last_error.context("UAV state read exhausted its retry budget")?)
+}
+
+async fn wait_for_recording_catalog(
+    operator: &OperatorClient<'_>,
+    scenario: &UavAcceptanceScenario,
+    timeout: Duration,
+) -> Result<Value> {
+    let deadline = tokio::time::Instant::now() + timeout;
+    loop {
+        let state = simulation_state(operator, scenario).await?;
+        let recording = state
+            .pointer("/recordings/0")
+            .context("UAV state omitted its active recording")?;
+        match json_string(recording, "/catalog_lifecycle")? {
+            "ready" => return Ok(state),
+            "pending" | "unavailable" if tokio::time::Instant::now() < deadline => {
+                tokio::time::sleep(Duration::from_millis(250)).await;
+            }
+            lifecycle => {
+                bail!(
+                    "UAV recording catalog did not become ready within {timeout:?}: lifecycle={lifecycle}, recording={recording}"
+                );
+            }
+        }
+    }
 }
 
 async fn wait_for_flight_state(
