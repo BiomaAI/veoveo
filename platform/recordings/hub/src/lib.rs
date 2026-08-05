@@ -30,7 +30,7 @@ pub use ingest::{
     ingest_stream_static_context_path, live_segment_byte_len,
 };
 pub use ingest_http::recording_ingest_internal_router;
-pub use live::optimize_live_rrd_messages;
+pub use live::{LiveRrdBatchKind, optimize_live_rrd_messages};
 pub use query::{
     QueryIndexRange, QueryResult, SegmentReadScope, collect_segments, query_segments,
     query_segments_in_range, query_tree,

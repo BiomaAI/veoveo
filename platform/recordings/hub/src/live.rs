@@ -7,12 +7,21 @@ use re_chunk_store::{CompactionOptions, IsStartOfGop, OptimizationProfile};
 use re_entity_db::EntityDb;
 use re_log_types::{LogMsg, StoreId};
 
-/// Compact one bounded live bootstrap with Rerun's live-viewer profile.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LiveRrdBatchKind {
+    Bootstrap,
+    Incremental,
+}
+
+/// Compact one bounded live message batch with Rerun's live-viewer profile.
 ///
 /// The input remains the authoritative durable batch sequence. This projection
 /// removes repeated store metadata and merges its many one-row SDK chunks
 /// before a browser has to index them on its rendering thread.
-pub fn optimize_live_rrd_messages(messages: Vec<LogMsg>) -> Result<Vec<LogMsg>> {
+pub fn optimize_live_rrd_messages(
+    messages: Vec<LogMsg>,
+    kind: LiveRrdBatchKind,
+) -> Result<Vec<LogMsg>> {
     ensure!(
         !messages.is_empty(),
         "live RRD optimization requires at least one message"
@@ -27,11 +36,11 @@ pub fn optimize_live_rrd_messages(messages: Vec<LogMsg>) -> Result<Vec<LogMsg>> 
         });
         database
             .add_log_msg(message)
-            .context("indexing bounded live RRD bootstrap")?;
+            .context("indexing bounded live RRD batch")?;
     }
     ensure!(
         stores.len() == 1,
-        "bounded live RRD bootstrap must contain exactly one store"
+        "bounded live RRD batch must contain exactly one store"
     );
 
     let is_start_of_gop: IsStartOfGop = Arc::new(|data, codec| {
@@ -44,7 +53,7 @@ pub fn optimize_live_rrd_messages(messages: Vec<LogMsg>) -> Result<Vec<LogMsg>> 
     let options = CompactionOptions {
         config: store_config,
         num_extra_passes: Some(profile.num_extra_passes as usize),
-        is_start_of_gop: Some(is_start_of_gop),
+        is_start_of_gop: (kind == LiveRrdBatchKind::Bootstrap).then_some(is_start_of_gop),
         split_size_ratio: profile.split_size_ratio,
         fix_keyframe: false,
     };
@@ -56,7 +65,7 @@ pub fn optimize_live_rrd_messages(messages: Vec<LogMsg>) -> Result<Vec<LogMsg>> 
             .read()
             .store()
             .compacted(&options)
-            .context("compacting bounded live RRD bootstrap")?;
+            .context("compacting bounded live RRD batch")?;
         *engine.write().store() = compacted;
     }
 
@@ -64,7 +73,7 @@ pub fn optimize_live_rrd_messages(messages: Vec<LogMsg>) -> Result<Vec<LogMsg>> 
         .values()
         .flat_map(|database| database.to_messages(None))
         .collect::<Result<Vec<_>, _>>()
-        .context("encoding bounded live RRD bootstrap messages")
+        .context("encoding bounded live RRD batch messages")
 }
 
 #[cfg(test)]
@@ -95,7 +104,8 @@ mod tests {
             .count();
         assert_eq!(input_chunks, 32);
 
-        let optimized = optimize_live_rrd_messages(messages).unwrap();
+        let optimized =
+            optimize_live_rrd_messages(messages, LiveRrdBatchKind::Incremental).unwrap();
         let chunks = optimized
             .iter()
             .filter_map(|message| match message {
