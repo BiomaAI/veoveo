@@ -338,10 +338,12 @@ rejected by the shared live-view contract.
 The WebSocket proxy accepts NVIDIA OV WebRTC 6.6.0's
 `authorization.bearer.{token}` subprotocol and the live-view identity in the
 `x-nv-sessionid.{id}` subprotocol. It removes the token before opening the
-private renderer connection, preserves the renderer signaling path, and
-disconnects as soon as a lease event closes it or its exact expiry is reached.
-There is no lease-status polling. One URI or camera identity does not grant
-media access.
+private renderer connection. The downstream session identity authorizes one
+actor and browser lease, while the private pairing identity is translated to
+that lease's stable camera stream product. The proxy preserves the renderer
+signaling path and disconnects as soon as a lease event closes it or its exact
+expiry is reached. There is no lease-status polling. One URI or camera identity
+does not grant media access.
 
 The App has no periodic state refresh. Tool results, WebRTC lifecycle events,
 lease renewal, and the controller's exact `retryAt` or
