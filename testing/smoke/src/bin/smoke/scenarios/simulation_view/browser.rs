@@ -70,6 +70,11 @@ impl ConsoleRecordingCaptureEvidence {
     pub(crate) fn final_timeline_seconds(&self) -> f64 {
         self.live_follow.final_time / 1_000_000_000.0
     }
+
+    #[allow(dead_code)] // Used by the focused browser binary that includes this module.
+    pub(crate) fn captured_at(&self) -> chrono::DateTime<chrono::Utc> {
+        self.captured_at
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -2705,10 +2710,12 @@ mod tests {
             viewer_instance: "viewer-1".to_owned(),
             viewer_state: "open".to_owned(),
             recording_id: "recording-1".to_owned(),
-            timeline: timeline_ready
-                .then_some("simulation_time")
-                .unwrap_or_default()
-                .to_owned(),
+            timeline: if timeline_ready {
+                "simulation_time"
+            } else {
+                ""
+            }
+            .to_owned(),
             current_time: 4.0,
             newest_time: 4.0,
             lag_seconds: 0.0,
