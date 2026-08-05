@@ -604,15 +604,14 @@ impl SimulationViewMcp {
             .service
             .close_live_view(&owner, &viewer_actor, request)
             .map_err(service_error)?;
-        if self.state.service.stream_product_can_stop(&camera_id) {
-            if let Err(error) = self
+        if self.state.service.stream_product_can_stop(&camera_id)
+            && let Err(error) = self
                 .state
                 .runtimes
                 .close_stream_product(&session_id, &stream_product_id)
                 .await
-            {
-                return Err(runtime_error(error));
-            }
+        {
+            return Err(runtime_error(error));
         }
         self.state
             .subscriptions

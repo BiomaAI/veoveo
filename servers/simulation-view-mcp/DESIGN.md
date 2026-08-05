@@ -275,8 +275,9 @@ capability.
 
 Each session exposes a reconciliation resource and embeds the same typed
 status in its session representation. The status reports desired and realized
-revisions, phase, producer identity, expiry, renewal state, next attempt, last
-success, failed dependency, failure code, and a bounded diagnostic. Renewal,
+revisions, phase, producer identity, expiry, renewal state, independent renewal
+and retry deadlines, last success, failed dependency, failure code, and a
+bounded diagnostic. Renewal,
 failure, and successful recovery write tenant-scoped audit records and outbox
 events. Each event identifies the installation service controller, Work
 Context, and policy revision without including credentials or pose data.
@@ -343,9 +344,10 @@ There is no lease-status polling. One URI or camera identity does not grant
 media access.
 
 The App has no periodic state refresh. Tool results, WebRTC lifecycle events,
-lease renewal, and the controller's exact `nextAttemptAt` instant drive its
-resource reads. A healthy view produces media traffic and one bounded lease
-renewal without a one-second MCP query loop.
+lease renewal, and the controller's exact `retryAt` or
+`poseAuthorizationRenewalAt` instant drive its resource reads. A healthy view
+produces media traffic and one bounded lease renewal without a one-second MCP
+query loop.
 
 NVIDIA AOV streams require a unique TCP signaling port and UDP media port per
 physical slot. The MCP proxy derives the private signaling port from the

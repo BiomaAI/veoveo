@@ -559,7 +559,13 @@ Simulation View data-plane ownership:
 |---|---|
 | `platform/simulation/scene/` | typed governed scene body, installation layer catalog, exact Frames/WGS 84 bindings, visual assets, entity bindings, transforms, quality, attribution, health, validation, and canonical digest |
 | `servers/simulation-view-mcp/src/contract.rs` | renderer sessions, generic camera rigs, explicit capacity, direct MCP requests and results, and public re-export of the shared scene contract |
-| `servers/simulation-view-mcp/src/state.rs` | owner-scoped scene, producer, camera, ephemeral viewer-lease transitions, and desired-state revisions |
+| `servers/simulation-view-mcp/src/state.rs` | shared in-memory state, configuration, operation serialization, and revision helpers |
+| `servers/simulation-view-mcp/src/state/session.rs` | owner-scoped session, immutable scene, and pose-producer intent transitions |
+| `servers/simulation-view-mcp/src/state/camera.rs` | logical camera mutation, admission, render slots, and capacity accounting |
+| `servers/simulation-view-mcp/src/state/lease.rs` | actor/browser viewer leases, signaling authority, token rotation, and stream products |
+| `servers/simulation-view-mcp/src/state/runtime_health.rs` | camera, pose, streamed-world, and stream-product realized health updates |
+| `servers/simulation-view-mcp/src/state/reconciliation.rs` | durable snapshots, restoration, renewal/retry scheduling, and realized-state transitions |
+| `servers/simulation-view-mcp/src/state/tests.rs` | state-machine coverage across session, camera, lease, health, and reconciliation boundaries |
 | `servers/simulation-view-mcp/src/durability.rs` | Simulation View-specific platform-store adapter, normalized desired-state snapshots, restart restoration, and audit emission |
 | `servers/simulation-view-mcp/src/reconciler.rs` | outbox- and generation-woken renderer, scene, producer, and camera realization with exact renewal/retry timers and typed failure state |
 | `servers/simulation-view-mcp/src/artifacts.rs` | caller-authorized Artifact-plane streaming into the private renderer digest-ingest boundary |
