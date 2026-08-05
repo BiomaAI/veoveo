@@ -635,8 +635,9 @@ instead of a private video path.
 descriptor types. `service.rs` resolves authorized MCP and playback plans.
 `playback.rs` owns stable dataset identity, bounded playback sessions, the derived
 append-only Rerun catalog, finite governed Blueprint source, and the recording-scoped read-only Redap service.
-`live_playback.rs` retains static context, filters bounded temporal history, rewrites
-messages to the stable playback identity, and writes one incremental native RRD HTTP stream.
+`live_playback.rs` retains recording-scoped static context across ingest generations, filters
+bounded temporal history, rewrites messages to the stable playback identity, and feeds the
+authorized native Rerun MessageProxy stream.
 `uris.rs` owns recording identities, and `bin/server.rs` composes
 the authenticated manifest/live routes with gRPC-Web and MCP.
 `bin/server/state.rs` composes platform store, spool access, playback, subscriptions, and

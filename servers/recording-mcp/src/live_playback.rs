@@ -18,15 +18,17 @@ use re_chunk::Chunk;
 use re_log_encoding::Decoder;
 use re_log_types::{LogMsg, StoreId};
 use tokio::sync::mpsc;
+use veoveo_platform_store::RecordingId;
 use veoveo_recording_hub::{
-    LiveRrdBatchKind, ingest_part_sequence, ingest_segment_parts_directory,
-    ingest_stream_static_context_path,
+    LiveRrdBatchKind, ingest_part_sequence, ingest_recording_static_context_path,
+    ingest_segment_parts_directory,
 };
 
 pub type LiveMessageReceiver = mpsc::Receiver<Result<LogMsg, io::Error>>;
 
 pub fn stream_live_messages(
     segment_path: PathBuf,
+    recording_id: RecordingId,
     history: Duration,
     playback_store_id: StoreId,
 ) -> LiveMessageReceiver {
@@ -38,7 +40,13 @@ pub fn stream_live_messages(
             if segment_path.exists() {
                 stream_growing_file(&segment_path, history, &playback_store_id, &sender)
             } else {
-                stream_ingest_parts(&segment_path, history, &playback_store_id, &sender)
+                stream_ingest_parts(
+                    &segment_path,
+                    recording_id,
+                    history,
+                    &playback_store_id,
+                    &sender,
+                )
             }
         })();
         if let Err(error) = result {
@@ -93,6 +101,7 @@ fn stream_growing_file(
 
 fn stream_ingest_parts(
     segment_path: &Path,
+    recording_id: RecordingId,
     history: Duration,
     playback_store_id: &StoreId,
     sender: &mpsc::Sender<Result<LogMsg, io::Error>>,
@@ -108,7 +117,7 @@ fn stream_ingest_parts(
     let wake = FilesystemWake::watch(&parts_directory)?;
     let mut message_state = LiveMessageState::default();
     let mut bootstrap_messages = Vec::new();
-    let static_context = ingest_stream_static_context_path(segment_path)?;
+    let static_context = ingest_recording_static_context_path(segment_path, recording_id)?;
     if static_context.exists() {
         bootstrap_messages.extend(read_file_messages(&static_context, 0, playback_store_id)?);
     }
@@ -437,9 +446,10 @@ mod tests {
         assert_eq!(second_data.len(), 2);
 
         let directory = tempfile::tempdir().unwrap();
-        let segment_path = directory
-            .path()
-            .join(format!("recording.ingest-{}-s0.rrd", uuid::Uuid::now_v7()));
+        let day_directory = directory.path().join("dataset").join("2026-08-04");
+        std::fs::create_dir_all(&day_directory).unwrap();
+        let segment_path =
+            day_directory.join(format!("recording.ingest-{}-s0.rrd", uuid::Uuid::now_v7()));
         let parts_directory = ingest_segment_parts_directory(&segment_path);
         std::fs::create_dir(&parts_directory).unwrap();
         write_part(&parts_directory, 0, store_info, &[first_data]);
@@ -447,6 +457,7 @@ mod tests {
         let playback_store_id = StoreId::recording("playback-dataset", "run-a");
         let mut receiver = stream_live_messages(
             segment_path,
+            RecordingId::new(),
             Duration::from_secs(60),
             playback_store_id.clone(),
         );
@@ -514,6 +525,82 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn reopened_ingest_stream_receives_recording_static_context() {
+        let (recording, storage) = RecordingStreamBuilder::new("inspection-camera")
+            .recording_id("run-a")
+            .memory()
+            .unwrap();
+        recording
+            .log_static("camera/calibration", &Scalars::single(1.0))
+            .unwrap();
+        recording
+            .log("camera/sample", &Scalars::single(42.0))
+            .unwrap();
+        let messages = storage.take();
+        let store_info = messages
+            .iter()
+            .find(|message| matches!(message, LogMsg::SetStoreInfo(_)))
+            .unwrap();
+        let static_data = messages
+            .iter()
+            .find(|message| {
+                matches!(message, LogMsg::ArrowMsg(_, arrow) if Chunk::from_arrow_msg(arrow).unwrap().is_static())
+            })
+            .unwrap();
+        let temporal_data = messages
+            .iter()
+            .find(|message| {
+                matches!(message, LogMsg::ArrowMsg(_, arrow) if !Chunk::from_arrow_msg(arrow).unwrap().is_static())
+            })
+            .unwrap();
+
+        let directory = tempfile::tempdir().unwrap();
+        let dataset = directory.path().join("dataset");
+        let first_day = dataset.join("2026-08-04");
+        let second_day = dataset.join("2026-08-05");
+        std::fs::create_dir_all(&first_day).unwrap();
+        std::fs::create_dir_all(&second_day).unwrap();
+        let first_path =
+            first_day.join(format!("recording.ingest-{}-s0.rrd", uuid::Uuid::now_v7()));
+        let second_path =
+            second_day.join(format!("recording.ingest-{}-s1.rrd", uuid::Uuid::now_v7()));
+        let recording_id = RecordingId::new();
+        let context_path = ingest_recording_static_context_path(&first_path, recording_id).unwrap();
+        write_rrd(&context_path, &[store_info, static_data]);
+        let parts_directory = ingest_segment_parts_directory(&second_path);
+        std::fs::create_dir(&parts_directory).unwrap();
+        write_part(&parts_directory, 0, store_info, &[temporal_data]);
+
+        let mut receiver = stream_live_messages(
+            second_path,
+            recording_id,
+            Duration::from_secs(60),
+            StoreId::recording("playback-dataset", "run-a"),
+        );
+        let mut streamed = Vec::new();
+        while streamed
+            .iter()
+            .filter(|message| matches!(message, LogMsg::ArrowMsg(_, _)))
+            .count()
+            < 2
+        {
+            streamed.push(
+                tokio::time::timeout(Duration::from_secs(2), receiver.recv())
+                    .await
+                    .expect("recording context was not emitted")
+                    .expect("live stream ended before recording context")
+                    .expect("live recording context failed"),
+            );
+        }
+        assert!(streamed.iter().any(|message| {
+            matches!(message, LogMsg::ArrowMsg(_, arrow) if Chunk::from_arrow_msg(arrow).unwrap().is_static())
+        }));
+        assert!(streamed.iter().any(|message| {
+            matches!(message, LogMsg::ArrowMsg(_, arrow) if !Chunk::from_arrow_msg(arrow).unwrap().is_static())
+        }));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn cataloged_segment_waits_reactively_for_its_first_durable_part() {
         let (recording, storage) = RecordingStreamBuilder::new("inspection-camera")
             .recording_id("run-a")
@@ -532,13 +619,18 @@ mod tests {
             .find(|message| matches!(message, LogMsg::ArrowMsg(_, _)))
             .unwrap();
         let directory = tempfile::tempdir().unwrap();
-        let segment_path = directory
-            .path()
-            .join(format!("recording.ingest-{}-s0.rrd", uuid::Uuid::now_v7()));
+        let day_directory = directory.path().join("dataset").join("2026-08-04");
+        std::fs::create_dir_all(&day_directory).unwrap();
+        let segment_path =
+            day_directory.join(format!("recording.ingest-{}-s0.rrd", uuid::Uuid::now_v7()));
         let parts_directory = ingest_segment_parts_directory(&segment_path);
         let playback_store_id = StoreId::recording("playback-dataset", "run-a");
-        let mut receiver =
-            stream_live_messages(segment_path, Duration::from_secs(60), playback_store_id);
+        let mut receiver = stream_live_messages(
+            segment_path,
+            RecordingId::new(),
+            Duration::from_secs(60),
+            playback_store_id,
+        );
 
         assert!(
             tokio::time::timeout(Duration::from_millis(100), receiver.recv())
@@ -596,22 +688,26 @@ mod tests {
     }
 
     fn write_part(directory: &Path, sequence: u64, store_info: &LogMsg, data: &[&LogMsg]) {
+        write_rrd(
+            &directory.join(format!("{sequence:020}.rrd")),
+            &std::iter::once(store_info)
+                .chain(data.iter().copied())
+                .collect::<Vec<_>>(),
+        );
+    }
+
+    fn write_rrd(path: &Path, messages: &[&LogMsg]) {
         let mut encoder = Encoder::new_eager(
             CrateVersion::LOCAL,
             EncodingOptions::PROTOBUF_COMPRESSED,
             Vec::new(),
         )
         .unwrap();
-        encoder.append(store_info).unwrap();
-        for message in data {
+        for message in messages {
             encoder.append(message).unwrap();
         }
         encoder.finish().unwrap();
-        std::fs::write(
-            directory.join(format!("{sequence:020}.rrd")),
-            encoder.into_inner().unwrap(),
-        )
-        .unwrap();
+        std::fs::write(path, encoder.into_inner().unwrap()).unwrap();
     }
 
     #[cfg(unix)]

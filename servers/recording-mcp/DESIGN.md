@@ -56,6 +56,9 @@ Live playback is a generated Rerun message stream over the recording's current
 writing shard. It emits store information and static context, retains a bounded
 row-ID history window, then follows newly durable data. The bounded bootstrap
 is compacted once with Rerun's `live` optimization profile before delivery.
+Static context belongs to the governed recording. An authenticated ingest
+connection may roll over, reopen, or cross a date partition without losing
+codec declarations, camera calibration, or other static Rerun state.
 This preserves its rows and H.264 groups of pictures while preventing the
 browser from indexing the producer's many one-row SDK chunks during its first
 interactive frames. Every outgoing message is rewritten to the same dataset

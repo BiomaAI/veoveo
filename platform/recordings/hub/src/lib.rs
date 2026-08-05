@@ -26,8 +26,8 @@ pub use catalog::{CatalogPolicy, PlatformCatalog, SegmentInspection, inspect_seg
 pub use config::{DatasetName, DatasetRoute, QUARANTINE_DATASET, SpoolerConfig};
 pub use ingest::{
     RecordingBlueprintPublicationError, RecordingIngestService, RecordingIngestServiceConfig,
-    ingest_part_paths, ingest_part_sequence, ingest_segment_parts_directory,
-    ingest_stream_static_context_path, live_segment_byte_len,
+    ingest_part_paths, ingest_part_sequence, ingest_recording_static_context_path,
+    ingest_segment_parts_directory, live_segment_byte_len,
 };
 pub use ingest_http::recording_ingest_internal_router;
 pub use live::{LiveRrdBatchKind, optimize_live_rrd_messages};

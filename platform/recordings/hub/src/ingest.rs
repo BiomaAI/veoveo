@@ -119,24 +119,21 @@ fn is_uncommitted_ingest_part(path: &Path) -> bool {
     })
 }
 
-pub fn ingest_stream_static_context_path(segment_path: &Path) -> Result<PathBuf> {
-    let filename = segment_path
-        .file_name()
-        .and_then(|value| value.to_str())
-        .context("ingest segment filename is not UTF-8")?;
-    let (_, suffix) = filename
-        .split_once(".ingest-")
-        .context("ingest segment filename has no stream identity")?;
-    let stream_id = suffix.chars().take(36).collect::<String>();
+pub fn ingest_recording_static_context_path(
+    segment_path: &Path,
+    recording_id: RecordingId,
+) -> Result<PathBuf> {
     ensure!(
-        suffix.chars().nth(36) == Some('-')
-            && uuid::Uuid::parse_str(&stream_id).is_ok_and(|value| value.get_version_num() == 7),
-        "ingest segment filename has an invalid stream identity"
+        is_authenticated_ingest_path(segment_path),
+        "ingest segment path has no valid stream identity"
     );
-    Ok(segment_path
+    let day_directory = segment_path
         .parent()
-        .context("ingest segment has no parent")?
-        .join(format!(".ingest-{stream_id}.static-context")))
+        .context("ingest segment has no day directory")?;
+    let dataset_directory = day_directory
+        .parent()
+        .context("ingest segment has no dataset directory")?;
+    Ok(dataset_directory.join(format!(".recording-{recording_id}.static-context")))
 }
 
 pub(crate) fn is_authenticated_ingest_path(path: &Path) -> bool {
@@ -769,7 +766,9 @@ impl RecordingIngestService {
             mark_segment_contains_video(&parts_directory)?;
         }
         if let Some(static_rrd) = static_context_rrd(&batch.encoded_rrd)? {
-            update_static_context(&path, &static_rrd)?;
+            let recording_id =
+                typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?;
+            update_static_context(&path, recording_id, &static_rrd)?;
         }
         let inspection = inspect_segment(&part_path)?;
         ensure!(
@@ -914,16 +913,18 @@ impl RecordingIngestService {
         path: &Path,
     ) -> Result<()> {
         self.forget_active_segment(stream_id)?;
+        let recording_id =
+            typed_record_uuid::<RecordingId>(&segment.recording, RecordingId::TABLE)?;
         let parts_directory = ingest_segment_parts_directory(path);
         let (message_count, ended_at) = if path.exists() {
             let source = path.to_path_buf();
             let message_count = count_segment_messages(&source)?;
-            let mut inputs = static_context_input(path)?;
+            let mut inputs = static_context_input(path, recording_id)?;
             inputs.push(source);
             crate::materialize_archive_shard(&inputs, path)?;
             (message_count, chrono::Utc::now())
         } else {
-            merge_ingest_parts(&parts_directory, path)?
+            merge_ingest_parts(&parts_directory, path, recording_id)?
         };
         let inspection = inspect_segment(path)?;
         self.store
@@ -1315,8 +1316,12 @@ fn static_context_rrd(encoded_rrd: &[u8]) -> Result<Option<Vec<u8>>> {
     Ok(Some(encoder.into_inner()?))
 }
 
-fn update_static_context(segment_path: &Path, new_context: &[u8]) -> Result<()> {
-    let context_path = ingest_stream_static_context_path(segment_path)?;
+fn update_static_context(
+    segment_path: &Path,
+    recording_id: RecordingId,
+    new_context: &[u8],
+) -> Result<()> {
+    let context_path = ingest_recording_static_context_path(segment_path, recording_id)?;
     let temporary = context_path.with_extension(format!("update-{}", uuid::Uuid::now_v7()));
     publish_segment(&temporary, new_context)?;
     let mut inputs = Vec::with_capacity(2);
@@ -1329,17 +1334,18 @@ fn update_static_context(segment_path: &Path, new_context: &[u8]) -> Result<()> 
     result.map(|_| ())
 }
 
-fn static_context_input(segment_path: &Path) -> Result<Vec<PathBuf>> {
+fn static_context_input(segment_path: &Path, recording_id: RecordingId) -> Result<Vec<PathBuf>> {
     if !is_authenticated_ingest_path(segment_path) {
         return Ok(Vec::new());
     }
-    let context = ingest_stream_static_context_path(segment_path)?;
+    let context = ingest_recording_static_context_path(segment_path, recording_id)?;
     Ok(context.exists().then_some(context).into_iter().collect())
 }
 
 fn merge_ingest_parts(
     parts_directory: &Path,
     final_path: &Path,
+    recording_id: RecordingId,
 ) -> Result<(u64, chrono::DateTime<chrono::Utc>)> {
     let parts = ingest_part_paths(parts_directory)?;
     ensure!(
@@ -1351,7 +1357,7 @@ fn merge_ingest_parts(
             .checked_add(count_segment_messages(path)?)
             .context("ingest segment message count overflow")
     })?;
-    let mut inputs = static_context_input(final_path)?;
+    let mut inputs = static_context_input(final_path, recording_id)?;
     inputs.extend(parts);
     crate::materialize_archive_shard(&inputs, final_path)?;
     Ok((message_count, chrono::Utc::now()))
@@ -1653,7 +1659,8 @@ mod tests {
             std::fs::write(parts.join(format!("{sequence:020}.rrd")), bytes).unwrap();
         }
 
-        let (message_count, _) = merge_ingest_parts(&parts, &final_path).unwrap();
+        let (message_count, _) =
+            merge_ingest_parts(&parts, &final_path, RecordingId::new()).unwrap();
         assert_eq!(message_count, 4);
         assert_eq!(
             count_segment_messages(&final_path).unwrap(),
@@ -1702,5 +1709,29 @@ mod tests {
                 re_chunk::Chunk::from_arrow_msg(arrow).unwrap().is_static(),
             _ => true,
         }));
+    }
+
+    #[test]
+    fn static_context_follows_the_recording_across_ingest_streams() {
+        let directory = tempfile::tempdir().unwrap();
+        let dataset = directory.path().join("governed");
+        let first_day = dataset.join("2026-08-04");
+        let second_day = dataset.join("2026-08-05");
+        let first_stream = uuid::Uuid::now_v7();
+        let second_stream = uuid::Uuid::now_v7();
+        let first_path = first_day.join(format!("run.ingest-{first_stream}-s0.rrd"));
+        let second_path = second_day.join(format!("run.ingest-{second_stream}-s1.rrd"));
+        let recording_id = RecordingId::new();
+
+        let first_context =
+            ingest_recording_static_context_path(&first_path, recording_id).unwrap();
+        let second_context =
+            ingest_recording_static_context_path(&second_path, recording_id).unwrap();
+        assert_eq!(first_context, second_context);
+        assert_eq!(first_context.parent(), Some(dataset.as_path()));
+        assert_ne!(
+            first_context,
+            ingest_recording_static_context_path(&second_path, RecordingId::new()).unwrap()
+        );
     }
 }
