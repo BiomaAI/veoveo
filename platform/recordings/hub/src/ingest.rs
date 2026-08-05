@@ -174,7 +174,15 @@ pub struct RecordingIngestService {
     store: PlatformStore,
     config: RecordingIngestServiceConfig,
     materialization: Arc<tokio::sync::Mutex<()>>,
+    authorized_streams:
+        Arc<std::sync::Mutex<BTreeMap<RecordingIngestStreamId, AuthorizedIngestStream>>>,
     segment_byte_lengths: Arc<std::sync::Mutex<BTreeMap<PathBuf, u64>>>,
+}
+
+#[derive(Clone)]
+struct AuthorizedIngestStream {
+    identity: PlatformIdentity,
+    stream: RecordingIngestStreamRecord,
 }
 
 impl RecordingIngestService {
@@ -192,6 +200,7 @@ impl RecordingIngestService {
             store,
             config,
             materialization: Arc::new(tokio::sync::Mutex::new(())),
+            authorized_streams: Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             segment_byte_lengths: Arc::new(std::sync::Mutex::new(BTreeMap::new())),
         })
     }
@@ -274,11 +283,24 @@ impl RecordingIngestService {
         batch: &RecordingBatch,
     ) -> Result<AppendRecordingBatchResult> {
         batch.validate(self.config.maximum_batch_bytes)?;
-        let identity = self.authorize(gateway, producer, None).await?;
+        self.validate_authorization(gateway, producer, None)?;
         let _guard = self.materialization.lock().await;
-        let stream = self
-            .authorized_stream(&identity, producer, stream_id)
-            .await?;
+        let cached = self
+            .authorized_streams
+            .lock()
+            .map_err(|_| anyhow::anyhow!("recording ingest stream cache lock is poisoned"))?
+            .get(&stream_id)
+            .cloned();
+        let (identity, stream) = if let Some(cached) = cached {
+            validate_authorized_stream(&cached.identity, producer, &cached.stream)?;
+            (cached.identity, cached.stream)
+        } else {
+            let identity = self.ensure_identity(gateway, producer).await?;
+            let stream = self
+                .authorized_stream(&identity, producer, stream_id)
+                .await?;
+            (identity, stream)
+        };
         if chrono::Utc::now()
             > stream.opened_at + chrono::TimeDelta::days(i64::from(producer.open_stream_days))
         {
@@ -308,19 +330,22 @@ impl RecordingIngestService {
             self.write_journal(identity.tenant_id, stream_id, batch)?;
         let outcome = self
             .store
-            .commit_recording_ingest_batch(RecordingIngestBatchDraft {
-                identity: identity.clone(),
-                stream_id,
-                sequence: batch.sequence,
-                payload_format: payload_format_name(batch.payload_format)?.to_owned(),
-                sha256: hex::encode(&batch.sha256),
-                relative_path,
-                byte_len: batch.encoded_rrd.len() as u64,
-                message_count: batch.message_count,
-                producer_id: producer.producer_id.clone(),
-                maximum_batches_per_minute: producer.maximum_batches_per_minute,
-                maximum_bytes_per_day: producer.maximum_bytes_per_day,
-            })
+            .commit_recording_ingest_batch_at_checkpoint(
+                stream,
+                RecordingIngestBatchDraft {
+                    identity: identity.clone(),
+                    stream_id,
+                    sequence: batch.sequence,
+                    payload_format: payload_format_name(batch.payload_format)?.to_owned(),
+                    sha256: hex::encode(&batch.sha256),
+                    relative_path,
+                    byte_len: batch.encoded_rrd.len() as u64,
+                    message_count: batch.message_count,
+                    producer_id: producer.producer_id.clone(),
+                    maximum_batches_per_minute: producer.maximum_batches_per_minute,
+                    maximum_bytes_per_day: producer.maximum_bytes_per_day,
+                },
+            )
             .await?;
         let mut stream = outcome.stream;
         if outcome.batch.state == RecordingIngestBatchState::Durable {
@@ -330,6 +355,16 @@ impl RecordingIngestService {
         } else {
             remove_if_exists(&journal_path)?;
         }
+        self.authorized_streams
+            .lock()
+            .map_err(|_| anyhow::anyhow!("recording ingest stream cache lock is poisoned"))?
+            .insert(
+                stream_id,
+                AuthorizedIngestStream {
+                    identity,
+                    stream: stream.clone(),
+                },
+            );
         Ok(AppendRecordingBatchResult {
             durable_through_sequence: durable_through(&stream)?,
             materialized_through_sequence: materialized_through(&stream)?,
@@ -469,6 +504,10 @@ impl RecordingIngestService {
                 )
                 .await?;
         }
+        self.authorized_streams
+            .lock()
+            .map_err(|_| anyhow::anyhow!("recording ingest stream cache lock is poisoned"))?
+            .remove(&stream_id);
         self.stream_response(&stream)
     }
 
@@ -563,6 +602,16 @@ impl RecordingIngestService {
         producer: &AuthorizedRecordingProducer,
         application_id: Option<&str>,
     ) -> Result<PlatformIdentity> {
+        self.validate_authorization(gateway, producer, application_id)?;
+        self.ensure_identity(gateway, producer).await
+    }
+
+    fn validate_authorization(
+        &self,
+        gateway: &GatewayInternalResourceIdentity,
+        producer: &AuthorizedRecordingProducer,
+        application_id: Option<&str>,
+    ) -> Result<()> {
         ensure!(
             gateway.protected_resource == self.config.protected_resource,
             "internal token protected resource mismatch"
@@ -602,6 +651,14 @@ impl RecordingIngestService {
                 "application_id is not allowed for producer"
             );
         }
+        Ok(())
+    }
+
+    async fn ensure_identity(
+        &self,
+        gateway: &GatewayInternalResourceIdentity,
+        producer: &AuthorizedRecordingProducer,
+    ) -> Result<PlatformIdentity> {
         Ok(self
             .store
             .ensure_identity(
@@ -625,13 +682,7 @@ impl RecordingIngestService {
             .recording_ingest_stream(identity.tenant_id, stream_id)
             .await?
             .context("recording ingest stream was not found")?;
-        ensure!(
-            stream.owner == identity.principal_id.record_id()
-                && stream.producer_id == producer.producer_id
-                && stream.oauth_client_id == producer.oauth_client_id
-                && stream.dataset == producer.dataset,
-            "recording ingest stream ownership mismatch"
-        );
+        validate_authorized_stream(identity, producer, &stream)?;
         Ok(stream)
     }
 
@@ -702,7 +753,12 @@ impl RecordingIngestService {
         );
         let stream = self
             .store
-            .mark_recording_ingest_materialized(identity.tenant_id, stream_id, batch.sequence)
+            .mark_recording_ingest_materialized_at_checkpoint(
+                identity.tenant_id,
+                stream_id,
+                stream.clone(),
+                batch.sequence,
+            )
             .await?;
         remove_if_exists(journal_path)?;
         if self.segment_is_due(&segment, segment_byte_len)?
@@ -929,6 +985,21 @@ fn validate_rrd_identity(
     ensure!(
         count == declared_message_count,
         "RRD message count mismatch"
+    );
+    Ok(())
+}
+
+fn validate_authorized_stream(
+    identity: &PlatformIdentity,
+    producer: &AuthorizedRecordingProducer,
+    stream: &RecordingIngestStreamRecord,
+) -> Result<()> {
+    ensure!(
+        stream.owner == identity.principal_id.record_id()
+            && stream.producer_id == producer.producer_id
+            && stream.oauth_client_id == producer.oauth_client_id
+            && stream.dataset == producer.dataset,
+        "recording ingest stream ownership mismatch"
     );
     Ok(())
 }

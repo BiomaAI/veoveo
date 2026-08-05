@@ -183,6 +183,7 @@ The current controls address the main observed sinks:
 | Full smoke graph for browser retries | `veoveo-browser-smoke` partition |
 | Repeating a flight after browser failure | browser-only acceptance over the running session |
 | Polling an empty recording queue | enqueue and capacity notifications |
+| Re-reading an unchanged ingest identity and committed checkpoint for every live sample | serialized authorized-stream checkpoint with transactional revision and sequence comparison |
 | Replaying healthy Simulation View state | durable event wake plus exact deadline scheduling |
 | Guessing where Recording latency lives | boundary-specific queue, ingest, playback, and browser counters |
 

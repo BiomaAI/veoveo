@@ -85,6 +85,13 @@ completes a transaction interrupted after publication. Concurrent publication
 accepts identical bytes but cannot replace an existing sequence or Blueprint
 revision with different bytes.
 
+The serialized materializer retains the last authorized open-stream checkpoint
+in memory. Every request still carries current Gateway authorization and is
+checked against the immutable producer and ownership binding. The transaction
+compares revision and sequence before it commits; a process restart or conflict
+rehydrates the checkpoint from SurrealDB. Successful commits project the exact
+written fields locally and avoid redundant database readbacks on the live path.
+
 One ordered materializer converts a journal batch into an immutable sequence
 part beneath one cataloged writing segment before the append completes. A batch
 journal file is eligible for removal only after its sequence part exists
