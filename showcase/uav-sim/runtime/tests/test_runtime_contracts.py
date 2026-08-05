@@ -303,6 +303,15 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIn(
             "batcher_config=rr.ChunkBatcherConfig.DEFAULT()", recording_source
         )
+        camera_stream_source = recording_source.split(
+            "class H264CameraStream:", maxsplit=1
+        )[1].split("class RecordingPublisher:", maxsplit=1)[0]
+        self.assertEqual(camera_stream_source.count("rr.Pinhole("), 1)
+        self.assertIn("static=True", camera_stream_source)
+        encode_source = camera_stream_source.split(
+            "    def encode(", maxsplit=1
+        )[1].split("    def close(", maxsplit=1)[0]
+        self.assertNotIn("rr.Pinhole(", encode_source)
 
     def test_recording_degradation_is_visible_without_blocking_readiness(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
