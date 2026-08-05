@@ -88,7 +88,6 @@ pub enum SessionLifecycle {
     Ready,
     Closing,
     Closed,
-    Failed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -99,7 +98,6 @@ pub enum ReconciliationPhase {
     Scene,
     PoseAuthorization,
     Cameras,
-    Streams,
     Healthy,
     Blocked,
     Revoked,
@@ -120,7 +118,6 @@ pub enum PoseAuthorizationRenewalState {
 #[serde(rename_all = "snake_case")]
 pub enum ReconciliationFailureCode {
     StoreUnavailable,
-    AuditUnavailable,
     RendererUnavailable,
     SceneUnavailable,
     PoseIngressUnavailable,
@@ -129,8 +126,6 @@ pub enum ReconciliationFailureCode {
     PoseProducerIdentityMismatch,
     SceneRevisionMismatch,
     CameraRejected,
-    StreamUnavailable,
-    ProducerRevoked,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -148,7 +143,9 @@ pub struct ReconciliationStatus {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub authorization_expires_at: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub next_attempt_at: Option<DateTime<Utc>>,
+    pub pose_authorization_renewal_at: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retry_at: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_successful_reconciliation_at: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -170,7 +167,8 @@ impl ReconciliationStatus {
             producer_id: None,
             producer_spiffe_id: None,
             authorization_expires_at: None,
-            next_attempt_at: None,
+            pose_authorization_renewal_at: None,
+            retry_at: None,
             last_successful_reconciliation_at: None,
             failed_dependency: None,
             failure_code: None,

@@ -1969,10 +1969,30 @@ async fn simulation_view_migrations_preserve_intent_and_reject_durable_viewer_le
                 authorization_expires_at: NONE,
                 snapshot_digest: $legacy_digest,
                 snapshot: {
-                    sessionId: 'durable-session',
+                    session: {
+                        lifecycle: 'failed',
+                        scene: NONE,
+                        reconciliation: {
+                            desiredRevision: 6,
+                            realizedRevision: 5,
+                            phase: 'streams',
+                            renewalState: 'blocked',
+                            nextAttemptAt: time::now(),
+                            failureCode: 'audit_unavailable',
+                            failedDependency: 'audit',
+                            diagnostic: 'obsolete audit dependency'
+                        }
+                    },
                     leases: [{ leaseId: 'obsolete-lease' }]
                 },
-                reconciliation: { desiredRevision: 6, realizedRevision: 5 },
+                reconciliation: {
+                    desiredRevision: 6,
+                    realizedRevision: 5,
+                    phase: 'blocked',
+                    renewalState: 'blocked',
+                    nextAttemptAt: time::now(),
+                    failureCode: 'stream_unavailable'
+                },
                 created_at: time::now(),
                 updated_at: time::now()
             };",
@@ -2013,6 +2033,13 @@ async fn simulation_view_migrations_preserve_intent_and_reject_durable_viewer_le
         .unwrap()
         .check()
         .unwrap();
+    store
+        .client()
+        .query(migrations()[34].sql)
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
 
     let migrated = store.simulation_view_states().await.unwrap().remove(0);
     assert_eq!(migrated.desired_revision, 6);
@@ -2030,8 +2057,18 @@ async fn simulation_view_migrations_preserve_intent_and_reject_durable_viewer_le
         .check()
         .unwrap();
     let value: surrealdb::types::Value = response.take(0).unwrap();
-    assert!(!format!("{value:?}").contains("snapshot_digest"));
-    assert!(!format!("{value:?}").contains("leases"));
+    let value = format!("{value:?}");
+    assert!(!value.contains("snapshot_digest"));
+    assert!(!value.contains("leases"));
+    assert!(!value.contains("nextAttemptAt"));
+    assert!(!value.contains("stream_unavailable"));
+    assert!(!value.contains("audit_unavailable"));
+    assert!(!value.contains("obsolete audit dependency"));
+    assert!(value.contains("retryAt"));
+    assert!(value.contains("poseAuthorizationRenewalAt"));
+    assert!(value.contains("renderer_unavailable"));
+    assert!(value.contains("created"));
+    assert!(value.contains("pending"));
 
     let obsolete_writer = store
         .client()

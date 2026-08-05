@@ -71,10 +71,10 @@ function scheduleRefresh(delay=0){clearTimeout(refreshWakeTimer);refreshWakeTime
 function renderReconciliation(current){const chip=el("reconciliation"),status=current?.reconciliation;if(!status){chip.textContent="reconciliation waiting";chip.classList.remove("live");chip.classList.add("warn");clearError("reconciliation");return true;}
   const expired=status.failureCode==="pose_authorization_expired"||(!current.poseSource?.revoked&&current.poseSource?.expiresAt&&Date.parse(current.poseSource.expiresAt)<=Date.now());
   const blocked=status.phase==="blocked";chip.textContent=status.phase==="healthy"?`reconciled r${status.realizedRevision}`:status.phase==="revoked"?"producer revoked":`reconciling · ${status.phase.replaceAll("_"," ")}`;chip.classList.toggle("live",status.phase==="healthy");chip.classList.toggle("warn",blocked||expired||status.phase==="revoked");
-  if(expired){const retry=status.nextAttemptAt?` Next automatic attempt: ${new Date(status.nextAttemptAt).toLocaleTimeString()}.`:"";showError(`Pose producer authorization expired.${retry}`,"reconciliation");}
+  if(expired){const retry=status.retryAt?` Next automatic attempt: ${new Date(status.retryAt).toLocaleTimeString()}.`:"";showError(`Pose producer authorization expired.${retry}`,"reconciliation");}
   else if(blocked){const dependency=status.failedDependency?` at ${status.failedDependency}`:"";showError(`Automatic Simulation View reconciliation is blocked${dependency}: ${status.diagnostic||status.failureCode||"dependency unavailable"}.`,"reconciliation");}
   else if(status.phase==="healthy"&&status.desiredRevision===status.realizedRevision&&!current.poseSource?.stale){clearError("reconciliation");}
-  if(status.nextAttemptAt){scheduleRefresh(Math.max(250,Date.parse(status.nextAttemptAt)-Date.now()+50));}
+  const nextControlAt=[status.retryAt,status.poseAuthorizationRenewalAt].filter(Boolean).map(Date.parse).filter(Number.isFinite).sort((a,b)=>a-b)[0];if(nextControlAt!==undefined){scheduleRefresh(Math.max(250,nextControlAt-Date.now()+50));}
   return blocked||expired||status.phase==="revoked";
 }
 function renderAttribution(layer){const link=el("attribution");if(!layer){link.hidden=true;link.removeAttribute("href");link.textContent="";return;}link.textContent=layer.attribution;link.href=layer.attributionUrl;link.hidden=false;}
@@ -94,7 +94,7 @@ function slot(id){let node=document.getElementById(`view-${id}`);if(node)return 
 async function openView(cameraId){
   if(players.has(cameraId)||tearingDown)return;const camera=byId(cameraId);if(!camera)return;
   const node=slot(cameraId);node.querySelector(".name").textContent=`${camera.definition.rig.kind} · ${cameraId}`;
-  const player={connection:null,streamer:null,renewTimer:null,retryTimer:null};players.set(cameraId,player);
+  const player={connection:null,streamer:null,renewTimer:null};players.set(cameraId,player);
   try{
     player.connection=await callTool("open_live_view",{sessionId:session.sessionId,cameraId,viewerInstanceId});
     const value=player.connection,stream=value.stream,endpoint=stream.endpoint,signal=new URL(endpoint.signalingUrl),OV=globalThis.OVWebRTC;
@@ -116,7 +116,7 @@ function scheduleRenew(cameraId){const player=players.get(cameraId);if(!player||
   player.renewTimer=setTimeout(async()=>{try{player.connection=await callTool("renew_live_view",{sessionId:session.sessionId,liveViewId:player.connection.stream.liveViewId,viewerInstanceId});scheduleRenew(cameraId);scheduleRefresh();}catch(cause){retry(cameraId,cause);}},delay);
 }
 function retry(cameraId,cause){showError(cause,"stream");void closeView(cameraId,false).then(()=>{if(selected.has(cameraId)&&!tearingDown)setTimeout(()=>void openView(cameraId),2500);});}
-async function closeView(cameraId,removeSlot){const player=players.get(cameraId);players.delete(cameraId);if(player){clearTimeout(player.renewTimer);clearTimeout(player.retryTimer);if(player.streamer){try{player.streamer.terminate();}catch(_){}}
+async function closeView(cameraId,removeSlot){const player=players.get(cameraId);players.delete(cameraId);if(player){clearTimeout(player.renewTimer);if(player.streamer){try{player.streamer.terminate();}catch(_){}}
     if(player.connection){try{await callTool("close_live_view",{sessionId:session.sessionId,liveViewId:player.connection.stream.liveViewId,viewerInstanceId});scheduleRefresh();}catch(cause){if(!tearingDown)showError(cause,"stream");}}}
   if(removeSlot)document.getElementById(`view-${cameraId}`)?.remove();if(!players.size)setStatus("ready");renderGridEmpty();
 }
