@@ -197,6 +197,23 @@ export default function GovernedRerunViewer({
     openedSourcesRef.current = { redapToken: desiredSourceRef.current.redapToken };
     liveRuntimeRef.current = { disconnected: false };
 
+    const disconnect = () => {
+      const desired = desiredSourceRef.current;
+      const runtime = liveRuntimeRef.current;
+      if (
+        !active ||
+        desired.receiver.kind !== "live" ||
+        !runtime.connection
+      ) {
+        return;
+      }
+      closeLiveConnection(runtime);
+      runtime.disconnected = true;
+      if (host.current) host.current.dataset.rerunLiveState = "error";
+      reportPlaybackError(
+        "Live recording delivery is offline. It will reconnect when connectivity returns."
+      );
+    };
     const reconnect = () => {
       const desired = desiredSourceRef.current;
       const runtime = liveRuntimeRef.current;
@@ -218,6 +235,7 @@ export default function GovernedRerunViewer({
         reportPlaybackError
       );
     };
+    window.addEventListener("offline", disconnect);
     window.addEventListener("online", reconnect);
 
     void loadRerunMapViewerOptions()
@@ -305,6 +323,7 @@ export default function GovernedRerunViewer({
 
     return () => {
       active = false;
+      window.removeEventListener("offline", disconnect);
       window.removeEventListener("online", reconnect);
       viewerRef.current = undefined;
       mapSetupRef.current = undefined;
