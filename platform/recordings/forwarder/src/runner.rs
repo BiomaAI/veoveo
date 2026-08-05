@@ -54,6 +54,8 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
     let http = reqwest::Client::builder()
         .default_headers(headers)
         .https_only(config.gateway_transport_url().scheme() == "https")
+        .connect_timeout(config.request_timeout())
+        .timeout(config.request_timeout())
         .build()?;
     let private_key_pem_file = config.private_key_pem_file.clone();
     let client_id = config.client_id.clone();
@@ -113,12 +115,26 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
         grpc_shutdown,
     );
     info!(bind = %config.bind, "recording forwarder loopback Rerun receiver up");
-    let (message_tx, mut message_rx) = mpsc::channel::<LogMsg>(1024);
+    // Preserve the burst boundaries emitted by Rerun's ChunkBatcher. Moving
+    // individual LogMsgs through an async channel allowed the consumer to win
+    // the scheduling race after every message, splitting one SDK flush into
+    // hundreds of tiny durable uploads.
+    let (message_tx, mut message_rx) = mpsc::channel::<Vec<LogMsg>>(64);
     let receiver_task = tokio::task::spawn_blocking(move || -> Result<()> {
-        while let Ok(message) = receiver.recv() {
-            if let Some(DataSourceMessage::LogMsg(message)) = message.into_data()
-                && message_tx.blocking_send(message).is_err()
-            {
+        while let Ok(received) = receiver.recv() {
+            let mut burst = Vec::with_capacity(256);
+            if let Some(DataSourceMessage::LogMsg(message)) = received.into_data() {
+                burst.push(message);
+            }
+            while burst.len() < 4_096 {
+                let Ok(received) = receiver.try_recv() else {
+                    break;
+                };
+                if let Some(DataSourceMessage::LogMsg(message)) = received.into_data() {
+                    burst.push(message);
+                }
+            }
+            if !burst.is_empty() && message_tx.blocking_send(burst).is_err() {
                 break;
             }
         }
@@ -127,7 +143,6 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
 
     let mut accumulators = HashMap::<StoreId, RecordingAccumulator>::new();
     let mut blueprint_accumulators = HashMap::<StoreId, BlueprintAccumulator>::new();
-    let mut message_batch = Vec::with_capacity(256);
     let shutdown = shutdown_signal();
     tokio::pin!(shutdown);
     loop {
@@ -136,9 +151,9 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
                 signal?;
                 break;
             }
-            count = message_rx.recv_many(&mut message_batch, 256) => {
-                if count == 0 { break; }
-                for message in message_batch.drain(..) {
+            burst = message_rx.recv() => {
+                let Some(burst) = burst else { break; };
+                for message in burst {
                     handle_rerun_message(
                         message,
                         &mut accumulators,
@@ -164,16 +179,18 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
     receiver_task
         .await
         .context("Rerun receiver task panicked")??;
-    while let Ok(message) = message_rx.try_recv() {
-        handle_rerun_message(
-            message,
-            &mut accumulators,
-            &mut blueprint_accumulators,
-            &queue,
-            &queue_events,
-            limits,
-        )
-        .await?;
+    while let Ok(burst) = message_rx.try_recv() {
+        for message in burst {
+            handle_rerun_message(
+                message,
+                &mut accumulators,
+                &mut blueprint_accumulators,
+                &queue,
+                &queue_events,
+                limits,
+            )
+            .await?;
+        }
     }
     for (store_id, _) in blueprint_accumulators.drain() {
         warn!(store_id = ?store_id, "discarding incomplete Rerun Blueprint at shutdown");
@@ -406,7 +423,11 @@ async fn upload_loop(
             return Ok(());
         }
         let work_available = queue_events.work_available.notified();
-        match upload_pass(&queue, &queue_events, &client, false).await {
+        let pass = tokio::select! {
+            _ = stop.cancelled() => return Ok(()),
+            result = upload_pass(&queue, &queue_events, &client, false) => result,
+        };
+        match pass {
             Ok(progress) => {
                 backoff = Duration::from_millis(250);
                 log_queue_diagnostics(&queue, &mut previous_diagnostics)?;
@@ -419,7 +440,7 @@ async fn upload_loop(
             }
             Err(error) => {
                 log_queue_diagnostics(&queue, &mut previous_diagnostics)?;
-                warn!(%error, retry_milliseconds = backoff.as_millis(), "recording upload deferred");
+                warn!(error = ?error, retry_milliseconds = backoff.as_millis(), "recording upload deferred");
                 tokio::select! {
                     _ = stop.cancelled() => return Ok(()),
                     _ = tokio::time::sleep(backoff) => {}

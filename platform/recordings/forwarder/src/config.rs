@@ -64,6 +64,13 @@ pub struct ForwarderConfig {
 
     #[arg(long, default_value_t = 30)]
     pub shutdown_drain_seconds: u64,
+
+    /// Maximum lifetime of one gateway discovery, OAuth, or ingest request.
+    ///
+    /// The durable queue survives a deferred upload. A request without a
+    /// deadline would instead wedge the only uploader and its shutdown path.
+    #[arg(long, default_value_t = 15)]
+    pub request_timeout_seconds: u64,
 }
 
 impl ForwarderConfig {
@@ -139,6 +146,10 @@ impl ForwarderConfig {
             self.shutdown_drain_seconds > 0,
             "shutdown drain window must be positive"
         );
+        ensure!(
+            self.request_timeout_seconds > 0 && self.request_timeout_seconds <= 300,
+            "gateway request timeout must be in 1..=300 seconds"
+        );
         Ok(())
     }
 
@@ -150,6 +161,10 @@ impl ForwarderConfig {
 
     pub fn shutdown_drain_window(&self) -> Duration {
         Duration::from_secs(self.shutdown_drain_seconds)
+    }
+
+    pub fn request_timeout(&self) -> Duration {
+        Duration::from_secs(self.request_timeout_seconds)
     }
 }
 
@@ -176,6 +191,7 @@ mod tests {
             batch_message_limit: 10,
             grpc_memory_limit_bytes: 1024,
             shutdown_drain_seconds: 10,
+            request_timeout_seconds: 15,
         }
     }
 
@@ -194,6 +210,16 @@ mod tests {
         assert!(config.validate().is_ok());
 
         config.protected_resource = Url::parse("https://other.example/ingest/recordings").unwrap();
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn bounds_gateway_request_deadline() {
+        let mut config = config();
+        assert_eq!(config.request_timeout(), Duration::from_secs(15));
+        config.request_timeout_seconds = 0;
+        assert!(config.validate().is_err());
+        config.request_timeout_seconds = 301;
         assert!(config.validate().is_err());
     }
 }
