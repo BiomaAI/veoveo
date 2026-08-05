@@ -171,7 +171,6 @@ class H264CameraStream:
 
 def _video_packet(sample: bytes, *, is_keyframe: bool = False) -> rr.VideoStream:
     fields: dict[str, object] = {
-        "codec": rr.VideoCodec.H264,
         "sample": sample,
     }
     if is_keyframe:

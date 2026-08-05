@@ -308,6 +308,16 @@ class RuntimeConfigTests(unittest.TestCase):
         )[1].split("class RecordingPublisher:", maxsplit=1)[0]
         self.assertEqual(camera_stream_source.count("rr.Pinhole("), 1)
         self.assertIn("static=True", camera_stream_source)
+        self.assertEqual(
+            camera_stream_source.count("rr.VideoStream(codec=rr.VideoCodec.H264)"),
+            1,
+        )
+        video_packet_source = camera_stream_source.split(
+            "def _video_packet(", maxsplit=1
+        )[1].split("\n\n\nclass RecordingPublisher:", maxsplit=1)[0]
+        self.assertNotIn('"codec"', video_packet_source)
+        self.assertIn('"sample": sample', video_packet_source)
+        self.assertIn('fields["is_keyframe"] = True', video_packet_source)
         encode_source = camera_stream_source.split(
             "    def encode(", maxsplit=1
         )[1].split("    def close(", maxsplit=1)[0]
