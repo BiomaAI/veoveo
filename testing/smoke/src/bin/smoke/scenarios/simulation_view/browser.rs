@@ -340,7 +340,10 @@ async fn capture_console_live_app_inner(
         .await
         {
             Ok(state) => state,
-            Err(error) => return Err(error.context(cdp.stream_diagnostics()?)),
+            Err(error) => {
+                let diagnostics = cdp.stream_diagnostics(&session_id).await?;
+                return Err(error.context(diagnostics));
+            }
         };
         let second = wait_for_console_video_advance(
             &mut cdp,
@@ -1604,7 +1607,10 @@ async fn verify_browser_inner(
 
         let first = match wait_for_video(&mut cdp, &session_id, expected_camera_id).await {
             Ok(state) => state,
-            Err(error) => return Err(error.context(cdp.stream_diagnostics()?)),
+            Err(error) => {
+                let diagnostics = cdp.stream_diagnostics(&session_id).await?;
+                return Err(error.context(diagnostics));
+            }
         };
         tokio::time::sleep(Duration::from_secs(2)).await;
         let second: AppVideoState = cdp.evaluate(&session_id, VIDEO_STATE, false).await?;
@@ -2335,7 +2341,7 @@ impl Cdp {
         Ok(())
     }
 
-    fn stream_diagnostics(&self) -> Result<String> {
+    async fn stream_diagnostics(&mut self, session_id: &str) -> Result<String> {
         let mut events = Vec::new();
         for event in self.events.iter().rev() {
             let Some(summary) = stream_event_summary(event) else {
@@ -2348,6 +2354,27 @@ impl Cdp {
                 break;
             }
         }
+        let exception_object_ids = self
+            .events
+            .iter()
+            .rev()
+            .filter_map(|event| {
+                event
+                    .pointer("/params/exceptionDetails/exception/objectId")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+            })
+            .take(4)
+            .collect::<Vec<_>>();
+        for object_id in exception_object_ids {
+            let Some(summary) = self.browser_object_summary(session_id, &object_id, 0).await else {
+                continue;
+            };
+            let summary = format!("browser exception object {summary}");
+            if !events.contains(&summary) {
+                events.push(summary);
+            }
+        }
         events.reverse();
         Ok(if events.is_empty() {
             "Chrome reported no WebSocket response or transport error".to_owned()
@@ -2355,6 +2382,74 @@ impl Cdp {
             format!("Chrome WebSocket diagnostics: {}", events.join("; "))
         })
     }
+
+    async fn browser_object_summary(
+        &mut self,
+        session_id: &str,
+        object_id: &str,
+        depth: usize,
+    ) -> Option<String> {
+        let result = self
+            .command(
+                "Runtime.getProperties",
+                serde_json::json!({
+                    "objectId": object_id,
+                    "ownProperties": true,
+                    "accessorPropertiesOnly": false,
+                    "generatePreview": true,
+                }),
+                Some(session_id),
+            )
+            .await
+            .ok()?;
+        let mut details = Vec::new();
+        for property in result.get("result")?.as_array()? {
+            let name = property.get("name")?.as_str()?;
+            if !matches!(
+                name,
+                "action"
+                    | "status"
+                    | "info"
+                    | "name"
+                    | "message"
+                    | "code"
+                    | "description"
+                    | "cause"
+                    | "reason"
+            ) {
+                continue;
+            }
+            let Some(value) = property.get("value") else {
+                continue;
+            };
+            if let Some(primitive) = browser_remote_primitive(value) {
+                details.push(format!("{name}={primitive}"));
+                continue;
+            }
+            if depth == 0
+                && matches!(name, "info" | "cause" | "reason")
+                && let Some(nested_object_id) = value.get("objectId").and_then(Value::as_str)
+                && let Some(nested) =
+                    Box::pin(self.browser_object_summary(session_id, nested_object_id, depth + 1))
+                        .await
+            {
+                details.push(format!("{name}=({nested})"));
+            }
+        }
+        (!details.is_empty()).then(|| bounded_browser_diagnostic(&details.join(",")))
+    }
+}
+
+fn browser_remote_primitive(value: &Value) -> Option<String> {
+    let primitive = value.get("value")?;
+    let rendered = match primitive {
+        Value::String(value) => value.to_owned(),
+        Value::Bool(value) => value.to_string(),
+        Value::Number(value) => value.to_string(),
+        Value::Null => "null".to_owned(),
+        Value::Array(_) | Value::Object(_) => return None,
+    };
+    Some(bounded_browser_diagnostic(&rendered))
 }
 
 fn retain_cdp_event(event: &Value) -> bool {
@@ -2405,11 +2500,7 @@ fn stream_event_summary(event: &Value) -> Option<String> {
             .pointer("/params/errorText")
             .and_then(Value::as_str)
             .map(|error| format!("load failed {error}")),
-        "Runtime.exceptionThrown" => event
-            .pointer("/params/exceptionDetails/exception/description")
-            .or_else(|| event.pointer("/params/exceptionDetails/text"))
-            .and_then(Value::as_str)
-            .map(|error| format!("browser exception {}", bounded_browser_diagnostic(error))),
+        "Runtime.exceptionThrown" => browser_exception_summary(event),
         "Runtime.consoleAPICalled" => {
             let message = event
                 .pointer("/params/args")?
@@ -2436,6 +2527,38 @@ fn stream_event_summary(event: &Value) -> Option<String> {
         }
         _ => None,
     }
+}
+
+fn browser_exception_summary(event: &Value) -> Option<String> {
+    let exception = event.pointer("/params/exceptionDetails/exception");
+    let description = exception
+        .and_then(|value| value.get("description"))
+        .or_else(|| event.pointer("/params/exceptionDetails/text"))
+        .and_then(Value::as_str)?;
+    let properties = exception
+        .and_then(|value| value.pointer("/preview/properties"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|property| {
+            let name = property.get("name")?.as_str()?;
+            let value = property
+                .get("value")
+                .or_else(|| property.get("valuePreview"))?
+                .as_str()?;
+            Some(format!("{name}={value}"))
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    let detail = if properties.is_empty() {
+        description.to_owned()
+    } else {
+        format!("{description} ({properties})")
+    };
+    Some(format!(
+        "browser exception {}",
+        bounded_browser_diagnostic(&detail)
+    ))
 }
 
 fn bounded_browser_diagnostic(value: &str) -> String {
