@@ -229,14 +229,19 @@ async fn bridge_inner(
     let (mut downstream_sink, mut downstream_source) = downstream.split();
     let (mut upstream_sink, mut upstream_source) = upstream.split();
     let downstream_to_upstream = async {
-        let mut observed_message = false;
+        let mut observed_messages = 0_u8;
         while let Some(message) = downstream_source.next().await {
             let message = message?;
-            if !observed_message {
+            if observed_messages < 8 {
                 let (kind, bytes) = downstream_message_summary(&message);
-                tracing::debug!(kind, bytes, "received first downstream signaling message");
-                observed_message = true;
+                tracing::debug!(
+                    sequence = observed_messages + 1,
+                    kind,
+                    bytes,
+                    "received downstream signaling message"
+                );
             }
+            observed_messages = observed_messages.saturating_add(1);
             if let Some(message) = to_upstream(message) {
                 upstream_sink.send(message).await?;
             }
@@ -244,14 +249,19 @@ async fn bridge_inner(
         anyhow::Ok(())
     };
     let upstream_to_downstream = async {
-        let mut observed_message = false;
+        let mut observed_messages = 0_u8;
         while let Some(message) = upstream_source.next().await {
             let message = message?;
-            if !observed_message {
+            if observed_messages < 8 {
                 let (kind, bytes) = upstream_message_summary(&message);
-                tracing::debug!(kind, bytes, "received first renderer signaling message");
-                observed_message = true;
+                tracing::debug!(
+                    sequence = observed_messages + 1,
+                    kind,
+                    bytes,
+                    "received renderer signaling message"
+                );
             }
+            observed_messages = observed_messages.saturating_add(1);
             if let Some(message) = to_downstream(message) {
                 downstream_sink.send(message).await?;
             }
