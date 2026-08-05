@@ -301,7 +301,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIn("rrb.MapView", recording_source)
         self.assertIn("rr.Radius.ui_points(8.0)", recording_source)
         self.assertIn(
-            "batcher_config=rr.ChunkBatcherConfig.DEFAULT()", recording_source
+            "batcher_config=rr.ChunkBatcherConfig.LOW_LATENCY()", recording_source
         )
         camera_stream_source = recording_source.split(
             "class H264CameraStream:", maxsplit=1
