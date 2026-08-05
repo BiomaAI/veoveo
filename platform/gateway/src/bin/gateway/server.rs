@@ -187,8 +187,8 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             get(playback_manifest),
         )
         .route(
-            "/recordings/{profile}/{recording_id}/live/proxy",
-            post(playback_live_recording),
+            "/recordings/{profile}/{recording_id}/live/rrd-stream",
+            get(playback_live_recording),
         )
         .route(
             "/recordings/{profile}/{recording_id}/blueprints/{revision}/data.rrd",
@@ -448,6 +448,19 @@ mod tests {
         assert_eq!(
             profile_id_from_gateway_path(
                 "/artifacts/operator/0197f78e-f2f0-7a6e-8a5d-f41c691e4471/download"
+            )
+            .as_ref()
+            .map(ToString::to_string)
+            .as_deref(),
+            Some("operator")
+        );
+    }
+
+    #[test]
+    fn recording_live_stream_path_carries_the_authenticated_profile() {
+        assert_eq!(
+            profile_id_from_gateway_path(
+                "/recordings/operator/019faa9f-acc8-7400-ba67-a9b022da1f63/live/rrd-stream"
             )
             .as_ref()
             .map(ToString::to_string)

@@ -1,8 +1,8 @@
 use std::{collections::BTreeMap, time::Instant};
 
 use axum::{
-    body::{Body, Bytes, to_bytes},
-    extract::{Extension, Path, Request, State},
+    body::Body,
+    extract::{Extension, Path, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
 };
@@ -18,12 +18,11 @@ use crate::runtime::{RecordingPlaybackState, current_catalog};
 const RECORDING_SERVER: &str = "recording";
 const INTERNAL_PLAYBACK_TOKEN_TTL_SECONDS: i64 = 60;
 const PLAYBACK_SESSION_HEADER: &str = "x-veoveo-playback-session";
-const MAX_GRPC_WEB_REQUEST_BYTES: usize = 1024;
 
 #[derive(Clone, Debug)]
 enum PlaybackSource {
     Manifest,
-    LiveProxy,
+    LiveRrdStream,
     Blueprint(u64),
 }
 
@@ -31,7 +30,7 @@ impl PlaybackSource {
     fn mode(&self) -> &'static str {
         match self {
             Self::Manifest => "manifest",
-            Self::LiveProxy => "live-proxy",
+            Self::LiveRrdStream => "live-rrd-stream",
             Self::Blueprint(_) => "blueprint",
         }
     }
@@ -39,7 +38,7 @@ impl PlaybackSource {
     fn upstream_path(&self, recording_id: &str) -> String {
         match self {
             Self::Manifest => format!("/recordings/{recording_id}/playback"),
-            Self::LiveProxy => format!("/recordings/{recording_id}/live/proxy"),
+            Self::LiveRrdStream => format!("/recordings/{recording_id}/live/rrd-stream"),
             Self::Blueprint(revision) => {
                 format!("/recordings/{recording_id}/blueprints/{revision}/data.rrd")
             }
@@ -60,7 +59,6 @@ pub(super) async fn playback_manifest(
         PlaybackSource::Manifest,
         subject,
         headers,
-        None,
     )
     .await
 }
@@ -69,21 +67,15 @@ pub(super) async fn playback_live_recording(
     State(state): State<RecordingPlaybackState>,
     Path((profile, recording_id)): Path<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    request: Request,
+    headers: HeaderMap,
 ) -> Response {
-    let (parts, body) = request.into_parts();
-    let body = match to_bytes(body, MAX_GRPC_WEB_REQUEST_BYTES).await {
-        Ok(body) => body,
-        Err(_) => return StatusCode::PAYLOAD_TOO_LARGE.into_response(),
-    };
     proxy_playback(
         state,
         profile,
         recording_id,
-        PlaybackSource::LiveProxy,
+        PlaybackSource::LiveRrdStream,
         subject,
-        parts.headers,
-        Some(body),
+        headers,
     )
     .await
 }
@@ -103,7 +95,6 @@ pub(super) async fn playback_blueprint(
         PlaybackSource::Blueprint(revision),
         subject,
         HeaderMap::new(),
-        None,
     )
     .await
 }
@@ -115,7 +106,6 @@ async fn proxy_playback(
     source: PlaybackSource,
     subject: AuthenticatedSubject,
     headers: HeaderMap,
-    body: Option<Bytes>,
 ) -> Response {
     let started_at = Instant::now();
     let Ok(profile) = GatewayProfileId::new(profile) else {
@@ -221,25 +211,16 @@ async fn proxy_playback(
     let path = source.upstream_path(&recording_id);
     url.set_path(&path);
     url.set_query(None);
-    let mut request = if matches!(source, PlaybackSource::LiveProxy) {
-        let Some(body) = body else {
-            return StatusCode::BAD_REQUEST.into_response();
-        };
-        let Some(content_type) = headers.get(header::CONTENT_TYPE) else {
-            return StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response();
-        };
-        client
-            .post(url)
-            .header(header::CONTENT_TYPE, content_type)
-            .body(body)
-    } else {
-        client.get(url)
-    }
-    .bearer_auth(internal_token.bearer_token);
+    let mut request = client.get(url).bearer_auth(internal_token.bearer_token);
     if matches!(source, PlaybackSource::Manifest)
         && let Some(value) = headers.get(PLAYBACK_SESSION_HEADER)
     {
         request = request.header(PLAYBACK_SESSION_HEADER, value);
+    }
+    if matches!(source, PlaybackSource::LiveRrdStream)
+        && let Some(value) = headers.get(header::ACCEPT)
+    {
+        request = request.header(header::ACCEPT, value);
     }
     let upstream = match request.send().await {
         Ok(response) => response,
@@ -280,4 +261,20 @@ fn proxy_response(upstream: reqwest::Response) -> Response {
     *response.status_mut() = status;
     *response.headers_mut() = headers;
     response
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn live_playback_uses_the_incremental_rrd_stream_contract() {
+        let source = PlaybackSource::LiveRrdStream;
+
+        assert_eq!(source.mode(), "live-rrd-stream");
+        assert_eq!(
+            source.upstream_path("019faa9f-acc8-7400-ba67-a9b022da1f63"),
+            "/recordings/019faa9f-acc8-7400-ba67-a9b022da1f63/live/rrd-stream"
+        );
+    }
 }
