@@ -9,7 +9,9 @@ use veoveo_rrd::video::{RrdVideoBoundary, inspect_log_message_video_boundary};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BatchBoundary {
     Continue,
+    StartVideoSample,
     StartVideoGop,
+    SourceSpan,
 }
 
 #[derive(Debug)]
@@ -17,6 +19,7 @@ pub struct RecordingAccumulator {
     store_id: StoreId,
     store_info: Option<LogMsg>,
     messages: Vec<LogMsg>,
+    first_source_generation_ns: Option<u64>,
 }
 
 impl RecordingAccumulator {
@@ -29,6 +32,7 @@ impl RecordingAccumulator {
             store_id,
             store_info: None,
             messages: Vec::new(),
+            first_source_generation_ns: None,
         })
     }
 
@@ -52,22 +56,45 @@ impl RecordingAccumulator {
                 self.store_info.is_some(),
                 "Rerun data arrived before SetStoreInfo"
             );
+            if self.first_source_generation_ns.is_none() {
+                self.first_source_generation_ns = source_generation_ns(&message);
+            }
             self.messages.push(message);
         }
         Ok(())
     }
 
-    pub fn boundary_before(&self, message: &LogMsg) -> Result<BatchBoundary> {
+    pub fn boundary_before(
+        &self,
+        message: &LogMsg,
+        maximum_source_span: std::time::Duration,
+    ) -> Result<BatchBoundary> {
         if self.messages.is_empty() {
             return Ok(BatchBoundary::Continue);
         }
         let mut video = RrdVideoBoundary::default();
         inspect_log_message_video_boundary(message, &mut video)?;
-        Ok(if video.contains_video && video.begins_with_keyframe {
-            BatchBoundary::StartVideoGop
-        } else {
-            BatchBoundary::Continue
-        })
+        if video.contains_video {
+            return Ok(if video.begins_with_keyframe {
+                BatchBoundary::StartVideoGop
+            } else {
+                BatchBoundary::StartVideoSample
+            });
+        }
+        let maximum_source_span_ns = u64::try_from(maximum_source_span.as_nanos())?;
+        Ok(
+            match (
+                self.first_source_generation_ns,
+                source_generation_ns(message),
+            ) {
+                (Some(first), Some(next))
+                    if next.saturating_sub(first) >= maximum_source_span_ns =>
+                {
+                    BatchBoundary::SourceSpan
+                }
+                _ => BatchBoundary::Continue,
+            },
+        )
     }
 
     pub fn pending_len(&self) -> usize {
@@ -83,7 +110,15 @@ impl RecordingAccumulator {
             .as_ref()
             .context("Rerun batch has no SetStoreInfo")?;
         let messages = std::mem::take(&mut self.messages);
+        self.first_source_generation_ns = None;
         encode_split(store_info, &messages, maximum_batch_bytes)
+    }
+}
+
+fn source_generation_ns(message: &LogMsg) -> Option<u64> {
+    match message {
+        LogMsg::ArrowMsg(_, message) => Some(message.chunk_id.nanos_since_epoch()),
+        LogMsg::SetStoreInfo(_) | LogMsg::BlueprintActivationCommand(_) => None,
     }
 }
 
@@ -186,7 +221,7 @@ mod tests {
     }
 
     #[test]
-    fn starts_a_new_batch_at_each_video_gop() {
+    fn starts_a_new_batch_at_each_video_sample() {
         let (recording, storage) = RecordingStreamBuilder::new("inspection-camera")
             .recording_id("run-a")
             .memory()
@@ -205,7 +240,11 @@ mod tests {
         let mut accumulator = RecordingAccumulator::new(store_id).unwrap();
         let mut batches = Vec::new();
         for message in messages {
-            if accumulator.boundary_before(&message).unwrap() == BatchBoundary::StartVideoGop {
+            if accumulator
+                .boundary_before(&message, std::time::Duration::from_millis(750))
+                .unwrap()
+                != BatchBoundary::Continue
+            {
                 batches.extend(accumulator.drain_encoded(8 * 1024 * 1024).unwrap());
             }
             accumulator.push(message).unwrap();
@@ -221,5 +260,53 @@ mod tests {
         let video = veoveo_rrd::video::inspect_rrd_video_boundary(&batches[1].encoded_rrd).unwrap();
         assert!(video.contains_video);
         assert!(video.begins_with_keyframe);
+    }
+
+    #[test]
+    fn closes_a_batch_from_source_generation_progress_without_a_timer() {
+        let (recording, storage) = RecordingStreamBuilder::new("inspection-telemetry")
+            .recording_id("run-a")
+            .memory()
+            .unwrap();
+        recording
+            .log("sensor/value", &Scalars::single(1.0))
+            .unwrap();
+        recording.flush_blocking().unwrap();
+        recording
+            .log("sensor/value", &Scalars::single(2.0))
+            .unwrap();
+        let mut messages = storage.take();
+        let mut arrow_messages = messages
+            .iter_mut()
+            .filter_map(|message| match message {
+                LogMsg::ArrowMsg(_, message) => Some(message),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(arrow_messages.len(), 2);
+        arrow_messages[0].chunk_id = re_tuid::Tuid::from_nanos_and_inc(1_000_000_000, 1);
+        arrow_messages[1].chunk_id = re_tuid::Tuid::from_nanos_and_inc(1_750_000_000, 2);
+
+        drop(arrow_messages);
+        let store_info = messages
+            .iter()
+            .find(|message| matches!(message, LogMsg::SetStoreInfo(_)))
+            .unwrap()
+            .clone();
+        let arrow_messages = messages
+            .iter()
+            .filter(|message| matches!(message, LogMsg::ArrowMsg(_, _)))
+            .cloned()
+            .collect::<Vec<_>>();
+        let store_id = store_info.store_id().clone();
+        let mut accumulator = RecordingAccumulator::new(store_id).unwrap();
+        accumulator.push(store_info).unwrap();
+        accumulator.push(arrow_messages[0].clone()).unwrap();
+        assert_eq!(
+            accumulator
+                .boundary_before(&arrow_messages[1], std::time::Duration::from_millis(750),)
+                .unwrap(),
+            BatchBoundary::SourceSpan
+        );
     }
 }
