@@ -22,11 +22,19 @@ function synchronizeSources(
   desired: GovernedRerunSource
 ) {
   const transition = planRerunSourceTransition(opened, desired);
+  if (transition.credentialsChanged) {
+    viewer.set_credentials(desired.redapToken, "");
+  }
   if (transition.urlsToCloseBeforeOpen.length > 0) {
     viewer.close(transition.urlsToCloseBeforeOpen);
   }
   if (transition.blueprintUrlToOpen) viewer.open(transition.blueprintUrlToOpen);
-  if (transition.receiverUrlToOpen) viewer.open(transition.receiverUrlToOpen);
+  if (transition.receiverUrlToOpen) {
+    viewer.open(
+      transition.receiverUrlToOpen,
+      transition.followReceiver ? { follow_if_http: true } : undefined
+    );
+  }
   opened.redapToken = transition.next.redapToken;
   opened.receiver = transition.next.receiver;
   opened.blueprintUrl = transition.next.blueprintUrl;
@@ -36,12 +44,10 @@ function synchronizeSources(
 export default function GovernedRerunViewer({
   recordingId,
   source,
-  liveHistorySeconds,
   onLiveReceiverEnded,
 }: {
   recordingId: string;
   source: GovernedRerunSource;
-  liveHistorySeconds?: number;
   onLiveReceiverEnded?: () => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
@@ -61,8 +67,6 @@ export default function GovernedRerunViewer({
     delayed: false,
   });
   const [mapError, setMapError] = useState<string>();
-  const liveReceiverUrl = source.receiver.kind === "live" ? source.receiver.url : undefined;
-
   useEffect(() => {
     liveReceiverEndedRef.current = onLiveReceiverEnded;
   }, [onLiveReceiverEnded]);
@@ -71,9 +75,6 @@ export default function GovernedRerunViewer({
     desiredSourceRef.current = source;
     const viewer = viewerRef.current;
     if (!viewer) return;
-    if (openedSourcesRef.current.redapToken !== source.redapToken) {
-      return;
-    }
     try {
       synchronizeSources(viewer, openedSourcesRef.current, source);
       const mapSetup = mapSetupRef.current;
@@ -177,38 +178,7 @@ export default function GovernedRerunViewer({
       }
       releaseRecordingRrdFetch();
     };
-  }, [recordingId, source.redapToken]);
-
-  useEffect(() => {
-    if (!liveReceiverUrl) return;
-    const receiverUrl = liveReceiverUrl;
-    const rotationMilliseconds = Math.max(30_000, (liveHistorySeconds ?? 60) * 1_000);
-    let active = true;
-    let timer: number | undefined;
-    const rotate = () => {
-      if (!active) return;
-      const viewer = viewerRef.current;
-      const opened = openedSourcesRef.current.receiver;
-      if (viewer && opened?.kind === "live" && opened.url === receiverUrl) {
-        try {
-          viewer.close([receiverUrl]);
-          viewer.open(receiverUrl);
-        } catch (cause: unknown) {
-          const message =
-            cause instanceof Error ? cause.message : "Rerun live-window rotation failed";
-          console.error("Governed Rerun live-window rotation failed", cause);
-          setStatus({ state: "error", message });
-          return;
-        }
-      }
-      timer = window.setTimeout(rotate, rotationMilliseconds);
-    };
-    timer = window.setTimeout(rotate, rotationMilliseconds);
-    return () => {
-      active = false;
-      if (timer !== undefined) window.clearTimeout(timer);
-    };
-  }, [liveHistorySeconds, liveReceiverUrl, recordingId]);
+  }, [recordingId]);
 
   return (
     <div className="rerun-web-viewer">

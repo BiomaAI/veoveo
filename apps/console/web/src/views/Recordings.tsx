@@ -416,7 +416,6 @@ export function RecordingsView({
                       key={playback?.viewerKey ?? selected.id}
                       recordingId={selected.id}
                       source={playbackSource}
-                      liveHistorySeconds={manifest?.live?.history_seconds}
                       onLiveReceiverEnded={() => void refreshPlaybackManifest()}
                     />
                   </Suspense>

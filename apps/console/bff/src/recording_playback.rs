@@ -162,6 +162,10 @@ pub(crate) async fn live_segment(
         Ok(session) => session,
         Err(response) => return response,
     };
+    let session_headers = match response_session_headers(&state, &session) {
+        Ok(headers) => headers,
+        Err(status) => return status.into_response(),
+    };
     let upstream = match state
         .live_http
         .get(
@@ -177,27 +181,11 @@ pub(crate) async fn live_segment(
         Ok(response) => response,
         Err(error) => {
             tracing::error!(%error, "console live recording source upstream failed");
-            return StatusCode::BAD_GATEWAY.into_response();
+            return (session_headers, StatusCode::BAD_GATEWAY).into_response();
         }
     };
     let status = upstream.status();
-    let mut headers = HeaderMap::new();
-    for name in [
-        CONTENT_TYPE,
-        CONTENT_LENGTH,
-        CACHE_CONTROL,
-        CONTENT_DISPOSITION,
-        X_CONTENT_TYPE_OPTIONS,
-    ] {
-        if let Some(value) = upstream.headers().get(&name) {
-            headers.insert(name, value.clone());
-        }
-    }
-    let buffering = axum::http::HeaderName::from_static("x-accel-buffering");
-    if let Some(value) = upstream.headers().get(&buffering) {
-        headers.insert(buffering, value.clone());
-    }
-    headers.insert(CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
+    let headers = binary_rrd_headers(upstream.headers(), session_headers);
     let mut response = Response::new(Body::from_stream(upstream.bytes_stream()));
     *response.status_mut() = status;
     *response.headers_mut() = headers;
@@ -219,6 +207,10 @@ pub(crate) async fn blueprint(
         Ok(session) => session,
         Err(response) => return response,
     };
+    let session_headers = match response_session_headers(&state, &session) {
+        Ok(headers) => headers,
+        Err(status) => return status.into_response(),
+    };
     let upstream = match state
         .live_http
         .get(
@@ -234,31 +226,38 @@ pub(crate) async fn blueprint(
         Ok(response) => response,
         Err(error) => {
             tracing::error!(%error, %recording_id, revision, "console recording Blueprint upstream failed");
-            return StatusCode::BAD_GATEWAY.into_response();
+            return (session_headers, StatusCode::BAD_GATEWAY).into_response();
         }
     };
-    binary_rrd_response(upstream)
+    binary_rrd_response(upstream, session_headers)
 }
 
-fn binary_rrd_response(upstream: reqwest::Response) -> Response {
+fn binary_rrd_response(upstream: reqwest::Response, session_headers: HeaderMap) -> Response {
     let status = upstream.status();
-    let mut headers = HeaderMap::new();
-    for name in [
-        CONTENT_TYPE,
-        CONTENT_LENGTH,
-        CACHE_CONTROL,
-        CONTENT_DISPOSITION,
-        X_CONTENT_TYPE_OPTIONS,
-    ] {
-        if let Some(value) = upstream.headers().get(&name) {
-            headers.insert(name, value.clone());
-        }
-    }
-    headers.insert(CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
+    let headers = binary_rrd_headers(upstream.headers(), session_headers);
     let mut response = Response::new(Body::from_stream(upstream.bytes_stream()));
     *response.status_mut() = status;
     *response.headers_mut() = headers;
     response
+}
+
+fn binary_rrd_headers(upstream: &HeaderMap, mut headers: HeaderMap) -> HeaderMap {
+    for name in [
+        CONTENT_TYPE,
+        CONTENT_LENGTH,
+        CONTENT_DISPOSITION,
+        X_CONTENT_TYPE_OPTIONS,
+    ] {
+        if let Some(value) = upstream.get(&name) {
+            headers.insert(name, value.clone());
+        }
+    }
+    let buffering = axum::http::HeaderName::from_static("x-accel-buffering");
+    if let Some(value) = upstream.get(&buffering) {
+        headers.insert(buffering, value.clone());
+    }
+    headers.insert(CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
+    headers
 }
 
 fn parse_uuid_v7(value: &str) -> Option<uuid::Uuid> {
@@ -295,12 +294,16 @@ fn validated_manifest_bytes(body: &[u8], recording_id: uuid::Uuid) -> anyhow::Re
 
 #[cfg(test)]
 mod tests {
-    use axum::{Router, routing::get};
+    use axum::{
+        Router,
+        http::{HeaderMap, HeaderName, HeaderValue, header},
+        routing::get,
+    };
     use serde_json::json;
 
     use super::{
-        BLUEPRINT_PATH, LIVE_SEGMENT_PATH, MANIFEST_PATH, PLAYBACK_MANIFEST_SCHEMA, blueprint,
-        live_segment, manifest, validated_manifest_bytes,
+        BLUEPRINT_PATH, LIVE_SEGMENT_PATH, MANIFEST_PATH, PLAYBACK_MANIFEST_SCHEMA,
+        binary_rrd_headers, blueprint, live_segment, manifest, validated_manifest_bytes,
     };
 
     fn manifest_value(recording_id: uuid::Uuid) -> serde_json::Value {
@@ -355,6 +358,45 @@ mod tests {
             .route(MANIFEST_PATH, get(manifest))
             .route(LIVE_SEGMENT_PATH, get(live_segment))
             .route(BLUEPRINT_PATH, get(blueprint));
+    }
+
+    #[test]
+    fn binary_rrd_proxy_preserves_rotated_console_session_headers() {
+        let mut session = HeaderMap::new();
+        session.insert(
+            header::SET_COOKIE,
+            HeaderValue::from_static("veoveo_console=rotated; HttpOnly; Secure"),
+        );
+        session.insert(
+            HeaderName::from_static("x-veoveo-csrf"),
+            HeaderValue::from_static("rotated-csrf"),
+        );
+        let mut upstream = HeaderMap::new();
+        upstream.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/vnd.rerun.rrd"),
+        );
+        upstream.insert(
+            HeaderName::from_static("x-accel-buffering"),
+            HeaderValue::from_static("no"),
+        );
+
+        let headers = binary_rrd_headers(&upstream, session);
+
+        assert_eq!(
+            headers.get(header::SET_COOKIE).unwrap(),
+            "veoveo_console=rotated; HttpOnly; Secure"
+        );
+        assert_eq!(headers.get("x-veoveo-csrf").unwrap(), "rotated-csrf");
+        assert_eq!(
+            headers.get(header::CONTENT_TYPE).unwrap(),
+            "application/vnd.rerun.rrd"
+        );
+        assert_eq!(headers.get("x-accel-buffering").unwrap(), "no");
+        assert_eq!(
+            headers.get(header::CACHE_CONTROL).unwrap(),
+            "private, no-store"
+        );
     }
 
     #[test]
