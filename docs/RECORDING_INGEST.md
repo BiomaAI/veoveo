@@ -95,7 +95,7 @@ at-least-once transport with append-once stored batches; it does not claim
 network-level exactly-once delivery.
 
 The writing row is also the live playback identity. Recording MCP decodes new
-parts in sequence and emits each bounded source burst as one complete RRD frame
+parts in sequence and emits each bounded durable batch as one complete RRD frame
 on a persistent, versioned stream. A rollover ends that response; Console then
 opens the successor response on the same Rerun JavaScript channel. Batch
 boundaries never appear as catalog segments or independent recordings.
@@ -132,12 +132,13 @@ NetworkPolicy narrows reachability, but it never replaces OAuth authorization.
 `rerun+http://127.0.0.1:9876/proxy`, while the forwarder discovers and uploads through
 the canonical gateway origin. Its queue directory must be persistent. The process
 applies disk backpressure once that queue reaches its configured byte limit.
-The forwarder preserves each available message burst emitted by Rerun's SDK
-batcher and closes its accumulator as soon as that burst drains. It does not add
-a second batch timer. An H.264 IDR begins a new batch immediately, 4,096 messages
-bound one burst, and the gateway's advertised byte limit splits any larger
-encoded result. This keeps serial durable appends below the producer rate without
-weakening ordered checkpoints.
+Rerun gRPC transmits SDK chunks without a flush marker. The forwarder therefore
+keeps their monotonic source-generation identity and closes a durable batch when
+that source span reaches 750 milliseconds. Every H.264 access unit begins a new
+batch, every IDR remains an exact GoP boundary, 4,096 messages bound one batch,
+and the gateway's advertised byte limit splits any larger encoded result. No
+wall-clock batch task exists. This keeps serial durable appends below the
+producer rate without weakening ordered checkpoints.
 Late native viewers receive the live tail before retained proxy history. They
 can inspect earlier buffered data after current camera and telemetry messages
 are flowing, without making the producer wait for catch-up playback.

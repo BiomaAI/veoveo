@@ -59,6 +59,14 @@ pub struct ForwarderConfig {
     #[arg(long, default_value_t = 4_096)]
     pub batch_message_limit: usize,
 
+    /// Maximum source-generation span retained in one durable batch.
+    ///
+    /// Rerun gRPC carries chunks without an SDK-flush marker. Chunk IDs retain
+    /// their monotonic source generation time, which gives the forwarder a
+    /// reactive boundary without adding a wall-clock flush task.
+    #[arg(long, default_value_t = 750)]
+    pub maximum_batch_source_span_ms: u64,
+
     #[arg(long, default_value_t = 64 * 1024 * 1024)]
     pub grpc_memory_limit_bytes: u64,
 
@@ -139,6 +147,10 @@ impl ForwarderConfig {
             "batch message limit must be in 1..=65536"
         );
         ensure!(
+            self.maximum_batch_source_span_ms > 0 && self.maximum_batch_source_span_ms <= 10_000,
+            "maximum batch source span must be in 1..=10000 milliseconds"
+        );
+        ensure!(
             self.grpc_memory_limit_bytes > 0,
             "gRPC memory limit must be positive"
         );
@@ -166,6 +178,10 @@ impl ForwarderConfig {
     pub fn request_timeout(&self) -> Duration {
         Duration::from_secs(self.request_timeout_seconds)
     }
+
+    pub fn maximum_batch_source_span(&self) -> Duration {
+        Duration::from_millis(self.maximum_batch_source_span_ms)
+    }
 }
 
 fn is_loopback_host(host: &str) -> bool {
@@ -189,6 +205,7 @@ mod tests {
             queue_dir: PathBuf::from("/var/lib/forwarder"),
             maximum_queue_bytes: 1024,
             batch_message_limit: 10,
+            maximum_batch_source_span_ms: 750,
             grpc_memory_limit_bytes: 1024,
             shutdown_drain_seconds: 10,
             request_timeout_seconds: 15,
@@ -220,6 +237,19 @@ mod tests {
         config.request_timeout_seconds = 0;
         assert!(config.validate().is_err());
         config.request_timeout_seconds = 301;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn bounds_reactive_source_span() {
+        let mut config = config();
+        assert_eq!(
+            config.maximum_batch_source_span(),
+            Duration::from_millis(750)
+        );
+        config.maximum_batch_source_span_ms = 0;
+        assert!(config.validate().is_err());
+        config.maximum_batch_source_span_ms = 10_001;
         assert!(config.validate().is_err());
     }
 }

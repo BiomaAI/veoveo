@@ -34,6 +34,7 @@ struct RerunIngestLimits {
     blueprint_bytes: u64,
     blueprint_messages: u64,
     batch_messages: usize,
+    maximum_batch_source_span: Duration,
 }
 
 #[derive(Debug, Default)]
@@ -90,6 +91,7 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
         blueprint_bytes: client.maximum_blueprint_bytes(),
         blueprint_messages: client.maximum_blueprint_messages(),
         batch_messages: config.batch_message_limit,
+        maximum_batch_source_span: config.maximum_batch_source_span(),
     };
     let queue = Arc::new(Mutex::new(DurableQueue::open(
         config.queue_dir.clone(),
@@ -115,10 +117,10 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
         grpc_shutdown,
     );
     info!(bind = %config.bind, "recording forwarder loopback Rerun receiver up");
-    // Preserve the burst boundaries emitted by Rerun's ChunkBatcher. Moving
-    // individual LogMsgs through an async channel allowed the consumer to win
-    // the scheduling race after every message, splitting one SDK flush into
-    // hundreds of tiny durable uploads.
+    // Drain contiguous Rerun delivery without introducing one async scheduling
+    // boundary per LogMsg. Durable boundaries are decided below from video
+    // access units, monotonic source-generation span, message count, and bytes;
+    // Rerun gRPC does not expose the SDK batcher's flush marker.
     let (message_tx, mut message_rx) = mpsc::channel::<Vec<LogMsg>>(64);
     let receiver_task = tokio::task::spawn_blocking(move || -> Result<()> {
         while let Ok(received) = receiver.recv() {
@@ -164,13 +166,6 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
                     )
                     .await?;
                 }
-                flush_accumulators(
-                    &mut accumulators,
-                    &queue,
-                    &queue_events,
-                    client.maximum_batch_bytes(),
-                )
-                .await?;
             }
         }
     }
@@ -239,7 +234,9 @@ async fn handle_rerun_message(
                     entry.insert(RecordingAccumulator::new(store_id)?)
                 }
             };
-            if accumulator.boundary_before(&message)? == BatchBoundary::StartVideoGop {
+            if accumulator.boundary_before(&message, limits.maximum_batch_source_span)?
+                != BatchBoundary::Continue
+            {
                 flush_accumulator(accumulator, queue, queue_events, limits.batch_bytes).await?;
             }
             if matches!(message, LogMsg::SetStoreInfo(_)) && accumulator.pending_len() > 0 {

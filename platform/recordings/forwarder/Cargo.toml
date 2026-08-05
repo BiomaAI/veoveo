@@ -43,4 +43,5 @@ veoveo-rrd.workspace = true
 [dev-dependencies]
 re_sdk.workspace = true
 re_sdk_types.workspace = true
+re_tuid.workspace = true
 tempfile = "3.27.0"
