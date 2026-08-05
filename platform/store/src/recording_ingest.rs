@@ -1,5 +1,6 @@
 use chrono::{DateTime, TimeDelta, Timelike, Utc};
 use serde::{Deserialize, Serialize};
+use surrealdb::types as surrealdb_types;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 
@@ -99,9 +100,13 @@ impl RecordingIngestQuotaWindow {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, SurrealValue)]
-#[serde(rename_all = "snake_case")]
+#[surreal(untagged)]
 enum RecordingIngestQuotaPeriod {
+    #[serde(rename = "minute")]
+    #[surreal(value = "minute")]
     Minute,
+    #[serde(rename = "day")]
+    #[surreal(value = "day")]
     Day,
 }
 
@@ -461,6 +466,12 @@ impl PlatformStore {
                 return duplicate_outcome(current, &draft, self).await;
             }
             classify_sequence(&current, &draft, self).await?;
+            if let Some(quota) = self
+                .recording_ingest_quota_rejection(&quota, &draft)
+                .await?
+            {
+                return Err(StoreError::RecordingIngestQuotaExceeded { quota });
+            }
             return Err(classify_database_error(error));
         }
         stream.next_sequence =
@@ -579,6 +590,33 @@ impl PlatformStore {
             .await?
             .check()?;
         Ok(response.take(0)?)
+    }
+
+    async fn recording_ingest_quota_rejection(
+        &self,
+        checkpoint: &RecordingIngestQuotaCheckpoint,
+        draft: &RecordingIngestBatchDraft,
+    ) -> Result<Option<RecordingIngestQuota>, StoreError> {
+        let minute = self
+            .recording_ingest_quota_window(checkpoint.minute.id)
+            .await?;
+        if minute
+            .is_some_and(|window| window.batch_count >= i64::from(draft.maximum_batches_per_minute))
+        {
+            return Ok(Some(RecordingIngestQuota::MaximumBatchesPerMinute));
+        }
+        let byte_len = checked_i64("byte_len", draft.byte_len)?;
+        let maximum_bytes_per_day =
+            checked_i64("maximum_bytes_per_day", draft.maximum_bytes_per_day)?;
+        let day = self
+            .recording_ingest_quota_window(checkpoint.day.id)
+            .await?;
+        if day
+            .is_some_and(|window| window.byte_len.saturating_add(byte_len) > maximum_bytes_per_day)
+        {
+            return Ok(Some(RecordingIngestQuota::MaximumBytesPerDay));
+        }
+        Ok(None)
     }
 
     pub async fn recording_ingest_batch(
@@ -973,6 +1011,10 @@ mod tests {
 
     #[test]
     fn quota_window_identity_is_stable_and_utc_bounded() {
+        assert_eq!(
+            RecordingIngestQuotaPeriod::Minute.into_value(),
+            surrealdb::types::Value::String("minute".to_owned())
+        );
         let tenant_id = TenantId::new();
         let started_at = "2026-08-05T07:25:00Z".parse().unwrap();
         let first = RecordingIngestQuotaWindow::new(
