@@ -796,7 +796,6 @@ async fn verify_rerun_live_reconnect(
         let state: RerunLiveFollowState = cdp
             .evaluate(session_id, RERUN_LIVE_FOLLOW_STATE, false)
             .await?;
-        state.validate_surface()?;
         ensure!(
             state.document_epoch_ms == connected_before.document_epoch_ms
                 && state.viewer_instance == connected_before.viewer_instance
@@ -807,7 +806,9 @@ async fn verify_rerun_live_reconnect(
             && state.live_frame_count > connected_before.live_frame_count
             && state.time_update_count > connected_before.time_update_count
             && state.is_current()
+            && state.live_state == "connected"
         {
+            state.validate_surface()?;
             return Ok(state);
         }
         ensure!(
