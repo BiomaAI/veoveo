@@ -77,6 +77,8 @@ pub(super) struct ElementBounds {
     y: f64,
     width: f64,
     height: f64,
+    viewport_width: f64,
+    viewport_height: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -203,8 +205,12 @@ fn analyze_rerun_pixels(
             && viewer_bounds.y.is_finite()
             && viewer_bounds.width.is_finite()
             && viewer_bounds.height.is_finite()
+            && viewer_bounds.viewport_width.is_finite()
+            && viewer_bounds.viewport_height.is_finite()
             && viewer_bounds.width > 0.0
-            && viewer_bounds.height > 0.0,
+            && viewer_bounds.height > 0.0
+            && viewer_bounds.viewport_width > 0.0
+            && viewer_bounds.viewport_height > 0.0,
         "Rerun viewport bounds are invalid: {viewer_bounds:?}"
     );
 
@@ -278,16 +284,18 @@ fn sample_bounds(
             && y_end > y_start,
         "Rerun sample region is invalid"
     );
-    let x_start = (viewer_bounds.x + viewer_bounds.width * x_start)
+    let screenshot_scale_x = f64::from(pixels.width()) / viewer_bounds.viewport_width;
+    let screenshot_scale_y = f64::from(pixels.height()) / viewer_bounds.viewport_height;
+    let x_start = ((viewer_bounds.x + viewer_bounds.width * x_start) * screenshot_scale_x)
         .floor()
         .clamp(0.0, f64::from(pixels.width())) as u32;
-    let x_end = (viewer_bounds.x + viewer_bounds.width * x_end)
+    let x_end = ((viewer_bounds.x + viewer_bounds.width * x_end) * screenshot_scale_x)
         .ceil()
         .clamp(0.0, f64::from(pixels.width())) as u32;
-    let y_start = (viewer_bounds.y + viewer_bounds.height * y_start)
+    let y_start = ((viewer_bounds.y + viewer_bounds.height * y_start) * screenshot_scale_y)
         .floor()
         .clamp(0.0, f64::from(pixels.height())) as u32;
-    let y_end = (viewer_bounds.y + viewer_bounds.height * y_end)
+    let y_end = ((viewer_bounds.y + viewer_bounds.height * y_end) * screenshot_scale_y)
         .ceil()
         .clamp(0.0, f64::from(pixels.height())) as u32;
     ensure!(
@@ -686,6 +694,8 @@ mod tests {
             y: 0.0,
             width: 1_000.0,
             height: 700.0,
+            viewport_width: 1_000.0,
+            viewport_height: 700.0,
         };
         let blank = image::RgbImage::from_pixel(1_000, 700, image::Rgb([15, 17, 18]));
         assert!(
@@ -713,5 +723,20 @@ mod tests {
             .unwrap()
             .validate()
             .unwrap();
+    }
+
+    #[test]
+    fn rerun_render_evidence_scales_css_bounds_to_screenshot_pixels() {
+        let bounds = ElementBounds {
+            x: 100.0,
+            y: 50.0,
+            width: 800.0,
+            height: 600.0,
+            viewport_width: 1_000.0,
+            viewport_height: 700.0,
+        };
+        let pixels = image::RgbImage::from_pixel(2_000, 1_400, image::Rgb([15, 17, 18]));
+        let sampled = sample_bounds(&pixels, bounds, [0.25, 0.25, 0.75, 0.75]).unwrap();
+        assert_eq!(sampled, (600, 400, 1_400, 1_000));
     }
 }

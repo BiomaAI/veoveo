@@ -576,7 +576,9 @@ async fn capture_console_recording_inner(
                       x: bounds.x,
                       y: bounds.y,
                       width: bounds.width,
-                      height: bounds.height
+                      height: bounds.height,
+                      viewportWidth: window.innerWidth,
+                      viewportHeight: window.innerHeight
                     };
                 })()"#,
                 false,
