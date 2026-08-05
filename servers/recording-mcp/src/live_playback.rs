@@ -8,6 +8,7 @@
 use std::{
     fs::File,
     io::{self, BufReader, Read},
+    mem,
     path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
@@ -38,9 +39,7 @@ pub fn stream_live_rrd(
     tokio::task::spawn_blocking(move || {
         let error_sender = sender.clone();
         let result = (|| {
-            let writer = LiveRrdWriter {
-                sender: sender.clone(),
-            };
+            let writer = LiveRrdWriter::new(sender.clone());
             let mut encoder = Encoder::new_eager(
                 CrateVersion::LOCAL,
                 EncodingOptions::PROTOBUF_COMPRESSED,
@@ -83,6 +82,7 @@ fn stream_growing_file(
     encoder: &mut Encoder<LiveRrdWriter>,
 ) -> Result<()> {
     let cutoff = history_cutoff(history)?;
+    let mut message_state = LiveMessageState::default();
     let reader = FollowingFile::open(path, sender.clone())?;
     let decoder = Decoder::<LogMsg>::decode_eager(BufReader::new(reader))
         .with_context(|| format!("opening live RRD {}", path.display()))?;
@@ -91,7 +91,7 @@ fn stream_growing_file(
             message.with_context(|| format!("decoding live RRD {}", path.display()))?;
         message.set_store_id(playback_store_id.clone());
         if message_is_in_live_window(&message, cutoff)? {
-            encoder.append(&message)?;
+            append_messages(std::iter::once(message), &mut message_state, encoder)?;
         }
     }
     Ok(())
@@ -113,6 +113,7 @@ fn stream_ingest_parts(
         return Ok(());
     }
     let wake = FilesystemWake::watch(&parts_directory)?;
+    let mut message_state = LiveMessageState::default();
     let mut bootstrap_messages = Vec::new();
     let static_context = ingest_stream_static_context_path(segment_path)?;
     if static_context.exists() {
@@ -133,7 +134,7 @@ fn stream_ingest_parts(
     if !bootstrap_messages.is_empty() {
         let optimized = veoveo_recording_hub::optimize_live_rrd_messages(bootstrap_messages)
             .context("optimizing bounded live RRD bootstrap")?;
-        append_messages(optimized, encoder)?;
+        append_messages(optimized, &mut message_state, encoder)?;
     }
     let mut next_sequence = latest_initial_sequence.map(|sequence| sequence.saturating_add(1));
     loop {
@@ -148,7 +149,13 @@ fn stream_ingest_parts(
             if !path.exists() {
                 break;
             }
-            if !send_part(&path, cutoff, playback_store_id, encoder)? {
+            if !send_part(
+                &path,
+                cutoff,
+                playback_store_id,
+                &mut message_state,
+                encoder,
+            )? {
                 break;
             }
             next_sequence = Some(sequence.saturating_add(1));
@@ -170,15 +177,18 @@ fn send_part(
     path: &Path,
     cutoff: u64,
     playback_store_id: &StoreId,
+    message_state: &mut LiveMessageState,
     encoder: &mut Encoder<LiveRrdWriter>,
 ) -> Result<bool> {
     let Some(messages) = read_part_messages(path, cutoff, playback_store_id)? else {
         return Ok(false);
     };
     if !messages.is_empty() {
-        let optimized = veoveo_recording_hub::optimize_live_rrd_messages(messages)
-            .with_context(|| format!("optimizing live ingest part {}", path.display()))?;
-        append_messages(optimized, encoder)?;
+        // The producer SDK has already micro-batched these messages. Preserve those
+        // chunks on the live edge and flush the complete durable part as one response
+        // body update. Recompacting an isolated part has too little context to help and
+        // re-runs Rerun's video GOP analysis for every P-frame part.
+        append_messages(messages, message_state, encoder)?;
     }
     Ok(true)
 }
@@ -228,32 +238,74 @@ fn read_reader_messages(
     Ok(messages)
 }
 
-fn append_messages(messages: Vec<LogMsg>, encoder: &mut Encoder<LiveRrdWriter>) -> Result<()> {
+#[derive(Default)]
+struct LiveMessageState {
+    store_info_sent: bool,
+}
+
+fn append_messages(
+    messages: impl IntoIterator<Item = LogMsg>,
+    state: &mut LiveMessageState,
+    encoder: &mut Encoder<LiveRrdWriter>,
+) -> Result<()> {
+    let mut appended = false;
     for message in messages {
+        if matches!(message, LogMsg::SetStoreInfo(_)) {
+            if state.store_info_sent {
+                continue;
+            }
+            state.store_info_sent = true;
+        }
         encoder.append(&message)?;
+        appended = true;
+    }
+    if appended {
+        encoder.flush_blocking()?;
     }
     Ok(())
 }
 
 struct LiveRrdWriter {
     sender: mpsc::Sender<Result<Bytes, io::Error>>,
+    pending: Vec<u8>,
+}
+
+impl LiveRrdWriter {
+    fn new(sender: mpsc::Sender<Result<Bytes, io::Error>>) -> Self {
+        Self {
+            sender,
+            pending: Vec::new(),
+        }
+    }
 }
 
 impl io::Write for LiveRrdWriter {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        if buffer.len() > MAX_LIVE_RRD_CHUNK_BYTES {
+        let pending_len = self
+            .pending
+            .len()
+            .checked_add(buffer.len())
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidData, "live RRD chunk size overflow")
+            })?;
+        if pending_len > MAX_LIVE_RRD_CHUNK_BYTES {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!("live RRD chunk exceeds {MAX_LIVE_RRD_CHUNK_BYTES} bytes"),
             ));
         }
-        self.sender
-            .blocking_send(Ok(Bytes::copy_from_slice(buffer)))
-            .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "live RRD client closed"))?;
+        self.pending.extend_from_slice(buffer);
         Ok(buffer.len())
     }
 
     fn flush(&mut self) -> io::Result<()> {
+        if self.pending.is_empty() {
+            return Ok(());
+        }
+        let bytes = Bytes::from(mem::take(&mut self.pending));
+        self.sender
+            .blocking_send(Ok(bytes))
+            .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "live RRD client closed"))?;
         Ok(())
     }
 }
@@ -412,12 +464,20 @@ mod tests {
         recording
             .log("sensor/value", &Scalars::single(42.0))
             .unwrap();
-        let messages = storage.take();
-        let store_info = messages
+        let first_messages = storage.take();
+        let store_info = first_messages
             .iter()
             .find(|message| matches!(message, LogMsg::SetStoreInfo(_)))
             .unwrap();
-        let data = messages
+        let first_data = first_messages
+            .iter()
+            .find(|message| !matches!(message, LogMsg::SetStoreInfo(_)))
+            .unwrap();
+        recording
+            .log("sensor/value", &Scalars::single(43.0))
+            .unwrap();
+        let second_messages = storage.take();
+        let second_data = second_messages
             .iter()
             .find(|message| !matches!(message, LogMsg::SetStoreInfo(_)))
             .unwrap();
@@ -428,22 +488,7 @@ mod tests {
             .join(format!("recording.ingest-{}-s0.rrd", uuid::Uuid::now_v7()));
         let parts_directory = ingest_segment_parts_directory(&segment_path);
         std::fs::create_dir(&parts_directory).unwrap();
-        for sequence in 0..2 {
-            let mut encoder = Encoder::new_eager(
-                CrateVersion::LOCAL,
-                EncodingOptions::PROTOBUF_COMPRESSED,
-                Vec::new(),
-            )
-            .unwrap();
-            encoder.append(store_info).unwrap();
-            encoder.append(data).unwrap();
-            encoder.finish().unwrap();
-            std::fs::write(
-                parts_directory.join(format!("{sequence:020}.rrd")),
-                encoder.into_inner().unwrap(),
-            )
-            .unwrap();
-        }
+        write_part(&parts_directory, 0, store_info, first_data);
 
         let playback_store_id = StoreId::recording("playback-dataset", "run-a");
         let mut receiver = stream_live_rrd(
@@ -451,15 +496,27 @@ mod tests {
             Duration::from_secs(60),
             playback_store_id.clone(),
         );
-        let mut streamed = Vec::new();
-        loop {
-            match tokio::time::timeout(Duration::from_millis(250), receiver.recv()).await {
-                Ok(Some(Ok(chunk))) => streamed.extend_from_slice(&chunk),
-                Ok(Some(Err(error))) => panic!("live stream failed: {error}"),
-                Ok(None) => panic!("live stream ended before segment rollover"),
-                Err(_) => break,
-            }
-        }
+        let first_chunk = tokio::time::timeout(Duration::from_secs(2), receiver.recv())
+            .await
+            .expect("initial live part was not emitted")
+            .expect("live stream ended before initial part")
+            .expect("initial live part failed");
+
+        write_part(&parts_directory, 1, store_info, second_data);
+        let second_chunk = tokio::time::timeout(Duration::from_secs(2), receiver.recv())
+            .await
+            .expect("reactive live part was not emitted")
+            .expect("live stream ended before reactive part")
+            .expect("reactive live part failed");
+        assert!(
+            tokio::time::timeout(Duration::from_millis(100), receiver.recv())
+                .await
+                .is_err(),
+            "one durable part must produce one HTTP response-body update"
+        );
+
+        let mut streamed = first_chunk.to_vec();
+        streamed.extend_from_slice(&second_chunk);
         std::fs::remove_dir_all(parts_directory).unwrap();
         while let Some(result) = tokio::time::timeout(Duration::from_secs(2), receiver.recv())
             .await
@@ -469,12 +526,43 @@ mod tests {
         }
 
         let decoded = decode_live_rrd_stream(&streamed);
-        assert_eq!(decoded.len(), 2);
+        assert_eq!(
+            decoded
+                .iter()
+                .filter(|message| matches!(message, LogMsg::SetStoreInfo(_)))
+                .count(),
+            1,
+            "store metadata must not wake the viewer again for every part"
+        );
+        assert_eq!(
+            decoded
+                .iter()
+                .filter(|message| matches!(message, LogMsg::ArrowMsg(_, _)))
+                .count(),
+            2
+        );
         assert!(
             decoded
                 .iter()
                 .all(|message| message.store_id() == &playback_store_id)
         );
+    }
+
+    fn write_part(directory: &Path, sequence: u64, store_info: &LogMsg, data: &LogMsg) {
+        let mut encoder = Encoder::new_eager(
+            CrateVersion::LOCAL,
+            EncodingOptions::PROTOBUF_COMPRESSED,
+            Vec::new(),
+        )
+        .unwrap();
+        encoder.append(store_info).unwrap();
+        encoder.append(data).unwrap();
+        encoder.finish().unwrap();
+        std::fs::write(
+            directory.join(format!("{sequence:020}.rrd")),
+            encoder.into_inner().unwrap(),
+        )
+        .unwrap();
     }
 
     fn decode_live_rrd_stream(streamed: &[u8]) -> Vec<LogMsg> {
