@@ -1,4 +1,8 @@
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    path::Path,
+    sync::Arc,
+};
 
 #[cfg(test)]
 use anyhow::anyhow;
@@ -2186,7 +2190,7 @@ async fn wait_for_teardown(cdp: &mut Cdp, session_id: &str) -> Result<()> {
 struct Cdp {
     socket: WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>,
     next_id: u64,
-    events: Vec<Value>,
+    events: VecDeque<Value>,
     software_renderer_event: bool,
 }
 
@@ -2205,7 +2209,7 @@ impl Cdp {
         Ok(Self {
             socket,
             next_id: 1,
-            events: Vec::new(),
+            events: VecDeque::new(),
             software_renderer_event: false,
         })
     }
@@ -2249,7 +2253,11 @@ impl Cdp {
                         self.software_renderer_event = software_renderer(&encoded);
                     }
                     if retain_cdp_event(&value) {
-                        self.events.push(value);
+                        const MAX_RETAINED_EVENTS: usize = 512;
+                        if self.events.len() == MAX_RETAINED_EVENTS {
+                            self.events.pop_front();
+                        }
+                        self.events.push_back(value);
                     }
                 }
                 Message::Ping(value) => self.socket.send(Message::Pong(value)).await?,
@@ -2328,11 +2336,19 @@ impl Cdp {
     }
 
     fn stream_diagnostics(&self) -> Result<String> {
-        let events = self
-            .events
-            .iter()
-            .filter_map(stream_event_summary)
-            .collect::<Vec<_>>();
+        let mut events = Vec::new();
+        for event in self.events.iter().rev() {
+            let Some(summary) = stream_event_summary(event) else {
+                continue;
+            };
+            if !events.contains(&summary) {
+                events.push(summary);
+            }
+            if events.len() == 16 {
+                break;
+            }
+        }
+        events.reverse();
         Ok(if events.is_empty() {
             "Chrome reported no WebSocket response or transport error".to_owned()
         } else {
@@ -2342,19 +2358,24 @@ impl Cdp {
 }
 
 fn retain_cdp_event(event: &Value) -> bool {
-    matches!(
-        event.get("method").and_then(Value::as_str),
+    match event.get("method").and_then(Value::as_str) {
         Some(
             "Network.requestWillBeSent"
-                | "Network.responseReceived"
-                | "Network.loadingFinished"
-                | "Network.loadingFailed"
-                | "Network.webSocketCreated"
-                | "Network.webSocketHandshakeResponseReceived"
-                | "Network.webSocketFrameError"
-                | "Network.webSocketClosed"
-        )
-    )
+            | "Network.responseReceived"
+            | "Network.loadingFinished"
+            | "Network.loadingFailed"
+            | "Network.webSocketCreated"
+            | "Network.webSocketHandshakeResponseReceived"
+            | "Network.webSocketFrameError"
+            | "Network.webSocketClosed",
+        ) => true,
+        Some("Runtime.exceptionThrown") => true,
+        Some("Runtime.consoleAPICalled") => matches!(
+            event.pointer("/params/type").and_then(Value::as_str),
+            Some("error" | "warning")
+        ),
+        _ => false,
+    }
 }
 
 fn stream_event_summary(event: &Value) -> Option<String> {
@@ -2384,8 +2405,54 @@ fn stream_event_summary(event: &Value) -> Option<String> {
             .pointer("/params/errorText")
             .and_then(Value::as_str)
             .map(|error| format!("load failed {error}")),
+        "Runtime.exceptionThrown" => event
+            .pointer("/params/exceptionDetails/exception/description")
+            .or_else(|| event.pointer("/params/exceptionDetails/text"))
+            .and_then(Value::as_str)
+            .map(|error| format!("browser exception {}", bounded_browser_diagnostic(error))),
+        "Runtime.consoleAPICalled" => {
+            let message = event
+                .pointer("/params/args")?
+                .as_array()?
+                .iter()
+                .filter_map(|argument| {
+                    argument
+                        .get("value")
+                        .and_then(Value::as_str)
+                        .or_else(|| argument.get("description").and_then(Value::as_str))
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
+            (!message.is_empty()).then(|| {
+                format!(
+                    "browser {} {}",
+                    event
+                        .pointer("/params/type")
+                        .and_then(Value::as_str)
+                        .unwrap_or("console"),
+                    bounded_browser_diagnostic(&message)
+                )
+            })
+        }
         _ => None,
     }
+}
+
+fn bounded_browser_diagnostic(value: &str) -> String {
+    let lowercase = value.to_ascii_lowercase();
+    if [
+        "authorization",
+        "bearer",
+        "access_token",
+        "accesstoken",
+        "jwt",
+    ]
+    .iter()
+    .any(|needle| lowercase.contains(needle))
+    {
+        return "[redacted authentication-bearing browser diagnostic]".to_owned();
+    }
+    value.chars().take(320).collect()
 }
 
 fn redacted_network_url(value: &str) -> String {
