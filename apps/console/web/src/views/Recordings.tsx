@@ -182,7 +182,7 @@ export function RecordingsView({
     return () => controller.abort();
   }, [reloadToken, resolvedSelectedId]);
 
-  const refreshPlaybackManifest = useCallback(async (reopenLiveReceiver = false) => {
+  const refreshPlaybackManifest = useCallback(async () => {
     if (!resolvedSelectedId || !manifest || refreshingManifest.current) return;
     const currentLiveSegmentId = manifest.live?.segment_id;
     const currentManifestState = manifest.state;
@@ -202,9 +202,6 @@ export function RecordingsView({
         value.access.redap_token === manifest.access.redap_token &&
         value.access.expires_at === manifest.access.expires_at
       ) {
-        if (reopenLiveReceiver) {
-          setLiveReceiverGeneration((generation) => generation + 1);
-        }
         return;
       }
       setManifest(value);
@@ -294,7 +291,14 @@ export function RecordingsView({
 
   useEffect(() => {
     if (playbackSource?.receiver.kind !== "live") return;
-    const reconnect = () => void refreshPlaybackManifest(true);
+    const reconnect = () => {
+      // Rerun 0.35's MessageProxy read client ends when its transport ends; it does
+      // not reconnect the read stream itself. Reopen the stable proxy URI immediately
+      // when the browser reports restored connectivity. Do not couple this signal to a
+      // catalog refresh that may already be in flight, because that would lose the edge.
+      setLiveReceiverGeneration((generation) => generation + 1);
+      void refreshPlaybackManifest();
+    };
     window.addEventListener("online", reconnect);
     return () => window.removeEventListener("online", reconnect);
   }, [playbackSource?.receiver, refreshPlaybackManifest]);
