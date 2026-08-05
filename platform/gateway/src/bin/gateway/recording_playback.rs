@@ -18,6 +18,7 @@ use crate::runtime::{RecordingPlaybackState, current_catalog};
 const RECORDING_SERVER: &str = "recording";
 const INTERNAL_PLAYBACK_TOKEN_TTL_SECONDS: i64 = 60;
 const PLAYBACK_SESSION_HEADER: &str = "x-veoveo-playback-session";
+const LIVE_RRD_START_HEADER: &str = "x-veoveo-rerun-live-start";
 
 #[derive(Clone, Debug)]
 enum PlaybackSource {
@@ -211,7 +212,26 @@ async fn proxy_playback(
     let path = source.upstream_path(&recording_id);
     url.set_path(&path);
     url.set_query(None);
-    let mut request = client.get(url).bearer_auth(internal_token.bearer_token);
+    let request = forwarded_request_headers(
+        client.get(url).bearer_auth(internal_token.bearer_token),
+        &source,
+        &headers,
+    );
+    let upstream = match request.send().await {
+        Ok(response) => response,
+        Err(error) => {
+            tracing::error!(%error, %recording_id, "recording playback upstream failed");
+            return StatusCode::BAD_GATEWAY.into_response();
+        }
+    };
+    proxy_response(upstream)
+}
+
+fn forwarded_request_headers(
+    mut request: reqwest::RequestBuilder,
+    source: &PlaybackSource,
+    headers: &HeaderMap,
+) -> reqwest::RequestBuilder {
     if matches!(source, PlaybackSource::Manifest)
         && let Some(value) = headers.get(PLAYBACK_SESSION_HEADER)
     {
@@ -222,14 +242,12 @@ async fn proxy_playback(
     {
         request = request.header(header::ACCEPT, value);
     }
-    let upstream = match request.send().await {
-        Ok(response) => response,
-        Err(error) => {
-            tracing::error!(%error, %recording_id, "recording playback upstream failed");
-            return StatusCode::BAD_GATEWAY.into_response();
-        }
-    };
-    proxy_response(upstream)
+    if matches!(source, PlaybackSource::LiveRrdStream)
+        && let Some(value) = headers.get(LIVE_RRD_START_HEADER)
+    {
+        request = request.header(LIVE_RRD_START_HEADER, value);
+    }
+    request
 }
 
 fn proxy_response(upstream: reqwest::Response) -> Response {
@@ -276,5 +294,34 @@ mod tests {
             source.upstream_path("019faa9f-acc8-7400-ba67-a9b022da1f63"),
             "/recordings/019faa9f-acc8-7400-ba67-a9b022da1f63/live/rrd-stream"
         );
+    }
+
+    #[test]
+    fn live_playback_forwards_the_exact_channel_start_state() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::ACCEPT,
+            "application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=2"
+                .parse()
+                .unwrap(),
+        );
+        headers.insert(LIVE_RRD_START_HEADER, "resume-head".parse().unwrap());
+        let request = forwarded_request_headers(
+            reqwest::Client::new().get("http://recording.example/live"),
+            &PlaybackSource::LiveRrdStream,
+            &headers,
+        )
+        .build()
+        .unwrap();
+
+        assert_eq!(
+            request.headers().get(header::ACCEPT),
+            headers.get(header::ACCEPT)
+        );
+        assert_eq!(
+            request.headers().get(LIVE_RRD_START_HEADER),
+            headers.get(LIVE_RRD_START_HEADER)
+        );
+        assert!(request.headers().get(PLAYBACK_SESSION_HEADER).is_none());
     }
 }

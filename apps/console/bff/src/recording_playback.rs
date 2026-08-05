@@ -19,10 +19,11 @@ use crate::{
 };
 
 const MAX_MANIFEST_BYTES: u64 = 8 * 1024 * 1024;
-const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v7";
+const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v8";
 const PLAYBACK_SESSION_HEADER: &str = "x-veoveo-playback-session";
+const LIVE_RRD_START_HEADER: &str = "x-veoveo-rerun-live-start";
 const LIVE_RRD_STREAM_CONTENT_TYPE: &str =
-    "application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=1";
+    "application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=2";
 pub(crate) const MANIFEST_PATH: &str = "/console/api/recordings/{recording_id}/playback";
 pub(crate) const LIVE_RECORDING_PATH: &str =
     "/console/api/recordings/{recording_id}/live/rrd-stream";
@@ -76,7 +77,7 @@ struct PlaybackLiveSegment {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum PlaybackLiveTransport {
-    RerunRrdChannelV1,
+    RerunRrdChannelV2,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -173,6 +174,9 @@ pub(crate) async fn live_recording(
         Ok(headers) => headers,
         Err(status) => return status.into_response(),
     };
+    let Some(start) = live_rrd_start(&request_headers) else {
+        return (session_headers, StatusCode::BAD_REQUEST).into_response();
+    };
     let upstream = match state
         .live_http
         .get(
@@ -181,6 +185,8 @@ pub(crate) async fn live_recording(
                 .recording_live_rrd_stream_url(&recording_id.to_string()),
         )
         .header(HOST, state.config.gateway_host())
+        .header(axum::http::header::ACCEPT, LIVE_RRD_STREAM_CONTENT_TYPE)
+        .header(LIVE_RRD_START_HEADER, start)
         .bearer_auth(session.session.access_token)
         .send()
         .await
@@ -201,6 +207,13 @@ pub(crate) async fn live_recording(
     *response.status_mut() = status;
     *response.headers_mut() = headers;
     response
+}
+
+fn live_rrd_start(headers: &HeaderMap) -> Option<&str> {
+    headers
+        .get(LIVE_RRD_START_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| matches!(*value, "bootstrap" | "resume-head"))
 }
 
 fn headers_are_live_rrd_stream(headers: &HeaderMap) -> bool {
@@ -339,7 +352,8 @@ mod tests {
 
     use super::{
         BLUEPRINT_PATH, LIVE_RECORDING_PATH, MANIFEST_PATH, PLAYBACK_MANIFEST_SCHEMA, blueprint,
-        live_recording, live_rrd_stream_headers, manifest, validated_manifest_bytes,
+        live_recording, live_rrd_start, live_rrd_stream_headers, manifest,
+        validated_manifest_bytes,
     };
 
     fn manifest_value(recording_id: uuid::Uuid) -> serde_json::Value {
@@ -378,7 +392,7 @@ mod tests {
     }
 
     #[test]
-    fn manifest_v7_is_canonicalized_after_identity_validation() {
+    fn manifest_v8_is_canonicalized_after_identity_validation() {
         let recording_id = uuid::Uuid::now_v7();
         let mut manifest = manifest_value(recording_id);
         manifest["live"] = json!({
@@ -387,7 +401,7 @@ mod tests {
             "current_byte_len": 1024,
             "history_seconds": 1,
             "video_preroll_seconds": 2,
-            "transport": "rerun_rrd_channel_v1"
+            "transport": "rerun_rrd_channel_v2"
         });
         let body = serde_json::to_vec(&manifest).unwrap();
         let validated = validated_manifest_bytes(&body, recording_id).unwrap();
@@ -395,7 +409,7 @@ mod tests {
         assert_eq!(decoded["schema"], PLAYBACK_MANIFEST_SCHEMA);
         assert_eq!(decoded["recording_id"], recording_id.to_string());
         assert_eq!(decoded["blueprint"]["map_provider"], "mapbox");
-        assert_eq!(decoded["live"]["transport"], "rerun_rrd_channel_v1");
+        assert_eq!(decoded["live"]["transport"], "rerun_rrd_channel_v2");
     }
 
     #[test]
@@ -461,6 +475,27 @@ mod tests {
             headers.get(header::CACHE_CONTROL).unwrap(),
             "private, no-store"
         );
+    }
+
+    #[test]
+    fn live_rrd_start_accepts_only_the_two_channel_states() {
+        for value in ["bootstrap", "resume-head"] {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                HeaderName::from_static(super::LIVE_RRD_START_HEADER),
+                HeaderValue::from_str(value).unwrap(),
+            );
+            assert_eq!(live_rrd_start(&headers), Some(value));
+        }
+        for value in ["", "resume", "bootstrap, resume-head"] {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                HeaderName::from_static(super::LIVE_RRD_START_HEADER),
+                HeaderValue::from_str(value).unwrap(),
+            );
+            assert_eq!(live_rrd_start(&headers), None);
+        }
+        assert_eq!(live_rrd_start(&HeaderMap::new()), None);
     }
 
     #[test]

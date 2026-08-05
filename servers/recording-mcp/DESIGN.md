@@ -12,9 +12,9 @@ in [`docs/RECORDINGS.md`](../../docs/RECORDINGS.md).
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Recording query, manifest, subscription, and structured-result contracts. |
 | [Rerun 0.35.0](https://rerun.io/docs/) RRD and Rerun Data Protocol | Immutable frozen and sealed shards are layers of one recording-scoped dataset segment. The public service implements the viewer's read subset of the `rerun.cloud.v1alpha1.RerunCloudService` protocol over HTTP/2 or gRPC-Web. It does not claim the catalog, mutation, table, task, or maintenance profiles. |
 | Rerun 0.35.0 WebViewer `LogChannel` | Live playback uses the public `WebViewer.open_channel` and `LogChannel.send_rrd` API. Each send contains one complete independently decodable RRD byte array, as required by the pinned JavaScript SDK. |
-| [Fetch Standard](https://fetch.spec.whatwg.org/) and Veoveo framed RRD stream v1 | Console performs one authenticated same-origin GET. The response media type is `application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=1`; each frame is an unsigned four-byte big-endian length followed by one complete RRD. This is an internal browser adapter, not a public recording protocol. |
+| [Fetch Standard](https://fetch.spec.whatwg.org/) and Veoveo framed RRD stream v2 | Console performs one authenticated same-origin GET. The response media type is `application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=2`; each frame is an unsigned four-byte big-endian length followed by one complete RRD. The required `x-veoveo-rerun-live-start` header selects `bootstrap` for an empty Rerun channel or `resume-head` for a channel that already holds the bounded bootstrap. This is an internal browser adapter, not a public recording protocol. |
 | Veoveo recording ingest | Version `2026-08-01`; authenticated protobuf batches and distinct Blueprint publications carry native Rerun stores from a producer-local forwarder through the gateway to Recording Hub. |
-| Veoveo recording playback manifest | Version `veoveo.io/recording-playback/v7`; one finite producer Blueprint, one stable Redap archive URI, one optional recording-scoped `rerun_rrd_channel_v1` source, a catalog revision, and recording-scoped access material. |
+| Veoveo recording playback manifest | Version `veoveo.io/recording-playback/v8`; one finite producer Blueprint, one stable Redap archive URI, one optional recording-scoped `rerun_rrd_channel_v2` source, a catalog revision, and recording-scoped access material. |
 | [JSON Web Token](https://www.rfc-editor.org/rfc/rfc7519) | Rerun-compatible HS256 read tokens carry the standard Redap audience and an exact installation hostname. A server-side session binds each token subject to one recording and one authorized Veoveo actor. |
 | H.264 Annex B in Rerun `VideoStream` | The governed video profile stores decoder-reentrant access units, keyframe markers, and original timeline indices inside RRD. |
 | SHA-256 | Frozen shard and artifact manifests bind immutable bytes to a digest. |
@@ -71,7 +71,9 @@ WebViewer opens one `LogChannel` for the selected live recording. Console fetche
 the recording-scoped stream through the HttpOnly session and parses only enough
 bytes to recover each complete framed RRD. It passes that array directly to
 `LogChannel.send_rrd`. The channel remains open when the HTTP transport
-reconnects, which preserves the producer Blueprint and viewer state. The BFF
+reconnects, which preserves the producer Blueprint and viewer state. A reconnect
+starts at the current durable head and never replays the bootstrap into the same
+channel. Recording history retains data committed during the transport gap. The BFF
 streams the response without buffering. No access token enters a URL or a
 browser-readable cookie. Catalog SSE events refresh recording metadata, while
 the recording-scoped stream follows segment rollover within its existing
@@ -100,7 +102,7 @@ parts directory with its frozen shard during capture. A missing part or an
 uncovered writing segment restarts the complete authorized read-plan capture;
 one snapshot never combines paths from two catalog views.
 
-`contract.rs` owns playback manifest v7. `service.rs` resolves an authorized
+`contract.rs` owns playback manifest v8. `service.rs` resolves an authorized
 playback plan from durable identities, while `service/read.rs` owns governed
 analysis snapshots. `playback.rs` owns session authorization, stable identity,
 derived catalogs, and the scoped Redap service. Its `redap` Cargo feature is

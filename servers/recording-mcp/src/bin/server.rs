@@ -41,7 +41,9 @@ use veoveo_mcp_contract::{
 };
 use veoveo_platform_store::{PlatformStore, RecordingId, StoreConfig, StoreCredentials};
 use veoveo_recording_mcp::blueprint_playback::recording_scoped_blueprint;
-use veoveo_recording_mcp::live_stream::{FRAMED_RRD_CONTENT_TYPE, authorized_live_rrd_stream};
+use veoveo_recording_mcp::live_stream::{
+    FRAMED_RRD_CONTENT_TYPE, LIVE_RRD_START_HEADER, LiveRrdStart, authorized_live_rrd_stream,
+};
 use veoveo_recording_mcp::{
     RecordingService,
     admin::{self, SERVER_DOCS},
@@ -602,6 +604,7 @@ async fn playback_live_recording(
     State(state): State<Arc<AppState>>,
     Extension(identity): Extension<veoveo_mcp_contract::GatewayInternalIdentity>,
     Path(recording_id): Path<String>,
+    headers: HeaderMap,
 ) -> Response {
     let Ok(recording_id) = parse_recording_id(&recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
@@ -621,12 +624,27 @@ async fn playback_live_recording(
     let Some(live) = plan.live.as_ref() else {
         return StatusCode::NOT_FOUND.into_response();
     };
+    if headers
+        .get(header::ACCEPT)
+        .and_then(|value| value.to_str().ok())
+        != Some(FRAMED_RRD_CONTENT_TYPE)
+    {
+        return StatusCode::NOT_ACCEPTABLE.into_response();
+    }
+    let Some(start) = headers
+        .get(LIVE_RRD_START_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(LiveRrdStart::parse)
+    else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
     tracing::info!(
         %recording_id,
         segment_id = %live.descriptor.segment_id,
         current_byte_len = live.descriptor.current_byte_len,
         history_seconds = live.descriptor.history_seconds,
         video_preroll_seconds = live.descriptor.video_preroll_seconds,
+        ?start,
         "governed Rerun channel playback opened"
     );
     let playback_store_id = match playback_store_id(recording_id, &plan.recording_key) {
@@ -642,6 +660,7 @@ async fn playback_live_recording(
         recording_id,
         state.recordings.live_history(),
         playback_store_id,
+        start,
     );
     let mut response = Response::new(Body::from_stream(stream));
     response.headers_mut().insert(

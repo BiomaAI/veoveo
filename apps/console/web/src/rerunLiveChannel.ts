@@ -6,8 +6,10 @@ const LIVE_RRD_STREAM_PATH = new RegExp(
   `^/console/api/recordings/${UUID_V7}/live/rrd-stream$`
 );
 const LIVE_RRD_STREAM_CONTENT_TYPE =
-  "application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=1";
+  "application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=2";
+const LIVE_RRD_START_HEADER = "x-veoveo-rerun-live-start";
 export const MAX_RRD_FRAME_BYTES = 64 * 1024 * 1024;
+export type RerunLiveStart = "bootstrap" | "resume-head";
 
 export interface RerunLiveConnection {
   readonly done: Promise<void>;
@@ -39,12 +41,13 @@ export function validateConsoleRerunLiveRoute(
 export function connectConsoleRerunLiveChannel(
   channel: LogChannel,
   route: string,
+  start: RerunLiveStart,
   events: RerunLiveConnectionEvents = {}
 ): RerunLiveConnection {
   const canonical = validateConsoleRerunLiveRoute(route);
   const abort = new AbortController();
   let closed = false;
-  const done = followFramedRrdStream(channel, canonical, abort.signal, events).catch(
+  const done = followFramedRrdStream(channel, canonical, start, abort.signal, events).catch(
     (cause: unknown) => {
       if (closed && cause instanceof DOMException && cause.name === "AbortError") return;
       throw cause;
@@ -63,6 +66,7 @@ export function connectConsoleRerunLiveChannel(
 async function followFramedRrdStream(
   channel: LogChannel,
   route: string,
+  start: RerunLiveStart,
   signal: AbortSignal,
   events: RerunLiveConnectionEvents
 ): Promise<void> {
@@ -72,7 +76,7 @@ async function followFramedRrdStream(
     cache: "no-store",
     redirect: "error",
     signal,
-    headers: { accept: LIVE_RRD_STREAM_CONTENT_TYPE },
+    headers: liveRrdRequestHeaders(start),
   });
   if (!response.ok) {
     throw new Error(`Live recording stream returned ${response.status}`);
@@ -103,6 +107,13 @@ async function followFramedRrdStream(
   } finally {
     reader.releaseLock();
   }
+}
+
+export function liveRrdRequestHeaders(start: RerunLiveStart): Record<string, string> {
+  return {
+    accept: LIVE_RRD_STREAM_CONTENT_TYPE,
+    [LIVE_RRD_START_HEADER]: start,
+  };
 }
 
 export class FramedRrdDecoder {

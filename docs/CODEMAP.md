@@ -631,13 +631,14 @@ instead of a private video path.
 
 ### `servers/recording-mcp`
 
-`contract.rs` owns query, publication, playback-manifest v7, archive-catalog, Blueprint, and live
+`contract.rs` owns query, publication, playback-manifest v8, archive-catalog, Blueprint, and live
 descriptor types. `service.rs` resolves authorized MCP and playback plans.
 `playback.rs` owns stable dataset identity, bounded playback sessions, the derived
 append-only Rerun catalog, finite governed Blueprint source, and the recording-scoped read-only Redap service.
 `live_playback.rs` retains recording-scoped static context across ingest generations, filters
 bounded temporal history, and rewrites messages to the stable playback identity.
-`live_stream.rs` frames complete RRD batches for the authorized WebViewer `LogChannel`.
+`live_stream.rs` frames complete RRD batches for the authorized WebViewer `LogChannel` and
+distinguishes an empty-channel bootstrap from a current-head transport resume.
 `uris.rs` owns recording identities, and `bin/server.rs` composes
 the authenticated manifest, framed live route, Redap, and MCP transports.
 `bin/server/state.rs` composes platform store, spool access, playback, subscriptions, and
@@ -754,7 +755,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 |---|---|
 | `App.tsx` | application shell: platform navigation plus catalog-driven MCP App entries, topbar, view routing, drawer mounting |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
-| `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `recordingRrdFetch.ts`, `rerunMap.ts` | persistent WebViewer lifecycle, producer Blueprint-first opening, one native incremental-RRD or lazy-archive receiver, exact same-origin RRD authorization, event-driven rollover without cursor forcing, archive-only credential renewal, and installation-owned browser map-provider activation |
+| `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `rerunLiveChannel.ts`, `recordingRrdFetch.ts`, `rerunMap.ts` | persistent WebViewer lifecycle, producer Blueprint-first opening, one native incremental-RRD or lazy-archive receiver, exact same-origin RRD authorization, duplicate-free current-head reconnect, event-driven rollover without cursor forcing, archive-only credential renewal, and installation-owned browser map-provider activation |
 | `views/` | remaining platform-plane views (overview, work, artifacts, agents, MCP, apps, access, audit, cluster); domain views ship as MCP Apps, never here |
 | `drawers/ArtifactDrawer.tsx` | artifact preview, recording provenance, download, release, grant, and share-link workflows |
 | `drawers/` | remaining detail drawers with mutation workflows |
