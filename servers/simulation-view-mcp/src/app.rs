@@ -46,6 +46,7 @@ mod tests {
             "OV.EventStatus.CANCELED",
             "signaling retry",
             "await player.streamer.connect",
+            "sessionId:stream.streamProductId",
             "policy.allowsFeature(\"compute-pressure\")",
             "disableUnavailableComputePressure();await verifyDecode",
             "[redacted token]",
