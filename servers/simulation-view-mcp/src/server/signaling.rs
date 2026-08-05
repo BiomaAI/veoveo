@@ -90,6 +90,17 @@ pub(super) async fn upgrade(
     let (Some(token), Some(session_protocol), Some(live_view_id)) =
         (token, session_protocol.cloned(), live_view_id)
     else {
+        tracing::warn!(
+            protocol_count = protocols.len(),
+            has_token_protocol = protocols
+                .iter()
+                .any(|protocol| protocol.starts_with(TOKEN_PROTOCOL_PREFIX)),
+            has_session_protocol = protocols
+                .iter()
+                .any(|protocol| protocol.starts_with(SESSION_PROTOCOL_PREFIX)),
+            path = uri.path(),
+            "rejected incomplete live-view signaling handshake"
+        );
         return (
             StatusCode::UNAUTHORIZED,
             "live-view token and session protocols are required",
@@ -98,7 +109,14 @@ pub(super) async fn upgrade(
     };
     let authorized = match state.service.authorize_signaling(&live_view_id, token) {
         Ok(authorized) => authorized,
-        Err(error) => return signaling_error(error),
+        Err(error) => {
+            tracing::warn!(
+                %live_view_id,
+                error = %error,
+                "rejected unauthorized live-view signaling handshake"
+            );
+            return signaling_error(error);
+        }
     };
     let Some(render_slot) = authorized
         .state
@@ -120,6 +138,13 @@ pub(super) async fn upgrade(
             return status.into_response();
         }
     };
+    tracing::debug!(
+        %live_view_id,
+        stream_product_id = %authorized.state.stream_product_id,
+        render_slot,
+        path = uri.path(),
+        "accepted live-view signaling handshake"
+    );
     upgrade
         .max_message_size(MAX_SIGNALING_MESSAGE_BYTES)
         .protocols([session_protocol.clone()])
