@@ -94,6 +94,24 @@ pub(super) struct RerunRenderEvidence {
     edge_ratio: f64,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct RerunCameraRenderEvidence {
+    render: RerunRenderEvidence,
+    changed_pixel_ratio: f64,
+}
+
+impl RerunCameraRenderEvidence {
+    pub(super) fn validate(&self) -> Result<()> {
+        self.render.validate()?;
+        ensure!(
+            self.changed_pixel_ratio >= 0.005,
+            "Rerun leader camera did not visibly advance: {self:?}"
+        );
+        Ok(())
+    }
+}
+
 impl RerunRenderEvidence {
     pub(super) fn validate(&self) -> Result<()> {
         ensure!(
@@ -121,12 +139,60 @@ pub(super) fn analyze_rerun_render(
     let pixels = image::load_from_memory(&screenshot)
         .context("decoding Rerun screenshot for visual evidence")?
         .to_rgb8();
-    analyze_rerun_pixels(&pixels, viewer_bounds)
+    analyze_rerun_pixels(&pixels, viewer_bounds, [0.24, 0.07, 0.96, 0.82])
+}
+
+pub(super) fn analyze_rerun_camera_render(
+    before_path: &Path,
+    after_path: &Path,
+    viewer_bounds: ElementBounds,
+) -> Result<RerunCameraRenderEvidence> {
+    let before =
+        image::load_from_memory(&fs::read(before_path).with_context(|| {
+            format!("reading Rerun camera screenshot {}", before_path.display())
+        })?)
+        .context("decoding initial Rerun camera screenshot")?
+        .to_rgb8();
+    let after =
+        image::load_from_memory(&fs::read(after_path).with_context(|| {
+            format!("reading Rerun camera screenshot {}", after_path.display())
+        })?)
+        .context("decoding final Rerun camera screenshot")?
+        .to_rgb8();
+    ensure!(
+        before.dimensions() == after.dimensions(),
+        "Rerun camera screenshots have different dimensions"
+    );
+    let region = [0.63, 0.15, 0.96, 0.34];
+    let render = analyze_rerun_pixels(&after, viewer_bounds, region)?;
+    let (x_start, y_start, x_end, y_end) = sample_bounds(&after, viewer_bounds, region)?;
+    let mut compared = 0_u64;
+    let mut changed = 0_u64;
+    for y in (y_start..y_end).step_by(2) {
+        for x in (x_start..x_end).step_by(2) {
+            let first = before.get_pixel(x, y).0;
+            let second = after.get_pixel(x, y).0;
+            compared += 1;
+            if first
+                .into_iter()
+                .zip(second)
+                .any(|(left, right)| left.abs_diff(right) >= 5)
+            {
+                changed += 1;
+            }
+        }
+    }
+    ensure!(compared > 0, "Rerun camera pane yielded no visual samples");
+    Ok(RerunCameraRenderEvidence {
+        render,
+        changed_pixel_ratio: changed as f64 / compared as f64,
+    })
 }
 
 fn analyze_rerun_pixels(
     pixels: &image::RgbImage,
     viewer_bounds: ElementBounds,
+    region: [f64; 4],
 ) -> Result<RerunRenderEvidence> {
     ensure!(
         viewer_bounds.x.is_finite()
@@ -138,25 +204,7 @@ fn analyze_rerun_pixels(
         "Rerun viewport bounds are invalid: {viewer_bounds:?}"
     );
 
-    // Exclude the source tree, top toolbar, and bottom timeline. The remaining
-    // viewport must contain actual plots, imagery, or a spatial view. A loading
-    // spinner on an otherwise uniform canvas cannot satisfy these measurements.
-    let x_start = (viewer_bounds.x + viewer_bounds.width * 0.24)
-        .floor()
-        .clamp(0.0, f64::from(pixels.width())) as u32;
-    let x_end = (viewer_bounds.x + viewer_bounds.width * 0.96)
-        .ceil()
-        .clamp(0.0, f64::from(pixels.width())) as u32;
-    let y_start = (viewer_bounds.y + viewer_bounds.height * 0.07)
-        .floor()
-        .clamp(0.0, f64::from(pixels.height())) as u32;
-    let y_end = (viewer_bounds.y + viewer_bounds.height * 0.82)
-        .ceil()
-        .clamp(0.0, f64::from(pixels.height())) as u32;
-    ensure!(
-        x_end > x_start && y_end > y_start,
-        "Rerun viewport does not intersect the screenshot: {viewer_bounds:?}"
-    );
+    let (x_start, y_start, x_end, y_end) = sample_bounds(pixels, viewer_bounds, region)?;
 
     let mut colors = BTreeMap::<u16, u64>::new();
     let mut sampled_pixels = 0_u64;
@@ -210,6 +258,39 @@ fn analyze_rerun_pixels(
         chromatic_pixel_ratio: chromatic_pixels as f64 / sampled,
         edge_ratio: edge_pixels as f64 / edge_comparisons as f64,
     })
+}
+
+fn sample_bounds(
+    pixels: &image::RgbImage,
+    viewer_bounds: ElementBounds,
+    [x_start, y_start, x_end, y_end]: [f64; 4],
+) -> Result<(u32, u32, u32, u32)> {
+    ensure!(
+        (0.0..1.0).contains(&x_start)
+            && (0.0..1.0).contains(&y_start)
+            && (0.0..=1.0).contains(&x_end)
+            && (0.0..=1.0).contains(&y_end)
+            && x_end > x_start
+            && y_end > y_start,
+        "Rerun sample region is invalid"
+    );
+    let x_start = (viewer_bounds.x + viewer_bounds.width * x_start)
+        .floor()
+        .clamp(0.0, f64::from(pixels.width())) as u32;
+    let x_end = (viewer_bounds.x + viewer_bounds.width * x_end)
+        .ceil()
+        .clamp(0.0, f64::from(pixels.width())) as u32;
+    let y_start = (viewer_bounds.y + viewer_bounds.height * y_start)
+        .floor()
+        .clamp(0.0, f64::from(pixels.height())) as u32;
+    let y_end = (viewer_bounds.y + viewer_bounds.height * y_end)
+        .ceil()
+        .clamp(0.0, f64::from(pixels.height())) as u32;
+    ensure!(
+        x_end > x_start && y_end > y_start,
+        "Rerun viewport does not intersect the screenshot: {viewer_bounds:?}"
+    );
+    Ok((x_start, y_start, x_end, y_end))
 }
 
 impl Cdp {
@@ -602,7 +683,7 @@ mod tests {
         };
         let blank = image::RgbImage::from_pixel(1_000, 700, image::Rgb([15, 17, 18]));
         assert!(
-            analyze_rerun_pixels(&blank, bounds)
+            analyze_rerun_pixels(&blank, bounds, [0.24, 0.07, 0.96, 0.82])
                 .unwrap()
                 .validate()
                 .is_err()
@@ -622,7 +703,7 @@ mod tests {
                 }
             }
         }
-        analyze_rerun_pixels(&rendered, bounds)
+        analyze_rerun_pixels(&rendered, bounds, [0.24, 0.07, 0.96, 0.82])
             .unwrap()
             .validate()
             .unwrap();

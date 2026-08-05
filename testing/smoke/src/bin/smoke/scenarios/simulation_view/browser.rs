@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, path::Path, sync::Arc};
 
+use anyhow::anyhow;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -17,7 +18,8 @@ use url::Url;
 
 use super::*;
 use recording_acceptance::{
-    ElementBounds, RecordingPlaybackMode, RecordingPlaybackNetworkEvidence, RerunRenderEvidence,
+    ElementBounds, RecordingPlaybackMode, RecordingPlaybackNetworkEvidence,
+    RerunCameraRenderEvidence, RerunRenderEvidence, analyze_rerun_camera_render,
     analyze_rerun_render,
 };
 
@@ -57,6 +59,13 @@ pub(crate) struct ConsoleRecordingCaptureEvidence {
     live_follow: RerunLiveFollowEvidence,
     network: RecordingPlaybackNetworkEvidence,
     render: RerunRenderEvidence,
+    camera_render: RerunCameraRenderEvidence,
+}
+
+impl ConsoleRecordingCaptureEvidence {
+    pub(crate) fn final_timeline_seconds(&self) -> f64 {
+        self.live_follow.final_time / 1_000_000_000.0
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -549,10 +558,16 @@ async fn capture_console_recording_inner(
             )
             .await
             .context("Console did not expose the Rerun viewport bounds")?;
-        let screenshot_sha256 =
-            capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
+        let before_path = screenshot_path.with_extension("camera-before.png");
+        capture_screenshot(&mut cdp, &session_id, &before_path).await?;
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        assert_page_visible(&mut cdp, &session_id).await?;
+        let screenshot_sha256 = capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
         let render = analyze_rerun_render(screenshot_path, viewer_bounds)?;
         render.validate()?;
+        let camera_render =
+            analyze_rerun_camera_render(&before_path, screenshot_path, viewer_bounds)?;
+        camera_render.validate()?;
         let network = cdp.recording_playback_network_evidence(
             recording_id,
             RecordingPlaybackMode::Live,
@@ -569,6 +584,7 @@ async fn capture_console_recording_inner(
             live_follow,
             network,
             render,
+            camera_render,
         })
     }
     .await;
