@@ -27,6 +27,7 @@ impl SceneArtifactMaterializer {
         renderer_endpoint: &str,
         renderer_control_token: &str,
     ) -> anyhow::Result<Arc<Self>> {
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let artifact_service_endpoint =
             internal_endpoint(artifact_service_endpoint, "artifact service")?;
         let renderer_endpoint = internal_endpoint(renderer_endpoint, "renderer")?;
