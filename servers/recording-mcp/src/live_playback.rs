@@ -173,18 +173,20 @@ fn send_part(
     let Some(messages) = read_part_messages(path, cutoff, playback_store_id)? else {
         return Ok(false);
     };
-    if !messages.is_empty() {
-        // A durable part is the forwarder's reactive boundary, not an SDK chunk-quality
-        // guarantee. Rerun producers commonly contribute one-row chunks for each entity
-        // and archetype. Apply Rerun's own live profile before the browser indexes the
-        // newly durable batch, just as we do for the bounded bootstrap.
-        let optimized = veoveo_recording_hub::optimize_live_rrd_messages(
-            messages,
-            LiveRrdBatchKind::Incremental,
-        )
-        .with_context(|| format!("optimizing live RRD part {}", path.display()))?;
-        append_messages(optimized, message_state, sender)?;
+    if !messages
+        .iter()
+        .any(|message| matches!(message, LogMsg::ArrowMsg(_, _)))
+    {
+        return Ok(true);
     }
+    // A durable part is the forwarder's reactive boundary, not an SDK chunk-quality
+    // guarantee. Rerun producers commonly contribute one-row chunks for each entity
+    // and archetype. Apply Rerun's own live profile before the browser indexes the
+    // newly durable batch, just as we do for the bounded bootstrap.
+    let optimized =
+        veoveo_recording_hub::optimize_live_rrd_messages(messages, LiveRrdBatchKind::Incremental)
+            .with_context(|| format!("optimizing live RRD part {}", path.display()))?;
+    append_messages(optimized, message_state, sender)?;
     Ok(true)
 }
 
@@ -552,6 +554,45 @@ mod tests {
             .expect("live playback ended before its first durable part")
             .expect("live playback failed after its first durable part");
         assert!(matches!(first, LogMsg::SetStoreInfo(_)));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn old_tail_parts_are_skipped_without_emitting_empty_store_updates() {
+        let (recording, storage) = RecordingStreamBuilder::new("inspection-camera")
+            .recording_id("run-a")
+            .memory()
+            .unwrap();
+        recording
+            .log("sensor/value", &Scalars::single(42.0))
+            .unwrap();
+        let messages = storage.take();
+        let store_info = messages
+            .iter()
+            .find(|message| matches!(message, LogMsg::SetStoreInfo(_)))
+            .unwrap();
+        let data = messages
+            .iter()
+            .find(|message| matches!(message, LogMsg::ArrowMsg(_, _)))
+            .unwrap();
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("old.rrd");
+        write_part(directory.path(), 0, store_info, &[data]);
+        std::fs::rename(directory.path().join("00000000000000000000.rrd"), &path).unwrap();
+        let (sender, mut receiver) = mpsc::channel(1);
+        let mut state = LiveMessageState::default();
+
+        assert!(
+            send_part(
+                &path,
+                u64::MAX,
+                &StoreId::recording("playback-dataset", "run-a"),
+                &mut state,
+                &sender,
+            )
+            .unwrap()
+        );
+        assert!(receiver.try_recv().is_err());
+        assert!(!state.store_info_sent);
     }
 
     fn write_part(directory: &Path, sequence: u64, store_info: &LogMsg, data: &[&LogMsg]) {
