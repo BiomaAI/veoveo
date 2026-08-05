@@ -105,8 +105,8 @@ async function openView(cameraId){
     if(!OV||globalThis.__VEOVEO_WEBRTC_STUB__)throw new Error("NVIDIA WebRTC client is unavailable in this build");
     await verifyDecode(stream);player.streamer=new OV.AppStreamer();
     await player.streamer.connect({streamSource:OV.StreamType.DIRECT,logLevel:OV.LogLevel.WARN,streamConfig:{
-      accessToken:value.accessToken,authenticate:true,autoLaunch:true,videoElementId:`video-${cameraId}`,sessionId:stream.liveViewId,
-      signalingServer:signal.hostname,signalingPort:Number(signal.port||443),signalingPath:signal.pathname,mediaServer:endpoint.mediaHost,mediaPort:endpoint.mediaPort,forceWSS:signal.protocol==="wss:",
+      accessToken:value.accessToken,authenticate:true,autoLaunch:true,videoElementId:`video-${cameraId}`,
+      signalingServer:signal.hostname,signalingPort:Number(signal.port||443),signalingPath:signal.pathname,signalingQuery:new URLSearchParams({live_view_id:stream.liveViewId}),mediaServer:endpoint.mediaHost,mediaPort:endpoint.mediaPort,forceWSS:signal.protocol==="wss:",
       width:stream.widthPx,height:stream.heightPx,fps:stream.frameRateMillihertz/1000,codec:OV.VideoCodec.H264,localizeTextInput:false,mic:false,nativeTouchEvents:false,
       onStart:(event)=>{if(!event||players.get(cameraId)!==player)return;if(event.status===OV.EventStatus.SUCCESS){node.querySelector(".empty").hidden=true;node.querySelector(".health").textContent="live";clearError("stream");setStatus(`${players.size} live`,true);scheduleRefresh();return;}
         if(event.status===OV.EventStatus.ERROR||event.status===OV.EventStatus.CANCELED){retry(cameraId,streamFailure(event));return;}

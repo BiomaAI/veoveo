@@ -9,16 +9,9 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use futures::{SinkExt, StreamExt};
-use tokio_tungstenite::{
-    connect_async,
-    tungstenite::{
-        Message as UpstreamMessage,
-        client::IntoClientRequest,
-        http::{HeaderName, HeaderValue},
-    },
-};
+use tokio_tungstenite::{connect_async, tungstenite::Message as UpstreamMessage};
 use url::Url;
-use veoveo_mcp_contract::{LiveStreamProductId, LiveViewId};
+use veoveo_mcp_contract::LiveViewId;
 
 use crate::{
     contract::SimulationViewError,
@@ -28,7 +21,7 @@ use crate::{
 };
 
 const TOKEN_PROTOCOL_PREFIX: &str = "authorization.bearer.";
-const SESSION_PROTOCOL_PREFIX: &str = "x-nv-sessionid.";
+const LIVE_VIEW_QUERY: &str = "live_view_id";
 const MAX_SIGNALING_MESSAGE_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Clone)]
@@ -81,29 +74,23 @@ pub(super) async fn upgrade(
         .iter()
         .find_map(|protocol| protocol.strip_prefix(TOKEN_PROTOCOL_PREFIX))
         .filter(|token| !token.is_empty());
-    let session_protocol = protocols
-        .iter()
-        .find(|protocol| protocol.starts_with(SESSION_PROTOCOL_PREFIX));
-    let live_view_id = session_protocol
-        .and_then(|protocol| protocol.strip_prefix(SESSION_PROTOCOL_PREFIX))
-        .and_then(|value| value.parse::<LiveViewId>().ok());
-    let (Some(token), Some(session_protocol), Some(live_view_id)) =
-        (token, session_protocol.cloned(), live_view_id)
-    else {
+    let live_view_id = live_view_id(&uri);
+    let (Some(token), Some(live_view_id)) = (token, live_view_id) else {
         tracing::warn!(
             protocol_count = protocols.len(),
             has_token_protocol = protocols
                 .iter()
                 .any(|protocol| protocol.starts_with(TOKEN_PROTOCOL_PREFIX)),
-            has_session_protocol = protocols
-                .iter()
-                .any(|protocol| protocol.starts_with(SESSION_PROTOCOL_PREFIX)),
+            has_live_view_query = uri.query().is_some_and(|query| {
+                url::form_urlencoded::parse(query.as_bytes())
+                    .any(|(name, _)| name == LIVE_VIEW_QUERY)
+            }),
             path = uri.path(),
             "rejected incomplete live-view signaling handshake"
         );
         return (
             StatusCode::UNAUTHORIZED,
-            "live-view token and session protocols are required",
+            "live-view token and identity are required",
         )
             .into_response();
     };
@@ -132,19 +119,12 @@ pub(super) async fn upgrade(
             .into_response();
     };
     let upstream_url = match upstream_url(&state.upstream, &uri, render_slot) {
-        Ok(mut url) => {
-            replace_pairing_id(&mut url, &authorized.state.stream_product_id);
-            url
-        }
+        Ok(url) => url,
         Err(status) => {
             state.service.disconnect_signaling(&live_view_id);
             return status.into_response();
         }
     };
-    let upstream_session_protocol = format!(
-        "{SESSION_PROTOCOL_PREFIX}{}",
-        authorized.state.stream_product_id
-    );
     tracing::debug!(
         %live_view_id,
         stream_product_id = %authorized.state.stream_product_id,
@@ -154,13 +134,11 @@ pub(super) async fn upgrade(
     );
     upgrade
         .max_message_size(MAX_SIGNALING_MESSAGE_BYTES)
-        .protocols([session_protocol.clone()])
         .on_upgrade(move |socket| {
             bridge(
                 state,
                 authorized.state.session_id,
                 live_view_id,
-                upstream_session_protocol,
                 upstream_url,
                 socket,
                 authorized.events,
@@ -172,18 +150,11 @@ async fn bridge(
     state: SignalingState,
     session_id: veoveo_mcp_contract::LiveSessionId,
     live_view_id: LiveViewId,
-    upstream_session_protocol: String,
     upstream_url: Url,
     downstream: WebSocket,
     lease_events: tokio::sync::watch::Receiver<LeaseSignal>,
 ) {
-    let result = bridge_inner(
-        &upstream_session_protocol,
-        upstream_url,
-        downstream,
-        lease_events,
-    )
-    .await;
+    let result = bridge_inner(upstream_url, downstream, lease_events).await;
     state.service.disconnect_signaling(&live_view_id);
     state
         .mcp
@@ -203,24 +174,14 @@ async fn bridge(
 }
 
 async fn bridge_inner(
-    upstream_session_protocol: &str,
     upstream_url: Url,
     downstream: WebSocket,
     lease_events: tokio::sync::watch::Receiver<LeaseSignal>,
 ) -> anyhow::Result<()> {
-    let mut request = upstream_url.as_str().into_client_request()?;
-    request.headers_mut().insert(
-        HeaderName::from_static("sec-websocket-protocol"),
-        HeaderValue::from_str(upstream_session_protocol)?,
-    );
-    let (upstream, response) = connect_async(request).await?;
+    let (upstream, response) = connect_async(upstream_url.as_str()).await?;
     anyhow::ensure!(
-        response
-            .headers()
-            .get("sec-websocket-protocol")
-            .and_then(|value| value.to_str().ok())
-            == Some(upstream_session_protocol),
-        "renderer selected an unexpected signaling protocol"
+        response.headers().get("sec-websocket-protocol").is_none(),
+        "renderer selected an unsolicited signaling protocol"
     );
     tracing::debug!(
         status = %response.status(),
@@ -276,16 +237,15 @@ async fn bridge_inner(
     }
 }
 
-fn replace_pairing_id(url: &mut Url, stream_product_id: &LiveStreamProductId) {
-    let pairs = url
-        .query_pairs()
-        .filter(|(name, _)| name != "pairing_id")
-        .map(|(name, value)| (name.into_owned(), value.into_owned()))
-        .collect::<Vec<_>>();
-    url.set_query(None);
-    let mut query = url.query_pairs_mut();
-    query.extend_pairs(pairs);
-    query.append_pair("pairing_id", stream_product_id.as_str());
+fn live_view_id(uri: &axum::http::Uri) -> Option<LiveViewId> {
+    let mut values = url::form_urlencoded::parse(uri.query()?.as_bytes())
+        .filter(|(name, _)| name == LIVE_VIEW_QUERY)
+        .map(|(_, value)| value);
+    let value = values.next()?;
+    if values.next().is_some() {
+        return None;
+    }
+    value.parse().ok()
 }
 
 async fn wait_for_lease_end(
@@ -384,7 +344,15 @@ fn upstream_url(
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
     let base_path = base.path().trim_end_matches('/');
     url.set_path(&format!("{base_path}{suffix}"));
-    url.set_query(public_uri.query());
+    if let Some(query) = public_uri.query() {
+        let pairs = url::form_urlencoded::parse(query.as_bytes())
+            .filter(|(name, _)| name != LIVE_VIEW_QUERY && name != "pairing_id")
+            .map(|(name, value)| (name.into_owned(), value.into_owned()))
+            .collect::<Vec<_>>();
+        if !pairs.is_empty() {
+            url.query_pairs_mut().extend_pairs(pairs);
+        }
+    }
     Ok(url)
 }
 
@@ -412,9 +380,10 @@ mod tests {
     #[test]
     fn signaling_path_prefix_is_preserved_without_traversal() {
         let base = Url::parse("ws://renderer:49100/webrtc").unwrap();
-        let public: axum::http::Uri = "/simulation-view/signaling/client?quality=high"
-            .parse()
-            .unwrap();
+        let public: axum::http::Uri =
+            "/simulation-view/signaling/client?quality=high&live_view_id=stream-1"
+                .parse()
+                .unwrap();
         assert_eq!(
             upstream_url(&base, &public, 2).unwrap().as_str(),
             "ws://renderer:49102/webrtc/client?quality=high"
@@ -424,41 +393,41 @@ mod tests {
     }
 
     #[test]
-    fn renderer_pairing_uses_the_shared_stream_product() {
+    fn proxy_identity_and_nvidia_pairing_are_removed_upstream() {
         let base = Url::parse("ws://renderer:49100/webrtc").unwrap();
         let public: axum::http::Uri =
-            "/simulation-view/signaling/sign_in?peer_id=peer-1&version=2&pairing_id=stream-1"
+            "/simulation-view/signaling/sign_in?peer_id=peer-1&version=2&live_view_id=stream-1&pairing_id=lease-1"
                 .parse()
                 .unwrap();
-        let mut upstream = upstream_url(&base, &public, 0).unwrap();
-        replace_pairing_id(
-            &mut upstream,
-            &LiveStreamProductId::new("product-camera-1").unwrap(),
-        );
+        let upstream = upstream_url(&base, &public, 0).unwrap();
 
         assert_eq!(
             upstream.as_str(),
-            "ws://renderer:49100/webrtc/sign_in?peer_id=peer-1&version=2&pairing_id=product-camera-1"
+            "ws://renderer:49100/webrtc/sign_in?peer_id=peer-1&version=2"
         );
     }
 
     #[test]
-    fn nvidia_client_protocols_carry_the_live_token_and_session() {
-        let protocols = parse_protocols(
-            "authorization.bearer.secret-token, \
-             x-nv-sessionid.stream-019fa2fa-a651-7ba2-ac7a-927e95101e5b",
-        );
+    fn proxy_reads_token_protocol_and_exact_live_view_query() {
+        let protocols = parse_protocols("authorization.bearer.secret-token");
         assert_eq!(
             protocols
                 .iter()
                 .find_map(|protocol| protocol.strip_prefix(TOKEN_PROTOCOL_PREFIX)),
             Some("secret-token")
         );
+        let uri: axum::http::Uri =
+            "/simulation-view/signaling/sign_in?live_view_id=stream-019fa2fa-a651-7ba2-ac7a-927e95101e5b"
+                .parse()
+                .unwrap();
         assert_eq!(
-            protocols
-                .iter()
-                .find_map(|protocol| protocol.strip_prefix(SESSION_PROTOCOL_PREFIX)),
-            Some("stream-019fa2fa-a651-7ba2-ac7a-927e95101e5b")
+            live_view_id(&uri).unwrap().as_str(),
+            "stream-019fa2fa-a651-7ba2-ac7a-927e95101e5b"
         );
+        let duplicate: axum::http::Uri =
+            "/simulation-view/signaling/sign_in?live_view_id=stream-1&live_view_id=stream-2"
+                .parse()
+                .unwrap();
+        assert!(live_view_id(&duplicate).is_none());
     }
 }
