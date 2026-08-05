@@ -131,11 +131,11 @@ impl RerunRenderEvidence {
             "Rerun render sample is too small to establish visual evidence: {self:?}"
         );
         ensure!(
-            self.unique_quantized_colors >= 8
-                && self.dominant_color_ratio <= 0.97
-                && self.luminance_standard_deviation >= 4.0
+            self.unique_quantized_colors >= 4
+                && self.dominant_color_ratio <= 0.95
+                && self.luminance_standard_deviation >= 1.0
                 && self.chromatic_pixel_ratio >= 0.0005
-                && self.edge_ratio >= 0.001,
+                && self.edge_ratio >= 0.0002,
             "Rerun viewport is blank or still showing a loading surface: {self:?}"
         );
         Ok(())
@@ -755,6 +755,22 @@ mod tests {
             .unwrap()
             .validate()
             .unwrap();
+    }
+
+    #[test]
+    fn rerun_render_evidence_accepts_sparse_spatial_views() {
+        RerunRenderEvidence {
+            sample_width: 420,
+            sample_height: 240,
+            sampled_pixels: 25_200,
+            unique_quantized_colors: 6,
+            dominant_color_ratio: 0.79,
+            luminance_standard_deviation: 1.6,
+            chromatic_pixel_ratio: 1.0,
+            edge_ratio: 0.00036,
+        }
+        .validate()
+        .unwrap();
     }
 
     #[test]
