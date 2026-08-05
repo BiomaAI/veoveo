@@ -475,12 +475,15 @@ fn service_error(error: anyhow::Error) -> Response {
                 &store.to_string(),
                 None,
             ),
-            _ => ingest_error(
-                StatusCode::SERVICE_UNAVAILABLE,
-                IngestErrorCode::StorageUnavailable,
-                "recording ingest storage is unavailable",
-                None,
-            ),
+            _ => {
+                tracing::warn!(error = %store, "recording ingest store operation failed");
+                ingest_error(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    IngestErrorCode::StorageUnavailable,
+                    "recording ingest storage is unavailable",
+                    None,
+                )
+            }
         };
     }
     let message = error.to_string();
