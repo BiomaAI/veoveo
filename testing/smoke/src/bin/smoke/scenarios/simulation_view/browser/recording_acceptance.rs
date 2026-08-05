@@ -483,10 +483,13 @@ fn playback_request_kind(
     if path.contains("/rerun.cloud.v1alpha1.RerunCloudService") {
         return Some((PlaybackRequestKind::Redap, path));
     }
+    if path.starts_with(recording_prefix) && path.ends_with("/live/rrd-stream") {
+        return Some((PlaybackRequestKind::Live, path));
+    }
     if path == "/rerun.sdk_comms.v1alpha1.MessageProxyService/ReadMessages"
         || (path.starts_with(recording_prefix) && path.ends_with("/live/proxy"))
     {
-        return Some((PlaybackRequestKind::Live, path));
+        return Some((PlaybackRequestKind::LegacyArchive, path));
     }
     if path.starts_with(recording_prefix)
         && path.contains("/blueprints/")
@@ -583,9 +586,15 @@ mod tests {
         );
         assert_eq!(
             kind(
-                "https://installation.example/rerun.sdk_comms.v1alpha1.MessageProxyService/ReadMessages"
+                "https://installation.example/console/api/recordings/019faa9f-acc8-7400-ba67-a9b022da1f63/live/rrd-stream"
             ),
             Some(PlaybackRequestKind::Live)
+        );
+        assert_eq!(
+            kind(
+                "https://installation.example/rerun.sdk_comms.v1alpha1.MessageProxyService/ReadMessages"
+            ),
+            Some(PlaybackRequestKind::LegacyArchive)
         );
         assert_eq!(
             kind(
@@ -611,7 +620,7 @@ mod tests {
         record_playback_issue(
             &mut issues,
             "request-1",
-            "/rerun.sdk_comms.v1alpha1.MessageProxyService/ReadMessages",
+            "/console/api/recordings/019faa9f-acc8-7400-ba67-a9b022da1f63/live/rrd-stream",
             Some(401),
             None,
             false,
@@ -619,7 +628,7 @@ mod tests {
         record_playback_issue(
             &mut issues,
             "request-1",
-            "/rerun.sdk_comms.v1alpha1.MessageProxyService/ReadMessages",
+            "/console/api/recordings/019faa9f-acc8-7400-ba67-a9b022da1f63/live/rrd-stream",
             None,
             Some("net::ERR_ABORTED"),
             false,

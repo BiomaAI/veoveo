@@ -704,14 +704,86 @@ async fn verify_rerun_live_stability(
         initial_time_update_count: initial.time_update_count,
         final_time_update_count: final_state.time_update_count,
         final_live_connection_count: final_state.live_connection_count,
+        initial_live_frame_count: initial.live_frame_count,
+        final_live_frame_count: final_state.live_frame_count,
+        newest_frame_bytes: final_state.newest_frame_bytes,
     })
 }
 
 async fn verify_rerun_live_reconnect(
     cdp: &mut Cdp,
     session_id: &str,
-    before: &RerunLiveFollowState,
+    identity: &RerunLiveFollowState,
 ) -> Result<RerunLiveFollowState> {
+    let connected_before: RerunLiveFollowState = cdp
+        .evaluate(session_id, RERUN_LIVE_FOLLOW_STATE, false)
+        .await?;
+    connected_before.validate_surface()?;
+    ensure!(
+        connected_before.document_epoch_ms == identity.document_epoch_ms
+            && connected_before.viewer_instance == identity.viewer_instance
+            && connected_before.recording_id == identity.recording_id,
+        "Rerun replaced its viewer before reconnect acceptance: {identity:?} -> {connected_before:?}"
+    );
+    let _: Value = cdp
+        .evaluate(
+            session_id,
+            "(() => { window.dispatchEvent(new Event('online')); return true; })()",
+            false,
+        )
+        .await?;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let healthy_signal: RerunLiveFollowState = cdp
+        .evaluate(session_id, RERUN_LIVE_FOLLOW_STATE, false)
+        .await?;
+    healthy_signal.validate_surface()?;
+    ensure!(
+        healthy_signal.live_connection_count == connected_before.live_connection_count,
+        "a healthy network signal churned the Rerun live connection: {connected_before:?} -> {healthy_signal:?}"
+    );
+
+    cdp.command(
+        "Network.emulateNetworkConditions",
+        serde_json::json!({
+            "offline": true,
+            "latency": 0,
+            "downloadThroughput": -1,
+            "uploadThroughput": -1,
+        }),
+        Some(session_id),
+    )
+    .await?;
+    let disconnect_result = async {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+        loop {
+            let state: RerunLiveFollowState = cdp
+                .evaluate(session_id, RERUN_LIVE_FOLLOW_STATE, false)
+                .await?;
+            if state.live_state == "error" && !state.error.is_empty() {
+                break Ok::<(), anyhow::Error>(());
+            }
+            ensure!(
+                tokio::time::Instant::now() < deadline,
+                "Rerun live transport did not expose the network loss: {connected_before:?} -> {state:?}"
+            );
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    }
+    .await;
+    let restore_result = cdp
+        .command(
+            "Network.emulateNetworkConditions",
+            serde_json::json!({
+                "offline": false,
+                "latency": 0,
+                "downloadThroughput": -1,
+                "uploadThroughput": -1,
+            }),
+            Some(session_id),
+        )
+        .await;
+    restore_result?;
+    disconnect_result?;
     let _: Value = cdp
         .evaluate(
             session_id,
@@ -726,20 +798,21 @@ async fn verify_rerun_live_reconnect(
             .await?;
         state.validate_surface()?;
         ensure!(
-            state.document_epoch_ms == before.document_epoch_ms
-                && state.viewer_instance == before.viewer_instance
-                && state.recording_id == before.recording_id,
-            "Rerun rebuilt its viewer while reconnecting the live transport: {before:?} -> {state:?}"
+            state.document_epoch_ms == connected_before.document_epoch_ms
+                && state.viewer_instance == connected_before.viewer_instance
+                && state.recording_id == connected_before.recording_id,
+            "Rerun rebuilt its viewer while reconnecting the live transport: {connected_before:?} -> {state:?}"
         );
-        if state.live_connection_count > before.live_connection_count
-            && state.time_update_count > before.time_update_count
+        if state.live_connection_count > connected_before.live_connection_count
+            && state.live_frame_count > connected_before.live_frame_count
+            && state.time_update_count > connected_before.time_update_count
             && state.is_current()
         {
             return Ok(state);
         }
         ensure!(
             tokio::time::Instant::now() < deadline,
-            "Rerun did not reactively reconnect its persistent live channel: {before:?} -> {state:?}"
+            "Rerun did not reactively reconnect its persistent live channel: {connected_before:?} -> {state:?}"
         );
         tokio::time::sleep(Duration::from_millis(250)).await;
     }
@@ -1798,6 +1871,9 @@ struct RerunLiveFollowState {
     lag_seconds: f64,
     time_update_count: u64,
     live_connection_count: u64,
+    live_state: String,
+    live_frame_count: u64,
+    newest_frame_bytes: u64,
     canvas_count: u64,
     loading: bool,
     error: String,
@@ -1816,6 +1892,9 @@ impl RerunLiveFollowState {
                 && self.lag_seconds.is_finite()
                 && self.time_update_count > 0
                 && self.live_connection_count > 0
+                && self.live_state == "connected"
+                && self.live_frame_count > 0
+                && self.newest_frame_bytes > 0
                 && self.canvas_count > 0
                 && !self.loading
                 && self.error.is_empty()
@@ -1845,6 +1924,9 @@ struct RerunLiveFollowEvidence {
     initial_time_update_count: u64,
     final_time_update_count: u64,
     final_live_connection_count: u64,
+    initial_live_frame_count: u64,
+    final_live_frame_count: u64,
+    newest_frame_bytes: u64,
 }
 
 impl RerunLiveFollowEvidence {
@@ -1857,7 +1939,9 @@ impl RerunLiveFollowEvidence {
                 && state.current_time >= self.final_time
                 && state.newest_time >= self.final_newest_time
                 && state.time_update_count >= self.final_time_update_count
-                && state.live_connection_count >= self.final_live_connection_count,
+                && state.live_connection_count >= self.final_live_connection_count
+                && state.live_frame_count > self.final_live_frame_count
+                && state.newest_frame_bytes > 0,
             "Rerun stopped following its live source during visual capture: {self:?} -> {state:?}"
         );
         self.final_time = state.current_time;
@@ -1865,6 +1949,8 @@ impl RerunLiveFollowEvidence {
         self.final_lag_seconds = state.lag_seconds;
         self.final_time_update_count = state.time_update_count;
         self.final_live_connection_count = state.live_connection_count;
+        self.final_live_frame_count = state.live_frame_count;
+        self.newest_frame_bytes = state.newest_frame_bytes;
         Ok(())
     }
 }
@@ -2586,6 +2672,9 @@ const RERUN_LIVE_FOLLOW_STATE: &str = r#"(() => {
     lagSeconds:Number(host?.dataset.rerunLiveLagSeconds ?? 0),
     timeUpdateCount:Number(host?.dataset.rerunTimeUpdateCount ?? 0),
     liveConnectionCount:Number(host?.dataset.rerunLiveConnectionCount ?? 0),
+    liveState:host?.dataset.rerunLiveState ?? "",
+    liveFrameCount:Number(host?.dataset.rerunLiveFrameCount ?? 0),
+    newestFrameBytes:Number(host?.dataset.rerunLiveNewestFrameBytes ?? 0),
     canvasCount:host?.querySelectorAll("canvas").length ?? 0,
     loading:Boolean(document.querySelector(".recording-viewer-state")),
     error:document.querySelector(".recording-viewer-error")?.textContent ?? "",
