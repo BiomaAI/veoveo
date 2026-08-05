@@ -195,7 +195,6 @@
     "signingAlgorithm" .root.Values.recordingForwarder.signingAlgorithm
     "maximumQueueBytes" (printf "%.0f" .root.Values.recordingForwarder.maximumQueueBytes)
     "batchMessageLimit" .root.Values.recordingForwarder.batchMessageLimit
-    "batchFlushMilliseconds" .root.Values.recordingForwarder.batchFlushMilliseconds
     "grpcMemoryLimitBytes" (printf "%.0f" .root.Values.recordingForwarder.grpcMemoryLimitBytes)
     "resources" .root.Values.recordingForwarder.resources
   ) -}}

@@ -1,16 +1,13 @@
 use std::{
     collections::HashMap,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
 use anyhow::{Context, Result, ensure};
 use re_byte_size::SizeBytes as _;
 use re_grpc_server::{MemoryLimit, PlaybackBehavior, ServerOptions, shutdown};
-use re_log_channel::{DataSourceMessage, RecvTimeoutError};
+use re_log_channel::DataSourceMessage;
 use re_log_types::{LogMsg, StoreId, StoreKind};
 use reqwest::header::{HOST, HeaderMap, HeaderValue};
 use tokio::sync::{Notify, mpsc};
@@ -117,20 +114,12 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
     );
     info!(bind = %config.bind, "recording forwarder loopback Rerun receiver up");
     let (message_tx, mut message_rx) = mpsc::channel::<LogMsg>(1024);
-    let receiver_stop = Arc::new(AtomicBool::new(false));
-    let blocking_stop = receiver_stop.clone();
     let receiver_task = tokio::task::spawn_blocking(move || -> Result<()> {
-        while !blocking_stop.load(Ordering::SeqCst) {
-            match receiver.recv_timeout(Duration::from_millis(100)) {
-                Ok(message) => {
-                    if let Some(DataSourceMessage::LogMsg(message)) = message.into_data()
-                        && message_tx.blocking_send(message).is_err()
-                    {
-                        break;
-                    }
-                }
-                Err(RecvTimeoutError::Timeout) => {}
-                Err(RecvTimeoutError::Disconnected) => break,
+        while let Ok(message) = receiver.recv() {
+            if let Some(DataSourceMessage::LogMsg(message)) = message.into_data()
+                && message_tx.blocking_send(message).is_err()
+            {
+                break;
             }
         }
         Ok(())
@@ -138,8 +127,7 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
 
     let mut accumulators = HashMap::<StoreId, RecordingAccumulator>::new();
     let mut blueprint_accumulators = HashMap::<StoreId, BlueprintAccumulator>::new();
-    let mut flush = tokio::time::interval(config.flush_interval());
-    flush.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let mut message_batch = Vec::with_capacity(256);
     let shutdown = shutdown_signal();
     tokio::pin!(shutdown);
     loop {
@@ -148,18 +136,24 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
                 signal?;
                 break;
             }
-            _ = flush.tick() => {
-                flush_accumulators(&mut accumulators, &queue, &queue_events, client.maximum_batch_bytes()).await?;
-            }
-            message = message_rx.recv() => {
-                let Some(message) = message else { break; };
-                handle_rerun_message(
-                    message,
+            count = message_rx.recv_many(&mut message_batch, 256) => {
+                if count == 0 { break; }
+                for message in message_batch.drain(..) {
+                    handle_rerun_message(
+                        message,
+                        &mut accumulators,
+                        &mut blueprint_accumulators,
+                        &queue,
+                        &queue_events,
+                        limits,
+                    )
+                    .await?;
+                }
+                flush_accumulators(
                     &mut accumulators,
-                    &mut blueprint_accumulators,
                     &queue,
                     &queue_events,
-                    limits,
+                    client.maximum_batch_bytes(),
                 )
                 .await?;
             }
@@ -167,7 +161,6 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
     }
 
     grpc_stop_signal.stop();
-    receiver_stop.store(true, Ordering::SeqCst);
     receiver_task
         .await
         .context("Rerun receiver task panicked")??;

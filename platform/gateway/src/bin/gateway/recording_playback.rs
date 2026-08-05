@@ -46,7 +46,7 @@ impl PlaybackSource {
         match self {
             Self::Manifest => format!("/recordings/{recording_id}/playback"),
             Self::LiveSegment(segment_id) => {
-                format!("/recordings/{recording_id}/segments/{segment_id}/live.rrd")
+                format!("/recordings/{recording_id}/segments/{segment_id}/live.rrd-frames")
             }
             Self::Blueprint(revision) => {
                 format!("/recordings/{recording_id}/blueprints/{revision}/data.rrd")
