@@ -137,6 +137,10 @@ export default function GovernedRerunViewer({
         return viewer.start(null, host.current, {
           width: "100%",
           height: "100%",
+          // Rerun 0.35 supports this hardware backend explicitly. It keeps presentation
+          // off the WebGPU queue shared with long-running CUDA/RTX workloads without
+          // changing Rerun's native MessageProxy transport.
+          render_backend: "webgl",
           hide_welcome_screen: true,
           allow_fullscreen: true,
           fallback_token: desiredSourceRef.current.redapToken,
