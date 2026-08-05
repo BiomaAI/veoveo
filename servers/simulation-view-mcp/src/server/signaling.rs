@@ -18,7 +18,7 @@ use tokio_tungstenite::{
     },
 };
 use url::Url;
-use veoveo_mcp_contract::LiveViewId;
+use veoveo_mcp_contract::{LiveStreamProductId, LiveViewId};
 
 use crate::{
     contract::SimulationViewError,
@@ -132,12 +132,19 @@ pub(super) async fn upgrade(
             .into_response();
     };
     let upstream_url = match upstream_url(&state.upstream, &uri, render_slot) {
-        Ok(url) => url,
+        Ok(mut url) => {
+            replace_pairing_id(&mut url, &authorized.state.stream_product_id);
+            url
+        }
         Err(status) => {
             state.service.disconnect_signaling(&live_view_id);
             return status.into_response();
         }
     };
+    let upstream_session_protocol = format!(
+        "{SESSION_PROTOCOL_PREFIX}{}",
+        authorized.state.stream_product_id
+    );
     tracing::debug!(
         %live_view_id,
         stream_product_id = %authorized.state.stream_product_id,
@@ -153,7 +160,7 @@ pub(super) async fn upgrade(
                 state,
                 authorized.state.session_id,
                 live_view_id,
-                session_protocol,
+                upstream_session_protocol,
                 upstream_url,
                 socket,
                 authorized.events,
@@ -165,12 +172,18 @@ async fn bridge(
     state: SignalingState,
     session_id: veoveo_mcp_contract::LiveSessionId,
     live_view_id: LiveViewId,
-    session_protocol: String,
+    upstream_session_protocol: String,
     upstream_url: Url,
     downstream: WebSocket,
     lease_events: tokio::sync::watch::Receiver<LeaseSignal>,
 ) {
-    let result = bridge_inner(&session_protocol, upstream_url, downstream, lease_events).await;
+    let result = bridge_inner(
+        &upstream_session_protocol,
+        upstream_url,
+        downstream,
+        lease_events,
+    )
+    .await;
     state.service.disconnect_signaling(&live_view_id);
     state
         .mcp
@@ -188,7 +201,7 @@ async fn bridge(
 }
 
 async fn bridge_inner(
-    session_protocol: &str,
+    upstream_session_protocol: &str,
     upstream_url: Url,
     downstream: WebSocket,
     lease_events: tokio::sync::watch::Receiver<LeaseSignal>,
@@ -196,7 +209,7 @@ async fn bridge_inner(
     let mut request = upstream_url.as_str().into_client_request()?;
     request.headers_mut().insert(
         HeaderName::from_static("sec-websocket-protocol"),
-        HeaderValue::from_str(session_protocol)?,
+        HeaderValue::from_str(upstream_session_protocol)?,
     );
     let (upstream, response) = connect_async(request).await?;
     anyhow::ensure!(
@@ -204,7 +217,7 @@ async fn bridge_inner(
             .headers()
             .get("sec-websocket-protocol")
             .and_then(|value| value.to_str().ok())
-            == Some(session_protocol),
+            == Some(upstream_session_protocol),
         "renderer selected an unexpected signaling protocol"
     );
     let (mut downstream_sink, mut downstream_source) = downstream.split();
@@ -233,6 +246,18 @@ async fn bridge_inner(
         result = upstream_to_downstream => result,
         result = lease => result,
     }
+}
+
+fn replace_pairing_id(url: &mut Url, stream_product_id: &LiveStreamProductId) {
+    let pairs = url
+        .query_pairs()
+        .filter(|(name, _)| name != "pairing_id")
+        .map(|(name, value)| (name.into_owned(), value.into_owned()))
+        .collect::<Vec<_>>();
+    url.set_query(None);
+    let mut query = url.query_pairs_mut();
+    query.extend_pairs(pairs);
+    query.append_pair("pairing_id", stream_product_id.as_str());
 }
 
 async fn wait_for_lease_end(
@@ -347,6 +372,25 @@ mod tests {
         );
         let traversal: axum::http::Uri = "/simulation-view/signaling/../admin".parse().unwrap();
         assert!(upstream_url(&base, &traversal, 0).is_err());
+    }
+
+    #[test]
+    fn renderer_pairing_uses_the_shared_stream_product() {
+        let base = Url::parse("ws://renderer:49100/webrtc").unwrap();
+        let public: axum::http::Uri =
+            "/simulation-view/signaling/sign_in?peer_id=peer-1&version=2&pairing_id=stream-1"
+                .parse()
+                .unwrap();
+        let mut upstream = upstream_url(&base, &public, 0).unwrap();
+        replace_pairing_id(
+            &mut upstream,
+            &LiveStreamProductId::new("product-camera-1").unwrap(),
+        );
+
+        assert_eq!(
+            upstream.as_str(),
+            "ws://renderer:49100/webrtc/sign_in?peer_id=peer-1&version=2&pairing_id=product-camera-1"
+        );
     }
 
     #[test]
