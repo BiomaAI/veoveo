@@ -95,11 +95,10 @@ at-least-once transport with append-once stored batches; it does not claim
 network-level exactly-once delivery.
 
 The writing row is also the live playback identity. Recording MCP decodes new
-parts in sequence and emits one footer-less RRD response that remains open as
-additional batches arrive. A rollover ends that response with a valid RRD
-footer; the Console then selects the next writing segment from the governed
-manifest. Batch boundaries never appear as catalog segments or independent
-recordings.
+parts in sequence and emits each bounded source burst as one complete RRD frame
+on a persistent, versioned stream. A rollover ends that response; Console then
+opens the successor response on the same Rerun JavaScript channel. Batch
+boundaries never appear as catalog segments or independent recordings.
 
 The writing row also supports bounded live queries and analysis. Recording MCP
 captures only complete materialized parts whose append response has advanced
@@ -133,13 +132,20 @@ NetworkPolicy narrows reachability, but it never replaces OAuth authorization.
 `rerun+http://127.0.0.1:9876/proxy`, while the forwarder discovers and uploads through
 the canonical gateway origin. Its queue directory must be persistent. The process
 applies disk backpressure once that queue reaches its configured byte limit.
-The canonical batching window is one second or 4,096 Rerun messages, whichever
-arrives first. An H.264 IDR begins a new batch immediately, and the gateway's
-advertised byte limit splits any larger encoded result. This keeps serial,
-durable appends below the producer rate without weakening ordered checkpoints.
+The forwarder preserves each available message burst emitted by Rerun's SDK
+batcher and closes its accumulator as soon as that burst drains. It does not add
+a second batch timer. An H.264 IDR begins a new batch immediately, 4,096 messages
+bound one burst, and the gateway's advertised byte limit splits any larger
+encoded result. This keeps serial durable appends below the producer rate without
+weakening ordered checkpoints.
 Late native viewers receive the live tail before retained proxy history. They
 can inspect earlier buffered data after current camera and telemetry messages
 are flowing, without making the producer wait for catch-up playback.
+
+Discovery, OAuth, and ingest requests share one bounded deadline. A timeout
+defers the durable queue entry and releases the uploader for retry; shutdown
+cancels an in-flight request before draining the remaining queue. No failed
+network request can wedge the producer, its queue, or pod termination.
 
 The stream-byte quota bounds one ingest generation rather than one logical
 recording. When a generation reaches that limit, the forwarder closes it in

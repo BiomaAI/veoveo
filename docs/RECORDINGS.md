@@ -156,11 +156,13 @@ wall-clock speed. Console never rotates an active receiver or mutates its cursor
 on a timer. Browser residency belongs to Rerun's store budget; the server-side
 history bound controls reconnect bootstrap rather than forcing a viewer restart.
 
-The producer forwarder drains each available Rerun message burst, closes its
-bounded accumulator, and wakes the durable uploader immediately. It does not
-wait for a batch-flush clock. Filesystem events publish newly acknowledged Hub
-parts to live receivers. Backoff remains limited to failed durable uploads and
-does not pace healthy live delivery.
+The producer forwarder preserves each available burst from Rerun's SDK batcher,
+closes its bounded accumulator, and wakes the durable uploader immediately. It
+does not add a batch-flush clock. Every discovery, OAuth, and ingest request has
+a bounded deadline, and shutdown cancels an in-flight request before draining
+the durable queue. Filesystem events publish newly acknowledged Hub parts to
+live receivers. Backoff remains limited to failed durable uploads and does not
+pace healthy live delivery.
 
 Console exposes explicit Live and History modes because Rerun 0.35 cannot keep
 two receivers with the same recording Store ID open safely. Live selects only
