@@ -197,6 +197,8 @@ async fn bridge(
         .await;
     if let Err(error) = result {
         tracing::warn!(%live_view_id, %error, "Simulation View signaling bridge closed");
+    } else {
+        tracing::debug!(%live_view_id, "Simulation View signaling bridge closed cleanly");
     }
 }
 
@@ -220,11 +222,21 @@ async fn bridge_inner(
             == Some(upstream_session_protocol),
         "renderer selected an unexpected signaling protocol"
     );
+    tracing::debug!(
+        status = %response.status(),
+        "connected live-view signaling bridge to renderer"
+    );
     let (mut downstream_sink, mut downstream_source) = downstream.split();
     let (mut upstream_sink, mut upstream_source) = upstream.split();
     let downstream_to_upstream = async {
+        let mut observed_message = false;
         while let Some(message) = downstream_source.next().await {
             let message = message?;
+            if !observed_message {
+                let (kind, bytes) = downstream_message_summary(&message);
+                tracing::debug!(kind, bytes, "received first downstream signaling message");
+                observed_message = true;
+            }
             if let Some(message) = to_upstream(message) {
                 upstream_sink.send(message).await?;
             }
@@ -232,8 +244,14 @@ async fn bridge_inner(
         anyhow::Ok(())
     };
     let upstream_to_downstream = async {
+        let mut observed_message = false;
         while let Some(message) = upstream_source.next().await {
             let message = message?;
+            if !observed_message {
+                let (kind, bytes) = upstream_message_summary(&message);
+                tracing::debug!(kind, bytes, "received first renderer signaling message");
+                observed_message = true;
+            }
             if let Some(message) = to_downstream(message) {
                 downstream_sink.send(message).await?;
             }
@@ -279,6 +297,27 @@ async fn wait_for_lease_end(
                 }
             }
         }
+    }
+}
+
+fn downstream_message_summary(message: &DownstreamMessage) -> (&'static str, usize) {
+    match message {
+        DownstreamMessage::Text(value) => ("text", value.len()),
+        DownstreamMessage::Binary(value) => ("binary", value.len()),
+        DownstreamMessage::Ping(value) => ("ping", value.len()),
+        DownstreamMessage::Pong(value) => ("pong", value.len()),
+        DownstreamMessage::Close(_) => ("close", 0),
+    }
+}
+
+fn upstream_message_summary(message: &UpstreamMessage) -> (&'static str, usize) {
+    match message {
+        UpstreamMessage::Text(value) => ("text", value.len()),
+        UpstreamMessage::Binary(value) => ("binary", value.len()),
+        UpstreamMessage::Ping(value) => ("ping", value.len()),
+        UpstreamMessage::Pong(value) => ("pong", value.len()),
+        UpstreamMessage::Close(_) => ("close", 0),
+        UpstreamMessage::Frame(_) => ("frame", 0),
     }
 }
 
