@@ -10,13 +10,17 @@ import {
   loadRerunMapViewerOptions,
   mapProviderCompatibilityError,
 } from "../rerunMap";
+import {
+  clearConsoleRerunLiveProxyRoute,
+  setConsoleRerunLiveProxyRoute,
+} from "../rerunLiveProxy";
 
 type ViewerStatus =
   | { state: "loading" }
   | { state: "open" }
   | { state: "error"; message: string };
 
-function synchronizeSources(
+async function synchronizeSources(
   viewer: WebViewer,
   opened: OpenedRerunSources,
   desired: GovernedRerunSource
@@ -27,6 +31,13 @@ function synchronizeSources(
   }
   if (transition.urlsToCloseBeforeOpen.length > 0) {
     viewer.close(transition.urlsToCloseBeforeOpen);
+  }
+  if (transition.receiverUrlToOpen) {
+    if (desired.receiver.kind === "live") {
+      await setConsoleRerunLiveProxyRoute(desired.receiver.route);
+    } else if (opened.receiver?.kind === "live") {
+      await clearConsoleRerunLiveProxyRoute();
+    }
   }
   if (transition.blueprintUrlToOpen) viewer.open(transition.blueprintUrlToOpen);
   if (transition.receiverUrlToOpen) viewer.open(transition.receiverUrlToOpen);
@@ -49,6 +60,7 @@ export default function GovernedRerunViewer({
   const viewerRef = useRef<WebViewer | undefined>(undefined);
   const desiredSourceRef = useRef(source);
   const openedSourcesRef = useRef<OpenedRerunSources>({});
+  const sourceSynchronizationRef = useRef<Promise<void>>(Promise.resolve());
   const mapSetupRef = useRef<
     | {
         provider: "openStreetMap" | "mapbox";
@@ -65,27 +77,33 @@ export default function GovernedRerunViewer({
     desiredSourceRef.current = source;
     const viewer = viewerRef.current;
     if (!viewer) return;
-    try {
-      const transition = synchronizeSources(viewer, openedSourcesRef.current, source);
-      if (source.receiver.kind === "live" && transition.receiverUrlToOpen && host.current) {
-        const connections = Number(host.current.dataset.rerunLiveConnectionCount ?? 0) + 1;
-        host.current.dataset.rerunLiveConnectionCount = String(connections);
-      }
-      const mapSetup = mapSetupRef.current;
-      if (mapSetup) {
-        setMapError(
-          mapSetup.configurationError ??
-            mapProviderCompatibilityError(
-              mapSetup.provider,
-              source.blueprintMapProvider
-            )
+    sourceSynchronizationRef.current = sourceSynchronizationRef.current
+      .then(async () => {
+        const transition = await synchronizeSources(
+          viewer,
+          openedSourcesRef.current,
+          source
         );
-      }
-    } catch (cause: unknown) {
-      const message = cause instanceof Error ? cause.message : "Rerun playback failed";
-      console.error("Governed Rerun source update failed", cause);
-      queueMicrotask(() => setStatus({ state: "error", message }));
-    }
+        if (source.receiver.kind === "live" && transition.receiverUrlToOpen && host.current) {
+          const connections = Number(host.current.dataset.rerunLiveConnectionCount ?? 0) + 1;
+          host.current.dataset.rerunLiveConnectionCount = String(connections);
+        }
+        const mapSetup = mapSetupRef.current;
+        if (mapSetup) {
+          setMapError(
+            mapSetup.configurationError ??
+              mapProviderCompatibilityError(
+                mapSetup.provider,
+                source.blueprintMapProvider
+              )
+          );
+        }
+      })
+      .catch((cause: unknown) => {
+        const message = cause instanceof Error ? cause.message : "Rerun playback failed";
+        console.error("Governed Rerun source update failed", cause);
+        setStatus({ state: "error", message });
+      });
   }, [source]);
 
   useEffect(() => {
@@ -153,18 +171,21 @@ export default function GovernedRerunViewer({
           host.current.dataset.rerunTimeUpdateCount = String(updates);
         });
         viewerRef.current = viewer;
-        const transition = synchronizeSources(
-          viewer,
-          openedSourcesRef.current,
-          desiredSourceRef.current
-        );
-        if (
-          desiredSourceRef.current.receiver.kind === "live" &&
-          transition.receiverUrlToOpen &&
-          host.current
-        ) {
-          host.current.dataset.rerunLiveConnectionCount = "1";
-        }
+        sourceSynchronizationRef.current = sourceSynchronizationRef.current.then(async () => {
+          const transition = await synchronizeSources(
+            viewer,
+            openedSourcesRef.current,
+            desiredSourceRef.current
+          );
+          if (
+            desiredSourceRef.current.receiver.kind === "live" &&
+            transition.receiverUrlToOpen &&
+            host.current
+          ) {
+            host.current.dataset.rerunLiveConnectionCount = "1";
+          }
+        });
+        return sourceSynchronizationRef.current;
       })
       .catch((cause: unknown) => {
         if (!active) return;
@@ -185,6 +206,7 @@ export default function GovernedRerunViewer({
         console.warn("Rerun cleanup failed after the viewer stopped", cause);
       }
       releaseRecordingRrdFetch();
+      void clearConsoleRerunLiveProxyRoute();
     };
   }, [recordingId]);
 

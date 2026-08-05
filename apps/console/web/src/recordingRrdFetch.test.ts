@@ -10,17 +10,12 @@ const ORIGIN = "https://installation.example";
 const RECORDING_ID = "019fab95-e208-7901-9db7-77c8444652db";
 const BLUEPRINT_URL =
   `${ORIGIN}/console/api/recordings/${RECORDING_ID}/blueprints/1/data.rrd`;
-const LIVE_URL =
-  `${ORIGIN}/console/api/recordings/${RECORDING_ID}/segments/019faba1-3e9b-77d2-a3b5-b7cc97d0d238/live.rrd`;
-
-test("attaches the Console session only to canonical same-origin RRD sources", () => {
-  for (const url of [BLUEPRINT_URL, LIVE_URL]) {
-    const request = new Request(url, { credentials: "omit" });
-    const [authorized] = authorizeConsoleRecordingRrdFetch(request, undefined, ORIGIN);
-    assert.equal(isConsoleRecordingRrdRequest(request, ORIGIN), true);
-    assert.ok(authorized instanceof Request);
-    assert.equal(authorized.credentials, "same-origin");
-  }
+test("attaches the Console session to the canonical same-origin Blueprint RRD", () => {
+  const request = new Request(BLUEPRINT_URL, { credentials: "omit" });
+  const [authorized] = authorizeConsoleRecordingRrdFetch(request, undefined, ORIGIN);
+  assert.equal(isConsoleRecordingRrdRequest(request, ORIGIN), true);
+  assert.ok(authorized instanceof Request);
+  assert.equal(authorized.credentials, "same-origin");
 });
 
 test("does not alter noncanonical recording requests", () => {
@@ -31,7 +26,7 @@ test("does not alter noncanonical recording requests", () => {
       credentials: "omit",
     }),
     new Request(
-      `${ORIGIN}/console/api/recordings/${RECORDING_ID}/segments/019faba1-3e9b-77d2-a3b5-b7cc97d0d238/live.data.rrd`,
+      `${ORIGIN}/console/api/recordings/${RECORDING_ID}/segments/019faba1-3e9b-77d2-a3b5-b7cc97d0d238/live/proxy`,
       { credentials: "omit" }
     ),
   ]) {

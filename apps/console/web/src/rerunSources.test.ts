@@ -5,63 +5,64 @@ import {
   planRerunSourceTransition,
   requiresPlaybackCredentialRenewal,
   selectExclusiveRerunPlaybackReceiver,
+  type GovernedRerunReceiver,
 } from "./rerunSources.ts";
 
 const archive = { uri: "rerun://archive", revision: "revision-a" };
+const liveRoute =
+  "https://console.example/console/api/recordings/019fab95-e208-7901-9db7-77c8444652db/segments/019faba1-3e9b-77d2-a3b5-b7cc97d0d238/live/proxy";
+const viewerUri = "rerun+https://console.example/proxy";
 
-test("active recording defaults to one live receiver", () => {
-  const selected = selectExclusiveRerunPlaybackReceiver(
-    "live",
-    archive,
-    "https://console.example/live.rrd"
+function live(generation = 0, route = liveRoute): GovernedRerunReceiver {
+  return { kind: "live", route, viewerUri, generation };
+}
+
+test("active recording selects one native MessageProxy receiver", () => {
+  assert.deepEqual(
+    selectExclusiveRerunPlaybackReceiver(
+      "live",
+      archive,
+      liveRoute,
+      viewerUri
+    ),
+    { mode: "live", receiver: live() }
   );
-
-  assert.deepEqual(selected, {
-    mode: "live",
-    receiver: {
-      kind: "live",
-      url: "https://console.example/live.rrd",
-      generation: 0,
-    },
-  });
 });
 
 test("history mode selects one immutable archive receiver", () => {
-  const selected = selectExclusiveRerunPlaybackReceiver(
-    "archive",
-    archive,
-    "https://console.example/live.rrd"
+  assert.deepEqual(
+    selectExclusiveRerunPlaybackReceiver(
+      "archive",
+      archive,
+      liveRoute,
+      viewerUri
+    ),
+    { mode: "archive", receiver: { kind: "archive", archive } }
   );
-
-  assert.deepEqual(selected, {
-    mode: "archive",
-    receiver: { kind: "archive", archive },
-  });
 });
 
-test("requested playback mode falls back to the available receiver", () => {
+test("requested mode falls back to the available receiver", () => {
   assert.deepEqual(
-    selectExclusiveRerunPlaybackReceiver("live", archive, undefined),
+    selectExclusiveRerunPlaybackReceiver(
+      "live",
+      archive,
+      undefined,
+      undefined
+    ),
     { mode: "archive", receiver: { kind: "archive", archive } }
   );
   assert.deepEqual(
     selectExclusiveRerunPlaybackReceiver(
       "archive",
       undefined,
-      "https://console.example/live.rrd"
+      liveRoute,
+      viewerUri
     ),
-    {
-      mode: "live",
-      receiver: {
-        kind: "live",
-        url: "https://console.example/live.rrd",
-        generation: 0,
-      },
-    }
+    { mode: "live", receiver: live() }
   );
 });
 
-test("opens the producer Blueprint before the sole recording receiver", () => {
+test("opens the producer Blueprint before the sole archive receiver", () => {
   const transition = planRerunSourceTransition(
     {},
     {
@@ -70,7 +71,6 @@ test("opens the producer Blueprint before the sole recording receiver", () => {
       receiver: { kind: "archive", archive },
     }
   );
-
   assert.equal(
     transition.blueprintUrlToOpen,
     "https://console.example/blueprints/1.rrd"
@@ -79,7 +79,7 @@ test("opens the producer Blueprint before the sole recording receiver", () => {
   assert.deepEqual(transition.urlsToCloseBeforeOpen, []);
 });
 
-test("replaces a Blueprint by closing its old store before opening the revision", () => {
+test("replaces a Blueprint before opening its new revision", () => {
   const transition = planRerunSourceTransition(
     {
       redapToken: "token-a",
@@ -92,7 +92,6 @@ test("replaces a Blueprint by closing its old store before opening the revision"
       blueprintUrl: "https://console.example/blueprints/2.rrd",
     }
   );
-
   assert.deepEqual(transition.urlsToCloseBeforeOpen, [
     "https://console.example/blueprints/1.rrd",
   ]);
@@ -100,112 +99,46 @@ test("replaces a Blueprint by closing its old store before opening the revision"
     transition.blueprintUrlToOpen,
     "https://console.example/blueprints/2.rrd"
   );
-  assert.equal(transition.receiverUrlToOpen, undefined);
 });
 
-test("switches the native live RRD receiver to history without overlap", () => {
+test("switches native MessageProxy live playback to history without overlap", () => {
   const transition = planRerunSourceTransition(
-    {
-      redapToken: "token-a",
-      receiver: { kind: "live", url: "live-1", generation: 0 },
-    },
-    {
-      redapToken: "token-a",
-      receiver: { kind: "archive", archive },
-    }
+    { redapToken: "token-a", receiver: live() },
+    { redapToken: "token-a", receiver: { kind: "archive", archive } }
   );
-
-  assert.deepEqual(transition.urlsToCloseBeforeOpen, ["live-1"]);
+  assert.deepEqual(transition.urlsToCloseBeforeOpen, [viewerUri]);
   assert.equal(transition.receiverUrlToOpen, "rerun://archive");
 });
 
-test("new archive layers replace the same receiver without overlapping Store IDs", () => {
+test("session renewal does not churn a live receiver", () => {
   const transition = planRerunSourceTransition(
-    {
-      redapToken: "token-a",
-      receiver: {
-        kind: "archive",
-        archive: { uri: "rerun://archive", revision: "revision-a" },
-      },
-    },
-    {
-      redapToken: "token-a",
-      receiver: {
-        kind: "archive",
-        archive: { uri: "rerun://archive", revision: "revision-b" },
-      },
-    }
+    { redapToken: "token-a", receiver: live() },
+    { redapToken: "token-b", receiver: live() }
   );
-
-  assert.deepEqual(transition.urlsToCloseBeforeOpen, ["rerun://archive"]);
-  assert.equal(transition.receiverUrlToOpen, "rerun://archive");
-});
-
-test("session renewal changes credentials without churning the receiver", () => {
-  const transition = planRerunSourceTransition(
-    {
-      redapToken: "token-a",
-      receiver: { kind: "live", url: "live-1", generation: 0 },
-    },
-    {
-      redapToken: "token-b",
-      receiver: { kind: "live", url: "live-1", generation: 0 },
-    }
-  );
-
   assert.equal(transition.credentialsChanged, true);
   assert.equal(transition.receiverUrlToOpen, undefined);
   assert.deepEqual(transition.urlsToCloseBeforeOpen, []);
 });
 
-test("opens live playback through Rerun's native streaming receiver", () => {
-  const transition = planRerunSourceTransition(
-    {},
-    {
-      redapToken: "token-a",
-      receiver: {
-        kind: "live",
-        url: "https://console.example/live.rrd",
-        generation: 0,
-      },
-    }
-  );
-
-  assert.equal(transition.receiverUrlToOpen, "https://console.example/live.rrd");
-  assert.deepEqual(transition.urlsToCloseBeforeOpen, []);
+test("route replacement and explicit reconnect reopen the one proxy URI", () => {
+  for (const desired of [live(0, `${liveRoute}2`), live(1)]) {
+    const transition = planRerunSourceTransition(
+      { redapToken: "token-a", receiver: live() },
+      { redapToken: "token-a", receiver: desired }
+    );
+    assert.deepEqual(transition.urlsToCloseBeforeOpen, [viewerUri]);
+    assert.equal(transition.receiverUrlToOpen, viewerUri);
+  }
 });
 
 test("only Redap archive playback schedules credential renewal", () => {
-  assert.equal(
-    requiresPlaybackCredentialRenewal({
-      kind: "live",
-      url: "https://console.example/live.rrd",
-      generation: 0,
-    }),
-    false
-  );
+  assert.equal(requiresPlaybackCredentialRenewal(live()), false);
   assert.equal(
     requiresPlaybackCredentialRenewal({
       kind: "archive",
-      archive: { uri: "rerun+https://console.example/dataset/entry", revision: "r1" },
+      archive: { uri: "rerun://archive", revision: "r1" },
     }),
     true
   );
   assert.equal(requiresPlaybackCredentialRenewal(undefined), false);
-});
-
-test("a reconnect replaces the native live receiver without overlapping it", () => {
-  const transition = planRerunSourceTransition(
-    {
-      redapToken: "token-a",
-      receiver: { kind: "live", url: "live-1", generation: 0 },
-    },
-    {
-      redapToken: "token-a",
-      receiver: { kind: "live", url: "live-1", generation: 1 },
-    }
-  );
-
-  assert.deepEqual(transition.urlsToCloseBeforeOpen, ["live-1"]);
-  assert.equal(transition.receiverUrlToOpen, "live-1");
 });

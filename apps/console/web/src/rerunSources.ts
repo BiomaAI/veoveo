@@ -4,7 +4,7 @@ export interface GovernedRerunArchive {
 }
 
 export type GovernedRerunReceiver =
-  | { kind: "live"; url: string; generation: number }
+  | { kind: "live"; route: string; viewerUri: string; generation: number }
   | { kind: "archive"; archive: GovernedRerunArchive };
 
 export interface GovernedRerunSource {
@@ -37,22 +37,33 @@ export interface SelectedRerunPlaybackReceiver {
 export function selectExclusiveRerunPlaybackReceiver(
   requestedMode: RerunPlaybackMode,
   archive: GovernedRerunArchive | undefined,
-  liveUrl: string | undefined,
+  liveRoute: string | undefined,
+  liveViewerUri: string | undefined,
   liveGeneration = 0
 ): SelectedRerunPlaybackReceiver {
-  if (requestedMode === "live" && liveUrl) {
+  if (requestedMode === "live" && liveRoute && liveViewerUri) {
     return {
       mode: "live",
-      receiver: { kind: "live", url: liveUrl, generation: liveGeneration },
+      receiver: {
+        kind: "live",
+        route: liveRoute,
+        viewerUri: liveViewerUri,
+        generation: liveGeneration,
+      },
     };
   }
   if (archive) {
     return { mode: "archive", receiver: { kind: "archive", archive } };
   }
-  if (liveUrl) {
+  if (liveRoute && liveViewerUri) {
     return {
       mode: "live",
-      receiver: { kind: "live", url: liveUrl, generation: liveGeneration },
+      receiver: {
+        kind: "live",
+        route: liveRoute,
+        viewerUri: liveViewerUri,
+        generation: liveGeneration,
+      },
     };
   }
   return { mode: requestedMode };
@@ -68,7 +79,7 @@ export interface RerunSourceTransition {
 
 function receiverUrl(receiver: GovernedRerunReceiver | undefined) {
   if (!receiver) return undefined;
-  return receiver.kind === "live" ? receiver.url : receiver.archive.uri;
+  return receiver.kind === "live" ? receiver.viewerUri : receiver.archive.uri;
 }
 
 function receiversEqual(
@@ -78,7 +89,8 @@ function receiversEqual(
   if (!opened || opened.kind !== desired.kind) return false;
   if (opened.kind === "live" && desired.kind === "live") {
     return (
-      opened.url === desired.url &&
+      opened.route === desired.route &&
+      opened.viewerUri === desired.viewerUri &&
       opened.generation === desired.generation
     );
   }

@@ -48,7 +48,8 @@ pub(crate) async fn enforce_csrf(
     if matches!(
         *request.method(),
         Method::GET | Method::HEAD | Method::OPTIONS
-    ) {
+    ) || crate::recording_playback::is_read_only_live_proxy_request(&request)
+    {
         return next.run(request).await;
     }
 

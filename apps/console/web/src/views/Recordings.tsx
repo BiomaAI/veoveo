@@ -21,8 +21,9 @@ import {
 import {
   loadRecordingPlayback,
   recordingBlueprintUrl,
-  recordingLiveSegmentUrl,
+  recordingLiveProxyRoute,
 } from "../api";
+import { consoleRerunMessageProxyUri } from "../rerunLiveProxy";
 import { EmptyState, SectionHeader, StatusPill } from "../components/primitives";
 import {
   requiresPlaybackCredentialRenewal,
@@ -241,8 +242,8 @@ export function RecordingsView({
 
   const playback = useMemo(() => {
     if (!manifest) return undefined;
-    const liveUrl = manifest.live
-      ? recordingLiveSegmentUrl(
+    const liveRoute = manifest.live
+      ? recordingLiveProxyRoute(
           manifest.recording_id,
           manifest.live.segment_id
         )
@@ -255,7 +256,8 @@ export function RecordingsView({
             revision: manifest.archive.revision,
           }
         : undefined,
-      liveUrl,
+      liveRoute,
+      liveRoute ? consoleRerunMessageProxyUri() : undefined,
       liveReceiverGeneration
     );
     const source = receiver.receiver

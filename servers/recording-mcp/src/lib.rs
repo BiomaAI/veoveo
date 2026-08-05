@@ -5,6 +5,8 @@ pub mod blueprint_playback;
 pub mod contract;
 pub mod live_playback;
 #[cfg(feature = "redap")]
+pub mod live_proxy;
+#[cfg(feature = "redap")]
 pub mod playback;
 pub mod service;
 pub mod uris;

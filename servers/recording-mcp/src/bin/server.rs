@@ -5,14 +5,13 @@ use std::sync::Arc;
 use axum::{
     Extension, Router,
     body::Body,
-    extract::{Path, State},
-    http::{HeaderMap, StatusCode, header},
+    extract::{Path, Request, State},
+    http::{HeaderMap, StatusCode, Uri, header},
     middleware,
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
 };
 use clap::Parser;
-use futures::stream;
 use re_protos::cloud::v1alpha1::rerun_cloud_service_server::RerunCloudServiceServer;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
@@ -32,6 +31,7 @@ use rmcp::{
 use secrecy::ExposeSecret as _;
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
+use tower::{ServiceBuilder, ServiceExt as _};
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::tool;
@@ -42,7 +42,7 @@ use veoveo_mcp_contract::{
 };
 use veoveo_platform_store::{PlatformStore, RecordingId, StoreConfig, StoreCredentials};
 use veoveo_recording_mcp::blueprint_playback::recording_scoped_blueprint;
-use veoveo_recording_mcp::live_playback::{LIVE_RRD_CONTENT_TYPE, stream_live_rrd};
+use veoveo_recording_mcp::live_proxy::{AuthorizedLiveMessageProxy, READ_MESSAGES_RPC_PATH};
 use veoveo_recording_mcp::{
     RecordingService,
     admin::{self, SERVER_DOCS},
@@ -603,6 +603,7 @@ async fn playback_live_segment(
     State(state): State<Arc<AppState>>,
     Extension(identity): Extension<veoveo_mcp_contract::GatewayInternalIdentity>,
     Path((recording_id, segment_id)): Path<(String, String)>,
+    mut request: Request,
 ) -> Response {
     let Ok(recording_id) = parse_recording_id(&recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
@@ -637,7 +638,7 @@ async fn playback_live_segment(
         current_byte_len = live.descriptor.current_byte_len,
         history_seconds = live.descriptor.history_seconds,
         video_preroll_seconds = live.descriptor.video_preroll_seconds,
-        "bounded live recording playback opened"
+        "governed Rerun MessageProxy playback opened"
     );
     let playback_store_id = match playback_store_id(recording_id, &plan.recording_key) {
         Ok(store_id) => store_id,
@@ -646,15 +647,25 @@ async fn playback_live_segment(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let stream = stream::unfold(
-        stream_live_rrd(
-            live.path,
-            state.recordings.live_history(),
-            playback_store_id,
-        ),
-        |mut receiver| async move { receiver.recv().await.map(|item| (item, receiver)) },
+    *request.uri_mut() = Uri::from_static(READ_MESSAGES_RPC_PATH);
+    let proxy = AuthorizedLiveMessageProxy::new(
+        live.path,
+        state.recordings.live_history(),
+        playback_store_id,
     );
-    let mut response = live_rrd_response(Body::from_stream(stream));
+    let service = ServiceBuilder::new()
+        .layer(tonic_web::GrpcWebLayer::new())
+        .service(proxy.service());
+    let response = service
+        .oneshot(request)
+        .await
+        .unwrap_or_else(|error| match error {});
+    let (parts, body) = response.into_parts();
+    let mut response = Response::from_parts(parts, Body::new(body));
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        header::HeaderValue::from_static("private, no-store"),
+    );
     response.headers_mut().insert(
         header::HeaderName::from_static("x-accel-buffering"),
         header::HeaderValue::from_static("no"),
@@ -728,23 +739,6 @@ fn rrd_response(body: Body) -> Response {
     response.headers_mut().insert(
         header::CONTENT_DISPOSITION,
         header::HeaderValue::from_static("inline"),
-    );
-    response.headers_mut().insert(
-        header::X_CONTENT_TYPE_OPTIONS,
-        header::HeaderValue::from_static("nosniff"),
-    );
-    response
-}
-
-fn live_rrd_response(body: Body) -> Response {
-    let mut response = Response::new(body);
-    response.headers_mut().insert(
-        header::CONTENT_TYPE,
-        header::HeaderValue::from_static(LIVE_RRD_CONTENT_TYPE),
-    );
-    response.headers_mut().insert(
-        header::CACHE_CONTROL,
-        header::HeaderValue::from_static("private, no-store"),
     );
     response.headers_mut().insert(
         header::X_CONTENT_TYPE_OPTIONS,
@@ -828,8 +822,8 @@ async fn main() -> anyhow::Result<()> {
     let playback = Router::new()
         .route("/{recording_id}/playback", get(playback_manifest))
         .route(
-            "/{recording_id}/segments/{segment_id}/live.rrd",
-            get(playback_live_segment),
+            "/{recording_id}/segments/{segment_id}/live/proxy",
+            post(playback_live_segment),
         )
         .route(
             "/{recording_id}/blueprints/{revision}/data.rrd",

@@ -7,7 +7,7 @@ Delta over the repository root `AGENTS.md`. The normative server contract is
 
 The governed catalog and read boundary for Recording Hub data: recording
 discovery, bounded queries, subscriptions, artifact publication, lazy Redap
-archive playback, and bounded RRD live following. The repository ingest,
+archive playback, and bounded MessageProxy live following. The repository ingest,
 storage, and playback contract is normative in
 [`docs/RECORDINGS.md`](../../docs/RECORDINGS.md).
 
@@ -19,7 +19,7 @@ storage, and playback contract is normative in
 - Frozen and sealed shards are immutable layers of one recording-scoped Redap
   dataset segment. The durable catalog and shards are authoritative; the
   in-memory Rerun catalog is derived, bounded, and reconstructible.
-- Playback manifest v3 returns one stable Redap archive URI, its deterministic
+- Playback manifest v5 returns one stable Redap archive URI, its deterministic
   layer revision, one optional live source, and recording-scoped access
   material. Do not return archive shard URLs or add a whole-recording RRD
   route.
@@ -38,7 +38,8 @@ storage, and playback contract is normative in
 - Module boundaries are pinned by DESIGN.md: `contract.rs` owns the typed
   manifest, `service.rs` resolves authorized playback plans,
   `service/read.rs` resolves governed analysis plans, `playback.rs` owns
-  sessions and Redap, `live_playback.rs` owns the follow projection, and
+  sessions and Redap, `live_playback.rs` owns the follow projection,
+  `live_proxy.rs` owns the recording-scoped Rerun MessageProxy, and
   `bin/server.rs` owns transport composition.
 - Durable catalog state lives in the installation SurrealDB; artifact
   operations go through the shared artifact plane with the forwarded
