@@ -532,13 +532,15 @@ async fn capture_console_recording_inner(
             assert_page_visible(&mut cdp, &session_id).await?;
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
-        let initial_live_follow = wait_for_rerun_live_follow(&mut cdp, &session_id).await?;
+        let (initial_live_follow, initial_follow_seconds) =
+            wait_for_rerun_live_follow(&mut cdp, &session_id).await?;
         let initial_responsiveness =
             sample_rerun_responsiveness(&mut cdp, &session_id).await?;
         let mut live_follow = verify_rerun_live_stability(
             &mut cdp,
             &session_id,
             initial_live_follow.clone(),
+            initial_follow_seconds,
             Duration::from_secs(120),
         )
         .await?;
@@ -625,7 +627,8 @@ async fn capture_console_recording_inner(
 async fn wait_for_rerun_live_follow(
     cdp: &mut Cdp,
     session_id: &str,
-) -> Result<RerunLiveFollowState> {
+) -> Result<(RerunLiveFollowState, f64)> {
+    let started = tokio::time::Instant::now();
     let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
     loop {
         let state: RerunLiveFollowState = cdp
@@ -633,7 +636,12 @@ async fn wait_for_rerun_live_follow(
             .await?;
         state.validate_surface()?;
         if state.is_current() {
-            return Ok(state);
+            let elapsed = started.elapsed().as_secs_f64();
+            ensure!(
+                elapsed <= 2.0,
+                "Rerun needed {elapsed:.3}s to enter native Following mode after its live surface opened"
+            );
+            return Ok((state, elapsed));
         }
         ensure!(
             tokio::time::Instant::now() < deadline,
@@ -648,6 +656,7 @@ async fn verify_rerun_live_stability(
     cdp: &mut Cdp,
     session_id: &str,
     initial: RerunLiveFollowState,
+    initial_follow_seconds: f64,
     duration: Duration,
 ) -> Result<RerunLiveFollowEvidence> {
     let deadline = tokio::time::Instant::now() + duration;
@@ -681,6 +690,7 @@ async fn verify_rerun_live_stability(
          {initial:?} -> {final_state:?}"
     );
     Ok(RerunLiveFollowEvidence {
+        initial_follow_seconds,
         stability_seconds: duration.as_secs(),
         viewer_instance: final_state.viewer_instance,
         recording_id: final_state.recording_id,
@@ -1822,6 +1832,7 @@ impl RerunLiveFollowState {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RerunLiveFollowEvidence {
+    initial_follow_seconds: f64,
     stability_seconds: u64,
     viewer_instance: String,
     recording_id: String,
