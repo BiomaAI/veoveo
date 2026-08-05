@@ -109,8 +109,6 @@ class H264CameraStream:
     ) -> None:
         self._recording = recording
         self._entity_path = entity_path
-        self._width = width
-        self._height = height
         self._stream_output = stream_output
         self._container = av.open("/dev/null", "w", format="h264")
         self._stream = self._container.add_stream("h264_nvenc", rate=fps)
@@ -150,14 +148,6 @@ class H264CameraStream:
                 self._entity_path,
                 _video_packet(sample, is_keyframe=packet.is_keyframe),
             )
-            if packet.is_keyframe:
-                self._recording.log(
-                    self._entity_path,
-                    rr.Pinhole(
-                        resolution=[self._width, self._height],
-                        focal_length=self._width / 2.0,
-                    ),
-                )
 
     def close(self, simulation_time_s: float, physics_step: int) -> None:
         for packet in self._stream.encode(None):
