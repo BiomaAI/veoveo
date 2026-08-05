@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  newestLiveTime,
   planRerunSourceTransition,
   selectExclusiveRerunPlaybackReceiver,
 } from "./rerunSources.ts";
@@ -108,7 +109,6 @@ test("switches live to history by closing the old recording receiver first", () 
 
   assert.deepEqual(transition.urlsToCloseBeforeOpen, ["live-1"]);
   assert.equal(transition.receiverUrlToOpen, "rerun://archive");
-  assert.equal(transition.followReceiver, false);
 });
 
 test("new archive layers replace the same receiver without overlapping Store IDs", () => {
@@ -150,7 +150,7 @@ test("session renewal changes credentials without churning the receiver", () => 
   assert.deepEqual(transition.urlsToCloseBeforeOpen, []);
 });
 
-test("live receiver opens in Rerun follow mode without source rotation", () => {
+test("live receiver opens once without source rotation", () => {
   const transition = planRerunSourceTransition(
     {},
     {
@@ -160,6 +160,12 @@ test("live receiver opens in Rerun follow mode without source rotation", () => {
   );
 
   assert.equal(transition.receiverUrlToOpen, "https://console.example/live.rrd");
-  assert.equal(transition.followReceiver, true);
   assert.deepEqual(transition.urlsToCloseBeforeOpen, []);
+});
+
+test("live time follows the newest Rerun sample without moving history playback", () => {
+  assert.equal(newestLiveTime(10, { min: 1, max: 50 }, true), 50);
+  assert.equal(newestLiveTime(50, { min: 1, max: 50 }, true), undefined);
+  assert.equal(newestLiveTime(10, { min: 1, max: 50 }, false), undefined);
+  assert.equal(newestLiveTime(10, null, true), undefined);
 });

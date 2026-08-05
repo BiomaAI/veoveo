@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { WebViewer } from "@rerun-io/web-viewer";
 import {
+  newestLiveTime,
   planRerunSourceTransition,
   type GovernedRerunSource,
   type OpenedRerunSources,
@@ -30,10 +31,7 @@ function synchronizeSources(
   }
   if (transition.blueprintUrlToOpen) viewer.open(transition.blueprintUrlToOpen);
   if (transition.receiverUrlToOpen) {
-    viewer.open(
-      transition.receiverUrlToOpen,
-      transition.followReceiver ? { follow_if_http: true } : undefined
-    );
+    viewer.open(transition.receiverUrlToOpen);
   }
   opened.redapToken = transition.next.redapToken;
   opened.receiver = transition.next.receiver;
@@ -107,6 +105,7 @@ export default function GovernedRerunViewer({
     });
     let active = true;
     let removeOpenListener: (() => void) | undefined;
+    let removeTimeUpdateListener: (() => void) | undefined;
     let delayedNotice: number | undefined;
     openedSourcesRef.current = {
       redapToken: desiredSourceRef.current.redapToken,
@@ -149,10 +148,28 @@ export default function GovernedRerunViewer({
             });
           }
         }, 20_000);
-        removeOpenListener = viewer.once("recording_open", () => {
+        removeOpenListener = viewer.on("recording_open", (event) => {
           if (!active) return;
+          removeOpenListener?.();
+          removeOpenListener = undefined;
           if (delayedNotice !== undefined) window.clearTimeout(delayedNotice);
+          if (desiredSourceRef.current.receiver.kind === "live") {
+            viewer.set_playing(event.recording_id, true);
+          }
           setStatus({ state: "open" });
+        });
+        removeTimeUpdateListener = viewer.on("time_update", (event) => {
+          if (!active || desiredSourceRef.current.receiver.kind !== "live") return;
+          const timeline = viewer.get_active_timeline(event.recording_id);
+          if (!timeline) return;
+          const target = newestLiveTime(
+            event.time,
+            viewer.get_time_range(event.recording_id, timeline),
+            true
+          );
+          if (target !== undefined) {
+            viewer.set_current_time(event.recording_id, timeline, target);
+          }
         });
         viewerRef.current = viewer;
         synchronizeSources(viewer, openedSourcesRef.current, desiredSourceRef.current);
@@ -171,6 +188,7 @@ export default function GovernedRerunViewer({
       mapSetupRef.current = undefined;
       if (delayedNotice !== undefined) window.clearTimeout(delayedNotice);
       removeOpenListener?.();
+      removeTimeUpdateListener?.();
       try {
         viewer.stop();
       } catch (cause) {

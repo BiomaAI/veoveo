@@ -146,13 +146,14 @@ writers are decoded through the same temporal filter while the decoder follows
 the growing file. Filesystem notifications wake both follow paths when bytes or
 parts arrive; an idle recording performs no 100 ms directory scan.
 
-Console opens the live HTTP receiver once with Rerun's `follow_if_http` option.
-The bounded history remains available behind the playhead, while the first
-visible frame follows the newest data instead of replaying the history window at
-wall-clock speed. Console never rotates an active receiver on a timer. Browser
-residency after connection belongs to Rerun's own store budget; the server-side
-history bound controls reconnect bootstrap rather than forcing a visible viewer
-restart.
+Console opens the live HTTP receiver once. Rerun 0.35 classifies an HTTP RRD as
+a finite source and initializes it in `Playing` mode, so Console uses Rerun's
+time-update and time-range APIs to keep Live mode at the newest available sample.
+History mode remains user-scrubbable. The bounded history stays available behind
+the live playhead without replaying the history window at wall-clock speed.
+Console never rotates an active receiver on a timer. Browser residency after
+connection belongs to Rerun's own store budget; the server-side history bound
+controls reconnect bootstrap rather than forcing a visible viewer restart.
 
 Console exposes explicit Live and History modes because Rerun 0.35 cannot keep
 two receivers with the same recording Store ID open safely. Live selects only
