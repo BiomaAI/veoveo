@@ -536,6 +536,7 @@ async fn capture_console_recording_inner(
             wait_for_rerun_live_follow(&mut cdp, &session_id).await?;
         let initial_responsiveness =
             sample_rerun_responsiveness(&mut cdp, &session_id).await?;
+        initial_responsiveness.validate()?;
         let mut live_follow = verify_rerun_live_stability(
             &mut cdp,
             &session_id,
@@ -552,6 +553,7 @@ async fn capture_console_recording_inner(
         .await?;
         live_follow.update_from(&reconnected)?;
         let final_responsiveness = sample_rerun_responsiveness(&mut cdp, &session_id).await?;
+        final_responsiveness.validate()?;
         ensure!(
             final_responsiveness.js_heap_used_bytes
                 <= initial_responsiveness
@@ -705,6 +707,8 @@ async fn verify_rerun_live_stability(
         final_live_frame_count: final_state.live_frame_count,
         final_live_payload_bytes: final_state.live_payload_bytes,
         final_live_connection_count: final_state.live_connection_count,
+        final_send_rrd_total_ms: final_state.send_rrd_total_ms,
+        final_send_rrd_maximum_ms: final_state.send_rrd_maximum_ms,
     })
 }
 
@@ -755,6 +759,19 @@ struct RerunResponsivenessEvidence {
     js_heap_used_bytes: u64,
 }
 
+impl RerunResponsivenessEvidence {
+    fn validate(&self) -> Result<()> {
+        ensure!(
+            self.animation_frames == 120
+                && self.mean_frame_ms <= 50.0
+                && self.maximum_frame_ms <= 250.0
+                && self.js_heap_used_bytes > 0,
+            "Rerun live viewer is not interactively responsive: {self:?}"
+        );
+        Ok(())
+    }
+}
+
 async fn sample_rerun_responsiveness(
     cdp: &mut Cdp,
     session_id: &str,
@@ -784,13 +801,6 @@ async fn sample_rerun_responsiveness(
             true,
         )
         .await?;
-    ensure!(
-        evidence.animation_frames == 120
-            && evidence.mean_frame_ms <= 50.0
-            && evidence.maximum_frame_ms <= 250.0
-            && evidence.js_heap_used_bytes > 0,
-        "Rerun live viewer is not interactively responsive: {evidence:?}"
-    );
     Ok(evidence)
 }
 
@@ -1795,6 +1805,8 @@ struct RerunLiveFollowState {
     live_frame_count: u64,
     live_payload_bytes: u64,
     live_connection_count: u64,
+    send_rrd_total_ms: f64,
+    send_rrd_maximum_ms: f64,
     canvas_count: u64,
     loading: bool,
     error: String,
@@ -1815,6 +1827,8 @@ impl RerunLiveFollowState {
                 && self.live_frame_count > 0
                 && self.live_payload_bytes > 0
                 && self.live_connection_count > 0
+                && self.send_rrd_total_ms.is_finite()
+                && self.send_rrd_maximum_ms.is_finite()
                 && self.canvas_count > 0
                 && !self.loading
                 && self.error.is_empty()
@@ -1847,6 +1861,8 @@ struct RerunLiveFollowEvidence {
     final_live_frame_count: u64,
     final_live_payload_bytes: u64,
     final_live_connection_count: u64,
+    final_send_rrd_total_ms: f64,
+    final_send_rrd_maximum_ms: f64,
 }
 
 impl RerunLiveFollowEvidence {
@@ -1871,6 +1887,8 @@ impl RerunLiveFollowEvidence {
         self.final_live_frame_count = state.live_frame_count;
         self.final_live_payload_bytes = state.live_payload_bytes;
         self.final_live_connection_count = state.live_connection_count;
+        self.final_send_rrd_total_ms = state.send_rrd_total_ms;
+        self.final_send_rrd_maximum_ms = state.send_rrd_maximum_ms;
         Ok(())
     }
 }
@@ -2594,6 +2612,8 @@ const RERUN_LIVE_FOLLOW_STATE: &str = r#"(() => {
     liveFrameCount:Number(host?.dataset.rerunLiveFrameCount ?? 0),
     livePayloadBytes:Number(host?.dataset.rerunLivePayloadBytes ?? 0),
     liveConnectionCount:Number(host?.dataset.rerunLiveConnectionCount ?? 0),
+    sendRrdTotalMs:Number(host?.dataset.rerunSendRrdTotalMs ?? 0),
+    sendRrdMaximumMs:Number(host?.dataset.rerunSendRrdMaximumMs ?? 0),
     canvasCount:host?.querySelectorAll("canvas").length ?? 0,
     loading:Boolean(document.querySelector(".recording-viewer-state")),
     error:document.querySelector(".recording-viewer-error")?.textContent ?? "",

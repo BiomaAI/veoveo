@@ -255,8 +255,7 @@ async fn verify_running_recording(
     let recording_source_lag_seconds =
         source_simulation_time_seconds - recording_simulation_time_seconds;
     ensure!(
-        recording_source_lag_seconds >= 0.0
-            && recording_source_lag_seconds <= MAX_RECORDING_SOURCE_LAG_SECONDS,
+        (0.0..=MAX_RECORDING_SOURCE_LAG_SECONDS).contains(&recording_source_lag_seconds),
         "live Rerun playback is not current with its simulation source: source={source_simulation_time_seconds:.3}s recording={recording_simulation_time_seconds:.3}s lag={recording_source_lag_seconds:.3}s"
     );
     let evidence = RecordingBrowserAcceptanceEvidence {
@@ -402,8 +401,7 @@ async fn verify_running_showcase(
     let recording_source_lag_seconds =
         source_simulation_time_seconds - recording_simulation_time_seconds;
     ensure!(
-        recording_source_lag_seconds >= 0.0
-            && recording_source_lag_seconds <= MAX_RECORDING_SOURCE_LAG_SECONDS,
+        (0.0..=MAX_RECORDING_SOURCE_LAG_SECONDS).contains(&recording_source_lag_seconds),
         "live Rerun playback is not current with its simulation source: source={source_simulation_time_seconds:.3}s recording={recording_simulation_time_seconds:.3}s lag={recording_source_lag_seconds:.3}s"
     );
     let evidence = BrowserAcceptanceEvidence {
