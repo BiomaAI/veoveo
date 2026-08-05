@@ -20,7 +20,8 @@ use browser::{
     capture_console_live_app, capture_console_recording, capture_console_stream_app,
 };
 
-const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-browser-evidence/v1";
+const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-browser-evidence/v2";
+const MAX_RECORDING_SOURCE_LAG_SECONDS: f64 = 5.0;
 const OPERATOR_PROFILE_SCOPES: &[&str] = &[
     "operator:use",
     "simulation-view:read",
@@ -88,6 +89,9 @@ struct BrowserAcceptanceEvidence {
     recording_id: String,
     initial_pose_sequence: u64,
     final_pose_sequence: u64,
+    source_simulation_time_seconds: f64,
+    recording_simulation_time_seconds: f64,
+    recording_source_lag_seconds: f64,
     live: ConsoleLiveCaptureEvidence,
     stream: ConsoleStreamCaptureEvidence,
     recording: ConsoleRecordingCaptureEvidence,
@@ -249,6 +253,18 @@ async fn verify_running_showcase(
         json_string(&final_state, "/lifecycle")? == "running",
         "focused browser acceptance altered the running simulation: {final_state}"
     );
+    let source_simulation_time_seconds = final_state
+        .get("simulation_time_s")
+        .and_then(Value::as_f64)
+        .context("running simulation omitted simulation_time_s")?;
+    let recording_simulation_time_seconds = recording.final_timeline_seconds();
+    let recording_source_lag_seconds =
+        source_simulation_time_seconds - recording_simulation_time_seconds;
+    ensure!(
+        recording_source_lag_seconds >= 0.0
+            && recording_source_lag_seconds <= MAX_RECORDING_SOURCE_LAG_SECONDS,
+        "live Rerun playback is not current with its simulation source: source={source_simulation_time_seconds:.3}s recording={recording_simulation_time_seconds:.3}s lag={recording_source_lag_seconds:.3}s"
+    );
     let evidence = BrowserAcceptanceEvidence {
         schema: EVIDENCE_SCHEMA,
         completed_at: Utc::now(),
@@ -260,6 +276,9 @@ async fn verify_running_showcase(
         recording_id,
         initial_pose_sequence,
         final_pose_sequence,
+        source_simulation_time_seconds,
+        recording_simulation_time_seconds,
+        recording_source_lag_seconds,
         live,
         stream,
         recording,
