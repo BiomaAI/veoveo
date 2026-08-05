@@ -31,7 +31,7 @@ pub use read::{
 
 const MAX_QUERY_ROWS: u64 = 10_000;
 const MAX_SEGMENTS: u32 = 10_000;
-const DEFAULT_LIVE_HISTORY_SECONDS: u64 = 60;
+const DEFAULT_LIVE_HISTORY_SECONDS: u64 = 1;
 const LIVE_VIDEO_PREROLL_SECONDS: u64 = 2;
 const RRD_MIME: &str = "application/vnd.rerun.rrd";
 const MANIFEST_MIME: &str = "application/vnd.veoveo.recording-manifest+json";

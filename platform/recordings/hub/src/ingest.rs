@@ -1,5 +1,6 @@
 //! Authenticated batch journal and materializer for external recording streams.
 
+use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, Cursor, Write};
@@ -157,7 +158,11 @@ pub fn live_segment_byte_len(segment_path: &Path) -> Result<u64> {
     if segment_path.exists() {
         return Ok(std::fs::metadata(segment_path)?.len());
     }
-    ingest_part_paths(&ingest_segment_parts_directory(segment_path))?
+    live_segment_byte_len_from_parts(&ingest_segment_parts_directory(segment_path))
+}
+
+fn live_segment_byte_len_from_parts(parts_directory: &Path) -> Result<u64> {
+    ingest_part_paths(parts_directory)?
         .into_iter()
         .try_fold(0_u64, |total, path| {
             Ok(total.saturating_add(std::fs::metadata(path)?.len()))
@@ -169,6 +174,7 @@ pub struct RecordingIngestService {
     store: PlatformStore,
     config: RecordingIngestServiceConfig,
     materialization: Arc<tokio::sync::Mutex<()>>,
+    segment_byte_lengths: Arc<std::sync::Mutex<BTreeMap<PathBuf, u64>>>,
 }
 
 impl RecordingIngestService {
@@ -186,6 +192,7 @@ impl RecordingIngestService {
             store,
             config,
             materialization: Arc::new(tokio::sync::Mutex::new(())),
+            segment_byte_lengths: Arc::new(std::sync::Mutex::new(BTreeMap::new())),
         })
     }
 
@@ -662,17 +669,24 @@ impl RecordingIngestService {
         let video = crate::inspect_rrd_video_boundary(&batch.encoded_rrd)?;
         let (mut segment, mut path) = self.active_segment(identity, stream_id, stream).await?;
         let mut parts_directory = ingest_segment_parts_directory(&path);
+        let mut segment_byte_len = self.segment_byte_len(&parts_directory)?;
         if parts_directory.exists()
-            && self.segment_is_due(&segment, &parts_directory)?
+            && self.segment_is_due(&segment, segment_byte_len)?
             && (!segment_contains_video(&parts_directory) || video.begins_with_keyframe)
         {
             self.freeze_segment(identity, segment, &path).await?;
             (segment, path) = self.active_segment(identity, stream_id, stream).await?;
             parts_directory = ingest_segment_parts_directory(&path);
+            segment_byte_len = self.segment_byte_len(&parts_directory)?;
         }
         std::fs::create_dir_all(&parts_directory)?;
         let part_path = parts_directory.join(format!("{:020}.rrd", batch.sequence));
+        let part_existed = part_path.exists();
         publish_segment(&part_path, &batch.encoded_rrd)?;
+        if !part_existed {
+            segment_byte_len = segment_byte_len.saturating_add(batch.encoded_rrd.len() as u64);
+            self.remember_segment_byte_len(&parts_directory, segment_byte_len)?;
+        }
         if video.contains_video {
             mark_segment_contains_video(&parts_directory)?;
         }
@@ -691,7 +705,7 @@ impl RecordingIngestService {
             .mark_recording_ingest_materialized(identity.tenant_id, stream_id, batch.sequence)
             .await?;
         remove_if_exists(journal_path)?;
-        if self.segment_is_due(&segment, &parts_directory)?
+        if self.segment_is_due(&segment, segment_byte_len)?
             && !segment_contains_video(&parts_directory)
         {
             self.freeze_segment(identity, segment, &path).await?;
@@ -819,19 +833,45 @@ impl RecordingIngestService {
             )
             .await?;
         remove_directory_if_exists(&parts_directory)?;
+        self.forget_segment_byte_len(&parts_directory)?;
         Ok(())
     }
 
-    fn segment_is_due(&self, segment: &SegmentRecord, parts_directory: &Path) -> Result<bool> {
-        let bytes =
-            ingest_part_paths(parts_directory)?
-                .into_iter()
-                .try_fold(0_u64, |total, path| {
-                    Ok::<_, anyhow::Error>(total.saturating_add(std::fs::metadata(path)?.len()))
-                })?;
+    fn segment_is_due(&self, segment: &SegmentRecord, byte_len: u64) -> Result<bool> {
         let age = chrono::Utc::now() - segment.start_time.unwrap_or(segment.created_at);
-        Ok(bytes >= self.config.segment_max_bytes
+        Ok(byte_len >= self.config.segment_max_bytes
             || age.num_seconds() >= i64::try_from(self.config.segment_max_age_seconds)?)
+    }
+
+    fn segment_byte_len(&self, parts_directory: &Path) -> Result<u64> {
+        if let Some(byte_len) = self
+            .segment_byte_lengths
+            .lock()
+            .map_err(|_| anyhow::anyhow!("recording segment byte counter lock is poisoned"))?
+            .get(parts_directory)
+            .copied()
+        {
+            return Ok(byte_len);
+        }
+        let byte_len = live_segment_byte_len_from_parts(parts_directory)?;
+        self.remember_segment_byte_len(parts_directory, byte_len)?;
+        Ok(byte_len)
+    }
+
+    fn remember_segment_byte_len(&self, parts_directory: &Path, byte_len: u64) -> Result<()> {
+        self.segment_byte_lengths
+            .lock()
+            .map_err(|_| anyhow::anyhow!("recording segment byte counter lock is poisoned"))?
+            .insert(parts_directory.to_path_buf(), byte_len);
+        Ok(())
+    }
+
+    fn forget_segment_byte_len(&self, parts_directory: &Path) -> Result<()> {
+        self.segment_byte_lengths
+            .lock()
+            .map_err(|_| anyhow::anyhow!("recording segment byte counter lock is poisoned"))?
+            .remove(parts_directory);
+        Ok(())
     }
 
     fn segment_path(&self, segment: &SegmentRecord) -> Result<PathBuf> {

@@ -19,7 +19,11 @@ test("active recording defaults to one live receiver", () => {
 
   assert.deepEqual(selected, {
     mode: "live",
-    receiver: { kind: "live", url: "https://console.example/live.rrd" },
+    receiver: {
+      kind: "live",
+      url: "https://console.example/live.rrd",
+      generation: 0,
+    },
   });
 });
 
@@ -49,7 +53,11 @@ test("requested playback mode falls back to the available receiver", () => {
     ),
     {
       mode: "live",
-      receiver: { kind: "live", url: "https://console.example/live.rrd" },
+      receiver: {
+        kind: "live",
+        url: "https://console.example/live.rrd",
+        generation: 0,
+      },
     }
   );
 });
@@ -100,7 +108,7 @@ test("switches live to history by closing the old recording receiver first", () 
   const transition = planRerunSourceTransition(
     {
       redapToken: "token-a",
-      receiver: { kind: "live", url: "live-1" },
+      receiver: { kind: "live", url: "live-1", generation: 0 },
     },
     {
       redapToken: "token-a",
@@ -138,11 +146,11 @@ test("session renewal changes credentials without churning the receiver", () => 
   const transition = planRerunSourceTransition(
     {
       redapToken: "token-a",
-      receiver: { kind: "live", url: "live-1" },
+      receiver: { kind: "live", url: "live-1", generation: 0 },
     },
     {
       redapToken: "token-b",
-      receiver: { kind: "live", url: "live-1" },
+      receiver: { kind: "live", url: "live-1", generation: 0 },
     }
   );
 
@@ -156,7 +164,11 @@ test("live receiver opens once without source rotation", () => {
     {},
     {
       redapToken: "token-a",
-      receiver: { kind: "live", url: "https://console.example/live.rrd" },
+      receiver: {
+        kind: "live",
+        url: "https://console.example/live.rrd",
+        generation: 0,
+      },
     }
   );
 
@@ -176,6 +188,7 @@ test("only Redap archive playback schedules credential renewal", () => {
     requiresPlaybackCredentialRenewal({
       kind: "live",
       url: "https://console.example/live.rrd",
+      generation: 0,
     }),
     false
   );
@@ -187,4 +200,20 @@ test("only Redap archive playback schedules credential renewal", () => {
     true
   );
   assert.equal(requiresPlaybackCredentialRenewal(undefined), false);
+});
+
+test("a completed live receiver reopens without changing its canonical URL", () => {
+  const transition = planRerunSourceTransition(
+    {
+      redapToken: "token-a",
+      receiver: { kind: "live", url: "live-1", generation: 0 },
+    },
+    {
+      redapToken: "token-a",
+      receiver: { kind: "live", url: "live-1", generation: 1 },
+    }
+  );
+
+  assert.deepEqual(transition.urlsToCloseBeforeOpen, ["live-1"]);
+  assert.equal(transition.receiverUrlToOpen, "live-1");
 });
