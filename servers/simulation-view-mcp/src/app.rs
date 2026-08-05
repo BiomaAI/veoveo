@@ -41,6 +41,12 @@ mod tests {
             "reconciling ·",
             "Pose producer authorization expired.",
             "Automatic Simulation View reconciliation is blocked",
+            "OV.EventStatus.WARNING",
+            "OV.EventStatus.ERROR",
+            "OV.EventStatus.CANCELED",
+            "signaling retry",
+            "await player.streamer.connect",
+            "[redacted token]",
         ] {
             assert!(html.contains(needle), "missing {needle}");
         }

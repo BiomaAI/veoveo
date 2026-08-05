@@ -327,8 +327,17 @@ async fn capture_console_live_app_inner(
             ready,
             "Console Simulation View App exposed no camera {expected_camera_id:?}"
         );
-        let first =
-            wait_for_console_video(&mut cdp, &target_id, &session_id, expected_camera_id).await?;
+        let first = match wait_for_console_video(
+            &mut cdp,
+            &target_id,
+            &session_id,
+            expected_camera_id,
+        )
+        .await
+        {
+            Ok(state) => state,
+            Err(error) => return Err(error.context(cdp.stream_diagnostics()?)),
+        };
         let second = wait_for_console_video_advance(
             &mut cdp,
             &target_id,

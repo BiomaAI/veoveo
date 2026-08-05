@@ -67,6 +67,10 @@ async function readJson(uri){const result=await bridge.request("resources/read",
 function showError(cause,kind="interaction"){activeErrorKind=kind;el("error").textContent=cause instanceof Error?cause.message:String(cause);el("error").hidden=false;}
 function clearError(kind){if(kind&&activeErrorKind!==kind)return;activeErrorKind=null;el("error").textContent="";el("error").hidden=true;}
 function setStatus(text,live=false,warn=false){el("status").textContent=text;el("status").classList.toggle("live",live);el("status").classList.toggle("warn",warn);}
+function streamFailure(event){const raw=event?.info instanceof Error?event.info.message:typeof event?.info==="string"?event.info:"";
+  const safe=raw.replace(/\bBearer\s+\S+/gi,"Bearer [redacted]").replace(/\beyJ[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}(?:\.[A-Za-z0-9_-]{16,})?/g,"[redacted token]").replace(/([?&](?:access[_-]?token|token|authorization)=)[^&\s]+/gi,"$1[redacted]").trim().slice(0,240);
+  return new Error(safe?`NVIDIA stream did not start: ${safe}`:"NVIDIA stream did not start");
+}
 function scheduleRefresh(delay=0){clearTimeout(refreshWakeTimer);refreshWakeTimer=setTimeout(()=>void refresh(),Math.max(0,delay));}
 function renderReconciliation(current){const chip=el("reconciliation"),status=current?.reconciliation;if(!status){chip.textContent="reconciliation waiting";chip.classList.remove("live");chip.classList.add("warn");clearError("reconciliation");return true;}
   const expired=status.failureCode==="pose_authorization_expired"||(!current.poseSource?.revoked&&current.poseSource?.expiresAt&&Date.parse(current.poseSource.expiresAt)<=Date.now());
@@ -100,15 +104,17 @@ async function openView(cameraId){
     const value=player.connection,stream=value.stream,endpoint=stream.endpoint,signal=new URL(endpoint.signalingUrl),OV=globalThis.OVWebRTC;
     if(!OV||globalThis.__VEOVEO_WEBRTC_STUB__)throw new Error("NVIDIA WebRTC client is unavailable in this build");
     await verifyDecode(stream);player.streamer=new OV.AppStreamer();
-    player.streamer.connect({streamSource:OV.StreamType.DIRECT,logLevel:OV.LogLevel.WARN,streamConfig:{
+    await player.streamer.connect({streamSource:OV.StreamType.DIRECT,logLevel:OV.LogLevel.WARN,streamConfig:{
       accessToken:value.accessToken,authenticate:true,autoLaunch:true,videoElementId:`video-${cameraId}`,sessionId:stream.liveViewId,
       signalingServer:signal.hostname,signalingPort:Number(signal.port||443),signalingPath:signal.pathname,mediaServer:endpoint.mediaHost,mediaPort:endpoint.mediaPort,forceWSS:signal.protocol==="wss:",
       width:stream.widthPx,height:stream.heightPx,fps:stream.frameRateMillihertz/1000,codec:OV.VideoCodec.H264,localizeTextInput:false,mic:false,nativeTouchEvents:false,
-      onStart:(event)=>{if(event&&event.status===OV.EventStatus.SUCCESS){node.querySelector(".empty").hidden=true;node.querySelector(".health").textContent="live";clearError("stream");setStatus(`${players.size} live`,true);scheduleRefresh();}else{retry(cameraId,new Error("NVIDIA stream did not start"));}},
-      onStop:()=>{if(!tearingDown)retry(cameraId,new Error("stream stopped"));},
+      onStart:(event)=>{if(!event||players.get(cameraId)!==player)return;if(event.status===OV.EventStatus.SUCCESS){node.querySelector(".empty").hidden=true;node.querySelector(".health").textContent="live";clearError("stream");setStatus(`${players.size} live`,true);scheduleRefresh();return;}
+        if(event.status===OV.EventStatus.ERROR||event.status===OV.EventStatus.CANCELED){retry(cameraId,streamFailure(event));return;}
+        node.querySelector(".health").textContent=event.status===OV.EventStatus.WARNING?"signaling retry":"connecting";setStatus(`${players.size} connecting`,false,event.status===OV.EventStatus.WARNING);},
+      onStop:()=>{if(!tearingDown&&players.get(cameraId)===player)retry(cameraId,new Error("stream stopped"));},
       onStreamStats:(event)=>{const stats=event&&event.data&&event.data.stats;node.querySelector(".fps").textContent=stats&&stats.fps?`${stats.fps} fps`:`${stream.frameRateMillihertz/1000} fps`;},
     }});
-    node.querySelector(".resolution").textContent=`${stream.widthPx}×${stream.heightPx}`;scheduleRenew(cameraId);
+    if(players.get(cameraId)!==player)return;node.querySelector(".resolution").textContent=`${stream.widthPx}×${stream.heightPx}`;scheduleRenew(cameraId);
   }catch(cause){retry(cameraId,cause);}
 }
 function scheduleRenew(cameraId){const player=players.get(cameraId);if(!player||!player.connection)return;clearTimeout(player.renewTimer);
