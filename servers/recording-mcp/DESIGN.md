@@ -54,7 +54,11 @@ proxies archive bytes.
 
 Live playback is a generated stream over the current writing shard. It emits
 store information and static context, retains a bounded row-ID history window,
-then follows newly durable data. Every outgoing message is rewritten to the
+then follows newly durable data. The bounded bootstrap is compacted once with
+Rerun's `live` optimization profile before delivery. This preserves its rows
+and H.264 groups of pictures while preventing the browser from indexing the
+producer's many one-row SDK chunks during its first interactive frames. Every
+outgoing message is rewritten to the
 same dataset and segment identity used by Redap. The live URL is bound to one
 writing shard identity and ends at rollover. The response begins with the
 `VVRL0001` preface and frames each complete RRD payload with a big-endian `u32`
