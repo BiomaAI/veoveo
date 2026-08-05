@@ -243,10 +243,7 @@ export function RecordingsView({
   const playback = useMemo(() => {
     if (!manifest) return undefined;
     const liveRoute = manifest.live
-      ? recordingLiveProxyRoute(
-          manifest.recording_id,
-          manifest.live.segment_id
-        )
+      ? recordingLiveProxyRoute(manifest.recording_id)
       : undefined;
     const receiver = selectExclusiveRerunPlaybackReceiver(
       requestedPlaybackMode,

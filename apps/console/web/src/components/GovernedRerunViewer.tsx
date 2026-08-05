@@ -162,12 +162,21 @@ export default function GovernedRerunViewer({
             viewer.get_active_timeline(event.recording_id);
           if (!timeline) return;
           if (!host.current) return;
+          const range = viewer.get_time_range(event.recording_id, timeline);
           const updates = Number(host.current.dataset.rerunTimeUpdateCount ?? 0) + 1;
           host.current.dataset.rerunRecordingId = event.recording_id;
           host.current.dataset.rerunTimeline = timeline;
           host.current.dataset.rerunCurrentTime = String(event.time);
-          host.current.dataset.rerunNewestTime = String(event.time);
-          host.current.dataset.rerunLiveLagSeconds = "0";
+          if (range) {
+            host.current.dataset.rerunNewestTime = String(range.max);
+            if (timeline === "simulation_time") {
+              host.current.dataset.rerunLiveLagSeconds = String(
+                Math.max(0, range.max - event.time) / 1_000_000_000
+              );
+            } else {
+              delete host.current.dataset.rerunLiveLagSeconds;
+            }
+          }
           host.current.dataset.rerunTimeUpdateCount = String(updates);
         });
         viewerRef.current = viewer;

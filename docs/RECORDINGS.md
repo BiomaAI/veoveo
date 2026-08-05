@@ -8,7 +8,7 @@
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Recording-scoped read subset over HTTP/2 and gRPC-Web. Veoveo does not expose a general Rerun catalog or mutation surface. |
 | Rerun MessageProxy `rerun.sdk_comms.v1alpha1` | Recording-scoped `ReadMessages` server stream over gRPC-Web for the bounded live projection. Write and table methods are unavailable. |
 | Veoveo recording ingest `2026-08-01` | Authenticated protobuf batches and distinct producer Blueprint publications preserve native Rerun store identities, order, idempotency, and IDR-aligned rollover. |
-| Veoveo recording playback `v5` | `veoveo.io/recording-playback/v5` binds one producer Blueprint, one lazy archive dataset, one optional `rerun_message_proxy_grpc` live source, catalog revision, and scoped session. Console selects exactly one recording receiver at a time. |
+| Veoveo recording playback `v6` | `veoveo.io/recording-playback/v6` binds one producer Blueprint, one lazy archive dataset, one optional recording-scoped `rerun_message_proxy_grpc` live source, catalog revision, and scoped session. Console selects exactly one recording receiver at a time. |
 | H.264/AVC Annex B | Decoder-reentrant `VideoStream` access units, sparse keyframe markers, and exact producer timeline indices. |
 | JSON Web Token and SHA-256 | Host-limited Redap read access and immutable shard, layer-revision, and artifact identities. |
 
@@ -75,14 +75,16 @@ resource policy and audit path, then issues a short-lived internal assertion.
 The BFF authenticates each Console request and passes the manifest through. It
 does not retain playback sessions or proxy archive bytes.
 
-Playback manifest `veoveo.io/recording-playback/v5` establishes a renewable
+Playback manifest `veoveo.io/recording-playback/v6` establishes a renewable
 five-minute server session scoped to one recording and actor. It returns a
 Rerun-compatible read token whose standard Redap claims limit delivery to the
 installation hostname. History mode renews that session once at 80 percent of
 its exact lifetime because the archive receiver consumes the Redap token. Live
 mode does not schedule credential renewal. Console owns the same-origin stream
-request and supplies its HttpOnly session normally. Natural stream completion
-rechecks policy and resolves the next segment. The opaque session
+request and supplies its HttpOnly session normally. One native MessageProxy
+receiver stays open for the recording. Catalog notifications advance it across
+writing-segment rollovers without reopening the WebViewer, replaying prior row
+identities, or disturbing the producer Blueprint. The opaque session
 identifier contains no bearer, catalog, or filesystem identity.
 
 When a recording has a producer Blueprint, the playback manifest carries its

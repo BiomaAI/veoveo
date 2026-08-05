@@ -203,13 +203,13 @@ impl Config {
             .expect("validated profile and recording id")
     }
 
-    pub(crate) fn recording_live_proxy_url(&self, recording_id: &str, segment_id: &str) -> Url {
+    pub(crate) fn recording_live_proxy_url(&self, recording_id: &str) -> Url {
         self.gateway_url
             .join(&format!(
-                "/recordings/{}/{recording_id}/segments/{segment_id}/live/proxy",
+                "/recordings/{}/{recording_id}/live/proxy",
                 self.admin_profile
             ))
-            .expect("validated profile and recording/segment ids")
+            .expect("validated profile and recording id")
     }
 
     pub(crate) fn recording_blueprint_url(&self, recording_id: &str, revision: u64) -> Url {

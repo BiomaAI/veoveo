@@ -10,7 +10,7 @@ import {
 
 const archive = { uri: "rerun://archive", revision: "revision-a" };
 const liveRoute =
-  "https://console.example/console/api/recordings/019fab95-e208-7901-9db7-77c8444652db/segments/019faba1-3e9b-77d2-a3b5-b7cc97d0d238/live/proxy";
+  "https://console.example/console/api/recordings/019fab95-e208-7901-9db7-77c8444652db/live/proxy";
 const viewerUri = "rerun+https://console.example/proxy";
 
 function live(generation = 0, route = liveRoute): GovernedRerunReceiver {
@@ -116,6 +116,15 @@ test("session renewal does not churn a live receiver", () => {
     { redapToken: "token-b", receiver: live() }
   );
   assert.equal(transition.credentialsChanged, true);
+  assert.equal(transition.receiverUrlToOpen, undefined);
+  assert.deepEqual(transition.urlsToCloseBeforeOpen, []);
+});
+
+test("storage segment rollover does not reopen the recording receiver", () => {
+  const transition = planRerunSourceTransition(
+    { redapToken: "token-a", receiver: live() },
+    { redapToken: "token-a", receiver: live() }
+  );
   assert.equal(transition.receiverUrlToOpen, undefined);
   assert.deepEqual(transition.urlsToCloseBeforeOpen, []);
 });

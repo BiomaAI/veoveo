@@ -19,7 +19,7 @@ storage, and playback contract is normative in
 - Frozen and sealed shards are immutable layers of one recording-scoped Redap
   dataset segment. The durable catalog and shards are authoritative; the
   in-memory Rerun catalog is derived, bounded, and reconstructible.
-- Playback manifest v5 returns one stable Redap archive URI, its deterministic
+- Playback manifest v6 returns one stable Redap archive URI, its deterministic
   layer revision, one optional live source, and recording-scoped access
   material. Do not return archive shard URLs or add a whole-recording RRD
   route.
@@ -28,10 +28,11 @@ storage, and playback contract is normative in
   because native Rerun source navigation requires `FindEntries`. Reject
   cross-recording entry access, writes, registration, tables, tasks, and
   maintenance.
-- Live playback is bound to one writing segment identity and ends at
-  rollover. The follow projection keeps a bounded row ID history window and
-  rewrites every outgoing message to the same dataset and segment identity as
-  the archive.
+- Live playback is bound to one recording identity. Its one native Rerun
+  MessageProxy receiver advances reactively across writing-segment rollovers
+  without replaying prior row identities. The follow projection keeps a
+  bounded row ID history window and rewrites every outgoing message to the
+  same dataset identity as the archive.
 - Governed queries and analysis snapshots may include complete acknowledged
   ingest parts from a writing segment. A task-local copy binds the exact part
   sequence, byte length, and SHA-256 before Hub rollover can replace it.
@@ -48,7 +49,7 @@ storage, and playback contract is normative in
 ## Build And Test
 
 - `cargo check -p veoveo-recording-mcp`
-- `cargo test -p veoveo-recording-mcp`
+- `cargo test -p veoveo-recording-mcp --features redap`
 - Tests are colocated in `src/` and use filesystem fixtures; no external
   services, GPU, or Docker are required.
 

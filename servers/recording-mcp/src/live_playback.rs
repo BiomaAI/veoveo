@@ -33,6 +33,7 @@ pub fn stream_live_messages(
     tokio::task::spawn_blocking(move || {
         let error_sender = sender.clone();
         let result = (|| {
+            wait_for_live_source(&segment_path, &sender)?;
             if segment_path.exists() {
                 stream_growing_file(&segment_path, history, &playback_store_id, &sender)
             } else {
@@ -44,6 +45,27 @@ pub fn stream_live_messages(
         }
     });
     receiver
+}
+
+fn wait_for_live_source(
+    segment_path: &Path,
+    sender: &mpsc::Sender<Result<LogMsg, io::Error>>,
+) -> Result<()> {
+    let parts_directory = ingest_segment_parts_directory(segment_path);
+    if segment_path.exists() || parts_directory.exists() {
+        return Ok(());
+    }
+    let parent = segment_path
+        .parent()
+        .context("live segment path has no parent")?;
+    let wake = FilesystemWake::watch(parent)?;
+    while !segment_path.exists() && !parts_directory.exists() {
+        if sender.is_closed() {
+            return Ok(());
+        }
+        wake.wait()?;
+    }
+    Ok(())
 }
 
 fn stream_growing_file(
@@ -464,6 +486,49 @@ mod tests {
                 .iter()
                 .all(|message| message.store_id() == &playback_store_id)
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn cataloged_segment_waits_reactively_for_its_first_durable_part() {
+        let (recording, storage) = RecordingStreamBuilder::new("inspection-camera")
+            .recording_id("run-a")
+            .memory()
+            .unwrap();
+        recording
+            .log("sensor/value", &Scalars::single(42.0))
+            .unwrap();
+        let messages = storage.take();
+        let store_info = messages
+            .iter()
+            .find(|message| matches!(message, LogMsg::SetStoreInfo(_)))
+            .unwrap();
+        let data = messages
+            .iter()
+            .find(|message| matches!(message, LogMsg::ArrowMsg(_, _)))
+            .unwrap();
+        let directory = tempfile::tempdir().unwrap();
+        let segment_path = directory
+            .path()
+            .join(format!("recording.ingest-{}-s0.rrd", uuid::Uuid::now_v7()));
+        let parts_directory = ingest_segment_parts_directory(&segment_path);
+        let playback_store_id = StoreId::recording("playback-dataset", "run-a");
+        let mut receiver =
+            stream_live_messages(segment_path, Duration::from_secs(60), playback_store_id);
+
+        assert!(
+            tokio::time::timeout(Duration::from_millis(100), receiver.recv())
+                .await
+                .is_err(),
+            "a cataloged segment must wait instead of ending before its parts directory exists"
+        );
+        std::fs::create_dir(&parts_directory).unwrap();
+        write_part(&parts_directory, 0, store_info, data);
+        let first = tokio::time::timeout(Duration::from_secs(2), receiver.recv())
+            .await
+            .expect("filesystem publication did not wake live playback")
+            .expect("live playback ended before its first durable part")
+            .expect("live playback failed after its first durable part");
+        assert!(matches!(first, LogMsg::SetStoreInfo(_)));
     }
 
     fn write_part(directory: &Path, sequence: u64, store_info: &LogMsg, data: &LogMsg) {

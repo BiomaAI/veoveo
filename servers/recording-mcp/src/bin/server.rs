@@ -599,21 +599,15 @@ async fn playback_manifest(
     }
 }
 
-async fn playback_live_segment(
+async fn playback_live_recording(
     State(state): State<Arc<AppState>>,
     Extension(identity): Extension<veoveo_mcp_contract::GatewayInternalIdentity>,
-    Path((recording_id, segment_id)): Path<(String, String)>,
+    Path(recording_id): Path<String>,
     mut request: Request,
 ) -> Response {
     let Ok(recording_id) = parse_recording_id(&recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let Ok(segment_uuid) = uuid::Uuid::parse_str(&segment_id) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    if segment_uuid.get_version_num() != 7 {
-        return StatusCode::NOT_FOUND.into_response();
-    }
     let plan = match state
         .recordings
         .playback_plan(&identity, recording_id)
@@ -622,19 +616,16 @@ async fn playback_live_segment(
         Ok(Some(plan)) => plan,
         Ok(None) => return StatusCode::NOT_FOUND.into_response(),
         Err(error) => {
-            tracing::error!(%error, %recording_id, %segment_id, "live recording segment authorization failed");
+            tracing::error!(%error, %recording_id, "live recording authorization failed");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let Some(live) = plan
-        .live
-        .filter(|live| live.descriptor.segment_id == segment_id)
-    else {
+    let Some(live) = plan.live.as_ref() else {
         return StatusCode::NOT_FOUND.into_response();
     };
     tracing::info!(
         %recording_id,
-        %segment_id,
+        segment_id = %live.descriptor.segment_id,
         current_byte_len = live.descriptor.current_byte_len,
         history_seconds = live.descriptor.history_seconds,
         video_preroll_seconds = live.descriptor.video_preroll_seconds,
@@ -649,7 +640,9 @@ async fn playback_live_segment(
     };
     *request.uri_mut() = Uri::from_static(READ_MESSAGES_RPC_PATH);
     let proxy = AuthorizedLiveMessageProxy::new(
-        live.path,
+        state.recordings.clone(),
+        identity,
+        recording_id,
         state.recordings.live_history(),
         playback_store_id,
     );
@@ -821,10 +814,7 @@ async fn main() -> anyhow::Result<()> {
     ));
     let playback = Router::new()
         .route("/{recording_id}/playback", get(playback_manifest))
-        .route(
-            "/{recording_id}/segments/{segment_id}/live/proxy",
-            post(playback_live_segment),
-        )
+        .route("/{recording_id}/live/proxy", post(playback_live_recording))
         .route(
             "/{recording_id}/blueprints/{revision}/data.rrd",
             get(playback_blueprint),

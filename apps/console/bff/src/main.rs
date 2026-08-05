@@ -155,8 +155,8 @@ async fn main() -> anyhow::Result<()> {
             get(recording_playback::manifest),
         )
         .route(
-            recording_playback::LIVE_SEGMENT_PATH,
-            post(recording_playback::live_segment),
+            recording_playback::LIVE_RECORDING_PATH,
+            post(recording_playback::live_recording),
         )
         .route(
             recording_playback::BLUEPRINT_PATH,

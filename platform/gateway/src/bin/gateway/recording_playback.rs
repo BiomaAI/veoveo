@@ -23,22 +23,15 @@ const MAX_GRPC_WEB_REQUEST_BYTES: usize = 1024;
 #[derive(Clone, Debug)]
 enum PlaybackSource {
     Manifest,
-    LiveProxy(String),
+    LiveProxy,
     Blueprint(u64),
 }
 
 impl PlaybackSource {
-    fn segment_id(&self) -> Option<&str> {
-        match self {
-            Self::LiveProxy(segment_id) => Some(segment_id),
-            Self::Manifest | Self::Blueprint(_) => None,
-        }
-    }
-
     fn mode(&self) -> &'static str {
         match self {
             Self::Manifest => "manifest",
-            Self::LiveProxy(_) => "live-proxy",
+            Self::LiveProxy => "live-proxy",
             Self::Blueprint(_) => "blueprint",
         }
     }
@@ -46,9 +39,7 @@ impl PlaybackSource {
     fn upstream_path(&self, recording_id: &str) -> String {
         match self {
             Self::Manifest => format!("/recordings/{recording_id}/playback"),
-            Self::LiveProxy(segment_id) => {
-                format!("/recordings/{recording_id}/segments/{segment_id}/live/proxy")
-            }
+            Self::LiveProxy => format!("/recordings/{recording_id}/live/proxy"),
             Self::Blueprint(revision) => {
                 format!("/recordings/{recording_id}/blueprints/{revision}/data.rrd")
             }
@@ -74,9 +65,9 @@ pub(super) async fn playback_manifest(
     .await
 }
 
-pub(super) async fn playback_live_segment(
+pub(super) async fn playback_live_recording(
     State(state): State<RecordingPlaybackState>,
-    Path((profile, recording_id, segment_id)): Path<(String, String, String)>,
+    Path((profile, recording_id)): Path<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
     request: Request,
 ) -> Response {
@@ -89,7 +80,7 @@ pub(super) async fn playback_live_segment(
         state,
         profile,
         recording_id,
-        PlaybackSource::LiveProxy(segment_id),
+        PlaybackSource::LiveProxy,
         subject,
         parts.headers,
         Some(body),
@@ -133,13 +124,7 @@ async fn proxy_playback(
     let Ok(recording_uuid) = uuid::Uuid::parse_str(&recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    if recording_uuid.get_version_num() != 7
-        || source.segment_id().is_some_and(|segment| {
-            uuid::Uuid::parse_str(segment)
-                .map(|id| id.get_version_num() != 7)
-                .unwrap_or(true)
-        })
-    {
+    if recording_uuid.get_version_num() != 7 {
         return StatusCode::NOT_FOUND.into_response();
     }
     let Ok(server) = ServerSlug::new(RECORDING_SERVER) else {
@@ -188,10 +173,6 @@ async fn proxy_playback(
         metadata: merge_principal_audit_metadata(
             BTreeMap::from([
                 ("recording_id".to_owned(), recording_id.clone()),
-                (
-                    "segment_id".to_owned(),
-                    source.segment_id().unwrap_or_default().to_owned(),
-                ),
                 ("playback_mode".to_owned(), source.mode().to_owned()),
             ]),
             &subject.principal,
@@ -240,7 +221,7 @@ async fn proxy_playback(
     let path = source.upstream_path(&recording_id);
     url.set_path(&path);
     url.set_query(None);
-    let mut request = if matches!(source, PlaybackSource::LiveProxy(_)) {
+    let mut request = if matches!(source, PlaybackSource::LiveProxy) {
         let Some(body) = body else {
             return StatusCode::BAD_REQUEST.into_response();
         };
