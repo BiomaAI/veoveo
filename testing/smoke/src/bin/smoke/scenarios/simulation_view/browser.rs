@@ -638,8 +638,9 @@ async fn wait_for_rerun_live_follow(
         let state: RerunLiveFollowState = cdp
             .evaluate(session_id, RERUN_LIVE_FOLLOW_STATE, false)
             .await?;
-        state.validate_surface()?;
-        if state.is_current() {
+        state.validate_transport_surface()?;
+        if state.has_live_timeline() && state.is_current() {
+            state.validate_surface()?;
             let elapsed = started.elapsed().as_secs_f64();
             ensure!(
                 elapsed <= 2.0,
@@ -1882,16 +1883,11 @@ struct RerunLiveFollowState {
 }
 
 impl RerunLiveFollowState {
-    fn validate_surface(&self) -> Result<()> {
+    fn validate_transport_surface(&self) -> Result<()> {
         ensure!(
             self.viewer_state == "open"
                 && !self.viewer_instance.is_empty()
                 && !self.recording_id.is_empty()
-                && !self.timeline.is_empty()
-                && self.current_time.is_finite()
-                && self.newest_time.is_finite()
-                && self.lag_seconds.is_finite()
-                && self.time_update_count > 0
                 && self.live_connection_count > 0
                 && self.live_state == "connected"
                 && self.live_frame_count > 0
@@ -1901,6 +1897,22 @@ impl RerunLiveFollowState {
                 && self.error.is_empty()
                 && self.map_error.is_empty(),
             "Rerun live surface is not healthy: {self:?}"
+        );
+        Ok(())
+    }
+
+    fn has_live_timeline(&self) -> bool {
+        !self.timeline.is_empty() && self.time_update_count > 0
+    }
+
+    fn validate_surface(&self) -> Result<()> {
+        self.validate_transport_surface()?;
+        ensure!(
+            self.has_live_timeline()
+                && self.current_time.is_finite()
+                && self.newest_time.is_finite()
+                && self.lag_seconds.is_finite(),
+            "Rerun live surface has not published a healthy timeline: {self:?}"
         );
         Ok(())
     }
@@ -2686,6 +2698,46 @@ const RERUN_LIVE_FOLLOW_STATE: &str = r#"(() => {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn rerun_follow_state(timeline_ready: bool) -> RerunLiveFollowState {
+        RerunLiveFollowState {
+            document_epoch_ms: 1.0,
+            viewer_instance: "viewer-1".to_owned(),
+            viewer_state: "open".to_owned(),
+            recording_id: "recording-1".to_owned(),
+            timeline: timeline_ready
+                .then_some("simulation_time")
+                .unwrap_or_default()
+                .to_owned(),
+            current_time: 4.0,
+            newest_time: 4.0,
+            lag_seconds: 0.0,
+            time_update_count: u64::from(timeline_ready),
+            live_connection_count: 1,
+            live_state: "connected".to_owned(),
+            live_frame_count: 3,
+            newest_frame_bytes: 128,
+            canvas_count: 1,
+            loading: false,
+            error: String::new(),
+            map_error: String::new(),
+        }
+    }
+
+    #[test]
+    fn rerun_transport_can_precede_its_first_timeline_update() {
+        let state = rerun_follow_state(false);
+        state.validate_transport_surface().unwrap();
+        assert!(!state.has_live_timeline());
+        assert!(state.validate_surface().is_err());
+    }
+
+    #[test]
+    fn rerun_surface_becomes_healthy_after_its_timeline_update() {
+        let state = rerun_follow_state(true);
+        assert!(state.has_live_timeline());
+        state.validate_surface().unwrap();
+    }
 
     #[test]
     fn console_acceptance_url_bypasses_stale_entry_documents() {
