@@ -39,7 +39,13 @@ pub(super) enum RecordingPlaybackMode {
 impl RecordingPlaybackNetworkEvidence {
     fn validate(&self) -> Result<()> {
         let transport_is_exclusive = match self.playback_mode {
-            RecordingPlaybackMode::Live => self.live_responses > 0 && self.redap_responses == 0,
+            RecordingPlaybackMode::Live => {
+                self.live_responses > 0
+                    && self
+                        .redap_paths
+                        .iter()
+                        .all(|path| rerun_live_control_plane_probe(path))
+            }
             RecordingPlaybackMode::Archive => {
                 self.live_responses == 0
                     && self.redap_responses > 0
@@ -553,6 +559,10 @@ fn required_redap_paths_succeeded(paths: &[String]) -> bool {
     .all(|required| paths.iter().any(|path| path.ends_with(required)))
 }
 
+fn rerun_live_control_plane_probe(path: &str) -> bool {
+    path.ends_with("/WhoAmI") || path.ends_with("/Version")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -674,8 +684,21 @@ mod tests {
         };
         evidence.validate().unwrap();
 
+        let control_plane_probe = RecordingPlaybackNetworkEvidence {
+            redap_responses: 2,
+            redap_paths: vec![
+                "/rerun.cloud.v1alpha1.RerunCloudService/WhoAmI".to_owned(),
+                "/rerun.cloud.v1alpha1.RerunCloudService/Version".to_owned(),
+            ],
+            ..evidence.clone()
+        };
+        control_plane_probe.validate().unwrap();
+
         let mixed = RecordingPlaybackNetworkEvidence {
             redap_responses: 1,
+            redap_paths: vec![
+                "/rerun.cloud.v1alpha1.RerunCloudService/ReadDatasetEntry".to_owned(),
+            ],
             ..evidence.clone()
         };
         assert!(mixed.validate().is_err());
