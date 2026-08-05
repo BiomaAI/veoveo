@@ -82,7 +82,8 @@ pub use recording_blueprints::{
     RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingBlueprintOutcome,
 };
 pub use recording_ingest::{
-    RecordingIngestAppendOutcome, RecordingIngestBatchDraft, RecordingIngestStreamDraft,
+    RecordingIngestAppendOutcome, RecordingIngestBatchDraft, RecordingIngestQuotaCheckpoint,
+    RecordingIngestStreamDraft,
 };
 pub use recordings::{RecordingDraft, RecordingSeal, SegmentDraft, SegmentSealBinding};
 pub use simulation_view::{

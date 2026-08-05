@@ -19,8 +19,9 @@ use veoveo_platform_store::{
     PlatformIdentity, PlatformStore, PrincipalId, PrincipalKind, RecordId, RecordIdKey,
     RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingDraft, RecordingId,
     RecordingIngestBatchDraft, RecordingIngestBatchState, RecordingIngestQuota,
-    RecordingIngestStreamId, RecordingIngestStreamRecord, RecordingIngestStreamState, SegmentDraft,
-    SegmentId, SegmentRecord, SegmentState, StoreError, TenantId,
+    RecordingIngestQuotaCheckpoint, RecordingIngestStreamId, RecordingIngestStreamRecord,
+    RecordingIngestStreamState, SegmentDraft, SegmentId, SegmentRecord, SegmentState, StoreError,
+    TenantId,
 };
 use veoveo_recording_protocol::{
     BatchValidationError, DEFAULT_MAXIMUM_BATCH_BYTES, REQUIRED_SCOPE,
@@ -176,6 +177,7 @@ pub struct RecordingIngestService {
     materialization: Arc<tokio::sync::Mutex<()>>,
     authorized_streams:
         Arc<std::sync::Mutex<BTreeMap<RecordingIngestStreamId, AuthorizedIngestStream>>>,
+    active_segments: Arc<std::sync::Mutex<BTreeMap<RecordingIngestStreamId, ActiveIngestSegment>>>,
     segment_byte_lengths: Arc<std::sync::Mutex<BTreeMap<PathBuf, u64>>>,
 }
 
@@ -183,6 +185,13 @@ pub struct RecordingIngestService {
 struct AuthorizedIngestStream {
     identity: PlatformIdentity,
     stream: RecordingIngestStreamRecord,
+    quota: RecordingIngestQuotaCheckpoint,
+}
+
+#[derive(Clone)]
+struct ActiveIngestSegment {
+    segment: SegmentRecord,
+    path: PathBuf,
 }
 
 impl RecordingIngestService {
@@ -201,6 +210,7 @@ impl RecordingIngestService {
             config,
             materialization: Arc::new(tokio::sync::Mutex::new(())),
             authorized_streams: Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+            active_segments: Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             segment_byte_lengths: Arc::new(std::sync::Mutex::new(BTreeMap::new())),
         })
     }
@@ -291,19 +301,33 @@ impl RecordingIngestService {
             .map_err(|_| anyhow::anyhow!("recording ingest stream cache lock is poisoned"))?
             .get(&stream_id)
             .cloned();
-        let (identity, stream) = if let Some(cached) = cached {
+        let now = chrono::Utc::now();
+        let (identity, stream, quota) = if let Some(cached) = cached {
             validate_authorized_stream(&cached.identity, producer, &cached.stream)?;
-            (cached.identity, cached.stream)
+            let quota = if cached.quota.is_current(now) {
+                cached.quota
+            } else {
+                self.store
+                    .recording_ingest_quota_checkpoint(
+                        cached.identity.tenant_id,
+                        &producer.producer_id,
+                        now,
+                    )
+                    .await?
+            };
+            (cached.identity, cached.stream, quota)
         } else {
             let identity = self.ensure_identity(gateway, producer).await?;
             let stream = self
                 .authorized_stream(&identity, producer, stream_id)
                 .await?;
-            (identity, stream)
+            let quota = self
+                .store
+                .recording_ingest_quota_checkpoint(identity.tenant_id, &producer.producer_id, now)
+                .await?;
+            (identity, stream, quota)
         };
-        if chrono::Utc::now()
-            > stream.opened_at + chrono::TimeDelta::days(i64::from(producer.open_stream_days))
-        {
+        if now > stream.opened_at + chrono::TimeDelta::days(i64::from(producer.open_stream_days)) {
             return Err(
                 veoveo_platform_store::StoreError::RecordingIngestStreamExpired(
                     stream_id.to_string(),
@@ -330,8 +354,9 @@ impl RecordingIngestService {
             self.write_journal(identity.tenant_id, stream_id, batch)?;
         let outcome = self
             .store
-            .commit_recording_ingest_batch_at_checkpoint(
+            .commit_recording_ingest_batch_at_checkpoints(
                 stream,
+                quota.clone(),
                 RecordingIngestBatchDraft {
                     identity: identity.clone(),
                     stream_id,
@@ -363,6 +388,7 @@ impl RecordingIngestService {
                 AuthorizedIngestStream {
                     identity,
                     stream: stream.clone(),
+                    quota,
                 },
             );
         Ok(AppendRecordingBatchResult {
@@ -725,7 +751,8 @@ impl RecordingIngestService {
             && self.segment_is_due(&segment, segment_byte_len)?
             && (!segment_contains_video(&parts_directory) || video.begins_with_keyframe)
         {
-            self.freeze_segment(identity, segment, &path).await?;
+            self.freeze_segment(identity, stream_id, segment, &path)
+                .await?;
             (segment, path) = self.active_segment(identity, stream_id, stream).await?;
             parts_directory = ingest_segment_parts_directory(&path);
             segment_byte_len = self.segment_byte_len(&parts_directory)?;
@@ -764,7 +791,8 @@ impl RecordingIngestService {
         if self.segment_is_due(&segment, segment_byte_len)?
             && !segment_contains_video(&parts_directory)
         {
-            self.freeze_segment(identity, segment, &path).await?;
+            self.freeze_segment(identity, stream_id, segment, &path)
+                .await?;
         }
         Ok(stream)
     }
@@ -775,6 +803,15 @@ impl RecordingIngestService {
         stream_id: RecordingIngestStreamId,
         stream: &RecordingIngestStreamRecord,
     ) -> Result<(SegmentRecord, PathBuf)> {
+        if let Some(active) = self
+            .active_segments
+            .lock()
+            .map_err(|_| anyhow::anyhow!("recording active segment cache lock is poisoned"))?
+            .get(&stream_id)
+            .cloned()
+        {
+            return Ok((active.segment, active.path));
+        }
         let recording_id = typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?;
         let segments = self
             .store
@@ -798,8 +835,10 @@ impl RecordingIngestService {
         {
             let path = self.segment_path(&segment)?;
             if path.exists() {
-                self.freeze_segment(identity, segment, &path).await?;
+                self.freeze_segment(identity, stream_id, segment, &path)
+                    .await?;
             } else {
+                self.remember_active_segment(stream_id, &segment, &path)?;
                 return Ok((segment, path));
             }
         }
@@ -835,15 +874,21 @@ impl RecordingIngestService {
                 start_time: Some(chrono::Utc::now()),
             })
             .await?;
+        self.remember_active_segment(stream_id, &segment, &path)?;
         Ok((segment, path))
     }
 
     async fn freeze_active_segment(
         &self,
         identity: &PlatformIdentity,
-        _stream_id: RecordingIngestStreamId,
+        stream_id: RecordingIngestStreamId,
         stream: &RecordingIngestStreamRecord,
     ) -> Result<()> {
+        if let Some(active) = self.take_active_segment(stream_id)? {
+            return self
+                .freeze_segment(identity, stream_id, active.segment, &active.path)
+                .await;
+        }
         let recording_id = typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?;
         let segments = self
             .store
@@ -855,7 +900,8 @@ impl RecordingIngestService {
             .max_by_key(|segment| segment.ordinal)
         {
             let path = self.segment_path(&segment)?;
-            self.freeze_segment(identity, segment, &path).await?;
+            self.freeze_segment(identity, stream_id, segment, &path)
+                .await?;
         }
         Ok(())
     }
@@ -863,9 +909,11 @@ impl RecordingIngestService {
     async fn freeze_segment(
         &self,
         identity: &PlatformIdentity,
+        stream_id: RecordingIngestStreamId,
         segment: SegmentRecord,
         path: &Path,
     ) -> Result<()> {
+        self.forget_active_segment(stream_id)?;
         let parts_directory = ingest_segment_parts_directory(path);
         let (message_count, ended_at) = if path.exists() {
             let source = path.to_path_buf();
@@ -891,6 +939,40 @@ impl RecordingIngestService {
         remove_directory_if_exists(&parts_directory)?;
         self.forget_segment_byte_len(&parts_directory)?;
         Ok(())
+    }
+
+    fn remember_active_segment(
+        &self,
+        stream_id: RecordingIngestStreamId,
+        segment: &SegmentRecord,
+        path: &Path,
+    ) -> Result<()> {
+        self.active_segments
+            .lock()
+            .map_err(|_| anyhow::anyhow!("recording active segment cache lock is poisoned"))?
+            .insert(
+                stream_id,
+                ActiveIngestSegment {
+                    segment: segment.clone(),
+                    path: path.to_path_buf(),
+                },
+            );
+        Ok(())
+    }
+
+    fn take_active_segment(
+        &self,
+        stream_id: RecordingIngestStreamId,
+    ) -> Result<Option<ActiveIngestSegment>> {
+        Ok(self
+            .active_segments
+            .lock()
+            .map_err(|_| anyhow::anyhow!("recording active segment cache lock is poisoned"))?
+            .remove(&stream_id))
+    }
+
+    fn forget_active_segment(&self, stream_id: RecordingIngestStreamId) -> Result<()> {
+        self.take_active_segment(stream_id).map(|_| ())
     }
 
     fn segment_is_due(&self, segment: &SegmentRecord, byte_len: u64) -> Result<bool> {

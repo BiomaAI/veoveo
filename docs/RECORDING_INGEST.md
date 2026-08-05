@@ -86,11 +86,20 @@ accepts identical bytes but cannot replace an existing sequence or Blueprint
 revision with different bytes.
 
 The serialized materializer retains the last authorized open-stream checkpoint
-in memory. Every request still carries current Gateway authorization and is
-checked against the immutable producer and ownership binding. The transaction
-compares revision and sequence before it commits; a process restart or conflict
-rehydrates the checkpoint from SurrealDB. Successful commits project the exact
-written fields locally and avoid redundant database readbacks on the live path.
+and active writing-segment identity in memory. Every request still carries
+current Gateway authorization and is checked against the immutable producer and
+ownership binding. The transaction compares revision and sequence before it
+commits; a process restart or conflict rehydrates both checkpoints from
+SurrealDB. Successful commits project the exact written fields locally and
+avoid redundant database and catalog readbacks on the live path.
+
+Producer rate and byte quotas use fixed UTC minute and UTC day windows. One
+deterministic counter record per active window is updated atomically with the
+batch ledger and stream checkpoint. The first append in a window seeds that
+counter from the indexed ledger, which preserves an in-progress window across
+an upgrade or Hub restart. Later appends perform constant-size updates rather
+than aggregating the producer's retained batch history. Expired counter records
+are removed when the next window is created.
 
 One ordered materializer converts a journal batch into an immutable sequence
 part beneath one cataloged writing segment before the append completes. A batch

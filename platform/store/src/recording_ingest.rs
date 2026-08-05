@@ -1,12 +1,13 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
+use uuid::Uuid;
 
 use crate::{
     PlatformIdentity, PlatformStore, RecordingId, RecordingIngestBatchId,
     RecordingIngestBatchRecord, RecordingIngestBatchState, RecordingIngestQuota,
-    RecordingIngestStreamId, RecordingIngestStreamRecord, RecordingIngestStreamState, StoreError,
-    TenantId,
+    RecordingIngestQuotaWindowId, RecordingIngestStreamId, RecordingIngestStreamRecord,
+    RecordingIngestStreamState, StoreError, TenantId,
 };
 
 const MAX_TEXT_LENGTH: usize = 512;
@@ -46,6 +47,73 @@ pub struct RecordingIngestAppendOutcome {
     pub duplicate: bool,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecordingIngestQuotaCheckpoint {
+    minute: RecordingIngestQuotaWindow,
+    day: RecordingIngestQuotaWindow,
+}
+
+impl RecordingIngestQuotaCheckpoint {
+    pub fn is_current(&self, at: DateTime<Utc>) -> bool {
+        self.minute.contains(at) && self.day.contains(at)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct RecordingIngestQuotaWindow {
+    id: RecordingIngestQuotaWindowId,
+    period: RecordingIngestQuotaPeriod,
+    started_at: DateTime<Utc>,
+    ends_at: DateTime<Utc>,
+}
+
+impl RecordingIngestQuotaWindow {
+    fn new(
+        tenant_id: TenantId,
+        producer_id: &str,
+        period: RecordingIngestQuotaPeriod,
+        started_at: DateTime<Utc>,
+        ends_at: DateTime<Utc>,
+    ) -> Self {
+        let key = format!(
+            "{}|{}|{}|{}",
+            tenant_id,
+            producer_id,
+            period.name(),
+            started_at.to_rfc3339()
+        );
+        Self {
+            id: RecordingIngestQuotaWindowId::from_uuid(Uuid::new_v5(
+                &Uuid::NAMESPACE_OID,
+                key.as_bytes(),
+            )),
+            period,
+            started_at,
+            ends_at,
+        }
+    }
+
+    fn contains(&self, at: DateTime<Utc>) -> bool {
+        self.started_at <= at && at < self.ends_at
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, SurrealValue)]
+#[serde(rename_all = "snake_case")]
+enum RecordingIngestQuotaPeriod {
+    Minute,
+    Day,
+}
+
+impl RecordingIngestQuotaPeriod {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Minute => "minute",
+            Self::Day => "day",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
 struct RecordingIngestStreamContent {
     tenant: RecordId,
@@ -83,6 +151,39 @@ struct RecordingIngestBatchContent {
     state: RecordingIngestBatchState,
     created_at: DateTime<Utc>,
     materialized_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
+struct RecordingIngestQuotaWindowContent {
+    tenant: RecordId,
+    producer_id: String,
+    period: RecordingIngestQuotaPeriod,
+    window_started_at: DateTime<Utc>,
+    window_ends_at: DateTime<Utc>,
+    batch_count: i64,
+    byte_len: i64,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
+struct RecordingIngestQuotaWindowRecord {
+    id: RecordId,
+    tenant: RecordId,
+    producer_id: String,
+    period: RecordingIngestQuotaPeriod,
+    window_started_at: DateTime<Utc>,
+    window_ends_at: DateTime<Utc>,
+    batch_count: i64,
+    byte_len: i64,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Deserialize, SurrealValue)]
+struct RecordingIngestQuotaUsage {
+    batch_count: i64,
+    byte_len: Option<i64>,
 }
 
 impl PlatformStore {
@@ -216,7 +317,70 @@ impl PlatformStore {
     /// written by that transaction instead of issuing redundant readbacks.
     pub async fn commit_recording_ingest_batch_at_checkpoint(
         &self,
+        stream: RecordingIngestStreamRecord,
+        draft: RecordingIngestBatchDraft,
+    ) -> Result<RecordingIngestAppendOutcome, StoreError> {
+        let quota = self
+            .recording_ingest_quota_checkpoint(
+                draft.identity.tenant_id,
+                &draft.producer_id,
+                Utc::now(),
+            )
+            .await?;
+        self.commit_recording_ingest_batch_at_checkpoints(stream, quota, draft)
+            .await
+    }
+
+    pub async fn recording_ingest_quota_checkpoint(
+        &self,
+        tenant_id: TenantId,
+        producer_id: &str,
+        at: DateTime<Utc>,
+    ) -> Result<RecordingIngestQuotaCheckpoint, StoreError> {
+        validate_text("producer_id", producer_id)?;
+        let minute_start = at
+            .with_second(0)
+            .and_then(|value| value.with_nanosecond(0))
+            .ok_or(StoreError::InvalidRecordingIngestField {
+                field: "quota_time",
+                reason: "could not derive a UTC minute boundary",
+            })?;
+        let day_start = at
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .map(|value| value.and_utc())
+            .ok_or(StoreError::InvalidRecordingIngestField {
+                field: "quota_time",
+                reason: "could not derive a UTC day boundary",
+            })?;
+        let minute = RecordingIngestQuotaWindow::new(
+            tenant_id,
+            producer_id,
+            RecordingIngestQuotaPeriod::Minute,
+            minute_start,
+            minute_start + TimeDelta::minutes(1),
+        );
+        let day = RecordingIngestQuotaWindow::new(
+            tenant_id,
+            producer_id,
+            RecordingIngestQuotaPeriod::Day,
+            day_start,
+            day_start + TimeDelta::days(1),
+        );
+        self.ensure_recording_ingest_quota_window(tenant_id, producer_id, &minute)
+            .await?;
+        self.ensure_recording_ingest_quota_window(tenant_id, producer_id, &day)
+            .await?;
+        Ok(RecordingIngestQuotaCheckpoint { minute, day })
+    }
+
+    /// Commits one batch against stream and quota checkpoints already held by
+    /// the serialized materializer. The quota records remain database-atomic,
+    /// while ordinary appends avoid rediscovering their fixed UTC windows.
+    pub async fn commit_recording_ingest_batch_at_checkpoints(
+        &self,
         mut stream: RecordingIngestStreamRecord,
+        quota: RecordingIngestQuotaCheckpoint,
         draft: RecordingIngestBatchDraft,
     ) -> Result<RecordingIngestAppendOutcome, StoreError> {
         validate_batch_draft(&draft)?;
@@ -234,6 +398,12 @@ impl PlatformStore {
 
         let batch_id = RecordingIngestBatchId::new();
         let now = Utc::now();
+        if !quota.is_current(now) {
+            return Err(StoreError::InvalidRecordingIngestField {
+                field: "quota_checkpoint",
+                reason: "does not contain the batch acceptance time",
+            });
+        }
         let sequence = checked_i64("sequence", draft.sequence)?;
         let byte_len = checked_i64("byte_len", draft.byte_len)?;
         let message_count = checked_i64("message_count", draft.message_count)?;
@@ -253,7 +423,7 @@ impl PlatformStore {
         };
         let committed = self
             .db
-            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $stream); IF $current.state != 'open' OR $current.revision != $revision OR $current.next_sequence != $sequence { THROW 'recording_ingest_checkpoint_conflict'; }; LET $minute_batches = (SELECT VALUE id FROM recording_ingest_batch WHERE tenant = $tenant AND producer_id = $producer_id AND created_at >= $minute_cutoff); IF array::len($minute_batches) >= $maximum_batches_per_minute { THROW 'recording_ingest_batches_per_minute_quota'; }; LET $day_bytes = (SELECT VALUE byte_len FROM recording_ingest_batch WHERE tenant = $tenant AND producer_id = $producer_id AND created_at >= $day_cutoff); IF math::sum($day_bytes) + $byte_len > $maximum_bytes_per_day { THROW 'recording_ingest_bytes_per_day_quota'; }; CREATE ONLY $batch CONTENT $content RETURN NONE; UPDATE ONLY $stream SET next_sequence += 1, byte_len += $byte_len, message_count += $message_count, updated_at = $now, revision += 1 RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $stream); IF $current.state != 'open' OR $current.revision != $revision OR $current.next_sequence != $sequence { THROW 'recording_ingest_checkpoint_conflict'; }; LET $minute = (UPDATE ONLY $minute_window SET batch_count += 1, byte_len += $byte_len, updated_at = $now WHERE tenant = $tenant AND producer_id = $producer_id AND period = 'minute' AND window_started_at = $minute_started_at AND window_ends_at = $minute_ends_at AND batch_count < $maximum_batches_per_minute RETURN AFTER); IF $minute = NONE { THROW 'recording_ingest_batches_per_minute_quota'; }; LET $day = (UPDATE ONLY $day_window SET batch_count += 1, byte_len += $byte_len, updated_at = $now WHERE tenant = $tenant AND producer_id = $producer_id AND period = 'day' AND window_started_at = $day_started_at AND window_ends_at = $day_ends_at AND byte_len + $byte_len <= $maximum_bytes_per_day RETURN AFTER); IF $day = NONE { THROW 'recording_ingest_bytes_per_day_quota'; }; CREATE ONLY $batch CONTENT $content RETURN NONE; UPDATE ONLY $stream SET next_sequence += 1, byte_len += $byte_len, message_count += $message_count, updated_at = $now, revision += 1 RETURN NONE; COMMIT TRANSACTION;")
             .bind(("stream", draft.stream_id.record_id()))
             .bind(("revision", stream.revision))
             .bind(("sequence", sequence))
@@ -264,8 +434,12 @@ impl PlatformStore {
             .bind(("now", now))
             .bind(("tenant", draft.identity.tenant_id.record_id()))
             .bind(("producer_id", draft.producer_id.clone()))
-            .bind(("minute_cutoff", now - chrono::TimeDelta::minutes(1)))
-            .bind(("day_cutoff", now - chrono::TimeDelta::days(1)))
+            .bind(("minute_window", quota.minute.id.record_id()))
+            .bind(("minute_started_at", quota.minute.started_at))
+            .bind(("minute_ends_at", quota.minute.ends_at))
+            .bind(("day_window", quota.day.id.record_id()))
+            .bind(("day_started_at", quota.day.started_at))
+            .bind(("day_ends_at", quota.day.ends_at))
             .bind((
                 "maximum_batches_per_minute",
                 i64::from(draft.maximum_batches_per_minute),
@@ -337,6 +511,74 @@ impl PlatformStore {
             batch,
             duplicate: false,
         })
+    }
+
+    async fn ensure_recording_ingest_quota_window(
+        &self,
+        tenant_id: TenantId,
+        producer_id: &str,
+        window: &RecordingIngestQuotaWindow,
+    ) -> Result<(), StoreError> {
+        if let Some(existing) = self.recording_ingest_quota_window(window.id).await? {
+            return validate_quota_window(&existing, tenant_id, producer_id, window);
+        }
+
+        let mut response = self
+            .db
+            .query("SELECT count() AS batch_count, math::sum(byte_len) AS byte_len FROM recording_ingest_batch WHERE tenant = $tenant AND producer_id = $producer_id AND created_at >= $started_at AND created_at < $ends_at GROUP ALL;")
+            .bind(("tenant", tenant_id.record_id()))
+            .bind(("producer_id", producer_id.to_owned()))
+            .bind(("started_at", window.started_at))
+            .bind(("ends_at", window.ends_at))
+            .await?
+            .check()?;
+        let usage = response
+            .take::<Vec<RecordingIngestQuotaUsage>>(0)?
+            .into_iter()
+            .next();
+        let now = Utc::now();
+        let content = RecordingIngestQuotaWindowContent {
+            tenant: tenant_id.record_id(),
+            producer_id: producer_id.to_owned(),
+            period: window.period,
+            window_started_at: window.started_at,
+            window_ends_at: window.ends_at,
+            batch_count: usage.as_ref().map_or(0, |usage| usage.batch_count),
+            byte_len: usage.and_then(|usage| usage.byte_len).unwrap_or_default(),
+            created_at: now,
+            updated_at: now,
+        };
+        let created = self
+            .db
+            .query("BEGIN TRANSACTION; CREATE ONLY $window CONTENT $content RETURN NONE; DELETE recording_ingest_quota_window WHERE tenant = $tenant AND producer_id = $producer_id AND window_ends_at <= $started_at RETURN NONE; COMMIT TRANSACTION;")
+            .bind(("window", window.id.record_id()))
+            .bind(("content", content))
+            .bind(("tenant", tenant_id.record_id()))
+            .bind(("producer_id", producer_id.to_owned()))
+            .bind(("started_at", window.started_at))
+            .await
+            .and_then(|response| response.check());
+        if let Err(error) = created {
+            let existing = self
+                .recording_ingest_quota_window(window.id)
+                .await?
+                .ok_or_else(|| classify_database_error(error))?;
+            return validate_quota_window(&existing, tenant_id, producer_id, window);
+        }
+        Ok(())
+    }
+
+    async fn recording_ingest_quota_window(
+        &self,
+        window_id: RecordingIngestQuotaWindowId,
+    ) -> Result<Option<RecordingIngestQuotaWindowRecord>, StoreError> {
+        let mut response = self
+            .db
+            .query("SELECT * FROM ONLY $window;")
+            .bind(("window", window_id.record_id()))
+            .await?
+            .check()?;
+        Ok(response.take(0)?)
     }
 
     pub async fn recording_ingest_batch(
@@ -596,6 +838,30 @@ fn validate_existing_stream(
     Ok(())
 }
 
+fn validate_quota_window(
+    existing: &RecordingIngestQuotaWindowRecord,
+    tenant_id: TenantId,
+    producer_id: &str,
+    expected: &RecordingIngestQuotaWindow,
+) -> Result<(), StoreError> {
+    if existing.id != expected.id.record_id()
+        || existing.tenant != tenant_id.record_id()
+        || existing.producer_id != producer_id
+        || existing.period != expected.period
+        || existing.window_started_at != expected.started_at
+        || existing.window_ends_at != expected.ends_at
+        || existing.batch_count < 0
+        || existing.byte_len < 0
+        || existing.updated_at < existing.created_at
+    {
+        return Err(StoreError::InvalidRecordingIngestField {
+            field: "quota_checkpoint",
+            reason: "stored quota window does not match its deterministic identity",
+        });
+    }
+    Ok(())
+}
+
 fn validate_batch_draft(draft: &RecordingIngestBatchDraft) -> Result<(), StoreError> {
     validate_text("payload_format", &draft.payload_format)?;
     validate_text("relative_path", &draft.relative_path)?;
@@ -703,5 +969,37 @@ mod tests {
         draft.relative_path = "journal/batch.rrd".to_owned();
         draft.sha256 = "not-a-digest".to_owned();
         assert!(validate_batch_draft(&draft).is_err());
+    }
+
+    #[test]
+    fn quota_window_identity_is_stable_and_utc_bounded() {
+        let tenant_id = TenantId::new();
+        let started_at = "2026-08-05T07:25:00Z".parse().unwrap();
+        let first = RecordingIngestQuotaWindow::new(
+            tenant_id,
+            "producer-a",
+            RecordingIngestQuotaPeriod::Minute,
+            started_at,
+            started_at + TimeDelta::minutes(1),
+        );
+        let repeated = RecordingIngestQuotaWindow::new(
+            tenant_id,
+            "producer-a",
+            RecordingIngestQuotaPeriod::Minute,
+            started_at,
+            started_at + TimeDelta::minutes(1),
+        );
+        let next = RecordingIngestQuotaWindow::new(
+            tenant_id,
+            "producer-a",
+            RecordingIngestQuotaPeriod::Minute,
+            started_at + TimeDelta::minutes(1),
+            started_at + TimeDelta::minutes(2),
+        );
+        assert_eq!(first, repeated);
+        assert_ne!(first.id, next.id);
+        assert!(first.contains(started_at));
+        assert!(first.contains(started_at + TimeDelta::seconds(59)));
+        assert!(!first.contains(started_at + TimeDelta::minutes(1)));
     }
 }
