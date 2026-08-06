@@ -41,6 +41,7 @@ authoritative until each planned change lands:
 |---|---|
 | [`REPOSITORY_HARDENING_PLAN.md`](REPOSITORY_HARDENING_PLAN.md) | compiled repository tooling, contract enforcement, test and smoke ownership, architecture policy, supply-chain hardening, external-extension seams, and governance |
 | [`RMCP_3_MIGRATION.md`](RMCP_3_MIGRATION.md) | hard cut to MCP `2026-07-28` and `rmcp` 3, official Tasks and multi-round requests, stateless transport, subscription and replica redesign, Rig migration, duplicate protocol deletion, and acceptance |
+| [`SIMULATION_LIVE_VIEW_HARD_CUT.md`](SIMULATION_LIVE_VIEW_HARD_CUT.md) | early hard cut from the mirrored Simulation View stack to simulator-hosted authoritative cameras, one encoded product per camera, ephemeral viewer leases, and shared conformance |
 
 MCP designs live with the crate whose public contract they specify:
 
