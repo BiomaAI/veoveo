@@ -174,6 +174,13 @@ new source stream. Local batches retain their durable queue order while remote
 sequences restart from one. Playback and governance continue to address one
 recording across every generation.
 
+A producer slot that intentionally owns one recording per application may pass
+`--finish-superseded-recordings`. The first `SetStoreInfo` for a new recording
+identity durably marks older queued recordings from that application for
+completion. Their accepted batches and Blueprint revisions drain before the
+finish request. A forwarder restart that receives the same recording identity
+does not close that recording. Multi-recording producers omit this flag.
+
 The producer registration supplies a JWKS public key. The matching private key stays on
 the producer as a PEM file and is selected by key ID and algorithm. A producer
 uses these canonical settings:

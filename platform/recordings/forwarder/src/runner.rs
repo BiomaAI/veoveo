@@ -163,6 +163,7 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
                         &queue,
                         &queue_events,
                         limits,
+                        config.finish_superseded_recordings,
                     )
                     .await?;
                 }
@@ -183,6 +184,7 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
                 &queue,
                 &queue_events,
                 limits,
+                config.finish_superseded_recordings,
             )
             .await?;
         }
@@ -224,8 +226,28 @@ async fn handle_rerun_message(
     queue: &Arc<Mutex<DurableQueue>>,
     queue_events: &Arc<QueueEvents>,
     limits: RerunIngestLimits,
+    finish_superseded_recordings: bool,
 ) -> Result<()> {
     let store_id = message.store_id().clone();
+    if finish_superseded_recordings
+        && store_id.kind() == StoreKind::Recording
+        && matches!(message, LogMsg::SetStoreInfo(_))
+    {
+        let changed = queue
+            .lock()
+            .expect("durable queue mutex poisoned")
+            .request_finish_superseded(
+                store_id.application_id().as_str(),
+                store_id.recording_id().as_str(),
+            )?;
+        if changed > 0 {
+            info!(
+                superseded_recordings = changed,
+                "new producer recording generation requested durable completion of prior generations"
+            );
+            queue_events.work_available.notify_one();
+        }
+    }
     match store_id.kind() {
         StoreKind::Recording => {
             let accumulator = match accumulators.entry(store_id.clone()) {
