@@ -27,6 +27,20 @@ image and its later qualified publication must share that digest. GitOps receive
 complete digest map, while Kubernetes rolls only Deployments whose selected digest
 changed. Qualification adds supply-chain attestations after behavior is accepted.
 
+## Evidence And Defect Records
+
+`output/` contains disposable generated evidence, build products, downloaded tooling,
+and runtime caches. It is never the authoritative location for a defect, follow-up, or
+engineering decision. A generated report may be cited by path while a run is being
+examined, but losing the directory must not lose the issue.
+
+Repository-wide iteration defects and their measured costs belong in `Recorded
+Iteration Sinks` below. A component-specific correctness defect belongs in that
+component's source-controlled design or operating document. Record the observation,
+the affected boundary, and the required correction there before ending the work that
+found it. Do not maintain Markdown notes, ad hoc TODO lists, or defect backlogs under
+`output/`.
+
 ## Fast Path
 
 Begin from a clean committed revision. The affected planner also sees working-tree
