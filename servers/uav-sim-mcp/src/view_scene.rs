@@ -188,7 +188,7 @@ fn build_prepared_scene(
             LiveCameraSource::Orbit,
             LiveCameraSource::FollowEntity,
             LiveCameraSource::ChaseEntity,
-            LiveCameraSource::MountedEntity,
+            LiveCameraSource::StabilizedMountedEntity,
             LiveCameraSource::FormationOverview,
         ],
         lighting: SceneLighting {
@@ -334,7 +334,7 @@ mod tests {
                 LiveCameraSource::Orbit,
                 LiveCameraSource::FollowEntity,
                 LiveCameraSource::ChaseEntity,
-                LiveCameraSource::MountedEntity,
+                LiveCameraSource::StabilizedMountedEntity,
                 LiveCameraSource::FormationOverview,
             ]
         );

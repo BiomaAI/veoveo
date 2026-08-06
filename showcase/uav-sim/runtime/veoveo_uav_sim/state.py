@@ -11,6 +11,8 @@ from .config import RuntimeConfig
 from .geo import enu_to_geodetic
 from .camera_quality import CameraFrameQuality
 from .pose import initial_pose_publication
+from .operator_camera import CameraStreamPolicy
+from .operator_camera_config import live_camera_descriptor
 from .world_config import WorldConfiguration
 
 
@@ -92,6 +94,24 @@ class RuntimeState:
                     "non_black_fraction": 0.0,
                     "content": "black",
                 }
+            ],
+            "live_cameras": [
+                live_camera_descriptor(config.session_id, camera)
+                for camera in config.operator_live_view.cameras
+            ],
+            "stream_products": [
+                {
+                    "streamProductId": f"product-{camera.camera_id}",
+                    "cameraId": camera.camera_id,
+                    "physicalSlot": camera.physical_slot,
+                    "lifecycle": "inactive",
+                    "activeViewerLeases": 0,
+                    "connectedViewers": 0,
+                    "nvencSessions": 0,
+                    "encodedFrames": 0,
+                }
+                for camera in config.operator_live_view.cameras
+                if camera.stream_policy is not CameraStreamPolicy.DISABLED
             ],
             "pose_publication": initial_pose_publication(
                 config.pose_publication,
@@ -204,6 +224,29 @@ class RuntimeState:
                     self._touch()
                     return
             raise ValueError(f"unknown camera vehicle {vehicle_id!r}")
+
+    def update_stream_products(self, products: list[dict[str, object]]) -> None:
+        by_camera = {str(product["cameraId"]): product for product in products}
+        with self._condition:
+            self._state["stream_products"] = copy.deepcopy(products)
+            for camera in self._state["live_cameras"]:
+                product = by_camera.get(str(camera["cameraId"]))
+                if product is None:
+                    camera["health"] = "healthy"
+                    camera.pop("lastFrameAt", None)
+                    continue
+                lifecycle = product["lifecycle"]
+                camera["health"] = {
+                    "inactive": "healthy",
+                    "starting": "warming",
+                    "ready": "healthy",
+                    "failed": "failed",
+                }[str(lifecycle)]
+                if "lastFrameAt" in product:
+                    camera["lastFrameAt"] = product["lastFrameAt"]
+                else:
+                    camera.pop("lastFrameAt", None)
+            self._touch()
 
     def update_vehicles(self, vehicles: list[VehicleTelemetry]) -> None:
         with self._condition:

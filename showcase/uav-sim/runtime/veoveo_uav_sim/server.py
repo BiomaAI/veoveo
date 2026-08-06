@@ -18,6 +18,9 @@ from .contracts import (
     parse_operation,
 )
 from .fleet_loop import FleetLoopController
+from .operator_camera import CameraStreamPolicy
+from .operator_camera_config import live_camera_descriptor
+from .operator_products import OperatorProductCollection
 from .pose import initial_pose_publication
 from .px4 import Px4Commander
 from .recording import RecordingPublisher
@@ -107,6 +110,24 @@ class PreconfigurationApplication:
                     "recovery_count": 0,
                 },
                 "cameras": [],
+                "live_cameras": [
+                    live_camera_descriptor(self._config.session_id, camera)
+                    for camera in self._config.operator_live_view.cameras
+                ],
+                "stream_products": [
+                    {
+                        "streamProductId": f"product-{camera.camera_id}",
+                        "cameraId": camera.camera_id,
+                        "physicalSlot": camera.physical_slot,
+                        "lifecycle": "inactive",
+                        "activeViewerLeases": 0,
+                        "connectedViewers": 0,
+                        "nvencSessions": 0,
+                        "encodedFrames": 0,
+                    }
+                    for camera in self._config.operator_live_view.cameras
+                    if camera.stream_policy is not CameraStreamPolicy.DISABLED
+                ],
                 "pose_publication": initial_pose_publication(
                     self._config.pose_publication,
                     self._config.vehicle_count,
@@ -144,6 +165,8 @@ class AdapterApplication:
         recording: RecordingPublisher,
         world_slot: WorldConfigurationSlot,
         fleet_loop: FleetLoopController,
+        operator_products: OperatorProductCollection,
+        submit_main_thread: Callable[[Callable[[], object]], object],
     ) -> None:
         self._config = config
         self._state = state
@@ -152,6 +175,8 @@ class AdapterApplication:
         self._recording = recording
         self._world_slot = world_slot
         self._fleet_loop = fleet_loop
+        self._operator_products = operator_products
+        self._submit_main_thread = submit_main_thread
         self._app = web.Application(client_max_size=2 * 1024 * 1024)
         self._app.add_routes(
             [
@@ -161,6 +186,16 @@ class AdapterApplication:
                 web.post("/v1/world", self._configure_world),
                 web.post("/v1/commands", self._command),
                 web.post("/v1/operations", self._operation),
+                web.put(
+                    "/v1/live-products/{camera_id}/active", self._activate_product
+                ),
+                web.delete(
+                    "/v1/live-products/{camera_id}/active", self._deactivate_product
+                ),
+                web.post(
+                    "/v1/live-products/deactivate-all-on-demand",
+                    self._deactivate_all_on_demand,
+                ),
             ]
         )
 
@@ -232,6 +267,46 @@ class AdapterApplication:
             return web.json_response(result)
         except (ContractError, ValueError) as error:
             return web.json_response({"error": str(error)}, status=400)
+        except (RuntimeError, TimeoutError) as error:
+            return web.json_response({"error": str(error)}, status=409)
+
+    async def _activate_product(self, request: web.Request) -> web.Response:
+        return await self._set_product_active(request.match_info["camera_id"], True)
+
+    async def _deactivate_product(self, request: web.Request) -> web.Response:
+        return await self._set_product_active(request.match_info["camera_id"], False)
+
+    async def _deactivate_all_on_demand(
+        self, _request: web.Request
+    ) -> web.Response:
+        try:
+            await asyncio.to_thread(
+                self._submit_main_thread,
+                self._operator_products.deactivate_all_on_demand,
+            )
+            self._state.update_stream_products(self._operator_products.state())
+            return web.json_response({"accepted": True})
+        except (RuntimeError, TimeoutError) as error:
+            return web.json_response({"error": str(error)}, status=409)
+
+    async def _set_product_active(
+        self, camera_id: str, active: bool
+    ) -> web.Response:
+        try:
+            if active:
+                result = await asyncio.to_thread(
+                    self._submit_main_thread,
+                    lambda: self._operator_products.activate(camera_id),
+                )
+            else:
+                result = await asyncio.to_thread(
+                    self._submit_main_thread,
+                    lambda: self._operator_products.deactivate(camera_id),
+                )
+            self._state.update_stream_products(self._operator_products.state())
+            return web.json_response(result)
+        except ValueError as error:
+            return web.json_response({"error": str(error)}, status=404)
         except (RuntimeError, TimeoutError) as error:
             return web.json_response({"error": str(error)}, status=409)
 

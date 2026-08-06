@@ -90,10 +90,10 @@ class OperatorProductHealth:
             lifecycle = OperatorProductLifecycle.READY
         result: dict[str, object] = {
             "lifecycle": lifecycle.value,
-            "encoded_frames": self._sequence,
+            "encodedFrames": self._sequence,
         }
         if self._last_frame is not None:
-            result["last_frame_at"] = self._last_frame.observed_at
+            result["lastFrameAt"] = self._last_frame.observed_at
             if self._last_frame.visible is not None:
                 result["visible"] = self._last_frame.visible
         if self._diagnostic is not None:

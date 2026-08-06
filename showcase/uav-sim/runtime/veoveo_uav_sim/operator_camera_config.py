@@ -364,3 +364,103 @@ def _number(value: Any, context: str) -> float:
     if result != result or result in {float("inf"), float("-inf")}:
         raise ValueError(f"{context} must be finite")
     return result
+
+
+def live_camera_descriptor(
+    session_id: str,
+    camera: OperatorCameraDefinition,
+) -> dict[str, object]:
+    return {
+        "cameraId": camera.camera_id,
+        "sessionId": session_id,
+        "streamProductId": f"product-{camera.camera_id}",
+        "physicalSlot": camera.physical_slot,
+        "revision": camera.revision,
+        "rig": _rig_json(camera.rig),
+        "widthPx": camera.optics.width_px,
+        "heightPx": camera.optics.height_px,
+        "frameRateMillihertz": camera.optics.frame_rate_hz * 1_000,
+        "verticalFovDegrees": camera.optics.vertical_fov_degrees,
+        "nearClipM": camera.optics.near_clip_m,
+        "farClipM": camera.optics.far_clip_m,
+        "streamPolicy": camera.stream_policy.value,
+        "health": "warming",
+    }
+
+
+def _rig_json(rig: object) -> dict[str, object]:
+    if isinstance(rig, FixedRig):
+        return {"kind": "fixed", "pose": _pose_json(rig.pose)}
+    if isinstance(rig, LookAtRig):
+        return {
+            "kind": "look_at",
+            "eyeM": _vector_json(rig.eye_m),
+            "targetM": _vector_json(rig.target_m),
+            "smoothing": _smoothing_json(rig.smoothing),
+        }
+    if isinstance(rig, OrbitRig):
+        return {
+            "kind": "orbit",
+            "targetEntityId": rig.target_entity_id,
+            "radiusM": rig.radius_m,
+            "azimuthDegrees": rig.azimuth_degrees,
+            "elevationDegrees": rig.elevation_degrees,
+            "smoothing": _smoothing_json(rig.smoothing),
+        }
+    if isinstance(rig, FollowEntityRig):
+        return {
+            "kind": "follow_entity",
+            "targetEntityId": rig.target_entity_id,
+            "eyeOffsetFluM": _vector_json(rig.eye_offset_flu_m),
+            "targetOffsetFluM": _vector_json(rig.target_offset_flu_m),
+            "smoothing": _smoothing_json(rig.smoothing),
+        }
+    if isinstance(rig, ChaseEntityRig):
+        return {
+            "kind": "chase_entity",
+            "targetEntityId": rig.target_entity_id,
+            "distanceM": rig.distance_m,
+            "heightM": rig.height_m,
+            "smoothing": _smoothing_json(rig.smoothing),
+        }
+    if isinstance(rig, StabilizedMountedEntityRig):
+        return {
+            "kind": "stabilized_mounted_entity",
+            "targetEntityId": rig.target_entity_id,
+            "mount": _pose_json(rig.mount),
+            "smoothing": _smoothing_json(rig.smoothing),
+        }
+    if isinstance(rig, FormationOverviewRig):
+        return {
+            "kind": "formation_overview",
+            "targetEntityIds": list(rig.target_entity_ids),
+            "paddingM": rig.padding_m,
+            "smoothing": _smoothing_json(rig.smoothing),
+        }
+    raise TypeError(f"unsupported operator-camera rig {type(rig)!r}")
+
+
+def _vector_json(vector: Vector3) -> dict[str, float]:
+    return {"x": vector.x, "y": vector.y, "z": vector.z}
+
+
+def _pose_json(pose: Pose) -> dict[str, object]:
+    orientation = pose.orientation_xyzw.normalized()
+    return {
+        "positionM": _vector_json(pose.position_m),
+        "orientationXyzw": {
+            "x": orientation.x,
+            "y": orientation.y,
+            "z": orientation.z,
+            "w": orientation.w,
+        },
+    }
+
+
+def _smoothing_json(profile: CameraSmoothingProfile) -> dict[str, int]:
+    return {
+        "translationHalfLifeMs": profile.translation_half_life_ms,
+        "rotationHalfLifeMs": profile.rotation_half_life_ms,
+        "teleportDistanceMillimetres": int(round(profile.teleport_distance_m * 1_000.0)),
+        "resetAfterGapMs": profile.reset_after_gap_ms,
+    }
