@@ -76,6 +76,7 @@ macro_rules! id_type {
 id_type!(LiveViewId);
 id_type!(LiveSessionId);
 id_type!(LiveCameraId);
+id_type!(LiveEntityId);
 id_type!(LiveViewerInstanceId);
 id_type!(LiveStreamProductId);
 
@@ -97,10 +98,29 @@ pub struct LiveViewUri(String);
 impl LiveViewUri {
     pub fn new(value: impl Into<String>) -> Result<Self, LiveViewIdentityError> {
         let value = value.into();
-        if !value.starts_with("simulation-view://session/")
-            || !value.contains("/stream/")
+        let parsed = Url::parse(&value).map_err(|_| LiveViewIdentityError(value.clone()))?;
+        let valid_scheme = parsed.scheme().len() <= 64
+            && parsed
+                .scheme()
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+            && !matches!(parsed.scheme(), "http" | "https" | "ws" | "wss");
+        let segments = parsed
+            .path_segments()
+            .map(Iterator::collect::<Vec<_>>)
+            .unwrap_or_default();
+        if !valid_scheme
+            || parsed.host_str() != Some("session")
+            || segments.len() != 3
+            || validate_id(segments[0]).is_err()
+            || segments[1] != "live-view"
+            || validate_id(segments[2]).is_err()
+            || parsed.username() != ""
+            || parsed.password().is_some()
+            || parsed.port().is_some()
+            || parsed.query().is_some()
+            || parsed.fragment().is_some()
             || value.len() > 512
-            || value.chars().any(char::is_whitespace)
         {
             return Err(LiveViewIdentityError(value));
         }
@@ -212,9 +232,370 @@ pub enum LiveCameraSource {
     Orbit,
     FollowEntity,
     ChaseEntity,
-    MountedEntity,
+    StabilizedMountedEntity,
     FormationOverview,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LiveVector3 {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+}
+
+impl LiveVector3 {
+    pub fn finite(self) -> bool {
+        self.x.is_finite() && self.y.is_finite() && self.z.is_finite()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LiveQuaternionXyzw {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub w: f64,
+}
+
+impl LiveQuaternionXyzw {
+    pub fn normalized(self) -> bool {
+        let norm_squared = self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w;
+        norm_squared.is_finite() && (norm_squared - 1.0).abs() <= 1.0e-6
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LivePose {
+    pub position_m: LiveVector3,
+    pub orientation_xyzw: LiveQuaternionXyzw,
+}
+
+impl LivePose {
+    pub fn validate(self) -> Result<(), LiveCameraContractError> {
+        if !self.position_m.finite() || !self.orientation_xyzw.normalized() {
+            return Err(LiveCameraContractError::Pose);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LiveCameraSmoothing {
+    pub translation_half_life_ms: u32,
+    pub rotation_half_life_ms: u32,
+    pub teleport_distance_millimetres: u32,
+    pub reset_after_gap_ms: u32,
+}
+
+impl LiveCameraSmoothing {
+    pub fn validate(self) -> Result<(), LiveCameraContractError> {
+        if self.translation_half_life_ms > 60_000
+            || self.rotation_half_life_ms > 60_000
+            || self.teleport_distance_millimetres == 0
+            || self.teleport_distance_millimetres > 100_000_000
+            || self.reset_after_gap_ms == 0
+            || self.reset_after_gap_ms > 600_000
+        {
+            return Err(LiveCameraContractError::Smoothing);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
+pub enum LiveCameraRig {
+    Fixed {
+        pose: LivePose,
+    },
+    LookAt {
+        eye_m: LiveVector3,
+        target_m: LiveVector3,
+        smoothing: LiveCameraSmoothing,
+    },
+    Orbit {
+        target_entity_id: LiveEntityId,
+        radius_m: f64,
+        azimuth_degrees: f64,
+        elevation_degrees: f64,
+        smoothing: LiveCameraSmoothing,
+    },
+    FollowEntity {
+        target_entity_id: LiveEntityId,
+        eye_offset_flu_m: LiveVector3,
+        target_offset_flu_m: LiveVector3,
+        smoothing: LiveCameraSmoothing,
+    },
+    ChaseEntity {
+        target_entity_id: LiveEntityId,
+        distance_m: f64,
+        height_m: f64,
+        smoothing: LiveCameraSmoothing,
+    },
+    StabilizedMountedEntity {
+        target_entity_id: LiveEntityId,
+        mount: LivePose,
+        smoothing: LiveCameraSmoothing,
+    },
+    FormationOverview {
+        target_entity_ids: Vec<LiveEntityId>,
+        padding_m: f64,
+        smoothing: LiveCameraSmoothing,
+    },
+}
+
+impl LiveCameraRig {
+    pub fn source(&self) -> LiveCameraSource {
+        match self {
+            Self::Fixed { .. } => LiveCameraSource::Fixed,
+            Self::LookAt { .. } => LiveCameraSource::LookAt,
+            Self::Orbit { .. } => LiveCameraSource::Orbit,
+            Self::FollowEntity { .. } => LiveCameraSource::FollowEntity,
+            Self::ChaseEntity { .. } => LiveCameraSource::ChaseEntity,
+            Self::StabilizedMountedEntity { .. } => LiveCameraSource::StabilizedMountedEntity,
+            Self::FormationOverview { .. } => LiveCameraSource::FormationOverview,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), LiveCameraContractError> {
+        match self {
+            Self::Fixed { pose } => pose.validate(),
+            Self::LookAt {
+                eye_m,
+                target_m,
+                smoothing,
+            } => {
+                smoothing.validate()?;
+                if !eye_m.finite() || !target_m.finite() || eye_m == target_m {
+                    return Err(LiveCameraContractError::Rig);
+                }
+                Ok(())
+            }
+            Self::Orbit {
+                radius_m,
+                azimuth_degrees,
+                elevation_degrees,
+                smoothing,
+                ..
+            } => {
+                smoothing.validate()?;
+                if !radius_m.is_finite()
+                    || *radius_m <= 0.1
+                    || !azimuth_degrees.is_finite()
+                    || !elevation_degrees.is_finite()
+                    || !(-89.9..=89.9).contains(elevation_degrees)
+                {
+                    return Err(LiveCameraContractError::Rig);
+                }
+                Ok(())
+            }
+            Self::FollowEntity {
+                eye_offset_flu_m,
+                target_offset_flu_m,
+                smoothing,
+                ..
+            } => {
+                smoothing.validate()?;
+                if !eye_offset_flu_m.finite() || !target_offset_flu_m.finite() {
+                    return Err(LiveCameraContractError::Rig);
+                }
+                Ok(())
+            }
+            Self::ChaseEntity {
+                distance_m,
+                height_m,
+                smoothing,
+                ..
+            } => {
+                smoothing.validate()?;
+                if !distance_m.is_finite() || *distance_m <= 0.1 || !height_m.is_finite() {
+                    return Err(LiveCameraContractError::Rig);
+                }
+                Ok(())
+            }
+            Self::StabilizedMountedEntity {
+                mount, smoothing, ..
+            } => {
+                mount.validate()?;
+                smoothing.validate()
+            }
+            Self::FormationOverview {
+                target_entity_ids,
+                padding_m,
+                smoothing,
+            } => {
+                smoothing.validate()?;
+                if target_entity_ids.is_empty()
+                    || target_entity_ids.len() > 256
+                    || target_entity_ids.windows(2).any(|pair| pair[0] >= pair[1])
+                    || !padding_m.is_finite()
+                    || *padding_m < 0.0
+                {
+                    return Err(LiveCameraContractError::Rig);
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LiveCameraStreamPolicy {
+    Disabled,
+    OnDemand,
+    Continuous,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LiveCameraDescriptor {
+    pub camera_id: LiveCameraId,
+    pub session_id: LiveSessionId,
+    pub stream_product_id: LiveStreamProductId,
+    pub physical_slot: u16,
+    pub revision: u64,
+    pub rig: LiveCameraRig,
+    pub width_px: u32,
+    pub height_px: u32,
+    pub frame_rate_millihertz: u32,
+    pub vertical_fov_degrees: f64,
+    pub near_clip_m: f64,
+    pub far_clip_m: f64,
+    pub stream_policy: LiveCameraStreamPolicy,
+    pub health: LiveCameraHealth,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_frame_at: Option<DateTime<Utc>>,
+}
+
+impl LiveCameraDescriptor {
+    pub fn validate(&self) -> Result<(), LiveCameraContractError> {
+        self.rig.validate()?;
+        if self.revision == 0
+            || self.width_px == 0
+            || self.height_px == 0
+            || self.frame_rate_millihertz == 0
+            || !self.vertical_fov_degrees.is_finite()
+            || !(1.0..=160.0).contains(&self.vertical_fov_degrees)
+            || !self.near_clip_m.is_finite()
+            || !self.far_clip_m.is_finite()
+            || self.near_clip_m <= 0.0
+            || self.far_clip_m <= self.near_clip_m
+        {
+            return Err(LiveCameraContractError::Descriptor);
+        }
+        Ok(())
+    }
+
+    pub fn pixels_per_second(&self) -> u64 {
+        u64::from(self.width_px)
+            .saturating_mul(u64::from(self.height_px))
+            .saturating_mul(u64::from(self.frame_rate_millihertz))
+            / 1_000
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LiveStreamProductLifecycle {
+    Inactive,
+    Starting,
+    Ready,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LiveStreamProductState {
+    pub stream_product_id: LiveStreamProductId,
+    pub camera_id: LiveCameraId,
+    pub physical_slot: u16,
+    pub lifecycle: LiveStreamProductLifecycle,
+    pub active_viewer_leases: u32,
+    pub connected_viewers: u32,
+    pub nvenc_sessions: u32,
+    pub encoded_frames: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_frame_at: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diagnostic: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LiveViewCapacityDimension {
+    LogicalCameras,
+    ActiveRenderedCameras,
+    RenderPixelsPerSecond,
+    NvencSessions,
+    GpuMemoryBytes,
+    SignalingSlots,
+    ViewerLeases,
+    NetworkBitsPerSecond,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LiveViewCapacityProfile {
+    pub profile: String,
+    pub maximum_logical_cameras: u32,
+    pub maximum_active_rendered_cameras: u32,
+    pub maximum_render_pixels_per_second: u64,
+    pub maximum_nvenc_sessions: u32,
+    pub gpu_memory_budget_bytes: u64,
+    pub maximum_signaling_slots: u32,
+    pub maximum_viewer_leases: u32,
+    pub maximum_network_bits_per_second: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LiveViewCapacityUsage {
+    pub logical_cameras: u32,
+    pub active_rendered_cameras: u32,
+    pub render_pixels_per_second: u64,
+    pub nvenc_sessions: u32,
+    pub reserved_gpu_memory_bytes: u64,
+    pub signaling_slots: u32,
+    pub viewer_leases: u32,
+    pub estimated_network_bits_per_second: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LiveViewCapacityState {
+    pub limits: LiveViewCapacityProfile,
+    pub usage: LiveViewCapacityUsage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LiveCameraContractError {
+    Pose,
+    Smoothing,
+    Rig,
+    Descriptor,
+}
+
+impl fmt::Display for LiveCameraContractError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Pose => "invalid live-camera pose",
+            Self::Smoothing => "invalid live-camera smoothing profile",
+            Self::Rig => "invalid live-camera rig",
+            Self::Descriptor => "invalid live-camera descriptor",
+        })
+    }
+}
+
+impl std::error::Error for LiveCameraContractError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -414,9 +795,74 @@ mod tests {
     }
 
     #[test]
-    fn resource_uri_is_simulation_view_owned() {
-        assert!(LiveViewUri::new("simulation-view://session/session-a/stream/stream-a").is_ok());
-        assert!(LiveViewUri::new("uav-sim://stream/stream-a").is_err());
+    fn resource_uri_is_domain_owned_and_canonical() {
+        assert!(LiveViewUri::new("uav-sim://session/session-a/live-view/view-a").is_ok());
+        assert!(LiveViewUri::new("ground-sim://session/session-a/live-view/view-a").is_ok());
+        for invalid in [
+            "simulation-view://session/session-a/stream/stream-a",
+            "uav-sim://stream/stream-a",
+            "https://example.test/session/session-a/live-view/view-a",
+            "uav-sim://session/session-a/live-view/view-a?token=secret",
+        ] {
+            assert!(LiveViewUri::new(invalid).is_err(), "{invalid}");
+        }
+    }
+
+    #[test]
+    fn camera_descriptor_validates_smoothing_and_optics() {
+        let descriptor = LiveCameraDescriptor {
+            camera_id: LiveCameraId::new("follow").unwrap(),
+            session_id: LiveSessionId::new("session-a").unwrap(),
+            stream_product_id: LiveStreamProductId::new("product-follow").unwrap(),
+            physical_slot: 0,
+            revision: 1,
+            rig: LiveCameraRig::FollowEntity {
+                target_entity_id: LiveEntityId::new("uav-1").unwrap(),
+                eye_offset_flu_m: LiveVector3 {
+                    x: -8.0,
+                    y: 2.0,
+                    z: 3.0,
+                },
+                target_offset_flu_m: LiveVector3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.2,
+                },
+                smoothing: LiveCameraSmoothing {
+                    translation_half_life_ms: 150,
+                    rotation_half_life_ms: 120,
+                    teleport_distance_millimetres: 100_000,
+                    reset_after_gap_ms: 1_000,
+                },
+            },
+            width_px: 1_280,
+            height_px: 720,
+            frame_rate_millihertz: 30_000,
+            vertical_fov_degrees: 60.0,
+            near_clip_m: 0.1,
+            far_clip_m: 100_000.0,
+            stream_policy: LiveCameraStreamPolicy::Continuous,
+            health: LiveCameraHealth::Warming,
+            last_frame_at: None,
+        };
+        assert!(descriptor.validate().is_ok());
+        assert_eq!(descriptor.pixels_per_second(), 27_648_000);
+
+        let mut invalid = descriptor;
+        invalid.rig = LiveCameraRig::FormationOverview {
+            target_entity_ids: vec![
+                LiveEntityId::new("uav-2").unwrap(),
+                LiveEntityId::new("uav-1").unwrap(),
+            ],
+            padding_m: 10.0,
+            smoothing: LiveCameraSmoothing {
+                translation_half_life_ms: 150,
+                rotation_half_life_ms: 120,
+                teleport_distance_millimetres: 100_000,
+                reset_after_gap_ms: 1_000,
+            },
+        };
+        assert_eq!(invalid.validate(), Err(LiveCameraContractError::Rig));
     }
 
     #[test]
