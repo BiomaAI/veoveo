@@ -102,8 +102,9 @@ class PreconfigurationApplication:
                     "source": "google_photorealistic_3d_tiles",
                     "ion_asset_id": self._config.cesium_ion_asset_id,
                     "resident_tiles": 0,
+                    "visible_tiles": 0,
                     "loading_tiles": 0,
-                    "failed_tiles": 0,
+                    "recovery_count": 0,
                 },
                 "cameras": [],
                 "pose_publication": initial_pose_publication(

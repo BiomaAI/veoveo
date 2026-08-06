@@ -7,17 +7,28 @@ import numpy as np
 
 
 MIN_MEAN_LUMA = 2.0
-MIN_DYNAMIC_RANGE = 8
+MIN_ROBUST_DYNAMIC_RANGE = 12
+MIN_LUMA_STANDARD_DEVIATION = 4.0
 MIN_NON_BLACK_FRACTION = 0.02
+
+
+type CameraContent = Literal["black", "uniform", "visible"]
+type CameraDiagnosticCode = Literal["frame_black", "frame_uniform"]
 
 
 @dataclass(frozen=True, slots=True)
 class CameraFrameQuality:
     mean_luma: float
     dynamic_range: int
+    robust_dynamic_range: int
+    luma_standard_deviation: float
     non_black_fraction: float
     operational: bool
-    visible: bool
+    content: CameraContent
+
+    @property
+    def visible(self) -> bool:
+        return self.content == "visible"
 
 
 type CameraLifecycle = Literal["warming", "ready", "degraded"]
@@ -26,30 +37,42 @@ type CameraLifecycle = Literal["warming", "ready", "degraded"]
 @dataclass(frozen=True, slots=True)
 class CameraHealth:
     lifecycle: CameraLifecycle
+    diagnostic_code: CameraDiagnosticCode | None
     diagnostic: str | None
 
 
 def assess_camera_health(
     quality: CameraFrameQuality,
     *,
-    operational_streak: int,
-    black_streak_after_tiles: int,
+    visible_streak: int,
+    unusable_streak_after_tiles: int,
     was_ready: bool,
-    prolonged_black_threshold: int,
+    prolonged_unusable_threshold: int,
 ) -> CameraHealth:
     """Classify sensor health without making it simulation authority."""
-    if prolonged_black_threshold < 1:
-        raise ValueError("prolonged black threshold must be positive")
-    if operational_streak >= 3:
-        return CameraHealth("ready", None)
-    if black_streak_after_tiles >= prolonged_black_threshold:
+    if prolonged_unusable_threshold < 1:
+        raise ValueError("prolonged unusable threshold must be positive")
+    if visible_streak >= 3:
+        return CameraHealth("ready", None, None)
+    if quality.visible:
+        lifecycle: CameraLifecycle = "degraded" if was_ready else "warming"
+        return CameraHealth(lifecycle, None, None)
+    diagnostic_code: CameraDiagnosticCode = (
+        "frame_black" if quality.content == "black" else "frame_uniform"
+    )
+    diagnostic = (
+        "camera RGB frame is black"
+        if quality.content == "black"
+        else "camera RGB frame is uniform and lacks visible scene detail"
+    )
+    if unusable_streak_after_tiles >= prolonged_unusable_threshold:
         return CameraHealth(
             "degraded",
-            "camera remained black after streamed-world content became ready",
+            diagnostic_code,
+            f"{diagnostic} after streamed-world content became ready",
         )
     lifecycle: CameraLifecycle = "degraded" if was_ready else "warming"
-    diagnostic = "camera RGB frame is black" if not quality.operational else None
-    return CameraHealth(lifecycle, diagnostic)
+    return CameraHealth(lifecycle, diagnostic_code, diagnostic)
 
 
 def normalize_rgb_frame(pixels: np.ndarray) -> np.ndarray:
@@ -82,8 +105,19 @@ def measure_camera_frame(rgb: np.ndarray) -> CameraFrameQuality:
     )
     mean_luma = float(luma.mean()) if luma.size else 0.0
     dynamic_range = int(round(float(luma.max() - luma.min()))) if luma.size else 0
+    luma_standard_deviation = float(luma.std()) if luma.size else 0.0
+    if luma.size:
+        luma_u8 = np.clip(luma.round(), 0.0, 255.0).astype(np.uint8)
+        histogram = np.bincount(luma_u8.ravel(), minlength=256)
+        cumulative = np.cumsum(histogram)
+        pixel_count = int(cumulative[-1])
+        lower = int(np.searchsorted(cumulative, pixel_count * 0.05, side="left"))
+        upper = int(np.searchsorted(cumulative, pixel_count * 0.95, side="left"))
+        robust_dynamic_range = upper - lower
+    else:
+        robust_dynamic_range = 0
     non_black_fraction = (
-        float(np.count_nonzero(np.any(normalized > MIN_DYNAMIC_RANGE, axis=2)))
+        float(np.count_nonzero(np.any(normalized > MIN_ROBUST_DYNAMIC_RANGE, axis=2)))
         / float(normalized.shape[0] * normalized.shape[1])
         if normalized.shape[0] and normalized.shape[1]
         else 0.0
@@ -91,16 +125,25 @@ def measure_camera_frame(rgb: np.ndarray) -> CameraFrameQuality:
     operational = (
         mean_luma >= MIN_MEAN_LUMA and non_black_fraction >= MIN_NON_BLACK_FRACTION
     )
-    visible = operational and dynamic_range >= MIN_DYNAMIC_RANGE
+    visible = (
+        operational
+        and robust_dynamic_range >= MIN_ROBUST_DYNAMIC_RANGE
+        and luma_standard_deviation >= MIN_LUMA_STANDARD_DEVIATION
+    )
+    content: CameraContent = (
+        "visible" if visible else "uniform" if operational else "black"
+    )
     return CameraFrameQuality(
         mean_luma=mean_luma,
         dynamic_range=dynamic_range,
+        robust_dynamic_range=robust_dynamic_range,
+        luma_standard_deviation=luma_standard_deviation,
         non_black_fraction=non_black_fraction,
         operational=operational,
-        visible=visible,
+        content=content,
     )
 
 
-def should_record_camera_frame(quality: CameraFrameQuality, tiles_ready: bool) -> bool:
-    """Keep the encoded camera timeline continuous once its world is ready."""
-    return tiles_ready or quality.visible
+def should_record_camera_frame(quality: CameraFrameQuality) -> bool:
+    """Admit only a frame that contains visible scene detail to video encoding."""
+    return quality.visible

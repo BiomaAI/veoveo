@@ -207,6 +207,21 @@ pub enum CameraLifecycle {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+pub enum CameraContent {
+    Black,
+    Uniform,
+    Visible,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CameraDiagnosticCode {
+    FrameBlack,
+    FrameUniform,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum CameraCodec {
     H264,
 }
@@ -319,8 +334,9 @@ pub struct TileState {
     pub source: String,
     pub ion_asset_id: u64,
     pub resident_tiles: u64,
+    pub visible_tiles: u64,
     pub loading_tiles: u64,
-    pub failed_tiles: u64,
+    pub recovery_count: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diagnostic: Option<String>,
 }
@@ -355,8 +371,14 @@ pub struct CameraState {
     #[schemars(range(min = 0.0, max = 255.0))]
     pub mean_luma: f32,
     pub dynamic_range: u8,
+    pub robust_dynamic_range: u8,
+    #[schemars(range(min = 0.0, max = 127.5))]
+    pub luma_standard_deviation: f32,
     #[schemars(range(min = 0.0, max = 1.0))]
     pub non_black_fraction: f32,
+    pub content: CameraContent,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diagnostic_code: Option<CameraDiagnosticCode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diagnostic: Option<String>,
 }

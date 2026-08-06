@@ -134,8 +134,8 @@ def run(config: RuntimeConfig) -> None:
     camera_sensors: dict[str, HydraRgbCameraSensor] = {}
     camera_sensor_sequences: dict[str, int] = {}
     camera_frames_observed: dict[str, int] = {}
-    camera_operational_streaks: dict[str, int] = {}
-    camera_black_streaks_after_tiles: dict[str, int] = {}
+    camera_visible_streaks: dict[str, int] = {}
+    camera_unusable_streaks_after_tiles: dict[str, int] = {}
     camera_was_ready: set[str] = set()
     sensor_camera_path: str | None = None
     pose_producer: PoseProducer | None = None
@@ -322,8 +322,8 @@ def run(config: RuntimeConfig) -> None:
                 )
                 camera_sensor_sequences[vehicle_id] = 0
                 camera_frames_observed[vehicle_id] = 0
-                camera_operational_streaks[vehicle_id] = 0
-                camera_black_streaks_after_tiles[vehicle_id] = 0
+                camera_visible_streaks[vehicle_id] = 0
+                camera_unusable_streaks_after_tiles[vehicle_id] = 0
                 sensor_camera_path = camera_path
 
         viewport = get_active_viewport()
@@ -543,8 +543,10 @@ def run(config: RuntimeConfig) -> None:
             cesium_viewport.height = float(viewport.resolution[1])
             cesium_interface.on_update_frame([cesium_viewport], False)
 
-        tile_resident_frames = 0
+        tile_coverage_frames = 0
         tile_absent_since: float | None = time.monotonic()
+        tile_failure_latched = False
+        tile_recovery_count = 0
         tile_unavailable_reported = False
         physics_clock.reset(physics_step)
         render_deadline.reset()
@@ -596,25 +598,26 @@ def run(config: RuntimeConfig) -> None:
                         rgb = normalize_rgb_frame(frame.pixels)
                         quality = measure_camera_frame(rgb)
                         camera_frames_observed[vehicle_id] += 1
-                        camera_operational_streaks[vehicle_id] = (
-                            camera_operational_streaks[vehicle_id] + 1
-                            if quality.operational
+                        camera_visible_streaks[vehicle_id] = (
+                            camera_visible_streaks[vehicle_id] + 1
+                            if quality.visible
                             else 0
                         )
                         tiles_ready = state.snapshot()["tiles"]["lifecycle"] == "ready"
-                        camera_black_streaks_after_tiles[vehicle_id] = (
-                            camera_black_streaks_after_tiles[vehicle_id] + 1
-                            if tiles_ready and not quality.operational
+                        camera_unusable_streaks_after_tiles[vehicle_id] = (
+                            camera_unusable_streaks_after_tiles[vehicle_id] + 1
+                            if tiles_ready and not quality.visible
                             else 0
                         )
+                        prolonged_unusable_threshold = max(3, config.camera.fps * 3)
                         camera_health = assess_camera_health(
                             quality,
-                            operational_streak=camera_operational_streaks[vehicle_id],
-                            black_streak_after_tiles=(
-                                camera_black_streaks_after_tiles[vehicle_id]
+                            visible_streak=camera_visible_streaks[vehicle_id],
+                            unusable_streak_after_tiles=(
+                                camera_unusable_streaks_after_tiles[vehicle_id]
                             ),
                             was_ready=vehicle_id in camera_was_ready,
-                            prolonged_black_threshold=config.camera.fps * 30,
+                            prolonged_unusable_threshold=prolonged_unusable_threshold,
                         )
                         if camera_health.lifecycle == "ready":
                             camera_was_ready.add(vehicle_id)
@@ -623,7 +626,8 @@ def run(config: RuntimeConfig) -> None:
                             camera_health.lifecycle,
                             camera_frames_observed[vehicle_id],
                             quality,
-                            camera_health.diagnostic,
+                            diagnostic_code=camera_health.diagnostic_code,
+                            diagnostic=camera_health.diagnostic,
                         )
                         recording.log_camera_quality(
                             quality,
@@ -631,49 +635,68 @@ def run(config: RuntimeConfig) -> None:
                             simulation_time_s,
                             physics_step,
                         )
-                        if should_record_camera_frame(quality, tiles_ready):
+                        if should_record_camera_frame(quality):
                             recording.offer_camera_frame(
                                 rgb, simulation_time_s, physics_step
                             )
-                        if camera_black_streaks_after_tiles[vehicle_id] == (
-                            config.camera.fps * 30
+                        if camera_unusable_streaks_after_tiles[vehicle_id] == (
+                            prolonged_unusable_threshold
                         ):
                             LOGGER.error(
-                                "down camera for %s remained black after streamed-world "
-                                "content became ready; simulation continues",
+                                "down camera for %s lacks visible scene detail after "
+                                "streamed-world content became ready; simulation continues",
                                 vehicle_id,
                             )
 
             if render:
                 statistics = cesium_interface.get_render_statistics()
                 resident = int(statistics.tiles_loaded)
+                visible = int(statistics.tiles_rendered)
                 loading = int(statistics.tiles_loading_worker) + int(
                     statistics.tiles_loading_main
                 )
                 now = time.monotonic()
-                if resident > 0:
+                if visible > 0:
                     tile_absent_since = None
                 elif tile_absent_since is None:
                     tile_absent_since = now
                 tile_health = assess_tile_health(
                     resident_tiles=resident,
+                    visible_tiles=visible,
                     loading_tiles=loading,
-                    resident_frames=tile_resident_frames,
+                    coverage_frames=tile_coverage_frames,
                     ready_frames=config.tile_ready_frames,
                     absent_seconds=(
                         0.0 if tile_absent_since is None else now - tile_absent_since
                     ),
+                    failed_latched=tile_failure_latched,
                 )
-                tile_resident_frames = tile_health.resident_frames
+                tile_coverage_frames = tile_health.coverage_frames
+                tile_diagnostic = tile_health.diagnostic
+                if tile_health.recovery_required:
+                    tile_recovery_count += 1
+                    try:
+                        assert tileset_path is not None
+                        cesium_interface.reload_tileset(tileset_path)
+                    except Exception:  # noqa: BLE001 - visual failure is non-authoritative
+                        tile_diagnostic = "streamed-world provider reload failed"
+                        LOGGER.exception(
+                            "streamed-world provider reload failed; simulation continues"
+                        )
+                tile_failure_latched = tile_health.lifecycle == "failed"
                 state.set_tiles(
                     tile_health.lifecycle,
                     resident,
+                    visible,
                     loading,
-                    diagnostic=tile_health.diagnostic,
+                    tile_recovery_count,
+                    diagnostic=tile_diagnostic,
                 )
                 recording.log_tiles(
                     resident,
+                    visible,
                     loading,
+                    tile_recovery_count,
                     tile_health.lifecycle,
                     simulation_time_s,
                     physics_step,

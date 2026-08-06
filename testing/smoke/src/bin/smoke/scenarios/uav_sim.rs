@@ -105,6 +105,8 @@ struct OperationalCameraAcceptance {
 struct AerialCameraAcceptance {
     minimum_mean_luma: f64,
     minimum_dynamic_range: u64,
+    minimum_robust_dynamic_range: u64,
+    minimum_luma_standard_deviation: f64,
     minimum_non_black_fraction: f64,
 }
 
@@ -339,6 +341,14 @@ impl UavAcceptanceScenario {
                 && self.camera.aerial_detail.minimum_mean_luma.is_finite()
                 && (0.0..=255.0).contains(&self.camera.aerial_detail.minimum_mean_luma)
                 && self.camera.aerial_detail.minimum_dynamic_range <= 255
+                && self.camera.aerial_detail.minimum_robust_dynamic_range <= 255
+                && self
+                    .camera
+                    .aerial_detail
+                    .minimum_luma_standard_deviation
+                    .is_finite()
+                && (0.0..=127.5)
+                    .contains(&self.camera.aerial_detail.minimum_luma_standard_deviation,)
                 && self
                     .camera
                     .aerial_detail
@@ -1474,8 +1484,12 @@ fn assert_world_ready(
             && state
                 .pointer("/tiles/resident_tiles")
                 .and_then(Value::as_u64)
+                .is_some_and(|count| count > 0)
+            && state
+                .pointer("/tiles/visible_tiles")
+                .and_then(Value::as_u64)
                 .is_some_and(|count| count > 0),
-        "Google Photorealistic 3D Tiles are not resident inside Isaac: {state}"
+        "Google Photorealistic 3D Tiles do not cover the current Isaac viewport: {state}"
     );
     ensure!(
         state
@@ -1486,6 +1500,7 @@ fn assert_world_ready(
     );
     ensure!(
         json_string(state, "/cameras/0/lifecycle")? == "ready"
+            && json_string(state, "/cameras/0/content")? == "visible"
             && state
                 .pointer("/cameras/0/frames_observed")
                 .and_then(Value::as_u64)
@@ -1637,6 +1652,22 @@ async fn wait_for_aerial_camera_content(
                 .and_then(Value::as_u64)
                 .is_some_and(|value| value >= scenario.camera.aerial_detail.minimum_dynamic_range)
             && state
+                .pointer("/cameras/0/robust_dynamic_range")
+                .and_then(Value::as_u64)
+                .is_some_and(|value| {
+                    value >= scenario.camera.aerial_detail.minimum_robust_dynamic_range
+                })
+            && state
+                .pointer("/cameras/0/luma_standard_deviation")
+                .and_then(Value::as_f64)
+                .is_some_and(|value| {
+                    value
+                        >= scenario
+                            .camera
+                            .aerial_detail
+                            .minimum_luma_standard_deviation
+                })
+            && state
                 .pointer("/cameras/0/non_black_fraction")
                 .and_then(Value::as_f64)
                 .is_some_and(|value| {
@@ -1776,6 +1807,10 @@ mod tests {
         assert_eq!(scenario.mission.speed_mps, 3.0);
         assert_eq!(scenario.recording.live_rows_timeout_seconds, 120);
         assert_eq!(scenario.camera.aerial_detail.minimum_dynamic_range, 8);
+        assert_eq!(
+            scenario.camera.aerial_detail.minimum_robust_dynamic_range,
+            12
+        );
         assert_eq!(scenario.stream.recording_replay.range_lag_seconds, 1.0);
         assert_eq!(
             scenario

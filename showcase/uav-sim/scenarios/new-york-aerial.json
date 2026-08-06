@@ -220,6 +220,8 @@
     "aerial_detail": {
       "minimum_mean_luma": 2.0,
       "minimum_dynamic_range": 8,
+      "minimum_robust_dynamic_range": 12,
+      "minimum_luma_standard_deviation": 4.0,
       "minimum_non_black_fraction": 0.02
     }
   },
