@@ -148,7 +148,10 @@ decides whether to admit, materialize, and render the declaration.
 
 Google Photorealistic 3D Tiles rendered through Cesium ion are part of this
 showcase's domain evidence. A healthy session reports the configured asset,
-load progress, resident tiles, failed tiles, and the accepted georeference.
+load progress, cumulative residency, current viewport coverage, recovery count,
+and the accepted georeference. Cumulative residency cannot establish readiness.
+The runtime requires rendered tiles for the active sensor viewport and invokes
+Cesium's supported tileset reload once when current coverage becomes unavailable.
 Simulation View may render a separately declared environment; that does not
 replace domain-simulator tile acceptance.
 
@@ -160,6 +163,12 @@ The active viewport follows the designated leader nadir sensor because Cesium
 performs tile selection from a Kit viewport. Followers do not instantiate RTX
 sensors or publish video. The leader sensor remains a domain recording input;
 it is not an operator view.
+
+Camera readiness requires three consecutive frames with bounded robust luma
+range and luma standard deviation. Isolated bright or dark pixels cannot make a
+uniform gray or white render healthy. Black and uniform frames receive distinct
+typed diagnostics and never enter the shared NVENC stream. Visual degradation
+does not stop physics, flight control, telemetry, or pose publication.
 
 Physics publishes bounded newest-value recording events without waiting for
 serialization, NVENC, Stream delivery, Recording Hub, or its forwarder. One
@@ -194,8 +203,9 @@ Controlled types include:
 
 - `SessionId`, `VehicleId`, `MissionId`, `RecordingKey`, `RecordingId`, `PoseProducerId`,
   `SpiffeId`, `EpochId`, `FrameWorldRevisionUri`, and `WorldFrameUri`;
-- `SimulationLifecycle`, `TileLifecycle`, `CameraLifecycle`, `CameraCodec`,
-  `CameraEncoder`, `PosePublicationLifecycle`, `RecordingCatalogLifecycle`,
+- `SimulationLifecycle`, `TileLifecycle`, `CameraLifecycle`, `CameraContent`,
+  `CameraDiagnosticCode`, `CameraCodec`, `CameraEncoder`,
+  `PosePublicationLifecycle`, `RecordingCatalogLifecycle`,
   `VehicleFlightState`, and `MissionLifecycle`;
 - WGS84, ENU, NED, quaternion, vehicle, sensor, recording-publisher, and publication
   records;

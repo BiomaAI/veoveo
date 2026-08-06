@@ -68,8 +68,9 @@ class RuntimeState:
                 "source": "google_photorealistic_3d_tiles",
                 "ion_asset_id": config.cesium_ion_asset_id,
                 "resident_tiles": 0,
+                "visible_tiles": 0,
                 "loading_tiles": 0,
-                "failed_tiles": 0,
+                "recovery_count": 0,
             },
             "cameras": [
                 {
@@ -86,7 +87,10 @@ class RuntimeState:
                     "frames_observed": 0,
                     "mean_luma": 0.0,
                     "dynamic_range": 0,
+                    "robust_dynamic_range": 0,
+                    "luma_standard_deviation": 0.0,
                     "non_black_fraction": 0.0,
+                    "content": "black",
                 }
             ],
             "pose_publication": initial_pose_publication(
@@ -131,8 +135,9 @@ class RuntimeState:
         self,
         lifecycle: str,
         resident_tiles: int,
+        visible_tiles: int,
         loading_tiles: int,
-        failed_tiles: int = 0,
+        recovery_count: int,
         diagnostic: str | None = None,
     ) -> None:
         with self._condition:
@@ -140,8 +145,9 @@ class RuntimeState:
             tiles.update(
                 lifecycle=lifecycle,
                 resident_tiles=max(0, resident_tiles),
+                visible_tiles=max(0, visible_tiles),
                 loading_tiles=max(0, loading_tiles),
-                failed_tiles=max(0, failed_tiles),
+                recovery_count=max(0, recovery_count),
             )
             if diagnostic:
                 tiles["diagnostic"] = diagnostic
@@ -171,6 +177,7 @@ class RuntimeState:
         lifecycle: str,
         frames_observed: int,
         quality: CameraFrameQuality,
+        diagnostic_code: str | None = None,
         diagnostic: str | None = None,
     ) -> None:
         with self._condition:
@@ -181,8 +188,15 @@ class RuntimeState:
                         frames_observed=max(0, frames_observed),
                         mean_luma=quality.mean_luma,
                         dynamic_range=quality.dynamic_range,
+                        robust_dynamic_range=quality.robust_dynamic_range,
+                        luma_standard_deviation=quality.luma_standard_deviation,
                         non_black_fraction=quality.non_black_fraction,
+                        content=quality.content,
                     )
+                    if diagnostic_code:
+                        camera["diagnostic_code"] = diagnostic_code
+                    else:
+                        camera.pop("diagnostic_code", None)
                     if diagnostic:
                         camera["diagnostic"] = diagnostic
                     else:

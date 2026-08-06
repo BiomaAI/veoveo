@@ -64,7 +64,9 @@ class _CameraQualityEvent:
 @dataclass(frozen=True, slots=True)
 class _TilesEvent:
     resident_tiles: int
+    visible_tiles: int
     loading_tiles: int
+    recovery_count: int
     lifecycle: str
     simulation_time_s: float
     physics_step: int
@@ -248,7 +250,9 @@ class RecordingPublisher:
     def log_tiles(
         self,
         resident_tiles: int,
+        visible_tiles: int,
         loading_tiles: int,
+        recovery_count: int,
         lifecycle: str,
         simulation_time_s: float,
         physics_step: int,
@@ -256,7 +260,9 @@ class RecordingPublisher:
         self._events.offer(
             _TilesEvent(
                 resident_tiles=resident_tiles,
+                visible_tiles=visible_tiles,
                 loading_tiles=loading_tiles,
+                recovery_count=recovery_count,
                 lifecycle=lifecycle,
                 simulation_time_s=simulation_time_s,
                 physics_step=physics_step,
@@ -345,7 +351,7 @@ class _RecordingSink:
             recording=self._recording,
         )
         self._last_vehicle_status: dict[str, tuple[object, ...]] = {}
-        self._last_tiles: tuple[int, int, str] | None = None
+        self._last_tiles: tuple[int, int, int, int, str] | None = None
         self._recording.log(
             self._root,
             rr.AnyValues(
@@ -515,13 +521,22 @@ class _RecordingSink:
             rr.AnyValues(
                 mean_luma=event.quality.mean_luma,
                 dynamic_range=event.quality.dynamic_range,
+                robust_dynamic_range=event.quality.robust_dynamic_range,
+                luma_standard_deviation=event.quality.luma_standard_deviation,
                 non_black_fraction=event.quality.non_black_fraction,
+                content=event.quality.content,
                 lifecycle=event.lifecycle,
             ),
         )
 
     def _log_tiles(self, event: _TilesEvent) -> None:
-        status = (event.resident_tiles, event.loading_tiles, event.lifecycle)
+        status = (
+            event.resident_tiles,
+            event.visible_tiles,
+            event.loading_tiles,
+            event.recovery_count,
+            event.lifecycle,
+        )
         if status == self._last_tiles:
             return
         self._last_tiles = status
@@ -530,7 +545,9 @@ class _RecordingSink:
             f"{self._root}/tiles",
             rr.AnyValues(
                 resident=event.resident_tiles,
+                visible=event.visible_tiles,
                 loading=event.loading_tiles,
+                recovery_count=event.recovery_count,
                 lifecycle=event.lifecycle,
             ),
         )

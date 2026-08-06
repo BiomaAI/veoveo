@@ -1336,8 +1336,11 @@ class CameraQualityTests(unittest.TestCase):
         quality = measure_camera_frame(np.zeros((48, 64, 3), dtype=np.uint8))
         self.assertFalse(quality.operational)
         self.assertFalse(quality.visible)
+        self.assertEqual(quality.content, "black")
         self.assertEqual(quality.mean_luma, 0.0)
         self.assertEqual(quality.dynamic_range, 0)
+        self.assertEqual(quality.robust_dynamic_range, 0)
+        self.assertEqual(quality.luma_standard_deviation, 0.0)
         self.assertEqual(quality.non_black_fraction, 0.0)
 
     def test_visible_camera_frame_is_accepted(self) -> None:
@@ -1346,8 +1349,11 @@ class CameraQualityTests(unittest.TestCase):
         quality = measure_camera_frame(frame)
         self.assertTrue(quality.operational)
         self.assertTrue(quality.visible)
+        self.assertEqual(quality.content, "visible")
         self.assertGreater(quality.mean_luma, 2.0)
         self.assertGreater(quality.dynamic_range, 8)
+        self.assertGreater(quality.robust_dynamic_range, 8)
+        self.assertGreater(quality.luma_standard_deviation, 4.0)
         self.assertGreater(quality.non_black_fraction, 0.02)
 
     def test_uniform_bright_frame_is_not_visible_content(self) -> None:
@@ -1355,16 +1361,26 @@ class CameraQualityTests(unittest.TestCase):
         quality = measure_camera_frame(frame)
         self.assertTrue(quality.operational)
         self.assertFalse(quality.visible)
+        self.assertEqual(quality.content, "uniform")
         self.assertEqual(quality.dynamic_range, 0)
 
-    def test_ready_world_keeps_uniform_camera_frames_in_recording(self) -> None:
+    def test_sparse_outliers_do_not_make_a_uniform_frame_visible(self) -> None:
+        frame = np.full((100, 100, 3), 214, dtype=np.uint8)
+        frame[:2, :2] = 0
+        quality = measure_camera_frame(frame)
+        self.assertGreater(quality.dynamic_range, 200)
+        self.assertEqual(quality.robust_dynamic_range, 0)
+        self.assertFalse(quality.visible)
+        self.assertEqual(quality.content, "uniform")
+
+    def test_uniform_camera_frames_do_not_enter_recording_or_live_rtp(self) -> None:
         quality = measure_camera_frame(np.full((48, 64, 3), 128, dtype=np.uint8))
         self.assertFalse(quality.visible)
-        self.assertTrue(should_record_camera_frame(quality, tiles_ready=True))
+        self.assertFalse(should_record_camera_frame(quality))
 
     def test_warming_world_withholds_non_visible_camera_frames(self) -> None:
         quality = measure_camera_frame(np.zeros((48, 64, 3), dtype=np.uint8))
-        self.assertFalse(should_record_camera_frame(quality, tiles_ready=False))
+        self.assertFalse(should_record_camera_frame(quality))
 
     def test_normalized_float_rgb_is_scaled_before_encoding(self) -> None:
         frame = np.full((4, 4, 3), 0.5, dtype=np.float32)
@@ -1376,25 +1392,54 @@ class CameraQualityTests(unittest.TestCase):
         quality = measure_camera_frame(np.zeros((48, 64, 3), dtype=np.uint8))
         health = assess_camera_health(
             quality,
-            operational_streak=0,
-            black_streak_after_tiles=60,
+            visible_streak=0,
+            unusable_streak_after_tiles=60,
             was_ready=True,
-            prolonged_black_threshold=60,
+            prolonged_unusable_threshold=60,
         )
         self.assertEqual(health.lifecycle, "degraded")
-        self.assertIn("remained black", health.diagnostic or "")
+        self.assertEqual(health.diagnostic_code, "frame_black")
+        self.assertIn("black", health.diagnostic or "")
+
+    def test_prolonged_uniform_camera_degrades_with_typed_diagnostic(self) -> None:
+        quality = measure_camera_frame(np.full((48, 64, 3), 214, dtype=np.uint8))
+        health = assess_camera_health(
+            quality,
+            visible_streak=0,
+            unusable_streak_after_tiles=6,
+            was_ready=True,
+            prolonged_unusable_threshold=6,
+        )
+        self.assertEqual(health.lifecycle, "degraded")
+        self.assertEqual(health.diagnostic_code, "frame_uniform")
+        self.assertIn("lacks visible scene detail", health.diagnostic or "")
 
     def test_camera_recovers_after_three_operational_frames(self) -> None:
         frame = np.zeros((48, 64, 3), dtype=np.uint8)
         frame[8:40, 8:56] = (32, 128, 224)
         health = assess_camera_health(
             measure_camera_frame(frame),
-            operational_streak=3,
-            black_streak_after_tiles=0,
+            visible_streak=3,
+            unusable_streak_after_tiles=0,
             was_ready=True,
-            prolonged_black_threshold=60,
+            prolonged_unusable_threshold=60,
         )
         self.assertEqual(health.lifecycle, "ready")
+        self.assertIsNone(health.diagnostic_code)
+        self.assertIsNone(health.diagnostic)
+
+    def test_visible_camera_warmup_does_not_claim_a_uniform_frame(self) -> None:
+        frame = np.zeros((48, 64, 3), dtype=np.uint8)
+        frame[8:40, 8:56] = (32, 128, 224)
+        health = assess_camera_health(
+            measure_camera_frame(frame),
+            visible_streak=1,
+            unusable_streak_after_tiles=0,
+            was_ready=False,
+            prolonged_unusable_threshold=6,
+        )
+        self.assertEqual(health.lifecycle, "warming")
+        self.assertIsNone(health.diagnostic_code)
         self.assertIsNone(health.diagnostic)
 
 
@@ -1402,30 +1447,63 @@ class StreamedWorldHealthTests(unittest.TestCase):
     def test_absent_tiles_degrade_without_becoming_simulation_authority(self) -> None:
         health = assess_tile_health(
             resident_tiles=0,
+            visible_tiles=0,
             loading_tiles=0,
-            resident_frames=0,
+            coverage_frames=0,
             ready_frames=30,
-            absent_seconds=600.0,
+            absent_seconds=30.0,
         )
         self.assertEqual(health.lifecycle, "failed")
+        self.assertTrue(health.recovery_required)
         self.assertIn("unavailable", health.diagnostic or "")
 
-    def test_tiles_recover_after_the_required_resident_frames(self) -> None:
+    def test_tiles_recover_after_the_required_visible_coverage_frames(self) -> None:
         health = assess_tile_health(
             resident_tiles=4,
+            visible_tiles=2,
             loading_tiles=2,
-            resident_frames=29,
+            coverage_frames=29,
             ready_frames=30,
             absent_seconds=0.0,
+            failed_latched=True,
         )
         self.assertEqual(health.lifecycle, "ready")
-        self.assertEqual(health.resident_frames, 30)
+        self.assertEqual(health.coverage_frames, 30)
+        self.assertFalse(health.recovery_required)
         self.assertIsNone(health.diagnostic)
+
+    def test_historical_residency_cannot_claim_current_coverage(self) -> None:
+        health = assess_tile_health(
+            resident_tiles=35_000,
+            visible_tiles=0,
+            loading_tiles=0,
+            coverage_frames=30,
+            ready_frames=30,
+            absent_seconds=30.0,
+        )
+        self.assertEqual(health.lifecycle, "failed")
+        self.assertEqual(health.coverage_frames, 0)
+        self.assertTrue(health.recovery_required)
+
+    def test_failed_coverage_requests_one_recovery_until_tiles_return(self) -> None:
+        health = assess_tile_health(
+            resident_tiles=35_000,
+            visible_tiles=0,
+            loading_tiles=0,
+            coverage_frames=0,
+            ready_frames=30,
+            absent_seconds=31.0,
+            failed_latched=True,
+        )
+        self.assertEqual(health.lifecycle, "failed")
+        self.assertFalse(health.recovery_required)
 
     def test_visual_health_is_not_simulation_authority(self) -> None:
         source = (Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py").read_text()
         self.assertIn("assess_camera_health(", source)
         self.assertIn("assess_tile_health(", source)
+        self.assertIn("statistics.tiles_rendered", source)
+        self.assertIn("cesium_interface.reload_tileset(tileset_path)", source)
         self.assertNotIn('raise RuntimeError("Google Photorealistic', source)
         self.assertNotIn(
             'raise RuntimeError(\n                                f"down camera', source

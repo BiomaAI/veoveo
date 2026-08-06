@@ -759,8 +759,9 @@ mod tests {
                 source: "google_photorealistic_3d_tiles".to_owned(),
                 ion_asset_id: 2_275_207,
                 resident_tiles: 20,
+                visible_tiles: 12,
                 loading_tiles: 0,
-                failed_tiles: 0,
+                recovery_count: 0,
                 diagnostic: None,
             },
             cameras: vec![CameraState {
@@ -774,7 +775,11 @@ mod tests {
                 frames_observed: 10,
                 mean_luma: 96.0,
                 dynamic_range: 224,
+                robust_dynamic_range: 180,
+                luma_standard_deviation: 42.0,
                 non_black_fraction: 0.95,
+                content: crate::contract::CameraContent::Visible,
+                diagnostic_code: None,
                 diagnostic: None,
             }],
             pose_publication: PosePublicationState {
@@ -906,7 +911,10 @@ mod tests {
             "frames_observed": 10,
             "mean_luma": 96.0,
             "dynamic_range": 224,
-            "non_black_fraction": 0.95
+            "robust_dynamic_range": 180,
+            "luma_standard_deviation": 42.0,
+            "non_black_fraction": 0.95,
+            "content": "visible"
         }))
         .unwrap();
 
