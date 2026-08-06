@@ -89,10 +89,13 @@ disabled because the governed recording is the declared always-on evidence path.
 The designated leader nadir camera is a simulation sensor and governed recording
 input. Followers carry no RTX camera or recorded video stream. The fleet still
 publishes every vehicle's physics, pose, mission, and telemetry state. The sensor is
-not an operator view. Camera and streamed-world health are observational. Missing
-tiles or black sensor frames produce typed diagnostics and may recover, but they do
-not stop physics, control, pose publication, or telemetry. Startup still requires
-the assigned NVIDIA GPU and the pinned Isaac and Cesium extensions.
+not an operator view. Camera and streamed-world health are observational. Current
+viewport tile coverage, rather than historical tile residency, establishes visual
+readiness. A lost coverage episode requests one provider-supported tileset reload.
+Black and uniform sensor frames produce distinct diagnostics and do not enter NVENC,
+RTP, or RRD. These failures never stop physics, control, pose publication, or
+telemetry. Startup still requires the assigned NVIDIA GPU and the pinned Isaac and
+Cesium extensions.
 
 The sensor encoder fails closed on PyAV's NVIDIA `h264_nvenc` implementation.
 One Annex B packet stream feeds live Stream publication and Rerun recording
@@ -179,6 +182,12 @@ state reports the producer recording key and a typed catalog lifecycle without
 waiting. Once the catalog admits the recording, the same state adds its
 canonical `recording://recordings/{recording_id}` identity. Catalog delay never
 stalls simulation or pose publication.
+
+One pod generation owns one recording key. The forwarder observes the first
+recording store from a replacement generation, drains older durable queues for
+the same application, and requests their completion. The current generation is
+never selected by that operation, and an independent forwarder restart can
+resume the same key without closing it.
 
 The domain acceptance starts a Stream live session before flight and sends each
 newly encoded camera access unit directly to its admitted RTP/H.264 ingress.

@@ -54,7 +54,7 @@ The exported named templates are:
 | `veoveo-extension.httpProbes` | startup, readiness, and liveness probes |
 | `veoveo-extension.bootstrapVolumeMount` | canonical bootstrap mount |
 | `veoveo-extension.bootstrapVolume` | canonical bootstrap ConfigMap volume |
-| `veoveo-extension.recordingForwarder` | recording producer sidecar |
+| `veoveo-extension.recordingForwarder` | recording producer sidecar; `finishSupersededRecordings` selects a single-recording application slot |
 | `veoveo-extension.networkPolicy` | default-deny, DNS, gateway, platform, and declared egress policy |
 
 Each template accepts a dictionary. Required keys fail rendering with a direct error;

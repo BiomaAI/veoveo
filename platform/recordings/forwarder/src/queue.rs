@@ -336,6 +336,26 @@ impl DurableQueue {
         Ok(())
     }
 
+    pub fn request_finish_superseded(
+        &mut self,
+        application_id: &str,
+        recording_id: &str,
+    ) -> Result<usize> {
+        validate_identity(application_id, recording_id)?;
+        let mut changed = 0_usize;
+        for mut stream in self.streams()? {
+            if stream.application_id == application_id
+                && stream.recording_id != recording_id
+                && !stream.finish_requested
+            {
+                stream.finish_requested = true;
+                self.write_stream(&stream)?;
+                changed += 1;
+            }
+        }
+        Ok(changed)
+    }
+
     pub fn complete(&mut self, stream: &QueueStream) -> Result<()> {
         ensure!(
             !self.has_pending(stream)?,
@@ -683,6 +703,48 @@ mod tests {
         assert_eq!(streams.len(), 1);
         assert!(streams[0].finish_requested);
         assert!(!queue.has_batches(&streams[0]).unwrap());
+    }
+
+    #[test]
+    fn new_recording_generation_finishes_only_superseded_application_streams() {
+        let temporary = TempDir::new().unwrap();
+        let root = temporary.path().join("queue");
+        let mut queue = DurableQueue::open(root.clone(), 1_000_000).unwrap();
+        queue.enqueue("fleet", "run-old", &batch()).unwrap();
+        queue.enqueue("fleet", "run-current", &batch()).unwrap();
+        queue.enqueue("other", "run-other", &batch()).unwrap();
+
+        assert_eq!(
+            queue
+                .request_finish_superseded("fleet", "run-current")
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            queue
+                .request_finish_superseded("fleet", "run-current")
+                .unwrap(),
+            0
+        );
+        drop(queue);
+
+        let queue = DurableQueue::open(root, 1_000_000).unwrap();
+        let streams = queue.streams().unwrap();
+        let old = streams
+            .iter()
+            .find(|stream| stream.recording_id == "run-old")
+            .unwrap();
+        let current = streams
+            .iter()
+            .find(|stream| stream.recording_id == "run-current")
+            .unwrap();
+        let other = streams
+            .iter()
+            .find(|stream| stream.recording_id == "run-other")
+            .unwrap();
+        assert!(old.finish_requested);
+        assert!(!current.finish_requested);
+        assert!(!other.finish_requested);
     }
 
     #[test]

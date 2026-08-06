@@ -79,6 +79,12 @@ pub struct ForwarderConfig {
     /// deadline would instead wedge the only uploader and its shutdown path.
     #[arg(long, default_value_t = 15)]
     pub request_timeout_seconds: u64,
+
+    /// Finish durable recordings for the same Rerun application when a new
+    /// recording store arrives. This is intended for one-recording producer
+    /// slots whose recording identity changes with a workload generation.
+    #[arg(long, default_value_t = false)]
+    pub finish_superseded_recordings: bool,
 }
 
 impl ForwarderConfig {
@@ -209,6 +215,7 @@ mod tests {
             grpc_memory_limit_bytes: 1024,
             shutdown_drain_seconds: 10,
             request_timeout_seconds: 15,
+            finish_superseded_recordings: false,
         }
     }
 

@@ -196,6 +196,7 @@
     "maximumQueueBytes" (printf "%.0f" .root.Values.recordingForwarder.maximumQueueBytes)
     "batchMessageLimit" .root.Values.recordingForwarder.batchMessageLimit
     "grpcMemoryLimitBytes" (printf "%.0f" .root.Values.recordingForwarder.grpcMemoryLimitBytes)
+    "finishSupersededRecordings" true
     "resources" .root.Values.recordingForwarder.resources
   ) -}}
 {{- end }}

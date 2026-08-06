@@ -30,6 +30,9 @@
     - {{ required "recordingForwarder requires batchMessageLimit" .batchMessageLimit | quote }}
     - --grpc-memory-limit-bytes
     - {{ required "recordingForwarder requires grpcMemoryLimitBytes" .grpcMemoryLimitBytes | quote }}
+    {{- if .finishSupersededRecordings }}
+    - --finish-superseded-recordings
+    {{- end }}
   startupProbe:
     exec:
       command: [nc, -z, 127.0.0.1, "9876"]
