@@ -176,6 +176,7 @@
           "allowed_application_ids": [
             "veoveo-sumo"
           ],
+          "single_recording_application_ids": [],
           "classification": "internal",
           "labels": [],
           "quotas": {

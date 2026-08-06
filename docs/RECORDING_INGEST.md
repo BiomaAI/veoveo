@@ -12,7 +12,7 @@ Network location never changes producer authority.
 
 ## Protocol
 
-`platform/recordings/protocol` owns version `2026-08-01` of the wire schema and media
+`platform/recordings/protocol` owns version `2026-08-06` of the wire schema and media
 type. A batch declares its monotonic sequence, exact Rerun 0.35.0 RRD encoding release,
 message count, payload bytes, and SHA-256 digest. Stream creation is idempotent under the
 producer's `source_stream_id`.
@@ -191,12 +191,16 @@ new source stream. Local batches retain their durable queue order while remote
 sequences restart from one. Playback and governance continue to address one
 recording across every generation.
 
-A producer slot that intentionally owns one recording per application may pass
-`--finish-superseded-recordings`. The first `SetStoreInfo` for a new recording
-identity durably marks older queued recordings from that application for
-completion. Their accepted batches and Blueprint revisions drain before the
-finish request. A forwarder restart that receives the same recording identity
-does not close that recording. Multi-recording producers omit this flag.
+A producer slot that intentionally owns one recording per application passes
+`--finish-superseded-recordings`, and its gateway registration names that application in
+`single_recording_application_ids`. The first `SetStoreInfo` for a new recording identity
+durably orders older local queues ahead of the new stream. Their accepted batches and
+Blueprint revisions drain before completion. When the new stream opens, Recording Hub
+also freezes and finalizes any older live recording for that producer and application.
+This authoritative transition repairs an abandoned stream even when its former local
+queue no longer exists. Reopening the same recording identity is idempotent and does not
+close it. Applications that support concurrent recordings remain outside the configured
+set.
 
 The producer registration supplies a JWKS public key. The matching private key stays on
 the producer as a PEM file and is selected by key ID and algorithm. A producer

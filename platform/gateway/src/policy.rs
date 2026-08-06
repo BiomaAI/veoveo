@@ -820,6 +820,7 @@ mod recording_ingest_tests {
                 "inspection-camera",
             )
             .unwrap()]),
+            single_recording_application_ids: BTreeSet::new(),
             classification: "internal".to_owned(),
             labels: BTreeSet::from([label.clone()]),
             quotas: RecordingProducerQuotas {

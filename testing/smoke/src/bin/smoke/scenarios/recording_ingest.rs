@@ -7,6 +7,9 @@ use re_sdk::{
 };
 use re_sdk_types::archetypes::Scalars;
 use url::Url;
+use veoveo_platform_store::{
+    PlatformStore, PrincipalKind, RecordingState, StoreConfig, StoreCredentials,
+};
 use veoveo_recording_forwarder::{
     batch::RecordingAccumulator,
     blueprint::BlueprintAccumulator,
@@ -61,7 +64,7 @@ pub(crate) async fn recording_ingest(
         .replace("http://recording-hub:9878", &hub_base);
     let mut source: serde_json::Value = serde_json::from_str(&source)?;
     source["recording_ingest_resources"][0]["producers"][0]["quotas"]["maximum_batches_per_minute"] =
-        serde_json::json!(2);
+        serde_json::json!(3);
     fs::write(&control_plane, serde_json::to_vec_pretty(&source)?)?;
 
     let private_key_der_b64 = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
@@ -156,6 +159,39 @@ pub(crate) async fn recording_ingest(
     )
     .await?;
 
+    let superseded_request = OpenRecordingStreamRequest {
+        source_stream_id: uuid::Uuid::now_v7().to_string(),
+        application_id: "smoke-sensor".to_owned(),
+        recording_id: "external-smoke-superseded".to_owned(),
+    };
+    let superseded = client.open(&superseded_request).await?;
+    let (superseded_recording, superseded_storage) =
+        RecordingStreamBuilder::new(superseded_request.application_id.as_str())
+            .recording_id(superseded_request.recording_id.clone())
+            .memory()?;
+    superseded_recording.log("sensor/value", &Scalars::single(21.0))?;
+    let superseded_messages = superseded_storage.take();
+    let superseded_store_id = superseded_messages
+        .first()
+        .context("superseded Rerun stream emitted no store information")?
+        .store_id()
+        .clone();
+    let mut superseded_accumulator = RecordingAccumulator::new(superseded_store_id)?;
+    for message in superseded_messages {
+        superseded_accumulator.push(message)?;
+    }
+    let mut superseded_batches =
+        superseded_accumulator.drain_encoded(client.maximum_batch_bytes())?;
+    ensure!(
+        superseded_batches.len() == 1,
+        "superseded smoke recording unexpectedly split"
+    );
+    let mut superseded_batch = superseded_batches.remove(0);
+    superseded_batch.sequence = 1;
+    client
+        .append(&superseded.stream_id, &superseded_batch)
+        .await?;
+
     let request = OpenRecordingStreamRequest {
         source_stream_id: uuid::Uuid::now_v7().to_string(),
         application_id: "smoke-sensor".to_owned(),
@@ -165,6 +201,37 @@ pub(crate) async fn recording_ingest(
     ensure!(
         opened.next_sequence == 1 && opened.state == i32::from(RecordingStreamState::Open),
         "new recording stream did not start at sequence one: {opened:?}"
+    );
+    let store = PlatformStore::connect(
+        StoreConfig::builder(
+            &platform.endpoint,
+            &platform.namespace,
+            &platform.database,
+            StoreCredentials::database(SURREAL_RUNTIME_USER, SURREAL_RUNTIME_PASSWORD),
+        )
+        .build()?,
+    )
+    .await?;
+    let identity = store
+        .ensure_identity(
+            "tenant-a",
+            "smoke-recording-producer",
+            &format!("{gateway_base}/oauth"),
+            "smoke-recording-producer",
+            PrincipalKind::Service,
+        )
+        .await?;
+    let superseded_catalog = store
+        .recording_by_key(
+            identity.tenant_id,
+            &superseded_request.application_id,
+            &superseded_request.recording_id,
+        )
+        .await?
+        .context("superseded recording has no catalog row")?;
+    ensure!(
+        superseded_catalog.state == RecordingState::Ready,
+        "opening a replacement did not finalize the superseded recording: {superseded_catalog:?}"
     );
 
     let (recording, storage) = RecordingStreamBuilder::new(request.application_id.as_str())
@@ -303,17 +370,32 @@ pub(crate) async fn recording_ingest(
 
     let segments = collect_segments(&spool_dir, SegmentReadScope::Frozen)?;
     ensure!(
-        segments.len() == 1,
-        "expected one immutable segment, found {segments:?}"
+        segments.len() == 2,
+        "expected superseded and current immutable segments, found {segments:?}"
     );
-    let inspection = inspect_segment(&segments[0])?;
+    let inspected = segments
+        .iter()
+        .map(|segment| Ok((segment, inspect_segment(segment)?)))
+        .collect::<Result<Vec<_>>>()?;
+    let (_, superseded_inspection) = inspected
+        .iter()
+        .find(|(_, inspection)| inspection.recording_key == superseded_request.recording_id)
+        .context("superseded recording segment was not frozen")?;
+    ensure!(
+        superseded_inspection.application_id == superseded_request.application_id,
+        "superseded segment changed application identity: {superseded_inspection:?}"
+    );
+    let (current_segment, inspection) = inspected
+        .iter()
+        .find(|(_, inspection)| inspection.recording_key == request.recording_id)
+        .context("current recording segment was not frozen")?;
     ensure!(
         inspection.application_id == request.application_id
             && inspection.recording_key == request.recording_id,
         "materialized segment changed recording identity: {inspection:?}"
     );
     let decoded =
-        Decoder::<LogMsg>::decode_eager(std::io::BufReader::new(File::open(&segments[0])?))?
+        Decoder::<LogMsg>::decode_eager(std::io::BufReader::new(File::open(current_segment)?))?
             .collect::<Result<Vec<_>, _>>()?;
     ensure!(
         decoded.len() as u64 == batch.message_count + second_batch.message_count - 1,
@@ -340,7 +422,7 @@ pub(crate) async fn recording_ingest(
     hub_child.stop();
     cleanup.remove_on_drop();
     println!(
-        "recording ingest smoke ok: OAuth retry checkpoint, atomic quota window, and producer Blueprint merged, resumed, and remained distinct"
+        "recording ingest smoke ok: OAuth retry checkpoint, atomic quota window, single-recording replacement, and producer Blueprint merged, resumed, and remained distinct"
     );
     Ok(())
 }

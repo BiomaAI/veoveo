@@ -10,7 +10,7 @@ pub mod v1 {
     include!(concat!(env!("OUT_DIR"), "/veoveo.recording.ingest.v1.rs"));
 }
 
-pub const PROTOCOL_VERSION: &str = "2026-08-01";
+pub const PROTOCOL_VERSION: &str = "2026-08-06";
 pub const REQUIRED_SCOPE: &str = "recording:ingest";
 pub const DEFAULT_MAXIMUM_BATCH_BYTES: u64 = 8 * 1024 * 1024;
 pub const DEFAULT_MAXIMUM_BLUEPRINT_BYTES: u64 = 2 * 1024 * 1024;

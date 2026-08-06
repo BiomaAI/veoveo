@@ -21,7 +21,7 @@ high-rate state through the Veoveo gateway.
 | OGC 3D Tiles | Google Photorealistic 3D Tiles stream through Cesium ion into the domain simulator. Tile readiness and residency are session state. |
 | WGS 84, ECEF, ENU, NED, FRD, and FLU | Immutable world identity, local simulation, PX4 navigation, vehicle telemetry, and renderer pose publication use explicit mappings. |
 | [Rerun 0.35.0](https://rerun.io/docs/) RRD, Blueprint, and `VideoStream` | Batched fleet, sensor, mission, tile, leader-camera, and producer-authored presentation evidence. |
-| Veoveo recording ingest | Version `2026-08-01`; a producer-local forwarder carries native Rerun recording and Blueprint stores to Recording Hub. |
+| Veoveo recording ingest | Version `2026-08-06`; a producer-local forwarder carries native Rerun recording and Blueprint stores to Recording Hub, whose UAV application policy finalizes the prior recording when a new identity opens. |
 | Cluster-private HTTP/JSON | Typed MCP-server-to-simulator adapter boundary. Simulator, MAVLink, ROS 2, pose TLS, and recording ports are not public gateway routes. |
 
 ## Identity

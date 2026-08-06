@@ -12,6 +12,7 @@ use crate::{
 };
 
 const MAX_TEXT_LENGTH: usize = 512;
+const MAX_SUPERSEDED_STREAMS: i64 = 512;
 
 #[derive(Clone, Debug)]
 pub struct RecordingIngestStreamDraft {
@@ -297,6 +298,36 @@ impl PlatformStore {
             .check()?;
         let streams: Vec<RecordingIngestStreamRecord> = response.take(0)?;
         Ok(streams.into_iter().next())
+    }
+
+    pub async fn superseded_recording_ingest_streams(
+        &self,
+        tenant_id: TenantId,
+        producer_id: &str,
+        application_id: &str,
+        current_recording_key: &str,
+    ) -> Result<Vec<RecordingIngestStreamRecord>, StoreError> {
+        validate_text("producer_id", producer_id)?;
+        validate_text("application_id", application_id)?;
+        validate_text("recording_key", current_recording_key)?;
+        let mut response = self
+            .db
+            .query("SELECT * FROM recording_ingest_stream WHERE tenant = $tenant AND producer_id = $producer_id AND application_id = $application_id AND recording_key != $recording_key AND recording IN (SELECT VALUE id FROM recording WHERE tenant = $tenant AND application_id = $application_id AND state = 'live') ORDER BY opened_at ASC LIMIT $limit;")
+            .bind(("tenant", tenant_id.record_id()))
+            .bind(("producer_id", producer_id.to_owned()))
+            .bind(("application_id", application_id.to_owned()))
+            .bind(("recording_key", current_recording_key.to_owned()))
+            .bind(("limit", MAX_SUPERSEDED_STREAMS + 1))
+            .await?
+            .check()?;
+        let streams: Vec<RecordingIngestStreamRecord> = response.take(0)?;
+        if streams.len() > usize::try_from(MAX_SUPERSEDED_STREAMS).unwrap_or(usize::MAX) {
+            return Err(StoreError::InvalidRecordingIngestField {
+                field: "superseded_streams",
+                reason: "exceeds the bounded reconciliation limit",
+            });
+        }
+        Ok(streams)
     }
 
     pub async fn commit_recording_ingest_batch(

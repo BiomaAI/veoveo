@@ -464,6 +464,18 @@ impl GatewayControlPlane {
                         ),
                     });
                 }
+                if !producer
+                    .single_recording_application_ids
+                    .is_subset(&producer.allowed_application_ids)
+                {
+                    return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
+                        resource: resource.id.clone(),
+                        reason: format!(
+                            "producer `{}` names a single-recording application outside its allowlist",
+                            producer.id
+                        ),
+                    });
+                }
                 if producer.allowed_application_ids.is_empty()
                     || producer.classification.trim().is_empty()
                     || producer.quotas.maximum_concurrent_streams == 0

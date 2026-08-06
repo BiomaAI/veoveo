@@ -1704,6 +1704,9 @@
             "veoveo-video-test",
             "veoveo-uav-sim"
           ],
+          "single_recording_application_ids": [
+            "veoveo-uav-sim"
+          ],
           "classification": "unclassified",
           "labels": [],
           "quotas": {

@@ -169,7 +169,12 @@ impl DurableQueue {
                 streams.push(read_json(&path)?);
             }
         }
-        streams.sort_by(|left, right| left.key.cmp(&right.key));
+        streams.sort_by(|left, right| {
+            right
+                .finish_requested
+                .cmp(&left.finish_requested)
+                .then_with(|| left.key.cmp(&right.key))
+        });
         Ok(streams)
     }
 
@@ -730,6 +735,7 @@ mod tests {
 
         let queue = DurableQueue::open(root, 1_000_000).unwrap();
         let streams = queue.streams().unwrap();
+        assert_eq!(streams[0].recording_id, "run-old");
         let old = streams
             .iter()
             .find(|stream| stream.recording_id == "run-old")
