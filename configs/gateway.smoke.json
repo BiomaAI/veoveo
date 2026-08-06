@@ -198,6 +198,9 @@
           "allowed_application_ids": [
             "smoke-sensor"
           ],
+          "single_recording_application_ids": [
+            "smoke-sensor"
+          ],
           "classification": "unclassified",
           "labels": [],
           "quotas": {

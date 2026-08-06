@@ -635,6 +635,11 @@ fn authorized_producer(producer: &RecordingProducerRegistration) -> AuthorizedRe
         maximum_blueprint_bytes: producer.blueprints.maximum_bytes,
         maximum_blueprint_messages: producer.blueprints.maximum_messages,
         maximum_blueprint_revisions: producer.blueprints.maximum_revisions,
+        single_recording_application_ids: producer
+            .single_recording_application_ids
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
     }
 }
 

@@ -8,7 +8,7 @@
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Recording-scoped read subset over HTTP/2 and gRPC-Web. Veoveo does not expose a general Rerun catalog or mutation surface. |
 | Rerun 0.35.0 WebViewer `LogChannel` | Console opens one incremental channel with `WebViewer.open_channel` and sends complete RRD arrays with `LogChannel.send_rrd`. |
 | Fetch Standard and Veoveo framed RRD stream v2 | One authenticated same-origin GET carries unsigned four-byte big-endian lengths followed by complete RRD payloads. The exact media type is `application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=2`. The required start header distinguishes an empty-channel bootstrap from a current-head resume on an existing Rerun channel. |
-| Veoveo recording ingest `2026-08-01` | Authenticated protobuf batches and distinct producer Blueprint publications preserve native Rerun store identities, order, idempotency, and IDR-aligned rollover. |
+| Veoveo recording ingest `2026-08-06` | Authenticated protobuf batches and distinct producer Blueprint publications preserve native Rerun store identities, order, idempotency, IDR-aligned rollover, and policy-scoped single-recording replacement. |
 | Veoveo recording playback `v8` | `veoveo.io/recording-playback/v8` binds one producer Blueprint, one lazy archive dataset, one optional recording-scoped `rerun_rrd_channel_v2` live source, catalog revision, and scoped session. Console selects exactly one recording receiver at a time. |
 | H.264/AVC Annex B | Decoder-reentrant `VideoStream` access units, sparse keyframe markers, and exact producer timeline indices. |
 | JSON Web Token and SHA-256 | Host-limited Redap read access and immutable shard, layer-revision, and artifact identities. |

@@ -149,6 +149,7 @@ message AuthorizedRecordingProducer {
   uint64 maximum_blueprint_bytes = 14;
   uint64 maximum_blueprint_messages = 15;
   uint32 maximum_blueprint_revisions = 16;
+  repeated string single_recording_application_ids = 17;
 }
 
 message AuthorizedOpenRecordingStreamRequest {

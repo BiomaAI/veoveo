@@ -28,6 +28,7 @@ pub struct RecordingProducerRegistration {
     pub tenant: TenantId,
     pub dataset: RecordingDatasetName,
     pub allowed_application_ids: BTreeSet<RecordingApplicationId>,
+    pub single_recording_application_ids: BTreeSet<RecordingApplicationId>,
     pub classification: String,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub labels: BTreeSet<DataLabelId>,

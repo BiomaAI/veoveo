@@ -1,6 +1,6 @@
 //! Authenticated batch journal and materializer for external recording streams.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, Cursor, Write};
@@ -20,8 +20,8 @@ use veoveo_platform_store::{
     RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingDraft, RecordingId,
     RecordingIngestBatchDraft, RecordingIngestBatchState, RecordingIngestQuota,
     RecordingIngestQuotaCheckpoint, RecordingIngestStreamId, RecordingIngestStreamRecord,
-    RecordingIngestStreamState, SegmentDraft, SegmentId, SegmentRecord, SegmentState, StoreError,
-    TenantId,
+    RecordingIngestStreamState, RecordingState, SegmentDraft, SegmentId, SegmentRecord,
+    SegmentState, StoreError, TenantId,
 };
 use veoveo_recording_protocol::{
     BatchValidationError, DEFAULT_MAXIMUM_BATCH_BYTES, REQUIRED_SCOPE,
@@ -225,6 +225,23 @@ impl RecordingIngestService {
             .await?;
         validate_text("source_stream_id", source_stream_id)?;
         validate_text("recording_id", recording_key)?;
+        let _guard = self.materialization.lock().await;
+        if producer
+            .single_recording_application_ids
+            .iter()
+            .any(|configured| configured == application_id)
+        {
+            let finalized = self
+                .finalize_superseded_recordings(&identity, producer, application_id, recording_key)
+                .await?;
+            if finalized > 0 {
+                tracing::info!(
+                    application_id,
+                    finalized_recordings = finalized,
+                    "new recording finalized superseded application recordings"
+                );
+            }
+        }
         let authority = authority_record(&gateway.authority);
         let classification = governed_classification(&authority, &producer.classification);
         let labels = governed_labels(&authority, &producer.labels);
@@ -267,6 +284,87 @@ impl RecordingIngestService {
             })
             .await?;
         self.stream_response(&stream)
+    }
+
+    async fn finalize_superseded_recordings(
+        &self,
+        identity: &PlatformIdentity,
+        producer: &AuthorizedRecordingProducer,
+        application_id: &str,
+        recording_key: &str,
+    ) -> Result<usize> {
+        let streams = self
+            .store
+            .superseded_recording_ingest_streams(
+                identity.tenant_id,
+                &producer.producer_id,
+                application_id,
+                recording_key,
+            )
+            .await?;
+        let mut recordings = BTreeSet::new();
+        let mut failed_recordings = BTreeSet::new();
+        for stream in streams {
+            validate_authorized_stream(identity, producer, &stream)?;
+            let stream_id = typed_record_uuid::<RecordingIngestStreamId>(
+                &stream.id,
+                RecordingIngestStreamId::TABLE,
+            )?;
+            let recording_id =
+                typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?;
+            self.freeze_active_segment(identity, stream_id, &stream)
+                .await?;
+            match stream.state {
+                RecordingIngestStreamState::Open => {
+                    self.store
+                        .finish_recording_ingest_stream(identity.tenant_id, stream_id)
+                        .await?;
+                }
+                RecordingIngestStreamState::Finished => {}
+                RecordingIngestStreamState::Failed => {
+                    failed_recordings.insert(recording_id);
+                }
+            }
+            self.authorized_streams
+                .lock()
+                .map_err(|_| anyhow::anyhow!("recording ingest stream cache lock is poisoned"))?
+                .remove(&stream_id);
+            recordings.insert(recording_id);
+        }
+        let finalized = recordings.len();
+        for recording_id in recordings {
+            let recording = self
+                .store
+                .recording(identity.tenant_id, recording_id)
+                .await?
+                .context("superseded recording has no catalog entry")?;
+            if recording.state != RecordingState::Live {
+                continue;
+            }
+            let segments = self
+                .store
+                .recording_segments(identity.tenant_id, recording_id, 10_000)
+                .await?;
+            if failed_recordings.contains(&recording_id) || segments.is_empty() {
+                self.store
+                    .interrupt_recording(
+                        identity,
+                        recording_id,
+                        recording.last_data_at,
+                        if segments.is_empty() {
+                            "producer superseded recording before durable data"
+                        } else {
+                            "producer superseded a recording with a failed ingest stream"
+                        },
+                    )
+                    .await?;
+            } else {
+                self.store
+                    .finish_recording(identity, recording_id, chrono::Utc::now())
+                    .await?;
+            }
+        }
+        Ok(finalized)
     }
 
     pub async fn status(
@@ -1100,6 +1198,13 @@ fn validate_producer(producer: &AuthorizedRecordingProducer) -> Result<()> {
     ensure!(
         !producer.allowed_application_ids.is_empty(),
         "producer application allowlist must not be empty"
+    );
+    ensure!(
+        producer
+            .single_recording_application_ids
+            .iter()
+            .all(|application_id| producer.allowed_application_ids.contains(application_id)),
+        "single-recording applications must belong to the producer allowlist"
     );
     ensure!(
         producer.maximum_stream_bytes > 0,
