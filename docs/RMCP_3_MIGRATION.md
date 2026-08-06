@@ -2,6 +2,9 @@
 
 Status: approved implementation direction.
 
+Revalidated: 2026-08-06 against Veoveo `3dba3913`, the complete official MCP
+`2026-07-28` changelog, and the current stable upstream releases named below.
+
 This document records the investigation and hard-cut plan for moving Veoveo from
 `rmcp` 2 and the MCP `2025-11-25` profile to `rmcp` 3 and MCP `2026-07-28`. It
 does not change the current hosted-server contract by itself.
@@ -31,10 +34,12 @@ evidence land together.
 | W3C Trace Context and W3C Baggage | standard MCP trace propagation; baggage is untrusted observability input and never authorization state |
 | RFC 9110 | standard MCP request-header syntax, matching, size rejection, and transport behavior |
 | MCP Apps `io.modelcontextprotocol/ui`, ext-apps `2026-01-26` | separate official extension retained across the core protocol migration |
-| `rmcp` `3.0.1` | audited Rust SDK baseline; implementation begins by verifying the latest stable `rmcp` release and pinning that exact version |
+| `rmcp` `3.1.1` | audited Rust SDK baseline; implementation begins by verifying the latest stable `rmcp` release and pinning that exact version |
 | Rig `0.41.0` | audited upstream agent-runtime baseline; the migration targets a fresh branch from current upstream and an exact released or justified fork revision |
+| MCP Python SDK `2.0.0` | audited final-profile Python baseline; the released Tasks gap is filled only through its typed extension API |
+| MCP TypeScript client and server `2.0.0` | audited modular final-profile TypeScript baseline; the legacy `@modelcontextprotocol/sdk` 1.x package is excluded |
 
-The version numbers above record the audited state on 2026-07-30. Repository
+The version numbers above record the audited state on 2026-08-06. Repository
 dependency policy still requires rechecking authoritative upstream releases when
 implementation begins. A newer stable patch replaces the audited baseline. An exact
 Git revision is allowed only when an identified upstream fix has not reached a stable
@@ -58,9 +63,12 @@ Authoritative upstream sources are:
 - [W3C Trace Context](https://www.w3.org/TR/trace-context/) and
   [W3C Baggage](https://www.w3.org/TR/baggage/);
 - [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html);
-- the [`rmcp` 3.0.1 release](https://github.com/modelcontextprotocol/rust-sdk/releases/tag/rmcp-v3.0.1);
-- the [`rmcp` 3.0.1 conformance roadmap](https://github.com/modelcontextprotocol/rust-sdk/blob/rmcp-v3.0.1/ROADMAP.md);
-- the [Rig 0.41.0 release](https://github.com/0xPlaygrounds/rig/releases/tag/v0.41.0).
+- the [`rmcp` 3.1.1 release](https://github.com/modelcontextprotocol/rust-sdk/releases/tag/rmcp-v3.1.1);
+- the [`rmcp` 3.1.1 conformance roadmap](https://github.com/modelcontextprotocol/rust-sdk/blob/rmcp-v3.1.1/ROADMAP.md);
+- the [Rig 0.41.0 release](https://github.com/0xPlaygrounds/rig/releases/tag/v0.41.0);
+- the [MCP Python SDK 2.0.0 release](https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.0.0);
+- the [MCP TypeScript client 2.0.0 release](https://github.com/modelcontextprotocol/typescript-sdk/releases/tag/%40modelcontextprotocol%2Fclient%402.0.0)
+  and [server 2.0.0 release](https://github.com/modelcontextprotocol/typescript-sdk/releases/tag/%40modelcontextprotocol%2Fserver%402.0.0).
 
 ## Objective
 
@@ -83,6 +91,60 @@ The migration is complete when every in-repository and supported external-facing
 surface speaks MCP `2026-07-28`, the superseded protocol code is deleted, and
 acceptance demonstrates stateless cross-replica behavior. A deployment that supports
 both the old and new protocol is not an intermediate deliverable.
+
+## Official Changelog Coverage
+
+The official changelog is the release ledger for this migration. Every entry has an
+implementation owner and acceptance evidence. An entry marked as excluded still has a
+deletion or rejection check; exclusion never means that the repository leaves an old
+path in place.
+
+### Major changes
+
+| Changelog entry | Veoveo coverage |
+|---|---|
+| 1. Remove protocol sessions and `Mcp-Session-Id` | Stateless transport and explicit-handle work in phases 1 and 2; transport, replica, handle, and hard-cut acceptance |
+| 2. Remove initialization and carry version, capabilities, and identity per request | Per-request metadata and effective capability intersection in phases 1 and 2; discovery, effective-capability, and protocol-error acceptance |
+| 3. Add mandatory `server/discover` | Observed server-surface authority and readiness in phases 1 and 2; discovery and surface-authority acceptance |
+| 4. Replace GET and legacy resource subscriptions with `subscriptions/listen` | Shared listener adapter in phase 4; subscription, restart, and replica acceptance |
+| 5. Remove `ping`, `logging/setLevel`, and roots-list change; move log level to request metadata | Old methods are deleted in phase 2. Veoveo does not advertise deprecated MCP Logging and emits no `notifications/message`; deprecated-feature and hard-cut acceptance prove both facts. |
+| 6. Move redesigned Tasks to `io.modelcontextprotocol/tasks` | Durable official Tasks and direct-call adapter in phase 3; Tasks, task-notification, adapter, restart, and replica acceptance |
+| 7. Replace server-initiated requests with multi-round requests | Durable MRTR input in phase 5; direct and in-task multi-round acceptance |
+| 8. Require `resultType` on every result | SDK-owned result discrimination in phase 2; ordinary, task, extension, and input-required wire acceptance |
+| 9. Remove SSE resume and redelivery | Replay deletion and fresh-request retry rules in phase 2; transport, cancellation, and hard-cut acceptance |
+
+### Minor changes
+
+| Changelog entry | Veoveo coverage |
+|---|---|
+| 1. Add extension capability maps | Typed per-request extension intersection in phases 1 and 2 |
+| 2. Define OpenTelemetry trace propagation | W3C trace context and untrusted baggage handling in phase 6 |
+| 3. Return tools deterministically | Deterministic ordering and cache evidence in phase 6 |
+| 4. Require MCP routing headers and support `x-mcp-header` | SDK-owned standard headers and installation-admitted parameter headers in phase 6 |
+| 5. Require cache TTL and scope | Explicit cache policy for every `CacheableResult` in phase 6 |
+| 6. Change resource-not-found to `-32602` | Shared resource error mapping and deletion check in phase 6 |
+| 7. Validate authorization-response issuer | RFC 9207 handling in phases 1 and 6 |
+| 8. Set Dynamic Client Registration `application_type` | Dynamic Client Registration is removed from the Veoveo profile. The hard-cut gate proves no registration path remains that could omit the field. |
+| 9. Bind credentials to authorization-server issuer | Issuer-keyed credentials and metadata in phase 6 |
+| 10. Permit full JSON Schema 2020-12 and any structured-content value | Bounded schema support in phase 6, including references, composition, non-object result roots, and fractional numeric keywords |
+| 11. Remove elicitation completion notification and ID | MRTR request state replaces both in phase 5 |
+| 12. Allocate the MCP server-error range and renumber final errors | Typed `-32020`, `-32021`, and `-32022` handling in phases 1 and 2; Veoveo-defined errors remain in `-32000..-32019` and acceptance rejects collisions with the MCP-reserved range |
+
+### Deprecations, schema, and process
+
+| Changelog entry | Veoveo coverage |
+|---|---|
+| Roots, Sampling, and Logging deprecated | Excluded and deleted in phases 2, 5, and 8 |
+| HTTP+SSE reclassified as deprecated | Excluded from the final transport and hard-cut search |
+| Non-`none` Sampling `includeContext` values deprecated | Removed with Sampling and included in the hard-cut search |
+| Dynamic Client Registration deprecated | Removed; pre-registration is canonical and Client ID Metadata Documents remain an explicit future installation choice |
+| JSON Schema numeric minimum, maximum, and default accept numbers | Fractional values survive generation, serialization, and validation in phase 6 acceptance |
+| Feature lifecycle and deprecated-feature registry adopted | Phase 0 snapshots the registry used for the cut. Phase 8 rejects every deprecated surface rather than relying on its removal deadline. |
+| SEP workflow formalized | Upstream protocol changes use accepted SEP and upstream PR evidence. This governance change adds no Veoveo wire behavior. |
+
+The implementation report closes this ledger row by row and links the corresponding
+test or deletion evidence. The full upstream schema and specification diff remains an
+input to conformance; the summary table is not a substitute for that diff.
 
 ## Decisions
 
@@ -288,6 +350,41 @@ the current `0xPlaygrounds/rig` upstream main branch. The old task branch remain
 read-only reference material until the new implementation proves behavioral
 parity.
 
+### Veoveo changes since the initial audit
+
+The initial plan landed on 2026-07-30. Veoveo `3dba3913` adds several owners that the
+protocol cut must now address explicitly:
+
+- `veoveo.io/live-view/v2` makes the domain simulator authoritative for camera rigs,
+  stable encoded products, and actor-and-browser viewer leases. The revision-3 MCP
+  contract preserves these strong types and canonical resource URIs. It does not move
+  GPU media, pose traffic, or viewer leases into protocol-session state.
+- Simulation View now has durable desired state, transactional outbox events, reactive
+  reconciliation, explicit renewal and retry deadlines, and ephemeral viewer leases.
+  These event sources can feed `subscriptions/listen`. Files such as
+  `servers/simulation-view-mcp/src/state/session.rs` own domain sessions and survive
+  the deletion of MCP sessions.
+- Recording MCP now exposes scoped Redap archive reads and a native live RRD channel
+  through gateway and Console routes beside its MCP endpoint. Those binary and HTTP
+  adapters remain non-MCP data planes. The migration changes Recording MCP discovery,
+  resources, task behavior, and catalog subscriptions without reclassifying the live
+  RRD channel as legacy MCP SSE.
+- Recording Hub and its forwarder now use durable queue and catalog events for upload,
+  rollover, and playback wakeups. Phase 4 reuses those typed sources where an MCP
+  notification projects the same fact; it does not add interval polling.
+- Gateway and Console now own shared TLS initialization, auth-scoped outbound HTTP
+  clients, recording playback routes, and viewer configuration. The MCP client cut
+  separates protocol state from those reusable transport and product clients instead
+  of deleting them together.
+- Deployment and visual acceptance now have focused Rust entrypoints in
+  `testing/deployment-smoke` and `testing/browser-smoke`, while `cargo xtask smoke`
+  remains the repository coordinator. Final acceptance uses the focused harnesses and
+  the existing hardware-GPU browser gate.
+
+The repository still pins `rmcp` 2.2.0, uses the old Rig fork revision, and publishes
+hosted contract revision 2. This document remains a future hard-cut plan; none of the
+new product paths makes revision 3 partially deployed.
+
 ## Target Architecture
 
 ### Discovery and stateless transport
@@ -326,6 +423,15 @@ A broken response stream has no protocol replay. A client that retries issues a 
 JSON-RPC request ID and re-evaluates whether the operation is safe to repeat. A
 non-idempotent domain action requires its own typed idempotency contract; transport
 failure does not make it retryable.
+
+Closing a streaming HTTP response cancels that request. The server stops producing
+request-scoped progress and sends no later response on the closed stream. Cancelling a
+stream that already returned a durable Task does not cancel the Task; cooperative task
+cancellation still requires `tasks/cancel`.
+
+The final `rmcp` codec retains the specification's mandated rule that an absent
+`resultType` from an earlier-version peer decodes as `complete`. Veoveo never uses that
+decode rule to admit, advertise, or downgrade to an earlier protocol version.
 
 ### Server surface authority
 
@@ -570,6 +676,11 @@ Request-scoped progress stays on its originating response stream and never moves
 the listener. Revision 3 emits no protocol log messages because MCP Logging is
 excluded.
 
+The per-request `io.modelcontextprotocol/logLevel` field is accepted as
+non-authoritative metadata and has no effect when Logging is not advertised. A server
+never emits `notifications/message` merely because an earlier request selected a log
+level, and it never retains that value across requests.
+
 The protocol no longer requires singleton deployment. An endpoint remains singleton
 only when a real resource-owner constraint requires it, such as exclusive GPU
 capacity or a live simulation process.
@@ -596,6 +707,10 @@ The validation does not reject a schema merely because it contains `$ref`,
 External references are not fetched automatically. Any explicitly supported reference
 resolver is installation-owned, allowlisted, size-bounded, cycle-bounded, and included
 in release evidence.
+
+JSON Schema `minimum`, `maximum`, and `default` retain fractional JSON numbers. No
+generator, intermediate Rust value, conformance snapshot, or validator narrows those
+keywords to integers.
 
 ### Tool names and error semantics
 
@@ -629,6 +744,11 @@ visible to the model.
 Resource methods separately adopt the final protocol mapping. An unknown resource URI
 returns JSON-RPC `Invalid Params` (`-32602`), not the superseded MCP-specific
 `-32002`.
+
+Veoveo-defined JSON-RPC server errors use only `-32000..-32019`. The shared error type
+reserves `-32020..-32099` for MCP and owns the final `HeaderMismatch` (`-32020`),
+`MissingRequiredClientCapability` (`-32021`), and `UnsupportedProtocolVersion`
+(`-32022`) models. Component-local errors cannot allocate from that reserved range.
 
 ### Cache metadata
 
@@ -747,15 +867,17 @@ gateway-issued internal assertion.
 Rust uses one workspace `rmcp` version. A Rust package may not introduce a second
 major version through an integration dependency.
 
-The Python SDK uses the final-profile release of the official `mcp` package. If the
-official package lacks a released typed Tasks binding, Veoveo generates strong
-Pydantic models from the exact official extension schema and registers the methods
-through the SDK extension API. It does not reproduce HTTP, JSON-RPC, header,
-discovery, or streaming middleware.
+The audited Python baseline is official `mcp` 2.0.0. That release implements the
+`2026-07-28` core profile and explicitly does not ship Tasks. Veoveo therefore
+generates strong Pydantic models from the exact official extension schema and
+registers the methods through the SDK extension API. It does not reproduce HTTP,
+JSON-RPC, header, discovery, or streaming middleware.
 
-The Console moves to the current stable final-profile TypeScript SDK. It uses
-`tasks/get`, `tasks/update`, `tasks/cancel`, and `subscriptions/listen`. MCP Apps
-remains a separate extension. There is no legacy SDK fallback.
+The audited TypeScript baseline is the modular
+`@modelcontextprotocol/client` 2.0.0 and `@modelcontextprotocol/server` 2.0.0 line.
+The Console uses `tasks/get`, `tasks/update`, `tasks/cancel`, and
+`subscriptions/listen`. MCP Apps remains a separate extension. The legacy
+`@modelcontextprotocol/sdk` 1.x package is not a fallback.
 
 ## Ownership And Deletion Boundary
 
@@ -797,6 +919,10 @@ remains a separate extension. There is no legacy SDK fallback.
 | domain outbox, replay, and LIVE acceleration | retain |
 | MCP Apps typed host policy and UI resources | retain |
 | direct-call task adapter | retain with final protocol behavior |
+| Simulation View and UAV domain sessions, desired state, deadlines, and ephemeral viewer leases | retain; these are explicit application state rather than MCP protocol sessions |
+| `veoveo.io/live-view/v2` authoritative camera and stream-product types | retain as a typed negotiated domain extension |
+| Recording Redap, native live RRD channel, gateway playback route, and Console viewer adapter | retain beside MCP; these data planes are not HTTP+SSE or `subscriptions/listen` |
+| focused `testing/deployment-smoke` and `testing/browser-smoke` harnesses | retain and add final-profile deployment and headed hardware-GPU cases |
 
 Deletion is part of each migration concern. The repository does not land a new
 implementation and leave an inactive old module behind for possible compatibility.
@@ -868,22 +994,32 @@ mean Veoveo, rather than Rig's high-level runner, owns tool scheduling.
 
 ## rmcp Upstream Gate
 
-The `rmcp` 3.0.1 audit found broad final-profile support, including Discover,
+The `rmcp` 3.1.1 audit found broad final-profile support, including Discover,
 stateless Streamable HTTP, standard headers, cache metadata, multi-round requests,
-official Tasks models, task operations, and subscriptions.
+official Tasks models, task operations, and subscriptions. The release also fixes
+handler-macro cache hints, exposes MRTR state to tool handlers, and disambiguates
+input-required results.
 
-The audited release does not route task-status notifications through
-`SubscriptionSink` because the core accepted filter lacks task IDs. The tagged
-roadmap also records incomplete client and server conformance against the then-current
-alpha conformance suite.
+The tagged roadmap reports 100 percent client and server conformance for the dated
+`2026-07-28` core suite. Tasks remains extension coverage: nine scenarios are expected
+failures and one is skipped upstream. The release still does not route task-status
+notifications through `SubscriptionSink`; its core `SubscriptionFilter` has no task-ID
+selector and the sink explicitly drops `TaskStatusNotification`. The roadmap also
+names sessionless explicit handles, request association, and client TTL caching as
+specification features without conformance scenarios.
 
 The migration therefore requires:
 
-1. check the latest stable `rmcp` patch for the task-filter and conformance fixes;
-2. contribute the narrow task subscription change upstream if it is still absent;
-3. pin an exact upstream revision only when the accepted fix is not released;
-4. supplement upstream conformance with Veoveo task-notification acceptance;
-5. remove the Git pin when the fix reaches a stable release.
+1. check the latest stable `rmcp` patch when implementation begins;
+2. contribute the narrow task subscription-filter and sink change upstream if it is
+   still absent;
+3. run the dated core suites without Veoveo allowlists and close every Tasks extension
+   scenario needed by the Veoveo profile;
+4. supplement upstream conformance for task notifications, explicit handles,
+   request-stream association, and client TTL behavior;
+5. verify the 3.1.1 cache-hint and MRTR fixes through Veoveo integration tests;
+6. pin an exact accepted upstream revision only when a required fix is not released,
+   then remove that Git pin at the next stable release.
 
 This gap does not justify preserving `mcp/task-extension`.
 
@@ -897,7 +1033,12 @@ complete gate passes.
 
 - Create the fresh Rig branch from current upstream.
 - Revalidate the current stable Rig and `rmcp` releases.
-- Resolve `rmcp` task subscription routing and final conformance gaps.
+- Revalidate MCP Python SDK 2 and the modular MCP TypeScript client and server 2
+  releases; do not select either SDK's legacy major.
+- Snapshot the official deprecated-feature registry and complete specification/schema
+  diff used by the cut.
+- Resolve `rmcp` task subscription routing, Tasks extension scenarios, and uncovered
+  final-profile behaviors from the upstream gate.
 - Land or pin the Rig `rmcp` 3 client foundation.
 - Land the protocol-neutral deferred-tool and final Tasks stack.
 - Record exact upstream and fork revisions used by Veoveo.
@@ -922,6 +1063,9 @@ complete gate passes.
   schemas.
 - Update gateway fragments and compatibility manifests with the final protocol and
   contract revision.
+- Preserve `veoveo.io/live-view/v2`, Recording playback v8, and other current domain
+  extensions as typed extension contracts rather than folding their data planes into
+  MCP transport state.
 - Add an enforcement rule that rejects the superseded protocol vocabulary.
 
 The implementation change and normative revision land together. Revision 3 is never
@@ -938,6 +1082,7 @@ published while revision 2 behavior remains deployed.
   application-built result envelopes.
 - Return the final typed `-32602`, `-32021`, and `-32022` HTTP `400` responses for
   missing metadata, missing capabilities, and unsupported versions.
+- Reserve `-32020..-32099` for MCP and reject component-defined collisions.
 - Implement the per-request effective capability intersection and reject unknown or
   unadmitted extensions.
 - Observe server lists at readiness, fail when a required surface is absent, and keep
@@ -946,6 +1091,12 @@ published while revision 2 behavior remains deployed.
   cleanup.
 - Remove protocol `ping`, `logging/setLevel`, and
   `notifications/roots/list_changed`.
+- Keep request log level request-scoped and emit no protocol log notification because
+  the final Veoveo profile does not advertise Logging.
+- Treat closure of a streaming HTTP response as request cancellation without turning
+  it into transport replay or implicit durable-task cancellation.
+- Preserve Streamable HTTP origin validation and DNS-rebinding protection across the
+  transport rewrite.
 - Separate HTTP/TLS pooling from protocol request state.
 - Migrate all hosted Rust servers, the stdio bridge, gateway, Console BFF,
   conformance client, and smoke support.
@@ -966,11 +1117,18 @@ published while revision 2 behavior remains deployed.
 ### Phase 4: Subscriptions and replicas
 
 - Implement the event/outbox-to-`SubscriptionSink` adapter.
-- Migrate resource, catalog, task, progress, and domain notification paths.
+- Migrate resource, catalog, task, and domain change-notification paths. Keep
+  request-scoped progress on its originating response stream.
+- Reuse the current Simulation View reconciliation outbox and Recording catalog/queue
+  events where they own the same durable fact. Do not add interval polling.
 - Authorize exact task IDs, resource URIs, catalog surfaces, and extension identifiers
   in each listen filter.
 - Reject unauthorized filters and acknowledge only the supported subset of authorized
   filters.
+- Send the typed acknowledgment first, tag every later notification with the
+  subscription ID, and send the final empty result before a graceful server closure.
+- Keep native Recording RRD streams, Redap, WebRTC, and private runtime streams outside
+  `subscriptions/listen`.
 - Delete stored peer registries and legacy resource subscription handlers.
 - Remove the universal singleton deployment rule.
 - Enable at least two gateway replicas and one ordinary hosted-server replica in
@@ -1000,11 +1158,15 @@ published while revision 2 behavior remains deployed.
 - Add bounded JSON Schema 2020-12 validation.
 - Permit schemas and structured content with any valid JSON root, prohibit automatic
   external-reference fetching, and bound any installed resolver.
+- Preserve fractional `minimum`, `maximum`, and `default` values through generation,
+  serialization, snapshots, and validation.
 - Replace gateway-safe local tool names with the final MCP grammar while preserving
   separate lowercase server slugs and collision-checked projections.
 - Centralize Rust and Python tool-error mapping. Domain and actionable execution
   failures return `CallToolResult` with `isError: true`.
 - Replace the legacy missing-resource error with JSON-RPC `-32602`.
+- Centralize the MCP-reserved error range and reject Veoveo-defined codes in
+  `-32020..-32099`.
 - Set explicit TTL and cache scope on discover, list, and read results.
 - Key private caches by effective authority and policy revision. Treat TTL as
   on-demand freshness rather than a polling schedule.
@@ -1021,7 +1183,9 @@ published while revision 2 behavior remains deployed.
 
 ### Phase 7: Python, TypeScript, templates, and external artifacts
 
-- Pin the latest stable final-profile Python and TypeScript SDK releases.
+- Pin the latest stable MCP Python SDK 2 and modular MCP TypeScript client/server 2
+  releases. Remove the legacy TypeScript `@modelcontextprotocol/sdk` package if it is
+  present in a generated or external fixture.
 - Generate a thin Python Tasks binding only if the official release lacks it.
 - Migrate the Console bridge and MCP Apps task methods.
 - Update the Python server template and source-free fixture.
@@ -1034,9 +1198,12 @@ published while revision 2 behavior remains deployed.
 - Update Helm values, probes, replica settings, and gateway configuration.
 - Build and publish every selected image from one committed revision.
 - Deploy the complete final-profile platform.
-- Run the acceptance matrix.
+- Run the acceptance matrix through `cargo xtask smoke`, the focused deployment smoke,
+  and the focused headed hardware-GPU browser smoke.
 - Search the source, schemas, rendered charts, generated documentation, and web
   bundles for obsolete protocol surfaces.
+- Distinguish legitimate domain sessions, viewer leases, native RRD channels, Redap,
+  and WebRTC from deleted MCP session and replay vocabulary in that search.
 - Remove the old Rig branch after the published replacement and Veoveo cutover are
   independently recoverable.
 
@@ -1044,15 +1211,16 @@ published while revision 2 behavior remains deployed.
 
 | Area | Required evidence |
 |---|---|
-| Dependency graph | one exact `rmcp` 3 version; no second major through Rig or another package |
+| Changelog ledger | every official major, minor, deprecated, schema, governance, and process entry is closed by linked implementation, rejection, deletion, or no-wire-impact evidence |
+| Dependency graph | one exact `rmcp` 3 version; no second major through Rig or another package; Python and modular TypeScript SDKs use their current final-profile major and no legacy TypeScript SDK remains |
 | Discovery | every client and hosted server completes the `2026-07-28` Discover lifecycle without Initialize |
 | Surface authority | required installation surfaces fail readiness when absent; unexpected observed surfaces remain unreachable; the contract resource contains no duplicate live inventory |
 | Effective capabilities | each hop receives the typed client, gateway, installation, upstream, and policy intersection; a previous request and an unknown extension cannot expand it; an unmet requirement returns HTTP `400` with `-32021` |
 | Adapter negotiation | a non-Tasks downstream client receives no Task wire result; the admitted gateway adapter may negotiate and consume Tasks only on its separate upstream hop |
-| Transport | no session header, reconnect GET, session DELETE, or Last-Event-ID; terminal results are JSON |
-| Protocol errors | missing required metadata returns HTTP `400` with `-32602`; a non-final version returns HTTP `400` with `-32022` and cannot trigger downgrade |
-| Result discrimination | every ordinary and multi-round result has the final SDK-owned discriminator; handlers do not carry a second result envelope |
-| Official conformance | server and client suites pass with zero Veoveo-allowlisted failures |
+| Transport | no session header, reconnect GET, session DELETE, or Last-Event-ID; terminal results are JSON; stream closure cancels only the owning request; origin and DNS-rebinding checks remain enforced |
+| Protocol errors | missing required metadata returns HTTP `400` with `-32602`; a non-final version returns HTTP `400` with `-32022` and cannot trigger downgrade; component-defined errors cannot use the MCP-reserved `-32020..-32099` range |
+| Result discrimination | every ordinary, task, extension, and multi-round result has the final SDK-owned discriminator; handlers do not carry a second result envelope; absent earlier-version discriminators decode as complete without enabling protocol downgrade |
+| Official conformance | dated server and client suites pass with zero Veoveo-allowlisted failures; every Tasks extension scenario required by the profile passes or has direct equivalent evidence |
 | Tasks | creation is durable before return; immediate, working, input-required, completed, failed, cancelled, TTL, poll interval, idempotent update, accepted cancel intent, immutable terminal state, and terminal-schema paths pass |
 | Task errors | a completed tool result may carry `isError: true`; only a JSON-RPC failure yields a failed Task |
 | Task notifications | a task listener observes authorized status changes; loss of an optional notification does not prevent correctness through `tasks/get` |
@@ -1062,9 +1230,9 @@ published while revision 2 behavior remains deployed.
 | Replica routing | a task created through one gateway replica is read, updated, cancelled, or completed through another |
 | Restart | a gateway or server restart between task creation and observation does not lose canonical state |
 | Multi-round request | direct and in-task form input survives serialization, authorization recheck, restart, and retry; tamper, expiry, replay, response-size, round-count, and unissued-input checks fail closed |
-| Subscriptions | persistent events replay from the outbox and live events arrive through one accepted listener filter; unsupported authorized filters may be omitted and any unauthorized target rejects the request |
+| Subscriptions | acknowledgment is first, every event carries the subscription ID, persistent events replay from the outbox, live events arrive through one accepted listener filter, graceful server closure returns the final empty result, unsupported authorized filters may be omitted, and any unauthorized target rejects the request |
 | Stateless scaling | two gateway replicas and one replicated ordinary MCP server pass without sticky sessions |
-| Schemas | bounded same-document references, composition, and object, array, scalar, or null structured-content roots validate; automatic external fetches and malformed, cyclic-over-limit, or resource-exhausting schemas fail closed |
+| Schemas | bounded same-document references, composition, fractional numeric minimum/maximum/default values, and object, array, scalar, or null structured-content roots validate; automatic external fetches and malformed, cyclic-over-limit, or resource-exhausting schemas fail closed |
 | Tool errors | malformed envelopes and unknown tools produce JSON-RPC errors; schema-valid domain failures and actionable execution failures produce model-visible `isError` tool results in direct and task flows |
 | Resource errors | a missing resource returns JSON-RPC `-32602`; the superseded MCP-specific code is absent |
 | Tool names | case-sensitive final-profile names, including dots and uppercase characters, pass; empty, overlength, invalid-character, and projected-collision cases fail |
@@ -1073,13 +1241,16 @@ published while revision 2 behavior remains deployed.
 | Trace context | valid W3C context propagates; malformed or oversized context is rejected or replaced as specified; baggage and self-reported client or server identity cannot change authority |
 | MCP headers | standard method and name headers agree with the decoded body; mismatch returns HTTP `400` with JSON-RPC `-32020`; unadmitted, authority-bearing, and oversized parameter headers fail before routing |
 | Authorization | pre-registered clients pass issuer, resource, refresh, exact step-up, issuer-bound cache, and confidential `private_key_jwt` behavior; Dynamic Client Registration is absent |
-| Deprecated features | Roots, Sampling, MCP Logging, URL-mode elicitation, HTTP+SSE, non-`none` `includeContext`, legacy sessions, and legacy subscriptions are not advertised or accepted |
+| Logging metadata | request log level never persists across requests; no request receives `notifications/message` because the Veoveo profile does not advertise Logging |
+| Deprecated features | Roots, Sampling, MCP Logging, URL-mode elicitation, HTTP+SSE, non-`none` `includeContext`, Dynamic Client Registration, legacy sessions, and legacy subscriptions are not advertised or accepted |
+| Current product protocols | authoritative live-view v2, Recording playback v8, native RRD channels, Redap, WebRTC, pose ingress, and private runtime streams retain their documented boundaries and are not routed through MCP subscriptions or mistaken for legacy MCP transport |
+| Domain state | Simulation View and UAV domain sessions, reconciliation state, durable deadlines, and viewer leases survive the removal of protocol sessions; no domain handle acquires authority from process locality |
 | Rig | blocking and streaming agent runs have identical task semantics; serialized pending runs resume against reconnected task handles |
-| Python and TypeScript | SDK, template, Console, and MCP Apps use only final methods and response shapes |
+| Python and TypeScript | Python SDK 2, modular TypeScript client/server 2, templates, Console, and MCP Apps use only final methods and response shapes; the Python Tasks binding is a typed extension because 2.0.0 does not ship Tasks |
 | Extensions | anonymous external conformance and integration fixtures consume the published revision-3 artifacts without Veoveo source |
-| Deployment | rendered charts carry the intended replica and GPU-owner constraints; images and charts use immutable release identities |
-| Repository | workspace tests, Clippy, docs, Python tests, frontend tests, Rust smokes, profile acceptance, showcases, and GPU visual acceptance pass |
-| Hard cut | searches find no `2025-11-25`, `2026-06-30`, `Mcp-Session-Id`, `tasks/result`, `tasks/list`, `taskSupport`, `resources/subscribe`, `resources/unsubscribe`, protocol `ping`, `logging/setLevel`, `notifications/roots/list_changed`, `notifications/elicitation/complete`, `elicitationId`, or resource error `-32002` outside explicit historical migration evidence |
+| Deployment | rendered charts carry the intended replica and GPU-owner constraints; images and charts use immutable release identities; focused deployment acceptance passes |
+| Repository | workspace tests, Clippy, docs, Python tests, frontend tests, Rust smokes, profile acceptance, showcases, focused deployment smoke, and focused headed hardware-GPU browser acceptance pass |
+| Hard cut | searches find no `2025-11-25`, `2026-06-30`, `Mcp-Session-Id`, `tasks/result`, `tasks/list`, `taskSupport`, `resources/subscribe`, `resources/unsubscribe`, protocol `ping`, `logging/setLevel`, `notifications/roots/list_changed`, `notifications/elicitation/complete`, `elicitationId`, resource error `-32002`, or legacy TypeScript `@modelcontextprotocol/sdk` outside explicit historical migration evidence |
 
 The official conformance runner may lag an SDK release. Veoveo supplements missing
 scenarios but does not mark an upstream failure expected merely to make the gate
@@ -1167,6 +1338,7 @@ acceptance matrix passes from committed source, and the deletion search is clean
 
 The final implementation report records:
 
+- row-by-row closure of the official `2026-07-28` changelog ledger;
 - exact Veoveo, Rig, and `rmcp` revisions;
 - official conformance versions and complete results;
 - workspace and language dependency locks;
@@ -1174,6 +1346,8 @@ The final implementation report records:
 - task, opaque-handle, multi-round, subscription, and replica evidence;
 - schema, tool-name, tool-error, caching, header, trace, authorization, and audit
   evidence;
+- preservation evidence for live-view v2, Recording playback v8, native RRD, Redap,
+  WebRTC, domain sessions, and durable reconciliation boundaries;
 - deployed image and chart digests;
 - full showcase and visual acceptance evidence;
 - the list of deleted protocol modules.
