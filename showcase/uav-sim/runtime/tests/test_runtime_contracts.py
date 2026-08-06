@@ -162,7 +162,8 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertNotIn("import CameraSensor", app_source)
         self.assertIn("HydraRgbCameraSensor", app_source)
         self.assertIn("PoseProducer", app_source)
-        self.assertNotIn("livestream", app_source.lower())
+        self.assertIn("omni.kit.livestream.aov", app_source)
+        self.assertIn("AuthoritativeOperatorCameraCollection", app_source)
         self.assertNotIn("follow_camera", app_source)
 
     def test_recording_policy_is_typed_and_bounded(self) -> None:

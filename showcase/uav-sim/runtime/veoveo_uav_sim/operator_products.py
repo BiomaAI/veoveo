@@ -179,17 +179,12 @@ class OperatorRenderProduct:
         result = self._health.snapshot()
         result.update(
             {
-                "camera_id": self.definition.camera_id,
-                "stream_product_id": self.product_id,
-                "physical_slot": self.definition.physical_slot,
-                "stream_policy": self.definition.stream_policy.value,
-                "width_px": self.definition.optics.width_px,
-                "height_px": self.definition.optics.height_px,
-                "frame_rate_millihertz": (
-                    self.definition.optics.frame_rate_hz * 1_000
-                ),
-                "codec": "h264",
-                "hardware_encoder": "nvidia_nvenc",
+                "cameraId": self.definition.camera_id,
+                "streamProductId": self.product_id,
+                "physicalSlot": self.definition.physical_slot,
+                "activeViewerLeases": 0,
+                "connectedViewers": 0,
+                "nvencSessions": 1 if self.active else 0,
             }
         )
         return result

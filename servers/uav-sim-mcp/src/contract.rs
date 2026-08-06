@@ -4,7 +4,10 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 pub use veoveo_mcp_contract::Wgs84Position;
-use veoveo_mcp_contract::{FrameWorldRevision, FrameWorldRevisionUri, WorldFrameUri};
+use veoveo_mcp_contract::{
+    FrameWorldRevision, FrameWorldRevisionUri, LiveCameraDescriptor, LiveStreamProductState,
+    WorldFrameUri,
+};
 use veoveo_simulation_scene::SceneDeclaration;
 
 fn validate_id(value: &str) -> Result<(), IdentityError> {
@@ -443,6 +446,8 @@ pub struct SimulationState {
     pub world: Option<SimulationWorldBinding>,
     pub tiles: TileState,
     pub cameras: Vec<CameraState>,
+    pub live_cameras: Vec<LiveCameraDescriptor>,
+    pub stream_products: Vec<LiveStreamProductState>,
     pub pose_publication: PosePublicationState,
     pub vehicles: Vec<VehicleState>,
     pub recordings: Vec<RecordingState>,

@@ -6,6 +6,7 @@ use reqwest::{Client, StatusCode, Url};
 use serde::Deserialize;
 use thiserror::Error;
 use tokio::sync::Mutex;
+use veoveo_mcp_contract::{LiveCameraDescriptor, LiveStreamProductState};
 use veoveo_platform_store::{
     PlatformStore, RecordIdKey, RecordingId as PlatformRecordingId, TenantId,
     deterministic_tenant_id,
@@ -54,6 +55,8 @@ struct AdapterSimulationState {
     world: Option<SimulationWorldBinding>,
     tiles: TileState,
     cameras: Vec<CameraState>,
+    live_cameras: Vec<LiveCameraDescriptor>,
+    stream_products: Vec<LiveStreamProductState>,
     pose_publication: PosePublicationState,
     vehicles: Vec<VehicleState>,
     recordings: Vec<AdapterRecordingState>,
@@ -205,6 +208,8 @@ impl HttpAdapter {
             world: state.world,
             tiles: state.tiles,
             cameras: state.cameras,
+            live_cameras: state.live_cameras,
+            stream_products: state.stream_products,
             pose_publication: state.pose_publication,
             vehicles: state.vehicles,
             recordings,
@@ -782,6 +787,8 @@ mod tests {
                 diagnostic_code: None,
                 diagnostic: None,
             }],
+            live_cameras: Vec::new(),
+            stream_products: Vec::new(),
             pose_publication: PosePublicationState {
                 protocol_schema: PoseProtocolSchema::SimulationViewPoseV1,
                 producer_id: PoseProducerId::new("uav-sim").unwrap(),

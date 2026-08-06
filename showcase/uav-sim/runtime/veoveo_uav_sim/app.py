@@ -6,6 +6,7 @@ import time
 from collections.abc import Callable
 
 from .config import RuntimeConfig
+from .operator_products import livestream_aov_arguments
 
 LOGGER = logging.getLogger("veoveo.uav_sim")
 
@@ -40,6 +41,9 @@ def run(config: RuntimeConfig) -> None:
                 config.extension_directory,
                 "--enable",
                 "cesium.usd.plugins",
+                "--enable",
+                "omni.kit.livestream.webrtc",
+                *livestream_aov_arguments(config.operator_live_view),
                 "--portable-root",
                 str(config.cache_directory / "kit-portable"),
             ],
@@ -64,6 +68,7 @@ def run(config: RuntimeConfig) -> None:
         "cesium.omniverse",
         "isaacsim.core.experimental.prims",
         "isaacsim.sensors.experimental.rtx",
+        "omni.kit.livestream.webrtc",
         "pegasus.simulator",
     ):
         extension_manager.set_extension_enabled_immediate(extension, True)
@@ -100,6 +105,14 @@ def run(config: RuntimeConfig) -> None:
     from .command_queue import MainThreadQueue
     from .fleet_loop import FleetLoopController
     from .hydra_camera import HydraRgbCameraSensor
+    from .operator_camera import (
+        AuthoritativeOperatorCameraCollection,
+        EntityTransform,
+        Pose,
+        QuaternionXyzw,
+        Vector3,
+    )
+    from .operator_products import OperatorProductCollection
     from .physics_batch import FleetPhysicsLifecycle
     from .pose import PhysicsCadenceGate, PoseProducer
     from .px4 import Px4Commander
@@ -141,6 +154,9 @@ def run(config: RuntimeConfig) -> None:
     pose_producer: PoseProducer | None = None
     physics_lifecycle: FleetPhysicsLifecycle | None = None
     fleet_loop: FleetLoopController | None = None
+    operator_cameras: AuthoritativeOperatorCameraCollection | None = None
+    operator_products: OperatorProductCollection | None = None
+    simulation_generation = 1
 
     try:
         preconfiguration = PreconfigurationApplication(config, world_slot)
@@ -332,6 +348,25 @@ def run(config: RuntimeConfig) -> None:
         # Cesium for Omniverse drives tile selection from Kit viewports. The
         # RTX sensor render product alone is not a Cesium streaming camera.
         viewport.set_active_camera(sensor_camera_path)
+        operator_cameras = AuthoritativeOperatorCameraCollection.create(
+            config.operator_live_view.cameras,
+            stage,
+        )
+        operator_products = OperatorProductCollection.create(
+            config.operator_live_view.cameras,
+            {
+                camera.definition.camera_id: camera.camera_path
+                for camera in operator_cameras.cameras
+            },
+        )
+        extension_manager.set_extension_enabled_immediate(
+            "omni.kit.livestream.aov", True
+        )
+        if not extension_manager.is_extension_enabled("omni.kit.livestream.aov"):
+            raise RuntimeError(
+                "failed to enable required extension omni.kit.livestream.aov"
+            )
+        state.update_stream_products(operator_products.state())
 
         rigid_body_paths = tuple(
             f"{vehicle_callback_prefixes[vehicle_id]}/{body_name}"
@@ -368,6 +403,31 @@ def run(config: RuntimeConfig) -> None:
                     )
                 )
             return telemetry
+
+        def operator_entity_transforms() -> dict[str, EntityTransform]:
+            return {
+                vehicle_id: EntityTransform(
+                    vehicle_id,
+                    Pose(
+                        Vector3(
+                            *(float(value) for value in vehicle.state.position)
+                        ),
+                        QuaternionXyzw(
+                            *(float(value) for value in vehicle.state.attitude)
+                        ).normalized(),
+                    ),
+                )
+                for vehicle_id, vehicle in vehicles.items()
+            }
+
+        def update_operator_cameras(now: float | None = None) -> None:
+            assert operator_cameras is not None
+            operator_cameras.update(
+                operator_entity_transforms(),
+                simulation_generation=simulation_generation,
+                physics_step=physics_step,
+                monotonic_seconds=time.monotonic() if now is None else now,
+            )
 
         def advance_physics(_dt: float) -> None:
             nonlocal physics_step, simulation_time_s
@@ -437,13 +497,14 @@ def run(config: RuntimeConfig) -> None:
 
         def reset() -> None:
             def action() -> None:
-                nonlocal physics_step, simulation_time_s
+                nonlocal physics_step, simulation_time_s, simulation_generation
                 assert world is not None
                 was_playing = timeline.is_playing()
                 assert physics_lifecycle is not None
                 physics_lifecycle.reset()
                 physics_step = 0
                 simulation_time_s = 0.0
+                simulation_generation += 1
                 pose_cadence.reset()
                 recording_cadence.reset()
                 physics_clock.reset(physics_step)
@@ -461,6 +522,7 @@ def run(config: RuntimeConfig) -> None:
                 simulation_app.update()
                 for _ in range(steps):
                     world.step(render=False)
+                update_operator_cameras()
                 world.render()
                 timeline.pause()
                 simulation_app.update()
@@ -484,6 +546,8 @@ def run(config: RuntimeConfig) -> None:
             recording,
             world_slot,
             fleet_loop,
+            operator_products,
+            command_queue.submit,
         )
         assert server is not None
         server.close()
@@ -536,12 +600,22 @@ def run(config: RuntimeConfig) -> None:
             # UAV camera, but no window, so its automatic update submits an
             # empty list. Restore the sensor viewport after every Kit update,
             # using the same native frame contract as the extension.
-            cesium_viewport = CesiumViewport()
-            cesium_viewport.viewMatrix = viewport.view
-            cesium_viewport.projMatrix = viewport.projection
-            cesium_viewport.width = float(viewport.resolution[0])
-            cesium_viewport.height = float(viewport.resolution[1])
-            cesium_interface.on_update_frame([cesium_viewport], False)
+            cesium_viewports = []
+            sensor_viewport = CesiumViewport()
+            sensor_viewport.viewMatrix = viewport.view
+            sensor_viewport.projMatrix = viewport.projection
+            sensor_viewport.width = float(viewport.resolution[0])
+            sensor_viewport.height = float(viewport.resolution[1])
+            cesium_viewports.append(sensor_viewport)
+            assert operator_products is not None
+            for product_viewport in operator_products.active_viewports():
+                live_viewport = CesiumViewport()
+                live_viewport.viewMatrix = product_viewport.view
+                live_viewport.projMatrix = product_viewport.projection
+                live_viewport.width = float(product_viewport.width)
+                live_viewport.height = float(product_viewport.height)
+                cesium_viewports.append(live_viewport)
+            cesium_interface.on_update_frame(cesium_viewports, False)
 
         tile_coverage_frames = 0
         tile_absent_since: float | None = time.monotonic()
@@ -562,8 +636,11 @@ def run(config: RuntimeConfig) -> None:
                     world.step(render=False)
                 render = render_deadline.due(now=time.monotonic())
                 if render:
+                    update_operator_cameras(now)
                     world.render()
                     update_cesium_viewport()
+                    assert operator_products is not None
+                    state.update_stream_products(operator_products.state())
                     clock_status = physics_clock.status()
                     state.update_realtime_clock(
                         clock_status.rebases,
@@ -776,6 +853,8 @@ def run(config: RuntimeConfig) -> None:
             _cleanup("adapter server", server.close)
         if pose_producer is not None:
             _cleanup("Simulation View pose publisher", pose_producer.close)
+        if operator_products is not None:
+            _cleanup("operator stream products", operator_products.close)
         for camera_sensor in camera_sensors.values():
             _cleanup("RTX Hydra RGB camera sensor", camera_sensor.close)
         if timeline.is_playing():

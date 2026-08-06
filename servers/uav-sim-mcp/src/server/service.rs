@@ -980,6 +980,8 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             diagnostic_code: None,
             diagnostic: None,
         }],
+        live_cameras: Vec::new(),
+        stream_products: Vec::new(),
         pose_publication: PosePublicationState {
             protocol_schema: PoseProtocolSchema::SimulationViewPoseV1,
             producer_id: PoseProducerId::new("uav-sim")?,
