@@ -140,11 +140,15 @@ pub use internal_auth::{
     IssuedGatewayInternalToken,
 };
 pub use live_view::{
-    LIVE_VIEW_SCHEMA, LiveCameraHealth, LiveCameraId, LiveCameraSource, LiveColorMatrix,
-    LiveColorMetadata, LiveColorPrimaries, LiveColorRange, LiveColorTransfer, LiveMediaEndpoint,
-    LiveMediaTransport, LiveSessionId, LiveStreamProductId, LiveViewAccessToken, LiveViewCodec,
-    LiveViewConnection, LiveViewHardwareEncoder, LiveViewId, LiveViewLifecycle, LiveViewOwner,
-    LiveViewState, LiveViewUri, LiveViewerInstanceId, is_valid_live_signaling_url,
+    LIVE_VIEW_SCHEMA, LiveCameraContractError, LiveCameraDescriptor, LiveCameraHealth,
+    LiveCameraId, LiveCameraRig, LiveCameraSmoothing, LiveCameraSource, LiveCameraStreamPolicy,
+    LiveColorMatrix, LiveColorMetadata, LiveColorPrimaries, LiveColorRange, LiveColorTransfer,
+    LiveEntityId, LiveMediaEndpoint, LiveMediaTransport, LivePose, LiveQuaternionXyzw,
+    LiveSessionId, LiveStreamProductId, LiveStreamProductLifecycle, LiveStreamProductState,
+    LiveVector3, LiveViewAccessToken, LiveViewCapacityDimension, LiveViewCapacityProfile,
+    LiveViewCapacityState, LiveViewCapacityUsage, LiveViewCodec, LiveViewConnection,
+    LiveViewHardwareEncoder, LiveViewId, LiveViewLifecycle, LiveViewOwner, LiveViewState,
+    LiveViewUri, LiveViewerInstanceId, is_valid_live_signaling_url,
 };
 pub use pagination::{Page, PaginationError, paginate};
 pub use provider::Provider;
