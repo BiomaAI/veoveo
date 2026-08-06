@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import sys
 import threading
@@ -72,6 +73,38 @@ VALID_ENVIRONMENT = {
     "UAV_SIM_POSE_CA_CERTIFICATE": "/run/secrets/simulation-view-pose/ca.crt",
     "UAV_SIM_POSE_CLIENT_CERTIFICATE": ("/run/secrets/simulation-view-pose/tls.crt"),
     "UAV_SIM_POSE_CLIENT_PRIVATE_KEY": ("/run/secrets/simulation-view-pose/tls.key"),
+    "UAV_SIM_RENDERING_HZ": "30",
+    "UAV_SIM_LIVE_PUBLIC_MEDIA_IP": "127.0.0.1",
+    "UAV_SIM_OPERATOR_CAMERAS_JSON": json.dumps(
+        [
+            {
+                "cameraId": "follow",
+                "physicalSlot": 0,
+                "revision": 1,
+                "rig": {
+                    "kind": "follow_entity",
+                    "targetEntityId": "uav-1",
+                    "eyeOffsetFluM": {"x": -12.0, "y": 2.0, "z": 4.0},
+                    "targetOffsetFluM": {"x": 0.0, "y": 0.0, "z": 0.2},
+                    "smoothing": {
+                        "translationHalfLifeMs": 150,
+                        "rotationHalfLifeMs": 120,
+                        "teleportDistanceM": 100.0,
+                        "resetAfterGapMs": 1000,
+                    },
+                },
+                "optics": {
+                    "widthPx": 1280,
+                    "heightPx": 720,
+                    "frameRateHz": 30,
+                    "verticalFovDegrees": 60.0,
+                    "nearClipM": 0.1,
+                    "farClipM": 100000.0,
+                },
+                "streamPolicy": "continuous",
+            }
+        ]
+    ),
 }
 
 WORLD = WorldConfiguration(
@@ -106,12 +139,13 @@ class RuntimeConfigTests(unittest.TestCase):
             config = RuntimeConfig.from_environment()
         self.assertEqual(config.cesium_ion_access_token, "test-token")
 
-    def test_default_render_cadence_matches_the_camera(self) -> None:
+    def test_operator_render_cadence_is_independent_of_sensor_cadence(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             config = RuntimeConfig.from_environment()
         self.assertEqual(config.physics_hz, 60)
-        self.assertEqual(config.rendering_hz, 2)
-        self.assertEqual(config.rendering_hz, config.camera.fps)
+        self.assertEqual(config.rendering_hz, 30)
+        self.assertEqual(config.camera.fps, 2)
+        self.assertEqual(config.operator_live_view.cameras[0].optics.frame_rate_hz, 30)
         self.assertEqual(config.pose_cadence_hz, 20)
         self.assertEqual(config.pose_buffer_duration_ms, 500)
         self.assertEqual(config.px4_connect_timeout_seconds, 180.0)
@@ -158,7 +192,7 @@ class RuntimeConfigTests(unittest.TestCase):
 
         timing = initial_runtime_timing(config)
         self.assertEqual(timing["physics_hz"], 60)
-        self.assertEqual(timing["native_rendering_hz"], 2)
+        self.assertEqual(timing["native_rendering_hz"], 30)
         self.assertEqual(timing["pose_cadence_hz"], 20)
         self.assertEqual(timing["pose_buffer_target_snapshots"], 10)
 
@@ -250,7 +284,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(publication["epoch_id"], "epoch-1")
         self.assertEqual(publication["cadence_hz"], config.pose_cadence_hz)
         self.assertEqual(state["timing"]["physics_hz"], 60)
-        self.assertEqual(state["timing"]["native_rendering_hz"], 2)
+        self.assertEqual(state["timing"]["native_rendering_hz"], 30)
         self.assertEqual(state["timing"]["pose_cadence_hz"], 20)
         self.assertEqual(
             publication["entity_table_digest"],

@@ -7,6 +7,8 @@ from enum import Enum
 from math import sqrt
 from pathlib import Path
 
+from .operator_camera_config import OperatorLiveViewRuntimeConfig
+
 
 GOOGLE_PHOTOREALISTIC_3D_TILES_ION_ASSET_ID = 2_275_207
 
@@ -360,14 +362,23 @@ class RuntimeConfig:
     recording_key: uuid.UUID
     recording: RecordingConfig
     camera: CameraConfig
+    operator_live_view: OperatorLiveViewRuntimeConfig
     fleet_loop: FleetLoopConfig
     stream_publication: StreamPublicationConfig | None
     pose_publication: PosePublisherConfig
     extension_directory: str
 
     def __post_init__(self) -> None:
-        if self.rendering_hz != self.camera.fps:
-            raise ValueError("UAV_SIM_RENDERING_HZ must match UAV_SIM_CAMERA_FPS")
+        maximum_operator_fps = max(
+            camera.optics.frame_rate_hz
+            for camera in self.operator_live_view.cameras
+            if camera.stream_policy.value != "disabled"
+        )
+        if self.rendering_hz < maximum_operator_fps:
+            raise ValueError(
+                "UAV_SIM_RENDERING_HZ must be at least the maximum active "
+                "operator-camera frame rate"
+            )
         if self.pose_cadence_hz > self.physics_hz:
             raise ValueError("UAV_SIM_POSE_CADENCE_HZ must not exceed UAV_SIM_PHYSICS_HZ")
         if self.recording.telemetry_hz > self.physics_hz:
@@ -454,6 +465,16 @@ class RuntimeConfig:
             recording_key=recording_key,
             recording=RecordingConfig.from_environment(),
             camera=CameraConfig.from_environment(),
+            operator_live_view=OperatorLiveViewRuntimeConfig.from_json(
+                _required("UAV_SIM_OPERATOR_CAMERAS_JSON"),
+                signaling_port_base=_int(
+                    "UAV_SIM_LIVE_SIGNALING_PORT_BASE", "49100", 1, 65_535
+                ),
+                media_port_base=_int(
+                    "UAV_SIM_LIVE_MEDIA_PORT_BASE", "47998", 1, 65_535
+                ),
+                public_media_ip=_required("UAV_SIM_LIVE_PUBLIC_MEDIA_IP"),
+            ),
             fleet_loop=FleetLoopConfig.from_environment(),
             stream_publication=StreamPublicationConfig.from_environment(),
             pose_publication=PosePublisherConfig.from_environment(),
