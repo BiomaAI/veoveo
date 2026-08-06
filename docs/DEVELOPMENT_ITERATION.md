@@ -198,6 +198,8 @@ The latest measured misses remain open:
 
 | Sink | Observed cost | Required correction |
 |---|---:|---|
+| Concurrent `image stage` commands each reconcile the same named BuildKit worker and can replace it while another stage is active | parallel three-target staging canceled active solves before image compilation began | make builder reconciliation a separately acquired, process-safe checkpoint, then allow one multi-target Bake solve to publish per-target evidence |
+| A source-only UAV runtime overlay change reconstructs the complete pinned PX4, Pegasus, and Cesium inputs before BuildKit can reuse image layers | more than 6 min for `cargo xtask image stage --target uav-sim-runtime ...`; recursive PX4 submodule checkout and a 1,109-step SITL build dominated the run | retain digest-keyed prepared external-source contexts outside the ephemeral publication checkout and invalidate each context only when its locked source or patch inputs change |
 | A chart-version annotation changes the simulator pod template during an otherwise unrelated platform chart rollout | one full cached Isaac restart | decouple application chart publication from platform-only chart changes and remove non-runtime release metadata from the pod template |
 | `uav-showcase-up` builds the broad smoke binary after a focused browser edit | 30.74 s warm compile | move always-on showcase convergence into its own focused harness |
 | Separate reverse-dependent stages repeat overlapping optimized Rust compilation | about 40 s per cold target cache | execute one exact multi-target Bake stage and emit per-target evidence from the shared invocation |
