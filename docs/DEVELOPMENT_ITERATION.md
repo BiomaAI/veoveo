@@ -190,6 +190,21 @@ The current controls address the main observed sinks:
 | Replaying healthy Simulation View state | durable event wake plus exact deadline scheduling |
 | Guessing where Recording latency lives | boundary-specific queue, ingest, playback, and browser counters |
 
+The baseline measurements that motivated these controls remain part of the source
+record. They identify the dominant phase and keep later improvements comparable:
+
+| Run | Measured result | Dominant phase |
+|---|---:|---|
+| Coordinated 27-image release | about 21 min | image-family fan-out |
+| Shared Debian and Rust action in that release | 17 min 20 s | broad optimized compilation |
+| Stream and Reason image families | 15 min 39 s and 15 min 44 s | repeated reverse-dependent compilation and export |
+| Simulation View Isaac publication | 7 min 28 s | source-date-normalized layer rewrite and export |
+| Cached simulation-runtime publication | 3 min 8 s | source-date-normalized layer rewrite and export |
+| First `helm-config` smoke dispatch | 2 min 42 s | unrelated Rerun and Surreal dependency compilation; the warm run compiled in 0.57 s and completed in about 7 s |
+| Targeted UAV verifier help dispatch | 2 min 19 s | broad smoke dependency compilation before argument handling |
+| Gateway-only incremental publication | about 2 min end to end | Cargo consumed 1 min 43 s |
+| Source-only UAV runtime publication | about 3 min despite a 0.1 s, 78 KB source copy | SBOM generation consumed 40.7 s and timestamp-normalized layer rewriting consumed 130.6 s |
+
 Remaining misses must be added here with the evidence path, measured phase, cache state,
 and exact command. Wall time without phase evidence is not enough to choose an
 optimization.
@@ -203,6 +218,11 @@ The latest measured misses remain open:
 | A chart-version annotation changes the simulator pod template during an otherwise unrelated platform chart rollout | one full cached Isaac restart | decouple application chart publication from platform-only chart changes and remove non-runtime release metadata from the pod template |
 | `uav-showcase-up` builds the broad smoke binary after a focused browser edit | 30.74 s warm compile | move always-on showcase convergence into its own focused harness |
 | Separate reverse-dependent stages repeat overlapping optimized Rust compilation | about 40 s per cold target cache | execute one exact multi-target Bake stage and emit per-target evidence from the shared invocation |
+| Recording Hub periodic counters describe its local proxy but not authenticated forwarder ingest | healthy uploads required durable-queue inspection while Hub counters remained zero | expose accepted-message, accepted-byte, backlog, and last-success counters at authenticated ingest |
+| Full UAV acceptance sends an already-looping vehicle back toward one fixed low-speed waypoint | about 13 min when the fleet had moved several kilometres from the fixture origin | derive one nearby bounded maneuver from the current authorized pose |
+| Task acceptance repeatedly creates short MCP sessions and token exchanges while waiting for one task | repeated closed-subscription warnings and avoidable request latency | retain one authorized task subscription for the acceptance run |
+| Long UAV acceptance binds one operator credential and one camera revision for the entire run | a completed mission crossed the 20 min credential lifetime; cleanup then used a stale camera revision | renew the acceptance credential before expiry and read the current camera revision before cleanup |
+| Browser acceptance can reuse an operator's interactive Console target | operator navigation canceled the final exclusive-network assertion after all captures completed | create a dedicated authenticated browser target for each acceptance run |
 
 ## Qualification
 
