@@ -1259,6 +1259,11 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             native_rendering_hz: 2,
             realtime_rebases: 0,
             discarded_wall_seconds: 0.0,
+            render_cycles: 0,
+            kit_render_wall_seconds: 0.0,
+            render_cycle_wall_seconds: 0.0,
+            maximum_kit_render_ms: 0.0,
+            maximum_render_cycle_ms: 0.0,
         },
         world: Some(crate::contract::SimulationWorldBinding {
             revision_uri: revision_uri.clone(),
