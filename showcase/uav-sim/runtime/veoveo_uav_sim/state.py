@@ -11,6 +11,7 @@ from .geo import enu_to_geodetic
 from .camera_quality import CameraFrameQuality
 from .operator_camera import CameraStreamPolicy
 from .operator_camera_config import live_camera_descriptor
+from .physics_batch import FleetPhysicsTiming
 from .world_config import WorldConfiguration
 
 
@@ -35,8 +36,14 @@ def initial_runtime_timing(config: RuntimeConfig) -> dict[str, int | float]:
         "physics_hz": config.physics_hz,
         "native_rendering_hz": config.rendering_hz,
         "render_cycles": 0,
+        "physics_steps": 0,
+        "refresh_states_wall_seconds": 0.0,
+        "vehicle_update_wall_seconds": 0.0,
+        "flush_forces_wall_seconds": 0.0,
+        "after_step_wall_seconds": 0.0,
         "native_update_wall_seconds": 0.0,
         "render_cycle_wall_seconds": 0.0,
+        "maximum_physics_step_ms": 0.0,
         "maximum_native_update_ms": 0.0,
         "maximum_render_cycle_ms": 0.0,
     }
@@ -167,7 +174,10 @@ class RuntimeState:
             self._touch()
 
     def observe_render_cycle(
-        self, native_update_wall_seconds: float, render_cycle_wall_seconds: float
+        self,
+        native_update_wall_seconds: float,
+        render_cycle_wall_seconds: float,
+        physics_timing: FleetPhysicsTiming,
     ) -> None:
         if native_update_wall_seconds < 0.0 or render_cycle_wall_seconds < 0.0:
             raise ValueError("render timing cannot be negative")
@@ -176,8 +186,20 @@ class RuntimeState:
         with self._condition:
             timing = self._state["timing"]
             timing["render_cycles"] += 1
+            timing["physics_steps"] = physics_timing.physics_steps
+            timing["refresh_states_wall_seconds"] = (
+                physics_timing.refresh_states_wall_seconds
+            )
+            timing["vehicle_update_wall_seconds"] = (
+                physics_timing.vehicle_update_wall_seconds
+            )
+            timing["flush_forces_wall_seconds"] = (
+                physics_timing.flush_forces_wall_seconds
+            )
+            timing["after_step_wall_seconds"] = physics_timing.after_step_wall_seconds
             timing["native_update_wall_seconds"] += native_update_wall_seconds
             timing["render_cycle_wall_seconds"] += render_cycle_wall_seconds
+            timing["maximum_physics_step_ms"] = physics_timing.maximum_physics_step_ms
             timing["maximum_native_update_ms"] = max(
                 timing["maximum_native_update_ms"],
                 native_update_wall_seconds * 1_000.0,
