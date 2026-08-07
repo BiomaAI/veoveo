@@ -8,6 +8,7 @@ from typing import Any, Protocol, TypeVar
 
 import numpy as np
 
+from .hydra_camera import asynchronous_hydra_texture_options
 from .operator_camera import CameraStreamPolicy, OperatorCameraDefinition
 from .operator_camera_config import OperatorLiveViewRuntimeConfig
 from .operator_health import OperatorProductHealth
@@ -115,10 +116,9 @@ class OperatorRenderProduct:
             definition.optics.width_px,
             definition.optics.height_px,
             usd_camera_path=camera_path,
-            hydra_engine_name="rtx",
-            is_async=True,
-            is_async_low_latency=True,
-            hydra_tick_rate=definition.optics.frame_rate_hz,
+            **asynchronous_hydra_texture_options(
+                definition.optics.frame_rate_hz
+            ),
         )
         actual_path = self._hydra_texture.get_render_product_path()
         expected_path = f"{RENDER_PRODUCT_PREFIX}/{self.name}"
