@@ -45,9 +45,8 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       initContainers:
-        {{- include "uav-sim.recordingForwarder" (dict "root" .) | nindent 8 }}
-      containers:
         - name: isaac-sim
+          restartPolicy: Always
           image: {{ include "uav-sim.image" (list . .Values.images.runtime) }}
           imagePullPolicy: {{ .Values.images.pullPolicy }}
           securityContext:
@@ -104,6 +103,8 @@ spec:
               mountPath: /isaac-sim/kit/data
             - name: tmp
               mountPath: /tmp
+        {{- include "uav-sim.recordingForwarder" (dict "root" .) | nindent 8 }}
+      containers:
         - name: uav-sim-mcp
           image: {{ include "uav-sim.image" (list . .Values.images.mcp) }}
           imagePullPolicy: {{ .Values.images.pullPolicy }}
