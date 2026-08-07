@@ -12,8 +12,11 @@ from veoveo_uav_sim.operator_camera import (
 )
 from veoveo_uav_sim.operator_camera_rigs import (
     ChaseEntityRig,
+    FixedRig,
     FollowEntityRig,
     FormationOverviewRig,
+    LookAtRig,
+    OrbitRig,
     StabilizedMountedEntityRig,
     desired_camera_pose,
 )
@@ -197,6 +200,61 @@ class OperatorCameraSmoothingTests(unittest.TestCase):
             camera.diagnostics.last_reset_reason, CameraFilterResetReason.TELEPORT
         )
 
+    def test_simulation_generation_and_physics_discontinuity_reset(self) -> None:
+        camera = CameraPoseFilter(_profile())
+        initial = Pose(Vector3(0.0, 0.0, 0.0), QuaternionXyzw.identity())
+        camera.update(
+            initial,
+            monotonic_seconds=0.0,
+            target_identity="uav-1",
+            camera_revision=1,
+            simulation_generation=1,
+            physics_step=10,
+        )
+
+        after_reset = Pose(Vector3(1.0, 0.0, 0.0), _yaw(10.0))
+        self.assertEqual(
+            camera.update(
+                after_reset,
+                monotonic_seconds=0.01,
+                target_identity="uav-1",
+                camera_revision=1,
+                simulation_generation=2,
+                physics_step=0,
+            ),
+            after_reset,
+        )
+        self.assertEqual(
+            camera.diagnostics.last_reset_reason,
+            CameraFilterResetReason.SIMULATION_RESET,
+        )
+
+        advanced = Pose(Vector3(2.0, 0.0, 0.0), _yaw(20.0))
+        camera.update(
+            advanced,
+            monotonic_seconds=0.02,
+            target_identity="uav-1",
+            camera_revision=1,
+            simulation_generation=2,
+            physics_step=8,
+        )
+        discontinuous = Pose(Vector3(3.0, 0.0, 0.0), _yaw(30.0))
+        self.assertEqual(
+            camera.update(
+                discontinuous,
+                monotonic_seconds=0.03,
+                target_identity="uav-1",
+                camera_revision=1,
+                simulation_generation=2,
+                physics_step=7,
+            ),
+            discontinuous,
+        )
+        self.assertEqual(
+            camera.diagnostics.last_reset_reason,
+            CameraFilterResetReason.PHYSICS_DISCONTINUITY,
+        )
+
 
 class OperatorCameraRigTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -223,6 +281,54 @@ class OperatorCameraRigTests(unittest.TestCase):
         self.assertAlmostEqual(pose.position_m.y, 10.0, places=9)
         self.assertAlmostEqual(pose.position_m.z, 32.0, places=9)
         self.assertAlmostEqual(pose.orientation_xyzw.norm(), 1.0, places=12)
+
+    def test_fixed_camera_uses_its_exact_normalized_pose(self) -> None:
+        expected = Pose(Vector3(100.0, -25.0, 80.0), _yaw(35.0))
+        pose = desired_camera_pose(FixedRig(expected), self.entities)
+        self.assertEqual(pose.position_m, expected.position_m)
+        self.assertAlmostEqual(
+            abs(pose.orientation_xyzw.dot(expected.orientation_xyzw)),
+            1.0,
+            places=12,
+        )
+
+    def test_look_at_keeps_eye_fixed_and_aims_at_world_target(self) -> None:
+        eye = Vector3(10.0, -20.0, 8.0)
+        target = Vector3(13.0, -12.0, 6.0)
+        pose = desired_camera_pose(
+            LookAtRig(eye, target, _profile()),
+            self.entities,
+        )
+        self.assertEqual(pose.position_m, eye)
+        forward = pose.orientation_xyzw.rotate(Vector3(0.0, 0.0, -1.0))
+        expected_forward = (target - eye).normalized()
+        self.assertAlmostEqual(forward.dot(expected_forward), 1.0, places=12)
+
+    def test_orbit_uses_authoritative_target_and_declared_angles(self) -> None:
+        pose = desired_camera_pose(
+            OrbitRig(
+                "uav-1",
+                radius_m=10.0,
+                azimuth_degrees=90.0,
+                elevation_degrees=30.0,
+                smoothing=_profile(),
+            ),
+            self.entities,
+        )
+        target = self.entities["uav-1"].pose.position_m
+        self.assertAlmostEqual(pose.position_m.x, target.x, places=9)
+        self.assertAlmostEqual(
+            pose.position_m.y,
+            target.y + 10.0 * math.cos(math.radians(30.0)),
+            places=9,
+        )
+        self.assertAlmostEqual(pose.position_m.z, target.z + 5.0, places=9)
+        forward = pose.orientation_xyzw.rotate(Vector3(0.0, 0.0, -1.0))
+        self.assertAlmostEqual(
+            forward.dot((target - pose.position_m).normalized()),
+            1.0,
+            places=12,
+        )
 
     def test_chase_and_camera_target_share_one_authoritative_transform(self) -> None:
         pose = desired_camera_pose(
