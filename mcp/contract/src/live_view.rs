@@ -545,6 +545,21 @@ pub enum LiveViewCapacityDimension {
     NetworkBitsPerSecond,
 }
 
+impl fmt::Display for LiveViewCapacityDimension {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::LogicalCameras => "logical_cameras",
+            Self::ViewerSlots => "viewer_slots",
+            Self::RenderPixelsPerSecond => "render_pixels_per_second",
+            Self::NvencSessions => "nvenc_sessions",
+            Self::GpuMemoryBytes => "gpu_memory_bytes",
+            Self::TransportSlots => "transport_slots",
+            Self::ViewerLeases => "viewer_leases",
+            Self::NetworkBitsPerSecond => "network_bits_per_second",
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LiveViewCapacityProfile {

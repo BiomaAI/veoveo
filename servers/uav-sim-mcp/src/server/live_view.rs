@@ -9,9 +9,9 @@ use uuid::Uuid;
 use veoveo_mcp_contract::{
     LIVE_VIEW_SCHEMA, LiveCameraId, LiveCameraRig, LiveCameraStreamPolicy, LiveColorMatrix,
     LiveColorMetadata, LiveColorPrimaries, LiveColorRange, LiveColorTransfer, LiveMediaEndpoint,
-    LiveMediaTransport, LiveSessionId, LiveViewAccessToken, LiveViewCodec, LiveViewConnection,
-    LiveViewHardwareEncoder, LiveViewId, LiveViewLifecycle, LiveViewOwner, LiveViewState,
-    LiveViewUri, PrincipalId,
+    LiveMediaTransport, LiveSessionId, LiveViewAccessToken, LiveViewCapacityDimension,
+    LiveViewCodec, LiveViewConnection, LiveViewHardwareEncoder, LiveViewId, LiveViewLifecycle,
+    LiveViewOwner, LiveViewState, LiveViewUri, PrincipalId,
 };
 
 use crate::{
@@ -148,7 +148,9 @@ impl LiveViewService {
             .count()
             >= self.config.maximum_viewer_leases as usize
         {
-            return Err(LiveViewError::Capacity);
+            return Err(LiveViewError::Capacity(
+                LiveViewCapacityDimension::ViewerLeases,
+            ));
         }
 
         let simulation = self
@@ -178,7 +180,9 @@ impl LiveViewService {
             })
             .map(|product| product.capacity_slot)
             .min()
-            .ok_or(LiveViewError::Capacity)?;
+            .ok_or(LiveViewError::Capacity(
+                LiveViewCapacityDimension::ViewerSlots,
+            ))?;
 
         let now = Utc::now();
         let expires_at = expiry(now, self.config.lease_duration)?;
@@ -626,8 +630,8 @@ pub(super) enum LiveViewError {
     AuthorityRevoked,
     #[error("live-view signaling authorization failed")]
     Access,
-    #[error("live-view viewer capacity is exhausted")]
-    Capacity,
+    #[error("live-view {0} capacity is exhausted")]
+    Capacity(LiveViewCapacityDimension),
     #[error("invalid live-view identifier")]
     Identifier,
     #[error("invalid live-view contract")]
@@ -649,11 +653,18 @@ impl LiveViewError {
             Self::Ownership => "ownership_mismatch",
             Self::AuthorityRevoked => "viewer_authority_revoked",
             Self::Access => "access_denied",
-            Self::Capacity => "viewer_capacity_exhausted",
+            Self::Capacity(_) => "viewer_capacity_exhausted",
             Self::Identifier => "invalid_identifier",
             Self::Contract => "invalid_contract",
             Self::Time => "time_overflow",
             Self::Runtime(_) => "product_transition_failed",
+        }
+    }
+
+    pub(super) fn capacity_dimension(&self) -> Option<LiveViewCapacityDimension> {
+        match self {
+            Self::Capacity(dimension) => Some(*dimension),
+            _ => None,
         }
     }
 }
@@ -995,9 +1006,45 @@ mod tests {
             1
         );
         assert!(
-            matches!(results.0, Err(LiveViewError::Capacity))
-                || matches!(results.1, Err(LiveViewError::Capacity))
+            matches!(
+                results.0,
+                Err(LiveViewError::Capacity(
+                    LiveViewCapacityDimension::ViewerSlots
+                ))
+            ) || matches!(
+                results.1,
+                Err(LiveViewError::Capacity(
+                    LiveViewCapacityDimension::ViewerSlots
+                ))
+            )
         );
+    }
+
+    #[tokio::test]
+    async fn lease_limit_identifies_viewer_lease_capacity() {
+        let (service, _) = service_with(2, Duration::from_secs(30), 1).await;
+        service
+            .open(
+                owner(),
+                PrincipalId::new("alice").unwrap(),
+                request("browser-a"),
+            )
+            .await
+            .unwrap();
+
+        let error = service
+            .open(
+                owner(),
+                PrincipalId::new("bob").unwrap(),
+                request("browser-b"),
+            )
+            .await
+            .unwrap_err();
+
+        assert!(matches!(
+            error,
+            LiveViewError::Capacity(LiveViewCapacityDimension::ViewerLeases)
+        ));
     }
 
     #[tokio::test]
