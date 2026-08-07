@@ -1,7 +1,5 @@
 def selected_server:
-  . as $slug
-  | ["artifact", "frames", "simulation-view"]
-  | index($slug) != null;
+  false;
 
 walk(
   if type == "string" then
@@ -24,10 +22,7 @@ walk(
     | .protected_resource = "http://localhost:8782/mcp/operator"
     | .auth_modes = ["oauth_client_credentials"]
     | .required_scopes = [
-        "operator:use",
-        "simulation-view:read",
-        "simulation-view:write",
-        "simulation-view:stream"
+        "operator:use"
       ]
     | .servers |= map(select(.server | selected_server))
   )
@@ -44,10 +39,7 @@ walk(
     select(.id == "operator-service")
     | .allowed_resources = ["http://localhost:8782/mcp/operator"]
     | .allowed_scopes = [
-        "operator:use",
-        "simulation-view:read",
-        "simulation-view:write",
-        "simulation-view:stream"
+        "operator:use"
       ]
     | .jwks = {
         "source": "file",

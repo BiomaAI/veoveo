@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import math
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -10,7 +9,6 @@ from typing import Any, Callable
 from .config import RuntimeConfig
 from .geo import enu_to_geodetic
 from .camera_quality import CameraFrameQuality
-from .pose import initial_pose_publication
 from .operator_camera import CameraStreamPolicy
 from .operator_camera_config import live_camera_descriptor
 from .world_config import WorldConfiguration
@@ -36,17 +34,6 @@ def initial_runtime_timing(config: RuntimeConfig) -> dict[str, int | float]:
     return {
         "physics_hz": config.physics_hz,
         "native_rendering_hz": config.rendering_hz,
-        "pose_cadence_hz": config.pose_cadence_hz,
-        "pose_buffer_duration_ms": config.pose_buffer_duration_ms,
-        "pose_queued_snapshots": 0,
-        "pose_buffer_target_snapshots": max(
-            2,
-            math.ceil(
-                config.pose_cadence_hz
-                * config.pose_buffer_duration_ms
-                / 1_000
-            ),
-        ),
         "realtime_rebases": 0,
         "discarded_wall_seconds": 0.0,
     }
@@ -113,11 +100,6 @@ class RuntimeState:
                 for camera in config.operator_live_view.cameras
                 if camera.stream_policy is not CameraStreamPolicy.DISABLED
             ],
-            "pose_publication": initial_pose_publication(
-                config.pose_publication,
-                config.vehicle_count,
-                config.pose_cadence_hz,
-            ),
             "vehicles": [],
             "recordings": [
                 {
@@ -251,20 +233,6 @@ class RuntimeState:
     def update_vehicles(self, vehicles: list[VehicleTelemetry]) -> None:
         with self._condition:
             self._state["vehicles"] = [self._vehicle_state(vehicle) for vehicle in vehicles]
-            self._touch()
-
-    def update_pose_publication(self, publication: dict[str, Any]) -> None:
-        with self._condition:
-            sanitized = copy.deepcopy(publication)
-            queued = sanitized.pop("queued_snapshots", None)
-            target = sanitized.pop("buffer_target_snapshots", None)
-            if queued is not None:
-                self._state["timing"]["pose_queued_snapshots"] = max(0, queued)
-            if target is not None:
-                self._state["timing"]["pose_buffer_target_snapshots"] = max(
-                    2, target
-                )
-            self._state["pose_publication"] = sanitized
             self._touch()
 
     def set_recording_active(self, active: bool) -> None:

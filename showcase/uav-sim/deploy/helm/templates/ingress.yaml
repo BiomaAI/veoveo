@@ -1,0 +1,33 @@
+{{- if and .Values.interactive.enabled .Values.liveView.signalingIngress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: uav-sim-signaling
+  labels:
+    {{- include "uav-sim.labels" . | nindent 4 }}
+  {{- with .Values.liveView.signalingIngress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.liveView.signalingIngress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.liveView.signalingIngress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ required "liveView.signalingIngress.host is required" .Values.liveView.signalingIngress.host | quote }}
+      secretName: {{ required "liveView.signalingIngress.tls.secretName is required" .Values.liveView.signalingIngress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ required "liveView.signalingIngress.host is required" .Values.liveView.signalingIngress.host | quote }}
+      http:
+        paths:
+          - path: /uav-sim/signaling
+            pathType: Prefix
+            backend:
+              service:
+                name: uav-sim-mcp
+                port:
+                  number: {{ .Values.service.port }}
+{{- end }}

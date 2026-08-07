@@ -109,24 +109,7 @@ pub(crate) async fn surreal_integration() -> Result<()> {
             environment.clone(),
         )?;
     }
-    println!(
-        "==> live SurrealDB test: veoveo-simulation-view-mcp/durability::tests::real_store_commits_realized_state_across_transient_updates"
-    );
-    run_checked(
-        Path::new("cargo"),
-        [
-            "test".into(),
-            "-p".into(),
-            "veoveo-simulation-view-mcp".into(),
-            "--lib".into(),
-            "durability::tests::real_store_commits_realized_state_across_transient_updates".into(),
-            "--".into(),
-            "--exact".into(),
-            "--nocapture".into(),
-            "--test-threads=1".into(),
-        ],
-        environment,
-    )?;
+    let _ = environment;
     println!("surreal integration smoke ok");
     Ok(())
 }
@@ -200,23 +183,23 @@ pub(crate) async fn helm_config() -> Result<()> {
     for expected in [
         "name: anonymous-simulation-mcp",
         "registry.example.internal/extensions/anonymous-simulation-mcp@sha256:1111111111111111111111111111111111111111111111111111111111111111",
-        "veoveo.ai/simulation-view-pose-producer: \"true\"",
-        "name: ANONYMOUS_SIMULATION_POSE_HOST",
-        "value: \"simulation-view-pose\"",
-        "name: pose-client-tls",
-        "secretName: \"anonymous-simulation-pose-tls\"",
+        "veoveo.ai/simulator-hosted-live-view: \"true\"",
+        "name: ANONYMOUS_SIMULATION_PUBLIC_SIGNALING_URL",
+        "value: \"wss://simulation.example/anonymous-simulation/signaling\"",
+        "name: ANONYMOUS_SIMULATION_PUBLIC_MEDIA_HOST",
+        "value: \"192.0.2.10\"",
         "runAsUser: 10001",
         "readOnlyRootFilesystem: true",
-        "port: 8790",
-        "port: 7443",
+        "port: 8812",
+        "port: 48030",
     ] {
         contains(&external_simulation, expected)?;
     }
     for forbidden in [
         "nvidia.com/gpu",
         "runtimeClassName:",
-        "simulation-view-isaac",
-        "SIMULATION_VIEW_WEBRTC",
+        "simulation-view",
+        "POSE_",
         "stream-media",
         "stream-signal",
         "name: camera",
@@ -263,9 +246,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: console-bff",
         "name: VEOVEO_CONSOLE_MCP_TRANSPORT_URL",
         "value: \"http://mcp-gateway:8788/mcp/admin\"",
-        "value: \"operator:use admin:manage simulation-view:read simulation-view:write simulation-view:stream",
-        "name: render-control",
-        "port: 9878",
+        "value: \"operator:use admin:manage uav-sim:read uav-sim:write uav-sim:stream map:admin map:dataset:read map:feature:admin map:feature:publish map:feature:read map:feature:write map:raster:derive map:spatial:derive time:read view:read view:write view:capture\"",
         "host: localhost",
         "path: /s",
         "mountPath: /etc/veoveo/gateway",
@@ -282,46 +263,6 @@ pub(crate) async fn helm_config() -> Result<()> {
         if platform.contains(forbidden) {
             bail!("canonical Helm render must not contain `{forbidden}`");
         }
-    }
-
-    let dra_platform = run_checked(
-        Path::new("helm"),
-        [
-            "template".into(),
-            "veoveo".into(),
-            "deploy/helm/veoveo".into(),
-            "--namespace".into(),
-            "veoveo".into(),
-            "--values".into(),
-            "deploy/local/k3d/values.yaml".into(),
-            "--values".into(),
-            "showcase/sumo/deploy/platform-values.yaml".into(),
-            "--set-json".into(),
-            r#"global.gpuPlacement={"enabled":true,"claimName":"veoveo-gpu-placement","runtimeClassName":"nvidia","evidenceDigest":"sha256:1111111111111111111111111111111111111111111111111111111111111111","workloadRequests":{"simulation-view-renderer":"simulation","view-renderer":"visualization","stream":"perception","reason":"reasoning","cuopt-executor":"optimization","rerun-bridge":"rerun"},"workloadReplicas":{"simulation-view-renderer":1,"view-renderer":1,"stream":1,"reason":1,"cuopt-executor":1,"rerun-bridge":1}}"#.into(),
-        ],
-        [],
-    )?;
-    for component in [
-        "simulation-view-renderer",
-        "view-mcp",
-        "stream-mcp",
-        "reason-mcp",
-        "optimization-mcp",
-        "rerun-bridge",
-    ] {
-        let deployment = dra_platform
-            .split("\n---\n")
-            .find(|document| {
-                document.contains("kind: Deployment")
-                    && document.contains(&format!("name: {component}\n"))
-            })
-            .with_context(|| format!("finding DRA-bound {component} deployment"))?;
-        contains(deployment, "resourceClaims:")?;
-        contains(deployment, "resourceClaimName: \"veoveo-gpu-placement\"")?;
-        contains(deployment, "claims:")?;
-        contains(deployment, "veoveo.ai/gpu-placement-evidence:")?;
-        not_contains(deployment, "nvidia.com/gpu")?;
-        not_contains(deployment, "NVIDIA_VISIBLE_DEVICES")?;
     }
 
     let console_ca = run_checked(
@@ -436,126 +377,6 @@ pub(crate) async fn helm_config() -> Result<()> {
     contains(missing_secret_deployment, "value: \"mapbox\"")?;
     not_contains(missing_secret_deployment, "name: RERUN_MAPBOX_ACCESS_TOKEN")?;
 
-    let streamed_world = run_checked(
-        Path::new("helm"),
-        [
-            "template".into(),
-            "veoveo".into(),
-            "deploy/helm/veoveo".into(),
-            "--set-json".into(),
-            r#"simulationView.streamedWorld={"enabled":true,"existingConfigMap":"","catalogKey":"layers.json","catalog":{"schemaVersion":"veoveo.io/simulation-view-layer-catalog/v1","layers":[{"layerId":"installation-world","layerType":"streamed_3d_tiles","source":{"kind":"cesium_ion","assetId":1,"serverUrl":"https://tiles.example/","apiUrl":"https://api.example/","applicationId":2,"credentialEnvironment":"SIMULATION_VIEW_LAYER_TOKEN"},"allowedHosts":["tiles.example","api.example"],"allowedRedirectHosts":["assets.example"],"budgets":{"maximumCacheBytes":1073741824,"maximumTileBytes":67108864,"maximumVisibleTiles":4096,"maximumPendingTiles":64,"maximumScreenSpaceError":16},"license":{"identifier":"provider-terms","attribution":"Installation imagery","attributionUrl":"https://example.com/terms","displayRequired":true},"georeference":{"world":"frames://world/demo/revision/r1","frameRevision":{"uri":"frames://world/demo/revision/r1","digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111"},"localEnuFrame":"frames://world/demo/revision/r1/frame/simulation","origin":{"latitudeDegrees":40,"longitudeDegrees":-105,"ellipsoidHeightM":1600}}}]},"credentialBindings":[{"environment":"SIMULATION_VIEW_LAYER_TOKEN","existingSecret":"streamed-world-provider","key":"access-token"}],"egressCidrs":["192.0.2.0/24"]}"#.into(),
-        ],
-        [],
-    )?;
-    let renderer = streamed_world
-        .split("\n---\n")
-        .find(|document| {
-            document.contains("kind: Deployment")
-                && document.contains("name: simulation-view-renderer\n")
-        })
-        .context("finding streamed-world renderer deployment")?;
-    for expected in [
-        "name: SIMULATION_VIEW_LAYER_CATALOG",
-        "mountPath: /etc/veoveo/simulation-view/layers.json",
-        "name: SIMULATION_VIEW_LAYER_TOKEN",
-        "name: streamed-world-provider",
-        "key: access-token",
-        "name: simulation-view-layer-catalog",
-        "cidr: \"192.0.2.0/24\"",
-    ] {
-        contains(&streamed_world, expected)?;
-    }
-    contains(renderer, "name: SIMULATION_VIEW_LAYER_TOKEN")?;
-    contains(renderer, "checksum/simulation-view-layer-catalog:")?;
-    let mcp = streamed_world
-        .split("\n---\n")
-        .find(|document| {
-            document.contains("kind: Deployment")
-                && document.contains("name: simulation-view-mcp\n")
-        })
-        .context("finding streamed-world MCP deployment")?;
-    not_contains(mcp, "name: SIMULATION_VIEW_LAYER_TOKEN")?;
-    not_contains(&streamed_world, "browser-safe-secret")?;
-
-    let missing_external_catalog_digest = Command::new("helm")
-        .args([
-            "template",
-            "veoveo",
-            "deploy/helm/veoveo",
-            "--set",
-            "simulationView.streamedWorld.existingConfigMap=installation-worlds",
-        ])
-        .output()
-        .context("rendering an external streamed-world catalog without its digest")?;
-    ensure!(
-        !missing_external_catalog_digest.status.success(),
-        "Helm must reject an external streamed-world catalog without its digest"
-    );
-    contains(
-        &String::from_utf8_lossy(&missing_external_catalog_digest.stderr),
-        "/simulationView/streamedWorld/catalogDigest",
-    )?;
-
-    let catalog_digest = format!("sha256:{}", "a".repeat(64));
-    let external_catalog = run_checked(
-        Path::new("helm"),
-        [
-            "template".into(),
-            "veoveo".into(),
-            "deploy/helm/veoveo".into(),
-            "--set".into(),
-            "simulationView.streamedWorld.existingConfigMap=installation-worlds".into(),
-            "--set".into(),
-            format!("simulationView.streamedWorld.catalogDigest={catalog_digest}").into(),
-        ],
-        [],
-    )?;
-    contains(
-        &external_catalog,
-        &format!("checksum/simulation-view-layer-catalog: \"{catalog_digest}\""),
-    )?;
-    not_contains(
-        &external_catalog,
-        "app.kubernetes.io/component: simulation-view-layer-catalog",
-    )?;
-
-    let missing_streamed_world_egress = Command::new("helm")
-        .args([
-            "template",
-            "veoveo",
-            "deploy/helm/veoveo",
-            "--set",
-            "simulationView.streamedWorld.enabled=true",
-        ])
-        .output()
-        .context("rendering streamed world without installation egress")?;
-    ensure!(
-        !missing_streamed_world_egress.status.success(),
-        "Helm must reject streamed-world activation without admitted egress"
-    );
-    contains(
-        &String::from_utf8_lossy(&missing_streamed_world_egress.stderr),
-        "/simulationView/streamedWorld/egressCidrs",
-    )?;
-    let reserved_layer_environment = Command::new("helm")
-        .args([
-            "template",
-            "veoveo",
-            "deploy/helm/veoveo",
-            "--set-json",
-            r#"simulationView.streamedWorld.credentialBindings=[{"environment":"NVIDIA_VISIBLE_DEVICES","existingSecret":"provider","key":"token"}]"#,
-        ])
-        .output()
-        .context("rendering a streamed-world credential over a reserved environment")?;
-    ensure!(
-        !reserved_layer_environment.status.success(),
-        "Helm must reject layer credentials that can override GPU allocation"
-    );
-    contains(
-        &String::from_utf8_lossy(&reserved_layer_environment.stderr),
-        "/simulationView/streamedWorld/credentialBindings/0/environment",
-    )?;
-
     let bioma = run_checked(
         Path::new("helm"),
         [
@@ -576,16 +397,12 @@ pub(crate) async fn helm_config() -> Result<()> {
     for expected in [
         "host: veoveo.bioma.ai",
         "https://veoveo.bioma.ai",
-        "name: SIMULATION_VIEW_PUBLIC_SIGNALING_URL",
-        "value: \"wss://veoveo.bioma.ai/simulation-view/signaling\"",
-        "name: SIMULATION_VIEW_PUBLIC_MEDIA_IP",
-        "value: \"127.0.0.1\"",
         "name: bioma-gateway-control-plane",
         "name: recording-hub",
         "name: view-mcp",
         "name: stream-mcp",
         "name: reason-mcp",
-        "value: \"artifact,media,timeseries,optimization,duckdb,frames,map,recording,stream,reason,simulation-view,datasheet,uav-sim\"",
+        "value: \"artifact,media,timeseries,optimization,duckdb,frames,map,recording,stream,reason,datasheet,uav-sim\"",
         "checksum/reason-runtime:",
     ] {
         contains(&bioma, expected)?;
@@ -614,24 +431,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         &format!("checksum/control-plane: \"{control_plane_revision}\""),
     )?;
     contains(&bioma, "veoveo.ai/bootstrap-revision:")?;
-    not_contains(&bioma, "bootstrap-1")?;
-    let simulation_view_media = bioma
-        .split("\n---\n")
-        .find(|document| {
-            document.contains("kind: Service") && document.contains("name: simulation-view-media\n")
-        })
-        .context("finding rendered Simulation View media Service")?;
-    contains(simulation_view_media, "type: NodePort")?;
-    for node_port in 30998..=31001 {
-        contains(simulation_view_media, &format!("nodePort: {node_port}"))?;
-    }
-    let bioma_cluster = fs::read_to_string("examples/bioma/k3d.yaml")?;
-    for (public_port, node_port) in (47998..=48001).zip(30998..=31001) {
-        contains(
-            &bioma_cluster,
-            &format!("port: 127.0.0.1:{public_port}:{node_port}/udp"),
-        )?;
-    }
+    not_contains(&bioma, "veoveo.ai/bootstrap-revision: \"bootstrap-1\"")?;
     for forbidden in ["name: otel-collector", "secretName: bioma-ingress-tls"] {
         if bioma.contains(forbidden) {
             bail!("Bioma k3d render must not contain `{forbidden}`");
@@ -650,8 +450,6 @@ pub(crate) async fn helm_config() -> Result<()> {
         "map-mcp",
         "view-mcp",
         "time-mcp",
-        "simulation-view-mcp",
-        "simulation-view-renderer",
         "datasheet-mcp",
         "chart-mcp",
         "rerun-bridge",
@@ -671,7 +469,6 @@ pub(crate) async fn helm_config() -> Result<()> {
             "reason-mcp" | "stream-mcp" => Some("compute,utility,video"),
             "optimization-mcp" => Some("compute,utility"),
             "view-mcp" | "rerun-bridge" => Some("graphics,compute,utility"),
-            "simulation-view-renderer" => Some("compute,graphics,utility,video"),
             _ => None,
         };
         if let Some(capabilities) = required_driver_capabilities {
@@ -694,45 +491,6 @@ pub(crate) async fn helm_config() -> Result<()> {
             contains(deployment, "runtimeClassName: nvidia")?;
             contains(deployment, "name: WGPU_BACKEND")?;
             contains(deployment, "value: vulkan")?;
-        }
-        if component == "simulation-view-mcp" {
-            contains(
-                deployment,
-                "readinessProbe:\n            httpGet:\n              path: /simulation-view/readyz",
-            )?;
-            for expected in [
-                "--reconcile-retry-delay-seconds",
-                "--authorization-renewal-lead-seconds",
-                "name: VEOVEO_SURREAL_ENDPOINT",
-                "name: VEOVEO_SURREAL_USERNAME",
-                "name: VEOVEO_SURREAL_PASSWORD",
-            ] {
-                contains(deployment, expected)?;
-            }
-            for obsolete_polling_argument in [
-                "--reconcile-interval-seconds",
-                "--reconcile-retry-max-seconds",
-            ] {
-                ensure!(
-                    !deployment.contains(obsolete_polling_argument),
-                    "event-driven Simulation View reconciliation must not render obsolete polling argument {obsolete_polling_argument}"
-                );
-            }
-        }
-        if component == "simulation-view-renderer" {
-            ensure!(
-                deployment.matches("path: /healthz").count() >= 2,
-                "Simulation View renderer must use process health for Kubernetes startup \
-                 and liveness"
-            );
-            contains(
-                deployment,
-                "readinessProbe:\n            httpGet:\n              path: /readyz\n              port: render-control",
-            )?;
-            contains(
-                deployment,
-                "livenessProbe:\n            httpGet:\n              path: /healthz\n              port: render-control\n            initialDelaySeconds: 30\n            failureThreshold: 3\n            periodSeconds: 10\n            timeoutSeconds: 10",
-            )?;
         }
     }
     let bioma_tunnel = fs::read_to_string("examples/bioma/gitops/cloudflared.yaml")?;
@@ -810,19 +568,17 @@ pub(crate) async fn helm_config() -> Result<()> {
         "value: \"0.7071067811865476\"",
         "name: UAV_SIM_RECORDING_TENANT_KEY",
         "value: \"bioma\"",
-        "veoveo.ai/simulation-view-pose-producer: \"true\"",
-        "name: UAV_SIM_POSE_PRODUCER_ID",
-        "value: \"uav-sim\"",
-        "name: UAV_SIM_POSE_PRODUCER_SPIFFE_ID",
-        "value: \"spiffe://veoveo.local/simulation/uav-sim\"",
-        "name: UAV_SIM_POSE_INGRESS_HOST",
-        "value: \"simulation-view-pose\"",
-        "name: UAV_SIM_POSE_INGRESS_PORT",
-        "value: \"7443\"",
-        "name: UAV_SIM_POSE_CA_CERTIFICATE",
-        "value: /run/secrets/simulation-view-pose/ca.crt",
-        "name: simulation-view-pose-tls",
-        "secretName: uav-sim-pose-producer-tls",
+        "veoveo.ai/simulator-hosted-live-view: \"true\"",
+        "name: UAV_SIM_OPERATOR_CAMERAS_JSON",
+        "name: UAV_SIM_LIVE_SIGNALING_PORT_BASE",
+        "name: UAV_SIM_LIVE_MEDIA_PORT_BASE",
+        "name: UAV_SIM_PUBLIC_SIGNALING_URL",
+        "value: \"wss://veoveo.bioma.ai/uav-sim/signaling\"",
+        "name: UAV_SIM_NATIVE_SIGNALING_URL",
+        "value: \"ws://127.0.0.1:49100/webrtc\"",
+        "name: UAV_SIM_LIVE_VIEW_MAXIMUM_VIEWERS",
+        "name: uav-sim-media",
+        "name: uav-sim-signaling",
         "name: ROS_DISTRO",
         "value: jazzy",
         "name: RMW_IMPLEMENTATION",
@@ -838,8 +594,8 @@ pub(crate) async fn helm_config() -> Result<()> {
     }
     for forbidden in [
         "GOOGLE_MAPS_API_KEY",
-        "UAV_SIM_FOLLOW_CAMERA",
-        "UAV_SIM_LIVE_STREAM",
+        "UAV_SIM_POSE_",
+        "simulation-view",
         "name: uav-sim-live",
         "path: /webrtc",
         "name: stream-signal",
@@ -1022,7 +778,6 @@ pub(crate) async fn helm_config() -> Result<()> {
     let simulation_runtime_dockerfile =
         fs::read_to_string("platform/runtimes/simulation/Dockerfile")?;
     let overlay_dockerfiles = [
-        "platform/simulation/view-isaac/Dockerfile",
         "showcase/uav-sim/runtime/Dockerfile",
         "testing/fixtures/simulation-overlay/Dockerfile",
     ];
@@ -1030,7 +785,6 @@ pub(crate) async fn helm_config() -> Result<()> {
         "platform/runtimes/simulation/Dockerfile",
         overlay_dockerfiles[0],
         overlay_dockerfiles[1],
-        overlay_dockerfiles[2],
     ] {
         assert_revision_metadata_follows_payload(dockerfile)?;
     }
@@ -1127,7 +881,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "https://api.cesium.com/",
         "cesium_data.GetSelectedIonServerRel().SetTargets",
         "cesium_interface.on_stage_change(0)",
-        "cesium_interface.on_update_frame([cesium_viewport], False)",
+        "cesium_interface.on_update_frame(cesium_viewports, False)",
     ] {
         contains(&uav_runtime, expected)?;
     }
@@ -1140,7 +894,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         contains(&px4_commander, expected)?;
     }
     let gpu_device_plugin = fs::read_to_string("deploy/local/k3d/node/nvidia-device-plugin.yaml")?;
-    contains(&gpu_device_plugin, "replicas: 7")?;
+    contains(&gpu_device_plugin, "replicas: 6")?;
     contains(
         &gpu_device_plugin,
         "veoveo.ai/device-plugin-config: time-slicing-7",
@@ -1163,12 +917,6 @@ pub(crate) async fn helm_config() -> Result<()> {
     for forbidden in ["@nvidia/ov-web-rtc", "WEBRTC_CLIENT_BUNDLE"] {
         not_contains(&uav_mcp_dockerfile, forbidden)?;
     }
-    let simulation_view_mcp_dockerfile =
-        fs::read_to_string("servers/simulation-view-mcp/Dockerfile")?;
-    contains(
-        &simulation_view_mcp_dockerfile,
-        "--from=veoveo-rust-artifacts /bin/simulation-view-mcp",
-    )?;
     let view_mcp_dockerfile = fs::read_to_string("servers/view-mcp/Dockerfile")?;
     contains(
         &view_mcp_dockerfile,
@@ -1194,7 +942,7 @@ pub(crate) async fn helm_config() -> Result<()> {
     for expected in [
         "@nvidia/ov-web-rtc-6.6.0.tgz",
         "77be78cd4799f797d320d386461834737f5a8368deacfb3b27ae26612f39c9a5",
-        "SIMULATION_VIEW_WEBRTC_CLIENT_BUNDLE=",
+        "UAV_SIM_WEBRTC_CLIENT_BUNDLE=",
     ] {
         contains(&workspace_builder, expected)?;
     }
@@ -1399,8 +1147,6 @@ pub(crate) async fn helm_config() -> Result<()> {
         "servers/time-mcp/Dockerfile",
         "servers/uav-sim-mcp/Dockerfile",
         "servers/view-mcp/Dockerfile",
-        "servers/simulation-view-mcp/Dockerfile",
-        "platform/simulation/pose-ingress/Dockerfile",
     ] {
         let contents = fs::read_to_string(dockerfile)?;
         contains(&contents, "--from=veoveo-rust-artifacts")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from urllib.parse import parse_qs
 from typing import Any, Awaitable, Callable
 
 import uvicorn
@@ -33,14 +34,19 @@ class RootApp:
         protected_app: AsgiApp,
         session_manager: StreamableHTTPSessionManager,
         ready: asyncio.Event,
+        runtime: FixtureRuntime,
     ) -> None:
         self._protected_app = protected_app
         self._session_manager = session_manager
         self._ready = ready
+        self._runtime = runtime
 
     async def __call__(self, scope: dict[str, Any], receive, send) -> None:
         if scope["type"] == "lifespan":
             await self._lifespan(receive, send)
+            return
+        if scope["type"] == "websocket" and scope.get("path") == "/anonymous-simulation/signaling":
+            await _authorized_signaling(self._runtime, scope, receive, send)
             return
         if scope["type"] != "http":
             return
@@ -91,6 +97,49 @@ async def _plain(send, status: int, body: bytes) -> None:
         }
     )
     await send({"type": "http.response.body", "body": body})
+
+
+async def _authorized_signaling(runtime, scope, receive, send) -> None:
+    """Authenticate like the shared profile before exposing the fixture product."""
+    message = await receive()
+    if message["type"] != "websocket.connect":
+        return
+    protocols = []
+    for name, value in scope.get("headers", []):
+        if name.lower() == b"sec-websocket-protocol":
+            protocols.extend(item.strip() for item in value.decode().split(","))
+    token = next(
+        (
+            item.removeprefix("authorization.bearer.")
+            for item in protocols
+            if item.startswith("authorization.bearer.")
+        ),
+        None,
+    )
+    product = next(
+        (item for item in protocols if item.startswith("x-nv-sessionid.")), None
+    )
+    query = parse_qs(scope.get("query_string", b"").decode())
+    live_view_id = query.get("live_view_id", [None])[0]
+    if token is None or product is None or live_view_id is None:
+        await send({"type": "websocket.close", "code": 4401})
+        return
+    try:
+        lease = await runtime.authorize_signaling(live_view_id, token)
+    except ValueError:
+        await send({"type": "websocket.close", "code": 4403})
+        return
+    if product != f"x-nv-sessionid.{lease.stream_product_id}":
+        await send({"type": "websocket.close", "code": 4403})
+        return
+    await send({"type": "websocket.accept", "subprotocol": product})
+    await send(
+        {
+            "type": "websocket.send",
+            "text": '{"type":"authoritative-product-ready"}',
+        }
+    )
+    await send({"type": "websocket.close", "code": 1000})
 
 
 async def _markdown(send, content: str) -> None:
@@ -147,7 +196,7 @@ async def serve(config: Config) -> None:
     protected_stack = InternalAuthMiddleware(protected_asgi, verifier, logger.warn)
     ready = asyncio.Event()
     app = HostValidationMiddleware(
-        RootApp(protected_stack, session_manager, ready),
+        RootApp(protected_stack, session_manager, ready, runtime),
         list(config.allowed_hosts),
         logger.warn,
     )
@@ -168,7 +217,7 @@ async def serve(config: Config) -> None:
     try:
         await server.serve()
     finally:
-        await runtime.close()
+        await runtime.close_runtime()
 
 
 def main() -> None:

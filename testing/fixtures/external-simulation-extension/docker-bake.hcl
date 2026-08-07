@@ -28,8 +28,8 @@ target "anonymous-simulation-mcp" {
   dockerfile = "Dockerfile"
   tags       = [image_ref("anonymous-simulation-mcp")]
   labels = {
-    "org.opencontainers.image.title"       = "Anonymous external Simulation View producer"
-    "org.opencontainers.image.description" = "Fixture-owned scene assets and typed latest-pose publication"
-    "io.veoveo.extension.role"              = "simulation-producer"
+    "org.opencontainers.image.title"       = "Anonymous external simulation MCP server"
+    "org.opencontainers.image.description" = "Simulator-hosted live-view contract and packaging fixture"
+    "io.veoveo.extension.role"              = "simulation-mcp-server"
   }
 }

@@ -4,5 +4,6 @@ veoveo:
   imageDigests:
     extensions/anonymous-simulation-mcp: sha256:1111111111111111111111111111111111111111111111111111111111111111
 
-pose:
-  existingClientTlsSecret: anonymous-simulation-pose-tls
+liveView:
+  publicSignalingUrl: wss://simulation.example/anonymous-simulation/signaling
+  publicMediaHost: 192.0.2.10

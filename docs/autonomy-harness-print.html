@@ -505,7 +505,7 @@
   <span class="runhead">Veoveo · Autonomy Harness</span>
   <h1 class="section">7. Hosted Capabilities</h1>
   <p class="body">
-    The canonical control plane defines seventeen hosted server identities. Each server declares the
+    The canonical control plane defines sixteen hosted server identities. Each server declares the
     MCP surfaces its domain needs and runs behind gateway-signed identity; a new local, bridged,
     or <b>remote MCP endpoint</b> registers in the validated catalog and immediately answers to the
     same task, artifact, policy, and audit contracts. The gateway discovers the declared surface,
@@ -533,8 +533,7 @@
       <tr><td>Charts<br><code>charts</code></td><td>Chart rendering projected through the gateway, turning query results into shareable visuals.</td><td class="mono">render_chart · compile_chart · validate_chart · list_chart_types · create_chart_view</td></tr>
       <tr><td>Viewer<br><code>rerun</code></td><td>A live Rerun viewer driven entirely over MCP — session, capture, inspection, and UI automation.</td><td class="mono">17 interactive tools (connect … batch)</td></tr>
       <tr><td>3D View<br><code>view</code></td><td>Governed static scene compositions with exact inputs and bounded overlays, rendered offscreen on NVIDIA Vulkan.</td><td class="mono">create_scene_composition · create_view · set_camera · capture_frame · close_view</td></tr>
-      <tr><td>UAV Simulation<br><code>uav-sim</code></td><td>Governed sessions, missions, vehicles, terrain, dataset capture, and provider-neutral simulator control.</td><td class="mono">configure_world · execute_mission · capture_dataset</td></tr>
-      <tr><td>Simulation View<br><code>simulation-view</code></td><td>Renderer-independent scenes, logical cameras, capacity, live-view leases, WebRTC, and a GPU-backed MCP App.</td><td class="mono">create_session · create_camera · open_live_view</td></tr>
+      <tr><td>UAV Simulation<br><code>uav-sim</code></td><td>Governed sessions, missions, vehicles, terrain, dataset capture, authoritative logical cameras, shared GPU render products, and per-viewer WebRTC leases.</td><td class="mono">configure_world · execute_mission · list_live_cameras · open_live_view</td></tr>
     </tbody>
   </table>
   <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">11</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>

@@ -12,11 +12,6 @@ from unittest.mock import patch
 import numpy as np
 from pymavlink import mavutil
 
-from veoveo_mcp.simulation_pose import (
-    POSE_PROTOCOL_SCHEMA,
-    PosePublisherStatus,
-    entity_table_digest,
-)
 from veoveo_uav_sim.camera_quality import (
     assess_camera_health,
     measure_camera_frame,
@@ -33,7 +28,6 @@ from veoveo_uav_sim.physics_batch import (
     IsaacFleetPhysicsBatch,
     RigidBodyBatchAccumulator,
 )
-from veoveo_uav_sim.pose import PhysicsCadenceGate, PoseProducer, entity_ids
 from veoveo_uav_sim.px4 import Px4Commander, Px4CommandRejected
 from veoveo_uav_sim.realtime import PeriodicDeadline, RealtimePhysicsClock
 from veoveo_uav_sim.state import (
@@ -64,15 +58,6 @@ VALID_ENVIRONMENT = {
     "UAV_SIM_SESSION_ID": "uav-showcase",
     "UAV_SIM_TILE_CACHE_POLICY": "persistent",
     "UAV_SIM_WORLD_SOURCE": "google_photorealistic_3d_tiles",
-    "UAV_SIM_POSE_PRODUCER_ID": "uav-sim",
-    "UAV_SIM_POSE_PRODUCER_SPIFFE_ID": ("spiffe://veoveo.local/simulation/uav-sim"),
-    "UAV_SIM_POSE_EPOCH_ID": "epoch-1",
-    "UAV_SIM_POSE_INGRESS_HOST": "simulation-view-pose",
-    "UAV_SIM_POSE_INGRESS_PORT": "7443",
-    "UAV_SIM_POSE_SERVER_HOSTNAME": "simulation-view-pose.veoveo.svc",
-    "UAV_SIM_POSE_CA_CERTIFICATE": "/run/secrets/simulation-view-pose/ca.crt",
-    "UAV_SIM_POSE_CLIENT_CERTIFICATE": ("/run/secrets/simulation-view-pose/tls.crt"),
-    "UAV_SIM_POSE_CLIENT_PRIVATE_KEY": ("/run/secrets/simulation-view-pose/tls.key"),
     "UAV_SIM_RENDERING_HZ": "30",
     "UAV_SIM_LIVE_PUBLIC_MEDIA_IP": "127.0.0.1",
     "UAV_SIM_OPERATOR_CAMERAS_JSON": json.dumps(
@@ -146,8 +131,6 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(config.rendering_hz, 30)
         self.assertEqual(config.camera.fps, 2)
         self.assertEqual(config.operator_live_view.cameras[0].optics.frame_rate_hz, 30)
-        self.assertEqual(config.pose_cadence_hz, 20)
-        self.assertEqual(config.pose_buffer_duration_ms, 500)
         self.assertEqual(config.px4_connect_timeout_seconds, 180.0)
         self.assertEqual(config.camera.vehicle_id, "uav-1")
         self.assertEqual(config.camera.bit_rate_bps, 750_000)
@@ -161,7 +144,6 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertNotIn("omni.replicator", app_source)
         self.assertNotIn("import CameraSensor", app_source)
         self.assertIn("HydraRgbCameraSensor", app_source)
-        self.assertIn("PoseProducer", app_source)
         self.assertIn("omni.kit.livestream.aov", app_source)
         self.assertIn("AuthoritativeOperatorCameraCollection", app_source)
         self.assertNotIn("follow_camera", app_source)
@@ -187,21 +169,18 @@ class RuntimeConfigTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "openStreetMap or mapboxSatellite"):
                 RuntimeConfig.from_environment()
 
-    def test_preconfiguration_state_uses_the_pose_timing_contract(self) -> None:
+    def test_preconfiguration_state_uses_authoritative_runtime_timing(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             config = RuntimeConfig.from_environment()
 
         timing = initial_runtime_timing(config)
         self.assertEqual(timing["physics_hz"], 60)
         self.assertEqual(timing["native_rendering_hz"], 30)
-        self.assertEqual(timing["pose_cadence_hz"], 20)
-        self.assertEqual(timing["pose_buffer_target_snapshots"], 10)
 
         server_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "server.py"
         ).read_text()
         self.assertIn('"timing": initial_runtime_timing(self._config)', server_source)
-        self.assertIn("self._config.pose_cadence_hz", server_source)
         self.assertNotIn(
             "self._config.vehicle_count,\n                    self._config.rendering_hz",
             server_source,
@@ -270,41 +249,6 @@ class RuntimeConfigTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(ValueError, "requires UAV_SIM_STREAM_HOST"):
                 RuntimeConfig.from_environment()
-
-    def test_pose_publication_is_mandatory_and_strongly_identified(self) -> None:
-        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
-            config = RuntimeConfig.from_environment()
-            state = RuntimeState(config, WORLD).snapshot()
-        publication = state["pose_publication"]
-        self.assertEqual(publication["protocol_schema"], POSE_PROTOCOL_SCHEMA)
-        self.assertEqual(publication["producer_id"], "uav-sim")
-        self.assertEqual(
-            publication["producer_spiffe_id"],
-            "spiffe://veoveo.local/simulation/uav-sim",
-        )
-        self.assertEqual(publication["epoch_id"], "epoch-1")
-        self.assertEqual(publication["cadence_hz"], config.pose_cadence_hz)
-        self.assertEqual(state["timing"]["physics_hz"], 60)
-        self.assertEqual(state["timing"]["native_rendering_hz"], 30)
-        self.assertEqual(state["timing"]["pose_cadence_hz"], 20)
-        self.assertEqual(
-            publication["entity_table_digest"],
-            str(entity_table_digest(1, entity_ids(config.vehicle_count))),
-        )
-
-    def test_pose_publication_rejects_invalid_spiffe_or_secret_paths(self) -> None:
-        for override, message in (
-            ({"UAV_SIM_POSE_PRODUCER_SPIFFE_ID": "https://example.test"}, "SPIFFE"),
-            ({"UAV_SIM_POSE_CLIENT_PRIVATE_KEY": "tls.key"}, "absolute"),
-        ):
-            with self.subTest(override=override):
-                with patch.dict(
-                    os.environ,
-                    {**VALID_ENVIRONMENT, **override},
-                    clear=True,
-                ):
-                    with self.assertRaisesRegex(ValueError, message):
-                        RuntimeConfig.from_environment()
 
     def test_nadir_camera_is_the_only_canonical_stream(self) -> None:
         with patch.dict(
@@ -581,7 +525,7 @@ class RigidBodyBatchTests(unittest.TestCase):
                 self.callbacks[name] = callback
 
         class FakeBatch:
-            def rebind(self, _simulation_view: object) -> None:
+            def rebind(self, _physics_view: object) -> None:
                 events.append("rebind")
 
             def refresh_states(self) -> None:
@@ -613,7 +557,7 @@ class RigidBodyBatchTests(unittest.TestCase):
             {"uav-1": FakeVehicle()},
             {"uav-1": prefix},
             (prefix + "/body",),
-            batch_factory=lambda _paths, _simulation_view: (
+            batch_factory=lambda _paths, _physics_view: (
                 events.append("create") or batch
             ),
             after_step=lambda _dt: events.append("after"),
@@ -756,15 +700,15 @@ class RigidBodyBatchTests(unittest.TestCase):
                 return self.rigid_body_view
 
         fake_warp = FakeWarp()
-        simulation_view = FakeSimulationView()
+        physics_view = FakeSimulationView()
         with patch.dict(sys.modules, {"warp": fake_warp}):
-            batch = IsaacFleetPhysicsBatch(("/World/uav_1/body",), simulation_view)
+            batch = IsaacFleetPhysicsBatch(("/World/uav_1/body",), physics_view)
             batch.queue_force("/World/uav_1/body", (0.0, 0.0, 4.0), (0.0, 0.0, 0.0))
             batch.flush_forces()
 
         self.assertTrue(fake_warp.synchronized)
         np.testing.assert_array_equal(
-            simulation_view.rigid_body_view.submitted_forces,
+            physics_view.rigid_body_view.submitted_forces,
             [0.0, 0.0, 4.0],
         )
 
@@ -845,139 +789,6 @@ class _FleetLoopCommander:
         self.interrupt.clear()
 
 
-class PoseProducerTests(unittest.TestCase):
-    def test_pose_cadence_is_exact_and_independent_of_render_steps(self) -> None:
-        gate = PhysicsCadenceGate(physics_hz=250, output_hz=20)
-        due_steps = [step for step in range(1, 251) if gate.due(step)]
-        self.assertEqual(len(due_steps), 20)
-        self.assertEqual(due_steps[0], 13)
-        self.assertEqual(due_steps[-1], 250)
-        self.assertEqual(set(np.diff(due_steps)), {12, 13})
-
-        gate.reset()
-        self.assertFalse(gate.due(1))
-        with self.assertRaisesRegex(RuntimeError, "increase monotonically"):
-            gate.due(1)
-
-    def test_complete_snapshots_keep_a_monotonic_renderer_timeline(self) -> None:
-        publishers: list[_FakePosePublisher] = []
-
-        def create_publisher(*args: object, **kwargs: object) -> _FakePosePublisher:
-            publisher = _FakePosePublisher(*args, **kwargs)
-            publishers.append(publisher)
-            return publisher
-
-        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
-            config = RuntimeConfig.from_environment()
-        updates: list[dict[str, object]] = []
-        with patch(
-            "veoveo_uav_sim.pose.OrderedPosePublisher",
-            side_effect=create_publisher,
-        ):
-            producer = PoseProducer(
-                config=config.pose_publication,
-                session_id=config.session_id,
-                world=WORLD,
-                vehicle_count=1,
-                cadence_hz=20,
-                buffer_duration_ms=50,
-                update_state=updates.append,
-            )
-            telemetry = VehicleTelemetry(
-                vehicle_id="uav-1",
-                position_enu=(1.0, 2.0, 3.0),
-                attitude_xyzw=(0.0, 0.0, 0.0, 1.0),
-                linear_velocity_enu_mps=(4.0, 5.0, 6.0),
-                flight_state="flying",
-                battery_percent=90.0,
-                px4_connected=True,
-            )
-            producer.offer([telemetry])
-            producer.offer([telemetry])
-            deadline = time.monotonic() + 1.0
-            while len(publishers[0].snapshots) < 2 and time.monotonic() < deadline:
-                time.sleep(0.005)
-            producer.close()
-
-        snapshots = publishers[0].snapshots
-        self.assertEqual([snapshot.sequence for snapshot in snapshots], [1, 2])
-        self.assertEqual(
-            [snapshot.simulation_timestamp_ns for snapshot in snapshots],
-            [50_000_000, 100_000_000],
-        )
-        self.assertEqual(len(snapshots[0].entities), 1)
-        self.assertIsNone(snapshots[0].entities[0].velocity)
-        self.assertEqual(
-            snapshots[0].entity_table_digest,
-            entity_table_digest(1, entity_ids(1)),
-        )
-        self.assertTrue(any(update["lifecycle"] == "ready" for update in updates))
-        self.assertEqual(updates[-1]["lifecycle"], "stopped")
-
-    def test_incomplete_entity_snapshots_are_rejected(self) -> None:
-        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
-            config = RuntimeConfig.from_environment()
-        with patch(
-            "veoveo_uav_sim.pose.OrderedPosePublisher",
-            _FakePosePublisher,
-        ):
-            producer = PoseProducer(
-                config=config.pose_publication,
-                session_id=config.session_id,
-                world=WORLD,
-                vehicle_count=1,
-                cadence_hz=20,
-                buffer_duration_ms=50,
-                update_state=lambda _publication: None,
-            )
-            with self.assertRaisesRegex(RuntimeError, "complete snapshot"):
-                producer.offer([])
-            producer.close()
-
-    def test_lazy_tls_startup_does_not_replace_buffered_poses(self) -> None:
-        publishers: list[_LazyFakePosePublisher] = []
-
-        def create_publisher(*args: object, **kwargs: object) -> _LazyFakePosePublisher:
-            publisher = _LazyFakePosePublisher(*args, **kwargs)
-            publishers.append(publisher)
-            return publisher
-
-        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
-            config = RuntimeConfig.from_environment()
-        with patch(
-            "veoveo_uav_sim.pose.OrderedPosePublisher",
-            side_effect=create_publisher,
-        ):
-            producer = PoseProducer(
-                config=config.pose_publication,
-                session_id=config.session_id,
-                world=WORLD,
-                vehicle_count=1,
-                cadence_hz=20,
-                buffer_duration_ms=50,
-                update_state=lambda _publication: None,
-            )
-            telemetry = VehicleTelemetry(
-                vehicle_id="uav-1",
-                position_enu=(1.0, 2.0, 3.0),
-                attitude_xyzw=(0.0, 0.0, 0.0, 1.0),
-                linear_velocity_enu_mps=(4.0, 5.0, 6.0),
-                flight_state="flying",
-                battery_percent=90.0,
-                px4_connected=True,
-            )
-            producer.offer([telemetry])
-            producer.offer([telemetry])
-            deadline = time.monotonic() + 1.0
-            while publishers[0].sent_snapshots < 2 and time.monotonic() < deadline:
-                time.sleep(0.005)
-            producer.close()
-
-        self.assertEqual(publishers[0].offered_snapshots, 2)
-        self.assertEqual(publishers[0].sent_snapshots, 2)
-        self.assertEqual(publishers[0].replaced_snapshots, 0)
-
-
 class RealtimeClockTests(unittest.TestCase):
     def test_physics_clock_never_batches_missed_actuator_intervals(self) -> None:
         now = [100.0]
@@ -1040,72 +851,6 @@ class Px4IrisVehicleModelTests(unittest.TestCase):
         model.set_input_reference([900.0, 900.0, 300.0, 300.0])
         _, _, moment = model.update(None, 1.0)
         self.assertLess(moment, 0.0)
-
-
-class _FakePosePublisher:
-    def __init__(self, *_args: object, **_kwargs: object) -> None:
-        self.snapshots: list[object] = []
-        self.closed = False
-
-    def offer(self, snapshot: object) -> None:
-        self.snapshots.append(snapshot)
-
-    def status(self) -> PosePublisherStatus:
-        sent = len(self.snapshots)
-        last_sequence = (
-            getattr(self.snapshots[-1], "sequence") if self.snapshots else None
-        )
-        return PosePublisherStatus(
-            running=not self.closed,
-            connected=not self.closed,
-            offered_snapshots=sent,
-            sent_snapshots=sent,
-            replaced_snapshots=0,
-            last_sent_sequence=last_sequence,
-            last_error=None,
-        )
-
-    def close(self) -> None:
-        self.closed = True
-
-
-class _LazyFakePosePublisher:
-    def __init__(self, *_args: object, **_kwargs: object) -> None:
-        self.closed = False
-        self.offered_snapshots = 0
-        self.sent_snapshots = 0
-        self.replaced_snapshots = 0
-        self._pending_sequence: int | None = None
-        self._pending_since = 0.0
-        self._last_sent_sequence: int | None = None
-
-    def offer(self, snapshot: object) -> None:
-        self.offered_snapshots += 1
-        if self._pending_sequence is not None:
-            self.replaced_snapshots += 1
-        self._pending_sequence = int(getattr(snapshot, "sequence"))
-        self._pending_since = time.monotonic()
-
-    def status(self) -> PosePublisherStatus:
-        if (
-            self._pending_sequence is not None
-            and time.monotonic() - self._pending_since >= 0.05
-        ):
-            self.sent_snapshots += 1
-            self._last_sent_sequence = self._pending_sequence
-            self._pending_sequence = None
-        return PosePublisherStatus(
-            running=not self.closed,
-            connected=self.sent_snapshots > 0 and not self.closed,
-            offered_snapshots=self.offered_snapshots,
-            sent_snapshots=self.sent_snapshots,
-            replaced_snapshots=self.replaced_snapshots,
-            last_sent_sequence=self._last_sent_sequence,
-            last_error=None,
-        )
-
-    def close(self) -> None:
-        self.closed = True
 
 
 class AdapterContractTests(unittest.TestCase):

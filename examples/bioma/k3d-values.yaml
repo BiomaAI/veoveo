@@ -29,58 +29,6 @@ consoleBff:
   replicas: 1
 telemetry:
   enabled: false
-simulationView:
-  publicSignalingUrl: wss://veoveo.bioma.ai/simulation-view/signaling
-  publicMediaIp: 127.0.0.1
-  media:
-    exposure: NodePort
-    nodePortBase: 30998
-  streamedWorld:
-    enabled: true
-    catalog:
-      schemaVersion: veoveo.io/simulation-view-layer-catalog/v1
-      layers:
-        - layerId: photorealistic-world
-          layerType: streamed_3d_tiles
-          source:
-            kind: cesium_ion
-            assetId: 2275207
-            serverUrl: https://ion.cesium.com/
-            apiUrl: https://api.cesium.com/
-            applicationId: 413
-            credentialEnvironment: SIMULATION_VIEW_LAYER_CESIUM_ION_TOKEN
-          allowedHosts:
-            - ion.cesium.com
-            - api.cesium.com
-          allowedRedirectHosts:
-            - assets.cesium.com
-          budgets:
-            maximumCacheBytes: 2147483648
-            maximumTileBytes: 67108864
-            maximumVisibleTiles: 1024
-            maximumPendingTiles: 16
-            maximumScreenSpaceError: 24
-          license:
-            identifier: google-maps-platform-terms
-            attribution: Google Photorealistic 3D Tiles
-            attributionUrl: https://cloud.google.com/maps-platform/terms
-            displayRequired: true
-          georeference:
-            world: frames://world/uav-showcase-new-york-f75bf0b755676d08/revision/revision-019fc946-4665-7563-a115-1177c01240a0
-            frameRevision:
-              uri: frames://world/uav-showcase-new-york-f75bf0b755676d08/revision/revision-019fc946-4665-7563-a115-1177c01240a0
-              digest: sha256:7941fba19b5edcce73d37e1c1bef82d98f42e9c79b5fdb19671e21d1924e3b8a
-            localEnuFrame: frames://world/uav-showcase-new-york-f75bf0b755676d08/revision/revision-019fc946-4665-7563-a115-1177c01240a0/frame/isaac-world
-            origin:
-              latitudeDegrees: 40.758
-              longitudeDegrees: -73.9855
-              ellipsoidHeightM: -17
-    credentialBindings:
-      - environment: SIMULATION_VIEW_LAYER_CESIUM_ION_TOKEN
-        existingSecret: veoveo-uav-sim-secrets
-        key: cesium-ion-access-token
-    egressCidrs:
-      - 0.0.0.0/0
 networkPolicy:
   enabled: false
 podDisruptionBudget:

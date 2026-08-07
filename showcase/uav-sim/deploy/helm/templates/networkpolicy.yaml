@@ -18,6 +18,16 @@ spec:
       ports:
         - protocol: TCP
           port: 8802
+    {{- if .Values.liveView.signalingIngress.enabled }}
+    - ports:
+        - protocol: TCP
+          port: 8802
+    {{- end }}
+    - ports:
+        {{- range .Values.liveView.cameras }}
+        - protocol: UDP
+          port: {{ add $.Values.liveView.mediaPortBase (int .physicalSlot) }}
+        {{- end }}
   egress:
     - to:
         - podSelector:

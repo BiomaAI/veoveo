@@ -294,11 +294,17 @@ Stream consumes newly encoded simulator camera frames directly for live
 processing. Its reproducible replay profile consumes governed recording
 identities rather than a simulator-private media URL.
 
-Bioma runs the UAV simulator, Simulation View renderer, View, Stream, Reason,
+The authoritative simulator also owns operator live cameras. Each logical camera
+produces at most one RTX/NVENC product, and actor-and-browser viewer leases attach
+independent WebRTC peers to that product. Camera smoothing changes only the operator
+camera transform at the current simulator tick. The platform does not mirror scenes,
+transport visualization poses, reconcile a second renderer, or persist browser leases.
+
+The reference deployment runs the authoritative UAV simulator, View, Stream, Reason,
 the cuOpt executor, and the Rerun viewer concurrently. Their Helm workloads
 declare ordinary GPU requests and remain independently schedulable. No
 application profile disables one GPU service to admit another; cluster capacity
-must satisfy the complete seven-workload declaration.
+must satisfy the complete six-workload declaration.
 
 Visual workflows fail closed without hardware acceleration. Browser automation,
 interactive demonstrations, screenshots, and publication rendering require a

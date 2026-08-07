@@ -12,9 +12,6 @@
     "component" "anonymous-simulation-mcp"
     "mcpPort" .Values.service.port
     "dnsNamespaceSelector" .Values.networkPolicy.dnsNamespaceSelector
-    "egress" (list
-      (dict "component" "artifact-service" "port" 8790)
-      (dict "component" "simulation-view-renderer" "port" .Values.pose.endpointPort)
-    )
+    "egress" (list)
     "labels" $labels
   ) -}}

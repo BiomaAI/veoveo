@@ -22,11 +22,8 @@ use veoveo_mcp_contract::{GatewayControlPlane, GatewayInternalTrustBundle};
 
 #[path = "deployment/gpu.rs"]
 mod gpu;
-#[path = "deployment/readiness.rs"]
-mod readiness;
 
 use gpu::{apply_gpu_placement, ensure_gpu_allocator, prepare_gpu_placement, verify_gpu_placement};
-use readiness::verify_simulation_view_runtime;
 
 const VALIDATION_REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
 const GATEWAY_MOUNT_ROOT: &str = "/etc/veoveo/gateway/";
@@ -320,16 +317,6 @@ pub(crate) fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
     }
     if let Some(scheduling) = &platform.gpu_scheduling {
         verify_gpu_placement(context, &profile.definition.namespace, scheduling)?;
-    }
-    if platform
-        .mcp_servers
-        .contains(&FirstPartyMcpServer::SimulationView)
-    {
-        verify_simulation_view_runtime(
-            context,
-            &profile.definition.namespace,
-            Duration::from_secs(300),
-        )?;
     }
     println!(
         "Deployment profile {} now runs {} digest-locked sources",
@@ -1463,6 +1450,7 @@ fn append_release_values(
                 ]);
             }
             if release.values_contract == ReleaseValuesContract::Platform {
+                let platform = profile.resolved_platform()?;
                 args.extend([
                     "--set-string".to_owned(),
                     format!("global.installationId={}", profile.definition.name),
@@ -1472,12 +1460,16 @@ fn append_release_values(
                     format!("components={}", serde_json::to_string(components)?),
                     "--set-json".to_owned(),
                     format!("mcpServers={}", serde_json::to_string(mcp_servers)?),
-                    "--set-json".to_owned(),
-                    format!(
-                        "artifactService.allowedAudiences={}",
-                        serde_json::to_string(&profile.resolved_platform()?.artifact_audiences)?
-                    ),
                 ]);
+                if !platform.artifact_audiences.is_empty() {
+                    args.extend([
+                        "--set-json".to_owned(),
+                        format!(
+                            "artifactService.allowedAudiences={}",
+                            serde_json::to_string(&platform.artifact_audiences)?
+                        ),
+                    ]);
+                }
                 if let Some(placement) = prepare_gpu_placement(profile)? {
                     args.extend([
                         "--set-json".to_owned(),

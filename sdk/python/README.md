@@ -3,23 +3,12 @@
 `veoveo-mcp` is the supported Python package for an independently owned MCP server
 hosted by a Veoveo installation. It provides the hosted-server contract, internal
 identity verification, task-extension transport, durable task runtime, artifact
-client, schema helpers, pagination, host validation, telemetry boundary, and the
-provider-neutral Simulation View scene declaration and pose-producer contracts.
+client, schema helpers, pagination, host validation, and the telemetry boundary.
 
-`veoveo_mcp.simulation_view` owns the strongly typed
-`veoveo.io/simulation-view-scene/v2` declaration. It validates governed visual
-artifacts, frame bindings, entity and prototype identities, camera policy, and
-the exact canonical digest accepted by the Rust control plane. External
-extensions publish their own assets and construct this declaration without
-copying Veoveo server types.
-
-`veoveo_mcp.simulation_pose` implements the exact
-`veoveo.io/simulation-view-pose/v1` binary schema. Its asynchronous publishers
-perform TLS 1.3 mutual authentication on a worker thread. Linear interpolation
-uses a bounded ordered queue, while hold-latest workloads may explicitly replace
-unsent snapshots. The installation binds the producer certificate identity,
-session, epoch, immutable Frames revision, and ordered entity table before the
-producer connects.
+Simulation implementations own their authoritative world, camera products, and
+simulation-specific SDK integration. They conform to the provider-neutral live-view
+contract through their hosted MCP server rather than publishing a visualization-only
+scene or pose mirror through this package.
 
 ## Supported release
 

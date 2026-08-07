@@ -22,15 +22,12 @@ image:
 service:
   port: 8812
 
-artifactServiceUrl: http://artifact-service:8790
-
-pose:
-  producerId: anonymous-synthetic
-  producerSpiffeId: spiffe://veoveo.local/simulation/anonymous-synthetic
-  endpointHost: simulation-view-pose
-  endpointPort: 7443
-  serverHostname: simulation-view-pose.veoveo.svc
-  existingClientTlsSecret: anonymous-simulation-pose-tls
+liveView:
+  publicSignalingUrl: ws://127.0.0.1:8812/anonymous-simulation/signaling
+  publicMediaHost: 127.0.0.1
+  publicMediaPort: 48030
+  leaseSeconds: 120
+  maximumViewers: 16
 
 resources:
   requests:

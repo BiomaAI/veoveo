@@ -69,8 +69,7 @@
   "namespace": "veoveo",
   "resources": {
     "manifests": [
-      "../../../deploy/local/k3d/development-resources.yaml",
-      "pose-tls.development.yaml"
+      "../../../deploy/local/k3d/development-resources.yaml"
     ],
     "configMaps": [],
     "secrets": []
@@ -96,90 +95,19 @@
     "components": [
       "gateway",
       "ingress",
-      "platform-store",
-      "object-store",
-      "artifact-service",
-      "gpu-renderer",
       "simulation-runtime-support"
     ],
-    "mcpServers": [
-      "artifact",
-      "frames",
-      "simulation-view"
-    ],
-    "artifactAudiences": [
-      "anonymous-simulation",
-      "simulation-view"
-    ],
+    "mcpServers": [],
+    "artifactAudiences": [],
     "externalWorkloads": [
       "anonymous-simulation-mcp"
     ],
-    "gpuScheduling": {
-      "runtimeClassName": "nvidia",
-      "allocatableDevices": 1,
-      "evidenceDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-      "allocator": {
-        "claimName": "anonymous-simulation-gpu",
-        "fullDeviceClassName": "gpu.nvidia.com",
-        "migDeviceClassName": "mig.nvidia.com",
-        "driverName": "gpu.nvidia.com",
-        "configurationApiVersion": "resource.nvidia.com/v1beta1",
-        "installation": {
-          "releaseName": "dra-driver-nvidia-gpu",
-          "namespace": "nvidia-dra-driver-gpu",
-          "chart": {
-            "coordinate": "oci://registry.k8s.io/dra-driver-nvidia/charts/dra-driver-nvidia-gpu",
-            "version": "0.4.1",
-            "digest": "sha256:7a00373fdef1025f27ebb1d353719446bbbe6ec4697e9a503c5ffd7e4f1525dd",
-            "contentDigest": "sha256:c1c316f6bdcfe5fed3ff649cff1b43be50d27d0cb1aaf9d29e7bdca1eaa331ce"
-          },
-          "image": {
-            "repository": "registry.k8s.io/dra-driver-nvidia/dra-driver-nvidia-gpu",
-            "tag": "v0.4.1",
-            "digest": "sha256:eefe67396dedea4df74f68a94d5883f33204888b83979babd42b91501a2de1d8",
-            "platformDigests": {
-              "linux/amd64": "sha256:ad86983849542f6ef22f02e963ecbf545706e037455e0c265889ace137863556",
-              "linux/arm64": "sha256:b51290bbc1ee6745adf8ffff040d2b917d3e07dbd5cd36fd444b0e371ccc9166"
-            }
-          },
-          "nvidiaDriverRoot": "/",
-          "eligibleNodeSelector": {
-            "kubernetes.io/hostname": "k3d-anonymous-simulation-server-0"
-          },
-          "conflictingDevicePluginRemoval": {
-            "mode": "require-absent"
-          },
-          "maturityAcceptance": "technology-preview",
-          "timeoutSeconds": 600
-        }
-      },
-      "samePhysicalDeviceGroups": [
-        {
-          "name": "simulation-view",
-          "workloads": [
-            {
-              "workload": "simulation-view-renderer",
-              "deployment": "simulation-view-renderer",
-              "container": "simulation-view-isaac",
-              "replicas": 1
-            }
-          ],
-          "isolation": "exclusive",
-          "maximumConsumers": 1,
-          "evidenceDigest": null,
-          "migProfile": null,
-          "timeSliceInterval": null
-        }
-      ],
-      "differentPhysicalDeviceGroups": []
-    }
+    "gpuScheduling": null
   },
   "gatewayRequirements": [
     "gateway-requirements.json"
   ],
   "waitForDeployments": [
-    "simulation-view-mcp",
-    "simulation-view-renderer",
     "anonymous-simulation-mcp"
   ]
 }

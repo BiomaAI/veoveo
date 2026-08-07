@@ -73,9 +73,9 @@ cache:
 
 session:
   id: uav-showcase
-  vehicleCount: 1
+  vehicleCount: 4
   physicsHz: 60
-  renderingHz: 2
+  renderingHz: 30
   tileReadyFrames: 30
   px4ConnectTimeoutSeconds: 180
   privacyConsent: false
@@ -113,20 +113,94 @@ session:
         "y": 0.0
         z: -0.7071067811865476
 
-posePublication:
-  cadenceHz: 20
-  bufferDurationMs: 500
-  producerId: uav-sim
-  producerSpiffeId: spiffe://veoveo.local/simulation/uav-sim
-  epochId: epoch-1
-  endpointHost: simulation-view-pose
-  endpointPort: 7443
-  serverHostname: simulation-view-pose
-  entityTableRevision: 1
-  existingTlsSecret: uav-sim-pose-producer-tls
-  caCertificateKey: ca.crt
-  clientCertificateKey: tls.crt
-  clientPrivateKeyKey: tls.key
+liveView:
+  publicSignalingUrl: ws://127.0.0.1:8802/uav-sim/signaling
+  publicMediaHost: 127.0.0.1
+  signalingPortBase: 49100
+  mediaPortBase: 47998
+  leaseSeconds: 120
+  idleGraceSeconds: 5
+  maximumFrameAgeMs: 2000
+  maximumViewerLeases: 64
+  signalingIngress:
+    enabled: false
+    className: ""
+    host: ""
+    annotations: {}
+    tls:
+      enabled: false
+      secretName: ""
+  mediaService:
+    type: LoadBalancer
+    loadBalancerIP: ""
+    externalTrafficPolicy: Local
+  cameras:
+    - cameraId: follow
+      physicalSlot: 0
+      revision: 1
+      rig:
+        kind: follow_entity
+        targetEntityId: uav-1
+        eyeOffsetFluM: {x: -12.0, "y": 2.0, z: 4.0}
+        targetOffsetFluM: {x: 0.0, "y": 0.0, z: 0.2}
+        smoothing:
+          translationHalfLifeMs: 150
+          rotationHalfLifeMs: 120
+          teleportDistanceM: 100.0
+          resetAfterGapMs: 1000
+      optics: &operatorOptics
+        widthPx: 1280
+        heightPx: 720
+        frameRateHz: 30
+        verticalFovDegrees: 60.0
+        nearClipM: 0.1
+        farClipM: 100000.0
+      streamPolicy: continuous
+    - cameraId: chase
+      physicalSlot: 1
+      revision: 1
+      rig:
+        kind: chase_entity
+        targetEntityId: uav-1
+        distanceM: 15.0
+        heightM: 4.0
+        smoothing:
+          translationHalfLifeMs: 120
+          rotationHalfLifeMs: 100
+          teleportDistanceM: 100.0
+          resetAfterGapMs: 1000
+      optics: *operatorOptics
+      streamPolicy: on_demand
+    - cameraId: orbit
+      physicalSlot: 2
+      revision: 1
+      rig:
+        kind: orbit
+        targetEntityId: uav-1
+        radiusM: 25.0
+        azimuthDegrees: 225.0
+        elevationDegrees: 20.0
+        smoothing:
+          translationHalfLifeMs: 160
+          rotationHalfLifeMs: 140
+          teleportDistanceM: 100.0
+          resetAfterGapMs: 1000
+      optics: *operatorOptics
+      streamPolicy: on_demand
+    - cameraId: formation
+      physicalSlot: 3
+      revision: 1
+      rig:
+        kind: formation_overview
+        targetEntityIds: [uav-1, uav-2, uav-3, uav-4]
+        paddingM: 30.0
+        smoothing:
+          translationHalfLifeMs: 180
+          rotationHalfLifeMs: 160
+          teleportDistanceM: 150.0
+          resetAfterGapMs: 1000
+      optics: *operatorOptics
+      streamPolicy: on_demand
 
 streamPublication:
   enabled: true

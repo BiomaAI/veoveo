@@ -115,13 +115,13 @@ cargo xtask smoke uav-recording-browser-verify \
 ```
 
 The complete command reads the running simulation and current leader camera, opens dedicated Console tabs
-for Simulation View, Stream, and Recording, verifies headed hardware graphics, captures
-evidence, closes the tabs, and proves that pose sequence advanced. A browser failure can
+for authoritative live cameras, Stream, and Recording, verifies headed hardware graphics, captures
+evidence, closes the tabs, and proves that simulation time advanced. A browser failure can
 therefore be retried without repeating a flight. The command has its own
 `veoveo-browser-smoke` dependency graph and builds the MCP conformance client only when
 an actual run requires it.
 
-The Recording-only command does not depend on a Stream or Simulation View session. It
+The Recording-only command does not depend on a Stream or live-camera session. It
 holds one live Rerun receiver for 120 seconds, requires native Following mode within two
 seconds, compares its final simulation timeline against the running source, rejects more
 than one second of end-to-end lag, and requires the leader-camera pane to change without
@@ -141,7 +141,7 @@ should not infer producer health from browser latency.
 | Forwarder durable queue | queued and maximum bytes, stream count, pending batches and Blueprints, finishing streams |
 | Hub materialization | messages, bytes, opened/frozen segments, quarantine, Blueprint publication and rejection |
 | Live Recording playback | current live segment bytes, bounded history seconds, video preroll seconds, canceled and failed browser requests |
-| Simulation View | desired/realized revision, reconciliation phase, failed dependency, next attempt, authorization expiry, camera pose sequence |
+| Authoritative live view | logical-camera revision, encoded-product identity, hardware encoder, frame age, connected viewer leases, capacity denials |
 | Browser | hardware adapter, video advance, decode identity, Rerun network mode, request cancellation, screenshot digest |
 
 The forwarder uploader is event-driven. Durable enqueue wakes it immediately, and a
@@ -149,10 +149,10 @@ durable acknowledgement wakes producers waiting for queue capacity. Network fail
 retain bounded exponential backoff because no local event can make the remote endpoint
 healthy.
 
-Simulation View is also event-driven. Durable state commits and runtime generation
-changes wake reconciliation. The scheduler sleeps until the earliest real authorization
-renewal or failed-dependency retry deadline when no event is pending. A converged healthy
-session is absent from the reconciliation selection and causes no runtime replay.
+Authoritative live view is event-driven. A logical-camera mutation activates or replaces
+one simulator-hosted render product, and a viewer operation attaches or detaches only its
+own peer. Product state changes and WebRTC signaling wake their consumers directly. No
+controller polls or replays a healthy simulator, camera, product, or browser lease.
 
 Recording live playback watches filesystem changes and transmits only static context,
 one live-profile-compacted recent-history bootstrap, and newly durable data. It does not
@@ -201,7 +201,7 @@ The current controls address the main observed sinks:
 | Re-reading an unchanged ingest identity and committed checkpoint for every live sample | serialized authorized-stream checkpoint with transactional revision and sequence comparison |
 | Aggregating retained producer batches for every quota decision | deterministic fixed UTC quota-window counters updated atomically with the accepted batch |
 | Rediscovering the same writing segment for every source batch | active-segment checkpoint evicted before rollover and rehydrated from the catalog after restart |
-| Replaying healthy Simulation View state | durable event wake plus exact deadline scheduling |
+| Replaying a second renderer mirror of healthy simulation state | removed; the authoritative simulator owns camera transforms and encoded products |
 | Guessing where Recording latency lives | boundary-specific queue, ingest, playback, and browser counters |
 
 The baseline measurements that motivated these controls remain part of the source
@@ -212,7 +212,6 @@ record. They identify the dominant phase and keep later improvements comparable:
 | Coordinated 27-image release | about 21 min | image-family fan-out |
 | Shared Debian and Rust action in that release | 17 min 20 s | broad optimized compilation |
 | Stream and Reason image families | 15 min 39 s and 15 min 44 s | repeated reverse-dependent compilation and export |
-| Simulation View Isaac publication | 7 min 28 s | source-date-normalized layer rewrite and export |
 | Cached simulation-runtime publication | 3 min 8 s | source-date-normalized layer rewrite and export |
 | First `helm-config` smoke dispatch | 2 min 42 s | unrelated Rerun and Surreal dependency compilation; the warm run compiled in 0.57 s and completed in about 7 s |
 | Targeted UAV verifier help dispatch | 2 min 19 s | broad smoke dependency compilation before argument handling |

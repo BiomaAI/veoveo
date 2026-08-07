@@ -1198,97 +1198,12 @@ fn path_str(path: &Path) -> Result<&str> {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeSet, path::Path};
-
     use serde_json::json;
-    use veoveo_deploy_contract::{
-        GpuDifferentPhysicalDeviceConstraint, GpuWorkloadPlacement, LoadedProfile,
-    };
 
     use super::{
-        compile_gpu_placement, conflicting_device_plugin_pods, debian_package_version,
-        parse_version, prepare_gpu_placement, validate_existing_resource_claim,
+        conflicting_device_plugin_pods, debian_package_version, parse_version,
         validate_resource_slices,
     };
-
-    #[test]
-    fn checked_in_profile_compiles_restart_stable_gpu_claim() {
-        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let profile_path =
-            repository.join("testing/fixtures/external-simulation-installation/deployment.json");
-        let profile = LoadedProfile::load(&profile_path, &repository).unwrap();
-        let placement = prepare_gpu_placement(&profile).unwrap().unwrap();
-
-        assert_eq!(placement.claim_name, "anonymous-simulation-gpu");
-        assert_eq!(placement.manifest["apiVersion"], "resource.k8s.io/v1");
-        assert_eq!(
-            placement.manifest.pointer("/spec/devices/requests/0/name"),
-            Some(&json!("simulation-view"))
-        );
-        assert_eq!(
-            placement
-                .workload_requests
-                .get("simulation-view-renderer")
-                .map(String::as_str),
-            Some("simulation-view")
-        );
-    }
-
-    #[test]
-    fn compiles_two_named_requests_with_a_physical_uuid_constraint() {
-        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let profile_path =
-            repository.join("testing/fixtures/external-simulation-installation/deployment.json");
-        let profile = LoadedProfile::load(&profile_path, &repository).unwrap();
-        let mut scheduling = profile.resolved_platform().unwrap().gpu_scheduling.unwrap();
-        let mut second = scheduling.same_physical_device_groups[0].clone();
-        second.name = "visualization".to_owned();
-        second.workloads = vec![GpuWorkloadPlacement {
-            workload: "view-renderer".to_owned(),
-            deployment: "view-renderer".to_owned(),
-            container: "view-isaac".to_owned(),
-            replicas: 1,
-        }];
-        scheduling.allocatable_devices = 2;
-        scheduling.same_physical_device_groups.push(second);
-        scheduling.different_physical_device_groups = vec![GpuDifferentPhysicalDeviceConstraint {
-            groups: BTreeSet::from(["simulation-view".to_owned(), "visualization".to_owned()]),
-        }];
-
-        let placement = compile_gpu_placement("example", "veoveo", &scheduling).unwrap();
-        assert_eq!(
-            placement.manifest.pointer("/spec/devices/requests/1/name"),
-            Some(&json!("visualization"))
-        );
-        assert_eq!(
-            placement
-                .manifest
-                .pointer("/spec/devices/constraints/0/distinctAttribute"),
-            Some(&json!("gpu.nvidia.com/uuid"))
-        );
-    }
-
-    #[test]
-    fn existing_resource_claim_is_preserved_only_for_identical_intent() {
-        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let profile_path =
-            repository.join("testing/fixtures/external-simulation-installation/deployment.json");
-        let profile = LoadedProfile::load(&profile_path, &repository).unwrap();
-        let placement = prepare_gpu_placement(&profile).unwrap().unwrap();
-        let mut existing = placement.manifest.clone();
-        existing["metadata"]["uid"] = json!("claim-uid");
-
-        assert_eq!(
-            validate_existing_resource_claim(&existing, "veoveo", &placement).unwrap(),
-            "claim-uid"
-        );
-
-        existing["spec"]["devices"]["requests"][0]["exactly"]["count"] = json!(2);
-        let error = validate_existing_resource_claim(&existing, "veoveo", &placement)
-            .unwrap_err()
-            .to_string();
-        assert!(error.contains("will not replace or mutate"));
-    }
 
     #[test]
     fn resource_slice_inventory_requires_distinct_physical_gpus_and_current_driver() {

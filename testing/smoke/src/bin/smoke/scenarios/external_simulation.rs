@@ -157,11 +157,10 @@ pub(crate) fn external_simulation_fixture() -> Result<()> {
         "registry.example.internal/extensions/anonymous-simulation-mcp@sha256:",
     )?;
     not_contains(&rendered, "nvidia.com/gpu")?;
-    not_contains(&rendered, "simulation-view-isaac")?;
 
     println!(
         "external simulation fixture ok: reproducible SDK artifact, authenticated locked install, \
-         tests, package, Bake graph, and CPU-only chart"
+         tests, package, Bake graph, and contract-only chart"
     );
     Ok(())
 }

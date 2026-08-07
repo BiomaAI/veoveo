@@ -88,8 +88,8 @@ mod tests {
         assert!(!tool_visible_to_app(&model_only));
 
         let networked = app_resource_with_meta(
-            "ui://simulation-view/live.html",
-            "simulation-view-live",
+            "ui://uav-sim/live.html",
+            "uav-sim-live",
             ResourceUiMeta {
                 csp: Some(crate::UiCsp {
                     connect_domains: vec!["wss://stream.example.com".to_owned()],

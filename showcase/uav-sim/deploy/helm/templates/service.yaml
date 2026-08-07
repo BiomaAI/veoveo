@@ -13,4 +13,26 @@ spec:
     - name: http
       port: {{ .Values.service.port }}
       targetPort: mcp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: uav-sim-media
+  labels:
+    {{- include "uav-sim.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.liveView.mediaService.type }}
+  externalTrafficPolicy: {{ .Values.liveView.mediaService.externalTrafficPolicy }}
+  {{- with .Values.liveView.mediaService.loadBalancerIP }}
+  loadBalancerIP: {{ . | quote }}
+  {{- end }}
+  selector:
+    {{- include "uav-sim.selectorLabels" . | nindent 4 }}
+  ports:
+    {{- range .Values.liveView.cameras }}
+    - name: {{ printf "media-%d" (int .physicalSlot) }}
+      protocol: UDP
+      port: {{ add $.Values.liveView.mediaPortBase (int .physicalSlot) }}
+      targetPort: {{ printf "media-%d" (int .physicalSlot) }}
+    {{- end }}
 {{- end }}

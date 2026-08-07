@@ -16,6 +16,8 @@ use veoveo_stream_mcp::contract::{
 
 use super::*;
 
+#[path = "uav_sim/browser.rs"]
+mod browser;
 #[path = "uav_sim/showcase.rs"]
 mod showcase;
 
@@ -25,9 +27,7 @@ const NAMESPACE: &str = "veoveo";
 const GOOGLE_PHOTOREALISTIC_3D_TILES_ASSET_ID: u64 = 2_275_207;
 const OPERATOR_PROFILE_SCOPES: &[&str] = &[
     "operator:use",
-    "simulation-view:read",
-    "simulation-view:write",
-    "simulation-view:stream",
+    "uav-sim:stream",
     "view:read",
     "view:write",
     "view:capture",
@@ -1517,16 +1517,31 @@ fn assert_world_ready(
                 }),
         "Isaac nadir camera is not operational: {state}"
     );
+    let live_cameras = state
+        .get("live_cameras")
+        .and_then(Value::as_array)
+        .context("authoritative simulator state omitted live_cameras")?;
     ensure!(
-        json_string(state, "/pose_publication/protocol_schema")?
-            == "veoveo.io/simulation-view-pose/v1"
-            && json_string(state, "/pose_publication/lifecycle")? == "ready"
-            && json_string(state, "/pose_publication/entity_table_digest")?.starts_with("sha256:")
-            && state
-                .pointer("/pose_publication/sent_snapshots")
-                .and_then(Value::as_u64)
-                .is_some_and(|count| count > 0),
-        "Simulation View pose publication is not ready: {state}"
+        !live_cameras.is_empty()
+            && live_cameras
+                .iter()
+                .all(|camera| { camera.get("health").and_then(Value::as_str) == Some("healthy") }),
+        "authoritative simulator cameras are not healthy: {state}"
+    );
+    let products = state
+        .get("stream_products")
+        .and_then(Value::as_array)
+        .context("authoritative simulator state omitted stream_products")?;
+    ensure!(
+        !products.is_empty()
+            && products.iter().all(|product| {
+                product.get("lifecycle").and_then(Value::as_str) == Some("ready")
+                    && product
+                        .get("encodedFrames")
+                        .and_then(Value::as_u64)
+                        .is_some_and(|count| count > 0)
+            }),
+        "authoritative simulator stream products are not ready: {state}"
     );
     Ok(())
 }

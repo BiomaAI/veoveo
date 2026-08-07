@@ -1369,8 +1369,8 @@ mod tests {
                 "registry": "k3d-veoveo-registry.localhost:5001",
                 "releaseEligible": false,
                 "images": [{
-                    "target": "simulation-view-mcp",
-                    "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-view-mcp",
+                    "target": "simulation-runtime",
+                    "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-runtime",
                     "runtimeDigest": STAGED_RUNTIME,
                     "stagingIndexDigest": STAGED_INDEX,
                     "platform": "linux/amd64"
@@ -1398,7 +1398,7 @@ mod tests {
         let replaced = lock
             .images
             .iter()
-            .find(|image| image.target == "simulation-view-mcp")
+            .find(|image| image.target == "simulation-runtime")
             .unwrap();
         assert_eq!(replaced.runtime_digest, STAGED_RUNTIME);
         assert!(matches!(
@@ -1408,7 +1408,7 @@ mod tests {
         let unchanged = lock
             .images
             .iter()
-            .find(|image| image.target == "artifact-mcp")
+            .find(|image| image.target == "mcp-gateway")
             .unwrap();
         assert!(matches!(
             unchanged.origin,
@@ -1416,7 +1416,7 @@ mod tests {
         ));
         let values: serde_json::Value = serde_json::from_slice(&fs::read(values).unwrap()).unwrap();
         assert_eq!(
-            values["global"]["imageDigests"]["veoveo/simulation-view-mcp"],
+            values["global"]["imageDigests"]["veoveo/simulation-runtime"],
             STAGED_RUNTIME
         );
     }

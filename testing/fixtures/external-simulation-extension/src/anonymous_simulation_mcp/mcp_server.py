@@ -1,4 +1,4 @@
-"""Hosted MCP surface for assets and the synthetic pose producer."""
+"""Hosted MCP surface for an authoritative simulator-owned camera product."""
 
 from __future__ import annotations
 
@@ -19,28 +19,29 @@ from veoveo_mcp.contract import (
     ServerDocs,
     server_docs,
 )
-from veoveo_mcp.contract.identity import GatewayInternalIdentity, PlaneCaller
-from veoveo_mcp.internal_auth import BEARER_SCOPE_KEY, IDENTITY_SCOPE_KEY
+from veoveo_mcp.contract.identity import GatewayInternalIdentity
+from veoveo_mcp.internal_auth import IDENTITY_SCOPE_KEY
 from veoveo_mcp.schema import mcp_input_schema
 
 from .contract import (
+    CloseLiveViewRequest,
+    CloseLiveViewResult,
     FixtureState,
     GetFixtureStateRequest,
-    PrepareSceneRequest,
-    PreparedScene,
-    ProducerState,
-    StartPoseProducerRequest,
-    StopPoseProducerRequest,
+    ListLiveCamerasRequest,
+    LiveViewConnection,
+    OpenLiveViewRequest,
+    RenewLiveViewRequest,
 )
 from .runtime import FixtureRuntime
 
 
 Context = ServerRequestContext[Any, Any]
-
+APP_URI = "ui://anonymous-simulation/live.html"
+APP_MIME = "text/html;profile=mcp-app"
 INSTRUCTIONS = (
-    "Anonymous external Simulation View fixture. Publish its synthetic "
-    "OpenUSD scene, then authorize and start its independent mTLS pose "
-    "producer. Camera and live-view operations belong to Simulation View."
+    "Authoritative simulation fixture. Its stable camera and NVIDIA H.264 product "
+    "are simulator-owned; every actor and browser receives an independent ephemeral lease."
 )
 STATE_URI = "anonymous-simulation://state"
 DOCS_URI = "anonymous-simulation://docs"
@@ -50,9 +51,7 @@ CONTRACT_URI = "anonymous-simulation://contract"
 SERVER_NAME = "anonymous-simulation"
 _PACKAGE = __package__ or "anonymous_simulation_mcp"
 _SOURCE_ROOT = Path(__file__).resolve().parents[2]
-SERVER_DOCS: ServerDocs = server_docs(
-    SERVER_NAME, _PACKAGE, source_root=_SOURCE_ROOT
-)
+SERVER_DOCS: ServerDocs = server_docs(SERVER_NAME, _PACKAGE, source_root=_SOURCE_ROOT)
 DOCS_INDEX = tuple(doc.wire() for doc in SERVER_DOCS)
 LLMS_TXT = SERVER_DOCS.llms_txt()
 AGENTS_DOCUMENT = SERVER_DOCS.doc(DOC_ID_AGENTS)
@@ -61,22 +60,15 @@ if AGENTS_DOCUMENT is None or DESIGN_DOCUMENT is None:
     raise RuntimeError("shared server_docs omitted a required document")
 CAPABILITY_INVENTORY = CapabilityInventory(
     tools=(
-        "prepare_scene",
-        "start_pose_producer",
-        "stop_pose_producer",
+        "list_live_cameras",
+        "open_live_view",
+        "renew_live_view",
+        "close_live_view",
         "get_fixture_state",
     ),
-    resources=(
-        STATE_URI,
-        DOCS_URI,
-        AGENTS_URI,
-        DESIGN_URI,
-        CONTRACT_URI,
-    ),
+    resources=(STATE_URI, APP_URI, DOCS_URI, AGENTS_URI, DESIGN_URI, CONTRACT_URI),
 )
-CONTRACT_DECLARATION = ContractDeclaration.from_docs(
-    SERVER_DOCS, CAPABILITY_INVENTORY
-)
+CONTRACT_DECLARATION = ContractDeclaration.from_docs(SERVER_DOCS, CAPABILITY_INVENTORY)
 
 
 def build_mcp_server(runtime: FixtureRuntime) -> Server:
@@ -89,164 +81,148 @@ def build_mcp_server(runtime: FixtureRuntime) -> Server:
     async def list_tools(
         _ctx: Context, _params: types.PaginatedRequestParams | None
     ) -> types.ListToolsResult:
+        app_meta = {"ui": {"resourceUri": APP_URI, "visibility": ["model", "app"]}}
         return types.ListToolsResult(
             tools=[
                 types.Tool(
-                    name="prepare_scene",
-                    title="Prepare synthetic Simulation View scene",
-                    description=(
-                        "Publish fixture-owned OpenUSD assets to the Artifact plane "
-                        "and return one immutable Simulation View scene declaration."
-                    ),
-                    input_schema=mcp_input_schema(PrepareSceneRequest),
-                    output_schema=PreparedScene.model_json_schema(),
-                    annotations=types.ToolAnnotations(
-                        read_only_hint=False,
-                        destructive_hint=False,
-                        idempotent_hint=False,
-                        open_world_hint=False,
-                    ),
+                    name="list_live_cameras",
+                    title="List authoritative live cameras",
+                    description="List stable cameras and shared products owned by this simulator.",
+                    input_schema=mcp_input_schema(ListLiveCamerasRequest),
+                    output_schema={"type": "array", "items": {}},
+                    annotations=_annotations(read_only=True),
+                    meta=app_meta,
                 ),
                 types.Tool(
-                    name="start_pose_producer",
-                    title="Start synthetic pose producer",
-                    description=(
-                        "Start complete moving-entity snapshots on the independent "
-                        "mTLS Simulation View pose data plane."
-                    ),
-                    input_schema=mcp_input_schema(StartPoseProducerRequest),
-                    output_schema=ProducerState.model_json_schema(),
-                    annotations=types.ToolAnnotations(
-                        read_only_hint=False,
-                        destructive_hint=False,
-                        idempotent_hint=True,
-                        open_world_hint=False,
-                    ),
+                    name="open_live_view",
+                    title="Open authoritative live view",
+                    description="Create an actor- and browser-scoped lease over one existing product.",
+                    input_schema=mcp_input_schema(OpenLiveViewRequest),
+                    output_schema=LiveViewConnection.model_json_schema(),
+                    annotations=_annotations(),
+                    meta=app_meta,
                 ),
                 types.Tool(
-                    name="stop_pose_producer",
-                    title="Stop synthetic pose producer",
-                    description="Stop the fixture-owned pose stream.",
-                    input_schema=mcp_input_schema(StopPoseProducerRequest),
-                    output_schema=ProducerState.model_json_schema(),
-                    annotations=types.ToolAnnotations(
-                        read_only_hint=False,
-                        destructive_hint=True,
-                        idempotent_hint=True,
-                        open_world_hint=False,
-                    ),
+                    name="renew_live_view",
+                    title="Renew authoritative live view",
+                    description="Rotate only this viewer lease token and expiry.",
+                    input_schema=mcp_input_schema(RenewLiveViewRequest),
+                    output_schema=LiveViewConnection.model_json_schema(),
+                    annotations=_annotations(),
+                    meta=app_meta,
+                ),
+                types.Tool(
+                    name="close_live_view",
+                    title="Close authoritative live view",
+                    description="Close only this actor and browser instance's lease.",
+                    input_schema=mcp_input_schema(CloseLiveViewRequest),
+                    output_schema=CloseLiveViewResult.model_json_schema(),
+                    annotations=_annotations(destructive=True),
+                    meta=app_meta,
                 ),
                 types.Tool(
                     name="get_fixture_state",
-                    title="Read synthetic producer state",
-                    description="Read redacted pose-producer lifecycle and counters.",
+                    title="Read authoritative fixture state",
+                    description="Read redacted camera, product, and aggregate viewer state.",
                     input_schema=mcp_input_schema(GetFixtureStateRequest),
                     output_schema=FixtureState.model_json_schema(),
-                    annotations=types.ToolAnnotations(
-                        read_only_hint=True,
-                        destructive_hint=False,
-                        idempotent_hint=True,
-                        open_world_hint=False,
-                    ),
+                    annotations=_annotations(read_only=True),
                 ),
             ]
         )
 
-    async def call_tool(
-        ctx: Context, params: types.CallToolRequestParams
-    ) -> types.CallToolResult:
-        name = params.name
+    async def call_tool(ctx: Context, params: types.CallToolRequestParams) -> types.CallToolResult:
         arguments = params.arguments or {}
         try:
-            if name == "prepare_scene":
-                request = PrepareSceneRequest.model_validate(arguments)
-                output = await runtime.prepare_scene(_caller(scope(ctx)), request)
-                return _structured("prepared synthetic scene", output)
-            if name == "start_pose_producer":
-                request = StartPoseProducerRequest.model_validate(arguments)
-                output = await runtime.start(request)
-                return _structured("started synthetic pose producer", output)
-            if name == "stop_pose_producer":
-                request = StopPoseProducerRequest.model_validate(arguments)
-                output = await runtime.stop(request.session_id)
-                return _structured("stopped synthetic pose producer", output)
-            if name == "get_fixture_state":
+            identity = _identity(scope(ctx))
+            _require_operator_scope(identity)
+            actor = identity.actor.id
+            owner = _owner(identity)
+            if params.name == "list_live_cameras":
+                request = ListLiveCamerasRequest.model_validate(arguments)
+                output = await runtime.list_live_cameras(request.session_id)
+                return _structured("authoritative live cameras", output)
+            if params.name == "open_live_view":
+                output = await runtime.open(
+                    actor, owner, OpenLiveViewRequest.model_validate(arguments)
+                )
+                return _structured("opened authoritative live view", output)
+            if params.name == "renew_live_view":
+                output = await runtime.renew(
+                    actor, owner, RenewLiveViewRequest.model_validate(arguments)
+                )
+                return _structured("renewed authoritative live view", output)
+            if params.name == "close_live_view":
+                output = await runtime.close(
+                    actor, owner, CloseLiveViewRequest.model_validate(arguments)
+                )
+                return _structured("closed authoritative live view", output)
+            if params.name == "get_fixture_state":
                 GetFixtureStateRequest.model_validate(arguments)
-                output = await runtime.fixture_state()
-                return _structured("read synthetic fixture state", output)
+                return _structured("authoritative fixture state", await runtime.fixture_state())
         except MCPError as error:
             return _error_result(error.message)
         except (ValidationError, ValueError) as error:
             return _error_result(str(error))
-        return _error_result(f"unknown tool `{name}`")
+        return _error_result(f"unknown tool `{params.name}`")
 
     async def list_resources(
         _ctx: Context, _params: types.PaginatedRequestParams | None
     ) -> types.ListResourcesResult:
-        resources = [
-            types.Resource(
-                uri=STATE_URI,
-                name="state",
-                title="Anonymous simulation fixture state",
-                description="Redacted synthetic pose-producer state.",
-                mime_type="application/json",
-            ),
-            types.Resource(
-                uri=DOCS_URI,
-                name="docs",
-                title="Anonymous simulation fixture documentation",
-                description="Index of embedded fixture documents.",
-                mime_type="application/json",
-            ),
-            types.Resource(
-                uri=DESIGN_URI,
-                name="design",
-                title="Anonymous simulation fixture design",
-                description="Public protocol and ownership boundary.",
-                mime_type="text/markdown",
-            ),
-            types.Resource(
-                uri=AGENTS_URI,
-                name="agents",
-                title="Anonymous simulation fixture agent manual",
-                description="Implementation invariants and compliance declaration.",
-                mime_type="text/markdown",
-            ),
-            types.Resource(
-                uri=CONTRACT_URI,
-                name="contract",
-                title="Anonymous simulation fixture contract",
-                description=(
-                    "Machine-readable contract revision, compliance, and "
-                    "capability inventory."
+        return types.ListResourcesResult(
+            resources=[
+                types.Resource(
+                    uri=STATE_URI,
+                    name="state",
+                    title="Authoritative simulation fixture state",
+                    description="Redacted camera, product, and viewer aggregates.",
+                    mime_type="application/json",
                 ),
-                mime_type="application/json",
-            ),
-        ]
-        return types.ListResourcesResult(resources=resources)
+                types.Resource(
+                    uri=APP_URI,
+                    name="live-app",
+                    title="Authoritative live cameras",
+                    description="Viewer for simulator-owned shared camera products.",
+                    mime_type=APP_MIME,
+                    meta={"ui": {"prefersBorder": True}},
+                ),
+                *[
+                    types.Resource(
+                        uri=uri,
+                        name=name,
+                        title=title,
+                        description=description,
+                        mime_type=mime,
+                    )
+                    for uri, name, title, description, mime in (
+                        (DOCS_URI, "docs", "Fixture documentation", "Embedded document index.", "application/json"),
+                        (DESIGN_URI, "design", "Fixture design", "Protocol and ownership boundary.", "text/markdown"),
+                        (AGENTS_URI, "agents", "Fixture agent manual", "Implementation invariants.", "text/markdown"),
+                        (CONTRACT_URI, "contract", "Fixture contract", "Machine-readable capability inventory.", "application/json"),
+                    )
+                ],
+            ]
+        )
 
-    async def read_resource(
-        ctx: Context, params: types.ReadResourceRequestParams
-    ) -> types.ReadResourceResult:
-        text = params.uri
+    async def read_resource(ctx: Context, params: types.ReadResourceRequestParams) -> types.ReadResourceResult:
+        uri = params.uri
         _identity(scope(ctx))
-        if text == STATE_URI:
-            state = await runtime.fixture_state()
-            return _json_result(
-                text, state.model_dump(mode="json", by_alias=True)
-            )
-        if text == DOCS_URI:
-            return _json_result(text, list(DOCS_INDEX))
-        if text == DESIGN_URI:
-            return _markdown_result(text, DESIGN_DOCUMENT.body)
-        if text == AGENTS_URI:
-            return _markdown_result(text, AGENTS_DOCUMENT.body)
-        if text == CONTRACT_URI:
-            return _json_result(text, CONTRACT_DECLARATION.wire())
-        raise _invalid(f"unknown resource URI `{text}`")
+        if uri == STATE_URI:
+            return _json_result(uri, (await runtime.fixture_state()).model_dump(mode="json", by_alias=True))
+        if uri == APP_URI:
+            return _text_result(uri, _APP_HTML, APP_MIME)
+        if uri == DOCS_URI:
+            return _json_result(uri, list(DOCS_INDEX))
+        if uri == DESIGN_URI:
+            return _text_result(uri, DESIGN_DOCUMENT.body, "text/markdown")
+        if uri == AGENTS_URI:
+            return _text_result(uri, AGENTS_DOCUMENT.body, "text/markdown")
+        if uri == CONTRACT_URI:
+            return _json_result(uri, CONTRACT_DECLARATION.wire())
+        raise _invalid(f"unknown resource URI `{uri}`")
 
     return Server(
-        "anonymous-simulation",
+        SERVER_NAME,
         version="0.1.0",
         instructions=INSTRUCTIONS,
         on_list_tools=list_tools,
@@ -263,54 +239,56 @@ def _identity(scope: dict[str, Any]) -> GatewayInternalIdentity:
     return identity
 
 
-def _caller(scope: dict[str, Any]) -> PlaneCaller:
-    identity = _identity(scope)
-    bearer = scope.get(BEARER_SCOPE_KEY)
-    if not isinstance(bearer, str):
-        raise _invalid("forwarded bearer missing")
-    return PlaneCaller.from_identity(identity, bearer)
+def _require_operator_scope(identity: GatewayInternalIdentity) -> None:
+    if "operator:use" not in identity.actor.scopes:
+        raise _invalid("operator:use scope is required")
+
+
+def _owner(identity: GatewayInternalIdentity) -> str:
+    subject = identity.authority.output_policy.owner
+    return f"{subject.kind}:{subject.id}"
+
+
+def _annotations(*, read_only: bool = False, destructive: bool = False) -> types.ToolAnnotations:
+    return types.ToolAnnotations(
+        read_only_hint=read_only,
+        destructive_hint=destructive,
+        idempotent_hint=read_only,
+        open_world_hint=False,
+    )
 
 
 def _structured(text: str, output: Any) -> types.CallToolResult:
+    if isinstance(output, tuple):
+        structured = [item.model_dump(mode="json", by_alias=True, exclude_none=True) for item in output]
+    else:
+        structured = output.model_dump(mode="json", by_alias=True, exclude_none=True)
     return types.CallToolResult(
         content=[types.TextContent(type="text", text=text)],
-        structured_content=output.model_dump(
-            mode="json",
-            by_alias=True,
-            exclude_none=True,
-        ),
+        structured_content=structured,
         is_error=False,
     )
 
 
 def _error_result(message: str) -> types.CallToolResult:
     return types.CallToolResult(
-        content=[types.TextContent(type="text", text=message)],
-        is_error=True,
+        content=[types.TextContent(type="text", text=message)], is_error=True
     )
 
 
 def _json_result(uri: str, value: object) -> types.ReadResourceResult:
-    return types.ReadResourceResult(
-        contents=[
-            types.TextResourceContents(
-                uri=uri,
-                text=json.dumps(value, separators=(",", ":")),
-                mime_type="application/json",
-            )
-        ]
-    )
+    return _text_result(uri, json.dumps(value, separators=(",", ":")), "application/json")
 
 
-def _markdown_result(uri: str, body: str) -> types.ReadResourceResult:
+def _text_result(uri: str, body: str, mime: str) -> types.ReadResourceResult:
     return types.ReadResourceResult(
-        contents=[
-            types.TextResourceContents(
-                uri=uri, text=body, mime_type="text/markdown"
-            )
-        ]
+        contents=[types.TextResourceContents(uri=uri, text=body, mime_type=mime)]
     )
 
 
 def _invalid(message: str) -> MCPError:
     return MCPError(code=types.INVALID_REQUEST, message=message)
+
+
+_APP_HTML = """<!doctype html><html><head><meta charset=\"utf-8\"><title>Live cameras</title></head>
+<body><main><h1>Authoritative live cameras</h1><p id=\"status\">Select a camera through the host.</p></main></body></html>"""

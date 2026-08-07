@@ -1,5 +1,7 @@
 use crate::contract::{MissionId, SessionId, VehicleId};
-use veoveo_mcp_contract::ServerResourceUris;
+use veoveo_mcp_contract::{
+    LiveCameraId, LiveSessionId, LiveStreamProductId, LiveViewId, ServerResourceUris,
+};
 
 pub const SCHEME: &str = "uav-sim";
 /// Well-known surface roots (contract C18, C19). These literals must match
@@ -9,6 +11,7 @@ pub const DOCS: &str = "uav-sim://docs";
 pub const CONTRACT: &str = "uav-sim://contract";
 pub const SESSIONS: &str = "uav-sim://sessions";
 pub const USAGE: &str = "uav-sim://usage";
+pub const LIVE_APP_URI: &str = "ui://uav-sim/live.html";
 pub const DOC_TEMPLATE: &str = "uav-sim://docs/{doc_id}";
 pub const SESSION_TEMPLATE: &str = "uav-sim://session/{session_id}";
 pub const WORLD_TEMPLATE: &str = "uav-sim://session/{session_id}/world";
@@ -16,9 +19,15 @@ pub const TILES_TEMPLATE: &str = "uav-sim://session/{session_id}/tiles";
 pub const VEHICLES_TEMPLATE: &str = "uav-sim://session/{session_id}/vehicles";
 pub const VEHICLE_TEMPLATE: &str = "uav-sim://session/{session_id}/vehicle/{vehicle_id}";
 pub const RECORDINGS_TEMPLATE: &str = "uav-sim://session/{session_id}/recordings";
-pub const VIEW_SCENE_TEMPLATE: &str = "uav-sim://session/{session_id}/view-scene";
 pub const MISSION_TEMPLATE: &str = "uav-sim://mission/{mission_id}";
 pub const USAGE_TASK_TEMPLATE: &str = "uav-sim://usage/task/{task_id}";
+pub const LIVE_CAMERAS_TEMPLATE: &str = "uav-sim://session/{session_id}/live-cameras";
+pub const LIVE_CAMERA_TEMPLATE: &str = "uav-sim://session/{session_id}/live-camera/{camera_id}";
+pub const STREAM_PRODUCTS_TEMPLATE: &str = "uav-sim://session/{session_id}/stream-products";
+pub const STREAM_PRODUCT_TEMPLATE: &str =
+    "uav-sim://session/{session_id}/stream-product/{product_id}";
+pub const LIVE_VIEWS_TEMPLATE: &str = "uav-sim://session/{session_id}/live-views";
+pub const LIVE_VIEW_TEMPLATE: &str = "uav-sim://session/{session_id}/live-view/{live_view_id}";
 
 pub fn session(session_id: &SessionId) -> String {
     format!("uav-sim://session/{session_id}")
@@ -44,8 +53,28 @@ pub fn recordings(session_id: &SessionId) -> String {
     format!("{}/recordings", session(session_id))
 }
 
-pub fn view_scene(session_id: &SessionId) -> String {
-    format!("{}/view-scene", session(session_id))
+pub fn live_cameras(session_id: &LiveSessionId) -> String {
+    format!("uav-sim://session/{session_id}/live-cameras")
+}
+
+pub fn live_camera(session_id: &LiveSessionId, camera_id: &LiveCameraId) -> String {
+    format!("uav-sim://session/{session_id}/live-camera/{camera_id}")
+}
+
+pub fn stream_products(session_id: &LiveSessionId) -> String {
+    format!("uav-sim://session/{session_id}/stream-products")
+}
+
+pub fn stream_product(session_id: &LiveSessionId, product_id: &LiveStreamProductId) -> String {
+    format!("uav-sim://session/{session_id}/stream-product/{product_id}")
+}
+
+pub fn live_views(session_id: &LiveSessionId) -> String {
+    format!("uav-sim://session/{session_id}/live-views")
+}
+
+pub fn live_view(session_id: &LiveSessionId, live_view_id: &LiveViewId) -> String {
+    format!("uav-sim://session/{session_id}/live-view/{live_view_id}")
 }
 
 pub fn doc(doc_id: &str) -> String {
@@ -84,8 +113,31 @@ pub fn parse_recordings(uri: &str) -> Option<&str> {
     parse_session_suffix(uri, "/recordings")
 }
 
-pub fn parse_view_scene(uri: &str) -> Option<&str> {
-    parse_session_suffix(uri, "/view-scene")
+pub fn parse_live_cameras(uri: &str) -> Option<LiveSessionId> {
+    parse_session_suffix(uri, "/live-cameras")?.parse().ok()
+}
+
+pub fn parse_live_camera(uri: &str) -> Option<(LiveSessionId, LiveCameraId)> {
+    let (session, camera) = parse_session_pair(uri, "/live-camera/")?;
+    Some((session.parse().ok()?, camera.parse().ok()?))
+}
+
+pub fn parse_stream_products(uri: &str) -> Option<LiveSessionId> {
+    parse_session_suffix(uri, "/stream-products")?.parse().ok()
+}
+
+pub fn parse_stream_product(uri: &str) -> Option<(LiveSessionId, LiveStreamProductId)> {
+    let (session, product) = parse_session_pair(uri, "/stream-product/")?;
+    Some((session.parse().ok()?, product.parse().ok()?))
+}
+
+pub fn parse_live_views(uri: &str) -> Option<LiveSessionId> {
+    parse_session_suffix(uri, "/live-views")?.parse().ok()
+}
+
+pub fn parse_live_view(uri: &str) -> Option<(LiveSessionId, LiveViewId)> {
+    let (session, view) = parse_session_pair(uri, "/live-view/")?;
+    Some((session.parse().ok()?, view.parse().ok()?))
 }
 
 pub fn parse_vehicle(uri: &str) -> Option<(&str, &str)> {
@@ -109,6 +161,12 @@ pub fn parse_usage_task(uri: &str) -> Option<&str> {
 fn parse_one<'a>(uri: &'a str, prefix: &str) -> Option<&'a str> {
     let value = uri.strip_prefix(prefix)?;
     valid_segment(value).then_some(value)
+}
+
+fn parse_session_pair<'a>(uri: &'a str, delimiter: &str) -> Option<(&'a str, &'a str)> {
+    let rest = uri.strip_prefix("uav-sim://session/")?;
+    let (session, resource) = rest.split_once(delimiter)?;
+    (valid_segment(session) && valid_segment(resource)).then_some((session, resource))
 }
 
 fn parse_session_suffix<'a>(uri: &'a str, suffix: &str) -> Option<&'a str> {
@@ -137,7 +195,6 @@ mod tests {
         );
         assert_eq!(parse_session(&session(&session_id)), Some("alpha"));
         assert_eq!(parse_world(&world(&session_id)), Some("alpha"));
-        assert_eq!(parse_view_scene(&view_scene(&session_id)), Some("alpha"));
         assert_eq!(
             parse_vehicle(&vehicle(&session_id, &vehicle_id)),
             Some(("alpha", "uav-1"))

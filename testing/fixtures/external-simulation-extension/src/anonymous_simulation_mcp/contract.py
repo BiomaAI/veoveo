@@ -1,19 +1,12 @@
-"""Typed MCP inputs and outputs for the synthetic external producer."""
+"""Strict simulator-hosted camera, product, and viewer-lease contracts."""
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
-
-from veoveo_mcp.simulation_view import (
-    FrameRevision,
-    Identifier,
-    SceneDeclaration,
-    Sha256Digest,
-    WorldFrameUri,
-)
 
 
 class WireModel(BaseModel):
@@ -24,58 +17,101 @@ class WireModel(BaseModel):
     )
 
 
-class SceneIdentity(WireModel):
-    session_id: Identifier
-    epoch_id: Identifier
-    frame_revision: FrameRevision
-    simulation_frame: WorldFrameUri
+class CameraHealth(str, Enum):
+    READY = "ready"
+    FAILED = "failed"
 
 
-class PrepareSceneRequest(SceneIdentity):
+class ProductLifecycle(str, Enum):
+    READY = "ready"
+    FAILED = "failed"
+
+
+class LeaseLifecycle(str, Enum):
+    READY = "ready"
+    LIVE = "live"
+    CLOSED = "closed"
+
+
+class CameraDescriptor(WireModel):
+    schema_version: str = "veoveo.io/live-view/v2"
+    session_id: str = Field(min_length=1, max_length=128)
+    camera_id: str = Field(min_length=1, max_length=128)
+    stream_product_id: str = Field(min_length=1, max_length=128)
+    rig: str = "fixed"
+    width_px: int = Field(ge=16, le=16_384)
+    height_px: int = Field(ge=16, le=16_384)
+    frame_rate_millihertz: int = Field(ge=1_000, le=240_000)
+    health: CameraHealth
+    revision: int = Field(ge=1)
+
+
+class StreamProduct(WireModel):
+    schema_version: str = "veoveo.io/live-view/v2"
+    stream_product_id: str = Field(min_length=1, max_length=128)
+    camera_id: str = Field(min_length=1, max_length=128)
+    lifecycle: ProductLifecycle
+    codec: str = "h264"
+    hardware_encoder: str = "nvidia_nvenc"
+    render_products: int = 1
+    encoder_sessions: int = 1
+    connected_viewers: int = Field(ge=0)
+    last_frame_sequence: int = Field(ge=0)
+
+
+class ListLiveCamerasRequest(WireModel):
+    session_id: str = Field(min_length=1, max_length=128)
+
+
+class OpenLiveViewRequest(ListLiveCamerasRequest):
+    camera_id: str = Field(min_length=1, max_length=128)
+    viewer_instance_id: str = Field(min_length=8, max_length=128)
+
+
+class RenewLiveViewRequest(ListLiveCamerasRequest):
+    live_view_id: str = Field(min_length=1, max_length=128)
+    viewer_instance_id: str = Field(min_length=8, max_length=128)
+
+
+class CloseLiveViewRequest(RenewLiveViewRequest):
     pass
 
 
-class StartPoseProducerRequest(SceneIdentity):
-    cadence_hz: int = Field(default=30, ge=1, le=120)
+class ViewerLease(WireModel):
+    schema_version: str = "veoveo.io/live-view/v2"
+    live_view_id: str
+    resource_uri: str
+    session_id: str
+    camera_id: str
+    stream_product_id: str
+    owner: str
+    viewer_actor: str
+    viewer_instance_id: str
+    lifecycle: LeaseLifecycle
+    signaling_url: str
+    media_host: str
+    media_port: int
+    created_at: datetime
+    expires_at: datetime
 
 
-class StopPoseProducerRequest(WireModel):
-    session_id: Identifier
+class LiveViewConnection(WireModel):
+    stream: ViewerLease
+    access_token: str = Field(min_length=43, max_length=256)
+
+
+class CloseLiveViewResult(WireModel):
+    resource_uri: str
+    closed: bool
 
 
 class GetFixtureStateRequest(WireModel):
     pass
 
 
-class PreparedScene(WireModel):
-    scene: SceneDeclaration
-    producer_id: Identifier
-    producer_spiffe_id: str
-    entity_table_revision: int
-    entity_table_digest: Sha256Digest
-
-
-class ProducerLifecycle(str, Enum):
-    STOPPED = "stopped"
-    STARTING = "starting"
-    RUNNING = "running"
-    DEGRADED = "degraded"
-
-
-class ProducerState(WireModel):
-    lifecycle: ProducerLifecycle
-    producer_id: Identifier
-    producer_spiffe_id: str
-    session_id: Identifier | None = None
-    epoch_id: Identifier | None = None
-    cadence_hz: int | None = None
-    offered_snapshots: int = 0
-    sent_snapshots: int = 0
-    replaced_snapshots: int = 0
-    last_sent_sequence: int | None = None
-    diagnostic: str | None = None
-
-
 class FixtureState(WireModel):
-    schema_version: str = "veoveo.io/anonymous-simulation-fixture/v1"
-    producer: ProducerState
+    schema_version: str = "veoveo.io/simulator-hosted-live-view-fixture/v1"
+    session_id: str
+    cameras: tuple[CameraDescriptor, ...]
+    stream_products: tuple[StreamProduct, ...]
+    active_viewer_leases: int = Field(ge=0)

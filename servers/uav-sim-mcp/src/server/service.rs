@@ -27,8 +27,9 @@ use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle, Page,
-    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, UsageKind, UsageRecord, UsageReport,
+    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalIdentity, GatewayInternalTokenVerifier,
+    GatewayInternalTrustBundle, LiveSessionId, LiveViewOwner, Page, ServerSlug, SubscriptionHub,
+    TelemetryGuard, TokenIssuer, UsageKind, UsageRecord, UsageReport,
     docs::{CapabilityInventory, ServerDocs},
     init_server_telemetry, paginate, public_allowed_hosts,
 };
@@ -43,19 +44,19 @@ use veoveo_task_runtime::{
 use crate::adapter::{Adapter, FakeAdapter, HttpAdapter};
 use crate::contract::{
     CameraCodec, CameraEncoder, CameraLifecycle, CameraState, CaptureDatasetRequest,
-    CommandAcknowledgement, ConfigureWorldOutput, ConfigureWorldRequest, DurableOperation,
-    ExecuteMissionRequest, PoseProducerId, PoseProtocolSchema, PosePublicationLifecycle,
-    PosePublicationState, PrepareViewSceneRequest, PreparedViewScene, RunScenarioRequest,
-    SessionId, SessionRequest, SimulationCommand, SimulationLifecycle, SimulationState, SpiffeId,
-    StepSimulationRequest, TakeoffRequest, TileLifecycle, TileState, VehicleId, VehicleRequest,
-    VehicleState, Wgs84Position,
+    CloseLiveViewRequest, CommandAcknowledgement, ConfigureWorldOutput, ConfigureWorldRequest,
+    DurableOperation, ExecuteMissionRequest, OpenLiveViewRequest, RenewLiveViewRequest,
+    RunScenarioRequest, SessionId, SessionRequest, SimulationCommand, SimulationLifecycle,
+    SimulationState, StepSimulationRequest, TakeoffRequest, TileLifecycle, TileState, VehicleId,
+    VehicleRequest, VehicleState, Wgs84Position,
 };
 use crate::uris;
-use crate::view_scene::ViewSceneService;
 
 use super::auth::{InternalMcpAuthState, authenticate_internal_mcp};
 use super::config::{AdapterKind, Args};
 use super::host::validate_host;
+use super::live_view::{LiveViewConfig, LiveViewError, LiveViewService};
+use super::live_view_audit::LiveViewAudit;
 use super::ownership::{internal_caller, internal_identity, runtime_owner};
 use super::prompts::UavSimPrompt;
 use super::state::AppState;
@@ -64,6 +65,13 @@ use super::task_worker::{await_result, resume_queued_operation, start_operation}
 
 const SERVER_SLUG: &str = "uav-sim";
 const LIST_PAGE_SIZE: usize = 100;
+const LIVE_APP_TOOLS: &[&str] = &[
+    "list_live_cameras",
+    "open_live_view",
+    "renew_live_view",
+    "close_live_view",
+];
+const LIVE_APP_ICON: &str = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2NmU0ZmYiIHN0cm9rZS13aWR0aD0iMiI+PHJlY3QgeD0iMiIgeT0iNSIgd2lkdGg9IjIwIiBoZWlnaHQ9IjE0IiByeD0iMiIvPjxwYXRoIGQ9Im04IDlsNiAzLTYgM3oiLz48L3N2Zz4=";
 
 /// The crate documents embedded at build time and served under the well-known
 /// surface: `uav-sim://docs`, `uav-sim://docs/{doc_id}`, `uav-sim://contract`,
@@ -223,32 +231,167 @@ impl UavSimMcp {
     }
 
     #[tool(
-        title = "Prepare UAV Simulation View scene",
-        description = "Publish this session's governed declarative visual assets and return a typed scene bound to its authoritative Frames world, pose epoch, producer identity, and entity table.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<PreparedViewScene>(),
-        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+        title = "List authoritative UAV live cameras",
+        description = "List the bounded operator cameras rendered inside the authoritative simulator and their stable shared stream products.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<Vec<veoveo_mcp_contract::LiveCameraDescriptor>>(),
+        annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
-    async fn prepare_view_scene(
+    async fn list_live_cameras(
         &self,
-        Parameters(request): Parameters<PrepareViewSceneRequest>,
+        Parameters(request): Parameters<SessionRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        require_scope(&context, "uav-sim:stream")?;
         let state = self.state_for(&request.session_id).await?;
-        let caller = internal_caller(&context)?;
-        let prepared = self
+        structured_result(
+            "authoritative UAV live cameras".to_owned(),
+            &state.live_cameras,
+        )
+    }
+
+    #[tool(
+        title = "Open authoritative UAV live view",
+        description = "Create one actor- and browser-instance-scoped WebRTC lease over an existing simulator-owned camera product without creating another render or encode.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_mcp_contract::LiveViewConnection>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = true)
+    )]
+    async fn open_live_view(
+        &self,
+        Parameters(request): Parameters<OpenLiveViewRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let identity = require_scope(&context, "uav-sim:stream")?;
+        let owner = LiveViewOwner::from_identity(&identity);
+        let details = live_view_details(&request.session_id, Some(request.camera_id.as_str()));
+        let result = self
             .state
-            .view_scenes
-            .prepare(&caller, &state, request.geospatial_layer_id)
-            .await
-            .map_err(internal)?;
+            .live_views
+            .open(owner, identity.actor.id.clone(), request)
+            .await;
+        let connection = match result {
+            Ok(connection) => connection,
+            Err(error) => {
+                let mut denied_details = details;
+                denied_details.insert(
+                    "failure_code".to_owned(),
+                    serde_json::Value::String(error.code().to_owned()),
+                );
+                audit_live_view(
+                    &self.state,
+                    &identity,
+                    None,
+                    "open_denied",
+                    veoveo_platform_store::AuditOutcome::Denied,
+                    denied_details,
+                )
+                .await;
+                return Err(live_view_error(error));
+            }
+        };
+        audit_live_view(
+            &self.state,
+            &identity,
+            Some(&connection.stream.live_view_id),
+            "opened",
+            veoveo_platform_store::AuditOutcome::Allowed,
+            details,
+        )
+        .await;
         self.state
             .subscribers
-            .notify_resource_updated(uris::view_scene(&request.session_id))
+            .notify_resource_updated(connection.stream.resource_uri.as_str())
+            .await;
+        self.state
+            .subscribers
+            .notify_resource_updated(uris::live_views(&connection.stream.session_id))
             .await;
         structured_result(
-            "prepared governed UAV Simulation View scene".to_owned(),
-            &prepared,
+            format!("opened {}", connection.stream.resource_uri.as_str()),
+            &connection,
         )
+    }
+
+    #[tool(
+        title = "Renew authoritative UAV live view",
+        description = "Rotate the secret token and renew only the calling actor and browser instance's unexpired viewer lease.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_mcp_contract::LiveViewConnection>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = true)
+    )]
+    async fn renew_live_view(
+        &self,
+        Parameters(request): Parameters<RenewLiveViewRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let identity = require_scope(&context, "uav-sim:stream")?;
+        let owner = LiveViewOwner::from_identity(&identity);
+        let live_view_id = request.live_view_id.clone();
+        let result = self
+            .state
+            .live_views
+            .renew(&owner, &identity.actor.id, request)
+            .await
+            .map_err(live_view_error)?;
+        audit_live_view(
+            &self.state,
+            &identity,
+            Some(&live_view_id),
+            "renewed",
+            veoveo_platform_store::AuditOutcome::Allowed,
+            live_view_details(
+                &result.stream.session_id,
+                Some(result.stream.camera_id.as_str()),
+            ),
+        )
+        .await;
+        self.state
+            .subscribers
+            .notify_resource_updated(result.stream.resource_uri.as_str())
+            .await;
+        structured_result(
+            format!("renewed {}", result.stream.resource_uri.as_str()),
+            &result,
+        )
+    }
+
+    #[tool(
+        title = "Close authoritative UAV live view",
+        description = "Revoke only the calling actor and browser instance's ephemeral viewer lease; other viewers and the shared camera product remain active.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::CloseLiveViewResult>(),
+        annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
+    )]
+    async fn close_live_view(
+        &self,
+        Parameters(request): Parameters<CloseLiveViewRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let identity = require_scope(&context, "uav-sim:stream")?;
+        let owner = LiveViewOwner::from_identity(&identity);
+        let session_id = request.session_id.clone();
+        let live_view_id = request.live_view_id.clone();
+        let result = self
+            .state
+            .live_views
+            .close(&owner, &identity.actor.id, request)
+            .await
+            .map_err(live_view_error)?;
+        audit_live_view(
+            &self.state,
+            &identity,
+            Some(&live_view_id),
+            "closed",
+            veoveo_platform_store::AuditOutcome::Allowed,
+            live_view_details(&session_id, None),
+        )
+        .await;
+        self.state
+            .subscribers
+            .notify_resource_updated(&result.resource_uri)
+            .await;
+        self.state
+            .subscribers
+            .notify_resource_updated(uris::live_views(&session_id))
+            .await;
+        structured_result("closed authoritative UAV live view".to_owned(), &result)
     }
 
     #[tool(
@@ -408,8 +551,7 @@ impl UavSimMcp {
 #[tool_handler]
 impl ServerHandler for UavSimMcp {
     fn get_info(&self) -> ServerInfo {
-        let mut info = ServerInfo::default();
-        info.capabilities = ServerCapabilities::builder()
+        let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_prompts()
             .enable_resources()
@@ -417,9 +559,12 @@ impl ServerHandler for UavSimMcp {
             .enable_resources_list_changed()
             .enable_completions()
             .build();
+        veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
+        let mut info = ServerInfo::default();
+        info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new(SERVER_SLUG, env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Govern UAV simulation sessions through typed resources and bounded controls. Google Photorealistic 3D Tiles readiness inside the simulation is part of session state. Use Simulation View for governed operator cameras and live video. Use the final task extension for scenarios, missions, and dataset captures; live operations are not replayed after an indeterminate interruption."
+            "Govern UAV simulation sessions through typed resources and bounded controls. Operator cameras render inside the authoritative simulator and expose one shared NVIDIA NVENC product per active camera through ui://uav-sim/live.html. Use the final task extension for scenarios, missions, and dataset captures; live operations are not replayed after an indeterminate interruption."
                 .to_owned(),
         );
         info
@@ -432,6 +577,23 @@ impl ServerHandler for UavSimMcp {
     ) -> Result<ListToolsResult, McpError> {
         let mut tools = self.tool_router.list_all();
         tools.sort_by(|left, right| left.name.cmp(&right.name));
+        let tools = tools
+            .into_iter()
+            .map(|tool| {
+                if LIVE_APP_TOOLS.contains(&tool.name.as_ref()) {
+                    veoveo_mcp_apps_extension::link_tool_to_app(
+                        tool,
+                        uris::LIVE_APP_URI,
+                        &[
+                            veoveo_mcp_apps_extension::UiVisibility::Model,
+                            veoveo_mcp_apps_extension::UiVisibility::App,
+                        ],
+                    )
+                } else {
+                    tool
+                }
+            })
+            .collect();
         let page = mcp_page(tools, request.as_ref())?;
         Ok(ListToolsResult {
             tools: page.items,
@@ -446,7 +608,6 @@ impl ServerHandler for UavSimMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         let state = self.current_state().await?;
-        let caller = internal_caller(&context)?;
         let owner = runtime_owner(&internal_identity(&context)?);
         let tasks = self
             .state
@@ -456,17 +617,36 @@ impl ServerHandler for UavSimMcp {
             .map_err(internal)?;
         let mut resources = session_resources(&state);
         resources.extend(well_known_resources());
-        for session_id in self
-            .state
-            .view_scenes
-            .sessions_for(&caller)
-            .await
-            .map_err(internal)?
-        {
-            resources.push(descriptor(
-                uris::view_scene(&session_id),
-                format!("Simulation View scene {session_id}"),
-                "Prepared governed scene and exact pose-producer binding for this UAV session.",
+        let identity = internal_identity(&context)?;
+        if identity_has_scope(&identity, "uav-sim:stream") {
+            resources.push(
+                veoveo_mcp_apps_extension::app_resource_with_meta(
+                    uris::LIVE_APP_URI,
+                    "uav-sim-live-app",
+                    veoveo_mcp_apps_extension::ResourceUiMeta {
+                        csp: Some(veoveo_mcp_apps_extension::UiCsp {
+                            connect_domains: vec![self.state.live_view_connect_origin.clone()],
+                            ..Default::default()
+                        }),
+                        prefers_border: Some(true),
+                    },
+                )
+                .with_title("UAV live cameras")
+                .with_description(
+                    "Authoritative simulator camera collection and shared NVIDIA WebRTC products.",
+                )
+                .with_icons(vec![rmcp::model::Icon::new(LIVE_APP_ICON)]),
+            );
+            let live_session_id: LiveSessionId =
+                state.session_id.as_str().parse().map_err(invalid)?;
+            let owner = LiveViewOwner::from_identity(&identity);
+            resources.extend(live_view_resources(
+                &state,
+                &self
+                    .state
+                    .live_views
+                    .list(&owner, &identity.actor.id, &live_session_id)
+                    .await,
             ));
         }
         resources.push(descriptor(
@@ -517,6 +697,12 @@ impl ServerHandler for UavSimMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, McpError> {
         let uri = request.uri.as_str();
+        if uri == uris::LIVE_APP_URI {
+            require_scope(&context, "uav-sim:stream")?;
+            return Ok(ReadResourceResult::new(vec![
+                veoveo_mcp_apps_extension::app_html_contents(uri, crate::live_app::html()),
+            ]));
+        }
         // Well-known surface (contract C18, C19): readable by any identity
         // that can list resources.
         if uri == uris::DOCS {
@@ -540,7 +726,59 @@ impl ServerHandler for UavSimMcp {
             );
         }
         let state = self.current_state().await?;
-        let caller = internal_caller(&context)?;
+        if let Some(session_id) = uris::parse_live_cameras(uri) {
+            require_scope(&context, "uav-sim:stream")?;
+            require_session(&state, session_id.as_str())?;
+            return json_resource(uri, &state.live_cameras);
+        }
+        if let Some((session_id, camera_id)) = uris::parse_live_camera(uri) {
+            require_scope(&context, "uav-sim:stream")?;
+            require_session(&state, session_id.as_str())?;
+            let camera = state
+                .live_cameras
+                .iter()
+                .find(|camera| camera.camera_id == camera_id)
+                .ok_or_else(|| McpError::resource_not_found("live camera not found", None))?;
+            return json_resource(uri, camera);
+        }
+        if let Some(session_id) = uris::parse_stream_products(uri) {
+            require_scope(&context, "uav-sim:stream")?;
+            require_session(&state, session_id.as_str())?;
+            return json_resource(uri, &state.stream_products);
+        }
+        if let Some((session_id, product_id)) = uris::parse_stream_product(uri) {
+            require_scope(&context, "uav-sim:stream")?;
+            require_session(&state, session_id.as_str())?;
+            let product = state
+                .stream_products
+                .iter()
+                .find(|product| product.stream_product_id == product_id)
+                .ok_or_else(|| McpError::resource_not_found("stream product not found", None))?;
+            return json_resource(uri, product);
+        }
+        if let Some(session_id) = uris::parse_live_views(uri) {
+            let identity = require_scope(&context, "uav-sim:stream")?;
+            require_session(&state, session_id.as_str())?;
+            let owner = LiveViewOwner::from_identity(&identity);
+            let views = self
+                .state
+                .live_views
+                .list(&owner, &identity.actor.id, &session_id)
+                .await;
+            return json_resource(uri, &views);
+        }
+        if let Some((session_id, live_view_id)) = uris::parse_live_view(uri) {
+            let identity = require_scope(&context, "uav-sim:stream")?;
+            require_session(&state, session_id.as_str())?;
+            let owner = LiveViewOwner::from_identity(&identity);
+            let view = self
+                .state
+                .live_views
+                .get(&owner, &identity.actor.id, &live_view_id)
+                .await
+                .map_err(live_view_error)?;
+            return json_resource(uri, &view);
+        }
         if uri == uris::SESSIONS {
             return json_resource(uri, &vec![session_summary(&state)]);
         }
@@ -572,19 +810,6 @@ impl ServerHandler for UavSimMcp {
         if let Some(session_id) = uris::parse_recordings(uri) {
             require_session(&state, session_id)?;
             return json_resource(uri, &state.recordings);
-        }
-        if let Some(session_id) = uris::parse_view_scene(uri) {
-            require_session(&state, session_id)?;
-            let prepared = self
-                .state
-                .view_scenes
-                .get(&caller, &state.session_id)
-                .await
-                .map_err(internal)?
-                .ok_or_else(|| {
-                    McpError::resource_not_found("UAV view scene has not been prepared", None)
-                })?;
-            return json_resource(uri, &prepared);
         }
         let owner = runtime_owner(&internal_identity(&context)?);
         let tasks = self
@@ -695,12 +920,27 @@ impl ServerHandler for UavSimMcp {
             | (uris::TILES_TEMPLATE, "session_id")
             | (uris::VEHICLES_TEMPLATE, "session_id")
             | (uris::RECORDINGS_TEMPLATE, "session_id")
-            | (uris::VIEW_SCENE_TEMPLATE, "session_id")
+            | (uris::LIVE_CAMERAS_TEMPLATE, "session_id")
+            | (uris::LIVE_CAMERA_TEMPLATE, "session_id")
+            | (uris::STREAM_PRODUCTS_TEMPLATE, "session_id")
+            | (uris::STREAM_PRODUCT_TEMPLATE, "session_id")
+            | (uris::LIVE_VIEWS_TEMPLATE, "session_id")
+            | (uris::LIVE_VIEW_TEMPLATE, "session_id")
             | (uris::VEHICLE_TEMPLATE, "session_id") => vec![state.session_id.to_string()],
             (uris::VEHICLE_TEMPLATE, "vehicle_id") => state
                 .vehicles
                 .iter()
                 .map(|vehicle| vehicle.vehicle_id.to_string())
+                .collect(),
+            (uris::LIVE_CAMERA_TEMPLATE, "camera_id") => state
+                .live_cameras
+                .iter()
+                .map(|camera| camera.camera_id.to_string())
+                .collect(),
+            (uris::STREAM_PRODUCT_TEMPLATE, "product_id") => state
+                .stream_products
+                .iter()
+                .map(|product| product.stream_product_id.to_string())
                 .collect(),
             (uris::MISSION_TEMPLATE, "mission_id") => tasks
                 .iter()
@@ -726,23 +966,38 @@ impl UavSimMcp {
         context: &RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
         let state = self.current_state().await?;
-        if let Some(session_id) = uris::parse_view_scene(uri) {
-            require_session(&state, session_id)?;
-            let caller = internal_caller(context)?;
-            if self
-                .state
-                .view_scenes
-                .get(&caller, &state.session_id)
-                .await
-                .map_err(internal)?
-                .is_some()
+        if let Some(session_id) = live_session_from_subscribable(uri) {
+            require_scope(context, "uav-sim:stream")?;
+            require_session(&state, session_id.as_str())?;
+            if let Some((_, camera_id)) = uris::parse_live_camera(uri)
+                && !state
+                    .live_cameras
+                    .iter()
+                    .any(|camera| camera.camera_id == camera_id)
             {
-                return Ok(());
+                return Err(McpError::resource_not_found("live camera not found", None));
             }
-            return Err(McpError::resource_not_found(
-                "UAV view scene has not been prepared",
-                None,
-            ));
+            if let Some((_, product_id)) = uris::parse_stream_product(uri)
+                && !state
+                    .stream_products
+                    .iter()
+                    .any(|product| product.stream_product_id == product_id)
+            {
+                return Err(McpError::resource_not_found(
+                    "stream product not found",
+                    None,
+                ));
+            }
+            if let Some((_, live_view_id)) = uris::parse_live_view(uri) {
+                let identity = internal_identity(context)?;
+                let owner = LiveViewOwner::from_identity(&identity);
+                self.state
+                    .live_views
+                    .get(&owner, &identity.actor.id, &live_view_id)
+                    .await
+                    .map_err(live_view_error)?;
+            }
+            return Ok(());
         }
         if let Some(session_id) = session_from_subscribable(uri) {
             require_session(&state, session_id)?;
@@ -811,11 +1066,35 @@ pub(super) async fn serve() -> anyhow::Result<()> {
         AdapterKind::Fake => Adapter::Fake(Arc::new(Mutex::new(FakeAdapter::new(fake_state()?)))),
     };
     let adapter = Arc::new(adapter);
+    let live_view_audit = LiveViewAudit::new(tasks.platform_store().clone());
+    let live_views = LiveViewService::new(
+        adapter.clone(),
+        live_view_audit.clone(),
+        LiveViewConfig {
+            lease_duration: args.live_view_lease_duration()?,
+            idle_grace: args.live_view_idle_grace()?,
+            public_signaling_url: args.public_signaling_url.clone(),
+            public_media_host: args.public_media_host,
+            public_media_port_base: args.public_media_port_base,
+            maximum_frame_age_ms: args.live_view_maximum_frame_age_ms,
+            maximum_viewer_leases: args.live_view_maximum_viewers,
+        },
+    )?;
+    live_views.reset_ephemeral_products().await?;
+    let signaling_url = url::Url::parse(&args.public_signaling_url)?;
+    let live_view_connect_origin = signaling_url.origin().ascii_serialization();
+    anyhow::ensure!(
+        live_view_connect_origin != "null",
+        "public live-view signaling URL must have an HTTP(S) origin"
+    );
+    let subscribers = Arc::new(SubscriptionHub::new());
     let state = Arc::new(AppState {
         adapter,
         tasks,
-        subscribers: SubscriptionHub::new(),
-        view_scenes: ViewSceneService::new(args.artifact_service_url),
+        subscribers: subscribers.clone(),
+        live_views: live_views.clone(),
+        live_view_audit,
+        live_view_connect_origin,
     });
     for snapshot in recovery.resumable {
         resume_queued_operation(state.clone(), snapshot)
@@ -877,6 +1156,16 @@ pub(super) async fn serve() -> anyhow::Result<()> {
         InternalMcpAuthState { verifier },
         authenticate_internal_mcp,
     ));
+    let signaling_state = super::signaling::SignalingState::new(
+        live_views,
+        subscribers,
+        &args.native_signaling_url,
+        args.public_media_port_base,
+    )?;
+    let signaling_router = Router::new()
+        .route("/signaling", get(super::signaling::upgrade))
+        .route("/signaling/{*path}", get(super::signaling::upgrade))
+        .with_state(signaling_state);
     let router = Router::new()
         .nest(
             public_endpoint.mount_path(),
@@ -884,7 +1173,8 @@ pub(super) async fn serve() -> anyhow::Result<()> {
                 .route("/healthz", get(|| async { "ok" }))
                 .route("/readyz", get(ready))
                 .nest("/admin", admin_router)
-                .nest("/mcp", mcp_router),
+                .nest("/mcp", mcp_router)
+                .merge(signaling_router),
         )
         .with_state(state)
         .layer(middleware::from_fn_with_state(allowed_hosts, validate_host))
@@ -932,10 +1222,6 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
         timing: crate::contract::RuntimeTimingState {
             physics_hz: 60,
             native_rendering_hz: 2,
-            pose_cadence_hz: 20,
-            pose_buffer_duration_ms: 500,
-            pose_queued_snapshots: 10,
-            pose_buffer_target_snapshots: 10,
             realtime_rebases: 0,
             discarded_wall_seconds: 0.0,
         },
@@ -980,26 +1266,53 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             diagnostic_code: None,
             diagnostic: None,
         }],
-        live_cameras: Vec::new(),
-        stream_products: Vec::new(),
-        pose_publication: PosePublicationState {
-            protocol_schema: PoseProtocolSchema::SimulationViewPoseV1,
-            producer_id: PoseProducerId::new("uav-sim")?,
-            producer_spiffe_id: SpiffeId::new("spiffe://veoveo.local/simulation/uav-sim")?,
-            epoch_id: veoveo_simulation_pose::EpochId::new("epoch-1")?,
-            entity_table_revision: 1,
-            entity_table_digest: veoveo_simulation_pose::entity_identity_table_digest(
-                1,
-                [&veoveo_simulation_pose::EntityId::new("uav-1")?],
-            ),
-            cadence_hz: 20,
-            lifecycle: PosePublicationLifecycle::Ready,
-            offered_snapshots: 10,
-            sent_snapshots: 10,
-            replaced_snapshots: 0,
-            last_sent_sequence: Some(10),
+        live_cameras: vec![veoveo_mcp_contract::LiveCameraDescriptor {
+            camera_id: veoveo_mcp_contract::LiveCameraId::new("follow")?,
+            session_id: LiveSessionId::new("session-alpha")?,
+            stream_product_id: veoveo_mcp_contract::LiveStreamProductId::new("product-follow")?,
+            physical_slot: 0,
+            revision: 1,
+            rig: veoveo_mcp_contract::LiveCameraRig::FollowEntity {
+                target_entity_id: veoveo_mcp_contract::LiveEntityId::new("uav-1")?,
+                eye_offset_flu_m: veoveo_mcp_contract::LiveVector3 {
+                    x: -8.0,
+                    y: 0.0,
+                    z: 3.0,
+                },
+                target_offset_flu_m: veoveo_mcp_contract::LiveVector3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.2,
+                },
+                smoothing: veoveo_mcp_contract::LiveCameraSmoothing {
+                    translation_half_life_ms: 150,
+                    rotation_half_life_ms: 120,
+                    teleport_distance_millimetres: 100_000,
+                    reset_after_gap_ms: 1_000,
+                },
+            },
+            width_px: 1_280,
+            height_px: 720,
+            frame_rate_millihertz: 30_000,
+            vertical_fov_degrees: 60.0,
+            near_clip_m: 0.1,
+            far_clip_m: 100_000.0,
+            stream_policy: veoveo_mcp_contract::LiveCameraStreamPolicy::Continuous,
+            health: veoveo_mcp_contract::LiveCameraHealth::Healthy,
+            last_frame_at: Some(Utc::now()),
+        }],
+        stream_products: vec![veoveo_mcp_contract::LiveStreamProductState {
+            stream_product_id: veoveo_mcp_contract::LiveStreamProductId::new("product-follow")?,
+            camera_id: veoveo_mcp_contract::LiveCameraId::new("follow")?,
+            physical_slot: 0,
+            lifecycle: veoveo_mcp_contract::LiveStreamProductLifecycle::Ready,
+            active_viewer_leases: 0,
+            connected_viewers: 0,
+            nvenc_sessions: 1,
+            encoded_frames: 10,
+            last_frame_at: Some(Utc::now()),
             diagnostic: None,
-        },
+        }],
         vehicles: vec![VehicleState {
             vehicle_id: VehicleId::new("uav-1")?,
             flight_state: crate::contract::VehicleFlightState::Standby,
@@ -1070,6 +1383,26 @@ fn session_resources(state: &SimulationState) -> Vec<Resource> {
             uris::recordings(session_id),
             format!("Recordings {session_id}"),
             "Governed recording identities emitted by the session.",
+        ),
+        descriptor(
+            uris::live_cameras(
+                &session_id
+                    .as_str()
+                    .parse()
+                    .expect("session IDs share the live-view identifier profile"),
+            ),
+            format!("Live cameras {session_id}"),
+            "Authoritative operator-camera inventory.",
+        ),
+        descriptor(
+            uris::stream_products(
+                &session_id
+                    .as_str()
+                    .parse()
+                    .expect("session IDs share the live-view identifier profile"),
+            ),
+            format!("Stream products {session_id}"),
+            "Stable one-per-camera render and NVIDIA NVENC product inventory.",
         ),
     ];
     resources.extend(state.vehicles.iter().map(|vehicle| {
@@ -1147,9 +1480,34 @@ fn resource_templates() -> Vec<ResourceTemplate> {
             "Governed recording identities emitted by one session.",
         ),
         template(
-            uris::VIEW_SCENE_TEMPLATE,
-            "Simulation View scene",
-            "Prepared governed scene and exact pose-producer binding for one session.",
+            uris::LIVE_CAMERAS_TEMPLATE,
+            "Live cameras",
+            "Authoritative operator-camera inventory.",
+        ),
+        template(
+            uris::LIVE_CAMERA_TEMPLATE,
+            "Live camera",
+            "One authoritative operator camera.",
+        ),
+        template(
+            uris::STREAM_PRODUCTS_TEMPLATE,
+            "Stream products",
+            "Stable shared encoded products.",
+        ),
+        template(
+            uris::STREAM_PRODUCT_TEMPLATE,
+            "Stream product",
+            "One stable rendered and encoded camera product.",
+        ),
+        template(
+            uris::LIVE_VIEWS_TEMPLATE,
+            "Live views",
+            "Caller-visible ephemeral viewer leases without tokens.",
+        ),
+        template(
+            uris::LIVE_VIEW_TEMPLATE,
+            "Live view",
+            "One caller-visible ephemeral viewer lease without its token.",
         ),
         template(
             uris::MISSION_TEMPLATE,
@@ -1186,7 +1544,6 @@ fn session_summary(state: &SimulationState) -> serde_json::Value {
         "tile_lifecycle": state.tiles.lifecycle,
         "vehicle_count": state.vehicles.len(),
         "recording_count": state.recordings.len(),
-        "pose_publication": state.pose_publication,
         "timing": state.timing,
         "updated_at": state.updated_at,
     })
@@ -1282,6 +1639,135 @@ fn session_from_subscribable(uri: &str) -> Option<&str> {
         .or_else(|| uris::parse_vehicle(uri).map(|(session_id, _)| session_id))
 }
 
+fn live_session_from_subscribable(uri: &str) -> Option<LiveSessionId> {
+    uris::parse_live_cameras(uri)
+        .or_else(|| uris::parse_live_camera(uri).map(|(session, _)| session))
+        .or_else(|| uris::parse_stream_products(uri))
+        .or_else(|| uris::parse_stream_product(uri).map(|(session, _)| session))
+        .or_else(|| uris::parse_live_views(uri))
+        .or_else(|| uris::parse_live_view(uri).map(|(session, _)| session))
+}
+
+fn live_view_resources(
+    state: &SimulationState,
+    views: &[veoveo_mcp_contract::LiveViewState],
+) -> Vec<Resource> {
+    let session_id: LiveSessionId = state
+        .session_id
+        .as_str()
+        .parse()
+        .expect("session IDs share the live-view identifier profile");
+    let mut resources = vec![
+        descriptor(
+            uris::live_cameras(&session_id),
+            format!("Live cameras {session_id}"),
+            "Authoritative operator-camera inventory.",
+        ),
+        descriptor(
+            uris::stream_products(&session_id),
+            format!("Stream products {session_id}"),
+            "Stable one-per-camera rendered and encoded product inventory.",
+        ),
+        descriptor(
+            uris::live_views(&session_id),
+            format!("Live views {session_id}"),
+            "Caller-visible ephemeral viewer leases without secret tokens.",
+        ),
+    ];
+    resources.extend(state.live_cameras.iter().map(|camera| {
+        descriptor(
+            uris::live_camera(&session_id, &camera.camera_id),
+            format!("Live camera {}", camera.camera_id),
+            "One authoritative operator camera.",
+        )
+    }));
+    resources.extend(state.stream_products.iter().map(|product| {
+        descriptor(
+            uris::stream_product(&session_id, &product.stream_product_id),
+            format!("Stream product {}", product.stream_product_id),
+            "One stable camera render and NVIDIA NVENC product.",
+        )
+    }));
+    resources.extend(views.iter().map(|view| {
+        descriptor(
+            uris::live_view(&session_id, &view.live_view_id),
+            format!("Live view {}", view.live_view_id),
+            "One ephemeral caller-visible viewer lease without its token.",
+        )
+    }));
+    resources
+}
+
+fn require_scope(
+    context: &RequestContext<RoleServer>,
+    required: &str,
+) -> Result<GatewayInternalIdentity, McpError> {
+    let identity = internal_identity(context)?;
+    identity_has_scope(&identity, required)
+        .then_some(identity)
+        .ok_or_else(|| McpError::invalid_request(format!("scope `{required}` is required"), None))
+}
+
+fn identity_has_scope(identity: &GatewayInternalIdentity, required: &str) -> bool {
+    identity
+        .actor
+        .scopes
+        .iter()
+        .any(|scope| scope.as_str() == required)
+}
+
+fn live_view_details(
+    session_id: &LiveSessionId,
+    camera_id: Option<&str>,
+) -> BTreeMap<String, serde_json::Value> {
+    let mut details = BTreeMap::from([(
+        "session_id".to_owned(),
+        serde_json::Value::String(session_id.to_string()),
+    )]);
+    if let Some(camera_id) = camera_id {
+        details.insert(
+            "camera_id".to_owned(),
+            serde_json::Value::String(camera_id.to_owned()),
+        );
+    }
+    details
+}
+
+async fn audit_live_view(
+    state: &AppState,
+    identity: &GatewayInternalIdentity,
+    live_view_id: Option<&veoveo_mcp_contract::LiveViewId>,
+    action: &'static str,
+    outcome: veoveo_platform_store::AuditOutcome,
+    details: BTreeMap<String, serde_json::Value>,
+) {
+    if let Err(error) = state
+        .live_view_audit
+        .append(identity, live_view_id, action, outcome, details)
+        .await
+    {
+        tracing::error!(%error, action, "failed to persist live-view access audit");
+    }
+}
+
+fn live_view_error(error: LiveViewError) -> McpError {
+    match error {
+        LiveViewError::SessionNotFound(_)
+        | LiveViewError::CameraNotFound(_)
+        | LiveViewError::ViewNotFound(_) => McpError::resource_not_found(error.to_string(), None),
+        LiveViewError::Ownership | LiveViewError::Access => {
+            McpError::invalid_request("live-view access is not authorized", None)
+        }
+        LiveViewError::Capacity => {
+            McpError::invalid_request("live-view viewer capacity is exhausted", None)
+        }
+        LiveViewError::CameraUnavailable | LiveViewError::ViewUnavailable => {
+            McpError::invalid_request(error.to_string(), None)
+        }
+        _ => McpError::internal_error(error.to_string(), None),
+    }
+}
+
 fn complete_values(values: Vec<String>, needle: &str) -> Result<CompleteResult, McpError> {
     let needle = needle.to_lowercase();
     let mut matches = values
@@ -1338,13 +1824,13 @@ mod tests {
         let tools = UavSimMcp::tool_router().list_all();
         assert!(!tools.is_empty());
         assert!(tools.iter().any(|tool| tool.name == "configure_world"));
-        assert!(tools.iter().any(|tool| tool.name == "prepare_view_scene"));
-        for forbidden in ["create_camera", "open_live_view", "renew_live_view"] {
+        for owned in LIVE_APP_TOOLS {
             assert!(
-                tools.iter().all(|tool| tool.name != forbidden),
-                "UAV server must not own Simulation View tool {forbidden}"
+                tools.iter().any(|tool| tool.name == *owned),
+                "UAV server must own authoritative live-view tool {owned}"
             );
         }
+        assert!(tools.iter().all(|tool| tool.name != "create_camera"));
     }
 
     #[test]

@@ -35,8 +35,9 @@ The public contract is provider-neutral:
   paths remain private deployment configuration.
 - Recording Hub owns durable recording identity, ingest, retention, freezing,
   and sealing.
-- Simulation View owns independent RTX scene rendering, cameras, NVENC
-  sessions, and WebRTC presentation.
+- Each authoritative simulation owns its operator cameras, shared RTX render
+  products, NVENC bitstreams, and WebRTC presentation. Stream consumes an
+  admitted encoded source without becoming simulation authority.
 
 A GStreamer graph is deployment-code-equivalent. Changing it requires the same
 review and rollout discipline as changing a container image. MCP clients cannot
@@ -295,7 +296,7 @@ must prove:
 
 The UAV showcase starts the live Stream session before flight, sends the
 already encoded nadir-camera access units to Stream before logging them to
-Rerun, and retains its independent Recording and Simulation View evidence.
+Rerun, and retains independent Recording and authoritative live-camera evidence.
 After fresh live inference and the authenticated App capture succeed, the
 acceptance stops that live session before starting the independent replay
 graph. This keeps each admitted DeepStream/TensorRT workload bounded without

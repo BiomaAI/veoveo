@@ -58,8 +58,8 @@ hosted server and infrastructure dependencies; portable composition tools do not
 those server implementations. Optimization selects both its MCP control image and the
 GPU cuOpt executor.
 
-The component graph distinguishes the recording data plane, hardware GPU renderer, and
-canonical simulation-runtime support from hosted MCP servers and operator surfaces.
+The component graph distinguishes the recording data plane and canonical
+simulation-runtime support from hosted MCP servers and operator surfaces.
 External workload identifiers remain source-owned but enter the same immutable
 selection and deployment lock. A GPU scheduling profile groups named Deployments and
 containers by physical-device identity. Separate constraints state which groups must
@@ -102,10 +102,11 @@ and MIG DeviceClasses are implementation details selected by the installation. M
 time slicing adds opaque driver configuration and requires its own evidence digest;
 exclusive groups permit one consumer only.
 
-Simulation View selects Frames MCP, its provider-neutral MCP server, the Artifact
-service with the `simulation-view` audience, the canonical runtime support component,
-and one renderer GPU. A profile whose physical-device groups exceed installation
-capacity fails during pure profile resolution.
+Simulation applications are separate workload or extension sources. Each owns its
+domain MCP server, authoritative simulator, cameras, encoded products, and GPU request.
+The platform supplies only the selected shared services and canonical runtime support.
+A profile whose physical-device groups exceed installation capacity fails during pure
+profile resolution.
 
 After rollout, `profile-up` reads the allocated claim and executes `nvidia-smi` inside
 every declared GPU container. It reports the retained claim UID, allocated devices, and

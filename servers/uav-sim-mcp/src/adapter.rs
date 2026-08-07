@@ -1,8 +1,8 @@
-use std::sync::Arc;
 use std::time::Duration;
+use std::{collections::BTreeMap, sync::Arc};
 
 use chrono::{DateTime, Utc};
-use reqwest::{Client, StatusCode, Url};
+use reqwest::{Client, Method, StatusCode, Url};
 use serde::Deserialize;
 use thiserror::Error;
 use tokio::sync::Mutex;
@@ -16,10 +16,10 @@ use crate::{
     contract::{
         CameraState, CaptureDatasetResult, CommandAcknowledgement, ConfigureWorldOutput,
         ConfigureWorldRequest, DurableOperation, DurableOperationResult, MissionId,
-        MissionLifecycle, MissionResult, PosePublicationState, RecordingCatalogLifecycle,
-        RecordingId, RecordingKey, RecordingPublisherLifecycle, RecordingState, RuntimeTimingState,
-        ScenarioResult, SessionId, SimulationCommand, SimulationLifecycle, SimulationState,
-        SimulationWorldBinding, TileState, VehicleFlightState, VehicleState,
+        MissionLifecycle, MissionResult, RecordingCatalogLifecycle, RecordingId, RecordingKey,
+        RecordingPublisherLifecycle, RecordingState, RuntimeTimingState, ScenarioResult, SessionId,
+        SimulationCommand, SimulationLifecycle, SimulationState, SimulationWorldBinding, TileState,
+        VehicleFlightState, VehicleState,
     },
     uris,
 };
@@ -57,7 +57,6 @@ struct AdapterSimulationState {
     cameras: Vec<CameraState>,
     live_cameras: Vec<LiveCameraDescriptor>,
     stream_products: Vec<LiveStreamProductState>,
-    pose_publication: PosePublicationState,
     vehicles: Vec<VehicleState>,
     recordings: Vec<AdapterRecordingState>,
     updated_at: DateTime<Utc>,
@@ -210,7 +209,6 @@ impl HttpAdapter {
             cameras: state.cameras,
             live_cameras: state.live_cameras,
             stream_products: state.stream_products,
-            pose_publication: state.pose_publication,
             vehicles: state.vehicles,
             recordings,
             updated_at: state.updated_at,
@@ -290,6 +288,35 @@ impl HttpAdapter {
                 })
             }
         })
+    }
+
+    pub async fn set_live_product_active(
+        &self,
+        camera_id: &veoveo_mcp_contract::LiveCameraId,
+        active: bool,
+    ) -> Result<LiveStreamProductState, AdapterError> {
+        let method = if active { Method::PUT } else { Method::DELETE };
+        let response = self
+            .client
+            .request(
+                method,
+                self.endpoint(&format!("v1/live-products/{}/active", camera_id.as_str()))?,
+            )
+            .send()
+            .await
+            .map_err(AdapterError::Transport)?;
+        decode(response).await
+    }
+
+    pub async fn deactivate_all_on_demand_products(&self) -> Result<(), AdapterError> {
+        let response = self
+            .client
+            .post(self.endpoint("v1/live-products/deactivate-all-on-demand")?)
+            .send()
+            .await
+            .map_err(AdapterError::Transport)?;
+        let _: serde_json::Value = decode(response).await?;
+        Ok(())
     }
 
     async fn resolve_recording_keys(
@@ -610,6 +637,43 @@ impl FakeAdapter {
         }
     }
 
+    pub fn set_live_product_active(
+        &mut self,
+        camera_id: &veoveo_mcp_contract::LiveCameraId,
+        active: bool,
+    ) -> Result<LiveStreamProductState, AdapterError> {
+        let product = self
+            .state
+            .stream_products
+            .iter_mut()
+            .find(|product| product.camera_id == *camera_id)
+            .ok_or_else(|| AdapterError::UnknownCamera(camera_id.to_string()))?;
+        product.lifecycle = if active {
+            veoveo_mcp_contract::LiveStreamProductLifecycle::Ready
+        } else {
+            veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive
+        };
+        product.nvenc_sessions = u32::from(active);
+        Ok(product.clone())
+    }
+
+    pub fn deactivate_all_on_demand_products(&mut self) {
+        let policies = self
+            .state
+            .live_cameras
+            .iter()
+            .map(|camera| (camera.camera_id.clone(), camera.stream_policy))
+            .collect::<BTreeMap<_, _>>();
+        for product in &mut self.state.stream_products {
+            if policies.get(&product.camera_id)
+                == Some(&veoveo_mcp_contract::LiveCameraStreamPolicy::OnDemand)
+            {
+                product.lifecycle = veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive;
+                product.nvenc_sessions = 0;
+            }
+        }
+    }
+
     fn require_session(&self, session_id: &crate::contract::SessionId) -> Result<(), AdapterError> {
         if &self.state.session_id == session_id {
             Ok(())
@@ -681,6 +745,30 @@ impl Adapter {
             Self::Fake(adapter) => adapter.lock().await.execute(operation),
         }
     }
+
+    pub async fn set_live_product_active(
+        &self,
+        camera_id: &veoveo_mcp_contract::LiveCameraId,
+        active: bool,
+    ) -> Result<LiveStreamProductState, AdapterError> {
+        match self {
+            Self::Http(adapter) => adapter.set_live_product_active(camera_id, active).await,
+            Self::Fake(adapter) => adapter
+                .lock()
+                .await
+                .set_live_product_active(camera_id, active),
+        }
+    }
+
+    pub async fn deactivate_all_on_demand_products(&self) -> Result<(), AdapterError> {
+        match self {
+            Self::Http(adapter) => adapter.deactivate_all_on_demand_products().await,
+            Self::Fake(adapter) => {
+                adapter.lock().await.deactivate_all_on_demand_products();
+                Ok(())
+            }
+        }
+    }
 }
 
 #[derive(Debug, Error)]
@@ -697,6 +785,8 @@ pub enum AdapterError {
     UnknownSession(String),
     #[error("unknown vehicle `{0}`")]
     UnknownVehicle(String),
+    #[error("unknown live camera `{0}`")]
+    UnknownCamera(String),
     #[error("invalid simulator state: {0}")]
     InvalidState(String),
     #[error("recording catalog failed: {0}")]
@@ -714,9 +804,8 @@ mod tests {
     use super::*;
     use crate::contract::{
         CameraCodec, CameraEncoder, CameraLifecycle, CameraState, EnuVector, NedVector,
-        PoseProducerId, PoseProtocolSchema, PosePublicationLifecycle, PosePublicationState,
-        QuaternionXyzw, SessionId, SimulationWorldBinding, SpiffeId, StepSimulationRequest,
-        TileLifecycle, TileState, VehicleId, VehicleState, Wgs84Position,
+        QuaternionXyzw, SessionId, SimulationWorldBinding, StepSimulationRequest, TileLifecycle,
+        TileState, VehicleId, VehicleState, Wgs84Position,
     };
     use veoveo_mcp_contract::{
         FrameId, FrameWorldId, FrameWorldRevisionId, FrameWorldRevisionUri, WorldFrameUri,
@@ -751,10 +840,6 @@ mod tests {
             timing: RuntimeTimingState {
                 physics_hz: 60,
                 native_rendering_hz: 2,
-                pose_cadence_hz: 20,
-                pose_buffer_duration_ms: 500,
-                pose_queued_snapshots: 10,
-                pose_buffer_target_snapshots: 10,
                 realtime_rebases: 0,
                 discarded_wall_seconds: 0.0,
             },
@@ -789,26 +874,6 @@ mod tests {
             }],
             live_cameras: Vec::new(),
             stream_products: Vec::new(),
-            pose_publication: PosePublicationState {
-                protocol_schema: PoseProtocolSchema::SimulationViewPoseV1,
-                producer_id: PoseProducerId::new("uav-sim").unwrap(),
-                producer_spiffe_id: SpiffeId::new("spiffe://veoveo.local/simulation/uav-sim")
-                    .unwrap(),
-                epoch_id: veoveo_simulation_pose::EpochId::new("epoch-1").unwrap(),
-                entity_table_revision: 1,
-                entity_table_digest: veoveo_simulation_pose::Sha256Digest::new(format!(
-                    "sha256:{}",
-                    "1".repeat(64)
-                ))
-                .unwrap(),
-                cadence_hz: 20,
-                lifecycle: PosePublicationLifecycle::Ready,
-                offered_snapshots: 10,
-                sent_snapshots: 10,
-                replaced_snapshots: 0,
-                last_sent_sequence: Some(10),
-                diagnostic: None,
-            },
             vehicles: vec![VehicleState {
                 vehicle_id: VehicleId::new("uav-1").unwrap(),
                 flight_state: VehicleFlightState::Standby,

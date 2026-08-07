@@ -63,10 +63,14 @@
   value: {{ .root.Values.session.renderingHz | quote }}
 - name: UAV_SIM_CAMERA_VEHICLE_ID
   value: {{ .root.Values.session.camera.vehicleId | quote }}
-- name: UAV_SIM_POSE_CADENCE_HZ
-  value: {{ .root.Values.posePublication.cadenceHz | quote }}
-- name: UAV_SIM_POSE_BUFFER_DURATION_MS
-  value: {{ .root.Values.posePublication.bufferDurationMs | quote }}
+- name: UAV_SIM_OPERATOR_CAMERAS_JSON
+  value: {{ .root.Values.liveView.cameras | toJson | quote }}
+- name: UAV_SIM_LIVE_SIGNALING_PORT_BASE
+  value: {{ .root.Values.liveView.signalingPortBase | quote }}
+- name: UAV_SIM_LIVE_MEDIA_PORT_BASE
+  value: {{ .root.Values.liveView.mediaPortBase | quote }}
+- name: UAV_SIM_LIVE_PUBLIC_MEDIA_IP
+  value: {{ .root.Values.liveView.publicMediaHost | quote }}
 - name: UAV_SIM_TILE_READY_FRAMES
   value: {{ .root.Values.session.tileReadyFrames | quote }}
 - name: UAV_SIM_PX4_CONNECT_TIMEOUT_SECONDS
@@ -127,26 +131,6 @@
   value: {{ .root.Values.session.camera.mount.orientationWxyz.y | quote }}
 - name: UAV_SIM_CAMERA_ORIENTATION_Z
   value: {{ .root.Values.session.camera.mount.orientationWxyz.z | quote }}
-- name: UAV_SIM_POSE_PRODUCER_ID
-  value: {{ .root.Values.posePublication.producerId | quote }}
-- name: UAV_SIM_POSE_PRODUCER_SPIFFE_ID
-  value: {{ .root.Values.posePublication.producerSpiffeId | quote }}
-- name: UAV_SIM_POSE_EPOCH_ID
-  value: {{ .root.Values.posePublication.epochId | quote }}
-- name: UAV_SIM_POSE_INGRESS_HOST
-  value: {{ .root.Values.posePublication.endpointHost | quote }}
-- name: UAV_SIM_POSE_INGRESS_PORT
-  value: {{ .root.Values.posePublication.endpointPort | quote }}
-- name: UAV_SIM_POSE_SERVER_HOSTNAME
-  value: {{ .root.Values.posePublication.serverHostname | quote }}
-- name: UAV_SIM_POSE_CA_CERTIFICATE
-  value: /run/secrets/simulation-view-pose/ca.crt
-- name: UAV_SIM_POSE_CLIENT_CERTIFICATE
-  value: /run/secrets/simulation-view-pose/tls.crt
-- name: UAV_SIM_POSE_CLIENT_PRIVATE_KEY
-  value: /run/secrets/simulation-view-pose/tls.key
-- name: UAV_SIM_POSE_ENTITY_TABLE_REVISION
-  value: {{ .root.Values.posePublication.entityTableRevision | quote }}
 - name: UAV_SIM_RECORDING_KEY
   valueFrom:
     fieldRef:
@@ -161,8 +145,9 @@
 - name: UAV_SIM_STREAM_SOURCE_VEHICLE_ID
   value: {{ .root.Values.streamPublication.sourceVehicleId | quote }}
 {{- end }}
+
 - name: NVIDIA_DRIVER_CAPABILITIES
-  value: all
+  value: compute,graphics,utility,video
 - name: ROS_DISTRO
   value: jazzy
 - name: RMW_IMPLEMENTATION
@@ -174,6 +159,37 @@
   value: "Y"
 {{- end }}
 {{- end }}
+
+{{- define "uav-sim.validateLiveView" -}}
+{{- $count := len .Values.liveView.cameras -}}
+{{- if or (lt $count 1) (gt $count 32) -}}
+{{- fail "liveView.cameras must contain 1-32 stable camera products" -}}
+{{- end -}}
+{{- range $index, $camera := .Values.liveView.cameras -}}
+{{- if ne (int $camera.physicalSlot) $index -}}
+{{- fail "liveView camera physicalSlot values must be ordered and contiguous from zero" -}}
+{{- end -}}
+{{- end -}}
+{{- $lastSlot := sub $count 1 -}}
+{{- if gt (add (int .Values.liveView.signalingPortBase) $lastSlot) 65535 -}}
+{{- fail "liveView signaling port range exceeds 65535" -}}
+{{- end -}}
+{{- if gt (add (int .Values.liveView.mediaPortBase) $lastSlot) 65535 -}}
+{{- fail "liveView media port range exceeds 65535" -}}
+{{- end -}}
+{{- if and (le (int .Values.liveView.mediaPortBase) (add (int .Values.liveView.signalingPortBase) $lastSlot)) (le (int .Values.liveView.signalingPortBase) (add (int .Values.liveView.mediaPortBase) $lastSlot)) -}}
+{{- fail "liveView signaling and media port ranges overlap" -}}
+{{- end -}}
+{{- if not (regexMatch "^(ws|wss)://[^/@[:space:]]+(/[^[:space:]]*)?$" .Values.liveView.publicSignalingUrl) -}}
+{{- fail "liveView.publicSignalingUrl must be an absolute credential-free ws or wss URL" -}}
+{{- end -}}
+{{- if not (or (regexMatch "^([0-9]{1,3}\\.){3}[0-9]{1,3}$" .Values.liveView.publicMediaHost) (regexMatch "^[0-9A-Fa-f:]+$" .Values.liveView.publicMediaHost)) -}}
+{{- fail "liveView.publicMediaHost must be a numeric IP address" -}}
+{{- end -}}
+{{- if and .Values.liveView.signalingIngress.enabled (empty .Values.liveView.signalingIngress.host) -}}
+{{- fail "liveView.signalingIngress.host is required when signaling ingress is enabled" -}}
+{{- end -}}
+{{- end -}}
 
 {{- define "uav-sim.recordingForwarder" -}}
 {{- $image := .root.Values.images.forwarder -}}
