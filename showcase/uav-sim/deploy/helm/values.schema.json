@@ -150,10 +150,36 @@
     "world": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["source", "cesiumIonAssetId"],
+      "required": ["source", "cesiumIonAssetId", "streaming"],
       "properties": {
         "source": {"const": "google_photorealistic_3d_tiles"},
-        "cesiumIonAssetId": {"const": 2275207}
+        "cesiumIonAssetId": {"const": 2275207},
+        "streaming": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "maximumScreenSpaceError",
+            "maximumSimultaneousLoads",
+            "maximumCachedBytes"
+          ],
+          "properties": {
+            "maximumScreenSpaceError": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 64
+            },
+            "maximumSimultaneousLoads": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 64
+            },
+            "maximumCachedBytes": {
+              "type": "integer",
+              "minimum": 67108864,
+              "maximum": 17179869184
+            }
+          }
+        }
       }
     },
     "cache": {

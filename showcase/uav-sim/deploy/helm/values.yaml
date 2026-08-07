@@ -63,6 +63,10 @@ recording:
 world:
   source: google_photorealistic_3d_tiles
   cesiumIonAssetId: 2275207
+  streaming:
+    maximumScreenSpaceError: 16
+    maximumSimultaneousLoads: 8
+    maximumCachedBytes: 2147483648
 
 cache:
   policy: persistent
