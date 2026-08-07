@@ -291,6 +291,7 @@ pub struct CameraState {
     pub lifecycle: CameraLifecycle,
     pub width: u32,
     pub height: u32,
+    pub frame_rate_hz: u32,
     pub codec: CameraCodec,
     pub encoder: CameraEncoder,
     pub frames_observed: u64,

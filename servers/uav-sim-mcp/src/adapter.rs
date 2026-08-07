@@ -989,6 +989,7 @@ mod tests {
                 lifecycle: CameraLifecycle::Ready,
                 width: 640,
                 height: 480,
+                frame_rate_hz: 2,
                 codec: CameraCodec::H264,
                 encoder: CameraEncoder::NvidiaNvenc,
                 frames_observed: 10,
@@ -1108,6 +1109,7 @@ mod tests {
             "lifecycle": "ready",
             "width": 640,
             "height": 480,
+            "frame_rate_hz": 2,
             "codec": "h264",
             "encoder": "nvidia_nvenc",
             "frames_observed": 10,
@@ -1136,6 +1138,7 @@ mod tests {
 
         assert_eq!(camera.codec, CameraCodec::H264);
         assert_eq!(camera.encoder, CameraEncoder::NvidiaNvenc);
+        assert_eq!(camera.frame_rate_hz, 2);
         assert_eq!(camera.render_pose.unwrap().position_error_m, 0.02);
     }
 

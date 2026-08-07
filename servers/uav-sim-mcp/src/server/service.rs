@@ -1309,6 +1309,7 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             lifecycle: CameraLifecycle::Ready,
             width: 640,
             height: 480,
+            frame_rate_hz: 2,
             codec: CameraCodec::H264,
             encoder: CameraEncoder::NvidiaNvenc,
             frames_observed: 10,

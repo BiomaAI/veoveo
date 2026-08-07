@@ -181,7 +181,10 @@ sensor camera receives the exact current body-and-mount transform at render cade
 Hydra product remains warm for streamed-world residency, but evidence capture is
 requested by a physics-step cadence gate at the declared sensor rate. In-flight requests
 coalesce and no wall-clock capture scheduler exists. The current sensor recording path
-contains a `TODO(GPU)` at its CPU readback boundary; the intended replacement is direct
+exposes the declared sensor frame rate and monotonic observed-frame count. Focused
+live-view acceptance compares that count with simulation time while viewer slots are
+assigned, which detects accidental coupling to the faster operator-camera cadence.
+Its CPU readback boundary contains a `TODO(GPU)`; the intended replacement is direct
 CUDA/NVENC packet fan-out once Recording Hub accepts the canonical encoded product. That
 debt is not a fallback and is not acceptance evidence for live operator rendering.
 

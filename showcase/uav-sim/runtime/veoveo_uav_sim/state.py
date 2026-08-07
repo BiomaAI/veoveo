@@ -85,6 +85,7 @@ class RuntimeState:
                     "lifecycle": "warming",
                     "width": config.camera.width,
                     "height": config.camera.height,
+                    "frame_rate_hz": config.camera.fps,
                     "codec": "h264",
                     "encoder": "nvidia_nvenc",
                     "frames_observed": 0,
