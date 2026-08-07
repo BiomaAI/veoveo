@@ -24,8 +24,6 @@ const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-browser-evidence/v3";
 const MAX_RECORDING_SOURCE_LAG_SECONDS: f64 = 1.0;
 const OPERATOR_PROFILE_SCOPES: &[&str] = &[
     "operator:use",
-    "uav-sim:read",
-    "uav-sim:write",
     "uav-sim:stream",
     "view:read",
     "view:write",

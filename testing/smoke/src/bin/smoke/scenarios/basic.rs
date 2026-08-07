@@ -246,7 +246,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: console-bff",
         "name: VEOVEO_CONSOLE_MCP_TRANSPORT_URL",
         "value: \"http://mcp-gateway:8788/mcp/admin\"",
-        "value: \"operator:use admin:manage uav-sim:read uav-sim:write uav-sim:stream map:admin map:dataset:read map:feature:admin map:feature:publish map:feature:read map:feature:write map:raster:derive map:spatial:derive time:read view:read view:write view:capture\"",
+        "value: \"operator:use admin:manage uav-sim:stream map:admin map:dataset:read map:feature:admin map:feature:publish map:feature:read map:feature:write map:raster:derive map:spatial:derive time:read view:read view:write view:capture\"",
         "host: localhost",
         "path: /s",
         "mountPath: /etc/veoveo/gateway",
