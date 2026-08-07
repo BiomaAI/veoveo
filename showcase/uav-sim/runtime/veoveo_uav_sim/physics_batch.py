@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -14,6 +15,18 @@ class RigidBodyState:
     orientation_xyzw: np.ndarray
     linear_velocity_xyz: np.ndarray
     angular_velocity_xyz: np.ndarray
+
+
+@dataclass(frozen=True, slots=True)
+class FleetPhysicsTiming:
+    """Cumulative wall-time attribution for the authoritative physics callback."""
+
+    physics_steps: int
+    refresh_states_wall_seconds: float
+    vehicle_update_wall_seconds: float
+    flush_forces_wall_seconds: float
+    after_step_wall_seconds: float
+    maximum_physics_step_ms: float
 
 
 class RigidBodyBatchAccumulator:
@@ -269,12 +282,28 @@ class FleetPhysicsLifecycle:
         self._batch_factory = batch_factory
         self._after_step = after_step
         self._batch: Any = None
+        self._physics_steps = 0
+        self._refresh_states_wall_seconds = 0.0
+        self._vehicle_update_wall_seconds = 0.0
+        self._flush_forces_wall_seconds = 0.0
+        self._after_step_wall_seconds = 0.0
+        self._maximum_physics_step_ms = 0.0
 
     @property
     def batch(self) -> Any:
         if self._batch is None:
             raise RuntimeError("fleet physics batch has not been initialized")
         return self._batch
+
+    def timing(self) -> FleetPhysicsTiming:
+        return FleetPhysicsTiming(
+            physics_steps=self._physics_steps,
+            refresh_states_wall_seconds=self._refresh_states_wall_seconds,
+            vehicle_update_wall_seconds=self._vehicle_update_wall_seconds,
+            flush_forces_wall_seconds=self._flush_forces_wall_seconds,
+            after_step_wall_seconds=self._after_step_wall_seconds,
+            maximum_physics_step_ms=self._maximum_physics_step_ms,
+        )
 
     def reset(self) -> Any:
         # World.reset advances PhysX. No callback may reference the old tensor
@@ -304,16 +333,33 @@ class FleetPhysicsLifecycle:
             self._world.remove_physics_callback(self._CALLBACK_NAME)
 
     def _update(self, dt: float) -> None:
+        physics_step_started = time.perf_counter()
         batch = self.batch
+        phase_started = time.perf_counter()
         batch.refresh_states()
+        self._refresh_states_wall_seconds += time.perf_counter() - phase_started
+
+        phase_started = time.perf_counter()
         for vehicle in self._vehicles.values():
             vehicle.update_state(dt)
             vehicle.update(dt)
             vehicle.update_sensors(dt)
             vehicle.update_sim_state(dt)
+        self._vehicle_update_wall_seconds += time.perf_counter() - phase_started
+
+        phase_started = time.perf_counter()
         batch.flush_forces()
+        self._flush_forces_wall_seconds += time.perf_counter() - phase_started
+
+        phase_started = time.perf_counter()
         if self._after_step is not None:
             self._after_step(dt)
+        self._after_step_wall_seconds += time.perf_counter() - phase_started
+        self._physics_steps += 1
+        self._maximum_physics_step_ms = max(
+            self._maximum_physics_step_ms,
+            (time.perf_counter() - physics_step_started) * 1_000.0,
+        )
 
 
 def _vector3(value: Sequence[float], label: str) -> tuple[float, float, float]:

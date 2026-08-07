@@ -825,6 +825,7 @@ def run(config: RuntimeConfig) -> None:
                 state.observe_render_cycle(
                     native_update_wall_seconds,
                     time.monotonic() - render_cycle_started,
+                    physics_lifecycle.timing(),
                 )
 
             for vehicle_id, future in connection_futures.items():

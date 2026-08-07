@@ -25,6 +25,7 @@ from veoveo_uav_sim.fleet_loop import FleetLoopController, vehicle_loop_route
 from veoveo_uav_sim.event_queue import NonBlockingEventQueue
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
 from veoveo_uav_sim.physics_batch import (
+    FleetPhysicsTiming,
     FleetPhysicsLifecycle,
     IsaacFleetPhysicsBatch,
     RigidBodyBatchAccumulator,
@@ -211,8 +212,14 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(timing["physics_hz"], 60)
         self.assertEqual(timing["native_rendering_hz"], 30)
         self.assertEqual(timing["render_cycles"], 0)
+        self.assertEqual(timing["physics_steps"], 0)
+        self.assertEqual(timing["refresh_states_wall_seconds"], 0.0)
+        self.assertEqual(timing["vehicle_update_wall_seconds"], 0.0)
+        self.assertEqual(timing["flush_forces_wall_seconds"], 0.0)
+        self.assertEqual(timing["after_step_wall_seconds"], 0.0)
         self.assertEqual(timing["native_update_wall_seconds"], 0.0)
         self.assertEqual(timing["render_cycle_wall_seconds"], 0.0)
+        self.assertEqual(timing["maximum_physics_step_ms"], 0.0)
         self.assertEqual(timing["maximum_native_update_ms"], 0.0)
         self.assertEqual(timing["maximum_render_cycle_ms"], 0.0)
 
@@ -371,20 +378,42 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_render_timing_separates_native_update_from_complete_cycle(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             state = RuntimeState(RuntimeConfig.from_environment(), WORLD)
-        state.observe_render_cycle(0.02, 0.03)
-        state.observe_render_cycle(0.04, 0.05)
+        state.observe_render_cycle(
+            0.02,
+            0.03,
+            FleetPhysicsTiming(2, 0.002, 0.004, 0.006, 0.008, 11.0),
+        )
+        state.observe_render_cycle(
+            0.04,
+            0.05,
+            FleetPhysicsTiming(5, 0.005, 0.010, 0.015, 0.020, 13.0),
+        )
 
         timing = state.snapshot()["timing"]
         self.assertEqual(timing["render_cycles"], 2)
+        self.assertEqual(timing["physics_steps"], 5)
+        self.assertAlmostEqual(timing["refresh_states_wall_seconds"], 0.005)
+        self.assertAlmostEqual(timing["vehicle_update_wall_seconds"], 0.010)
+        self.assertAlmostEqual(timing["flush_forces_wall_seconds"], 0.015)
+        self.assertAlmostEqual(timing["after_step_wall_seconds"], 0.020)
         self.assertAlmostEqual(timing["native_update_wall_seconds"], 0.06)
         self.assertAlmostEqual(timing["render_cycle_wall_seconds"], 0.08)
+        self.assertAlmostEqual(timing["maximum_physics_step_ms"], 13.0)
         self.assertAlmostEqual(timing["maximum_native_update_ms"], 40.0)
         self.assertAlmostEqual(timing["maximum_render_cycle_ms"], 50.0)
 
         with self.assertRaisesRegex(ValueError, "cannot be negative"):
-            state.observe_render_cycle(-0.01, 0.01)
+            state.observe_render_cycle(
+                -0.01,
+                0.01,
+                FleetPhysicsTiming(5, 0.0, 0.0, 0.0, 0.0, 0.0),
+            )
         with self.assertRaisesRegex(ValueError, "cannot be shorter"):
-            state.observe_render_cycle(0.02, 0.01)
+            state.observe_render_cycle(
+                0.02,
+                0.01,
+                FleetPhysicsTiming(5, 0.0, 0.0, 0.0, 0.0, 0.0),
+            )
 
     def test_camera_optics_and_mount_are_typed_runtime_inputs(self) -> None:
         environment = {
@@ -673,6 +702,13 @@ class RigidBodyBatchTests(unittest.TestCase):
                 "after",
             ],
         )
+        timing = lifecycle.timing()
+        self.assertEqual(timing.physics_steps, 1)
+        self.assertGreaterEqual(timing.refresh_states_wall_seconds, 0.0)
+        self.assertGreaterEqual(timing.vehicle_update_wall_seconds, 0.0)
+        self.assertGreaterEqual(timing.flush_forces_wall_seconds, 0.0)
+        self.assertGreaterEqual(timing.after_step_wall_seconds, 0.0)
+        self.assertGreaterEqual(timing.maximum_physics_step_ms, 0.0)
 
     def test_force_at_position_is_reduced_to_force_and_torque(self) -> None:
         batch = RigidBodyBatchAccumulator(("/World/uav_1/body",))
