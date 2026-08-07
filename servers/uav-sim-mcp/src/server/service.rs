@@ -256,7 +256,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "Open authoritative UAV live view",
-        description = "Create one actor- and browser-instance-scoped WebRTC lease over an existing simulator-owned camera product without creating another render or encode.",
+        description = "Create one actor- and browser-instance-scoped WebRTC lease and exclusively activate one preallocated simulator-owned RTX, NVENC, and native WebRTC viewer product.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_mcp_contract::LiveViewConnection>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = true)
     )]
@@ -281,6 +281,12 @@ impl UavSimMcp {
                     "failure_code".to_owned(),
                     serde_json::Value::String(error.code().to_owned()),
                 );
+                if let Some(dimension) = error.capacity_dimension() {
+                    denied_details.insert(
+                        "capacity_dimension".to_owned(),
+                        serde_json::Value::String(dimension.to_string()),
+                    );
+                }
                 audit_live_view(
                     &self.state,
                     &identity,
@@ -1815,9 +1821,13 @@ fn live_view_error(error: LiveViewError) -> McpError {
         LiveViewError::Ownership | LiveViewError::AuthorityRevoked | LiveViewError::Access => {
             McpError::invalid_request("live-view access is not authorized", None)
         }
-        LiveViewError::Capacity => {
-            McpError::invalid_request("live-view viewer capacity is exhausted", None)
-        }
+        LiveViewError::Capacity(dimension) => McpError::invalid_request(
+            format!("live-view {dimension} capacity is exhausted"),
+            Some(serde_json::json!({
+                "code": "viewer_capacity_exhausted",
+                "dimension": dimension,
+            })),
+        ),
         LiveViewError::CameraUnavailable | LiveViewError::ViewUnavailable => {
             McpError::invalid_request(error.to_string(), None)
         }
