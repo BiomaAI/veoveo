@@ -520,6 +520,51 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(recording["dropped_events"], 9)
         self.assertEqual(recording["diagnostic"], "network unavailable")
 
+    def test_inactive_viewer_slots_do_not_require_camera_assignments(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            state = RuntimeState(RuntimeConfig.from_environment(), WORLD)
+        inactive_slots = state.snapshot()["stream_products"]
+
+        state.update_stream_products(inactive_slots)
+
+        snapshot = state.snapshot()
+        self.assertEqual(
+            [product["capacitySlot"] for product in snapshot["stream_products"]],
+            [0, 1],
+        )
+        self.assertTrue(
+            all("cameraId" not in product for product in snapshot["stream_products"])
+        )
+        self.assertEqual(snapshot["live_cameras"][0]["health"], "healthy")
+
+    def test_shared_logical_camera_aggregates_distinct_viewer_slots(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            state = RuntimeState(RuntimeConfig.from_environment(), WORLD)
+        state.update_stream_products(
+            [
+                {
+                    "streamProductId": "product-slot-0",
+                    "capacitySlot": 0,
+                    "cameraId": "follow",
+                    "liveViewId": "view-a",
+                    "lifecycle": "failed",
+                    "lastFrameAt": "2026-08-07T18:00:00Z",
+                },
+                {
+                    "streamProductId": "product-slot-1",
+                    "capacitySlot": 1,
+                    "cameraId": "follow",
+                    "liveViewId": "view-b",
+                    "lifecycle": "ready",
+                    "lastFrameAt": "2026-08-07T18:00:01Z",
+                },
+            ]
+        )
+
+        camera = state.snapshot()["live_cameras"][0]
+        self.assertEqual(camera["health"], "healthy")
+        self.assertEqual(camera["lastFrameAt"], "2026-08-07T18:00:01Z")
+
     def test_render_timing_separates_native_update_from_complete_cycle(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             state = RuntimeState(RuntimeConfig.from_environment(), WORLD)
