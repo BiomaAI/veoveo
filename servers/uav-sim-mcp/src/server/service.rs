@@ -1346,6 +1346,7 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             nvenc_sessions: 1,
             encoded_frames: 10,
             last_frame_at: Some(Utc::now()),
+            visible: Some(true),
             diagnostic: None,
         }],
         vehicles: vec![VehicleState {
