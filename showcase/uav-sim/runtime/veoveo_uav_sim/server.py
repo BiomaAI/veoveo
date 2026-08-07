@@ -66,6 +66,10 @@ class PreconfigurationApplication:
                 web.get("/readyz", self._ready),
                 web.get("/v1/state", self._get_state),
                 web.post("/v1/world", self._configure_world),
+                web.post(
+                    "/v1/live-products/deactivate-all-on-demand",
+                    self._deactivate_all_on_demand,
+                ),
             ]
         )
 
@@ -147,6 +151,11 @@ class PreconfigurationApplication:
         return web.json_response(
             _world_configuration_response(self._config.session_id, configured)
         )
+
+    async def _deactivate_all_on_demand(
+        self, _request: web.Request
+    ) -> web.Response:
+        return web.json_response({"accepted": True})
 
 
 class AdapterApplication:

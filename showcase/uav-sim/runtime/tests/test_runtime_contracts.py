@@ -186,6 +186,20 @@ class RuntimeConfigTests(unittest.TestCase):
             server_source,
         )
 
+    def test_preconfiguration_accepts_ephemeral_product_reset(self) -> None:
+        server_source = (
+            Path(__file__).parents[1] / "veoveo_uav_sim" / "server.py"
+        ).read_text()
+        preconfiguration = server_source.split(
+            "class PreconfigurationApplication:", maxsplit=1
+        )[1].split("class AdapterApplication:", maxsplit=1)[0]
+        self.assertIn(
+            '"/v1/live-products/deactivate-all-on-demand"', preconfiguration
+        )
+        self.assertIn(
+            'return web.json_response({"accepted": True})', preconfiguration
+        )
+
     def test_multi_instance_px4_has_distinct_gcs_ports(self) -> None:
         runtime_root = Path(__file__).parents[1]
         dockerfile = (runtime_root / "Dockerfile").read_text()
