@@ -11,6 +11,19 @@ from .operator_products import livestream_aov_arguments
 LOGGER = logging.getLogger("veoveo.uav_sim")
 
 
+def kit_live_render_arguments() -> list[str]:
+    """Decouple the authoritative main tick from Kit presentation threads."""
+    settings = {
+        "/app/runLoops/main/rateLimitEnabled": "false",
+        "/app/runLoops/main/syncToPresent": "false",
+        "/app/runLoops/rendering_0/syncToPresent": "false",
+        "/app/runLoops/rendering_1/syncToPresent": "false",
+        "/app/runLoopsGlobal/syncToPresent": "false",
+        "/exts/omni.kit.renderer.core/present/presentAfterRendering": "false",
+    }
+    return [f"--{path}={value}" for path, value in settings.items()]
+
+
 def _cleanup(name: str, action: Callable[[], None]) -> None:
     try:
         action()
@@ -51,6 +64,7 @@ def run(config: RuntimeConfig) -> None:
                 "--enable",
                 "omni.kit.livestream.webrtc",
                 *livestream_aov_arguments(config.operator_live_view),
+                *kit_live_render_arguments(),
                 "--portable-root",
                 str(config.cache_directory / "kit-portable"),
             ],

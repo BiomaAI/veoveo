@@ -12,6 +12,7 @@ from unittest.mock import patch
 import numpy as np
 from pymavlink import mavutil
 
+from veoveo_uav_sim.app import kit_live_render_arguments
 from veoveo_uav_sim.camera_quality import (
     assess_camera_health,
     measure_camera_frame,
@@ -107,6 +108,20 @@ WORLD = WorldConfiguration(
 
 
 class RuntimeConfigTests(unittest.TestCase):
+    def test_authoritative_tick_does_not_wait_for_present_threads(self) -> None:
+        arguments = kit_live_render_arguments()
+        self.assertEqual(
+            arguments,
+            [
+                "--/app/runLoops/main/rateLimitEnabled=false",
+                "--/app/runLoops/main/syncToPresent=false",
+                "--/app/runLoops/rendering_0/syncToPresent=false",
+                "--/app/runLoops/rendering_1/syncToPresent=false",
+                "--/app/runLoopsGlobal/syncToPresent=false",
+                "--/exts/omni.kit.renderer.core/present/presentAfterRendering=false",
+            ],
+        )
+
     def test_google_tiles_are_mandatory_and_exact(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             config = RuntimeConfig.from_environment()
