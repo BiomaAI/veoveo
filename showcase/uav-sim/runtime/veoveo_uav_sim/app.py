@@ -30,7 +30,10 @@ def run(config: RuntimeConfig) -> None:
             "renderer": "RaytracedLighting",
             "width": viewport_width,
             "height": viewport_height,
-            "sync_loads": True,
+            # A streamed 3D Tiles world never reaches a terminal "all assets
+            # loaded" state. Synchronous USD/material loads would therefore
+            # suspend live frame submission whenever Cesium admits more tiles.
+            "sync_loads": False,
             # Cesium's native USD schema plugin must be discovered before Kit
             # initializes USD's schema registry. Enabling it after
             # SimulationApp starts leaves the generated attributes untyped.
