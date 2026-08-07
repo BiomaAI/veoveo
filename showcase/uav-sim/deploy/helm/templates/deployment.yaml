@@ -56,12 +56,12 @@ spec:
           ports:
             - name: adapter
               containerPort: 8810
-            {{- range .Values.liveView.cameras }}
-            - name: {{ printf "signal-%d" (int .physicalSlot) }}
-              containerPort: {{ add $.Values.liveView.signalingPortBase (int .physicalSlot) }}
+            {{- range $slot := until (int .Values.liveView.viewerSlots) }}
+            - name: {{ printf "signal-%d" $slot }}
+              containerPort: {{ add $.Values.liveView.signalingPortBase $slot }}
               protocol: TCP
-            - name: {{ printf "media-%d" (int .physicalSlot) }}
-              containerPort: {{ add $.Values.liveView.mediaPortBase (int .physicalSlot) }}
+            - name: {{ printf "media-%d" $slot }}
+              containerPort: {{ add $.Values.liveView.mediaPortBase $slot }}
               protocol: UDP
             {{- end }}
           startupProbe:
@@ -132,12 +132,10 @@ spec:
               value: {{ .Values.liveView.mediaPortBase | quote }}
             - name: UAV_SIM_LIVE_VIEW_LEASE_SECONDS
               value: {{ .Values.liveView.leaseSeconds | quote }}
-            - name: UAV_SIM_LIVE_VIEW_IDLE_GRACE_SECONDS
-              value: {{ .Values.liveView.idleGraceSeconds | quote }}
             - name: UAV_SIM_LIVE_VIEW_MAXIMUM_FRAME_AGE_MS
               value: {{ .Values.liveView.maximumFrameAgeMs | quote }}
             - name: UAV_SIM_LIVE_VIEW_MAXIMUM_VIEWERS
-              value: {{ .Values.liveView.maximumViewerLeases | quote }}
+              value: {{ .Values.liveView.viewerSlots | quote }}
             - name: UAV_SIM_ADAPTER_OPERATION_TIMEOUT_SECONDS
               value: "3600"
             - name: UAV_SIM_RECORDING_TENANT_KEY

@@ -23,7 +23,7 @@ class Config:
     public_media_host: str
     public_media_port: int
     lease_seconds: int
-    maximum_viewers: int
+    viewer_slots: int
 
 
 def parse_config(argv: list[str] | None = None) -> Config:
@@ -61,9 +61,9 @@ def parse_config(argv: list[str] | None = None) -> Config:
         default=int(os.environ.get("ANONYMOUS_SIMULATION_LEASE_SECONDS", "120")),
     )
     parser.add_argument(
-        "--maximum-viewers",
+        "--viewer-slots",
         type=int,
-        default=int(os.environ.get("ANONYMOUS_SIMULATION_MAXIMUM_VIEWERS", "16")),
+        default=int(os.environ.get("ANONYMOUS_SIMULATION_VIEWER_SLOTS", "2")),
     )
     args = parser.parse_args(argv)
 
@@ -88,8 +88,10 @@ def parse_config(argv: list[str] | None = None) -> Config:
         parser.error("--public-media-port must be between 1024 and 65535")
     if not 5 <= args.lease_seconds <= 3_600:
         parser.error("--lease-seconds must be between 5 and 3600")
-    if not 1 <= args.maximum_viewers <= 1_024:
-        parser.error("--maximum-viewers must be between 1 and 1024")
+    if not 1 <= args.viewer_slots <= 32:
+        parser.error("--viewer-slots must be between 1 and 32")
+    if args.public_media_port + args.viewer_slots - 1 > 65_535:
+        parser.error("the viewer-slot media port range exceeds 65535")
     return Config(
         port=args.port,
         allowed_hosts=tuple(args.allowed_hosts),
@@ -98,5 +100,5 @@ def parse_config(argv: list[str] | None = None) -> Config:
         public_media_host=args.public_media_host,
         public_media_port=args.public_media_port,
         lease_seconds=args.lease_seconds,
-        maximum_viewers=args.maximum_viewers,
+        viewer_slots=args.viewer_slots,
     )

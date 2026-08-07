@@ -87,7 +87,7 @@ def build_mcp_server(runtime: FixtureRuntime) -> Server:
                 types.Tool(
                     name="list_live_cameras",
                     title="List authoritative live cameras",
-                    description="List stable cameras and shared products owned by this simulator.",
+                    description="List stable logical cameras owned by this simulator.",
                     input_schema=mcp_input_schema(ListLiveCamerasRequest),
                     output_schema={"type": "array", "items": {}},
                     annotations=_annotations(read_only=True),
@@ -96,7 +96,7 @@ def build_mcp_server(runtime: FixtureRuntime) -> Server:
                 types.Tool(
                     name="open_live_view",
                     title="Open authoritative live view",
-                    description="Create an actor- and browser-scoped lease over one existing product.",
+                    description="Reserve one viewer slot for this actor and browser instance.",
                     input_schema=mcp_input_schema(OpenLiveViewRequest),
                     output_schema=LiveViewConnection.model_json_schema(),
                     annotations=_annotations(),

@@ -1,12 +1,12 @@
+use std::sync::Arc;
 use std::time::Duration;
-use std::{collections::BTreeMap, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use reqwest::{Client, Method, StatusCode, Url};
 use serde::Deserialize;
 use thiserror::Error;
 use tokio::sync::Mutex;
-use veoveo_mcp_contract::{LiveCameraDescriptor, LiveStreamProductState};
+use veoveo_mcp_contract::{LiveCameraDescriptor, LiveCameraId, LiveStreamProductState, LiveViewId};
 use veoveo_platform_store::{
     PlatformStore, RecordIdKey, RecordingId as PlatformRecordingId, TenantId,
     deterministic_tenant_id,
@@ -293,28 +293,61 @@ impl HttpAdapter {
         })
     }
 
-    pub async fn set_live_product_active(
+    pub async fn assign_live_product(
         &self,
-        camera_id: &veoveo_mcp_contract::LiveCameraId,
-        active: bool,
+        capacity_slot: u16,
+        camera_id: &LiveCameraId,
+        live_view_id: &LiveViewId,
     ) -> Result<LiveStreamProductState, AdapterError> {
-        let method = if active { Method::PUT } else { Method::DELETE };
+        #[derive(serde::Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Assignment<'a> {
+            camera_id: &'a LiveCameraId,
+            live_view_id: &'a LiveViewId,
+        }
         let response = self
             .client
             .request(
-                method,
-                self.endpoint(&format!("v1/live-products/{}/active", camera_id.as_str()))?,
+                Method::PUT,
+                self.endpoint(&format!("v1/live-products/{capacity_slot}/assignment"))?,
             )
+            .json(&Assignment {
+                camera_id,
+                live_view_id,
+            })
             .send()
             .await
             .map_err(AdapterError::Transport)?;
         decode(response).await
     }
 
-    pub async fn deactivate_all_on_demand_products(&self) -> Result<(), AdapterError> {
+    pub async fn release_live_product(
+        &self,
+        capacity_slot: u16,
+        live_view_id: &LiveViewId,
+    ) -> Result<LiveStreamProductState, AdapterError> {
+        #[derive(serde::Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Release<'a> {
+            live_view_id: &'a LiveViewId,
+        }
         let response = self
             .client
-            .post(self.endpoint("v1/live-products/deactivate-all-on-demand")?)
+            .request(
+                Method::DELETE,
+                self.endpoint(&format!("v1/live-products/{capacity_slot}/assignment"))?,
+            )
+            .json(&Release { live_view_id })
+            .send()
+            .await
+            .map_err(AdapterError::Transport)?;
+        decode(response).await
+    }
+
+    pub async fn release_all_viewer_slots(&self) -> Result<(), AdapterError> {
+        let response = self
+            .client
+            .post(self.endpoint("v1/live-products/release-all")?)
             .send()
             .await
             .map_err(AdapterError::Transport)?;
@@ -649,40 +682,59 @@ impl FakeAdapter {
         }
     }
 
-    pub fn set_live_product_active(
+    pub fn assign_live_product(
         &mut self,
-        camera_id: &veoveo_mcp_contract::LiveCameraId,
-        active: bool,
+        capacity_slot: u16,
+        camera_id: &LiveCameraId,
+        live_view_id: &LiveViewId,
     ) -> Result<LiveStreamProductState, AdapterError> {
         let product = self
             .state
             .stream_products
             .iter_mut()
-            .find(|product| product.camera_id == *camera_id)
-            .ok_or_else(|| AdapterError::UnknownCamera(camera_id.to_string()))?;
-        product.lifecycle = if active {
-            veoveo_mcp_contract::LiveStreamProductLifecycle::Ready
-        } else {
-            veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive
-        };
-        product.nvenc_sessions = u32::from(active);
+            .find(|product| product.capacity_slot == capacity_slot)
+            .ok_or(AdapterError::UnknownViewerSlot(capacity_slot))?;
+        if product.lifecycle != veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive {
+            if product.camera_id.as_ref() == Some(camera_id)
+                && product.live_view_id.as_ref() == Some(live_view_id)
+            {
+                return Ok(product.clone());
+            }
+            return Err(AdapterError::InvalidState(format!(
+                "viewer slot {capacity_slot} is already assigned"
+            )));
+        }
+        product.camera_id = Some(camera_id.clone());
+        product.live_view_id = Some(live_view_id.clone());
+        product.lifecycle = veoveo_mcp_contract::LiveStreamProductLifecycle::Ready;
+        product.active_viewer_leases = 1;
+        product.nvenc_sessions = 1;
         Ok(product.clone())
     }
 
-    pub fn deactivate_all_on_demand_products(&mut self) {
-        let policies = self
+    pub fn release_live_product(
+        &mut self,
+        capacity_slot: u16,
+        live_view_id: &LiveViewId,
+    ) -> Result<LiveStreamProductState, AdapterError> {
+        let product = self
             .state
-            .live_cameras
-            .iter()
-            .map(|camera| (camera.camera_id.clone(), camera.stream_policy))
-            .collect::<BTreeMap<_, _>>();
+            .stream_products
+            .iter_mut()
+            .find(|product| product.capacity_slot == capacity_slot)
+            .ok_or(AdapterError::UnknownViewerSlot(capacity_slot))?;
+        if product.live_view_id.as_ref() != Some(live_view_id) {
+            return Err(AdapterError::InvalidState(format!(
+                "viewer slot {capacity_slot} is not assigned to {live_view_id}"
+            )));
+        }
+        release_fake_product(product);
+        Ok(product.clone())
+    }
+
+    pub fn release_all_viewer_slots(&mut self) {
         for product in &mut self.state.stream_products {
-            if policies.get(&product.camera_id)
-                == Some(&veoveo_mcp_contract::LiveCameraStreamPolicy::OnDemand)
-            {
-                product.lifecycle = veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive;
-                product.nvenc_sessions = 0;
-            }
+            release_fake_product(product);
         }
     }
 
@@ -712,6 +764,15 @@ impl FakeAdapter {
             .filter_map(|recording| recording.recording_uri.clone())
             .collect()
     }
+}
+
+fn release_fake_product(product: &mut LiveStreamProductState) {
+    product.camera_id = None;
+    product.live_view_id = None;
+    product.lifecycle = veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive;
+    product.active_viewer_leases = 0;
+    product.connected_viewers = 0;
+    product.nvenc_sessions = 0;
 }
 
 #[derive(Clone)]
@@ -772,25 +833,50 @@ impl Adapter {
         }
     }
 
-    pub async fn set_live_product_active(
+    pub async fn assign_live_product(
         &self,
-        camera_id: &veoveo_mcp_contract::LiveCameraId,
-        active: bool,
+        capacity_slot: u16,
+        camera_id: &LiveCameraId,
+        live_view_id: &LiveViewId,
     ) -> Result<LiveStreamProductState, AdapterError> {
         match self {
-            Self::Http(adapter) => adapter.set_live_product_active(camera_id, active).await,
-            Self::Fake(adapter) => adapter
-                .lock()
-                .await
-                .set_live_product_active(camera_id, active),
+            Self::Http(adapter) => {
+                adapter
+                    .assign_live_product(capacity_slot, camera_id, live_view_id)
+                    .await
+            }
+            Self::Fake(adapter) => {
+                adapter
+                    .lock()
+                    .await
+                    .assign_live_product(capacity_slot, camera_id, live_view_id)
+            }
         }
     }
 
-    pub async fn deactivate_all_on_demand_products(&self) -> Result<(), AdapterError> {
+    pub async fn release_live_product(
+        &self,
+        capacity_slot: u16,
+        live_view_id: &LiveViewId,
+    ) -> Result<LiveStreamProductState, AdapterError> {
         match self {
-            Self::Http(adapter) => adapter.deactivate_all_on_demand_products().await,
+            Self::Http(adapter) => {
+                adapter
+                    .release_live_product(capacity_slot, live_view_id)
+                    .await
+            }
+            Self::Fake(adapter) => adapter
+                .lock()
+                .await
+                .release_live_product(capacity_slot, live_view_id),
+        }
+    }
+
+    pub async fn release_all_viewer_slots(&self) -> Result<(), AdapterError> {
+        match self {
+            Self::Http(adapter) => adapter.release_all_viewer_slots().await,
             Self::Fake(adapter) => {
-                adapter.lock().await.deactivate_all_on_demand_products();
+                adapter.lock().await.release_all_viewer_slots();
                 Ok(())
             }
         }
@@ -815,6 +901,8 @@ pub enum AdapterError {
     UnknownVehicle(String),
     #[error("unknown live camera `{0}`")]
     UnknownCamera(String),
+    #[error("unknown live-view capacity slot `{0}`")]
+    UnknownViewerSlot(u16),
     #[error("invalid simulator state: {0}")]
     InvalidState(String),
     #[error("recording catalog failed: {0}")]
@@ -1102,11 +1190,12 @@ mod tests {
     #[test]
     fn private_adapter_product_wire_preserves_visibility() {
         let product: LiveStreamProductState = serde_json::from_value(serde_json::json!({
-            "streamProductId": "product-follow",
+            "streamProductId": "product-slot-0",
+            "capacitySlot": 0,
             "cameraId": "follow",
-            "physicalSlot": 0,
+            "liveViewId": "view-019fdb63-e95e-7930-804c-47c8622d4160",
             "lifecycle": "ready",
-            "activeViewerLeases": 0,
+            "activeViewerLeases": 1,
             "connectedViewers": 0,
             "nvencSessions": 1,
             "encodedFrames": 12,

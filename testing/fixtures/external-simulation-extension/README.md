@@ -1,7 +1,7 @@
 # Anonymous External Simulation Extension
 
 This fixture represents a simulation MCP server built in an independent repository.
-It owns one simulator-hosted camera/product contract, ephemeral viewer leases,
+It owns one simulator-hosted logical camera, bounded viewer-product slots, ephemeral viewer leases,
 signaling authorization, and an MCP App. It imports no platform renderer or source
 checkout.
 

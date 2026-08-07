@@ -435,6 +435,9 @@ class RuntimeConfig:
             camera=CameraConfig.from_environment(),
             operator_live_view=OperatorLiveViewRuntimeConfig.from_json(
                 _required("UAV_SIM_OPERATOR_CAMERAS_JSON"),
+                viewer_slot_count=_int(
+                    "UAV_SIM_LIVE_VIEWER_SLOTS", "2", 1, 32
+                ),
                 signaling_port_base=_int(
                     "UAV_SIM_LIVE_SIGNALING_PORT_BASE", "49100", 1, 65_535
                 ),

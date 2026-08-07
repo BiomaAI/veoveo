@@ -20,10 +20,10 @@ from anonymous_simulation_mcp.mcp_server import (
     LLMS_TXT,
     SERVER_DOCS,
 )
-from anonymous_simulation_mcp.runtime import CAMERA_ID, PRODUCT_ID, SESSION_ID, FixtureRuntime
+from anonymous_simulation_mcp.runtime import CAMERA_ID, SESSION_ID, FixtureRuntime, product_id
 
 
-def _config(*, maximum_viewers: int = 16) -> Config:
+def _config(*, viewer_slots: int = 2) -> Config:
     return Config(
         port=8812,
         allowed_hosts=("anonymous-simulation-mcp:8812",),
@@ -32,7 +32,7 @@ def _config(*, maximum_viewers: int = 16) -> Config:
         public_media_host="127.0.0.1",
         public_media_port=48030,
         lease_seconds=120,
-        maximum_viewers=maximum_viewers,
+        viewer_slots=viewer_slots,
     )
 
 
@@ -45,7 +45,7 @@ def _open(instance: str) -> OpenLiveViewRequest:
 
 
 @pytest.mark.asyncio
-async def test_distinct_actors_share_one_authoritative_product() -> None:
+async def test_distinct_actors_receive_distinct_viewer_products() -> None:
     runtime = FixtureRuntime(_config())
     first = await runtime.open("actor-a", "group:operators", _open("browser-a"))
     second = await runtime.open("actor-b", "group:operators", _open("browser-b"))
@@ -53,10 +53,14 @@ async def test_distinct_actors_share_one_authoritative_product() -> None:
 
     assert first.stream.live_view_id != second.stream.live_view_id
     assert first.access_token != second.access_token
-    assert first.stream.stream_product_id == second.stream.stream_product_id == PRODUCT_ID
+    assert first.stream.stream_product_id == product_id(0)
+    assert second.stream.stream_product_id == product_id(1)
+    assert first.stream.capacity_slot == 0
+    assert second.stream.capacity_slot == 1
     assert state.stream_products[0].render_products == 1
     assert state.stream_products[0].encoder_sessions == 1
-    assert state.stream_products[0].connected_viewers == 2
+    assert state.stream_products[1].render_products == 1
+    assert state.stream_products[1].encoder_sessions == 1
 
 
 @pytest.mark.asyncio
@@ -81,7 +85,7 @@ async def test_token_rotation_and_owner_isolation() -> None:
 
 
 @pytest.mark.asyncio
-async def test_closing_one_viewer_leaves_the_shared_product_live() -> None:
+async def test_closing_one_viewer_releases_only_its_product() -> None:
     runtime = FixtureRuntime(_config())
     first = await runtime.open("actor-a", "group:operators", _open("browser-a"))
     await runtime.open("actor-b", "group:operators", _open("browser-b"))
@@ -97,19 +101,21 @@ async def test_closing_one_viewer_leaves_the_shared_product_live() -> None:
     assert closed.closed
     state = await runtime.fixture_state()
     assert state.active_viewer_leases == 1
-    assert state.stream_products[0].render_products == 1
-    assert state.stream_products[0].encoder_sessions == 1
+    assert state.stream_products[0].render_products == 0
+    assert state.stream_products[0].encoder_sessions == 0
+    assert state.stream_products[1].render_products == 1
+    assert state.stream_products[1].encoder_sessions == 1
 
 
 @pytest.mark.asyncio
 async def test_capacity_rejection_does_not_mutate_the_product() -> None:
-    runtime = FixtureRuntime(_config(maximum_viewers=1))
+    runtime = FixtureRuntime(_config(viewer_slots=1))
     await runtime.open("actor-a", "group:operators", _open("browser-a"))
     with pytest.raises(ValueError, match="capacity"):
         await runtime.open("actor-b", "group:operators", _open("browser-b"))
     state = await runtime.fixture_state()
     assert state.active_viewer_leases == 1
-    assert state.stream_products[0].stream_product_id == PRODUCT_ID
+    assert state.stream_products[0].stream_product_id == product_id(0)
 
 
 def test_docs_index_lists_the_required_documents() -> None:

@@ -78,12 +78,12 @@ VALID_ENVIRONMENT = {
     "UAV_SIM_TILE_CACHE_POLICY": "persistent",
     "UAV_SIM_WORLD_SOURCE": "google_photorealistic_3d_tiles",
     "UAV_SIM_RENDERING_HZ": "30",
+    "UAV_SIM_LIVE_VIEWER_SLOTS": "2",
     "UAV_SIM_LIVE_PUBLIC_MEDIA_IP": "127.0.0.1",
     "UAV_SIM_OPERATOR_CAMERAS_JSON": json.dumps(
         [
             {
                 "cameraId": "follow",
-                "physicalSlot": 0,
                 "revision": 1,
                 "rig": {
                     "kind": "follow_entity",
@@ -377,7 +377,7 @@ class RuntimeConfigTests(unittest.TestCase):
             server_source,
         )
 
-    def test_preconfiguration_accepts_ephemeral_product_reset(self) -> None:
+    def test_preconfiguration_accepts_ephemeral_viewer_slot_reset(self) -> None:
         server_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "server.py"
         ).read_text()
@@ -385,7 +385,7 @@ class RuntimeConfigTests(unittest.TestCase):
             "class PreconfigurationApplication:", maxsplit=1
         )[1].split("class AdapterApplication:", maxsplit=1)[0]
         self.assertIn(
-            '"/v1/live-products/deactivate-all-on-demand"', preconfiguration
+            '"/v1/live-products/release-all"', preconfiguration
         )
         self.assertIn(
             'return web.json_response({"accepted": True})', preconfiguration

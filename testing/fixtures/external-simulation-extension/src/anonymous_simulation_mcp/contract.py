@@ -23,6 +23,7 @@ class CameraHealth(str, Enum):
 
 
 class ProductLifecycle(str, Enum):
+    INACTIVE = "inactive"
     READY = "ready"
     FAILED = "failed"
 
@@ -37,7 +38,6 @@ class CameraDescriptor(WireModel):
     schema_version: str = "veoveo.io/live-view/v2"
     session_id: str = Field(min_length=1, max_length=128)
     camera_id: str = Field(min_length=1, max_length=128)
-    stream_product_id: str = Field(min_length=1, max_length=128)
     rig: str = "fixed"
     width_px: int = Field(ge=16, le=16_384)
     height_px: int = Field(ge=16, le=16_384)
@@ -49,12 +49,15 @@ class CameraDescriptor(WireModel):
 class StreamProduct(WireModel):
     schema_version: str = "veoveo.io/live-view/v2"
     stream_product_id: str = Field(min_length=1, max_length=128)
-    camera_id: str = Field(min_length=1, max_length=128)
+    capacity_slot: int = Field(ge=0, le=1_023)
+    camera_id: str | None = Field(default=None, min_length=1, max_length=128)
+    live_view_id: str | None = Field(default=None, min_length=1, max_length=128)
     lifecycle: ProductLifecycle
     codec: str = "h264"
     hardware_encoder: str = "nvidia_nvenc"
-    render_products: int = 1
-    encoder_sessions: int = 1
+    render_products: int = Field(ge=0, le=1)
+    encoder_sessions: int = Field(ge=0, le=1)
+    active_viewer_leases: int = Field(ge=0, le=1)
     connected_viewers: int = Field(ge=0)
     last_frame_sequence: int = Field(ge=0)
 
@@ -84,6 +87,7 @@ class ViewerLease(WireModel):
     session_id: str
     camera_id: str
     stream_product_id: str
+    capacity_slot: int = Field(ge=0, le=1_023)
     owner: str
     viewer_actor: str
     viewer_instance_id: str

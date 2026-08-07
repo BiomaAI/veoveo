@@ -86,12 +86,6 @@ pub(super) struct Args {
     pub(super) live_view_lease_seconds: u64,
     #[arg(
         long,
-        env = "UAV_SIM_LIVE_VIEW_IDLE_GRACE_SECONDS",
-        default_value_t = 5
-    )]
-    pub(super) live_view_idle_grace_seconds: u64,
-    #[arg(
-        long,
         env = "UAV_SIM_LIVE_VIEW_MAXIMUM_FRAME_AGE_MS",
         default_value_t = 2_000
     )]
@@ -135,14 +129,6 @@ impl Args {
             "live-view lease duration must be positive"
         );
         Ok(Duration::from_secs(self.live_view_lease_seconds))
-    }
-
-    pub(super) fn live_view_idle_grace(&self) -> anyhow::Result<Duration> {
-        anyhow::ensure!(
-            self.live_view_idle_grace_seconds > 0,
-            "live-view idle grace must be positive"
-        );
-        Ok(Duration::from_secs(self.live_view_idle_grace_seconds))
     }
 }
 

@@ -7,7 +7,14 @@ from typing import Any
 
 import numpy as np
 
-from .operator_camera import CameraStreamPolicy, OperatorCameraDefinition
+from .operator_camera import (
+    CameraOptics,
+    CameraStreamPolicy,
+    OperatorCameraDefinition,
+    Pose,
+    apply_usd_camera_pose,
+    define_usd_camera,
+)
 from .operator_camera_config import OperatorLiveViewRuntimeConfig
 from .operator_health import OperatorProductHealth
 
@@ -20,18 +27,16 @@ _capsule_pointer.argtypes = [ctypes.py_object, ctypes.c_char_p]
 _capsule_pointer.restype = ctypes.c_void_p
 
 
-def operator_product_name(camera_id: str) -> str:
-    if not camera_id or not all(
-        character.isascii()
-        and (character.isalnum() or character in {"_", "-"})
-        for character in camera_id
-    ):
-        raise ValueError("operator-camera product identity is invalid")
-    return f"uav_operator_{camera_id.replace('-', '_')}"
+def operator_product_name(capacity_slot: int) -> str:
+    if not 0 <= capacity_slot <= 31:
+        raise ValueError("viewer-product capacity slot must be 0-31")
+    return f"uav_viewer_slot_{capacity_slot}"
 
 
-def operator_stream_product_id(camera_id: str) -> str:
-    return f"product-{camera_id}"
+def operator_stream_product_id(capacity_slot: int) -> str:
+    if not 0 <= capacity_slot <= 31:
+        raise ValueError("viewer-product capacity slot must be 0-31")
+    return f"product-slot-{capacity_slot}"
 
 
 def livestream_aov_product_arguments(
@@ -61,18 +66,14 @@ def livestream_aov_product_arguments(
 
 def livestream_aov_arguments(config: OperatorLiveViewRuntimeConfig) -> list[str]:
     arguments: list[str] = []
-    for camera in config.cameras:
-        if camera.stream_policy is CameraStreamPolicy.DISABLED:
-            continue
+    for capacity_slot in range(config.viewer_slot_count):
         arguments.extend(
             livestream_aov_product_arguments(
-                operator_product_name(camera.camera_id),
-                signaling_port=(
-                    config.signaling_port_base + camera.physical_slot
-                ),
-                media_port=config.media_port_base + camera.physical_slot,
+                operator_product_name(capacity_slot),
+                signaling_port=config.signaling_port_base + capacity_slot,
+                media_port=config.media_port_base + capacity_slot,
                 public_media_ip=config.public_media_ip,
-                target_fps=camera.optics.frame_rate_hz,
+                target_fps=config.viewer_optics.frame_rate_hz,
             )
         )
     return arguments
@@ -81,7 +82,8 @@ def livestream_aov_arguments(config: OperatorLiveViewRuntimeConfig) -> list[str]
 class OperatorRenderProduct:
     def __init__(
         self,
-        definition: OperatorCameraDefinition,
+        capacity_slot: int,
+        optics: CameraOptics,
         camera_path: str,
         *,
         maximum_frame_age_ms: int = 1_000,
@@ -91,26 +93,29 @@ class OperatorRenderProduct:
         from carb.eventdispatcher import get_eventdispatcher
         from omni.kit.hydra_texture import create_hydra_texture
 
-        self.definition = definition
+        self.capacity_slot = capacity_slot
+        self.optics = optics
         self.camera_path = camera_path
-        self.product_id = operator_stream_product_id(definition.camera_id)
-        self.name = operator_product_name(definition.camera_id)
+        self.product_id = operator_stream_product_id(capacity_slot)
+        self.name = operator_product_name(capacity_slot)
         self._lock = threading.Lock()
         self._active = False
         self._closed = False
         self._capture_pending = False
         self._last_capture_requested = 0.0
         self._failure: BaseException | None = None
+        self._camera_id: str | None = None
+        self._live_view_id: str | None = None
         self._health = OperatorProductHealth(maximum_frame_age_ms)
         self._hydra_texture = create_hydra_texture(
             self.name,
-            definition.optics.width_px,
-            definition.optics.height_px,
+            optics.width_px,
+            optics.height_px,
             usd_camera_path=camera_path,
             hydra_engine_name="rtx",
             is_async=True,
             is_async_low_latency=False,
-            hydra_tick_rate=definition.optics.frame_rate_hz,
+            hydra_tick_rate=optics.frame_rate_hz,
         )
         actual_path = self._hydra_texture.get_render_product_path()
         expected_path = f"{RENDER_PRODUCT_PREFIX}/{self.name}"
@@ -129,22 +134,25 @@ class OperatorRenderProduct:
             on_event=self._on_drawable,
             filter=self._hydra_texture.get_event_key(),
         )
-        if definition.stream_policy is CameraStreamPolicy.CONTINUOUS:
-            self.activate()
-        else:
-            self._hydra_texture.updates_enabled = False
+        self._hydra_texture.updates_enabled = False
 
     @property
     def active(self) -> bool:
         with self._lock:
             return self._active and not self._closed
 
-    def activate(self) -> None:
+    def assign(self, camera_id: str, live_view_id: str) -> None:
         with self._lock:
             if self._closed:
-                raise RuntimeError("operator-camera product is closed")
+                raise RuntimeError("viewer product is closed")
             if self._active:
-                return
+                if self._camera_id == camera_id and self._live_view_id == live_view_id:
+                    return
+                raise RuntimeError("viewer product is already assigned")
+            if not camera_id or not live_view_id:
+                raise ValueError("viewer product assignment identities are required")
+            self._camera_id = camera_id
+            self._live_view_id = live_view_id
             self._active = True
             self._failure = None
             self._capture_pending = False
@@ -152,22 +160,41 @@ class OperatorRenderProduct:
             self._health.activate()
         self._hydra_texture.updates_enabled = True
 
-    def deactivate(self) -> None:
-        if self.definition.stream_policy is CameraStreamPolicy.CONTINUOUS:
-            return
+    def release(self, live_view_id: str) -> None:
         with self._lock:
             if not self._active:
                 return
+            if self._live_view_id != live_view_id:
+                raise RuntimeError("viewer product assignment does not match the lease")
             self._active = False
             self._capture_pending = False
+            self._camera_id = None
+            self._live_view_id = None
             self._health.deactivate()
         self._hydra_texture.updates_enabled = False
+
+    def release_unconditionally(self) -> None:
+        with self._lock:
+            self._active = False
+            self._capture_pending = False
+            self._camera_id = None
+            self._live_view_id = None
+            self._health.deactivate()
+        self._hydra_texture.updates_enabled = False
+
+    def assignment(self) -> tuple[str, str] | None:
+        with self._lock:
+            if not self._active or self._camera_id is None or self._live_view_id is None:
+                return None
+            return (self._camera_id, self._live_view_id)
 
     def close(self) -> None:
         with self._lock:
             self._closed = True
             self._active = False
             self._capture_pending = False
+            self._camera_id = None
+            self._live_view_id = None
             self._health.deactivate()
         self._hydra_texture.updates_enabled = False
         self._subscription = None
@@ -178,16 +205,17 @@ class OperatorRenderProduct:
         if failure is not None:
             self._health.fail(str(failure) or type(failure).__name__)
         result = self._health.snapshot(content_ready=content_ready)
-        result.update(
-            {
-                "cameraId": self.definition.camera_id,
-                "streamProductId": self.product_id,
-                "physicalSlot": self.definition.physical_slot,
-                "activeViewerLeases": 0,
-                "connectedViewers": 0,
-                "nvencSessions": 1 if self.active else 0,
-            }
-        )
+        assignment = self.assignment()
+        result.update({
+            "streamProductId": self.product_id,
+            "capacitySlot": self.capacity_slot,
+            "activeViewerLeases": 1 if assignment is not None else 0,
+            "connectedViewers": 0,
+            "nvencSessions": 1 if self.active else 0,
+        })
+        if assignment is not None:
+            result["cameraId"] = assignment[0]
+            result["liveViewId"] = assignment[1]
         return result
 
     def _on_drawable(self, event: Any) -> None:
@@ -229,10 +257,10 @@ class OperatorRenderProduct:
         pixel_format: Any,
     ) -> None:
         try:
-            expected = self.definition.optics.width_px * self.definition.optics.height_px * 4
+            expected = self.optics.width_px * self.optics.height_px * 4
             if (
-                width != self.definition.optics.width_px
-                or height != self.definition.optics.height_px
+                width != self.optics.width_px
+                or height != self.optics.height_px
                 or buffer_size != expected
                 or str(pixel_format) != RGBA8_TEXTURE_FORMAT
             ):
@@ -267,67 +295,110 @@ class OperatorRenderProduct:
 
 
 class OperatorProductCollection:
-    def __init__(self, products: tuple[OperatorRenderProduct, ...]) -> None:
-        self._products = {product.definition.camera_id: product for product in products}
+    def __init__(
+        self,
+        products: tuple[OperatorRenderProduct, ...],
+        cameras: tuple[OperatorCameraDefinition, ...],
+        transforms: dict[int, Any],
+    ) -> None:
+        self._products = {product.capacity_slot: product for product in products}
         if len(self._products) != len(products):
-            raise ValueError("operator product camera identities must be unique")
+            raise ValueError("viewer-product capacity slots must be unique")
+        self._cameras = {
+            camera.camera_id: camera
+            for camera in cameras
+            if camera.stream_policy is not CameraStreamPolicy.DISABLED
+        }
+        self._transforms = transforms
 
     @classmethod
     def create(
         cls,
-        definitions: tuple[OperatorCameraDefinition, ...],
-        camera_paths: dict[str, str],
+        config: OperatorLiveViewRuntimeConfig,
+        stage: Any,
     ) -> "OperatorProductCollection":
-        return cls(
-            tuple(
-                OperatorRenderProduct(
-                    definition,
-                    camera_paths[definition.camera_id],
-                )
-                for definition in definitions
-                if definition.stream_policy is not CameraStreamPolicy.DISABLED
+        transforms: dict[int, Any] = {}
+        products = []
+        for capacity_slot in range(config.viewer_slot_count):
+            camera_path = f"/World/OperatorViewerCameras/slot_{capacity_slot}"
+            transforms[capacity_slot] = define_usd_camera(
+                stage, camera_path, config.viewer_optics
             )
-        )
+            products.append(
+                OperatorRenderProduct(
+                    capacity_slot,
+                    config.viewer_optics,
+                    camera_path,
+                )
+            )
+        return cls(tuple(products), config.cameras, transforms)
 
-    def activate(self, camera_id: str, *, content_ready: bool) -> dict[str, object]:
-        product = self._require(camera_id)
-        product.activate()
+    def assign(
+        self,
+        capacity_slot: int,
+        camera_id: str,
+        live_view_id: str,
+        *,
+        content_ready: bool,
+    ) -> dict[str, object]:
+        if camera_id not in self._cameras:
+            raise ValueError(f"unknown streamable logical camera {camera_id!r}")
+        product = self._require(capacity_slot)
+        product.assign(camera_id, live_view_id)
         return product.state(content_ready=content_ready)
 
-    def deactivate(self, camera_id: str, *, content_ready: bool) -> dict[str, object]:
-        product = self._require(camera_id)
-        product.deactivate()
+    def release(
+        self,
+        capacity_slot: int,
+        live_view_id: str,
+        *,
+        content_ready: bool,
+    ) -> dict[str, object]:
+        product = self._require(capacity_slot)
+        product.release(live_view_id)
         return product.state(content_ready=content_ready)
 
-    def deactivate_all_on_demand(self) -> None:
+    def release_all(self) -> None:
         for product in self._products.values():
-            product.deactivate()
+            product.release_unconditionally()
+
+    def sync_camera_poses(self, camera_poses: dict[str, Pose]) -> None:
+        for capacity_slot, product in self._products.items():
+            assignment = product.assignment()
+            if assignment is None:
+                continue
+            camera_id, _ = assignment
+            pose = camera_poses.get(camera_id)
+            if pose is not None:
+                apply_usd_camera_pose(self._transforms[capacity_slot], pose)
 
     def state(self, *, content_ready: bool) -> list[dict[str, object]]:
         return [
             product.state(content_ready=content_ready)
             for product in sorted(
                 self._products.values(),
-                key=lambda product: product.definition.physical_slot,
+                key=lambda product: product.capacity_slot,
             )
         ]
 
     def active_camera_ids(self) -> tuple[str, ...]:
         return tuple(
-            product.definition.camera_id
+            assignment[0]
             for product in sorted(
                 self._products.values(),
-                key=lambda product: product.definition.physical_slot,
+                key=lambda product: product.capacity_slot,
             )
-            if product.active
+            if (assignment := product.assignment()) is not None
         )
 
     def close(self) -> None:
         for product in self._products.values():
             product.close()
 
-    def _require(self, camera_id: str) -> OperatorRenderProduct:
+    def _require(self, capacity_slot: int) -> OperatorRenderProduct:
         try:
-            return self._products[camera_id]
+            return self._products[capacity_slot]
         except KeyError as error:
-            raise ValueError(f"unknown operator-camera product {camera_id!r}") from error
+            raise ValueError(
+                f"unknown viewer-product capacity slot {capacity_slot}"
+            ) from error

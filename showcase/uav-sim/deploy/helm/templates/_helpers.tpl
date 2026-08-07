@@ -77,6 +77,8 @@
   value: {{ .root.Values.session.camera.vehicleId | quote }}
 - name: UAV_SIM_OPERATOR_CAMERAS_JSON
   value: {{ .root.Values.liveView.cameras | toJson | quote }}
+- name: UAV_SIM_LIVE_VIEWER_SLOTS
+  value: {{ .root.Values.liveView.viewerSlots | quote }}
 - name: UAV_SIM_LIVE_SIGNALING_PORT_BASE
   value: {{ .root.Values.liveView.signalingPortBase | quote }}
 - name: UAV_SIM_LIVE_MEDIA_PORT_BASE
@@ -173,16 +175,15 @@
 {{- end }}
 
 {{- define "uav-sim.validateLiveView" -}}
-{{- $count := len .Values.liveView.cameras -}}
-{{- if or (lt $count 1) (gt $count 32) -}}
-{{- fail "liveView.cameras must contain 1-32 stable camera products" -}}
+{{- $cameraCount := len .Values.liveView.cameras -}}
+{{- if or (lt $cameraCount 1) (gt $cameraCount 32) -}}
+{{- fail "liveView.cameras must contain 1-32 logical cameras" -}}
 {{- end -}}
-{{- range $index, $camera := .Values.liveView.cameras -}}
-{{- if ne (int $camera.physicalSlot) $index -}}
-{{- fail "liveView camera physicalSlot values must be ordered and contiguous from zero" -}}
+{{- $slotCount := int .Values.liveView.viewerSlots -}}
+{{- if or (lt $slotCount 1) (gt $slotCount 32) -}}
+{{- fail "liveView.viewerSlots must be between 1 and 32" -}}
 {{- end -}}
-{{- end -}}
-{{- $lastSlot := sub $count 1 -}}
+{{- $lastSlot := sub $slotCount 1 -}}
 {{- if gt (add (int .Values.liveView.signalingPortBase) $lastSlot) 65535 -}}
 {{- fail "liveView signaling port range exceeds 65535" -}}
 {{- end -}}

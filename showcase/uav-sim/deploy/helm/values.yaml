@@ -128,10 +128,9 @@ liveView:
   publicMediaHost: 127.0.0.1
   signalingPortBase: 49100
   mediaPortBase: 47998
+  viewerSlots: 2
   leaseSeconds: 120
-  idleGraceSeconds: 5
   maximumFrameAgeMs: 2000
-  maximumViewerLeases: 64
   signalingIngress:
     enabled: false
     className: ""
@@ -150,7 +149,6 @@ liveView:
     nodePortBase: null
   cameras:
     - cameraId: follow
-      physicalSlot: 0
       revision: 1
       rig:
         kind: follow_entity
@@ -171,7 +169,6 @@ liveView:
         farClipM: 100000.0
       streamPolicy: continuous
     - cameraId: chase
-      physicalSlot: 1
       revision: 1
       rig:
         kind: chase_entity
@@ -186,7 +183,6 @@ liveView:
       optics: *operatorOptics
       streamPolicy: on_demand
     - cameraId: orbit
-      physicalSlot: 2
       revision: 1
       rig:
         kind: orbit
@@ -202,7 +198,6 @@ liveView:
       optics: *operatorOptics
       streamPolicy: on_demand
     - cameraId: formation
-      physicalSlot: 3
       revision: 1
       rig:
         kind: formation_overview

@@ -9,7 +9,6 @@ from typing import Any, Callable
 from .camera_quality import CameraFrameQuality
 from .config import RuntimeConfig
 from .geo import enu_to_geodetic
-from .operator_camera import CameraStreamPolicy
 from .operator_camera_config import live_camera_descriptor
 from .physics_batch import FleetPhysicsTiming
 from .render_pose import RenderPoseAgreement
@@ -103,17 +102,17 @@ class RuntimeState:
             ],
             "stream_products": [
                 {
-                    "streamProductId": f"product-{camera.camera_id}",
-                    "cameraId": camera.camera_id,
-                    "physicalSlot": camera.physical_slot,
+                    "streamProductId": f"product-slot-{capacity_slot}",
+                    "capacitySlot": capacity_slot,
                     "lifecycle": "inactive",
                     "activeViewerLeases": 0,
                     "connectedViewers": 0,
                     "nvencSessions": 0,
                     "encodedFrames": 0,
                 }
-                for camera in config.operator_live_view.cameras
-                if camera.stream_policy is not CameraStreamPolicy.DISABLED
+                for capacity_slot in range(
+                    config.operator_live_view.viewer_slot_count
+                )
             ],
             "vehicles": [],
             "recordings": [

@@ -420,11 +420,8 @@ def run(config: RuntimeConfig) -> None:
             stage,
         )
         operator_products = OperatorProductCollection.create(
-            config.operator_live_view.cameras,
-            {
-                camera.definition.camera_id: camera.camera_path
-                for camera in operator_cameras.cameras
-            },
+            config.operator_live_view,
+            stage,
         )
         extension_manager.set_extension_enabled_immediate(
             "omni.kit.livestream.aov", True
@@ -492,6 +489,7 @@ def run(config: RuntimeConfig) -> None:
 
         def update_operator_cameras(now: float | None = None) -> None:
             assert operator_cameras is not None
+            assert operator_products is not None
             entities = operator_entity_transforms()
             for vehicle_id, physical_camera in physical_cameras.items():
                 physical_camera.update(entities[vehicle_id].pose)
@@ -500,6 +498,13 @@ def run(config: RuntimeConfig) -> None:
                 simulation_generation=simulation_generation,
                 physics_step=physics_step,
                 monotonic_seconds=time.monotonic() if now is None else now,
+            )
+            operator_products.sync_camera_poses(
+                {
+                    camera.definition.camera_id: camera.last_pose
+                    for camera in operator_cameras.cameras
+                    if camera.last_pose is not None
+                }
             )
 
         def advance_physics(_dt: float) -> None:

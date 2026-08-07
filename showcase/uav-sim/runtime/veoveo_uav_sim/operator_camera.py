@@ -219,7 +219,6 @@ class CameraOptics:
 @dataclass(frozen=True, slots=True)
 class OperatorCameraDefinition:
     camera_id: str
-    physical_slot: int
     rig_kind: CameraRigKind
     rig: object
     optics: CameraOptics
@@ -229,10 +228,43 @@ class OperatorCameraDefinition:
     def __post_init__(self) -> None:
         if not self.camera_id or len(self.camera_id) > 128:
             raise ValueError("operator-camera identity is invalid")
-        if not 0 <= self.physical_slot <= 255:
-            raise ValueError("operator-camera physical slot must be 0-255")
         if self.revision < 1:
             raise ValueError("operator-camera revision must be positive")
+
+
+def define_usd_camera(stage: Any, camera_path: str, optics: CameraOptics) -> Any:
+    from pxr import Gf, UsdGeom
+
+    camera = UsdGeom.Camera.Define(stage, camera_path)
+    vertical_aperture_mm = 20.25
+    horizontal_aperture_mm = vertical_aperture_mm * (
+        optics.width_px / optics.height_px
+    )
+    camera.CreateHorizontalApertureAttr(horizontal_aperture_mm)
+    focal_length_mm = (vertical_aperture_mm * 0.5) / math.tan(
+        math.radians(optics.vertical_fov_degrees) * 0.5
+    )
+    camera.CreateVerticalApertureAttr(vertical_aperture_mm)
+    camera.CreateFocalLengthAttr(focal_length_mm)
+    camera.CreateClippingRangeAttr(
+        Gf.Vec2f(optics.near_clip_m, optics.far_clip_m)
+    )
+    return UsdGeom.Xformable(camera.GetPrim()).AddTransformOp(
+        precision=UsdGeom.XformOp.PrecisionDouble
+    )
+
+
+def apply_usd_camera_pose(transform_operation: Any, pose: Pose) -> None:
+    from pxr import Gf
+
+    orientation = pose.orientation_xyzw.normalized()
+    rotation = Gf.Quatd(
+        orientation.w,
+        Gf.Vec3d(orientation.x, orientation.y, orientation.z),
+    )
+    matrix = Gf.Matrix4d().SetRotate(rotation)
+    matrix.SetTranslateOnly(Gf.Vec3d(*pose.position_m.as_tuple()))
+    transform_operation.Set(matrix)
 
 
 def compose_pose(parent: Pose, local: Pose) -> Pose:
@@ -268,29 +300,8 @@ class AuthoritativeOperatorCamera:
         definition: OperatorCameraDefinition,
         stage: Any,
     ) -> "AuthoritativeOperatorCamera":
-        from pxr import Gf, UsdGeom
-
         camera_path = f"{cls.CAMERA_ROOT}/{definition.camera_id}"
-        camera = UsdGeom.Camera.Define(stage, camera_path)
-        vertical_aperture_mm = 20.25
-        horizontal_aperture_mm = vertical_aperture_mm * (
-            definition.optics.width_px / definition.optics.height_px
-        )
-        camera.CreateHorizontalApertureAttr(horizontal_aperture_mm)
-        focal_length_mm = (vertical_aperture_mm * 0.5) / math.tan(
-            math.radians(definition.optics.vertical_fov_degrees) * 0.5
-        )
-        camera.CreateVerticalApertureAttr(vertical_aperture_mm)
-        camera.CreateFocalLengthAttr(focal_length_mm)
-        camera.CreateClippingRangeAttr(
-            Gf.Vec2f(
-                definition.optics.near_clip_m,
-                definition.optics.far_clip_m,
-            )
-        )
-        transform = UsdGeom.Xformable(camera.GetPrim()).AddTransformOp(
-            precision=UsdGeom.XformOp.PrecisionDouble
-        )
+        transform = define_usd_camera(stage, camera_path, definition.optics)
         return cls(definition, camera_path, transform)
 
     @property
@@ -335,16 +346,7 @@ class AuthoritativeOperatorCamera:
         return pose
 
     def _apply_pose(self, pose: Pose) -> None:
-        from pxr import Gf
-
-        orientation = pose.orientation_xyzw.normalized()
-        rotation = Gf.Quatd(
-            orientation.w,
-            Gf.Vec3d(orientation.x, orientation.y, orientation.z),
-        )
-        matrix = Gf.Matrix4d().SetRotate(rotation)
-        matrix.SetTranslateOnly(Gf.Vec3d(*pose.position_m.as_tuple()))
-        self._transform_operation.Set(matrix)
+        apply_usd_camera_pose(self._transform_operation, pose)
 
 
 class AuthoritativeOperatorCameraCollection:
@@ -371,7 +373,7 @@ class AuthoritativeOperatorCameraCollection:
         return tuple(
             sorted(
                 self._cameras.values(),
-                key=lambda camera: camera.definition.physical_slot,
+                key=lambda camera: camera.definition.camera_id,
             )
         )
 

@@ -18,6 +18,7 @@ use crate::{
     adapter::Adapter,
     contract::{
         CloseLiveViewRequest, CloseLiveViewResult, OpenLiveViewRequest, RenewLiveViewRequest,
+        SimulationState,
     },
     server::live_view_audit::LiveViewAudit,
 };
@@ -50,7 +51,6 @@ struct LiveViewStateStore {
 #[derive(Debug, Clone)]
 pub(super) struct LiveViewConfig {
     pub(super) lease_duration: Duration,
-    pub(super) idle_grace: Duration,
     pub(super) public_signaling_url: String,
     pub(super) public_media_host: IpAddr,
     pub(super) public_media_port_base: u16,
@@ -89,10 +89,6 @@ impl LiveViewService {
             "live-view lease duration must be positive"
         );
         anyhow::ensure!(
-            !config.idle_grace.is_zero(),
-            "live-view idle grace must be positive"
-        );
-        anyhow::ensure!(
             config.maximum_frame_age_ms > 0,
             "maximum live-view frame age must be positive"
         );
@@ -117,9 +113,9 @@ impl LiveViewService {
         }))
     }
 
-    pub(super) async fn reset_ephemeral_products(&self) -> Result<(), LiveViewError> {
+    pub(super) async fn release_all_viewer_slots(&self) -> Result<(), LiveViewError> {
         self.adapter
-            .deactivate_all_on_demand_products()
+            .release_all_viewer_slots()
             .await
             .map_err(|error| LiveViewError::Runtime(error.to_string()))
     }
@@ -130,26 +126,7 @@ impl LiveViewService {
         viewer_actor: PrincipalId,
         request: OpenLiveViewRequest,
     ) -> Result<LiveViewConnection, LiveViewError> {
-        let simulation = self
-            .adapter
-            .state()
-            .await
-            .map_err(|error| LiveViewError::Runtime(error.to_string()))?;
-        if simulation.session_id.as_str() != request.session_id.as_str() {
-            return Err(LiveViewError::SessionNotFound(request.session_id));
-        }
-        let camera = simulation
-            .live_cameras
-            .iter()
-            .find(|camera| camera.camera_id == request.camera_id)
-            .cloned()
-            .ok_or_else(|| LiveViewError::CameraNotFound(request.camera_id.clone()))?;
-        if camera.stream_policy == LiveCameraStreamPolicy::Disabled {
-            return Err(LiveViewError::CameraUnavailable);
-        }
-
         let mut state = self.state.lock().await;
-        close_expired(&mut state.leases);
         if let Some(existing_id) = state.leases.iter().find_map(|(id, lease)| {
             (active(&lease.state)
                 && lease.state.owner == owner
@@ -173,27 +150,62 @@ impl LiveViewService {
         {
             return Err(LiveViewError::Capacity);
         }
-        let first_for_product = !state
-            .leases
-            .values()
-            .any(|lease| lease.state.camera_id == camera.camera_id && active(&lease.state));
-        if first_for_product && camera.stream_policy == LiveCameraStreamPolicy::OnDemand {
-            self.adapter
-                .set_live_product_active(&camera.camera_id, true)
-                .await
-                .map_err(|error| LiveViewError::Runtime(error.to_string()))?;
+
+        let simulation = self
+            .adapter
+            .state()
+            .await
+            .map_err(|error| LiveViewError::Runtime(error.to_string()))?;
+        if simulation.session_id.as_str() != request.session_id.as_str() {
+            return Err(LiveViewError::SessionNotFound(request.session_id));
         }
+        let camera = simulation
+            .live_cameras
+            .iter()
+            .find(|camera| camera.camera_id == request.camera_id)
+            .cloned()
+            .ok_or_else(|| LiveViewError::CameraNotFound(request.camera_id.clone()))?;
+        if camera.stream_policy == LiveCameraStreamPolicy::Disabled {
+            return Err(LiveViewError::CameraUnavailable);
+        }
+        let capacity_slot = simulation
+            .stream_products
+            .iter()
+            .filter(|product| {
+                product.lifecycle == veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive
+                    && product.camera_id.is_none()
+                    && product.live_view_id.is_none()
+            })
+            .map(|product| product.capacity_slot)
+            .min()
+            .ok_or(LiveViewError::Capacity)?;
 
         let now = Utc::now();
         let expires_at = expiry(now, self.config.lease_duration)?;
         let live_view_id = LiveViewId::new(format!("view-{}", Uuid::now_v7()))
             .map_err(|_| LiveViewError::Identifier)?;
         let token = new_token()?;
-        let endpoint = self.endpoint(camera.physical_slot)?;
+        let product = self
+            .adapter
+            .assign_live_product(capacity_slot, &camera.camera_id, &live_view_id)
+            .await
+            .map_err(|error| LiveViewError::Runtime(error.to_string()))?;
+        if product.capacity_slot != capacity_slot
+            || product.camera_id.as_ref() != Some(&camera.camera_id)
+            || product.live_view_id.as_ref() != Some(&live_view_id)
+        {
+            let _ = self
+                .adapter
+                .release_live_product(capacity_slot, &live_view_id)
+                .await;
+            return Err(LiveViewError::Contract);
+        }
+        let endpoint = self.endpoint(capacity_slot)?;
         let stream = LiveViewState {
             schema_version: LIVE_VIEW_SCHEMA.to_owned(),
             live_view_id: live_view_id.clone(),
-            stream_product_id: camera.stream_product_id.clone(),
+            stream_product_id: product.stream_product_id.clone(),
+            capacity_slot,
             resource_uri: LiveViewUri::new(format!(
                 "uav-sim://session/{}/live-view/{live_view_id}",
                 request.session_id
@@ -204,7 +216,7 @@ impl LiveViewService {
             viewer_instance_id: request.viewer_instance_id,
             session_id: request.session_id,
             camera_id: camera.camera_id.clone(),
-            lifecycle: product_lifecycle(&simulation, &camera.camera_id),
+            lifecycle: product_lifecycle(&product),
             semantic_source: camera.rig.source(),
             selected_entity_id: selected_entity(&camera.rig),
             camera_revision: camera.revision,
@@ -222,22 +234,26 @@ impl LiveViewService {
             connected_viewers: 0,
             viewer_limit: 1,
             camera_health: camera.health,
-            last_frame_at: camera.last_frame_at,
+            last_frame_at: product.last_frame_at.or(camera.last_frame_at),
             maximum_frame_age_ms: self.config.maximum_frame_age_ms,
             endpoint,
             created_at: now,
             expires_at,
         };
         if stream.lifecycle == LiveViewLifecycle::Failed {
-            if first_for_product && camera.stream_policy == LiveCameraStreamPolicy::OnDemand {
-                let _ = self
-                    .adapter
-                    .set_live_product_active(&camera.camera_id, false)
-                    .await;
-            }
+            let _ = self
+                .adapter
+                .release_live_product(capacity_slot, &live_view_id)
+                .await;
             return Err(LiveViewError::CameraUnavailable);
         }
-        stream.validate().map_err(|_| LiveViewError::Contract)?;
+        if stream.validate().is_err() {
+            let _ = self
+                .adapter
+                .release_live_product(capacity_slot, &live_view_id)
+                .await;
+            return Err(LiveViewError::Contract);
+        }
         let (events, _) = watch::channel(signal(&stream));
         let lease = Lease {
             state: stream.clone(),
@@ -276,15 +292,10 @@ impl LiveViewService {
         }
         if lease.state.owner != *owner {
             close_lease(lease);
-            let camera_id = lease.state.camera_id.clone();
-            let last = !state
-                .leases
-                .values()
-                .any(|lease| lease.state.camera_id == camera_id && active(&lease.state));
+            let capacity_slot = lease.state.capacity_slot;
+            let live_view_id = lease.state.live_view_id.clone();
             drop(state);
-            if last {
-                self.arm_idle_deactivation(camera_id);
-            }
+            self.release_product(capacity_slot, &live_view_id).await?;
             return Err(LiveViewError::AuthorityRevoked);
         }
         let connection = rotate(&self.config, lease)?;
@@ -311,17 +322,21 @@ impl LiveViewService {
             .filter(|lease| lease.state.session_id == request.session_id)
             .ok_or_else(|| LiveViewError::ViewNotFound(request.live_view_id.clone()))?;
         authorize_owner(lease, owner, viewer_actor, &request.viewer_instance_id)?;
-        close_lease(lease);
-        let camera_id = lease.state.camera_id.clone();
         let resource_uri = lease.state.resource_uri.as_str().to_owned();
-        let last = !state
-            .leases
-            .values()
-            .any(|lease| lease.state.camera_id == camera_id && active(&lease.state));
-        drop(state);
-        if last {
-            self.arm_idle_deactivation(camera_id);
+        if matches!(
+            lease.state.lifecycle,
+            LiveViewLifecycle::Closed | LiveViewLifecycle::Failed
+        ) {
+            return Ok(CloseLiveViewResult {
+                resource_uri,
+                closed: true,
+            });
         }
+        close_lease(lease);
+        let capacity_slot = lease.state.capacity_slot;
+        let live_view_id = lease.state.live_view_id.clone();
+        drop(state);
+        self.release_product(capacity_slot, &live_view_id).await?;
         Ok(CloseLiveViewResult {
             resource_uri,
             closed: true,
@@ -334,8 +349,7 @@ impl LiveViewService {
         viewer_actor: &PrincipalId,
         session_id: &LiveSessionId,
     ) -> Vec<LiveViewState> {
-        let mut state = self.state.lock().await;
-        close_expired(&mut state.leases);
+        let state = self.state.lock().await;
         state
             .leases
             .values()
@@ -354,8 +368,7 @@ impl LiveViewService {
         viewer_actor: &PrincipalId,
         live_view_id: &LiveViewId,
     ) -> Result<LiveViewState, LiveViewError> {
-        let mut state = self.state.lock().await;
-        close_expired(&mut state.leases);
+        let state = self.state.lock().await;
         let lease = state
             .leases
             .get(live_view_id)
@@ -364,6 +377,21 @@ impl LiveViewService {
             return Err(LiveViewError::Ownership);
         }
         Ok(lease.state.clone())
+    }
+
+    pub(super) async fn project_product_usage(&self, simulation: &mut SimulationState) {
+        let state = self.state.lock().await;
+        for product in &mut simulation.stream_products {
+            let lease = product.live_view_id.as_ref().and_then(|live_view_id| {
+                state.leases.get(live_view_id).filter(|lease| {
+                    lease.state.capacity_slot == product.capacity_slot && active(&lease.state)
+                })
+            });
+            product.active_viewer_leases = u32::from(lease.is_some());
+            product.connected_viewers = lease
+                .map(|lease| lease.state.connected_viewers)
+                .unwrap_or(0);
+        }
     }
 
     pub(super) async fn authorize_signaling(
@@ -396,9 +424,23 @@ impl LiveViewService {
         let Some(lease) = state.leases.get_mut(live_view_id) else {
             return;
         };
-        lease.state.connected_viewers = lease.state.connected_viewers.saturating_sub(1);
-        if lease.state.connected_viewers == 0 && lease.state.lifecycle == LiveViewLifecycle::Live {
-            lease.state.lifecycle = LiveViewLifecycle::Ready;
+        if !active(&lease.state) {
+            return;
+        }
+        let capacity_slot = lease.state.capacity_slot;
+        let assigned_live_view_id = lease.state.live_view_id.clone();
+        close_lease(lease);
+        drop(state);
+        if let Err(error) = self
+            .release_product(capacity_slot, &assigned_live_view_id)
+            .await
+        {
+            tracing::error!(
+                %error,
+                live_view_id = %assigned_live_view_id,
+                capacity_slot,
+                "failed to release viewer product after signaling ended"
+            );
         }
     }
 
@@ -413,6 +455,18 @@ impl LiveViewService {
                 .checked_add(slot)
                 .ok_or(LiveViewError::Contract)?,
         })
+    }
+
+    async fn release_product(
+        &self,
+        capacity_slot: u16,
+        live_view_id: &LiveViewId,
+    ) -> Result<(), LiveViewError> {
+        self.adapter
+            .release_live_product(capacity_slot, live_view_id)
+            .await
+            .map(|_| ())
+            .map_err(|error| LiveViewError::Runtime(error.to_string()))
     }
 
     fn arm_expiry(
@@ -434,14 +488,15 @@ impl LiveViewService {
             }
             close_lease(lease);
             let expired = lease.state.clone();
-            let camera_id = lease.state.camera_id.clone();
-            let last = !state
-                .leases
-                .values()
-                .any(|lease| lease.state.camera_id == camera_id && active(&lease.state));
+            let capacity_slot = lease.state.capacity_slot;
             drop(state);
-            if last {
-                service.arm_idle_deactivation(camera_id);
+            if let Err(error) = service.release_product(capacity_slot, &live_view_id).await {
+                tracing::error!(
+                    %error,
+                    %live_view_id,
+                    capacity_slot,
+                    "failed to release expired viewer product"
+                );
             }
             if let Some(audit) = &service.audit
                 && let Err(error) = audit
@@ -454,41 +509,6 @@ impl LiveViewService {
                     .await
             {
                 tracing::error!(%error, live_view_id = %expired.live_view_id, "failed to persist live-view expiry audit");
-            }
-        });
-    }
-
-    fn arm_idle_deactivation(self: &Arc<Self>, camera_id: LiveCameraId) {
-        let service = self.clone();
-        tokio::spawn(async move {
-            tokio::time::sleep(service.config.idle_grace).await;
-            let state = service.state.lock().await;
-            if state
-                .leases
-                .values()
-                .any(|lease| lease.state.camera_id == camera_id && active(&lease.state))
-            {
-                return;
-            }
-            drop(state);
-            let simulation = match service.adapter.state().await {
-                Ok(simulation) => simulation,
-                Err(error) => {
-                    tracing::warn!(%camera_id, %error, "failed to inspect idle live product");
-                    return;
-                }
-            };
-            let on_demand = simulation.live_cameras.iter().any(|camera| {
-                camera.camera_id == camera_id
-                    && camera.stream_policy == LiveCameraStreamPolicy::OnDemand
-            });
-            if on_demand
-                && let Err(error) = service
-                    .adapter
-                    .set_live_product_active(&camera_id, false)
-                    .await
-            {
-                tracing::warn!(%camera_id, %error, "failed to deactivate idle live product");
             }
         });
     }
@@ -529,26 +549,13 @@ fn selected_entity(rig: &LiveCameraRig) -> Option<String> {
     }
 }
 
-fn product_lifecycle(
-    simulation: &crate::contract::SimulationState,
-    camera_id: &LiveCameraId,
-) -> LiveViewLifecycle {
-    simulation
-        .stream_products
-        .iter()
-        .find(|product| product.camera_id == *camera_id)
-        .map_or(LiveViewLifecycle::Failed, |product| {
-            match product.lifecycle {
-                veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive
-                | veoveo_mcp_contract::LiveStreamProductLifecycle::Starting => {
-                    LiveViewLifecycle::Starting
-                }
-                veoveo_mcp_contract::LiveStreamProductLifecycle::Ready => LiveViewLifecycle::Ready,
-                veoveo_mcp_contract::LiveStreamProductLifecycle::Failed => {
-                    LiveViewLifecycle::Failed
-                }
-            }
-        })
+fn product_lifecycle(product: &veoveo_mcp_contract::LiveStreamProductState) -> LiveViewLifecycle {
+    match product.lifecycle {
+        veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive
+        | veoveo_mcp_contract::LiveStreamProductLifecycle::Starting => LiveViewLifecycle::Starting,
+        veoveo_mcp_contract::LiveStreamProductLifecycle::Ready => LiveViewLifecycle::Ready,
+        veoveo_mcp_contract::LiveStreamProductLifecycle::Failed => LiveViewLifecycle::Failed,
+    }
 }
 
 fn active(state: &LiveViewState) -> bool {
@@ -556,18 +563,6 @@ fn active(state: &LiveViewState) -> bool {
         state.lifecycle,
         LiveViewLifecycle::Closed | LiveViewLifecycle::Failed
     ) && state.expires_at > Utc::now()
-}
-
-fn close_expired(leases: &mut BTreeMap<LiveViewId, Lease>) {
-    for lease in leases.values_mut().filter(|lease| {
-        lease.state.expires_at <= Utc::now()
-            && !matches!(
-                lease.state.lifecycle,
-                LiveViewLifecycle::Closed | LiveViewLifecycle::Failed
-            )
-    }) {
-        close_lease(lease);
-    }
 }
 
 fn close_lease(lease: &mut Lease) {
@@ -685,22 +680,43 @@ mod tests {
         }
     }
 
-    async fn service(on_demand: bool) -> (Arc<LiveViewService>, Arc<Adapter>) {
-        service_with(on_demand, Duration::from_secs(30), 8).await
+    async fn service(viewer_slots: u16) -> (Arc<LiveViewService>, Arc<Adapter>) {
+        service_with(
+            viewer_slots,
+            Duration::from_secs(30),
+            u32::from(viewer_slots),
+        )
+        .await
     }
 
     async fn service_with(
-        on_demand: bool,
+        viewer_slots: u16,
         lease_duration: Duration,
         maximum_viewer_leases: u32,
     ) -> (Arc<LiveViewService>, Arc<Adapter>) {
         let mut state = fake_state().unwrap();
-        if on_demand {
-            state.live_cameras[0].stream_policy = LiveCameraStreamPolicy::OnDemand;
-            state.stream_products[0].lifecycle =
-                veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive;
-            state.stream_products[0].nvenc_sessions = 0;
-        }
+        let template = state.stream_products[0].clone();
+        state.stream_products = (0..viewer_slots)
+            .map(
+                |capacity_slot| veoveo_mcp_contract::LiveStreamProductState {
+                    stream_product_id: veoveo_mcp_contract::LiveStreamProductId::new(format!(
+                        "product-slot-{capacity_slot}"
+                    ))
+                    .unwrap(),
+                    capacity_slot,
+                    camera_id: None,
+                    live_view_id: None,
+                    lifecycle: veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive,
+                    active_viewer_leases: 0,
+                    connected_viewers: 0,
+                    nvenc_sessions: 0,
+                    encoded_frames: 0,
+                    last_frame_at: None,
+                    visible: None,
+                    diagnostic: template.diagnostic.clone(),
+                },
+            )
+            .collect();
         let adapter = Arc::new(Adapter::Fake(Arc::new(TokioMutex::new(FakeAdapter::new(
             state,
         )))));
@@ -708,7 +724,6 @@ mod tests {
             adapter.clone(),
             LiveViewConfig {
                 lease_duration,
-                idle_grace: Duration::from_millis(10),
                 public_signaling_url: "wss://example.test/uav-sim/signaling".to_owned(),
                 public_media_host: "192.0.2.10".parse().unwrap(),
                 public_media_port_base: 47_998,
@@ -729,8 +744,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn distinct_actors_share_one_product_without_sharing_leases_or_tokens() {
-        let (service, adapter) = service(false).await;
+    async fn distinct_actors_receive_distinct_native_products_and_tokens() {
+        let (service, adapter) = service(2).await;
         let alice = PrincipalId::new("alice").unwrap();
         let bob = PrincipalId::new("bob").unwrap();
         let first = service
@@ -746,18 +761,26 @@ mod tests {
             first.access_token.expose_for_signaling(),
             second.access_token.expose_for_signaling()
         );
-        assert_eq!(
+        assert_ne!(
             first.stream.stream_product_id,
             second.stream.stream_product_id
         );
+        assert_ne!(first.stream.capacity_slot, second.stream.capacity_slot);
         let runtime = adapter.state().await.unwrap();
-        assert_eq!(runtime.stream_products.len(), 1);
-        assert_eq!(runtime.stream_products[0].nvenc_sessions, 1);
+        assert_eq!(runtime.stream_products.len(), 2);
+        assert_eq!(
+            runtime
+                .stream_products
+                .iter()
+                .map(|product| product.nvenc_sessions)
+                .sum::<u32>(),
+            2
+        );
     }
 
     #[tokio::test]
-    async fn one_actor_gets_independent_browser_instance_leases_on_one_product() {
-        let (service, adapter) = service(false).await;
+    async fn one_actor_gets_independent_browser_products() {
+        let (service, adapter) = service(2).await;
         let actor = PrincipalId::new("alice").unwrap();
         let first = service
             .open(owner(), actor.clone(), request("browser-a"))
@@ -773,7 +796,7 @@ mod tests {
             first.access_token.expose_for_signaling(),
             second.access_token.expose_for_signaling()
         );
-        assert_eq!(
+        assert_ne!(
             first.stream.stream_product_id,
             second.stream.stream_product_id
         );
@@ -784,7 +807,7 @@ mod tests {
                 &actor,
                 CloseLiveViewRequest {
                     session_id: first.stream.session_id,
-                    live_view_id: first.stream.live_view_id,
+                    live_view_id: first.stream.live_view_id.clone(),
                     viewer_instance_id: LiveViewerInstanceId::new("browser-a").unwrap(),
                 },
             )
@@ -801,13 +824,14 @@ mod tests {
                 .is_ok()
         );
         let runtime = adapter.state().await.unwrap();
-        assert_eq!(runtime.stream_products.len(), 1);
-        assert_eq!(runtime.stream_products[0].nvenc_sessions, 1);
+        assert_eq!(runtime.stream_products.len(), 2);
+        assert_eq!(runtime.stream_products[0].nvenc_sessions, 0);
+        assert_eq!(runtime.stream_products[1].nvenc_sessions, 1);
     }
 
     #[tokio::test]
     async fn renewal_invalidates_the_prior_token_for_only_that_lease() {
-        let (service, _) = service(false).await;
+        let (service, _) = service(1).await;
         let actor = PrincipalId::new("alice").unwrap();
         let instance = LiveViewerInstanceId::new("browser-a").unwrap();
         let opened = service
@@ -848,7 +872,7 @@ mod tests {
 
     #[tokio::test]
     async fn changed_viewer_authority_revokes_only_that_actors_lease() {
-        let (service, adapter) = service(false).await;
+        let (service, adapter) = service(2).await;
         let alice = PrincipalId::new("alice").unwrap();
         let bob = PrincipalId::new("bob").unwrap();
         let alice_view = service
@@ -894,15 +918,14 @@ mod tests {
                 .await
                 .is_ok()
         );
-        assert_eq!(
-            adapter.state().await.unwrap().stream_products[0].nvenc_sessions,
-            1
-        );
+        let products = adapter.state().await.unwrap().stream_products;
+        assert_eq!(products[0].nvenc_sessions, 0);
+        assert_eq!(products[1].nvenc_sessions, 1);
     }
 
     #[tokio::test]
-    async fn on_demand_product_stays_active_until_the_last_lease_and_idle_grace_end() {
-        let (service, adapter) = service(true).await;
+    async fn close_releases_only_its_slot_and_the_slot_can_be_reassigned() {
+        let (service, adapter) = service(2).await;
         let first = service
             .open(
                 owner(),
@@ -919,51 +942,43 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(
-            adapter.state().await.unwrap().stream_products[0].nvenc_sessions,
-            1
-        );
+        assert_ne!(first.stream.capacity_slot, second.stream.capacity_slot);
         service
             .close(
                 &owner(),
                 &PrincipalId::new("alice").unwrap(),
                 CloseLiveViewRequest {
                     session_id: first.stream.session_id,
-                    live_view_id: first.stream.live_view_id,
+                    live_view_id: first.stream.live_view_id.clone(),
                     viewer_instance_id: LiveViewerInstanceId::new("browser-a").unwrap(),
                 },
             )
             .await
             .unwrap();
-        tokio::time::sleep(Duration::from_millis(15)).await;
+        let products = adapter.state().await.unwrap().stream_products;
         assert_eq!(
-            adapter.state().await.unwrap().stream_products[0].nvenc_sessions,
+            products[usize::from(first.stream.capacity_slot)].nvenc_sessions,
+            0
+        );
+        assert_eq!(
+            products[usize::from(second.stream.capacity_slot)].nvenc_sessions,
             1
         );
-        service
-            .close(
-                &owner(),
-                &PrincipalId::new("bob").unwrap(),
-                CloseLiveViewRequest {
-                    session_id: second.stream.session_id,
-                    live_view_id: second.stream.live_view_id,
-                    viewer_instance_id: LiveViewerInstanceId::new("browser-b").unwrap(),
-                },
+        let third = service
+            .open(
+                owner(),
+                PrincipalId::new("charlie").unwrap(),
+                request("browser-c"),
             )
             .await
             .unwrap();
-        tokio::time::sleep(Duration::from_millis(20)).await;
-        let product = adapter.state().await.unwrap().stream_products.remove(0);
-        assert_eq!(
-            product.lifecycle,
-            veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive
-        );
-        assert_eq!(product.nvenc_sessions, 0);
+        assert_eq!(third.stream.capacity_slot, first.stream.capacity_slot);
+        assert_ne!(third.stream.live_view_id, first.stream.live_view_id);
     }
 
     #[tokio::test]
     async fn concurrent_open_respects_the_exact_viewer_capacity() {
-        let (service, _) = service_with(false, Duration::from_secs(30), 1).await;
+        let (service, _) = service_with(1, Duration::from_secs(30), 8).await;
         let first = service.open(
             owner(),
             PrincipalId::new("alice").unwrap(),
@@ -986,8 +1001,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn exact_expiry_closes_the_lease_and_deactivates_an_on_demand_product() {
-        let (service, adapter) = service_with(true, Duration::from_millis(10), 8).await;
+    async fn exact_expiry_closes_the_lease_and_releases_its_slot() {
+        let (service, adapter) = service_with(1, Duration::from_millis(10), 8).await;
         let opened = service
             .open(
                 owner(),
@@ -1012,5 +1027,37 @@ mod tests {
             veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive
         );
         assert_eq!(product.nvenc_sessions, 0);
+        assert!(product.camera_id.is_none());
+        assert!(product.live_view_id.is_none());
+    }
+
+    #[tokio::test]
+    async fn signaling_end_closes_the_lease_and_releases_its_slot() {
+        let (service, adapter) = service(1).await;
+        let actor = PrincipalId::new("alice").unwrap();
+        let opened = service
+            .open(owner(), actor.clone(), request("browser-a"))
+            .await
+            .unwrap();
+        service
+            .authorize_signaling(
+                &opened.stream.live_view_id,
+                opened.access_token.expose_for_signaling(),
+            )
+            .await
+            .unwrap();
+        service
+            .disconnect_signaling(&opened.stream.live_view_id)
+            .await;
+        let closed = service
+            .get(&owner(), &actor, &opened.stream.live_view_id)
+            .await
+            .unwrap();
+        assert_eq!(closed.lifecycle, LiveViewLifecycle::Closed);
+        let product = adapter.state().await.unwrap().stream_products.remove(0);
+        assert_eq!(
+            product.lifecycle,
+            veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive
+        );
     }
 }
