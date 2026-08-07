@@ -5,6 +5,43 @@
   cameras, smooth cinematic tracking, and a bounded native NVIDIA stream product for
   each active viewer.
 
+  ## Execution Scope And Completion
+
+  This plan owns the simulator-hosted live-view path from an authoritative logical
+  camera through one lease-bound native NVIDIA WebRTC product to a headed hardware-GPU
+  browser. It also owns the shared live-view contract, UAV MCP governance and signaling,
+  preallocated viewer-slot runtime, deployment surface, removal of the mirror stack, and
+  focused conformance and acceptance evidence described below.
+
+  Physical sensor capture remains in scope only at the separation boundary. Live-view
+  acceptance proves that opening and closing viewer slots does not change physics time,
+  sensor cadence, simulation authority, or sensor product identity. The independent
+  health of Stream MCP sessions, Recording ingest and archive playback, mission control,
+  unrelated applications, and installation-wide composed verification is not a
+  completion gate for this plan. A failure in one of those systems blocks this plan only
+  when focused evidence attributes the failure to the live-view implementation.
+
+  The execution gates are:
+
+  | Gate | Required evidence | Blocking boundary |
+  |---|---|---|
+  | Contract and governance | Focused Rust schema, ownership, lease, redaction, audit, capacity, and signaling tests | Failures in the shared live-view or UAV MCP surfaces block completion. |
+  | Authoritative runtime | Mathematical and synthetic camera tests plus pod-local runtime contract tests | Failures in logical cameras, smoothing, slot allocation, native product lifecycle, or Cesium viewport ownership block completion. |
+  | Native GPU media | Runtime evidence for RTX, one NVENC session and native Omniverse WebRTC peer per assigned slot, with no software or relay path | Any fallback, relay, duplicate simulation process, or unproven native product blocks completion. |
+  | Browser behavior | Focused headed hardware-GPU acceptance for camera selection, distinct viewers, teardown, restart recovery, cadence, and latency | Browser or media failures caused by this path block completion. |
+  | Isolation | Focused proof that simulation remains authoritative and viewer activity does not alter physics or sensor cadence | Independent downstream sensor consumers do not block completion. |
+  | Hard cut and documentation | Repository search, deployment closure, owning design documents, and removal of this completed plan | Any remaining advertised, built, deployed, or tested mirror or relay path blocks completion. |
+
+  Broad showcase verification is useful follow-on evidence, but it is not a substitute
+  for these focused gates. When it fails, the failure must first be attributed to an
+  owning component. Unrelated defects are recorded in a committed owning document and do
+  not redirect this implementation.
+
+  Completion does not mean retaining this plan as a second design authority. Once every
+  gate above and every requirement below is implemented and proven, the final contract
+  belongs in the component design documents listed in section 23. This plan is then
+  deleted in the same commit that removes its entry from `docs/CODEMAP.md`.
+
   ## Standards And Protocols
 
   | Standard or protocol | Planned profile |
