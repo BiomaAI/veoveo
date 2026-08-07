@@ -1319,15 +1319,15 @@ flowchart LR
             <span class="scheme">uav-sim://</span>
             <h4><span class="dot" style="background:var(--hue-opt)"></span>UAV Simulation</h4>
             <p>Govern simulation sessions, missions, vehicles, terrain, dataset capture,
-               authoritative operator cameras, and shared encoded products while keeping
+               authoritative operator cameras, and isolated viewer products while keeping
                simulator-native control ports private.</p>
           </div>
           <div class="tools"><table>
             <tr><td class="tn">configure_world</td><td>Bind the governed world, scene, vehicles, frames, and runtime inputs for one session.</td></tr>
             <tr><td class="tn">execute_mission</td><td>Run one bounded multi-vehicle mission as durable simulator work.</td></tr>
             <tr><td class="tn">capture_dataset</td><td>Capture synchronized camera, pose, telemetry, and mission evidence.</td></tr>
-            <tr><td class="tn">list_live_cameras</td><td>Discover the installation-configured simulator-hosted cameras and their shared GPU render products.</td></tr>
-            <tr><td class="tn">open_live_view</td><td>Issue an actor-and-browser-specific WebRTC lease over the existing encoded product.</td></tr>
+            <tr><td class="tn">list_live_cameras</td><td>Discover installation-configured simulator-hosted logical cameras and bounded viewer capacity.</td></tr>
+            <tr><td class="tn">open_live_view</td><td>Assign one isolated native RTX, NVENC, and WebRTC product to an actor-and-browser-specific lease.</td></tr>
           </table></div>
           <div class="server-foot">
             <span class="cap">durable tasks</span><span class="cap">recordings</span><span class="cap">MCP App</span>

@@ -294,11 +294,12 @@ Stream consumes newly encoded simulator camera frames directly for live
 processing. Its reproducible replay profile consumes governed recording
 identities rather than a simulator-private media URL.
 
-The authoritative simulator also owns operator live cameras. Each logical camera
-produces at most one RTX/NVENC product, and actor-and-browser viewer leases attach
-independent WebRTC peers to that product. Camera smoothing changes only the operator
-camera transform at the current simulator tick. The platform does not mirror scenes,
-transport visualization poses, reconcile a second renderer, or persist browser leases.
+The authoritative simulator also owns operator live cameras. Logical cameras share one
+final smoothed pose, while every actor-and-browser viewer lease reserves a preallocated
+camera clone and an isolated RTX, NVENC, and native WebRTC product. Camera smoothing
+changes only the logical operator-camera transform at the current simulator tick. The
+platform does not mirror scenes, transport visualization poses, reconcile a second
+renderer, relay media, or persist browser leases.
 
 The reference deployment runs the authoritative UAV simulator, View, Stream, Reason,
 the cuOpt executor, and the Rerun viewer concurrently. Their Helm workloads

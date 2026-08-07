@@ -41,7 +41,7 @@ authoritative until each planned change lands:
 |---|---|
 | [`REPOSITORY_HARDENING_PLAN.md`](REPOSITORY_HARDENING_PLAN.md) | compiled repository tooling, contract enforcement, test and smoke ownership, architecture policy, supply-chain hardening, external-extension seams, and governance |
 | [`RMCP_3_MIGRATION.md`](RMCP_3_MIGRATION.md) | hard cut to MCP `2026-07-28` and `rmcp` 3, official Tasks and multi-round requests, stateless transport, subscription and replica redesign, Rig migration, duplicate protocol deletion, and acceptance |
-| [`SIMULATION_LIVE_VIEW_HARD_CUT.md`](SIMULATION_LIVE_VIEW_HARD_CUT.md) | early hard cut from the mirrored Simulation View stack to simulator-hosted authoritative cameras, one encoded product per camera, ephemeral viewer leases, and shared conformance |
+| [`SIMULATION_LIVE_VIEW_HARD_CUT.md`](SIMULATION_LIVE_VIEW_HARD_CUT.md) | early hard cut from the mirrored Simulation View stack to simulator-hosted authoritative cameras, isolated per-viewer native products, ephemeral viewer leases, and shared conformance |
 
 MCP designs live with the crate whose public contract they specify:
 
@@ -431,7 +431,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera.py` | operator-camera orchestration over focused rig, smoothing, product, and health modules |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_rigs.py` | authoritative target sampling and desired poses for every supported camera rig |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_smoothing.py` | frame-rate-independent position and shortest-arc orientation filters with typed reset rules |
-| `showcase/uav-sim/runtime/veoveo_uav_sim/operator_products.py` | one simulator-owned RTX render product and NVENC bitstream per admitted logical camera |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/operator_products.py` | bounded preallocated viewer slots, each with an isolated camera clone, RTX render product, NVENC bitstream, and native WebRTC peer |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/render_pose.py` | bounded agreement diagnostics between authoritative camera poses and rendered Hydra frames |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/physical_camera.py` | exact authoritative body-and-mount USD sensor camera, distinct from smoothed operator views |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/hydra_camera.py` | continuously rendered physical-camera Hydra product with physics-event capture requests and bounded readback |
@@ -442,7 +442,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `examples/bioma/uav-sim-values.yaml` | reference authoritative camera, product, public gateway origin, and recording tenant binding |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | runtime world publication plus credentialed Google tiles, PX4, independent live Stream processing, Recording Hub replay, Reason, and concurrent GPU acceptance |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim/showcase.rs` | showcase-owned authoritative UAV cameras and products, real authenticated Console checkpoints, governed Rerun playback, and revision-qualified evidence |
-| `testing/smoke/src/bin/smoke/scenarios/uav_sim/browser.rs` | headed authenticated Chrome attachment, hardware WebGPU-or-WebGL enforcement, Console live-view interaction, screenshots, and shared CDP transport |
+| `testing/smoke/src/bin/smoke/scenarios/uav_sim/browser.rs` | headed authenticated Chrome attachment, hardware WebGPU-or-WebGL enforcement, dedicated simultaneous-viewer windows, Console live-view interaction, and screenshots |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim/browser/recording_acceptance.rs` | scoped Redap network evidence, live-source continuity, archive-request rejection, and nonblank Rerun viewport measurement |
 
 ### Geospatial Domains
@@ -567,7 +567,7 @@ Authoritative simulation live-view ownership:
 | `mcp/contract/src/live_view.rs` | shared provider-neutral logical-camera, encoded-product, per-viewer lease, capacity, health, and signaling contract |
 | `servers/uav-sim-mcp/src/contract.rs` | UAV session and authoritative live-view tool schemas built from the shared contract |
 | `servers/uav-sim-mcp/src/server/state.rs` | authoritative session, vehicle, mission, logical-camera, and product state |
-| `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser viewer leases, product reuse, bounded capacity, expiry, closure, and typed denial behavior |
+| `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser viewer leases, exclusive viewer-slot assignment, bounded capacity, expiry, closure, and typed denial behavior |
 | `servers/uav-sim-mcp/src/server/signaling.rs` | authenticated signaling sessions that attach viewer peers to simulator-owned encoded products |
 | `servers/uav-sim-mcp/src/server/live_view_audit.rs` | append-only live-view audit writes without runtime coupling |
 | `servers/uav-sim-mcp/src/server/service.rs` | MCP tools, resources, subscriptions, well-known surface, and authoritative live-view orchestration |
@@ -575,7 +575,7 @@ Authoritative simulation live-view ownership:
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera.py` | simulator-tick camera orchestration, frame transforms, and shared camera/target time |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_rigs.py` | desired-pose computation for follow, chase, orbit, look-at, stabilized-mounted, formation, and fixed rigs |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_smoothing.py` | half-life translation/quaternion filtering and reset rules |
-| `showcase/uav-sim/runtime/veoveo_uav_sim/operator_products.py` | hardware RTX render-product and NVENC lifecycle with one encoded product per logical camera |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/operator_products.py` | preallocated viewer-camera clones and isolated RTX, NVENC, native WebRTC, activation, and release lifecycle per assigned slot |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_health.py` | CUDA, RTX, NVENC, product, frame, and capacity evidence |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/server.py` | simulator-local control boundary for camera and product realization |
 | `platform/store/src/live_views.rs` | durable audit persistence for camera, product, lease, denial, expiry, and revocation facts |

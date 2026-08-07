@@ -98,10 +98,11 @@ Isaac Sim driver `595.58.03`.
 ## Authoritative Live Cameras
 
 A domain simulator overlay renders operator cameras inside the same authoritative Isaac
-process that owns physics and the USD/Cesium world. Each active logical camera has one
-stable RTX render product and at most one NVENC H.264 encode. Independent viewer leases
-fan out that product through separate WebRTC peer and SRTP state; viewer count never
-creates another scene, camera render, Cesium consumer, or encode.
+process that owns physics and the USD/Cesium world. Logical cameras own the final
+authoritative poses. A bounded preallocated viewer slot copies one selected pose into an
+isolated camera clone and activates one RTX render product, NVENC H.264 encode, and native
+WebRTC peer. Viewer count never creates another scene or Cesium consumer, but each admitted
+viewer deliberately consumes one measured render-and-encode slot.
 
 Operator-camera smoothing consumes the current authoritative entity transform on every
 render tick and changes only the camera pose. It never buffers, interpolates, or delays

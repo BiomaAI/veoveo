@@ -60,17 +60,12 @@ published and its server contract is registered in the gateway control plane.
 
 ## Release publication
 
-Production workloads use the repository and digest map in images.lock.yaml. The
-platform and UAV Applications select immutable chart versions independently. The
-platform and UAV Applications currently select chart
-`0.1.0-a118ac35`. The chart closure includes the simulator-first startup contract from
-revision `a118ac35da24c2ba5c9996056861c444724af6b8`. Its authoritative live-view
-runtime was published from source revision
-`3bdb05a7a6d8da1ab156804e6460a62665d2604c`. The UAV MCP server, Gateway, and Console
-images were staged from revision `c1fb6111825340c0311c092f34a01b4407f8aa94`;
-each selected digest is the workload's immutable development identity. A release-input
-commit advances the coordinated runtime closure before a qualified publication promotes
-those exact inputs.
+Production workloads use the repository and digest map in `images.lock.yaml`. The
+platform and UAV Applications select immutable chart versions independently in
+`gitops/applications/`. Those files and the lock, rather than a copied revision in this
+manual, define the current deployment closure. Each selected image digest is the
+workload's immutable identity. A release-input commit advances the coordinated runtime
+closure before a qualified publication promotes those exact inputs.
 
 Publish a new local release directly to the shared registry:
 
@@ -148,10 +143,10 @@ for bursts without making the six-workload placement unschedulable on the refere
 64 GiB node.
 
 The local fixture advertises simulator-owned live-view signaling through
-`wss://veoveo.bioma.ai/uav-sim/signaling` and its bounded UDP media endpoint
-through `127.0.0.1:47998`. The chart assigns the admitted camera product to
-the explicit NodePort `30998`, and the k3d binding forwards the public port
-to that NodePort. The fixed mapping is part of the
+`wss://veoveo.bioma.ai/uav-sim/signaling`. Its two preallocated viewer slots use
+the bounded UDP media range `127.0.0.1:47998-47999`. The chart assigns those slots
+to NodePorts `30998-30999`, and the k3d bindings forward each public port to its
+matching NodePort. The fixed mapping is part of the
 acceptance contract because a Kubernetes-assigned NodePort cannot satisfy a
 predeclared browser media endpoint. An installation on a different network
 must advertise its routable signaling origin and UDP media address instead.

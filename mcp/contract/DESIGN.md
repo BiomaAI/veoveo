@@ -23,15 +23,16 @@ complies with in its crate documents and in its contract resource.
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned server capabilities and platform requirements |
 | `veoveo.io/gateway-binding/v1` | installation-owned exposure, policy, artifact audience, and recording producer declarations |
 | `veoveo.io/gateway-composition-provenance/v1` | exact input/output SHA-256 identities and contributed-object summaries |
-| `veoveo.io/live-view/v2` | provider-neutral authoritative camera descriptions, stable encoded products, actor-and-browser viewer leases, hardware encode identity, endpoint metadata, capacity, and redacted connection tokens |
+| `veoveo.io/live-view/v2` | provider-neutral authoritative camera descriptions, bounded viewer-product slots, actor-and-browser viewer leases, hardware encode identity, endpoint metadata, capacity, and redacted connection tokens |
 | `io.veoveo/app-resource-dependencies` | deterministic gateway projection of exact cross-server App resource-read requirements admitted under active profile and actor authority |
 
 ## Live View Extension
 
 The live-view extension describes cameras rendered by the authoritative domain
-runtime. A simulation server owns its camera rigs and creates one stable encoded
-product for each active camera. Viewer leases identify both the gateway actor and
-browser instance. They remain ephemeral and never become renderer desired state.
+runtime. A simulation server owns its shared logical camera rigs and a bounded pool
+of physical viewer-product slots. Each viewer lease identifies both the gateway actor
+and browser instance and reserves one isolated render, encode, and WebRTC product.
+Viewer leases remain ephemeral and never become renderer desired state.
 
 The shared types define camera poses, optics, smoothing, health, stream policy,
 physical product slots, NVIDIA NVENC metadata, signaling endpoints, and separate
