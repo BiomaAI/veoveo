@@ -841,8 +841,14 @@ mod tests {
                 physics_hz: 60,
                 native_rendering_hz: 2,
                 render_cycles: 0,
+                physics_steps: 0,
+                refresh_states_wall_seconds: 0.0,
+                vehicle_update_wall_seconds: 0.0,
+                flush_forces_wall_seconds: 0.0,
+                after_step_wall_seconds: 0.0,
                 native_update_wall_seconds: 0.0,
                 render_cycle_wall_seconds: 0.0,
+                maximum_physics_step_ms: 0.0,
                 maximum_native_update_ms: 0.0,
                 maximum_render_cycle_ms: 0.0,
             },
@@ -1003,14 +1009,22 @@ mod tests {
             "physics_hz": 60,
             "native_rendering_hz": 30,
             "render_cycles": 120,
+            "physics_steps": 240,
+            "refresh_states_wall_seconds": 0.4,
+            "vehicle_update_wall_seconds": 0.8,
+            "flush_forces_wall_seconds": 0.2,
+            "after_step_wall_seconds": 0.1,
             "native_update_wall_seconds": 3.0,
             "render_cycle_wall_seconds": 3.5,
+            "maximum_physics_step_ms": 12.0,
             "maximum_native_update_ms": 31.0,
             "maximum_render_cycle_ms": 35.0
         }))
         .unwrap();
 
         assert_eq!(timing.render_cycles, 120);
+        assert_eq!(timing.physics_steps, 240);
+        assert_eq!(timing.maximum_physics_step_ms, 12.0);
         assert_eq!(timing.maximum_render_cycle_ms, 35.0);
     }
 

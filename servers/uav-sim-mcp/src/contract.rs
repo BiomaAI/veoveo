@@ -326,8 +326,14 @@ pub struct RuntimeTimingState {
     #[schemars(range(min = 1, max = 120))]
     pub native_rendering_hz: u32,
     pub render_cycles: u64,
+    pub physics_steps: u64,
+    pub refresh_states_wall_seconds: f64,
+    pub vehicle_update_wall_seconds: f64,
+    pub flush_forces_wall_seconds: f64,
+    pub after_step_wall_seconds: f64,
     pub native_update_wall_seconds: f64,
     pub render_cycle_wall_seconds: f64,
+    pub maximum_physics_step_ms: f64,
     pub maximum_native_update_ms: f64,
     pub maximum_render_cycle_ms: f64,
 }
