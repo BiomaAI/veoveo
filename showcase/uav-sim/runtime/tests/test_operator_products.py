@@ -6,6 +6,7 @@ import unittest
 from veoveo_uav_sim.operator_camera import CameraRigKind
 from veoveo_uav_sim.operator_camera_config import OperatorLiveViewRuntimeConfig
 from veoveo_uav_sim.operator_health import OperatorProductHealth
+from veoveo_uav_sim.hydra_camera import asynchronous_hydra_texture_options
 from veoveo_uav_sim.operator_products import (
     livestream_aov_arguments,
     materialize_matrix4d,
@@ -162,6 +163,19 @@ class OperatorCameraConfigTests(unittest.TestCase):
 
 
 class OperatorProductTests(unittest.TestCase):
+    def test_hydra_products_overlap_authoritative_physics(self) -> None:
+        self.assertEqual(
+            asynchronous_hydra_texture_options(30),
+            {
+                "hydra_engine_name": "rtx",
+                "is_async": True,
+                "is_async_low_latency": False,
+                "hydra_tick_rate": 30,
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "cadence"):
+            asynchronous_hydra_texture_options(0)
+
     def test_hydra_viewport_metadata_is_restored_to_native_matrix_type(self) -> None:
         class NativeMatrix:
             def __init__(self, *values: float) -> None:
