@@ -1,5 +1,18 @@
 from __future__ import annotations
 
+import math
+
+
+MAXIMUM_NATIVE_PHYSICS_SUBSTEPS = 12
+
+
+def native_minimum_frame_rate(physics_hz: int) -> int:
+    """Keep measured-time PhysX catch-up bounded without dropping simulation time."""
+    if physics_hz < 1:
+        raise ValueError("physics cadence must be positive")
+    return max(1, math.ceil(physics_hz / MAXIMUM_NATIVE_PHYSICS_SUBSTEPS))
+
+
 class FixedStepCadenceGate:
     """Select an exact rational output cadence from monotonic physics steps."""
 

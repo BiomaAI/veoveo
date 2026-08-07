@@ -31,7 +31,11 @@ from veoveo_uav_sim.physics_batch import (
     RigidBodyBatchAccumulator,
 )
 from veoveo_uav_sim.px4 import Px4Commander, Px4CommandRejected
-from veoveo_uav_sim.realtime import FixedStepCadenceGate
+from veoveo_uav_sim.realtime import (
+    MAXIMUM_NATIVE_PHYSICS_SUBSTEPS,
+    FixedStepCadenceGate,
+    native_minimum_frame_rate,
+)
 from veoveo_uav_sim.state import (
     RuntimeState,
     VehicleTelemetry,
@@ -111,6 +115,13 @@ WORLD = WorldConfiguration(
 
 
 class RuntimeConfigTests(unittest.TestCase):
+    def test_native_catch_up_preserves_long_streamed_world_frames(self) -> None:
+        self.assertEqual(MAXIMUM_NATIVE_PHYSICS_SUBSTEPS, 12)
+        self.assertEqual(native_minimum_frame_rate(60), 5)
+        self.assertEqual(native_minimum_frame_rate(100), 9)
+        with self.assertRaisesRegex(ValueError, "physics cadence must be positive"):
+            native_minimum_frame_rate(0)
+
     def test_px4_sensor_cadence_is_bounded_by_the_physics_clock(self) -> None:
         PX4_IRIS_SENSOR_CADENCE.validate_for_physics(60)
         self.assertEqual(PX4_IRIS_SENSOR_CADENCE.imu_hz, 60)
