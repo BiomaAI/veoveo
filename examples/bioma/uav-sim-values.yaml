@@ -13,7 +13,7 @@ recording:
 session:
   vehicleCount: 4
   physicsHz: 60
-  renderingHz: 30
+  renderingHz: 24
   fleetLoop:
     takeoffTimeoutSeconds: 1800
   camera:
