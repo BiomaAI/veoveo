@@ -137,6 +137,13 @@ pipelines or transport. This permits a logged-in human to inspect a stream
 started by an authorized automation principal without granting that human
 ownership of the pipeline.
 
+An RTP publisher creates a new random SSRC, sequence origin, and timestamp
+origin whenever its process starts. The admitted jitter buffer treats a large
+sequence discontinuity as a new source epoch within one second and starts on
+two consecutive packets. A simulator pod replacement therefore resumes an
+existing Stream session without retaining the old source clock or waiting for
+the jitter buffer's 60-second default dropout window.
+
 The preview resource is meant for an operator view, not bulk media
 distribution. It keeps the MCP boundary portable across Console and external
 MCP Apps hosts. A future high-fanout transport would remain an internal adapter

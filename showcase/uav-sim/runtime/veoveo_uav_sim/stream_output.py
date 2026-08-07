@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import secrets
 import socket
 import struct
@@ -29,10 +30,11 @@ class RtpH264Publisher:
         self._payload_type = config.payload_type
         self._sequence = secrets.randbits(16)
         self._ssrc = secrets.randbits(32)
+        self._timestamp_offset = secrets.randbits(32)
         self._last_timestamp: int | None = None
 
     def publish(self, access_unit: bytes, simulation_time_s: float) -> None:
-        timestamp = round(simulation_time_s * _RTP_CLOCK_RATE) & 0xFFFF_FFFF
+        timestamp = _rtp_timestamp(self._timestamp_offset, simulation_time_s)
         if self._last_timestamp is not None:
             delta = (timestamp - self._last_timestamp) & 0xFFFF_FFFF
             if delta == 0 or delta >= 0x8000_0000:
@@ -84,6 +86,14 @@ def _annex_b_nals(access_unit: bytes) -> list[bytes]:
         if nal:
             output.append(nal)
     return output
+
+
+def _rtp_timestamp(timestamp_offset: int, simulation_time_s: float) -> int:
+    if not 0 <= timestamp_offset <= 0xFFFF_FFFF:
+        raise ValueError("RTP timestamp offset must be an unsigned 32-bit integer")
+    if not math.isfinite(simulation_time_s) or simulation_time_s < 0.0:
+        raise ValueError("RTP simulation time must be finite and non-negative")
+    return (timestamp_offset + round(simulation_time_s * _RTP_CLOCK_RATE)) & 0xFFFF_FFFF
 
 
 def _packetize_nal(nal: bytes, maximum_payload: int) -> list[bytes]:
