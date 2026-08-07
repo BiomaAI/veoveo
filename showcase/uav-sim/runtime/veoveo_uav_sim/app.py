@@ -81,7 +81,6 @@ def run(config: RuntimeConfig) -> None:
     from isaacsim.core.api.materials import PhysicsMaterial
     from isaacsim.core.api.objects import GroundPlane
     from isaacsim.sensors.experimental.rtx import RtxCamera
-    from omni.kit.viewport.utility import get_active_viewport
     from pxr import Gf, Usd, UsdGeom, UsdLux
 
     extension_manager = omni.kit.app.get_app().get_extension_manager()
@@ -126,6 +125,7 @@ def run(config: RuntimeConfig) -> None:
         normalize_rgb_frame,
         should_record_camera_frame,
     )
+    from .cesium_camera import CesiumCameraSpec, current_cesium_viewport
     from .command_queue import MainThreadQueue
     from .fleet_loop import FleetLoopController
     from .hydra_camera import HydraRgbCameraSensor
@@ -173,7 +173,7 @@ def run(config: RuntimeConfig) -> None:
     camera_visible_streaks: dict[str, int] = {}
     camera_unusable_streaks_after_tiles: dict[str, int] = {}
     camera_was_ready: set[str] = set()
-    sensor_camera_path: str | None = None
+    sensor_camera_spec: CesiumCameraSpec | None = None
     physics_lifecycle: FleetPhysicsLifecycle | None = None
     fleet_loop: FleetLoopController | None = None
     operator_cameras: AuthoritativeOperatorCameraCollection | None = None
@@ -401,15 +401,14 @@ def run(config: RuntimeConfig) -> None:
                 camera_frames_observed[vehicle_id] = 0
                 camera_visible_streaks[vehicle_id] = 0
                 camera_unusable_streaks_after_tiles[vehicle_id] = 0
-                sensor_camera_path = camera_path
+                sensor_camera_spec = CesiumCameraSpec(
+                    camera_path,
+                    config.camera.width,
+                    config.camera.height,
+                )
 
-        viewport = get_active_viewport()
-        if not camera_sensors or sensor_camera_path is None or viewport is None:
+        if not camera_sensors or sensor_camera_spec is None:
             raise RuntimeError("Cesium requires an authoritative sensor camera")
-        # Viewport rendering remains disabled at SimulationApp construction.
-        # This native viewport is only the camera-matrix authority Cesium uses
-        # for the nadir product; the Hydra product remains the sole renderer.
-        viewport.set_active_camera(sensor_camera_path)
         operator_cameras = AuthoritativeOperatorCameraCollection.create(
             config.operator_live_view.cameras,
             stage,
@@ -655,12 +654,13 @@ def run(config: RuntimeConfig) -> None:
             # empty list. Restore the sensor viewport after every Kit update,
             # using the same native frame contract as the extension.
             cesium_viewports = []
-            sensor_viewport = CesiumViewport()
-            sensor_viewport.viewMatrix = viewport.view
-            sensor_viewport.projMatrix = viewport.projection
-            sensor_viewport.width = float(viewport.resolution[0])
-            sensor_viewport.height = float(viewport.resolution[1])
-            cesium_viewports.append(sensor_viewport)
+            cesium_viewports.append(
+                current_cesium_viewport(
+                    stage,
+                    sensor_camera_spec,
+                    CesiumViewport,
+                )
+            )
             assert operator_products is not None
             for product_viewport in operator_products.active_viewports():
                 live_viewport = CesiumViewport()
