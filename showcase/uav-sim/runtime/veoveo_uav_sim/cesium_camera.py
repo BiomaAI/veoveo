@@ -24,6 +24,13 @@ class CesiumViewportFactory(Protocol[CesiumViewportT]):
     def __call__(self) -> CesiumViewportT: ...
 
 
+def camera_frustum(usd_camera: Any, time_code: Any) -> Any:
+    """Return the frustum for the camera's current world-space transform."""
+    camera = usd_camera.GetCamera(time_code)
+    camera.transform = usd_camera.ComputeLocalToWorldTransform(time_code)
+    return camera.frustum
+
+
 def current_cesium_viewport(
     stage: Any,
     spec: CesiumCameraSpec,
@@ -36,9 +43,7 @@ def current_cesium_viewport(
     usd_camera = UsdGeom.Camera.Get(stage, spec.camera_path)
     if not usd_camera.GetPrim().IsValid():
         raise RuntimeError(f"Cesium camera prim is unavailable: {spec.camera_path}")
-    camera = usd_camera.GetCamera(time_code)
-    camera.SetTransform(usd_camera.ComputeLocalToWorldTransform(time_code))
-    frustum = camera.GetFrustum()
+    frustum = camera_frustum(usd_camera, time_code)
     viewport = viewport_type()
     viewport.viewMatrix = frustum.ComputeViewMatrix()
     viewport.projMatrix = frustum.ComputeProjectionMatrix()
