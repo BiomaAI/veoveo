@@ -176,6 +176,11 @@ class RuntimeConfigTests(unittest.TestCase):
         timing = initial_runtime_timing(config)
         self.assertEqual(timing["physics_hz"], 60)
         self.assertEqual(timing["native_rendering_hz"], 30)
+        self.assertEqual(timing["render_cycles"], 0)
+        self.assertEqual(timing["kit_render_wall_seconds"], 0.0)
+        self.assertEqual(timing["render_cycle_wall_seconds"], 0.0)
+        self.assertEqual(timing["maximum_kit_render_ms"], 0.0)
+        self.assertEqual(timing["maximum_render_cycle_ms"], 0.0)
 
         server_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "server.py"
@@ -328,6 +333,24 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(recording["queued_events"], 17)
         self.assertEqual(recording["dropped_events"], 9)
         self.assertEqual(recording["diagnostic"], "network unavailable")
+
+    def test_render_timing_separates_kit_from_complete_cycle_cost(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            state = RuntimeState(RuntimeConfig.from_environment(), WORLD)
+        state.observe_render_cycle(0.02, 0.03)
+        state.observe_render_cycle(0.04, 0.05)
+
+        timing = state.snapshot()["timing"]
+        self.assertEqual(timing["render_cycles"], 2)
+        self.assertAlmostEqual(timing["kit_render_wall_seconds"], 0.06)
+        self.assertAlmostEqual(timing["render_cycle_wall_seconds"], 0.08)
+        self.assertAlmostEqual(timing["maximum_kit_render_ms"], 40.0)
+        self.assertAlmostEqual(timing["maximum_render_cycle_ms"], 50.0)
+
+        with self.assertRaisesRegex(ValueError, "cannot be negative"):
+            state.observe_render_cycle(-0.01, 0.01)
+        with self.assertRaisesRegex(ValueError, "cannot be shorter"):
+            state.observe_render_cycle(0.02, 0.01)
 
     def test_camera_optics_and_mount_are_typed_runtime_inputs(self) -> None:
         environment = {

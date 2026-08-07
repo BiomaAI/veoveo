@@ -36,6 +36,11 @@ def initial_runtime_timing(config: RuntimeConfig) -> dict[str, int | float]:
         "native_rendering_hz": config.rendering_hz,
         "realtime_rebases": 0,
         "discarded_wall_seconds": 0.0,
+        "render_cycles": 0,
+        "kit_render_wall_seconds": 0.0,
+        "render_cycle_wall_seconds": 0.0,
+        "maximum_kit_render_ms": 0.0,
+        "maximum_render_cycle_ms": 0.0,
     }
 
 
@@ -170,6 +175,28 @@ class RuntimeState:
             self._state["timing"].update(
                 realtime_rebases=max(0, rebases),
                 discarded_wall_seconds=max(0.0, discarded_wall_seconds),
+            )
+            self._touch()
+
+    def observe_render_cycle(
+        self, kit_render_wall_seconds: float, render_cycle_wall_seconds: float
+    ) -> None:
+        if kit_render_wall_seconds < 0.0 or render_cycle_wall_seconds < 0.0:
+            raise ValueError("render timing cannot be negative")
+        if render_cycle_wall_seconds < kit_render_wall_seconds:
+            raise ValueError("render-cycle timing cannot be shorter than Kit rendering")
+        with self._condition:
+            timing = self._state["timing"]
+            timing["render_cycles"] += 1
+            timing["kit_render_wall_seconds"] += kit_render_wall_seconds
+            timing["render_cycle_wall_seconds"] += render_cycle_wall_seconds
+            timing["maximum_kit_render_ms"] = max(
+                timing["maximum_kit_render_ms"],
+                kit_render_wall_seconds * 1_000.0,
+            )
+            timing["maximum_render_cycle_ms"] = max(
+                timing["maximum_render_cycle_ms"],
+                render_cycle_wall_seconds * 1_000.0,
             )
             self._touch()
 
