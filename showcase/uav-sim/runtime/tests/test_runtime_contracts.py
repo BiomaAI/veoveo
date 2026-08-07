@@ -804,25 +804,37 @@ class _FleetLoopCommander:
 
 
 class RealtimeClockTests(unittest.TestCase):
-    def test_physics_clock_never_batches_missed_actuator_intervals(self) -> None:
+    def test_physics_clock_replays_each_due_fixed_step(self) -> None:
         now = [100.0]
-        clock = RealtimePhysicsClock(60, clock=lambda: now[0])
+        clock = RealtimePhysicsClock(
+            60, maximum_catch_up_steps=12, clock=lambda: now[0]
+        )
 
         self.assertEqual(clock.due_steps(0), 0)
         now[0] += 0.09
-        self.assertEqual(clock.due_steps(0), 1)
-        self.assertEqual(clock.due_steps(1), 0)
-        self.assertGreater(clock.seconds_until_next_step(1), 0.0)
+        self.assertEqual(clock.due_steps(0), 5)
+        self.assertEqual(clock.due_steps(5), 0)
+        now[0] += 0.04
+        self.assertEqual(clock.due_steps(5), 2)
+        self.assertEqual(clock.due_steps(7), 0)
+        self.assertGreater(clock.seconds_until_next_step(7), 0.0)
 
-    def test_physics_clock_discards_wall_lag_instead_of_replaying_it(self) -> None:
+    def test_physics_clock_bounds_catch_up_after_a_long_stall(self) -> None:
         now = [10.0]
-        clock = RealtimePhysicsClock(60, clock=lambda: now[0])
+        clock = RealtimePhysicsClock(
+            60, maximum_catch_up_steps=12, clock=lambda: now[0]
+        )
         now[0] += 2.0
 
-        self.assertEqual(clock.due_steps(0), 1)
+        self.assertEqual(clock.due_steps(0), 12)
+        self.assertEqual(clock.due_steps(12), 0)
         status = clock.status()
         self.assertEqual(status.rebases, 1)
-        self.assertAlmostEqual(status.discarded_wall_seconds, 119 / 60)
+        self.assertAlmostEqual(status.discarded_wall_seconds, 108 / 60)
+
+    def test_physics_clock_rejects_an_unbounded_catch_up_policy(self) -> None:
+        with self.assertRaisesRegex(ValueError, "catch-up steps"):
+            RealtimePhysicsClock(60, maximum_catch_up_steps=0)
 
     def test_render_deadline_skips_missed_periods(self) -> None:
         now = [20.0]
