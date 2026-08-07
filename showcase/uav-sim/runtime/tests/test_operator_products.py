@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import json
+import socket
+import threading
 import unittest
 
 from veoveo_uav_sim.operator_camera import CameraRigKind
 from veoveo_uav_sim.operator_camera_config import OperatorLiveViewRuntimeConfig
 from veoveo_uav_sim.operator_health import OperatorProductHealth
 from veoveo_uav_sim.operator_products import (
+    OperatorRenderProduct,
     livestream_aov_arguments,
     livestream_aov_product_arguments,
+    native_signaling_is_listening,
     operator_product_name,
     operator_stream_product_id,
 )
@@ -48,6 +52,7 @@ def _config(cameras: list[dict[str, object]]) -> OperatorLiveViewRuntimeConfig:
     return OperatorLiveViewRuntimeConfig.from_json(
         json.dumps(cameras),
         viewer_slot_count=2,
+        activation_timeout_seconds=10.0,
         signaling_port_base=49100,
         media_port_base=47998,
         public_media_ip="203.0.113.8",
@@ -161,6 +166,36 @@ class OperatorCameraConfigTests(unittest.TestCase):
 
 
 class OperatorProductTests(unittest.TestCase):
+    def test_native_signaling_readiness_requires_a_listening_socket(self) -> None:
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
+        listener.listen(1)
+        try:
+            self.assertTrue(native_signaling_is_listening(port))
+        finally:
+            listener.close()
+        self.assertFalse(native_signaling_is_listening(port))
+
+    def test_product_activation_waits_for_frame_and_signaling(self) -> None:
+        product = OperatorRenderProduct.__new__(OperatorRenderProduct)
+        product.product_id = "product-slot-0"
+        product._activation = threading.Event()
+        product._lock = threading.Lock()
+        product._active = True
+        product._live_view_id = "view-1"
+        product._failure = None
+        product._activation_frame_ready = False
+        product._signaling_ready = False
+
+        with self.assertRaisesRegex(TimeoutError, "native signaling"):
+            product.wait_until_ready("view-1", 0.0)
+
+        product._activation_frame_ready = True
+        product._signaling_ready = True
+        product._activation.set()
+        product.wait_until_ready("view-1", 0.0)
+
     def test_one_aov_product_has_one_exact_gpu_stream(self) -> None:
         arguments = livestream_aov_product_arguments(
             "uav_viewer_slot_0",

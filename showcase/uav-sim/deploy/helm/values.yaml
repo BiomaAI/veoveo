@@ -129,6 +129,7 @@ liveView:
   signalingPortBase: 49100
   mediaPortBase: 47998
   viewerSlots: 2
+  activationTimeoutSeconds: 10
   leaseSeconds: 120
   maximumFrameAgeMs: 2000
   signalingIngress:

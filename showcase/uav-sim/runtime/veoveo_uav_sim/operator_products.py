@@ -39,6 +39,22 @@ def operator_stream_product_id(capacity_slot: int) -> str:
     return f"product-slot-{capacity_slot}"
 
 
+def native_signaling_is_listening(signaling_port: int) -> bool:
+    expected_port = f"{signaling_port:04X}"
+    for table in ("/proc/self/net/tcp", "/proc/self/net/tcp6"):
+        try:
+            with open(table, encoding="ascii") as connections:
+                for connection in connections:
+                    fields = connection.split()
+                    if len(fields) < 4 or fields[3] != "0A":
+                        continue
+                    if fields[1].rsplit(":", 1)[-1].upper() == expected_port:
+                        return True
+        except OSError:
+            continue
+    return False
+
+
 def livestream_aov_product_arguments(
     product_name: str,
     *,
@@ -86,6 +102,7 @@ class OperatorRenderProduct:
         optics: CameraOptics,
         camera_path: str,
         *,
+        signaling_port: int,
         maximum_frame_age_ms: int = 1_000,
     ) -> None:
         import omni.hydratexture
@@ -98,7 +115,9 @@ class OperatorRenderProduct:
         self.camera_path = camera_path
         self.product_id = operator_stream_product_id(capacity_slot)
         self.name = operator_product_name(capacity_slot)
+        self.signaling_port = signaling_port
         self._lock = threading.Lock()
+        self._activation = threading.Event()
         self._active = False
         self._closed = False
         self._capture_pending = False
@@ -106,6 +125,8 @@ class OperatorRenderProduct:
         self._failure: BaseException | None = None
         self._camera_id: str | None = None
         self._live_view_id: str | None = None
+        self._activation_frame_ready = False
+        self._signaling_ready = False
         self._health = OperatorProductHealth(maximum_frame_age_ms)
         self._hydra_texture = create_hydra_texture(
             self.name,
@@ -157,8 +178,25 @@ class OperatorRenderProduct:
             self._failure = None
             self._capture_pending = False
             self._last_capture_requested = 0.0
+            self._activation_frame_ready = False
+            self._signaling_ready = False
+            self._activation.clear()
             self._health.activate()
         self._hydra_texture.updates_enabled = True
+        self._observe_signaling_readiness()
+
+    def wait_until_ready(self, live_view_id: str, timeout_seconds: float) -> None:
+        if not self._activation.wait(timeout_seconds):
+            raise TimeoutError(
+                f"viewer product {self.product_id} did not activate native signaling"
+            )
+        with self._lock:
+            if not self._active or self._live_view_id != live_view_id:
+                raise RuntimeError("viewer product assignment ended during activation")
+            if self._failure is not None:
+                raise RuntimeError("viewer product activation failed") from self._failure
+            if not self._activation_frame_ready or not self._signaling_ready:
+                raise RuntimeError("viewer product activation completed without readiness")
 
     def release(self, live_view_id: str) -> None:
         with self._lock:
@@ -170,6 +208,9 @@ class OperatorRenderProduct:
             self._capture_pending = False
             self._camera_id = None
             self._live_view_id = None
+            self._activation_frame_ready = False
+            self._signaling_ready = False
+            self._activation.set()
             self._health.deactivate()
         self._hydra_texture.updates_enabled = False
 
@@ -179,6 +220,9 @@ class OperatorRenderProduct:
             self._capture_pending = False
             self._camera_id = None
             self._live_view_id = None
+            self._activation_frame_ready = False
+            self._signaling_ready = False
+            self._activation.set()
             self._health.deactivate()
         self._hydra_texture.updates_enabled = False
 
@@ -195,6 +239,9 @@ class OperatorRenderProduct:
             self._capture_pending = False
             self._camera_id = None
             self._live_view_id = None
+            self._activation_frame_ready = False
+            self._signaling_ready = False
+            self._activation.set()
             self._health.deactivate()
         self._hydra_texture.updates_enabled = False
         self._subscription = None
@@ -202,17 +249,30 @@ class OperatorRenderProduct:
     def state(self, *, content_ready: bool) -> dict[str, object]:
         with self._lock:
             failure = self._failure
-        if failure is not None:
-            self._health.fail(str(failure) or type(failure).__name__)
-        result = self._health.snapshot(content_ready=content_ready)
-        assignment = self.assignment()
-        result.update({
-            "streamProductId": self.product_id,
-            "capacitySlot": self.capacity_slot,
-            "activeViewerLeases": 1 if assignment is not None else 0,
-            "connectedViewers": 0,
-            "nvencSessions": 1 if self.active else 0,
-        })
+            if failure is not None:
+                self._health.fail(str(failure) or type(failure).__name__)
+            result = self._health.snapshot(content_ready=content_ready)
+            assignment = (
+                (self._camera_id, self._live_view_id)
+                if self._active
+                and self._camera_id is not None
+                and self._live_view_id is not None
+                else None
+            )
+            active = self._active and not self._closed
+            signaling_ready = self._signaling_ready
+        if active and not signaling_ready and result["lifecycle"] != "failed":
+            result["lifecycle"] = "starting"
+            result["diagnostic"] = "native signaling is starting"
+        result.update(
+            {
+                "streamProductId": self.product_id,
+                "capacitySlot": self.capacity_slot,
+                "activeViewerLeases": 1 if assignment is not None else 0,
+                "connectedViewers": 0,
+                "nvencSessions": 1 if active else 0,
+            }
+        )
         if assignment is not None:
             result["cameraId"] = assignment[0]
             result["liveViewId"] = assignment[1]
@@ -237,14 +297,19 @@ class OperatorRenderProduct:
                 if self._closed or not self._active:
                     return
                 self._health.observe_frame(monotonic_seconds=now)
+                self._activation_frame_ready = True
                 if self._capture_pending or now - self._last_capture_requested < 0.5:
-                    return
-                self._capture_pending = True
-                self._last_capture_requested = now
-            self._capture.capture_next_frame_rp_resource_callback(
-                self._on_capture,
-                resource,
-            )
+                    capture = False
+                else:
+                    self._capture_pending = True
+                    self._last_capture_requested = now
+                    capture = True
+            self._observe_signaling_readiness()
+            if capture:
+                self._capture.capture_next_frame_rp_resource_callback(
+                    self._on_capture,
+                    resource,
+                )
         except BaseException as error:
             self._record_failure(error)
 
@@ -284,6 +349,8 @@ class OperatorRenderProduct:
                     return
                 self._capture_pending = False
                 self._health.observe_frame(visible=visible)
+                self._activation_frame_ready = True
+            self._observe_signaling_readiness()
         except BaseException as error:
             self._record_failure(error)
 
@@ -292,6 +359,23 @@ class OperatorRenderProduct:
             self._capture_pending = False
             if self._failure is None:
                 self._failure = error
+            self._activation.set()
+
+    def _observe_signaling_readiness(self) -> None:
+        with self._lock:
+            if (
+                self._closed
+                or not self._active
+                or self._signaling_ready
+                or not self._activation_frame_ready
+            ):
+                return
+        if not native_signaling_is_listening(self.signaling_port):
+            return
+        with self._lock:
+            if self._active and not self._closed and self._activation_frame_ready:
+                self._signaling_ready = True
+                self._activation.set()
 
 
 class OperatorProductCollection:
@@ -329,6 +413,7 @@ class OperatorProductCollection:
                     capacity_slot,
                     config.viewer_optics,
                     camera_path,
+                    signaling_port=config.signaling_port_base + capacity_slot,
                 )
             )
         return cls(tuple(products), config.cameras, transforms)
@@ -345,6 +430,18 @@ class OperatorProductCollection:
             raise ValueError(f"unknown streamable logical camera {camera_id!r}")
         product = self._require(capacity_slot)
         product.assign(camera_id, live_view_id)
+        return product.state(content_ready=content_ready)
+
+    def wait_until_ready(
+        self,
+        capacity_slot: int,
+        live_view_id: str,
+        *,
+        timeout_seconds: float,
+        content_ready: bool,
+    ) -> dict[str, object]:
+        product = self._require(capacity_slot)
+        product.wait_until_ready(live_view_id, timeout_seconds)
         return product.state(content_ready=content_ready)
 
     def release(

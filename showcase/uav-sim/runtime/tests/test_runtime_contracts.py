@@ -79,6 +79,7 @@ VALID_ENVIRONMENT = {
     "UAV_SIM_WORLD_SOURCE": "google_photorealistic_3d_tiles",
     "UAV_SIM_RENDERING_HZ": "30",
     "UAV_SIM_LIVE_VIEWER_SLOTS": "2",
+    "UAV_SIM_LIVE_ACTIVATION_TIMEOUT_SECONDS": "7.5",
     "UAV_SIM_LIVE_PUBLIC_MEDIA_IP": "127.0.0.1",
     "UAV_SIM_OPERATOR_CAMERAS_JSON": json.dumps(
         [
@@ -239,6 +240,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(config.rendering_hz, 30)
         self.assertEqual(config.camera.fps, 2)
         self.assertEqual(config.operator_live_view.cameras[0].optics.frame_rate_hz, 30)
+        self.assertEqual(config.operator_live_view.activation_timeout_seconds, 7.5)
         self.assertEqual(config.px4_connect_timeout_seconds, 180.0)
         self.assertEqual(config.camera.vehicle_id, "uav-1")
         self.assertEqual(config.camera.bit_rate_bps, 750_000)

@@ -30,6 +30,7 @@ from .operator_camera_rigs import (
 class OperatorLiveViewRuntimeConfig:
     cameras: tuple[OperatorCameraDefinition, ...]
     viewer_slot_count: int
+    activation_timeout_seconds: float
     signaling_port_base: int
     media_port_base: int
     public_media_ip: str
@@ -47,6 +48,10 @@ class OperatorLiveViewRuntimeConfig:
             raise ValueError("operator-camera identities must be unique")
         if not 1 <= self.viewer_slot_count <= 32:
             raise ValueError("operator live view requires 1-32 viewer slots")
+        if not 0.1 <= self.activation_timeout_seconds <= 60.0:
+            raise ValueError(
+                "operator live-view activation timeout must be 0.1-60 seconds"
+            )
         maximum_slot = self.viewer_slot_count - 1
         if not 1 <= self.signaling_port_base <= 65_535 - maximum_slot:
             raise ValueError("viewer-slot signaling port range exceeds 65535")
@@ -82,6 +87,7 @@ class OperatorLiveViewRuntimeConfig:
         raw: str,
         *,
         viewer_slot_count: int,
+        activation_timeout_seconds: float,
         signaling_port_base: int,
         media_port_base: int,
         public_media_ip: str,
@@ -95,6 +101,7 @@ class OperatorLiveViewRuntimeConfig:
         return cls(
             cameras=tuple(_camera(item) for item in value),
             viewer_slot_count=viewer_slot_count,
+            activation_timeout_seconds=activation_timeout_seconds,
             signaling_port_base=signaling_port_base,
             media_port_base=media_port_base,
             public_media_ip=public_media_ip,

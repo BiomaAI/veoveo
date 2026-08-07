@@ -299,7 +299,7 @@ class AdapterApplication:
             live_view_id = body["liveViewId"]
             if not isinstance(camera_id, str) or not isinstance(live_view_id, str):
                 raise ValueError("viewer-product assignment identities must be strings")
-            result = await asyncio.to_thread(
+            await asyncio.to_thread(
                 self._submit_main_thread,
                 lambda: self._operator_products.assign(
                     capacity_slot,
@@ -308,6 +308,26 @@ class AdapterApplication:
                     content_ready=self._stream_content_ready(),
                 ),
             )
+            try:
+                result = await asyncio.to_thread(
+                    self._operator_products.wait_until_ready,
+                    capacity_slot,
+                    live_view_id,
+                    timeout_seconds=(
+                        self._config.operator_live_view.activation_timeout_seconds
+                    ),
+                    content_ready=self._stream_content_ready(),
+                )
+            except (RuntimeError, TimeoutError):
+                await asyncio.to_thread(
+                    self._submit_main_thread,
+                    lambda: self._operator_products.release(
+                        capacity_slot,
+                        live_view_id,
+                        content_ready=self._stream_content_ready(),
+                    ),
+                )
+                raise
             self._state.update_stream_products(
                 self._operator_products.state(
                     content_ready=self._stream_content_ready()

@@ -6,9 +6,10 @@ world, derives operator cameras from current entity transforms, renders those ca
 and produces their encoded video. No second process mirrors the scene or replays poses
 for visualization.
 
-> A simulation MCP server exposes governed live cameras rendered by its authoritative
-> simulation. Each camera produces at most one encoded stream product, shared by
-> authorized viewer leases. Camera smoothing operates only on the operator-camera
+> A simulation MCP server exposes governed logical cameras rendered by its authoritative
+> simulation. Every active viewer lease reserves one bounded direct stream product. In
+> the UAV reference, that product owns a camera clone, RTX render, NVIDIA NVENC encode,
+> and native Omniverse WebRTC peer. Camera smoothing operates once on the logical-camera
 > transform and never changes or delays authoritative simulation state.
 
 ## Standards And Protocols
@@ -18,7 +19,7 @@ for visualization.
 | Model Context Protocol | Version `2025-11-25` over the repository Streamable HTTP profile, including tools, resources, templates, subscriptions, tasks, and one MCP App. |
 | JSON Schema | Draft 2020-12 strict request, result, camera, product, capacity, and health schemas. |
 | `veoveo.io/live-view/v2` | Repository-owned provider-neutral profile for authoritative cameras, stable encoded products, ephemeral viewer leases, capacity, endpoints, and redacted state. |
-| WebRTC and H.264 | One NVIDIA NVENC H.264 product for each active camera, with independent WebRTC peer and SRTP state for each viewer lease. |
+| WebRTC and H.264 | One direct NVIDIA NVENC H.264 product, native WebRTC peer, and SRTP state for each active viewer lease. Shared-bitstream fan-out and media relays are outside this profile. |
 | OpenUSD and RTX Hydra | Isaac Sim `6.0.1` stage and render products inside the authoritative runtime. These are implementation details, not MCP wire types. |
 | OGC 3D Tiles | Cesium-backed streamed-world rendering from one simulator-owned world and cache. |
 | WGS 84, ECEF, ENU, NED, and FLU | Explicit world, physics, entity, rig, and camera coordinate boundaries. |
@@ -110,9 +111,10 @@ replay controller.
 
 ## Authoritative Operator Cameras
 
-Configured cameras are created under `/World/OperatorCameras`. Each camera has a stable
-logical ID, revision, physical slot, Hydra texture identity, and stream-product ID. A
-browser connection never creates or reassigns a camera.
+Configured logical cameras are created under `/World/OperatorCameras`. Each camera has a
+stable logical ID, revision, and final smoothed pose. A browser lease never mutates that
+definition. It reserves one preallocated physical viewer slot whose camera clone follows
+the logical pose for the lifetime of that lease.
 
 The admitted rig set is:
 
@@ -151,17 +153,22 @@ This prevents camera-target disagreement without delaying simulation.
 
 ## Render Products
 
-Each physical slot owns one stable camera, Hydra texture, LdrColor AOV, native signaling
-port, UDP media port, and H.264 product identity. The runtime submits every active camera
-viewport to Cesium in the same Kit frame. Headless operation disables the pinned Cesium
-extension's interactive viewport-window update subscription, leaving one authoritative
-viewport writer instead of racing an empty GUI inventory. The runtime does not create
-another Cesium world, provider connection, georeference, material set, or cache.
+Each physical viewer slot owns one stable camera clone, Hydra texture, LdrColor AOV,
+native signaling port, UDP media port, and H.264 product identity. The runtime copies
+the selected logical camera pose into every assigned clone and submits every active
+viewer viewport to Cesium in the same Kit frame. Headless operation disables the pinned
+Cesium extension's interactive viewport-window update subscription, leaving one
+authoritative viewport writer instead of racing an empty GUI inventory. The runtime
+does not create another Cesium world, provider connection, georeference, material set,
+or cache.
 
-Continuous products stay warm. On-demand products have stable resources but pause their
-render and encode cadence while unused. The first viewer activates an on-demand product.
-The last close or expiry starts a bounded idle grace, after which the product pauses if
-no new viewer exists. Startup deactivates every stale on-demand product once.
+Viewer products have stable resources but pause their render and encode cadence while
+unassigned. Assignment completes only after the first assigned RTX frame exists and the
+slot's exact native signaling socket is listening. Hydra drawable events drive both
+observations. One bounded activation wait protects the adapter request; it does not poll
+or connect to the listener. Failure releases that exact slot before any public lease or
+signaling endpoint is returned. Close, expiry, revocation, and signaling loss pause the
+slot immediately.
 
 Camera capacity and viewer capacity are separate. Camera capacity accounts for physical
 slots, active pixels per second, NVENC sessions, GPU memory reservation, and port slots.
@@ -178,26 +185,30 @@ contains a `TODO(GPU)` at its CPU readback boundary; the intended replacement is
 CUDA/NVENC packet fan-out once Recording Hub accepts the canonical encoded product. That
 debt is not a fallback and is not acceptance evidence for live operator rendering.
 
-## Viewer Leases And Fan-Out
+## Viewer Leases And Isolation
 
-A logical camera and encoded product belong to the Work Context output owner. Every
-viewer lease additionally binds the gateway actor and one browser-instance identity.
-Two users, tabs, or browser profiles receive different lease IDs and tokens while
-sharing the same camera and product.
+A logical camera belongs to the Work Context output owner. Every viewer lease
+additionally binds the gateway actor, one browser-instance identity, and one exclusively
+assigned physical viewer slot. Two users, tabs, or browser profiles selecting the same
+logical camera receive different lease IDs, tokens, camera clones, RTX products, NVENC
+sessions, native WebRTC peers, and port pairs. They share only the authoritative world,
+Cesium cache, and logical camera pose.
 
 Only `open_live_view` and `renew_live_view` return the token. Resources contain redacted
 lease state. The server retains a SHA-256 token hash in memory and compares it in constant
 time. Renew rotates only that lease. Close, expiry, and teardown invalidate only that
 lease. Closing one viewer cannot stop another viewer or rotate another actor's token.
 
-The signaling proxy authorizes the lease before opening the stable native product
-endpoint, then strips the credential before forwarding. Each viewer receives separate
-peer and SRTP state. Viewer count must not increase camera, Hydra texture, render, Cesium
-viewport, or NVENC-session counts.
+The signaling proxy authorizes the lease before opening that slot's stable native
+product endpoint, then strips the credential before forwarding. Each viewer receives
+separate peer and SRTP state. Every admitted viewer increases active camera-clone,
+Hydra-texture, RTX-render, Cesium-viewport, and NVENC-session counts by exactly one up to
+the configured slot bound. No shared-bitstream fan-out, SFU, RTSP relay, WHEP adapter, or
+software encode path exists.
 
-Lease expiry uses one exact deadline task created with the lease. Product idle shutdown
-uses one deadline created by the last close. Neither path polls. Runtime health is read
-on demand and announced through MCP subscriptions.
+Lease expiry uses one exact deadline task created with the lease. Slot release is part
+of close, expiry, revocation, and signaling teardown. Neither path polls. Runtime health
+is read on demand and announced through MCP subscriptions.
 
 ## Audit And Failure Isolation
 
@@ -223,7 +234,7 @@ breaks the startup cycle while preserving mandatory cleanup after an MCP-only re
 Gateway authority is evaluated for every MCP open, renew, close, and resource read. If
 the same actor and browser instance presents a changed output owner, policy revision, or
 data-label authority at renewal, the server closes that lease, records
-`viewer_authority_revoked`, and leaves every unrelated viewer attached to the shared
+`viewer_authority_revoked`, and leaves every unrelated viewer attached to its own
 product. Other rejected renewals record `renew_denied`. Expiry invalidates the signaling
 connection even when the browser disappears without teardown.
 
@@ -251,7 +262,9 @@ state.
 The UAV chart deploys one pod with exactly one GPU request. The Isaac container receives
 `compute,graphics,utility,video` NVIDIA capabilities. The companion Rust MCP container
 does not request another GPU. Stable signaling and media port ranges are derived from
-physical camera slots and validated by the chart.
+physical viewer slots and validated by the chart. `liveView.activationTimeoutSeconds`
+bounds first-frame and native-listener activation without introducing a readiness
+poller.
 
 The same pod owns MCP HTTP, the public signaling proxy, private native signaling ports,
 public UDP media ports, one Cesium cache, and the authoritative runtime. Network policy
@@ -287,8 +300,8 @@ pose-mirroring protocol. First-party visual certification remains the GPU UAV sh
 
 Hardware acceptance requires one NVIDIA GPU, a headed hardware-backed browser, RTX
 rendering, NVIDIA NVENC, advancing H.264 frames, several authoritative cameras, correct
-Cesium alignment, shared-product multi-viewer evidence, and no software renderer or
-encoder. The smoke entry points are:
+Cesium alignment, isolated-product multi-viewer evidence, and no software renderer,
+encoder, or media relay. The smoke entry points are:
 
 ```sh
 cargo xtask smoke uav-showcase-up --context <context> --public-base-url <url>

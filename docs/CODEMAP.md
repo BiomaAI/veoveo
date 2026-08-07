@@ -410,7 +410,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifacts |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | immutable governed scene compositions, owner and Work Context scoped geospatial views, shared 3D Tiles streaming, GPU overlays, and captured frames |
-| `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, missions, vehicles, tasks, subscriptions, recording references, authoritative logical cameras and shared GPU render products, ephemeral viewer leases, authenticated signaling, and the live-view App |
+| `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, missions, vehicles, tasks, subscriptions, recording references, authoritative logical cameras, isolated per-viewer GPU products, ephemeral viewer leases, authenticated signaling, and the live-view App |
 
 The packaged Node chart server keeps its Veoveo boundary beside the image:
 
@@ -423,11 +423,11 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 
 | Path | Responsibility |
 |---|---|
-| `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser viewer leases, shared render-product admission, bounded capacity, renewal, closure, expiry, and typed denial state |
+| `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser viewer leases, exclusive viewer-slot admission, bounded capacity, renewal, closure, expiry, and typed denial state |
 | `servers/uav-sim-mcp/src/server/signaling.rs` | authenticated WebRTC signaling authorization and per-viewer peer attachment to simulator-owned encoded products |
 | `servers/uav-sim-mcp/src/server/live_view_audit.rs` | durable audit projection for camera, product, lease, denial, expiry, and revocation events |
 | `servers/uav-sim-mcp/assets/live-app.html` | self-contained authoritative-camera selection and multi-view live App |
-| `showcase/uav-sim/runtime/` | thin domain overlay on the canonical Isaac runtime with Cesium/Pegasus compatibility, PX4 lifecycle, RTX domain sensors, authoritative operator cameras, shared NVENC products, direct Stream publication, and Rerun publication |
+| `showcase/uav-sim/runtime/` | thin domain overlay on the canonical Isaac runtime with Cesium/Pegasus compatibility, PX4 lifecycle, RTX domain sensors, authoritative logical cameras, isolated per-viewer RTX/NVENC products, direct Stream publication, and Rerun publication |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera.py` | operator-camera orchestration over focused rig, smoothing, product, and health modules |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_rigs.py` | authoritative target sampling and desired poses for every supported camera rig |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_smoothing.py` | frame-rate-independent position and shortest-arc orientation filters with typed reset rules |
