@@ -112,7 +112,7 @@ def run(config: RuntimeConfig) -> None:
         QuaternionXyzw,
         Vector3,
     )
-    from .operator_products import OperatorProductCollection
+    from .operator_products import OperatorProductCollection, materialize_matrix4d
     from .physics_batch import FleetPhysicsLifecycle
     from .px4 import Px4Commander
     from .realtime import FixedStepCadenceGate, PeriodicDeadline, RealtimePhysicsClock
@@ -592,8 +592,15 @@ def run(config: RuntimeConfig) -> None:
             assert operator_products is not None
             for product_viewport in operator_products.active_viewports():
                 live_viewport = CesiumViewport()
-                live_viewport.viewMatrix = product_viewport.view
-                live_viewport.projMatrix = product_viewport.projection
+                # Hydra's frame callback serializes these matrices as sixteen
+                # scalars. Cesium's pinned binding deliberately accepts only
+                # the native Gf.Matrix4d type used by Kit viewport APIs.
+                live_viewport.viewMatrix = materialize_matrix4d(
+                    product_viewport.view, Gf.Matrix4d
+                )
+                live_viewport.projMatrix = materialize_matrix4d(
+                    product_viewport.projection, Gf.Matrix4d
+                )
                 live_viewport.width = float(product_viewport.width)
                 live_viewport.height = float(product_viewport.height)
                 cesium_viewports.append(live_viewport)
