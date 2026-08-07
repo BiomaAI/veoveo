@@ -40,7 +40,9 @@ from veoveo_uav_sim.state import (
 from veoveo_uav_sim.vehicle_model import (
     PX4_IRIS_MOMENT_CONSTANT,
     PX4_IRIS_MOTOR_CONSTANT,
+    PX4_IRIS_SENSOR_CADENCE,
     PX4_IRIS_YAW_MOMENT_COEFFICIENT,
+    Px4IrisSensorCadence,
     Px4IrisThrustCurve,
 )
 from veoveo_uav_sim.stream_output import _annex_b_nals, _packetize_nal
@@ -109,6 +111,18 @@ WORLD = WorldConfiguration(
 
 
 class RuntimeConfigTests(unittest.TestCase):
+    def test_px4_sensor_cadence_is_bounded_by_the_physics_clock(self) -> None:
+        PX4_IRIS_SENSOR_CADENCE.validate_for_physics(60)
+        self.assertEqual(PX4_IRIS_SENSOR_CADENCE.imu_hz, 60)
+        self.assertEqual(PX4_IRIS_SENSOR_CADENCE.barometer_hz, 30)
+        self.assertEqual(PX4_IRIS_SENSOR_CADENCE.magnetometer_hz, 30)
+        self.assertEqual(PX4_IRIS_SENSOR_CADENCE.gps_hz, 10)
+
+        with self.assertRaisesRegex(ValueError, "exceeds physics cadence"):
+            Px4IrisSensorCadence(imu_hz=120).validate_for_physics(60)
+        with self.assertRaisesRegex(ValueError, "must divide physics cadence"):
+            Px4IrisSensorCadence(gps_hz=11).validate_for_physics(60)
+
     def test_authoritative_tick_does_not_wait_for_present_threads(self) -> None:
         arguments = kit_live_render_arguments()
         self.assertEqual(
