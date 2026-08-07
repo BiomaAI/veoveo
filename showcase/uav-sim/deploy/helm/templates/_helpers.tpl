@@ -189,6 +189,11 @@
 {{- if gt (add (int .Values.liveView.mediaPortBase) $lastSlot) 65535 -}}
 {{- fail "liveView media port range exceeds 65535" -}}
 {{- end -}}
+{{- with .Values.liveView.mediaService.nodePortBase -}}
+{{- if gt (add (int .) $lastSlot) 32767 -}}
+{{- fail "liveView media NodePort range exceeds 32767" -}}
+{{- end -}}
+{{- end -}}
 {{- if and (le (int .Values.liveView.mediaPortBase) (add (int .Values.liveView.signalingPortBase) $lastSlot)) (le (int .Values.liveView.signalingPortBase) (add (int .Values.liveView.mediaPortBase) $lastSlot)) -}}
 {{- fail "liveView signaling and media port ranges overlap" -}}
 {{- end -}}

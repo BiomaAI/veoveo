@@ -135,6 +135,12 @@ The chart requires:
 The public signaling URL is credential-free. Provider credentials are mounted from a
 Secret and never enter ConfigMaps, MCP resources, logs, recordings, or evidence.
 
+`liveView.mediaService.nodePortBase` is required when an installation maps a fixed
+public UDP range through Kubernetes NodePorts. The chart assigns one contiguous
+NodePort per physical camera slot and rejects a range that exceeds the Kubernetes
+NodePort boundary. A normal LoadBalancer installation leaves the value null and uses
+allocator-owned NodePorts.
+
 ## Credential-Free Verification
 
 ```sh
