@@ -65,10 +65,12 @@ platform and UAV Applications select immutable chart versions independently. The
 platform and UAV Applications currently select chart
 `0.1.0-a118ac35`. The chart closure includes the simulator-first startup contract from
 revision `a118ac35da24c2ba5c9996056861c444724af6b8`. Its authoritative live-view
-runtime, UAV MCP server, Gateway, and Console images were staged from source revision
-`c1fb6111825340c0311c092f34a01b4407f8aa94`; each selected digest is the workload's
-immutable development identity. A release-input commit advances the coordinated runtime
-closure before a qualified publication promotes those exact inputs.
+runtime was published from source revision
+`3bdb05a7a6d8da1ab156804e6460a62665d2604c`. The UAV MCP server, Gateway, and Console
+images were staged from revision `c1fb6111825340c0311c092f34a01b4407f8aa94`;
+each selected digest is the workload's immutable development identity. A release-input
+commit advances the coordinated runtime closure before a qualified publication promotes
+those exact inputs.
 
 Publish a new local release directly to the shared registry:
 
