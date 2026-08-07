@@ -3,11 +3,11 @@ from __future__ import annotations
 import ctypes
 import threading
 import time
-from dataclasses import dataclass
 from typing import Any, Protocol, TypeVar
 
 import numpy as np
 
+from .hydra_camera import HydraRenderViewport, hydra_render_viewport
 from .operator_camera import CameraStreamPolicy, OperatorCameraDefinition
 from .operator_camera_config import OperatorLiveViewRuntimeConfig
 from .operator_health import OperatorProductHealth
@@ -77,14 +77,6 @@ def livestream_aov_arguments(config: OperatorLiveViewRuntimeConfig) -> list[str]
     return arguments
 
 
-@dataclass(frozen=True, slots=True)
-class OperatorRenderViewport:
-    view: tuple[float, ...]
-    projection: tuple[float, ...]
-    width: int
-    height: int
-
-
 class OperatorRenderProduct:
     def __init__(
         self,
@@ -107,7 +99,7 @@ class OperatorRenderProduct:
         self._closed = False
         self._capture_pending = False
         self._last_capture_requested = 0.0
-        self._viewport: OperatorRenderViewport | None = None
+        self._viewport: HydraRenderViewport | None = None
         self._failure: BaseException | None = None
         self._health = OperatorProductHealth(maximum_frame_age_ms)
         self._hydra_texture = create_hydra_texture(
@@ -148,7 +140,7 @@ class OperatorRenderProduct:
             return self._active and not self._closed
 
     @property
-    def viewport(self) -> OperatorRenderViewport | None:
+    def viewport(self) -> HydraRenderViewport | None:
         with self._lock:
             return self._viewport
 
@@ -220,17 +212,8 @@ class OperatorRenderProduct:
             resource = texture.get("rp_resource") if isinstance(texture, dict) else None
             if resource is None:
                 return
-            frame = self._hydra_texture.get_frame_info(event["result_handle"])
-            view = tuple(float(value) for value in frame.get("view", ()))
-            projection = tuple(float(value) for value in frame.get("projection", ()))
-            resolution = tuple(int(value) for value in frame.get("resolution", ()))
-            if len(view) != 16 or len(projection) != 16 or len(resolution) != 2:
-                raise RuntimeError("operator RTX product returned invalid viewport metadata")
-            viewport = OperatorRenderViewport(
-                view,
-                projection,
-                resolution[0],
-                resolution[1],
+            viewport = hydra_render_viewport(
+                self._hydra_texture.get_frame_info(event["result_handle"])
             )
             now = time.monotonic()
             with self._lock:

@@ -147,6 +147,8 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIn("omni.kit.livestream.aov", app_source)
         self.assertIn("AuthoritativeOperatorCameraCollection", app_source)
         self.assertIn('"sync_loads": False', app_source)
+        self.assertIn('"disable_viewport_updates": True', app_source)
+        self.assertNotIn("get_active_viewport", app_source)
         self.assertNotIn("follow_camera", app_source)
 
     def test_recording_policy_is_typed_and_bounded(self) -> None:

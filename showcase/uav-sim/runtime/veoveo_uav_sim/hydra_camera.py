@@ -24,6 +24,30 @@ class RgbFrame:
     pixels: np.ndarray
 
 
+@dataclass(frozen=True, slots=True)
+class HydraRenderViewport:
+    view: tuple[float, ...]
+    projection: tuple[float, ...]
+    width: int
+    height: int
+
+
+def hydra_render_viewport(frame: dict[str, Any]) -> HydraRenderViewport:
+    view = tuple(float(value) for value in frame.get("view", ()))
+    projection = tuple(float(value) for value in frame.get("projection", ()))
+    resolution = tuple(int(value) for value in frame.get("resolution", ()))
+    if len(view) != 16 or len(projection) != 16 or len(resolution) != 2:
+        raise RuntimeError("RTX Hydra product returned invalid viewport metadata")
+    if resolution[0] < 1 or resolution[1] < 1:
+        raise RuntimeError("RTX Hydra product returned invalid viewport resolution")
+    return HydraRenderViewport(
+        view=view,
+        projection=projection,
+        width=resolution[0],
+        height=resolution[1],
+    )
+
+
 def render_product_path(name: str) -> str:
     if not name or not all(
         character.isascii()
@@ -133,6 +157,7 @@ class HydraRgbCameraSensor:
         self._closed = False
         self._sequence = 0
         self._latest_pixels: np.ndarray | None = None
+        self._viewport: HydraRenderViewport | None = None
         self._failure: BaseException | None = None
         self._render_product = RtxHydraRenderProduct(
             name=name,
@@ -154,6 +179,11 @@ class HydraRgbCameraSensor:
     @property
     def render_product_path(self) -> str:
         return self._render_product.path
+
+    @property
+    def viewport(self) -> HydraRenderViewport | None:
+        with self._lock:
+            return self._viewport
 
     def latest_frame(self, after_sequence: int = 0) -> RgbFrame | None:
         with self._lock:
@@ -187,8 +217,16 @@ class HydraRgbCameraSensor:
             resource = texture.get("rp_resource")
             if resource is None:
                 return
+            viewport = hydra_render_viewport(
+                self._render_product.hydra_texture.get_frame_info(
+                    event["result_handle"]
+                )
+            )
             with self._lock:
-                if self._closed or self._capture_pending:
+                if self._closed:
+                    return
+                self._viewport = viewport
+                if self._capture_pending:
                     return
                 self._capture_pending = True
             try:
