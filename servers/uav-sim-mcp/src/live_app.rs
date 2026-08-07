@@ -34,5 +34,7 @@ mod tests {
         for removed in ["reconciliation", "pose authorization", "set_camera"] {
             assert!(!html.contains(removed), "obsolete App surface {removed}");
         }
+        assert!(html.contains("{session_id:sessionId}"));
+        assert!(!html.contains("first.sessionId"));
     }
 }
