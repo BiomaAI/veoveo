@@ -269,6 +269,24 @@ def run(config: RuntimeConfig) -> None:
                 config.cesium_ion_asset_id,
                 config.cesium_ion_access_token,
             )
+            tileset = CesiumTileset.Get(stage, tileset_path)
+            if not tileset.GetPrim().IsValid():
+                raise RuntimeError("Cesium did not create the governed tileset prim")
+            tileset.GetMaximumScreenSpaceErrorAttr().Set(
+                config.tile_streaming.maximum_screen_space_error
+            )
+            tileset.GetMaximumSimultaneousTileLoadsAttr().Set(
+                config.tile_streaming.maximum_simultaneous_loads
+            )
+            tileset.GetMaximumCachedBytesAttr().Set(
+                config.tile_streaming.maximum_cached_bytes
+            )
+            tileset.GetPreloadAncestorsAttr().Set(
+                config.tile_streaming.preload_ancestors
+            )
+            tileset.GetPreloadSiblingsAttr().Set(
+                config.tile_streaming.preload_siblings
+            )
         finally:
             stage.SetEditTarget(previous_target)
 

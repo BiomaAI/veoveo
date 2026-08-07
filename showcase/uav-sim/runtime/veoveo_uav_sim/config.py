@@ -51,6 +51,37 @@ class TileCachePolicy(str, Enum):
     PERSISTENT = "persistent"
 
 
+@dataclass(frozen=True, slots=True)
+class TileStreamingConfig:
+    maximum_screen_space_error: float
+    maximum_simultaneous_loads: int
+    maximum_cached_bytes: int
+    preload_ancestors: bool
+    preload_siblings: bool
+
+    @classmethod
+    def from_environment(cls) -> "TileStreamingConfig":
+        return cls(
+            maximum_screen_space_error=_float(
+                "UAV_SIM_TILE_MAXIMUM_SCREEN_SPACE_ERROR", "16.0", 1.0, 64.0
+            ),
+            maximum_simultaneous_loads=_int(
+                "UAV_SIM_TILE_MAXIMUM_SIMULTANEOUS_LOADS", "8", 1, 64
+            ),
+            maximum_cached_bytes=_int(
+                "UAV_SIM_TILE_MAXIMUM_CACHED_BYTES",
+                str(2 * 1024 * 1024 * 1024),
+                64 * 1024 * 1024,
+                16 * 1024 * 1024 * 1024,
+            ),
+            preload_ancestors=True,
+            # Sibling preloading admits geometry which cannot contribute to an
+            # active authoritative viewport. The moving-camera path instead
+            # retains visible ancestors and a larger decoded-tile cache.
+            preload_siblings=False,
+        )
+
+
 class RecordingMapProvider(str, Enum):
     OPEN_STREET_MAP = "openStreetMap"
     MAPBOX_SATELLITE = "mapboxSatellite"
@@ -279,6 +310,7 @@ class RuntimeConfig:
     cesium_ion_access_token: str
     cesium_ion_asset_id: int
     tile_cache_policy: TileCachePolicy
+    tile_streaming: TileStreamingConfig
     cache_directory: Path
     vehicle_count: int
     adapter_host: str
@@ -371,6 +403,7 @@ class RuntimeConfig:
             cesium_ion_access_token=_required("CESIUM_ION_ACCESS_TOKEN"),
             cesium_ion_asset_id=asset_id,
             tile_cache_policy=cache_policy,
+            tile_streaming=TileStreamingConfig.from_environment(),
             cache_directory=cache_directory,
             vehicle_count=_int("UAV_SIM_VEHICLE_COUNT", "1", 1, 16),
             adapter_host=os.environ.get("UAV_SIM_ADAPTER_HOST", "127.0.0.1"),
