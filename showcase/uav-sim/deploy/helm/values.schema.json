@@ -160,7 +160,10 @@
           "required": [
             "maximumScreenSpaceError",
             "maximumSimultaneousLoads",
-            "maximumCachedBytes"
+            "maximumCachedBytes",
+            "preloadAncestors",
+            "preloadSiblings",
+            "forbidHoles"
           ],
           "properties": {
             "maximumScreenSpaceError": {
@@ -177,7 +180,10 @@
               "type": "integer",
               "minimum": 67108864,
               "maximum": 17179869184
-            }
+            },
+            "preloadAncestors": {"const": true},
+            "preloadSiblings": {"const": true},
+            "forbidHoles": {"const": true}
           }
         }
       }

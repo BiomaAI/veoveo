@@ -34,6 +34,15 @@ def _int(name: str, default: str, minimum: int, maximum: int) -> int:
     return value
 
 
+def _bool(name: str, default: str) -> bool:
+    value = os.environ.get(name, default)
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    raise ValueError(f"{name} must be true or false")
+
+
 def _identity(name: str, value: str) -> str:
     if not 1 <= len(value) <= 128 or not all(
         character.isascii()
@@ -58,6 +67,7 @@ class TileStreamingConfig:
     maximum_cached_bytes: int
     preload_ancestors: bool
     preload_siblings: bool
+    forbid_holes: bool
 
     @classmethod
     def from_environment(cls) -> "TileStreamingConfig":
@@ -66,7 +76,7 @@ class TileStreamingConfig:
                 "UAV_SIM_TILE_MAXIMUM_SCREEN_SPACE_ERROR", "16.0", 1.0, 64.0
             ),
             maximum_simultaneous_loads=_int(
-                "UAV_SIM_TILE_MAXIMUM_SIMULTANEOUS_LOADS", "2", 1, 64
+                "UAV_SIM_TILE_MAXIMUM_SIMULTANEOUS_LOADS", "20", 1, 64
             ),
             maximum_cached_bytes=_int(
                 "UAV_SIM_TILE_MAXIMUM_CACHED_BYTES",
@@ -74,11 +84,13 @@ class TileStreamingConfig:
                 64 * 1024 * 1024,
                 16 * 1024 * 1024 * 1024,
             ),
-            preload_ancestors=True,
-            # Sibling preloading admits geometry which cannot contribute to an
-            # active authoritative viewport. The moving-camera path instead
-            # retains visible ancestors and a larger decoded-tile cache.
-            preload_siblings=False,
+            preload_ancestors=_bool(
+                "UAV_SIM_TILE_PRELOAD_ANCESTORS", "true"
+            ),
+            preload_siblings=_bool(
+                "UAV_SIM_TILE_PRELOAD_SIBLINGS", "true"
+            ),
+            forbid_holes=_bool("UAV_SIM_TILE_FORBID_HOLES", "true"),
         )
 
 

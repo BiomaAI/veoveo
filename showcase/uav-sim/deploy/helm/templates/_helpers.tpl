@@ -57,6 +57,12 @@
   value: {{ .root.Values.world.streaming.maximumSimultaneousLoads | quote }}
 - name: UAV_SIM_TILE_MAXIMUM_CACHED_BYTES
   value: {{ printf "%.0f" .root.Values.world.streaming.maximumCachedBytes | quote }}
+- name: UAV_SIM_TILE_PRELOAD_ANCESTORS
+  value: {{ .root.Values.world.streaming.preloadAncestors | quote }}
+- name: UAV_SIM_TILE_PRELOAD_SIBLINGS
+  value: {{ .root.Values.world.streaming.preloadSiblings | quote }}
+- name: UAV_SIM_TILE_FORBID_HOLES
+  value: {{ .root.Values.world.streaming.forbidHoles | quote }}
 - name: XDG_CACHE_HOME
   value: {{ printf "/var/lib/veoveo/runtime-cache/%s" .root.Values.cache.version | quote }}
 - name: UAV_SIM_SESSION_ID

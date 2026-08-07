@@ -45,6 +45,12 @@ sensor and operator-camera viewport participates in Cesium's tile selection duri
 same Kit update. The runtime does not create another provider connection or tile cache
 for live views.
 
+Moving cameras use hole-free tile refinement. Cesium retains a loaded parent until its
+replacement children are ready, while ancestor and sibling preloading keep the next
+camera footprint warm. The chart admits 20 concurrent tile loads by default and keeps
+the decoded cache bounded. A fast nadir camera therefore sees lower-detail coverage
+during refinement instead of the renderer clear color.
+
 Fleet dynamics use CUDA-backed PhysX tensor views. The fixed-step clock advances at most
 one physics interval per scheduler pass; a missed wall-clock deadline slows simulation
 instead of replaying stale actuator commands. Rerun serialization, browser traffic, and
