@@ -25,11 +25,16 @@ from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operati
 from veoveo_uav_sim.fleet_loop import FleetLoopController, vehicle_loop_route
 from veoveo_uav_sim.event_queue import NonBlockingEventQueue
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
+from veoveo_uav_sim.hydra_camera import CaptureRequestState
 from veoveo_uav_sim.physics_batch import (
     FleetPhysicsTiming,
     FleetPhysicsLifecycle,
     IsaacFleetPhysicsBatch,
     RigidBodyBatchAccumulator,
+)
+from veoveo_uav_sim.physical_camera import (
+    physical_camera_path,
+    physical_camera_product_name,
 )
 from veoveo_uav_sim.px4 import Px4Commander, Px4CommandRejected
 from veoveo_uav_sim.realtime import (
@@ -121,6 +126,18 @@ WORLD = WorldConfiguration(
 
 
 class RuntimeConfigTests(unittest.TestCase):
+    def test_physical_camera_uses_a_stable_usd_identifier(self) -> None:
+        self.assertEqual(
+            physical_camera_path("uav-1"),
+            "/World/PhysicalCameras/uav_1_down",
+        )
+        self.assertEqual(
+            physical_camera_product_name("uav-1"),
+            "physical_uav_1_down",
+        )
+        with self.assertRaisesRegex(ValueError, "vehicle identity is invalid"):
+            physical_camera_path("uav/1")
+
     def test_px4_frame_transforms_do_not_require_scipy_objects(self) -> None:
         np.testing.assert_allclose(
             enu_to_ned_vector([1.0, 2.0, 3.0]), [2.0, 1.0, -3.0]
@@ -234,15 +251,32 @@ class RuntimeConfigTests(unittest.TestCase):
         ).read_text()
         self.assertNotIn("omni.replicator", app_source)
         self.assertNotIn("import CameraSensor", app_source)
+        self.assertNotIn("RtxCamera", app_source)
+        self.assertNotIn("isaacsim.sensors.experimental.rtx", app_source)
         self.assertIn("HydraRgbCameraSensor", app_source)
+        self.assertIn("create_physical_rgb_camera", app_source)
         self.assertIn("omni.kit.livestream.aov", app_source)
         self.assertIn("AuthoritativeOperatorCameraCollection", app_source)
         self.assertIn('"sync_loads": False', app_source)
         self.assertIn('"disable_viewport_updates": True', app_source)
+        self.assertIn(
+            '"--/exts/cesium.omniverse/externallyManagedViewports=true"',
+            app_source,
+        )
         self.assertNotIn("get_active_viewport", app_source)
         self.assertIn("current_pose_cesium_viewport", app_source)
         self.assertNotIn("follow_camera", app_source)
         self.assertIn("operator_camera_cadence.due(physics_step)", app_source)
+        self.assertIn("physical_camera_cadence.due(physics_step)", app_source)
+        self.assertIn("render_fps=config.rendering_hz", app_source)
+        self.assertIn("camera_sensor.request_capture()", app_source)
+
+        operator_camera_source = (
+            Path(__file__).parents[1]
+            / "veoveo_uav_sim"
+            / "operator_camera.py"
+        ).read_text()
+        self.assertIn("CreateHorizontalApertureAttr", operator_camera_source)
 
         product_sources = "".join(
             (
@@ -254,6 +288,41 @@ class RuntimeConfigTests(unittest.TestCase):
         )
         self.assertEqual(product_sources.count("get_frame_info"), 1)
         self.assertEqual(product_sources.count("is_async_low_latency=False"), 2)
+
+    def test_physical_capture_requests_are_coalesced(self) -> None:
+        requests = CaptureRequestState()
+        self.assertFalse(requests.begin())
+        requests.request()
+        requests.request()
+        self.assertTrue(requests.begin())
+        self.assertFalse(requests.begin())
+        requests.request()
+        requests.complete()
+        self.assertTrue(requests.begin())
+        requests.complete()
+        requests.close()
+        requests.request()
+        self.assertFalse(requests.begin())
+
+    def test_physical_capture_cadence_is_exact(self) -> None:
+        cadence = FixedStepCadenceGate(60, 2)
+        self.assertEqual(
+            [step for step in range(1, 121) if cadence.due(step)],
+            [30, 60, 90, 120],
+        )
+
+    def test_headless_cesium_has_one_authoritative_viewport_writer(self) -> None:
+        runtime_root = Path(__file__).parents[1]
+        dockerfile = (runtime_root / "Dockerfile").read_text()
+        patch = (
+            runtime_root
+            / "patches"
+            / "cesium-0.29.0-external-viewports.patch"
+        ).read_text()
+        self.assertIn("cesium-0.29.0-external-viewports.patch", dockerfile)
+        self.assertIn("externallyManagedViewports", patch)
+        self.assertIn("externallyManagedViewports = false", patch)
+        self.assertIn("if not settings.get_as_bool", patch)
 
     def test_recording_policy_is_typed_and_bounded(self) -> None:
         environment = {

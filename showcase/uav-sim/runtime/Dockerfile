@@ -40,7 +40,9 @@ RUN curl --fail --location --show-error \
     && mkdir -p /src/cesium \
     && unzip -q /tmp/cesium.zip -d /src/cesium
 COPY patches/cesium-0.29.0-preinstalled-vendor.patch /tmp/cesium.patch
+COPY patches/cesium-0.29.0-external-viewports.patch /tmp/cesium-viewports.patch
 RUN patch --directory=/src/cesium --strip=1 < /tmp/cesium.patch
+RUN patch --directory=/src/cesium --strip=1 < /tmp/cesium-viewports.patch
 
 FROM --platform=${TARGETPLATFORM} ${SIMULATION_RUNTIME_IMAGE} AS uav-overlay
 

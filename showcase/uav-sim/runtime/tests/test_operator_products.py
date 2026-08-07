@@ -8,6 +8,7 @@ from veoveo_uav_sim.operator_camera_config import OperatorLiveViewRuntimeConfig
 from veoveo_uav_sim.operator_health import OperatorProductHealth
 from veoveo_uav_sim.operator_products import (
     livestream_aov_arguments,
+    livestream_aov_product_arguments,
     operator_product_name,
     operator_stream_product_id,
 )
@@ -161,6 +162,21 @@ class OperatorCameraConfigTests(unittest.TestCase):
 
 
 class OperatorProductTests(unittest.TestCase):
+    def test_one_aov_product_has_one_exact_gpu_stream(self) -> None:
+        arguments = livestream_aov_product_arguments(
+            "uav_operator_follow",
+            signaling_port=49100,
+            media_port=47998,
+            public_media_ip="127.0.0.1",
+            target_fps=24,
+        )
+        self.assertEqual(len(arguments), 7)
+        self.assertTrue(
+            all("uav_operator_follow.LdrColor" in item for item in arguments)
+        )
+        self.assertTrue(any("signalPort=49100" in item for item in arguments))
+        self.assertTrue(any("streamPort=47998" in item for item in arguments))
+
     def test_aov_arguments_have_one_locked_port_pair_per_product(self) -> None:
         cameras = [
             _camera(

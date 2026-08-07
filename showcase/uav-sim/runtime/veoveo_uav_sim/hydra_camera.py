@@ -33,6 +33,34 @@ class RgbFrame:
     rendered_camera: HydraRenderedCamera
 
 
+@dataclass(slots=True)
+class CaptureRequestState:
+    """Coalesce physics-driven sensor captures without wall-clock scheduling."""
+
+    requested: bool = False
+    pending: bool = False
+    closed: bool = False
+
+    def request(self) -> None:
+        if not self.closed:
+            self.requested = True
+
+    def begin(self) -> bool:
+        if self.closed or self.pending or not self.requested:
+            return False
+        self.requested = False
+        self.pending = True
+        return True
+
+    def complete(self) -> None:
+        self.pending = False
+
+    def close(self) -> None:
+        self.closed = True
+        self.requested = False
+        self.pending = False
+
+
 def hydra_rendered_camera(frame: dict[str, Any]) -> HydraRenderedCamera:
     view = tuple(float(value) for value in frame.get("view", ()))
     resolution = tuple(int(value) for value in frame.get("resolution", ()))
@@ -145,7 +173,7 @@ class HydraRgbCameraSensor:
         camera_path: str,
         width: int,
         height: int,
-        fps: int,
+        render_fps: int,
     ) -> None:
         import omni.hydratexture
         import omni.kit.renderer_capture
@@ -154,8 +182,7 @@ class HydraRgbCameraSensor:
         self._width = width
         self._height = height
         self._lock = threading.Lock()
-        self._capture_pending = False
-        self._closed = False
+        self._capture_requests = CaptureRequestState()
         self._sequence = 0
         self._latest_pixels: np.ndarray | None = None
         self._latest_rendered_camera: HydraRenderedCamera | None = None
@@ -167,7 +194,7 @@ class HydraRgbCameraSensor:
             camera_path=camera_path,
             width=width,
             height=height,
-            fps=fps,
+            fps=render_fps,
         )
         self._renderer_capture = (
             omni.kit.renderer_capture.acquire_renderer_capture_interface()
@@ -207,9 +234,13 @@ class HydraRgbCameraSensor:
             rendered_camera=rendered_camera,
         )
 
+    def request_capture(self) -> None:
+        with self._lock:
+            self._capture_requests.request()
+
     def close(self) -> None:
         with self._lock:
-            self._closed = True
+            self._capture_requests.close()
         self._subscription = None
         self._render_product.close()
 
@@ -234,11 +265,8 @@ class HydraRgbCameraSensor:
                 )
             )
             with self._lock:
-                if self._closed:
+                if not self._capture_requests.begin():
                     return
-                if self._capture_pending:
-                    return
-                self._capture_pending = True
                 self._pending_rendered_camera = rendered_camera
             try:
                 self._renderer_capture.capture_next_frame_rp_resource_callback(
@@ -247,7 +275,7 @@ class HydraRgbCameraSensor:
                 )
             except BaseException:
                 with self._lock:
-                    self._capture_pending = False
+                    self._capture_requests.complete()
                     self._pending_rendered_camera = None
                 raise
         except BaseException as error:
@@ -280,11 +308,11 @@ class HydraRgbCameraSensor:
                     raise RuntimeError(
                         "RTX Hydra RGB capture lost its rendered camera metadata"
                     )
-                if not self._closed:
+                if not self._capture_requests.closed:
                     self._sequence += 1
                     self._latest_pixels = pixels
                     self._latest_rendered_camera = rendered_camera
-                self._capture_pending = False
+                self._capture_requests.complete()
                 self._pending_rendered_camera = None
         except BaseException as error:
             self._record_failure(error)
@@ -292,7 +320,7 @@ class HydraRgbCameraSensor:
     def _record_failure(self, error: BaseException) -> None:
         first_failure = False
         with self._lock:
-            self._capture_pending = False
+            self._capture_requests.complete()
             self._pending_rendered_camera = None
             if self._failure is None:
                 self._failure = error
