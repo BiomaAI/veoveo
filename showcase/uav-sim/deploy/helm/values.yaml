@@ -198,6 +198,21 @@ liveView:
           resetAfterGapMs: 1000
       optics: *operatorOptics
       streamPolicy: on_demand
+    - cameraId: stabilized
+      revision: 1
+      rig:
+        kind: stabilized_mounted_entity
+        targetEntityId: uav-1
+        mount:
+          positionM: {x: 0.60, "y": 0.0, z: -0.20}
+          orientationXyzw: {x: 0.0, "y": 0.0, z: 0.0, w: 1.0}
+        smoothing:
+          translationHalfLifeMs: 120
+          rotationHalfLifeMs: 100
+          teleportDistanceM: 100.0
+          resetAfterGapMs: 1000
+      optics: *operatorOptics
+      streamPolicy: on_demand
     - cameraId: formation
       revision: 1
       rig:
