@@ -125,7 +125,7 @@ def run(config: RuntimeConfig) -> None:
         normalize_rgb_frame,
         should_record_camera_frame,
     )
-    from .cesium_camera import CesiumCameraSpec, current_cesium_viewport
+    from .cesium_camera import current_cesium_viewport
     from .command_queue import MainThreadQueue
     from .fleet_loop import FleetLoopController
     from .hydra_camera import HydraRgbCameraSensor
@@ -136,7 +136,7 @@ def run(config: RuntimeConfig) -> None:
         QuaternionXyzw,
         Vector3,
     )
-    from .operator_products import OperatorProductCollection, materialize_matrix4d
+    from .operator_products import OperatorProductCollection
     from .physics_batch import FleetPhysicsLifecycle
     from .px4 import Px4Commander
     from .realtime import FixedStepCadenceGate, native_minimum_frame_rate
@@ -173,7 +173,6 @@ def run(config: RuntimeConfig) -> None:
     camera_visible_streaks: dict[str, int] = {}
     camera_unusable_streaks_after_tiles: dict[str, int] = {}
     camera_was_ready: set[str] = set()
-    sensor_camera_spec: CesiumCameraSpec | None = None
     physics_lifecycle: FleetPhysicsLifecycle | None = None
     fleet_loop: FleetLoopController | None = None
     operator_cameras: AuthoritativeOperatorCameraCollection | None = None
@@ -401,13 +400,8 @@ def run(config: RuntimeConfig) -> None:
                 camera_frames_observed[vehicle_id] = 0
                 camera_visible_streaks[vehicle_id] = 0
                 camera_unusable_streaks_after_tiles[vehicle_id] = 0
-                sensor_camera_spec = CesiumCameraSpec(
-                    camera_path,
-                    config.camera.width,
-                    config.camera.height,
-                )
 
-        if not camera_sensors or sensor_camera_spec is None:
+        if not camera_sensors:
             raise RuntimeError("Cesium requires an authoritative sensor camera")
         operator_cameras = AuthoritativeOperatorCameraCollection.create(
             config.operator_live_view.cameras,
@@ -654,28 +648,40 @@ def run(config: RuntimeConfig) -> None:
             # empty list. Restore the sensor viewport after every Kit update,
             # using the same native frame contract as the extension.
             cesium_viewports = []
-            cesium_viewports.append(
-                current_cesium_viewport(
-                    stage,
-                    sensor_camera_spec,
-                    CesiumViewport,
+            for vehicle_id, sensor in camera_sensors.items():
+                sensor_viewport = sensor.viewport
+                if sensor_viewport is None:
+                    continue
+                cesium_viewports.append(
+                    current_cesium_viewport(
+                        sensor_viewport,
+                        tuple(
+                            float(value)
+                            for value in vehicles[vehicle_id].state.position
+                        ),
+                        CesiumViewport,
+                        Gf.Matrix4d,
+                    )
                 )
-            )
             assert operator_products is not None
-            for product_viewport in operator_products.active_viewports():
-                live_viewport = CesiumViewport()
-                # Hydra's frame callback serializes these matrices as sixteen
-                # scalars. Cesium's pinned binding deliberately accepts only
-                # the native Gf.Matrix4d type used by Kit viewport APIs.
-                live_viewport.viewMatrix = materialize_matrix4d(
-                    product_viewport.view, Gf.Matrix4d
+            assert operator_cameras is not None
+            operator_positions = {
+                camera.definition.camera_id: camera.last_pose.position_m.as_tuple()
+                for camera in operator_cameras.cameras
+                if camera.last_pose is not None
+            }
+            for camera_id, product_viewport in operator_products.active_viewports():
+                expected_position = operator_positions.get(camera_id)
+                if expected_position is None:
+                    continue
+                cesium_viewports.append(
+                    current_cesium_viewport(
+                        product_viewport,
+                        expected_position,
+                        CesiumViewport,
+                        Gf.Matrix4d,
+                    )
                 )
-                live_viewport.projMatrix = materialize_matrix4d(
-                    product_viewport.projection, Gf.Matrix4d
-                )
-                live_viewport.width = float(product_viewport.width)
-                live_viewport.height = float(product_viewport.height)
-                cesium_viewports.append(live_viewport)
             cesium_interface.on_update_frame(cesium_viewports, False)
 
         tile_coverage_frames = 0
