@@ -33,16 +33,16 @@ class OperatorProductHealth:
         self._active = False
         self._sequence = 0
         self._last_frame: OperatorFrameHealth | None = None
-        self._diagnostic: str | None = None
+        self._failure_diagnostic: str | None = None
 
     def activate(self) -> None:
         self._active = True
-        self._diagnostic = None
+        self._failure_diagnostic = None
 
     def deactivate(self) -> None:
         self._active = False
         self._last_frame = None
-        self._diagnostic = None
+        self._failure_diagnostic = None
 
     def observe_frame(
         self,
@@ -63,23 +63,25 @@ class OperatorProductHealth:
             observed_at=_timestamp(),
             visible=retained_visibility,
         )
-        self._diagnostic = (
-            "operator camera frame is uniform or blank"
-            if retained_visibility is False
-            else None
-        )
 
     def fail(self, diagnostic: str) -> None:
         if not diagnostic:
             raise ValueError("operator-product failure diagnostic must not be empty")
-        self._diagnostic = diagnostic
+        self._failure_diagnostic = diagnostic
 
-    def snapshot(self, monotonic_seconds: float | None = None) -> dict[str, object]:
+    def snapshot(
+        self,
+        *,
+        content_ready: bool,
+        monotonic_seconds: float | None = None,
+    ) -> dict[str, object]:
         now = time.monotonic() if monotonic_seconds is None else monotonic_seconds
         if not self._active:
             lifecycle = OperatorProductLifecycle.INACTIVE
-        elif self._diagnostic is not None:
+        elif self._failure_diagnostic is not None:
             lifecycle = OperatorProductLifecycle.FAILED
+        elif not content_ready:
+            lifecycle = OperatorProductLifecycle.STARTING
         elif self._last_frame is None:
             lifecycle = OperatorProductLifecycle.STARTING
         elif now - self._last_frame.observed_monotonic_seconds > self._maximum_frame_age_seconds:
@@ -96,8 +98,14 @@ class OperatorProductHealth:
             result["lastFrameAt"] = self._last_frame.observed_at
             if self._last_frame.visible is not None:
                 result["visible"] = self._last_frame.visible
-        if self._diagnostic is not None:
-            result["diagnostic"] = self._diagnostic
+        if self._failure_diagnostic is not None:
+            result["diagnostic"] = self._failure_diagnostic
+        elif self._active and not content_ready:
+            result["diagnostic"] = "streamed world is warming"
+        elif lifecycle is OperatorProductLifecycle.FAILED and (
+            self._last_frame is not None and self._last_frame.visible is False
+        ):
+            result["diagnostic"] = "operator camera frame is uniform or blank"
         elif lifecycle is OperatorProductLifecycle.FAILED:
             result["diagnostic"] = "operator camera frame is stale"
         return result

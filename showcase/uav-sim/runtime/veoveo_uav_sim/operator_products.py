@@ -188,12 +188,12 @@ class OperatorRenderProduct:
         self._hydra_texture.updates_enabled = False
         self._subscription = None
 
-    def state(self) -> dict[str, object]:
+    def state(self, *, content_ready: bool) -> dict[str, object]:
         with self._lock:
             failure = self._failure
         if failure is not None:
             self._health.fail(str(failure) or type(failure).__name__)
-        result = self._health.snapshot()
+        result = self._health.snapshot(content_ready=content_ready)
         result.update(
             {
                 "cameraId": self.definition.camera_id,
@@ -318,23 +318,23 @@ class OperatorProductCollection:
             )
         )
 
-    def activate(self, camera_id: str) -> dict[str, object]:
+    def activate(self, camera_id: str, *, content_ready: bool) -> dict[str, object]:
         product = self._require(camera_id)
         product.activate()
-        return product.state()
+        return product.state(content_ready=content_ready)
 
-    def deactivate(self, camera_id: str) -> dict[str, object]:
+    def deactivate(self, camera_id: str, *, content_ready: bool) -> dict[str, object]:
         product = self._require(camera_id)
         product.deactivate()
-        return product.state()
+        return product.state(content_ready=content_ready)
 
     def deactivate_all_on_demand(self) -> None:
         for product in self._products.values():
             product.deactivate()
 
-    def state(self) -> list[dict[str, object]]:
+    def state(self, *, content_ready: bool) -> list[dict[str, object]]:
         return [
-            product.state()
+            product.state(content_ready=content_ready)
             for product in sorted(
                 self._products.values(),
                 key=lambda product: product.definition.physical_slot,
