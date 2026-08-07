@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 import threading
@@ -48,6 +49,11 @@ from veoveo_uav_sim.vehicle_model import (
     PX4_IRIS_YAW_MOMENT_COEFFICIENT,
     Px4IrisSensorCadence,
     Px4IrisThrustCurve,
+    attitude_enu_flu_to_ned_frd,
+    enu_to_ned_vector,
+    flu_to_frd_vector,
+    inverse_rotate_vector_xyzw,
+    quaternion_multiply_xyzw,
 )
 from veoveo_uav_sim.stream_output import _annex_b_nals, _packetize_nal
 from veoveo_uav_sim.world_config import (
@@ -115,6 +121,35 @@ WORLD = WorldConfiguration(
 
 
 class RuntimeConfigTests(unittest.TestCase):
+    def test_px4_frame_transforms_do_not_require_scipy_objects(self) -> None:
+        np.testing.assert_allclose(
+            enu_to_ned_vector([1.0, 2.0, 3.0]), [2.0, 1.0, -3.0]
+        )
+        np.testing.assert_allclose(
+            flu_to_frd_vector([1.0, 2.0, 3.0]), [1.0, -2.0, -3.0]
+        )
+        np.testing.assert_allclose(
+            inverse_rotate_vector_xyzw([0.0, 0.0, 0.0, 1.0], [1.0, 2.0, 3.0]),
+            [1.0, 2.0, 3.0],
+        )
+        quarter_turn_z = [0.0, 0.0, math.sqrt(0.5), math.sqrt(0.5)]
+        np.testing.assert_allclose(
+            inverse_rotate_vector_xyzw(quarter_turn_z, [0.0, 1.0, 0.0]),
+            [1.0, 0.0, 0.0],
+            atol=1.0e-12,
+        )
+        np.testing.assert_allclose(
+            quaternion_multiply_xyzw(
+                quarter_turn_z, [0.0, 0.0, 0.0, 1.0]
+            ),
+            quarter_turn_z,
+        )
+        converted = attitude_enu_flu_to_ned_frd([0.0, 0.0, 0.0, 1.0])
+        self.assertAlmostEqual(float(np.linalg.norm(converted)), 1.0)
+        np.testing.assert_allclose(
+            converted, [0.0, 0.0, -math.sqrt(0.5), -math.sqrt(0.5)]
+        )
+
     def test_native_catch_up_preserves_long_streamed_world_frames(self) -> None:
         self.assertEqual(MAXIMUM_NATIVE_PHYSICS_SUBSTEPS, 12)
         self.assertEqual(native_minimum_frame_rate(60), 5)
