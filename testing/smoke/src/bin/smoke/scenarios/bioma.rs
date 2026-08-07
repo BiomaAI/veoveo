@@ -11,8 +11,6 @@ const LARGE_ARTIFACT_ROWS: u64 = 200_000;
 const LARGE_ARTIFACT_MINIMUM_BYTES: usize = 8 * 1024 * 1024;
 const OPERATOR_PROFILE_SCOPES: &[&str] = &[
     "operator:use",
-    "uav-sim:read",
-    "uav-sim:write",
     "uav-sim:stream",
     "view:read",
     "view:write",
