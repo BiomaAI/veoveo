@@ -166,6 +166,16 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertNotIn("get_active_viewport", app_source)
         self.assertNotIn("follow_camera", app_source)
 
+        product_sources = "".join(
+            (
+                Path(__file__).parents[1]
+                / "veoveo_uav_sim"
+                / source_name
+            ).read_text()
+            for source_name in ("hydra_camera.py", "operator_products.py")
+        )
+        self.assertEqual(product_sources.count("is_async_low_latency=False"), 2)
+
     def test_recording_policy_is_typed_and_bounded(self) -> None:
         environment = {
             **VALID_ENVIRONMENT,

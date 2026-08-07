@@ -109,7 +109,7 @@ class OperatorRenderProduct:
             usd_camera_path=camera_path,
             hydra_engine_name="rtx",
             is_async=True,
-            is_async_low_latency=True,
+            is_async_low_latency=False,
             hydra_tick_rate=definition.optics.frame_rate_hz,
         )
         actual_path = self._hydra_texture.get_render_product_path()
