@@ -1012,4 +1012,23 @@ mod tests {
 
         assert!(error.to_string().contains("unknown field `recording_uri`"));
     }
+
+    #[test]
+    fn private_adapter_product_wire_preserves_visibility() {
+        let product: LiveStreamProductState = serde_json::from_value(serde_json::json!({
+            "streamProductId": "product-follow",
+            "cameraId": "follow",
+            "physicalSlot": 0,
+            "lifecycle": "ready",
+            "activeViewerLeases": 0,
+            "connectedViewers": 0,
+            "nvencSessions": 1,
+            "encodedFrames": 12,
+            "lastFrameAt": "2026-08-07T03:39:14Z",
+            "visible": true
+        }))
+        .unwrap();
+
+        assert_eq!(product.visible, Some(true));
+    }
 }
