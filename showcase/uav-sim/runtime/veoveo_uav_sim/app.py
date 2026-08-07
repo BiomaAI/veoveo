@@ -125,10 +125,7 @@ def run(config: RuntimeConfig) -> None:
         normalize_rgb_frame,
         should_record_camera_frame,
     )
-    from .cesium_camera import (
-        current_authored_cesium_viewport,
-        current_cesium_viewport,
-    )
+    from .cesium_camera import current_pose_cesium_viewport
     from .command_queue import MainThreadQueue
     from .fleet_loop import FleetLoopController
     from .hydra_camera import HydraRgbCameraSensor
@@ -138,6 +135,7 @@ def run(config: RuntimeConfig) -> None:
         Pose,
         QuaternionXyzw,
         Vector3,
+        compose_pose,
     )
     from .operator_products import OperatorProductCollection
     from .physics_batch import FleetPhysicsLifecycle
@@ -314,6 +312,11 @@ def run(config: RuntimeConfig) -> None:
 
         camera_rotation_wxyz = np.array([config.camera.mount.orientation_wxyz])
         camera_translation_xyz = np.array([config.camera.mount.translation_xyz_m])
+        mount_w, mount_x, mount_y, mount_z = config.camera.mount.orientation_wxyz
+        sensor_mount_pose = Pose(
+            Vector3(*config.camera.mount.translation_xyz_m),
+            QuaternionXyzw(mount_x, mount_y, mount_z, mount_w),
+        ).normalized()
 
         for index in range(config.vehicle_count):
             vehicle_id = f"uav-{index + 1}"
@@ -651,19 +654,20 @@ def run(config: RuntimeConfig) -> None:
             # empty list. Restore the sensor viewport after every Kit update,
             # using the same native frame contract as the extension.
             cesium_viewports = []
+            entity_transforms = operator_entity_transforms()
             for vehicle_id, sensor in camera_sensors.items():
-                sensor_viewport = sensor.viewport
-                if sensor_viewport is None:
-                    continue
+                sensor_pose = compose_pose(
+                    entity_transforms[vehicle_id].pose,
+                    sensor_mount_pose,
+                )
                 cesium_viewports.append(
-                    current_cesium_viewport(
-                        sensor_viewport,
-                        tuple(
-                            float(value)
-                            for value in vehicles[vehicle_id].state.position
-                        ),
+                    current_pose_cesium_viewport(
+                        stage,
+                        sensor.camera_path,
+                        sensor_pose,
+                        config.camera.width,
+                        config.camera.height,
                         CesiumViewport,
-                        Gf.Matrix4d,
                     )
                 )
             assert operator_products is not None
@@ -672,10 +676,14 @@ def run(config: RuntimeConfig) -> None:
             for camera in operator_cameras.cameras:
                 if camera.definition.camera_id not in active_operator_cameras:
                     continue
+                camera_pose = camera.last_pose
+                if camera_pose is None:
+                    continue
                 cesium_viewports.append(
-                    current_authored_cesium_viewport(
+                    current_pose_cesium_viewport(
                         stage,
                         camera.camera_path,
+                        camera_pose,
                         camera.definition.optics.width_px,
                         camera.definition.optics.height_px,
                         CesiumViewport,
