@@ -11,7 +11,7 @@
 | `veoveo.io/mcp-conformance-profile/v1` | domain-neutral declaration of applicable hosted-server checks |
 | `veoveo.io/mcp-conformance-report/v1` | machine-readable implementation identity, capabilities, requirement results, and evidence |
 | `veoveo.io/hosted-mcp/v1` | initial Veoveo hosted-server contract revision |
-| `veoveo.io/live-view/v2` | optional provider-neutral authoritative camera, encoded-product, actor/browser lease, signaling, and redaction profile layered on a domain-owned simulation server |
+| `veoveo.io/live-view/v2` | optional provider-neutral authoritative camera, bounded viewer-product, actor/browser lease, signaling, and redaction profile layered on a domain-owned simulation server |
 
 ## Boundary
 
@@ -45,7 +45,7 @@ without that credential.
 
 A simulation profile may require `list_live_cameras`, `open_live_view`,
 `renew_live_view`, and `close_live_view` plus domain-owned camera, product, and
-redacted lease resources. The profile verifies strict schemas, stable product identity,
+redacted lease resources. The profile verifies strict schemas, stable physical-slot identity,
 actor and browser-instance isolation, token rotation, credential redaction, typed
 capacity rejection, App declaration, and authenticated signaling. Resource URIs retain
 the simulation server's own scheme; conformance never requires a shared renderer URI.
