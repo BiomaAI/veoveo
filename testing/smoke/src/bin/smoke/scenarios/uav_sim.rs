@@ -1533,17 +1533,61 @@ fn assert_world_ready(
         .and_then(Value::as_array)
         .context("authoritative simulator state omitted stream_products")?;
     ensure!(
-        !products.is_empty()
-            && products.iter().all(|product| {
-                product.get("lifecycle").and_then(Value::as_str) == Some("ready")
+        stream_products_match_camera_policies(live_cameras, products),
+        "authoritative simulator stream products are not ready: {state}"
+    );
+    Ok(())
+}
+
+fn stream_products_match_camera_policies(live_cameras: &[Value], products: &[Value]) -> bool {
+    let enabled_cameras = live_cameras
+        .iter()
+        .filter(|camera| camera.get("streamPolicy").and_then(Value::as_str) != Some("disabled"))
+        .count();
+    if products.len() != enabled_cameras {
+        return false;
+    }
+    live_cameras.iter().all(|camera| {
+        let Some(camera_id) = camera.get("cameraId").and_then(Value::as_str) else {
+            return false;
+        };
+        let policy = camera.get("streamPolicy").and_then(Value::as_str);
+        let matching = products
+            .iter()
+            .filter(|product| product.get("cameraId").and_then(Value::as_str) == Some(camera_id))
+            .collect::<Vec<_>>();
+        if policy == Some("disabled") {
+            return matching.is_empty();
+        }
+        let [product] = matching.as_slice() else {
+            return false;
+        };
+        let lifecycle = product.get("lifecycle").and_then(Value::as_str);
+        let nvenc_sessions = product.get("nvencSessions").and_then(Value::as_u64);
+        match policy {
+            Some("continuous") => {
+                lifecycle == Some("ready")
+                    && nvenc_sessions == Some(1)
+                    && product.get("visible").and_then(Value::as_bool) == Some(true)
                     && product
                         .get("encodedFrames")
                         .and_then(Value::as_u64)
                         .is_some_and(|count| count > 0)
-            }),
-        "authoritative simulator stream products are not ready: {state}"
-    );
-    Ok(())
+            }
+            Some("on_demand") => match lifecycle {
+                Some("inactive") => nvenc_sessions == Some(0),
+                Some("ready") => {
+                    nvenc_sessions == Some(1)
+                        && product
+                            .get("encodedFrames")
+                            .and_then(Value::as_u64)
+                            .is_some_and(|count| count > 0)
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    })
 }
 
 async fn wait_for_world_ready(
@@ -1849,5 +1893,39 @@ mod tests {
             .canonicalize()
             .unwrap();
         assert!(!scenario.starts_with(runtime_context));
+    }
+
+    #[test]
+    fn stream_product_acceptance_respects_continuous_and_on_demand_policies() {
+        let cameras = serde_json::json!([
+            {"cameraId":"follow","streamPolicy":"continuous"},
+            {"cameraId":"orbit","streamPolicy":"on_demand"},
+            {"cameraId":"fixed","streamPolicy":"disabled"}
+        ]);
+        let products = serde_json::json!([
+            {"cameraId":"follow","lifecycle":"ready","nvencSessions":1,
+             "encodedFrames":12,"visible":true},
+            {"cameraId":"orbit","lifecycle":"inactive","nvencSessions":0,
+             "encodedFrames":0}
+        ]);
+        assert!(stream_products_match_camera_policies(
+            cameras.as_array().unwrap(),
+            products.as_array().unwrap()
+        ));
+    }
+
+    #[test]
+    fn stream_product_acceptance_rejects_eager_on_demand_encoding() {
+        let cameras = serde_json::json!([
+            {"cameraId":"orbit","streamPolicy":"on_demand"}
+        ]);
+        let products = serde_json::json!([
+            {"cameraId":"orbit","lifecycle":"ready","nvencSessions":0,
+             "encodedFrames":0}
+        ]);
+        assert!(!stream_products_match_camera_policies(
+            cameras.as_array().unwrap(),
+            products.as_array().unwrap()
+        ));
     }
 }
