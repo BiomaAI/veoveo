@@ -18,20 +18,6 @@ _py_capsule_get_pointer.argtypes = [ctypes.py_object, ctypes.c_char_p]
 _py_capsule_get_pointer.restype = ctypes.c_void_p
 
 
-def asynchronous_hydra_texture_options(fps: int) -> dict[str, object]:
-    if fps < 1:
-        raise ValueError("RTX Hydra render cadence must be positive")
-    return {
-        "hydra_engine_name": "rtx",
-        "is_async": True,
-        # Keep the documented normal asynchronous mode. Low-latency scheduling
-        # is a different Hydra execution policy and is not part of this runtime
-        # contract; Hydra's typed tick rate owns frame cadence.
-        "is_async_low_latency": False,
-        "hydra_tick_rate": fps,
-    }
-
-
 @dataclass(frozen=True, slots=True)
 class RgbFrame:
     sequence: int
@@ -101,7 +87,10 @@ class RtxHydraRenderProduct:
             width,
             height,
             usd_camera_path=camera_path,
-            **asynchronous_hydra_texture_options(fps),
+            hydra_engine_name="rtx",
+            is_async=True,
+            is_async_low_latency=True,
+            hydra_tick_rate=fps,
         )
         actual_path = self._hydra_texture.get_render_product_path()
         if actual_path != self._path:
