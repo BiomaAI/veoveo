@@ -115,7 +115,6 @@ struct AerialCameraAcceptance {
 #[serde(deny_unknown_fields)]
 struct MissionScenario {
     longitude_offset_degrees: f64,
-    relative_altitude_m: f64,
     speed_mps: f64,
     hold_seconds: f64,
     task_timeout_seconds: u64,
@@ -268,7 +267,7 @@ impl UavAcceptanceScenario {
 
     fn validate(&self) -> Result<()> {
         ensure!(
-            self.schema == "veoveo.uav-sim-acceptance/v9",
+            self.schema == "veoveo.uav-sim-acceptance/v10",
             "unsupported UAV acceptance scenario schema {:?}",
             self.schema
         );
@@ -368,8 +367,6 @@ impl UavAcceptanceScenario {
             self.mission.longitude_offset_degrees.is_finite()
                 && self.mission.longitude_offset_degrees.abs() <= 1.0
                 && self.mission.longitude_offset_degrees != 0.0
-                && self.mission.relative_altitude_m.is_finite()
-                && (1.0..=10_000.0).contains(&self.mission.relative_altitude_m)
                 && self.mission.speed_mps.is_finite()
                 && (0.1..=100.0).contains(&self.mission.speed_mps)
                 && self.mission.hold_seconds.is_finite()
@@ -615,13 +612,15 @@ async fn uav_sim_verify_with_visual_hold(
         )
         .await?;
 
-        let origin = state
-            .pointer("/world/georeference_origin")
-            .and_then(Value::as_object)
-            .context("UAV state omitted georeference_origin")?;
-        let latitude = json_number(origin, "latitude_degrees")?;
-        let longitude = json_number(origin, "longitude_degrees")?;
-        let height = json_number(origin, "ellipsoid_height_m")?;
+        let current_position: Wgs84Position = serde_json::from_value(
+            state
+                .pointer("/vehicles/0/wgs84")
+                .cloned()
+                .context("UAV state omitted the current vehicle WGS84 position")?,
+        )
+        .context("UAV state returned an invalid current vehicle WGS84 position")?;
+        let target_position =
+            nearby_mission_position(&current_position, scenario.mission.longitude_offset_degrees)?;
         let mission = serde_json::json!({
             "session_id": scenario.session_id,
             "mission_id": format!("acceptance-{}", uuid::Uuid::now_v7()),
@@ -629,13 +628,7 @@ async fn uav_sim_verify_with_visual_hold(
             "vehicles": [{
                 "vehicle_id": scenario.vehicle_id,
                 "waypoints": [{
-                    "position": {
-                        "latitude_degrees": latitude,
-                        "longitude_degrees": longitude
-                            + scenario.mission.longitude_offset_degrees,
-                        "ellipsoid_height_m": height
-                            + scenario.mission.relative_altitude_m
-                    },
+                    "position": target_position,
                     "speed_mps": scenario.mission.speed_mps,
                     "hold_seconds": scenario.mission.hold_seconds
                 }]
@@ -1864,6 +1857,26 @@ fn assert_georeference_origin(state: &Value, scenario: &UavAcceptanceScenario) -
     Ok(())
 }
 
+fn nearby_mission_position(
+    current: &Wgs84Position,
+    longitude_offset_degrees: f64,
+) -> Result<Wgs84Position> {
+    current
+        .validate()
+        .map_err(anyhow::Error::msg)
+        .context("validating the current mission position")?;
+    let target = Wgs84Position {
+        latitude_degrees: current.latitude_degrees,
+        longitude_degrees: current.longitude_degrees + longitude_offset_degrees,
+        ellipsoid_height_m: current.ellipsoid_height_m,
+    };
+    target
+        .validate()
+        .map_err(anyhow::Error::msg)
+        .context("the nearby mission offset left the WGS84 envelope")?;
+    Ok(target)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1907,7 +1920,7 @@ mod tests {
     #[test]
     fn canonical_mission_is_runtime_loaded_and_validated() {
         let scenario = UavAcceptanceScenario::load(&canonical_scenario()).unwrap();
-        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v9");
+        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v10");
         assert_eq!(scenario.session_id, "uav-showcase");
         assert_eq!(scenario.world.world_id.as_str(), "uav-showcase-new-york");
         assert_eq!(scenario.world.tree.frames.len(), 15);
@@ -1927,7 +1940,9 @@ mod tests {
         assert_eq!(origin.ellipsoid_height_m, -17.0);
         assert_eq!(scenario.takeoff.relative_altitude_m, 300.0);
         assert_eq!(scenario.takeoff.state_timeout_seconds, 1800);
+        assert_eq!(scenario.mission.longitude_offset_degrees, 0.0002);
         assert_eq!(scenario.mission.speed_mps, 3.0);
+        assert_eq!(scenario.mission.task_timeout_seconds, 120);
         assert_eq!(scenario.recording.live_rows_timeout_seconds, 120);
         assert_eq!(scenario.camera.aerial_detail.minimum_dynamic_range, 8);
         assert_eq!(
@@ -2012,5 +2027,18 @@ mod tests {
             live_session("second", "traffic", "running"),
         ];
         assert!(reusable_live_stream_session(&sessions, "traffic").is_err());
+    }
+
+    #[test]
+    fn acceptance_mission_is_bounded_from_the_current_authorized_pose() {
+        let current = Wgs84Position {
+            latitude_degrees: 40.758,
+            longitude_degrees: -73.9855,
+            ellipsoid_height_m: 283.0,
+        };
+        let target = nearby_mission_position(&current, 0.0002).unwrap();
+        assert_eq!(target.latitude_degrees, current.latitude_degrees);
+        assert_eq!(target.longitude_degrees, -73.9853);
+        assert_eq!(target.ellipsoid_height_m, current.ellipsoid_height_m);
     }
 }
