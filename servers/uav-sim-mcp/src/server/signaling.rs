@@ -99,19 +99,20 @@ pub(super) async fn upgrade(
         Ok(authorized) => authorized,
         Err(error) => return signaling_error(error),
     };
-    let Some(slot) = authorized
-        .state
-        .endpoint
-        .media_port
-        .checked_sub(state.public_media_port_base)
-    else {
+    let slot = authorized.state.capacity_slot;
+    if state
+        .public_media_port_base
+        .checked_add(slot)
+        .filter(|port| *port == authorized.state.endpoint.media_port)
+        .is_none()
+    {
         state.service.disconnect_signaling(&live_view_id).await;
         return (
             StatusCode::SERVICE_UNAVAILABLE,
             "live-view media slot is invalid",
         )
             .into_response();
-    };
+    }
     let expected_session_protocol = format!(
         "{SESSION_PROTOCOL_PREFIX}{}",
         authorized.state.stream_product_id
