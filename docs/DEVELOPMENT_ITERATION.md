@@ -150,9 +150,12 @@ retain bounded exponential backoff because no local event can make the remote en
 healthy.
 
 Authoritative live view is event-driven. A logical-camera mutation activates or replaces
-one simulator-hosted render product, and a viewer operation attaches or detaches only its
-own peer. Product state changes and WebRTC signaling wake their consumers directly. No
-controller polls or replays a healthy simulator, camera, product, or browser lease.
+one simulator-hosted camera definition. A viewer operation atomically assigns one
+preallocated native viewer slot to that logical camera and browser instance. The slot
+owns its camera clone, RTX render product, NVENC session, WebRTC endpoint, and exact
+release lifecycle. Product state changes and WebRTC signaling wake their consumers
+directly. No controller polls or replays a healthy simulator, camera, product, or
+browser lease.
 
 Recording live playback watches filesystem changes and transmits only static context,
 one live-profile-compacted recent-history bootstrap, and newly durable data. It does not
@@ -197,6 +200,7 @@ The current controls address the main observed sinks:
 | Full smoke graph for deployment commands | `veoveo-deployment-smoke` partition |
 | Full smoke graph for browser retries | `veoveo-browser-smoke` partition |
 | Repeating a flight after browser failure | browser-only acceptance over the running session |
+| Serial browser tabs masquerading as simultaneous viewers | separate visible headed windows synchronized at the advancing-video checkpoint |
 | Polling an empty recording queue | enqueue and capacity notifications |
 | Re-reading an unchanged ingest identity and committed checkpoint for every live sample | serialized authorized-stream checkpoint with transactional revision and sequence comparison |
 | Aggregating retained producer batches for every quota decision | deterministic fixed UTC quota-window counters updated atomically with the accepted batch |
@@ -237,6 +241,13 @@ The latest measured misses remain open:
 | Task acceptance repeatedly creates short MCP sessions and token exchanges while waiting for one task | repeated closed-subscription warnings and avoidable request latency | retain one authorized task subscription for the acceptance run |
 | Long UAV acceptance binds one operator credential and one camera revision for the entire run | a completed mission crossed the 20 min credential lifetime; cleanup then used a stale camera revision | renew the acceptance credential before expiry and read the current camera revision before cleanup |
 | Browser acceptance can reuse an operator's interactive Console target | operator navigation canceled the final exclusive-network assertion after all captures completed | create a dedicated authenticated browser target for each acceptance run |
+| Local image load and registry stage derive different BuildKit daemon configurations for the same named builder | a one-file Python fix caused two destructive builder reconciliations; local load took 174.265 s and registry stage repeated another 158.391 s with only 31 cached vertices in each solve; stage evidence: `target/veoveo-xtask/evidence/6315083f650c2dc6215f99f630c25361fd2d967a/stage-target-uav-sim-runtime-1786128123199129304-3625626/run.json` | give local load and registry publication one stable builder configuration, preserve worker state across transport changes, and reject any routine command that would destroy a warm builder |
+| Build and stage use raw BuildKit progress internally but emit no phase progress while a solve is active | the 174.265 s target build was silent after builder readiness until final evidence emission | stream bounded vertex and phase progress while retaining the machine-readable event trace |
+| `uav-sim-runtime` source-only changes traverse the complete simulator dependency graph and large-image export | the targeted build spent 169.203 s in provenance-associated solve work and 170.565 s through export despite zero Rust compilation; evidence: `target/veoveo-xtask/evidence/6315083f650c2dc6215f99f630c25361fd2d967a/build-target-uav-sim-runtime-1786127805069095581-3602194/run.json` | split the frequently changed UAV overlay from immutable PX4, Cesium, Isaac, and Python dependency payloads while preserving one final digest and GPU runtime contract |
+| The broad smoke package owns focused live-view browser assertions | one verifier-only edit triggered a 2 min 19 s test build of SurrealDB, Rerun, Recording Hub, Recording MCP, Stream MCP, task runtime, and unrelated deployment scenarios before 120 relevant and unrelated tests ran in under 0.3 s | move composed flight scenarios behind a separate crate boundary and keep the focused browser package independent of platform store, recording services, and deployment smoke dependencies |
+| The nominally focused browser and UAV MCP test pair still shares platform-scale dependencies | a two-package run took 1 min 54 s while its tests completed in under one second; SurrealDB, DuckDB, the task runtime, and unrelated service clients remained in the compile closure | move live-view state-machine fixtures behind focused library boundaries and remove database, recording, and task-runtime features from the browser verifier graph |
+| An App-only MCP image update replaces the co-located simulator pod | staging the corrected App took 34.304 s, including 24.584 s of compilation and 52 ms of registry push, then rollout discarded the healthy simulator and required about two minutes of Isaac, tile, fleet, and recording recovery; evidence: `target/veoveo-xtask/evidence/05e3f2a684aa7b13d17bfe4bef83413949b613f6/stage-target-uav-sim-mcp-1786129571843377331-3746578/run.json` | separate independently replaceable control-plane and static-App lifecycle from the GPU simulator lifecycle without reintroducing a remote pose mirror or a second renderer |
+| A simultaneous-viewer verifier opened two tabs in one headed browser window | the first live acceptance stopped at the visibility preflight before either native viewer slot was allocated because opening the second tab backgrounded the first | create one headed window per simultaneous viewer and retain visibility plus hardware-adapter checks for every window |
 
 ## Qualification
 
