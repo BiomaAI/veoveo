@@ -60,7 +60,7 @@ from veoveo_uav_sim.vehicle_model import (
     inverse_rotate_vector_xyzw,
     quaternion_multiply_xyzw,
 )
-from veoveo_uav_sim.stream_output import _annex_b_nals, _packetize_nal
+from veoveo_uav_sim.stream_output import _annex_b_nals, _packetize_nal, _rtp_timestamp
 from veoveo_uav_sim.world_config import (
     GeoreferenceOrigin,
     WorldConfiguration,
@@ -127,6 +127,12 @@ WORLD = WorldConfiguration(
 
 
 class RuntimeConfigTests(unittest.TestCase):
+    def test_rtp_timestamp_has_a_per_source_epoch_and_wraps(self) -> None:
+        self.assertEqual(_rtp_timestamp(0x12345678, 0.0), 0x12345678)
+        self.assertEqual(_rtp_timestamp(0xFFFF_FFF0, 1.0), 89_984)
+        with self.assertRaisesRegex(ValueError, "finite and non-negative"):
+            _rtp_timestamp(1, -1.0)
+
     def test_physical_camera_uses_a_stable_usd_identifier(self) -> None:
         self.assertEqual(
             physical_camera_path("uav-1"),
