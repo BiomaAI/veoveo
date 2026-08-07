@@ -1314,6 +1314,7 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             luma_standard_deviation: 42.0,
             non_black_fraction: 0.95,
             content: crate::contract::CameraContent::Visible,
+            render_pose: None,
             diagnostic_code: None,
             diagnostic: None,
         }],

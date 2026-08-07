@@ -240,6 +240,12 @@ decode as hardware only when the browser reports `powerEfficient`; supported smo
 software decode is labeled explicitly. Browser acceptance still requires a headed,
 hardware-backed WebGPU or WebGL context.
 
+Physical-camera state includes a bounded `render_pose` agreement measurement after the
+first rendered frame. It reports the rendered ENU position and forward direction beside
+their position and angular error from the authoritative body-and-mount pose. Absence
+means that no rendered frame is available yet; it is not synthesized from simulation
+state.
+
 ## Deployment
 
 The UAV chart deploys one pod with exactly one GPU request. The Isaac container receives

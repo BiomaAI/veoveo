@@ -451,7 +451,8 @@ where
             .unwrap_or_else(|_| "adapter response body unavailable".to_owned());
         return Err(AdapterError::Rejected { status, detail });
     }
-    response.json().await.map_err(AdapterError::Transport)
+    let body = response.bytes().await.map_err(AdapterError::Transport)?;
+    serde_json::from_slice(&body).map_err(AdapterError::InvalidResponse)
 }
 
 pub struct FakeAdapter {
@@ -804,6 +805,8 @@ pub enum AdapterError {
     InvalidUrl(url::ParseError),
     #[error("adapter transport failed: {0}")]
     Transport(reqwest::Error),
+    #[error("adapter returned a response that violates its typed contract: {0}")]
+    InvalidResponse(#[source] serde_json::Error),
     #[error("adapter rejected the request with {status}: {detail}")]
     Rejected { status: StatusCode, detail: String },
     #[error("unknown simulation session `{0}`")]
@@ -907,6 +910,7 @@ mod tests {
                 luma_standard_deviation: 42.0,
                 non_black_fraction: 0.95,
                 content: crate::contract::CameraContent::Visible,
+                render_pose: None,
                 diagnostic_code: None,
                 diagnostic: None,
             }],
@@ -1024,12 +1028,27 @@ mod tests {
             "robust_dynamic_range": 180,
             "luma_standard_deviation": 42.0,
             "non_black_fraction": 0.95,
-            "content": "visible"
+            "content": "visible",
+            "render_pose": {
+                "position_error_m": 0.02,
+                "forward_error_degrees": 0.01,
+                "rendered_position_enu_m": {
+                    "east_m": 10.0,
+                    "north_m": 20.0,
+                    "up_m": 30.0
+                },
+                "rendered_forward_enu": {
+                    "east": 0.0,
+                    "north": 0.0,
+                    "up": -1.0
+                }
+            }
         }))
         .unwrap();
 
         assert_eq!(camera.codec, CameraCodec::H264);
         assert_eq!(camera.encoder, CameraEncoder::NvidiaNvenc);
+        assert_eq!(camera.render_pose.unwrap().position_error_m, 0.02);
     }
 
     #[test]
