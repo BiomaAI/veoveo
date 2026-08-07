@@ -1060,4 +1060,66 @@ mod tests {
             veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive
         );
     }
+
+    #[tokio::test]
+    async fn product_usage_projects_only_the_matching_connected_lease() {
+        let (service, adapter) = service(2).await;
+        let opened = service
+            .open(
+                owner(),
+                PrincipalId::new("alice").unwrap(),
+                request("browser-a"),
+            )
+            .await
+            .unwrap();
+        service
+            .authorize_signaling(
+                &opened.stream.live_view_id,
+                opened.access_token.expose_for_signaling(),
+            )
+            .await
+            .unwrap();
+
+        let mut state = adapter.state().await.unwrap();
+        service.project_product_usage(&mut state).await;
+
+        let assigned = &state.stream_products[usize::from(opened.stream.capacity_slot)];
+        assert_eq!(assigned.active_viewer_leases, 1);
+        assert_eq!(assigned.connected_viewers, 1);
+        let idle = &state.stream_products[1 - usize::from(opened.stream.capacity_slot)];
+        assert_eq!(idle.active_viewer_leases, 0);
+        assert_eq!(idle.connected_viewers, 0);
+    }
+
+    #[tokio::test]
+    async fn close_is_idempotent_after_signaling_has_released_the_slot() {
+        let (service, adapter) = service(1).await;
+        let actor = PrincipalId::new("alice").unwrap();
+        let opened = service
+            .open(owner(), actor.clone(), request("browser-a"))
+            .await
+            .unwrap();
+        service
+            .disconnect_signaling(&opened.stream.live_view_id)
+            .await;
+
+        let result = service
+            .close(
+                &owner(),
+                &actor,
+                CloseLiveViewRequest {
+                    session_id: opened.stream.session_id,
+                    live_view_id: opened.stream.live_view_id,
+                    viewer_instance_id: LiveViewerInstanceId::new("browser-a").unwrap(),
+                },
+            )
+            .await
+            .unwrap();
+
+        assert!(result.closed);
+        assert_eq!(
+            adapter.state().await.unwrap().stream_products[0].nvenc_sessions,
+            0
+        );
+    }
 }
