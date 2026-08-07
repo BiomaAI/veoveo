@@ -43,6 +43,7 @@
           "object-store",
           "artifact-service",
           "recording-data-plane",
+          "simulation-runtime-support",
           "console",
           "telemetry",
           "ingress"
