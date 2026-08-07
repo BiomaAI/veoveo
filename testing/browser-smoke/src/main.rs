@@ -18,6 +18,7 @@ mod browser;
 use browser::{
     ConsoleLiveCaptureEvidence, ConsoleRecordingCaptureEvidence, ConsoleStreamCaptureEvidence,
     capture_console_live_app_pair, capture_console_recording, capture_console_stream_app,
+    preflight_console_live_app,
 };
 
 const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-browser-evidence/v4";
@@ -318,6 +319,8 @@ async fn verify_running_showcase(
         url::Url::parse(public_base_url)?.scheme() == "https",
         "focused browser acceptance requires public HTTPS"
     );
+    let timeout = Duration::from_secs(scenario.view.timeout_seconds);
+    preflight_console_live_app(chrome_cdp_url, public_base_url, timeout).await?;
     let token = gateway_token(conformance, public_base_url).await?;
     let operator = OperatorClient {
         conformance,
@@ -374,7 +377,6 @@ async fn verify_running_showcase(
             evidence_directory.display()
         )
     })?;
-    let timeout = Duration::from_secs(scenario.view.timeout_seconds);
     let (first_live, second_live) = capture_console_live_app_pair(
         chrome_cdp_url,
         public_base_url,
