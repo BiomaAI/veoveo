@@ -2,8 +2,8 @@
 
   This approved implementation plan supersedes the mirror-oriented Simulation View
   architecture. The target is a reference implementation with multiple authoritative
-  cameras, smooth cinematic tracking, and many viewers sharing each camera's single
-  encoded product.
+  cameras, smooth cinematic tracking, and a bounded native NVIDIA stream product for
+  each active viewer.
 
   ## Standards And Protocols
 
@@ -11,8 +11,8 @@
   |---|---|
   | Model Context Protocol | Version `2025-11-25` through the hosted-server contract, with typed tools, resources, subscriptions, notifications, and an MCP App owned by each simulation server. |
   | JSON Schema | Draft 2020-12 strict camera, product, capacity, health, and viewer-lease schemas. |
-  | `veoveo.io/live-view/v2` | Provider-neutral camera, encoded-product, viewer, ownership, signaling, and redaction contract. This is a repository-owned extension rather than a simulator protocol. |
-  | WebRTC and H.264 | NVIDIA WebRTC transport over one NVIDIA NVENC H.264 product per active camera. Each viewer receives independent peer and SRTP state without another render or encode. |
+  | `veoveo.io/live-view/v2` | Provider-neutral logical-camera, viewer-product, ownership, signaling, capacity, and redaction contract. This is a repository-owned extension rather than a simulator protocol. |
+  | WebRTC 1.0, RTP/SRTP, and H.264 | The public profile exposes one direct WebRTC product for each active viewer lease. The UAV reference implements each product with native Omniverse WebRTC and NVIDIA NVENC H.264. RTSP relays, WHEP, media routers, shared-bitstream fanout, and software transcoding are excluded from that reference path. |
   | USD and RTX Hydra | Isaac Sim `6.0.1` authoritative scene and operator-camera render products inside the simulation process. These are implementation dependencies rather than public MCP types. |
   | OGC 3D Tiles | One Cesium-backed streamed world and cache in the authoritative simulator. |
   | WGS 84, ECEF, ENU, FLU, and quaternions | Explicit world, stage, entity, camera-rig, and shortest-arc orientation mappings. |
@@ -20,8 +20,8 @@
 
   The governing rule is:
 
-  > Every simulation MCP implementation renders its operator cameras inside its authoritative simulation. Veoveo standardizes governance, camera descriptions, stream products, viewer leases, signaling, and
-  > conformance—not a shared renderer.
+  > Every simulation MCP implementation renders its operator cameras inside its authoritative simulation. Veoveo standardizes governance, logical camera descriptions, lease-bound stream products, viewer
+  > leases, signaling, and conformance—not a shared renderer or media relay.
 
   ## 1. Target architecture
 
@@ -30,9 +30,10 @@
                                      │
                                      ▼
                       UAV Simulation MCP reference
-                       camera/product declarations
+                       logical-camera declarations
                        ownership and access policy
                        ephemeral viewer leases
+                       bounded slot allocation
                        access audit
                        signaling proxy
                        live-view App
@@ -42,16 +43,23 @@
                                      ▼
                        Authoritative Isaac process
                         one USD/Cesium world
-                        several operator cameras
-                        one HydraTexture per camera
-                        one NVENC product per camera
+                        logical operator cameras
+                        preallocated viewer slots
                         one NVIDIA GPU
                                      │
-                       ┌─────────────┼─────────────┐
-                       ▼             ▼             ▼
-                    viewer A      viewer B      viewer C
+                  ┌──────────────────┼──────────────────┐
+                  ▼                  ▼                  ▼
+           viewer slot A      viewer slot B      viewer slot C
+           camera clone       camera clone       camera clone
+           HydraTexture       HydraTexture       HydraTexture
+           NVENC + WebRTC     NVENC + WebRTC     NVENC + WebRTC
+                  │                  │                  │
+                  ▼                  ▼                  ▼
+              viewer A           viewer B           viewer C
 
-  Camera count may increase rendering and encoding work. Viewer count must only increase WebRTC peer and network work.
+  Logical camera count increases pose and Cesium-view selection work. Active viewer count
+  intentionally increases RTX rendering, NVENC sessions, native WebRTC peers, and network
+  work within a measured installation limit.
 
   There will be no:
 
@@ -63,6 +71,9 @@
   - Durable renderer desired state.
   - Renderer reconciliation.
   - Shared simulation MCP server.
+  - RTSP or WHEP transport.
+  - Encoded media relay, SFU, or packet-fanout sidecar.
+  - Dynamically created GPU resources on a browser request.
 
   ## 2. Reference implementation contract
 
@@ -74,7 +85,8 @@
   - Camera identifiers and descriptors.
   - Supported camera rig types.
   - Optics, resolution, cadence, and stream policy.
-  - Stable encoded stream-product identity.
+  - Stable logical-camera identity.
+  - Stable capacity-slot and lease-bound stream-product identity.
   - Codec, color, encoder, and transport metadata.
   - Work Context and data-label ownership.
   - Actor and browser-instance viewer leases.
@@ -126,7 +138,7 @@
 
   ## 4. Authoritative camera collection
 
-  The UAV reference should support a bounded configured set of camera products.
+  The UAV reference should support a bounded configured set of logical cameras.
 
   ### Follow camera
 
@@ -192,16 +204,18 @@
 
   ## 5. Camera creation and lifecycle
 
-  Cameras must not be created when a browser connects.
+  GPU camera products must not be created synchronously when a browser connects. The
+  simulator preallocates a bounded viewer-slot pool during startup.
 
   At session initialization:
 
-  1. The simulator creates each configured USD camera under the authoritative stage.
-  2. Each camera receives a stable camera ID.
-  3. Each streamable camera receives a stable physical slot.
-  4. Each physical slot receives a stable HydraTexture name.
-  5. Each streamable camera receives a stable stream-product ID and fixed signaling/media ports.
-  6. Viewer leases refer to the existing product.
+  1. The simulator creates each configured logical USD camera under the authoritative stage.
+  2. Each logical camera receives a stable camera ID and owns one final smoothed pose.
+  3. The simulator creates the configured maximum number of viewer-camera clones.
+  4. Each viewer slot receives a stable camera prim, HydraTexture, stream-product ID, and native signaling/media ports.
+  5. Every viewer product remains inactive and unassigned until a lease reserves its slot.
+  6. A lease binds one slot to one logical camera, activates one RTX render and one NVENC/WebRTC product, and returns only that slot's public endpoint.
+  7. Close, expiry, revocation, or signaling loss deactivates and releases only the assigned slot.
 
   Suggested internal paths:
 
@@ -211,6 +225,9 @@
   /World/OperatorCameras/look_at
   /World/OperatorCameras/stabilized_mount
   /World/OperatorCameras/formation
+  /World/OperatorCameras/fixed
+  /World/OperatorViewerCameras/slot_0
+  /World/OperatorViewerCameras/slot_1
 
   Suggested HydraTexture identities:
 
@@ -220,8 +237,14 @@
   uav_operator_look_at
   uav_operator_stabilized_mount
   uav_operator_formation
+  uav_operator_fixed
+  uav_viewer_slot_0
+  uav_viewer_slot_1
 
-  The historical /World/FollowCamera behavior remains the starting reference, but the new implementation should use one canonical organized camera namespace.
+  The historical /World/FollowCamera behavior remains the starting reference, but the new
+  implementation should use one canonical organized camera namespace. Active viewer clones
+  copy the selected logical camera's final pose and optics. They do not independently smooth
+  the same logical view.
 
   ## 6. Smooth camera tracking
 
@@ -339,15 +362,22 @@
 
   A 30 FPS operator camera must not cause a 2 FPS nadir sensor to emit 30 FPS recordings.
 
+  Timing has one canonical authority. Physics advances from the runtime's measured native
+  update interval. A viewer product's cadence gate selects render opportunities without
+  changing physics time, replaying a physics step, or delaying the final vehicle transform.
+  The Kit rate-limiter policy is fixed by the qualified runtime profile. Visual debugging
+  must not toggle it or introduce an alternate timing branch.
+
   The authoritative loop should:
 
   1. Advance physics at its configured cadence.
   2. Read the latest authoritative entity transforms.
   3. Derive and smooth active operator camera poses.
   4. Update the corresponding USD camera transforms.
-  5. Advance Kit at the required operator-render cadence.
-  6. Allow each HydraTexture to tick at its declared cadence.
-  7. Capture domain sensors only at their declared cadence.
+  5. Copy each selected logical camera's final pose and optics into its assigned viewer slots.
+  6. Advance Kit at the required operator-render cadence.
+  7. Allow each active viewer-slot HydraTexture to tick at its declared cadence.
+  8. Capture domain sensors only at their declared cadence.
 
   There is no pose serialization between steps 2 and 4.
 
@@ -355,10 +385,14 @@
 
   The authoritative Isaac process remains the only Cesium consumer.
 
+  The application is the sole Cesium viewport writer. It derives every submitted frustum
+  from the authoritative USD camera pose and matching camera apertures. Hydra projection
+  matrices, transpose guessing, extension-owned fallback writers, and competing native
+  viewport authority are excluded.
+
   Each Kit update should submit the complete active authoritative viewport set:
 
-  - Continuous operator cameras.
-  - Active on-demand operator cameras.
+  - Unique logical cameras selected by active viewer slots.
   - Domain sensor viewport when required.
   - A readiness viewport only if it provides unique evidence.
 
@@ -370,63 +404,66 @@
   - Materials.
   - Cache storage.
   - Georeference state.
-  - World rendering.
+  - World-stage state.
 
-  Camera activation and deactivation must update the submitted viewport set without recreating the Cesium world.
+  Several viewer slots bound to the same logical camera share one Cesium tile-selection
+  viewport even though they render and encode independently. Slot assignment and release
+  update the unique submitted viewport set without recreating the Cesium world.
 
-  ## 9. Continuous and on-demand camera policies
+  ## 9. Logical-camera and viewer-slot policies
 
-  Supporting several cameras does not require rendering every camera continuously.
+  Supporting several logical cameras does not require rendering or encoding them without
+  viewers.
 
-  ### Continuous
+  ### Logical cameras
 
-  Use for the primary operator camera when immediate availability is important.
+  A logical camera owns its rig, target, optics, smoothing state, health, and final pose.
 
-  - Camera transform updates continuously.
-  - HydraTexture updates continuously.
-  - Stream product remains warm.
-  - Viewer connection does not change render state.
+  - A continuous logical camera may keep its pose current before a viewer arrives.
+  - An on-demand logical camera begins pose work when its first viewer slot is assigned.
+  - Neither policy creates a shared encoded stream product.
+  - Multiple slots selecting one logical camera consume the same final pose and optics.
 
-  ### On demand
+  ### Viewer slots
 
-  Use for secondary cameras.
+  The configured slot pool is created once during simulator startup.
 
-  - USD camera and physical slot already exist.
-  - HydraTexture is stable but paused while unused.
-  - First viewer lease activates the product.
-  - Open remains starting until a visible advancing frame exists.
-  - Additional viewers reuse the active product.
-  - Closing one viewer does not pause it while other viewers remain.
-  - Last viewer close starts a short bounded idle grace period.
-  - Product pauses after the grace period.
-  - Product is not destroyed or reassigned.
+  - Every slot has a stable camera clone, HydraTexture, native WebRTC product, and port pair.
+  - An unassigned slot has rendering and encoding disabled.
+  - One viewer lease atomically reserves one free slot.
+  - Open remains starting until that slot produces a visible advancing frame.
+  - A second viewer receives another slot, even when selecting the same logical camera.
+  - Closing one viewer affects no other slot.
+  - Close, expiry, revocation, or signaling loss returns the slot to the pool immediately.
+  - A released slot may be assigned to another logical camera and viewer.
 
-  This is local ephemeral activity management, not durable reconciliation.
+  This is local ephemeral allocation, not durable reconciliation. There is no idle grace,
+  first-viewer sharing state, or last-viewer product lifecycle.
 
   On UAV MCP startup:
 
   - All prior viewer leases are gone.
-  - The server issues one idempotent pod-local deactivate_all_on_demand_products.
-  - Continuous products remain governed by simulator configuration.
+  - The server issues one idempotent pod-local release_all_viewer_slots.
+  - All native products remain inactive until assigned by a new lease.
   - The App opens fresh viewer leases.
 
   On simulator restart:
 
-  - Existing products become unavailable.
+  - Existing slot assignments disappear.
   - Existing viewers disconnect.
   - The App opens fresh leases after simulator readiness returns.
   - No desired/realized replay is performed.
 
-  ## 10. One product, many viewers
+  ## 10. One native product per viewer
 
-  Every active camera has exactly one encoded stream product:
+  Every active viewer receives a separate native Omniverse stream product:
 
-  camera
-    → one HydraTexture
-    → one LdrColor AOV
-    → one NVENC encode
-    → encoded/WebRTC fan-out
-    → multiple viewer peers
+  logical camera final pose
+    → assigned viewer camera clone
+    → viewer HydraTexture
+    → viewer LdrColor AOV
+    → viewer NVENC encode
+    → viewer native NVIDIA WebRTC peer
 
   Each viewer has:
 
@@ -435,40 +472,52 @@
   - Its own lease ID.
   - Its own token hash.
   - Its own expiry.
+  - Its own physical viewer slot.
+  - Its own stream-product identity.
+  - Its own camera clone and HydraTexture.
+  - Its own RTX render and NVENC session.
   - Its own signaling connection.
   - Its own WebRTC peer/SRTP/network state.
 
-  Viewer count must not affect:
+  Viewer count intentionally affects:
 
-  - USD camera count.
-  - HydraTexture count.
-  - RTX render count.
-  - Cesium viewport count.
-  - NVENC session count.
+  - Active viewer-camera clones.
+  - Active HydraTextures and RTX renders.
+  - Active NVENC sessions.
+  - Native WebRTC peer and network work.
 
-  The pinned NVIDIA WebRTC implementation must be tested to verify that several peers on one product truly share one encode. If it internally starts one NVENC session per peer, the corrective design is encoded
-  packet fan-out or an SFU over the one encoded product—not another renderer and not another encode per viewer.
+  Viewer count must not create another simulation process, Cesium world, tile cache, physics
+  loop, logical-camera smoothing state, or visualization pose transport.
 
-  Do not build that fan-out component unless the hardware test demonstrates it is necessary.
+  Native Omniverse WebRTC is the only media implementation in the UAV reference. Do not
+  introduce MediaMTX, RTSP, WHEP, an SFU, a packet relay, shared-bitstream fanout, or a
+  software transport fallback. If the bounded native slot capacity is exhausted,
+  admission fails directly.
 
-  ## 11. Camera-product capacity
+  This deliberately spends one bounded GPU render and encode per viewer to retain the
+  native CUDA-to-NVENC-to-WebRTC path and a smaller operational topology. It prefers
+  explicit capacity rejection over a general-purpose media distribution layer.
 
-  Capacity should be product-based.
+  ## 11. Viewer-slot capacity
+
+  Capacity is defined by preallocated native viewer slots and their measured GPU cost.
 
   Count:
 
   - Configured logical operator cameras.
-  - Active rendered cameras.
-  - Active continuous products.
-  - Active on-demand products.
+  - Configured viewer slots.
+  - Assigned and available viewer slots.
+  - Active viewer camera clones and HydraTextures.
   - Total active render pixels per second.
   - NVENC sessions.
   - GPU memory reservation.
-  - Signaling/media port slots.
-  - Viewer leases separately.
+  - Native signaling/media port pairs.
+  - Viewer leases.
   - Aggregate estimated network bitrate separately.
 
-  Do not count every viewer as a rendered or encoded camera.
+  Every active viewer counts as one rendered and encoded product. Admission reserves the
+  slot before activating GPU work. It never steals another viewer's slot or partially
+  creates a product.
 
   The server must not silently reduce:
 
@@ -481,29 +530,24 @@
 
   A rejected activation identifies the exact exhausted dimension.
 
-  The UAV reference should ship a small measured camera profile. Exact camera and NVENC limits must be qualified on the target GPU.
+  The UAV reference should ship a small measured viewer-slot profile. Exact simultaneous
+  RTX, NVENC, GPU-memory, cadence, and real-time-factor limits must be qualified on the
+  target GPU.
 
-  ## 12. Reusing encoded sensor products
+  ## 12. Sensor and viewer products remain separate
 
-  If an authoritative onboard/nadir camera already produces an encoded H.264 stream for Stream or Recording, the live-view path should consume that same encoded product where technically possible.
+  A physical sensor product remains exact evidence. A cinematic viewer slot remains an
+  ephemeral presentation product. Even when they use equivalent optics, they have separate
+  render and encode lifecycles.
 
-  It must not create:
+  - Stream and Recording consume the authoritative sensor product.
+  - A browser consumes its assigned native viewer product.
+  - A viewer product never becomes sensor or mission evidence.
+  - No relay or fanout component couples those lifecycles.
+  - No CPU render or software encode path is permitted.
 
-  - One encode for Stream.
-  - Another encode for Recording.
-  - Another encode for browser viewing.
-
-  The long-term product model is:
-
-  one authoritative camera
-    → one render
-    → one encode
-    → browser viewers
-    → Stream processing
-    → Recording publication
-
-  Where the current runtime cannot yet expose the encoded product to every consumer, mark the exact duplication point TODO(GPU) and name the intended encoded fan-out replacement. Do not add new CPU capture or
-  encoding.
+  This deliberate duplication keeps native NVIDIA transport end to end and bounds the
+  cost through viewer-slot admission.
 
   ## 13. Governance
 
@@ -511,7 +555,7 @@
 
   ### Camera and product ownership
 
-  Each camera and stream product belongs to:
+  Each logical camera belongs to:
 
   - Tenant.
   - Work Context.
@@ -520,6 +564,9 @@
   - Data-label set.
   - Simulation session.
 
+  Each assigned viewer product inherits that boundary and additionally records its
+  physical slot and owning live-view lease.
+
   ### Viewer ownership
 
   Each viewer lease additionally belongs to:
@@ -527,7 +574,7 @@
   - Gateway actor.
   - Browser-instance identity.
   - Selected camera.
-  - Stable stream product.
+  - Assigned viewer slot and stream product.
   - Camera revision.
 
   ### Authorization
@@ -539,8 +586,10 @@
   - Output ownership.
   - Policy revision.
   - Data-label access.
-  - Camera/product availability.
-  - Viewer capacity.
+  - Logical-camera availability.
+
+  Open additionally requires one free native viewer slot. Renew requires the caller's
+  existing slot assignment and never allocates or rotates another viewer's product.
 
   ### Secrets
 
@@ -561,7 +610,7 @@
   - Viewer lease expired.
   - Viewer authority revoked.
   - Camera definition changed.
-  - Product activation rejected.
+  - Viewer-slot allocation rejected.
 
   Audit records contain identity and policy context but never tokens or media.
 
@@ -581,9 +630,10 @@
 
   - Read camera/product health from the pod-local simulator adapter.
   - Maintain ephemeral viewer leases.
-  - Activate an on-demand product on the first viewer.
-  - Deactivate it after the last viewer’s idle grace.
-  - Proxy authorized signaling to the product’s stable native port.
+  - Atomically reserve one free native viewer slot for each new lease.
+  - Bind the slot to the selected logical camera and activate its GPU product.
+  - Proxy authorized signaling only to that slot's stable native port.
+  - Release the exact slot on close, expiry, revocation, or signaling loss.
   - Publish camera, product, and redacted viewer resources.
   - Emit access audits.
   - Serve the live-view App.
@@ -603,7 +653,7 @@
 
   - Camera selector.
   - One primary selected view.
-  - Optional bounded grid for several different cameras.
+  - Optional bounded grid for several cameras.
   - One viewer lease per selected camera and browser instance.
   - No duplicate connection for the same camera within one App instance.
   - Automatic lease renewal.
@@ -615,7 +665,9 @@
   - Configured attribution.
   - No simulation control dashboard.
 
-  A grid consumes one camera product per distinct camera shown, not one new product per tile or user.
+  Every open tile consumes one native viewer slot. The App prevents duplicate connections
+  for the same camera inside one browser instance, but another actor, tab, or browser
+  receives its own product.
 
   ## 16. Simulator runtime modules
 
@@ -633,7 +685,7 @@
   - operator_camera.py: USD cameras and authoritative entity sampling.
   - operator_camera_rigs.py: desired-pose computation for each rig.
   - operator_camera_smoothing.py: half-life translation/quaternion filtering and reset rules.
-  - operator_products.py: HydraTexture, AOV, NVENC configuration, stable slots, pause/resume.
+  - operator_products.py: preallocated viewer-camera clones, HydraTextures, AOVs, native WebRTC/NVENC products, slot assignment, and release.
   - operator_health.py: CUDA/RTX/NVENC/product/frame evidence.
 
   Do not restore the historical monolithic live_stream.py. Governance and leases belong in Rust; rendering belongs in Isaac.
@@ -648,14 +700,18 @@
   - Public WebRTC media UDP range.
   - The authoritative Isaac GPU.
 
-  Each physical camera slot receives:
+  Each physical viewer slot receives:
 
   private signaling port = signalingBase + slot
   public media port       = mediaBase + slot
 
+  The slot count is the maximum simultaneous viewer count. It is independent of the
+  logical-camera count. The chart creates no RTSP port, WHEP endpoint, relay container, or
+  media-router configuration.
+
   The Helm chart should validate:
 
-  - Port ranges are large enough for maximum camera products.
+  - Port ranges are large enough for maximum viewer slots.
   - No collision with other pod ports.
   - Public media IP is numeric where required.
   - WSS origin is credential-free.
@@ -672,7 +728,7 @@
 
   - Simulation MCP server.
   - Authoritative camera source.
-  - Stable encoded stream product.
+  - Bounded one-viewer stream-product slots.
   - Camera/product resources.
   - Viewer leases.
   - Signaling endpoint.
@@ -682,9 +738,9 @@
 
   - Strict tools and resource schemas.
   - Camera capability discovery.
-  - Product identity stability.
+  - Capacity-slot identity stability while assignments remain ephemeral.
   - Owner and viewer isolation.
-  - Multiple users sharing one product.
+  - Multiple users selecting one logical camera through distinct products.
   - Token rotation and redaction.
   - Revocation and expiry.
   - App teardown.
@@ -761,13 +817,14 @@
 
   - Distinct viewer IDs and tokens.
   - One stable camera ID.
-  - One stable product ID.
-  - One HydraTexture.
-  - One NVENC session.
+  - Distinct stream-product IDs and physical slots.
+  - One viewer-camera clone and HydraTexture per active viewer.
+  - One native NVIDIA WebRTC peer and NVENC session per active viewer.
   - Closing one viewer leaves the others live.
   - Revoking one actor does not revoke an unrelated authorized actor.
-  - Product pauses only after the last viewer when it is on demand.
-  - Viewer count affects network statistics but not render or encoder count.
+  - Closing or revoking a viewer releases only its assigned slot.
+  - Released slots can be reassigned without retaining prior ownership or camera state.
+  - Exhausted slot capacity fails directly without changing existing viewers.
 
   ## 21. Performance acceptance
 
@@ -782,11 +839,12 @@
   - Smoothing state uses the current authoritative transform every render tick.
   - Delivered camera cadence at least 95% of configured cadence.
   - Browser motion-to-photon below 200 ms p95 on the acceptance network.
-  - Exactly one NVENC session per active camera product.
-  - Adding viewers does not add NVENC sessions.
-  - On-demand inactive cameras consume no ongoing RTX render cadence.
-  - GPU and memory remain inside the measured product profile.
+  - Exactly one NVENC session per assigned viewer slot.
+  - Adding one viewer adds exactly one RTX render product and one NVENC session.
+  - Unassigned viewer slots consume no ongoing RTX render or NVENC cadence.
+  - GPU and memory remain inside the measured viewer-slot profile at maximum admission.
   - No CPU render, encode, or media-copy fallback.
+  - No RTSP, WHEP, media relay, protocol conversion, or second media process exists.
 
   Smoothing latency must be reported separately from pipeline latency. A 150 ms half-life is a camera behavior choice, not transport delay.
 
@@ -796,7 +854,7 @@
   Broad acceptance does not gate deletion. The minimum cutover threshold is:
 
   - One authoritative simulator camera renders the current world.
-  - One stable HydraTexture and NVIDIA NVENC product advances from that camera.
+  - One preallocated viewer slot binds to that camera and advances one native HydraTexture/NVIDIA NVENC product.
   - The simulation MCP server authorizes an ephemeral viewer lease.
   - Its signaling proxy connects a browser to the simulator-owned product.
   - Helm and gateway routing select that simulation-owned App and media path.
@@ -824,6 +882,10 @@
   simulator-hosted path. A failure in that path is fixed there and never routed back to
   the mirror implementation.
 
+  The abandoned relay branch is also removed in the same hard cut. No MediaMTX image,
+  RTSP extension selection, WHEP route, WHEP contract value, relay service, relay health
+  path, or dormant fanout implementation remains.
+
   ## 23. Documentation
 
   Update:
@@ -842,25 +904,27 @@
 
   The normative statement should be:
 
-  > A simulation MCP server exposes governed live cameras rendered by its authoritative simulation. Each camera produces at most one encoded stream product, shared by authorized viewer leases. Camera smoothing
-  > operates only on the operator-camera transform and never changes or delays authoritative simulation state.
+  > A simulation MCP server exposes governed logical cameras rendered by its authoritative simulation. Every active viewer lease reserves one bounded direct stream product. In the UAV reference, that product
+  > owns a camera clone, RTX render, NVIDIA NVENC encode, and native Omniverse WebRTC peer. Camera smoothing operates once on the logical camera transform and never changes or delays authoritative simulation state.
 
   ## 24. Suggested implementation sequence
 
-  1. Record the corrected simulator-hosted multi-camera architecture.
-  2. Generalize the shared live-view contract and define the conformance profile.
-  3. Implement and test camera smoothing independently of Isaac.
-  4. Establish one authoritative follow camera and its direct HydraTexture/NVENC product.
-  5. Move the minimum viewer lease, signaling proxy, audit, and App path into UAV MCP.
-  6. Cut Helm and gateway routing to the simulator pod.
-  7. Delete the second renderer, pose and scene mirror, reconciliation, durability, and old deployment surfaces immediately.
-  8. Restore a coherent build and deploy closure exclusively on the new architecture.
-  9. Add chase, orbit, look-at, stabilized mounted, formation, and fixed rig computation.
-  10. Add stable camera slots and continuous/on-demand product lifecycle.
-  11. Add camera selection and bounded grid behavior.
-  12. Replace the external mirror fixture with simulator-hosted conformance.
-  13. Add multi-user, multi-camera, GPU, browser, smoothing, restart, and security acceptance.
-  14. Run the complete one-GPU acceptance and publish evidence from the new architecture.
+  1. Record the corrected simulator-hosted multi-camera and per-viewer-product architecture.
+  2. Remove every MediaMTX, RTSP, and WHEP change and restore the native Omniverse WebRTC surfaces as the only UAV media path.
+  3. Generalize the shared live-view contract around logical cameras, viewer products, and bounded capacity.
+  4. Preserve the one surviving physics-timing path, sole Cesium viewport writer, authoritative camera poses, and matching apertures; delete alternate heuristics.
+  5. Keep camera smoothing independently tested outside Isaac.
+  6. Establish one authoritative follow camera and one preallocated native viewer slot.
+  7. Make the UAV MCP lease service atomically assign and release native slots through the pod-local simulator adapter.
+  8. Retain the authenticated native signaling proxy and NVIDIA browser client.
+  9. Cut Helm and gateway routing to the simulator pod and expose one fixed signaling/media port pair per viewer slot.
+  10. Delete the second renderer, pose and scene mirror, reconciliation, durability, old deployment surfaces, and the abandoned relay branch immediately.
+  11. Restore a coherent build and deploy closure exclusively on the revised architecture.
+  12. Keep chase, orbit, look-at, stabilized mounted, formation, and fixed rig computation bound to logical cameras.
+  13. Update camera selection and bounded grid behavior to consume one viewer slot per open tile.
+  14. Replace the external mirror fixture with simulator-hosted one-viewer-product conformance.
+  15. Add multi-user, multi-camera, GPU, browser, smoothing, restart, capacity, and security acceptance.
+  16. Run the complete one-GPU acceptance and publish evidence from the revised architecture.
 
   The implementation uses several coherent commits. The runtime cutover is an early
   atomic hard cut. No repository state after that cut advertises, builds, deploys, or
