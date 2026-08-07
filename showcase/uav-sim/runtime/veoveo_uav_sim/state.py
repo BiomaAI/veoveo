@@ -110,6 +110,7 @@ class RuntimeState:
                     "connectedViewers": 0,
                     "nvencSessions": 0,
                     "encodedFrames": 0,
+                    "sourceToRenderSamples": 0,
                 }
                 for capacity_slot in range(
                     config.operator_live_view.viewer_slot_count

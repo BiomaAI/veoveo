@@ -1372,6 +1372,8 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             connected_viewers: 0,
             nvenc_sessions: 0,
             encoded_frames: 0,
+            source_to_render_p95_microseconds: None,
+            source_to_render_samples: 0,
             last_frame_at: None,
             visible: None,
             diagnostic: None,

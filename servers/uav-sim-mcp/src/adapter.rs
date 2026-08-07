@@ -1202,11 +1202,15 @@ mod tests {
             "connectedViewers": 0,
             "nvencSessions": 1,
             "encodedFrames": 12,
+            "sourceToRenderP95Microseconds": 18000,
+            "sourceToRenderSamples": 120,
             "lastFrameAt": "2026-08-07T03:39:14Z",
             "visible": true
         }))
         .unwrap();
 
         assert_eq!(product.visible, Some(true));
+        assert_eq!(product.source_to_render_p95_microseconds, Some(18_000));
+        assert_eq!(product.source_to_render_samples, 120);
     }
 }

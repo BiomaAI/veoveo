@@ -36,7 +36,10 @@ Viewer leases remain ephemeral and never become renderer desired state.
 
 The shared types define camera poses, optics, smoothing, health, stream policy,
 physical product slots, NVIDIA NVENC metadata, signaling endpoints, and separate
-capacity accounting for cameras and viewers. Domain-owned resource URIs use the
+capacity accounting for cameras and viewers. Product state reports a bounded
+authoritative-source-to-render sample count and p95 in integer microseconds; the
+implementation defines the exact source and render events that bracket that measurement.
+Domain-owned resource URIs use the
 canonical shape `{scheme}://session/{session_id}/live-view/{live_view_id}`. The
 contract does not prescribe Isaac, USD paths, a scene mirror, or a common renderer.
 

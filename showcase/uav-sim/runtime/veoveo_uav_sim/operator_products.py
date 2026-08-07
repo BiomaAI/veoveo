@@ -127,6 +127,7 @@ class OperatorRenderProduct:
         self._live_view_id: str | None = None
         self._activation_frame_ready = False
         self._signaling_ready = False
+        self._source_pose_monotonic_seconds: float | None = None
         self._health = OperatorProductHealth(maximum_frame_age_ms)
         self._hydra_texture = create_hydra_texture(
             self.name,
@@ -180,6 +181,7 @@ class OperatorRenderProduct:
             self._last_capture_requested = 0.0
             self._activation_frame_ready = False
             self._signaling_ready = False
+            self._source_pose_monotonic_seconds = None
             self._activation.clear()
             self._health.activate()
         self._hydra_texture.updates_enabled = True
@@ -210,6 +212,7 @@ class OperatorRenderProduct:
             self._live_view_id = None
             self._activation_frame_ready = False
             self._signaling_ready = False
+            self._source_pose_monotonic_seconds = None
             self._activation.set()
             self._health.deactivate()
         self._hydra_texture.updates_enabled = False
@@ -222,6 +225,7 @@ class OperatorRenderProduct:
             self._live_view_id = None
             self._activation_frame_ready = False
             self._signaling_ready = False
+            self._source_pose_monotonic_seconds = None
             self._activation.set()
             self._health.deactivate()
         self._hydra_texture.updates_enabled = False
@@ -241,10 +245,18 @@ class OperatorRenderProduct:
             self._live_view_id = None
             self._activation_frame_ready = False
             self._signaling_ready = False
+            self._source_pose_monotonic_seconds = None
             self._activation.set()
             self._health.deactivate()
         self._hydra_texture.updates_enabled = False
         self._subscription = None
+
+    def observe_source_pose(self, monotonic_seconds: float) -> None:
+        if not np.isfinite(monotonic_seconds) or monotonic_seconds < 0.0:
+            raise ValueError("operator-camera source time must be finite and non-negative")
+        with self._lock:
+            if self._active and not self._closed:
+                self._source_pose_monotonic_seconds = monotonic_seconds
 
     def state(self, *, content_ready: bool) -> dict[str, object]:
         with self._lock:
@@ -296,7 +308,20 @@ class OperatorRenderProduct:
             with self._lock:
                 if self._closed or not self._active:
                     return
-                self._health.observe_frame(monotonic_seconds=now)
+                source_to_render_microseconds = (
+                    max(
+                        0,
+                        round(
+                            (now - self._source_pose_monotonic_seconds) * 1_000_000
+                        ),
+                    )
+                    if self._source_pose_monotonic_seconds is not None
+                    else None
+                )
+                self._health.observe_frame(
+                    monotonic_seconds=now,
+                    source_to_render_microseconds=source_to_render_microseconds,
+                )
                 self._activation_frame_ready = True
                 if self._capture_pending or now - self._last_capture_requested < 0.5:
                     capture = False
@@ -459,7 +484,12 @@ class OperatorProductCollection:
         for product in self._products.values():
             product.release_unconditionally()
 
-    def sync_camera_poses(self, camera_poses: dict[str, Pose]) -> None:
+    def sync_camera_poses(
+        self,
+        camera_poses: dict[str, Pose],
+        *,
+        source_monotonic_seconds: float,
+    ) -> None:
         for capacity_slot, product in self._products.items():
             assignment = product.assignment()
             if assignment is None:
@@ -468,6 +498,7 @@ class OperatorProductCollection:
             pose = camera_poses.get(camera_id)
             if pose is not None:
                 apply_usd_camera_pose(self._transforms[capacity_slot], pose)
+                product.observe_source_pose(source_monotonic_seconds)
 
     def state(self, *, content_ready: bool) -> list[dict[str, object]]:
         return [

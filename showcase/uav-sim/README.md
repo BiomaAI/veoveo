@@ -171,18 +171,19 @@ SBOM, and provenance.
 
 ## Hardware Acceptance
 
-The installation-owned acceptance deploys one simulator GPU workload. It proves the
-always-on fleet, authoritative camera health, one isolated product per active viewer,
-RTX/NVENC/WebRTC playback, simultaneous same-camera viewer isolation, direct Stream input,
-governed recording, Rerun playback, and mission control.
+The installation-owned acceptance deploys one simulator GPU workload. Live-view
+acceptance proves the always-on fleet, authoritative camera health, one isolated product
+per active viewer, RTX/NVENC/WebRTC playback, simultaneous same-camera viewer isolation,
+sensor separation, simulation real-time factor, source-to-render latency, and browser
+motion-to-photon latency. Stream, Recording, and mission acceptance remain independent
+consumer checkpoints.
 
 ```sh
 cargo xtask smoke uav-showcase-up \
   --context <kube-context> \
   --public-base-url https://installation.example
 
-cargo xtask smoke uav-showcase-verify \
-  --context <kube-context> \
+cargo xtask smoke uav-showcase-browser-verify \
   --public-base-url https://installation.example \
   --chrome-cdp-url http://127.0.0.1:9222
 ```
@@ -194,7 +195,8 @@ software encoder cannot satisfy the visual gate. Browser H.264 software decode r
 allowed only when Media Capabilities reports the exact stream as supported and smooth,
 and the UI labels that path explicitly.
 
-Evidence is written beneath `output/acceptance/uav/{source-revision}/{run-id}/` and stays
-outside source control. The manifest records source and image identity, camera and
-product inventory, NVENC counts, viewer isolation, frame advancement, browser hardware,
-decode identity, recording continuity, screenshots, and SHA-256 evidence digests.
+Evidence is written beneath
+`output/acceptance/uav-browser/{source-revision}/{run-id}/` and stays outside source
+control. The manifest records camera and product identity, viewer isolation, frame
+advancement, source-to-render and motion-to-photon p95, simulation and sensor isolation,
+browser hardware, decode identity, screenshots, and SHA-256 evidence digests.

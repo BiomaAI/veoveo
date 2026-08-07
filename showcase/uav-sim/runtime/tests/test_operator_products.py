@@ -246,6 +246,20 @@ class OperatorProductTests(unittest.TestCase):
         self.assertEqual(snapshot["visible"], False)
         self.assertEqual(snapshot["diagnostic"], "operator camera frame is uniform or blank")
 
+    def test_source_to_render_latency_reports_a_bounded_nearest_rank_p95(self) -> None:
+        health = OperatorProductHealth(maximum_frame_age_ms=1_000)
+        health.activate()
+        for sample in range(1, 101):
+            health.observe_frame(
+                monotonic_seconds=float(sample),
+                source_to_render_microseconds=sample * 100,
+            )
+
+        snapshot = health.snapshot(content_ready=True, monotonic_seconds=100.01)
+
+        self.assertEqual(snapshot["sourceToRenderSamples"], 100)
+        self.assertEqual(snapshot["sourceToRenderP95Microseconds"], 9_500)
+
     def test_stale_and_inactive_products_are_typed(self) -> None:
         health = OperatorProductHealth(maximum_frame_age_ms=100)
         self.assertEqual(

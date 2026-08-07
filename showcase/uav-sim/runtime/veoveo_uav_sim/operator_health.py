@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
@@ -34,23 +35,33 @@ class OperatorProductHealth:
         self._sequence = 0
         self._last_frame: OperatorFrameHealth | None = None
         self._failure_diagnostic: str | None = None
+        self._source_to_render_microseconds: deque[int] = deque(maxlen=256)
 
     def activate(self) -> None:
         self._active = True
         self._failure_diagnostic = None
+        self._source_to_render_microseconds.clear()
 
     def deactivate(self) -> None:
         self._active = False
         self._last_frame = None
         self._failure_diagnostic = None
+        self._source_to_render_microseconds.clear()
 
     def observe_frame(
         self,
         *,
         visible: bool | None = None,
         monotonic_seconds: float | None = None,
+        source_to_render_microseconds: int | None = None,
     ) -> None:
         now = time.monotonic() if monotonic_seconds is None else monotonic_seconds
+        if source_to_render_microseconds is not None:
+            if source_to_render_microseconds < 0:
+                raise ValueError("source-to-render latency must not be negative")
+            self._source_to_render_microseconds.append(
+                source_to_render_microseconds
+            )
         retained_visibility = (
             self._last_frame.visible
             if visible is None and self._last_frame is not None
@@ -93,7 +104,12 @@ class OperatorProductHealth:
         result: dict[str, object] = {
             "lifecycle": lifecycle.value,
             "encodedFrames": self._sequence,
+            "sourceToRenderSamples": len(self._source_to_render_microseconds),
         }
+        if self._source_to_render_microseconds:
+            ordered = sorted(self._source_to_render_microseconds)
+            percentile_index = max(0, (len(ordered) * 95 + 99) // 100 - 1)
+            result["sourceToRenderP95Microseconds"] = ordered[percentile_index]
         if self._last_frame is not None:
             result["lastFrameAt"] = self._last_frame.observed_at
             if self._last_frame.visible is not None:
