@@ -237,7 +237,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "List authoritative UAV live cameras",
-        description = "List the bounded operator cameras rendered inside the authoritative simulator and their stable shared stream products.",
+        description = "List the bounded logical operator cameras rendered inside the authoritative simulator. Physical viewer products are allocated per lease.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<Vec<veoveo_mcp_contract::LiveCameraDescriptor>>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -395,7 +395,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "Close authoritative UAV live view",
-        description = "Revoke only the calling actor and browser instance's ephemeral viewer lease; other viewers and the shared camera product remain active.",
+        description = "Revoke only the calling actor and browser instance's ephemeral viewer lease and release its physical viewer product. Other viewers remain active on their own products.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::CloseLiveViewResult>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
@@ -604,7 +604,7 @@ impl ServerHandler for UavSimMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new(SERVER_SLUG, env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Govern UAV simulation sessions through typed resources and bounded controls. Operator cameras render inside the authoritative simulator and expose one shared NVIDIA NVENC product per active camera through ui://uav-sim/live.html. Use the final task extension for scenarios, missions, and dataset captures; live operations are not replayed after an indeterminate interruption."
+            "Govern UAV simulation sessions through typed resources and bounded controls. Logical operator cameras render inside the authoritative simulator; every active viewer lease reserves its own camera clone, RTX render, NVIDIA NVENC product, and native WebRTC peer through ui://uav-sim/live.html. Use the final task extension for scenarios, missions, and dataset captures; live operations are not replayed after an indeterminate interruption."
                 .to_owned(),
         );
         info
@@ -673,7 +673,7 @@ impl ServerHandler for UavSimMcp {
                 )
                 .with_title("UAV live cameras")
                 .with_description(
-                    "Authoritative simulator camera collection and shared NVIDIA WebRTC products.",
+                    "Authoritative simulator camera collection with one isolated native NVIDIA WebRTC product per active viewer.",
                 )
                 .with_icons(vec![rmcp::model::Icon::new(LIVE_APP_ICON)]),
             );
@@ -1548,12 +1548,12 @@ fn resource_templates() -> Vec<ResourceTemplate> {
         template(
             uris::STREAM_PRODUCTS_TEMPLATE,
             "Stream products",
-            "Stable shared encoded products.",
+            "Bounded physical products assigned exclusively to active viewers.",
         ),
         template(
             uris::STREAM_PRODUCT_TEMPLATE,
             "Stream product",
-            "One stable rendered and encoded camera product.",
+            "One physical viewer slot with its own camera clone, RTX render, NVENC encode, and native WebRTC peer.",
         ),
         template(
             uris::LIVE_VIEWS_TEMPLATE,
