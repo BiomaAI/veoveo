@@ -29,7 +29,10 @@ from .contract import (
 
 SESSION_ID = "authoritative-session"
 CAMERA_ID = "operator-fixed"
-PRODUCT_ID = "operator-fixed-h264"
+
+
+def product_id(capacity_slot: int) -> str:
+    return f"viewer-slot-{capacity_slot}"
 
 
 @dataclass(slots=True)
@@ -40,7 +43,7 @@ class _Lease:
 
 
 class FixtureRuntime:
-    """Own one stable product while keeping every viewer lease ephemeral."""
+    """Own stable viewer slots while keeping every assignment and lease ephemeral."""
 
     def __init__(self, config: Config) -> None:
         self._config = config
@@ -50,7 +53,6 @@ class FixtureRuntime:
         self._camera = CameraDescriptor(
             session_id=SESSION_ID,
             camera_id=CAMERA_ID,
-            stream_product_id=PRODUCT_ID,
             width_px=1280,
             height_px=720,
             frame_rate_millihertz=30_000,
@@ -83,8 +85,18 @@ class FixtureRuntime:
                     and lease.wire.camera_id == request.camera_id
                 ):
                     return self._rotate(lease, now)
-            if self._active_count() >= self._config.maximum_viewers:
+            if self._active_count() >= self._config.viewer_slots:
                 raise ValueError("live-view viewer capacity is exhausted")
+            assigned_slots = {
+                lease.wire.capacity_slot
+                for lease in self._leases.values()
+                if lease.wire.lifecycle is not LeaseLifecycle.CLOSED
+            }
+            capacity_slot = next(
+                slot
+                for slot in range(self._config.viewer_slots)
+                if slot not in assigned_slots
+            )
             live_view_id = f"view-{uuid4()}"
             token = _token()
             wire = ViewerLease(
@@ -94,14 +106,15 @@ class FixtureRuntime:
                 ),
                 session_id=SESSION_ID,
                 camera_id=CAMERA_ID,
-                stream_product_id=PRODUCT_ID,
+                stream_product_id=product_id(capacity_slot),
+                capacity_slot=capacity_slot,
                 owner=owner,
                 viewer_actor=actor,
                 viewer_instance_id=request.viewer_instance_id,
                 lifecycle=LeaseLifecycle.READY,
                 signaling_url=self._config.public_signaling_url,
                 media_host=self._config.public_media_host,
-                media_port=self._config.public_media_port,
+                media_port=self._config.public_media_port + capacity_slot,
                 created_at=now,
                 expires_at=now + timedelta(seconds=self._config.lease_seconds),
             )
@@ -156,19 +169,40 @@ class FixtureRuntime:
     async def fixture_state(self) -> FixtureState:
         async with self._lock:
             self._expire(_now())
-            active = self._active_count()
-            product = StreamProduct(
-                stream_product_id=PRODUCT_ID,
-                camera_id=CAMERA_ID,
-                lifecycle=ProductLifecycle.READY,
-                connected_viewers=active,
-                last_frame_sequence=self._frame_sequence,
+            active_leases = {
+                lease.wire.capacity_slot: lease.wire
+                for lease in self._leases.values()
+                if lease.wire.lifecycle is not LeaseLifecycle.CLOSED
+            }
+            products = tuple(
+                StreamProduct(
+                    stream_product_id=product_id(slot),
+                    capacity_slot=slot,
+                    camera_id=active_leases[slot].camera_id if slot in active_leases else None,
+                    live_view_id=(
+                        active_leases[slot].live_view_id if slot in active_leases else None
+                    ),
+                    lifecycle=(
+                        ProductLifecycle.READY
+                        if slot in active_leases
+                        else ProductLifecycle.INACTIVE
+                    ),
+                    render_products=int(slot in active_leases),
+                    encoder_sessions=int(slot in active_leases),
+                    active_viewer_leases=int(slot in active_leases),
+                    connected_viewers=int(
+                        slot in active_leases
+                        and active_leases[slot].lifecycle is LeaseLifecycle.LIVE
+                    ),
+                    last_frame_sequence=self._frame_sequence,
+                )
+                for slot in range(self._config.viewer_slots)
             )
             return FixtureState(
                 session_id=SESSION_ID,
                 cameras=(self._camera,),
-                stream_products=(product,),
-                active_viewer_leases=active,
+                stream_products=products,
+                active_viewer_leases=len(active_leases),
             )
 
     async def close_runtime(self) -> None:

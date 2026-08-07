@@ -18,7 +18,6 @@ from .contracts import (
     parse_operation,
 )
 from .fleet_loop import FleetLoopController
-from .operator_camera import CameraStreamPolicy
 from .operator_camera_config import live_camera_descriptor
 from .operator_products import OperatorProductCollection
 from .px4 import Px4Commander
@@ -67,8 +66,8 @@ class PreconfigurationApplication:
                 web.get("/v1/state", self._get_state),
                 web.post("/v1/world", self._configure_world),
                 web.post(
-                    "/v1/live-products/deactivate-all-on-demand",
-                    self._deactivate_all_on_demand,
+                    "/v1/live-products/release-all",
+                    self._release_all_viewer_slots,
                 ),
             ]
         )
@@ -119,17 +118,17 @@ class PreconfigurationApplication:
                 ],
                 "stream_products": [
                     {
-                        "streamProductId": f"product-{camera.camera_id}",
-                        "cameraId": camera.camera_id,
-                        "physicalSlot": camera.physical_slot,
+                        "streamProductId": f"product-slot-{capacity_slot}",
+                        "capacitySlot": capacity_slot,
                         "lifecycle": "inactive",
                         "activeViewerLeases": 0,
                         "connectedViewers": 0,
                         "nvencSessions": 0,
                         "encodedFrames": 0,
                     }
-                    for camera in self._config.operator_live_view.cameras
-                    if camera.stream_policy is not CameraStreamPolicy.DISABLED
+                    for capacity_slot in range(
+                        self._config.operator_live_view.viewer_slot_count
+                    )
                 ],
                 "vehicles": [],
                 "recordings": [],
@@ -152,7 +151,7 @@ class PreconfigurationApplication:
             _world_configuration_response(self._config.session_id, configured)
         )
 
-    async def _deactivate_all_on_demand(
+    async def _release_all_viewer_slots(
         self, _request: web.Request
     ) -> web.Response:
         return web.json_response({"accepted": True})
@@ -190,14 +189,16 @@ class AdapterApplication:
                 web.post("/v1/commands", self._command),
                 web.post("/v1/operations", self._operation),
                 web.put(
-                    "/v1/live-products/{camera_id}/active", self._activate_product
+                    "/v1/live-products/{capacity_slot}/assignment",
+                    self._assign_product,
                 ),
                 web.delete(
-                    "/v1/live-products/{camera_id}/active", self._deactivate_product
+                    "/v1/live-products/{capacity_slot}/assignment",
+                    self._release_product,
                 ),
                 web.post(
-                    "/v1/live-products/deactivate-all-on-demand",
-                    self._deactivate_all_on_demand,
+                    "/v1/live-products/release-all",
+                    self._release_all_viewer_slots,
                 ),
             ]
         )
@@ -271,19 +272,13 @@ class AdapterApplication:
         except (RuntimeError, TimeoutError) as error:
             return web.json_response({"error": str(error)}, status=409)
 
-    async def _activate_product(self, request: web.Request) -> web.Response:
-        return await self._set_product_active(request.match_info["camera_id"], True)
-
-    async def _deactivate_product(self, request: web.Request) -> web.Response:
-        return await self._set_product_active(request.match_info["camera_id"], False)
-
-    async def _deactivate_all_on_demand(
+    async def _release_all_viewer_slots(
         self, _request: web.Request
     ) -> web.Response:
         try:
             await asyncio.to_thread(
                 self._submit_main_thread,
-                self._operator_products.deactivate_all_on_demand,
+                self._operator_products.release_all,
             )
             self._state.update_stream_products(
                 self._operator_products.state(
@@ -294,34 +289,61 @@ class AdapterApplication:
         except (RuntimeError, TimeoutError) as error:
             return web.json_response({"error": str(error)}, status=409)
 
-    async def _set_product_active(
-        self, camera_id: str, active: bool
-    ) -> web.Response:
+    async def _assign_product(self, request: web.Request) -> web.Response:
         try:
-            if active:
-                result = await asyncio.to_thread(
-                    self._submit_main_thread,
-                    lambda: self._operator_products.activate(
-                        camera_id,
-                        content_ready=self._stream_content_ready(),
-                    ),
-                )
-            else:
-                result = await asyncio.to_thread(
-                    self._submit_main_thread,
-                    lambda: self._operator_products.deactivate(
-                        camera_id,
-                        content_ready=self._stream_content_ready(),
-                    ),
-                )
+            capacity_slot = int(request.match_info["capacity_slot"])
+            body = await request.json()
+            if not isinstance(body, dict) or set(body) != {"cameraId", "liveViewId"}:
+                raise ValueError("viewer-product assignment requires cameraId and liveViewId")
+            camera_id = body["cameraId"]
+            live_view_id = body["liveViewId"]
+            if not isinstance(camera_id, str) or not isinstance(live_view_id, str):
+                raise ValueError("viewer-product assignment identities must be strings")
+            result = await asyncio.to_thread(
+                self._submit_main_thread,
+                lambda: self._operator_products.assign(
+                    capacity_slot,
+                    camera_id,
+                    live_view_id,
+                    content_ready=self._stream_content_ready(),
+                ),
+            )
             self._state.update_stream_products(
                 self._operator_products.state(
                     content_ready=self._stream_content_ready()
                 )
             )
             return web.json_response(result)
-        except ValueError as error:
-            return web.json_response({"error": str(error)}, status=404)
+        except (TypeError, ValueError) as error:
+            return web.json_response({"error": str(error)}, status=400)
+        except (RuntimeError, TimeoutError) as error:
+            return web.json_response({"error": str(error)}, status=409)
+
+    async def _release_product(self, request: web.Request) -> web.Response:
+        try:
+            capacity_slot = int(request.match_info["capacity_slot"])
+            body = await request.json()
+            if not isinstance(body, dict) or set(body) != {"liveViewId"}:
+                raise ValueError("viewer-product release requires liveViewId")
+            live_view_id = body["liveViewId"]
+            if not isinstance(live_view_id, str):
+                raise ValueError("viewer-product liveViewId must be a string")
+            result = await asyncio.to_thread(
+                self._submit_main_thread,
+                lambda: self._operator_products.release(
+                    capacity_slot,
+                    live_view_id,
+                    content_ready=self._stream_content_ready(),
+                ),
+            )
+            self._state.update_stream_products(
+                self._operator_products.state(
+                    content_ready=self._stream_content_ready()
+                )
+            )
+            return web.json_response(result)
+        except (TypeError, ValueError) as error:
+            return web.json_response({"error": str(error)}, status=400)
         except (RuntimeError, TimeoutError) as error:
             return web.json_response({"error": str(error)}, status=409)
 

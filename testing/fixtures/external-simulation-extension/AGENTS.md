@@ -8,8 +8,8 @@ without importing platform source or a shared renderer.
 
 ## Invariants
 
-- The fixture owns one stable authoritative camera/product identity and ephemeral
-  actor-and-browser viewer leases.
+- The fixture owns one stable authoritative camera, a bounded stable viewer-slot
+  pool, and ephemeral actor-and-browser viewer leases.
 - This is a protocol and packaging fixture. It never serves as GPU rendering,
   NVENC, WebRTC media, or visual acceptance evidence.
 - It imports the selected Python SDK release from its locked package index rather

@@ -37,7 +37,6 @@ def _optics() -> dict[str, object]:
 def _camera(camera_id: str, slot: int, rig: dict[str, object]) -> dict[str, object]:
     return {
         "cameraId": camera_id,
-        "physicalSlot": slot,
         "revision": 1,
         "rig": rig,
         "optics": _optics(),
@@ -48,6 +47,7 @@ def _camera(camera_id: str, slot: int, rig: dict[str, object]) -> dict[str, obje
 def _config(cameras: list[dict[str, object]]) -> OperatorLiveViewRuntimeConfig:
     return OperatorLiveViewRuntimeConfig.from_json(
         json.dumps(cameras),
+        viewer_slot_count=2,
         signaling_port_base=49100,
         media_port_base=47998,
         public_media_ip="203.0.113.8",
@@ -142,7 +142,7 @@ class OperatorCameraConfigTests(unittest.TestCase):
             list(CameraRigKind),
         )
 
-    def test_unknown_fields_and_noncontiguous_slots_fail(self) -> None:
+    def test_unknown_fields_fail_closed(self) -> None:
         camera = _camera(
             "follow",
             1,
@@ -154,8 +154,7 @@ class OperatorCameraConfigTests(unittest.TestCase):
                 "smoothing": _smoothing(),
             },
         )
-        with self.assertRaisesRegex(ValueError, "contiguous"):
-            _config([camera])
+        _config([camera])
         camera["unknown"] = True
         with self.assertRaisesRegex(ValueError, "unknown"):
             _config([camera])
@@ -164,7 +163,7 @@ class OperatorCameraConfigTests(unittest.TestCase):
 class OperatorProductTests(unittest.TestCase):
     def test_one_aov_product_has_one_exact_gpu_stream(self) -> None:
         arguments = livestream_aov_product_arguments(
-            "uav_operator_follow",
+            "uav_viewer_slot_0",
             signaling_port=49100,
             media_port=47998,
             public_media_ip="127.0.0.1",
@@ -172,7 +171,7 @@ class OperatorProductTests(unittest.TestCase):
         )
         self.assertEqual(len(arguments), 7)
         self.assertTrue(
-            all("uav_operator_follow.LdrColor" in item for item in arguments)
+            all("uav_viewer_slot_0.LdrColor" in item for item in arguments)
         )
         self.assertTrue(any("signalPort=49100" in item for item in arguments))
         self.assertTrue(any("streamPort=47998" in item for item in arguments))
@@ -194,13 +193,13 @@ class OperatorProductTests(unittest.TestCase):
         ]
         arguments = livestream_aov_arguments(_config(cameras))
         self.assertEqual(len(arguments), 14)
-        self.assertTrue(any("uav_operator_follow" in item for item in arguments))
+        self.assertTrue(any("uav_viewer_slot_0" in item for item in arguments))
         self.assertTrue(any("signalPort=49100" in item for item in arguments))
         self.assertTrue(any("signalPort=49101" in item for item in arguments))
         self.assertTrue(any("streamPort=47998" in item for item in arguments))
         self.assertTrue(any("streamPort=47999" in item for item in arguments))
-        self.assertEqual(operator_product_name("formation-view"), "uav_operator_formation_view")
-        self.assertEqual(operator_stream_product_id("follow"), "product-follow")
+        self.assertEqual(operator_product_name(1), "uav_viewer_slot_1")
+        self.assertEqual(operator_stream_product_id(1), "product-slot-1")
 
     def test_visibility_survives_metadata_only_frame_observation(self) -> None:
         health = OperatorProductHealth(maximum_frame_age_ms=1_000)

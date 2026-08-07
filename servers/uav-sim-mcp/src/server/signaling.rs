@@ -356,7 +356,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn proxy_removes_private_identity_and_selects_physical_slot() {
+    fn proxy_removes_private_identity_and_selects_capacity_slot() {
         let base = Url::parse("ws://127.0.0.1:49100/webrtc").unwrap();
         let public: axum::http::Uri =
             "/uav-sim/signaling/sign_in?live_view_id=view-1&pairing_id=secret"

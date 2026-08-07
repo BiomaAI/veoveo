@@ -136,7 +136,12 @@ impl UavSimMcp {
     }
 
     async fn current_state(&self) -> Result<SimulationState, McpError> {
-        self.state.adapter.state().await.map_err(internal)
+        let mut state = self.state.adapter.state().await.map_err(internal)?;
+        self.state
+            .live_views
+            .project_product_usage(&mut state)
+            .await;
+        Ok(state)
     }
 
     async fn state_for(&self, session_id: &SessionId) -> Result<SimulationState, McpError> {
@@ -1110,7 +1115,6 @@ pub(super) async fn serve() -> anyhow::Result<()> {
         live_view_audit.clone(),
         LiveViewConfig {
             lease_duration: args.live_view_lease_duration()?,
-            idle_grace: args.live_view_idle_grace()?,
             public_signaling_url: args.public_signaling_url.clone(),
             public_media_host: args.public_media_host,
             public_media_port_base: args.public_media_port_base,
@@ -1118,7 +1122,7 @@ pub(super) async fn serve() -> anyhow::Result<()> {
             maximum_viewer_leases: args.live_view_maximum_viewers,
         },
     )?;
-    live_views.reset_ephemeral_products().await?;
+    live_views.release_all_viewer_slots().await?;
     let signaling_url = url::Url::parse(&args.public_signaling_url)?;
     let live_view_connect_origin = signaling_url.origin().ascii_serialization();
     anyhow::ensure!(
@@ -1321,8 +1325,6 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
         live_cameras: vec![veoveo_mcp_contract::LiveCameraDescriptor {
             camera_id: veoveo_mcp_contract::LiveCameraId::new("follow")?,
             session_id: LiveSessionId::new("session-alpha")?,
-            stream_product_id: veoveo_mcp_contract::LiveStreamProductId::new("product-follow")?,
-            physical_slot: 0,
             revision: 1,
             rig: veoveo_mcp_contract::LiveCameraRig::FollowEntity {
                 target_entity_id: veoveo_mcp_contract::LiveEntityId::new("uav-1")?,
@@ -1354,16 +1356,17 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             last_frame_at: Some(Utc::now()),
         }],
         stream_products: vec![veoveo_mcp_contract::LiveStreamProductState {
-            stream_product_id: veoveo_mcp_contract::LiveStreamProductId::new("product-follow")?,
-            camera_id: veoveo_mcp_contract::LiveCameraId::new("follow")?,
-            physical_slot: 0,
-            lifecycle: veoveo_mcp_contract::LiveStreamProductLifecycle::Ready,
+            stream_product_id: veoveo_mcp_contract::LiveStreamProductId::new("product-slot-0")?,
+            capacity_slot: 0,
+            camera_id: None,
+            live_view_id: None,
+            lifecycle: veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive,
             active_viewer_leases: 0,
             connected_viewers: 0,
-            nvenc_sessions: 1,
-            encoded_frames: 10,
-            last_frame_at: Some(Utc::now()),
-            visible: Some(true),
+            nvenc_sessions: 0,
+            encoded_frames: 0,
+            last_frame_at: None,
+            visible: None,
             diagnostic: None,
         }],
         vehicles: vec![VehicleState {

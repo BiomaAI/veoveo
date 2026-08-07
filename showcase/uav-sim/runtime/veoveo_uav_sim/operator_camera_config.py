@@ -29,6 +29,7 @@ from .operator_camera_rigs import (
 @dataclass(frozen=True, slots=True)
 class OperatorLiveViewRuntimeConfig:
     cameras: tuple[OperatorCameraDefinition, ...]
+    viewer_slot_count: int
     signaling_port_base: int
     media_port_base: int
     public_media_ip: str
@@ -42,29 +43,45 @@ class OperatorLiveViewRuntimeConfig:
         ):
             raise ValueError("operator live view requires at least one streamable camera")
         camera_ids = [camera.camera_id for camera in self.cameras]
-        slots = [camera.physical_slot for camera in self.cameras]
         if len(camera_ids) != len(set(camera_ids)):
             raise ValueError("operator-camera identities must be unique")
-        if len(slots) != len(set(slots)):
-            raise ValueError("operator-camera physical slots must be unique")
-        if sorted(slots) != list(range(len(slots))):
-            raise ValueError("operator-camera physical slots must be contiguous from zero")
-        if not 1 <= self.signaling_port_base <= 65_535 - max(slots):
-            raise ValueError("operator-camera signaling port range exceeds 65535")
-        if not 1 <= self.media_port_base <= 65_535 - max(slots):
-            raise ValueError("operator-camera media port range exceeds 65535")
+        if not 1 <= self.viewer_slot_count <= 32:
+            raise ValueError("operator live view requires 1-32 viewer slots")
+        maximum_slot = self.viewer_slot_count - 1
+        if not 1 <= self.signaling_port_base <= 65_535 - maximum_slot:
+            raise ValueError("viewer-slot signaling port range exceeds 65535")
+        if not 1 <= self.media_port_base <= 65_535 - maximum_slot:
+            raise ValueError("viewer-slot media port range exceeds 65535")
         if (
             not self.public_media_ip
             or "/" in self.public_media_ip
             or any(character.isspace() for character in self.public_media_ip)
         ):
             raise ValueError("operator-camera public media IP is invalid")
+        streamable = tuple(
+            camera
+            for camera in self.cameras
+            if camera.stream_policy is not CameraStreamPolicy.DISABLED
+        )
+        if any(camera.optics != streamable[0].optics for camera in streamable[1:]):
+            raise ValueError(
+                "all streamable logical cameras must use the viewer-slot optics profile"
+            )
+
+    @property
+    def viewer_optics(self) -> CameraOptics:
+        return next(
+            camera.optics
+            for camera in self.cameras
+            if camera.stream_policy is not CameraStreamPolicy.DISABLED
+        )
 
     @classmethod
     def from_json(
         cls,
         raw: str,
         *,
+        viewer_slot_count: int,
         signaling_port_base: int,
         media_port_base: int,
         public_media_ip: str,
@@ -77,6 +94,7 @@ class OperatorLiveViewRuntimeConfig:
             raise ValueError("UAV_SIM_OPERATOR_CAMERAS_JSON must be a camera array")
         return cls(
             cameras=tuple(_camera(item) for item in value),
+            viewer_slot_count=viewer_slot_count,
             signaling_port_base=signaling_port_base,
             media_port_base=media_port_base,
             public_media_ip=public_media_ip,
@@ -89,7 +107,6 @@ def _camera(value: Any) -> OperatorCameraDefinition:
         body,
         {
             "cameraId",
-            "physicalSlot",
             "revision",
             "rig",
             "optics",
@@ -119,7 +136,6 @@ def _camera(value: Any) -> OperatorCameraDefinition:
         ) from error
     return OperatorCameraDefinition(
         camera_id=_identity(body["cameraId"], "operator camera cameraId"),
-        physical_slot=_integer(body["physicalSlot"], "operator camera physicalSlot"),
         revision=_integer(body["revision"], "operator camera revision"),
         rig_kind=_rig_kind(rig),
         rig=rig,
@@ -373,8 +389,6 @@ def live_camera_descriptor(
     return {
         "cameraId": camera.camera_id,
         "sessionId": session_id,
-        "streamProductId": f"product-{camera.camera_id}",
-        "physicalSlot": camera.physical_slot,
         "revision": camera.revision,
         "rig": _rig_json(camera.rig),
         "widthPx": camera.optics.width_px,

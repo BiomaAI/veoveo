@@ -460,8 +460,6 @@ pub enum LiveCameraStreamPolicy {
 pub struct LiveCameraDescriptor {
     pub camera_id: LiveCameraId,
     pub session_id: LiveSessionId,
-    pub stream_product_id: LiveStreamProductId,
-    pub physical_slot: u16,
     pub revision: u64,
     pub rig: LiveCameraRig,
     pub width_px: u32,
@@ -516,8 +514,11 @@ pub enum LiveStreamProductLifecycle {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LiveStreamProductState {
     pub stream_product_id: LiveStreamProductId,
-    pub camera_id: LiveCameraId,
-    pub physical_slot: u16,
+    pub capacity_slot: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub camera_id: Option<LiveCameraId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub live_view_id: Option<LiveViewId>,
     pub lifecycle: LiveStreamProductLifecycle,
     pub active_viewer_leases: u32,
     pub connected_viewers: u32,
@@ -535,11 +536,11 @@ pub struct LiveStreamProductState {
 #[serde(rename_all = "snake_case")]
 pub enum LiveViewCapacityDimension {
     LogicalCameras,
-    ActiveRenderedCameras,
+    ViewerSlots,
     RenderPixelsPerSecond,
     NvencSessions,
     GpuMemoryBytes,
-    SignalingSlots,
+    TransportSlots,
     ViewerLeases,
     NetworkBitsPerSecond,
 }
@@ -549,11 +550,11 @@ pub enum LiveViewCapacityDimension {
 pub struct LiveViewCapacityProfile {
     pub profile: String,
     pub maximum_logical_cameras: u32,
-    pub maximum_active_rendered_cameras: u32,
+    pub maximum_viewer_slots: u32,
     pub maximum_render_pixels_per_second: u64,
     pub maximum_nvenc_sessions: u32,
     pub gpu_memory_budget_bytes: u64,
-    pub maximum_signaling_slots: u32,
+    pub maximum_transport_slots: u32,
     pub maximum_viewer_leases: u32,
     pub maximum_network_bits_per_second: u64,
 }
@@ -562,11 +563,11 @@ pub struct LiveViewCapacityProfile {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LiveViewCapacityUsage {
     pub logical_cameras: u32,
-    pub active_rendered_cameras: u32,
+    pub viewer_slots: u32,
     pub render_pixels_per_second: u64,
     pub nvenc_sessions: u32,
     pub reserved_gpu_memory_bytes: u64,
-    pub signaling_slots: u32,
+    pub transport_slots: u32,
     pub viewer_leases: u32,
     pub estimated_network_bits_per_second: u64,
 }
@@ -709,6 +710,7 @@ pub struct LiveViewState {
     pub schema_version: String,
     pub live_view_id: LiveViewId,
     pub stream_product_id: LiveStreamProductId,
+    pub capacity_slot: u16,
     pub resource_uri: LiveViewUri,
     pub owner: LiveViewOwner,
     pub viewer_actor: crate::PrincipalId,
@@ -815,8 +817,6 @@ mod tests {
         let descriptor = LiveCameraDescriptor {
             camera_id: LiveCameraId::new("follow").unwrap(),
             session_id: LiveSessionId::new("session-a").unwrap(),
-            stream_product_id: LiveStreamProductId::new("product-follow").unwrap(),
-            physical_slot: 0,
             revision: 1,
             rig: LiveCameraRig::FollowEntity {
                 target_entity_id: LiveEntityId::new("uav-1").unwrap(),

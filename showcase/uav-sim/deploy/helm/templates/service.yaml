@@ -29,12 +29,11 @@ spec:
   selector:
     {{- include "uav-sim.selectorLabels" . | nindent 4 }}
   ports:
-    {{- range .Values.liveView.cameras }}
-    {{- $slot := int .physicalSlot }}
-    - name: {{ printf "media-%d" (int .physicalSlot) }}
+    {{- range $slot := until (int .Values.liveView.viewerSlots) }}
+    - name: {{ printf "media-%d" $slot }}
       protocol: UDP
-      port: {{ add $.Values.liveView.mediaPortBase (int .physicalSlot) }}
-      targetPort: {{ printf "media-%d" (int .physicalSlot) }}
+      port: {{ add $.Values.liveView.mediaPortBase $slot }}
+      targetPort: {{ printf "media-%d" $slot }}
       {{- with $.Values.liveView.mediaService.nodePortBase }}
       nodePort: {{ add (int .) $slot }}
       {{- end }}

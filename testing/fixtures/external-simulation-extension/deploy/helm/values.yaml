@@ -27,7 +27,7 @@ liveView:
   publicMediaHost: 127.0.0.1
   publicMediaPort: 48030
   leaseSeconds: 120
-  maximumViewers: 16
+  viewerSlots: 2
 
 resources:
   requests:

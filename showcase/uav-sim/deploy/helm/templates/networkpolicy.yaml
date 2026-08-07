@@ -24,9 +24,9 @@ spec:
           port: 8802
     {{- end }}
     - ports:
-        {{- range .Values.liveView.cameras }}
+        {{- range $slot := until (int .Values.liveView.viewerSlots) }}
         - protocol: UDP
-          port: {{ add $.Values.liveView.mediaPortBase (int .physicalSlot) }}
+          port: {{ add $.Values.liveView.mediaPortBase $slot }}
         {{- end }}
   egress:
     - to:
