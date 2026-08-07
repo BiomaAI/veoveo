@@ -34,12 +34,10 @@ def initial_runtime_timing(config: RuntimeConfig) -> dict[str, int | float]:
     return {
         "physics_hz": config.physics_hz,
         "native_rendering_hz": config.rendering_hz,
-        "realtime_rebases": 0,
-        "discarded_wall_seconds": 0.0,
         "render_cycles": 0,
-        "kit_render_wall_seconds": 0.0,
+        "native_update_wall_seconds": 0.0,
         "render_cycle_wall_seconds": 0.0,
-        "maximum_kit_render_ms": 0.0,
+        "maximum_native_update_ms": 0.0,
         "maximum_render_cycle_ms": 0.0,
     }
 
@@ -168,31 +166,21 @@ class RuntimeState:
             self._state["physics_step"] = physics_step
             self._touch()
 
-    def update_realtime_clock(
-        self, rebases: int, discarded_wall_seconds: float
-    ) -> None:
-        with self._condition:
-            self._state["timing"].update(
-                realtime_rebases=max(0, rebases),
-                discarded_wall_seconds=max(0.0, discarded_wall_seconds),
-            )
-            self._touch()
-
     def observe_render_cycle(
-        self, kit_render_wall_seconds: float, render_cycle_wall_seconds: float
+        self, native_update_wall_seconds: float, render_cycle_wall_seconds: float
     ) -> None:
-        if kit_render_wall_seconds < 0.0 or render_cycle_wall_seconds < 0.0:
+        if native_update_wall_seconds < 0.0 or render_cycle_wall_seconds < 0.0:
             raise ValueError("render timing cannot be negative")
-        if render_cycle_wall_seconds < kit_render_wall_seconds:
-            raise ValueError("render-cycle timing cannot be shorter than Kit rendering")
+        if render_cycle_wall_seconds < native_update_wall_seconds:
+            raise ValueError("render-cycle timing cannot be shorter than native update")
         with self._condition:
             timing = self._state["timing"]
             timing["render_cycles"] += 1
-            timing["kit_render_wall_seconds"] += kit_render_wall_seconds
+            timing["native_update_wall_seconds"] += native_update_wall_seconds
             timing["render_cycle_wall_seconds"] += render_cycle_wall_seconds
-            timing["maximum_kit_render_ms"] = max(
-                timing["maximum_kit_render_ms"],
-                kit_render_wall_seconds * 1_000.0,
+            timing["maximum_native_update_ms"] = max(
+                timing["maximum_native_update_ms"],
+                native_update_wall_seconds * 1_000.0,
             )
             timing["maximum_render_cycle_ms"] = max(
                 timing["maximum_render_cycle_ms"],

@@ -66,7 +66,7 @@ class TileStreamingConfig:
                 "UAV_SIM_TILE_MAXIMUM_SCREEN_SPACE_ERROR", "16.0", 1.0, 64.0
             ),
             maximum_simultaneous_loads=_int(
-                "UAV_SIM_TILE_MAXIMUM_SIMULTANEOUS_LOADS", "8", 1, 64
+                "UAV_SIM_TILE_MAXIMUM_SIMULTANEOUS_LOADS", "2", 1, 64
             ),
             maximum_cached_bytes=_int(
                 "UAV_SIM_TILE_MAXIMUM_CACHED_BYTES",
