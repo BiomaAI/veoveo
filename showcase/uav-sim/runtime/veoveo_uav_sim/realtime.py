@@ -3,11 +3,11 @@ from __future__ import annotations
 import math
 
 
-MAXIMUM_NATIVE_PHYSICS_SUBSTEPS = 12
+MAXIMUM_NATIVE_PHYSICS_SUBSTEPS = 60
 
 
 def native_minimum_frame_rate(physics_hz: int) -> int:
-    """Keep measured-time PhysX catch-up bounded without dropping simulation time."""
+    """Admit one second of native PhysX catch-up without a Python clock."""
     if physics_hz < 1:
         raise ValueError("physics cadence must be positive")
     return max(1, math.ceil(physics_hz / MAXIMUM_NATIVE_PHYSICS_SUBSTEPS))

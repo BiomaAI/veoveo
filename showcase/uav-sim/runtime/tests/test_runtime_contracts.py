@@ -169,9 +169,9 @@ class RuntimeConfigTests(unittest.TestCase):
         )
 
     def test_native_catch_up_preserves_long_streamed_world_frames(self) -> None:
-        self.assertEqual(MAXIMUM_NATIVE_PHYSICS_SUBSTEPS, 12)
-        self.assertEqual(native_minimum_frame_rate(60), 5)
-        self.assertEqual(native_minimum_frame_rate(100), 9)
+        self.assertEqual(MAXIMUM_NATIVE_PHYSICS_SUBSTEPS, 60)
+        self.assertEqual(native_minimum_frame_rate(60), 1)
+        self.assertEqual(native_minimum_frame_rate(100), 2)
         with self.assertRaisesRegex(ValueError, "physics cadence must be positive"):
             native_minimum_frame_rate(0)
 

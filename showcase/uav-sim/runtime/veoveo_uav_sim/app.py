@@ -212,7 +212,7 @@ def run(config: RuntimeConfig) -> None:
         # authoritative time whenever a streamed-world update exceeds 1/30 s.
         # Restore Kit's measured-time loop and let PhysX select the required
         # 1/60 s substeps, bounded by the native minimum-frame-rate setting.
-        # The bound admits a 200 ms streamed-world render without dropping
+        # The bound admits a one-second GPU render or product-activation frame without dropping
         # authoritative simulation time. There is no Python clock, deadline,
         # sleep, or catch-up loop.
         from omni.kit.loop import _loop as omni_loop
