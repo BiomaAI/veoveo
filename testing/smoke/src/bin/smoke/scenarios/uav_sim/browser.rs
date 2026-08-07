@@ -410,6 +410,7 @@ async fn capture_console_stream_app_inner(
         let hardware: HardwareIdentity =
             cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
         hardware.validate()?;
+        ensure_console_stream_session(&mut cdp, &target_id, &session_id).await?;
         let first = wait_for_console_stream_video(&mut cdp, &target_id, &session_id).await?;
         let second =
             wait_for_console_stream_advance(&mut cdp, &target_id, &session_id, first).await?;
@@ -471,6 +472,35 @@ async fn capture_console_stream_app_inner(
     let evidence = acceptance?;
     close?;
     Ok(evidence)
+}
+
+async fn ensure_console_stream_session(
+    cdp: &mut Cdp,
+    target_id: &str,
+    session_id: &str,
+) -> Result<()> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+    loop {
+        let action: String = evaluate_console_app(
+            cdp,
+            target_id,
+            session_id,
+            "stream",
+            STREAM_APP_ENSURE_SESSION,
+            false,
+        )
+        .await?;
+        match action.as_str() {
+            "available" | "started" | "starting" => return Ok(()),
+            "waiting" if tokio::time::Instant::now() < deadline => {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            "waiting" => bail!("Console Stream App did not load a live-input pipeline"),
+            unexpected => {
+                bail!("Console Stream App returned an invalid start state {unexpected:?}")
+            }
+        }
+    }
 }
 
 async fn capture_console_recording_inner(
@@ -2443,6 +2473,18 @@ const STREAM_APP_STATE: &str = r#"(() => {
       ? document.getElementById("error").textContent : "",
     bodyText:document.body?.innerText ?? ""
   };
+})()"#;
+
+const STREAM_APP_ENSURE_SESSION: &str = r#"(() => {
+  const session=document.getElementById("session")?.textContent ?? "";
+  if(session && session !== "no session") return "available";
+  const start=document.getElementById("start");
+  const pipeline=document.getElementById("pipeline");
+  if(!start || !pipeline || pipeline.options.length === 0) return "waiting";
+  if(start.dataset.acceptanceStartRequested === "true") return "starting";
+  start.dataset.acceptanceStartRequested="true";
+  start.click();
+  return "started";
 })()"#;
 
 const STREAM_APP_DECODE_IDENTITY: &str = r#"(async () => {
