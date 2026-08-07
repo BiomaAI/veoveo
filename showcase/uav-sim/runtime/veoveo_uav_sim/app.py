@@ -428,6 +428,9 @@ def run(config: RuntimeConfig) -> None:
         recording_cadence = FixedStepCadenceGate(
             config.physics_hz, config.recording.telemetry_hz
         )
+        operator_camera_cadence = FixedStepCadenceGate(
+            config.physics_hz, config.rendering_hz
+        )
 
         def telemetry_snapshot() -> list[VehicleTelemetry]:
             telemetry: list[VehicleTelemetry] = []
@@ -483,11 +486,12 @@ def run(config: RuntimeConfig) -> None:
             physics_step += 1
             simulation_time_s = physics_step / config.physics_hz
             state.advance(simulation_time_s, physics_step)
-            # A measured-time Kit update may perform more than two native
-            # physics substeps while Cesium admits new tiles. Updating from
-            # every authoritative substep ensures the render sees the final
-            # vehicle transform, independent of the selected substep count.
-            update_operator_cameras()
+            # Operator products have their own declared render cadence. The
+            # camera consumes the latest authoritative physics transform at
+            # that cadence; faster physics substeps must not repeat the same
+            # USD camera work before any product can render it.
+            if operator_camera_cadence.due(physics_step):
+                update_operator_cameras()
             publish_recording = recording_cadence.due(physics_step)
             if not publish_recording:
                 return
@@ -551,6 +555,7 @@ def run(config: RuntimeConfig) -> None:
                 simulation_time_s = 0.0
                 simulation_generation += 1
                 recording_cadence.reset()
+                operator_camera_cadence.reset()
                 state.advance(simulation_time_s, physics_step)
                 state.set_lifecycle("running" if was_playing else "paused")
 
