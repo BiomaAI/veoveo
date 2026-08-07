@@ -365,7 +365,10 @@ def run(config: RuntimeConfig) -> None:
         recording_cadence = FixedStepCadenceGate(
             config.physics_hz, config.recording.telemetry_hz
         )
-        physics_clock = RealtimePhysicsClock(config.physics_hz)
+        physics_clock = RealtimePhysicsClock(
+            config.physics_hz,
+            maximum_catch_up_steps=max(1, config.physics_hz // 5),
+        )
         render_deadline = PeriodicDeadline(config.rendering_hz)
 
         def telemetry_snapshot() -> list[VehicleTelemetry]:
