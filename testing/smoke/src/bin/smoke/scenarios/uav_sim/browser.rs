@@ -113,6 +113,7 @@ pub(crate) async fn capture_console_live_app(
             expected_camera_id,
             screenshot_path,
             None,
+            false,
         ),
     )
     .await
@@ -138,6 +139,7 @@ pub(crate) async fn capture_console_live_app_pair(
             expected_camera_id,
             first_screenshot_path,
             Some(Arc::clone(&simultaneous)),
+            true,
         ),
     );
     let second = tokio::time::timeout(
@@ -148,6 +150,7 @@ pub(crate) async fn capture_console_live_app_pair(
             expected_camera_id,
             second_screenshot_path,
             Some(simultaneous),
+            true,
         ),
     );
     let (first, second) = tokio::join!(first, second);
@@ -283,8 +286,10 @@ async fn capture_console_live_app_inner(
     expected_camera_id: &str,
     screenshot_path: &Path,
     simultaneous: Option<Arc<tokio::sync::Barrier>>,
+    new_window: bool,
 ) -> Result<ConsoleLiveCaptureEvidence> {
-    let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, page_url).await?;
+    let (mut cdp, target_id, session_id) =
+        open_headed_target_in_window(cdp_base, page_url, new_window).await?;
     let acceptance = async {
         wait_for_document(&mut cdp, &session_id).await?;
         assert_page_visible(&mut cdp, &session_id).await?;
@@ -869,11 +874,19 @@ async fn sample_rerun_responsiveness(
 }
 
 async fn open_headed_target(cdp_base: &str, page_url: &str) -> Result<(Cdp, String, String)> {
+    open_headed_target_in_window(cdp_base, page_url, false).await
+}
+
+async fn open_headed_target_in_window(
+    cdp_base: &str,
+    page_url: &str,
+    new_window: bool,
+) -> Result<(Cdp, String, String)> {
     let mut cdp = connect_headed_browser(cdp_base, "visual acceptance").await?;
     let target = cdp
         .command(
             "Target.createTarget",
-            serde_json::json!({"url": page_url, "newWindow": false}),
+            serde_json::json!({"url": page_url, "newWindow": new_window}),
             None,
         )
         .await?;
