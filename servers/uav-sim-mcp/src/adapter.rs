@@ -221,19 +221,22 @@ impl HttpAdapter {
     ) -> Result<ConfigureWorldOutput, AdapterError> {
         let world = crate::world::world_binding(request)
             .map_err(|error| AdapterError::InvalidState(error.to_string()))?;
+        self.configure_world_binding(&request.session_id, &world)
+            .await
+    }
+
+    pub async fn configure_world_binding(
+        &self,
+        session_id: &SessionId,
+        world: &SimulationWorldBinding,
+    ) -> Result<ConfigureWorldOutput, AdapterError> {
         #[derive(serde::Serialize)]
         struct AdapterWorldRequest<'a> {
             session_id: &'a SessionId,
             world: &'a SimulationWorldBinding,
         }
-        self.post(
-            "v1/world",
-            &AdapterWorldRequest {
-                session_id: &request.session_id,
-                world: &world,
-            },
-        )
-        .await
+        self.post("v1/world", &AdapterWorldRequest { session_id, world })
+            .await
     }
 
     pub async fn command(
@@ -468,15 +471,23 @@ impl FakeAdapter {
         &mut self,
         request: &ConfigureWorldRequest,
     ) -> Result<ConfigureWorldOutput, AdapterError> {
-        self.require_session(&request.session_id)?;
         let world = crate::world::world_binding(request)
             .map_err(|error| AdapterError::InvalidState(error.to_string()))?;
+        self.configure_world_binding(&request.session_id, &world)
+    }
+
+    pub fn configure_world_binding(
+        &mut self,
+        session_id: &SessionId,
+        world: &SimulationWorldBinding,
+    ) -> Result<ConfigureWorldOutput, AdapterError> {
+        self.require_session(session_id)?;
         if let Some(existing) = &self.state.world {
-            if existing == &world {
+            if existing == world {
                 return Ok(ConfigureWorldOutput {
                     accepted: true,
-                    world,
-                    resource_uri: uris::world(&request.session_id),
+                    world: world.clone(),
+                    resource_uri: uris::world(session_id),
                 });
             }
             return Err(AdapterError::InvalidState(
@@ -488,8 +499,8 @@ impl FakeAdapter {
         self.state.updated_at = Utc::now();
         Ok(ConfigureWorldOutput {
             accepted: true,
-            world,
-            resource_uri: uris::world(&request.session_id),
+            world: world.clone(),
+            resource_uri: uris::world(session_id),
         })
     }
 
@@ -716,6 +727,20 @@ impl Adapter {
         match self {
             Self::Http(adapter) => adapter.configure_world(request).await,
             Self::Fake(adapter) => adapter.lock().await.configure_world(request),
+        }
+    }
+
+    pub async fn configure_world_binding(
+        &self,
+        session_id: &SessionId,
+        world: &SimulationWorldBinding,
+    ) -> Result<ConfigureWorldOutput, AdapterError> {
+        match self {
+            Self::Http(adapter) => adapter.configure_world_binding(session_id, world).await,
+            Self::Fake(adapter) => adapter
+                .lock()
+                .await
+                .configure_world_binding(session_id, world),
         }
     }
 

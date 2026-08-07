@@ -86,19 +86,27 @@ the removed hosted viewer service, scene mirror, or pose protocol.
 
 ## World And Session Lifecycle
 
-Each session starts unconfigured. `configure_world` binds the session exactly once to
-an immutable Frames world revision and static simulation frame. The adapter derives
-the WGS 84, ECEF, ENU, NED, stage, and Cesium mappings from that binding. Runtime
-configuration is immutable after admission.
+`configure_world` binds a session exactly once to an immutable Frames world revision and
+static simulation frame. The adapter derives the WGS 84, ECEF, ENU, NED, stage, and
+Cesium mappings from that binding. Runtime configuration is immutable after admission.
+
+Always-on installations mount the already-admitted binding from an installation-owned
+ConfigMap. The MCP companion parses the strict document and applies it once during
+startup. It does not begin serving when the file is absent, malformed, cross-revision,
+or rejected by the simulator. This is startup configuration, not durable renderer state:
+there is no poller, retry scheduler, desired-versus-realized model, or periodic replay.
+Installations that intentionally begin unconfigured omit the mount and use the ordinary
+tool once.
 
 Durable task tools use `interrupted_indeterminate` recovery. An unclean interruption
 never replays physical work. The default fleet controller keeps the configured fleet
 on its admitted loop until a later mission command takes authority.
 
-Restart behavior is intentionally simple. Simulator objects are runtime state. A
-simulator restart recreates its configured cameras and products during normal startup.
-Viewer leases disappear when the MCP server restarts, and the App opens new leases.
-There is no desired-versus-realized renderer deployment or periodic replay controller.
+Restart behavior is intentionally simple. Simulator objects are runtime state. A pod
+restart recreates the configured world, cameras, and products through the one-shot
+installation binding. Viewer leases disappear when the MCP server restarts, and the App
+opens new leases. There is no desired-versus-realized renderer deployment or periodic
+replay controller.
 
 ## Authoritative Operator Cameras
 

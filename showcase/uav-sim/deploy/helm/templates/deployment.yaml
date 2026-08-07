@@ -118,6 +118,10 @@ spec:
               value: {{ .Values.platform.publicBaseUrl | quote }}
             - name: UAV_SIM_ADAPTER_URL
               value: http://127.0.0.1:8810/
+            {{- if .Values.world.bootstrap.existingConfigMap }}
+            - name: UAV_SIM_WORLD_BOOTSTRAP_FILE
+              value: {{ printf "/etc/veoveo/uav-sim-world/%s" .Values.world.bootstrap.key | quote }}
+            {{- end }}
             - name: UAV_SIM_PUBLIC_SIGNALING_URL
               value: {{ .Values.liveView.publicSignalingUrl | quote }}
             - name: UAV_SIM_NATIVE_SIGNALING_URL
@@ -185,6 +189,12 @@ spec:
             periodSeconds: 10
           resources:
             {{- toYaml .Values.resources.mcp | nindent 12 }}
+          {{- if .Values.world.bootstrap.existingConfigMap }}
+          volumeMounts:
+            - name: world-bootstrap
+              mountPath: /etc/veoveo/uav-sim-world
+              readOnly: true
+          {{- end }}
       volumes:
         - name: shared-memory
           emptyDir:
@@ -211,4 +221,12 @@ spec:
                 path: private-key.pem
         - name: tmp
           emptyDir: {}
+        {{- if .Values.world.bootstrap.existingConfigMap }}
+        - name: world-bootstrap
+          configMap:
+            name: {{ .Values.world.bootstrap.existingConfigMap }}
+            items:
+              - key: {{ .Values.world.bootstrap.key }}
+                path: {{ .Values.world.bootstrap.key }}
+        {{- end }}
 {{- end }}

@@ -63,6 +63,9 @@ recording:
 world:
   source: google_photorealistic_3d_tiles
   cesiumIonAssetId: 2275207
+  bootstrap:
+    existingConfigMap: ""
+    key: world.json
   streaming:
     maximumScreenSpaceError: 32
     maximumSimultaneousLoads: 20

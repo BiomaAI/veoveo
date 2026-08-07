@@ -10,6 +10,11 @@ platform:
 recording:
   mapProvider: openStreetMap
 
+world:
+  bootstrap:
+    existingConfigMap: uav-sim-world-binding
+    key: world.json
+
 session:
   vehicleCount: 4
   physicsHz: 60
