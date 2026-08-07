@@ -215,6 +215,10 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(timing["physics_steps"], 0)
         self.assertEqual(timing["refresh_states_wall_seconds"], 0.0)
         self.assertEqual(timing["vehicle_update_wall_seconds"], 0.0)
+        self.assertEqual(timing["state_update_wall_seconds"], 0.0)
+        self.assertEqual(timing["dynamics_update_wall_seconds"], 0.0)
+        self.assertEqual(timing["sensor_update_wall_seconds"], 0.0)
+        self.assertEqual(timing["backend_state_wall_seconds"], 0.0)
         self.assertEqual(timing["flush_forces_wall_seconds"], 0.0)
         self.assertEqual(timing["after_step_wall_seconds"], 0.0)
         self.assertEqual(timing["native_update_wall_seconds"], 0.0)
@@ -381,12 +385,34 @@ class RuntimeConfigTests(unittest.TestCase):
         state.observe_render_cycle(
             0.02,
             0.03,
-            FleetPhysicsTiming(2, 0.002, 0.004, 0.006, 0.008, 11.0),
+            FleetPhysicsTiming(
+                physics_steps=2,
+                refresh_states_wall_seconds=0.002,
+                vehicle_update_wall_seconds=0.004,
+                state_update_wall_seconds=0.0005,
+                dynamics_update_wall_seconds=0.002,
+                sensor_update_wall_seconds=0.001,
+                backend_state_wall_seconds=0.0005,
+                flush_forces_wall_seconds=0.006,
+                after_step_wall_seconds=0.008,
+                maximum_physics_step_ms=11.0,
+            ),
         )
         state.observe_render_cycle(
             0.04,
             0.05,
-            FleetPhysicsTiming(5, 0.005, 0.010, 0.015, 0.020, 13.0),
+            FleetPhysicsTiming(
+                physics_steps=5,
+                refresh_states_wall_seconds=0.005,
+                vehicle_update_wall_seconds=0.010,
+                state_update_wall_seconds=0.001,
+                dynamics_update_wall_seconds=0.005,
+                sensor_update_wall_seconds=0.003,
+                backend_state_wall_seconds=0.001,
+                flush_forces_wall_seconds=0.015,
+                after_step_wall_seconds=0.020,
+                maximum_physics_step_ms=13.0,
+            ),
         )
 
         timing = state.snapshot()["timing"]
@@ -394,6 +420,10 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(timing["physics_steps"], 5)
         self.assertAlmostEqual(timing["refresh_states_wall_seconds"], 0.005)
         self.assertAlmostEqual(timing["vehicle_update_wall_seconds"], 0.010)
+        self.assertAlmostEqual(timing["state_update_wall_seconds"], 0.001)
+        self.assertAlmostEqual(timing["dynamics_update_wall_seconds"], 0.005)
+        self.assertAlmostEqual(timing["sensor_update_wall_seconds"], 0.003)
+        self.assertAlmostEqual(timing["backend_state_wall_seconds"], 0.001)
         self.assertAlmostEqual(timing["flush_forces_wall_seconds"], 0.015)
         self.assertAlmostEqual(timing["after_step_wall_seconds"], 0.020)
         self.assertAlmostEqual(timing["native_update_wall_seconds"], 0.06)
@@ -406,13 +436,13 @@ class RuntimeConfigTests(unittest.TestCase):
             state.observe_render_cycle(
                 -0.01,
                 0.01,
-                FleetPhysicsTiming(5, 0.0, 0.0, 0.0, 0.0, 0.0),
+                FleetPhysicsTiming(5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
             )
         with self.assertRaisesRegex(ValueError, "cannot be shorter"):
             state.observe_render_cycle(
                 0.02,
                 0.01,
-                FleetPhysicsTiming(5, 0.0, 0.0, 0.0, 0.0, 0.0),
+                FleetPhysicsTiming(5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
             )
 
     def test_camera_optics_and_mount_are_typed_runtime_inputs(self) -> None:
@@ -706,6 +736,10 @@ class RigidBodyBatchTests(unittest.TestCase):
         self.assertEqual(timing.physics_steps, 1)
         self.assertGreaterEqual(timing.refresh_states_wall_seconds, 0.0)
         self.assertGreaterEqual(timing.vehicle_update_wall_seconds, 0.0)
+        self.assertGreaterEqual(timing.state_update_wall_seconds, 0.0)
+        self.assertGreaterEqual(timing.dynamics_update_wall_seconds, 0.0)
+        self.assertGreaterEqual(timing.sensor_update_wall_seconds, 0.0)
+        self.assertGreaterEqual(timing.backend_state_wall_seconds, 0.0)
         self.assertGreaterEqual(timing.flush_forces_wall_seconds, 0.0)
         self.assertGreaterEqual(timing.after_step_wall_seconds, 0.0)
         self.assertGreaterEqual(timing.maximum_physics_step_ms, 0.0)

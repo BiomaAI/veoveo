@@ -39,6 +39,10 @@ def initial_runtime_timing(config: RuntimeConfig) -> dict[str, int | float]:
         "physics_steps": 0,
         "refresh_states_wall_seconds": 0.0,
         "vehicle_update_wall_seconds": 0.0,
+        "state_update_wall_seconds": 0.0,
+        "dynamics_update_wall_seconds": 0.0,
+        "sensor_update_wall_seconds": 0.0,
+        "backend_state_wall_seconds": 0.0,
         "flush_forces_wall_seconds": 0.0,
         "after_step_wall_seconds": 0.0,
         "native_update_wall_seconds": 0.0,
@@ -192,6 +196,18 @@ class RuntimeState:
             )
             timing["vehicle_update_wall_seconds"] = (
                 physics_timing.vehicle_update_wall_seconds
+            )
+            timing["state_update_wall_seconds"] = (
+                physics_timing.state_update_wall_seconds
+            )
+            timing["dynamics_update_wall_seconds"] = (
+                physics_timing.dynamics_update_wall_seconds
+            )
+            timing["sensor_update_wall_seconds"] = (
+                physics_timing.sensor_update_wall_seconds
+            )
+            timing["backend_state_wall_seconds"] = (
+                physics_timing.backend_state_wall_seconds
             )
             timing["flush_forces_wall_seconds"] = (
                 physics_timing.flush_forces_wall_seconds
