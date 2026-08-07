@@ -39,6 +39,10 @@ pub(crate) struct ConsoleLiveCaptureEvidence {
 
 #[allow(dead_code)] // Viewer-slot identity is consumed by the focused browser binary.
 impl ConsoleLiveCaptureEvidence {
+    pub(crate) fn camera_id(&self) -> &str {
+        &self.video.camera_id
+    }
+
     pub(crate) fn viewer_instance_id(&self) -> &str {
         &self.video.viewer_instance_id
     }
@@ -1361,10 +1365,33 @@ async fn wait_for_console_video_advance(
     let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
     loop {
         tokio::time::sleep(Duration::from_secs(2)).await;
-        let second = wait_for_console_video(cdp, target_id, session_id, expected_camera_id).await?;
+        let mut second =
+            wait_for_console_video(cdp, target_id, session_id, expected_camera_id).await?;
         if second.document_epoch_ms == first.document_epoch_ms
             && second.current_time > first.current_time + 0.25
         {
+            let interval_seconds = (second.sampled_at_ms - first.sampled_at_ms) / 1_000.0;
+            let delivered_frames = second
+                .total_video_frames
+                .saturating_sub(first.total_video_frames);
+            let dropped_frames = second
+                .dropped_video_frames
+                .saturating_sub(first.dropped_video_frames);
+            ensure!(
+                interval_seconds > 0.0 && second.declared_frame_rate_hz > 0.0,
+                "authoritative live-view App returned an invalid cadence interval: {first:?} -> {second:?}"
+            );
+            second.observed_frame_rate_hz = delivered_frames as f64 / interval_seconds;
+            ensure!(
+                second.observed_frame_rate_hz >= second.declared_frame_rate_hz * 0.95,
+                "authoritative live-view App delivered {:.2} fps, below 95% of its declared {:.2} fps: {first:?} -> {second:?}",
+                second.observed_frame_rate_hz,
+                second.declared_frame_rate_hz,
+            );
+            ensure!(
+                dropped_frames * 20 <= delivered_frames.max(1),
+                "authoritative live-view App dropped more than 5% of browser video frames: delivered={delivered_frames} dropped={dropped_frames}"
+            );
             return Ok(second);
         }
         ensure!(
@@ -1660,6 +1687,17 @@ struct AppVideoState {
     video_width: u32,
     video_height: u32,
     current_time: f64,
+    sampled_at_ms: f64,
+    total_video_frames: u64,
+    dropped_video_frames: u64,
+    declared_frame_rate_hz: f64,
+    #[serde(default)]
+    observed_frame_rate_hz: f64,
+    mean_luma: f64,
+    luma_standard_deviation: f64,
+    minimum_luma: u8,
+    maximum_luma: u8,
+    pixel_sample_error: String,
     decode_label: String,
     status: String,
     error: String,
@@ -1687,6 +1725,14 @@ impl AppVideoState {
                 && self.current_time.is_finite()
                 && self.current_time > 0.0,
             "authoritative live-view App did not display the declared 1280x720 H.264 stream: {self:?}"
+        );
+        ensure!(
+            self.pixel_sample_error.is_empty()
+                && self.mean_luma > 2.0
+                && self.mean_luma < 253.0
+                && self.luma_standard_deviation >= 5.0
+                && self.minimum_luma < self.maximum_luma,
+            "authoritative live-view App displayed a blank or uniform GPU frame: {self:?}"
         );
         ensure!(
             self.decode_label == "NVIDIA NVENC · hardware H.264 decode"
@@ -2408,6 +2454,26 @@ const APP_FRAME_VIDEO_STATE: &str = r#"(() => {
   const video=document.querySelector("video");
   const view=video?.closest(".view");
   const camera=document.querySelector(`#choices input[type="checkbox"]:checked`);
+  const quality=video?.getVideoPlaybackQuality?.();
+  const frame={meanLuma:0,lumaStandardDeviation:0,minimumLuma:0,maximumLuma:0,pixelSampleError:""};
+  try {
+    if(!video?.videoWidth||!video?.videoHeight) throw new Error("video dimensions are unavailable");
+    const canvas=document.createElement("canvas");
+    canvas.width=64;canvas.height=36;
+    const context=canvas.getContext("2d",{willReadFrequently:true});
+    if(!context) throw new Error("2D frame sampler is unavailable");
+    context.drawImage(video,0,0,canvas.width,canvas.height);
+    const pixels=context.getImageData(0,0,canvas.width,canvas.height).data;
+    let sum=0,sumSquares=0,minimum=255,maximum=0,count=0;
+    for(let index=0;index<pixels.length;index+=4){
+      const luma=0.2126*pixels[index]+0.7152*pixels[index+1]+0.0722*pixels[index+2];
+      sum+=luma;sumSquares+=luma*luma;minimum=Math.min(minimum,luma);maximum=Math.max(maximum,luma);count++;
+    }
+    frame.meanLuma=sum/count;
+    frame.lumaStandardDeviation=Math.sqrt(Math.max(0,sumSquares/count-frame.meanLuma*frame.meanLuma));
+    frame.minimumLuma=Math.round(minimum);
+    frame.maximumLuma=Math.round(maximum);
+  }catch(error){frame.pixelSampleError=String(error?.message||error);}
   return {
     documentEpochMs:performance.timeOrigin,
     cameraId:camera?.parentElement?.textContent?.split(" · ")[0]?.trim() ?? "",
@@ -2419,6 +2485,12 @@ const APP_FRAME_VIDEO_STATE: &str = r#"(() => {
     videoWidth:video?.videoWidth ?? 0,
     videoHeight:video?.videoHeight ?? 0,
     currentTime:video?.currentTime ?? 0,
+    sampledAtMs:performance.now(),
+    totalVideoFrames:quality?.totalVideoFrames ?? 0,
+    droppedVideoFrames:quality?.droppedVideoFrames ?? 0,
+    declaredFrameRateHz:Number(view?.querySelector(".stats span:nth-child(2)")?.textContent?.split(" ")[0] ?? 0),
+    observedFrameRateHz:0,
+    ...frame,
     decodeLabel:document.getElementById("decode")?.textContent ?? "",
     status:document.getElementById("status")?.textContent ?? "",
     error:document.getElementById("error")?.hidden === false

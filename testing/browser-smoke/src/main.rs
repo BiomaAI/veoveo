@@ -17,12 +17,20 @@ mod browser;
 
 use browser::{
     ConsoleLiveCaptureEvidence, ConsoleRecordingCaptureEvidence, ConsoleStreamCaptureEvidence,
-    capture_console_live_app_pair, capture_console_recording, capture_console_stream_app,
-    preflight_console_live_app,
+    capture_console_live_app, capture_console_live_app_pair, capture_console_recording,
+    capture_console_stream_app, preflight_console_live_app,
 };
 
-const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-browser-evidence/v4";
+const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-browser-evidence/v5";
 const MAX_RECORDING_SOURCE_LAG_SECONDS: f64 = 1.0;
+const PRIMARY_CAMERA_ID: &str = "follow";
+const QUALIFIED_CAMERA_IDS: [&str; 5] = [
+    PRIMARY_CAMERA_ID,
+    "chase",
+    "orbit",
+    "stabilized",
+    "formation",
+];
 const OPERATOR_PROFILE_SCOPES: &[&str] = &[
     "operator:use",
     "uav-sim:stream",
@@ -100,7 +108,7 @@ struct BrowserAcceptanceEvidence {
     run_id: String,
     scenario_path: String,
     session_id: String,
-    camera_id: String,
+    camera_ids: Vec<String>,
     recording_id: String,
     source_simulation_time_seconds: f64,
     recording_simulation_time_seconds: f64,
@@ -333,23 +341,34 @@ async fn verify_running_showcase(
         "focused browser acceptance requires the existing simulation to remain running: {initial_state}"
     );
     let recording_id = recording_id(&initial_state)?;
-    let camera = initial_state
+    let cameras = initial_state
         .get("live_cameras")
         .and_then(Value::as_array)
-        .context("authoritative simulator omitted its live camera collection")?
+        .context("authoritative simulator omitted its live camera collection")?;
+    for camera_id in QUALIFIED_CAMERA_IDS {
+        let camera = cameras
+            .iter()
+            .find(|camera| camera.get("cameraId").and_then(Value::as_str) == Some(camera_id))
+            .with_context(|| format!("running showcase omitted qualified camera {camera_id}"))?;
+        ensure!(
+            camera.get("health").and_then(Value::as_str) == Some("healthy"),
+            "qualified camera {camera_id} is not healthy: {camera}"
+        );
+        ensure!(
+            camera.get("streamProductId").is_none(),
+            "logical camera retained a physical stream-product identity: {camera}"
+        );
+    }
+    let primary_camera = cameras
         .iter()
-        .find(|camera| {
-            camera
-                .pointer("/rig/targetEntityId")
-                .and_then(Value::as_str)
-                == Some(scenario.vehicle_id.as_str())
-                && camera.get("health").and_then(Value::as_str) == Some("healthy")
-        })
-        .context("running showcase has no healthy leader follow camera")?;
-    let camera_id = json_string(camera, "/cameraId")?.to_owned();
+        .find(|camera| camera.get("cameraId").and_then(Value::as_str) == Some(PRIMARY_CAMERA_ID))
+        .context("running showcase has no primary follow camera")?;
     ensure!(
-        camera.get("streamProductId").is_none(),
-        "logical camera retained a physical stream-product identity: {camera}"
+        primary_camera
+            .pointer("/rig/targetEntityId")
+            .and_then(Value::as_str)
+            == Some(scenario.vehicle_id.as_str()),
+        "primary camera does not follow the scenario vehicle: {primary_camera}"
     );
     let initial_products = initial_state
         .get("stream_products")
@@ -380,7 +399,7 @@ async fn verify_running_showcase(
     let (first_live, second_live) = capture_console_live_app_pair(
         chrome_cdp_url,
         public_base_url,
-        &camera_id,
+        PRIMARY_CAMERA_ID,
         &evidence_directory.join("uav-live-view-first.png"),
         &evidence_directory.join("uav-live-view-second.png"),
         timeout,
@@ -402,6 +421,31 @@ async fn verify_running_showcase(
         second_live.stream_product_id(),
         second_live.capacity_slot(),
     );
+    let mut live_views = vec![first_live, second_live];
+    for camera_id in QUALIFIED_CAMERA_IDS.iter().skip(1) {
+        live_views.push(
+            capture_console_live_app(
+                chrome_cdp_url,
+                public_base_url,
+                camera_id,
+                &evidence_directory.join(format!("uav-live-view-{camera_id}.png")),
+                timeout,
+            )
+            .await
+            .with_context(|| format!("qualifying authoritative camera {camera_id}"))?,
+        );
+    }
+    for camera_id in QUALIFIED_CAMERA_IDS {
+        let expected_captures = if camera_id == PRIMARY_CAMERA_ID { 2 } else { 1 };
+        ensure!(
+            live_views
+                .iter()
+                .filter(|capture| capture.camera_id() == camera_id)
+                .count()
+                == expected_captures,
+            "focused browser evidence omitted qualified camera {camera_id}: expected {expected_captures} captures"
+        );
+    }
     let stream = capture_console_stream_app(
         chrome_cdp_url,
         public_base_url,
@@ -423,7 +467,7 @@ async fn verify_running_showcase(
         .get("stream_products")
         .and_then(Value::as_array)
         .context("authoritative simulator lost its viewer-slot collection")?;
-    for live in [&first_live, &second_live] {
+    for live in &live_views {
         let released = final_products.iter().find(|product| {
             product.get("streamProductId").and_then(Value::as_str) == Some(live.stream_product_id())
         });
@@ -461,13 +505,16 @@ async fn verify_running_showcase(
         run_id,
         scenario_path: scenario_path.display().to_string(),
         session_id: scenario.session_id,
-        camera_id,
+        camera_ids: QUALIFIED_CAMERA_IDS
+            .iter()
+            .map(|camera_id| (*camera_id).to_owned())
+            .collect(),
         recording_id,
         source_simulation_time_seconds,
         recording_simulation_time_seconds,
         recording_source_lag_seconds,
         source_alignment,
-        live_views: vec![first_live, second_live],
+        live_views,
         stream,
         recording,
     };
