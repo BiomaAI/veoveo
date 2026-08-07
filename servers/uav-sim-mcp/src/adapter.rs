@@ -840,12 +840,10 @@ mod tests {
             timing: RuntimeTimingState {
                 physics_hz: 60,
                 native_rendering_hz: 2,
-                realtime_rebases: 0,
-                discarded_wall_seconds: 0.0,
                 render_cycles: 0,
-                kit_render_wall_seconds: 0.0,
+                native_update_wall_seconds: 0.0,
                 render_cycle_wall_seconds: 0.0,
-                maximum_kit_render_ms: 0.0,
+                maximum_native_update_ms: 0.0,
                 maximum_render_cycle_ms: 0.0,
             },
             world: Some(fake_world()),
@@ -1004,12 +1002,10 @@ mod tests {
         let timing: RuntimeTimingState = serde_json::from_value(serde_json::json!({
             "physics_hz": 60,
             "native_rendering_hz": 30,
-            "realtime_rebases": 1,
-            "discarded_wall_seconds": 0.25,
             "render_cycles": 120,
-            "kit_render_wall_seconds": 3.0,
+            "native_update_wall_seconds": 3.0,
             "render_cycle_wall_seconds": 3.5,
-            "maximum_kit_render_ms": 31.0,
+            "maximum_native_update_ms": 31.0,
             "maximum_render_cycle_ms": 35.0
         }))
         .unwrap();

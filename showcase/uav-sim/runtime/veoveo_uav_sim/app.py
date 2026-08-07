@@ -12,9 +12,9 @@ LOGGER = logging.getLogger("veoveo.uav_sim")
 
 
 def kit_live_render_arguments() -> list[str]:
-    """Decouple the authoritative main tick from Kit presentation threads."""
+    """Use Isaac's native cadence while decoupling presentation threads."""
     settings = {
-        "/app/runLoops/main/rateLimitEnabled": "false",
+        "/app/runLoops/main/rateLimitEnabled": "true",
         "/app/runLoops/main/syncToPresent": "false",
         "/app/runLoops/rendering_0/syncToPresent": "false",
         "/app/runLoops/rendering_1/syncToPresent": "false",
@@ -135,7 +135,7 @@ def run(config: RuntimeConfig) -> None:
     from .operator_products import OperatorProductCollection, materialize_matrix4d
     from .physics_batch import FleetPhysicsLifecycle
     from .px4 import Px4Commander
-    from .realtime import FixedStepCadenceGate, PeriodicDeadline, RealtimePhysicsClock
+    from .realtime import FixedStepCadenceGate
     from .recording import ImuTelemetry, RecordingPublisher
     from .server import (
         AdapterApplication,
@@ -397,11 +397,9 @@ def run(config: RuntimeConfig) -> None:
         recording_cadence = FixedStepCadenceGate(
             config.physics_hz, config.recording.telemetry_hz
         )
-        physics_clock = RealtimePhysicsClock(
-            config.physics_hz,
-            maximum_catch_up_steps=config.physics_hz,
+        operator_camera_cadence = FixedStepCadenceGate(
+            config.physics_hz, config.rendering_hz
         )
-        render_deadline = PeriodicDeadline(config.rendering_hz)
 
         def telemetry_snapshot() -> list[VehicleTelemetry]:
             telemetry: list[VehicleTelemetry] = []
@@ -457,6 +455,8 @@ def run(config: RuntimeConfig) -> None:
             physics_step += 1
             simulation_time_s = physics_step / config.physics_hz
             state.advance(simulation_time_s, physics_step)
+            if operator_camera_cadence.due(physics_step):
+                update_operator_cameras()
             publish_recording = recording_cadence.due(physics_step)
             if not publish_recording:
                 return
@@ -498,8 +498,6 @@ def run(config: RuntimeConfig) -> None:
         def pause() -> None:
             def action() -> None:
                 timeline.pause()
-                physics_clock.reset(physics_step)
-                render_deadline.reset()
                 state.set_lifecycle("paused")
 
             command_queue.submit(action)
@@ -507,8 +505,6 @@ def run(config: RuntimeConfig) -> None:
         def resume() -> None:
             def action() -> None:
                 timeline.play()
-                physics_clock.reset(physics_step)
-                render_deadline.reset()
                 state.set_lifecycle("running")
 
             command_queue.submit(action)
@@ -524,8 +520,7 @@ def run(config: RuntimeConfig) -> None:
                 simulation_time_s = 0.0
                 simulation_generation += 1
                 recording_cadence.reset()
-                physics_clock.reset(physics_step)
-                render_deadline.reset()
+                operator_camera_cadence.reset()
                 state.advance(simulation_time_s, physics_step)
                 state.set_lifecycle("running" if was_playing else "paused")
 
@@ -539,12 +534,9 @@ def run(config: RuntimeConfig) -> None:
                 simulation_app.update()
                 for _ in range(steps):
                     world.step(render=False)
-                update_operator_cameras()
                 world.render()
                 timeline.pause()
                 simulation_app.update()
-                physics_clock.reset(physics_step)
-                render_deadline.reset()
                 state.advance(simulation_time_s, physics_step)
                 state.set_lifecycle("paused")
 
@@ -654,47 +646,32 @@ def run(config: RuntimeConfig) -> None:
         tile_failure_latched = False
         tile_recovery_count = 0
         tile_unavailable_reported = False
-        physics_clock.reset(physics_step)
-        render_deadline.reset()
-
         while simulation_app.is_running():
             assert fleet_loop is not None
             fleet_loop.raise_if_failed()
             command_queue.drain()
             if timeline.is_playing():
-                now = time.monotonic()
-                due_steps = physics_clock.due_steps(physics_step, now=now)
-                for _ in range(due_steps):
-                    world.step(render=False)
-                render = render_deadline.due(now=time.monotonic())
-                if render:
-                    render_cycle_started = time.monotonic()
-                    update_operator_cameras(now)
-                    kit_render_started = time.monotonic()
-                    world.render()
-                    kit_render_wall_seconds = time.monotonic() - kit_render_started
-                    update_cesium_viewport()
-                    assert operator_products is not None
-                    state.update_stream_products(
-                        operator_products.state(
-                            content_ready=(
-                                state.snapshot()["tiles"]["lifecycle"] == "ready"
-                            )
+                render_cycle_started = time.monotonic()
+                native_update_started = time.monotonic()
+                # World configured physics_dt=1/60 and rendering_dt=1/30.
+                # Isaac's native manual loop therefore advances exactly two
+                # physics substeps inside this one Kit update. Physics and RTX
+                # scheduling stay in the engine instead of being serialized by
+                # independent Python wall-clock deadlines.
+                world.step(render=True)
+                native_update_wall_seconds = (
+                    time.monotonic() - native_update_started
+                )
+                update_cesium_viewport()
+                assert operator_products is not None
+                state.update_stream_products(
+                    operator_products.state(
+                        content_ready=(
+                            state.snapshot()["tiles"]["lifecycle"] == "ready"
                         )
                     )
-                    clock_status = physics_clock.status()
-                    state.update_realtime_clock(
-                        clock_status.rebases,
-                        clock_status.discarded_wall_seconds,
-                    )
-                elif due_steps == 0:
-                    wait_seconds = min(
-                        physics_clock.seconds_until_next_step(physics_step),
-                        render_deadline.seconds_until_due(),
-                        0.005,
-                    )
-                    if wait_seconds > 0:
-                        time.sleep(wait_seconds)
+                )
+                render = True
             else:
                 simulation_app.update()
                 update_cesium_viewport()
@@ -833,7 +810,7 @@ def run(config: RuntimeConfig) -> None:
                     tile_unavailable_reported = False
 
                 state.observe_render_cycle(
-                    kit_render_wall_seconds,
+                    native_update_wall_seconds,
                     time.monotonic() - render_cycle_started,
                 )
 

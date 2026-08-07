@@ -325,13 +325,10 @@ pub struct RuntimeTimingState {
     pub physics_hz: u32,
     #[schemars(range(min = 1, max = 120))]
     pub native_rendering_hz: u32,
-    #[schemars(range(min = 50, max = 5000))]
-    pub realtime_rebases: u64,
-    pub discarded_wall_seconds: f64,
     pub render_cycles: u64,
-    pub kit_render_wall_seconds: f64,
+    pub native_update_wall_seconds: f64,
     pub render_cycle_wall_seconds: f64,
-    pub maximum_kit_render_ms: f64,
+    pub maximum_native_update_ms: f64,
     pub maximum_render_cycle_ms: f64,
 }
 

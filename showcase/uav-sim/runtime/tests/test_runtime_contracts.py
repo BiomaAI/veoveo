@@ -30,7 +30,7 @@ from veoveo_uav_sim.physics_batch import (
     RigidBodyBatchAccumulator,
 )
 from veoveo_uav_sim.px4 import Px4Commander, Px4CommandRejected
-from veoveo_uav_sim.realtime import PeriodicDeadline, RealtimePhysicsClock
+from veoveo_uav_sim.realtime import FixedStepCadenceGate
 from veoveo_uav_sim.state import (
     RuntimeState,
     VehicleTelemetry,
@@ -113,7 +113,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(
             arguments,
             [
-                "--/app/runLoops/main/rateLimitEnabled=false",
+                "--/app/runLoops/main/rateLimitEnabled=true",
                 "--/app/runLoops/main/syncToPresent=false",
                 "--/app/runLoops/rendering_0/syncToPresent=false",
                 "--/app/runLoops/rendering_1/syncToPresent=false",
@@ -128,7 +128,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(config.cesium_ion_asset_id, 2_275_207)
         self.assertEqual(config.tile_cache_policy.value, "persistent")
         self.assertEqual(config.tile_streaming.maximum_screen_space_error, 16.0)
-        self.assertEqual(config.tile_streaming.maximum_simultaneous_loads, 8)
+        self.assertEqual(config.tile_streaming.maximum_simultaneous_loads, 2)
         self.assertEqual(config.tile_streaming.maximum_cached_bytes, 2_147_483_648)
         self.assertTrue(config.tile_streaming.preload_ancestors)
         self.assertFalse(config.tile_streaming.preload_siblings)
@@ -210,9 +210,9 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(timing["physics_hz"], 60)
         self.assertEqual(timing["native_rendering_hz"], 30)
         self.assertEqual(timing["render_cycles"], 0)
-        self.assertEqual(timing["kit_render_wall_seconds"], 0.0)
+        self.assertEqual(timing["native_update_wall_seconds"], 0.0)
         self.assertEqual(timing["render_cycle_wall_seconds"], 0.0)
-        self.assertEqual(timing["maximum_kit_render_ms"], 0.0)
+        self.assertEqual(timing["maximum_native_update_ms"], 0.0)
         self.assertEqual(timing["maximum_render_cycle_ms"], 0.0)
 
         server_source = (
@@ -367,7 +367,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(recording["dropped_events"], 9)
         self.assertEqual(recording["diagnostic"], "network unavailable")
 
-    def test_render_timing_separates_kit_from_complete_cycle_cost(self) -> None:
+    def test_render_timing_separates_native_update_from_complete_cycle(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             state = RuntimeState(RuntimeConfig.from_environment(), WORLD)
         state.observe_render_cycle(0.02, 0.03)
@@ -375,9 +375,9 @@ class RuntimeConfigTests(unittest.TestCase):
 
         timing = state.snapshot()["timing"]
         self.assertEqual(timing["render_cycles"], 2)
-        self.assertAlmostEqual(timing["kit_render_wall_seconds"], 0.06)
+        self.assertAlmostEqual(timing["native_update_wall_seconds"], 0.06)
         self.assertAlmostEqual(timing["render_cycle_wall_seconds"], 0.08)
-        self.assertAlmostEqual(timing["maximum_kit_render_ms"], 40.0)
+        self.assertAlmostEqual(timing["maximum_native_update_ms"], 40.0)
         self.assertAlmostEqual(timing["maximum_render_cycle_ms"], 50.0)
 
         with self.assertRaisesRegex(ValueError, "cannot be negative"):
@@ -859,53 +859,22 @@ class _FleetLoopCommander:
         self.interrupt.clear()
 
 
-class RealtimeClockTests(unittest.TestCase):
-    def test_physics_clock_replays_each_due_fixed_step(self) -> None:
-        now = [100.0]
-        clock = RealtimePhysicsClock(
-            60, maximum_catch_up_steps=12, clock=lambda: now[0]
-        )
-
-        self.assertEqual(clock.due_steps(0), 0)
-        now[0] += 0.09
-        self.assertEqual(clock.due_steps(0), 5)
-        self.assertEqual(clock.due_steps(5), 0)
-        now[0] += 0.04
-        self.assertEqual(clock.due_steps(5), 2)
-        self.assertEqual(clock.due_steps(7), 0)
-        self.assertGreater(clock.seconds_until_next_step(7), 0.0)
-
-    def test_physics_clock_bounds_catch_up_after_a_long_stall(self) -> None:
-        now = [10.0]
-        clock = RealtimePhysicsClock(
-            60, maximum_catch_up_steps=12, clock=lambda: now[0]
-        )
-        now[0] += 2.0
-
-        self.assertEqual(clock.due_steps(0), 12)
-        self.assertEqual(clock.due_steps(12), 0)
-        status = clock.status()
-        self.assertEqual(status.rebases, 1)
-        self.assertAlmostEqual(status.discarded_wall_seconds, 108 / 60)
-
-    def test_runtime_admits_one_second_of_fixed_step_catch_up(self) -> None:
+class NativeCadenceTests(unittest.TestCase):
+    def test_runtime_uses_one_native_update_with_physics_substeps(self) -> None:
         app_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py"
         ).read_text()
-        self.assertIn("maximum_catch_up_steps=config.physics_hz", app_source)
+        self.assertIn("world.step(render=True)", app_source)
+        self.assertNotIn("RealtimePhysicsClock", app_source)
+        self.assertNotIn("PeriodicDeadline", app_source)
+        self.assertNotIn("time.sleep(wait_seconds)", app_source)
 
-    def test_physics_clock_rejects_an_unbounded_catch_up_policy(self) -> None:
-        with self.assertRaisesRegex(ValueError, "catch-up steps"):
-            RealtimePhysicsClock(60, maximum_catch_up_steps=0)
-
-    def test_render_deadline_skips_missed_periods(self) -> None:
-        now = [20.0]
-        deadline = PeriodicDeadline(2, clock=lambda: now[0])
-        self.assertTrue(deadline.due())
-        self.assertFalse(deadline.due())
-        now[0] += 1.6
-        self.assertTrue(deadline.due())
-        self.assertGreater(deadline.seconds_until_due(), 0.0)
+    def test_physics_step_gate_selects_exact_render_cadence(self) -> None:
+        gate = FixedStepCadenceGate(60, 30)
+        self.assertEqual(
+            [step for step in range(1, 9) if gate.due(step)],
+            [2, 4, 6, 8],
+        )
 
 
 class Px4IrisVehicleModelTests(unittest.TestCase):
