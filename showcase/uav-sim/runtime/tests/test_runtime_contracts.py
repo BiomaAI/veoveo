@@ -113,7 +113,8 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(
             arguments,
             [
-                "--/app/runLoops/main/rateLimitEnabled=true",
+                "--/app/runLoops/main/rateLimitEnabled=false",
+                "--/app/player/useFixedTimeStepping=false",
                 "--/app/runLoops/main/syncToPresent=false",
                 "--/app/runLoops/rendering_0/syncToPresent=false",
                 "--/app/runLoops/rendering_1/syncToPresent=false",
@@ -860,11 +861,13 @@ class _FleetLoopCommander:
 
 
 class NativeCadenceTests(unittest.TestCase):
-    def test_runtime_uses_one_native_update_with_physics_substeps(self) -> None:
+    def test_runtime_uses_measured_native_updates_with_physics_substeps(self) -> None:
         app_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py"
         ).read_text()
         self.assertIn("world.step(render=True)", app_source)
+        self.assertIn("loop_runner.set_manual_mode(False)", app_source)
+        self.assertIn('"/persistent/simulation/minFrameRate"', app_source)
         self.assertNotIn("RealtimePhysicsClock", app_source)
         self.assertNotIn("PeriodicDeadline", app_source)
         self.assertNotIn("time.sleep(wait_seconds)", app_source)

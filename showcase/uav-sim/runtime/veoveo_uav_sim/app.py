@@ -12,9 +12,10 @@ LOGGER = logging.getLogger("veoveo.uav_sim")
 
 
 def kit_live_render_arguments() -> list[str]:
-    """Use Isaac's native cadence while decoupling presentation threads."""
+    """Use measured native time while decoupling presentation threads."""
     settings = {
-        "/app/runLoops/main/rateLimitEnabled": "true",
+        "/app/runLoops/main/rateLimitEnabled": "false",
+        "/app/player/useFixedTimeStepping": "false",
         "/app/runLoops/main/syncToPresent": "false",
         "/app/runLoops/rendering_0/syncToPresent": "false",
         "/app/runLoops/rendering_1/syncToPresent": "false",
@@ -71,6 +72,7 @@ def run(config: RuntimeConfig) -> None:
         }
     )
 
+    import carb
     import numpy as np
     import omni.kit.app
     import omni.timeline
@@ -198,6 +200,19 @@ def run(config: RuntimeConfig) -> None:
             stage_units_in_meters=1.0,
             backend="warp",
             device="cuda:0",
+        )
+        # SimulationContext selects a fixed manual step by default. That drops
+        # authoritative time whenever a streamed-world update exceeds 1/30 s.
+        # Restore Kit's measured-time loop and let PhysX select the required
+        # 1/60 s substeps, bounded to six by the native minimum-frame-rate
+        # setting. There is no Python clock, deadline, sleep, or catch-up loop.
+        from omni.kit.loop import _loop as omni_loop
+
+        loop_runner = omni_loop.acquire_loop_interface()
+        loop_runner.set_manual_mode(False)
+        carb.settings.get_settings().set_int(
+            "/persistent/simulation/minFrameRate",
+            max(1, config.physics_hz // 6),
         )
         launch_surface_material = PhysicsMaterial(
             prim_path="/World/Physics_Materials/uav_launch_surface",
@@ -397,9 +412,6 @@ def run(config: RuntimeConfig) -> None:
         recording_cadence = FixedStepCadenceGate(
             config.physics_hz, config.recording.telemetry_hz
         )
-        operator_camera_cadence = FixedStepCadenceGate(
-            config.physics_hz, config.rendering_hz
-        )
 
         def telemetry_snapshot() -> list[VehicleTelemetry]:
             telemetry: list[VehicleTelemetry] = []
@@ -455,8 +467,11 @@ def run(config: RuntimeConfig) -> None:
             physics_step += 1
             simulation_time_s = physics_step / config.physics_hz
             state.advance(simulation_time_s, physics_step)
-            if operator_camera_cadence.due(physics_step):
-                update_operator_cameras()
+            # A measured-time Kit update may perform more than two native
+            # physics substeps while Cesium admits new tiles. Updating from
+            # every authoritative substep ensures the render sees the final
+            # vehicle transform, independent of the selected substep count.
+            update_operator_cameras()
             publish_recording = recording_cadence.due(physics_step)
             if not publish_recording:
                 return
@@ -520,7 +535,6 @@ def run(config: RuntimeConfig) -> None:
                 simulation_time_s = 0.0
                 simulation_generation += 1
                 recording_cadence.reset()
-                operator_camera_cadence.reset()
                 state.advance(simulation_time_s, physics_step)
                 state.set_lifecycle("running" if was_playing else "paused")
 
@@ -653,11 +667,10 @@ def run(config: RuntimeConfig) -> None:
             if timeline.is_playing():
                 render_cycle_started = time.monotonic()
                 native_update_started = time.monotonic()
-                # World configured physics_dt=1/60 and rendering_dt=1/30.
-                # Isaac's native manual loop therefore advances exactly two
-                # physics substeps inside this one Kit update. Physics and RTX
-                # scheduling stay in the engine instead of being serialized by
-                # independent Python wall-clock deadlines.
+                # Kit advances measured wall time and PhysX performs the
+                # required bounded 1/60 s substeps inside this update. Physics
+                # and RTX scheduling stay in the engine instead of being
+                # serialized by independent Python wall-clock deadlines.
                 world.step(render=True)
                 native_update_wall_seconds = (
                     time.monotonic() - native_update_started
