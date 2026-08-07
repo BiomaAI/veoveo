@@ -443,8 +443,8 @@ impl LiveViewService {
             if last {
                 service.arm_idle_deactivation(camera_id);
             }
-            if let Some(audit) = &service.audit {
-                if let Err(error) = audit
+            if let Some(audit) = &service.audit
+                && let Err(error) = audit
                     .append_lease(
                         &expired,
                         "expired",
@@ -452,9 +452,8 @@ impl LiveViewService {
                         BTreeMap::new(),
                     )
                     .await
-                {
-                    tracing::error!(%error, live_view_id = %expired.live_view_id, "failed to persist live-view expiry audit");
-                }
+            {
+                tracing::error!(%error, live_view_id = %expired.live_view_id, "failed to persist live-view expiry audit");
             }
         });
     }
@@ -483,14 +482,13 @@ impl LiveViewService {
                 camera.camera_id == camera_id
                     && camera.stream_policy == LiveCameraStreamPolicy::OnDemand
             });
-            if on_demand {
-                if let Err(error) = service
+            if on_demand
+                && let Err(error) = service
                     .adapter
                     .set_live_product_active(&camera_id, false)
                     .await
-                {
-                    tracing::warn!(%camera_id, %error, "failed to deactivate idle live product");
-                }
+            {
+                tracing::warn!(%camera_id, %error, "failed to deactivate idle live product");
             }
         });
     }
