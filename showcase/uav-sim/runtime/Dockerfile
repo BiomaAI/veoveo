@@ -26,8 +26,11 @@ RUN git clone https://github.com/PegasusSimulator/PegasusSimulator.git pegasus \
       \( -name '*.py' -o -name '*.toml' \) \
       -exec sed -i 's/[[:space:]]\+$//' {} +
 COPY patches/pegasus-5.1.0-isaac-6.0.1.patch /tmp/pegasus.patch
+COPY patches/pegasus-5.1.0-hot-path.patch /tmp/pegasus-hot-path.patch
 RUN git -C pegasus apply --unidiff-zero --check /tmp/pegasus.patch \
     && git -C pegasus apply --unidiff-zero /tmp/pegasus.patch \
+    && git -C pegasus apply --check /tmp/pegasus-hot-path.patch \
+    && git -C pegasus apply /tmp/pegasus-hot-path.patch \
     && rm -rf pegasus/.git
 
 RUN curl --fail --location --show-error \
