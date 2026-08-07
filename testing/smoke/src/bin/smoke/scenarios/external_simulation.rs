@@ -19,7 +19,7 @@ use super::*;
 
 const UV_VERSION: &str = "0.11.32";
 const SDK_WHEEL: &str = "veoveo_mcp-0.1.0-py3-none-any.whl";
-const SDK_SHA256: &str = "3a12b26f667ab480d08b21dc84f8c274d09fa92ec707d9630b8fc40df5da26e5";
+const SDK_SHA256: &str = "081d249027c39295d0491c143ef7a1d475ea5cd4cb118428015031e084b5d51c";
 const INDEX_USERNAME: &str = "token";
 const INDEX_PASSWORD: &str = "fixture-index-secret";
 const CANONICAL_INDEX_ROOT: &str = "https://packages.example.internal/veoveo";
