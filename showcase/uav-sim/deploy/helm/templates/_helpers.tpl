@@ -56,7 +56,7 @@
 - name: UAV_SIM_TILE_MAXIMUM_SIMULTANEOUS_LOADS
   value: {{ .root.Values.world.streaming.maximumSimultaneousLoads | quote }}
 - name: UAV_SIM_TILE_MAXIMUM_CACHED_BYTES
-  value: {{ .root.Values.world.streaming.maximumCachedBytes | quote }}
+  value: {{ printf "%.0f" .root.Values.world.streaming.maximumCachedBytes | quote }}
 - name: XDG_CACHE_HOME
   value: {{ printf "/var/lib/veoveo/runtime-cache/%s" .root.Values.cache.version | quote }}
 - name: UAV_SIM_SESSION_ID
