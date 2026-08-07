@@ -34,6 +34,18 @@ def _camera_position(view: np.ndarray) -> np.ndarray:
     return inverse[3, :3]
 
 
+def _perspective_layout_score(projection: np.ndarray) -> float:
+    # Gf.Matrix4d uses row vectors. Perspective division therefore places its
+    # unit coefficient in row 2, column 3; serialized GPU matrices commonly
+    # carry the transposed form instead.
+    return float(
+        abs(abs(projection[2, 3]) - 1.0)
+        + abs(projection[0, 3])
+        + abs(projection[1, 3])
+        + abs(projection[3, 3])
+    )
+
+
 def normalized_hydra_matrices(
     viewport: HydraRenderViewport,
     expected_camera_position_m: tuple[float, float, float],
@@ -49,14 +61,10 @@ def normalized_hydra_matrices(
 
     view = _matrix(viewport.view, "view")
     projection = _matrix(viewport.projection, "projection")
-    candidates = (
-        (view, projection),
-        (view.transpose(), projection.transpose()),
-    )
-    selected_view, selected_projection = min(
-        candidates,
+    selected_view = min(
+        (view, view.transpose()),
         key=lambda candidate: float(
-            np.linalg.norm(_camera_position(candidate[0]) - expected)
+            np.linalg.norm(_camera_position(candidate) - expected)
         ),
     )
     position_error_m = float(
@@ -66,6 +74,15 @@ def normalized_hydra_matrices(
         raise RuntimeError(
             "RTX Hydra camera matrix disagrees with authoritative camera pose: "
             f"position error {position_error_m:.3f} m"
+        )
+    selected_projection = min(
+        (projection, projection.transpose()),
+        key=_perspective_layout_score,
+    )
+    projection_score = _perspective_layout_score(selected_projection)
+    if projection_score > 0.01:
+        raise RuntimeError(
+            "RTX Hydra product returned an unsupported projection matrix layout"
         )
     return (
         tuple(float(value) for value in selected_view.reshape(16)),
