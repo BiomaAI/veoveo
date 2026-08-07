@@ -57,10 +57,10 @@ native-project round-trip fidelity before the documented import validation.
 
 The generated release directory contains two packages:
 
-- `veoveo-reference-architecture-0.2.0-review.zip` contains HTML, PDF, SVG,
+- `veoveo-reference-architecture-0.3.0-review.zip` contains HTML, PDF, SVG,
   catalogs, the README, release manifest, and checksums. It requires no modeling
   software.
-- `veoveo-reference-architecture-0.2.0-model-exchange.zip` adds XMI, the model
+- `veoveo-reference-architecture-0.3.0-model-exchange.zip` adds XMI, the model
   manifest, and import guidance for a client's architecture team.
 
 Before release, apply the contract's distribution, export-control, CUI, and
@@ -106,8 +106,8 @@ modules in this directory.
 ## Model identity
 
 - Architecture: `VV-MODEL-001`
-- Version: `0.2.0`
-- Revision: `2026-07-29`
-- Source commit: `6b7d59a9d26a3b077084bbd535378d00620d4097`
+- Version: `0.3.0`
+- Revision: `2026-08-07`
+- Source commit: `1a12539706eefcc9fde7359a4bb5f5f8114eb5f2`
 - Governing framework: OMG UAF 1.3
 - Detailed systems language: OMG SysML 1.6

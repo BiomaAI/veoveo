@@ -21,7 +21,7 @@ CATALOGS = ARCH / "catalogs"
 MODEL = ARCH / "model" / "veoveo-uaf-sysml.xmi"
 XMI_NS = "http://www.omg.org/spec/XMI/20131001"
 EXPECTED_TOOLS = {"package.py", "qa.py", "render.py", "validate.py"}
-EXPECTED_VERSION = "0.2.0"
+EXPECTED_VERSION = "0.3.0"
 
 
 def fail(message: str) -> None:
