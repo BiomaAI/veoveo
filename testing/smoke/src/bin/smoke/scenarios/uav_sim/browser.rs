@@ -1552,30 +1552,30 @@ impl AppVideoState {
     fn validate(&self, expected_camera_id: &str) -> Result<()> {
         ensure!(
             self.camera_id == expected_camera_id,
-            "generic App selected camera {:?}, expected {expected_camera_id:?}",
+            "authoritative live-view App selected camera {:?}, expected {expected_camera_id:?}",
             self.camera_id
         );
         ensure!(
             self.ready_state >= 2
-                && self.video_width == 640
-                && self.video_height == 360
+                && self.video_width == 1280
+                && self.video_height == 720
                 && self.current_time.is_finite()
                 && self.current_time > 0.0,
-            "generic App did not display the real 640x360 H.264 stream: {self:?}"
+            "authoritative live-view App did not display the declared 1280x720 H.264 stream: {self:?}"
         );
         ensure!(
             self.decode_label == "NVIDIA NVENC · hardware H.264 decode"
                 || self.decode_label == "NVIDIA NVENC · software H.264 decode",
-            "generic App made an invalid decode-path claim: {:?}",
+            "authoritative live-view App made an invalid decode-path claim: {:?}",
             self.decode_label
         );
         ensure!(
             self.status.contains("live") && self.error.is_empty(),
-            "generic App did not reach live state: {self:?}"
+            "authoritative live-view App did not reach live state: {self:?}"
         );
         ensure!(
             !software_renderer(&self.body_text.to_ascii_lowercase()),
-            "generic App exposed a software-renderer warning"
+            "authoritative live-view App exposed a software-renderer warning"
         );
         Ok(())
     }

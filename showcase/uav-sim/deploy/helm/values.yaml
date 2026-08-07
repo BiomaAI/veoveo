@@ -144,6 +144,10 @@ liveView:
     type: LoadBalancer
     loadBalancerIP: ""
     externalTrafficPolicy: Local
+    # Set when an installation pre-binds public UDP ports to a fixed Kubernetes
+    # NodePort range, as local k3d profiles do. Leave null for allocator-owned
+    # NodePorts behind a normal LoadBalancer.
+    nodePortBase: null
   cameras:
     - cameraId: follow
       physicalSlot: 0

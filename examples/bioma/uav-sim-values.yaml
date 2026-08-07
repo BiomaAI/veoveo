@@ -45,6 +45,8 @@ session:
 liveView:
   publicSignalingUrl: wss://veoveo.bioma.ai/uav-sim/signaling
   publicMediaHost: 127.0.0.1
+  mediaService:
+    nodePortBase: 30998
   signalingIngress:
     enabled: true
     className: traefik
