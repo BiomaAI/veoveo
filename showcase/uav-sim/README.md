@@ -35,10 +35,16 @@ visualization process mirrors entity poses or rebuilds the scene.
 ## Canonical Runtime
 
 The `simulation-runtime` Bake target is the shared base. The UAV overlay adds the domain
-runtime without replacing the lock. The pod starts unconfigured and waits for an
-immutable Frames world revision. That revision determines the Cesium georeference,
-Pegasus coordinates, local geographic conversion, mission guard, recording metadata,
-sensor frames, and operator-camera world.
+runtime without replacing the lock. An installation may bind the pod to one immutable
+Frames world revision through a read-only ConfigMap. The MCP companion validates and
+applies that document once during startup, before it admits users. Missing, malformed,
+cross-revision, or conflicting bindings fail startup directly. No controller polls or
+replays renderer state. An installation that omits the ConfigMap admits the same binding
+once through `configure_world`.
+
+The selected revision determines the Cesium georeference, Pegasus coordinates, local
+geographic conversion, mission guard, recording metadata, sensor frames, and
+operator-camera world.
 
 The stage uses `RaytracedLighting` and the pinned Cesium extension. The headless runtime
 is the sole owner of Cesium's active viewport list. It submits every active domain
@@ -114,7 +120,8 @@ fallback and cannot qualify hardware live-view acceptance.
 The chart requires:
 
 - one installation Secret containing the streamed-world provider credential;
-- one immutable Frames world and simulation frame;
+- one immutable Frames world and simulation frame, with an optional installation-owned
+  startup binding ConfigMap for restart-stable always-on operation;
 - bounded fleet route, takeoff, vehicle, and PX4 parameters;
 - a strict operator-camera collection with unique physical slots;
 - stable native signaling and public media port ranges;

@@ -150,10 +150,22 @@
     "world": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["source", "cesiumIonAssetId", "streaming"],
+      "required": ["source", "cesiumIonAssetId", "bootstrap", "streaming"],
       "properties": {
         "source": {"const": "google_photorealistic_3d_tiles"},
         "cesiumIonAssetId": {"const": 2275207},
+        "bootstrap": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["existingConfigMap", "key"],
+          "properties": {
+            "existingConfigMap": {
+              "type": "string",
+              "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+            },
+            "key": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"}
+          }
+        },
         "streaming": {
           "type": "object",
           "additionalProperties": false,

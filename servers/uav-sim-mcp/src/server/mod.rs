@@ -12,6 +12,7 @@ mod signaling;
 mod state;
 mod task_extension;
 mod task_worker;
+mod world_bootstrap;
 
 pub fn run() -> anyhow::Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();

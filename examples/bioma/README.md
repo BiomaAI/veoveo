@@ -311,8 +311,9 @@ Apply only the root Application:
 kubectl --context k3d-veoveo-bioma apply   -f examples/bioma/gitops/bootstrap.yaml
 ~~~
 
-Argo creates the namespace configuration, gateway ConfigMap, AppProject, Cloudflare
-connector, platform child Application, and UAV extension child Application. Inspect
+Argo creates the namespace configuration, gateway and immutable UAV-world ConfigMaps,
+AppProject, Cloudflare connector, platform child Application, and UAV extension child
+Application. Inspect
 reconciliation with standard Kubernetes or Argo CD commands:
 
 ~~~bash

@@ -1101,6 +1101,9 @@ pub(super) async fn serve() -> anyhow::Result<()> {
         AdapterKind::Fake => Adapter::Fake(Arc::new(Mutex::new(FakeAdapter::new(fake_state()?)))),
     };
     let adapter = Arc::new(adapter);
+    if let Some(path) = args.world_bootstrap_file.as_deref() {
+        super::world_bootstrap::apply(path, &adapter).await?;
+    }
     let live_view_audit = LiveViewAudit::new(tasks.platform_store().clone());
     let live_views = LiveViewService::new(
         adapter.clone(),
