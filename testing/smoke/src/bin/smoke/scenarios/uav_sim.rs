@@ -1992,9 +1992,11 @@ mod tests {
     fn stream_product_acceptance_requires_an_idle_contiguous_viewer_slot_pool() {
         let products: Vec<LiveStreamProductState> = serde_json::from_value(serde_json::json!([
             {"streamProductId":"product-slot-0","capacitySlot":0,"lifecycle":"inactive",
-             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":12},
+             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":12,
+             "sourceToRenderSamples":0},
             {"streamProductId":"product-slot-1","capacitySlot":1,"lifecycle":"inactive",
-             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":9}
+             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":9,
+             "sourceToRenderSamples":0}
         ]))
         .unwrap();
         assert!(idle_viewer_slot_pool_matches_contract(&products));
@@ -2006,6 +2008,7 @@ mod tests {
             {"streamProductId":"product-slot-0","capacitySlot":0,"cameraId":"follow",
              "liveViewId":"view-a","lifecycle":"ready","activeViewerLeases":1,
              "connectedViewers":1,"nvencSessions":1,"encodedFrames":12,
+             "sourceToRenderP95Microseconds":18000,"sourceToRenderSamples":120,
              "lastFrameAt":"2026-08-07T18:00:00Z","visible":true}
         ]))
         .unwrap();
@@ -2013,9 +2016,11 @@ mod tests {
 
         let duplicate: Vec<LiveStreamProductState> = serde_json::from_value(serde_json::json!([
             {"streamProductId":"product-slot-0","capacitySlot":0,"lifecycle":"inactive",
-             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":0},
+             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":0,
+             "sourceToRenderSamples":0},
             {"streamProductId":"product-slot-1","capacitySlot":0,"lifecycle":"inactive",
-             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":0}
+             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":0,
+             "sourceToRenderSamples":0}
         ]))
         .unwrap();
         assert!(!idle_viewer_slot_pool_matches_contract(&duplicate));

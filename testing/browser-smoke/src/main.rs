@@ -20,7 +20,7 @@ use browser::{
     capture_console_live_app_pair, capture_console_recording, preflight_console_live_app,
 };
 
-const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-live-view-browser-evidence/v7";
+const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-live-view-browser-evidence/v8";
 const MAX_RECORDING_SOURCE_LAG_SECONDS: f64 = 1.0;
 const MINIMUM_PHYSICS_REAL_TIME_FACTOR: f64 = 0.98;
 const PRIMARY_CAMERA_ID: &str = "follow";
@@ -176,6 +176,8 @@ struct LiveViewPerformanceEvidence {
     minimum_observed_frame_rate_hz: f64,
     maximum_observed_frame_rate_hz: f64,
     browser_dropped_frames: u64,
+    maximum_source_to_render_p95_ms: f64,
+    maximum_motion_to_photon_p95_ms: f64,
 }
 
 struct OperatorClient<'a> {
@@ -572,6 +574,14 @@ fn live_view_performance(
             .iter()
             .map(ConsoleLiveCaptureEvidence::cadence_dropped_frames)
             .sum(),
+        maximum_source_to_render_p95_ms: live_views
+            .iter()
+            .map(ConsoleLiveCaptureEvidence::source_to_render_p95_ms)
+            .fold(f64::NEG_INFINITY, f64::max),
+        maximum_motion_to_photon_p95_ms: live_views
+            .iter()
+            .map(ConsoleLiveCaptureEvidence::motion_to_photon_p95_ms)
+            .fold(f64::NEG_INFINITY, f64::max),
     })
 }
 

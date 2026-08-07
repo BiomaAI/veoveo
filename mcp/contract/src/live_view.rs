@@ -525,6 +525,9 @@ pub struct LiveStreamProductState {
     pub nvenc_sessions: u32,
     pub encoded_frames: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_to_render_p95_microseconds: Option<u64>,
+    pub source_to_render_samples: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_frame_at: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub visible: Option<bool>,
@@ -748,6 +751,9 @@ pub struct LiveViewState {
     pub camera_health: LiveCameraHealth,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_frame_at: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_to_render_p95_microseconds: Option<u64>,
+    pub source_to_render_samples: u64,
     pub maximum_frame_age_ms: u32,
     pub endpoint: LiveMediaEndpoint,
     pub created_at: DateTime<Utc>,
@@ -767,6 +773,13 @@ impl LiveViewState {
             || self.connected_viewers > self.viewer_limit
             || self.maximum_frame_age_ms == 0
             || self.expires_at <= self.created_at
+            || matches!(
+                (
+                    self.source_to_render_p95_microseconds,
+                    self.source_to_render_samples
+                ),
+                (None, 1..) | (Some(_), 0)
+            )
         {
             return Err(LiveViewStateError::Limits);
         }

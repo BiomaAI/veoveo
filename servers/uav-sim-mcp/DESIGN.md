@@ -170,6 +170,12 @@ or connect to the listener. Failure releases that exact slot before any public l
 signaling endpoint is returned. Close, expiry, revocation, and signaling loss pause the
 slot immediately.
 
+The runtime timestamps each active clone when the current authoritative entity snapshot
+becomes its USD camera pose. The corresponding Hydra drawable event closes that
+source-to-render interval. Each slot retains the latest 256 event-derived samples and
+publishes their nearest-rank p95 in integer microseconds. Assignment resets the window.
+The runtime never uses a wall-clock sampler or health poll to produce latency evidence.
+
 Camera capacity and viewer capacity are separate. Camera capacity accounts for physical
 slots, active pixels per second, NVENC sessions, GPU memory reservation, and port slots.
 Viewer capacity accounts for ephemeral leases and aggregate network bitrate. The server
@@ -254,6 +260,11 @@ decode as hardware only when the browser reports `powerEfficient`; supported smo
 software decode is labeled explicitly. Browser acceptance still requires a headed,
 hardware-backed WebGPU or WebGL context.
 
+Focused browser acceptance combines the runtime source-to-render window with WebRTC
+`requestVideoFrameCallback` capture, receive, and expected-display timestamps. It rejects
+source-to-render p95 at 50 ms and motion-to-photon p95 at 200 ms. Smoothing response is
+reported by the camera profile and is not counted as transport latency.
+
 Physical-camera state includes a bounded `render_pose` agreement measurement after the
 first rendered frame. It reports the rendered ENU position and forward direction beside
 their position and angular error from the authoritative body-and-mount pose. Absence
@@ -304,11 +315,15 @@ pose-mirroring protocol. First-party visual certification remains the GPU UAV sh
 Hardware acceptance requires one NVIDIA GPU, a headed hardware-backed browser, RTX
 rendering, NVIDIA NVENC, advancing H.264 frames, several authoritative cameras, correct
 Cesium alignment, isolated-product multi-viewer evidence, and no software renderer,
-encoder, or media relay. The smoke entry points are:
+encoder, or media relay. It also proves source-to-render p95 below 50 ms and WebRTC
+capture-to-display p95 below 200 ms from reactive frame events. The smoke entry points
+are:
 
 ```sh
 cargo xtask smoke uav-showcase-up --context <context> --public-base-url <url>
-cargo xtask smoke uav-showcase-verify --context <context> --public-base-url <url>
+cargo xtask smoke uav-showcase-browser-verify \
+  --public-base-url <url> \
+  --chrome-cdp-url http://127.0.0.1:9222
 ```
 
 The Python camera and runtime suite runs with:

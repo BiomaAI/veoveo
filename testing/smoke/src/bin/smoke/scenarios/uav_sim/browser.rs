@@ -23,6 +23,8 @@ use recording_acceptance::{
 mod recording_acceptance;
 
 const SIMULTANEOUS_VIEW_BARRIER_TIMEOUT: Duration = Duration::from_secs(15);
+const MAXIMUM_SOURCE_TO_RENDER_P95_MS: f64 = 50.0;
+const MAXIMUM_MOTION_TO_PHOTON_P95_MS: f64 = 200.0;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -65,6 +67,14 @@ impl ConsoleLiveCaptureEvidence {
 
     pub(crate) fn cadence_dropped_frames(&self) -> u64 {
         self.video.cadence_dropped_frames
+    }
+
+    pub(crate) fn source_to_render_p95_ms(&self) -> f64 {
+        self.video.source_to_render_p95_ms
+    }
+
+    pub(crate) fn motion_to_photon_p95_ms(&self) -> f64 {
+        self.video.motion_to_photon_p95_ms
     }
 }
 
@@ -1390,6 +1400,12 @@ async fn wait_for_console_video_advance(
     second.cadence_sample_frames = cadence.presented_frame_intervals;
     second.cadence_sample_seconds = cadence.interval_seconds;
     second.cadence_dropped_frames = cadence.dropped_video_frames;
+    second.source_to_render_p95_ms = cadence.source_to_render_p95_ms;
+    second.source_to_render_samples = cadence.source_to_render_samples;
+    second.motion_to_photon_p95_ms = cadence.motion_to_photon_p95_ms;
+    second.capture_to_receive_p95_ms = cadence.capture_to_receive_p95_ms;
+    second.browser_timing_samples = cadence.browser_timing_samples;
+    second.receive_timing_samples = cadence.receive_timing_samples;
     Ok(second)
 }
 
@@ -1688,6 +1704,18 @@ struct AppVideoState {
     cadence_sample_seconds: f64,
     #[serde(default)]
     cadence_dropped_frames: u64,
+    #[serde(default)]
+    source_to_render_p95_ms: f64,
+    #[serde(default)]
+    source_to_render_samples: u64,
+    #[serde(default)]
+    motion_to_photon_p95_ms: f64,
+    #[serde(default)]
+    capture_to_receive_p95_ms: f64,
+    #[serde(default)]
+    browser_timing_samples: u64,
+    #[serde(default)]
+    receive_timing_samples: u64,
     mean_luma: f64,
     luma_standard_deviation: f64,
     minimum_luma: u8,
@@ -1700,7 +1728,7 @@ struct AppVideoState {
     rtc_states: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct VideoCadenceSample {
     interval_seconds: f64,
@@ -1708,6 +1736,12 @@ struct VideoCadenceSample {
     presented_frame_intervals: u64,
     decoded_video_frames: u64,
     dropped_video_frames: u64,
+    source_to_render_p95_ms: f64,
+    source_to_render_samples: u64,
+    motion_to_photon_p95_ms: f64,
+    capture_to_receive_p95_ms: f64,
+    browser_timing_samples: u64,
+    receive_timing_samples: u64,
 }
 
 impl VideoCadenceSample {
@@ -1732,6 +1766,21 @@ impl VideoCadenceSample {
             self.decoded_video_frames >= self.presented_frame_intervals
                 && self.dropped_video_frames * 20 <= self.decoded_video_frames.max(1),
             "authoritative live-view App dropped more than 5% of browser video frames: {self:?}"
+        );
+        ensure!(
+            self.source_to_render_samples >= 12
+                && self.source_to_render_p95_ms.is_finite()
+                && (0.0..MAXIMUM_SOURCE_TO_RENDER_P95_MS).contains(&self.source_to_render_p95_ms),
+            "authoritative camera source-to-render p95 exceeded {MAXIMUM_SOURCE_TO_RENDER_P95_MS:.0} ms or lacked evidence: {self:?}"
+        );
+        ensure!(
+            self.browser_timing_samples >= self.presented_frame_intervals * 95 / 100
+                && self.receive_timing_samples >= self.presented_frame_intervals * 95 / 100
+                && self.motion_to_photon_p95_ms.is_finite()
+                && (0.0..MAXIMUM_MOTION_TO_PHOTON_P95_MS).contains(&self.motion_to_photon_p95_ms)
+                && self.capture_to_receive_p95_ms.is_finite()
+                && self.capture_to_receive_p95_ms >= 0.0,
+            "native WebRTC motion-to-photon p95 exceeded {MAXIMUM_MOTION_TO_PHOTON_P95_MS:.0} ms or lacked capture timing: {self:?}"
         );
         Ok(())
     }
@@ -2537,6 +2586,8 @@ const APP_FRAME_VIDEO_CADENCE: &str = r#"new Promise((resolve,reject)=>{
   if(!video?.requestVideoFrameCallback){reject(new Error("requestVideoFrameCallback is unavailable"));return;}
   const warmupFrames=12,sampleIntervals=48;
   let callbacks=0,firstNow=0,firstMediaTime=0,qualityBefore=null,finished=false;
+  const captureToDisplay=[],captureToReceive=[];
+  const p95=values=>{const ordered=[...values].sort((a,b)=>a-b);return ordered.length?ordered[Math.max(0,Math.ceil(ordered.length*0.95)-1)]:-1;};
   const timeout=setTimeout(()=>{
     if(finished)return;
     finished=true;
@@ -2550,17 +2601,29 @@ const APP_FRAME_VIDEO_CADENCE: &str = r#"new Promise((resolve,reject)=>{
       firstMediaTime=metadata.mediaTime;
       qualityBefore=video.getVideoPlaybackQuality?.() ?? {totalVideoFrames:0,droppedVideoFrames:0};
     }
+    if(callbacks>warmupFrames&&Number.isFinite(metadata.captureTime)){
+      const displayTime=Number.isFinite(metadata.expectedDisplayTime)?metadata.expectedDisplayTime:now;
+      captureToDisplay.push(Math.max(0,displayTime-metadata.captureTime));
+      if(Number.isFinite(metadata.receiveTime))captureToReceive.push(Math.max(0,metadata.receiveTime-metadata.captureTime));
+    }
     if(callbacks===warmupFrames+sampleIntervals){
       const qualityAfter=video.getVideoPlaybackQuality?.() ?? qualityBefore;
       finished=true;
       clearTimeout(timeout);
-      resolve({
+      const view=video.closest(".view"),liveViewId=view?.dataset.liveViewId??"";
+      read(`uav-sim://session/${sessionId}/live-view/${liveViewId}`).then(live=>resolve({
         intervalSeconds:(now-firstNow)/1000,
         mediaTimeSeconds:metadata.mediaTime-firstMediaTime,
         presentedFrameIntervals:sampleIntervals,
         decodedVideoFrames:Math.max(0,(qualityAfter?.totalVideoFrames??0)-(qualityBefore?.totalVideoFrames??0)),
-        droppedVideoFrames:Math.max(0,(qualityAfter?.droppedVideoFrames??0)-(qualityBefore?.droppedVideoFrames??0))
-      });
+        droppedVideoFrames:Math.max(0,(qualityAfter?.droppedVideoFrames??0)-(qualityBefore?.droppedVideoFrames??0)),
+        sourceToRenderP95Ms:Number(live.sourceToRenderP95Microseconds??-1000)/1000,
+        sourceToRenderSamples:Number(live.sourceToRenderSamples??0),
+        motionToPhotonP95Ms:p95(captureToDisplay),
+        captureToReceiveP95Ms:p95(captureToReceive),
+        browserTimingSamples:captureToDisplay.length,
+        receiveTimingSamples:captureToReceive.length
+      })).catch(reject);
       return;
     }
     video.requestVideoFrameCallback(observe);
@@ -2710,6 +2773,12 @@ mod tests {
             presented_frame_intervals: 48,
             decoded_video_frames: 48,
             dropped_video_frames: 0,
+            source_to_render_p95_ms: 18.0,
+            source_to_render_samples: 48,
+            motion_to_photon_p95_ms: 85.0,
+            capture_to_receive_p95_ms: 42.0,
+            browser_timing_samples: 48,
+            receive_timing_samples: 48,
         };
         accepted.validate(24.0).unwrap();
 
@@ -2718,6 +2787,18 @@ mod tests {
             ..accepted
         };
         assert!(slow.validate(24.0).is_err());
+
+        let stale_pipeline = VideoCadenceSample {
+            source_to_render_p95_ms: 50.0,
+            ..accepted
+        };
+        assert!(stale_pipeline.validate(24.0).is_err());
+
+        let slow_transport = VideoCadenceSample {
+            motion_to_photon_p95_ms: 200.0,
+            ..accepted
+        };
+        assert!(slow_transport.validate(24.0).is_err());
     }
 
     #[test]

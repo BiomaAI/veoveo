@@ -491,20 +491,22 @@ def run(config: RuntimeConfig) -> None:
             assert operator_cameras is not None
             assert operator_products is not None
             entities = operator_entity_transforms()
+            source_monotonic_seconds = time.monotonic() if now is None else now
             for vehicle_id, physical_camera in physical_cameras.items():
                 physical_camera.update(entities[vehicle_id].pose)
             operator_cameras.update(
                 entities,
                 simulation_generation=simulation_generation,
                 physics_step=physics_step,
-                monotonic_seconds=time.monotonic() if now is None else now,
+                monotonic_seconds=source_monotonic_seconds,
             )
             operator_products.sync_camera_poses(
                 {
                     camera.definition.camera_id: camera.last_pose
                     for camera in operator_cameras.cameras
                     if camera.last_pose is not None
-                }
+                },
+                source_monotonic_seconds=source_monotonic_seconds,
             )
 
         def advance_physics(_dt: float) -> None:

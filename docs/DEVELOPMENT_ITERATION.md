@@ -12,7 +12,7 @@
 | Rerun 0.35.0 RRD | bounded live history and governed archive playback |
 | `veoveo.io/image-affected-plan/v1` | repository-owned affected-surface closure |
 | `veoveo.io/development-image-lock/v1` | repository-owned non-release deployment closure |
-| `veoveo.io/uav-live-view-browser-evidence/v7` | focused authoritative-camera pixels, cadence, isolated-viewer products, sensor separation, and simulation real-time-factor evidence over a running simulation |
+| `veoveo.io/uav-live-view-browser-evidence/v8` | focused authoritative-camera pixels, event-derived source-to-render and motion-to-photon p95, cadence, isolated-viewer products, sensor separation, and simulation real-time-factor evidence over a running simulation |
 | `veoveo.io/uav-recording-browser-evidence/v2` | source-clock and camera-pane evidence for one live governed recording |
 
 ## Operating Model
@@ -117,8 +117,9 @@ cargo xtask smoke uav-recording-browser-verify \
 The live-view command reads the running simulation and current leader camera, opens
 dedicated Console windows for authoritative live cameras, verifies headed hardware
 graphics, proves distinct native products for simultaneous viewers, checks that physical
-sensor cadence remains independent, captures evidence, closes every viewer, and proves
-that simulation time advanced. It does not open Stream or Recording. A browser failure
+sensor cadence remains independent, enforces reactive 50 ms source-to-render and 200 ms
+motion-to-photon p95 gates, captures evidence, closes every viewer, and proves that
+simulation time advanced. It does not open Stream or Recording. A browser failure
 can therefore be retried without repeating a flight or depending on another consumer.
 The command has its own
 `veoveo-browser-smoke` dependency graph and builds the MCP conformance client only when

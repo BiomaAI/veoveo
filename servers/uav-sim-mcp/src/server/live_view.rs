@@ -239,6 +239,8 @@ impl LiveViewService {
             viewer_limit: 1,
             camera_health: camera.health,
             last_frame_at: product.last_frame_at.or(camera.last_frame_at),
+            source_to_render_p95_microseconds: product.source_to_render_p95_microseconds,
+            source_to_render_samples: product.source_to_render_samples,
             maximum_frame_age_ms: self.config.maximum_frame_age_ms,
             endpoint,
             created_at: now,
@@ -380,7 +382,37 @@ impl LiveViewService {
         if lease.state.owner != *owner || lease.state.viewer_actor != *viewer_actor {
             return Err(LiveViewError::Ownership);
         }
-        Ok(lease.state.clone())
+        let mut result = lease.state.clone();
+        drop(state);
+        if active(&result) {
+            let simulation = self
+                .adapter
+                .state()
+                .await
+                .map_err(|error| LiveViewError::Runtime(error.to_string()))?;
+            let product = simulation
+                .stream_products
+                .iter()
+                .find(|product| {
+                    product.stream_product_id == result.stream_product_id
+                        && product.capacity_slot == result.capacity_slot
+                        && product.live_view_id.as_ref() == Some(&result.live_view_id)
+                })
+                .ok_or(LiveViewError::ViewUnavailable)?;
+            result.lifecycle = product_lifecycle(product);
+            result.last_frame_at = product.last_frame_at;
+            result.source_to_render_p95_microseconds = product.source_to_render_p95_microseconds;
+            result.source_to_render_samples = product.source_to_render_samples;
+            if let Some(camera) = simulation
+                .live_cameras
+                .iter()
+                .find(|camera| camera.camera_id == result.camera_id)
+            {
+                result.camera_health = camera.health;
+            }
+            result.validate().map_err(|_| LiveViewError::Contract)?;
+        }
+        Ok(result)
     }
 
     pub(super) async fn project_product_usage(&self, simulation: &mut SimulationState) {
@@ -722,6 +754,8 @@ mod tests {
                     connected_viewers: 0,
                     nvenc_sessions: 0,
                     encoded_frames: 0,
+                    source_to_render_p95_microseconds: None,
+                    source_to_render_samples: 0,
                     last_frame_at: None,
                     visible: None,
                     diagnostic: template.diagnostic.clone(),
