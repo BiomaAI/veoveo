@@ -12,7 +12,7 @@
 | Rerun 0.35.0 RRD | bounded live history and governed archive playback |
 | `veoveo.io/image-affected-plan/v1` | repository-owned affected-surface closure |
 | `veoveo.io/development-image-lock/v1` | repository-owned non-release deployment closure |
-| `veoveo.io/uav-showcase-browser-evidence/v5` | focused multi-camera pixel, cadence, isolated-viewer, Stream, and Recording evidence over a running simulation |
+| `veoveo.io/uav-showcase-browser-evidence/v6` | focused multi-camera pixel, cadence, isolated-viewer, simulation real-time-factor, Stream, and Recording evidence over a running simulation |
 | `veoveo.io/uav-recording-browser-evidence/v1` | source-clock and camera-pane evidence for one live governed recording |
 
 ## Operating Model

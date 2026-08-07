@@ -58,6 +58,14 @@ impl ConsoleLiveCaptureEvidence {
     pub(crate) fn capacity_slot(&self) -> u16 {
         self.video.capacity_slot
     }
+
+    pub(crate) fn observed_frame_rate_hz(&self) -> f64 {
+        self.video.observed_frame_rate_hz
+    }
+
+    pub(crate) fn cadence_dropped_frames(&self) -> u64 {
+        self.video.cadence_dropped_frames
+    }
 }
 
 #[derive(Debug, Serialize)]
