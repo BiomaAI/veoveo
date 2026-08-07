@@ -1360,48 +1360,29 @@ async fn wait_for_console_video_advance(
     target_id: &str,
     session_id: &str,
     expected_camera_id: &str,
-    mut first: AppVideoState,
+    first: AppVideoState,
 ) -> Result<AppVideoState> {
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
-    loop {
-        tokio::time::sleep(Duration::from_secs(2)).await;
-        let mut second =
-            wait_for_console_video(cdp, target_id, session_id, expected_camera_id).await?;
-        if second.document_epoch_ms == first.document_epoch_ms
-            && second.current_time > first.current_time + 0.25
-        {
-            let interval_seconds = (second.sampled_at_ms - first.sampled_at_ms) / 1_000.0;
-            let delivered_frames = second
-                .total_video_frames
-                .saturating_sub(first.total_video_frames);
-            let dropped_frames = second
-                .dropped_video_frames
-                .saturating_sub(first.dropped_video_frames);
-            ensure!(
-                interval_seconds > 0.0 && second.declared_frame_rate_hz > 0.0,
-                "authoritative live-view App returned an invalid cadence interval: {first:?} -> {second:?}"
-            );
-            second.observed_frame_rate_hz = delivered_frames as f64 / interval_seconds;
-            ensure!(
-                second.observed_frame_rate_hz >= second.declared_frame_rate_hz * 0.95,
-                "authoritative live-view App delivered {:.2} fps, below 95% of its declared {:.2} fps: {first:?} -> {second:?}",
-                second.observed_frame_rate_hz,
-                second.declared_frame_rate_hz,
-            );
-            ensure!(
-                dropped_frames * 20 <= delivered_frames.max(1),
-                "authoritative live-view App dropped more than 5% of browser video frames: delivered={delivered_frames} dropped={dropped_frames}"
-            );
-            return Ok(second);
-        }
-        ensure!(
-            tokio::time::Instant::now() < deadline,
-            "Console H.264 video did not remain mounted and advance: {:?} -> {:?}",
-            first,
-            second
-        );
-        first = second;
-    }
+    let cadence: VideoCadenceSample = evaluate_console_app(
+        cdp,
+        target_id,
+        session_id,
+        "uav-sim",
+        APP_FRAME_VIDEO_CADENCE,
+        true,
+    )
+    .await?;
+    let mut second = wait_for_console_video(cdp, target_id, session_id, expected_camera_id).await?;
+    ensure!(
+        second.document_epoch_ms == first.document_epoch_ms
+            && second.current_time > first.current_time + 0.25,
+        "Console H.264 video did not remain mounted and advance: {first:?} -> {second:?}"
+    );
+    cadence.validate(second.declared_frame_rate_hz)?;
+    second.observed_frame_rate_hz = cadence.observed_frame_rate_hz();
+    second.cadence_sample_frames = cadence.presented_frame_intervals;
+    second.cadence_sample_seconds = cadence.interval_seconds;
+    second.cadence_dropped_frames = cadence.dropped_video_frames;
+    Ok(second)
 }
 
 async fn wait_for_console_stream_video(
@@ -1693,6 +1674,12 @@ struct AppVideoState {
     declared_frame_rate_hz: f64,
     #[serde(default)]
     observed_frame_rate_hz: f64,
+    #[serde(default)]
+    cadence_sample_frames: u64,
+    #[serde(default)]
+    cadence_sample_seconds: f64,
+    #[serde(default)]
+    cadence_dropped_frames: u64,
     mean_luma: f64,
     luma_standard_deviation: f64,
     minimum_luma: u8,
@@ -1703,6 +1690,43 @@ struct AppVideoState {
     error: String,
     body_text: String,
     rtc_states: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct VideoCadenceSample {
+    interval_seconds: f64,
+    media_time_seconds: f64,
+    presented_frame_intervals: u64,
+    decoded_video_frames: u64,
+    dropped_video_frames: u64,
+}
+
+impl VideoCadenceSample {
+    fn observed_frame_rate_hz(&self) -> f64 {
+        self.presented_frame_intervals as f64 / self.interval_seconds
+    }
+
+    fn validate(&self, declared_frame_rate_hz: f64) -> Result<()> {
+        ensure!(
+            self.interval_seconds > 0.0
+                && self.media_time_seconds > 0.0
+                && self.presented_frame_intervals >= 48
+                && declared_frame_rate_hz > 0.0,
+            "authoritative live-view App returned an invalid reactive cadence sample: {self:?}"
+        );
+        let observed_frame_rate_hz = self.observed_frame_rate_hz();
+        ensure!(
+            observed_frame_rate_hz >= declared_frame_rate_hz * 0.95,
+            "authoritative live-view App delivered {observed_frame_rate_hz:.2} fps, below 95% of its declared {declared_frame_rate_hz:.2} fps: {self:?}"
+        );
+        ensure!(
+            self.decoded_video_frames >= self.presented_frame_intervals
+                && self.dropped_video_frames * 20 <= self.decoded_video_frames.max(1),
+            "authoritative live-view App dropped more than 5% of browser video frames: {self:?}"
+        );
+        Ok(())
+    }
 }
 
 impl AppVideoState {
@@ -2500,6 +2524,42 @@ const APP_FRAME_VIDEO_STATE: &str = r#"(() => {
   };
 })()"#;
 
+const APP_FRAME_VIDEO_CADENCE: &str = r#"new Promise((resolve,reject)=>{
+  const video=document.querySelector("video");
+  if(!video?.requestVideoFrameCallback){reject(new Error("requestVideoFrameCallback is unavailable"));return;}
+  const warmupFrames=12,sampleIntervals=48;
+  let callbacks=0,firstNow=0,firstMediaTime=0,qualityBefore=null,finished=false;
+  const timeout=setTimeout(()=>{
+    if(finished)return;
+    finished=true;
+    reject(new Error("reactive video cadence sample did not complete"));
+  },15000);
+  const observe=(now,metadata)=>{
+    if(finished)return;
+    callbacks++;
+    if(callbacks===warmupFrames){
+      firstNow=now;
+      firstMediaTime=metadata.mediaTime;
+      qualityBefore=video.getVideoPlaybackQuality?.() ?? {totalVideoFrames:0,droppedVideoFrames:0};
+    }
+    if(callbacks===warmupFrames+sampleIntervals){
+      const qualityAfter=video.getVideoPlaybackQuality?.() ?? qualityBefore;
+      finished=true;
+      clearTimeout(timeout);
+      resolve({
+        intervalSeconds:(now-firstNow)/1000,
+        mediaTimeSeconds:metadata.mediaTime-firstMediaTime,
+        presentedFrameIntervals:sampleIntervals,
+        decodedVideoFrames:Math.max(0,(qualityAfter?.totalVideoFrames??0)-(qualityBefore?.totalVideoFrames??0)),
+        droppedVideoFrames:Math.max(0,(qualityAfter?.droppedVideoFrames??0)-(qualityBefore?.droppedVideoFrames??0))
+      });
+      return;
+    }
+    video.requestVideoFrameCallback(observe);
+  };
+  video.requestVideoFrameCallback(observe);
+})"#;
+
 const APP_FRAME_DECODE_IDENTITY: &str = r#"(async () => {
   const video=document.querySelector("video");
   const result=await navigator.mediaCapabilities.decodingInfo({
@@ -2632,6 +2692,24 @@ mod tests {
             error: String::new(),
             map_error: String::new(),
         }
+    }
+
+    #[test]
+    fn reactive_video_cadence_requires_declared_delivery() {
+        let accepted = VideoCadenceSample {
+            interval_seconds: 2.0,
+            media_time_seconds: 2.0,
+            presented_frame_intervals: 48,
+            decoded_video_frames: 48,
+            dropped_video_frames: 0,
+        };
+        accepted.validate(24.0).unwrap();
+
+        let slow = VideoCadenceSample {
+            interval_seconds: 2.25,
+            ..accepted
+        };
+        assert!(slow.validate(24.0).is_err());
     }
 
     #[test]
