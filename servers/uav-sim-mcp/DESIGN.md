@@ -202,7 +202,10 @@ The Kubernetes pod starts the authoritative simulator as its first native restar
 init sidecar. Its startup probe admits the recording forwarder and UAV MCP server only
 after the pod-local adapter exists. A Gateway or recording outage may delay those
 dependent containers, but it cannot prevent or restart simulation. This ordering uses
-the stable Kubernetes sidecar-container contract available since Kubernetes 1.29.
+the stable Kubernetes sidecar-container contract available since Kubernetes 1.29. The
+simulator's preconfiguration API accepts an ephemeral-product reset as an idempotent
+no-op because no live render product exists before immutable world admission. This
+breaks the startup cycle while preserving mandatory cleanup after an MCP-only restart.
 
 Gateway authority is evaluated for every MCP open, renew, close, and resource read. If
 the same actor and browser instance presents a changed output owner, policy revision, or
