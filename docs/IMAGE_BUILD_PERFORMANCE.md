@@ -288,6 +288,11 @@ a later committed revision whose runtime source changed while the pinned upstrea
 did not. Its BuildKit evidence must show those upstream source and compilation vertices
 cached; an identical-revision build is not sufficient.
 
+`SOURCE_DATE_EPOCH` is kept at the repository `buildDateEpoch` across those revisions.
+The selected commit timestamp remains separate evidence. This distinction matters
+because BuildKit treats the predefined epoch as an input to every stage, including the
+pinned upstream checkout and compile stages that do not consume repository source.
+
 ## Acceptance Matrix
 
 | Requirement | Evidence | Result |

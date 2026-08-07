@@ -28,6 +28,10 @@ const PACKAGE_LABEL: &str = "io.veoveo.build.package";
 const BINARIES_LABEL: &str = "io.veoveo.build.binaries";
 const FAMILY_LABEL: &str = "io.veoveo.build.family";
 const AUXILIARY_LABEL: &str = "io.veoveo.build.auxiliary";
+// SOURCE_DATE_EPOCH is a predefined BuildKit argument and therefore part of
+// every stage's cache key. Keep it stable across source revisions. Bump this
+// cache ABI only when an admitted pinned parent image contains newer metadata.
+const REPRODUCIBLE_BUILD_EPOCH: u64 = 1_786_076_699;
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -102,6 +106,7 @@ pub(crate) struct BuildPlanV1 {
     selection: Selection,
     source: SourceRevision,
     source_date_epoch: u64,
+    build_date_epoch: u64,
     planning: PlanningTimings,
     source_revision_targets: Vec<String>,
     targets: Vec<ImageTarget>,
@@ -290,6 +295,7 @@ struct BuildRunV1<'a> {
     selection: &'a Selection,
     source: &'a SourceRevision,
     source_date_epoch: u64,
+    build_date_epoch: u64,
     started_at_unix_millis: u64,
     elapsed_millis: u64,
     result: BuildRunResult,
@@ -613,6 +619,7 @@ pub(crate) fn prepare_with_builder(
         selection,
         source: source_revision,
         source_date_epoch,
+        build_date_epoch: REPRODUCIBLE_BUILD_EPOCH,
         planning,
         source_revision_targets,
         targets,
@@ -723,7 +730,7 @@ pub(crate) fn execute(
         .arg(evidence.metadata_path())
         .env(
             "SOURCE_DATE_EPOCH",
-            prepared.plan.source_date_epoch.to_string(),
+            prepared.plan.build_date_epoch.to_string(),
         )
         .envs(environment)
         .stdin(Stdio::null());
@@ -872,6 +879,7 @@ impl EvidenceRun {
             selection: &plan.selection,
             source: &plan.source,
             source_date_epoch: plan.source_date_epoch,
+            build_date_epoch: plan.build_date_epoch,
             started_at_unix_millis: self.started_at_unix_millis,
             elapsed_millis,
             result,
@@ -1429,8 +1437,9 @@ fn validate_identifier(kind: &str, value: &str) -> Result<()> {
 mod tests {
     use super::{
         AUXILIARY_LABEL, BINARIES_LABEL, BakeDefinition, BakeTarget, BuilderFamily, FAMILY_LABEL,
-        MODE_LABEL, PACKAGE_LABEL, Selection, parse_publication_index_digests, rust_labels_present,
-        target_dependency_closure, validate_standalone_builder_stage,
+        MODE_LABEL, PACKAGE_LABEL, REPRODUCIBLE_BUILD_EPOCH, Selection,
+        parse_publication_index_digests, rust_labels_present, target_dependency_closure,
+        validate_standalone_builder_stage,
     };
     use std::collections::{BTreeMap, BTreeSet};
 
@@ -1472,6 +1481,11 @@ mod tests {
         assert!(
             identities.contains("veoveo-target-v1-aaaaaaaaaaaa-9b79bf6f1617-linux-amd64-release")
         );
+    }
+
+    #[test]
+    fn image_build_epoch_is_stable_across_source_revisions() {
+        assert_eq!(REPRODUCIBLE_BUILD_EPOCH, 1_786_076_699);
     }
 
     #[test]
