@@ -8,7 +8,8 @@ use sha2::{Digest, Sha256};
 use tokio::sync::oneshot;
 use veoveo_mcp_contract::{
     FrameBasis, FrameId, FrameNode, FrameParentTransform, FrameWorldId, FrameWorldRevision,
-    FrameWorldTree, Wgs84Position,
+    FrameWorldTree, LiveCameraDescriptor, LiveCameraHealth, LiveStreamProductLifecycle,
+    LiveStreamProductState, Wgs84Position,
 };
 use veoveo_stream_mcp::contract::{
     LiveSessionLifecycle, LiveSessionView, StartLiveSessionOutput, StopLiveSessionOutput,
@@ -1517,77 +1518,61 @@ fn assert_world_ready(
                 }),
         "Isaac nadir camera is not operational: {state}"
     );
-    let live_cameras = state
-        .get("live_cameras")
-        .and_then(Value::as_array)
-        .context("authoritative simulator state omitted live_cameras")?;
+    let live_cameras: Vec<LiveCameraDescriptor> = serde_json::from_value(
+        state
+            .get("live_cameras")
+            .cloned()
+            .context("authoritative simulator state omitted live_cameras")?,
+    )
+    .context("authoritative simulator returned invalid live_cameras")?;
     ensure!(
         !live_cameras.is_empty()
             && live_cameras
                 .iter()
-                .all(|camera| { camera.get("health").and_then(Value::as_str) == Some("healthy") }),
+                .all(|camera| camera.validate().is_ok()
+                    && camera.health == LiveCameraHealth::Healthy),
         "authoritative simulator cameras are not healthy: {state}"
     );
-    let products = state
-        .get("stream_products")
-        .and_then(Value::as_array)
-        .context("authoritative simulator state omitted stream_products")?;
+    let products: Vec<LiveStreamProductState> = serde_json::from_value(
+        state
+            .get("stream_products")
+            .cloned()
+            .context("authoritative simulator state omitted stream_products")?,
+    )
+    .context("authoritative simulator returned invalid stream_products")?;
     ensure!(
-        stream_products_match_camera_policies(live_cameras, products),
-        "authoritative simulator stream products are not ready: {state}"
+        idle_viewer_slot_pool_matches_contract(&products),
+        "authoritative simulator viewer-slot pool is not idle and ready for assignment: {state}"
     );
     Ok(())
 }
 
-fn stream_products_match_camera_policies(live_cameras: &[Value], products: &[Value]) -> bool {
-    let enabled_cameras = live_cameras
-        .iter()
-        .filter(|camera| camera.get("streamPolicy").and_then(Value::as_str) != Some("disabled"))
-        .count();
-    if products.len() != enabled_cameras {
+fn idle_viewer_slot_pool_matches_contract(products: &[LiveStreamProductState]) -> bool {
+    if products.is_empty() {
         return false;
     }
-    live_cameras.iter().all(|camera| {
-        let Some(camera_id) = camera.get("cameraId").and_then(Value::as_str) else {
-            return false;
-        };
-        let policy = camera.get("streamPolicy").and_then(Value::as_str);
-        let matching = products
-            .iter()
-            .filter(|product| product.get("cameraId").and_then(Value::as_str) == Some(camera_id))
-            .collect::<Vec<_>>();
-        if policy == Some("disabled") {
-            return matching.is_empty();
-        }
-        let [product] = matching.as_slice() else {
-            return false;
-        };
-        let lifecycle = product.get("lifecycle").and_then(Value::as_str);
-        let nvenc_sessions = product.get("nvencSessions").and_then(Value::as_u64);
-        match policy {
-            Some("continuous") => {
-                lifecycle == Some("ready")
-                    && nvenc_sessions == Some(1)
-                    && product.get("visible").and_then(Value::as_bool) == Some(true)
-                    && product
-                        .get("encodedFrames")
-                        .and_then(Value::as_u64)
-                        .is_some_and(|count| count > 0)
-            }
-            Some("on_demand") => match lifecycle {
-                Some("inactive") => nvenc_sessions == Some(0),
-                Some("ready") => {
-                    nvenc_sessions == Some(1)
-                        && product
-                            .get("encodedFrames")
-                            .and_then(Value::as_u64)
-                            .is_some_and(|count| count > 0)
-                }
-                _ => false,
-            },
-            _ => false,
-        }
-    })
+    let product_ids = products
+        .iter()
+        .map(|product| &product.stream_product_id)
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut capacity_slots = products
+        .iter()
+        .map(|product| usize::from(product.capacity_slot))
+        .collect::<Vec<_>>();
+    capacity_slots.sort_unstable();
+    product_ids.len() == products.len()
+        && capacity_slots == (0..products.len()).collect::<Vec<_>>()
+        && products.iter().all(|product| {
+            product.lifecycle == LiveStreamProductLifecycle::Inactive
+                && product.camera_id.is_none()
+                && product.live_view_id.is_none()
+                && product.active_viewer_leases == 0
+                && product.connected_viewers == 0
+                && product.nvenc_sessions == 0
+                && product.last_frame_at.is_none()
+                && product.visible.is_none()
+                && product.diagnostic.is_none()
+        })
 }
 
 async fn wait_for_world_ready(
@@ -1896,36 +1881,35 @@ mod tests {
     }
 
     #[test]
-    fn stream_product_acceptance_respects_continuous_and_on_demand_policies() {
-        let cameras = serde_json::json!([
-            {"cameraId":"follow","streamPolicy":"continuous"},
-            {"cameraId":"orbit","streamPolicy":"on_demand"},
-            {"cameraId":"fixed","streamPolicy":"disabled"}
-        ]);
-        let products = serde_json::json!([
-            {"cameraId":"follow","lifecycle":"ready","nvencSessions":1,
-             "encodedFrames":12,"visible":true},
-            {"cameraId":"orbit","lifecycle":"inactive","nvencSessions":0,
-             "encodedFrames":0}
-        ]);
-        assert!(stream_products_match_camera_policies(
-            cameras.as_array().unwrap(),
-            products.as_array().unwrap()
-        ));
+    fn stream_product_acceptance_requires_an_idle_contiguous_viewer_slot_pool() {
+        let products: Vec<LiveStreamProductState> = serde_json::from_value(serde_json::json!([
+            {"streamProductId":"product-slot-0","capacitySlot":0,"lifecycle":"inactive",
+             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":12},
+            {"streamProductId":"product-slot-1","capacitySlot":1,"lifecycle":"inactive",
+             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":9}
+        ]))
+        .unwrap();
+        assert!(idle_viewer_slot_pool_matches_contract(&products));
     }
 
     #[test]
-    fn stream_product_acceptance_rejects_eager_on_demand_encoding() {
-        let cameras = serde_json::json!([
-            {"cameraId":"orbit","streamPolicy":"on_demand"}
-        ]);
-        let products = serde_json::json!([
-            {"cameraId":"orbit","lifecycle":"ready","nvencSessions":0,
-             "encodedFrames":0}
-        ]);
-        assert!(!stream_products_match_camera_policies(
-            cameras.as_array().unwrap(),
-            products.as_array().unwrap()
-        ));
+    fn stream_product_acceptance_rejects_assigned_or_duplicate_viewer_slots() {
+        let assigned: Vec<LiveStreamProductState> = serde_json::from_value(serde_json::json!([
+            {"streamProductId":"product-slot-0","capacitySlot":0,"cameraId":"follow",
+             "liveViewId":"view-a","lifecycle":"ready","activeViewerLeases":1,
+             "connectedViewers":1,"nvencSessions":1,"encodedFrames":12,
+             "lastFrameAt":"2026-08-07T18:00:00Z","visible":true}
+        ]))
+        .unwrap();
+        assert!(!idle_viewer_slot_pool_matches_contract(&assigned));
+
+        let duplicate: Vec<LiveStreamProductState> = serde_json::from_value(serde_json::json!([
+            {"streamProductId":"product-slot-0","capacitySlot":0,"lifecycle":"inactive",
+             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":0},
+            {"streamProductId":"product-slot-1","capacitySlot":0,"lifecycle":"inactive",
+             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":0}
+        ]))
+        .unwrap();
+        assert!(!idle_viewer_slot_pool_matches_contract(&duplicate));
     }
 }
