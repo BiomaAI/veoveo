@@ -266,9 +266,26 @@ impl LiveViewService {
             .get_mut(&request.live_view_id)
             .filter(|lease| lease.state.session_id == request.session_id)
             .ok_or_else(|| LiveViewError::ViewNotFound(request.live_view_id.clone()))?;
-        authorize_owner(lease, owner, viewer_actor, &request.viewer_instance_id)?;
+        if lease.state.viewer_actor != *viewer_actor
+            || lease.state.viewer_instance_id != request.viewer_instance_id
+        {
+            return Err(LiveViewError::Ownership);
+        }
         if !active(&lease.state) {
             return Err(LiveViewError::ViewUnavailable);
+        }
+        if lease.state.owner != *owner {
+            close_lease(lease);
+            let camera_id = lease.state.camera_id.clone();
+            let last = !state
+                .leases
+                .values()
+                .any(|lease| lease.state.camera_id == camera_id && active(&lease.state));
+            drop(state);
+            if last {
+                self.arm_idle_deactivation(camera_id);
+            }
+            return Err(LiveViewError::AuthorityRevoked);
         }
         let connection = rotate(&self.config, lease)?;
         let generation = lease.generation;
@@ -612,6 +629,8 @@ pub(super) enum LiveViewError {
     ViewUnavailable,
     #[error("live-view ownership does not match the caller")]
     Ownership,
+    #[error("live-view viewer authority was revoked")]
+    AuthorityRevoked,
     #[error("live-view signaling authorization failed")]
     Access,
     #[error("live-view viewer capacity is exhausted")]
@@ -635,6 +654,7 @@ impl LiveViewError {
             Self::CameraUnavailable => "camera_unavailable",
             Self::ViewUnavailable => "view_unavailable",
             Self::Ownership => "ownership_mismatch",
+            Self::AuthorityRevoked => "viewer_authority_revoked",
             Self::Access => "access_denied",
             Self::Capacity => "viewer_capacity_exhausted",
             Self::Identifier => "invalid_identifier",
@@ -825,6 +845,60 @@ mod tests {
                 )
                 .await
                 .is_ok()
+        );
+    }
+
+    #[tokio::test]
+    async fn changed_viewer_authority_revokes_only_that_actors_lease() {
+        let (service, adapter) = service(false).await;
+        let alice = PrincipalId::new("alice").unwrap();
+        let bob = PrincipalId::new("bob").unwrap();
+        let alice_view = service
+            .open(owner(), alice.clone(), request("browser-a"))
+            .await
+            .unwrap();
+        let bob_view = service
+            .open(owner(), bob.clone(), request("browser-b"))
+            .await
+            .unwrap();
+        let mut changed_owner = owner();
+        changed_owner.policy_revision = PolicyVersion::new("policy-2").unwrap();
+
+        let error = service
+            .renew(
+                &changed_owner,
+                &alice,
+                RenewLiveViewRequest {
+                    session_id: alice_view.stream.session_id.clone(),
+                    live_view_id: alice_view.stream.live_view_id.clone(),
+                    viewer_instance_id: LiveViewerInstanceId::new("browser-a").unwrap(),
+                },
+            )
+            .await
+            .unwrap_err();
+
+        assert!(matches!(error, LiveViewError::AuthorityRevoked));
+        assert!(
+            service
+                .authorize_signaling(
+                    &alice_view.stream.live_view_id,
+                    alice_view.access_token.expose_for_signaling()
+                )
+                .await
+                .is_err()
+        );
+        assert!(
+            service
+                .authorize_signaling(
+                    &bob_view.stream.live_view_id,
+                    bob_view.access_token.expose_for_signaling()
+                )
+                .await
+                .is_ok()
+        );
+        assert_eq!(
+            adapter.state().await.unwrap().stream_products[0].nvenc_sessions,
+            1
         );
     }
 

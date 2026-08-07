@@ -198,9 +198,12 @@ back an already-issued lease, interrupt a viewer, or stop simulation. A product 
 failure returns `product_transition_failed`; camera and capacity failures retain their
 own codes.
 
-Gateway authority is evaluated for every MCP open, renew, close, and resource read. A
-lease is bounded and cannot renew after its actor loses authority. Expiry invalidates
-the signaling connection even when the browser disappears without teardown.
+Gateway authority is evaluated for every MCP open, renew, close, and resource read. If
+the same actor and browser instance presents a changed output owner, policy revision, or
+data-label authority at renewal, the server closes that lease, records
+`viewer_authority_revoked`, and leaves every unrelated viewer attached to the shared
+product. Other rejected renewals record `renew_denied`. Expiry invalidates the signaling
+connection even when the browser disappears without teardown.
 
 ## Live App
 

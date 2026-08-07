@@ -324,13 +324,48 @@ impl UavSimMcp {
     ) -> Result<CallToolResult, McpError> {
         let identity = require_scope(&context, "uav-sim:stream")?;
         let owner = LiveViewOwner::from_identity(&identity);
+        let session_id = request.session_id.clone();
         let live_view_id = request.live_view_id.clone();
         let result = self
             .state
             .live_views
             .renew(&owner, &identity.actor.id, request)
-            .await
-            .map_err(live_view_error)?;
+            .await;
+        let result = match result {
+            Ok(result) => result,
+            Err(error) => {
+                let action = if matches!(error, LiveViewError::AuthorityRevoked) {
+                    "viewer_authority_revoked"
+                } else {
+                    "renew_denied"
+                };
+                let mut details = live_view_details(&session_id, None);
+                details.insert(
+                    "failure_code".to_owned(),
+                    serde_json::Value::String(error.code().to_owned()),
+                );
+                audit_live_view(
+                    &self.state,
+                    &identity,
+                    Some(&live_view_id),
+                    action,
+                    veoveo_platform_store::AuditOutcome::Denied,
+                    details,
+                )
+                .await;
+                if matches!(error, LiveViewError::AuthorityRevoked) {
+                    self.state
+                        .subscribers
+                        .notify_resource_updated(uris::live_view(&session_id, &live_view_id))
+                        .await;
+                    self.state
+                        .subscribers
+                        .notify_resource_updated(uris::live_views(&session_id))
+                        .await;
+                }
+                return Err(live_view_error(error));
+            }
+        };
         audit_live_view(
             &self.state,
             &identity,
@@ -1755,7 +1790,7 @@ fn live_view_error(error: LiveViewError) -> McpError {
         LiveViewError::SessionNotFound(_)
         | LiveViewError::CameraNotFound(_)
         | LiveViewError::ViewNotFound(_) => McpError::resource_not_found(error.to_string(), None),
-        LiveViewError::Ownership | LiveViewError::Access => {
+        LiveViewError::Ownership | LiveViewError::AuthorityRevoked | LiveViewError::Access => {
             McpError::invalid_request("live-view access is not authorized", None)
         }
         LiveViewError::Capacity => {
