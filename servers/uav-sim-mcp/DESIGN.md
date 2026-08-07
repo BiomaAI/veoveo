@@ -198,6 +198,12 @@ back an already-issued lease, interrupt a viewer, or stop simulation. A product 
 failure returns `product_transition_failed`; camera and capacity failures retain their
 own codes.
 
+The Kubernetes pod starts the authoritative simulator as its first native restartable
+init sidecar. Its startup probe admits the recording forwarder and UAV MCP server only
+after the pod-local adapter exists. A Gateway or recording outage may delay those
+dependent containers, but it cannot prevent or restart simulation. This ordering uses
+the stable Kubernetes sidecar-container contract available since Kubernetes 1.29.
+
 Gateway authority is evaluated for every MCP open, renew, close, and resource read. If
 the same actor and browser instance presents a changed output owner, policy revision, or
 data-label authority at renewal, the server closes that lease, records

@@ -609,6 +609,25 @@ pub(crate) async fn helm_config() -> Result<()> {
         uav_sim.matches("name: CESIUM_ION_ACCESS_TOKEN").count() == 1,
         "interactive UAV render must inject the Cesium ion token exactly once"
     );
+    let init = uav_sim
+        .find("initContainers:")
+        .context("UAV render omits init containers")?;
+    let simulator = uav_sim
+        .find("- name: isaac-sim")
+        .context("UAV render omits the authoritative simulator")?;
+    let sidecar = uav_sim
+        .find("restartPolicy: Always")
+        .context("authoritative simulator is not a native restartable init sidecar")?;
+    let forwarder = uav_sim
+        .find("- name: recording-forwarder")
+        .context("UAV render omits the recording forwarder")?;
+    let mcp = uav_sim
+        .find("- name: uav-sim-mcp")
+        .context("UAV render omits the UAV MCP server")?;
+    ensure!(
+        init < simulator && simulator < sidecar && sidecar < forwarder && forwarder < mcp,
+        "authoritative simulator must start before recording and MCP dependencies"
+    );
 
     let production_without_digests = Command::new("helm")
         .args([
