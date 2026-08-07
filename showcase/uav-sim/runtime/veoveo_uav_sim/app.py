@@ -7,6 +7,7 @@ from collections.abc import Callable
 
 from .config import RuntimeConfig
 from .operator_products import livestream_aov_arguments
+from .physical_camera import physical_camera_product_name
 
 LOGGER = logging.getLogger("veoveo.uav_sim")
 
@@ -36,6 +37,9 @@ def run(config: RuntimeConfig) -> None:
     # Isaac requires SimulationApp to exist before importing Kit or simulator modules.
     from isaacsim import SimulationApp
 
+    physical_product_name = physical_camera_product_name(
+        config.camera.vehicle_id
+    )
     viewport_width = config.camera.width
     viewport_height = config.camera.height
     simulation_app = SimulationApp(
@@ -62,6 +66,7 @@ def run(config: RuntimeConfig) -> None:
                 config.extension_directory,
                 "--enable",
                 "cesium.usd.plugins",
+                "--/exts/cesium.omniverse/externallyManagedViewports=true",
                 "--enable",
                 "omni.kit.livestream.webrtc",
                 *livestream_aov_arguments(config.operator_live_view),
@@ -73,14 +78,12 @@ def run(config: RuntimeConfig) -> None:
     )
 
     import carb
-    import numpy as np
     import omni.kit.app
     import omni.timeline
     import omni.usd
     from isaacsim.core.api import World
     from isaacsim.core.api.materials import PhysicsMaterial
     from isaacsim.core.api.objects import GroundPlane
-    from isaacsim.sensors.experimental.rtx import RtxCamera
     from pxr import Gf, Usd, UsdGeom, UsdLux
 
     extension_manager = omni.kit.app.get_app().get_extension_manager()
@@ -89,7 +92,6 @@ def run(config: RuntimeConfig) -> None:
         "cesium.usd.plugins",
         "cesium.omniverse",
         "isaacsim.core.experimental.prims",
-        "isaacsim.sensors.experimental.rtx",
         "omni.kit.livestream.webrtc",
         "pegasus.simulator",
     ):
@@ -138,6 +140,7 @@ def run(config: RuntimeConfig) -> None:
         compose_pose,
     )
     from .operator_products import OperatorProductCollection
+    from .physical_camera import create_physical_rgb_camera, physical_camera_path
     from .physics_batch import FleetPhysicsLifecycle
     from .px4 import Px4Commander
     from .realtime import FixedStepCadenceGate, native_minimum_frame_rate
@@ -314,14 +317,13 @@ def run(config: RuntimeConfig) -> None:
         finally:
             stage.SetEditTarget(previous_target)
 
-        camera_rotation_wxyz = np.array([config.camera.mount.orientation_wxyz])
-        camera_translation_xyz = np.array([config.camera.mount.translation_xyz_m])
         mount_w, mount_x, mount_y, mount_z = config.camera.mount.orientation_wxyz
         sensor_mount_pose = Pose(
             Vector3(*config.camera.mount.translation_xyz_m),
             QuaternionXyzw(mount_x, mount_y, mount_z, mount_w),
         ).normalized()
 
+        physical_cameras = {}
         for index in range(config.vehicle_count):
             vehicle_id = f"uav-{index + 1}"
             vehicle_prim_path = f"/World/uav_{index + 1}"
@@ -388,23 +390,23 @@ def run(config: RuntimeConfig) -> None:
             commanders[vehicle_id] = commander
 
             if vehicle_id == config.camera.vehicle_id:
-                camera_path = f"{vehicle_prim_path}/body/down_camera"
-                camera = RtxCamera(
-                    camera_path,
-                    tick_rate=float(config.camera.fps),
-                    translations=camera_translation_xyz,
-                    orientations=camera_rotation_wxyz,
-                )
-                camera.camera.set_focal_lengths(config.camera.focal_length_mm)
-                camera.camera.set_clipping_ranges(
-                    config.camera.clipping_near_m, config.camera.clipping_far_m
+                camera_path = physical_camera_path(vehicle_id)
+                physical_cameras[vehicle_id] = create_physical_rgb_camera(
+                    stage,
+                    path=camera_path,
+                    mount_pose=sensor_mount_pose,
+                    focal_length_mm=config.camera.focal_length_mm,
+                    width_px=config.camera.width,
+                    height_px=config.camera.height,
+                    clipping_near_m=config.camera.clipping_near_m,
+                    clipping_far_m=config.camera.clipping_far_m,
                 )
                 camera_sensors[vehicle_id] = HydraRgbCameraSensor(
-                    name=f"uav_{index + 1}_nadir_camera",
+                    name=physical_product_name,
                     camera_path=camera_path,
                     width=config.camera.width,
                     height=config.camera.height,
-                    fps=config.camera.fps,
+                    render_fps=config.rendering_hz,
                 )
                 camera_sensor_sequences[vehicle_id] = 0
                 camera_frames_observed[vehicle_id] = 0
@@ -443,6 +445,9 @@ def run(config: RuntimeConfig) -> None:
         )
         operator_camera_cadence = FixedStepCadenceGate(
             config.physics_hz, config.rendering_hz
+        )
+        physical_camera_cadence = FixedStepCadenceGate(
+            config.physics_hz, config.camera.fps
         )
 
         def telemetry_snapshot() -> list[VehicleTelemetry]:
@@ -487,8 +492,11 @@ def run(config: RuntimeConfig) -> None:
 
         def update_operator_cameras(now: float | None = None) -> None:
             assert operator_cameras is not None
+            entities = operator_entity_transforms()
+            for vehicle_id, physical_camera in physical_cameras.items():
+                physical_camera.update(entities[vehicle_id].pose)
             operator_cameras.update(
-                operator_entity_transforms(),
+                entities,
                 simulation_generation=simulation_generation,
                 physics_step=physics_step,
                 monotonic_seconds=time.monotonic() if now is None else now,
@@ -505,6 +513,9 @@ def run(config: RuntimeConfig) -> None:
             # USD camera work before any product can render it.
             if operator_camera_cadence.due(physics_step):
                 update_operator_cameras()
+            if physical_camera_cadence.due(physics_step):
+                for camera_sensor in camera_sensors.values():
+                    camera_sensor.request_capture()
             publish_recording = recording_cadence.due(physics_step)
             if not publish_recording:
                 return
@@ -569,6 +580,7 @@ def run(config: RuntimeConfig) -> None:
                 simulation_generation += 1
                 recording_cadence.reset()
                 operator_camera_cadence.reset()
+                physical_camera_cadence.reset()
                 state.advance(simulation_time_s, physics_step)
                 state.set_lifecycle("running" if was_playing else "paused")
 
@@ -660,10 +672,9 @@ def run(config: RuntimeConfig) -> None:
             cesium_viewports = []
             entity_transforms = operator_entity_transforms()
             for vehicle_id, sensor in camera_sensors.items():
-                sensor_pose = compose_pose(
-                    entity_transforms[vehicle_id].pose,
-                    sensor_mount_pose,
-                )
+                sensor_pose = physical_cameras[vehicle_id].last_pose
+                if sensor_pose is None:
+                    continue
                 cesium_viewports.append(
                     current_pose_cesium_viewport(
                         stage,

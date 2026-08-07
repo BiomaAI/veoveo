@@ -145,8 +145,10 @@ This prevents camera-target disagreement without delaying simulation.
 
 Each physical slot owns one stable camera, Hydra texture, LdrColor AOV, native signaling
 port, UDP media port, and H.264 product identity. The runtime submits every active camera
-viewport to Cesium in the same Kit frame. It does not create another Cesium world,
-provider connection, georeference, material set, or cache.
+viewport to Cesium in the same Kit frame. Headless operation disables the pinned Cesium
+extension's interactive viewport-window update subscription, leaving one authoritative
+viewport writer instead of racing an empty GUI inventory. The runtime does not create
+another Cesium world, provider connection, georeference, material set, or cache.
 
 Continuous products stay warm. On-demand products have stable resources but pause their
 render and encode cadence while unused. The first viewer activates an on-demand product.
@@ -159,11 +161,14 @@ Viewer capacity accounts for ephemeral leases and aggregate network bitrate. The
 rejects an exhausted dimension without reducing resolution, cadence, optics, rig,
 smoothing, or codec.
 
-The domain nadir sensor and operator cameras have independent cadence. The current
-sensor recording path contains a `TODO(GPU)` at its CPU readback boundary; the intended
-replacement is direct CUDA/NVENC packet fan-out once Recording Hub accepts the canonical
-encoded product. That debt is not a fallback and is not acceptance evidence for live
-operator rendering.
+The domain nadir sensor and operator cameras have independent cadence. The physical
+sensor camera receives the exact current body-and-mount transform at render cadence. Its
+Hydra product remains warm for streamed-world residency, but evidence capture is
+requested by a physics-step cadence gate at the declared sensor rate. In-flight requests
+coalesce and no wall-clock capture scheduler exists. The current sensor recording path
+contains a `TODO(GPU)` at its CPU readback boundary; the intended replacement is direct
+CUDA/NVENC packet fan-out once Recording Hub accepts the canonical encoded product. That
+debt is not a fallback and is not acceptance evidence for live operator rendering.
 
 ## Viewer Leases And Fan-Out
 

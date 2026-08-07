@@ -34,27 +34,46 @@ def operator_stream_product_id(camera_id: str) -> str:
     return f"product-{camera_id}"
 
 
+def livestream_aov_product_arguments(
+    product_name: str,
+    *,
+    signaling_port: int,
+    media_port: int,
+    public_media_ip: str,
+    target_fps: int,
+) -> list[str]:
+    aov = (
+        "Render.OmniverseKit.HydraTextures."
+        f"{product_name}.LdrColor"
+    )
+    prefix = f"--/exts/omni.kit.livestream.aov/{aov}/spectatorStream/0"
+    settings = {
+        "streamType": "webrtc",
+        "signalPort": str(signaling_port),
+        "streamPort": str(media_port),
+        "publicIp": public_media_ip,
+        "targetFps": str(target_fps),
+        "allowDynamicResize": "false",
+        "authenticateBearer": "false",
+    }
+    return [f"{prefix}/{name}={value}" for name, value in settings.items()]
+
+
 def livestream_aov_arguments(config: OperatorLiveViewRuntimeConfig) -> list[str]:
     arguments: list[str] = []
     for camera in config.cameras:
         if camera.stream_policy is CameraStreamPolicy.DISABLED:
             continue
-        aov = (
-            "Render.OmniverseKit.HydraTextures."
-            f"{operator_product_name(camera.camera_id)}.LdrColor"
-        )
-        prefix = f"--/exts/omni.kit.livestream.aov/{aov}/spectatorStream/0"
-        settings = {
-            "streamType": "webrtc",
-            "signalPort": str(config.signaling_port_base + camera.physical_slot),
-            "streamPort": str(config.media_port_base + camera.physical_slot),
-            "publicIp": config.public_media_ip,
-            "targetFps": str(camera.optics.frame_rate_hz),
-            "allowDynamicResize": "false",
-            "authenticateBearer": "false",
-        }
         arguments.extend(
-            f"{prefix}/{name}={value}" for name, value in settings.items()
+            livestream_aov_product_arguments(
+                operator_product_name(camera.camera_id),
+                signaling_port=(
+                    config.signaling_port_base + camera.physical_slot
+                ),
+                media_port=config.media_port_base + camera.physical_slot,
+                public_media_ip=config.public_media_ip,
+                target_fps=camera.optics.frame_rate_hz,
+            )
         )
     return arguments
 

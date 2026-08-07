@@ -40,10 +40,12 @@ immutable Frames world revision. That revision determines the Cesium georeferenc
 Pegasus coordinates, local geographic conversion, mission guard, recording metadata,
 sensor frames, and operator-camera world.
 
-The stage uses `RaytracedLighting` and the pinned Cesium extension. Every active domain
-sensor and operator-camera viewport participates in Cesium's tile selection during the
-same Kit update. The runtime does not create another provider connection or tile cache
-for live views.
+The stage uses `RaytracedLighting` and the pinned Cesium extension. The headless runtime
+is the sole owner of Cesium's active viewport list. It submits every active domain
+sensor and operator camera during the same Kit update; the extension's interactive
+viewport-window callback is disabled for this process because an empty window inventory
+would otherwise erase those authoritative viewports between frames. The runtime does
+not create another provider connection or tile cache for live views.
 
 Moving cameras use hole-free tile refinement. Cesium retains a loaded parent until its
 replacement children are ready, while ancestor and sibling preloading keep the next
@@ -86,8 +88,12 @@ sharing the same camera render and NVENC session.
 ## Domain Sensor And Recording
 
 Only the leader owns the admitted nadir sensor and recorded H.264 source. Followers emit
-telemetry without duplicating camera capture. The sensor cadence is independent of
-physics and operator cameras.
+telemetry without duplicating camera capture. Its root-level USD camera receives the
+exact authoritative body-and-mount transform without operator smoothing. The Hydra
+product renders at the Kit cadence to maintain moving-camera tile residency, while a
+physics-step cadence gate requests evidence captures at the declared sensor rate.
+Capture requests coalesce while GPU readback is in flight. No wall-clock timer controls
+sensor observations.
 
 One bounded recording contains four-vehicle poses, velocities, geographic positions,
 IMU values, changing health state, and leader video. The producer Blueprint opens Fleet

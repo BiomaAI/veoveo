@@ -273,6 +273,10 @@ class AuthoritativeOperatorCamera:
         camera_path = f"{cls.CAMERA_ROOT}/{definition.camera_id}"
         camera = UsdGeom.Camera.Define(stage, camera_path)
         vertical_aperture_mm = 20.25
+        horizontal_aperture_mm = vertical_aperture_mm * (
+            definition.optics.width_px / definition.optics.height_px
+        )
+        camera.CreateHorizontalApertureAttr(horizontal_aperture_mm)
         focal_length_mm = (vertical_aperture_mm * 0.5) / math.tan(
             math.radians(definition.optics.vertical_fov_degrees) * 0.5
         )

@@ -1,0 +1,21 @@
+diff --git a/cesium.omniverse/cesium/omniverse/extension.py b/cesium.omniverse/cesium/omniverse/extension.py
+--- a/cesium.omniverse/cesium/omniverse/extension.py
++++ b/cesium.omniverse/cesium/omniverse/extension.py
+@@ -173,5 +173,6 @@ class CesiumOmniverseExtension(omni.ext.IExt):
+-        self._on_update_subscription = (
+-            omni_app.get_app()
+-            .get_update_event_stream()
+-            .create_subscription_to_pop(self._on_update_frame, name="cesium.omniverse.extension.ON_UPDATE_FRAME")
+-        )
++        if not settings.get_as_bool("/exts/cesium.omniverse/externallyManagedViewports"):
++            self._on_update_subscription = (
++                omni_app.get_app()
++                .get_update_event_stream()
++                .create_subscription_to_pop(self._on_update_frame, name="cesium.omniverse.extension.ON_UPDATE_FRAME")
++            )
+diff --git a/cesium.omniverse/config/extension.toml b/cesium.omniverse/config/extension.toml
+--- a/cesium.omniverse/config/extension.toml
++++ b/cesium.omniverse/config/extension.toml
+@@ -62,1 +62,2 @@
+ exts."cesium.omniverse".showOnStartup = true
++exts."cesium.omniverse".externallyManagedViewports = false
