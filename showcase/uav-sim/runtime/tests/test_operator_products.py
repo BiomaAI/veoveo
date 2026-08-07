@@ -8,6 +8,7 @@ from veoveo_uav_sim.operator_camera_config import OperatorLiveViewRuntimeConfig
 from veoveo_uav_sim.operator_health import OperatorProductHealth
 from veoveo_uav_sim.operator_products import (
     livestream_aov_arguments,
+    materialize_matrix4d,
     operator_product_name,
     operator_stream_product_id,
 )
@@ -161,6 +162,21 @@ class OperatorCameraConfigTests(unittest.TestCase):
 
 
 class OperatorProductTests(unittest.TestCase):
+    def test_hydra_viewport_metadata_is_restored_to_native_matrix_type(self) -> None:
+        class NativeMatrix:
+            def __init__(self, *values: float) -> None:
+                self.values = values
+
+        values = tuple(float(index) for index in range(16))
+        matrix = materialize_matrix4d(values, NativeMatrix)
+        self.assertIsInstance(matrix, NativeMatrix)
+        self.assertEqual(matrix.values, values)
+
+        with self.assertRaisesRegex(ValueError, "16 values"):
+            materialize_matrix4d(values[:-1], NativeMatrix)
+        with self.assertRaisesRegex(ValueError, "finite"):
+            materialize_matrix4d((*values[:-1], float("nan")), NativeMatrix)
+
     def test_aov_arguments_have_one_locked_port_pair_per_product(self) -> None:
         cameras = [
             _camera(
