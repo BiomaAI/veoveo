@@ -438,6 +438,12 @@ class RuntimeConfig:
                 viewer_slot_count=_int(
                     "UAV_SIM_LIVE_VIEWER_SLOTS", "2", 1, 32
                 ),
+                activation_timeout_seconds=_float(
+                    "UAV_SIM_LIVE_ACTIVATION_TIMEOUT_SECONDS",
+                    "10.0",
+                    0.1,
+                    60.0,
+                ),
                 signaling_port_base=_int(
                     "UAV_SIM_LIVE_SIGNALING_PORT_BASE", "49100", 1, 65_535
                 ),

@@ -214,8 +214,9 @@
   3. The simulator creates the configured maximum number of viewer-camera clones.
   4. Each viewer slot receives a stable camera prim, HydraTexture, stream-product ID, and native signaling/media ports.
   5. Every viewer product remains inactive and unassigned until a lease reserves its slot.
-  6. A lease binds one slot to one logical camera, activates one RTX render and one NVENC/WebRTC product, and returns only that slot's public endpoint.
-  7. Close, expiry, revocation, or signaling loss deactivates and releases only the assigned slot.
+  6. A lease binds one slot to one logical camera and activates one RTX render and one NVENC/WebRTC product.
+  7. Assignment completes only after a drawable event proves the first assigned GPU frame and the exact native signaling listener is ready. A bounded activation failure releases the slot before returning a lease or public endpoint.
+  8. Close, expiry, revocation, or signaling loss deactivates and releases only the assigned slot.
 
   Suggested internal paths:
 
@@ -712,6 +713,7 @@
   The Helm chart should validate:
 
   - Port ranges are large enough for maximum viewer slots.
+  - Product activation has one explicit bounded deadline.
   - No collision with other pod ports.
   - Public media IP is numeric where required.
   - WSS origin is credential-free.

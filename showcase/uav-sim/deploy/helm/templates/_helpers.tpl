@@ -79,6 +79,8 @@
   value: {{ .root.Values.liveView.cameras | toJson | quote }}
 - name: UAV_SIM_LIVE_VIEWER_SLOTS
   value: {{ .root.Values.liveView.viewerSlots | quote }}
+- name: UAV_SIM_LIVE_ACTIVATION_TIMEOUT_SECONDS
+  value: {{ .root.Values.liveView.activationTimeoutSeconds | quote }}
 - name: UAV_SIM_LIVE_SIGNALING_PORT_BASE
   value: {{ .root.Values.liveView.signalingPortBase | quote }}
 - name: UAV_SIM_LIVE_MEDIA_PORT_BASE

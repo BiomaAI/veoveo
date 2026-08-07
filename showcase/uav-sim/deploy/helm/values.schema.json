@@ -325,6 +325,7 @@
             "signalingPortBase",
             "mediaPortBase",
             "viewerSlots",
+            "activationTimeoutSeconds",
             "leaseSeconds",
             "maximumFrameAgeMs",
             "signalingIngress",
@@ -361,6 +362,11 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 32
+            },
+            "activationTimeoutSeconds": {
+                "type": "number",
+                "minimum": 0.1,
+                "maximum": 60
             },
             "leaseSeconds": {
                 "type": "integer",

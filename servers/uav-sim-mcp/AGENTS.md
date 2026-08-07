@@ -31,9 +31,10 @@ authoritative operator cameras and encoded products.
   authoritative simulator. This server owns ephemeral actor-and-browser viewer
   leases, access audit, signaling authorization, and `ui://uav-sim/live.html`.
   It never persists renderer desired state or mirrors entity poses.
-- Every active camera has at most one encoded product. Viewer fan-out adds
-  WebRTC peer and network state without adding a camera, render, Cesium
-  viewport, or NVENC session.
+- Every active viewer lease owns one exclusively assigned physical slot with a
+  camera clone, RTX render, Cesium viewport, NVIDIA NVENC session, and native
+  WebRTC peer. Logical cameras and their final poses may be shared; encoded
+  products and transport state are never shared between viewers.
 - `CESIUM_ION_ACCESS_TOKEN` comes only from the dedicated Kubernetes Secret.
   It is never a tool argument, ConfigMap value, resource field, log field, or
   exported USD content.

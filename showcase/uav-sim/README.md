@@ -77,19 +77,24 @@ reconstructs the default route from immutable configuration.
 
 ## Operator Cameras
 
-At startup the runtime creates a bounded set of cameras under
-`/World/OperatorCameras`. Supported rigs are fixed, look-at, orbit, follow, chase,
-stabilized mounted, and formation overview. Every camera owns a stable physical slot,
-Hydra texture, product ID, native signaling port, and UDP media port.
+At startup the runtime creates a bounded logical-camera set under
+`/World/OperatorCameras` and a separate preallocated viewer-slot pool under
+`/World/OperatorViewerCameras`. Supported rigs are fixed, look-at, orbit, follow, chase,
+stabilized mounted, and formation overview. Every assigned viewer slot owns its camera
+clone, Hydra texture, product ID, native signaling port, UDP media port, RTX render, and
+NVENC session.
 
 The camera update reads current authoritative entity transforms directly. Its
 frame-rate-independent filter smooths only the final operator-camera position and
 orientation. Target changes, camera revisions, simulation generations, long gaps, and
 teleports reset the filter. No entity-pose history or visualization interpolation exists.
 
-Continuous products stay warm. On-demand products pause after the last viewer's idle
-grace. Multiple users, profiles, or tabs receive independent leases and peer state while
-sharing the same camera render and NVENC session.
+Unassigned viewer products remain inactive. Assignment copies the chosen logical pose
+into one slot, enables its Hydra texture, and completes only after a drawable event
+proves the first assigned GPU frame and the native signaling socket is listening. The
+adapter uses a bounded event wait and releases the slot on activation failure. Multiple
+users, profiles, or tabs receive independent leases, camera clones, RTX renders, NVENC
+sessions, and peer state even when they select the same logical camera.
 
 ## Domain Sensor And Recording
 
@@ -123,9 +128,9 @@ The chart requires:
 - one immutable Frames world and simulation frame, with an optional installation-owned
   startup binding ConfigMap for restart-stable always-on operation;
 - bounded fleet route, takeoff, vehicle, and PX4 parameters;
-- a strict operator-camera collection with unique physical slots;
+- a strict logical operator-camera collection and a bounded physical viewer-slot pool;
 - stable native signaling and public media port ranges;
-- bounded live-view lease, viewer, frame-age, and idle-grace limits;
+- bounded live-view lease, viewer, frame-age, and product-activation limits;
 - a leader identity and bounded recording cadence, queue, and bitrate;
 - platform database and recording-forwarder credentials;
 - `nvidia.com/gpu: 1`, the NVIDIA runtime class, and driver capabilities
@@ -137,7 +142,7 @@ Secret and never enter ConfigMaps, MCP resources, logs, recordings, or evidence.
 
 `liveView.mediaService.nodePortBase` is required when an installation maps a fixed
 public UDP range through Kubernetes NodePorts. The chart assigns one contiguous
-NodePort per physical camera slot and rejects a range that exceeds the Kubernetes
+NodePort per physical viewer slot and rejects a range that exceeds the Kubernetes
 NodePort boundary. A normal LoadBalancer installation leaves the value null and uses
 allocator-owned NodePorts.
 
@@ -165,8 +170,8 @@ SBOM, and provenance.
 ## Hardware Acceptance
 
 The installation-owned acceptance deploys one simulator GPU workload. It proves the
-always-on fleet, authoritative camera health, one stable product per active camera,
-RTX/NVENC/WebRTC playback, shared-product multi-viewer behavior, direct Stream input,
+always-on fleet, authoritative camera health, one isolated product per active viewer,
+RTX/NVENC/WebRTC playback, simultaneous same-camera viewer isolation, direct Stream input,
 governed recording, Rerun playback, and mission control.
 
 ```sh
