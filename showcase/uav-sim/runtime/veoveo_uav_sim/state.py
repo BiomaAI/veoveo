@@ -6,12 +6,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from .camera_quality import CameraFrameQuality
 from .config import RuntimeConfig
 from .geo import enu_to_geodetic
-from .camera_quality import CameraFrameQuality
 from .operator_camera import CameraStreamPolicy
 from .operator_camera_config import live_camera_descriptor
 from .physics_batch import FleetPhysicsTiming
+from .render_pose import RenderPoseAgreement
 from .world_config import WorldConfiguration
 
 
@@ -234,6 +235,7 @@ class RuntimeState:
         quality: CameraFrameQuality,
         diagnostic_code: str | None = None,
         diagnostic: str | None = None,
+        render_pose: RenderPoseAgreement | None = None,
     ) -> None:
         with self._condition:
             for camera in self._state["cameras"]:
@@ -256,6 +258,8 @@ class RuntimeState:
                         camera["diagnostic"] = diagnostic
                     else:
                         camera.pop("diagnostic", None)
+                    if render_pose is not None:
+                        camera["render_pose"] = render_pose.as_dict()
                     self._touch()
                     return
             raise ValueError(f"unknown camera vehicle {vehicle_id!r}")

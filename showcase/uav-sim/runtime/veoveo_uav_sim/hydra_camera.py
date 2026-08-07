@@ -8,7 +8,6 @@ from typing import Any
 
 import numpy as np
 
-
 LOGGER = logging.getLogger("veoveo.uav_sim.hydra_camera")
 RTX_RENDER_PRODUCT_PREFIX = "/Render/OmniverseKit/HydraTextures"
 RGBA8_TEXTURE_FORMAT = "TextureFormat.RGBA8_UNORM"
@@ -19,9 +18,35 @@ _py_capsule_get_pointer.restype = ctypes.c_void_p
 
 
 @dataclass(frozen=True, slots=True)
+class HydraRenderedCamera:
+    """Bounded render-pose input captured with one LdrColor frame."""
+
+    view: tuple[float, ...]
+    width: int
+    height: int
+
+
+@dataclass(frozen=True, slots=True)
 class RgbFrame:
     sequence: int
     pixels: np.ndarray
+    rendered_camera: HydraRenderedCamera
+
+
+def hydra_rendered_camera(frame: dict[str, Any]) -> HydraRenderedCamera:
+    view = tuple(float(value) for value in frame.get("view", ()))
+    resolution = tuple(int(value) for value in frame.get("resolution", ()))
+    if len(view) != 16 or len(resolution) != 2:
+        raise RuntimeError("RTX Hydra product returned invalid camera metadata")
+    if not all(np.isfinite(value) for value in view):
+        raise RuntimeError("RTX Hydra product returned a non-finite view matrix")
+    if resolution[0] < 1 or resolution[1] < 1:
+        raise RuntimeError("RTX Hydra product returned invalid viewport resolution")
+    return HydraRenderedCamera(
+        view=view,
+        width=resolution[0],
+        height=resolution[1],
+    )
 
 
 def render_product_path(name: str) -> str:
@@ -133,6 +158,8 @@ class HydraRgbCameraSensor:
         self._closed = False
         self._sequence = 0
         self._latest_pixels: np.ndarray | None = None
+        self._latest_rendered_camera: HydraRenderedCamera | None = None
+        self._pending_rendered_camera: HydraRenderedCamera | None = None
         self._failure: BaseException | None = None
         self._camera_path = camera_path
         self._render_product = RtxHydraRenderProduct(
@@ -165,11 +192,20 @@ class HydraRgbCameraSensor:
             failure = self._failure
             sequence = self._sequence
             pixels = self._latest_pixels
+            rendered_camera = self._latest_rendered_camera
         if failure is not None:
             raise RuntimeError("RTX Hydra RGB capture failed") from failure
-        if pixels is None or sequence <= after_sequence:
+        if (
+            pixels is None
+            or rendered_camera is None
+            or sequence <= after_sequence
+        ):
             return None
-        return RgbFrame(sequence=sequence, pixels=pixels)
+        return RgbFrame(
+            sequence=sequence,
+            pixels=pixels,
+            rendered_camera=rendered_camera,
+        )
 
     def close(self) -> None:
         with self._lock:
@@ -192,12 +228,18 @@ class HydraRgbCameraSensor:
             resource = texture.get("rp_resource")
             if resource is None:
                 return
+            rendered_camera = hydra_rendered_camera(
+                self._render_product.hydra_texture.get_frame_info(
+                    event["result_handle"]
+                )
+            )
             with self._lock:
                 if self._closed:
                     return
                 if self._capture_pending:
                     return
                 self._capture_pending = True
+                self._pending_rendered_camera = rendered_camera
             try:
                 self._renderer_capture.capture_next_frame_rp_resource_callback(
                     self._on_capture,
@@ -206,6 +248,7 @@ class HydraRgbCameraSensor:
             except BaseException:
                 with self._lock:
                     self._capture_pending = False
+                    self._pending_rendered_camera = None
                 raise
         except BaseException as error:
             self._record_failure(error)
@@ -232,10 +275,17 @@ class HydraRgbCameraSensor:
                 pixel_format,
             )
             with self._lock:
+                rendered_camera = self._pending_rendered_camera
+                if rendered_camera is None:
+                    raise RuntimeError(
+                        "RTX Hydra RGB capture lost its rendered camera metadata"
+                    )
                 if not self._closed:
                     self._sequence += 1
                     self._latest_pixels = pixels
+                    self._latest_rendered_camera = rendered_camera
                 self._capture_pending = False
+                self._pending_rendered_camera = None
         except BaseException as error:
             self._record_failure(error)
 
@@ -243,6 +293,7 @@ class HydraRgbCameraSensor:
         first_failure = False
         with self._lock:
             self._capture_pending = False
+            self._pending_rendered_camera = None
             if self._failure is None:
                 self._failure = error
                 first_failure = True
