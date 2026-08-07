@@ -65,8 +65,11 @@ world:
   cesiumIonAssetId: 2275207
   streaming:
     maximumScreenSpaceError: 32
-    maximumSimultaneousLoads: 2
+    maximumSimultaneousLoads: 20
     maximumCachedBytes: 2147483648
+    preloadAncestors: true
+    preloadSiblings: true
+    forbidHoles: true
 
 cache:
   policy: persistent

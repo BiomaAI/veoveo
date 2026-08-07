@@ -308,6 +308,9 @@ def run(config: RuntimeConfig) -> None:
             tileset.GetPreloadSiblingsAttr().Set(
                 config.tile_streaming.preload_siblings
             )
+            tileset.GetForbidHolesAttr().Set(
+                config.tile_streaming.forbid_holes
+            )
         finally:
             stage.SetEditTarget(previous_target)
 

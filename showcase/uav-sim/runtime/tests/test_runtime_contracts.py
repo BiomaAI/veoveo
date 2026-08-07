@@ -190,10 +190,19 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(config.cesium_ion_asset_id, 2_275_207)
         self.assertEqual(config.tile_cache_policy.value, "persistent")
         self.assertEqual(config.tile_streaming.maximum_screen_space_error, 16.0)
-        self.assertEqual(config.tile_streaming.maximum_simultaneous_loads, 2)
+        self.assertEqual(config.tile_streaming.maximum_simultaneous_loads, 20)
         self.assertEqual(config.tile_streaming.maximum_cached_bytes, 2_147_483_648)
         self.assertTrue(config.tile_streaming.preload_ancestors)
-        self.assertFalse(config.tile_streaming.preload_siblings)
+        self.assertTrue(config.tile_streaming.preload_siblings)
+        self.assertTrue(config.tile_streaming.forbid_holes)
+
+        invalid_holes = {
+            **VALID_ENVIRONMENT,
+            "UAV_SIM_TILE_FORBID_HOLES": "sometimes",
+        }
+        with patch.dict(os.environ, invalid_holes, clear=True):
+            with self.assertRaisesRegex(ValueError, "must be true or false"):
+                RuntimeConfig.from_environment()
 
         invalid = {**VALID_ENVIRONMENT, "UAV_SIM_CESIUM_ION_ASSET_ID": "1"}
         with patch.dict(os.environ, invalid, clear=True):
