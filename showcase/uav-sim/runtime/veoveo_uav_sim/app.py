@@ -367,7 +367,7 @@ def run(config: RuntimeConfig) -> None:
         )
         physics_clock = RealtimePhysicsClock(
             config.physics_hz,
-            maximum_catch_up_steps=max(1, config.physics_hz // 5),
+            maximum_catch_up_steps=config.physics_hz,
         )
         render_deadline = PeriodicDeadline(config.rendering_hz)
 

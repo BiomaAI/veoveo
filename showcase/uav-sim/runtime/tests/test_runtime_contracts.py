@@ -832,6 +832,12 @@ class RealtimeClockTests(unittest.TestCase):
         self.assertEqual(status.rebases, 1)
         self.assertAlmostEqual(status.discarded_wall_seconds, 108 / 60)
 
+    def test_runtime_admits_one_second_of_fixed_step_catch_up(self) -> None:
+        app_source = (
+            Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py"
+        ).read_text()
+        self.assertIn("maximum_catch_up_steps=config.physics_hz", app_source)
+
     def test_physics_clock_rejects_an_unbounded_catch_up_policy(self) -> None:
         with self.assertRaisesRegex(ValueError, "catch-up steps"):
             RealtimePhysicsClock(60, maximum_catch_up_steps=0)
