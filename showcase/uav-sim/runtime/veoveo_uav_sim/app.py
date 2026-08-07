@@ -138,7 +138,7 @@ def run(config: RuntimeConfig) -> None:
     from .operator_products import OperatorProductCollection, materialize_matrix4d
     from .physics_batch import FleetPhysicsLifecycle
     from .px4 import Px4Commander
-    from .realtime import FixedStepCadenceGate
+    from .realtime import FixedStepCadenceGate, native_minimum_frame_rate
     from .recording import ImuTelemetry, RecordingPublisher
     from .server import (
         AdapterApplication,
@@ -205,15 +205,17 @@ def run(config: RuntimeConfig) -> None:
         # SimulationContext selects a fixed manual step by default. That drops
         # authoritative time whenever a streamed-world update exceeds 1/30 s.
         # Restore Kit's measured-time loop and let PhysX select the required
-        # 1/60 s substeps, bounded to six by the native minimum-frame-rate
-        # setting. There is no Python clock, deadline, sleep, or catch-up loop.
+        # 1/60 s substeps, bounded by the native minimum-frame-rate setting.
+        # The bound admits a 200 ms streamed-world render without dropping
+        # authoritative simulation time. There is no Python clock, deadline,
+        # sleep, or catch-up loop.
         from omni.kit.loop import _loop as omni_loop
 
         loop_runner = omni_loop.acquire_loop_interface()
         loop_runner.set_manual_mode(False)
         carb.settings.get_settings().set_int(
             "/persistent/simulation/minFrameRate",
-            max(1, config.physics_hz // 6),
+            native_minimum_frame_rate(config.physics_hz),
         )
         launch_surface_material = PhysicsMaterial(
             prim_path="/World/Physics_Materials/uav_launch_surface",
