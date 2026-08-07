@@ -207,19 +207,54 @@ class OperatorProductTests(unittest.TestCase):
         health.activate()
         health.observe_frame(visible=False, monotonic_seconds=1.0)
         health.observe_frame(monotonic_seconds=1.1)
-        snapshot = health.snapshot(monotonic_seconds=1.2)
+        snapshot = health.snapshot(content_ready=True, monotonic_seconds=1.2)
         self.assertEqual(snapshot["lifecycle"], "failed")
         self.assertEqual(snapshot["visible"], False)
         self.assertEqual(snapshot["diagnostic"], "operator camera frame is uniform or blank")
 
     def test_stale_and_inactive_products_are_typed(self) -> None:
         health = OperatorProductHealth(maximum_frame_age_ms=100)
-        self.assertEqual(health.snapshot(monotonic_seconds=0.0)["lifecycle"], "inactive")
+        self.assertEqual(
+            health.snapshot(content_ready=True, monotonic_seconds=0.0)["lifecycle"],
+            "inactive",
+        )
         health.activate()
-        self.assertEqual(health.snapshot(monotonic_seconds=0.0)["lifecycle"], "starting")
+        self.assertEqual(
+            health.snapshot(content_ready=True, monotonic_seconds=0.0)["lifecycle"],
+            "starting",
+        )
         health.observe_frame(visible=True, monotonic_seconds=1.0)
-        self.assertEqual(health.snapshot(monotonic_seconds=1.05)["lifecycle"], "ready")
-        self.assertEqual(health.snapshot(monotonic_seconds=1.2)["diagnostic"], "operator camera frame is stale")
+        self.assertEqual(
+            health.snapshot(content_ready=True, monotonic_seconds=1.05)["lifecycle"],
+            "ready",
+        )
+        self.assertEqual(
+            health.snapshot(content_ready=True, monotonic_seconds=1.2)["diagnostic"],
+            "operator camera frame is stale",
+        )
+
+    def test_world_warmup_is_not_a_terminal_product_failure(self) -> None:
+        health = OperatorProductHealth(maximum_frame_age_ms=100)
+        health.activate()
+        health.observe_frame(visible=False, monotonic_seconds=1.0)
+
+        warming = health.snapshot(content_ready=False, monotonic_seconds=2.0)
+        self.assertEqual(warming["lifecycle"], "starting")
+        self.assertEqual(warming["diagnostic"], "streamed world is warming")
+
+        failed = health.snapshot(content_ready=True, monotonic_seconds=2.0)
+        self.assertEqual(failed["lifecycle"], "failed")
+        self.assertEqual(
+            failed["diagnostic"], "operator camera frame is uniform or blank"
+        )
+
+    def test_hydra_failure_remains_terminal_during_world_warmup(self) -> None:
+        health = OperatorProductHealth(maximum_frame_age_ms=100)
+        health.activate()
+        health.fail("RTX product unavailable")
+        snapshot = health.snapshot(content_ready=False, monotonic_seconds=1.0)
+        self.assertEqual(snapshot["lifecycle"], "failed")
+        self.assertEqual(snapshot["diagnostic"], "RTX product unavailable")
 
 
 if __name__ == "__main__":

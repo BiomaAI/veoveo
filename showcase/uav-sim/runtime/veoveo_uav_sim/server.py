@@ -285,7 +285,11 @@ class AdapterApplication:
                 self._submit_main_thread,
                 self._operator_products.deactivate_all_on_demand,
             )
-            self._state.update_stream_products(self._operator_products.state())
+            self._state.update_stream_products(
+                self._operator_products.state(
+                    content_ready=self._stream_content_ready()
+                )
+            )
             return web.json_response({"accepted": True})
         except (RuntimeError, TimeoutError) as error:
             return web.json_response({"error": str(error)}, status=409)
@@ -297,19 +301,32 @@ class AdapterApplication:
             if active:
                 result = await asyncio.to_thread(
                     self._submit_main_thread,
-                    lambda: self._operator_products.activate(camera_id),
+                    lambda: self._operator_products.activate(
+                        camera_id,
+                        content_ready=self._stream_content_ready(),
+                    ),
                 )
             else:
                 result = await asyncio.to_thread(
                     self._submit_main_thread,
-                    lambda: self._operator_products.deactivate(camera_id),
+                    lambda: self._operator_products.deactivate(
+                        camera_id,
+                        content_ready=self._stream_content_ready(),
+                    ),
                 )
-            self._state.update_stream_products(self._operator_products.state())
+            self._state.update_stream_products(
+                self._operator_products.state(
+                    content_ready=self._stream_content_ready()
+                )
+            )
             return web.json_response(result)
         except ValueError as error:
             return web.json_response({"error": str(error)}, status=404)
         except (RuntimeError, TimeoutError) as error:
             return web.json_response({"error": str(error)}, status=409)
+
+    def _stream_content_ready(self) -> bool:
+        return self._state.snapshot()["tiles"]["lifecycle"] == "ready"
 
     def _execute_command(self, command: DirectCommand) -> dict[str, object]:
         self._state.require_session(command.session_id)

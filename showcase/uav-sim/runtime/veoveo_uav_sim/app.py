@@ -355,7 +355,7 @@ def run(config: RuntimeConfig) -> None:
             raise RuntimeError(
                 "failed to enable required extension omni.kit.livestream.aov"
             )
-        state.update_stream_products(operator_products.state())
+        state.update_stream_products(operator_products.state(content_ready=False))
 
         rigid_body_paths = tuple(
             f"{vehicle_callback_prefixes[vehicle_id]}/{body_name}"
@@ -629,7 +629,13 @@ def run(config: RuntimeConfig) -> None:
                     world.render()
                     update_cesium_viewport()
                     assert operator_products is not None
-                    state.update_stream_products(operator_products.state())
+                    state.update_stream_products(
+                        operator_products.state(
+                            content_ready=(
+                                state.snapshot()["tiles"]["lifecycle"] == "ready"
+                            )
+                        )
+                    )
                     clock_status = physics_clock.status()
                     state.update_realtime_clock(
                         clock_status.rebases,
