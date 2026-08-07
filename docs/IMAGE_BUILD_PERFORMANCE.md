@@ -293,6 +293,18 @@ The selected commit timestamp remains separate evidence. This distinction matter
 because BuildKit treats the predefined epoch as an input to every stage, including the
 pinned upstream checkout and compile stages that do not consume repository source.
 
+The accepted cold and cross-revision runs used the same registry cache reference:
+
+| Case | Total qualified publication | Upstream result |
+|---|---:|---|
+| Cold seed `ed1bf0a` | 905.602 s | PX4 checkout and 1,109-step SITL build executed |
+| Source-only revision `b200045` | 305.902 s | PX4 checkout and SITL build were cache hits |
+
+The warm run spent 300.406 seconds in provenance and 154.983 seconds in export while
+the registry push itself took 0.118 seconds. Development iteration therefore stages the
+affected image first and reserves full qualification for an accepted source revision;
+the registry cache protects both paths.
+
 ## Acceptance Matrix
 
 | Requirement | Evidence | Result |
