@@ -160,7 +160,7 @@ async fn preflight_console_live_app_inner(cdp_base: &str, page_url: &str) -> Res
             &target_id,
             &session_id,
             "uav-sim",
-            "UAV live view",
+            "UAV live cameras",
         )
         .await?;
         cdp.assert_no_software_renderer_events()?;
@@ -291,11 +291,11 @@ async fn capture_console_live_app_inner(
                 && snapshot
                     .get("appFrameTitle")
                     .and_then(Value::as_str)
-                    .is_some_and(|title| title.contains("Simulation"))
+                    .is_some_and(|title| title.contains("UAV live cameras"))
                 && snapshot
                     .get("bodyText")
                     .and_then(Value::as_str)
-                    .is_some_and(|body| body.contains("Simulation live views")),
+                    .is_some_and(|body| body.contains("UAV live cameras")),
             "real Console did not load its snapshot, App catalog, and UAV live view frame: \
              {snapshot}"
         );
@@ -1169,7 +1169,7 @@ async fn wait_for_console_app_camera(
     loop {
         let expression = format!(
             r#"(() => {{
-              const input=[...document.querySelectorAll('#cameras input[type="checkbox"]')]
+              const input=[...document.querySelectorAll('#choices input[type="checkbox"]')]
                 .find((candidate)=>candidate.parentElement?.textContent?.trim().startsWith({expected}));
               if (!input) return {{found:false,error:document.getElementById("error")?.hidden === false
                 ? document.getElementById("error").textContent : "",body:document.body?.innerText ?? ""}};
@@ -1349,7 +1349,7 @@ async fn close_console_live_view(
         "uav-sim",
         &format!(
             r#"(() => {{
-                  const input=[...document.querySelectorAll('#cameras input[type="checkbox"]')]
+                  const input=[...document.querySelectorAll('#choices input[type="checkbox"]')]
                     .find((candidate)=>candidate.parentElement?.textContent?.trim().startsWith({expected}));
                   if (!input) return false;
                   if (input.checked) input.click();
@@ -1371,7 +1371,7 @@ async fn close_console_live_view(
             session_id,
             "uav-sim",
             r#"(() => ({
-                  checked:document.querySelector('#cameras input[type="checkbox"]:checked') !== null,
+                  checked:document.querySelector('#choices input[type="checkbox"]:checked') !== null,
                   videoCount:document.querySelectorAll("video").length,
                   status:document.getElementById("status")?.textContent ?? "",
                   error:document.getElementById("error")?.hidden === false
@@ -2281,7 +2281,7 @@ const HARDWARE_PREFLIGHT: &str = r#"(async () => {
 
 const APP_FRAME_VIDEO_STATE: &str = r#"(() => {
   const video=document.querySelector("video");
-  const camera=document.querySelector(`#cameras input[type="checkbox"]:checked`);
+  const camera=document.querySelector(`#choices input[type="checkbox"]:checked`);
   return {
     documentEpochMs:performance.timeOrigin,
     cameraId:camera?.parentElement?.textContent?.split(" · ")[0]?.trim() ?? "",
@@ -2456,14 +2456,14 @@ mod tests {
     fn console_app_body_must_finish_after_the_transient_empty_document() {
         assert!(!console_app_body_ready(
             &serde_json::json!({"readyState": "complete", "body": ""}),
-            "UAV live view"
+            "UAV live cameras"
         ));
         assert!(console_app_body_ready(
             &serde_json::json!({
                 "readyState": "complete",
-                "body": "UAV live view\nNVIDIA NVENC · H.264"
+                "body": "UAV live cameras\nNVIDIA NVENC · H.264"
             }),
-            "UAV live view"
+            "UAV live cameras"
         ));
     }
 
