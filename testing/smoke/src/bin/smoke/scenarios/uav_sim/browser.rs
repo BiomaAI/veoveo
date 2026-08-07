@@ -22,6 +22,8 @@ use recording_acceptance::{
 #[path = "browser/recording_acceptance.rs"]
 mod recording_acceptance;
 
+const SIMULTANEOUS_VIEW_BARRIER_TIMEOUT: Duration = Duration::from_secs(15);
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ConsoleLiveCaptureEvidence {
@@ -340,7 +342,9 @@ async fn capture_console_live_app_inner(
         .await?;
         decode.validate()?;
         if let Some(simultaneous) = simultaneous {
-            simultaneous.wait().await;
+            tokio::time::timeout(SIMULTANEOUS_VIEW_BARRIER_TIMEOUT, simultaneous.wait())
+                .await
+                .context("the peer live-view window did not reach advancing video")?;
         }
         let snapshot: Value = cdp
             .evaluate(
