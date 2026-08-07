@@ -307,14 +307,14 @@ class OperatorProductCollection:
             )
         ]
 
-    def active_viewports(self) -> tuple[tuple[str, HydraRenderViewport], ...]:
+    def active_camera_ids(self) -> tuple[str, ...]:
         return tuple(
-            (product.definition.camera_id, viewport)
+            product.definition.camera_id
             for product in sorted(
                 self._products.values(),
                 key=lambda product: product.definition.physical_slot,
             )
-            if product.active and (viewport := product.viewport) is not None
+            if product.active
         )
 
     def close(self) -> None:
