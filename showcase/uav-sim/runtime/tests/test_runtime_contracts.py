@@ -231,7 +231,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIn('"sync_loads": False', app_source)
         self.assertIn('"disable_viewport_updates": True', app_source)
         self.assertNotIn("get_active_viewport", app_source)
-        self.assertIn("current_cesium_viewport", app_source)
+        self.assertIn("current_pose_cesium_viewport", app_source)
         self.assertNotIn("follow_camera", app_source)
         self.assertIn("operator_camera_cadence.due(physics_step)", app_source)
 
@@ -243,6 +243,7 @@ class RuntimeConfigTests(unittest.TestCase):
             ).read_text()
             for source_name in ("hydra_camera.py", "operator_products.py")
         )
+        self.assertNotIn("get_frame_info", product_sources)
         self.assertEqual(product_sources.count("is_async_low_latency=False"), 2)
 
     def test_recording_policy_is_typed_and_bounded(self) -> None:

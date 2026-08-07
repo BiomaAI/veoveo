@@ -7,7 +7,6 @@ from typing import Any
 
 import numpy as np
 
-from .hydra_camera import HydraRenderViewport, hydra_render_viewport
 from .operator_camera import CameraStreamPolicy, OperatorCameraDefinition
 from .operator_camera_config import OperatorLiveViewRuntimeConfig
 from .operator_health import OperatorProductHealth
@@ -82,7 +81,6 @@ class OperatorRenderProduct:
         self._closed = False
         self._capture_pending = False
         self._last_capture_requested = 0.0
-        self._viewport: HydraRenderViewport | None = None
         self._failure: BaseException | None = None
         self._health = OperatorProductHealth(maximum_frame_age_ms)
         self._hydra_texture = create_hydra_texture(
@@ -122,11 +120,6 @@ class OperatorRenderProduct:
         with self._lock:
             return self._active and not self._closed
 
-    @property
-    def viewport(self) -> HydraRenderViewport | None:
-        with self._lock:
-            return self._viewport
-
     def activate(self) -> None:
         with self._lock:
             if self._closed:
@@ -135,7 +128,6 @@ class OperatorRenderProduct:
                 return
             self._active = True
             self._failure = None
-            self._viewport = None
             self._capture_pending = False
             self._last_capture_requested = 0.0
             self._health.activate()
@@ -148,7 +140,6 @@ class OperatorRenderProduct:
             if not self._active:
                 return
             self._active = False
-            self._viewport = None
             self._capture_pending = False
             self._health.deactivate()
         self._hydra_texture.updates_enabled = False
@@ -157,7 +148,6 @@ class OperatorRenderProduct:
         with self._lock:
             self._closed = True
             self._active = False
-            self._viewport = None
             self._capture_pending = False
             self._health.deactivate()
         self._hydra_texture.updates_enabled = False
@@ -195,14 +185,10 @@ class OperatorRenderProduct:
             resource = texture.get("rp_resource") if isinstance(texture, dict) else None
             if resource is None:
                 return
-            viewport = hydra_render_viewport(
-                self._hydra_texture.get_frame_info(event["result_handle"])
-            )
             now = time.monotonic()
             with self._lock:
                 if self._closed or not self._active:
                     return
-                self._viewport = viewport
                 self._health.observe_frame(monotonic_seconds=now)
                 if self._capture_pending or now - self._last_capture_requested < 0.5:
                     return

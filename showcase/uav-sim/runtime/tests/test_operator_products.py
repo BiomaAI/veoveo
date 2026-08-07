@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import unittest
 
-from veoveo_uav_sim.hydra_camera import hydra_render_viewport
 from veoveo_uav_sim.operator_camera import CameraRigKind
 from veoveo_uav_sim.operator_camera_config import OperatorLiveViewRuntimeConfig
 from veoveo_uav_sim.operator_health import OperatorProductHealth
@@ -162,22 +161,6 @@ class OperatorCameraConfigTests(unittest.TestCase):
 
 
 class OperatorProductTests(unittest.TestCase):
-    def test_hydra_frame_is_the_canonical_cesium_viewport(self) -> None:
-        frame = {
-            "view": tuple(float(index) for index in range(16)),
-            "projection": tuple(float(index + 16) for index in range(16)),
-            "resolution": (1280, 720),
-        }
-        viewport = hydra_render_viewport(frame)
-        self.assertEqual(viewport.width, 1280)
-        self.assertEqual(viewport.height, 720)
-        self.assertEqual(len(viewport.view), 16)
-
-        with self.assertRaisesRegex(RuntimeError, "metadata"):
-            hydra_render_viewport({**frame, "view": ()})
-        with self.assertRaisesRegex(RuntimeError, "resolution"):
-            hydra_render_viewport({**frame, "resolution": (0, 720)})
-
     def test_aov_arguments_have_one_locked_port_pair_per_product(self) -> None:
         cameras = [
             _camera(
