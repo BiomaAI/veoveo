@@ -18,9 +18,9 @@ ARCH = Path(__file__).resolve().parents[1]
 CATALOGS = ARCH / "catalogs"
 DIAGRAMS = ARCH / "diagrams"
 MODEL = ARCH / "model"
-VERSION = "0.2.0"
-REVISION_DATE = "2026-07-29"
-SOURCE_COMMIT = "6b7d59a9d26a3b077084bbd535378d00620d4097"
+VERSION = "0.3.0"
+REVISION_DATE = "2026-08-07"
+SOURCE_COMMIT = "1a12539706eefcc9fde7359a4bb5f5f8114eb5f2"
 
 
 def read_csv(name: str) -> list[dict[str, str]]:

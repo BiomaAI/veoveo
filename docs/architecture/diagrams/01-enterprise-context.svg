@@ -13,7 +13,7 @@
 <rect x="0" y="0" width="1700" height="82" rx="0" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
 <text x="36" y="43" class="title inverse" text-anchor="start">Enterprise context</text>
 <text x="1664" y="32" class="label inverse" text-anchor="end">VV-VIEW-01</text>
-<text x="1664" y="57" class="small inverse" text-anchor="end">UAF 1.3 / SysML 1.6 | v0.2.0</text>
+<text x="1664" y="57" class="small inverse" text-anchor="end">UAF 1.3 / SysML 1.6 | v0.3.0</text>
 <rect x="315" y="125" width="1070" height="815" rx="12" fill="#e7eef0" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
 <text x="333" y="151" class="label" text-anchor="start">VEOVEO INSTALLATION BOUNDARY</text>
 <text x="1367" y="151" class="small" text-anchor="end">Organization owned</text>
@@ -155,5 +155,5 @@
 <path d="M 845 830 L 585 780" class="edge-muted"/>
 <rect x="28" y="1045" width="1644" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1066" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="1670" y="1066" class="tiny" text-anchor="end">Revision 2026-07-29 | VV-VIEW-01</text>
+<text x="1670" y="1066" class="tiny" text-anchor="end">Revision 2026-08-07 | VV-VIEW-01</text>
 </svg>
