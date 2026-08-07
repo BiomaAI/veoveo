@@ -142,6 +142,7 @@ def run(config: RuntimeConfig) -> None:
     from .px4 import Px4Commander
     from .realtime import FixedStepCadenceGate, native_minimum_frame_rate
     from .recording import ImuTelemetry, RecordingPublisher
+    from .render_pose import rendered_pose_agreement
     from .server import (
         AdapterApplication,
         AdapterServer,
@@ -739,6 +740,15 @@ def run(config: RuntimeConfig) -> None:
                         # accepts the canonical NVENC packet fan-out.
                         rgb = normalize_rgb_frame(frame.pixels)
                         quality = measure_camera_frame(rgb)
+                        entity_transforms = operator_entity_transforms()
+                        expected_sensor_pose = compose_pose(
+                            entity_transforms[vehicle_id].pose,
+                            sensor_mount_pose,
+                        )
+                        render_pose = rendered_pose_agreement(
+                            frame.rendered_camera,
+                            expected_sensor_pose,
+                        )
                         camera_frames_observed[vehicle_id] += 1
                         camera_visible_streaks[vehicle_id] = (
                             camera_visible_streaks[vehicle_id] + 1
@@ -770,6 +780,7 @@ def run(config: RuntimeConfig) -> None:
                             quality,
                             diagnostic_code=camera_health.diagnostic_code,
                             diagnostic=camera_health.diagnostic,
+                            render_pose=render_pose,
                         )
                         recording.log_camera_quality(
                             quality,
@@ -786,8 +797,11 @@ def run(config: RuntimeConfig) -> None:
                         ):
                             LOGGER.error(
                                 "down camera for %s lacks visible scene detail after "
-                                "streamed-world content became ready; simulation continues",
+                                "streamed-world content became ready; render pose differs "
+                                "by %.3f m and %.3f degrees; simulation continues",
                                 vehicle_id,
+                                render_pose.position_error_m,
+                                render_pose.forward_error_degrees,
                             )
 
             if render:
