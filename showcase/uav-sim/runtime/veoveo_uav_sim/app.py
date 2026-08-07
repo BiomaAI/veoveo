@@ -628,8 +628,11 @@ def run(config: RuntimeConfig) -> None:
                     world.step(render=False)
                 render = render_deadline.due(now=time.monotonic())
                 if render:
+                    render_cycle_started = time.monotonic()
                     update_operator_cameras(now)
+                    kit_render_started = time.monotonic()
                     world.render()
+                    kit_render_wall_seconds = time.monotonic() - kit_render_started
                     update_cesium_viewport()
                     assert operator_products is not None
                     state.update_stream_products(
@@ -788,6 +791,11 @@ def run(config: RuntimeConfig) -> None:
                     )
                 elif tile_health.lifecycle != "failed":
                     tile_unavailable_reported = False
+
+                state.observe_render_cycle(
+                    kit_render_wall_seconds,
+                    time.monotonic() - render_cycle_started,
+                )
 
             for vehicle_id, future in connection_futures.items():
                 if future.done() and future.exception() is not None:
