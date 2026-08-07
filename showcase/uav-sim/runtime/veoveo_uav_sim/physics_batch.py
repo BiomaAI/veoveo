@@ -24,6 +24,10 @@ class FleetPhysicsTiming:
     physics_steps: int
     refresh_states_wall_seconds: float
     vehicle_update_wall_seconds: float
+    state_update_wall_seconds: float
+    dynamics_update_wall_seconds: float
+    sensor_update_wall_seconds: float
+    backend_state_wall_seconds: float
     flush_forces_wall_seconds: float
     after_step_wall_seconds: float
     maximum_physics_step_ms: float
@@ -285,6 +289,10 @@ class FleetPhysicsLifecycle:
         self._physics_steps = 0
         self._refresh_states_wall_seconds = 0.0
         self._vehicle_update_wall_seconds = 0.0
+        self._state_update_wall_seconds = 0.0
+        self._dynamics_update_wall_seconds = 0.0
+        self._sensor_update_wall_seconds = 0.0
+        self._backend_state_wall_seconds = 0.0
         self._flush_forces_wall_seconds = 0.0
         self._after_step_wall_seconds = 0.0
         self._maximum_physics_step_ms = 0.0
@@ -300,6 +308,10 @@ class FleetPhysicsLifecycle:
             physics_steps=self._physics_steps,
             refresh_states_wall_seconds=self._refresh_states_wall_seconds,
             vehicle_update_wall_seconds=self._vehicle_update_wall_seconds,
+            state_update_wall_seconds=self._state_update_wall_seconds,
+            dynamics_update_wall_seconds=self._dynamics_update_wall_seconds,
+            sensor_update_wall_seconds=self._sensor_update_wall_seconds,
+            backend_state_wall_seconds=self._backend_state_wall_seconds,
             flush_forces_wall_seconds=self._flush_forces_wall_seconds,
             after_step_wall_seconds=self._after_step_wall_seconds,
             maximum_physics_step_ms=self._maximum_physics_step_ms,
@@ -341,10 +353,21 @@ class FleetPhysicsLifecycle:
 
         phase_started = time.perf_counter()
         for vehicle in self._vehicles.values():
+            method_started = time.perf_counter()
             vehicle.update_state(dt)
+            self._state_update_wall_seconds += time.perf_counter() - method_started
+
+            method_started = time.perf_counter()
             vehicle.update(dt)
+            self._dynamics_update_wall_seconds += time.perf_counter() - method_started
+
+            method_started = time.perf_counter()
             vehicle.update_sensors(dt)
+            self._sensor_update_wall_seconds += time.perf_counter() - method_started
+
+            method_started = time.perf_counter()
             vehicle.update_sim_state(dt)
+            self._backend_state_wall_seconds += time.perf_counter() - method_started
         self._vehicle_update_wall_seconds += time.perf_counter() - phase_started
 
         phase_started = time.perf_counter()
