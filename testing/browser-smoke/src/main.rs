@@ -16,12 +16,11 @@ use serde_json::Value;
 mod browser;
 
 use browser::{
-    ConsoleLiveCaptureEvidence, ConsoleRecordingCaptureEvidence, ConsoleStreamCaptureEvidence,
-    capture_console_live_app, capture_console_live_app_pair, capture_console_recording,
-    capture_console_stream_app, preflight_console_live_app,
+    ConsoleLiveCaptureEvidence, ConsoleRecordingCaptureEvidence, capture_console_live_app,
+    capture_console_live_app_pair, capture_console_recording, preflight_console_live_app,
 };
 
-const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-browser-evidence/v6";
+const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-live-view-browser-evidence/v7";
 const MAX_RECORDING_SOURCE_LAG_SECONDS: f64 = 1.0;
 const MINIMUM_PHYSICS_REAL_TIME_FACTOR: f64 = 0.98;
 const PRIMARY_CAMERA_ID: &str = "follow";
@@ -110,15 +109,10 @@ struct BrowserAcceptanceEvidence {
     scenario_path: String,
     session_id: String,
     camera_ids: Vec<String>,
-    recording_id: String,
-    source_simulation_time_seconds: f64,
-    recording_simulation_time_seconds: f64,
-    recording_source_lag_seconds: f64,
-    source_alignment: SourceTimelineAlignmentEvidence,
+    source_window: SourceTimelineWindowEvidence,
+    sensor_isolation: SensorIsolationEvidence,
     performance: LiveViewPerformanceEvidence,
     live_views: Vec<ConsoleLiveCaptureEvidence>,
-    stream: ConsoleStreamCaptureEvidence,
-    recording: ConsoleRecordingCaptureEvidence,
 }
 
 #[derive(Debug, Serialize)]
@@ -143,6 +137,24 @@ struct RecordingBrowserAcceptanceEvidence {
 struct SourceTimelineSample {
     updated_at: chrono::DateTime<Utc>,
     simulation_time_seconds: f64,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SourceTimelineWindowEvidence {
+    before: SourceTimelineSample,
+    after: SourceTimelineSample,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SensorIsolationEvidence {
+    vehicle_id: String,
+    declared_frame_rate_hz: f64,
+    frames_before: u64,
+    frames_after: u64,
+    simulation_seconds: f64,
+    observed_frame_rate_hz: f64,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -353,7 +365,6 @@ async fn verify_running_showcase(
         json_string(&initial_state, "/lifecycle")? == "running",
         "focused browser acceptance requires the existing simulation to remain running: {initial_state}"
     );
-    let recording_id = recording_id(&initial_state)?;
     let cameras = initial_state
         .get("live_cameras")
         .and_then(Value::as_array)
@@ -459,22 +470,6 @@ async fn verify_running_showcase(
             "focused browser evidence omitted qualified camera {camera_id}: expected {expected_captures} captures"
         );
     }
-    let stream = capture_console_stream_app(
-        chrome_cdp_url,
-        public_base_url,
-        &evidence_directory.join("stream.png"),
-        timeout,
-    )
-    .await?;
-    let recording = capture_console_recording(
-        chrome_cdp_url,
-        public_base_url,
-        &recording_id,
-        &evidence_directory.join("recording.png"),
-        timeout,
-    )
-    .await?;
-
     let final_state = simulation_state(&operator, &scenario.session_id).await?;
     let final_products = final_state
         .get("stream_products")
@@ -501,17 +496,14 @@ async fn verify_running_showcase(
         json_string(&final_state, "/lifecycle")? == "running",
         "focused browser acceptance altered the running simulation: {final_state}"
     );
-    let source_alignment =
-        align_source_timeline(&initial_state, &final_state, recording.captured_at())?;
-    let performance = live_view_performance(&source_alignment, &live_views)?;
-    let source_simulation_time_seconds = source_alignment.aligned_simulation_time_seconds;
-    let recording_simulation_time_seconds = recording.final_timeline_seconds();
-    let recording_source_lag_seconds =
-        source_simulation_time_seconds - recording_simulation_time_seconds;
-    ensure!(
-        (0.0..=MAX_RECORDING_SOURCE_LAG_SECONDS).contains(&recording_source_lag_seconds),
-        "live Rerun playback is not current with its simulation source: source={source_simulation_time_seconds:.3}s recording={recording_simulation_time_seconds:.3}s lag={recording_source_lag_seconds:.3}s"
-    );
+    let source_window = source_timeline_window(&initial_state, &final_state)?;
+    let sensor_isolation = sensor_isolation(
+        &initial_state,
+        &final_state,
+        &source_window,
+        &scenario.vehicle_id,
+    )?;
+    let performance = live_view_performance(&source_window, &live_views)?;
     let evidence = BrowserAcceptanceEvidence {
         schema: EVIDENCE_SCHEMA,
         completed_at: Utc::now(),
@@ -523,15 +515,10 @@ async fn verify_running_showcase(
             .iter()
             .map(|camera_id| (*camera_id).to_owned())
             .collect(),
-        recording_id,
-        source_simulation_time_seconds,
-        recording_simulation_time_seconds,
-        recording_source_lag_seconds,
-        source_alignment,
+        source_window,
+        sensor_isolation,
         performance,
         live_views,
-        stream,
-        recording,
     };
     let manifest = evidence_directory.join("evidence.json");
     fs::write(&manifest, serde_json::to_vec_pretty(&evidence)?)
@@ -544,16 +531,16 @@ async fn verify_running_showcase(
 }
 
 fn live_view_performance(
-    source_alignment: &SourceTimelineAlignmentEvidence,
+    source_window: &SourceTimelineWindowEvidence,
     live_views: &[ConsoleLiveCaptureEvidence],
 ) -> Result<LiveViewPerformanceEvidence> {
-    let wall_seconds = (source_alignment.after.updated_at - source_alignment.before.updated_at)
+    let wall_seconds = (source_window.after.updated_at - source_window.before.updated_at)
         .num_nanoseconds()
         .context("source timeline performance window exceeds supported duration")?
         as f64
         / 1_000_000_000.0;
-    let simulation_seconds = source_alignment.after.simulation_time_seconds
-        - source_alignment.before.simulation_time_seconds;
+    let simulation_seconds =
+        source_window.after.simulation_time_seconds - source_window.before.simulation_time_seconds;
     ensure!(
         wall_seconds > 0.0 && simulation_seconds > 0.0,
         "source timeline performance window did not advance"
@@ -586,6 +573,78 @@ fn live_view_performance(
             .map(ConsoleLiveCaptureEvidence::cadence_dropped_frames)
             .sum(),
     })
+}
+
+fn source_timeline_window(before: &Value, after: &Value) -> Result<SourceTimelineWindowEvidence> {
+    let before = source_timeline_sample(before)?;
+    let after = source_timeline_sample(after)?;
+    ensure!(
+        after.updated_at > before.updated_at
+            && after.simulation_time_seconds > before.simulation_time_seconds,
+        "running simulation source timeline did not advance: {before:?} -> {after:?}"
+    );
+    Ok(SourceTimelineWindowEvidence { before, after })
+}
+
+fn sensor_isolation(
+    before: &Value,
+    after: &Value,
+    source_window: &SourceTimelineWindowEvidence,
+    vehicle_id: &str,
+) -> Result<SensorIsolationEvidence> {
+    let before_camera = physical_sensor(before, vehicle_id)?;
+    let after_camera = physical_sensor(after, vehicle_id)?;
+    let declared_frame_rate_hz = before_camera
+        .get("frame_rate_hz")
+        .and_then(Value::as_f64)
+        .context("physical sensor omitted frame_rate_hz")?;
+    ensure!(
+        after_camera.get("frame_rate_hz").and_then(Value::as_f64) == Some(declared_frame_rate_hz)
+            && before_camera.get("encoder").and_then(Value::as_str) == Some("nvidia_nvenc")
+            && after_camera.get("encoder").and_then(Value::as_str) == Some("nvidia_nvenc"),
+        "viewer activity changed the physical sensor contract: before={before_camera} after={after_camera}"
+    );
+    let frames_before = before_camera
+        .get("frames_observed")
+        .and_then(Value::as_u64)
+        .context("physical sensor omitted frames_observed")?;
+    let frames_after = after_camera
+        .get("frames_observed")
+        .and_then(Value::as_u64)
+        .context("physical sensor omitted frames_observed")?;
+    let simulation_seconds =
+        source_window.after.simulation_time_seconds - source_window.before.simulation_time_seconds;
+    ensure!(
+        declared_frame_rate_hz > 0.0 && simulation_seconds > 0.0 && frames_after > frames_before,
+        "physical sensor did not advance while viewer products were active"
+    );
+    let observed_frame_rate_hz = (frames_after - frames_before) as f64 / simulation_seconds;
+    let minimum = declared_frame_rate_hz * 0.90;
+    let maximum = declared_frame_rate_hz * 1.10;
+    ensure!(
+        (minimum..=maximum).contains(&observed_frame_rate_hz),
+        "viewer activity changed physical sensor cadence: declared={declared_frame_rate_hz:.3}Hz observed={observed_frame_rate_hz:.3}Hz"
+    );
+    Ok(SensorIsolationEvidence {
+        vehicle_id: vehicle_id.to_owned(),
+        declared_frame_rate_hz,
+        frames_before,
+        frames_after,
+        simulation_seconds,
+        observed_frame_rate_hz,
+    })
+}
+
+fn physical_sensor<'a>(state: &'a Value, vehicle_id: &str) -> Result<&'a Value> {
+    state
+        .get("cameras")
+        .and_then(Value::as_array)
+        .and_then(|cameras| {
+            cameras
+                .iter()
+                .find(|camera| camera.get("vehicle_id").and_then(Value::as_str) == Some(vehicle_id))
+        })
+        .with_context(|| format!("simulation state omitted physical sensor for {vehicle_id}"))
 }
 
 fn align_source_timeline(
@@ -810,5 +869,62 @@ mod tests {
             .with_timezone(&Utc);
 
         assert!(align_source_timeline(&before, &after, observed_at).is_err());
+    }
+
+    #[test]
+    fn live_view_window_preserves_the_declared_sensor_cadence() {
+        let before = serde_json::json!({
+            "simulation_time_s": 100.0,
+            "updated_at": "2026-08-05T12:00:00Z",
+            "cameras": [{
+                "vehicle_id": "uav-1",
+                "frame_rate_hz": 2,
+                "frames_observed": 500,
+                "encoder": "nvidia_nvenc"
+            }]
+        });
+        let after = serde_json::json!({
+            "simulation_time_s": 120.0,
+            "updated_at": "2026-08-05T12:00:20Z",
+            "cameras": [{
+                "vehicle_id": "uav-1",
+                "frame_rate_hz": 2,
+                "frames_observed": 540,
+                "encoder": "nvidia_nvenc"
+            }]
+        });
+        let window = source_timeline_window(&before, &after).unwrap();
+
+        let evidence = sensor_isolation(&before, &after, &window, "uav-1").unwrap();
+
+        assert_eq!(evidence.observed_frame_rate_hz, 2.0);
+        assert_eq!(evidence.frames_after - evidence.frames_before, 40);
+    }
+
+    #[test]
+    fn live_view_window_rejects_sensor_cadence_coupled_to_operator_video() {
+        let before = serde_json::json!({
+            "simulation_time_s": 100.0,
+            "updated_at": "2026-08-05T12:00:00Z",
+            "cameras": [{
+                "vehicle_id": "uav-1",
+                "frame_rate_hz": 2,
+                "frames_observed": 500,
+                "encoder": "nvidia_nvenc"
+            }]
+        });
+        let after = serde_json::json!({
+            "simulation_time_s": 110.0,
+            "updated_at": "2026-08-05T12:00:10Z",
+            "cameras": [{
+                "vehicle_id": "uav-1",
+                "frame_rate_hz": 2,
+                "frames_observed": 800,
+                "encoder": "nvidia_nvenc"
+            }]
+        });
+        let window = source_timeline_window(&before, &after).unwrap();
+
+        assert!(sensor_isolation(&before, &after, &window, "uav-1").is_err());
     }
 }

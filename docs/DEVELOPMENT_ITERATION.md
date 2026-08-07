@@ -12,8 +12,8 @@
 | Rerun 0.35.0 RRD | bounded live history and governed archive playback |
 | `veoveo.io/image-affected-plan/v1` | repository-owned affected-surface closure |
 | `veoveo.io/development-image-lock/v1` | repository-owned non-release deployment closure |
-| `veoveo.io/uav-showcase-browser-evidence/v6` | focused multi-camera pixel, cadence, isolated-viewer, simulation real-time-factor, Stream, and Recording evidence over a running simulation |
-| `veoveo.io/uav-recording-browser-evidence/v1` | source-clock and camera-pane evidence for one live governed recording |
+| `veoveo.io/uav-live-view-browser-evidence/v7` | focused authoritative-camera pixels, cadence, isolated-viewer products, sensor separation, and simulation real-time-factor evidence over a running simulation |
+| `veoveo.io/uav-recording-browser-evidence/v2` | source-clock and camera-pane evidence for one live governed recording |
 
 ## Operating Model
 
@@ -114,10 +114,13 @@ cargo xtask smoke uav-recording-browser-verify \
   --chrome-cdp-url http://127.0.0.1:9222
 ```
 
-The complete command reads the running simulation and current leader camera, opens dedicated Console tabs
-for authoritative live cameras, Stream, and Recording, verifies headed hardware graphics, captures
-evidence, closes the tabs, and proves that simulation time advanced. A browser failure can
-therefore be retried without repeating a flight. The command has its own
+The live-view command reads the running simulation and current leader camera, opens
+dedicated Console windows for authoritative live cameras, verifies headed hardware
+graphics, proves distinct native products for simultaneous viewers, checks that physical
+sensor cadence remains independent, captures evidence, closes every viewer, and proves
+that simulation time advanced. It does not open Stream or Recording. A browser failure
+can therefore be retried without repeating a flight or depending on another consumer.
+The command has its own
 `veoveo-browser-smoke` dependency graph and builds the MCP conformance client only when
 an actual run requires it.
 
@@ -227,7 +230,8 @@ Remaining misses must be added here with the evidence path, measured phase, cach
 and exact command. Wall time without phase evidence is not enough to choose an
 optimization.
 
-The latest measured misses remain open:
+The register retains measured sinks after a correction lands because the observation is
+useful when a similar boundary regresses:
 
 | Sink | Observed cost | Required correction |
 |---|---:|---|
@@ -256,10 +260,10 @@ The latest measured misses remain open:
 | The parent GitOps application waits for its repository refresh interval before advancing immutable child revisions | a pushed configuration correction left the child revision unchanged for more than 30 s; an explicit hard refresh advanced it on the next 5 s observation | expose a source-controlled deployment wait command that requests refresh and reports parent fetch, child render, apply, rollout, and readiness phases separately |
 | `image stage` reconciles the managed BuildKit worker before validating the requested immutable Git revision | an invalid revision spent 10.9 s inspecting and reconciling an already-ready builder before returning `Needed a single revision` | resolve the source revision and verify cleanliness before acquiring or inspecting the builder; observed with `cargo xtask image stage --target uav-sim-mcp --registry localhost:5001 --revision 104b4360d8e2a6ac703f848daf518708b27431f0 --evidence-output output/development/uav-sim-mcp-104b4360.stage.json` |
 | The live-view cadence gate used one fixed two-second sleep beginning at decoder startup | the first dual-view run measured 43 frames in 2.011 s, reported 21.39 fps, and ended the composed acceptance before steady-state sampling | warm on 12 `requestVideoFrameCallback` events, then measure 48 presented-frame intervals reactively; retain the declared-rate and dropped-frame gates without a polling timer |
-| The focused browser run validates cross-cutting performance only after serially collecting every visual surface | a 195.49 s run completed two simultaneous viewers, four additional cameras, Stream, and Recording before rejecting a 0.9795 simulation real-time factor; the late failure wrote no manifest and exceeded the three-minute warm budget by 15.49 s | sample real-time factor throughout the run, persist completed checkpoints before later gates, and schedule independent camera captures in slot-bounded pairs |
+| The focused browser run validated unrelated visual consumers after live-view correctness | a 195.49 s run completed two simultaneous viewers, four additional cameras, Stream, and Recording before rejecting a 0.9795 simulation real-time factor; the late failure wrote no manifest and exceeded the three-minute warm budget by 15.49 s | keep native live-view acceptance independent, retain Recording in its dedicated command, and leave Stream verification with its owning server |
 | A long-lived Stream session inherited GStreamer's 60-second RTP dropout tolerance across a simulator replacement | the focused browser retry reached Stream after 50.12 s, then rejected an overlay that was 60.886 s stale; the session remained `running` while its source epoch had changed | publish an RFC 3550 source epoch on every producer start, bound admitted dropout and misorder recovery explicitly, and retain the Stream session across source replacement |
 | A Stream catalog and RTP-epoch correction invalidates almost the entire Stream image build | targeted staging took 65.78 s; BuildKit consumed 50.304 s, optimized compilation consumed 42.330 s, 20 vertices executed, and only 4 were cached | place the admitted catalog and embedded server documentation after stable binary compilation inputs, split C++ runner and Rust-server cache keys, and retain one runnable image digest; evidence: `target/veoveo-xtask/evidence/73eb196ca61f5979e51ba5c788a266cd503b04d6/stage-target-stream-mcp-1786137623809246800-175638/run.json` |
-| The focused browser gate serializes a mandatory 120-second Recording follow check after the other live surfaces | a correct run took 206.64 s and exceeded the three-minute warm budget by 26.64 s; dispatch compiled in 0.41 s, while the product held 1.0000 real-time factor, zero Recording lag, and zero browser frame drops | run the independent Stream and native-camera checkpoints concurrently with the Recording stability window, emit bounded checkpoint progress, and retain one final cross-surface simulation-time assertion; evidence: `output/acceptance/uav-browser/7dc65ac60121550618014e3c69147a7fd3a1471e/019fde24-18d4-7e20-9f20-d0be637a223b/evidence.json` |
+| The focused browser gate serialized a mandatory 120-second Recording follow check after native live view | a correct run took 206.64 s and exceeded the three-minute warm budget by 26.64 s; dispatch compiled in 0.41 s, while the product held 1.0000 real-time factor, zero Recording lag, and zero browser frame drops | split the gates by ownership: native live view proves camera and product behavior, while the dedicated Recording command proves live follow and source alignment; evidence: `output/acceptance/uav-browser/7dc65ac60121550618014e3c69147a7fd3a1471e/019fde24-18d4-7e20-9f20-d0be637a223b/evidence.json` |
 | Proving one Stream source-epoch replacement requires a complete cached GPU-simulator pod replacement | the exact-image restart took 86 s before runtime readiness, even though the retained Stream session resumed with the same identity and advancing result counters | add a focused admitted RTP source-epoch fixture for ordinary Stream iteration and reserve the real GPU pod-replacement proof for release acceptance; the release proof must still exercise the authoritative simulator and may not substitute the fixture |
 | The isolated external-simulation fixture still dispatches through the platform-scale smoke binary | a three-line SDK digest correction rebuilt `veoveo-smoke` for 7.55 s, used 5.4 GB maximum RSS, and took 18.56 s end to end even though the isolated private-index, package, Bake, and Helm checks are one focused scenario | move the external repository fixture into a focused Rust harness with only package-publication, HTTP-index, Bake-print, and Helm dependencies while retaining the same typed smoke command |
 | Documentation PDF publication is a manual CDP sequence without a source-controlled lifecycle or phase record | one three-document headed-Chrome run wrote all outputs but emitted no per-document progress and retained its CDP process for more than three minutes until interrupted; the corrected one-document invocation with explicit disconnect completed in 2.95 s | add a typed `cargo xtask` publication command that performs the mandatory hardware probe, prints each canonical source independently, reports phase timing, terminates its CDP client, validates page identity, and dispatches visual QA |

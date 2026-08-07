@@ -104,7 +104,9 @@ exact authoritative body-and-mount transform without operator smoothing. The Hyd
 product renders at the Kit cadence to maintain moving-camera tile residency, while a
 physics-step cadence gate requests evidence captures at the declared sensor rate.
 Capture requests coalesce while GPU readback is in flight. No wall-clock timer controls
-sensor observations.
+sensor observations. Runtime state reports that declared rate and the observed frame
+counter so live-view acceptance can prove that viewer activity leaves sensor cadence
+unchanged.
 
 One bounded recording contains four-vehicle poses, velocities, geographic positions,
 IMU values, changing health state, and leader video. The producer Blueprint opens Fleet
