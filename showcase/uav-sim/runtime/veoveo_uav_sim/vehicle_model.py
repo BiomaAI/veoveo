@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -16,6 +17,41 @@ PX4_IRIS_MIN_ROTOR_VELOCITY_RPS = 0.0
 PX4_IRIS_MAX_ROTOR_VELOCITY_RPS = 1100.0
 PX4_IRIS_TIME_CONSTANT_UP_S = 0.0125
 PX4_IRIS_TIME_CONSTANT_DOWN_S = 0.025
+
+
+@dataclass(frozen=True)
+class Px4IrisSensorCadence:
+    """Bounded sensor rates for the authoritative PX4 Iris simulation."""
+
+    imu_hz: int = 60
+    barometer_hz: int = 30
+    magnetometer_hz: int = 30
+    gps_hz: int = 10
+
+    def validate_for_physics(self, physics_hz: int) -> None:
+        if physics_hz <= 0:
+            raise ValueError("physics cadence must be positive")
+        for name, rate_hz in (
+            ("IMU", self.imu_hz),
+            ("barometer", self.barometer_hz),
+            ("magnetometer", self.magnetometer_hz),
+            ("GPS", self.gps_hz),
+        ):
+            if rate_hz <= 0:
+                raise ValueError(f"{name} cadence must be positive")
+            if rate_hz > physics_hz:
+                raise ValueError(
+                    f"{name} cadence {rate_hz} Hz exceeds physics cadence "
+                    f"{physics_hz} Hz"
+                )
+            if physics_hz % rate_hz != 0:
+                raise ValueError(
+                    f"{name} cadence {rate_hz} Hz must divide physics cadence "
+                    f"{physics_hz} Hz exactly"
+                )
+
+
+PX4_IRIS_SENSOR_CADENCE = Px4IrisSensorCadence()
 
 
 class Px4IrisThrustCurve:

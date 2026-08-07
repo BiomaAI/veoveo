@@ -115,6 +115,7 @@ def run(config: RuntimeConfig) -> None:
         PX4MavlinkBackendConfig,
     )
     from pegasus.simulator.logic.interface.pegasus_interface import PegasusInterface
+    from pegasus.simulator.logic.sensors import Barometer, GPS, IMU, Magnetometer
     from pegasus.simulator.logic.vehicles.multirotor import Multirotor, MultirotorConfig
     from pegasus.simulator.params import ROBOTS
 
@@ -146,7 +147,7 @@ def run(config: RuntimeConfig) -> None:
         TimelineControls,
     )
     from .state import RuntimeState, VehicleTelemetry
-    from .vehicle_model import Px4IrisThrustCurve
+    from .vehicle_model import PX4_IRIS_SENSOR_CADENCE, Px4IrisThrustCurve
     from .world_config import WorldConfiguration, WorldConfigurationSlot
     from .world_health import assess_tile_health
 
@@ -313,6 +314,21 @@ def run(config: RuntimeConfig) -> None:
             vehicle_prim_path = f"/World/uav_{index + 1}"
             multirotor_config = MultirotorConfig()
             multirotor_config.thrust_curve = Px4IrisThrustCurve()
+            PX4_IRIS_SENSOR_CADENCE.validate_for_physics(config.physics_hz)
+            multirotor_config.sensors = [
+                Barometer(
+                    {"update_rate": float(PX4_IRIS_SENSOR_CADENCE.barometer_hz)}
+                ),
+                IMU({"update_rate": float(PX4_IRIS_SENSOR_CADENCE.imu_hz)}),
+                Magnetometer(
+                    {
+                        "update_rate": float(
+                            PX4_IRIS_SENSOR_CADENCE.magnetometer_hz
+                        )
+                    }
+                ),
+                GPS({"update_rate": float(PX4_IRIS_SENSOR_CADENCE.gps_hz)}),
+            ]
             px4_backend = PX4MavlinkBackend(
                 PX4MavlinkBackendConfig(
                     {
