@@ -11,9 +11,9 @@ const LARGE_ARTIFACT_ROWS: u64 = 200_000;
 const LARGE_ARTIFACT_MINIMUM_BYTES: usize = 8 * 1024 * 1024;
 const OPERATOR_PROFILE_SCOPES: &[&str] = &[
     "operator:use",
-    "simulation-view:read",
-    "simulation-view:write",
-    "simulation-view:stream",
+    "uav-sim:read",
+    "uav-sim:write",
+    "uav-sim:stream",
     "view:read",
     "view:write",
     "view:capture",
@@ -26,8 +26,6 @@ const BIOMA_DEPLOYMENTS: &[&str] = &[
     "console-bff",
     "recording",
     "artifact-mcp",
-    "simulation-view-mcp",
-    "simulation-view-renderer",
     "media-mcp",
     "stream-mcp",
     "reason-mcp",
@@ -62,7 +60,7 @@ pub(crate) async fn bioma_verify(
     for deployment in BIOMA_DEPLOYMENTS {
         assert_available_deployment(context, deployment)?;
     }
-    assert_gpu_capacity(context, 7)?;
+    assert_gpu_capacity(context, 6)?;
 
     let public = url::Url::parse(public_base_url).context("parsing public Bioma URL")?;
     ensure!(
@@ -519,7 +517,7 @@ fn assert_gpu_capacity(context: &str, minimum: u32) -> Result<()> {
         .sum::<u32>();
     ensure!(
         capacity >= minimum,
-        "Bioma requires at least {minimum} allocatable NVIDIA GPU shares; {context} reports {capacity}"
+        "the reference profile requires at least {minimum} allocatable NVIDIA GPU shares; {context} reports {capacity}"
     );
     Ok(())
 }

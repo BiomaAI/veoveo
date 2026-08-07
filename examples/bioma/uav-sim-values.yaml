@@ -13,7 +13,7 @@ recording:
 session:
   vehicleCount: 4
   physicsHz: 60
-  renderingHz: 2
+  renderingHz: 30
   fleetLoop:
     takeoffTimeoutSeconds: 1800
   camera:
@@ -37,17 +37,12 @@ session:
         x: 0.0
         "y": 0.0
         z: -0.7071067811865476
-posePublication:
-  cadenceHz: 20
-  bufferDurationMs: 500
-  producerId: uav-sim
-  producerSpiffeId: spiffe://veoveo.local/simulation/uav-sim
-  epochId: epoch-1
-  endpointHost: simulation-view-pose
-  endpointPort: 7443
-  serverHostname: simulation-view-pose
-  entityTableRevision: 1
-  existingTlsSecret: uav-sim-pose-producer-tls
-  caCertificateKey: ca.crt
-  clientCertificateKey: tls.crt
-  clientPrivateKeyKey: tls.key
+liveView:
+  publicSignalingUrl: wss://veoveo.bioma.ai/uav-sim/signaling
+  publicMediaHost: 127.0.0.1
+  signalingIngress:
+    enabled: true
+    className: traefik
+    host: veoveo.bioma.ai
+    tls:
+      enabled: false

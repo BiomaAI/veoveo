@@ -2,7 +2,7 @@ use std::path::Path;
 
 use serde_json::json;
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayBinding, GatewayControlPlane, GatewayServerFragment, ResourceScheme,
+    GatewayAction, GatewayBinding, GatewayControlPlane, GatewayServerFragment,
     compose_gateway_control_plane,
 };
 
@@ -38,10 +38,7 @@ fn external_simulation_fragment_composes_with_installation_owned_authority() {
         .expect("validate composed control plane");
     assert_eq!(
         serde_json::to_value(&composed.requirements).expect("serialize requirements"),
-        json!({
-            "platformCapabilities": ["artifact", "frames", "simulation_view"],
-            "artifactAudiences": ["anonymous-simulation"]
-        })
+        json!({"platformCapabilities": [], "artifactAudiences": []})
     );
     assert!(
         composed
@@ -56,38 +53,15 @@ fn external_simulation_fragment_composes_with_installation_owned_authority() {
         .iter()
         .find(|server| server.slug.as_str() == "anonymous-simulation")
         .expect("composed anonymous simulation server");
-    assert_eq!(
-        anonymous.referenced_resource_schemes,
-        [
-            ResourceScheme::new("artifact").expect("artifact scheme"),
-            ResourceScheme::new("frames").expect("frames scheme"),
-        ]
-        .into_iter()
-        .collect()
-    );
-    for rule_id in [
-        "allow_simulation_view_surface_read",
-        "allow_simulation_view_write_tools",
-        "allow_simulation_view_streams",
-    ] {
-        let rule = composed
-            .control_plane
-            .policies
-            .iter()
-            .flat_map(|policy| &policy.rules)
-            .find(|rule| rule.id.as_str() == rule_id)
-            .unwrap_or_else(|| panic!("missing Simulation View policy rule `{rule_id}`"));
-        assert!(
-            rule.actions.contains(&GatewayAction::ToolsList),
-            "Simulation View policy rule `{rule_id}` must expose its tools through tools/list"
-        );
-        if rule_id == "allow_simulation_view_streams" {
-            assert!(
-                rule.actions.contains(&GatewayAction::ResourcesList),
-                "Simulation View stream policy must make its App discoverable through \
-                 resources/list"
-            );
-        }
-    }
+    assert_eq!(anonymous.referenced_resource_schemes, Default::default());
+    let rule = composed
+        .control_plane
+        .policies
+        .iter()
+        .flat_map(|policy| &policy.rules)
+        .find(|rule| rule.id.as_str() == "allow_authoritative_simulation_live_view")
+        .expect("authoritative simulation live-view policy");
+    assert!(rule.actions.contains(&GatewayAction::ToolsList));
+    assert!(rule.actions.contains(&GatewayAction::ResourcesList));
     assert_eq!(composed.contributions.len(), 1);
 }

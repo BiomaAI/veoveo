@@ -325,12 +325,40 @@ fn validate_allocator_release_metadata(
 mod tests {
     use std::path::Path;
 
-    use veoveo_deploy_contract::LoadedProfile;
+    use veoveo_deploy_contract::ManagedGpuAllocatorInstallation;
 
     use super::{
         HelmReleaseMetadata, allocator_helm_args, decode_release_metadata,
         validate_allocator_release_metadata,
     };
+
+    fn qualified_installation() -> ManagedGpuAllocatorInstallation {
+        serde_json::from_value(serde_json::json!({
+            "releaseName": "dra-driver-nvidia-gpu",
+            "namespace": "nvidia-dra-driver-gpu",
+            "chart": {
+                "coordinate": "oci://registry.k8s.io/dra-driver-nvidia/charts/dra-driver-nvidia-gpu",
+                "version": "0.4.1",
+                "digest": "sha256:7a00373fdef1025f27ebb1d353719446bbbe6ec4697e9a503c5ffd7e4f1525dd",
+                "contentDigest": "sha256:c1c316f6bdcfe5fed3ff649cff1b43be50d27d0cb1aaf9d29e7bdca1eaa331ce"
+            },
+            "image": {
+                "repository": "registry.k8s.io/dra-driver-nvidia/dra-driver-nvidia-gpu",
+                "tag": "v0.4.1",
+                "digest": "sha256:eefe67396dedea4df74f68a94d5883f33204888b83979babd42b91501a2de1d8",
+                "platformDigests": {
+                    "linux/amd64": "sha256:ad86983849542f6ef22f02e963ecbf545706e037455e0c265889ace137863556",
+                    "linux/arm64": "sha256:b51290bbc1ee6745adf8ffff040d2b917d3e07dbd5cd36fd444b0e371ccc9166"
+                }
+            },
+            "nvidiaDriverRoot": "/",
+            "eligibleNodeSelector": {"node.example/gpu": "true"},
+            "conflictingDevicePluginRemoval": {"mode": "require-absent"},
+            "maturityAcceptance": "technology-preview",
+            "timeoutSeconds": 600
+        }))
+        .unwrap()
+    }
 
     #[test]
     fn helm_4_release_list_shape_retains_chart_metadata() {
@@ -389,17 +417,7 @@ mod tests {
 
     #[test]
     fn allocator_release_metadata_rejects_stale_chart_or_status() {
-        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let profile_path =
-            repository.join("testing/fixtures/external-simulation-installation/deployment.json");
-        let profile = LoadedProfile::load(&profile_path, &repository).unwrap();
-        let installation = profile
-            .resolved_platform()
-            .unwrap()
-            .gpu_scheduling
-            .unwrap()
-            .allocator
-            .installation;
+        let installation = qualified_installation();
         let mut release: HelmReleaseMetadata = serde_json::from_str(
             r#"{
                 "name":"dra-driver-nvidia-gpu",
@@ -421,17 +439,9 @@ mod tests {
 
     #[test]
     fn allocator_values_make_the_managed_selector_authoritative() {
-        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let profile_path =
-            repository.join("testing/fixtures/external-simulation-installation/deployment.json");
-        let profile = LoadedProfile::load(&profile_path, &repository).unwrap();
-        let scheduling = profile.resolved_platform().unwrap().gpu_scheduling.unwrap();
-        let args = allocator_helm_args(
-            "example",
-            &scheduling.allocator.installation,
-            Path::new("/tmp/driver.tgz"),
-        )
-        .unwrap();
+        let installation = qualified_installation();
+        let args =
+            allocator_helm_args("example", &installation, Path::new("/tmp/driver.tgz")).unwrap();
         let rendered = args.join(" ");
 
         assert!(rendered.contains("resourceApiVersion=resource.k8s.io/v1"));

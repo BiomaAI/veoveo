@@ -11,6 +11,7 @@
 | `veoveo.io/mcp-conformance-profile/v1` | domain-neutral declaration of applicable hosted-server checks |
 | `veoveo.io/mcp-conformance-report/v1` | machine-readable implementation identity, capabilities, requirement results, and evidence |
 | `veoveo.io/hosted-mcp/v1` | initial Veoveo hosted-server contract revision |
+| `veoveo.io/live-view/v2` | optional provider-neutral authoritative camera, encoded-product, actor/browser lease, signaling, and redaction profile layered on a domain-owned simulation server |
 
 ## Boundary
 
@@ -39,6 +40,21 @@ and the administrative docs projection. Profile validation requires both URLs to
 the same scheme, host, and effective port before any credential can be forwarded.
 Certification also requires the index and every linked document to return HTTP 401
 without that credential.
+
+## Authoritative Live-View Profile
+
+A simulation profile may require `list_live_cameras`, `open_live_view`,
+`renew_live_view`, and `close_live_view` plus domain-owned camera, product, and
+redacted lease resources. The profile verifies strict schemas, stable product identity,
+actor and browser-instance isolation, token rotation, credential redaction, typed
+capacity rejection, App declaration, and authenticated signaling. Resource URIs retain
+the simulation server's own scheme; conformance never requires a shared renderer URI.
+
+The anonymous external simulation fixture exercises this public contract without
+claiming visual or GPU acceptance. Hardware RTX rendering, one NVENC session per active
+camera, multi-peer encoded fan-out, frame freshness, and headed-browser playback remain
+implementation-owned evidence. The first-party UAV simulation acceptance supplies that
+evidence for the NVIDIA runtime.
 
 ## Report
 

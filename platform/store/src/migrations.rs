@@ -27,7 +27,7 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 36] = [
+const MIGRATIONS: [Migration; 37] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -243,6 +243,12 @@ const MIGRATIONS: [Migration; 36] = [
         name: "recording_ingest_quota_windows",
         filename: "0035_recording_ingest_quota_windows.surql",
         sql: include_str!("../migrations/0035_recording_ingest_quota_windows.surql"),
+    },
+    Migration {
+        version: 36,
+        name: "remove_simulation_view_mirror_state",
+        filename: "0036_remove_simulation_view_mirror_state.surql",
+        sql: include_str!("../migrations/0036_remove_simulation_view_mirror_state.surql"),
     },
 ];
 

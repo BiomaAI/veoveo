@@ -21,7 +21,6 @@ from .fleet_loop import FleetLoopController
 from .operator_camera import CameraStreamPolicy
 from .operator_camera_config import live_camera_descriptor
 from .operator_products import OperatorProductCollection
-from .pose import initial_pose_publication
 from .px4 import Px4Commander
 from .recording import RecordingPublisher
 from .state import RuntimeState, initial_runtime_timing
@@ -128,11 +127,6 @@ class PreconfigurationApplication:
                     for camera in self._config.operator_live_view.cameras
                     if camera.stream_policy is not CameraStreamPolicy.DISABLED
                 ],
-                "pose_publication": initial_pose_publication(
-                    self._config.pose_publication,
-                    self._config.vehicle_count,
-                    self._config.pose_cadence_hz,
-                ),
                 "vehicles": [],
                 "recordings": [],
                 "updated_at": now,
@@ -212,8 +206,6 @@ class AdapterApplication:
         snapshot = self._state.snapshot()
         simulation_ready = (
             snapshot["lifecycle"] in {"ready", "running", "paused"}
-            and snapshot["pose_publication"]["lifecycle"] == "ready"
-            and snapshot["pose_publication"]["sent_snapshots"] > 0
             and bool(snapshot["vehicles"])
             and all(vehicle["px4_connected"] for vehicle in snapshot["vehicles"])
         )

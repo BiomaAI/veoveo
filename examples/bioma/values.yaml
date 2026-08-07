@@ -14,13 +14,12 @@ artifactService:
     - recording
     - stream
     - reason
-    - simulation-view
     - datasheet
     - uav-sim
 
 gateway:
   existingControlPlaneConfigMap: bioma-gateway-control-plane
-  controlPlaneRevision: 7db0bfa8fe51b11aedc66cae94e690fc1f25a5a2bbb28f3033da7fa1593981c4
+  controlPlaneRevision: bc8af14d13da807293893da586143606000040a01522f9c3dc99cf06bb87e74f
 
 consoleBff:
   oauthResource: https://veoveo.bioma.ai/mcp/admin

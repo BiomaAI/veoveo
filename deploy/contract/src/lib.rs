@@ -336,8 +336,6 @@ pub enum PlatformComponent {
     ArtifactService,
     /// Durable ingest, spool, and publication plane for recordings.
     RecordingDataPlane,
-    /// Hardware-only renderer workload and its private pose/media services.
-    GpuRenderer,
     /// Canonical simulation runtime compatibility artifacts and conformance gates.
     SimulationRuntimeSupport,
     Console,
@@ -366,7 +364,6 @@ pub enum FirstPartyMcpServer {
     Recording,
     Stream,
     Reason,
-    SimulationView,
 }
 
 /// Platform capability names accepted from gateway composition requirements.
@@ -382,7 +379,6 @@ pub enum PlatformCapability {
     Optimization,
     Recording,
     Rrd,
-    SimulationView,
 }
 
 /// Provider-neutral isolation selected for one physical-device group.
@@ -1265,7 +1261,6 @@ impl PlatformComponent {
             Self::ObjectStore,
             Self::ArtifactService,
             Self::RecordingDataPlane,
-            Self::GpuRenderer,
             Self::SimulationRuntimeSupport,
             Self::Console,
             Self::Telemetry,
@@ -1292,7 +1287,6 @@ impl FirstPartyMcpServer {
             Self::Recording,
             Self::Stream,
             Self::Reason,
-            Self::SimulationView,
         ])
     }
 }
@@ -1360,38 +1354,6 @@ impl ResolvedPlatformSelection {
                 "recording data plane requires artifact service",
             )?;
         }
-        if self.components.contains(&PlatformComponent::GpuRenderer) {
-            self.require_component(
-                PlatformComponent::SimulationRuntimeSupport,
-                "GPU renderer requires simulation runtime support",
-            )?;
-            self.require_server(
-                FirstPartyMcpServer::SimulationView,
-                "GPU renderer requires Simulation View MCP",
-            )?;
-        }
-        if self
-            .mcp_servers
-            .contains(&FirstPartyMcpServer::SimulationView)
-        {
-            self.require_component(
-                PlatformComponent::ArtifactService,
-                "Simulation View scene materialization requires the artifact service",
-            )?;
-            self.require_component(
-                PlatformComponent::GpuRenderer,
-                "Simulation View MCP requires the GPU renderer",
-            )?;
-            self.require_server(
-                FirstPartyMcpServer::Frames,
-                "Simulation View scene declarations require Frames MCP",
-            )?;
-            self.require_artifact_audience(
-                "simulation-view",
-                "Simulation View scene materialization requires its Artifact data-plane audience",
-            )?;
-        }
-
         let platform_store_servers = [
             FirstPartyMcpServer::Artifact,
             FirstPartyMcpServer::Media,
@@ -1496,12 +1458,6 @@ impl ResolvedPlatformSelection {
                         "recording and rrd capabilities require Recording MCP and hub",
                     )?;
                 }
-                PlatformCapability::SimulationView => {
-                    self.require_server(
-                        FirstPartyMcpServer::SimulationView,
-                        "simulation_view capability requires Simulation View MCP",
-                    )?;
-                }
             }
         }
         for audience in &requirements.artifact_audiences {
@@ -1515,9 +1471,6 @@ impl ResolvedPlatformSelection {
 
     fn validate_gpu_scheduling(&self) -> Result<()> {
         let mut required = BTreeSet::new();
-        if self.components.contains(&PlatformComponent::GpuRenderer) {
-            required.insert("simulation-view-renderer");
-        }
         if self.mcp_servers.contains(&FirstPartyMcpServer::View) {
             required.insert("view-renderer");
         }
@@ -1536,11 +1489,7 @@ impl ResolvedPlatformSelection {
         {
             required.insert("cuopt-executor");
         }
-        if required.is_empty() {
-            ensure!(
-                self.gpu_scheduling.is_none(),
-                "gpuScheduling is present but no selected first-party workload requires a GPU"
-            );
+        if required.is_empty() && self.gpu_scheduling.is_none() {
             return Ok(());
         }
 
@@ -1749,14 +1698,6 @@ impl ResolvedPlatformSelection {
         );
         Ok(())
     }
-
-    fn require_artifact_audience(&self, audience: &str, reason: &str) -> Result<()> {
-        ensure!(
-            self.artifact_audiences.contains(audience),
-            "{reason}; missing artifactAudience {audience}"
-        );
-        Ok(())
-    }
 }
 
 impl PlatformComponent {
@@ -1765,7 +1706,6 @@ impl PlatformComponent {
             Self::Gateway => &["mcp-gateway"],
             Self::ArtifactService => &["artifact-service"],
             Self::RecordingDataPlane => &["recording-hub", "recording-forwarder"],
-            Self::GpuRenderer => &["simulation-view-isaac", "simulation-view-pose"],
             Self::SimulationRuntimeSupport => &["simulation-runtime"],
             Self::Console => &["console-bff"],
             Self::PlatformStore | Self::ObjectStore | Self::Telemetry | Self::Ingress => &[],
@@ -1791,7 +1731,6 @@ impl FirstPartyMcpServer {
             Self::Recording => &["recording-mcp"],
             Self::Stream => &["stream-mcp"],
             Self::Reason => &["reason-mcp"],
-            Self::SimulationView => &["simulation-view-mcp"],
         }
     }
 }
@@ -2473,14 +2412,12 @@ mod tests {
                     workloads: vec![GpuWorkloadPlacement {
                         workload: workload.to_owned(),
                         deployment: match workload {
-                            "simulation-view-renderer" => "simulation-view-renderer",
                             "view-renderer" => "view-mcp",
                             "cuopt-executor" => "optimization-mcp",
                             value => value,
                         }
                         .to_owned(),
                         container: match workload {
-                            "simulation-view-renderer" => "simulation-view-isaac",
                             "view-renderer" => "view-mcp",
                             value => value,
                         }
@@ -2818,52 +2755,6 @@ mod tests {
     }
 
     #[test]
-    fn simulation_view_image_closure_is_complete() {
-        let selection = PlatformSelection {
-            installation_preset: InstallationPreset::Custom,
-            components: BTreeSet::from([
-                PlatformComponent::Gateway,
-                PlatformComponent::PlatformStore,
-                PlatformComponent::ObjectStore,
-                PlatformComponent::ArtifactService,
-                PlatformComponent::GpuRenderer,
-                PlatformComponent::SimulationRuntimeSupport,
-            ]),
-            mcp_servers: BTreeSet::from([
-                FirstPartyMcpServer::Frames,
-                FirstPartyMcpServer::SimulationView,
-            ]),
-            artifact_audiences: BTreeSet::from(["simulation-view".to_owned()]),
-            external_workloads: BTreeSet::new(),
-            gpu_scheduling: Some(exclusive_gpu_scheduling(["simulation-view-renderer"], 1)),
-        }
-        .resolve()
-        .expect("valid Simulation View selection");
-        assert_eq!(
-            selection.required_images(),
-            BTreeSet::from([
-                "artifact-service".to_owned(),
-                "frames-mcp".to_owned(),
-                "mcp-gateway".to_owned(),
-                "simulation-runtime".to_owned(),
-                "simulation-view-isaac".to_owned(),
-                "simulation-view-mcp".to_owned(),
-                "simulation-view-pose".to_owned(),
-            ])
-        );
-        let mut missing_artifact_audience = selection;
-        missing_artifact_audience.artifact_audiences.clear();
-        let error = missing_artifact_audience
-            .validate_dependencies()
-            .expect_err("Simulation View cannot materialize scenes without its Artifact audience");
-        assert!(
-            error
-                .to_string()
-                .contains("missing artifactAudience simulation-view")
-        );
-    }
-
-    #[test]
     fn two_physical_groups_fail_on_one_device() {
         let error = PlatformSelection {
             installation_preset: InstallationPreset::Custom,
@@ -2871,18 +2762,16 @@ mod tests {
                 PlatformComponent::Gateway,
                 PlatformComponent::PlatformStore,
                 PlatformComponent::ObjectStore,
-                PlatformComponent::ArtifactService,
-                PlatformComponent::GpuRenderer,
                 PlatformComponent::SimulationRuntimeSupport,
             ]),
-            mcp_servers: BTreeSet::from([
-                FirstPartyMcpServer::Frames,
-                FirstPartyMcpServer::SimulationView,
+            mcp_servers: BTreeSet::new(),
+            artifact_audiences: BTreeSet::new(),
+            external_workloads: BTreeSet::from([
+                "external-simulator".to_owned(),
+                "external-view".to_owned(),
             ]),
-            artifact_audiences: BTreeSet::from(["simulation-view".to_owned()]),
-            external_workloads: BTreeSet::from(["external-simulator".to_owned()]),
             gpu_scheduling: Some(exclusive_gpu_scheduling(
-                ["simulation-view-renderer", "external-simulator"],
+                ["external-simulator", "external-view"],
                 1,
             )),
         }
@@ -2927,12 +2816,8 @@ mod tests {
                 group(
                     "simulation",
                     vec![
-                        workload(
-                            "simulation-view-renderer",
-                            "simulation-view-renderer",
-                            "simulation-view-isaac",
-                        ),
                         workload("external-simulator", "external-simulator", "simulator"),
+                        workload("external-live-view", "external-simulator", "simulator"),
                     ],
                     '2',
                 ),
@@ -2955,16 +2840,12 @@ mod tests {
                 PlatformComponent::Gateway,
                 PlatformComponent::PlatformStore,
                 PlatformComponent::ObjectStore,
-                PlatformComponent::ArtifactService,
-                PlatformComponent::GpuRenderer,
                 PlatformComponent::SimulationRuntimeSupport,
             ]),
-            mcp_servers: BTreeSet::from([
-                FirstPartyMcpServer::Frames,
-                FirstPartyMcpServer::SimulationView,
-            ]),
-            artifact_audiences: BTreeSet::from(["simulation-view".to_owned()]),
+            mcp_servers: BTreeSet::new(),
+            artifact_audiences: BTreeSet::new(),
             external_workloads: BTreeSet::from([
+                "external-live-view".to_owned(),
                 "external-optimizer".to_owned(),
                 "external-simulator".to_owned(),
                 "external-view".to_owned(),

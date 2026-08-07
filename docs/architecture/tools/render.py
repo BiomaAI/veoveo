@@ -808,8 +808,6 @@ def diagram_resource_structure() -> None:
                 "VV-CMP-059",
                 "VV-CMP-063",
                 "VV-CMP-065",
-                "VV-CMP-066",
-                "VV-CMP-068",
             ],
             "#deebf2",
             6,
@@ -822,14 +820,13 @@ def diagram_resource_structure() -> None:
                 "VV-CMP-050",
                 "VV-CMP-054",
                 "VV-CMP-057",
-                "VV-CMP-069",
             ],
             "#eee5d8",
             6,
         ),
         (
             "Showcase and internal executors",
-            [f"VV-CMP-{i:03d}" for i in range(28, 33)] + ["VV-CMP-055", "VV-CMP-067", "VV-CMP-070"],
+            [f"VV-CMP-{i:03d}" for i in range(28, 33)] + ["VV-CMP-055", "VV-CMP-070"],
             "#e7e1ef",
             7,
         ),
@@ -841,6 +838,9 @@ def diagram_resource_structure() -> None:
                 "VV-CMP-061",
                 "VV-CMP-062",
                 "VV-CMP-064",
+                "VV-CMP-072",
+                "VV-CMP-073",
+                "VV-CMP-074",
             ],
             "#e9e7db",
             5,
@@ -967,7 +967,6 @@ def diagram_connectivity() -> None:
         ("VV-CMP-050", "View"),
         ("VV-CMP-054", "UAV Simulation"),
         ("VV-CMP-057", "Reason"),
-        ("VV-CMP-069", "Simulation View"),
     ]
     for index, (ident, title) in enumerate(hosted):
         col, row = index % 4, index // 4
@@ -1904,7 +1903,7 @@ def generate_html() -> None:
 <nav><a href="#control">Control</a><a href="#method">Method</a><a href="#view-00">Views</a><a href="#components">Components</a><a href="#interfaces">Interfaces</a><a href="#requirements">Requirements</a><a href="#glossary">Glossary</a><a href="#references">References</a></nav>
 <main>
 <section id="control"><h2>Document control</h2>
-<table class="doc-control"><tbody><tr><td>Title</td><td>Veoveo UAF 1.3 / SysML 1.6 Reference Architecture</td></tr><tr><td>Architecture identity</td><td>VV-MODEL-001</td></tr><tr><td>Purpose</td><td>Generic reference architecture for formal client review and model exchange.</td></tr><tr><td>Scope</td><td>All 45 Rust workspace packages, the React console, Python SDK and server template, internal Python/C++ executors, deployment and verification components, and external runtime resources in the canonical architecture.</td></tr><tr><td>Exclusions</td><td>Source-code modules within a component, transient permission/init jobs, test fixtures, customer-specific configuration, personnel structure, facilities, and classified mission content.</td></tr><tr><td>Handling</td><td>Reference baseline with no client-specific data. Apply contract, export-control, CUI, distribution, and classification markings before client release.</td></tr><tr><td>Authority</td><td>The repository implementation and executable verification remain product evidence. The model organizes and traces that evidence; it does not replace tests.</td></tr></tbody></table>
+<table class="doc-control"><tbody><tr><td>Title</td><td>Veoveo UAF 1.3 / SysML 1.6 Reference Architecture</td></tr><tr><td>Architecture identity</td><td>VV-MODEL-001</td></tr><tr><td>Purpose</td><td>Generic reference architecture for formal client review and model exchange.</td></tr><tr><td>Scope</td><td>All 44 Rust workspace packages, the React console, Python SDK and server template, internal Python/C++ executors, deployment and verification components, and external runtime resources in the canonical architecture.</td></tr><tr><td>Exclusions</td><td>Source-code modules within a component, transient permission/init jobs, test fixtures, customer-specific configuration, personnel structure, facilities, and classified mission content.</td></tr><tr><td>Handling</td><td>Reference baseline with no client-specific data. Apply contract, export-control, CUI, distribution, and classification markings before client release.</td></tr><tr><td>Authority</td><td>The repository implementation and executable verification remain product evidence. The model organizes and traces that evidence; it does not replace tests.</td></tr></tbody></table>
 <div class="summary-grid"><div class="summary"><strong>{len(CAPABILITIES)}</strong>UAF capabilities</div><div class="summary"><strong>{len(ACTIVITIES)}</strong>operational activities</div><div class="summary"><strong>{len(SERVICES)}</strong>services</div><div class="summary"><strong>{len(COMPONENTS)}</strong>software resources</div><div class="summary"><strong>{len(ACTUAL_RESOURCES)}</strong>actual configurations</div></div></section>
 <section id="method"><h2>Architecture method and conformance posture</h2><p>UAF 1.3 governs the enterprise and mission architecture. SysML 1.6 supplies detailed software blocks, requirement semantics, connectivity, and lifecycle behavior beneath it. Stable identifiers preserve traceability across diagrams, catalogs, XMI, repository evidence, and future client overlays.</p>
 <div class="notice"><strong>Model-exchange posture.</strong> The included XMI applies the official OMG UAF 1.3 and SysML 1.6 profile URIs and carries the semantic elements and trace relationships used by this report. The release validates XML structure, identifiers, references, catalog coverage, and rendered outputs. Vendor-specific diagram notation and profile OCL validation require import into a UAF 1.3-capable modeling tool; the package does not claim a vendor-native project or tool-certified UAF conformance.</div>

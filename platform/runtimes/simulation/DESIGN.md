@@ -95,6 +95,21 @@ hardware RTX path, or NVENC API fails conformance. The initial `linux/amd64` pro
 uses NVIDIA's minimum driver floor `570.169`; release qualification uses the tested
 Isaac Sim driver `595.58.03`.
 
+## Authoritative Live Cameras
+
+A domain simulator overlay renders operator cameras inside the same authoritative Isaac
+process that owns physics and the USD/Cesium world. Each active logical camera has one
+stable RTX render product and at most one NVENC H.264 encode. Independent viewer leases
+fan out that product through separate WebRTC peer and SRTP state; viewer count never
+creates another scene, camera render, Cesium consumer, or encode.
+
+Operator-camera smoothing consumes the current authoritative entity transform on every
+render tick and changes only the camera pose. It never buffers, interpolates, or delays
+simulation state. Physical sensor capture retains its own declared cadence and exact
+mount, independent of the operator-camera cadence. The reusable base supplies GPU,
+camera, RTX, and NVENC compatibility; camera rigs, product admission, governance, and
+signaling remain the domain overlay's responsibility.
+
 ## Build And Publication
 
 `simulation-runtime.lock.json` is the tuple authority. `requirements.lock` is a generated,

@@ -90,8 +90,6 @@ RUN /isaac-sim/python.sh -m pip install \
 
 COPY --from=uav-upstream --chown=10001:10001 /src/pegasus/extensions/pegasus.simulator/ /opt/veoveo/extensions/pegasus.simulator/
 COPY --from=uav-upstream --chown=10001:10001 /src/px4/ /opt/veoveo/px4/
-COPY --from=simulation-pose-sdk --chown=10001:10001 __init__.py /opt/veoveo/uav-python/veoveo_mcp/__init__.py
-COPY --from=simulation-pose-sdk --chown=10001:10001 simulation_pose.py /opt/veoveo/uav-python/veoveo_mcp/simulation_pose.py
 RUN PYTHONPATH=/opt/veoveo/uav-python/rerun_sdk:/opt/veoveo/uav-python \
     /isaac-sim/python.sh -c \
       'import rerun; assert rerun.__version__ == "0.35.0"'

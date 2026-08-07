@@ -1,3 +1,4 @@
+{{- include "uav-sim.validateLiveView" . -}}
 {{- if .Values.interactive.enabled }}
 apiVersion: apps/v1
 kind: Deployment
@@ -18,7 +19,7 @@ spec:
       labels:
         {{- include "uav-sim.selectorLabels" . | nindent 8 }}
         veoveo.ai/mcp-server: "true"
-        veoveo.ai/simulation-view-pose-producer: "true"
+        veoveo.ai/simulator-hosted-live-view: "true"
         {{- if .Values.streamPublication.enabled }}
         veoveo.ai/stream-producer: "true"
         {{- end }}
@@ -56,6 +57,14 @@ spec:
           ports:
             - name: adapter
               containerPort: 8810
+            {{- range .Values.liveView.cameras }}
+            - name: {{ printf "signal-%d" (int .physicalSlot) }}
+              containerPort: {{ add $.Values.liveView.signalingPortBase (int .physicalSlot) }}
+              protocol: TCP
+            - name: {{ printf "media-%d" (int .physicalSlot) }}
+              containerPort: {{ add $.Values.liveView.mediaPortBase (int .physicalSlot) }}
+              protocol: UDP
+            {{- end }}
           startupProbe:
             exec:
               command:
@@ -95,9 +104,6 @@ spec:
               mountPath: /isaac-sim/kit/data
             - name: tmp
               mountPath: /tmp
-            - name: simulation-view-pose-tls
-              mountPath: /run/secrets/simulation-view-pose
-              readOnly: true
         - name: uav-sim-mcp
           image: {{ include "uav-sim.image" (list . .Values.images.mcp) }}
           imagePullPolicy: {{ .Values.images.pullPolicy }}
@@ -109,10 +115,24 @@ spec:
           env:
             - name: PUBLIC_BASE_URL
               value: {{ .Values.platform.publicBaseUrl | quote }}
-            - name: ARTIFACT_SERVICE_URL
-              value: http://artifact-service:8790
             - name: UAV_SIM_ADAPTER_URL
               value: http://127.0.0.1:8810/
+            - name: UAV_SIM_PUBLIC_SIGNALING_URL
+              value: {{ .Values.liveView.publicSignalingUrl | quote }}
+            - name: UAV_SIM_NATIVE_SIGNALING_URL
+              value: {{ printf "ws://127.0.0.1:%d/webrtc" (int .Values.liveView.signalingPortBase) | quote }}
+            - name: UAV_SIM_PUBLIC_MEDIA_HOST
+              value: {{ .Values.liveView.publicMediaHost | quote }}
+            - name: UAV_SIM_PUBLIC_MEDIA_PORT_BASE
+              value: {{ .Values.liveView.mediaPortBase | quote }}
+            - name: UAV_SIM_LIVE_VIEW_LEASE_SECONDS
+              value: {{ .Values.liveView.leaseSeconds | quote }}
+            - name: UAV_SIM_LIVE_VIEW_IDLE_GRACE_SECONDS
+              value: {{ .Values.liveView.idleGraceSeconds | quote }}
+            - name: UAV_SIM_LIVE_VIEW_MAXIMUM_FRAME_AGE_MS
+              value: {{ .Values.liveView.maximumFrameAgeMs | quote }}
+            - name: UAV_SIM_LIVE_VIEW_MAXIMUM_VIEWERS
+              value: {{ .Values.liveView.maximumViewerLeases | quote }}
             - name: UAV_SIM_ADAPTER_OPERATION_TIMEOUT_SECONDS
               value: "3600"
             - name: UAV_SIM_RECORDING_TENANT_KEY
@@ -188,17 +208,6 @@ spec:
             items:
               - key: {{ .Values.recordingForwarder.privateKey.key }}
                 path: private-key.pem
-        - name: simulation-view-pose-tls
-          secret:
-            secretName: {{ required "posePublication.existingTlsSecret is required" .Values.posePublication.existingTlsSecret }}
-            defaultMode: 0440
-            items:
-              - key: {{ .Values.posePublication.caCertificateKey }}
-                path: ca.crt
-              - key: {{ .Values.posePublication.clientCertificateKey }}
-                path: tls.crt
-              - key: {{ .Values.posePublication.clientPrivateKeyKey }}
-                path: tls.key
         - name: tmp
           emptyDir: {}
 {{- end }}

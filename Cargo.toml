@@ -23,9 +23,6 @@ members = [
     "platform/recordings/rrd",
     "platform/recordings/video",
     "platform/runtimes/duckdb",
-    "platform/simulation/scene",
-    "platform/simulation/pose",
-    "platform/simulation/pose-ingress",
     "platform/store",
     "platform/task-runtime",
     "servers/artifact-mcp",
@@ -37,7 +34,6 @@ members = [
     "servers/stream-mcp",
     "servers/reason-mcp",
     "servers/recording-mcp",
-    "servers/simulation-view-mcp",
     "servers/timeseries-mcp",
     "servers/time-mcp",
     "servers/uav-sim-mcp",
@@ -170,6 +166,4 @@ veoveo-mcp-schema-macros = { path = "mcp/schema-macros" }
 veoveo-task-contract = { path = "mcp/task-contract" }
 veoveo-platform-store = { path = "platform/store" }
 veoveo-recording-protocol = { path = "platform/recordings/protocol" }
-veoveo-simulation-scene = { path = "platform/simulation/scene" }
-veoveo-simulation-pose = { path = "platform/simulation/pose" }
 veoveo-rrd = { path = "platform/recordings/rrd" }

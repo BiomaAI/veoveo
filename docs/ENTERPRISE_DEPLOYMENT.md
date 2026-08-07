@@ -176,8 +176,7 @@ The platform chart expects these Secret contracts by default:
 |---|---|
 | veoveo-surreal-admin | username, password |
 | veoveo-surreal-runtime | username, password |
-| veoveo-installation-secrets | internal-signing-key-der-b64, internal-signing-key-id, internal-trust-jwks, oidc-client-secret, authorization-server-private-key-der-b64, refresh-delivery-key-b64, console-session-key, recording-playback-token-key, object-store-access-key, object-store-secret-key, media-provider-api-key, google-maps-api-key, media-provider-webhook-secret, simulation-view-renderer-control-token, simulation-view-pose-control-token |
-| simulation-view-pose-tls | tls.crt.der, tls.key.der, ca.crt.der |
+| veoveo-installation-secrets | internal-signing-key-der-b64, internal-signing-key-id, internal-trust-jwks, oidc-client-secret, authorization-server-private-key-der-b64, refresh-delivery-key-b64, console-session-key, recording-playback-token-key, object-store-access-key, object-store-secret-key, media-provider-api-key, google-maps-api-key, media-provider-webhook-secret |
 
 An extension declares its own least-privilege Secret references. It does not add
 provider credentials to the platform Secret merely for convenience. Registry

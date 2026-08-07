@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 #[allow(dead_code)]
-#[path = "../../smoke/src/bin/smoke/scenarios/simulation_view/browser.rs"]
+#[path = "../../smoke/src/bin/smoke/scenarios/uav_sim/browser.rs"]
 mod browser;
 
 use browser::{
@@ -24,9 +24,9 @@ const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-browser-evidence/v3";
 const MAX_RECORDING_SOURCE_LAG_SECONDS: f64 = 1.0;
 const OPERATOR_PROFILE_SCOPES: &[&str] = &[
     "operator:use",
-    "simulation-view:read",
-    "simulation-view:write",
-    "simulation-view:stream",
+    "uav-sim:read",
+    "uav-sim:write",
+    "uav-sim:stream",
     "view:read",
     "view:write",
     "view:capture",
@@ -103,8 +103,8 @@ struct BrowserAcceptanceEvidence {
     session_id: String,
     camera_id: String,
     recording_id: String,
-    initial_pose_sequence: u64,
-    final_pose_sequence: u64,
+    initial_encoded_frames: u64,
+    final_encoded_frames: u64,
     source_simulation_time_seconds: f64,
     recording_simulation_time_seconds: f64,
     recording_source_lag_seconds: f64,
@@ -334,28 +334,32 @@ async fn verify_running_showcase(
         "focused browser acceptance requires the existing simulation to remain running: {initial_state}"
     );
     let recording_id = recording_id(&initial_state)?;
-    let cameras = read_json_resource(
-        &operator,
-        &format!("simulation-view://session/{}/cameras", scenario.session_id),
-    )
-    .await?;
-    let camera = cameras
-        .as_array()
-        .context("Simulation View camera collection is not an array")?
+    let camera = initial_state
+        .get("live_cameras")
+        .and_then(Value::as_array)
+        .context("authoritative simulator omitted its live camera collection")?
         .iter()
         .find(|camera| {
             camera
-                .pointer("/definition/rig/targetEntity")
+                .pointer("/rig/targetEntityId")
                 .and_then(Value::as_str)
                 == Some(scenario.vehicle_id.as_str())
                 && camera.get("health").and_then(Value::as_str) == Some("healthy")
         })
         .context("running showcase has no healthy leader follow camera")?;
     let camera_id = json_string(camera, "/cameraId")?.to_owned();
-    let initial_pose_sequence = camera
-        .get("lastPoseSequence")
+    let product_id = json_string(camera, "/streamProductId")?;
+    let initial_encoded_frames = initial_state
+        .get("stream_products")
+        .and_then(Value::as_array)
+        .and_then(|products| {
+            products.iter().find(|product| {
+                product.get("streamProductId").and_then(Value::as_str) == Some(product_id)
+            })
+        })
+        .and_then(|product| product.get("encodedFrames"))
         .and_then(Value::as_u64)
-        .context("existing follow camera has no admitted pose sequence")?;
+        .context("authoritative camera product omitted its encoded frame counter")?;
 
     let source_revision = git_revision()?;
     let run_id = uuid::Uuid::now_v7().to_string();
@@ -371,7 +375,7 @@ async fn verify_running_showcase(
         chrome_cdp_url,
         public_base_url,
         &camera_id,
-        &evidence_directory.join("simulation-view.png"),
+        &evidence_directory.join("uav-live-view.png"),
         timeout,
     )
     .await?;
@@ -391,23 +395,23 @@ async fn verify_running_showcase(
     )
     .await?;
 
-    let final_camera = read_json_resource(
-        &operator,
-        &format!(
-            "simulation-view://session/{}/camera/{camera_id}",
-            scenario.session_id
-        ),
-    )
-    .await?;
-    let final_pose_sequence = final_camera
-        .get("lastPoseSequence")
-        .and_then(Value::as_u64)
-        .context("follow camera lost its admitted pose sequence")?;
-    ensure!(
-        final_pose_sequence > initial_pose_sequence,
-        "pose sequence did not advance during focused browser acceptance: {initial_pose_sequence} -> {final_pose_sequence}"
-    );
     let final_state = simulation_state(&operator, &scenario.session_id).await?;
+    let final_encoded_frames = final_state
+        .get("stream_products")
+        .and_then(Value::as_array)
+        .and_then(|products| {
+            products.iter().find(|product| {
+                product.get("streamProductId").and_then(Value::as_str) == Some(product_id)
+            })
+        })
+        .and_then(|product| product.get("encodedFrames"))
+        .and_then(Value::as_u64)
+        .context("authoritative camera product lost its encoded frame counter")?;
+    ensure!(
+        final_encoded_frames > initial_encoded_frames,
+        "authoritative encoded product did not advance during focused browser acceptance: \
+         {initial_encoded_frames} -> {final_encoded_frames}"
+    );
     ensure!(
         json_string(&final_state, "/lifecycle")? == "running",
         "focused browser acceptance altered the running simulation: {final_state}"
@@ -431,8 +435,8 @@ async fn verify_running_showcase(
         session_id: scenario.session_id,
         camera_id,
         recording_id,
-        initial_pose_sequence,
-        final_pose_sequence,
+        initial_encoded_frames,
+        final_encoded_frames,
         source_simulation_time_seconds,
         recording_simulation_time_seconds,
         recording_source_lag_seconds,
@@ -522,15 +526,6 @@ async fn simulation_state(operator: &OperatorClient<'_>, session_id: &str) -> Re
         }
     }
     Err(last_error.context("UAV state read exhausted its retry budget")?)
-}
-
-async fn read_json_resource(operator: &OperatorClient<'_>, uri: &str) -> Result<Value> {
-    serde_json::from_str(
-        &operator
-            .conformance(&["resource", uri], Duration::from_secs(60))
-            .await?,
-    )
-    .with_context(|| format!("decoding MCP resource {uri}"))
 }
 
 async fn gateway_token(conformance: &Path, base: &str) -> Result<String> {

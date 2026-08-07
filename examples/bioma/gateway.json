@@ -119,12 +119,15 @@
         "completions": true,
         "tasks": true,
         "resources_list_changed": true,
-        "apps": false
+        "apps": true
       },
       "tools": [
         "configure_world",
         "get_simulation_state",
-        "prepare_view_scene",
+        "list_live_cameras",
+        "open_live_view",
+        "renew_live_view",
+        "close_live_view",
         "pause_simulation",
         "resume_simulation",
         "reset_simulation",
@@ -141,7 +144,8 @@
         "uav-sim-session-review"
       ],
       "required_scopes": [
-        "operator:use"
+        "operator:use",
+        "uav-sim:stream"
       ],
       "metadata": {
         "runtime": "isaac-sim-6.0.1",
@@ -149,7 +153,6 @@
       },
       "resource_projection": "server_owned",
       "referenced_resource_schemes": [
-        "artifact",
         "frames",
         "recording"
       ]
@@ -479,55 +482,6 @@
       "resource_projection": "server_owned"
     },
     {
-      "slug": "simulation-view",
-      "uri_scheme": "simulation-view",
-      "mount_path": "/simulation-view",
-      "mcp_path": "/simulation-view/mcp",
-      "upstream": {
-        "transport": "streamable_http",
-        "url": "http://simulation-view-mcp:8808/simulation-view/mcp",
-        "security": "cluster_internal_http"
-      },
-      "capabilities": {
-        "tools": true,
-        "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": true,
-        "prompts": false,
-        "completions": false,
-        "tasks": false,
-        "resources_list_changed": true,
-        "apps": true
-      },
-      "tools": [
-        "authorize_pose_producer",
-        "bind_scene",
-        "close_camera",
-        "close_live_view",
-        "close_session",
-        "create_camera",
-        "create_session",
-        "get_capacity",
-        "get_session_state",
-        "open_live_view",
-        "renew_live_view",
-        "revoke_pose_producer",
-        "set_camera"
-      ],
-      "required_scopes": [
-        "operator:use"
-      ],
-      "metadata": {
-        "contract_revision": 2,
-        "renderer_profile": "isaac_rtx"
-      },
-      "resource_projection": "server_owned",
-      "referenced_resource_schemes": [
-        "artifact",
-        "frames"
-      ]
-    },
-    {
       "slug": "time",
       "uri_scheme": "time",
       "mount_path": "/time",
@@ -761,9 +715,7 @@
       ],
       "required_scopes": [
         "operator:use",
-        "simulation-view:read",
-        "simulation-view:write",
-        "simulation-view:stream",
+        "uav-sim:stream",
         "view:read",
         "view:write",
         "view:capture",
@@ -808,6 +760,10 @@
               {
                 "kind": "scheme",
                 "scheme": "uav-sim"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://uav-sim/"
               }
             ]
           },
@@ -1055,30 +1011,6 @@
           "tasks": "enabled"
         },
         {
-          "server": "simulation-view",
-          "tools": {
-            "mode": "all"
-          },
-          "resources": {
-            "mode": "listed",
-            "items": [
-              {
-                "kind": "scheme",
-                "scheme": "simulation-view"
-              },
-              {
-                "kind": "uri_prefix",
-                "prefix": "ui://simulation-view/"
-              }
-            ]
-          },
-          "prompts": {
-            "mode": "none"
-          },
-          "completions": "disabled",
-          "tasks": "disabled"
-        },
-        {
           "server": "time",
           "tools": {
             "mode": "all"
@@ -1257,30 +1189,6 @@
           "tasks": "enabled"
         },
         {
-          "server": "simulation-view",
-          "tools": {
-            "mode": "all"
-          },
-          "resources": {
-            "mode": "listed",
-            "items": [
-              {
-                "kind": "scheme",
-                "scheme": "simulation-view"
-              },
-              {
-                "kind": "uri_prefix",
-                "prefix": "ui://simulation-view/"
-              }
-            ]
-          },
-          "prompts": {
-            "mode": "none"
-          },
-          "completions": "disabled",
-          "tasks": "disabled"
-        },
-        {
           "server": "uav-sim",
           "tools": {
             "mode": "all"
@@ -1291,6 +1199,10 @@
               {
                 "kind": "scheme",
                 "scheme": "uav-sim"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://uav-sim/"
               }
             ]
           },
@@ -3049,98 +2961,6 @@
           "metadata": {}
         },
         {
-          "id": "allow_simulation_view_surface_read",
-          "effect": "allow",
-          "actions": [
-            "tools_list",
-            "tools_call",
-            "resources_list",
-            "resources_templates_list",
-            "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe"
-          ],
-          "profiles": [
-            "operator",
-            "admin"
-          ],
-          "servers": [
-            "simulation-view"
-          ],
-          "tools": [
-            "get_capacity",
-            "get_session_state"
-          ],
-          "resource_schemes": [
-            "simulation-view"
-          ],
-          "required_scopes": [
-            "operator:use",
-            "simulation-view:read"
-          ],
-          "metadata": {}
-        },
-        {
-          "id": "allow_simulation_view_write_tools",
-          "effect": "allow",
-          "actions": [
-            "tools_list",
-            "tools_call"
-          ],
-          "profiles": [
-            "operator",
-            "admin"
-          ],
-          "servers": [
-            "simulation-view"
-          ],
-          "tools": [
-            "authorize_pose_producer",
-            "bind_scene",
-            "close_camera",
-            "close_session",
-            "create_camera",
-            "create_session",
-            "revoke_pose_producer",
-            "set_camera"
-          ],
-          "required_scopes": [
-            "operator:use",
-            "simulation-view:write"
-          ],
-          "metadata": {}
-        },
-        {
-          "id": "allow_simulation_view_streams",
-          "effect": "allow",
-          "actions": [
-            "tools_list",
-            "tools_call",
-            "resources_list",
-            "resources_read"
-          ],
-          "profiles": [
-            "operator",
-            "admin"
-          ],
-          "servers": [
-            "simulation-view"
-          ],
-          "tools": [
-            "close_live_view",
-            "open_live_view",
-            "renew_live_view"
-          ],
-          "resource_schemes": [
-            "ui"
-          ],
-          "required_scopes": [
-            "operator:use",
-            "simulation-view:stream"
-          ],
-          "metadata": {}
-        },
-        {
           "id": "allow_map_surface_read",
           "effect": "allow",
           "actions": [
@@ -4260,7 +4080,6 @@
           "tools": [
             "configure_world",
             "get_simulation_state",
-            "prepare_view_scene",
             "pause_simulation",
             "resume_simulation",
             "reset_simulation",
@@ -4288,6 +4107,40 @@
           ],
           "required_scopes": [
             "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_uav_sim_live_view",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "uav-sim"
+          ],
+          "tools": [
+            "list_live_cameras",
+            "open_live_view",
+            "renew_live_view",
+            "close_live_view"
+          ],
+          "resource_schemes": [
+            "uav-sim",
+            "ui"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "uav-sim:stream"
           ],
           "metadata": {}
         },
@@ -4322,7 +4175,6 @@
           "tools": [
             "configure_world",
             "get_simulation_state",
-            "prepare_view_scene",
             "pause_simulation",
             "resume_simulation",
             "reset_simulation",
@@ -4541,9 +4393,7 @@
       ],
       "allowed_scopes": [
         "operator:use",
-        "simulation-view:read",
-        "simulation-view:write",
-        "simulation-view:stream",
+        "uav-sim:stream",
         "view:read",
         "view:write",
         "view:capture",
@@ -4606,9 +4456,7 @@
       ],
       "allowed_scopes": [
         "operator:use",
-        "simulation-view:read",
-        "simulation-view:write",
-        "simulation-view:stream",
+        "uav-sim:stream",
         "view:read",
         "view:write",
         "view:capture",
@@ -4661,9 +4509,7 @@
       "allowed_scopes": [
         "operator:use",
         "admin:manage",
-        "simulation-view:read",
-        "simulation-view:write",
-        "simulation-view:stream",
+        "uav-sim:stream",
         "view:read",
         "view:write",
         "view:capture",
@@ -4716,9 +4562,7 @@
       ],
       "allowed_scopes": [
         "operator:use",
-        "simulation-view:read",
-        "simulation-view:write",
-        "simulation-view:stream",
+        "uav-sim:stream",
         "view:read",
         "view:write",
         "view:capture",
@@ -4765,9 +4609,7 @@
       "allowed_scopes": [
         "operator:use",
         "admin:manage",
-        "simulation-view:read",
-        "simulation-view:write",
-        "simulation-view:stream",
+        "uav-sim:stream",
         "view:read",
         "view:write",
         "view:capture",
@@ -4817,9 +4659,7 @@
       ],
       "allowed_scopes": [
         "operator:use",
-        "simulation-view:read",
-        "simulation-view:write",
-        "simulation-view:stream",
+        "uav-sim:stream",
         "view:read",
         "view:write",
         "view:capture",

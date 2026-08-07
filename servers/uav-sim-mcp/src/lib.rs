@@ -9,6 +9,5 @@ pub mod contract;
 pub mod uris;
 pub mod world;
 
-mod view_scene;
-
+mod live_app;
 pub mod server;

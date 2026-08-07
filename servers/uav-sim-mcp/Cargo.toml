@@ -2,6 +2,7 @@
 name = "veoveo-uav-sim-mcp"
 version.workspace = true
 edition.workspace = true
+build = "build.rs"
 
 [lib]
 name = "veoveo_uav_sim_mcp"
@@ -13,11 +14,13 @@ path = "src/bin/server.rs"
 
 [dependencies]
 anyhow.workspace = true
-axum.workspace = true
+axum = { workspace = true, features = ["ws"] }
+base64.workspace = true
 chrono.workspace = true
 clap.workspace = true
 dotenvy.workspace = true
 futures.workspace = true
+getrandom.workspace = true
 hex.workspace = true
 reqwest = { workspace = true, features = ["json", "rustls-no-provider"] }
 rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"] }
@@ -27,20 +30,23 @@ secrecy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+subtle.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
+tokio-tungstenite.workspace = true
 tokio-util.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
 url.workspace = true
 uuid.workspace = true
 veoveo-mcp-contract.workspace = true
-veoveo-artifact-client = { path = "../../platform/artifacts/client" }
+veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension" }
 veoveo-mcp-task-extension = { path = "../../mcp/task-extension" }
 veoveo-platform-store = { path = "../../platform/store" }
-veoveo-simulation-scene.workspace = true
-veoveo-simulation-pose.workspace = true
 veoveo-task-runtime = { path = "../../platform/task-runtime" }
 
 [dev-dependencies]
 tower = { workspace = true, features = ["util"] }
+
+[build-dependencies]
+sha2.workspace = true

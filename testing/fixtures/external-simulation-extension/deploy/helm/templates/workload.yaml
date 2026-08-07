@@ -19,6 +19,11 @@ spec:
     - name: http
       port: {{ .Values.service.port }}
       targetPort: http
+      protocol: TCP
+    - name: webrtc-media
+      port: {{ .Values.liveView.publicMediaPort }}
+      targetPort: webrtc-media
+      protocol: UDP
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -37,7 +42,7 @@ spec:
     metadata:
       labels:
         {{- include "veoveo-extension.selectorLabels" $labels | nindent 8 }}
-        veoveo.ai/simulation-view-pose-producer: "true"
+        veoveo.ai/simulator-hosted-live-view: "true"
     spec:
       automountServiceAccountToken: false
       securityContext:
@@ -63,27 +68,23 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.veoveo.installationSecret | quote }}
                   key: internal-trust-jwks
-            - name: ARTIFACT_SERVICE_URL
-              value: {{ .Values.artifactServiceUrl | quote }}
-            - name: ANONYMOUS_SIMULATION_PRODUCER_ID
-              value: {{ .Values.pose.producerId | quote }}
-            - name: ANONYMOUS_SIMULATION_PRODUCER_SPIFFE_ID
-              value: {{ .Values.pose.producerSpiffeId | quote }}
-            - name: ANONYMOUS_SIMULATION_POSE_HOST
-              value: {{ .Values.pose.endpointHost | quote }}
-            - name: ANONYMOUS_SIMULATION_POSE_PORT
-              value: {{ .Values.pose.endpointPort | quote }}
-            - name: ANONYMOUS_SIMULATION_POSE_SERVER_HOSTNAME
-              value: {{ .Values.pose.serverHostname | quote }}
-            - name: ANONYMOUS_SIMULATION_POSE_CA_CERTIFICATE
-              value: /run/secrets/simulation-view-pose/ca.crt
-            - name: ANONYMOUS_SIMULATION_POSE_CLIENT_CERTIFICATE
-              value: /run/secrets/simulation-view-pose/tls.crt
-            - name: ANONYMOUS_SIMULATION_POSE_CLIENT_PRIVATE_KEY
-              value: /run/secrets/simulation-view-pose/tls.key
+            - name: ANONYMOUS_SIMULATION_PUBLIC_SIGNALING_URL
+              value: {{ .Values.liveView.publicSignalingUrl | quote }}
+            - name: ANONYMOUS_SIMULATION_PUBLIC_MEDIA_HOST
+              value: {{ .Values.liveView.publicMediaHost | quote }}
+            - name: ANONYMOUS_SIMULATION_PUBLIC_MEDIA_PORT
+              value: {{ .Values.liveView.publicMediaPort | quote }}
+            - name: ANONYMOUS_SIMULATION_LEASE_SECONDS
+              value: {{ .Values.liveView.leaseSeconds | quote }}
+            - name: ANONYMOUS_SIMULATION_MAXIMUM_VIEWERS
+              value: {{ .Values.liveView.maximumViewers | quote }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
+              protocol: TCP
+            - name: webrtc-media
+              containerPort: {{ .Values.liveView.publicMediaPort }}
+              protocol: UDP
           {{- include "veoveo-extension.httpProbes" (dict
               "startupPath" "/anonymous-simulation/healthz"
               "readinessPath" "/anonymous-simulation/readyz"
@@ -95,15 +96,8 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
-            - name: pose-client-tls
-              mountPath: /run/secrets/simulation-view-pose
-              readOnly: true
             - name: tmp
               mountPath: /tmp
       volumes:
-        - name: pose-client-tls
-          secret:
-            secretName: {{ .Values.pose.existingClientTlsSecret | quote }}
-            defaultMode: 0440
         - name: tmp
           emptyDir: {}

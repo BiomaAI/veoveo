@@ -5,7 +5,7 @@ This document is the canonical design and operational contract for the
 
 `view-mcp` captures reproducible points of view over governed static scene
 compositions. Each composition binds one configured georeferenced 3D Tiles
-layer to exact Map, Frames, Artifact, Recording, or Simulation View inputs and
+layer to exact Map, Frames, Artifact, Recording, or simulation-owned inputs and
 bounded declarative overlays. The service runs Bevy without a window, keeps
 bounded tile and GPU residency across captures, and returns images with exact
 composition provenance.

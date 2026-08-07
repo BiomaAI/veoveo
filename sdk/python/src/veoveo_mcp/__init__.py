@@ -14,8 +14,6 @@ __all__ = [
     "internal_auth",
     "pagination",
     "schema",
-    "simulation_pose",
-    "simulation_view",
     "task_extension",
     "tasks",
     "telemetry",

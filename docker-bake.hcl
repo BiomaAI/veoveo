@@ -63,9 +63,6 @@ group "platform-full" {
     "chart-mcp",
     "mcp-stdio-bridge",
     "simulation-runtime",
-    "simulation-view-mcp",
-    "simulation-view-pose",
-    "simulation-view-isaac",
   ]
 }
 
@@ -90,9 +87,6 @@ group "external-simulation-platform" {
     "artifact-mcp",
     "frames-mcp",
     "simulation-runtime",
-    "simulation-view-mcp",
-    "simulation-view-pose",
-    "simulation-view-isaac",
   ]
 }
 
@@ -114,15 +108,6 @@ group "showcase-uav-sim" {
 
 group "simulation-runtime" {
   targets = ["simulation-runtime"]
-}
-
-group "simulation-view" {
-  targets = [
-    "simulation-runtime",
-    "simulation-view-mcp",
-    "simulation-view-pose",
-    "simulation-view-isaac",
-  ]
 }
 
 group "showcase-uav-sim-overlay-acceptance" {
@@ -536,45 +521,6 @@ target "simulation-runtime" {
   tags       = [image_ref("simulation-runtime")]
 }
 
-target "simulation-view-mcp" {
-  inherits   = ["_rust-trixie-runtime"]
-  dockerfile = "servers/simulation-view-mcp/Dockerfile"
-  tags       = [image_ref("simulation-view-mcp")]
-  labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-simulation-view-mcp"
-    "io.veoveo.build.binaries"  = "simulation-view-mcp"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
-  }
-}
-
-target "simulation-view-pose" {
-  inherits   = ["_rust-trixie-runtime"]
-  dockerfile = "platform/simulation/pose-ingress/Dockerfile"
-  tags       = [image_ref("simulation-view-pose")]
-  labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-simulation-view-pose-ingress"
-    "io.veoveo.build.binaries"  = "simulation-view-pose"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
-  }
-}
-
-target "simulation-view-isaac" {
-  context    = "platform/simulation/view-isaac"
-  dockerfile = "Dockerfile"
-  platforms  = ["linux/amd64"]
-  tags       = [image_ref("simulation-view-isaac")]
-  contexts = {
-    simulation-runtime = "target:simulation-runtime-payload"
-  }
-  args = {
-    SIMULATION_RUNTIME_IMAGE = "simulation-runtime"
-  }
-}
-
 target "anonymous-simulation-mcp" {
   context    = "."
   dockerfile = "testing/fixtures/external-simulation-installation/Dockerfile.anonymous-simulation-mcp"
@@ -587,8 +533,8 @@ target "anonymous-simulation-mcp" {
     ),
   ]
   labels = {
-    "org.opencontainers.image.title" = "Anonymous external Simulation View producer fixture"
-    "io.veoveo.extension.role"       = "simulation-producer"
+    "org.opencontainers.image.title" = "Anonymous simulator-hosted live-view conformance fixture"
+    "io.veoveo.extension.role"       = "authoritative-simulation"
   }
 }
 
@@ -600,7 +546,6 @@ target "uav-sim-runtime" {
   tags       = [image_ref("uav-sim-runtime")]
   contexts = {
     simulation-runtime = "target:simulation-runtime-payload"
-    simulation-pose-sdk = "./sdk/python/src/veoveo_mcp"
   }
   args = {
     SIMULATION_RUNTIME_IMAGE = "simulation-runtime"

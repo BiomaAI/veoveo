@@ -114,9 +114,8 @@ def run(config: RuntimeConfig) -> None:
     )
     from .operator_products import OperatorProductCollection
     from .physics_batch import FleetPhysicsLifecycle
-    from .pose import PhysicsCadenceGate, PoseProducer
     from .px4 import Px4Commander
-    from .realtime import PeriodicDeadline, RealtimePhysicsClock
+    from .realtime import FixedStepCadenceGate, PeriodicDeadline, RealtimePhysicsClock
     from .recording import ImuTelemetry, RecordingPublisher
     from .server import (
         AdapterApplication,
@@ -151,7 +150,6 @@ def run(config: RuntimeConfig) -> None:
     camera_unusable_streaks_after_tiles: dict[str, int] = {}
     camera_was_ready: set[str] = set()
     sensor_camera_path: str | None = None
-    pose_producer: PoseProducer | None = None
     physics_lifecycle: FleetPhysicsLifecycle | None = None
     fleet_loop: FleetLoopController | None = None
     operator_cameras: AuthoritativeOperatorCameraCollection | None = None
@@ -174,15 +172,6 @@ def run(config: RuntimeConfig) -> None:
                 "Isaac SimulationApp stopped before a frame world was configured"
             )
         state = RuntimeState(config, world_config)
-        pose_producer = PoseProducer(
-            config=config.pose_publication,
-            session_id=config.session_id,
-            world=world_config,
-            vehicle_count=config.vehicle_count,
-            cadence_hz=config.pose_cadence_hz,
-            buffer_duration_ms=config.pose_buffer_duration_ms,
-            update_state=state.update_pose_publication,
-        )
         recording = RecordingPublisher(config, world_config)
         world = World(
             physics_dt=1.0 / config.physics_hz,
@@ -373,8 +362,7 @@ def run(config: RuntimeConfig) -> None:
             for vehicle_id in vehicles
             for body_name in ("body", "rotor0", "rotor1", "rotor2", "rotor3")
         )
-        pose_cadence = PhysicsCadenceGate(config.physics_hz, config.pose_cadence_hz)
-        recording_cadence = PhysicsCadenceGate(
+        recording_cadence = FixedStepCadenceGate(
             config.physics_hz, config.recording.telemetry_hz
         )
         physics_clock = RealtimePhysicsClock(config.physics_hz)
@@ -434,17 +422,12 @@ def run(config: RuntimeConfig) -> None:
             physics_step += 1
             simulation_time_s = physics_step / config.physics_hz
             state.advance(simulation_time_s, physics_step)
-            publish_pose = pose_cadence.due(physics_step)
             publish_recording = recording_cadence.due(physics_step)
-            if not publish_pose and not publish_recording:
+            if not publish_recording:
                 return
             telemetry = telemetry_snapshot()
-            if publish_pose:
-                assert pose_producer is not None
-                pose_producer.offer(telemetry)
-            if publish_recording:
-                state.update_vehicles(telemetry)
-                recording.offer_frame(
+            state.update_vehicles(telemetry)
+            recording.offer_frame(
                     telemetry,
                     [
                         ImuTelemetry(
@@ -461,7 +444,7 @@ def run(config: RuntimeConfig) -> None:
                     ],
                     simulation_time_s,
                     physics_step,
-                )
+            )
 
         physics_lifecycle = FleetPhysicsLifecycle(
             world,
@@ -505,7 +488,6 @@ def run(config: RuntimeConfig) -> None:
                 physics_step = 0
                 simulation_time_s = 0.0
                 simulation_generation += 1
-                pose_cadence.reset()
                 recording_cadence.reset()
                 physics_clock.reset(physics_step)
                 render_deadline.reset()
@@ -657,8 +639,6 @@ def run(config: RuntimeConfig) -> None:
             else:
                 simulation_app.update()
                 update_cesium_viewport()
-                assert pose_producer is not None
-                pose_producer.poll()
                 time.sleep(0.005)
                 continue
 
@@ -804,13 +784,11 @@ def run(config: RuntimeConfig) -> None:
                 snapshot["lifecycle"] == "starting"
                 and snapshot["vehicles"]
                 and all(vehicle["px4_connected"] for vehicle in snapshot["vehicles"])
-                and snapshot["pose_publication"]["lifecycle"] == "ready"
-                and snapshot["pose_publication"]["sent_snapshots"] > 0
             ):
                 state.set_lifecycle("running")
                 LOGGER.info(
                     (
-                        "UAV simulation and Simulation View pose publication ready: "
+                        "authoritative UAV simulation and live cameras ready: "
                         "session=%s vehicles=%d tile_lifecycle=%s "
                         "camera_lifecycle=%s"
                     ),
@@ -851,8 +829,6 @@ def run(config: RuntimeConfig) -> None:
             _cleanup("default fleet loop", fleet_loop.close)
         if server is not None:
             _cleanup("adapter server", server.close)
-        if pose_producer is not None:
-            _cleanup("Simulation View pose publisher", pose_producer.close)
         if operator_products is not None:
             _cleanup("operator stream products", operator_products.close)
         for camera_sensor in camera_sensors.values():

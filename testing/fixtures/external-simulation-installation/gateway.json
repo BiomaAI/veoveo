@@ -60,7 +60,7 @@
       "capabilities": {
         "tools": true,
         "resources": true,
-        "apps": false,
+        "apps": true,
         "resource_templates": false,
         "resource_subscriptions": false,
         "prompts": false,
@@ -71,14 +71,11 @@
         "resources_list_changed": false
       },
       "resource_projection": "server_owned",
-      "referenced_resource_schemes": [
-        "artifact",
-        "frames"
-      ],
       "tools": [
-        "prepare_scene",
-        "start_pose_producer",
-        "stop_pose_producer",
+        "list_live_cameras",
+        "open_live_view",
+        "renew_live_view",
+        "close_live_view",
         "get_fixture_state"
       ],
       "required_scopes": [
@@ -86,139 +83,7 @@
       ],
       "metadata": {
         "contract_revision": 2,
-        "role": "simulation_view_pose_producer"
-      }
-    },
-    {
-      "slug": "artifact",
-      "uri_scheme": "artifact",
-      "mount_path": "/artifact",
-      "mcp_path": "/artifact/mcp",
-      "upstream": {
-        "transport": "streamable_http",
-        "url": "http://artifact-mcp:8794/artifact/mcp",
-        "security": "cluster_internal_http"
-      },
-      "capabilities": {
-        "tools": true,
-        "resources": true,
-        "apps": false,
-        "resource_templates": true,
-        "resource_subscriptions": true,
-        "prompts": true,
-        "completions": true,
-        "tasks": false,
-        "tools_list_changed": false,
-        "prompts_list_changed": false,
-        "resources_list_changed": true
-      },
-      "resource_projection": "identity",
-      "tools": [
-        "create_share_link",
-        "grant_access",
-        "metadata",
-        "revoke_access",
-        "revoke_share_link",
-        "set_release_state"
-      ],
-      "prompts": [
-        "artifact-access-review",
-        "artifact-share-review"
-      ],
-      "required_scopes": [
-        "operator:use"
-      ],
-      "metadata": {}
-    },
-    {
-      "slug": "frames",
-      "uri_scheme": "frames",
-      "mount_path": "/frames",
-      "mcp_path": "/frames/mcp",
-      "upstream": {
-        "transport": "streamable_http",
-        "url": "http://frames-mcp:8793/frames/mcp",
-        "security": "cluster_internal_http"
-      },
-      "capabilities": {
-        "tools": true,
-        "resources": true,
-        "apps": false,
-        "resource_templates": true,
-        "resource_subscriptions": false,
-        "prompts": true,
-        "completions": true,
-        "tasks": true,
-        "tools_list_changed": false,
-        "prompts_list_changed": false,
-        "resources_list_changed": false
-      },
-      "resource_projection": "identity",
-      "tools": [
-        "batch_transform",
-        "convert_frame",
-        "create_world",
-        "publish_world"
-      ],
-      "prompts": [
-        "frames-frame-audit",
-        "frames-world-design",
-        "frames-transform-explain"
-      ],
-      "required_scopes": [
-        "operator:use"
-      ],
-      "metadata": {}
-    },
-    {
-      "slug": "simulation-view",
-      "uri_scheme": "simulation-view",
-      "mount_path": "/simulation-view",
-      "mcp_path": "/simulation-view/mcp",
-      "upstream": {
-        "transport": "streamable_http",
-        "url": "http://simulation-view-mcp:8808/simulation-view/mcp",
-        "security": "cluster_internal_http"
-      },
-      "capabilities": {
-        "tools": true,
-        "resources": true,
-        "apps": true,
-        "resource_templates": true,
-        "resource_subscriptions": true,
-        "prompts": false,
-        "completions": false,
-        "tasks": false,
-        "tools_list_changed": false,
-        "prompts_list_changed": false,
-        "resources_list_changed": true
-      },
-      "resource_projection": "server_owned",
-      "referenced_resource_schemes": [
-        "artifact",
-        "frames"
-      ],
-      "tools": [
-        "authorize_pose_producer",
-        "bind_scene",
-        "close_camera",
-        "close_live_view",
-        "close_session",
-        "create_camera",
-        "create_session",
-        "get_capacity",
-        "get_session_state",
-        "open_live_view",
-        "renew_live_view",
-        "revoke_pose_producer",
-        "set_camera"
-      ],
-      "required_scopes": [
-        "operator:use"
-      ],
-      "metadata": {
-        "contract_revision": 2,
-        "renderer_profile": "isaac_rtx"
+        "role": "authoritative_simulation_live_view"
       }
     }
   ],
@@ -233,10 +98,7 @@
         "oauth_client_credentials"
       ],
       "required_scopes": [
-        "operator:use",
-        "simulation-view:read",
-        "simulation-view:write",
-        "simulation-view:stream"
+        "operator:use"
       ],
       "servers": [
         {
@@ -244,9 +106,10 @@
           "tools": {
             "mode": "listed",
             "items": [
-              "prepare_scene",
-              "start_pose_producer",
-              "stop_pose_producer",
+              "list_live_cameras",
+              "open_live_view",
+              "renew_live_view",
+              "close_live_view",
               "get_fixture_state"
             ]
           },
@@ -256,84 +119,6 @@
               {
                 "kind": "scheme",
                 "scheme": "anonymous-simulation"
-              }
-            ]
-          },
-          "prompts": {
-            "mode": "none"
-          },
-          "completions": "disabled",
-          "tasks": "disabled"
-        },
-        {
-          "server": "artifact",
-          "tools": {
-            "mode": "listed",
-            "items": [
-              "create_share_link",
-              "grant_access",
-              "metadata",
-              "revoke_access",
-              "revoke_share_link",
-              "set_release_state"
-            ]
-          },
-          "resources": {
-            "mode": "listed",
-            "items": [
-              {
-                "kind": "scheme",
-                "scheme": "artifact"
-              }
-            ]
-          },
-          "prompts": {
-            "mode": "all"
-          },
-          "completions": "enabled",
-          "tasks": "disabled"
-        },
-        {
-          "server": "frames",
-          "tools": {
-            "mode": "listed",
-            "items": [
-              "batch_transform",
-              "convert_frame",
-              "create_world",
-              "publish_world"
-            ]
-          },
-          "resources": {
-            "mode": "listed",
-            "items": [
-              {
-                "kind": "scheme",
-                "scheme": "frames"
-              }
-            ]
-          },
-          "prompts": {
-            "mode": "all"
-          },
-          "completions": "enabled",
-          "tasks": "enabled"
-        },
-        {
-          "server": "simulation-view",
-          "tools": {
-            "mode": "all"
-          },
-          "resources": {
-            "mode": "listed",
-            "items": [
-              {
-                "kind": "scheme",
-                "scheme": "simulation-view"
-              },
-              {
-                "kind": "uri_prefix",
-                "prefix": "ui://simulation-view/"
               }
             ]
           },
@@ -394,7 +179,7 @@
       "version": "2026-07-02",
       "rules": [
         {
-          "id": "allow_anonymous_simulation_use",
+          "id": "allow_authoritative_simulation_live_view",
           "effect": "allow",
           "actions": [
             "tools_list",
@@ -408,264 +193,16 @@
           "protected_resources": [],
           "servers": [
             "anonymous-simulation"
-          ],
-          "tools": [
-            "get_fixture_state",
-            "prepare_scene",
-            "start_pose_producer",
-            "stop_pose_producer"
-          ],
-          "resource_schemes": [
-            "anonymous-simulation"
-          ],
-          "prompts": [],
-          "principal_ids": [],
-          "tenant_ids": [],
-          "groups": [],
-          "roles": [],
-          "required_scopes": [
-            "operator:use"
-          ],
-          "required_data_labels": [],
-          "required_assurances": [],
-          "metadata": {}
-        },
-        {
-          "id": "allow_operator_artifact_use",
-          "effect": "allow",
-          "actions": [
-            "tools_list",
-            "tools_call",
-            "resources_list",
-            "resources_templates_list",
-            "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
-            "prompts_list",
-            "prompts_get",
-            "completion_complete",
-            "artifact_read"
-          ],
-          "profiles": [
-            "operator"
-          ],
-          "protected_resources": [],
-          "servers": [
-            "artifact"
-          ],
-          "tools": [
-            "create_share_link",
-            "grant_access",
-            "metadata",
-            "revoke_access",
-            "revoke_share_link",
-            "set_release_state"
-          ],
-          "resource_schemes": [
-            "artifact"
-          ],
-          "prompts": [
-            "artifact-access-review",
-            "artifact-share-review"
-          ],
-          "principal_ids": [],
-          "tenant_ids": [
-            "enterprise"
-          ],
-          "groups": [],
-          "roles": [
-            "operator"
-          ],
-          "required_scopes": [
-            "operator:use"
-          ],
-          "required_data_labels": [],
-          "required_assurances": [],
-          "metadata": {}
-        },
-        {
-          "id": "allow_operator_frames_use",
-          "effect": "allow",
-          "actions": [
-            "tools_list",
-            "tools_call",
-            "resources_list",
-            "resources_templates_list",
-            "resources_read",
-            "prompts_list",
-            "prompts_get",
-            "completion_complete",
-            "tasks_get",
-            "tasks_update",
-            "tasks_result",
-            "tasks_cancel",
-            "tasks_subscribe",
-            "artifact_read",
-            "usage_read"
-          ],
-          "profiles": [
-            "operator"
-          ],
-          "protected_resources": [],
-          "servers": [
-            "frames"
-          ],
-          "tools": [
-            "batch_transform",
-            "convert_frame",
-            "create_world",
-            "publish_world"
-          ],
-          "resource_schemes": [
-            "frames"
-          ],
-          "prompts": [
-            "frames-frame-audit",
-            "frames-transform-explain",
-            "frames-world-design"
-          ],
-          "principal_ids": [],
-          "tenant_ids": [
-            "enterprise"
-          ],
-          "groups": [],
-          "roles": [
-            "operator"
-          ],
-          "required_scopes": [
-            "operator:use"
-          ],
-          "required_data_labels": [],
-          "required_assurances": [],
-          "metadata": {}
-        },
-        {
-          "id": "allow_operator_service_artifact_use",
-          "effect": "allow",
-          "actions": [
-            "tools_list",
-            "tools_call",
-            "resources_list",
-            "resources_templates_list",
-            "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
-            "prompts_list",
-            "prompts_get",
-            "completion_complete",
-            "artifact_read"
-          ],
-          "profiles": [
-            "operator"
-          ],
-          "protected_resources": [],
-          "servers": [
-            "artifact"
-          ],
-          "tools": [
-            "create_share_link",
-            "grant_access",
-            "metadata",
-            "revoke_access",
-            "revoke_share_link",
-            "set_release_state"
-          ],
-          "resource_schemes": [
-            "artifact"
-          ],
-          "prompts": [
-            "artifact-access-review",
-            "artifact-share-review"
-          ],
-          "principal_ids": [
-            "http://localhost:8782/oauth#operator-service"
-          ],
-          "tenant_ids": [],
-          "groups": [],
-          "roles": [],
-          "required_scopes": [
-            "operator:use"
-          ],
-          "required_data_labels": [],
-          "required_assurances": [],
-          "metadata": {}
-        },
-        {
-          "id": "allow_operator_service_frames_use",
-          "effect": "allow",
-          "actions": [
-            "tools_list",
-            "tools_call",
-            "resources_list",
-            "resources_templates_list",
-            "resources_read",
-            "prompts_list",
-            "prompts_get",
-            "completion_complete",
-            "tasks_get",
-            "tasks_update",
-            "tasks_result",
-            "tasks_cancel",
-            "tasks_subscribe",
-            "artifact_read",
-            "usage_read"
-          ],
-          "profiles": [
-            "operator"
-          ],
-          "protected_resources": [],
-          "servers": [
-            "frames"
-          ],
-          "tools": [
-            "batch_transform",
-            "convert_frame",
-            "create_world",
-            "publish_world"
-          ],
-          "resource_schemes": [
-            "frames"
-          ],
-          "prompts": [
-            "frames-frame-audit",
-            "frames-transform-explain",
-            "frames-world-design"
-          ],
-          "principal_ids": [
-            "http://localhost:8782/oauth#operator-service"
-          ],
-          "tenant_ids": [],
-          "groups": [],
-          "roles": [],
-          "required_scopes": [
-            "operator:use"
-          ],
-          "required_data_labels": [],
-          "required_assurances": [],
-          "metadata": {}
-        },
-        {
-          "id": "allow_simulation_view_streams",
-          "effect": "allow",
-          "actions": [
-            "tools_list",
-            "tools_call",
-            "resources_list",
-            "resources_read"
-          ],
-          "profiles": [
-            "operator"
-          ],
-          "protected_resources": [],
-          "servers": [
-            "simulation-view"
           ],
           "tools": [
             "close_live_view",
+            "get_fixture_state",
+            "list_live_cameras",
             "open_live_view",
             "renew_live_view"
           ],
           "resource_schemes": [
+            "anonymous-simulation",
             "ui"
           ],
           "prompts": [],
@@ -674,85 +211,7 @@
           "groups": [],
           "roles": [],
           "required_scopes": [
-            "operator:use",
-            "simulation-view:stream"
-          ],
-          "required_data_labels": [],
-          "required_assurances": [],
-          "metadata": {}
-        },
-        {
-          "id": "allow_simulation_view_surface_read",
-          "effect": "allow",
-          "actions": [
-            "tools_list",
-            "tools_call",
-            "resources_list",
-            "resources_templates_list",
-            "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe"
-          ],
-          "profiles": [
-            "operator"
-          ],
-          "protected_resources": [],
-          "servers": [
-            "simulation-view"
-          ],
-          "tools": [
-            "get_capacity",
-            "get_session_state"
-          ],
-          "resource_schemes": [
-            "simulation-view"
-          ],
-          "prompts": [],
-          "principal_ids": [],
-          "tenant_ids": [],
-          "groups": [],
-          "roles": [],
-          "required_scopes": [
-            "operator:use",
-            "simulation-view:read"
-          ],
-          "required_data_labels": [],
-          "required_assurances": [],
-          "metadata": {}
-        },
-        {
-          "id": "allow_simulation_view_write_tools",
-          "effect": "allow",
-          "actions": [
-            "tools_list",
-            "tools_call"
-          ],
-          "profiles": [
-            "operator"
-          ],
-          "protected_resources": [],
-          "servers": [
-            "simulation-view"
-          ],
-          "tools": [
-            "authorize_pose_producer",
-            "bind_scene",
-            "close_camera",
-            "close_session",
-            "create_camera",
-            "create_session",
-            "revoke_pose_producer",
-            "set_camera"
-          ],
-          "resource_schemes": [],
-          "prompts": [],
-          "principal_ids": [],
-          "tenant_ids": [],
-          "groups": [],
-          "roles": [],
-          "required_scopes": [
-            "operator:use",
-            "simulation-view:write"
+            "operator:use"
           ],
           "required_data_labels": [],
           "required_assurances": [],
@@ -800,10 +259,7 @@
         "private_key_jwt"
       ],
       "allowed_scopes": [
-        "operator:use",
-        "simulation-view:read",
-        "simulation-view:stream",
-        "simulation-view:write"
+        "operator:use"
       ],
       "jwks": {
         "source": "file",

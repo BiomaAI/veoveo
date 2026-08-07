@@ -274,74 +274,6 @@ class StreamPublicationConfig:
 
 
 @dataclass(frozen=True, slots=True)
-class PosePublisherConfig:
-    producer_id: str
-    producer_spiffe_id: str
-    epoch_id: str
-    ingress_host: str
-    ingress_port: int
-    server_hostname: str
-    ca_certificate: Path
-    client_certificate: Path
-    client_private_key: Path
-    entity_table_revision: int
-
-    def __post_init__(self) -> None:
-        _identity("UAV_SIM_POSE_PRODUCER_ID", self.producer_id)
-        _identity("UAV_SIM_POSE_EPOCH_ID", self.epoch_id)
-        spiffe_remainder = self.producer_spiffe_id.removeprefix("spiffe://")
-        if (
-            spiffe_remainder == self.producer_spiffe_id
-            or not spiffe_remainder
-            or spiffe_remainder.startswith("/")
-            or len(self.producer_spiffe_id) > 512
-            or any(character.isspace() for character in self.producer_spiffe_id)
-        ):
-            raise ValueError(
-                "UAV_SIM_POSE_PRODUCER_SPIFFE_ID must be a normalized SPIFFE URI"
-            )
-        for name, value in (
-            ("UAV_SIM_POSE_INGRESS_HOST", self.ingress_host),
-            ("UAV_SIM_POSE_SERVER_HOSTNAME", self.server_hostname),
-        ):
-            if not value or "/" in value or any(character.isspace() for character in value):
-                raise ValueError(f"{name} must be a DNS name or IP address")
-        for name, path in (
-            ("UAV_SIM_POSE_CA_CERTIFICATE", self.ca_certificate),
-            ("UAV_SIM_POSE_CLIENT_CERTIFICATE", self.client_certificate),
-            ("UAV_SIM_POSE_CLIENT_PRIVATE_KEY", self.client_private_key),
-        ):
-            if not path.is_absolute() or ".." in path.parts:
-                raise ValueError(f"{name} must be an absolute normalized path")
-
-    @classmethod
-    def from_environment(cls) -> "PosePublisherConfig":
-        return cls(
-            producer_id=_required("UAV_SIM_POSE_PRODUCER_ID"),
-            producer_spiffe_id=_required("UAV_SIM_POSE_PRODUCER_SPIFFE_ID"),
-            epoch_id=_required("UAV_SIM_POSE_EPOCH_ID"),
-            ingress_host=_required("UAV_SIM_POSE_INGRESS_HOST"),
-            ingress_port=_int(
-                "UAV_SIM_POSE_INGRESS_PORT", "7443", 1, 65_535
-            ),
-            server_hostname=_required("UAV_SIM_POSE_SERVER_HOSTNAME"),
-            ca_certificate=Path(_required("UAV_SIM_POSE_CA_CERTIFICATE")),
-            client_certificate=Path(
-                _required("UAV_SIM_POSE_CLIENT_CERTIFICATE")
-            ),
-            client_private_key=Path(
-                _required("UAV_SIM_POSE_CLIENT_PRIVATE_KEY")
-            ),
-            entity_table_revision=_int(
-                "UAV_SIM_POSE_ENTITY_TABLE_REVISION",
-                "1",
-                1,
-                2**63 - 1,
-            ),
-        )
-
-
-@dataclass(frozen=True, slots=True)
 class RuntimeConfig:
     session_id: str
     cesium_ion_access_token: str
@@ -353,8 +285,6 @@ class RuntimeConfig:
     adapter_port: int
     physics_hz: int
     rendering_hz: int
-    pose_cadence_hz: int
-    pose_buffer_duration_ms: int
     tile_ready_frames: int
     px4_connect_timeout_seconds: float
     px4_directory: str
@@ -365,7 +295,6 @@ class RuntimeConfig:
     operator_live_view: OperatorLiveViewRuntimeConfig
     fleet_loop: FleetLoopConfig
     stream_publication: StreamPublicationConfig | None
-    pose_publication: PosePublisherConfig
     extension_directory: str
 
     def __post_init__(self) -> None:
@@ -379,8 +308,6 @@ class RuntimeConfig:
                 "UAV_SIM_RENDERING_HZ must be at least the maximum active "
                 "operator-camera frame rate"
             )
-        if self.pose_cadence_hz > self.physics_hz:
-            raise ValueError("UAV_SIM_POSE_CADENCE_HZ must not exceed UAV_SIM_PHYSICS_HZ")
         if self.recording.telemetry_hz > self.physics_hz:
             raise ValueError(
                 "UAV_SIM_RECORDING_TELEMETRY_HZ must not exceed UAV_SIM_PHYSICS_HZ"
@@ -450,10 +377,6 @@ class RuntimeConfig:
             adapter_port=_int("UAV_SIM_ADAPTER_PORT", "8810", 1, 65_535),
             physics_hz=_int("UAV_SIM_PHYSICS_HZ", "60", 30, 1_000),
             rendering_hz=_int("UAV_SIM_RENDERING_HZ", "2", 1, 120),
-            pose_cadence_hz=_int("UAV_SIM_POSE_CADENCE_HZ", "20", 1, 120),
-            pose_buffer_duration_ms=_int(
-                "UAV_SIM_POSE_BUFFER_DURATION_MS", "500", 50, 5_000
-            ),
             tile_ready_frames=_int("UAV_SIM_TILE_READY_FRAMES", "30", 1, 600),
             px4_connect_timeout_seconds=_float(
                 "UAV_SIM_PX4_CONNECT_TIMEOUT_SECONDS", "180.0", 30.0, 600.0
@@ -477,7 +400,6 @@ class RuntimeConfig:
             ),
             fleet_loop=FleetLoopConfig.from_environment(),
             stream_publication=StreamPublicationConfig.from_environment(),
-            pose_publication=PosePublisherConfig.from_environment(),
             extension_directory=os.environ.get(
                 "UAV_SIM_EXTENSION_DIRECTORY", "/opt/veoveo/extensions"
             ),

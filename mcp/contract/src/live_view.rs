@@ -799,7 +799,7 @@ mod tests {
         assert!(LiveViewUri::new("uav-sim://session/session-a/live-view/view-a").is_ok());
         assert!(LiveViewUri::new("ground-sim://session/session-a/live-view/view-a").is_ok());
         for invalid in [
-            "simulation-view://session/session-a/stream/stream-a",
+            "uav-sim://owner/session-a/live-view/view-a",
             "uav-sim://stream/stream-a",
             "https://example.test/session/session-a/live-view/view-a",
             "uav-sim://session/session-a/live-view/view-a?token=secret",
