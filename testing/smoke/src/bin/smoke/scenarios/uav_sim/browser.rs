@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, path::Path};
+use std::{collections::VecDeque, path::Path, sync::Arc};
 
 #[cfg(test)]
 use anyhow::anyhow;
@@ -33,6 +33,25 @@ pub(crate) struct ConsoleLiveCaptureEvidence {
     hardware: HardwareIdentity,
     video: AppVideoState,
     decode: DecodeIdentity,
+}
+
+#[allow(dead_code)] // Viewer-slot identity is consumed by the focused browser binary.
+impl ConsoleLiveCaptureEvidence {
+    pub(crate) fn viewer_instance_id(&self) -> &str {
+        &self.video.viewer_instance_id
+    }
+
+    pub(crate) fn live_view_id(&self) -> &str {
+        &self.video.live_view_id
+    }
+
+    pub(crate) fn stream_product_id(&self) -> &str {
+        &self.video.stream_product_id
+    }
+
+    pub(crate) fn capacity_slot(&self) -> u16 {
+        self.video.capacity_slot
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -88,10 +107,55 @@ pub(crate) async fn capture_console_live_app(
     let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live.html");
     tokio::time::timeout(
         timeout,
-        capture_console_live_app_inner(cdp_base, &page_url, expected_camera_id, screenshot_path),
+        capture_console_live_app_inner(
+            cdp_base,
+            &page_url,
+            expected_camera_id,
+            screenshot_path,
+            None,
+        ),
     )
     .await
     .with_context(|| format!("Console live-App capture exceeded {timeout:?}"))?
+}
+
+#[allow(dead_code)] // Multi-tab acceptance is owned by the focused browser binary.
+pub(crate) async fn capture_console_live_app_pair(
+    cdp_base: &str,
+    public_base_url: &str,
+    expected_camera_id: &str,
+    first_screenshot_path: &Path,
+    second_screenshot_path: &Path,
+    timeout: Duration,
+) -> Result<(ConsoleLiveCaptureEvidence, ConsoleLiveCaptureEvidence)> {
+    let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live.html");
+    let simultaneous = Arc::new(tokio::sync::Barrier::new(2));
+    let first = tokio::time::timeout(
+        timeout,
+        capture_console_live_app_inner(
+            cdp_base,
+            &page_url,
+            expected_camera_id,
+            first_screenshot_path,
+            Some(Arc::clone(&simultaneous)),
+        ),
+    );
+    let second = tokio::time::timeout(
+        timeout,
+        capture_console_live_app_inner(
+            cdp_base,
+            &page_url,
+            expected_camera_id,
+            second_screenshot_path,
+            Some(simultaneous),
+        ),
+    );
+    let (first, second) = tokio::join!(first, second);
+    Ok((
+        first.with_context(|| format!("first Console live-App capture exceeded {timeout:?}"))??,
+        second
+            .with_context(|| format!("second Console live-App capture exceeded {timeout:?}"))??,
+    ))
 }
 
 pub(crate) async fn preflight_console_live_app(
@@ -218,6 +282,7 @@ async fn capture_console_live_app_inner(
     page_url: &str,
     expected_camera_id: &str,
     screenshot_path: &Path,
+    simultaneous: Option<Arc<tokio::sync::Barrier>>,
 ) -> Result<ConsoleLiveCaptureEvidence> {
     let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, page_url).await?;
     let acceptance = async {
@@ -269,6 +334,9 @@ async fn capture_console_live_app_inner(
         )
         .await?;
         decode.validate()?;
+        if let Some(simultaneous) = simultaneous {
+            simultaneous.wait().await;
+        }
         let snapshot: Value = cdp
             .evaluate(
                 &session_id,
@@ -1537,6 +1605,10 @@ struct AppVideoState {
     #[serde(skip_serializing)]
     document_epoch_ms: f64,
     camera_id: String,
+    viewer_instance_id: String,
+    live_view_id: String,
+    stream_product_id: String,
+    capacity_slot: u16,
     ready_state: u16,
     video_width: u32,
     video_height: u32,
@@ -1554,6 +1626,12 @@ impl AppVideoState {
             self.camera_id == expected_camera_id,
             "authoritative live-view App selected camera {:?}, expected {expected_camera_id:?}",
             self.camera_id
+        );
+        ensure!(
+            !self.viewer_instance_id.is_empty()
+                && !self.live_view_id.is_empty()
+                && !self.stream_product_id.is_empty(),
+            "authoritative live-view App omitted its isolated viewer-slot identity: {self:?}"
         );
         ensure!(
             self.ready_state >= 2
@@ -2281,10 +2359,15 @@ const HARDWARE_PREFLIGHT: &str = r#"(async () => {
 
 const APP_FRAME_VIDEO_STATE: &str = r#"(() => {
   const video=document.querySelector("video");
+  const view=video?.closest(".view");
   const camera=document.querySelector(`#choices input[type="checkbox"]:checked`);
   return {
     documentEpochMs:performance.timeOrigin,
     cameraId:camera?.parentElement?.textContent?.split(" · ")[0]?.trim() ?? "",
+    viewerInstanceId:view?.dataset.viewerInstanceId ?? "",
+    liveViewId:view?.dataset.liveViewId ?? "",
+    streamProductId:view?.dataset.streamProductId ?? "",
+    capacitySlot:Number(view?.dataset.capacitySlot ?? 0),
     readyState:video?.readyState ?? 0,
     videoWidth:video?.videoWidth ?? 0,
     videoHeight:video?.videoHeight ?? 0,

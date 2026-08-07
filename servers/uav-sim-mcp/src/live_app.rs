@@ -28,6 +28,9 @@ mod tests {
             "close_live_view",
             "ui/resource-teardown",
             "navigator.mediaCapabilities.decodingInfo",
+            "section.dataset.viewerInstanceId",
+            "section.dataset.streamProductId",
+            "section.dataset.capacitySlot",
         ] {
             assert!(html.contains(expected), "missing {expected}");
         }

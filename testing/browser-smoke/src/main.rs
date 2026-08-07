@@ -17,10 +17,10 @@ mod browser;
 
 use browser::{
     ConsoleLiveCaptureEvidence, ConsoleRecordingCaptureEvidence, ConsoleStreamCaptureEvidence,
-    capture_console_live_app, capture_console_recording, capture_console_stream_app,
+    capture_console_live_app_pair, capture_console_recording, capture_console_stream_app,
 };
 
-const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-browser-evidence/v3";
+const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-browser-evidence/v4";
 const MAX_RECORDING_SOURCE_LAG_SECONDS: f64 = 1.0;
 const OPERATOR_PROFILE_SCOPES: &[&str] = &[
     "operator:use",
@@ -101,13 +101,11 @@ struct BrowserAcceptanceEvidence {
     session_id: String,
     camera_id: String,
     recording_id: String,
-    initial_encoded_frames: u64,
-    final_encoded_frames: u64,
     source_simulation_time_seconds: f64,
     recording_simulation_time_seconds: f64,
     recording_source_lag_seconds: f64,
     source_alignment: SourceTimelineAlignmentEvidence,
-    live: ConsoleLiveCaptureEvidence,
+    live_views: Vec<ConsoleLiveCaptureEvidence>,
     stream: ConsoleStreamCaptureEvidence,
     recording: ConsoleRecordingCaptureEvidence,
 }
@@ -346,18 +344,26 @@ async fn verify_running_showcase(
         })
         .context("running showcase has no healthy leader follow camera")?;
     let camera_id = json_string(camera, "/cameraId")?.to_owned();
-    let product_id = json_string(camera, "/streamProductId")?;
-    let initial_encoded_frames = initial_state
+    ensure!(
+        camera.get("streamProductId").is_none(),
+        "logical camera retained a physical stream-product identity: {camera}"
+    );
+    let initial_products = initial_state
         .get("stream_products")
         .and_then(Value::as_array)
-        .and_then(|products| {
-            products.iter().find(|product| {
-                product.get("streamProductId").and_then(Value::as_str) == Some(product_id)
+        .context("authoritative simulator omitted its viewer-slot collection")?;
+    ensure!(
+        initial_products
+            .iter()
+            .filter(|product| {
+                product.get("lifecycle").and_then(Value::as_str) == Some("inactive")
+                    && product.get("cameraId").is_none()
+                    && product.get("liveViewId").is_none()
             })
-        })
-        .and_then(|product| product.get("encodedFrames"))
-        .and_then(Value::as_u64)
-        .context("authoritative camera product omitted its encoded frame counter")?;
+            .count()
+            >= 2,
+        "focused browser acceptance requires two unassigned native viewer slots: {initial_products:?}"
+    );
 
     let source_revision = git_revision()?;
     let run_id = uuid::Uuid::now_v7().to_string();
@@ -369,14 +375,31 @@ async fn verify_running_showcase(
         )
     })?;
     let timeout = Duration::from_secs(scenario.view.timeout_seconds);
-    let live = capture_console_live_app(
+    let (first_live, second_live) = capture_console_live_app_pair(
         chrome_cdp_url,
         public_base_url,
         &camera_id,
-        &evidence_directory.join("uav-live-view.png"),
+        &evidence_directory.join("uav-live-view-first.png"),
+        &evidence_directory.join("uav-live-view-second.png"),
         timeout,
     )
     .await?;
+    ensure!(
+        first_live.viewer_instance_id() != second_live.viewer_instance_id()
+            && first_live.live_view_id() != second_live.live_view_id()
+            && first_live.stream_product_id() != second_live.stream_product_id()
+            && first_live.capacity_slot() != second_live.capacity_slot(),
+        "simultaneous browser instances did not receive isolated native viewer slots: \
+         first=({}, {}, {}, {}) second=({}, {}, {}, {})",
+        first_live.viewer_instance_id(),
+        first_live.live_view_id(),
+        first_live.stream_product_id(),
+        first_live.capacity_slot(),
+        second_live.viewer_instance_id(),
+        second_live.live_view_id(),
+        second_live.stream_product_id(),
+        second_live.capacity_slot(),
+    );
     let stream = capture_console_stream_app(
         chrome_cdp_url,
         public_base_url,
@@ -394,22 +417,27 @@ async fn verify_running_showcase(
     .await?;
 
     let final_state = simulation_state(&operator, &scenario.session_id).await?;
-    let final_encoded_frames = final_state
+    let final_products = final_state
         .get("stream_products")
         .and_then(Value::as_array)
-        .and_then(|products| {
-            products.iter().find(|product| {
-                product.get("streamProductId").and_then(Value::as_str) == Some(product_id)
-            })
-        })
-        .and_then(|product| product.get("encodedFrames"))
-        .and_then(Value::as_u64)
-        .context("authoritative camera product lost its encoded frame counter")?;
-    ensure!(
-        final_encoded_frames > initial_encoded_frames,
-        "authoritative encoded product did not advance during focused browser acceptance: \
-         {initial_encoded_frames} -> {final_encoded_frames}"
-    );
+        .context("authoritative simulator lost its viewer-slot collection")?;
+    for live in [&first_live, &second_live] {
+        let released = final_products.iter().find(|product| {
+            product.get("streamProductId").and_then(Value::as_str) == Some(live.stream_product_id())
+        });
+        ensure!(
+            released.is_some_and(|product| {
+                product.get("capacitySlot").and_then(Value::as_u64)
+                    == Some(u64::from(live.capacity_slot()))
+                    && product.get("lifecycle").and_then(Value::as_str) == Some("inactive")
+                    && product.get("cameraId").is_none()
+                    && product.get("liveViewId").is_none()
+                    && product.get("nvencSessions").and_then(Value::as_u64) == Some(0)
+            }),
+            "browser close did not release native viewer slot {} immediately: {final_products:?}",
+            live.capacity_slot(),
+        );
+    }
     ensure!(
         json_string(&final_state, "/lifecycle")? == "running",
         "focused browser acceptance altered the running simulation: {final_state}"
@@ -433,13 +461,11 @@ async fn verify_running_showcase(
         session_id: scenario.session_id,
         camera_id,
         recording_id,
-        initial_encoded_frames,
-        final_encoded_frames,
         source_simulation_time_seconds,
         recording_simulation_time_seconds,
         recording_source_lag_seconds,
         source_alignment,
-        live,
+        live_views: vec![first_live, second_live],
         stream,
         recording,
     };

@@ -40,7 +40,6 @@ struct ShowcaseEvidence {
     scenario_path: String,
     session_id: String,
     camera_id: String,
-    stream_product_id: String,
     camera_rig: &'static str,
     recording_id: String,
     checkpoints: Vec<FlightCheckpointEvidence>,
@@ -105,7 +104,7 @@ pub(crate) async fn uav_showcase_verify(
     }
 
     ensure_world_configured(&operator, &scenario).await?;
-    let product_id = wait_for_live_product(
+    wait_for_live_capacity(
         &operator,
         &scenario,
         PRIMARY_CAMERA_ID,
@@ -176,7 +175,6 @@ pub(crate) async fn uav_showcase_verify(
         scenario_path: scenario_path.display().to_string(),
         session_id: scenario.session_id.clone(),
         camera_id: PRIMARY_CAMERA_ID.to_owned(),
-        stream_product_id: product_id,
         camera_rig: "follow_entity",
         recording_id: flight.recording_id,
         checkpoints: flight.checkpoints,
@@ -216,7 +214,7 @@ pub(crate) async fn uav_showcase_up(
         base: public_base_url,
     };
     ensure_world_configured(&operator, &scenario).await?;
-    let product_id = wait_for_live_product(
+    let viewer_slots = wait_for_live_capacity(
         &operator,
         &scenario,
         PRIMARY_CAMERA_ID,
@@ -224,18 +222,18 @@ pub(crate) async fn uav_showcase_up(
     )
     .await?;
     println!(
-        "UAV showcase is live: session={}, camera={}, product={product_id}",
-        scenario.session_id, PRIMARY_CAMERA_ID
+        "UAV showcase is live: session={}, camera={}, native-viewer-slots={viewer_slots}",
+        scenario.session_id, PRIMARY_CAMERA_ID,
     );
     Ok(())
 }
 
-async fn wait_for_live_product(
+async fn wait_for_live_capacity(
     operator: &OperatorClient<'_>,
     scenario: &UavAcceptanceScenario,
     camera_id: &str,
     timeout: Duration,
-) -> Result<String> {
+) -> Result<usize> {
     let deadline = tokio::time::Instant::now() + timeout;
     loop {
         let state = simulation_state(operator, scenario).await?;
@@ -247,43 +245,35 @@ async fn wait_for_live_product(
                     .iter()
                     .find(|item| item.get("cameraId").and_then(Value::as_str) == Some(camera_id))
             });
-        let product_id = camera
-            .and_then(|camera| camera.get("streamProductId"))
-            .and_then(Value::as_str);
-        let product = product_id.and_then(|product_id| {
-            state
-                .get("stream_products")
-                .and_then(Value::as_array)
-                .and_then(|items| {
-                    items.iter().find(|item| {
-                        item.get("streamProductId").and_then(Value::as_str) == Some(product_id)
+        let inactive_slots = state
+            .get("stream_products")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter(|item| {
+                        item.get("lifecycle").and_then(Value::as_str) == Some("inactive")
+                            && item.get("cameraId").is_none()
+                            && item.get("liveViewId").is_none()
+                            && item.get("capacitySlot").and_then(Value::as_u64).is_some()
                     })
-                })
-        });
+                    .count()
+            })
+            .unwrap_or(0);
         if json_string(&state, "/lifecycle").ok() == Some("running")
             && camera
                 .and_then(|item| item.get("health"))
                 .and_then(Value::as_str)
                 == Some("healthy")
-            && product
-                .and_then(|item| item.get("lifecycle"))
-                .and_then(Value::as_str)
-                == Some("ready")
-            && product
-                .and_then(|item| item.get("encodedFrames"))
-                .and_then(Value::as_u64)
-                .is_some_and(|frames| frames > 0)
+            && camera.is_some_and(|item| item.get("streamProductId").is_none())
+            && inactive_slots > 0
         {
-            return Ok(product_id.expect("checked above").to_owned());
+            return Ok(inactive_slots);
         }
         ensure!(
             json_string(&state, "/lifecycle").ok() != Some("failed")
-                && product
-                    .and_then(|item| item.get("lifecycle"))
-                    .and_then(Value::as_str)
-                    != Some("failed")
                 && tokio::time::Instant::now() < deadline,
-            "authoritative UAV live product did not become healthy within {timeout:?}: {state}"
+            "authoritative UAV logical camera and native viewer capacity did not become healthy within {timeout:?}: {state}"
         );
         tokio::time::sleep(Duration::from_millis(250)).await;
     }
