@@ -1540,24 +1540,12 @@ fn assert_world_ready(
             == Some(true),
         "PX4 is not connected: {state}"
     );
+    let sensor_camera = state
+        .pointer("/cameras/0")
+        .context("authoritative simulator state omitted its sensor camera")?;
     ensure!(
-        json_string(state, "/cameras/0/lifecycle")? == "ready"
-            && json_string(state, "/cameras/0/content")? == "visible"
-            && state
-                .pointer("/cameras/0/frames_observed")
-                .and_then(Value::as_u64)
-                .is_some_and(|count| count >= 3)
-            && state
-                .pointer("/cameras/0/mean_luma")
-                .and_then(Value::as_f64)
-                .is_some_and(|value| value >= scenario.camera.operational.minimum_mean_luma)
-            && state
-                .pointer("/cameras/0/non_black_fraction")
-                .and_then(Value::as_f64)
-                .is_some_and(|value| {
-                    value >= scenario.camera.operational.minimum_non_black_fraction
-                }),
-        "Isaac nadir camera is not operational: {state}"
+        sensor_camera_is_started(sensor_camera, &scenario.camera.operational),
+        "Isaac nadir camera is not producing admitted hardware frames: {state}"
     );
     let live_cameras: Vec<LiveCameraDescriptor> = serde_json::from_value(
         state
@@ -1614,6 +1602,57 @@ fn idle_viewer_slot_pool_matches_contract(products: &[LiveStreamProductState]) -
                 && product.visible.is_none()
                 && product.diagnostic.is_none()
         })
+}
+
+fn sensor_camera_is_started(camera: &Value, acceptance: &OperationalCameraAcceptance) -> bool {
+    let admitted_content = match (
+        camera.get("lifecycle").and_then(Value::as_str),
+        camera.get("content").and_then(Value::as_str),
+    ) {
+        (Some("ready"), Some("visible")) => true,
+        (Some("degraded"), Some("uniform")) => {
+            camera.get("diagnostic_code").and_then(Value::as_str) == Some("frame_uniform")
+        }
+        _ => false,
+    };
+    admitted_content
+        && camera
+            .get("frames_observed")
+            .and_then(Value::as_u64)
+            .is_some_and(|count| count >= 3)
+        && camera
+            .get("mean_luma")
+            .and_then(Value::as_f64)
+            .is_some_and(|value| value >= acceptance.minimum_mean_luma)
+        && camera
+            .get("non_black_fraction")
+            .and_then(Value::as_f64)
+            .is_some_and(|value| value >= acceptance.minimum_non_black_fraction)
+}
+
+fn sensor_camera_has_aerial_detail(camera: &Value, acceptance: &AerialCameraAcceptance) -> bool {
+    camera.get("lifecycle").and_then(Value::as_str) == Some("ready")
+        && camera.get("content").and_then(Value::as_str) == Some("visible")
+        && camera
+            .get("mean_luma")
+            .and_then(Value::as_f64)
+            .is_some_and(|value| value >= acceptance.minimum_mean_luma)
+        && camera
+            .get("dynamic_range")
+            .and_then(Value::as_u64)
+            .is_some_and(|value| value >= acceptance.minimum_dynamic_range)
+        && camera
+            .get("robust_dynamic_range")
+            .and_then(Value::as_u64)
+            .is_some_and(|value| value >= acceptance.minimum_robust_dynamic_range)
+        && camera
+            .get("luma_standard_deviation")
+            .and_then(Value::as_f64)
+            .is_some_and(|value| value >= acceptance.minimum_luma_standard_deviation)
+        && camera
+            .get("non_black_fraction")
+            .and_then(Value::as_f64)
+            .is_some_and(|value| value >= acceptance.minimum_non_black_fraction)
 }
 
 async fn wait_for_world_ready(
@@ -1728,36 +1767,11 @@ async fn wait_for_aerial_camera_content(
     let deadline = tokio::time::Instant::now() + timeout;
     loop {
         let state = simulation_state(operator, scenario).await?;
-        let camera_has_detail = state
-            .pointer("/cameras/0/mean_luma")
-            .and_then(Value::as_f64)
-            .is_some_and(|value| value >= scenario.camera.aerial_detail.minimum_mean_luma)
-            && state
-                .pointer("/cameras/0/dynamic_range")
-                .and_then(Value::as_u64)
-                .is_some_and(|value| value >= scenario.camera.aerial_detail.minimum_dynamic_range)
-            && state
-                .pointer("/cameras/0/robust_dynamic_range")
-                .and_then(Value::as_u64)
-                .is_some_and(|value| {
-                    value >= scenario.camera.aerial_detail.minimum_robust_dynamic_range
-                })
-            && state
-                .pointer("/cameras/0/luma_standard_deviation")
-                .and_then(Value::as_f64)
-                .is_some_and(|value| {
-                    value
-                        >= scenario
-                            .camera
-                            .aerial_detail
-                            .minimum_luma_standard_deviation
-                })
-            && state
-                .pointer("/cameras/0/non_black_fraction")
-                .and_then(Value::as_f64)
-                .is_some_and(|value| {
-                    value >= scenario.camera.aerial_detail.minimum_non_black_fraction
-                });
+        let camera = state
+            .pointer("/cameras/0")
+            .context("UAV state omitted its sensor camera")?;
+        let camera_has_detail =
+            sensor_camera_has_aerial_detail(camera, &scenario.camera.aerial_detail);
         if camera_has_detail {
             return Ok(state);
         }
@@ -2040,5 +2054,46 @@ mod tests {
         assert_eq!(target.latitude_degrees, current.latitude_degrees);
         assert_eq!(target.longitude_degrees, -73.9853);
         assert_eq!(target.ellipsoid_height_m, current.ellipsoid_height_m);
+    }
+
+    #[test]
+    fn grounded_uniform_sensor_frames_are_started_but_not_aerial_evidence() {
+        let grounded = serde_json::json!({
+            "lifecycle":"degraded",
+            "content":"uniform",
+            "diagnostic_code":"frame_uniform",
+            "frames_observed":12,
+            "mean_luma":132.0,
+            "dynamic_range":16,
+            "robust_dynamic_range":7,
+            "luma_standard_deviation":1.9,
+            "non_black_fraction":1.0
+        });
+        let operational = OperationalCameraAcceptance {
+            minimum_mean_luma: 2.0,
+            minimum_non_black_fraction: 0.02,
+        };
+        let aerial = AerialCameraAcceptance {
+            minimum_mean_luma: 2.0,
+            minimum_dynamic_range: 8,
+            minimum_robust_dynamic_range: 12,
+            minimum_luma_standard_deviation: 4.0,
+            minimum_non_black_fraction: 0.02,
+        };
+        assert!(sensor_camera_is_started(&grounded, &operational));
+        assert!(!sensor_camera_has_aerial_detail(&grounded, &aerial));
+
+        let visible = serde_json::json!({
+            "lifecycle":"ready",
+            "content":"visible",
+            "frames_observed":13,
+            "mean_luma":100.0,
+            "dynamic_range":80,
+            "robust_dynamic_range":40,
+            "luma_standard_deviation":20.0,
+            "non_black_fraction":1.0
+        });
+        assert!(sensor_camera_is_started(&visible, &operational));
+        assert!(sensor_camera_has_aerial_detail(&visible, &aerial));
     }
 }
