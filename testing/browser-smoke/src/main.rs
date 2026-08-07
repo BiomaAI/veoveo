@@ -21,8 +21,9 @@ use browser::{
     capture_console_stream_app, preflight_console_live_app,
 };
 
-const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-browser-evidence/v5";
+const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-browser-evidence/v6";
 const MAX_RECORDING_SOURCE_LAG_SECONDS: f64 = 1.0;
+const MINIMUM_PHYSICS_REAL_TIME_FACTOR: f64 = 0.98;
 const PRIMARY_CAMERA_ID: &str = "follow";
 const QUALIFIED_CAMERA_IDS: [&str; 5] = [
     PRIMARY_CAMERA_ID,
@@ -114,6 +115,7 @@ struct BrowserAcceptanceEvidence {
     recording_simulation_time_seconds: f64,
     recording_source_lag_seconds: f64,
     source_alignment: SourceTimelineAlignmentEvidence,
+    performance: LiveViewPerformanceEvidence,
     live_views: Vec<ConsoleLiveCaptureEvidence>,
     stream: ConsoleStreamCaptureEvidence,
     recording: ConsoleRecordingCaptureEvidence,
@@ -151,6 +153,17 @@ struct SourceTimelineAlignmentEvidence {
     recording_observed_at: chrono::DateTime<Utc>,
     interpolation_fraction: f64,
     aligned_simulation_time_seconds: f64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LiveViewPerformanceEvidence {
+    physics_real_time_factor: f64,
+    qualified_camera_count: usize,
+    simultaneous_viewer_count: usize,
+    minimum_observed_frame_rate_hz: f64,
+    maximum_observed_frame_rate_hz: f64,
+    browser_dropped_frames: u64,
 }
 
 struct OperatorClient<'a> {
@@ -490,6 +503,7 @@ async fn verify_running_showcase(
     );
     let source_alignment =
         align_source_timeline(&initial_state, &final_state, recording.captured_at())?;
+    let performance = live_view_performance(&source_alignment, &live_views)?;
     let source_simulation_time_seconds = source_alignment.aligned_simulation_time_seconds;
     let recording_simulation_time_seconds = recording.final_timeline_seconds();
     let recording_source_lag_seconds =
@@ -514,6 +528,7 @@ async fn verify_running_showcase(
         recording_simulation_time_seconds,
         recording_source_lag_seconds,
         source_alignment,
+        performance,
         live_views,
         stream,
         recording,
@@ -526,6 +541,51 @@ async fn verify_running_showcase(
         manifest.display()
     );
     Ok(())
+}
+
+fn live_view_performance(
+    source_alignment: &SourceTimelineAlignmentEvidence,
+    live_views: &[ConsoleLiveCaptureEvidence],
+) -> Result<LiveViewPerformanceEvidence> {
+    let wall_seconds = (source_alignment.after.updated_at - source_alignment.before.updated_at)
+        .num_nanoseconds()
+        .context("source timeline performance window exceeds supported duration")?
+        as f64
+        / 1_000_000_000.0;
+    let simulation_seconds = source_alignment.after.simulation_time_seconds
+        - source_alignment.before.simulation_time_seconds;
+    ensure!(
+        wall_seconds > 0.0 && simulation_seconds > 0.0,
+        "source timeline performance window did not advance"
+    );
+    let physics_real_time_factor = simulation_seconds / wall_seconds;
+    ensure!(
+        physics_real_time_factor >= MINIMUM_PHYSICS_REAL_TIME_FACTOR,
+        "authoritative simulation real-time factor {physics_real_time_factor:.4} is below the required {MINIMUM_PHYSICS_REAL_TIME_FACTOR:.2}"
+    );
+    let minimum_observed_frame_rate_hz = live_views
+        .iter()
+        .map(ConsoleLiveCaptureEvidence::observed_frame_rate_hz)
+        .fold(f64::INFINITY, f64::min);
+    let maximum_observed_frame_rate_hz = live_views
+        .iter()
+        .map(ConsoleLiveCaptureEvidence::observed_frame_rate_hz)
+        .fold(f64::NEG_INFINITY, f64::max);
+    ensure!(
+        minimum_observed_frame_rate_hz.is_finite() && maximum_observed_frame_rate_hz.is_finite(),
+        "authoritative camera cadence evidence was empty"
+    );
+    Ok(LiveViewPerformanceEvidence {
+        physics_real_time_factor,
+        qualified_camera_count: QUALIFIED_CAMERA_IDS.len(),
+        simultaneous_viewer_count: 2,
+        minimum_observed_frame_rate_hz,
+        maximum_observed_frame_rate_hz,
+        browser_dropped_frames: live_views
+            .iter()
+            .map(ConsoleLiveCaptureEvidence::cadence_dropped_frames)
+            .sum(),
+    })
 }
 
 fn align_source_timeline(
