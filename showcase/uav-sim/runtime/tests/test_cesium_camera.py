@@ -4,7 +4,10 @@ import unittest
 
 import numpy as np
 
-from veoveo_uav_sim.cesium_camera import normalized_hydra_matrices
+from veoveo_uav_sim.cesium_camera import (
+    authored_camera_frustum,
+    normalized_hydra_matrices,
+)
 from veoveo_uav_sim.hydra_camera import HydraRenderViewport
 
 
@@ -22,7 +25,34 @@ def _projection() -> np.ndarray:
     return projection
 
 
+class _Camera:
+    transform = None
+    frustum = object()
+
+
+class _UsdCamera:
+    def __init__(self) -> None:
+        self.camera = _Camera()
+
+    def GetCamera(self, time_code: object) -> _Camera:
+        del time_code
+        return self.camera
+
+    def ComputeLocalToWorldTransform(self, time_code: object) -> object:
+        return time_code
+
+
 class CesiumCameraTests(unittest.TestCase):
+    def test_authored_frustum_uses_absolute_camera_transform(self) -> None:
+        usd_camera = _UsdCamera()
+        time_code = object()
+
+        self.assertIs(
+            authored_camera_frustum(usd_camera, time_code),
+            usd_camera.camera.frustum,
+        )
+        self.assertIs(usd_camera.camera.transform, time_code)
+
     def test_preserves_row_major_hydra_matrices(self) -> None:
         view = np.identity(4)
         view[3, :3] = (-100.0, -200.0, -300.0)

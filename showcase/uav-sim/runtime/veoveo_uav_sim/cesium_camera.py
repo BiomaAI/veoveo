@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol, TypeVar
+from typing import Any, Protocol, TypeVar
 
 import numpy as np
 
@@ -107,3 +107,33 @@ def current_cesium_viewport(
     cesium_viewport.width = float(viewport.width)
     cesium_viewport.height = float(viewport.height)
     return cesium_viewport
+
+
+def current_authored_cesium_viewport(
+    stage: object,
+    camera_path: str,
+    width: int,
+    height: int,
+    viewport_type: CesiumViewportFactory[CesiumViewportT],
+) -> CesiumViewportT:
+    """Project an absolute authored USD camera into Cesium's viewport contract."""
+    from pxr import Usd, UsdGeom
+
+    time_code = Usd.TimeCode.Default()
+    usd_camera = UsdGeom.Camera.Get(stage, camera_path)
+    if not usd_camera.GetPrim().IsValid():
+        raise RuntimeError(f"operator camera prim is unavailable: {camera_path}")
+    frustum = authored_camera_frustum(usd_camera, time_code)
+    viewport = viewport_type()
+    viewport.viewMatrix = frustum.ComputeViewMatrix()
+    viewport.projMatrix = frustum.ComputeProjectionMatrix()
+    viewport.width = float(width)
+    viewport.height = float(height)
+    return viewport
+
+
+def authored_camera_frustum(usd_camera: Any, time_code: Any) -> Any:
+    """Return an authored camera frustum with its absolute world transform."""
+    camera = usd_camera.GetCamera(time_code)
+    camera.transform = usd_camera.ComputeLocalToWorldTransform(time_code)
+    return camera.frustum

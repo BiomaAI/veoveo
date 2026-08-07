@@ -125,7 +125,10 @@ def run(config: RuntimeConfig) -> None:
         normalize_rgb_frame,
         should_record_camera_frame,
     )
-    from .cesium_camera import current_cesium_viewport
+    from .cesium_camera import (
+        current_authored_cesium_viewport,
+        current_cesium_viewport,
+    )
     from .command_queue import MainThreadQueue
     from .fleet_loop import FleetLoopController
     from .hydra_camera import HydraRgbCameraSensor
@@ -665,21 +668,17 @@ def run(config: RuntimeConfig) -> None:
                 )
             assert operator_products is not None
             assert operator_cameras is not None
-            operator_positions = {
-                camera.definition.camera_id: camera.last_pose.position_m.as_tuple()
-                for camera in operator_cameras.cameras
-                if camera.last_pose is not None
-            }
-            for camera_id, product_viewport in operator_products.active_viewports():
-                expected_position = operator_positions.get(camera_id)
-                if expected_position is None:
+            active_operator_cameras = set(operator_products.active_camera_ids())
+            for camera in operator_cameras.cameras:
+                if camera.definition.camera_id not in active_operator_cameras:
                     continue
                 cesium_viewports.append(
-                    current_cesium_viewport(
-                        product_viewport,
-                        expected_position,
+                    current_authored_cesium_viewport(
+                        stage,
+                        camera.camera_path,
+                        camera.definition.optics.width_px,
+                        camera.definition.optics.height_px,
                         CesiumViewport,
-                        Gf.Matrix4d,
                     )
                 )
             cesium_interface.on_update_frame(cesium_viewports, False)
