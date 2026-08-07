@@ -3,7 +3,7 @@ from __future__ import annotations
 import ctypes
 import threading
 import time
-from typing import Any, Protocol, TypeVar
+from typing import Any
 
 import numpy as np
 
@@ -15,23 +15,6 @@ from .operator_health import OperatorProductHealth
 
 RENDER_PRODUCT_PREFIX = "/Render/OmniverseKit/HydraTextures"
 RGBA8_TEXTURE_FORMAT = "TextureFormat.RGBA8_UNORM"
-
-Matrix4dT = TypeVar("Matrix4dT")
-
-
-class Matrix4dFactory(Protocol[Matrix4dT]):
-    def __call__(self, *values: float) -> Matrix4dT: ...
-
-
-def materialize_matrix4d(
-    values: tuple[float, ...], matrix_type: Matrix4dFactory[Matrix4dT]
-) -> Matrix4dT:
-    """Restore the native matrix type stripped by Hydra frame serialization."""
-    if len(values) != 16:
-        raise ValueError("operator RTX viewport matrix must contain 16 values")
-    if not all(np.isfinite(value) for value in values):
-        raise ValueError("operator RTX viewport matrix values must be finite")
-    return matrix_type(*values)
 
 _capsule_pointer = ctypes.pythonapi.PyCapsule_GetPointer
 _capsule_pointer.argtypes = [ctypes.py_object, ctypes.c_char_p]
@@ -324,9 +307,9 @@ class OperatorProductCollection:
             )
         ]
 
-    def active_viewports(self) -> tuple[OperatorRenderViewport, ...]:
+    def active_viewports(self) -> tuple[tuple[str, HydraRenderViewport], ...]:
         return tuple(
-            viewport
+            (product.definition.camera_id, viewport)
             for product in sorted(
                 self._products.values(),
                 key=lambda product: product.definition.physical_slot,

@@ -1,52 +1,92 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Protocol, TypeVar
+from typing import Protocol, TypeVar
 
+import numpy as np
 
-@dataclass(frozen=True, slots=True)
-class CesiumCameraSpec:
-    camera_path: str
-    width: int
-    height: int
-
-    def __post_init__(self) -> None:
-        if not self.camera_path.startswith("/"):
-            raise ValueError("Cesium camera path must be an absolute USD prim path")
-        if self.width < 1 or self.height < 1:
-            raise ValueError("Cesium camera dimensions must be positive")
+from .hydra_camera import HydraRenderViewport
 
 
 CesiumViewportT = TypeVar("CesiumViewportT")
+Matrix4dT = TypeVar("Matrix4dT")
 
 
 class CesiumViewportFactory(Protocol[CesiumViewportT]):
     def __call__(self) -> CesiumViewportT: ...
 
 
-def camera_frustum(usd_camera: Any, time_code: Any) -> Any:
-    """Return the frustum for the camera's current world-space transform."""
-    camera = usd_camera.GetCamera(time_code)
-    camera.transform = usd_camera.ComputeLocalToWorldTransform(time_code)
-    return camera.frustum
+class Matrix4dFactory(Protocol[Matrix4dT]):
+    def __call__(self, *values: float) -> Matrix4dT: ...
+
+
+def _matrix(values: tuple[float, ...], name: str) -> np.ndarray:
+    if len(values) != 16 or not all(np.isfinite(value) for value in values):
+        raise RuntimeError(f"RTX Hydra product returned an invalid {name} matrix")
+    return np.asarray(values, dtype=np.float64).reshape((4, 4))
+
+
+def _camera_position(view: np.ndarray) -> np.ndarray:
+    try:
+        inverse = np.linalg.inv(view)
+    except np.linalg.LinAlgError as error:
+        raise RuntimeError("RTX Hydra product returned a singular view matrix") from error
+    # Gf.Matrix4d uses row vectors and stores translation in the fourth row.
+    return inverse[3, :3]
+
+
+def normalized_hydra_matrices(
+    viewport: HydraRenderViewport,
+    expected_camera_position_m: tuple[float, float, float],
+    *,
+    maximum_position_error_m: float = 20.0,
+) -> tuple[tuple[float, ...], tuple[float, ...]]:
+    """Normalize Hydra's serialized matrix layout against camera authority."""
+    if maximum_position_error_m <= 0.0:
+        raise ValueError("maximum camera position error must be positive")
+    expected = np.asarray(expected_camera_position_m, dtype=np.float64)
+    if expected.shape != (3,) or not np.all(np.isfinite(expected)):
+        raise ValueError("expected camera position must contain three finite values")
+
+    view = _matrix(viewport.view, "view")
+    projection = _matrix(viewport.projection, "projection")
+    candidates = (
+        (view, projection),
+        (view.transpose(), projection.transpose()),
+    )
+    selected_view, selected_projection = min(
+        candidates,
+        key=lambda candidate: float(
+            np.linalg.norm(_camera_position(candidate[0]) - expected)
+        ),
+    )
+    position_error_m = float(
+        np.linalg.norm(_camera_position(selected_view) - expected)
+    )
+    if position_error_m > maximum_position_error_m:
+        raise RuntimeError(
+            "RTX Hydra camera matrix disagrees with authoritative camera pose: "
+            f"position error {position_error_m:.3f} m"
+        )
+    return (
+        tuple(float(value) for value in selected_view.reshape(16)),
+        tuple(float(value) for value in selected_projection.reshape(16)),
+    )
 
 
 def current_cesium_viewport(
-    stage: Any,
-    spec: CesiumCameraSpec,
+    viewport: HydraRenderViewport,
+    expected_camera_position_m: tuple[float, float, float],
     viewport_type: CesiumViewportFactory[CesiumViewportT],
+    matrix_type: Matrix4dFactory[Matrix4dT],
 ) -> CesiumViewportT:
-    """Project the current USD camera into Cesium's native viewport contract."""
-    from pxr import Usd, UsdGeom
-
-    time_code = Usd.TimeCode.Default()
-    usd_camera = UsdGeom.Camera.Get(stage, spec.camera_path)
-    if not usd_camera.GetPrim().IsValid():
-        raise RuntimeError(f"Cesium camera prim is unavailable: {spec.camera_path}")
-    frustum = camera_frustum(usd_camera, time_code)
-    viewport = viewport_type()
-    viewport.viewMatrix = frustum.ComputeViewMatrix()
-    viewport.projMatrix = frustum.ComputeProjectionMatrix()
-    viewport.width = float(spec.width)
-    viewport.height = float(spec.height)
-    return viewport
+    """Project one rendered camera into Cesium's native viewport contract."""
+    view, projection = normalized_hydra_matrices(
+        viewport,
+        expected_camera_position_m,
+    )
+    cesium_viewport = viewport_type()
+    cesium_viewport.viewMatrix = matrix_type(*view)
+    cesium_viewport.projMatrix = matrix_type(*projection)
+    cesium_viewport.width = float(viewport.width)
+    cesium_viewport.height = float(viewport.height)
+    return cesium_viewport
