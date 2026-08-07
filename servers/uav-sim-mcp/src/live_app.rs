@@ -31,6 +31,11 @@ mod tests {
             "section.dataset.viewerInstanceId",
             "section.dataset.streamProductId",
             "section.dataset.capacitySlot",
+            "requestVideoFrameCallback",
+            "metadata.captureTime",
+            "camera.rig?.smoothing",
+            "decoded pending",
+            "Google Photorealistic 3D Tiles",
         ] {
             assert!(html.contains(expected), "missing {expected}");
         }
@@ -39,5 +44,6 @@ mod tests {
         }
         assert!(html.contains("{session_id:sessionId}"));
         assert!(!html.contains("first.sessionId"));
+        assert!(!html.contains("setInterval"));
     }
 }
