@@ -230,8 +230,8 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIn("AuthoritativeOperatorCameraCollection", app_source)
         self.assertIn('"sync_loads": False', app_source)
         self.assertIn('"disable_viewport_updates": True', app_source)
-        self.assertIn("get_active_viewport", app_source)
-        self.assertIn("viewport.set_active_camera(sensor_camera_path)", app_source)
+        self.assertNotIn("get_active_viewport", app_source)
+        self.assertIn("current_cesium_viewport", app_source)
         self.assertNotIn("follow_camera", app_source)
         self.assertIn("operator_camera_cadence.due(physics_step)", app_source)
 
