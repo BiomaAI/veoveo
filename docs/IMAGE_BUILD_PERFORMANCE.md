@@ -268,6 +268,26 @@ The full platform run spent about 148 seconds there despite uploading payload la
 0.3 seconds. This cost is now isolated from dependency compilation and belongs to a
 future exporter optimization.
 
+## External Source Cache Boundary
+
+The UAV runtime assembles pinned PX4, Pegasus, and Cesium sources inside its BuildKit
+graph. A release starts from a clean committed-source checkout, so a worker-local cache
+alone cannot protect that graph when the managed builder is replaced or garbage
+collection removes its execution history.
+
+The `uav-sim-runtime` Bake target exports its complete cache graph to
+`<registry>/veoveo/build-cache/uav-sim-runtime:buildkit` whenever a publication registry
+is configured. Later publications import that same target-specific reference before the
+solve. The cache uses OCI media types and a single image manifest; it is build evidence,
+not a runnable image or deployment input. An empty registry leaves both cache lists
+empty for local non-publishing builds.
+
+The first publication after introducing or deliberately clearing this boundary performs
+the complete upstream build and seeds the cache. Qualification of the boundary requires
+a later committed revision whose runtime source changed while the pinned upstream inputs
+did not. Its BuildKit evidence must show those upstream source and compilation vertices
+cached; an identical-revision build is not sufficient.
+
 ## Acceptance Matrix
 
 | Requirement | Evidence | Result |

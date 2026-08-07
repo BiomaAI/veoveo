@@ -989,6 +989,10 @@ pub(crate) async fn helm_config() -> Result<()> {
         "\"io.veoveo.build.family\"",
         "VEOVEO_REGISTRY",
         "VEOVEO_IMAGE_TAG",
+        "function \"registry_cache\"",
+        "function \"registry_cache_export\"",
+        "cache-from = registry_cache(\"uav-sim-runtime\")",
+        "cache-to   = registry_cache_export(\"uav-sim-runtime\")",
     ] {
         contains(&bake, expected)?;
     }

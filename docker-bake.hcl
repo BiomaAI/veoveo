@@ -28,6 +28,24 @@ function "image_ref" {
   )
 }
 
+function "registry_cache" {
+  params = [name]
+  result = VEOVEO_REGISTRY != "" ? [format(
+    "type=registry,ref=%s/veoveo/build-cache/%s:buildkit",
+    VEOVEO_REGISTRY,
+    name,
+  )] : []
+}
+
+function "registry_cache_export" {
+  params = [name]
+  result = VEOVEO_REGISTRY != "" ? [format(
+    "type=registry,ref=%s/veoveo/build-cache/%s:buildkit,mode=max,oci-mediatypes=true,image-manifest=true",
+    VEOVEO_REGISTRY,
+    name,
+  )] : []
+}
+
 group "platform-core" {
   targets = [
     "mcp-gateway",
@@ -550,6 +568,8 @@ target "uav-sim-runtime" {
   args = {
     SIMULATION_RUNTIME_IMAGE = "simulation-runtime"
   }
+  cache-from = registry_cache("uav-sim-runtime")
+  cache-to   = registry_cache_export("uav-sim-runtime")
 }
 
 target "simulation-overlay-acceptance" {
