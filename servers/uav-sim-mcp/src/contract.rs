@@ -233,6 +233,28 @@ pub struct QuaternionXyzw {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+pub struct EnuDirection {
+    #[schemars(range(min = -1.0, max = 1.0))]
+    pub east: f64,
+    #[schemars(range(min = -1.0, max = 1.0))]
+    pub north: f64,
+    #[schemars(range(min = -1.0, max = 1.0))]
+    pub up: f64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CameraRenderPoseState {
+    #[schemars(range(min = 0.0))]
+    pub position_error_m: f64,
+    #[schemars(range(min = 0.0, max = 180.0))]
+    pub forward_error_degrees: f64,
+    pub rendered_position_enu_m: EnuVector,
+    pub rendered_forward_enu: EnuDirection,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct TileState {
     pub lifecycle: TileLifecycle,
     pub source: String,
@@ -281,6 +303,8 @@ pub struct CameraState {
     #[schemars(range(min = 0.0, max = 1.0))]
     pub non_black_fraction: f32,
     pub content: CameraContent,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub render_pose: Option<CameraRenderPoseState>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diagnostic_code: Option<CameraDiagnosticCode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
