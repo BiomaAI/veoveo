@@ -12,7 +12,7 @@ spec:
   sources:
     - repoURL: charts-registry.argocd.svc.cluster.local/charts
       chart: uav-sim
-      targetRevision: 0.1.0-f0d078cc8f5e
+      targetRevision: 0.1.0-c1fb61118253
       helm:
         releaseName: uav-sim
         valueFiles:
