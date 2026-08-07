@@ -221,10 +221,14 @@ private development registry at its configured address. Direct publication admit
 transport only for a loopback registry. Private production registries remain
 TLS-verified.
 
-Image execution sets `SOURCE_DATE_EPOCH` to the selected Git commit timestamp. BuildKit
-clamps newer filesystem metadata to that stable boundary without rewriting older
-inherited base layers. Registry publication rewrites output timestamps at export. A
-local build uses the
+Image evidence records the selected Git commit timestamp as `sourceDateEpoch`.
+Execution sets `SOURCE_DATE_EPOCH` to the repository's separate `buildDateEpoch`, which
+is a pinned cache ABI rather than revision metadata. BuildKit folds this predefined
+argument into every stage key, so changing it for each commit would invalidate otherwise
+identical dependency work. The build epoch advances only when a newly pinned parent image
+contains newer metadata. BuildKit clamps newer filesystem metadata to that stable
+boundary without rewriting older inherited base layers. Registry publication rewrites
+output timestamps at export. A local build uses the
 Docker exporter and is a disposable developer artifact; its image identity is not
 release evidence. Cold and warm registry builds of one source state must produce the
 same runnable platform-manifest digest. Build cache remains an optimization and never
