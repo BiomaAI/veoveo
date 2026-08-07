@@ -137,6 +137,12 @@ struct StreamScenario {
     recording_replay: RecordingReplayAcceptance,
 }
 
+struct AcceptanceLiveSession {
+    session_id: String,
+    preview_uri: String,
+    owned_by_acceptance: bool,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RecordingReplayAcceptance {
@@ -542,27 +548,11 @@ async fn uav_sim_verify_with_visual_hold(
             && stream_app.contains("hardware H.264 decode"),
         "Stream MCP App does not expose video decoding, preview, and decode-path status"
     );
-    recover_live_stream_pipeline(&operator, &scenario.stream.live_pipeline_id).await?;
-    let live: StartLiveSessionOutput = serde_json::from_value(
-        operator
-            .call_tool(
-                "stream__start_live_session",
-                serde_json::json!({
-                    "pipeline_id": scenario.stream.live_pipeline_id
-                }),
-            )
-            .await
-            .context("starting the recording-independent live Stream session")?,
-    )
-    .context("decoding the typed live Stream session")?;
-    ensure!(
-        live.results_uri == format!("stream://session/{}/results", live.session_id)
-            && live.preview_uri == format!("stream://session/{}/preview", live.session_id),
-        "Stream returned inconsistent live-session resources: {live:?}"
-    );
+    let live = prepare_live_stream_pipeline(&operator, &scenario.stream.live_pipeline_id).await?;
     let live_session_id = live.session_id;
     let live_preview_uri = live.preview_uri;
-    let mut live_session_stopped = false;
+    let owned_live_session = live.owned_by_acceptance;
+    let mut owned_live_session_stopped = false;
     let (mut visual_stream_capture, mut moving_recording_capture) = match visual_holds {
         Some(holds) => (
             Some(holds.stream_capture_complete),
@@ -701,8 +691,10 @@ async fn uav_sim_verify_with_visual_hold(
                 );
             }
         }
-        stop_live_stream_session(&operator, &live_session_id, "live acceptance").await?;
-        live_session_stopped = true;
+        if owned_live_session {
+            stop_live_stream_session(&operator, &live_session_id, "live acceptance").await?;
+            owned_live_session_stopped = true;
+        }
 
         state = simulation_state(&operator, &scenario).await?;
         let simulation_time_s = state
@@ -824,7 +816,7 @@ async fn uav_sim_verify_with_visual_hold(
     }
     .await;
     let landing_result = ensure_vehicle_landed(&operator, &scenario, "postflight recovery").await;
-    let stream_stop_result = if live_session_stopped {
+    let stream_stop_result = if !owned_live_session || owned_live_session_stopped {
         Ok(())
     } else {
         stop_live_stream_session(&operator, &live_session_id, "postflight cleanup").await
@@ -862,34 +854,90 @@ async fn uav_sim_verify_with_visual_hold(
     Ok(())
 }
 
-async fn recover_live_stream_pipeline(
+async fn prepare_live_stream_pipeline(
     operator: &OperatorClient<'_>,
     pipeline_id: &str,
-) -> Result<()> {
+) -> Result<AcceptanceLiveSession> {
     let sessions: Vec<LiveSessionView> = serde_json::from_value(
         operator
             .resource("stream://sessions", Duration::from_secs(60))
             .await?,
     )
     .context("decoding visible live Stream sessions")?;
-    for session in sessions {
-        if session.pipeline_id == pipeline_id && session.lifecycle != LiveSessionLifecycle::Stopped
-        {
-            eprintln!(
-                "preflight recovery: stopping {} live Stream session {} for pipeline {}",
-                match session.lifecycle {
-                    LiveSessionLifecycle::Starting => "starting",
-                    LiveSessionLifecycle::Running => "running",
-                    LiveSessionLifecycle::Failed => "failed",
-                    LiveSessionLifecycle::Stopped => "stopped",
-                },
-                session.session_id,
-                pipeline_id
-            );
-            stop_live_stream_session(operator, &session.session_id, "preflight recovery").await?;
-        }
+    if let Some(session) = reusable_live_stream_session(&sessions, pipeline_id)? {
+        eprintln!(
+            "preflight: reusing visible {} live Stream session {} for pipeline {} without taking ownership",
+            match session.lifecycle {
+                LiveSessionLifecycle::Starting => "starting",
+                LiveSessionLifecycle::Running => "running",
+                LiveSessionLifecycle::Failed | LiveSessionLifecycle::Stopped => unreachable!(),
+            },
+            session.session_id,
+            pipeline_id
+        );
+        return acceptance_live_session(
+            &session.session_id,
+            &session.results_uri,
+            &session.preview_uri,
+            false,
+        );
     }
-    Ok(())
+
+    let started: StartLiveSessionOutput = serde_json::from_value(
+        operator
+            .call_tool(
+                "stream__start_live_session",
+                serde_json::json!({"pipeline_id": pipeline_id}),
+            )
+            .await
+            .context("starting the recording-independent live Stream session")?,
+    )
+    .context("decoding the typed live Stream session")?;
+    acceptance_live_session(
+        &started.session_id,
+        &started.results_uri,
+        &started.preview_uri,
+        true,
+    )
+}
+
+fn reusable_live_stream_session<'a>(
+    sessions: &'a [LiveSessionView],
+    pipeline_id: &str,
+) -> Result<Option<&'a LiveSessionView>> {
+    let active = sessions
+        .iter()
+        .filter(|session| {
+            session.pipeline_id == pipeline_id
+                && matches!(
+                    session.lifecycle,
+                    LiveSessionLifecycle::Starting | LiveSessionLifecycle::Running
+                )
+        })
+        .collect::<Vec<_>>();
+    ensure!(
+        active.len() <= 1,
+        "Stream exposed multiple active sessions for admitted pipeline {pipeline_id}: {active:?}"
+    );
+    Ok(active.into_iter().next())
+}
+
+fn acceptance_live_session(
+    session_id: &str,
+    results_uri: &str,
+    preview_uri: &str,
+    owned_by_acceptance: bool,
+) -> Result<AcceptanceLiveSession> {
+    ensure!(
+        results_uri == format!("stream://session/{session_id}/results")
+            && preview_uri == format!("stream://session/{session_id}/preview"),
+        "Stream returned inconsistent live-session resources for {session_id}: results={results_uri}, preview={preview_uri}"
+    );
+    Ok(AcceptanceLiveSession {
+        session_id: session_id.to_owned(),
+        preview_uri: preview_uri.to_owned(),
+        owned_by_acceptance,
+    })
 }
 
 async fn stop_live_stream_session(
@@ -1825,6 +1873,37 @@ mod tests {
             .join("../../showcase/uav-sim/scenarios/new-york-aerial.json")
     }
 
+    fn live_session(session_id: &str, pipeline_id: &str, lifecycle: &str) -> LiveSessionView {
+        serde_json::from_value(serde_json::json!({
+            "session_id": session_id,
+            "session_uri": format!("stream://session/{session_id}"),
+            "results_uri": format!("stream://session/{session_id}/results"),
+            "pipeline_id": pipeline_id,
+            "pipeline_uri": format!("stream://pipeline/{pipeline_id}"),
+            "ingress": {
+                "transport": "rtp_h264_udp",
+                "host": "stream-mcp",
+                "port": 5004,
+                "payload_type": 96,
+                "clock_rate": 90000,
+                "caps": "application/x-rtp,media=video,encoding-name=H264"
+            },
+            "video": {
+                "codec": "avc1.640028",
+                "width": 640,
+                "height": 480,
+                "frame_rate": 2,
+                "expected_bitrate_bps": 4000000
+            },
+            "preview_uri": format!("stream://session/{session_id}/preview"),
+            "lifecycle": lifecycle,
+            "started_at": "2026-08-07T18:00:00Z",
+            "received_video_frames": 12,
+            "processed_frames": 12
+        }))
+        .unwrap()
+    }
+
     #[test]
     fn canonical_mission_is_runtime_loaded_and_validated() {
         let scenario = UavAcceptanceScenario::load(&canonical_scenario()).unwrap();
@@ -1911,5 +1990,27 @@ mod tests {
         ]))
         .unwrap();
         assert!(!idle_viewer_slot_pool_matches_contract(&duplicate));
+    }
+
+    #[test]
+    fn stream_preflight_reuses_one_visible_session_without_claiming_ownership() {
+        let sessions = vec![
+            live_session("stopped", "traffic", "stopped"),
+            live_session("active", "traffic", "running"),
+            live_session("other", "another-pipeline", "running"),
+        ];
+        let selected = reusable_live_stream_session(&sessions, "traffic")
+            .unwrap()
+            .unwrap();
+        assert_eq!(selected.session_id, "active");
+    }
+
+    #[test]
+    fn stream_preflight_rejects_multiple_visible_active_sessions() {
+        let sessions = vec![
+            live_session("first", "traffic", "starting"),
+            live_session("second", "traffic", "running"),
+        ];
+        assert!(reusable_live_stream_session(&sessions, "traffic").is_err());
     }
 }
