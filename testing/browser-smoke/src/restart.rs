@@ -80,9 +80,9 @@ struct KubernetesContainerStatus {
     name: String,
     ready: bool,
     restart_count: u32,
-    #[serde(default)]
+    #[serde(default, rename = "imageID")]
     image_id: String,
-    #[serde(default)]
+    #[serde(default, rename = "containerID")]
     container_id: String,
 }
 
@@ -514,8 +514,8 @@ mod tests {
                             "name": "uav-sim-mcp",
                             "ready": true,
                             "restartCount": 0,
-                            "imageId": "registry.example/uav-sim-mcp@sha256:abc",
-                            "containerId": "containerd://current"
+                            "imageID": "registry.example/uav-sim-mcp@sha256:abc",
+                            "containerID": "containerd://current"
                         }]
                     }
                 }
@@ -525,5 +525,13 @@ mod tests {
 
         let selected = select_current_uav_pod(pods).unwrap();
         assert_eq!(selected.metadata.name, "uav-sim-current");
+        let status = container_status(
+            &selected,
+            "uav-sim-mcp",
+            KubernetesStatusCollection::Application,
+        )
+        .unwrap();
+        assert_eq!(status.image_id, "registry.example/uav-sim-mcp@sha256:abc");
+        assert_eq!(status.container_id, "containerd://current");
     }
 }
