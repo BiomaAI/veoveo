@@ -51,7 +51,6 @@ ARG AIOHAPPYEYEBALLS_VERSION=2.7.1
 ARG AIOHTTP_VERSION=3.14.1
 ARG AIOSIGNAL_VERSION=1.4.0
 ARG ATTRS_VERSION=26.1.0
-ARG AV_VERSION=18.0.0
 ARG FROZENLIST_VERSION=1.8.0
 ARG IDNA_VERSION=3.18
 ARG PYMAVLINK_VERSION=2.4.49
@@ -76,7 +75,6 @@ RUN /isaac-sim/python.sh -m pip install \
       "aiohttp==${AIOHTTP_VERSION}" \
       "aiosignal==${AIOSIGNAL_VERSION}" \
       "attrs==${ATTRS_VERSION}" \
-      "av==${AV_VERSION}" \
       "fastcrc==${FASTCRC_VERSION}" \
       "frozenlist==${FROZENLIST_VERSION}" \
       "idna==${IDNA_VERSION}" \

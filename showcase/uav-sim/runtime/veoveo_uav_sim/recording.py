@@ -6,15 +6,14 @@ import queue
 import threading
 from dataclasses import dataclass
 
-import av
-import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
 
-from .camera_quality import CameraFrameQuality, normalize_rgb_frame
+from .camera_quality import CameraFrameQuality
 from .config import RecordingMapProvider, RuntimeConfig
 from .event_queue import NonBlockingEventQueue
 from .geo import enu_to_geodetic
+from .h264 import NativeH264AccessUnit
 from .state import VehicleTelemetry
 from .stream_output import RtpH264Publisher
 from .world_config import WorldConfiguration
@@ -48,7 +47,7 @@ class _FrameEvent:
 
 @dataclass(frozen=True, slots=True)
 class _CameraEvent:
-    rgb: np.ndarray
+    access_unit: NativeH264AccessUnit
     simulation_time_s: float
     physics_step: int
 
@@ -81,8 +80,7 @@ class _MissionEvent:
 
 @dataclass(frozen=True, slots=True)
 class _StopEvent:
-    simulation_time_s: float
-    physics_step: int
+    pass
 
 
 type _RecordingEvent = (
@@ -95,41 +93,20 @@ type _RecordingEvent = (
 )
 
 
-class H264CameraStream:
-    # TODO(GPU): Replace the existing RTX capture readback with a direct CUDA
-    # render-product handoff. Encoding already fails closed on NVIDIA NVENC,
-    # and its one Annex B packet stream fans out unchanged to Stream and Rerun.
+class RecordedH264CameraStream:
+    """Fan one native Isaac NVENC access unit to Recording and live RTP."""
+
     def __init__(
         self,
         recording: rr.RecordingStream,
         entity_path: str,
         width: int,
         height: int,
-        fps: int,
-        bit_rate_bps: int,
         stream_output: RtpH264Publisher | None,
     ) -> None:
         self._recording = recording
         self._entity_path = entity_path
         self._stream_output = stream_output
-        self._container = av.open("/dev/null", "w", format="h264")
-        self._stream = self._container.add_stream("h264_nvenc", rate=fps)
-        self._stream.width = width
-        self._stream.height = height
-        self._stream.bit_rate = bit_rate_bps
-        self._stream.pix_fmt = "yuv420p"
-        self._stream.max_b_frames = 0
-        self._stream.codec_context.gop_size = fps
-        self._stream.options = {
-            "profile": "baseline",
-            "preset": "p1",
-            "tune": "ull",
-            "zerolatency": "1",
-            "forced-idr": "1",
-            "rc": "cbr",
-        }
-        if self._stream.codec_context.codec.name != "h264_nvenc":
-            raise RuntimeError("UAV camera H.264 encoder is not NVIDIA NVENC")
         self._recording.log(
             entity_path,
             rr.VideoStream(codec=rr.VideoCodec.H264),
@@ -137,32 +114,23 @@ class H264CameraStream:
             static=True,
         )
 
-    def encode(
-        self, rgb: np.ndarray, simulation_time_s: float, physics_step: int
+    def publish(
+        self,
+        access_unit: NativeH264AccessUnit,
+        simulation_time_s: float,
+        physics_step: int,
     ) -> None:
-        frame = av.VideoFrame.from_ndarray(normalize_rgb_frame(rgb), format="rgb24")
-        for packet in self._stream.encode(frame):
-            sample = bytes(packet)
-            if self._stream_output is not None:
-                self._stream_output.publish(sample, simulation_time_s)
-            self._set_time(simulation_time_s, physics_step)
-            self._recording.log(
-                self._entity_path,
-                _video_packet(sample, is_keyframe=packet.is_keyframe),
-            )
+        if not access_unit.is_keyframe:
+            raise RuntimeError("native Isaac camera access unit is not an IDR")
+        if self._stream_output is not None:
+            self._stream_output.publish(access_unit.sample, simulation_time_s)
+        self._set_time(simulation_time_s, physics_step)
+        self._recording.log(
+            self._entity_path,
+            _video_packet(access_unit.sample, is_keyframe=True),
+        )
 
-    def close(self, simulation_time_s: float, physics_step: int) -> None:
-        for packet in self._stream.encode(None):
-            sample = bytes(packet)
-            self._set_time(simulation_time_s, physics_step)
-            self._recording.log(
-                self._entity_path,
-                _video_packet(sample, is_keyframe=packet.is_keyframe),
-            )
-        # Encoder drain packets belong to the durable recording at the final
-        # simulation timestamp. They are not a new live frame and must not be
-        # assigned a duplicate RTP timestamp.
-        self._container.close()
+    def close(self) -> None:
         if self._stream_output is not None:
             self._stream_output.close()
 
@@ -220,12 +188,15 @@ class RecordingPublisher:
             )
         )
 
-    def offer_camera_frame(
-        self, rgb: np.ndarray, simulation_time_s: float, physics_step: int
+    def offer_camera_access_unit(
+        self,
+        access_unit: NativeH264AccessUnit,
+        simulation_time_s: float,
+        physics_step: int,
     ) -> None:
         self._events.offer(
             _CameraEvent(
-                rgb=np.ascontiguousarray(rgb).copy(),
+                access_unit=access_unit,
                 simulation_time_s=simulation_time_s,
                 physics_step=physics_step,
             )
@@ -289,11 +260,11 @@ class RecordingPublisher:
                 last_error=self._last_error,
             )
 
-    def close(self, simulation_time_s: float, physics_step: int) -> None:
+    def close(self) -> None:
         if self._closed.is_set():
             return
         self._closed.set()
-        self._events.offer(_StopEvent(simulation_time_s, physics_step))
+        self._events.offer(_StopEvent())
         self._worker.join(timeout=30.0)
         if self._worker.is_alive():
             LOGGER.error("recording worker did not stop within 30 seconds")
@@ -312,7 +283,7 @@ class RecordingPublisher:
                             return
                         continue
                     if isinstance(event, _StopEvent):
-                        sink.close(event.simulation_time_s, event.physics_step)
+                        sink.close()
                         self._set_status("stopped", None)
                         return
                     sink.handle(event)
@@ -372,13 +343,11 @@ class _RecordingSink:
             if config.stream_publication is not None
             else None
         )
-        self._camera = H264CameraStream(
+        self._camera = RecordedH264CameraStream(
             self._recording,
             camera_entity,
             config.camera.width,
             config.camera.height,
-            config.camera.fps,
-            config.camera.bit_rate_bps,
             stream_output,
         )
 
@@ -393,7 +362,9 @@ class _RecordingSink:
         if isinstance(event, _FrameEvent):
             self._log_frame(event)
         elif isinstance(event, _CameraEvent):
-            self._camera.encode(event.rgb, event.simulation_time_s, event.physics_step)
+            self._camera.publish(
+                event.access_unit, event.simulation_time_s, event.physics_step
+            )
         elif isinstance(event, _CameraQualityEvent):
             self._log_camera_quality(event)
         elif isinstance(event, _TilesEvent):
@@ -412,8 +383,8 @@ class _RecordingSink:
                 ),
             )
 
-    def close(self, simulation_time_s: float, physics_step: int) -> None:
-        self._camera.close(simulation_time_s, physics_step)
+    def close(self) -> None:
+        self._camera.close()
         self._recording.flush()
         self._recording.disconnect()
 

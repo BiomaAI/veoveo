@@ -48,7 +48,7 @@ pub fn optimize_live_rrd_messages(
             codec == re_sdk_types::components::VideoCodec::H264,
             "live RRD optimization supports H.264 VideoStream data"
         );
-        crate::h264_access_unit_is_idr(data)
+        crate::h264_access_unit_is_decoder_reentrant(data)
     });
     let options = CompactionOptions {
         config: store_config,

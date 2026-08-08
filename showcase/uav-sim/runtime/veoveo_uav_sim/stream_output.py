@@ -6,6 +6,7 @@ import socket
 import struct
 
 from .config import StreamPublicationConfig
+from .h264 import annex_b_nals
 
 
 _RTP_CLOCK_RATE = 90_000
@@ -40,9 +41,7 @@ class RtpH264Publisher:
             if delta == 0 or delta >= 0x8000_0000:
                 raise RuntimeError("Stream RTP timestamp did not advance")
         self._last_timestamp = timestamp
-        nals = _annex_b_nals(access_unit)
-        if not nals:
-            raise RuntimeError("encoded camera access unit contains no Annex B NAL")
+        nals = annex_b_nals(access_unit)
         payloads = [
             payload
             for nal in nals
@@ -65,27 +64,6 @@ class RtpH264Publisher:
 
     def close(self) -> None:
         self._socket.close()
-
-
-def _annex_b_nals(access_unit: bytes) -> list[bytes]:
-    starts: list[tuple[int, int]] = []
-    index = 0
-    while index + 3 <= len(access_unit):
-        if access_unit[index : index + 4] == b"\x00\x00\x00\x01":
-            starts.append((index, 4))
-            index += 4
-        elif access_unit[index : index + 3] == b"\x00\x00\x01":
-            starts.append((index, 3))
-            index += 3
-        else:
-            index += 1
-    output: list[bytes] = []
-    for position, (start, prefix_length) in enumerate(starts):
-        end = starts[position + 1][0] if position + 1 < len(starts) else len(access_unit)
-        nal = access_unit[start + prefix_length : end]
-        if nal:
-            output.append(nal)
-    return output
 
 
 def _rtp_timestamp(timestamp_offset: int, simulation_time_s: float) -> int:

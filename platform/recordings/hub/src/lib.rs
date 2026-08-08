@@ -44,7 +44,7 @@ pub use spool::{
     Spooler, run_blocking,
 };
 pub use veoveo_rrd::video::{
-    RrdVideoBoundary, h264_access_unit_is_idr, inspect_log_message_video_boundary,
+    RrdVideoBoundary, h264_access_unit_is_decoder_reentrant, inspect_log_message_video_boundary,
     inspect_rrd_video_boundary,
 };
 pub use video::{

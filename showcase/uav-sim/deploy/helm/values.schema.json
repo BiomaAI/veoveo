@@ -275,13 +275,12 @@
         "camera": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["vehicleId", "width", "height", "fps", "bitRateBps", "optics", "mount"],
+          "required": ["vehicleId", "width", "height", "fps", "optics", "mount"],
           "properties": {
             "vehicleId": {"$ref": "#/definitions/identity"},
             "width": {"type": "integer", "minimum": 64, "maximum": 3840},
             "height": {"type": "integer", "minimum": 64, "maximum": 2160},
             "fps": {"type": "integer", "minimum": 1, "maximum": 60},
-            "bitRateBps": {"type": "integer", "minimum": 100000, "maximum": 50000000},
             "optics": {
               "type": "object",
               "additionalProperties": false,

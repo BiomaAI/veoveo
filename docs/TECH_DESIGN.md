@@ -462,14 +462,14 @@ producer. Artifact previews use a separate inline route and keep text reads boun
 The Recording Hub is a push-based durability service. Producers send native Rerun log
 messages to a loopback forwarder. The forwarder obtains an OAuth client-credentials token
 and uploads bounded, sequenced protobuf batches through the gateway. It begins a batch at
-each H.264 IDR, which gives storage a decoder-reentrant rollover boundary without changing
-the producer's logical recording. Public, local-network, and Kubernetes traffic use this
-same resource and protocol.
+each H.264 video sample. Hub admits a rollover boundary only when the first access unit
+contains SPS, PPS, and IDR. Public, local-network, and Kubernetes traffic use this same
+resource and protocol.
 
 The hub validates each complete Rerun payload, fsyncs it into a deterministic journal,
 and advances its SurrealDB checkpoint only after the journal rename is durable. One
 ordered materializer compacts hour-or-192-MiB input windows with Rerun's object-store
-profile, aligns video rollover to a keyframe-bearing batch, writes the footer manifest,
+profile, aligns video rollover to a decoder-reentrant batch, writes the footer manifest,
 and publishes immutable RRD archive shards under the stream's authenticated tenant,
 owner, dataset, classification, and labels. Raw Rerun ingest, durable parts, and
 filesystem paths are not installation ingress or read surfaces.

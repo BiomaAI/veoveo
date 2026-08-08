@@ -93,35 +93,60 @@ def normalize_rgb_frame(pixels: np.ndarray) -> np.ndarray:
 
 
 def measure_camera_frame(rgb: np.ndarray) -> CameraFrameQuality:
-    """Measure whether the exact RGB8 encoder input contains a visible image.
-
-    TODO(GPU): Move these reductions to CUDA with the recording readback cut.
-    """
+    """Reference the CUDA reducer with an ordinary in-memory test frame."""
     normalized = normalize_rgb_frame(rgb)
-    luma = (
-        normalized[..., 0].astype(np.float32) * 0.2126
-        + normalized[..., 1].astype(np.float32) * 0.7152
-        + normalized[..., 2].astype(np.float32) * 0.0722
-    )
-    mean_luma = float(luma.mean()) if luma.size else 0.0
-    dynamic_range = int(round(float(luma.max() - luma.min()))) if luma.size else 0
-    luma_standard_deviation = float(luma.std()) if luma.size else 0.0
-    if luma.size:
-        luma_u8 = np.clip(luma.round(), 0.0, 255.0).astype(np.uint8)
+    if normalized.size:
+        # Match the integer BT.709 approximation used by the CUDA kernel.
+        rgb_u16 = normalized.astype(np.uint16)
+        luma_u8 = (
+            54 * rgb_u16[..., 0]
+            + 183 * rgb_u16[..., 1]
+            + 19 * rgb_u16[..., 2]
+            + 128
+        ) // 256
         histogram = np.bincount(luma_u8.ravel(), minlength=256)
-        cumulative = np.cumsum(histogram)
-        pixel_count = int(cumulative[-1])
+        non_black_pixels = int(
+            np.count_nonzero(np.any(normalized > MIN_ROBUST_DYNAMIC_RANGE, axis=2))
+        )
+    else:
+        histogram = np.zeros(256, dtype=np.int64)
+        non_black_pixels = 0
+    return measure_camera_histogram(histogram, non_black_pixels)
+
+
+def measure_camera_histogram(
+    histogram: np.ndarray, non_black_pixels: int
+) -> CameraFrameQuality:
+    """Classify a frame from bounded CUDA-reduced luma statistics."""
+    counts = np.asarray(histogram, dtype=np.int64)
+    if counts.shape != (256,) or np.any(counts < 0):
+        raise ValueError("camera luma histogram must contain 256 non-negative bins")
+    pixel_count = int(counts.sum())
+    if not 0 <= non_black_pixels <= pixel_count:
+        raise ValueError("camera non-black count is outside the histogram population")
+    values = np.arange(256, dtype=np.float64)
+    if pixel_count:
+        weighted_sum = float(np.dot(values, counts))
+        mean_luma = weighted_sum / pixel_count
+        variance = max(
+            0.0,
+            float(np.dot(values * values, counts)) / pixel_count
+            - mean_luma * mean_luma,
+        )
+        populated = np.flatnonzero(counts)
+        dynamic_range = int(populated[-1] - populated[0])
+        cumulative = np.cumsum(counts)
         lower = int(np.searchsorted(cumulative, pixel_count * 0.05, side="left"))
         upper = int(np.searchsorted(cumulative, pixel_count * 0.95, side="left"))
         robust_dynamic_range = upper - lower
+        luma_standard_deviation = variance**0.5
+        non_black_fraction = non_black_pixels / pixel_count
     else:
+        mean_luma = 0.0
+        dynamic_range = 0
         robust_dynamic_range = 0
-    non_black_fraction = (
-        float(np.count_nonzero(np.any(normalized > MIN_ROBUST_DYNAMIC_RANGE, axis=2)))
-        / float(normalized.shape[0] * normalized.shape[1])
-        if normalized.shape[0] and normalized.shape[1]
-        else 0.0
-    )
+        luma_standard_deviation = 0.0
+        non_black_fraction = 0.0
     operational = (
         mean_luma >= MIN_MEAN_LUMA and non_black_fraction >= MIN_NON_BLACK_FRACTION
     )

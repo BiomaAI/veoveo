@@ -121,8 +121,6 @@
   value: {{ .root.Values.session.camera.height | quote }}
 - name: UAV_SIM_CAMERA_FPS
   value: {{ .root.Values.session.camera.fps | quote }}
-- name: UAV_SIM_CAMERA_BIT_RATE_BPS
-  value: {{ .root.Values.session.camera.bitRateBps | quote }}
 - name: UAV_SIM_RECORDING_TELEMETRY_HZ
   value: {{ .root.Values.recording.telemetryHz | quote }}
 - name: UAV_SIM_RECORDING_QUEUE_CAPACITY

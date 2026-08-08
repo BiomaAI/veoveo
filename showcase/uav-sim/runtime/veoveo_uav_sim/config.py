@@ -118,7 +118,6 @@ class CameraConfig:
     width: int
     height: int
     fps: int
-    bit_rate_bps: int
     focal_length_mm: float
     clipping_near_m: float
     clipping_far_m: float
@@ -165,9 +164,6 @@ class CameraConfig:
             width=_int("UAV_SIM_CAMERA_WIDTH", "640", 64, 3_840),
             height=_int("UAV_SIM_CAMERA_HEIGHT", "480", 64, 2_160),
             fps=_int("UAV_SIM_CAMERA_FPS", "2", 1, 60),
-            bit_rate_bps=_int(
-                "UAV_SIM_CAMERA_BIT_RATE_BPS", "750000", 100_000, 50_000_000
-            ),
             focal_length_mm=_float(
                 "UAV_SIM_CAMERA_FOCAL_LENGTH_MM", "8.0", 0.1, 1_000.0
             ),

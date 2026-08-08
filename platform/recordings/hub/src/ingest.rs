@@ -844,7 +844,8 @@ impl RecordingIngestService {
         let mut segment_byte_len = self.segment_byte_len(&parts_directory)?;
         if parts_directory.exists()
             && self.segment_is_due(&segment, segment_byte_len)?
-            && (!segment_contains_video(&parts_directory) || video.begins_with_keyframe)
+            && (!segment_contains_video(&parts_directory)
+                || video.begins_with_decoder_reentrant_access_unit)
         {
             self.freeze_segment(identity, stream_id, segment, &path)
                 .await?;
