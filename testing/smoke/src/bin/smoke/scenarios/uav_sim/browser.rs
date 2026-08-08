@@ -3059,11 +3059,23 @@ const APP_FRAME_GRID_VIDEO_STATES: &str = r#"(() => {
   });
 })()"#;
 
-const APP_FRAME_VIDEO_CADENCE: &str = r#"new Promise((resolve,reject)=>{
+const APP_FRAME_VIDEO_CADENCE: &str = r#"(async()=>{
   const video=document.querySelector("video");
-  if(!video?.requestVideoFrameCallback){reject(new Error("requestVideoFrameCallback is unavailable"));return;}
+  if(!video?.requestVideoFrameCallback)throw new Error("requestVideoFrameCallback is unavailable");
   const view=video.closest(".view"),cameraId=view?.id?.startsWith("view-")?view.id.slice(5):"",player=players.get(cameraId);
-  if(!player){reject(new Error("native stream player is unavailable"));return;}
+  if(!player)throw new Error("native stream player is unavailable");
+  const liveViewId=view?.dataset.liveViewId??"",minimumSourceSamples=48,warmupDeadline=Date.now()+15000;
+  let warmLive=null;
+  while(Date.now()<warmupDeadline){
+    warmLive=await read(`uav-sim://session/${sessionId}/live-view/${liveViewId}`);
+    if(Number(warmLive.sourceToRenderSamples??0)>=minimumSourceSamples)break;
+    await new Promise((resolve,reject)=>{
+      const timeout=setTimeout(()=>reject(new Error("native render warm-up did not advance")),2000);
+      video.requestVideoFrameCallback(()=>{clearTimeout(timeout);resolve();});
+    });
+  }
+  if(Number(warmLive?.sourceToRenderSamples??0)<minimumSourceSamples)throw new Error("native render warm-up lacked source-to-render samples");
+  return new Promise((resolve,reject)=>{
   const warmupFrames=12,sampleIntervals=48,initialStats=player.streamStats.length;
   let callbacks=0,firstNow=0,firstMediaTime=0,qualityBefore=null,finished=false;
   const p95=values=>{const ordered=[...values].sort((a,b)=>a-b);return ordered.length?ordered[Math.max(0,Math.ceil(ordered.length*0.95)-1)]:-1;};
@@ -3085,7 +3097,7 @@ const APP_FRAME_VIDEO_CADENCE: &str = r#"new Promise((resolve,reject)=>{
       const qualityAfter=video.getVideoPlaybackQuality?.() ?? qualityBefore;
       finished=true;
       clearTimeout(timeout);
-      const liveViewId=view?.dataset.liveViewId??"",intervalSeconds=(now-firstNow)/1000,presentedFrameIntervals=callbacks-warmupFrames;
+      const intervalSeconds=(now-firstNow)/1000,presentedFrameIntervals=callbacks-warmupFrames;
       read(`uav-sim://session/${sessionId}/live-view/${liveViewId}`).then(live=>{
         const sourceToRenderP95Ms=Number(live.sourceToRenderP95Microseconds??-1000)/1000;
         const streamFps=p95(stats.map(value=>value.fps)),roundTripP95Ms=p95(stats.map(value=>value.rtd)),decodeP95Ms=p95(stats.map(value=>value.avgDecodeTime));
@@ -3110,7 +3122,8 @@ const APP_FRAME_VIDEO_CADENCE: &str = r#"new Promise((resolve,reject)=>{
     video.requestVideoFrameCallback(observe);
   };
   video.requestVideoFrameCallback(observe);
-})"#;
+  });
+})()"#;
 
 const APP_FRAME_DECODE_IDENTITY: &str = r#"(async () => {
   const video=document.querySelector("video");
