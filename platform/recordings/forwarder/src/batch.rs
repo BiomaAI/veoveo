@@ -10,7 +10,6 @@ use veoveo_rrd::video::{RrdVideoBoundary, inspect_log_message_video_boundary};
 pub enum BatchBoundary {
     Continue,
     StartVideoSample,
-    StartVideoGop,
     SourceSpan,
 }
 
@@ -75,11 +74,7 @@ impl RecordingAccumulator {
         let mut video = RrdVideoBoundary::default();
         inspect_log_message_video_boundary(message, &mut video)?;
         if video.contains_video {
-            return Ok(if video.begins_with_keyframe {
-                BatchBoundary::StartVideoGop
-            } else {
-                BatchBoundary::StartVideoSample
-            });
+            return Ok(BatchBoundary::StartVideoSample);
         }
         let maximum_source_span_ns = u64::try_from(maximum_source_span.as_nanos())?;
         Ok(
@@ -232,7 +227,9 @@ mod tests {
         recording
             .log(
                 "camera/front",
-                &VideoStream::new(VideoCodec::H264).with_sample(vec![0, 0, 0, 1, 0x65, 1]),
+                &VideoStream::new(VideoCodec::H264).with_sample(vec![
+                    0, 0, 0, 1, 0x67, 1, 0, 0, 0, 1, 0x68, 1, 0, 0, 0, 1, 0x65, 1,
+                ]),
             )
             .unwrap();
         let messages = storage.take();
@@ -259,7 +256,7 @@ mod tests {
         );
         let video = veoveo_rrd::video::inspect_rrd_video_boundary(&batches[1].encoded_rrd).unwrap();
         assert!(video.contains_video);
-        assert!(video.begins_with_keyframe);
+        assert!(video.begins_with_decoder_reentrant_access_unit);
     }
 
     #[test]

@@ -69,6 +69,8 @@ def run(config: RuntimeConfig) -> None:
                 "--/exts/cesium.omniverse/externallyManagedViewports=true",
                 "--enable",
                 "omni.kit.livestream.webrtc",
+                "--enable",
+                "omni.replicator.nv",
                 *livestream_aov_arguments(config.operator_live_view),
                 *kit_live_render_arguments(),
                 "--portable-root",
@@ -92,6 +94,8 @@ def run(config: RuntimeConfig) -> None:
         "cesium.omniverse",
         "isaacsim.core.experimental.prims",
         "omni.kit.livestream.webrtc",
+        "omni.replicator.core",
+        "omni.replicator.nv",
         "pegasus.simulator",
     ):
         extension_manager.set_extension_enabled_immediate(extension, True)
@@ -122,14 +126,12 @@ def run(config: RuntimeConfig) -> None:
 
     from .camera_quality import (
         assess_camera_health,
-        measure_camera_frame,
-        normalize_rgb_frame,
         should_record_camera_frame,
     )
     from .cesium_camera import current_pose_cesium_viewport
     from .command_queue import MainThreadQueue
     from .fleet_loop import FleetLoopController
-    from .hydra_camera import HydraRgbCameraSensor
+    from .hydra_camera import NativeH264CameraSensor
     from .operator_camera import (
         AuthoritativeOperatorCameraCollection,
         EntityTransform,
@@ -172,7 +174,7 @@ def run(config: RuntimeConfig) -> None:
     commanders: dict[str, Px4Commander] = {}
     vehicles: dict[str, Multirotor] = {}
     vehicle_callback_prefixes: dict[str, str] = {}
-    camera_sensors: dict[str, HydraRgbCameraSensor] = {}
+    camera_sensors: dict[str, NativeH264CameraSensor] = {}
     camera_sensor_sequences: dict[str, int] = {}
     camera_frames_observed: dict[str, int] = {}
     camera_visible_streaks: dict[str, int] = {}
@@ -400,7 +402,7 @@ def run(config: RuntimeConfig) -> None:
                     clipping_near_m=config.camera.clipping_near_m,
                     clipping_far_m=config.camera.clipping_far_m,
                 )
-                camera_sensors[vehicle_id] = HydraRgbCameraSensor(
+                camera_sensors[vehicle_id] = NativeH264CameraSensor(
                     name=physical_product_name,
                     camera_path=camera_path,
                     width=config.camera.width,
@@ -670,7 +672,6 @@ def run(config: RuntimeConfig) -> None:
             # empty list. Restore the sensor viewport after every Kit update,
             # using the same native frame contract as the extension.
             cesium_viewports = []
-            entity_transforms = operator_entity_transforms()
             for vehicle_id, sensor in camera_sensors.items():
                 sensor_pose = physical_cameras[vehicle_id].last_pose
                 if sensor_pose is None:
@@ -728,6 +729,8 @@ def run(config: RuntimeConfig) -> None:
                 # the same current transform instead of racing a physics
                 # callback inside app.update().
                 update_operator_cameras()
+                for sensor in camera_sensors.values():
+                    sensor.prepare_render(simulation_time_s, physics_step)
                 update_cesium_viewport()
                 native_update_started = time.monotonic()
                 world.render()
@@ -757,11 +760,7 @@ def run(config: RuntimeConfig) -> None:
                     )
                     if frame is not None:
                         camera_sensor_sequences[vehicle_id] = frame.sequence
-                        # TODO(GPU): Keep sensor quality analysis and durable
-                        # recording input on CUDA once the Recording Hub
-                        # accepts the canonical NVENC packet fan-out.
-                        rgb = normalize_rgb_frame(frame.pixels)
-                        quality = measure_camera_frame(rgb)
+                        quality = frame.quality
                         entity_transforms = operator_entity_transforms()
                         expected_sensor_pose = compose_pose(
                             entity_transforms[vehicle_id].pose,
@@ -807,12 +806,14 @@ def run(config: RuntimeConfig) -> None:
                         recording.log_camera_quality(
                             quality,
                             camera_health.lifecycle,
-                            simulation_time_s,
-                            physics_step,
+                            frame.simulation_time_s,
+                            frame.physics_step,
                         )
                         if should_record_camera_frame(quality):
-                            recording.offer_camera_frame(
-                                rgb, simulation_time_s, physics_step
+                            recording.offer_camera_access_unit(
+                                frame.access_unit,
+                                frame.simulation_time_s,
+                                frame.physics_step,
                             )
                         if camera_unusable_streaks_after_tiles[vehicle_id] == (
                             prolonged_unusable_threshold
@@ -971,16 +972,13 @@ def run(config: RuntimeConfig) -> None:
         if operator_products is not None:
             _cleanup("operator stream products", operator_products.close)
         for camera_sensor in camera_sensors.values():
-            _cleanup("RTX Hydra RGB camera sensor", camera_sensor.close)
+            _cleanup("native Isaac H.264 camera sensor", camera_sensor.close)
         if timeline.is_playing():
             _cleanup("timeline", timeline.stop)
         for commander in commanders.values():
             _cleanup("PX4 commander", commander.close)
         if recording is not None:
-            _cleanup(
-                "Recording Hub publisher",
-                lambda: recording.close(simulation_time_s, physics_step),
-            )
+            _cleanup("Recording Hub publisher", recording.close)
             if state is not None:
                 state.set_recording_active(False)
         if state is not None:

@@ -14,6 +14,7 @@ publishes their NVIDIA NVENC products to the governed live-view App.
 | `veoveo.io/live-view/v2` | Authoritative operator cameras, stable encoded products, ephemeral viewer leases, and typed capacity. |
 | `veoveo.io/uav-runtime-event/v1` | Private pod-local Unix datagram with an `adapter_ready` edge for immutable world-binding reapplication and a final `ready` edge for live-camera recovery. |
 | WebRTC and H.264 | One isolated native Omniverse WebRTC and NVIDIA NVENC product per active viewer lease. |
+| Isaac Replicator native video | Replicator Core `1.13.27` and Replicator NV `1.1.1`, packaged by Isaac Sim `6.0.1`, for CUDA-resident sensor evidence and native NVENC H.264 access units. |
 | Rerun RRD | Version `0.35.0` telemetry, leader-camera video, and producer Blueprint publication. |
 | NVIDIA CUDA, Vulkan, RTX, and NVENC | Mandatory simulation, rendering, and server-side video encoding. |
 | MAVLink 2 and ROS 2 Jazzy | Pod-local PX4 command, telemetry, and simulator integration. |
@@ -121,13 +122,20 @@ simulation loop.
 
 Only the leader owns the admitted nadir sensor and recorded H.264 source. Followers emit
 telemetry without duplicating camera capture. Its root-level USD camera receives the
-exact authoritative body-and-mount transform without operator smoothing. The Hydra
-product renders at the Kit cadence to maintain moving-camera tile residency, while a
-physics-step cadence gate requests evidence captures at the declared sensor rate.
-Capture requests coalesce while GPU readback is in flight. No wall-clock timer controls
-sensor observations. Runtime state reports that declared rate and the observed frame
-counter so live-view acceptance can prove that viewer activity leaves sensor cadence
-unchanged.
+exact authoritative body-and-mount transform without operator smoothing. Cesium receives
+the physical sensor viewport on every Kit update. A physics-step cadence gate schedules
+one Hydra render and native H.264 encode at the declared sensor rate. Capture requests
+coalesce while an encoded frame is in flight. Encoder warm-up advances on rendered
+events and fails after 16 empty frames; no wall-clock timer controls observations.
+Runtime state reports the declared rate and observed frame counter, allowing live-view
+acceptance to prove that viewer activity leaves sensor cadence unchanged.
+
+Isaac Replicator's native `LdrColor` compression node owns the server-side NVENC encode.
+The parallel quality input remains CUDA-resident and reduces to a luma histogram plus a
+non-black counter before crossing into Python. Raw pixels are never copied to CPU memory.
+The resulting decoder-reentrant Annex B access unit contains SPS, PPS, and IDR, then fans
+out unchanged to Rerun and the optional live RTP publisher. There is no PyAV encoder,
+duplicate encode, or CPU rendering path.
 
 One bounded recording contains four-vehicle poses, velocities, geographic positions,
 IMU values, changing health state, and leader video. The producer Blueprint opens Fleet
@@ -138,10 +146,6 @@ Recording publication uses a bounded worker queue. Queue pressure may shed recor
 observations according to policy, but it cannot delay physics, PX4, or operator rendering.
 The producer-local forwarder moves batches to Recording Hub and can recover its own
 durable queue independently.
-
-The current sensor path marks its CPU readback with `TODO(GPU)`. The intended correction
-is direct CUDA/NVENC packet fan-out to Stream and Recording. It is not a rendering
-fallback and cannot qualify hardware live-view acceptance.
 
 ## Configuration
 
@@ -154,7 +158,7 @@ The chart requires:
 - a strict logical operator-camera collection and a bounded physical viewer-slot pool;
 - stable native signaling and public media port ranges;
 - bounded live-view lease, viewer, frame-age, and product-activation limits;
-- a leader identity and bounded recording cadence, queue, and bitrate;
+- a leader identity and bounded recording cadence and queue;
 - platform database and recording-forwarder credentials;
 - `nvidia.com/gpu: 1`, the NVIDIA runtime class, and driver capabilities
   `compute,graphics,utility,video`;

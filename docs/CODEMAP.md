@@ -436,7 +436,9 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_products.py` | bounded preallocated viewer slots, each with an isolated camera clone, RTX render product, NVENC bitstream, and native WebRTC peer |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/render_pose.py` | bounded agreement diagnostics between authoritative camera poses and rendered Hydra frames |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/physical_camera.py` | exact authoritative body-and-mount USD sensor camera, distinct from smoothed operator views |
-| `showcase/uav-sim/runtime/veoveo_uav_sim/hydra_camera.py` | continuously rendered physical-camera Hydra product with physics-event capture requests and bounded readback |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/hydra_camera.py` | physics-gated physical-camera Hydra product, manual Replicator scheduling, native NVENC completion, and rendered-camera pairing |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/gpu_camera_quality.py` | CUDA-only pixel reduction to bounded luma and non-black health evidence |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/h264.py` | strict native Annex B access-unit parsing and SPS/PPS/IDR admission |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/runtime_events.py` | nonblocking adapter-ready and final-ready lifecycle edges to the pod-local MCP companion |
 | `showcase/uav-sim/runtime/patches/cesium-0.29.0-external-viewports.patch` | pinned headless viewport-authority switch that prevents interactive window discovery from clearing simulator-managed Cesium views |
 | `servers/uav-sim-mcp/src/server/world_bootstrap.rs` | strict startup application and reactive same-binding reapplication of an installation-owned immutable world binding |
@@ -607,8 +609,8 @@ types.
 | `query.rs` | governed RRD query/readback |
 | `config.rs` | validated raw gRPC spool and segment limits |
 | `archive.rs` | one-time object-store compaction, GoP rebatching, footer encoding, and atomic archive publication |
-| `ingest.rs` | authenticated durable-part journal projection, compact static-context snapshots, and keyframe-aligned rollover |
-| `spool.rs` | direct loopback writer, keyframe-aligned rollover, and archive freeze |
+| `ingest.rs` | authenticated durable-part journal projection, compact static-context snapshots, and decoder-reentrant rollover |
+| `spool.rs` | direct loopback writer, decoder-reentrant rollover, and archive freeze |
 | `bin/spooler.rs` | thin composition of authenticated ingest, loopback Rerun receiver, catalog, and shutdown |
 | `bin/hub_smoke.rs` | Rust crash/restart/rollover/catalog smoke scenarios |
 
@@ -616,7 +618,7 @@ types.
 
 | File | Responsibility |
 |---|---|
-| `src/batch.rs` | per-recording accumulation, IDR-aligned GoP boundaries, complete RRD encoding, and byte-bounded splitting |
+| `src/batch.rs` | per-recording accumulation, per-video-sample batches, decoder-reentrant boundary detection, complete RRD encoding, and byte-bounded splitting |
 | `src/queue.rs` | bounded-memory fsynced producer queue, stream identity, checkpoint acknowledgement, and disk backpressure |
 | `src/oauth.rs` | RFC 8414 discovery and `private_key_jwt` client-credentials tokens |
 | `src/client.rs` | typed protobuf discovery, open, append, Blueprint publication, and finish operations |

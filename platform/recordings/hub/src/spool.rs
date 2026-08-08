@@ -305,7 +305,7 @@ impl Spooler {
         let should_rotate = self.writers.get(&key).is_some_and(|writer| {
             let due = writer.bytes >= self.config.segment_max_bytes
                 || writer.opened_at.elapsed() >= self.config.segment_max_age();
-            due && (!writer.video_seen || video.begins_with_keyframe)
+            due && (!writer.video_seen || video.begins_with_decoder_reentrant_access_unit)
         });
         if should_rotate {
             self.freeze_key(&key, false)?;

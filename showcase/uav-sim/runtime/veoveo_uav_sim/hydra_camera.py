@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ctypes
 import logging
 import threading
 from dataclasses import dataclass
@@ -8,18 +7,18 @@ from typing import Any
 
 import numpy as np
 
+from .camera_quality import CameraFrameQuality
+from .h264 import NativeH264AccessUnit, parse_native_h264_access_unit
+
+
 LOGGER = logging.getLogger("veoveo.uav_sim.hydra_camera")
 RTX_RENDER_PRODUCT_PREFIX = "/Render/OmniverseKit/HydraTextures"
-RGBA8_TEXTURE_FORMAT = "TextureFormat.RGBA8_UNORM"
-
-_py_capsule_get_pointer = ctypes.pythonapi.PyCapsule_GetPointer
-_py_capsule_get_pointer.argtypes = [ctypes.py_object, ctypes.c_char_p]
-_py_capsule_get_pointer.restype = ctypes.c_void_p
+MAX_NATIVE_ENCODER_WARMUP_FRAMES = 16
 
 
 @dataclass(frozen=True, slots=True)
 class HydraRenderedCamera:
-    """Bounded render-pose input captured with one LdrColor frame."""
+    """Camera matrices reported by the exact rendered Hydra product."""
 
     view: tuple[float, ...]
     width: int
@@ -27,25 +26,30 @@ class HydraRenderedCamera:
 
 
 @dataclass(frozen=True, slots=True)
-class RgbFrame:
+class NativeSensorFrame:
     sequence: int
-    pixels: np.ndarray
+    access_unit: NativeH264AccessUnit
+    quality: CameraFrameQuality
+    simulation_time_s: float
+    physics_step: int
     rendered_camera: HydraRenderedCamera
 
 
 @dataclass(slots=True)
-class CaptureRequestState:
-    """Coalesce physics-driven sensor captures without wall-clock scheduling."""
+class SensorCaptureGate:
+    """Coalesce physics-driven native encoder submissions."""
 
     requested: bool = False
     pending: bool = False
     closed: bool = False
 
-    def request(self) -> None:
-        if not self.closed:
-            self.requested = True
+    def request(self) -> bool:
+        if self.closed or self.requested or self.pending:
+            return False
+        self.requested = True
+        return True
 
-    def begin(self) -> bool:
+    def begin_render(self) -> bool:
         if self.closed or self.pending or not self.requested:
             return False
         self.requested = False
@@ -70,11 +74,7 @@ def hydra_rendered_camera(frame: dict[str, Any]) -> HydraRenderedCamera:
         raise RuntimeError("RTX Hydra product returned a non-finite view matrix")
     if resolution[0] < 1 or resolution[1] < 1:
         raise RuntimeError("RTX Hydra product returned invalid viewport resolution")
-    return HydraRenderedCamera(
-        view=view,
-        width=resolution[0],
-        height=resolution[1],
-    )
+    return HydraRenderedCamera(view=view, width=resolution[0], height=resolution[1])
 
 
 def render_product_path(name: str) -> str:
@@ -90,34 +90,6 @@ def render_product_path(name: str) -> str:
     return f"{RTX_RENDER_PRODUCT_PREFIX}/{name}"
 
 
-def _copy_rgba8_capture(
-    buffer: Any,
-    buffer_size: int,
-    width: int,
-    height: int,
-    pixel_format: Any,
-) -> np.ndarray:
-    expected_size = width * height * 4
-    if width < 1 or height < 1 or buffer_size != expected_size:
-        raise RuntimeError(
-            "RTX LdrColor capture has an unexpected byte shape: "
-            f"{width}x{height} buffer_size={buffer_size}"
-        )
-    if str(pixel_format) != RGBA8_TEXTURE_FORMAT:
-        raise RuntimeError(
-            "RTX LdrColor capture has an unsupported texture format: "
-            f"{pixel_format}"
-        )
-    pointer = _py_capsule_get_pointer(buffer, None)
-    if pointer is None:
-        raise RuntimeError("RTX LdrColor capture returned a null buffer")
-    rgba_buffer = (ctypes.c_uint8 * buffer_size).from_address(pointer)
-    rgba = np.ctypeslib.as_array(rgba_buffer).reshape((height, width, 4))
-    # TODO(GPU): Replace this CPU readback with direct CUDA/NVENC packet
-    # fan-out once Recording Hub accepts the canonical pre-encoded stream.
-    return np.ascontiguousarray(rgba[:, :, :3])
-
-
 class RtxHydraRenderProduct:
     def __init__(
         self,
@@ -126,11 +98,11 @@ class RtxHydraRenderProduct:
         camera_path: str,
         width: int,
         height: int,
-        fps: int,
+        render_fps: int,
     ) -> None:
         from omni.kit.hydra_texture import create_hydra_texture
 
-        if width < 1 or height < 1 or fps < 1:
+        if width < 1 or height < 1 or render_fps < 1:
             raise ValueError(
                 "RTX Hydra render-product width, height, and fps must be positive"
             )
@@ -143,7 +115,7 @@ class RtxHydraRenderProduct:
             hydra_engine_name="rtx",
             is_async=True,
             is_async_low_latency=False,
-            hydra_tick_rate=fps,
+            hydra_tick_rate=render_fps,
         )
         actual_path = self._hydra_texture.get_render_product_path()
         if actual_path != self._path:
@@ -161,11 +133,72 @@ class RtxHydraRenderProduct:
     def hydra_texture(self) -> Any:
         return self._hydra_texture
 
+    def set_updates_enabled(self, enabled: bool) -> None:
+        self._hydra_texture.updates_enabled = enabled
+
     def close(self) -> None:
-        self._hydra_texture.updates_enabled = False
+        self.set_updates_enabled(False)
 
 
-class HydraRgbCameraSensor:
+def _annotator_array(data: Any, name: str) -> Any:
+    if isinstance(data, dict):
+        data = data.get("data")
+    if data is None:
+        raise RuntimeError(f"native Isaac {name} annotator returned no data")
+    return data
+
+
+def _create_native_sensor_writer(
+    owner: "NativeH264CameraSensor", width: int, height: int
+) -> Any:
+    """Create the Writer subclass only after SimulationApp initializes Kit."""
+    from omni.replicator.core import AnnotatorRegistry, Writer
+
+    from .gpu_camera_quality import GpuCameraQualityReducer
+
+    class NativeSensorWriter(Writer):
+        def __init__(self) -> None:
+            self._quality = GpuCameraQualityReducer(width, height)
+            self.version = "1.0.0"
+            self.node_type_id = "VeoVeoNativeH264CameraWriter"
+            self._kwargs: dict[str, object] = {}
+            encoded = AnnotatorRegistry.get_annotator(
+                "LdrColor", init_params={"compression": "h264"}
+            )
+            quality = AnnotatorRegistry.get_annotator(
+                "rgb", device="cuda:0", do_array_copy=False
+            )
+            self.add_annotator(encoded, name="NativeH264")
+            self.add_annotator(quality, name="CudaLdrColor")
+            self._annotators = list(self.annotators)
+
+        def write(self, data: dict[str, Any]) -> None:
+            try:
+                encoded = _annotator_array(data.get("NativeH264"), "H.264")
+                if not isinstance(encoded, np.ndarray) or encoded.dtype != np.uint8:
+                    raise RuntimeError(
+                        "native Isaac H.264 annotator did not return uint8"
+                    )
+                sample = encoded.tobytes()
+                if not sample:
+                    owner._retry_native_encoder_warmup()
+                    return
+                rgba = _annotator_array(
+                    data.get("CudaLdrColor"), "CUDA LdrColor"
+                )
+                owner._complete_native_frame(
+                    parse_native_h264_access_unit(sample),
+                    self._quality.measure(rgba),
+                )
+            except BaseException as error:
+                owner._record_failure(error)
+
+    return NativeSensorWriter()
+
+
+class NativeH264CameraSensor:
+    """One physics-gated RTX frame encoded in-place by Isaac NVENC."""
+
     def __init__(
         self,
         *,
@@ -176,17 +209,17 @@ class HydraRgbCameraSensor:
         render_fps: int,
     ) -> None:
         import omni.hydratexture
-        import omni.kit.renderer_capture
         from carb.eventdispatcher import get_eventdispatcher
 
-        self._width = width
-        self._height = height
         self._lock = threading.Lock()
-        self._capture_requests = CaptureRequestState()
+        self._capture = SensorCaptureGate()
         self._sequence = 0
-        self._latest_pixels: np.ndarray | None = None
-        self._latest_rendered_camera: HydraRenderedCamera | None = None
-        self._pending_rendered_camera: HydraRenderedCamera | None = None
+        self._latest: NativeSensorFrame | None = None
+        self._rendered_camera: HydraRenderedCamera | None = None
+        self._pending_access_unit: NativeH264AccessUnit | None = None
+        self._pending_quality: CameraFrameQuality | None = None
+        self._sample_time: tuple[float, int] | None = None
+        self._encoder_warmup_frames = 0
         self._failure: BaseException | None = None
         self._camera_path = camera_path
         self._render_product = RtxHydraRenderProduct(
@@ -194,17 +227,17 @@ class HydraRgbCameraSensor:
             camera_path=camera_path,
             width=width,
             height=height,
-            fps=render_fps,
+            render_fps=render_fps,
         )
-        self._renderer_capture = (
-            omni.kit.renderer_capture.acquire_renderer_capture_interface()
-        )
+        self._writer = _create_native_sensor_writer(self, width, height)
+        self._writer.attach(self._render_product.path, trigger=None)
         self._subscription = get_eventdispatcher().observe_event(
-            observer_name=f"veoveo_uav_rgb_{name}",
+            observer_name=f"veoveo_uav_native_h264_{name}",
             event_name=omni.hydratexture.GLOBAL_EVENT_DRAWABLE_CHANGED,
             on_event=self._on_drawable_changed,
             filter=self._render_product.hydra_texture.get_event_key(),
         )
+        self._render_product.set_updates_enabled(False)
 
     @property
     def render_product_path(self) -> str:
@@ -214,119 +247,138 @@ class HydraRgbCameraSensor:
     def camera_path(self) -> str:
         return self._camera_path
 
-    def latest_frame(self, after_sequence: int = 0) -> RgbFrame | None:
-        with self._lock:
-            failure = self._failure
-            sequence = self._sequence
-            pixels = self._latest_pixels
-            rendered_camera = self._latest_rendered_camera
-        if failure is not None:
-            raise RuntimeError("RTX Hydra RGB capture failed") from failure
-        if (
-            pixels is None
-            or rendered_camera is None
-            or sequence <= after_sequence
-        ):
-            return None
-        return RgbFrame(
-            sequence=sequence,
-            pixels=pixels,
-            rendered_camera=rendered_camera,
-        )
-
     def request_capture(self) -> None:
         with self._lock:
-            self._capture_requests.request()
+            requested = self._capture.request()
+        if requested:
+            self._writer.schedule_write()
+
+    def prepare_render(self, simulation_time_s: float, physics_step: int) -> None:
+        with self._lock:
+            if not self._capture.begin_render():
+                return
+            self._sample_time = (simulation_time_s, physics_step)
+            self._rendered_camera = None
+            self._pending_access_unit = None
+            self._pending_quality = None
+            self._encoder_warmup_frames = 0
+        self._render_product.set_updates_enabled(True)
+
+    def latest_frame(self, after_sequence: int = 0) -> NativeSensorFrame | None:
+        with self._lock:
+            failure = self._failure
+            frame = self._latest
+        if failure is not None:
+            raise RuntimeError("native Isaac H.264 sensor failed") from failure
+        if frame is None or frame.sequence <= after_sequence:
+            return None
+        return frame
+
+    def _retry_native_encoder_warmup(self) -> None:
+        error: RuntimeError | None = None
+        with self._lock:
+            if self._capture.closed:
+                return
+            if not self._capture.pending:
+                error = RuntimeError(
+                    "native Isaac H.264 encoder returned data without a pending capture"
+                )
+            else:
+                self._encoder_warmup_frames += 1
+                if (
+                    self._encoder_warmup_frames
+                    > MAX_NATIVE_ENCODER_WARMUP_FRAMES
+                ):
+                    error = RuntimeError(
+                        "native Isaac H.264 encoder did not produce an access unit "
+                        f"within {MAX_NATIVE_ENCODER_WARMUP_FRAMES} rendered frames"
+                    )
+        if error is not None:
+            self._record_failure(error)
+            return
+        # Replicator consumes a manual schedule even when the hardware encoder
+        # is still warming. Schedule the next rendered frame immediately; no
+        # wall-clock retry or simulation-side wait is involved.
+        self._writer.schedule_write()
 
     def close(self) -> None:
         with self._lock:
-            self._capture_requests.close()
+            self._capture.close()
         self._subscription = None
+        self._writer.detach()
         self._render_product.close()
 
     def _on_drawable_changed(self, event: Any) -> None:
         try:
-            aov_info = self._render_product.hydra_texture.get_aov_info(
-                event["result_handle"],
-                "LdrColor",
-                include_texture=True,
-            )
-            if not aov_info:
-                return
-            texture = aov_info[0].get("texture")
-            if not isinstance(texture, dict):
-                return
-            resource = texture.get("rp_resource")
-            if resource is None:
-                return
-            rendered_camera = hydra_rendered_camera(
+            rendered = hydra_rendered_camera(
                 self._render_product.hydra_texture.get_frame_info(
                     event["result_handle"]
                 )
             )
             with self._lock:
-                if not self._capture_requests.begin():
-                    return
-                self._pending_rendered_camera = rendered_camera
-            try:
-                self._renderer_capture.capture_next_frame_rp_resource_callback(
-                    self._on_capture,
-                    resource,
-                )
-            except BaseException:
-                with self._lock:
-                    self._capture_requests.complete()
-                    self._pending_rendered_camera = None
-                raise
+                if not self._capture.closed:
+                    self._rendered_camera = rendered
+                complete = self._finalize_frame_locked()
+            if complete:
+                self._render_product.set_updates_enabled(False)
         except BaseException as error:
             self._record_failure(error)
 
-    def _on_capture(
+    def _complete_native_frame(
         self,
-        buffer: Any,
-        buffer_size: int,
-        width: int,
-        height: int,
-        pixel_format: Any,
+        access_unit: NativeH264AccessUnit,
+        quality: CameraFrameQuality,
     ) -> None:
-        try:
-            if width != self._width or height != self._height:
-                raise RuntimeError(
-                    "RTX Hydra RGB capture resolution changed unexpectedly: "
-                    f"{width}x{height}"
-                )
-            pixels = _copy_rgba8_capture(
-                buffer,
-                buffer_size,
-                width,
-                height,
-                pixel_format,
+        with self._lock:
+            self._pending_access_unit = access_unit
+            self._pending_quality = quality
+            complete = self._finalize_frame_locked()
+        if complete:
+            self._render_product.set_updates_enabled(False)
+
+    def _finalize_frame_locked(self) -> bool:
+        sample_time = self._sample_time
+        rendered_camera = self._rendered_camera
+        access_unit = self._pending_access_unit
+        quality = self._pending_quality
+        if (
+            sample_time is None
+            or rendered_camera is None
+            or access_unit is None
+            or quality is None
+        ):
+            return False
+        if not self._capture.closed:
+            self._sequence += 1
+            self._latest = NativeSensorFrame(
+                sequence=self._sequence,
+                access_unit=access_unit,
+                quality=quality,
+                simulation_time_s=sample_time[0],
+                physics_step=sample_time[1],
+                rendered_camera=rendered_camera,
             )
-            with self._lock:
-                rendered_camera = self._pending_rendered_camera
-                if rendered_camera is None:
-                    raise RuntimeError(
-                        "RTX Hydra RGB capture lost its rendered camera metadata"
-                    )
-                if not self._capture_requests.closed:
-                    self._sequence += 1
-                    self._latest_pixels = pixels
-                    self._latest_rendered_camera = rendered_camera
-                self._capture_requests.complete()
-                self._pending_rendered_camera = None
-        except BaseException as error:
-            self._record_failure(error)
+        self._capture.complete()
+        self._sample_time = None
+        self._pending_access_unit = None
+        self._pending_quality = None
+        self._encoder_warmup_frames = 0
+        return True
 
     def _record_failure(self, error: BaseException) -> None:
         first_failure = False
         with self._lock:
-            self._capture_requests.complete()
-            self._pending_rendered_camera = None
+            self._capture.complete()
+            self._sample_time = None
+            self._pending_access_unit = None
+            self._pending_quality = None
+            self._encoder_warmup_frames = 0
             if self._failure is None:
                 self._failure = error
                 first_failure = True
+        self._render_product.set_updates_enabled(False)
         if first_failure:
             LOGGER.error(
-                "RTX Hydra RGB capture failed",
+                "native Isaac H.264 sensor failed",
                 exc_info=(type(error), error, error.__traceback__),
             )

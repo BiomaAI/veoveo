@@ -19,6 +19,7 @@ from veoveo_uav_sim.app import kit_live_render_arguments
 from veoveo_uav_sim.camera_quality import (
     assess_camera_health,
     measure_camera_frame,
+    measure_camera_histogram,
     normalize_rgb_frame,
     should_record_camera_frame,
 )
@@ -27,7 +28,8 @@ from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operati
 from veoveo_uav_sim.fleet_loop import FleetLoopController, vehicle_loop_route
 from veoveo_uav_sim.event_queue import NonBlockingEventQueue
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
-from veoveo_uav_sim.hydra_camera import CaptureRequestState
+from veoveo_uav_sim.h264 import annex_b_nals, parse_native_h264_access_unit
+from veoveo_uav_sim.hydra_camera import SensorCaptureGate
 from veoveo_uav_sim.physics_batch import (
     FleetPhysicsTiming,
     FleetPhysicsLifecycle,
@@ -66,7 +68,7 @@ from veoveo_uav_sim.vehicle_model import (
     inverse_rotate_vector_xyzw,
     quaternion_multiply_xyzw,
 )
-from veoveo_uav_sim.stream_output import _annex_b_nals, _packetize_nal, _rtp_timestamp
+from veoveo_uav_sim.stream_output import _packetize_nal, _rtp_timestamp
 from veoveo_uav_sim.world_config import (
     GeoreferenceOrigin,
     WorldConfiguration,
@@ -318,7 +320,6 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(config.operator_live_view.activation_timeout_seconds, 7.5)
         self.assertEqual(config.px4_connect_timeout_seconds, 180.0)
         self.assertEqual(config.camera.vehicle_id, "uav-1")
-        self.assertEqual(config.camera.bit_rate_bps, 750_000)
         self.assertEqual(config.recording.telemetry_hz, 5)
         self.assertEqual(config.recording.queue_capacity, 256)
         self.assertEqual(config.recording.map_provider.value, "openStreetMap")
@@ -326,11 +327,11 @@ class RuntimeConfigTests(unittest.TestCase):
         app_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py"
         ).read_text()
-        self.assertNotIn("omni.replicator", app_source)
+        self.assertIn('"omni.replicator.nv"', app_source)
         self.assertNotIn("import CameraSensor", app_source)
         self.assertNotIn("RtxCamera", app_source)
         self.assertNotIn("isaacsim.sensors.experimental.rtx", app_source)
-        self.assertIn("HydraRgbCameraSensor", app_source)
+        self.assertIn("NativeH264CameraSensor", app_source)
         self.assertIn("create_physical_rgb_camera", app_source)
         self.assertIn("omni.kit.livestream.aov", app_source)
         self.assertIn("AuthoritativeOperatorCameraCollection", app_source)
@@ -348,6 +349,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIn("physical_camera_cadence.due(physics_step)", app_source)
         self.assertIn("render_fps=config.rendering_hz", app_source)
         self.assertIn("camera_sensor.request_capture()", app_source)
+        self.assertIn("sensor.prepare_render(simulation_time_s, physics_step)", app_source)
 
         operator_camera_source = (
             Path(__file__).parents[1]
@@ -371,20 +373,19 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIn("is_async_low_latency=False", hydra_camera_source)
         self.assertIn("is_async_low_latency=False", operator_product_source)
 
-    def test_physical_capture_requests_are_coalesced(self) -> None:
-        requests = CaptureRequestState()
-        self.assertFalse(requests.begin())
-        requests.request()
-        requests.request()
-        self.assertTrue(requests.begin())
-        self.assertFalse(requests.begin())
-        requests.request()
+    def test_native_encoder_submissions_are_coalesced(self) -> None:
+        requests = SensorCaptureGate()
+        self.assertTrue(requests.request())
+        self.assertFalse(requests.request())
+        self.assertTrue(requests.begin_render())
+        self.assertFalse(requests.begin_render())
         requests.complete()
-        self.assertTrue(requests.begin())
+        self.assertTrue(requests.request())
+        self.assertTrue(requests.begin_render())
         requests.complete()
         requests.close()
-        requests.request()
-        self.assertFalse(requests.begin())
+        self.assertFalse(requests.request())
+        self.assertFalse(requests.begin_render())
 
     def test_physical_capture_cadence_is_exact(self) -> None:
         cadence = FixedStepCadenceGate(60, 2)
@@ -558,7 +559,8 @@ class RuntimeConfigTests(unittest.TestCase):
         recording_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "recording.py"
         ).read_text()
-        self.assertIn('add_stream("h264_nvenc"', recording_source)
+        self.assertNotIn("import av", recording_source)
+        self.assertNotIn("VideoFrame", recording_source)
         self.assertNotIn("libx264", recording_source)
         self.assertIn("rr.send_blueprint(", recording_source)
         self.assertIn("make_active=True", recording_source)
@@ -570,7 +572,7 @@ class RuntimeConfigTests(unittest.TestCase):
             "batcher_config=rr.ChunkBatcherConfig.LOW_LATENCY()", recording_source
         )
         camera_stream_source = recording_source.split(
-            "class H264CameraStream:", maxsplit=1
+            "class RecordedH264CameraStream:", maxsplit=1
         )[1].split("class RecordingPublisher:", maxsplit=1)[0]
         self.assertEqual(camera_stream_source.count("rr.Pinhole("), 1)
         self.assertIn("static=True", camera_stream_source)
@@ -584,10 +586,11 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertNotIn('"codec"', video_packet_source)
         self.assertIn('"sample": sample', video_packet_source)
         self.assertIn('fields["is_keyframe"] = True', video_packet_source)
-        encode_source = camera_stream_source.split(
-            "    def encode(", maxsplit=1
+        publish_source = camera_stream_source.split(
+            "    def publish(", maxsplit=1
         )[1].split("    def close(", maxsplit=1)[0]
-        self.assertNotIn("rr.Pinhole(", encode_source)
+        self.assertNotIn("rr.Pinhole(", publish_source)
+        self.assertIn("access_unit.sample", publish_source)
 
     def test_recording_degradation_is_visible_without_blocking_readiness(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
@@ -785,9 +788,16 @@ class StreamOutputTests(unittest.TestCase):
             b"\x00\x00\x00\x01\x65\x04\x05"
         )
         self.assertEqual(
-            _annex_b_nals(access_unit),
-            [b"\x67\x01\x02", b"\x68\x03", b"\x65\x04\x05"],
+            annex_b_nals(access_unit),
+            (b"\x67\x01\x02", b"\x68\x03", b"\x65\x04\x05"),
         )
+        parsed = parse_native_h264_access_unit(access_unit)
+        self.assertTrue(parsed.is_keyframe)
+        self.assertEqual(parsed.nal_types, (7, 8, 5))
+
+    def test_native_access_unit_requires_sps_pps_and_idr(self) -> None:
+        with self.assertRaisesRegex(ValueError, "missing SPS, PPS"):
+            parse_native_h264_access_unit(b"\x00\x00\x00\x01\x65\x01")
 
     def test_large_nal_uses_rfc_6184_fu_a_boundaries(self) -> None:
         nal = bytes([0x65]) + bytes(range(1, 16))
@@ -1602,11 +1612,19 @@ class CameraQualityTests(unittest.TestCase):
         quality = measure_camera_frame(np.zeros((48, 64, 3), dtype=np.uint8))
         self.assertFalse(should_record_camera_frame(quality))
 
-    def test_normalized_float_rgb_is_scaled_before_encoding(self) -> None:
+    def test_reference_frame_normalization_scales_float_rgb(self) -> None:
         frame = np.full((4, 4, 3), 0.5, dtype=np.float32)
         normalized = normalize_rgb_frame(frame)
         self.assertEqual(normalized.dtype, np.uint8)
         self.assertEqual(int(normalized[0, 0, 0]), 128)
+
+    def test_reduced_histogram_reproduces_visible_classification(self) -> None:
+        histogram = np.zeros(256, dtype=np.int64)
+        histogram[16] = 1_000
+        histogram[200] = 1_000
+        quality = measure_camera_histogram(histogram, 2_000)
+        self.assertTrue(quality.visible)
+        self.assertEqual(quality.dynamic_range, 184)
 
     def test_prolonged_black_camera_degrades_without_becoming_authority(self) -> None:
         quality = measure_camera_frame(np.zeros((48, 64, 3), dtype=np.uint8))
@@ -1740,16 +1758,15 @@ class StreamedWorldHealthTests(unittest.TestCase):
         self.assertNotIn('snapshot["recordings"]', simulation_ready)
         self.assertIn("visual_ready", server_source)
 
-    def test_encoder_drain_packets_do_not_enter_live_rtp(self) -> None:
+    def test_native_camera_fanout_has_no_software_encoder_or_drain(self) -> None:
         source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "recording.py"
         ).read_text()
-        close_body = source.split(
-            "    def close(self, simulation_time_s: float, physics_step: int) -> None:\n",
-            maxsplit=1,
-        )[1].split("\n\n", maxsplit=1)[0]
-        self.assertIn("for packet in self._stream.encode(None):", close_body)
-        self.assertNotIn("self._stream_output.publish", close_body)
+        self.assertNotIn("import av", source)
+        self.assertNotIn("h264_nvenc", source)
+        self.assertNotIn("encode(None)", source)
+        self.assertIn("class RecordedH264CameraStream", source)
+        self.assertIn("self._stream_output.publish(access_unit.sample", source)
 
 
 if __name__ == "__main__":

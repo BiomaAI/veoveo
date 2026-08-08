@@ -22,6 +22,7 @@ for visualization.
 | `veoveo.io/uav-runtime-event/v1` | Private pod-local Unix datagram carrying an `adapter_ready` edge before world admission and a final `ready` edge after authoritative visual admission. It is an internal adapter event, not a public MCP resource or a simulation control protocol. |
 | WebRTC and H.264 | One direct NVIDIA NVENC H.264 product, native WebRTC peer, and SRTP state for each active viewer lease. Shared-bitstream fan-out and media relays are outside this profile. |
 | OpenUSD and RTX Hydra | Isaac Sim `6.0.1` stage and render products inside the authoritative runtime. These are implementation details, not MCP wire types. |
+| Isaac Replicator native video | Replicator Core `1.13.27` and Replicator NV `1.1.1`, as packaged by Isaac Sim `6.0.1`. The private sensor adapter requests native H.264 and admits only Annex B access units containing SPS, PPS, and IDR. This is not an MCP wire type. |
 | OGC 3D Tiles | Cesium-backed streamed-world rendering from one simulator-owned world and cache. |
 | WGS 84, ECEF, ENU, NED, and FLU | Explicit world, physics, entity, rig, and camera coordinate boundaries. |
 | MAVLink 2 and ROS 2 Jazzy | Private simulator integrations. Neither protocol is projected as high-rate MCP traffic. |
@@ -195,16 +196,24 @@ rejects an exhausted dimension without reducing resolution, cadence, optics, rig
 smoothing, or codec.
 
 The domain nadir sensor and operator cameras have independent cadence. The physical
-sensor camera receives the exact current body-and-mount transform at render cadence. Its
-Hydra product remains warm for streamed-world residency, but evidence capture is
-requested by a physics-step cadence gate at the declared sensor rate. In-flight requests
-coalesce and no wall-clock capture scheduler exists. The current sensor recording path
-exposes the declared sensor frame rate and monotonic observed-frame count. Focused
-live-view acceptance compares that count with simulation time while viewer slots are
-assigned, which detects accidental coupling to the faster operator-camera cadence.
-Its CPU readback boundary contains a `TODO(GPU)`; the intended replacement is direct
-CUDA/NVENC packet fan-out once Recording Hub accepts the canonical encoded product. That
-debt is not a fallback and is not acceptance evidence for live operator rendering.
+sensor camera receives the exact current body-and-mount transform at render cadence.
+Cesium receives that viewport every Kit update, while a physics-step cadence gate
+schedules one sensor render and native encode at the declared sensor rate. In-flight
+requests coalesce and no wall-clock capture scheduler exists. Encoder warm-up consumes
+successive rendered events and is bounded to 16 frames.
+
+Replicator's native `LdrColor` H.264 annotator performs NVENC inside the render pipeline.
+A second CUDA-resident `rgb` annotator reduces image health to a 256-bin luma histogram
+and one non-black counter. Only those 257 integers and the compressed access unit cross
+to CPU memory. Raw pixels never enter Python, Recording, Rerun, or the optional RTP
+publisher. The exact native access unit fans out once to every admitted compressed
+consumer without another encode.
+
+The pinned Replicator NV extension emits SPS, PPS, and IDR in every frame. The runtime
+validates that decoder-reentrant shape before publication. Recording Hub uses the same
+shape for rollover admission. The sensor path exposes the declared frame rate and
+monotonic observed-frame count, allowing acceptance to detect accidental coupling to
+the faster operator-camera cadence.
 
 ## Viewer Leases And Isolation
 
