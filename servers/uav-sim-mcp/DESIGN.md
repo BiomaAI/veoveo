@@ -267,16 +267,19 @@ multi-camera grid. Renewals rotate only that tile's lease. Removing a tile or te
 down the App closes its lease.
 
 Each tile reports requested and decoded dimensions, cadence, frame age, transport state,
-camera health, smoothing profile, and attribution. Media Capabilities labels H.264
+camera health, smoothing profile, and attribution. Cadence values use fixed-width,
+zero-padded integer labels with tabular monospace numerals, so telemetry updates do not
+move or wrap the video overlay. Media Capabilities labels H.264
 decode as hardware only when the browser reports `powerEfficient`; supported smooth
 software decode is labeled explicitly. Browser acceptance still requires a headed,
 hardware-backed WebGPU or WebGL context.
 
-The App declares the repository-owned `computePressure` permission required by the
-pinned NVIDIA browser client on platforms that expose CPU pressure observations. The
-Console delegates `compute-pressure` only to that opaque App frame. NVIDIA's local AVIF
-capability probe uses a CSP-admitted `data:` fetch and does not add a remote origin.
-Neither capability changes RTX rendering, NVENC encoding, or WebRTC transport.
+The pinned NVIDIA browser client treats Compute Pressure as optional telemetry. An
+opaque-origin App cannot invoke that browser API safely, so the App masks
+`PressureObserver` before the client initializes. The client's native capability check
+then leaves pressure observation disabled while retaining the same RTX rendering, NVENC
+encoding, and WebRTC transport. NVIDIA's local AVIF capability probe uses a CSP-admitted
+`data:` fetch and does not add a remote origin.
 
 Focused browser acceptance combines the runtime source-to-render window with WebRTC
 `requestVideoFrameCallback` capture, receive, and expected-display timestamps. It rejects
