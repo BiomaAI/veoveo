@@ -23,7 +23,7 @@ use browser::{
 };
 use restart::{RestartVerification, verify_live_view_restarts};
 
-const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-live-view-browser-evidence/v10";
+const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-live-view-browser-evidence/v11";
 const MAX_RECORDING_SOURCE_LAG_SECONDS: f64 = 1.0;
 const MINIMUM_PHYSICS_REAL_TIME_FACTOR: f64 = 0.98;
 const PRIMARY_CAMERA_ID: &str = "follow";

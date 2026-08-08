@@ -18,7 +18,7 @@ world:
 session:
   vehicleCount: 4
   physicsHz: 60
-  renderingHz: 24
+  renderingHz: 16
   fleetLoop:
     takeoffTimeoutSeconds: 1800
   camera:

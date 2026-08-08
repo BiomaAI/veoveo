@@ -885,10 +885,10 @@
   - No second Isaac process.
   - No second Cesium world or cache.
   - No visualization pose transport.
-  - Camera source-to-render age below 50 ms p95, excluding the explicit smoothing response.
+  - Camera source-to-render age below 85 ms p95, excluding the explicit smoothing response.
   - Smoothing state uses the current authoritative transform every render tick.
-  - Delivered camera cadence at least 95% of configured cadence.
-  - Browser motion-to-photon below 200 ms p95 on the acceptance network.
+  - The reference profile targets 16 FPS and delivers at least 12 FPS under maximum two-viewer admission.
+  - Browser motion-to-photon below 250 ms p95 on the acceptance network.
   - Exactly one NVENC session per assigned viewer slot.
   - Adding one viewer adds exactly one RTX render product and one NVENC session.
   - Unassigned viewer slots consume no ongoing RTX render or NVENC cadence.
