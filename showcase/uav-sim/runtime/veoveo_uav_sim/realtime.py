@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import math
+import time
+from collections.abc import Callable
+
+
 class FixedStepCadenceGate:
     """Select an exact rational output cadence from monotonic physics steps."""
 
@@ -18,28 +23,63 @@ class FixedStepCadenceGate:
         self._last_step = physics_step
         return current_bucket > previous_bucket
 
-    def reset(self) -> None:
+    def reset(self, physics_step: int = 0) -> None:
+        if physics_step < 0:
+            raise ValueError("physics step cannot be negative")
+        self._last_step = physics_step
+
+
+class MonotonicPhysicsClock:
+    """Select fixed physics work from elapsed monotonic time without dropping debt."""
+
+    def __init__(
+        self,
+        physics_hz: int,
+        *,
+        maximum_steps_per_pass: int,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        if physics_hz < 1:
+            raise ValueError("physics cadence must be positive")
+        if maximum_steps_per_pass < 1:
+            raise ValueError("maximum physics steps per pass must be positive")
+        self._physics_hz = physics_hz
+        self._maximum_steps_per_pass = maximum_steps_per_pass
+        self._clock = clock
+        self._anchor_step = 0
+        self._anchor_wall_seconds = clock()
         self._last_step = 0
 
+    def reset(self, physics_step: int = 0, *, now: float | None = None) -> None:
+        if physics_step < 0:
+            raise ValueError("physics step cannot be negative")
+        self._anchor_step = physics_step
+        self._anchor_wall_seconds = self._clock() if now is None else now
+        self._last_step = physics_step
 
-class PhysicsRenderSchedule:
-    """Partition exact fixed physics steps across fixed render updates."""
-
-    def __init__(self, physics_hz: int, rendering_hz: int) -> None:
-        if physics_hz < 1 or rendering_hz < 1 or rendering_hz > physics_hz:
-            raise ValueError("physics/render cadence is invalid")
-        self._physics_hz = physics_hz
-        self._rendering_hz = rendering_hz
-        self._remainder = 0
-
-    def next_step_count(self) -> int:
-        self._remainder += self._physics_hz
-        step_count, self._remainder = divmod(
-            self._remainder, self._rendering_hz
+    def due_steps(self, physics_step: int, *, now: float | None = None) -> int:
+        if physics_step < self._last_step:
+            raise RuntimeError("physics step moved backward without a clock reset")
+        self._last_step = physics_step
+        current_wall_seconds = self._clock() if now is None else now
+        elapsed_seconds = max(
+            0.0, current_wall_seconds - self._anchor_wall_seconds
         )
-        if step_count < 1:
-            raise RuntimeError("render update omitted its authoritative physics step")
-        return step_count
+        expected_step = self._anchor_step + math.floor(
+            elapsed_seconds * self._physics_hz
+        )
+        return min(
+            max(0, expected_step - physics_step),
+            self._maximum_steps_per_pass,
+        )
 
-    def reset(self) -> None:
-        self._remainder = 0
+    def seconds_until_next_step(
+        self, physics_step: int, *, now: float | None = None
+    ) -> float:
+        current_wall_seconds = self._clock() if now is None else now
+        next_step_wall_seconds = self._anchor_wall_seconds + (
+            physics_step + 1 - self._anchor_step
+        ) / self._physics_hz
+        return max(
+            0.0, next_step_wall_seconds - current_wall_seconds
+        )

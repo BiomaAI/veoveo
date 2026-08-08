@@ -149,7 +149,7 @@ def run(config: RuntimeConfig) -> None:
     from .physical_camera import create_physical_rgb_camera, physical_camera_path
     from .physics_batch import FleetPhysicsLifecycle
     from .px4 import Px4Commander
-    from .realtime import FixedStepCadenceGate, PhysicsRenderSchedule
+    from .realtime import FixedStepCadenceGate, MonotonicPhysicsClock
     from .recording import ImuTelemetry, RecordingPublisher
     from .render_pose import rendered_pose_agreement
     from .runtime_events import notify_adapter_ready, notify_runtime_ready
@@ -448,9 +448,14 @@ def run(config: RuntimeConfig) -> None:
         recording_cadence = FixedStepCadenceGate(
             config.physics_hz, config.recording.telemetry_hz
         )
-        physics_render_schedule = PhysicsRenderSchedule(
+        physics_clock = MonotonicPhysicsClock(
+            config.physics_hz,
+            maximum_steps_per_pass=config.physics_hz,
+        )
+        render_cadence = FixedStepCadenceGate(
             config.physics_hz, config.rendering_hz
         )
+
         def telemetry_snapshot() -> list[VehicleTelemetry]:
             telemetry: list[VehicleTelemetry] = []
             for vehicle_id, vehicle in vehicles.items():
@@ -559,12 +564,14 @@ def run(config: RuntimeConfig) -> None:
         def pause() -> None:
             def action() -> None:
                 timeline.pause()
+                physics_clock.reset(physics_step)
                 state.set_lifecycle("paused")
 
             command_queue.submit(action)
 
         def resume() -> None:
             def action() -> None:
+                physics_clock.reset(physics_step)
                 timeline.play()
                 state.set_lifecycle("running")
 
@@ -581,7 +588,8 @@ def run(config: RuntimeConfig) -> None:
                 simulation_time_s = 0.0
                 simulation_generation += 1
                 recording_cadence.reset()
-                physics_render_schedule.reset()
+                physics_clock.reset(physics_step)
+                render_cadence.reset(physics_step)
                 state.advance(simulation_time_s, physics_step)
                 state.set_lifecycle("running" if was_playing else "paused")
 
@@ -598,6 +606,8 @@ def run(config: RuntimeConfig) -> None:
                 world.render()
                 timeline.pause()
                 simulation_app.update()
+                physics_clock.reset(physics_step)
+                render_cadence.reset(physics_step)
                 state.advance(simulation_time_s, physics_step)
                 state.set_lifecycle("paused")
 
@@ -712,40 +722,52 @@ def run(config: RuntimeConfig) -> None:
         tile_recovery_count = 0
         tile_unavailable_reported = False
         runtime_ready_notified = False
+        physics_clock.reset(physics_step)
+        render_cadence.reset(physics_step)
         while simulation_app.is_running():
             assert fleet_loop is not None
             fleet_loop.raise_if_failed()
             command_queue.drain()
+            render = False
             if timeline.is_playing():
-                render_cycle_started = time.monotonic()
-                # Advance the exact fixed-step physics batch first. Rendering
-                # is disabled for these substeps, so native AOV activation
-                # cannot own or delay the authoritative simulation update.
-                for _ in range(physics_render_schedule.next_step_count()):
+                due_steps = physics_clock.due_steps(physics_step)
+                for _ in range(due_steps):
                     world.step(render=False)
-                # Submit the final authoritative camera set before the one
-                # render-only Kit update. Hydra and Cesium therefore consume
-                # the same current transform instead of racing a physics
-                # callback inside app.update().
-                update_operator_cameras()
-                for sensor in camera_sensors.values():
-                    sensor.observe_simulation_time(simulation_time_s, physics_step)
-                update_cesium_viewport()
-                native_update_started = time.monotonic()
-                world.render()
-                native_update_wall_seconds = (
-                    time.monotonic() - native_update_started
-                )
-                assert operator_products is not None
-                operator_products.observe_render_completion(time.monotonic())
-                state.update_stream_products(
-                    operator_products.state(
-                        content_ready=(
-                            state.snapshot()["tiles"]["lifecycle"] == "ready"
+                    render = render_cadence.due(physics_step) or render
+                if render:
+                    render_cycle_started = time.monotonic()
+                    # A slow GPU frame can make several fixed physics steps due.
+                    # Coalesce their missed render opportunities into one frame
+                    # from the newest authoritative state. Rendering therefore
+                    # cannot make the simulation clock run slow.
+                    update_operator_cameras()
+                    for sensor in camera_sensors.values():
+                        sensor.observe_simulation_time(
+                            simulation_time_s, physics_step
+                        )
+                    update_cesium_viewport()
+                    native_update_started = time.monotonic()
+                    world.render()
+                    native_update_wall_seconds = (
+                        time.monotonic() - native_update_started
+                    )
+                    assert operator_products is not None
+                    operator_products.observe_render_completion(time.monotonic())
+                    state.update_stream_products(
+                        operator_products.state(
+                            content_ready=(
+                                state.snapshot()["tiles"]["lifecycle"]
+                                == "ready"
+                            )
                         )
                     )
-                )
-                render = True
+                elif due_steps == 0:
+                    time.sleep(
+                        min(
+                            physics_clock.seconds_until_next_step(physics_step),
+                            0.005,
+                        )
+                    )
             else:
                 simulation_app.update()
                 update_cesium_viewport()
