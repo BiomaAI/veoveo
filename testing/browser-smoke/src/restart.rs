@@ -111,16 +111,28 @@ impl KubernetesStatusCollection {
     }
 }
 
-pub(super) async fn verify_live_view_restarts(
-    conformance: &Path,
-    scenario_path: &Path,
-    context: &str,
-    namespace: &str,
-    public_base_url: &str,
-    chrome_cdp_url: &str,
-    restart_timeout: Duration,
-    evidence_root: &Path,
-) -> Result<()> {
+pub(super) struct RestartVerification<'a> {
+    pub(super) conformance: &'a Path,
+    pub(super) scenario_path: &'a Path,
+    pub(super) context: &'a str,
+    pub(super) namespace: &'a str,
+    pub(super) public_base_url: &'a str,
+    pub(super) chrome_cdp_url: &'a str,
+    pub(super) restart_timeout: Duration,
+    pub(super) evidence_root: &'a Path,
+}
+
+pub(super) async fn verify_live_view_restarts(config: RestartVerification<'_>) -> Result<()> {
+    let RestartVerification {
+        conformance,
+        scenario_path,
+        context,
+        namespace,
+        public_base_url,
+        chrome_cdp_url,
+        restart_timeout,
+        evidence_root,
+    } = config;
     ensure!(
         conformance.is_file(),
         "required binary does not exist: {}",
