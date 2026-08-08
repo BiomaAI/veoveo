@@ -19,6 +19,7 @@ for visualization.
 | Model Context Protocol | Version `2025-11-25` over the repository Streamable HTTP profile, including tools, resources, templates, subscriptions, tasks, and one MCP App. |
 | JSON Schema | Draft 2020-12 strict request, result, camera, product, capacity, and health schemas. |
 | `veoveo.io/live-view/v2` | Repository-owned provider-neutral profile for authoritative cameras, stable encoded products, ephemeral viewer leases, capacity, endpoints, and redacted state. |
+| `veoveo.io/uav-runtime-event/v1` | Private pod-local Unix datagram carrying one simulator-ready edge to the companion MCP server. It is an internal adapter event, not a public MCP resource or a simulation control protocol. |
 | WebRTC and H.264 | One direct NVIDIA NVENC H.264 product, native WebRTC peer, and SRTP state for each active viewer lease. Shared-bitstream fan-out and media relays are outside this profile. |
 | OpenUSD and RTX Hydra | Isaac Sim `6.0.1` stage and render products inside the authoritative runtime. These are implementation details, not MCP wire types. |
 | OGC 3D Tiles | Cesium-backed streamed-world rendering from one simulator-owned world and cache. |
@@ -108,10 +109,14 @@ restart recreates the configured world, cameras, and products through the one-sh
 installation binding. Viewer leases disappear when the MCP server restarts, and the App
 opens new leases. Native WebRTC stop and signaling-failure events start a bounded
 fresh-lease reconnect sequence for selected cameras. A subscribed live-camera resource
-update immediately retries cameras waiting for simulator readiness. Closing a tile or
-tearing down the App cancels its reconnect state, and exhausting the bounded connection
-attempts waits for the next resource notification without polling. There is no
-desired-versus-realized renderer deployment or periodic replay controller.
+update immediately retries cameras waiting for simulator readiness. The runtime emits
+that update once, after its running lifecycle and streamed-world readiness are both
+current, through a private Unix datagram. Delivery is best effort and never delays the
+simulator. If the companion is absent, its later startup reads current runtime state
+directly. Closing a tile or tearing down the App cancels its reconnect state, and
+exhausting the bounded connection attempts waits for the next resource notification
+without polling. There is no desired-versus-realized renderer deployment or periodic
+replay controller.
 
 ## Authoritative Operator Cameras
 
@@ -272,6 +277,12 @@ opens two cameras in one App, proves one browser-instance identity with distinct
 products, and physical slots, observes both videos advancing, then proves both slots
 return immediately to the inactive pool.
 
+Restart acceptance keeps the same headed App document and viewer-instance identity
+mounted while independently restarting the Rust companion and the restartable Isaac
+container. Each recovery must produce a new lease, advancing native video, and unchanged
+hardware-browser evidence. The stable preallocated product ID may be reused when the
+allocator selects the same physical slot.
+
 Physical-camera state includes a bounded `render_pose` agreement measurement after the
 first rendered frame. It reports the rendered ENU position and forward direction beside
 their position and angular error from the authoritative body-and-mount pose. Absence
@@ -292,6 +303,11 @@ public UDP media ports, one Cesium cache, and the authoritative runtime. Network
 admits gateway traffic, signaling, bounded media, DNS, and the configured public TLS
 world provider. Provider credentials come from installation-owned Secrets and never
 appear in Helm-rendered ConfigMaps or MCP state.
+
+One pod-local `emptyDir` carries `/var/run/veoveo-uav-sim/runtime-events.sock`. The
+simulator sends readiness without waiting, while the MCP companion owns the receiving
+socket and projects the edge through the subscribed live-camera resource. Neither the
+socket nor its payload crosses the pod boundary.
 
 The platform chart contains no generic simulation renderer, pose ingress, mirror cache,
 or live-view GPU workload. External simulation implementations package the same
@@ -329,6 +345,10 @@ are:
 ```sh
 cargo xtask smoke uav-showcase-up --context <context> --public-base-url <url>
 cargo xtask smoke uav-showcase-browser-verify \
+  --public-base-url <url> \
+  --chrome-cdp-url http://127.0.0.1:9222
+cargo xtask smoke uav-showcase-live-restart-verify \
+  --context <context> \
   --public-base-url <url> \
   --chrome-cdp-url http://127.0.0.1:9222
 ```

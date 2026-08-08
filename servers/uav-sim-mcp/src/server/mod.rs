@@ -7,6 +7,7 @@ mod live_view;
 mod live_view_audit;
 mod ownership;
 mod prompts;
+mod runtime_events;
 mod service;
 mod signaling;
 mod state;

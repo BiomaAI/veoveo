@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, path::Path, sync::Arc};
+use std::{collections::VecDeque, future::Future, path::Path, sync::Arc};
 
 #[cfg(test)]
 use anyhow::anyhow;
@@ -50,6 +50,46 @@ pub(crate) struct ConsoleLiveGridEvidence {
     hardware: HardwareIdentity,
     videos: Vec<GridVideoState>,
     decode: DecodeIdentity,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ConsoleLiveRestartEvidence {
+    schema: &'static str,
+    captured_at: chrono::DateTime<chrono::Utc>,
+    component: String,
+    page_url: String,
+    screenshot_path: String,
+    screenshot_sha256: String,
+    hardware: HardwareIdentity,
+    before: RestartVideoIdentity,
+    after: RestartVideoIdentity,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RestartVideoIdentity {
+    document_epoch_ms: f64,
+    camera_id: String,
+    viewer_instance_id: String,
+    live_view_id: String,
+    stream_product_id: String,
+    capacity_slot: u16,
+    current_time: f64,
+}
+
+impl From<&AppVideoState> for RestartVideoIdentity {
+    fn from(state: &AppVideoState) -> Self {
+        Self {
+            document_epoch_ms: state.document_epoch_ms,
+            camera_id: state.camera_id.clone(),
+            viewer_instance_id: state.viewer_instance_id.clone(),
+            live_view_id: state.live_view_id.clone(),
+            stream_product_id: state.stream_product_id.clone(),
+            capacity_slot: state.capacity_slot,
+            current_time: state.current_time,
+        }
+    }
 }
 
 impl ConsoleLiveGridEvidence {
@@ -228,6 +268,37 @@ pub(crate) async fn capture_console_live_app_grid(
     )
     .await
     .with_context(|| format!("Console live-App grid capture exceeded {timeout:?}"))?
+}
+
+#[allow(dead_code)] // Component-restart acceptance is owned by the focused browser binary.
+pub(crate) async fn capture_console_live_app_restart<F, Fut, T>(
+    cdp_base: &str,
+    public_base_url: &str,
+    expected_camera_id: &str,
+    component: &str,
+    screenshot_path: &Path,
+    timeout: Duration,
+    restart: F,
+) -> Result<(ConsoleLiveRestartEvidence, T)>
+where
+    F: FnOnce() -> Fut,
+    Fut: Future<Output = Result<T>>,
+{
+    let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live.html");
+    tokio::time::timeout(
+        timeout,
+        capture_console_live_app_restart_inner(
+            cdp_base,
+            &page_url,
+            expected_camera_id,
+            component,
+            screenshot_path,
+            timeout,
+            restart,
+        ),
+    )
+    .await
+    .with_context(|| format!("Console live-App {component} restart capture exceeded {timeout:?}"))?
 }
 
 pub(crate) async fn preflight_console_live_app(
@@ -571,6 +642,81 @@ async fn capture_console_live_app_grid_inner(
             videos: second,
             decode,
         })
+    }
+    .await;
+    let close = close_target(&mut cdp, &target_id).await;
+    let evidence = acceptance?;
+    close?;
+    Ok(evidence)
+}
+
+async fn capture_console_live_app_restart_inner<F, Fut, T>(
+    cdp_base: &str,
+    page_url: &str,
+    expected_camera_id: &str,
+    component: &str,
+    screenshot_path: &Path,
+    recovery_timeout: Duration,
+    restart: F,
+) -> Result<(ConsoleLiveRestartEvidence, T)>
+where
+    F: FnOnce() -> Fut,
+    Fut: Future<Output = Result<T>>,
+{
+    let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, page_url).await?;
+    let acceptance = async {
+        wait_for_document(&mut cdp, &session_id).await?;
+        assert_page_visible(&mut cdp, &session_id).await?;
+        let hardware: HardwareIdentity =
+            cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
+        hardware.validate()?;
+        ensure!(
+            wait_for_console_app_camera(&mut cdp, &target_id, &session_id, expected_camera_id,)
+                .await?,
+            "Console UAV live view App exposed no camera {expected_camera_id:?}"
+        );
+        let before =
+            wait_for_console_video(&mut cdp, &target_id, &session_id, expected_camera_id).await?;
+        let restart_evidence = restart()
+            .await
+            .with_context(|| format!("restarting live-view component {component}"))?;
+        let after = wait_for_console_video_replacement(
+            &mut cdp,
+            &target_id,
+            &session_id,
+            expected_camera_id,
+            &before,
+            recovery_timeout,
+        )
+        .await?;
+        let after = wait_for_console_video_advance(
+            &mut cdp,
+            &target_id,
+            &session_id,
+            expected_camera_id,
+            after,
+        )
+        .await?;
+        let final_hardware: HardwareIdentity =
+            cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
+        final_hardware.validate()?;
+        let screenshot_sha256 = capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
+        close_console_live_view(&mut cdp, &target_id, &session_id, expected_camera_id).await?;
+        cdp.assert_no_software_renderer_events()?;
+        Ok((
+            ConsoleLiveRestartEvidence {
+                schema: "veoveo.io/uav-console-live-restart/v1",
+                captured_at: chrono::Utc::now(),
+                component: component.to_owned(),
+                page_url: page_url.to_owned(),
+                screenshot_path: screenshot_path.display().to_string(),
+                screenshot_sha256,
+                hardware: final_hardware,
+                before: RestartVideoIdentity::from(&before),
+                after: RestartVideoIdentity::from(&after),
+            },
+            restart_evidence,
+        ))
     }
     .await;
     let close = close_target(&mut cdp, &target_id).await;
@@ -1551,6 +1697,10 @@ async fn wait_for_console_video_advance(
     let mut second = wait_for_console_video(cdp, target_id, session_id, expected_camera_id).await?;
     ensure!(
         second.document_epoch_ms == first.document_epoch_ms
+            && second.viewer_instance_id == first.viewer_instance_id
+            && second.live_view_id == first.live_view_id
+            && second.stream_product_id == first.stream_product_id
+            && second.capacity_slot == first.capacity_slot
             && second.current_time > first.current_time + 0.25,
         "Console H.264 video did not remain mounted and advance: {first:?} -> {second:?}"
     );
@@ -1566,6 +1716,49 @@ async fn wait_for_console_video_advance(
     second.browser_timing_samples = cadence.browser_timing_samples;
     second.receive_timing_samples = cadence.receive_timing_samples;
     Ok(second)
+}
+
+async fn wait_for_console_video_replacement(
+    cdp: &mut Cdp,
+    target_id: &str,
+    session_id: &str,
+    expected_camera_id: &str,
+    before: &AppVideoState,
+    timeout: Duration,
+) -> Result<AppVideoState> {
+    let deadline = tokio::time::Instant::now() + timeout;
+    loop {
+        let state: AppVideoState = evaluate_console_app(
+            cdp,
+            target_id,
+            session_id,
+            "uav-sim",
+            APP_FRAME_VIDEO_STATE,
+            false,
+        )
+        .await?;
+        if state.ready_state >= 2
+            && state.video_width > 0
+            && state.current_time > 0.0
+            && state.live_view_id != before.live_view_id
+        {
+            state.validate(expected_camera_id)?;
+            ensure!(
+                state.document_epoch_ms == before.document_epoch_ms
+                    && state.viewer_instance_id == before.viewer_instance_id
+                    && state.live_view_id != before.live_view_id,
+                "component restart reloaded the App or reused the stale viewer lease: {before:?} -> {state:?}"
+            );
+            return Ok(state);
+        }
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "Console UAV live view App did not replace its lease and native product after component restart: {before:?} -> {state:?}"
+        );
+        cdp.assert_no_software_renderer_events()?;
+        assert_page_visible(cdp, session_id).await?;
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
 }
 
 async fn wait_for_console_grid_videos(

@@ -14,12 +14,14 @@ use serde_json::Value;
 #[allow(dead_code)]
 #[path = "../../smoke/src/bin/smoke/scenarios/uav_sim/browser.rs"]
 mod browser;
+mod restart;
 
 use browser::{
     ConsoleLiveCaptureEvidence, ConsoleLiveGridEvidence, ConsoleRecordingCaptureEvidence,
     capture_console_live_app, capture_console_live_app_grid, capture_console_live_app_pair,
     capture_console_recording, preflight_console_live_app,
 };
+use restart::verify_live_view_restarts;
 
 const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-live-view-browser-evidence/v9";
 const MAX_RECORDING_SOURCE_LAG_SECONDS: f64 = 1.0;
@@ -68,6 +70,28 @@ enum SmokeCommand {
         #[arg(long, default_value = "http://127.0.0.1:9222")]
         chrome_cdp_url: String,
         #[arg(long, default_value = "output/acceptance/uav-browser")]
+        evidence_root: PathBuf,
+    },
+    /// Keep a headed live view mounted while restarting the MCP and simulator containers.
+    UavShowcaseLiveRestartVerify {
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        #[arg(
+            long,
+            default_value = "showcase/uav-sim/scenarios/new-york-aerial.json"
+        )]
+        scenario: PathBuf,
+        #[arg(long)]
+        context: String,
+        #[arg(long, default_value = "veoveo")]
+        namespace: String,
+        #[arg(long)]
+        public_base_url: String,
+        #[arg(long, default_value = "http://127.0.0.1:9222")]
+        chrome_cdp_url: String,
+        #[arg(long, default_value_t = 1_800)]
+        restart_timeout_seconds: u64,
+        #[arg(long, default_value = "output/acceptance/uav-live-restart")]
         evidence_root: PathBuf,
     },
     /// Verify only governed live Recording playback against the running source.
@@ -221,6 +245,28 @@ async fn main() -> Result<()> {
                 &scenario,
                 &public_base_url,
                 &chrome_cdp_url,
+                &evidence_root,
+            )
+            .await
+        }
+        SmokeCommand::UavShowcaseLiveRestartVerify {
+            conformance_bin,
+            scenario,
+            context,
+            namespace,
+            public_base_url,
+            chrome_cdp_url,
+            restart_timeout_seconds,
+            evidence_root,
+        } => {
+            verify_live_view_restarts(
+                &conformance_bin,
+                &scenario,
+                &context,
+                &namespace,
+                &public_base_url,
+                &chrome_cdp_url,
+                Duration::from_secs(restart_timeout_seconds),
                 &evidence_root,
             )
             .await

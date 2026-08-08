@@ -129,7 +129,7 @@ Hub, administration, and GPU policy.
 | `testing/smoke/src/bin/smoke/deployment/gpu/admission.rs` | kubelet-plugin selector, DaemonSet readiness, node taint, and pod scheduling diagnostics |
 | `testing/smoke/src/bin/smoke/deployment/gpu/workloads.rs` | typed Deployment selector, current ReplicaSet ownership, Ready Pod/container, replica-count, and in-container GPU evidence targeting |
 | `testing/deployment-smoke/` | focused deployment-profile CLI that avoids compiling unrelated protocol and visual scenarios |
-| `testing/browser-smoke/` | focused headed-browser acceptance over an already-running simulation without simulator lifecycle mutation |
+| `testing/browser-smoke/` | focused headed-browser acceptance over an already-running simulation plus explicit native live-view container-restart recovery evidence |
 | `deploy/helm/veoveo-extension/` | private reusable extension-chart helper API and immutable chart package source |
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
@@ -426,6 +426,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser viewer leases, exclusive viewer-slot admission, bounded capacity, renewal, closure, expiry, and typed denial state |
 | `servers/uav-sim-mcp/src/server/signaling.rs` | authenticated WebRTC signaling authorization and per-viewer peer attachment to simulator-owned encoded products |
 | `servers/uav-sim-mcp/src/server/live_view_audit.rs` | durable audit projection for camera, product, lease, denial, expiry, and revocation events |
+| `servers/uav-sim-mcp/src/server/runtime_events.rs` | strict pod-local simulator-readiness datagram ingestion and subscribed live-camera notification |
 | `servers/uav-sim-mcp/assets/live-app.html` | self-contained authoritative-camera selection and multi-view live App |
 | `showcase/uav-sim/runtime/` | thin domain overlay on the canonical Isaac runtime with Cesium/Pegasus compatibility, PX4 lifecycle, RTX domain sensors, authoritative logical cameras, isolated per-viewer RTX/NVENC products, direct Stream publication, and Rerun publication |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera.py` | operator-camera orchestration over focused rig, smoothing, product, and health modules |
@@ -435,6 +436,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `showcase/uav-sim/runtime/veoveo_uav_sim/render_pose.py` | bounded agreement diagnostics between authoritative camera poses and rendered Hydra frames |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/physical_camera.py` | exact authoritative body-and-mount USD sensor camera, distinct from smoothed operator views |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/hydra_camera.py` | continuously rendered physical-camera Hydra product with physics-event capture requests and bounded readback |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/runtime_events.py` | one-shot nonblocking simulator-readiness notification to the pod-local MCP companion |
 | `showcase/uav-sim/runtime/patches/cesium-0.29.0-external-viewports.patch` | pinned headless viewport-authority switch that prevents interactive window discovery from clearing simulator-managed Cesium views |
 | `servers/uav-sim-mcp/src/server/world_bootstrap.rs` | strict one-shot application of an installation-owned immutable world binding before MCP admission |
 | `showcase/uav-sim/deploy/` | commit-addressed OCI publication, MCP-configured GPU simulator workload, signaling/media ingress, render-product capacity, versioned persistent cache, typed sensor configuration, and network policy |
@@ -443,6 +445,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | runtime world publication plus credentialed Google tiles, PX4, independent live Stream processing, Recording Hub replay, Reason, and concurrent GPU acceptance |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim/showcase.rs` | showcase-owned authoritative UAV cameras and products, real authenticated Console checkpoints, governed Rerun playback, and revision-qualified evidence |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim/browser.rs` | headed authenticated Chrome attachment, hardware WebGPU-or-WebGL enforcement, dedicated simultaneous-viewer windows, Console live-view interaction, and screenshots |
+| `testing/browser-smoke/src/restart.rs` | focused same-document native live-view recovery across independent MCP and restartable simulator-container restarts |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim/browser/recording_acceptance.rs` | scoped Redap network evidence, live-source continuity, archive-request rejection, and nonblank Rerun viewport measurement |
 
 ### Geospatial Domains
@@ -570,6 +573,7 @@ Authoritative simulation live-view ownership:
 | `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser viewer leases, exclusive viewer-slot assignment, bounded capacity, expiry, closure, and typed denial behavior |
 | `servers/uav-sim-mcp/src/server/signaling.rs` | authenticated signaling sessions that attach viewer peers to simulator-owned encoded products |
 | `servers/uav-sim-mcp/src/server/live_view_audit.rs` | append-only live-view audit writes without runtime coupling |
+| `servers/uav-sim-mcp/src/server/runtime_events.rs` | strict pod-local readiness-event receiver and MCP subscription projection |
 | `servers/uav-sim-mcp/src/server/service.rs` | MCP tools, resources, subscriptions, well-known surface, and authoritative live-view orchestration |
 | `servers/uav-sim-mcp/assets/live-app.html` | self-contained selected-camera and bounded multi-view MCP App |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera.py` | simulator-tick camera orchestration, frame transforms, and shared camera/target time |
@@ -577,6 +581,7 @@ Authoritative simulation live-view ownership:
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_smoothing.py` | half-life translation/quaternion filtering and reset rules |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_products.py` | preallocated viewer-camera clones and isolated RTX, NVENC, native WebRTC, activation, and release lifecycle per assigned slot |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_health.py` | CUDA, RTX, NVENC, product, frame, and capacity evidence |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/runtime_events.py` | nonblocking runtime-ready edge emitted after authoritative visual admission |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/server.py` | simulator-local control boundary for camera and product realization |
 | `platform/store/src/live_views.rs` | durable audit persistence for camera, product, lease, denial, expiry, and revocation facts |
 | `platform/store/migrations/0036_remove_simulation_view_mirror_state.surql` | forward-only removal of obsolete mirrored desired/runtime state |

@@ -1115,6 +1115,7 @@ pub(super) async fn serve() -> anyhow::Result<()> {
     if let Some(path) = args.world_bootstrap_file.as_deref() {
         super::world_bootstrap::apply(path, &adapter).await?;
     }
+    let runtime_session_id = LiveSessionId::new(adapter.state().await?.session_id.to_string())?;
     let live_view_audit = LiveViewAudit::new(tasks.platform_store().clone());
     let live_views = LiveViewService::new(
         adapter.clone(),
@@ -1136,6 +1137,14 @@ pub(super) async fn serve() -> anyhow::Result<()> {
         "public live-view signaling URL must have an HTTP(S) origin"
     );
     let subscribers = Arc::new(SubscriptionHub::new());
+    let runtime_event_listener = (args.adapter == AdapterKind::Http)
+        .then(|| {
+            super::runtime_events::RuntimeEventListener::bind(
+                &args.runtime_event_socket,
+                runtime_session_id,
+            )
+        })
+        .transpose()?;
     let state = Arc::new(AppState {
         adapter,
         tasks,
@@ -1151,6 +1160,8 @@ pub(super) async fn serve() -> anyhow::Result<()> {
     }
 
     let shutdown = CancellationToken::new();
+    let runtime_event_task = runtime_event_listener
+        .map(|listener| tokio::spawn(listener.run(subscribers.clone(), shutdown.child_token())));
     let verifier = GatewayInternalTokenVerifier::new(
         TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
         ServerSlug::new(SERVER_SLUG)?,
@@ -1234,7 +1245,7 @@ pub(super) async fn serve() -> anyhow::Result<()> {
     let address = SocketAddr::from(([0, 0, 0, 0], args.port));
     tracing::info!(%address, public_url = public_endpoint.public_url(), "UAV simulation MCP listening");
     let listener = tokio::net::TcpListener::bind(address).await?;
-    axum::serve(listener, router)
+    let result = axum::serve(listener, router)
         .with_graceful_shutdown({
             let shutdown = shutdown.clone();
             async move {
@@ -1242,8 +1253,12 @@ pub(super) async fn serve() -> anyhow::Result<()> {
                 shutdown.cancel();
             }
         })
-        .await?;
-    Ok(())
+        .await;
+    shutdown.cancel();
+    if let Some(task) = runtime_event_task {
+        task.await?;
+    }
+    result.map_err(Into::into)
 }
 
 async fn ready(State(state): State<Arc<AppState>>) -> StatusCode {

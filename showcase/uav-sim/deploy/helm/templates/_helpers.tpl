@@ -67,6 +67,8 @@
   value: {{ printf "/var/lib/veoveo/runtime-cache/%s" .root.Values.cache.version | quote }}
 - name: UAV_SIM_SESSION_ID
   value: {{ .sessionId | quote }}
+- name: UAV_SIM_RUNTIME_EVENT_SOCKET
+  value: /var/run/veoveo-uav-sim/runtime-events.sock
 - name: UAV_SIM_VEHICLE_COUNT
   value: {{ .root.Values.session.vehicleCount | quote }}
 - name: UAV_SIM_PHYSICS_HZ
