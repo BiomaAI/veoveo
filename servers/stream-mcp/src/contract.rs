@@ -286,6 +286,8 @@ pub struct LiveSessionView {
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct LiveResultFrame {
+    /// Decode-order identity assigned after the GPU decoder. Presentation timestamps
+    /// are intentionally not used because AVC reordering can make them non-monotonic.
     pub index: i64,
     pub observed_at: String,
     pub detections: Vec<Detection>,

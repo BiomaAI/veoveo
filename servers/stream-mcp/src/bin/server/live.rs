@@ -844,4 +844,13 @@ mod tests {
             .expect("failed runner must return an exit status");
         assert!(!status.success());
     }
+
+    #[test]
+    fn native_runner_separates_live_decode_order_from_recording_time() {
+        let source = include_str!("../../../gst-runner/src/main.cpp");
+        assert!(source.contains("index = static_cast<std::int64_t>(context.processed_frames)"));
+        assert!(source.contains("veoveo-stream-probe-failure"));
+        assert!(source.contains("GST_MESSAGE_APPLICATION"));
+        assert!(source.contains("index = context.request.decode_start_index + pts"));
+    }
 }
