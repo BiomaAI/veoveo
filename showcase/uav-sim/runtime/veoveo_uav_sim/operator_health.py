@@ -57,11 +57,7 @@ class OperatorProductHealth:
     ) -> None:
         now = time.monotonic() if monotonic_seconds is None else monotonic_seconds
         if source_to_render_microseconds is not None:
-            if source_to_render_microseconds < 0:
-                raise ValueError("source-to-render latency must not be negative")
-            self._source_to_render_microseconds.append(
-                source_to_render_microseconds
-            )
+            self.observe_source_to_render(source_to_render_microseconds)
         retained_visibility = (
             self._last_frame.visible
             if visible is None and self._last_frame is not None
@@ -74,6 +70,11 @@ class OperatorProductHealth:
             observed_at=_timestamp(),
             visible=retained_visibility,
         )
+
+    def observe_source_to_render(self, latency_microseconds: int) -> None:
+        if latency_microseconds < 0:
+            raise ValueError("source-to-render latency must not be negative")
+        self._source_to_render_microseconds.append(latency_microseconds)
 
     def fail(self, diagnostic: str) -> None:
         if not diagnostic:

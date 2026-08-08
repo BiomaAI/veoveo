@@ -77,7 +77,6 @@ def run(config: RuntimeConfig) -> None:
         }
     )
 
-    import carb
     import omni.kit.app
     import omni.timeline
     import omni.usd
@@ -143,7 +142,7 @@ def run(config: RuntimeConfig) -> None:
     from .physical_camera import create_physical_rgb_camera, physical_camera_path
     from .physics_batch import FleetPhysicsLifecycle
     from .px4 import Px4Commander
-    from .realtime import FixedStepCadenceGate, native_minimum_frame_rate
+    from .realtime import FixedStepCadenceGate, PhysicsRenderSchedule
     from .recording import ImuTelemetry, RecordingPublisher
     from .render_pose import rendered_pose_agreement
     from .runtime_events import notify_runtime_ready
@@ -209,21 +208,15 @@ def run(config: RuntimeConfig) -> None:
             backend="warp",
             device="cuda:0",
         )
-        # SimulationContext selects a fixed manual step by default. That drops
-        # authoritative time whenever a streamed-world update exceeds 1/30 s.
-        # Restore Kit's measured-time loop and let PhysX select the required
-        # 1/60 s substeps, bounded by the native minimum-frame-rate setting.
-        # The bound admits a one-second GPU render or product-activation frame without dropping
-        # authoritative simulation time. There is no Python clock, deadline,
-        # sleep, or catch-up loop.
+        # This standalone process owns Kit updates through world.step(). Keep
+        # the loop in manual mode as required by SimulationContext instead of
+        # mixing an automatic Kit run loop with an external update caller.
+        # Native AOV/WebRTC otherwise takes automatic loop ownership when a
+        # product activates and blocks the authoritative simulation caller.
         from omni.kit.loop import _loop as omni_loop
 
         loop_runner = omni_loop.acquire_loop_interface()
-        loop_runner.set_manual_mode(False)
-        carb.settings.get_settings().set_int(
-            "/persistent/simulation/minFrameRate",
-            native_minimum_frame_rate(config.physics_hz),
-        )
+        loop_runner.set_manual_mode(True)
         launch_surface_material = PhysicsMaterial(
             prim_path="/World/Physics_Materials/uav_launch_surface",
             static_friction=1.0,
@@ -441,6 +434,9 @@ def run(config: RuntimeConfig) -> None:
         recording_cadence = FixedStepCadenceGate(
             config.physics_hz, config.recording.telemetry_hz
         )
+        physics_render_schedule = PhysicsRenderSchedule(
+            config.physics_hz, config.rendering_hz
+        )
         operator_camera_cadence = FixedStepCadenceGate(
             config.physics_hz, config.rendering_hz
         )
@@ -587,6 +583,7 @@ def run(config: RuntimeConfig) -> None:
                 simulation_time_s = 0.0
                 simulation_generation += 1
                 recording_cadence.reset()
+                physics_render_schedule.reset()
                 operator_camera_cadence.reset()
                 physical_camera_cadence.reset()
                 state.advance(simulation_time_s, physics_step)
@@ -726,17 +723,23 @@ def run(config: RuntimeConfig) -> None:
             command_queue.drain()
             if timeline.is_playing():
                 render_cycle_started = time.monotonic()
+                # Advance the exact fixed-step physics batch first. Rendering
+                # is disabled for these substeps, so native AOV activation
+                # cannot own or delay the authoritative simulation update.
+                for _ in range(physics_render_schedule.next_step_count()):
+                    world.step(render=False)
+                # Submit the final authoritative camera set before the one
+                # render-only Kit update. Hydra and Cesium therefore consume
+                # the same current transform instead of racing a physics
+                # callback inside app.update().
+                update_cesium_viewport()
                 native_update_started = time.monotonic()
-                # Kit advances measured wall time and PhysX performs the
-                # required bounded 1/60 s substeps inside this update. Physics
-                # and RTX scheduling stay in the engine instead of being
-                # serialized by independent Python wall-clock deadlines.
-                world.step(render=True)
+                world.render()
                 native_update_wall_seconds = (
                     time.monotonic() - native_update_started
                 )
-                update_cesium_viewport()
                 assert operator_products is not None
+                operator_products.observe_render_completion(time.monotonic())
                 state.update_stream_products(
                     operator_products.state(
                         content_ready=(

@@ -260,6 +260,18 @@ class OperatorProductTests(unittest.TestCase):
         self.assertEqual(snapshot["sourceToRenderSamples"], 100)
         self.assertEqual(snapshot["sourceToRenderP95Microseconds"], 9_500)
 
+    def test_render_cycle_latency_does_not_fabricate_an_encoded_frame(self) -> None:
+        health = OperatorProductHealth(maximum_frame_age_ms=1_000)
+        health.activate()
+        health.observe_frame(visible=True, monotonic_seconds=1.0)
+        health.observe_source_to_render(12_500)
+
+        snapshot = health.snapshot(content_ready=True, monotonic_seconds=1.1)
+
+        self.assertEqual(snapshot["encodedFrames"], 1)
+        self.assertEqual(snapshot["sourceToRenderSamples"], 1)
+        self.assertEqual(snapshot["sourceToRenderP95Microseconds"], 12_500)
+
     def test_stale_and_inactive_products_are_typed(self) -> None:
         health = OperatorProductHealth(maximum_frame_age_ms=100)
         self.assertEqual(

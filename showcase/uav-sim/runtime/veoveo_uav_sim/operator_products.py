@@ -258,6 +258,17 @@ class OperatorRenderProduct:
             if self._active and not self._closed:
                 self._source_pose_monotonic_seconds = monotonic_seconds
 
+    def observe_render_completion(self, monotonic_seconds: float) -> None:
+        if not np.isfinite(monotonic_seconds) or monotonic_seconds < 0.0:
+            raise ValueError("operator-product render time must be finite and non-negative")
+        with self._lock:
+            source = self._source_pose_monotonic_seconds
+            if not self._active or self._closed or source is None:
+                return
+            self._health.observe_source_to_render(
+                max(0, round((monotonic_seconds - source) * 1_000_000))
+            )
+
     def state(self, *, content_ready: bool) -> dict[str, object]:
         with self._lock:
             failure = self._failure
@@ -308,20 +319,7 @@ class OperatorRenderProduct:
             with self._lock:
                 if self._closed or not self._active:
                     return
-                source_to_render_microseconds = (
-                    max(
-                        0,
-                        round(
-                            (now - self._source_pose_monotonic_seconds) * 1_000_000
-                        ),
-                    )
-                    if self._source_pose_monotonic_seconds is not None
-                    else None
-                )
-                self._health.observe_frame(
-                    monotonic_seconds=now,
-                    source_to_render_microseconds=source_to_render_microseconds,
-                )
+                self._health.observe_frame(monotonic_seconds=now)
                 self._activation_frame_ready = True
                 if self._capture_pending or now - self._last_capture_requested < 0.5:
                     capture = False
@@ -499,6 +497,10 @@ class OperatorProductCollection:
             if pose is not None:
                 apply_usd_camera_pose(self._transforms[capacity_slot], pose)
                 product.observe_source_pose(source_monotonic_seconds)
+
+    def observe_render_completion(self, monotonic_seconds: float) -> None:
+        for product in self._products.values():
+            product.observe_render_completion(monotonic_seconds)
 
     def state(self, *, content_ready: bool) -> list[dict[str, object]]:
         return [
