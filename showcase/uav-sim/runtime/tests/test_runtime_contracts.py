@@ -372,6 +372,12 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(product_sources.count("get_frame_info"), 1)
         self.assertIn("is_async_low_latency=False", hydra_camera_source)
         self.assertIn("is_async_low_latency=False", operator_product_source)
+        self.assertIn("AnnotatorRegistry.get_annotator", hydra_camera_source)
+        self.assertIn('init_params={"compression": "h264"}', hydra_camera_source)
+        self.assertIn('device="cuda:0", do_array_copy=False', hydra_camera_source)
+        self.assertNotIn("class NativeSensorWriter", hydra_camera_source)
+        self.assertNotIn("schedule_write", hydra_camera_source)
+        self.assertNotIn("add_annotator", hydra_camera_source)
 
     def test_native_encoder_submissions_are_coalesced(self) -> None:
         requests = SensorCaptureGate()

@@ -148,57 +148,6 @@ def _annotator_array(data: Any, name: str) -> Any:
     return data
 
 
-def _create_native_sensor_writer(
-    owner: "NativeH264CameraSensor", width: int, height: int
-) -> Any:
-    """Create the Writer subclass only after SimulationApp initializes Kit."""
-    from omni.replicator.core import AnnotatorRegistry, Writer
-
-    from .gpu_camera_quality import GpuCameraQualityReducer
-
-    class NativeSensorWriter(Writer):
-        def __init__(self) -> None:
-            self._quality = GpuCameraQualityReducer(width, height)
-            self.version = "1.0.0"
-            self.node_type_id = "VeoVeoNativeH264CameraWriter"
-            self._kwargs: dict[str, object] = {}
-            encoded = AnnotatorRegistry.get_annotator(
-                "LdrColor", init_params={"compression": "h264"}
-            )
-            quality = AnnotatorRegistry.get_annotator(
-                "rgb", device="cuda:0", do_array_copy=False
-            )
-            # Follow the pinned NVIDIA writer contract exactly. Public-name
-            # aliases mutate annotator instances shared by Replicator's
-            # registry and are unnecessary because one writer owns one
-            # render product.
-            self.annotators = [encoded, quality]
-            self._annotators = list(self.annotators)
-
-        def write(self, data: dict[str, Any]) -> None:
-            try:
-                encoded = _annotator_array(data.get("LdrColor"), "H.264")
-                if not isinstance(encoded, np.ndarray) or encoded.dtype != np.uint8:
-                    raise RuntimeError(
-                        "native Isaac H.264 annotator did not return uint8"
-                    )
-                sample = encoded.tobytes()
-                if not sample:
-                    owner._retry_native_encoder_warmup()
-                    return
-                rgba = _annotator_array(
-                    data.get("rgb"), "CUDA LdrColor"
-                )
-                owner._complete_native_frame(
-                    parse_native_h264_access_unit(sample),
-                    self._quality.measure(rgba),
-                )
-            except BaseException as error:
-                owner._record_failure(error)
-
-    return NativeSensorWriter()
-
-
 class NativeH264CameraSensor:
     """One physics-gated RTX frame encoded in-place by Isaac NVENC."""
 
@@ -213,6 +162,9 @@ class NativeH264CameraSensor:
     ) -> None:
         import omni.hydratexture
         from carb.eventdispatcher import get_eventdispatcher
+        from omni.replicator.core import AnnotatorRegistry
+
+        from .gpu_camera_quality import GpuCameraQualityReducer
 
         self._lock = threading.Lock()
         self._capture = SensorCaptureGate()
@@ -232,11 +184,19 @@ class NativeH264CameraSensor:
             height=height,
             render_fps=render_fps,
         )
-        self._writer = _create_native_sensor_writer(self, width, height)
-        # The HydraTexture itself is the capture gate. An on-frame writer is
-        # only evaluated while this product has updates enabled, avoiding the
-        # separate WriterOrchestrator graph used by manual schedule events.
-        self._writer.attach(self._render_product.path)
+        self._encoded_annotator = AnnotatorRegistry.get_annotator(
+            "LdrColor", init_params={"compression": "h264"}
+        )
+        self._quality_annotator = AnnotatorRegistry.get_annotator(
+            "rgb", device="cuda:0", do_array_copy=False
+        )
+        self._quality_reducer = GpuCameraQualityReducer(width, height)
+        # Direct annotator attachment is the narrow NVIDIA render-pipeline
+        # contract. A Python Writer would create a global WriterOrchestrator
+        # graph that is unrelated to this single Hydra product and conflicts
+        # with native AOV WebRTC products in the pinned Kit runtime.
+        self._encoded_annotator.attach(self._render_product.path)
+        self._quality_annotator.attach(self._render_product.path)
         self._subscription = get_eventdispatcher().observe_event(
             observer_name=f"veoveo_uav_native_h264_{name}",
             event_name=omni.hydratexture.GLOBAL_EVENT_DRAWABLE_CHANGED,
@@ -301,14 +261,15 @@ class NativeH264CameraSensor:
             self._record_failure(error)
             return
         # The product remains enabled while the hardware encoder warms. Its
-        # next render drives the on-frame writer without a timer or a manual
-        # WriterOrchestrator event.
+        # next render refreshes both attached annotators without a timer or a
+        # global WriterOrchestrator event.
 
     def close(self) -> None:
         with self._lock:
             self._capture.close()
         self._subscription = None
-        self._writer.detach()
+        self._encoded_annotator.detach()
+        self._quality_annotator.detach()
         self._render_product.close()
 
     def _on_drawable_changed(self, event: Any) -> None:
@@ -319,25 +280,33 @@ class NativeH264CameraSensor:
                 )
             )
             with self._lock:
+                pending = self._capture.pending and not self._capture.closed
+            if not pending:
+                return
+            encoded = _annotator_array(
+                self._encoded_annotator.get_data(), "H.264"
+            )
+            if not isinstance(encoded, np.ndarray) or encoded.dtype != np.uint8:
+                raise RuntimeError("native Isaac H.264 annotator did not return uint8")
+            sample = encoded.tobytes()
+            if not sample:
+                self._retry_native_encoder_warmup()
+                return
+            rgba = _annotator_array(
+                self._quality_annotator.get_data(), "CUDA LdrColor"
+            )
+            access_unit = parse_native_h264_access_unit(sample)
+            quality = self._quality_reducer.measure(rgba)
+            with self._lock:
                 if not self._capture.closed:
                     self._rendered_camera = rendered
+                    self._pending_access_unit = access_unit
+                    self._pending_quality = quality
                 complete = self._finalize_frame_locked()
             if complete:
                 self._render_product.set_updates_enabled(False)
         except BaseException as error:
             self._record_failure(error)
-
-    def _complete_native_frame(
-        self,
-        access_unit: NativeH264AccessUnit,
-        quality: CameraFrameQuality,
-    ) -> None:
-        with self._lock:
-            self._pending_access_unit = access_unit
-            self._pending_quality = quality
-            complete = self._finalize_frame_locked()
-        if complete:
-            self._render_product.set_updates_enabled(False)
 
     def _finalize_frame_locked(self) -> bool:
         sample_time = self._sample_time
