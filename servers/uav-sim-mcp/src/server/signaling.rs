@@ -106,7 +106,10 @@ pub(super) async fn upgrade(
         .filter(|port| *port == authorized.state.endpoint.media_port)
         .is_none()
     {
-        state.service.disconnect_signaling(&live_view_id).await;
+        state
+            .service
+            .cancel_signaling_admission(&live_view_id)
+            .await;
         return (
             StatusCode::SERVICE_UNAVAILABLE,
             "live-view media slot is invalid",
@@ -118,7 +121,10 @@ pub(super) async fn upgrade(
         authorized.state.stream_product_id
     );
     if session_protocol != expected_session_protocol {
-        state.service.disconnect_signaling(&live_view_id).await;
+        state
+            .service
+            .cancel_signaling_admission(&live_view_id)
+            .await;
         return (
             StatusCode::FORBIDDEN,
             "live-view stream-product session does not match the authorized product",
@@ -133,10 +139,21 @@ pub(super) async fn upgrade(
     ) {
         Ok(url) => url,
         Err(status) => {
-            state.service.disconnect_signaling(&live_view_id).await;
+            state
+                .service
+                .cancel_signaling_admission(&live_view_id)
+                .await;
             return status.into_response();
         }
     };
+    state
+        .subscriptions
+        .notify_resource_updated(uris::live_view(&authorized.state.session_id, &live_view_id))
+        .await;
+    state
+        .subscriptions
+        .notify_resource_updated(uris::live_views(&authorized.state.session_id))
+        .await;
     tracing::info!(
         %live_view_id,
         stream_product_id = %authorized.state.stream_product_id,
@@ -175,17 +192,28 @@ async fn bridge(
         lease_events,
     )
     .await;
-    state.service.disconnect_signaling(&live_view_id).await;
-    state
-        .subscriptions
-        .notify_resource_updated(uris::live_view(&session_id, &live_view_id))
-        .await;
-    state
-        .subscriptions
-        .notify_resource_updated(uris::live_views(&session_id))
-        .await;
-    if let Err(error) = result {
-        tracing::warn!(%live_view_id, %error, "simulator-hosted signaling bridge closed");
+    match result {
+        Ok(()) => {
+            tracing::debug!(
+                %live_view_id,
+                "native signaling negotiation completed; media lease remains active"
+            );
+        }
+        Err(error) => {
+            state
+                .service
+                .cancel_signaling_admission(&live_view_id)
+                .await;
+            state
+                .subscriptions
+                .notify_resource_updated(uris::live_view(&session_id, &live_view_id))
+                .await;
+            state
+                .subscriptions
+                .notify_resource_updated(uris::live_views(&session_id))
+                .await;
+            tracing::warn!(%live_view_id, %error, "simulator-hosted signaling bridge failed");
+        }
     }
 }
 
