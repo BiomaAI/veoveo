@@ -658,8 +658,14 @@ pub(crate) async fn app_resource_events(
         remaining.unsigned_abs(),
     )));
     let stream = futures::stream::unfold(
-        (receiver, query.uri, deadline),
-        |(mut receiver, uri, mut deadline)| async move {
+        (receiver, query.uri, deadline, true),
+        |(mut receiver, uri, mut deadline, initial)| async move {
+            if initial {
+                return Some((
+                    Ok::<Event, Infallible>(Event::default().event("subscribed").data("{}")),
+                    (receiver, uri, deadline, false),
+                ));
+            }
             loop {
                 let updated = tokio::select! {
                     _ = &mut deadline => return None,
@@ -671,7 +677,10 @@ pub(crate) async fn app_resource_events(
                             .event("resource-updated")
                             .json_data(serde_json::json!({"uri": updated}))
                             .expect("resource update URI serializes");
-                        return Some((Ok::<Event, Infallible>(event), (receiver, uri, deadline)));
+                        return Some((
+                            Ok::<Event, Infallible>(event),
+                            (receiver, uri, deadline, false),
+                        ));
                     }
                     Ok(_) => {}
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
@@ -679,7 +688,10 @@ pub(crate) async fn app_resource_events(
                             .event("resource-updated")
                             .json_data(serde_json::json!({"uri": uri}))
                             .expect("resource update URI serializes");
-                        return Some((Ok::<Event, Infallible>(event), (receiver, uri, deadline)));
+                        return Some((
+                            Ok::<Event, Infallible>(event),
+                            (receiver, uri, deadline, false),
+                        ));
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
                 }
