@@ -51,10 +51,10 @@ capacity rejection, App declaration, and authenticated signaling. Resource URIs 
 the simulation server's own scheme; conformance never requires a shared renderer URI.
 
 The anonymous external simulation fixture exercises this public contract without
-claiming visual or GPU acceptance. Hardware RTX rendering, one NVENC session per active
-camera, multi-peer encoded fan-out, frame freshness, and headed-browser playback remain
-implementation-owned evidence. The first-party UAV simulation acceptance supplies that
-evidence for the NVIDIA runtime.
+claiming visual or GPU acceptance. Hardware RTX rendering, one isolated NVENC session
+and native WebRTC peer per active viewer lease, frame freshness, and headed-browser
+playback remain implementation-owned evidence. The first-party UAV simulation
+acceptance supplies that evidence for the NVIDIA runtime.
 
 ## Report
 

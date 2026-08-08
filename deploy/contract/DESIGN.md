@@ -103,10 +103,12 @@ time slicing adds opaque driver configuration and requires its own evidence dige
 exclusive groups permit one consumer only.
 
 Simulation applications are separate workload or extension sources. Each owns its
-domain MCP server, authoritative simulator, cameras, encoded products, and GPU request.
-The platform supplies only the selected shared services and canonical runtime support.
-A profile whose physical-device groups exceed installation capacity fails during pure
-profile resolution.
+domain MCP server, authoritative simulator, logical cameras, bounded viewer slots,
+per-viewer native GPU products, signaling ports, media ports, and GPU request. The
+platform supplies only the selected shared services and canonical runtime support. It
+does not install a shared simulation renderer, media relay, pose mirror, or live-view
+reconciliation controller. A profile whose physical-device groups exceed installation
+capacity fails during pure profile resolution.
 
 After rollout, `profile-up` reads the allocated claim and executes `nvidia-smi` inside
 every declared GPU container. It reports the retained claim UID, allocated devices, and
