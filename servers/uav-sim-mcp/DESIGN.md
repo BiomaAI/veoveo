@@ -286,6 +286,12 @@ container. Each recovery must produce a new lease, advancing native video, and u
 hardware-browser evidence. The stable preallocated product ID may be reused when the
 allocator selects the same physical slot.
 
+The companion image uses a minimal PID 1 shell that forwards pod termination to one
+Rust child and exits with that child. Restart acceptance terminates that sole child
+through `kubectl exec`, which lets kubelet restart one container without replacing the
+pod or the authoritative simulator. No restart endpoint or public control surface
+exists.
+
 Physical-camera state includes a bounded `render_pose` agreement measurement after the
 first rendered frame. It reports the rendered ENU position and forward direction beside
 their position and angular error from the authoritative body-and-mount pose. Absence
