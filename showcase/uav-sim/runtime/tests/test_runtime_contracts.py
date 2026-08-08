@@ -46,7 +46,7 @@ from veoveo_uav_sim.physics_batch import (
 from veoveo_uav_sim.px4 import Px4Commander, Px4CommandRejected
 from veoveo_uav_sim.realtime import (
     FixedStepCadenceGate,
-    PhysicsRenderSchedule,
+    MonotonicPhysicsClock,
 )
 from veoveo_uav_sim.rtsp_h264 import (
     H264RtpDepacketizer,
@@ -360,10 +360,8 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIn("update_operator_cameras()", app_source)
         self.assertNotIn("physical_camera_cadence", app_source)
         self.assertIn("render_fps=config.camera.fps", app_source)
-        self.assertIn(
-            "sensor.observe_simulation_time(simulation_time_s, physics_step)",
-            app_source,
-        )
+        self.assertIn("sensor.observe_simulation_time(", app_source)
+        self.assertIn("simulation_time_s, physics_step", app_source)
 
         operator_camera_source = (
             Path(__file__).parents[1]
@@ -1364,10 +1362,12 @@ class _FleetLoopCommander:
 
 
 class NativeCadenceTests(unittest.TestCase):
-    def test_runtime_orders_fixed_physics_before_one_render_update(self) -> None:
+    def test_runtime_coalesces_render_work_after_due_fixed_physics(self) -> None:
         app_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py"
         ).read_text()
+        self.assertIn("physics_clock.due_steps(physics_step)", app_source)
+        self.assertIn("render_cadence.due(physics_step)", app_source)
         self.assertIn("world.step(render=False)", app_source)
         self.assertIn("world.render()", app_source)
         physics_index = app_source.rindex("world.step(render=False)")
@@ -1379,24 +1379,40 @@ class NativeCadenceTests(unittest.TestCase):
         self.assertIn("loop_runner.set_manual_mode(True)", app_source)
         self.assertNotIn("RealtimePhysicsClock", app_source)
         self.assertNotIn("PeriodicDeadline", app_source)
-        self.assertNotIn("time.sleep(wait_seconds)", app_source)
 
-    def test_render_schedule_partitions_exact_rational_physics_steps(self) -> None:
-        schedule = PhysicsRenderSchedule(60, 24)
-        first_second = [schedule.next_step_count() for _ in range(24)]
-        self.assertEqual(first_second, [2, 3] * 12)
-        self.assertEqual(sum(first_second), 60)
-        schedule.reset()
-        self.assertEqual(schedule.next_step_count(), 2)
+    def test_monotonic_clock_retains_bounded_physics_debt(self) -> None:
+        now = [100.0]
+        clock = MonotonicPhysicsClock(
+            60,
+            maximum_steps_per_pass=60,
+            clock=lambda: now[0],
+        )
+        clock.reset(0)
+        self.assertEqual(clock.due_steps(0), 0)
 
-        with self.assertRaisesRegex(ValueError, "invalid"):
-            PhysicsRenderSchedule(24, 60)
+        now[0] += 0.11
+        self.assertEqual(clock.due_steps(0), 6)
+        self.assertEqual(clock.due_steps(6), 0)
+
+        now[0] += 2.0
+        self.assertEqual(clock.due_steps(6), 60)
+        self.assertEqual(clock.due_steps(66), 60)
+        self.assertEqual(clock.due_steps(126), 0)
+        self.assertGreater(clock.seconds_until_next_step(126), 0.0)
+
+        with self.assertRaisesRegex(ValueError, "maximum physics steps"):
+            MonotonicPhysicsClock(60, maximum_steps_per_pass=0)
 
     def test_physics_step_gate_selects_exact_render_cadence(self) -> None:
         gate = FixedStepCadenceGate(60, 30)
         self.assertEqual(
             [step for step in range(1, 9) if gate.due(step)],
             [2, 4, 6, 8],
+        )
+        gate.reset(8)
+        self.assertEqual(
+            [step for step in range(9, 13) if gate.due(step)],
+            [10, 12],
         )
 
 

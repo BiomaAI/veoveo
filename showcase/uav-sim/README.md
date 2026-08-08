@@ -62,10 +62,12 @@ camera footprint warm. The chart admits 20 concurrent tile loads by default and 
 the decoded cache bounded. A fast nadir camera therefore sees lower-detail coverage
 during refinement instead of the renderer clear color.
 
-Fleet dynamics use CUDA-backed PhysX tensor views. The fixed-step clock advances at most
-one physics interval per scheduler pass; a missed wall-clock deadline slows simulation
-instead of replaying stale actuator commands. Rerun serialization, browser traffic, and
-recording retries run outside that authority boundary.
+Fleet dynamics use CUDA-backed PhysX tensor views. Elapsed monotonic time determines the
+number of authoritative fixed physics steps due on each scheduler pass. The clock retains
+bounded physics debt instead of dropping elapsed time. When rendering misses several
+visual deadlines, the runtime advances every due physics step and renders only the newest
+authoritative state. Rerun serialization, browser traffic, native encode, and recording
+retries remain outside that authority boundary and cannot slow the simulation timeline.
 
 ## Always-On Fleet
 

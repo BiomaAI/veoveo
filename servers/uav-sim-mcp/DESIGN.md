@@ -202,6 +202,11 @@ Cesium receives that viewport every Kit update. The sensor Hydra product renders
 declared sensor rate and publishes its CUDA-resident `LdrColor` AOV directly to the
 native RTSP extension. No Replicator orchestrator participates in simulation timing.
 
+The manual Isaac loop advances fixed physics from elapsed monotonic time. It preserves
+bounded physics debt and coalesces missed visual deadlines into one render of the newest
+authoritative state. RTX, Cesium, NVENC, WebRTC, Recording, and Rerun work can reduce
+presentation cadence under load, but none of them changes the simulation clock.
+
 The RTSP extension performs one NVIDIA NVENC encode and serves the resulting GOP on a
 pod-local loopback transport. The private adapter depacketizes RFC 6184 payloads without
 decoding, copying pixels, or encoding again. It qualifies SPS, PPS, IDR, and predicted
