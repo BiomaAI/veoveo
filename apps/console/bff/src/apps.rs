@@ -1,5 +1,6 @@
 use std::{
     collections::VecDeque,
+    convert::Infallible,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -7,8 +8,11 @@ use std::{
 use axum::{
     Json,
     extract::{Query, State},
-    http::{HeaderMap, HeaderValue, StatusCode, header::CONTENT_TYPE},
-    response::{IntoResponse, Response},
+    http::{
+        HeaderMap, HeaderValue, StatusCode,
+        header::{CACHE_CONTROL, CONTENT_TYPE},
+    },
+    response::{IntoResponse, Response, sse::Event, sse::Sse},
 };
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_apps_extension::{APP_MIME_TYPE, is_app_resource, resource_ui_meta, tool_app_link};
@@ -190,6 +194,7 @@ fn is_transport_error(error: &rmcp::ServiceError) -> bool {
 struct AppsSessionOutcome<T> {
     session: McpSession,
     response_headers: HeaderMap,
+    access_expires_at: i64,
     result: Result<T, rmcp::ServiceError>,
 }
 
@@ -243,6 +248,7 @@ where
                 return Ok(AppsSessionOutcome {
                     session: mcp,
                     response_headers,
+                    access_expires_at: upstream.session.access_expires_at,
                     result,
                 });
             }
@@ -574,6 +580,168 @@ pub(crate) async fn read_app_resource(
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub(crate) struct AppResourceEventsQuery {
+    server: String,
+    app_uri: String,
+    uri: String,
+    subscription_id: uuid::Uuid,
+}
+
+/// Project one authorized upstream MCP resource subscription into a
+/// contentless browser SSE wake stream. The App still reads current state
+/// through `resources/read`; notifications never carry domain payloads.
+pub(crate) async fn app_resource_events(
+    State(state): State<AppState>,
+    request_headers: HeaderMap,
+    Query(query): Query<AppResourceEventsQuery>,
+) -> Response {
+    if app_uri_server(&query.app_uri) != Some(query.server.as_str()) {
+        return call_error(
+            StatusCode::BAD_REQUEST,
+            "app URI does not belong to the server",
+        );
+    }
+    if !app_resource_uri_allowed(&query.server, &query.uri) {
+        return call_error(
+            StatusCode::FORBIDDEN,
+            "resource subscription is not owned by this App's server",
+        );
+    }
+    let listing = with_apps_session(&state, &request_headers, |mcp| async move {
+        mcp.app_catalog().await
+    })
+    .await;
+    let AppsSessionOutcome {
+        session,
+        response_headers,
+        access_expires_at,
+        result,
+    } = match listing {
+        Ok(outcome) => outcome,
+        Err(response) => return response,
+    };
+    let catalog = match result {
+        Ok(catalog) => catalog,
+        Err(error) => {
+            tracing::error!(%error, "console App resource subscription catalog failed");
+            return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
+        }
+    };
+    if !catalog.resources().iter().any(|resource| {
+        resource.uri == query.app_uri
+            && is_app_resource(resource)
+            && app_uri_server(&resource.uri) == Some(query.server.as_str())
+    }) {
+        return with_session_headers(
+            call_error(StatusCode::FORBIDDEN, "App resource is not available"),
+            response_headers,
+        );
+    }
+    let receiver = match session
+        .subscribe_app_resource(query.subscription_id, query.uri.clone())
+        .await
+    {
+        Ok(receiver) => receiver,
+        Err(error) => {
+            tracing::error!(%error, uri = %query.uri, "console App resource subscription failed");
+            return with_session_headers(
+                call_error(StatusCode::BAD_GATEWAY, "resource subscription failed"),
+                response_headers,
+            );
+        }
+    };
+    let remaining = access_expires_at
+        .saturating_sub(5)
+        .saturating_sub(chrono::Utc::now().timestamp())
+        .max(1);
+    let deadline = Box::pin(tokio::time::sleep(Duration::from_secs(
+        remaining.unsigned_abs(),
+    )));
+    let stream = futures::stream::unfold(
+        (receiver, query.uri, deadline),
+        |(mut receiver, uri, mut deadline)| async move {
+            loop {
+                let updated = tokio::select! {
+                    _ = &mut deadline => return None,
+                    updated = receiver.recv() => updated,
+                };
+                match updated {
+                    Ok(updated) if updated == uri => {
+                        let event = Event::default()
+                            .event("resource-updated")
+                            .json_data(serde_json::json!({"uri": updated}))
+                            .expect("resource update URI serializes");
+                        return Some((Ok::<Event, Infallible>(event), (receiver, uri, deadline)));
+                    }
+                    Ok(_) => {}
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                        let event = Event::default()
+                            .event("resource-updated")
+                            .json_data(serde_json::json!({"uri": uri}))
+                            .expect("resource update URI serializes");
+                        return Some((Ok::<Event, Infallible>(event), (receiver, uri, deadline)));
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
+                }
+            }
+        },
+    );
+    let mut response = Sse::new(stream).into_response();
+    response.headers_mut().extend(response_headers);
+    response
+        .headers_mut()
+        .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
+        .headers_mut()
+        .insert("x-accel-buffering", HeaderValue::from_static("no"));
+    response
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct UnsubscribeAppResourceRequest {
+    subscription_id: uuid::Uuid,
+}
+
+pub(crate) async fn unsubscribe_app_resource(
+    State(state): State<AppState>,
+    request_headers: HeaderMap,
+    Json(request): Json<UnsubscribeAppResourceRequest>,
+) -> Response {
+    let listing = with_apps_session(&state, &request_headers, |mcp| async move {
+        mcp.app_catalog().await
+    })
+    .await;
+    let AppsSessionOutcome {
+        session,
+        response_headers,
+        result,
+        ..
+    } = match listing {
+        Ok(outcome) => outcome,
+        Err(response) => return response,
+    };
+    if let Err(error) = result {
+        tracing::error!(%error, "console App unsubscribe catalog failed");
+        return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
+    }
+    let response = match session
+        .unsubscribe_app_resource(request.subscription_id)
+        .await
+    {
+        Ok(()) => {
+            capped_json_response(&serde_json::json!({}), "unsubscribe result exceeds the cap")
+        }
+        Err(error) => {
+            tracing::error!(%error, "console App resource unsubscribe failed");
+            call_error(StatusCode::BAD_GATEWAY, "resource unsubscribe failed")
+        }
+    };
+    with_session_headers(response, response_headers)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct CallAppToolRequest {
     server: String,
     app_uri: String,
@@ -647,6 +815,7 @@ pub(crate) async fn call_app_tool(
         session: mcp,
         response_headers,
         result: listing,
+        ..
     } = match listing {
         Ok(outcome) => outcome,
         Err(response) => return response,

@@ -95,6 +95,14 @@ async fn main() -> anyhow::Result<()> {
         .route("/console/api/apps/frame", get(apps::app_frame))
         .route("/console/api/apps/call", post(apps::call_app_tool))
         .route("/console/api/apps/read", post(apps::read_app_resource))
+        .route(
+            "/console/api/apps/resource-events",
+            get(apps::app_resource_events),
+        )
+        .route(
+            "/console/api/apps/resource-unsubscribe",
+            post(apps::unsubscribe_app_resource),
+        )
         .route("/console/api/apps/task/get", post(apps::get_app_task))
         .route(
             "/console/api/apps/task/result",
