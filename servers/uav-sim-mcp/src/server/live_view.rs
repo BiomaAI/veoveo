@@ -767,17 +767,21 @@ mod tests {
         )))));
         let service = LiveViewService::new_for_test(
             adapter.clone(),
-            LiveViewConfig {
-                lease_duration,
-                public_signaling_url: "wss://example.test/uav-sim/signaling".to_owned(),
-                public_media_host: "192.0.2.10".parse().unwrap(),
-                public_media_port_base: 47_998,
-                maximum_frame_age_ms: 2_000,
-                maximum_viewer_leases,
-            },
+            test_config(lease_duration, maximum_viewer_leases),
         )
         .unwrap();
         (service, adapter)
+    }
+
+    fn test_config(lease_duration: Duration, maximum_viewer_leases: u32) -> LiveViewConfig {
+        LiveViewConfig {
+            lease_duration,
+            public_signaling_url: "wss://example.test/uav-sim/signaling".to_owned(),
+            public_media_host: "192.0.2.10".parse().unwrap(),
+            public_media_port_base: 47_998,
+            maximum_frame_age_ms: 2_000,
+            maximum_viewer_leases,
+        }
     }
 
     fn request(instance: &str) -> OpenLiveViewRequest {
@@ -1201,6 +1205,55 @@ mod tests {
         assert_eq!(
             adapter.state().await.unwrap().stream_products[0].nvenc_sessions,
             0
+        );
+    }
+
+    #[tokio::test]
+    async fn mcp_restart_releases_stale_products_and_opens_a_fresh_lease() {
+        let (before_restart, adapter) = service(1).await;
+        let actor = PrincipalId::new("alice").unwrap();
+        let opened = before_restart
+            .open(owner(), actor.clone(), request("browser-a"))
+            .await
+            .unwrap();
+        assert_eq!(
+            adapter.state().await.unwrap().stream_products[0].nvenc_sessions,
+            1
+        );
+
+        let after_restart =
+            LiveViewService::new_for_test(adapter.clone(), test_config(Duration::from_secs(30), 1))
+                .unwrap();
+        after_restart.release_all_viewer_slots().await.unwrap();
+
+        let released = adapter.state().await.unwrap().stream_products.remove(0);
+        assert_eq!(
+            released.lifecycle,
+            veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive
+        );
+        assert_eq!(released.nvenc_sessions, 0);
+        assert!(released.camera_id.is_none());
+        assert!(released.live_view_id.is_none());
+        assert!(
+            after_restart
+                .list(
+                    &owner(),
+                    &actor,
+                    &LiveSessionId::new("session-alpha").unwrap()
+                )
+                .await
+                .is_empty()
+        );
+
+        let reopened = after_restart
+            .open(owner(), actor, request("browser-a"))
+            .await
+            .unwrap();
+        assert_ne!(reopened.stream.live_view_id, opened.stream.live_view_id);
+        assert_eq!(reopened.stream.capacity_slot, opened.stream.capacity_slot);
+        assert_eq!(
+            adapter.state().await.unwrap().stream_products[0].nvenc_sessions,
+            1
         );
     }
 }

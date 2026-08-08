@@ -489,7 +489,14 @@
 
   - Existing slot assignments disappear.
   - Existing viewers disconnect.
-  - The App opens fresh leases after simulator readiness returns.
+  - Native WebRTC stop or signaling failure starts a bounded reconnect sequence for each
+    selected camera. This is connection recovery, not status polling.
+  - A subscribed live-camera resource update immediately retries selected cameras that
+    are waiting for simulator readiness.
+  - The App opens a fresh lease and product identity after simulator readiness returns.
+  - The App stops reconnecting immediately when the camera tile closes or the App tears
+    down. Exhausted reconnect attempts remain visibly waiting for the next readiness
+    notification instead of polling forever.
   - No desired/realized replay is performed.
 
   ## 10. One native product per viewer
@@ -695,6 +702,7 @@
   - One viewer lease per selected camera and browser instance.
   - No duplicate connection for the same camera within one App instance.
   - Automatic lease renewal.
+  - Bounded, event-triggered fresh-lease recovery after native stream interruption.
   - Lease closure on tile removal or App teardown.
   - Camera health and smoothing profile display.
   - Requested and decoded resolution/cadence.

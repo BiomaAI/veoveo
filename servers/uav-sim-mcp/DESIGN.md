@@ -106,8 +106,12 @@ on its admitted loop until a later mission command takes authority.
 Restart behavior is intentionally simple. Simulator objects are runtime state. A pod
 restart recreates the configured world, cameras, and products through the one-shot
 installation binding. Viewer leases disappear when the MCP server restarts, and the App
-opens new leases. There is no desired-versus-realized renderer deployment or periodic
-replay controller.
+opens new leases. Native WebRTC stop and signaling-failure events start a bounded
+fresh-lease reconnect sequence for selected cameras. A subscribed live-camera resource
+update immediately retries cameras waiting for simulator readiness. Closing a tile or
+tearing down the App cancels its reconnect state, and exhausting the bounded connection
+attempts waits for the next resource notification without polling. There is no
+desired-versus-realized renderer deployment or periodic replay controller.
 
 ## Authoritative Operator Cameras
 

@@ -26,6 +26,8 @@ mod tests {
             "open_live_view",
             "renew_live_view",
             "close_live_view",
+            "resources/subscribe",
+            "resources/unsubscribe",
             "ui/resource-teardown",
             "navigator.mediaCapabilities.decodingInfo",
             "section.dataset.viewerInstanceId",
@@ -36,6 +38,9 @@ mod tests {
             "camera.rig?.smoothing",
             "decoded pending",
             "Google Photorealistic 3D Tiles",
+            "MAX_RECOVERY_ATTEMPTS=8",
+            "Camera recovery is waiting for simulator readiness",
+            "retrySelectedNow",
         ] {
             assert!(html.contains(expected), "missing {expected}");
         }
