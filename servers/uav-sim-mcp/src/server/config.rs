@@ -33,6 +33,12 @@ pub(super) struct Args {
     pub(super) adapter_url: String,
     #[arg(long, env = "UAV_SIM_WORLD_BOOTSTRAP_FILE")]
     pub(super) world_bootstrap_file: Option<PathBuf>,
+    #[arg(
+        long,
+        env = "UAV_SIM_RUNTIME_EVENT_SOCKET",
+        default_value = "/var/run/veoveo-uav-sim/runtime-events.sock"
+    )]
+    pub(super) runtime_event_socket: PathBuf,
     #[arg(long, env = "UAV_SIM_ADAPTER_TIMEOUT_SECONDS", default_value_t = 90)]
     pub(super) adapter_timeout_seconds: u64,
     #[arg(

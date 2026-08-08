@@ -49,6 +49,7 @@
   | Model Context Protocol | Version `2025-11-25` through the hosted-server contract, with typed tools, resources, subscriptions, notifications, and an MCP App owned by each simulation server. |
   | JSON Schema | Draft 2020-12 strict camera, product, capacity, health, and viewer-lease schemas. |
   | `veoveo.io/live-view/v2` | Provider-neutral logical-camera, viewer-product, ownership, signaling, capacity, and redaction contract. This is a repository-owned extension rather than a simulator protocol. |
+  | `veoveo.io/uav-runtime-event/v1` | Private pod-local Unix datagram carrying one simulator-ready edge to the companion MCP server. It remains an internal reference-adapter protocol. |
   | WebRTC 1.0, RTP/SRTP, and H.264 | The public profile exposes one direct WebRTC product for each active viewer lease. The UAV reference implements each product with native Omniverse WebRTC and NVIDIA NVENC H.264. RTSP relays, WHEP, media routers, shared-bitstream fanout, and software transcoding are excluded from that reference path. |
   | USD and RTX Hydra | Isaac Sim `6.0.1` authoritative scene and operator-camera render products inside the simulation process. These are implementation dependencies rather than public MCP types. |
   | OGC 3D Tiles | One Cesium-backed streamed world and cache in the authoritative simulator. |
@@ -493,7 +494,9 @@
     selected camera. This is connection recovery, not status polling.
   - A subscribed live-camera resource update immediately retries selected cameras that
     are waiting for simulator readiness.
-  - The App opens a fresh lease and product identity after simulator readiness returns.
+  - The App opens a fresh lease against a recreated native slot product after simulator
+    readiness returns. The stable physical slot and stream-product ID may be reused; the
+    prior viewer lease may not.
   - The App stops reconnecting immediately when the camera tile closes or the App tears
     down. Exhausted reconnect attempts remain visibly waiting for the next readiness
     notification instead of polling forever.

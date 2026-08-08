@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import math
 import os
+import socket
 import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -41,6 +43,10 @@ from veoveo_uav_sim.realtime import (
     MAXIMUM_NATIVE_PHYSICS_SUBSTEPS,
     FixedStepCadenceGate,
     native_minimum_frame_rate,
+)
+from veoveo_uav_sim.runtime_events import (
+    RUNTIME_EVENT_SCHEMA,
+    notify_runtime_ready,
 )
 from veoveo_uav_sim.state import (
     RuntimeState,
@@ -219,6 +225,10 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertTrue(config.tile_streaming.preload_ancestors)
         self.assertTrue(config.tile_streaming.preload_siblings)
         self.assertTrue(config.tile_streaming.forbid_holes)
+        self.assertEqual(
+            config.runtime_event_socket,
+            Path("/var/run/veoveo-uav-sim/runtime-events.sock"),
+        )
 
         invalid_holes = {
             **VALID_ENVIRONMENT,
@@ -232,6 +242,48 @@ class RuntimeConfigTests(unittest.TestCase):
         with patch.dict(os.environ, invalid, clear=True):
             with self.assertRaisesRegex(ValueError, "Google Photorealistic 3D Tiles"):
                 RuntimeConfig.from_environment()
+
+    def test_runtime_ready_event_is_one_nonblocking_datagram(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            event_socket = Path(directory) / "runtime-events.sock"
+            with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as receiver:
+                receiver.bind(str(event_socket))
+                receiver.settimeout(1.0)
+                self.assertTrue(
+                    notify_runtime_ready(
+                        event_socket,
+                        session_id="uav-showcase",
+                        generation=7,
+                    )
+                )
+                payload = json.loads(receiver.recv(1024))
+        self.assertEqual(
+            payload,
+            {
+                "schema": RUNTIME_EVENT_SCHEMA,
+                "event": "ready",
+                "sessionId": "uav-showcase",
+                "generation": 7,
+            },
+        )
+
+    def test_runtime_ready_event_does_not_wait_for_a_missing_consumer(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            missing = Path(directory) / "runtime-events.sock"
+            self.assertFalse(
+                notify_runtime_ready(
+                    missing,
+                    session_id="uav-showcase",
+                    generation=1,
+                )
+            )
+        self.assertFalse(
+            notify_runtime_ready(
+                Path("/does/not/matter/runtime-events.sock"),
+                session_id="",
+                generation=0,
+            )
+        )
 
     def test_direct_google_key_is_not_a_runtime_input(self) -> None:
         environment = {**VALID_ENVIRONMENT, "GOOGLE_MAPS_API_KEY": "not-used"}

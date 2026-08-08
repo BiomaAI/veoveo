@@ -103,6 +103,8 @@ spec:
               mountPath: /isaac-sim/kit/data
             - name: tmp
               mountPath: /tmp
+            - name: runtime-events
+              mountPath: /var/run/veoveo-uav-sim
         {{- include "uav-sim.recordingForwarder" (dict "root" .) | nindent 8 }}
       containers:
         - name: uav-sim-mcp
@@ -118,6 +120,8 @@ spec:
               value: {{ .Values.platform.publicBaseUrl | quote }}
             - name: UAV_SIM_ADAPTER_URL
               value: http://127.0.0.1:8810/
+            - name: UAV_SIM_RUNTIME_EVENT_SOCKET
+              value: /var/run/veoveo-uav-sim/runtime-events.sock
             {{- if .Values.world.bootstrap.existingConfigMap }}
             - name: UAV_SIM_WORLD_BOOTSTRAP_FILE
               value: {{ printf "/etc/veoveo/uav-sim-world/%s" .Values.world.bootstrap.key | quote }}
@@ -187,8 +191,10 @@ spec:
             periodSeconds: 10
           resources:
             {{- toYaml .Values.resources.mcp | nindent 12 }}
-          {{- if .Values.world.bootstrap.existingConfigMap }}
           volumeMounts:
+            - name: runtime-events
+              mountPath: /var/run/veoveo-uav-sim
+          {{- if .Values.world.bootstrap.existingConfigMap }}
             - name: world-bootstrap
               mountPath: /etc/veoveo/uav-sim-world
               readOnly: true
@@ -218,6 +224,8 @@ spec:
               - key: {{ .Values.recordingForwarder.privateKey.key }}
                 path: private-key.pem
         - name: tmp
+          emptyDir: {}
+        - name: runtime-events
           emptyDir: {}
         {{- if .Values.world.bootstrap.existingConfigMap }}
         - name: world-bootstrap

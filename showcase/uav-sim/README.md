@@ -12,6 +12,7 @@ publishes their NVIDIA NVENC products to the governed live-view App.
 | Isaac Sim | Marketing release `6.0.1`; internal build `6.0.1-rc.7+release.42383.32955d8d.gl`. |
 | `veoveo.io/simulation-runtime-build-lock/v1` | Exact base inputs, immutable overlay components, and NVIDIA runtime requirements. |
 | `veoveo.io/live-view/v2` | Authoritative operator cameras, stable encoded products, ephemeral viewer leases, and typed capacity. |
+| `veoveo.io/uav-runtime-event/v1` | Private pod-local Unix datagram used only to announce that a restarted simulator can admit fresh viewer leases. |
 | WebRTC and H.264 | One isolated native Omniverse WebRTC and NVIDIA NVENC product per active viewer lease. |
 | Rerun RRD | Version `0.35.0` telemetry, leader-camera video, and producer Blueprint publication. |
 | NVIDIA CUDA, Vulkan, RTX, and NVENC | Mandatory simulation, rendering, and server-side video encoding. |
@@ -95,6 +96,12 @@ proves the first assigned GPU frame and the native signaling socket is listening
 adapter uses a bounded event wait and releases the slot on activation failure. Multiple
 users, profiles, or tabs receive independent leases, camera clones, RTX renders, NVENC
 sessions, and peer state even when they select the same logical camera.
+
+After a simulator restart, the runtime emits one nonblocking readiness datagram when
+physics, the streamed world, and logical cameras are ready again. The MCP companion
+turns that edge into a live-camera resource notification. Selected App tiles reconnect
+with fresh leases; no browser, MCP server, or missing datagram consumer can delay the
+simulation loop.
 
 ## Domain Sensor And Recording
 
@@ -186,6 +193,11 @@ cargo xtask smoke uav-showcase-up \
 cargo xtask smoke uav-showcase-browser-verify \
   --public-base-url https://installation.example \
   --chrome-cdp-url http://127.0.0.1:9222
+
+cargo xtask smoke uav-showcase-live-restart-verify \
+  --context <kube-context> \
+  --public-base-url https://installation.example \
+  --chrome-cdp-url http://127.0.0.1:9222
 ```
 
 Chrome must be visible and authenticated through the ordinary Console login. Acceptance
@@ -201,3 +213,9 @@ control. The manifest records camera and product identity, viewer isolation, fra
 advancement, a simultaneous multi-camera grid, source-to-render and motion-to-photon p95,
 simulation and sensor isolation, browser hardware, decode identity, screenshots, and
 SHA-256 evidence digests.
+
+Restart evidence is written beneath
+`output/acceptance/uav-live-restart/{source-revision}/{run-id}/`. It records the exact
+pod, immutable image, before-and-after container IDs and restart counts, the unchanged
+headed App document and viewer identity, fresh lease IDs, advancing video, hardware
+graphics proof, screenshots, and digests.

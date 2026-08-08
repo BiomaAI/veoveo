@@ -149,7 +149,9 @@ fn dispatcher_binary(arguments: &[OsString]) -> Result<CargoBinary> {
         Ok(DEPLOYMENT_SMOKE)
     } else if matches!(
         scenario,
-        "uav-showcase-browser-verify" | "uav-recording-browser-verify"
+        "uav-showcase-browser-verify"
+            | "uav-showcase-live-restart-verify"
+            | "uav-recording-browser-verify"
     ) {
         Ok(BROWSER_SMOKE)
     } else {
@@ -329,6 +331,27 @@ mod tests {
     fn recording_browser_acceptance_uses_the_focused_harness() {
         let arguments = [OsString::from("uav-recording-browser-verify")];
         assert_eq!(dispatcher_binary(&arguments).unwrap(), BROWSER_SMOKE);
+    }
+
+    #[test]
+    fn live_restart_acceptance_uses_the_focused_harness() {
+        let arguments = [OsString::from("uav-showcase-live-restart-verify")];
+        assert_eq!(dispatcher_binary(&arguments).unwrap(), BROWSER_SMOKE);
+        assert_eq!(
+            cargo_build_arguments(&arguments).unwrap(),
+            [
+                "build",
+                "--locked",
+                "--package",
+                "veoveo-browser-smoke",
+                "--bin",
+                "browser-smoke",
+                "--package",
+                "veoveo-mcp-conformance",
+                "--bin",
+                "conformance",
+            ]
+        );
     }
 
     #[test]

@@ -146,6 +146,7 @@ def run(config: RuntimeConfig) -> None:
     from .realtime import FixedStepCadenceGate, native_minimum_frame_rate
     from .recording import ImuTelemetry, RecordingPublisher
     from .render_pose import rendered_pose_agreement
+    from .runtime_events import notify_runtime_ready
     from .server import (
         AdapterApplication,
         AdapterServer,
@@ -718,6 +719,7 @@ def run(config: RuntimeConfig) -> None:
         tile_failure_latched = False
         tile_recovery_count = 0
         tile_unavailable_reported = False
+        runtime_ready_notified = False
         while simulation_app.is_running():
             assert fleet_loop is not None
             fleet_loop.raise_if_failed()
@@ -923,6 +925,18 @@ def run(config: RuntimeConfig) -> None:
                     snapshot["tiles"]["lifecycle"],
                     snapshot["cameras"][0]["lifecycle"],
                 )
+                snapshot = state.snapshot()
+            if (
+                not runtime_ready_notified
+                and snapshot["lifecycle"] == "running"
+                and snapshot["tiles"]["lifecycle"] == "ready"
+            ):
+                notify_runtime_ready(
+                    config.runtime_event_socket,
+                    session_id=config.session_id,
+                    generation=simulation_generation,
+                )
+                runtime_ready_notified = True
 
     except BaseException:
         if state is not None:
