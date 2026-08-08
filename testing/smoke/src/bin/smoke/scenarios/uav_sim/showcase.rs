@@ -8,7 +8,7 @@ use super::browser::{
 };
 use super::*;
 
-const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-acceptance-evidence/v3";
+const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-acceptance-evidence/v4";
 const PRIMARY_CAMERA_ID: &str = "follow";
 
 #[derive(Debug, Serialize)]
@@ -18,7 +18,7 @@ struct FlightCheckpointEvidence {
     captured_at: chrono::DateTime<Utc>,
     flight_state: String,
     relative_altitude_m: f64,
-    encoded_frame_sequence: u64,
+    native_sensor_frame_sequence: u64,
     console: ConsoleLiveCaptureEvidence,
 }
 
@@ -322,7 +322,7 @@ async fn monitor_flight(
         Some(
             takeoff
                 .1
-                .saturating_add(scenario.view.minimum_mission_pose_delta),
+                .saturating_add(scenario.view.minimum_mission_sensor_frames),
         ),
         Duration::from_secs(scenario.mission.task_timeout_seconds),
     )
@@ -430,17 +430,27 @@ async fn wait_for_checkpoint(
     let deadline = tokio::time::Instant::now() + timeout;
     loop {
         let state = simulation_state(operator, scenario).await?;
-        let product = state
-            .get("stream_products")
+        let sensor_camera = state
+            .get("cameras")
+            .and_then(Value::as_array)
+            .and_then(|items| {
+                items.iter().find(|item| {
+                    item.get("vehicle_id").and_then(Value::as_str)
+                        == Some(scenario.vehicle_id.as_str())
+                })
+            })
+            .context("UAV state omitted the selected native sensor camera")?;
+        let logical_camera = state
+            .get("live_cameras")
             .and_then(Value::as_array)
             .and_then(|items| {
                 items
                     .iter()
                     .find(|item| item.get("cameraId").and_then(Value::as_str) == Some(camera_id))
             })
-            .context("UAV state omitted the selected stream product")?;
-        let sequence = product
-            .get("encodedFrames")
+            .context("UAV state omitted the selected logical operator camera")?;
+        let sequence = sensor_camera
+            .get("frames_observed")
             .and_then(Value::as_u64)
             .unwrap_or_default();
         let flight_state = json_string(&state, "/vehicles/0/flight_state")?;
@@ -461,15 +471,20 @@ async fn wait_for_checkpoint(
                     && minimum_sequence.is_some_and(|minimum| sequence >= minimum)
             }
         };
-        if product.get("lifecycle").and_then(Value::as_str) == Some("ready") && phase_ready {
+        if sensor_camera.get("lifecycle").and_then(Value::as_str) == Some("ready")
+            && logical_camera.get("health").and_then(Value::as_str) == Some("healthy")
+            && phase_ready
+        {
             return Ok((state, sequence));
         }
         ensure!(
             flight_state != "failed"
-                && product.get("lifecycle").and_then(Value::as_str) != Some("failed")
+                && sensor_camera.get("lifecycle").and_then(Value::as_str) != Some("failed")
+                && logical_camera.get("health").and_then(Value::as_str) != Some("failed")
                 && tokio::time::Instant::now() < deadline,
-            "{phase:?} checkpoint did not reach an advancing authoritative camera within \
-             {timeout:?}: flight={state}, product={product}"
+            "{phase:?} checkpoint did not reach an advancing native sensor and healthy logical \
+             operator camera within {timeout:?}: flight={state}, sensor={sensor_camera}, \
+             logical={logical_camera}"
         );
         tokio::time::sleep(Duration::from_millis(250)).await;
     }
@@ -478,7 +493,7 @@ async fn wait_for_checkpoint(
 fn checkpoint_evidence(
     phase: FlightCheckpoint,
     state: &Value,
-    encoded_frame_sequence: u64,
+    native_sensor_frame_sequence: u64,
     console: ConsoleLiveCaptureEvidence,
 ) -> Result<FlightCheckpointEvidence> {
     Ok(FlightCheckpointEvidence {
@@ -489,7 +504,7 @@ fn checkpoint_evidence(
             .pointer("/vehicles/0/enu/up_m")
             .and_then(Value::as_f64)
             .context("UAV checkpoint omitted relative altitude")?,
-        encoded_frame_sequence,
+        native_sensor_frame_sequence,
         console,
     })
 }
