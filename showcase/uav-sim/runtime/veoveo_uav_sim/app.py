@@ -6,6 +6,7 @@ import time
 from collections.abc import Callable
 
 from .config import RuntimeConfig
+from .hydra_camera import native_sensor_aov_arguments
 from .operator_products import livestream_aov_arguments
 from .physical_camera import physical_camera_product_name
 
@@ -70,7 +71,12 @@ def run(config: RuntimeConfig) -> None:
                 "--enable",
                 "omni.kit.livestream.webrtc",
                 "--enable",
-                "omni.replicator.nv",
+                "omni.kit.livestream.rtsp",
+                *native_sensor_aov_arguments(
+                    physical_product_name,
+                    rtsp_port=config.camera.rtsp_port,
+                    target_fps=config.camera.fps,
+                ),
                 *livestream_aov_arguments(config.operator_live_view),
                 *kit_live_render_arguments(),
                 "--portable-root",
@@ -93,9 +99,8 @@ def run(config: RuntimeConfig) -> None:
         "cesium.usd.plugins",
         "cesium.omniverse",
         "isaacsim.core.experimental.prims",
+        "omni.kit.livestream.rtsp",
         "omni.kit.livestream.webrtc",
-        "omni.replicator.core",
-        "omni.replicator.nv",
         "pegasus.simulator",
     ):
         extension_manager.set_extension_enabled_immediate(extension, True)
@@ -104,6 +109,8 @@ def run(config: RuntimeConfig) -> None:
 
     from cesium.omniverse.bindings import (
         Viewport as CesiumViewport,
+    )
+    from cesium.omniverse.bindings import (
         acquire_cesium_omniverse_interface,
     )
     from cesium.omniverse.usdUtils import (
@@ -113,6 +120,8 @@ def run(config: RuntimeConfig) -> None:
     )
     from cesium.usd.plugins.CesiumUsdSchemas import (
         IonServer as CesiumIonServer,
+    )
+    from cesium.usd.plugins.CesiumUsdSchemas import (
         Tileset as CesiumTileset,
     )
     from pegasus.simulator.logic.backends.px4_mavlink_backend import (
@@ -120,14 +129,10 @@ def run(config: RuntimeConfig) -> None:
         PX4MavlinkBackendConfig,
     )
     from pegasus.simulator.logic.interface.pegasus_interface import PegasusInterface
-    from pegasus.simulator.logic.sensors import Barometer, GPS, IMU, Magnetometer
+    from pegasus.simulator.logic.sensors import GPS, IMU, Barometer, Magnetometer
     from pegasus.simulator.logic.vehicles.multirotor import Multirotor, MultirotorConfig
     from pegasus.simulator.params import ROBOTS
 
-    from .camera_quality import (
-        assess_camera_health,
-        should_record_camera_frame,
-    )
     from .cesium_camera import current_pose_cesium_viewport
     from .command_queue import MainThreadQueue
     from .fleet_loop import FleetLoopController
@@ -177,9 +182,6 @@ def run(config: RuntimeConfig) -> None:
     camera_sensors: dict[str, NativeH264CameraSensor] = {}
     camera_sensor_sequences: dict[str, int] = {}
     camera_frames_observed: dict[str, int] = {}
-    camera_visible_streaks: dict[str, int] = {}
-    camera_unusable_streaks_after_tiles: dict[str, int] = {}
-    camera_was_ready: set[str] = set()
     physics_lifecycle: FleetPhysicsLifecycle | None = None
     fleet_loop: FleetLoopController | None = None
     operator_cameras: AuthoritativeOperatorCameraCollection | None = None
@@ -407,12 +409,11 @@ def run(config: RuntimeConfig) -> None:
                     camera_path=camera_path,
                     width=config.camera.width,
                     height=config.camera.height,
-                    render_fps=config.rendering_hz,
+                    render_fps=config.camera.fps,
+                    rtsp_port=config.camera.rtsp_port,
                 )
                 camera_sensor_sequences[vehicle_id] = 0
                 camera_frames_observed[vehicle_id] = 0
-                camera_visible_streaks[vehicle_id] = 0
-                camera_unusable_streaks_after_tiles[vehicle_id] = 0
 
         if not camera_sensors:
             raise RuntimeError("Cesium requires an authoritative sensor camera")
@@ -444,10 +445,6 @@ def run(config: RuntimeConfig) -> None:
         physics_render_schedule = PhysicsRenderSchedule(
             config.physics_hz, config.rendering_hz
         )
-        physical_camera_cadence = FixedStepCadenceGate(
-            config.physics_hz, config.camera.fps
-        )
-
         def telemetry_snapshot() -> list[VehicleTelemetry]:
             telemetry: list[VehicleTelemetry] = []
             for vehicle_id, vehicle in vehicles.items():
@@ -515,9 +512,6 @@ def run(config: RuntimeConfig) -> None:
             physics_step += 1
             simulation_time_s = physics_step / config.physics_hz
             state.advance(simulation_time_s, physics_step)
-            if physical_camera_cadence.due(physics_step):
-                for camera_sensor in camera_sensors.values():
-                    camera_sensor.request_capture()
             publish_recording = recording_cadence.due(physics_step)
             if not publish_recording:
                 return
@@ -582,7 +576,6 @@ def run(config: RuntimeConfig) -> None:
                 simulation_generation += 1
                 recording_cadence.reset()
                 physics_render_schedule.reset()
-                physical_camera_cadence.reset()
                 state.advance(simulation_time_s, physics_step)
                 state.set_lifecycle("running" if was_playing else "paused")
 
@@ -730,7 +723,7 @@ def run(config: RuntimeConfig) -> None:
                 # callback inside app.update().
                 update_operator_cameras()
                 for sensor in camera_sensors.values():
-                    sensor.prepare_render(simulation_time_s, physics_step)
+                    sensor.observe_simulation_time(simulation_time_s, physics_step)
                 update_cesium_viewport()
                 native_update_started = time.monotonic()
                 world.render()
@@ -760,7 +753,6 @@ def run(config: RuntimeConfig) -> None:
                     )
                     if frame is not None:
                         camera_sensor_sequences[vehicle_id] = frame.sequence
-                        quality = frame.quality
                         entity_transforms = operator_entity_transforms()
                         expected_sensor_pose = compose_pose(
                             entity_transforms[vehicle_id].pose,
@@ -771,60 +763,29 @@ def run(config: RuntimeConfig) -> None:
                             expected_sensor_pose,
                         )
                         camera_frames_observed[vehicle_id] += 1
-                        camera_visible_streaks[vehicle_id] = (
-                            camera_visible_streaks[vehicle_id] + 1
-                            if quality.visible
-                            else 0
-                        )
-                        tiles_ready = state.snapshot()["tiles"]["lifecycle"] == "ready"
-                        camera_unusable_streaks_after_tiles[vehicle_id] = (
-                            camera_unusable_streaks_after_tiles[vehicle_id] + 1
-                            if tiles_ready and not quality.visible
-                            else 0
-                        )
-                        prolonged_unusable_threshold = max(3, config.camera.fps * 3)
-                        camera_health = assess_camera_health(
-                            quality,
-                            visible_streak=camera_visible_streaks[vehicle_id],
-                            unusable_streak_after_tiles=(
-                                camera_unusable_streaks_after_tiles[vehicle_id]
-                            ),
-                            was_ready=vehicle_id in camera_was_ready,
-                            prolonged_unusable_threshold=prolonged_unusable_threshold,
-                        )
-                        if camera_health.lifecycle == "ready":
-                            camera_was_ready.add(vehicle_id)
                         state.update_camera(
                             vehicle_id,
-                            camera_health.lifecycle,
+                            "ready",
                             camera_frames_observed[vehicle_id],
-                            quality,
-                            diagnostic_code=camera_health.diagnostic_code,
-                            diagnostic=camera_health.diagnostic,
+                            len(frame.access_unit.sample),
+                            keyframe=frame.access_unit.is_keyframe,
                             render_pose=render_pose,
                         )
-                        recording.log_camera_quality(
-                            quality,
-                            camera_health.lifecycle,
+                        recording.offer_camera_access_unit(
+                            frame.access_unit,
                             frame.simulation_time_s,
                             frame.physics_step,
                         )
-                        if should_record_camera_frame(quality):
-                            recording.offer_camera_access_unit(
-                                frame.access_unit,
-                                frame.simulation_time_s,
-                                frame.physics_step,
-                            )
-                        if camera_unusable_streaks_after_tiles[vehicle_id] == (
-                            prolonged_unusable_threshold
-                        ):
-                            LOGGER.error(
-                                "down camera for %s lacks visible scene detail after "
-                                "streamed-world content became ready; render pose differs "
-                                "by %.3f m and %.3f degrees; simulation continues",
+                    else:
+                        sensor_status = sensor.status()
+                        if sensor_status.lifecycle == "degraded":
+                            state.update_camera(
                                 vehicle_id,
-                                render_pose.position_error_m,
-                                render_pose.forward_error_degrees,
+                                sensor_status.lifecycle,
+                                sensor_status.frames_received,
+                                0,
+                                keyframe=False,
+                                diagnostic=sensor_status.diagnostic,
                             )
 
             if render:

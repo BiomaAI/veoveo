@@ -9,7 +9,6 @@ from dataclasses import dataclass
 import rerun as rr
 import rerun.blueprint as rrb
 
-from .camera_quality import CameraFrameQuality
 from .config import RecordingMapProvider, RuntimeConfig
 from .event_queue import NonBlockingEventQueue
 from .geo import enu_to_geodetic
@@ -17,7 +16,6 @@ from .h264 import NativeH264AccessUnit
 from .state import VehicleTelemetry
 from .stream_output import RtpH264Publisher
 from .world_config import WorldConfiguration
-
 
 LOGGER = logging.getLogger("veoveo.uav_sim.recording")
 
@@ -53,14 +51,6 @@ class _CameraEvent:
 
 
 @dataclass(frozen=True, slots=True)
-class _CameraQualityEvent:
-    quality: CameraFrameQuality
-    lifecycle: str
-    simulation_time_s: float
-    physics_step: int
-
-
-@dataclass(frozen=True, slots=True)
 class _TilesEvent:
     resident_tiles: int
     visible_tiles: int
@@ -86,7 +76,6 @@ class _StopEvent:
 type _RecordingEvent = (
     _FrameEvent
     | _CameraEvent
-    | _CameraQualityEvent
     | _TilesEvent
     | _MissionEvent
     | _StopEvent
@@ -94,7 +83,7 @@ type _RecordingEvent = (
 
 
 class RecordedH264CameraStream:
-    """Fan one native Isaac NVENC access unit to Recording and live RTP."""
+    """Fan one native Isaac NVENC access unit to Recording and optional RTP."""
 
     def __init__(
         self,
@@ -120,14 +109,15 @@ class RecordedH264CameraStream:
         simulation_time_s: float,
         physics_step: int,
     ) -> None:
-        if not access_unit.is_keyframe:
-            raise RuntimeError("native Isaac camera access unit is not an IDR")
         if self._stream_output is not None:
             self._stream_output.publish(access_unit.sample, simulation_time_s)
         self._set_time(simulation_time_s, physics_step)
         self._recording.log(
             self._entity_path,
-            _video_packet(access_unit.sample, is_keyframe=True),
+            _video_packet(
+                access_unit.sample,
+                is_keyframe=access_unit.is_keyframe,
+            ),
         )
 
     def close(self) -> None:
@@ -197,22 +187,6 @@ class RecordingPublisher:
         self._events.offer(
             _CameraEvent(
                 access_unit=access_unit,
-                simulation_time_s=simulation_time_s,
-                physics_step=physics_step,
-            )
-        )
-
-    def log_camera_quality(
-        self,
-        quality: CameraFrameQuality,
-        lifecycle: str,
-        simulation_time_s: float,
-        physics_step: int,
-    ) -> None:
-        self._events.offer(
-            _CameraQualityEvent(
-                quality=quality,
-                lifecycle=lifecycle,
                 simulation_time_s=simulation_time_s,
                 physics_step=physics_step,
             )
@@ -355,7 +329,6 @@ class _RecordingSink:
         self,
         event: _FrameEvent
         | _CameraEvent
-        | _CameraQualityEvent
         | _TilesEvent
         | _MissionEvent,
     ) -> None:
@@ -365,8 +338,6 @@ class _RecordingSink:
             self._camera.publish(
                 event.access_unit, event.simulation_time_s, event.physics_step
             )
-        elif isinstance(event, _CameraQualityEvent):
-            self._log_camera_quality(event)
         elif isinstance(event, _TilesEvent):
             self._log_tiles(event)
         else:
@@ -484,21 +455,6 @@ class _RecordingSink:
                     px4_connected=status[3],
                 ),
             )
-
-    def _log_camera_quality(self, event: _CameraQualityEvent) -> None:
-        self._set_time(event.simulation_time_s, event.physics_step)
-        self._recording.log(
-            f"{self._root}/vehicle/{self._config.camera.vehicle_id}/camera/down/quality",
-            rr.AnyValues(
-                mean_luma=event.quality.mean_luma,
-                dynamic_range=event.quality.dynamic_range,
-                robust_dynamic_range=event.quality.robust_dynamic_range,
-                luma_standard_deviation=event.quality.luma_standard_deviation,
-                non_black_fraction=event.quality.non_black_fraction,
-                content=event.quality.content,
-                lifecycle=event.lifecycle,
-            ),
-        )
 
     def _log_tiles(self, event: _TilesEvent) -> None:
         status = (

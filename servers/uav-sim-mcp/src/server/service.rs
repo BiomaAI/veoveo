@@ -223,7 +223,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "Get UAV simulation state",
-        description = "Read the current typed session, Google Photorealistic 3D Tiles, camera-content health, recording, and vehicle state.",
+        description = "Read the current typed session, Google Photorealistic 3D Tiles, native sensor-stream health, recording, and vehicle state.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<SimulationState>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -1335,15 +1335,11 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             frame_rate_hz: 2,
             codec: CameraCodec::H264,
             encoder: CameraEncoder::NvidiaNvenc,
+            transport: crate::contract::CameraTransport::RtspRtp,
             frames_observed: 10,
-            mean_luma: 96.0,
-            dynamic_range: 224,
-            robust_dynamic_range: 180,
-            luma_standard_deviation: 42.0,
-            non_black_fraction: 0.95,
-            content: crate::contract::CameraContent::Visible,
+            last_access_unit_bytes: 32_768,
+            last_frame_keyframe: false,
             render_pose: None,
-            diagnostic_code: None,
             diagnostic: None,
         }],
         live_cameras: vec![veoveo_mcp_contract::LiveCameraDescriptor {

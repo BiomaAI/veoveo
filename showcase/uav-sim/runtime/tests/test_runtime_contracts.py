@@ -4,46 +4,47 @@ import json
 import math
 import os
 import socket
+import struct
 import sys
 import tempfile
 import threading
-import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
 from pymavlink import mavutil
-
 from veoveo_uav_sim.app import kit_live_render_arguments
-from veoveo_uav_sim.camera_quality import (
-    assess_camera_health,
-    measure_camera_frame,
-    measure_camera_histogram,
-    normalize_rgb_frame,
-    should_record_camera_frame,
-)
 from veoveo_uav_sim.config import FleetLoopConfig, RuntimeConfig
 from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operation
-from veoveo_uav_sim.fleet_loop import FleetLoopController, vehicle_loop_route
 from veoveo_uav_sim.event_queue import NonBlockingEventQueue
+from veoveo_uav_sim.fleet_loop import FleetLoopController, vehicle_loop_route
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
-from veoveo_uav_sim.h264 import annex_b_nals, parse_native_h264_access_unit
-from veoveo_uav_sim.hydra_camera import SensorCaptureGate
-from veoveo_uav_sim.physics_batch import (
-    FleetPhysicsTiming,
-    FleetPhysicsLifecycle,
-    IsaacFleetPhysicsBatch,
-    RigidBodyBatchAccumulator,
+from veoveo_uav_sim.h264 import (
+    annex_b_nals,
+    make_decoder_reentrant,
+    parse_native_h264_access_unit,
 )
+from veoveo_uav_sim.hydra_camera import native_sensor_aov_arguments
 from veoveo_uav_sim.physical_camera import (
     physical_camera_path,
     physical_camera_product_name,
+)
+from veoveo_uav_sim.physics_batch import (
+    FleetPhysicsLifecycle,
+    FleetPhysicsTiming,
+    IsaacFleetPhysicsBatch,
+    RigidBodyBatchAccumulator,
 )
 from veoveo_uav_sim.px4 import Px4Commander, Px4CommandRejected
 from veoveo_uav_sim.realtime import (
     FixedStepCadenceGate,
     PhysicsRenderSchedule,
+)
+from veoveo_uav_sim.rtsp_h264 import (
+    H264RtpDepacketizer,
+    RtpPacket,
+    parse_rtp_packet,
 )
 from veoveo_uav_sim.runtime_events import (
     RUNTIME_EVENT_SCHEMA,
@@ -52,9 +53,9 @@ from veoveo_uav_sim.runtime_events import (
 )
 from veoveo_uav_sim.state import (
     RuntimeState,
-    VehicleTelemetry,
     initial_runtime_timing,
 )
+from veoveo_uav_sim.stream_output import _packetize_nal, _rtp_timestamp
 from veoveo_uav_sim.vehicle_model import (
     PX4_IRIS_MOMENT_CONSTANT,
     PX4_IRIS_MOTOR_CONSTANT,
@@ -68,7 +69,6 @@ from veoveo_uav_sim.vehicle_model import (
     inverse_rotate_vector_xyzw,
     quaternion_multiply_xyzw,
 )
-from veoveo_uav_sim.stream_output import _packetize_nal, _rtp_timestamp
 from veoveo_uav_sim.world_config import (
     GeoreferenceOrigin,
     WorldConfiguration,
@@ -76,7 +76,6 @@ from veoveo_uav_sim.world_config import (
     WorldConfigurationSlot,
 )
 from veoveo_uav_sim.world_health import assess_tile_health
-
 
 VALID_ENVIRONMENT = {
     "CESIUM_ION_ACCESS_TOKEN": "test-token",
@@ -327,7 +326,9 @@ class RuntimeConfigTests(unittest.TestCase):
         app_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py"
         ).read_text()
-        self.assertIn('"omni.replicator.nv"', app_source)
+        self.assertIn('"omni.kit.livestream.rtsp"', app_source)
+        self.assertNotIn('"omni.replicator.nv"', app_source)
+        self.assertNotIn('"omni.replicator.core"', app_source)
         self.assertNotIn("import CameraSensor", app_source)
         self.assertNotIn("RtxCamera", app_source)
         self.assertNotIn("isaacsim.sensors.experimental.rtx", app_source)
@@ -346,10 +347,12 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertNotIn("follow_camera", app_source)
         self.assertNotIn("operator_camera_cadence", app_source)
         self.assertIn("update_operator_cameras()", app_source)
-        self.assertIn("physical_camera_cadence.due(physics_step)", app_source)
-        self.assertIn("render_fps=config.rendering_hz", app_source)
-        self.assertIn("camera_sensor.request_capture()", app_source)
-        self.assertIn("sensor.prepare_render(simulation_time_s, physics_step)", app_source)
+        self.assertNotIn("physical_camera_cadence", app_source)
+        self.assertIn("render_fps=config.camera.fps", app_source)
+        self.assertIn(
+            "sensor.observe_simulation_time(simulation_time_s, physics_step)",
+            app_source,
+        )
 
         operator_camera_source = (
             Path(__file__).parents[1]
@@ -372,26 +375,21 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(product_sources.count("get_frame_info"), 1)
         self.assertIn("is_async_low_latency=False", hydra_camera_source)
         self.assertIn("is_async_low_latency=False", operator_product_source)
-        self.assertIn("AnnotatorRegistry.get_annotator", hydra_camera_source)
-        self.assertIn('init_params={"compression": "h264"}', hydra_camera_source)
-        self.assertIn('device="cuda:0", do_array_copy=False', hydra_camera_source)
-        self.assertNotIn("class NativeSensorWriter", hydra_camera_source)
-        self.assertNotIn("schedule_write", hydra_camera_source)
-        self.assertNotIn("add_annotator", hydra_camera_source)
+        self.assertNotIn("AnnotatorRegistry", hydra_camera_source)
+        self.assertNotIn("omni.replicator", hydra_camera_source)
+        self.assertIn('"streamType": "rtsp"', hydra_camera_source)
+        self.assertIn("RtspH264Receiver", hydra_camera_source)
 
-    def test_native_encoder_submissions_are_coalesced(self) -> None:
-        requests = SensorCaptureGate()
-        self.assertTrue(requests.request())
-        self.assertFalse(requests.request())
-        self.assertTrue(requests.begin_render())
-        self.assertFalse(requests.begin_render())
-        requests.complete()
-        self.assertTrue(requests.request())
-        self.assertTrue(requests.begin_render())
-        requests.complete()
-        requests.close()
-        self.assertFalse(requests.request())
-        self.assertFalse(requests.begin_render())
+    def test_native_sensor_aov_uses_one_internal_nvenc_stream(self) -> None:
+        arguments = native_sensor_aov_arguments(
+            "physical_uav_1_down",
+            rtsp_port=8554,
+            target_fps=2,
+        )
+        self.assertEqual(len(arguments), 4)
+        self.assertTrue(all("physical_uav_1_down.LdrColor" in value for value in arguments))
+        self.assertTrue(any(value.endswith("/streamType=rtsp") for value in arguments))
+        self.assertTrue(any(value.endswith("/streamPort=8554") for value in arguments))
 
     def test_physical_capture_cadence_is_exact(self) -> None:
         cadence = FixedStepCadenceGate(60, 2)
@@ -560,6 +558,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertNotIn("front", camera_path)
         self.assertEqual(camera["codec"], "h264")
         self.assertEqual(camera["encoder"], "nvidia_nvenc")
+        self.assertEqual(camera["transport"], "rtsp_rtp")
         self.assertEqual(state["recordings"][0]["camera_streams"], [camera_path])
 
         recording_source = (
@@ -799,11 +798,60 @@ class StreamOutputTests(unittest.TestCase):
         )
         parsed = parse_native_h264_access_unit(access_unit)
         self.assertTrue(parsed.is_keyframe)
+        self.assertTrue(parsed.is_decoder_reentrant)
         self.assertEqual(parsed.nal_types, (7, 8, 5))
 
-    def test_native_access_unit_requires_sps_pps_and_idr(self) -> None:
-        with self.assertRaisesRegex(ValueError, "missing SPS, PPS"):
-            parse_native_h264_access_unit(b"\x00\x00\x00\x01\x65\x01")
+    def test_native_access_unit_accepts_inter_frame(self) -> None:
+        parsed = parse_native_h264_access_unit(b"\x00\x00\x00\x01\x41\x01")
+        self.assertFalse(parsed.is_keyframe)
+        self.assertFalse(parsed.is_decoder_reentrant)
+
+    def test_parameter_sets_make_native_idr_decoder_reentrant(self) -> None:
+        parsed = parse_native_h264_access_unit(b"\x00\x00\x00\x01\x65\x01")
+        qualified = make_decoder_reentrant(parsed, b"\x67\x01", b"\x68\x02")
+        self.assertTrue(qualified.is_decoder_reentrant)
+        self.assertEqual(qualified.nal_types, (7, 8, 5))
+
+    def test_rtp_parser_honors_extension_and_padding(self) -> None:
+        header = struct.pack("!BBHII", 0xB0, 0xE0, 7, 9, 11)
+        extension = struct.pack("!HHI", 0xBEDE, 1, 0x01020304)
+        packet = parse_rtp_packet(header + extension + b"\x65\x99" + b"\x00\x02")
+        self.assertEqual(packet.sequence, 7)
+        self.assertEqual(packet.timestamp, 9)
+        self.assertTrue(packet.marker)
+        self.assertEqual(packet.payload_type, 96)
+        self.assertEqual(packet.payload, b"\x65\x99")
+
+    def test_rtsp_rtp_depacketizer_qualifies_first_idr_and_retains_p_frames(self) -> None:
+        depacketizer = H264RtpDepacketizer(
+            96,
+            sequence_parameter_set=b"\x67\x01",
+            picture_parameter_set=b"\x68\x02",
+        )
+        idr = depacketizer.push(RtpPacket(1, 100, True, 96, b"\x65\x03"))
+        self.assertIsNotNone(idr)
+        assert idr is not None
+        self.assertTrue(idr.is_decoder_reentrant)
+        inter = depacketizer.push(RtpPacket(2, 200, True, 96, b"\x41\x04"))
+        self.assertIsNotNone(inter)
+        assert inter is not None
+        self.assertFalse(inter.is_keyframe)
+
+    def test_rtsp_rtp_depacketizer_reassembles_fu_a(self) -> None:
+        depacketizer = H264RtpDepacketizer(
+            96,
+            sequence_parameter_set=b"\x67\x01",
+            picture_parameter_set=b"\x68\x02",
+        )
+        self.assertIsNone(
+            depacketizer.push(RtpPacket(1, 100, False, 96, b"\x7c\x85\x03"))
+        )
+        access_unit = depacketizer.push(
+            RtpPacket(2, 100, True, 96, b"\x7c\x45\x04")
+        )
+        self.assertIsNotNone(access_unit)
+        assert access_unit is not None
+        self.assertEqual(annex_b_nals(access_unit.sample)[-1], b"\x65\x03\x04")
 
     def test_large_nal_uses_rfc_6184_fu_a_boundaries(self) -> None:
         nal = bytes([0x65]) + bytes(range(1, 16))
@@ -1567,126 +1615,6 @@ class WorldConfigurationTests(unittest.TestCase):
             slot.configure(other)
 
 
-class CameraQualityTests(unittest.TestCase):
-    def test_black_camera_frame_is_not_visible(self) -> None:
-        quality = measure_camera_frame(np.zeros((48, 64, 3), dtype=np.uint8))
-        self.assertFalse(quality.operational)
-        self.assertFalse(quality.visible)
-        self.assertEqual(quality.content, "black")
-        self.assertEqual(quality.mean_luma, 0.0)
-        self.assertEqual(quality.dynamic_range, 0)
-        self.assertEqual(quality.robust_dynamic_range, 0)
-        self.assertEqual(quality.luma_standard_deviation, 0.0)
-        self.assertEqual(quality.non_black_fraction, 0.0)
-
-    def test_visible_camera_frame_is_accepted(self) -> None:
-        frame = np.zeros((48, 64, 3), dtype=np.uint8)
-        frame[8:40, 8:56] = (32, 128, 224)
-        quality = measure_camera_frame(frame)
-        self.assertTrue(quality.operational)
-        self.assertTrue(quality.visible)
-        self.assertEqual(quality.content, "visible")
-        self.assertGreater(quality.mean_luma, 2.0)
-        self.assertGreater(quality.dynamic_range, 8)
-        self.assertGreater(quality.robust_dynamic_range, 8)
-        self.assertGreater(quality.luma_standard_deviation, 4.0)
-        self.assertGreater(quality.non_black_fraction, 0.02)
-
-    def test_uniform_bright_frame_is_not_visible_content(self) -> None:
-        frame = np.full((48, 64, 3), 128, dtype=np.uint8)
-        quality = measure_camera_frame(frame)
-        self.assertTrue(quality.operational)
-        self.assertFalse(quality.visible)
-        self.assertEqual(quality.content, "uniform")
-        self.assertEqual(quality.dynamic_range, 0)
-
-    def test_sparse_outliers_do_not_make_a_uniform_frame_visible(self) -> None:
-        frame = np.full((100, 100, 3), 214, dtype=np.uint8)
-        frame[:2, :2] = 0
-        quality = measure_camera_frame(frame)
-        self.assertGreater(quality.dynamic_range, 200)
-        self.assertEqual(quality.robust_dynamic_range, 0)
-        self.assertFalse(quality.visible)
-        self.assertEqual(quality.content, "uniform")
-
-    def test_uniform_camera_frames_do_not_enter_recording_or_live_rtp(self) -> None:
-        quality = measure_camera_frame(np.full((48, 64, 3), 128, dtype=np.uint8))
-        self.assertFalse(quality.visible)
-        self.assertFalse(should_record_camera_frame(quality))
-
-    def test_warming_world_withholds_non_visible_camera_frames(self) -> None:
-        quality = measure_camera_frame(np.zeros((48, 64, 3), dtype=np.uint8))
-        self.assertFalse(should_record_camera_frame(quality))
-
-    def test_reference_frame_normalization_scales_float_rgb(self) -> None:
-        frame = np.full((4, 4, 3), 0.5, dtype=np.float32)
-        normalized = normalize_rgb_frame(frame)
-        self.assertEqual(normalized.dtype, np.uint8)
-        self.assertEqual(int(normalized[0, 0, 0]), 128)
-
-    def test_reduced_histogram_reproduces_visible_classification(self) -> None:
-        histogram = np.zeros(256, dtype=np.int64)
-        histogram[16] = 1_000
-        histogram[200] = 1_000
-        quality = measure_camera_histogram(histogram, 2_000)
-        self.assertTrue(quality.visible)
-        self.assertEqual(quality.dynamic_range, 184)
-
-    def test_prolonged_black_camera_degrades_without_becoming_authority(self) -> None:
-        quality = measure_camera_frame(np.zeros((48, 64, 3), dtype=np.uint8))
-        health = assess_camera_health(
-            quality,
-            visible_streak=0,
-            unusable_streak_after_tiles=60,
-            was_ready=True,
-            prolonged_unusable_threshold=60,
-        )
-        self.assertEqual(health.lifecycle, "degraded")
-        self.assertEqual(health.diagnostic_code, "frame_black")
-        self.assertIn("black", health.diagnostic or "")
-
-    def test_prolonged_uniform_camera_degrades_with_typed_diagnostic(self) -> None:
-        quality = measure_camera_frame(np.full((48, 64, 3), 214, dtype=np.uint8))
-        health = assess_camera_health(
-            quality,
-            visible_streak=0,
-            unusable_streak_after_tiles=6,
-            was_ready=True,
-            prolonged_unusable_threshold=6,
-        )
-        self.assertEqual(health.lifecycle, "degraded")
-        self.assertEqual(health.diagnostic_code, "frame_uniform")
-        self.assertIn("lacks visible scene detail", health.diagnostic or "")
-
-    def test_camera_recovers_after_three_operational_frames(self) -> None:
-        frame = np.zeros((48, 64, 3), dtype=np.uint8)
-        frame[8:40, 8:56] = (32, 128, 224)
-        health = assess_camera_health(
-            measure_camera_frame(frame),
-            visible_streak=3,
-            unusable_streak_after_tiles=0,
-            was_ready=True,
-            prolonged_unusable_threshold=60,
-        )
-        self.assertEqual(health.lifecycle, "ready")
-        self.assertIsNone(health.diagnostic_code)
-        self.assertIsNone(health.diagnostic)
-
-    def test_visible_camera_warmup_does_not_claim_a_uniform_frame(self) -> None:
-        frame = np.zeros((48, 64, 3), dtype=np.uint8)
-        frame[8:40, 8:56] = (32, 128, 224)
-        health = assess_camera_health(
-            measure_camera_frame(frame),
-            visible_streak=1,
-            unusable_streak_after_tiles=0,
-            was_ready=False,
-            prolonged_unusable_threshold=6,
-        )
-        self.assertEqual(health.lifecycle, "warming")
-        self.assertIsNone(health.diagnostic_code)
-        self.assertIsNone(health.diagnostic)
-
-
 class StreamedWorldHealthTests(unittest.TestCase):
     def test_absent_tiles_degrade_without_becoming_simulation_authority(self) -> None:
         health = assess_tile_health(
@@ -1744,14 +1672,20 @@ class StreamedWorldHealthTests(unittest.TestCase):
 
     def test_visual_health_is_not_simulation_authority(self) -> None:
         source = (Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py").read_text()
-        self.assertIn("assess_camera_health(", source)
         self.assertIn("assess_tile_health(", source)
+        self.assertIn('sensor_status.lifecycle == "degraded"', source)
         self.assertIn("statistics.tiles_rendered", source)
         self.assertIn("cesium_interface.reload_tileset(tileset_path)", source)
         self.assertNotIn('raise RuntimeError("Google Photorealistic', source)
         self.assertNotIn(
             'raise RuntimeError(\n                                f"down camera', source
         )
+
+        sensor_source = (
+            Path(__file__).parents[1] / "veoveo_uav_sim" / "hydra_camera.py"
+        ).read_text()
+        self.assertIn("simulation continues", sensor_source)
+        self.assertNotIn("raise RuntimeError(\"native Isaac", sensor_source)
 
         server_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "server.py"

@@ -436,9 +436,9 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_products.py` | bounded preallocated viewer slots, each with an isolated camera clone, RTX render product, NVENC bitstream, and native WebRTC peer |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/render_pose.py` | bounded agreement diagnostics between authoritative camera poses and rendered Hydra frames |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/physical_camera.py` | exact authoritative body-and-mount USD sensor camera, distinct from smoothed operator views |
-| `showcase/uav-sim/runtime/veoveo_uav_sim/hydra_camera.py` | physics-gated physical-camera Hydra product, manual Replicator scheduling, native NVENC completion, and rendered-camera pairing |
-| `showcase/uav-sim/runtime/veoveo_uav_sim/gpu_camera_quality.py` | CUDA-only pixel reduction to bounded luma and non-black health evidence |
-| `showcase/uav-sim/runtime/veoveo_uav_sim/h264.py` | strict native Annex B access-unit parsing and SPS/PPS/IDR admission |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/hydra_camera.py` | physical-camera Hydra product, CUDA AOV-to-native-RTSP configuration, encoded-frame pairing, and nonblocking sensor health |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/rtsp_h264.py` | pod-local RTSP client, interleaved RTP parser, RFC 6184 depacketizer, and native encoded access-unit delivery |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/h264.py` | strict native Annex B GOP parsing and decoder-reentrant SPS/PPS/IDR qualification |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/runtime_events.py` | nonblocking adapter-ready and final-ready lifecycle edges to the pod-local MCP companion |
 | `showcase/uav-sim/runtime/patches/cesium-0.29.0-external-viewports.patch` | pinned headless viewport-authority switch that prevents interactive window discovery from clearing simulator-managed Cesium views |
 | `servers/uav-sim-mcp/src/server/world_bootstrap.rs` | strict startup application and reactive same-binding reapplication of an installation-owned immutable world binding |
