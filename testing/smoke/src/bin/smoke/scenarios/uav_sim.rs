@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::process::Stdio;
 
 use anyhow::ensure;
@@ -983,7 +984,7 @@ fn validate_live_preview(chunks: &[Value]) -> Result<()> {
         "live preview must begin at a keyframe"
     );
     let mut last_sequence = None;
-    let mut last_timestamp = None;
+    let mut timestamps = BTreeSet::new();
     for chunk in chunks {
         let sequence = chunk
             .get("sequence")
@@ -999,12 +1000,10 @@ fn validate_live_preview(chunks: &[Value]) -> Result<()> {
                 "live preview sequence is not contiguous"
             );
         }
-        if let Some(previous) = last_timestamp {
-            ensure!(
-                timestamp >= previous,
-                "live preview timestamps moved backwards"
-            );
-        }
+        ensure!(
+            timestamps.insert(timestamp),
+            "live preview repeated a presentation timestamp"
+        );
         let encoded = chunk
             .get("data_base64")
             .and_then(Value::as_str)
@@ -1017,7 +1016,6 @@ fn validate_live_preview(chunks: &[Value]) -> Result<()> {
             "live preview chunk is not Annex B H.264"
         );
         last_sequence = Some(sequence);
-        last_timestamp = Some(timestamp);
     }
     Ok(())
 }
@@ -1990,5 +1988,25 @@ mod tests {
             "last_frame_keyframe":false
         });
         assert!(!sensor_camera_is_started(&no_access_unit));
+    }
+
+    #[test]
+    fn live_preview_orders_reordered_h264_by_decode_sequence() {
+        let access_unit = BASE64_STANDARD.encode([0, 0, 0, 1, 0x65]);
+        let chunks = vec![
+            serde_json::json!({
+                "sequence": 0,
+                "timestamp_us": 200_000,
+                "keyframe": true,
+                "data_base64": access_unit,
+            }),
+            serde_json::json!({
+                "sequence": 1,
+                "timestamp_us": 100_000,
+                "keyframe": false,
+                "data_base64": access_unit,
+            }),
+        ];
+        validate_live_preview(&chunks).expect("AVC presentation reordering is valid");
     }
 }

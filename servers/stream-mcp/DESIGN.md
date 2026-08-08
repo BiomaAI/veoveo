@@ -76,9 +76,12 @@ media. This socket is a private process protocol and is never exposed from the
 pod.
 
 Inference results and encoded access units are independent event variants.
-Rust validates every detection, H.264 byte bound, Annex B prefix, sequence, and
-timestamp before retaining it. Result and preview rings are bounded. Overflow
-drops the oldest retained App history; it never blocks the live pipeline.
+Rust validates every detection, H.264 byte bound, Annex B prefix, and
+decode-order sequence before retaining it. An encoded chunk's timestamp is its
+H.264 presentation timestamp for WebCodecs. AVC frame reordering can make that
+timestamp move backward in decode sequence, so timestamp monotonicity is not an
+admission rule. Result and preview rings are bounded. Overflow drops the oldest
+retained App history; it never blocks the live pipeline.
 
 The live path does not resolve a recording, wait for Recording Hub
 acknowledgement, or create a task snapshot. A frame that has just arrived can
@@ -100,7 +103,9 @@ shared with authorized viewers in the same tenant and Work Context when the
 session's data labels are a subset of the viewer's labels. Cross-context,
 cross-tenant, and under-labeled reads fail closed. Stopping a session
 terminates its native runner and retains the bounded result history for
-inspection.
+inspection. Invalid native events and unexpected event-channel closure also
+terminate and reap the runner before the session enters `failed`; a failed
+runner cannot retain the pipeline's exclusive UDP port.
 
 ## Stream MCP App
 
@@ -218,7 +223,9 @@ conversion to the repository-owned event schemas.
 
 Recording replay writes one bounded JSON response file atomically. Live mode
 writes newline-delimited typed events to one Unix socket. Native stdout is
-redirected to diagnostics so it cannot become a second data protocol.
+redirected to diagnostics so it cannot become a second data protocol. Event
+validation failure closes the native graph process before publishing the typed
+session failure.
 
 The pod requests an NVIDIA GPU. NVDEC, inference, and tracking have no CPU
 fallback. Missing plugins, model engines, driver capabilities, runner binary,

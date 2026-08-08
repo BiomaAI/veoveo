@@ -303,7 +303,10 @@ pub struct LiveResultsView {
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct EncodedVideoChunk {
+    /// Decode-order identity. This is the ordering contract for retained chunks.
     pub sequence: u64,
+    /// H.264 presentation timestamp in microseconds. AVC frame reordering can make
+    /// presentation timestamps non-monotonic in decode sequence.
     pub timestamp_us: u64,
     pub keyframe: bool,
     pub data_base64: String,
