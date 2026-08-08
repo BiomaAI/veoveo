@@ -245,28 +245,21 @@ async fn wait_for_live_capacity(
                     .iter()
                     .find(|item| item.get("cameraId").and_then(Value::as_str) == Some(camera_id))
             });
-        let inactive_slots = state
-            .get("stream_products")
-            .and_then(Value::as_array)
-            .map(|items| {
-                items
-                    .iter()
-                    .filter(|item| {
-                        item.get("lifecycle").and_then(Value::as_str) == Some("inactive")
-                            && item.get("cameraId").is_none()
-                            && item.get("liveViewId").is_none()
-                            && item.get("capacitySlot").and_then(Value::as_u64).is_some()
-                    })
-                    .count()
-            })
-            .unwrap_or(0);
+        let products: Vec<LiveStreamProductState> = serde_json::from_value(
+            state
+                .get("stream_products")
+                .cloned()
+                .context("authoritative simulator omitted its native viewer-slot pool")?,
+        )
+        .context("authoritative simulator returned an invalid native viewer-slot pool")?;
+        let inactive_slots = products.len();
         if json_string(&state, "/lifecycle").ok() == Some("running")
             && camera
                 .and_then(|item| item.get("health"))
                 .and_then(Value::as_str)
                 == Some("healthy")
             && camera.is_some_and(|item| item.get("streamProductId").is_none())
-            && inactive_slots > 0
+            && idle_viewer_slot_pool_matches_contract(&products)
         {
             return Ok(inactive_slots);
         }
