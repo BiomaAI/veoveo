@@ -18,7 +18,8 @@ Implemented in this workspace.
 | Veoveo reactive App resource adapter | Repository-owned extension over MCP Apps `2026-01-26`. A sandboxed App may request ordinary MCP `resources/subscribe` and `resources/unsubscribe`; the Console projects contentless `ui/notifications/resource-updated` wakes from the authenticated pooled MCP session. This adapter is not claimed as part of SEP-1865. |
 | [Veoveo final task extension](../task-extension) | Version `2026-06-30`; app-started durable work retains the same task lifecycle and ownership rules as a normal MCP client. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Linked tool arguments and structured results use the same canonical schemas exposed outside the app. |
-| HTML iframe sandbox and Content Security Policy | HTML runs in an opaque-origin `sandbox="allow-scripts"` frame. The default CSP denies network access; a live-data App may declare exact origins through `_meta.ui.csp`, which the host validates before adding them. Cookies, storage, and same-origin privilege remain absent. |
+| HTML iframe sandbox and Content Security Policy | HTML runs in an opaque-origin `sandbox="allow-scripts"` frame. The default CSP denies remote network access while permitting local `data:` fetches; a live-data App may declare exact origins through `_meta.ui.csp`, which the host validates before adding them. Cookies, storage, and same-origin privilege remain absent. |
+| Permissions Policy and Compute Pressure | MCP Apps `2026-01-26` defines typed camera, microphone, geolocation, and clipboard-write requests. Veoveo adds `_meta.ui.permissions.computePressure` as a repository-owned extension. A supporting host delegates `compute-pressure` only to the requesting App frame. |
 
 ## The rule
 
@@ -56,7 +57,8 @@ A server shipping a view (see `servers/timeseries-mcp` and
    requires a declared live-data connection. Such a view uses
    `app_resource_with_meta` and lists exact installation-owned origins in
    `_meta.ui.csp`; it does not name wildcards, paths, credentials, queries, or
-   fragments.
+   fragments. An App that requires an optional browser capability declares it
+   through typed `_meta.ui.permissions`; undeclared permissions remain unavailable.
 4. Link tools: `link_tool_to_app(tool, uri, &[Model, App])` in `list_tools`
    for every tool the view may invoke. Tools without an app link are never
    app-callable.
@@ -79,8 +81,11 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
 - **Frame** — app HTML is served same-origin with `default-src 'none'` into an
   `<iframe sandbox="allow-scripts">`. The BFF validates every declared CSP
   origin, sorts and deduplicates the result, and adds only those exact sources
-  to the relevant directive. Apps without a declaration keep the offline
-  policy. The opaque origin has no cookies, storage, or same-origin privilege.
+  to the relevant directive. Local `data:` fetches do not add a remote network
+  origin. The catalog projects the validated `computePressure` request into
+  `allow="compute-pressure"` on that App's frame only. Apps without a declaration
+  keep the offline policy. The opaque origin has no cookies, storage, or
+  same-origin privilege.
 - **Bridge** — the host declares `serverTools` and `serverResources`
   capabilities. `tools/call` from a view is proxied only to app-visible
   tools linked to that exact view on that view's server. Own-server resource

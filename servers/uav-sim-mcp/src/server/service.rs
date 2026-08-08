@@ -674,6 +674,12 @@ impl ServerHandler for UavSimMcp {
                             connect_domains: vec![self.state.live_view_connect_origin.clone()],
                             ..Default::default()
                         }),
+                        permissions: Some(veoveo_mcp_apps_extension::UiPermissions {
+                            compute_pressure: Some(
+                                veoveo_mcp_apps_extension::UiPermissionRequest::default(),
+                            ),
+                            ..Default::default()
+                        }),
                         prefers_border: Some(true),
                     },
                 )

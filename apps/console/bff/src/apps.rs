@@ -31,7 +31,8 @@ const APP_TASK_RETENTION: Duration = Duration::from_secs(60 * 60);
 
 const FRAME_CSP_OFFLINE: &str = "default-src 'none'; script-src 'unsafe-inline'; \
      style-src 'unsafe-inline'; img-src data: blob:; media-src blob:; \
-     worker-src blob:; frame-ancestors 'self'; object-src 'none'; base-uri 'none'";
+     connect-src data:; worker-src blob:; frame-ancestors 'self'; \
+     object-src 'none'; base-uri 'none'";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -53,8 +54,28 @@ struct AppDescriptor {
     /// does not fetch remote images, and apps are self-contained by contract.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     icons: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    permissions: Vec<AppFramePermission>,
     tools: Vec<AppToolDescriptor>,
     resource_dependencies: Vec<AppResourceDependency>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+enum AppFramePermission {
+    ComputePressure,
+}
+
+fn app_frame_permissions(resource: &rmcp::model::Resource) -> Vec<AppFramePermission> {
+    let compute_pressure = resource_ui_meta(resource)
+        .and_then(|metadata| metadata.permissions)
+        .and_then(|permissions| permissions.compute_pressure)
+        .is_some();
+    if compute_pressure {
+        vec![AppFramePermission::ComputePressure]
+    } else {
+        Vec::new()
+    }
 }
 
 #[derive(Serialize)]
@@ -320,6 +341,7 @@ pub(crate) async fn list_apps(
                 .filter(|icon| icon.src.starts_with("data:image/"))
                 .map(|icon| icon.src.clone())
                 .collect(),
+            permissions: app_frame_permissions(resource),
             tools,
             resource_dependencies: app_resource_dependencies(resource),
         });
@@ -435,8 +457,9 @@ fn frame_csp(resource: &rmcp::model::Resource) -> Result<HeaderValue, ()> {
          font-src {font_sources}; worker-src blob:; object-src 'none'; \
          frame-ancestors 'self'"
     );
+    policy.push_str("; connect-src data:");
     if !connect.is_empty() {
-        policy.push_str("; connect-src ");
+        policy.push(' ');
         policy.push_str(&connect.join(" "));
     }
     if !frames.is_empty() {
@@ -1226,14 +1249,24 @@ mod tests {
                     ],
                     ..veoveo_mcp_apps_extension::UiCsp::default()
                 }),
+                permissions: Some(veoveo_mcp_apps_extension::UiPermissions {
+                    compute_pressure: Some(
+                        veoveo_mcp_apps_extension::UiPermissionRequest::default(),
+                    ),
+                    ..veoveo_mcp_apps_extension::UiPermissions::default()
+                }),
                 prefers_border: Some(false),
             },
         );
         let policy = frame_csp(&resource).expect("valid CSP");
         let policy = policy.to_str().expect("ASCII CSP");
-        assert!(policy.contains("connect-src ws://127.0.0.1:49101 wss://stream.example.com"));
+        assert!(policy.contains("connect-src data: ws://127.0.0.1:49101 wss://stream.example.com"));
         assert!(policy.contains("media-src blob:"));
         assert!(policy.contains("worker-src blob:"));
+        assert_eq!(
+            app_frame_permissions(&resource),
+            vec![AppFramePermission::ComputePressure]
+        );
 
         let invalid = veoveo_mcp_apps_extension::app_resource_with_meta(
             "ui://uav-sim/live.html",
@@ -1243,10 +1276,12 @@ mod tests {
                     connect_domains: vec!["wss://stream.example.com/path".to_owned()],
                     ..veoveo_mcp_apps_extension::UiCsp::default()
                 }),
+                permissions: None,
                 prefers_border: None,
             },
         );
         assert!(frame_csp(&invalid).is_err());
+        assert!(app_frame_permissions(&invalid).is_empty());
     }
 
     #[test]
