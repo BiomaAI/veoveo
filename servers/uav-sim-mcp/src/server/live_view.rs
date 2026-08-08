@@ -455,7 +455,7 @@ impl LiveViewService {
         })
     }
 
-    pub(super) async fn disconnect_signaling(&self, live_view_id: &LiveViewId) {
+    pub(super) async fn cancel_signaling_admission(&self, live_view_id: &LiveViewId) {
         let mut state = self.state.lock().await;
         let Some(lease) = state.leases.get_mut(live_view_id) else {
             return;
@@ -463,20 +463,11 @@ impl LiveViewService {
         if !active(&lease.state) {
             return;
         }
-        let capacity_slot = lease.state.capacity_slot;
-        let assigned_live_view_id = lease.state.live_view_id.clone();
-        close_lease(lease);
-        drop(state);
-        if let Err(error) = self
-            .release_product(capacity_slot, &assigned_live_view_id)
-            .await
-        {
-            tracing::error!(
-                %error,
-                live_view_id = %assigned_live_view_id,
-                capacity_slot,
-                "failed to release viewer product after signaling ended"
-            );
+        if lease.state.connected_viewers > 0 {
+            lease.state.connected_viewers -= 1;
+        }
+        if lease.state.connected_viewers == 0 {
+            lease.state.lifecycle = LiveViewLifecycle::Ready;
         }
     }
 
@@ -1117,7 +1108,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn signaling_end_closes_the_lease_and_releases_its_slot() {
+    async fn failed_signaling_admission_preserves_the_lease_and_product_for_retry() {
         let (service, adapter) = service(1).await;
         let actor = PrincipalId::new("alice").unwrap();
         let opened = service
@@ -1132,18 +1123,27 @@ mod tests {
             .await
             .unwrap();
         service
-            .disconnect_signaling(&opened.stream.live_view_id)
+            .cancel_signaling_admission(&opened.stream.live_view_id)
             .await;
-        let closed = service
+        let ready = service
             .get(&owner(), &actor, &opened.stream.live_view_id)
             .await
             .unwrap();
-        assert_eq!(closed.lifecycle, LiveViewLifecycle::Closed);
+        assert_eq!(ready.lifecycle, LiveViewLifecycle::Ready);
+        assert_eq!(ready.connected_viewers, 0);
         let product = adapter.state().await.unwrap().stream_products.remove(0);
         assert_eq!(
             product.lifecycle,
-            veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive
+            veoveo_mcp_contract::LiveStreamProductLifecycle::Ready
         );
+        assert_eq!(product.nvenc_sessions, 1);
+        service
+            .authorize_signaling(
+                &opened.stream.live_view_id,
+                opened.access_token.expose_for_signaling(),
+            )
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -1177,7 +1177,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn close_is_idempotent_after_signaling_has_released_the_slot() {
+    async fn explicit_close_releases_an_admitted_signaling_lease() {
         let (service, adapter) = service(1).await;
         let actor = PrincipalId::new("alice").unwrap();
         let opened = service
@@ -1185,8 +1185,12 @@ mod tests {
             .await
             .unwrap();
         service
-            .disconnect_signaling(&opened.stream.live_view_id)
-            .await;
+            .authorize_signaling(
+                &opened.stream.live_view_id,
+                opened.access_token.expose_for_signaling(),
+            )
+            .await
+            .unwrap();
 
         let result = service
             .close(

@@ -461,14 +461,35 @@ async fn capture_console_live_app_inner(
                 return Err(error.context(diagnostics));
             }
         };
-        let second = wait_for_console_video_advance(
+        let second = match wait_for_console_video_advance(
             &mut cdp,
             &target_id,
             &session_id,
             expected_camera_id,
             first,
         )
-        .await?;
+        .await
+        {
+            Ok(state) => state,
+            Err(error) => {
+                let app_state: Value = evaluate_console_app(
+                    &mut cdp,
+                    &target_id,
+                    &session_id,
+                    "uav-sim",
+                    APP_FRAME_VIDEO_STATE,
+                    false,
+                )
+                .await
+                .unwrap_or_else(|state_error| {
+                    serde_json::json!({"diagnosticError": format!("{state_error:#}")})
+                });
+                let diagnostics = cdp.stream_diagnostics(&session_id).await?;
+                return Err(error.context(format!(
+                    "current App state: {app_state}; {diagnostics}"
+                )));
+            }
+        };
         let decode: DecodeIdentity = evaluate_console_app(
             &mut cdp,
             &target_id,
