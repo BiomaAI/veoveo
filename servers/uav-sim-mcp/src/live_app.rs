@@ -38,6 +38,8 @@ mod tests {
             "event?.data?.stats",
             "camera.rig?.smoothing",
             "decoded pending",
+            "font-variant-numeric:tabular-nums",
+            "Math.round(stats.fps)",
             "Google Photorealistic 3D Tiles",
             "MAX_RECOVERY_ATTEMPTS=8",
             "Camera recovery is waiting for simulator readiness",
