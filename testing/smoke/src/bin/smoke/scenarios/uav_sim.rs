@@ -146,7 +146,7 @@ struct ReasonScenario {
 #[serde(deny_unknown_fields)]
 struct ViewAcceptance {
     timeout_seconds: u64,
-    minimum_mission_pose_delta: u64,
+    minimum_mission_sensor_frames: u64,
     camera: ViewCameraAcceptance,
 }
 
@@ -375,7 +375,7 @@ impl UavAcceptanceScenario {
                 .all(f64::is_finite)
                 && view.smoothing_seconds.is_finite()
                 && (0.0..=60.0).contains(&view.smoothing_seconds)
-                && self.view.minimum_mission_pose_delta > 0,
+                && self.view.minimum_mission_sensor_frames > 0,
             "view parameters must define one bounded follow camera and advancing mission checkpoint"
         );
         Ok(())
@@ -1878,7 +1878,7 @@ mod tests {
         assert!(!scenario.reason.prompt.is_empty());
         assert_eq!(scenario.reason.maximum_frames, 6);
         assert_eq!(scenario.view.camera.width_px, 640);
-        assert_eq!(scenario.view.minimum_mission_pose_delta, 30);
+        assert_eq!(scenario.view.minimum_mission_sensor_frames, 10);
     }
 
     #[test]

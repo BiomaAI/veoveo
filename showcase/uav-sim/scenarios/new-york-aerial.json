@@ -243,7 +243,7 @@
   },
   "view": {
     "timeout_seconds": 300,
-    "minimum_mission_pose_delta": 30,
+    "minimum_mission_sensor_frames": 10,
     "camera": {
       "width_px": 640,
       "height_px": 360,
