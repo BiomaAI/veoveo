@@ -437,9 +437,6 @@ def run(config: RuntimeConfig) -> None:
         physics_render_schedule = PhysicsRenderSchedule(
             config.physics_hz, config.rendering_hz
         )
-        operator_camera_cadence = FixedStepCadenceGate(
-            config.physics_hz, config.rendering_hz
-        )
         physical_camera_cadence = FixedStepCadenceGate(
             config.physics_hz, config.camera.fps
         )
@@ -511,12 +508,6 @@ def run(config: RuntimeConfig) -> None:
             physics_step += 1
             simulation_time_s = physics_step / config.physics_hz
             state.advance(simulation_time_s, physics_step)
-            # Operator products have their own declared render cadence. The
-            # camera consumes the latest authoritative physics transform at
-            # that cadence; faster physics substeps must not repeat the same
-            # USD camera work before any product can render it.
-            if operator_camera_cadence.due(physics_step):
-                update_operator_cameras()
             if physical_camera_cadence.due(physics_step):
                 for camera_sensor in camera_sensors.values():
                     camera_sensor.request_capture()
@@ -584,7 +575,6 @@ def run(config: RuntimeConfig) -> None:
                 simulation_generation += 1
                 recording_cadence.reset()
                 physics_render_schedule.reset()
-                operator_camera_cadence.reset()
                 physical_camera_cadence.reset()
                 state.advance(simulation_time_s, physics_step)
                 state.set_lifecycle("running" if was_playing else "paused")
@@ -732,6 +722,7 @@ def run(config: RuntimeConfig) -> None:
                 # render-only Kit update. Hydra and Cesium therefore consume
                 # the same current transform instead of racing a physics
                 # callback inside app.update().
+                update_operator_cameras()
                 update_cesium_viewport()
                 native_update_started = time.monotonic()
                 world.render()
