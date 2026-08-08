@@ -95,10 +95,6 @@ mod tests {
                     connect_domains: vec!["wss://stream.example.com".to_owned()],
                     ..crate::UiCsp::default()
                 }),
-                permissions: Some(crate::UiPermissions {
-                    compute_pressure: Some(crate::UiPermissionRequest::default()),
-                    ..crate::UiPermissions::default()
-                }),
                 prefers_border: Some(false),
             },
         );
@@ -108,12 +104,6 @@ mod tests {
                 .expect("CSP parses")
                 .connect_domains,
             vec!["wss://stream.example.com"]
-        );
-        assert!(
-            resource_ui_meta(&networked)
-                .and_then(|metadata| metadata.permissions)
-                .and_then(|permissions| permissions.compute_pressure)
-                .is_some()
         );
     }
 }

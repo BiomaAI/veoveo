@@ -10,8 +10,6 @@ import { useTheme } from "../theme";
  * storage, or ambient same-origin authority. The postMessage bridge remains
  * the control plane. Exact network origins declared in `_meta.ui.csp` may be
  * admitted by the BFF for direct media data planes such as WebRTC signaling.
- * The catalog separately projects validated browser permissions into the
- * iframe `allow` attribute.
  */
 export function AppFrame({ app }: { app: AppDescriptor }) {
   const { appTheme } = useTheme();
@@ -35,7 +33,6 @@ export function AppFrame({ app }: { app: AppDescriptor }) {
       className="app-frame"
       src={appFrameUrl(app.resourceUri)}
       sandbox="allow-scripts"
-      allow={app.permissions?.join("; ")}
       referrerPolicy="no-referrer"
       title={app.title ?? app.name}
     />

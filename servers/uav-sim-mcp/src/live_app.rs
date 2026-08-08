@@ -37,9 +37,12 @@ mod tests {
             "onStreamStats",
             "event?.data?.stats",
             "camera.rig?.smoothing",
-            "decoded pending",
+            "video pending",
             "font-variant-numeric:tabular-nums",
-            "Math.round(stats.fps)",
+            "ui-monospace",
+            "fixedFps",
+            ".padStart(2,\"0\")",
+            "fixedFps(stats.fps)",
             "Google Photorealistic 3D Tiles",
             "MAX_RECOVERY_ATTEMPTS=8",
             "Camera recovery is waiting for simulator readiness",
@@ -53,5 +56,16 @@ mod tests {
         assert!(html.contains("{session_id:sessionId}"));
         assert!(!html.contains("first.sessionId"));
         assert!(!html.contains("setInterval"));
+    }
+
+    #[test]
+    fn app_disables_optional_compute_pressure_before_native_client_initialization() {
+        let pressure_fence = TEMPLATE
+            .find("Object.defineProperty(globalThis,\"PressureObserver\"")
+            .expect("App disables the optional browser telemetry");
+        let client = TEMPLATE.find(MARKER).expect("native client marker exists");
+
+        assert!(pressure_fence < client);
+        assert!(TEMPLATE.contains("value:undefined"));
     }
 }
