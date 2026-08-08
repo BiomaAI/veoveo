@@ -424,8 +424,8 @@ verifiable.
 
 Static UAV registration checks now live with `servers/uav-sim-mcp`. SUMO deployment
 checks live with the SUMO crate, and Bioma control-plane and cross-surface checks live
-under `examples/bioma/acceptance`. UAV domain acceptance and generic Simulation View
-acceptance remain independent. A showcase-owned composed command consumes both and
+under `examples/bioma/acceptance`. UAV domain acceptance and provider-neutral live-view
+conformance remain independent. A showcase-owned composed command consumes both and
 captures the real Console follow camera at takeoff, mission, and landing plus the
 governed Rerun recording. Its revision-qualified evidence is a migration input for the
 smoke-kit sequence below; it does not justify adding example-specific assertions to
@@ -1187,7 +1187,7 @@ The first delivery supports one explicit target platform, `linux/amd64`.
 
 | Family | Initial Rust image units |
 |---|---|
-| `rust-trixie-v1` | gateway, artifact service, recording forwarder, recording hub, recording MCP, Console BFF, artifact MCP, media MCP, timeseries MCP, DuckDB MCP, optimization MCP, frames MCP, stdio bridge, conformance, composer, simulation view, UAV MCP, and agent kernel |
+| `rust-trixie-v1` | gateway, artifact service, recording forwarder, recording hub, recording MCP, Console BFF, artifact MCP, media MCP, timeseries MCP, DuckDB MCP, optimization MCP, frames MCP, stdio bridge, conformance, composer, UAV MCP, and agent kernel |
 | `rust-bookworm-v1` | map MCP, time MCP, and view MCP |
 | `rust-deepstream-v1` | Stream MCP |
 | `rust-vllm-v1` | reason MCP |
