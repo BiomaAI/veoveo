@@ -207,6 +207,9 @@ pod-local loopback transport. The private adapter depacketizes RFC 6184 payloads
 decoding, copying pixels, or encoding again. It qualifies SPS, PPS, IDR, and predicted
 access units, then fans each exact encoded access unit to Recording/Rerun and the
 optional live RTP publisher. Raw sensor pixels never enter Python or Recording.
+The RTSP AOV also receives an explicit internal signal-port reservation adjacent to its
+RTSP listener. This prevents the livestream core's otherwise unused `49100` default from
+colliding with the first locked operator WebRTC endpoint.
 
 Recording Hub admits ordinary H.264 GOPs and rolls storage only at a decoder-reentrant
 IDR boundary. The sensor path exposes its declared rate, monotonic observed-frame count,

@@ -72,6 +72,12 @@ def render_product_path(name: str) -> str:
     return f"{RTX_RENDER_PRODUCT_PREFIX}/{name}"
 
 
+def native_sensor_aov_signal_port(rtsp_port: int) -> int:
+    if not 1 <= rtsp_port <= 65_534:
+        raise ValueError("native sensor RTSP port must be between 1 and 65534")
+    return rtsp_port + 1
+
+
 def native_sensor_aov_arguments(
     product_name: str,
     *,
@@ -79,14 +85,19 @@ def native_sensor_aov_arguments(
     target_fps: int,
 ) -> list[str]:
     """Configure one CUDA AOV-to-NVENC RTSP stream for a sensor product."""
-    if not 1 <= rtsp_port <= 65_535:
-        raise ValueError("native sensor RTSP port must be between 1 and 65535")
+    signal_port = native_sensor_aov_signal_port(rtsp_port)
     if not 1 <= target_fps <= 60:
         raise ValueError("native sensor frame rate must be between 1 and 60")
     aov = f"Render.OmniverseKit.HydraTextures.{product_name}.LdrColor"
     prefix = f"--/exts/omni.kit.livestream.aov/{aov}/spectatorStream/0"
     settings = {
         "streamType": "rtsp",
+        # The pinned livestream core gives every server type a default
+        # signalPort of 49100. RTSP does not expose that socket, but the AOV
+        # manager still reserves the value and would displace the first
+        # operator WebRTC product from its locked endpoint. Give the internal
+        # RTSP server an explicit, disjoint reservation beside its listener.
+        "signalPort": str(signal_port),
         "streamPort": str(rtsp_port),
         "targetFps": str(target_fps),
         "allowDynamicResize": "false",
