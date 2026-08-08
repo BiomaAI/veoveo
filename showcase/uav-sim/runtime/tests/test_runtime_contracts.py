@@ -29,7 +29,10 @@ from veoveo_uav_sim.h264 import (
     make_decoder_reentrant,
     parse_native_h264_access_unit,
 )
-from veoveo_uav_sim.hydra_camera import native_sensor_aov_arguments
+from veoveo_uav_sim.hydra_camera import (
+    native_sensor_aov_arguments,
+    native_sensor_aov_signal_port,
+)
 from veoveo_uav_sim.physical_camera import (
     physical_camera_path,
     physical_camera_product_name,
@@ -394,10 +397,23 @@ class RuntimeConfigTests(unittest.TestCase):
             rtsp_port=8554,
             target_fps=2,
         )
-        self.assertEqual(len(arguments), 4)
+        self.assertEqual(len(arguments), 5)
         self.assertTrue(all("physical_uav_1_down.LdrColor" in value for value in arguments))
         self.assertTrue(any(value.endswith("/streamType=rtsp") for value in arguments))
+        self.assertTrue(any(value.endswith("/signalPort=8555") for value in arguments))
         self.assertTrue(any(value.endswith("/streamPort=8554") for value in arguments))
+        self.assertEqual(native_sensor_aov_signal_port(8554), 8555)
+        with self.assertRaisesRegex(ValueError, "between 1 and 65534"):
+            native_sensor_aov_signal_port(65_535)
+
+    def test_native_sensor_aov_ports_cannot_overlap_operator_products(self) -> None:
+        environment = {
+            **VALID_ENVIRONMENT,
+            "UAV_SIM_LIVE_SIGNALING_PORT_BASE": "8555",
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            with self.assertRaisesRegex(ValueError, "AOV port ranges overlap at 8555"):
+                RuntimeConfig.from_environment()
 
     def test_physical_capture_cadence_is_exact(self) -> None:
         cadence = FixedStepCadenceGate(60, 2)
