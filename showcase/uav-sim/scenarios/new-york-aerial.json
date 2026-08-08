@@ -212,18 +212,7 @@
     "state_timeout_seconds": 1800
   },
   "camera": {
-    "detail_timeout_seconds": 60,
-    "operational": {
-      "minimum_mean_luma": 2.0,
-      "minimum_non_black_fraction": 0.02
-    },
-    "aerial_detail": {
-      "minimum_mean_luma": 2.0,
-      "minimum_dynamic_range": 8,
-      "minimum_robust_dynamic_range": 12,
-      "minimum_luma_standard_deviation": 4.0,
-      "minimum_non_black_fraction": 0.02
-    }
+    "stream_timeout_seconds": 60
   },
   "mission": {
     "longitude_offset_degrees": 0.0002,

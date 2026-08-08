@@ -22,7 +22,8 @@ for visualization.
 | `veoveo.io/uav-runtime-event/v1` | Private pod-local Unix datagram carrying an `adapter_ready` edge before world admission and a final `ready` edge after authoritative visual admission. It is an internal adapter event, not a public MCP resource or a simulation control protocol. |
 | WebRTC and H.264 | One direct NVIDIA NVENC H.264 product, native WebRTC peer, and SRTP state for each active viewer lease. Shared-bitstream fan-out and media relays are outside this profile. |
 | OpenUSD and RTX Hydra | Isaac Sim `6.0.1` stage and render products inside the authoritative runtime. These are implementation details, not MCP wire types. |
-| Isaac Replicator native video | Replicator Core `1.13.27` and Replicator NV `1.1.1`, as packaged by Isaac Sim `6.0.1`. The private sensor adapter requests native H.264 and admits only Annex B access units containing SPS, PPS, and IDR. This is not an MCP wire type. |
+| Native sensor video | Isaac Sim `6.0.1` packages `omni.kit.livestream.aov` `10.2.0` and `omni.kit.livestream.rtsp` `10.2.3`. The private adapter consumes the loopback RTSP/RTP H.264 stream without decoding or re-encoding. This is not an MCP wire type. |
+| RTSP, RTP, and H.264 | RTSP 1.0 over loopback TCP with interleaved RTP/RTCP. The adapter supports the RFC 6184 single-NAL, STAP-A, and FU-A packetization modes and emits decoder-reentrant Annex B access units. |
 | OGC 3D Tiles | Cesium-backed streamed-world rendering from one simulator-owned world and cache. |
 | WGS 84, ECEF, ENU, NED, and FLU | Explicit world, physics, entity, rig, and camera coordinate boundaries. |
 | MAVLink 2 and ROS 2 Jazzy | Private simulator integrations. Neither protocol is projected as high-rate MCP traffic. |
@@ -197,23 +198,20 @@ smoothing, or codec.
 
 The domain nadir sensor and operator cameras have independent cadence. The physical
 sensor camera receives the exact current body-and-mount transform at render cadence.
-Cesium receives that viewport every Kit update, while a physics-step cadence gate
-schedules one sensor render and native encode at the declared sensor rate. In-flight
-requests coalesce and no wall-clock capture scheduler exists. Encoder warm-up consumes
-successive rendered events and is bounded to 16 frames.
+Cesium receives that viewport every Kit update. The sensor Hydra product renders at the
+declared sensor rate and publishes its CUDA-resident `LdrColor` AOV directly to the
+native RTSP extension. No Replicator orchestrator participates in simulation timing.
 
-Replicator's native `LdrColor` H.264 annotator performs NVENC inside the render pipeline.
-A second CUDA-resident `rgb` annotator reduces image health to a 256-bin luma histogram
-and one non-black counter. Only those 257 integers and the compressed access unit cross
-to CPU memory. Raw pixels never enter Python, Recording, Rerun, or the optional RTP
-publisher. The exact native access unit fans out once to every admitted compressed
-consumer without another encode.
+The RTSP extension performs one NVIDIA NVENC encode and serves the resulting GOP on a
+pod-local loopback transport. The private adapter depacketizes RFC 6184 payloads without
+decoding, copying pixels, or encoding again. It qualifies SPS, PPS, IDR, and predicted
+access units, then fans each exact encoded access unit to Recording/Rerun and the
+optional live RTP publisher. Raw sensor pixels never enter Python or Recording.
 
-The pinned Replicator NV extension emits SPS, PPS, and IDR in every frame. The runtime
-validates that decoder-reentrant shape before publication. Recording Hub uses the same
-shape for rollover admission. The sensor path exposes the declared frame rate and
-monotonic observed-frame count, allowing acceptance to detect accidental coupling to
-the faster operator-camera cadence.
+Recording Hub admits ordinary H.264 GOPs and rolls storage only at a decoder-reentrant
+IDR boundary. The sensor path exposes its declared rate, monotonic observed-frame count,
+last encoded size, and keyframe state. Headed hardware-backed browser acceptance verifies
+the actual visual content; runtime health does not require a diagnostic pixel readback.
 
 ## Viewer Leases And Isolation
 

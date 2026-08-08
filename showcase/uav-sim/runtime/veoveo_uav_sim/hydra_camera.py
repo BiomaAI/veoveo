@@ -2,18 +2,18 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections import deque
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 
-from .camera_quality import CameraFrameQuality
-from .h264 import NativeH264AccessUnit, parse_native_h264_access_unit
-
+from .h264 import NativeH264AccessUnit
+from .rtsp_h264 import RtspEndpoint, RtspH264Receiver
 
 LOGGER = logging.getLogger("veoveo.uav_sim.hydra_camera")
 RTX_RENDER_PRODUCT_PREFIX = "/Render/OmniverseKit/HydraTextures"
-MAX_NATIVE_ENCODER_WARMUP_FRAMES = 16
+_MAX_UNPAIRED_FRAMES = 16
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,40 +29,23 @@ class HydraRenderedCamera:
 class NativeSensorFrame:
     sequence: int
     access_unit: NativeH264AccessUnit
-    quality: CameraFrameQuality
     simulation_time_s: float
     physics_step: int
     rendered_camera: HydraRenderedCamera
 
 
-@dataclass(slots=True)
-class SensorCaptureGate:
-    """Coalesce physics-driven native encoder submissions."""
+@dataclass(frozen=True, slots=True)
+class NativeSensorStatus:
+    lifecycle: str
+    frames_received: int
+    diagnostic: str | None
 
-    requested: bool = False
-    pending: bool = False
-    closed: bool = False
 
-    def request(self) -> bool:
-        if self.closed or self.requested or self.pending:
-            return False
-        self.requested = True
-        return True
-
-    def begin_render(self) -> bool:
-        if self.closed or self.pending or not self.requested:
-            return False
-        self.requested = False
-        self.pending = True
-        return True
-
-    def complete(self) -> None:
-        self.pending = False
-
-    def close(self) -> None:
-        self.closed = True
-        self.requested = False
-        self.pending = False
+@dataclass(frozen=True, slots=True)
+class _RenderedSample:
+    simulation_time_s: float
+    physics_step: int
+    camera: HydraRenderedCamera
 
 
 def hydra_rendered_camera(frame: dict[str, Any]) -> HydraRenderedCamera:
@@ -79,8 +62,7 @@ def hydra_rendered_camera(frame: dict[str, Any]) -> HydraRenderedCamera:
 
 def render_product_path(name: str) -> str:
     if not name or not all(
-        character.isascii()
-        and (character.isalnum() or character in {"_", "-"})
+        character.isascii() and (character.isalnum() or character in {"_", "-"})
         for character in name
     ):
         raise ValueError(
@@ -88,6 +70,44 @@ def render_product_path(name: str) -> str:
             "containing only ASCII letters, digits, underscores, or dashes"
         )
     return f"{RTX_RENDER_PRODUCT_PREFIX}/{name}"
+
+
+def native_sensor_aov_arguments(
+    product_name: str,
+    *,
+    rtsp_port: int,
+    target_fps: int,
+) -> list[str]:
+    """Configure one CUDA AOV-to-NVENC RTSP stream for a sensor product."""
+    if not 1 <= rtsp_port <= 65_535:
+        raise ValueError("native sensor RTSP port must be between 1 and 65535")
+    if not 1 <= target_fps <= 60:
+        raise ValueError("native sensor frame rate must be between 1 and 60")
+    aov = f"Render.OmniverseKit.HydraTextures.{product_name}.LdrColor"
+    prefix = f"--/exts/omni.kit.livestream.aov/{aov}/spectatorStream/0"
+    settings = {
+        "streamType": "rtsp",
+        "streamPort": str(rtsp_port),
+        "targetFps": str(target_fps),
+        "allowDynamicResize": "false",
+    }
+    return [f"{prefix}/{name}={value}" for name, value in settings.items()]
+
+
+def tcp_listener_is_ready(port: int) -> bool:
+    expected_port = f"{port:04X}"
+    for table in ("/proc/self/net/tcp", "/proc/self/net/tcp6"):
+        try:
+            with open(table, encoding="ascii") as connections:
+                for connection in connections:
+                    fields = connection.split()
+                    if len(fields) < 4 or fields[3] != "0A":
+                        continue
+                    if fields[1].rsplit(":", 1)[-1].upper() == expected_port:
+                        return True
+        except OSError:
+            continue
+    return False
 
 
 class RtxHydraRenderProduct:
@@ -121,8 +141,7 @@ class RtxHydraRenderProduct:
         if actual_path != self._path:
             self.close()
             raise RuntimeError(
-                "RTX HydraTexture created an unexpected render product: "
-                f"{actual_path}"
+                f"RTX HydraTexture created an unexpected render product: {actual_path}"
             )
 
     @property
@@ -140,16 +159,8 @@ class RtxHydraRenderProduct:
         self.set_updates_enabled(False)
 
 
-def _annotator_array(data: Any, name: str) -> Any:
-    if isinstance(data, dict):
-        data = data.get("data")
-    if data is None:
-        raise RuntimeError(f"native Isaac {name} annotator returned no data")
-    return data
-
-
 class NativeH264CameraSensor:
-    """One physics-gated RTX frame encoded in-place by Isaac NVENC."""
+    """One native RTX AOV encoded once by Isaac and tapped over RTSP."""
 
     def __init__(
         self,
@@ -159,24 +170,22 @@ class NativeH264CameraSensor:
         width: int,
         height: int,
         render_fps: int,
+        rtsp_port: int,
     ) -> None:
         import omni.hydratexture
         from carb.eventdispatcher import get_eventdispatcher
-        from omni.replicator.core import AnnotatorRegistry
-
-        from .gpu_camera_quality import GpuCameraQualityReducer
 
         self._lock = threading.Lock()
-        self._capture = SensorCaptureGate()
         self._sequence = 0
         self._latest: NativeSensorFrame | None = None
-        self._rendered_camera: HydraRenderedCamera | None = None
-        self._pending_access_unit: NativeH264AccessUnit | None = None
-        self._pending_quality: CameraFrameQuality | None = None
-        self._sample_time: tuple[float, int] | None = None
-        self._encoder_warmup_frames = 0
+        self._sample_time = (0.0, 0)
+        self._rendered_samples: deque[_RenderedSample] = deque()
+        self._access_units: deque[NativeH264AccessUnit] = deque()
         self._failure: BaseException | None = None
         self._camera_path = camera_path
+        self._rtsp_endpoint = RtspEndpoint("127.0.0.1", rtsp_port)
+        self._receiver: RtspH264Receiver | None = None
+        self._closed = False
         self._render_product = RtxHydraRenderProduct(
             name=name,
             camera_path=camera_path,
@@ -184,26 +193,16 @@ class NativeH264CameraSensor:
             height=height,
             render_fps=render_fps,
         )
-        self._encoded_annotator = AnnotatorRegistry.get_annotator(
-            "LdrColor", init_params={"compression": "h264"}
-        )
-        self._quality_annotator = AnnotatorRegistry.get_annotator(
-            "rgb", device="cuda:0", do_array_copy=False
-        )
-        self._quality_reducer = GpuCameraQualityReducer(width, height)
-        # Direct annotator attachment is the narrow NVIDIA render-pipeline
-        # contract. A Python Writer would create a global WriterOrchestrator
-        # graph that is unrelated to this single Hydra product and conflicts
-        # with native AOV WebRTC products in the pinned Kit runtime.
-        self._encoded_annotator.attach(self._render_product.path)
-        self._quality_annotator.attach(self._render_product.path)
         self._subscription = get_eventdispatcher().observe_event(
             observer_name=f"veoveo_uav_native_h264_{name}",
             event_name=omni.hydratexture.GLOBAL_EVENT_DRAWABLE_CHANGED,
             on_event=self._on_drawable_changed,
             filter=self._render_product.hydra_texture.get_event_key(),
         )
-        self._render_product.set_updates_enabled(False)
+        # This one low-rate sensor product remains active. The native AOV
+        # extension transfers its CUDA LdrColor resource directly to the RTSP
+        # backend, which performs one NVENC encode shared by all RTSP clients.
+        self._render_product.set_updates_enabled(True)
 
     @property
     def render_product_path(self) -> str:
@@ -213,63 +212,48 @@ class NativeH264CameraSensor:
     def camera_path(self) -> str:
         return self._camera_path
 
-    def request_capture(self) -> None:
+    def observe_simulation_time(
+        self, simulation_time_s: float, physics_step: int
+    ) -> None:
+        if not np.isfinite(simulation_time_s) or simulation_time_s < 0.0:
+            raise ValueError("sensor simulation time must be finite and non-negative")
+        if physics_step < 0:
+            raise ValueError("sensor physics step must be non-negative")
         with self._lock:
-            self._capture.request()
-
-    def prepare_render(self, simulation_time_s: float, physics_step: int) -> None:
-        with self._lock:
-            if not self._capture.begin_render():
-                return
             self._sample_time = (simulation_time_s, physics_step)
-            self._rendered_camera = None
-            self._pending_access_unit = None
-            self._pending_quality = None
-            self._encoder_warmup_frames = 0
-        self._render_product.set_updates_enabled(True)
 
     def latest_frame(self, after_sequence: int = 0) -> NativeSensorFrame | None:
         with self._lock:
-            failure = self._failure
             frame = self._latest
-        if failure is not None:
-            raise RuntimeError("native Isaac H.264 sensor failed") from failure
         if frame is None or frame.sequence <= after_sequence:
             return None
         return frame
 
-    def _retry_native_encoder_warmup(self) -> None:
-        error: RuntimeError | None = None
+    def status(self) -> NativeSensorStatus:
         with self._lock:
-            if self._capture.closed:
-                return
-            if not self._capture.pending:
-                error = RuntimeError(
-                    "native Isaac H.264 encoder returned data without a pending capture"
-                )
-            else:
-                self._encoder_warmup_frames += 1
-                if (
-                    self._encoder_warmup_frames
-                    > MAX_NATIVE_ENCODER_WARMUP_FRAMES
-                ):
-                    error = RuntimeError(
-                        "native Isaac H.264 encoder did not produce an access unit "
-                        f"within {MAX_NATIVE_ENCODER_WARMUP_FRAMES} rendered frames"
-                    )
-        if error is not None:
-            self._record_failure(error)
-            return
-        # The product remains enabled while the hardware encoder warms. Its
-        # next render refreshes both attached annotators without a timer or a
-        # global WriterOrchestrator event.
+            failure = self._failure
+            receiver = self._receiver
+            frames = self._sequence
+        if failure is not None:
+            return NativeSensorStatus(
+                "degraded",
+                frames,
+                _bounded_diagnostic(failure),
+            )
+        if frames:
+            return NativeSensorStatus("ready", frames, None)
+        if receiver is not None and receiver.ready:
+            return NativeSensorStatus("warming", 0, "native NVENC stream is warming")
+        return NativeSensorStatus("warming", 0, "native RTSP tap is starting")
 
     def close(self) -> None:
         with self._lock:
-            self._capture.close()
+            self._closed = True
+            receiver = self._receiver
+            self._receiver = None
         self._subscription = None
-        self._encoded_annotator.detach()
-        self._quality_annotator.detach()
+        if receiver is not None:
+            receiver.close()
         self._render_product.close()
 
     def _on_drawable_changed(self, event: Any) -> None:
@@ -279,78 +263,74 @@ class NativeH264CameraSensor:
                     event["result_handle"]
                 )
             )
+            start_receiver = False
             with self._lock:
-                pending = self._capture.pending and not self._capture.closed
-            if not pending:
-                return
-            encoded = _annotator_array(
-                self._encoded_annotator.get_data(), "H.264"
-            )
-            if not isinstance(encoded, np.ndarray) or encoded.dtype != np.uint8:
-                raise RuntimeError("native Isaac H.264 annotator did not return uint8")
-            sample = encoded.tobytes()
-            if not sample:
-                self._retry_native_encoder_warmup()
-                return
-            rgba = _annotator_array(
-                self._quality_annotator.get_data(), "CUDA LdrColor"
-            )
-            access_unit = parse_native_h264_access_unit(sample)
-            quality = self._quality_reducer.measure(rgba)
-            with self._lock:
-                if not self._capture.closed:
-                    self._rendered_camera = rendered
-                    self._pending_access_unit = access_unit
-                    self._pending_quality = quality
-                complete = self._finalize_frame_locked()
-            if complete:
-                self._render_product.set_updates_enabled(False)
+                if self._closed:
+                    return
+                if self._receiver is None and tcp_listener_is_ready(
+                    self._rtsp_endpoint.port
+                ):
+                    self._receiver = RtspH264Receiver(
+                        self._rtsp_endpoint,
+                        self._on_access_unit,
+                        self._on_receiver_error,
+                    )
+                    start_receiver = True
+                receiver = self._receiver
+                if receiver is not None and receiver.ready:
+                    self._rendered_samples.append(
+                        _RenderedSample(*self._sample_time, rendered)
+                    )
+                    self._bound_queue(self._rendered_samples)
+                    self._pair_frames_locked()
+            if start_receiver:
+                assert receiver is not None
+                receiver.start()
         except BaseException as error:
             self._record_failure(error)
 
-    def _finalize_frame_locked(self) -> bool:
-        sample_time = self._sample_time
-        rendered_camera = self._rendered_camera
-        access_unit = self._pending_access_unit
-        quality = self._pending_quality
-        if (
-            sample_time is None
-            or rendered_camera is None
-            or access_unit is None
-            or quality is None
-        ):
-            return False
-        if not self._capture.closed:
+    def _on_access_unit(self, access_unit: NativeH264AccessUnit) -> None:
+        with self._lock:
+            if self._closed:
+                return
+            self._access_units.append(access_unit)
+            self._bound_queue(self._access_units)
+            self._pair_frames_locked()
+
+    def _on_receiver_error(self, error: BaseException) -> None:
+        self._record_failure(error)
+
+    def _pair_frames_locked(self) -> None:
+        while self._rendered_samples and self._access_units:
+            rendered = self._rendered_samples.popleft()
+            access_unit = self._access_units.popleft()
             self._sequence += 1
             self._latest = NativeSensorFrame(
                 sequence=self._sequence,
                 access_unit=access_unit,
-                quality=quality,
-                simulation_time_s=sample_time[0],
-                physics_step=sample_time[1],
-                rendered_camera=rendered_camera,
+                simulation_time_s=rendered.simulation_time_s,
+                physics_step=rendered.physics_step,
+                rendered_camera=rendered.camera,
             )
-        self._capture.complete()
-        self._sample_time = None
-        self._pending_access_unit = None
-        self._pending_quality = None
-        self._encoder_warmup_frames = 0
-        return True
+
+    @staticmethod
+    def _bound_queue(values: deque[object]) -> None:
+        while len(values) > _MAX_UNPAIRED_FRAMES:
+            values.popleft()
 
     def _record_failure(self, error: BaseException) -> None:
         first_failure = False
         with self._lock:
-            self._capture.complete()
-            self._sample_time = None
-            self._pending_access_unit = None
-            self._pending_quality = None
-            self._encoder_warmup_frames = 0
             if self._failure is None:
                 self._failure = error
                 first_failure = True
-        self._render_product.set_updates_enabled(False)
         if first_failure:
             LOGGER.error(
-                "native Isaac H.264 sensor failed",
+                "native Isaac RTSP/NVENC sensor degraded; simulation continues",
                 exc_info=(type(error), error, error.__traceback__),
             )
+
+
+def _bounded_diagnostic(error: BaseException) -> str:
+    message = str(error).strip() or type(error).__name__
+    return message[:512]

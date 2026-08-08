@@ -149,21 +149,6 @@ pub enum CameraLifecycle {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum CameraContent {
-    Black,
-    Uniform,
-    Visible,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum CameraDiagnosticCode {
-    FrameBlack,
-    FrameUniform,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
 pub enum CameraCodec {
     H264,
 }
@@ -172,6 +157,12 @@ pub enum CameraCodec {
 #[serde(rename_all = "snake_case")]
 pub enum CameraEncoder {
     NvidiaNvenc,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CameraTransport {
+    RtspRtp,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -294,20 +285,12 @@ pub struct CameraState {
     pub frame_rate_hz: u32,
     pub codec: CameraCodec,
     pub encoder: CameraEncoder,
+    pub transport: CameraTransport,
     pub frames_observed: u64,
-    #[schemars(range(min = 0.0, max = 255.0))]
-    pub mean_luma: f32,
-    pub dynamic_range: u8,
-    pub robust_dynamic_range: u8,
-    #[schemars(range(min = 0.0, max = 127.5))]
-    pub luma_standard_deviation: f32,
-    #[schemars(range(min = 0.0, max = 1.0))]
-    pub non_black_fraction: f32,
-    pub content: CameraContent,
+    pub last_access_unit_bytes: u64,
+    pub last_frame_keyframe: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub render_pose: Option<CameraRenderPoseState>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub diagnostic_code: Option<CameraDiagnosticCode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diagnostic: Option<String>,
 }

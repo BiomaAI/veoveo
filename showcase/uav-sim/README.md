@@ -14,7 +14,8 @@ publishes their NVIDIA NVENC products to the governed live-view App.
 | `veoveo.io/live-view/v2` | Authoritative operator cameras, stable encoded products, ephemeral viewer leases, and typed capacity. |
 | `veoveo.io/uav-runtime-event/v1` | Private pod-local Unix datagram with an `adapter_ready` edge for immutable world-binding reapplication and a final `ready` edge for live-camera recovery. |
 | WebRTC and H.264 | One isolated native Omniverse WebRTC and NVIDIA NVENC product per active viewer lease. |
-| Isaac Replicator native video | Replicator Core `1.13.27` and Replicator NV `1.1.1`, packaged by Isaac Sim `6.0.1`, for CUDA-resident sensor evidence and native NVENC H.264 access units. |
+| Native sensor video | `omni.kit.livestream.aov` `10.2.0` and `omni.kit.livestream.rtsp` `10.2.3`, packaged by Isaac Sim `6.0.1`, for CUDA-AOV-to-NVENC H.264 output. |
+| RTSP, RTP, and H.264 | Pod-local RTSP 1.0 with interleaved RTP/RTCP and RFC 6184 single-NAL, STAP-A, and FU-A packetization. |
 | Rerun RRD | Version `0.35.0` telemetry, leader-camera video, and producer Blueprint publication. |
 | NVIDIA CUDA, Vulkan, RTX, and NVENC | Mandatory simulation, rendering, and server-side video encoding. |
 | MAVLink 2 and ROS 2 Jazzy | Pod-local PX4 command, telemetry, and simulator integration. |
@@ -123,19 +124,17 @@ simulation loop.
 Only the leader owns the admitted nadir sensor and recorded H.264 source. Followers emit
 telemetry without duplicating camera capture. Its root-level USD camera receives the
 exact authoritative body-and-mount transform without operator smoothing. Cesium receives
-the physical sensor viewport on every Kit update. A physics-step cadence gate schedules
-one Hydra render and native H.264 encode at the declared sensor rate. Capture requests
-coalesce while an encoded frame is in flight. Encoder warm-up advances on rendered
-events and fails after 16 empty frames; no wall-clock timer controls observations.
-Runtime state reports the declared rate and observed frame counter, allowing live-view
-acceptance to prove that viewer activity leaves sensor cadence unchanged.
+the physical sensor viewport on every Kit update. Its Hydra product renders at the
+declared sensor rate and transfers the CUDA-resident `LdrColor` AOV directly into Isaac's
+native RTSP/NVENC extension. Replicator orchestration and CPU pixel capture are absent
+from this path.
 
-Isaac Replicator's native `LdrColor` compression node owns the server-side NVENC encode.
-The parallel quality input remains CUDA-resident and reduces to a luma histogram plus a
-non-black counter before crossing into Python. Raw pixels are never copied to CPU memory.
-The resulting decoder-reentrant Annex B access unit contains SPS, PPS, and IDR, then fans
-out unchanged to Rerun and the optional live RTP publisher. There is no PyAV encoder,
-duplicate encode, or CPU rendering path.
+The runtime consumes the pod-local encoded RTSP/RTP stream. It depacketizes H.264 without
+decoding or re-encoding, qualifies normal GOP access units, and fans those same bytes to
+Rerun and the optional live RTP publisher. SPS and PPS from SDP or the stream are attached
+to IDR boundaries when needed for independent Recording shards. Runtime state reports the
+declared rate, observed access-unit count, last encoded size, and keyframe state. There is
+no PyAV encoder, duplicate encode, or GPU-to-CPU pixel readback.
 
 One bounded recording contains four-vehicle poses, velocities, geographic positions,
 IMU values, changing health state, and leader video. The producer Blueprint opens Fleet

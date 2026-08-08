@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-from .camera_quality import CameraFrameQuality
 from .config import RuntimeConfig
 from .geo import enu_to_geodetic
 from .operator_camera_config import live_camera_descriptor
@@ -88,13 +87,10 @@ class RuntimeState:
                     "frame_rate_hz": config.camera.fps,
                     "codec": "h264",
                     "encoder": "nvidia_nvenc",
+                    "transport": "rtsp_rtp",
                     "frames_observed": 0,
-                    "mean_luma": 0.0,
-                    "dynamic_range": 0,
-                    "robust_dynamic_range": 0,
-                    "luma_standard_deviation": 0.0,
-                    "non_black_fraction": 0.0,
-                    "content": "black",
+                    "last_access_unit_bytes": 0,
+                    "last_frame_keyframe": False,
                 }
             ],
             "live_cameras": [
@@ -233,28 +229,23 @@ class RuntimeState:
         vehicle_id: str,
         lifecycle: str,
         frames_observed: int,
-        quality: CameraFrameQuality,
-        diagnostic_code: str | None = None,
+        access_unit_bytes: int,
+        *,
+        keyframe: bool,
         diagnostic: str | None = None,
         render_pose: RenderPoseAgreement | None = None,
     ) -> None:
+        if access_unit_bytes < 0:
+            raise ValueError("camera access-unit size must be non-negative")
         with self._condition:
             for camera in self._state["cameras"]:
                 if camera["vehicle_id"] == vehicle_id:
                     camera.update(
                         lifecycle=lifecycle,
                         frames_observed=max(0, frames_observed),
-                        mean_luma=quality.mean_luma,
-                        dynamic_range=quality.dynamic_range,
-                        robust_dynamic_range=quality.robust_dynamic_range,
-                        luma_standard_deviation=quality.luma_standard_deviation,
-                        non_black_fraction=quality.non_black_fraction,
-                        content=quality.content,
+                        last_access_unit_bytes=access_unit_bytes,
+                        last_frame_keyframe=keyframe,
                     )
-                    if diagnostic_code:
-                        camera["diagnostic_code"] = diagnostic_code
-                    else:
-                        camera.pop("diagnostic_code", None)
                     if diagnostic:
                         camera["diagnostic"] = diagnostic
                     else:
