@@ -19,7 +19,7 @@ for visualization.
 | Model Context Protocol | Version `2025-11-25` over the repository Streamable HTTP profile, including tools, resources, templates, subscriptions, tasks, and one MCP App. |
 | JSON Schema | Draft 2020-12 strict request, result, camera, product, capacity, and health schemas. |
 | `veoveo.io/live-view/v2` | Repository-owned provider-neutral profile for authoritative cameras, stable encoded products, ephemeral viewer leases, capacity, endpoints, and redacted state. |
-| `veoveo.io/uav-runtime-event/v1` | Private pod-local Unix datagram carrying one simulator-ready edge to the companion MCP server. It is an internal adapter event, not a public MCP resource or a simulation control protocol. |
+| `veoveo.io/uav-runtime-event/v1` | Private pod-local Unix datagram carrying an `adapter_ready` edge before world admission and a final `ready` edge after authoritative visual admission. It is an internal adapter event, not a public MCP resource or a simulation control protocol. |
 | WebRTC and H.264 | One direct NVIDIA NVENC H.264 product, native WebRTC peer, and SRTP state for each active viewer lease. Shared-bitstream fan-out and media relays are outside this profile. |
 | OpenUSD and RTX Hydra | Isaac Sim `6.0.1` stage and render products inside the authoritative runtime. These are implementation details, not MCP wire types. |
 | OGC 3D Tiles | Cesium-backed streamed-world rendering from one simulator-owned world and cache. |

@@ -428,7 +428,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser viewer leases, exclusive viewer-slot admission, bounded capacity, renewal, closure, expiry, and typed denial state |
 | `servers/uav-sim-mcp/src/server/signaling.rs` | authenticated WebRTC signaling authorization and per-viewer peer attachment to simulator-owned encoded products |
 | `servers/uav-sim-mcp/src/server/live_view_audit.rs` | durable audit projection for camera, product, lease, denial, expiry, and revocation events |
-| `servers/uav-sim-mcp/src/server/runtime_events.rs` | strict pod-local simulator-readiness datagram ingestion and subscribed live-camera notification |
+| `servers/uav-sim-mcp/src/server/runtime_events.rs` | strict pod-local adapter-ready and final-ready datagram ingestion, immutable binding reapplication trigger, and subscribed live-camera notification |
 | `servers/uav-sim-mcp/assets/live-app.html` | self-contained authoritative-camera selection and multi-view live App |
 | `showcase/uav-sim/runtime/` | thin domain overlay on the canonical Isaac runtime with Cesium/Pegasus compatibility, PX4 lifecycle, RTX domain sensors, authoritative logical cameras, isolated per-viewer RTX/NVENC products, direct Stream publication, and Rerun publication |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera.py` | operator-camera orchestration over focused rig, smoothing, product, and health modules |
@@ -438,9 +438,9 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `showcase/uav-sim/runtime/veoveo_uav_sim/render_pose.py` | bounded agreement diagnostics between authoritative camera poses and rendered Hydra frames |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/physical_camera.py` | exact authoritative body-and-mount USD sensor camera, distinct from smoothed operator views |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/hydra_camera.py` | continuously rendered physical-camera Hydra product with physics-event capture requests and bounded readback |
-| `showcase/uav-sim/runtime/veoveo_uav_sim/runtime_events.py` | one-shot nonblocking simulator-readiness notification to the pod-local MCP companion |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/runtime_events.py` | nonblocking adapter-ready and final-ready lifecycle edges to the pod-local MCP companion |
 | `showcase/uav-sim/runtime/patches/cesium-0.29.0-external-viewports.patch` | pinned headless viewport-authority switch that prevents interactive window discovery from clearing simulator-managed Cesium views |
-| `servers/uav-sim-mcp/src/server/world_bootstrap.rs` | strict one-shot application of an installation-owned immutable world binding before MCP admission |
+| `servers/uav-sim-mcp/src/server/world_bootstrap.rs` | strict startup application and reactive same-binding reapplication of an installation-owned immutable world binding |
 | `showcase/uav-sim/deploy/` | commit-addressed OCI publication, MCP-configured GPU simulator workload, signaling/media ingress, render-product capacity, versioned persistent cache, typed sensor configuration, and network policy |
 | `showcase/uav-sim/scenarios/` | reusable world trees plus strongly typed live mission and acceptance parameters outside the Isaac image context |
 | `examples/bioma/uav-sim-values.yaml` | reference authoritative camera, product, public gateway origin, and recording tenant binding |
@@ -575,7 +575,7 @@ Authoritative simulation live-view ownership:
 | `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser viewer leases, exclusive viewer-slot assignment, bounded capacity, expiry, closure, and typed denial behavior |
 | `servers/uav-sim-mcp/src/server/signaling.rs` | authenticated signaling sessions that attach viewer peers to simulator-owned encoded products |
 | `servers/uav-sim-mcp/src/server/live_view_audit.rs` | append-only live-view audit writes without runtime coupling |
-| `servers/uav-sim-mcp/src/server/runtime_events.rs` | strict pod-local readiness-event receiver and MCP subscription projection |
+| `servers/uav-sim-mcp/src/server/runtime_events.rs` | strict pod-local adapter-ready and final-ready receiver, immutable binding reapplication trigger, and MCP subscription projection |
 | `servers/uav-sim-mcp/src/server/service.rs` | MCP tools, resources, subscriptions, well-known surface, and authoritative live-view orchestration |
 | `servers/uav-sim-mcp/assets/live-app.html` | self-contained selected-camera and bounded multi-view MCP App |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera.py` | simulator-tick camera orchestration, frame transforms, and shared camera/target time |
@@ -583,7 +583,7 @@ Authoritative simulation live-view ownership:
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_smoothing.py` | half-life translation/quaternion filtering and reset rules |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_products.py` | preallocated viewer-camera clones and isolated RTX, NVENC, native WebRTC, activation, and release lifecycle per assigned slot |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_health.py` | CUDA, RTX, NVENC, product, frame, and capacity evidence |
-| `showcase/uav-sim/runtime/veoveo_uav_sim/runtime_events.py` | nonblocking runtime-ready edge emitted after authoritative visual admission |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/runtime_events.py` | nonblocking adapter-ready edge before world admission and final-ready edge after authoritative visual admission |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/server.py` | simulator-local control boundary for camera and product realization |
 | `platform/store/src/live_views.rs` | durable audit persistence for camera, product, lease, denial, expiry, and revocation facts |
 | `platform/store/migrations/0036_remove_simulation_view_mirror_state.surql` | forward-only removal of obsolete mirrored desired/runtime state |

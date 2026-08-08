@@ -12,7 +12,7 @@ publishes their NVIDIA NVENC products to the governed live-view App.
 | Isaac Sim | Marketing release `6.0.1`; internal build `6.0.1-rc.7+release.42383.32955d8d.gl`. |
 | `veoveo.io/simulation-runtime-build-lock/v1` | Exact base inputs, immutable overlay components, and NVIDIA runtime requirements. |
 | `veoveo.io/live-view/v2` | Authoritative operator cameras, stable encoded products, ephemeral viewer leases, and typed capacity. |
-| `veoveo.io/uav-runtime-event/v1` | Private pod-local Unix datagram used only to announce that a restarted simulator can admit fresh viewer leases. |
+| `veoveo.io/uav-runtime-event/v1` | Private pod-local Unix datagram with an `adapter_ready` edge for immutable world-binding reapplication and a final `ready` edge for live-camera recovery. |
 | WebRTC and H.264 | One isolated native Omniverse WebRTC and NVIDIA NVENC product per active viewer lease. |
 | Rerun RRD | Version `0.35.0` telemetry, leader-camera video, and producer Blueprint publication. |
 | NVIDIA CUDA, Vulkan, RTX, and NVENC | Mandatory simulation, rendering, and server-side video encoding. |
@@ -104,10 +104,12 @@ motion-to-photon upper bound below 250 ms. These are measured product limits rat
 than adaptive downgrade rules; admission never rewrites a camera's requested optics or
 codec.
 
-After a simulator restart, the runtime emits one nonblocking readiness datagram when
-physics, the streamed world, and logical cameras are ready again. The MCP companion
-turns that edge into a live-camera resource notification. Selected App tiles reconnect
-with fresh leases; no browser, MCP server, or missing datagram consumer can delay the
+After a simulator restart, the runtime emits a nonblocking `adapter_ready` edge when its
+preconfiguration endpoint can accept the immutable installation binding. The MCP
+companion reapplies that binding and waits for the runtime's final `ready` edge, emitted
+after physics, the streamed world, and logical cameras are current. The companion turns
+the final edge into a live-camera resource notification, and selected App tiles reconnect
+with fresh leases. No browser, MCP server, or missing datagram consumer can delay the
 simulation loop.
 
 ## Domain Sensor And Recording
