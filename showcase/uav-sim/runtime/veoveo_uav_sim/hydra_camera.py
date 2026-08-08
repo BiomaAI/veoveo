@@ -168,13 +168,16 @@ def _create_native_sensor_writer(
             quality = AnnotatorRegistry.get_annotator(
                 "rgb", device="cuda:0", do_array_copy=False
             )
-            self.add_annotator(encoded, name="NativeH264")
-            self.add_annotator(quality, name="CudaLdrColor")
+            # Follow the pinned NVIDIA writer contract exactly. Public-name
+            # aliases mutate annotator instances shared by Replicator's
+            # registry and are unnecessary because one writer owns one
+            # render product.
+            self.annotators = [encoded, quality]
             self._annotators = list(self.annotators)
 
         def write(self, data: dict[str, Any]) -> None:
             try:
-                encoded = _annotator_array(data.get("NativeH264"), "H.264")
+                encoded = _annotator_array(data.get("LdrColor"), "H.264")
                 if not isinstance(encoded, np.ndarray) or encoded.dtype != np.uint8:
                     raise RuntimeError(
                         "native Isaac H.264 annotator did not return uint8"
@@ -184,7 +187,7 @@ def _create_native_sensor_writer(
                     owner._retry_native_encoder_warmup()
                     return
                 rgba = _annotator_array(
-                    data.get("CudaLdrColor"), "CUDA LdrColor"
+                    data.get("rgb"), "CUDA LdrColor"
                 )
                 owner._complete_native_frame(
                     parse_native_h264_access_unit(sample),
@@ -230,7 +233,10 @@ class NativeH264CameraSensor:
             render_fps=render_fps,
         )
         self._writer = _create_native_sensor_writer(self, width, height)
-        self._writer.attach(self._render_product.path, trigger=None)
+        # The HydraTexture itself is the capture gate. An on-frame writer is
+        # only evaluated while this product has updates enabled, avoiding the
+        # separate WriterOrchestrator graph used by manual schedule events.
+        self._writer.attach(self._render_product.path)
         self._subscription = get_eventdispatcher().observe_event(
             observer_name=f"veoveo_uav_native_h264_{name}",
             event_name=omni.hydratexture.GLOBAL_EVENT_DRAWABLE_CHANGED,
@@ -249,9 +255,7 @@ class NativeH264CameraSensor:
 
     def request_capture(self) -> None:
         with self._lock:
-            requested = self._capture.request()
-        if requested:
-            self._writer.schedule_write()
+            self._capture.request()
 
     def prepare_render(self, simulation_time_s: float, physics_step: int) -> None:
         with self._lock:
@@ -296,10 +300,9 @@ class NativeH264CameraSensor:
         if error is not None:
             self._record_failure(error)
             return
-        # Replicator consumes a manual schedule even when the hardware encoder
-        # is still warming. Schedule the next rendered frame immediately; no
-        # wall-clock retry or simulation-side wait is involved.
-        self._writer.schedule_write()
+        # The product remains enabled while the hardware encoder warms. Its
+        # next render drives the on-frame writer without a timer or a manual
+        # WriterOrchestrator event.
 
     def close(self) -> None:
         with self._lock:
