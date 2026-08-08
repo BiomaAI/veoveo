@@ -89,6 +89,25 @@ the recording-scoped stream follows segment rollover within its existing
 response. History remains the lazy archive dataset and is the only mode that
 renews a Redap credential.
 
+## Validation
+
+The focused headed-browser gates retain the authoritative simulator and require
+a hardware-backed WebGL or WebGPU adapter. Live acceptance follows the active
+recording for two minutes and proves zero source lag plus changing H.264 camera
+content. Archive acceptance requires the exclusive recording-scoped Redap read
+subset, the producer Blueprint, and a nonblank archived camera frame:
+
+```sh
+cargo xtask smoke uav-recording-browser-verify \
+  --public-base-url https://installation.example \
+  --chrome-cdp-url http://127.0.0.1:9222
+
+cargo xtask smoke uav-recording-archive-browser-verify \
+  --recording-id <ready-recording-uuidv7> \
+  --public-base-url https://installation.example \
+  --chrome-cdp-url http://127.0.0.1:9222
+```
+
 Rerun 0.35 persists standalone-viewer state unconditionally. Before starting an
 embedded viewer, Console clears the pinned Rerun state keys. A previously opened
 Redap server therefore cannot restore catalog queries or watch traffic into Live
