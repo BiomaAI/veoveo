@@ -144,12 +144,14 @@ for bursts without making the six-workload placement unschedulable on the refere
 
 The local fixture advertises simulator-owned live-view signaling through
 `wss://veoveo.bioma.ai/uav-sim/signaling`. Its two preallocated viewer slots use
-the bounded UDP media range `127.0.0.1:47998-47999`. The chart assigns those slots
-to NodePorts `30998-30999`, and the k3d bindings forward each public port to its
-matching NodePort. The fixed mapping is part of the
+the bounded UDP media range `192.168.68.69:47998-47999`. The chart assigns those
+slots to NodePorts `30998-30999`, and the k3d bindings admit each UDP port on the
+host's network interfaces before forwarding it to the matching NodePort. The fixed
+mapping is part of the
 acceptance contract because a Kubernetes-assigned NodePort cannot satisfy a
 predeclared browser media endpoint. An installation on a different network
-must advertise its routable signaling origin and UDP media address instead.
+must advertise its routable signaling origin and UDP media address instead. A
+loopback media address is valid only when every browser runs on the cluster host.
 
 Install the local platform fixture separately:
 
