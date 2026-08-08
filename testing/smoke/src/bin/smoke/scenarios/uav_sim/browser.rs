@@ -538,7 +538,6 @@ async fn capture_console_live_app_inner(
         );
         let screenshot_sha256 =
             capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
-        close_console_live_view(&mut cdp, &target_id, &session_id, expected_camera_id).await?;
         cdp.assert_no_software_renderer_events()?;
         Ok(ConsoleLiveCaptureEvidence {
             schema: "veoveo.io/uav-console-live-capture/v1",
@@ -552,10 +551,10 @@ async fn capture_console_live_app_inner(
         })
     }
     .await;
+    let release =
+        close_console_live_view(&mut cdp, &target_id, &session_id, expected_camera_id).await;
     let close = close_target(&mut cdp, &target_id).await;
-    let evidence = acceptance?;
-    close?;
-    Ok(evidence)
+    finish_live_capture(acceptance, release, close)
 }
 
 async fn capture_console_live_app_grid_inner(
@@ -646,13 +645,6 @@ async fn capture_console_live_app_grid_inner(
         decode.validate()?;
         let screenshot_sha256 =
             capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
-        close_console_live_views(
-            &mut cdp,
-            &target_id,
-            &session_id,
-            expected_camera_ids,
-        )
-        .await?;
         cdp.assert_no_software_renderer_events()?;
         Ok(ConsoleLiveGridEvidence {
             schema: "veoveo.io/uav-console-live-grid/v1",
@@ -666,10 +658,10 @@ async fn capture_console_live_app_grid_inner(
         })
     }
     .await;
+    let release =
+        close_console_live_views(&mut cdp, &target_id, &session_id, expected_camera_ids).await;
     let close = close_target(&mut cdp, &target_id).await;
-    let evidence = acceptance?;
-    close?;
-    Ok(evidence)
+    finish_live_capture(acceptance, release, close)
 }
 
 async fn capture_console_live_app_restart_inner<F, Fut, T>(
@@ -723,7 +715,6 @@ where
             cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
         final_hardware.validate()?;
         let screenshot_sha256 = capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
-        close_console_live_view(&mut cdp, &target_id, &session_id, expected_camera_id).await?;
         cdp.assert_no_software_renderer_events()?;
         Ok((
             ConsoleLiveRestartEvidence {
@@ -741,10 +732,41 @@ where
         ))
     }
     .await;
+    let release =
+        close_console_live_view(&mut cdp, &target_id, &session_id, expected_camera_id).await;
     let close = close_target(&mut cdp, &target_id).await;
-    let evidence = acceptance?;
-    close?;
-    Ok(evidence)
+    finish_live_capture(acceptance, release, close)
+}
+
+fn finish_live_capture<T>(
+    acceptance: Result<T>,
+    release: Result<()>,
+    close: Result<()>,
+) -> Result<T> {
+    match acceptance {
+        Ok(evidence) => {
+            release.context("releasing native viewer lease after browser capture")?;
+            close.context("closing headed browser target after live capture")?;
+            Ok(evidence)
+        }
+        Err(error) => {
+            let mut cleanup_failures = Vec::new();
+            if let Err(release_error) = release {
+                cleanup_failures.push(format!("viewer lease: {release_error:#}"));
+            }
+            if let Err(close_error) = close {
+                cleanup_failures.push(format!("browser target: {close_error:#}"));
+            }
+            if cleanup_failures.is_empty() {
+                Err(error)
+            } else {
+                Err(error.context(format!(
+                    "live-capture cleanup also failed: {}",
+                    cleanup_failures.join("; ")
+                )))
+            }
+        }
+    }
 }
 
 async fn capture_console_stream_app_inner(
