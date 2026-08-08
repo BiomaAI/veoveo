@@ -16,11 +16,12 @@ use serde_json::Value;
 mod browser;
 
 use browser::{
-    ConsoleLiveCaptureEvidence, ConsoleRecordingCaptureEvidence, capture_console_live_app,
-    capture_console_live_app_pair, capture_console_recording, preflight_console_live_app,
+    ConsoleLiveCaptureEvidence, ConsoleLiveGridEvidence, ConsoleRecordingCaptureEvidence,
+    capture_console_live_app, capture_console_live_app_grid, capture_console_live_app_pair,
+    capture_console_recording, preflight_console_live_app,
 };
 
-const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-live-view-browser-evidence/v8";
+const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-live-view-browser-evidence/v9";
 const MAX_RECORDING_SOURCE_LAG_SECONDS: f64 = 1.0;
 const MINIMUM_PHYSICS_REAL_TIME_FACTOR: f64 = 0.98;
 const PRIMARY_CAMERA_ID: &str = "follow";
@@ -112,6 +113,7 @@ struct BrowserAcceptanceEvidence {
     source_window: SourceTimelineWindowEvidence,
     sensor_isolation: SensorIsolationEvidence,
     performance: LiveViewPerformanceEvidence,
+    grid: ConsoleLiveGridEvidence,
     live_views: Vec<ConsoleLiveCaptureEvidence>,
 }
 
@@ -448,6 +450,14 @@ async fn verify_running_showcase(
         second_live.capacity_slot(),
     );
     let mut live_views = vec![first_live, second_live];
+    let grid = capture_console_live_app_grid(
+        chrome_cdp_url,
+        public_base_url,
+        &[PRIMARY_CAMERA_ID, "chase"],
+        &evidence_directory.join("uav-live-view-grid.png"),
+        timeout,
+    )
+    .await?;
     for camera_id in QUALIFIED_CAMERA_IDS.iter().skip(1) {
         live_views.push(
             capture_console_live_app(
@@ -494,6 +504,23 @@ async fn verify_running_showcase(
             live.capacity_slot(),
         );
     }
+    for (stream_product_id, capacity_slot) in grid.products() {
+        let released = final_products.iter().find(|product| {
+            product.get("streamProductId").and_then(Value::as_str)
+                == Some(stream_product_id.as_str())
+        });
+        ensure!(
+            released.is_some_and(|product| {
+                product.get("capacitySlot").and_then(Value::as_u64)
+                    == Some(u64::from(capacity_slot))
+                    && product.get("lifecycle").and_then(Value::as_str) == Some("inactive")
+                    && product.get("cameraId").is_none()
+                    && product.get("liveViewId").is_none()
+                    && product.get("nvencSessions").and_then(Value::as_u64) == Some(0)
+            }),
+            "browser grid close did not release native viewer slot {capacity_slot} immediately: {final_products:?}",
+        );
+    }
     ensure!(
         json_string(&final_state, "/lifecycle")? == "running",
         "focused browser acceptance altered the running simulation: {final_state}"
@@ -520,6 +547,7 @@ async fn verify_running_showcase(
         source_window,
         sensor_isolation,
         performance,
+        grid,
         live_views,
     };
     let manifest = evidence_directory.join("evidence.json");

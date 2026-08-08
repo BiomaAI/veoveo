@@ -174,9 +174,9 @@ SBOM, and provenance.
 The installation-owned acceptance deploys one simulator GPU workload. Live-view
 acceptance proves the always-on fleet, authoritative camera health, one isolated product
 per active viewer, RTX/NVENC/WebRTC playback, simultaneous same-camera viewer isolation,
-sensor separation, simulation real-time factor, source-to-render latency, and browser
-motion-to-photon latency. Stream, Recording, and mission acceptance remain independent
-consumer checkpoints.
+one-App multi-camera grid isolation, sensor separation, simulation real-time factor,
+source-to-render latency, and browser motion-to-photon latency. Stream, Recording, and
+mission acceptance remain independent consumer checkpoints.
 
 ```sh
 cargo xtask smoke uav-showcase-up \
@@ -198,5 +198,6 @@ and the UI labels that path explicitly.
 Evidence is written beneath
 `output/acceptance/uav-browser/{source-revision}/{run-id}/` and stays outside source
 control. The manifest records camera and product identity, viewer isolation, frame
-advancement, source-to-render and motion-to-photon p95, simulation and sensor isolation,
-browser hardware, decode identity, screenshots, and SHA-256 evidence digests.
+advancement, a simultaneous multi-camera grid, source-to-render and motion-to-photon p95,
+simulation and sensor isolation, browser hardware, decode identity, screenshots, and
+SHA-256 evidence digests.

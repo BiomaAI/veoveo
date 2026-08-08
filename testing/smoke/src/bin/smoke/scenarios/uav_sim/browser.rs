@@ -39,6 +39,29 @@ pub(crate) struct ConsoleLiveCaptureEvidence {
     decode: DecodeIdentity,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ConsoleLiveGridEvidence {
+    schema: &'static str,
+    captured_at: chrono::DateTime<chrono::Utc>,
+    page_url: String,
+    screenshot_path: String,
+    screenshot_sha256: String,
+    hardware: HardwareIdentity,
+    videos: Vec<GridVideoState>,
+    decode: DecodeIdentity,
+}
+
+impl ConsoleLiveGridEvidence {
+    #[allow(dead_code)] // Consumed by the focused browser binary that includes this module.
+    pub(crate) fn products(&self) -> Vec<(String, u16)> {
+        self.videos
+            .iter()
+            .map(|video| (video.stream_product_id.clone(), video.capacity_slot))
+            .collect()
+    }
+}
+
 #[allow(dead_code)] // Viewer-slot identity is consumed by the focused browser binary.
 impl ConsoleLiveCaptureEvidence {
     pub(crate) fn camera_id(&self) -> &str {
@@ -183,6 +206,28 @@ pub(crate) async fn capture_console_live_app_pair(
         second
             .with_context(|| format!("second Console live-App capture exceeded {timeout:?}"))??,
     ))
+}
+
+#[allow(dead_code)] // Multi-camera acceptance is owned by the focused browser binary.
+pub(crate) async fn capture_console_live_app_grid(
+    cdp_base: &str,
+    public_base_url: &str,
+    expected_camera_ids: &[&str],
+    screenshot_path: &Path,
+    timeout: Duration,
+) -> Result<ConsoleLiveGridEvidence> {
+    let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live.html");
+    tokio::time::timeout(
+        timeout,
+        capture_console_live_app_grid_inner(
+            cdp_base,
+            &page_url,
+            expected_camera_ids,
+            screenshot_path,
+        ),
+    )
+    .await
+    .with_context(|| format!("Console live-App grid capture exceeded {timeout:?}"))?
 }
 
 pub(crate) async fn preflight_console_live_app(
@@ -410,6 +455,120 @@ async fn capture_console_live_app_inner(
             screenshot_sha256,
             hardware,
             video: second,
+            decode,
+        })
+    }
+    .await;
+    let close = close_target(&mut cdp, &target_id).await;
+    let evidence = acceptance?;
+    close?;
+    Ok(evidence)
+}
+
+async fn capture_console_live_app_grid_inner(
+    cdp_base: &str,
+    page_url: &str,
+    expected_camera_ids: &[&str],
+    screenshot_path: &Path,
+) -> Result<ConsoleLiveGridEvidence> {
+    ensure!(
+        expected_camera_ids.len() >= 2,
+        "live-view grid acceptance requires at least two cameras"
+    );
+    let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, page_url).await?;
+    let acceptance = async {
+        wait_for_document(&mut cdp, &session_id).await?;
+        assert_page_visible(&mut cdp, &session_id).await?;
+        let hardware: HardwareIdentity =
+            cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
+        hardware.validate()?;
+        for camera_id in expected_camera_ids {
+            ensure!(
+                wait_for_console_app_camera(&mut cdp, &target_id, &session_id, camera_id).await?,
+                "Console UAV live view App exposed no camera {camera_id:?}"
+            );
+        }
+        let first = wait_for_console_grid_videos(
+            &mut cdp,
+            &target_id,
+            &session_id,
+            expected_camera_ids,
+        )
+        .await?;
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        let second = wait_for_console_grid_videos(
+            &mut cdp,
+            &target_id,
+            &session_id,
+            expected_camera_ids,
+        )
+        .await?;
+        for before in &first {
+            let after = second
+                .iter()
+                .find(|video| video.camera_id == before.camera_id)
+                .with_context(|| format!("grid lost camera {}", before.camera_id))?;
+            ensure!(
+                after.document_epoch_ms == before.document_epoch_ms
+                    && after.viewer_instance_id == before.viewer_instance_id
+                    && after.live_view_id == before.live_view_id
+                    && after.stream_product_id == before.stream_product_id
+                    && after.capacity_slot == before.capacity_slot
+                    && after.current_time > before.current_time + 0.25,
+                "grid camera did not remain mounted on one advancing native product: {before:?} -> {after:?}"
+            );
+        }
+        let viewer_instances = second
+            .iter()
+            .map(|video| video.viewer_instance_id.as_str())
+            .collect::<std::collections::BTreeSet<_>>();
+        let live_views = second
+            .iter()
+            .map(|video| video.live_view_id.as_str())
+            .collect::<std::collections::BTreeSet<_>>();
+        let products = second
+            .iter()
+            .map(|video| video.stream_product_id.as_str())
+            .collect::<std::collections::BTreeSet<_>>();
+        let slots = second
+            .iter()
+            .map(|video| video.capacity_slot)
+            .collect::<std::collections::BTreeSet<_>>();
+        ensure!(
+            viewer_instances.len() == 1
+                && live_views.len() == expected_camera_ids.len()
+                && products.len() == expected_camera_ids.len()
+                && slots.len() == expected_camera_ids.len(),
+            "one App grid did not receive one isolated native product per selected camera: {second:?}"
+        );
+        let decode: DecodeIdentity = evaluate_console_app(
+            &mut cdp,
+            &target_id,
+            &session_id,
+            "uav-sim",
+            APP_FRAME_DECODE_IDENTITY,
+            true,
+        )
+        .await?;
+        decode.validate()?;
+        let screenshot_sha256 =
+            capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
+        close_console_live_views(
+            &mut cdp,
+            &target_id,
+            &session_id,
+            expected_camera_ids,
+        )
+        .await?;
+        cdp.assert_no_software_renderer_events()?;
+        Ok(ConsoleLiveGridEvidence {
+            schema: "veoveo.io/uav-console-live-grid/v1",
+            captured_at: chrono::Utc::now(),
+            page_url: page_url.to_owned(),
+            screenshot_path: screenshot_path.display().to_string(),
+            screenshot_sha256,
+            hardware,
+            videos: second,
             decode,
         })
     }
@@ -1409,6 +1568,49 @@ async fn wait_for_console_video_advance(
     Ok(second)
 }
 
+async fn wait_for_console_grid_videos(
+    cdp: &mut Cdp,
+    target_id: &str,
+    session_id: &str,
+    expected_camera_ids: &[&str],
+) -> Result<Vec<GridVideoState>> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
+    loop {
+        let states: Vec<GridVideoState> = evaluate_console_app(
+            cdp,
+            target_id,
+            session_id,
+            "uav-sim",
+            APP_FRAME_GRID_VIDEO_STATES,
+            false,
+        )
+        .await?;
+        let complete = expected_camera_ids.iter().all(|expected| {
+            states
+                .iter()
+                .find(|state| state.camera_id == **expected)
+                .is_some_and(GridVideoState::is_ready)
+        });
+        if complete && states.len() == expected_camera_ids.len() {
+            for state in &states {
+                state.validate()?;
+            }
+            return Ok(states);
+        }
+        ensure!(
+            states.iter().all(|state| state.error.is_empty()),
+            "Console UAV live-view grid failed while opening native products: {states:?}"
+        );
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "Console UAV live-view grid did not display every selected camera: {states:?}"
+        );
+        cdp.assert_no_software_renderer_events()?;
+        assert_page_visible(cdp, session_id).await?;
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+}
+
 async fn wait_for_console_stream_video(
     cdp: &mut Cdp,
     target_id: &str,
@@ -1488,27 +1690,36 @@ async fn close_console_live_view(
     session_id: &str,
     expected_camera_id: &str,
 ) -> Result<()> {
-    let expected = serde_json::to_string(expected_camera_id)?;
-    let requested: bool = evaluate_console_app(
+    close_console_live_views(cdp, target_id, session_id, &[expected_camera_id]).await
+}
+
+async fn close_console_live_views(
+    cdp: &mut Cdp,
+    target_id: &str,
+    session_id: &str,
+    expected_camera_ids: &[&str],
+) -> Result<()> {
+    let expected = serde_json::to_string(expected_camera_ids)?;
+    let requested: usize = evaluate_console_app(
         cdp,
         target_id,
         session_id,
         "uav-sim",
         &format!(
             r#"(() => {{
-                  const input=[...document.querySelectorAll('#choices input[type="checkbox"]')]
-                    .find((candidate)=>candidate.parentElement?.textContent?.trim().startsWith({expected}));
-                  if (!input) return false;
-                  if (input.checked) input.click();
-                  return true;
+                  const expected=new Set({expected});
+                  const inputs=[...document.querySelectorAll('#choices input[type="checkbox"]')]
+                    .filter((candidate)=>expected.has(candidate.parentElement?.textContent?.split(" · ")[0]?.trim()));
+                  for (const input of inputs) if (input.checked) input.click();
+                  return inputs.length;
                 }})()"#
         ),
         false,
     )
     .await?;
     ensure!(
-        requested,
-        "Console could not close follow-camera stream {expected_camera_id}"
+        requested == expected_camera_ids.len(),
+        "Console could not close every requested live camera: expected {expected_camera_ids:?}, matched {requested}"
     );
     let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
     loop {
@@ -1533,7 +1744,7 @@ async fn close_console_live_view(
                 .and_then(Value::as_str)
                 .unwrap_or("")
                 .is_empty(),
-            "Console failed to close follow-camera stream: {state}"
+            "Console failed to close selected live cameras: {state}"
         );
         if state.get("checked").and_then(Value::as_bool) == Some(false)
             && state.get("videoCount").and_then(Value::as_u64) == Some(0)
@@ -1542,7 +1753,7 @@ async fn close_console_live_view(
         }
         ensure!(
             tokio::time::Instant::now() < deadline,
-            "Console did not close follow-camera stream within 30 seconds: {state}"
+            "Console did not close selected live cameras within 30 seconds: {state}"
         );
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
@@ -1726,6 +1937,44 @@ struct AppVideoState {
     error: String,
     body_text: String,
     rtc_states: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GridVideoState {
+    #[serde(skip_serializing)]
+    document_epoch_ms: f64,
+    camera_id: String,
+    viewer_instance_id: String,
+    live_view_id: String,
+    stream_product_id: String,
+    capacity_slot: u16,
+    ready_state: u16,
+    video_width: u32,
+    video_height: u32,
+    current_time: f64,
+    error: String,
+}
+
+impl GridVideoState {
+    fn is_ready(&self) -> bool {
+        self.ready_state >= 2
+            && self.video_width == 1280
+            && self.video_height == 720
+            && self.current_time > 0.0
+            && !self.viewer_instance_id.is_empty()
+            && !self.live_view_id.is_empty()
+            && !self.stream_product_id.is_empty()
+            && self.error.is_empty()
+    }
+
+    fn validate(&self) -> Result<()> {
+        ensure!(
+            self.is_ready(),
+            "grid camera did not expose one advancing 1280x720 native product: {self:?}"
+        );
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -2581,6 +2830,27 @@ const APP_FRAME_VIDEO_STATE: &str = r#"(() => {
   };
 })()"#;
 
+const APP_FRAME_GRID_VIDEO_STATES: &str = r#"(() => {
+  const error=document.getElementById("error")?.hidden === false
+    ? document.getElementById("error").textContent : "";
+  return [...document.querySelectorAll(".view")].map((view)=>{
+    const video=view.querySelector("video");
+    return {
+      documentEpochMs:performance.timeOrigin,
+      cameraId:view.id.startsWith("view-") ? view.id.slice(5) : "",
+      viewerInstanceId:view.dataset.viewerInstanceId ?? "",
+      liveViewId:view.dataset.liveViewId ?? "",
+      streamProductId:view.dataset.streamProductId ?? "",
+      capacitySlot:Number(view.dataset.capacitySlot ?? 0),
+      readyState:video?.readyState ?? 0,
+      videoWidth:video?.videoWidth ?? 0,
+      videoHeight:video?.videoHeight ?? 0,
+      currentTime:video?.currentTime ?? 0,
+      error
+    };
+  });
+})()"#;
+
 const APP_FRAME_VIDEO_CADENCE: &str = r#"new Promise((resolve,reject)=>{
   const video=document.querySelector("video");
   if(!video?.requestVideoFrameCallback){reject(new Error("requestVideoFrameCallback is unavailable"));return;}
@@ -3052,5 +3322,29 @@ mod tests {
             "frameId": "app"
         });
         assert_eq!(app_frame_id_from_dom_node(&node, "uav-sim"), Some("app"));
+    }
+
+    #[test]
+    fn grid_video_requires_an_advancing_native_product_identity() {
+        let ready = GridVideoState {
+            document_epoch_ms: 10.0,
+            camera_id: "follow".to_owned(),
+            viewer_instance_id: "browser-a".to_owned(),
+            live_view_id: "view-a".to_owned(),
+            stream_product_id: "product-a".to_owned(),
+            capacity_slot: 0,
+            ready_state: 4,
+            video_width: 1280,
+            video_height: 720,
+            current_time: 1.0,
+            error: String::new(),
+        };
+        assert!(ready.validate().is_ok());
+
+        let missing_product = GridVideoState {
+            stream_product_id: String::new(),
+            ..ready
+        };
+        assert!(missing_product.validate().is_err());
     }
 }
