@@ -15,7 +15,11 @@ from unittest.mock import patch
 import numpy as np
 from pymavlink import mavutil
 from veoveo_uav_sim.app import kit_live_render_arguments
-from veoveo_uav_sim.config import FleetLoopConfig, RuntimeConfig
+from veoveo_uav_sim.config import (
+    FleetLoopConfig,
+    RuntimeConfig,
+    StreamPublicationConfig,
+)
 from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operation
 from veoveo_uav_sim.event_queue import NonBlockingEventQueue
 from veoveo_uav_sim.fleet_loop import FleetLoopController, vehicle_loop_route
@@ -55,7 +59,11 @@ from veoveo_uav_sim.state import (
     RuntimeState,
     initial_runtime_timing,
 )
-from veoveo_uav_sim.stream_output import _packetize_nal, _rtp_timestamp
+from veoveo_uav_sim.stream_output import (
+    StreamPublicationWorker,
+    _packetize_nal,
+    _rtp_timestamp,
+)
 from veoveo_uav_sim.vehicle_model import (
     PX4_IRIS_MOMENT_CONSTANT,
     PX4_IRIS_MOTOR_CONSTANT,
@@ -533,6 +541,7 @@ class RuntimeConfigTests(unittest.TestCase):
         assert publication is not None
         self.assertEqual(publication.host, "stream-mcp")
         self.assertEqual(publication.port, 9000)
+        self.assertEqual(publication.queue_capacity, 32)
 
         with patch.dict(
             os.environ,
@@ -593,9 +602,60 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIn('fields["is_keyframe"] = True', video_packet_source)
         publish_source = camera_stream_source.split(
             "    def publish(", maxsplit=1
-        )[1].split("    def close(", maxsplit=1)[0]
+        )[1].split("    def _set_time(", maxsplit=1)[0]
         self.assertNotIn("rr.Pinhole(", publish_source)
         self.assertIn("access_unit.sample", publish_source)
+
+    def test_stream_publication_owns_a_stable_independent_rtp_epoch(self) -> None:
+        published = threading.Event()
+        published_twice = threading.Event()
+        instances: list[object] = []
+
+        class FakePublisher:
+            def __init__(self, _config: StreamPublicationConfig) -> None:
+                self.closed = False
+                self.samples: list[tuple[bytes, float]] = []
+                instances.append(self)
+
+            def publish(self, sample: bytes, simulation_time_s: float) -> None:
+                self.samples.append((sample, simulation_time_s))
+                published.set()
+                if len(self.samples) == 2:
+                    published_twice.set()
+
+            def close(self) -> None:
+                self.closed = True
+
+        config = StreamPublicationConfig(
+            host="stream-mcp",
+            port=9000,
+            payload_type=96,
+            source_vehicle_id="uav-1",
+            queue_capacity=4,
+        )
+        access_unit = parse_native_h264_access_unit(
+            b"\x00\x00\x00\x01\x65\x88\x84"
+        )
+        with patch(
+            "veoveo_uav_sim.stream_output.RtpH264Publisher",
+            FakePublisher,
+        ):
+            worker = StreamPublicationWorker(config)
+            worker.offer(access_unit, 1.0)
+            self.assertTrue(published.wait(1.0))
+            worker.offer(access_unit, 1.05)
+            self.assertTrue(published_twice.wait(1.0))
+            worker.close()
+            status = worker.status()
+
+        self.assertEqual(len(instances), 1)
+        publisher = instances[0]
+        assert isinstance(publisher, FakePublisher)
+        self.assertEqual(len(publisher.samples), 2)
+        self.assertTrue(publisher.closed)
+        self.assertEqual(status.lifecycle, "stopped")
+        self.assertEqual(status.dropped_access_units, 0)
+        self.assertEqual(status.published_access_units, 2)
 
     def test_recording_degradation_is_visible_without_blocking_readiness(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
@@ -1699,14 +1759,20 @@ class StreamedWorldHealthTests(unittest.TestCase):
         self.assertIn("visual_ready", server_source)
 
     def test_native_camera_fanout_has_no_software_encoder_or_drain(self) -> None:
-        source = (
+        recording_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "recording.py"
         ).read_text()
-        self.assertNotIn("import av", source)
-        self.assertNotIn("h264_nvenc", source)
-        self.assertNotIn("encode(None)", source)
-        self.assertIn("class RecordedH264CameraStream", source)
-        self.assertIn("self._stream_output.publish(access_unit.sample", source)
+        app_source = (
+            Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py"
+        ).read_text()
+        self.assertNotIn("import av", recording_source)
+        self.assertNotIn("h264_nvenc", recording_source)
+        self.assertNotIn("encode(None)", recording_source)
+        self.assertIn("class RecordedH264CameraStream", recording_source)
+        self.assertNotIn("RtpH264Publisher", recording_source)
+        self.assertNotIn("stream_output", recording_source)
+        self.assertIn("recording.offer_camera_access_unit(", app_source)
+        self.assertIn("stream_publication.offer(", app_source)
 
 
 if __name__ == "__main__":

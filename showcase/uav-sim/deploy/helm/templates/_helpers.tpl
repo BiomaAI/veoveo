@@ -160,6 +160,8 @@
   value: {{ .root.Values.streamPublication.payloadType | quote }}
 - name: UAV_SIM_STREAM_SOURCE_VEHICLE_ID
   value: {{ .root.Values.streamPublication.sourceVehicleId | quote }}
+- name: UAV_SIM_STREAM_QUEUE_CAPACITY
+  value: {{ .root.Values.streamPublication.queueCapacity | quote }}
 {{- end }}
 
 - name: NVIDIA_DRIVER_CAPABILITIES

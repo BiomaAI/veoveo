@@ -270,6 +270,7 @@ class StreamPublicationConfig:
     port: int
     payload_type: int
     source_vehicle_id: str
+    queue_capacity: int
 
     def __post_init__(self) -> None:
         if (
@@ -282,6 +283,10 @@ class StreamPublicationConfig:
             raise ValueError(
                 "UAV_SIM_STREAM_PAYLOAD_TYPE must be a dynamic RTP payload type"
             )
+        if not 2 <= self.queue_capacity <= 4_096:
+            raise ValueError(
+                "UAV_SIM_STREAM_QUEUE_CAPACITY must be between 2 and 4096"
+            )
         _identity("UAV_SIM_STREAM_SOURCE_VEHICLE_ID", self.source_vehicle_id)
 
     @classmethod
@@ -292,6 +297,7 @@ class StreamPublicationConfig:
                 "UAV_SIM_STREAM_PORT",
                 "UAV_SIM_STREAM_PAYLOAD_TYPE",
                 "UAV_SIM_STREAM_SOURCE_VEHICLE_ID",
+                "UAV_SIM_STREAM_QUEUE_CAPACITY",
             ):
                 if os.environ.get(name, "").strip():
                     raise ValueError(
@@ -309,6 +315,9 @@ class StreamPublicationConfig:
                 os.environ.get(
                     "UAV_SIM_STREAM_SOURCE_VEHICLE_ID", "uav-1"
                 ),
+            ),
+            queue_capacity=_int(
+                "UAV_SIM_STREAM_QUEUE_CAPACITY", "32", 2, 4_096
             ),
         )
 

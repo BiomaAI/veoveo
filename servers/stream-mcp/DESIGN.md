@@ -149,6 +149,12 @@ two consecutive packets. A simulator pod replacement therefore resumes an
 existing Stream session without retaining the old source clock or waiting for
 the jitter buffer's 60-second default dropout window.
 
+The platform Helm chart renders that same qualified jitter-buffer contract as
+the source catalog. A chart-local launch graph is not a second profile and must
+not omit the bounded dropout, misorder, or fast-start settings. The simulator's
+live RTP publisher is an independent consumer of native NVENC access units;
+Recording reconnects do not restart its source epoch.
+
 The preview resource is meant for an operator view, not bulk media
 distribution. It keeps the MCP boundary portable across Console and external
 MCP Apps hosts. A future high-fanout transport would remain an internal adapter
