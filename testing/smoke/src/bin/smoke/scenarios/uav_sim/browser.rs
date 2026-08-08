@@ -1404,8 +1404,19 @@ async fn wait_for_console_app_execution(
                 .context("Chrome frame tree omitted its root")?,
             app_server,
         )
-        .map(str::to_owned)
-        .or(find_app_frame_id_from_dom(cdp, session_id, app_server).await?);
+        .map(str::to_owned);
+        let frame_id = if frame_id.is_some() {
+            frame_id
+        } else {
+            match find_app_frame_id_from_dom(cdp, session_id, app_server).await {
+                Ok(frame_id) => frame_id,
+                Err(error) if stale_app_frame(&error) && tokio::time::Instant::now() < deadline => {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            }
+        };
         if let Some(frame_id) = frame_id {
             let isolated = match cdp
                 .command(
@@ -1516,7 +1527,9 @@ fn stale_execution_context(error: &anyhow::Error) -> bool {
 }
 
 fn stale_app_frame(error: &anyhow::Error) -> bool {
-    format!("{error:#}").contains("No frame for given id found")
+    let message = format!("{error:#}");
+    message.contains("No frame for given id found")
+        || message.contains("Could not find node with given id")
 }
 
 fn stale_app_target(error: &anyhow::Error) -> bool {
@@ -3433,6 +3446,10 @@ mod tests {
         assert!(stale_app_frame(&anyhow!(
             "Chrome DevTools `Page.createIsolatedWorld` failed: \
              {{\"code\":-32602,\"message\":\"No frame for given id found\"}}"
+        )));
+        assert!(stale_app_frame(&anyhow!(
+            "Chrome DevTools `DOM.describeNode` failed: \
+             {{\"code\":-32000,\"message\":\"Could not find node with given id\"}}"
         )));
         assert!(stale_execution_context(&anyhow!(
             "Chrome DevTools `Runtime.evaluate` failed: \
