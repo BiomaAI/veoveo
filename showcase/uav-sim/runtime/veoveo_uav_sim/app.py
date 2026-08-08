@@ -145,7 +145,7 @@ def run(config: RuntimeConfig) -> None:
     from .realtime import FixedStepCadenceGate, PhysicsRenderSchedule
     from .recording import ImuTelemetry, RecordingPublisher
     from .render_pose import rendered_pose_agreement
-    from .runtime_events import notify_runtime_ready
+    from .runtime_events import notify_adapter_ready, notify_runtime_ready
     from .server import (
         AdapterApplication,
         AdapterServer,
@@ -188,6 +188,11 @@ def run(config: RuntimeConfig) -> None:
         preconfiguration = PreconfigurationApplication(config, world_slot)
         server = AdapterServer(config, preconfiguration.application)
         server.start()
+        notify_adapter_ready(
+            config.runtime_event_socket,
+            session_id=config.session_id,
+            generation=simulation_generation,
+        )
         LOGGER.info(
             "UAV simulation session %s is waiting for an immutable Frames world revision",
             config.session_id,

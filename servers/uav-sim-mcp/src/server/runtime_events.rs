@@ -11,7 +11,7 @@ use tokio::net::UnixDatagram;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{LiveSessionId, SubscriptionHub};
 
-use crate::uris;
+use crate::{adapter::Adapter, uris};
 
 const RUNTIME_EVENT_SCHEMA: &str = "veoveo.io/uav-runtime-event/v1";
 
@@ -27,6 +27,7 @@ struct RuntimeEvent {
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 enum RuntimeEventKind {
+    AdapterReady,
     Ready,
 }
 
@@ -34,10 +35,17 @@ pub(super) struct RuntimeEventListener {
     socket: UnixDatagram,
     path: PathBuf,
     session_id: LiveSessionId,
+    world_bootstrap_file: Option<PathBuf>,
+    adapter: Arc<Adapter>,
 }
 
 impl RuntimeEventListener {
-    pub(super) fn bind(path: &Path, session_id: LiveSessionId) -> anyhow::Result<Self> {
+    pub(super) fn bind(
+        path: &Path,
+        session_id: LiveSessionId,
+        world_bootstrap_file: Option<PathBuf>,
+        adapter: Arc<Adapter>,
+    ) -> anyhow::Result<Self> {
         validate_path(path)?;
         match fs::symlink_metadata(path) {
             Ok(metadata) => {
@@ -63,6 +71,8 @@ impl RuntimeEventListener {
             socket,
             path: path.to_owned(),
             session_id,
+            world_bootstrap_file,
+            adapter,
         })
     }
 
@@ -81,16 +91,36 @@ impl RuntimeEventListener {
                 }
             };
             match parse(&buffer[..length], &self.session_id) {
-                Ok(event) => {
-                    tracing::info!(
-                        session_id = %event.session_id,
-                        generation = event.generation,
-                        "authoritative simulator reported runtime readiness"
-                    );
-                    subscribers
-                        .notify_resource_updated(uris::live_cameras(&event.session_id))
-                        .await;
-                }
+                Ok(event) => match event.event {
+                    RuntimeEventKind::AdapterReady => {
+                        tracing::info!(
+                            session_id = %event.session_id,
+                            generation = event.generation,
+                            "authoritative simulator adapter accepts world configuration"
+                        );
+                        if let Some(path) = self.world_bootstrap_file.as_deref()
+                            && let Err(error) =
+                                super::world_bootstrap::apply(path, &self.adapter).await
+                        {
+                            tracing::error!(
+                                %error,
+                                session_id = %event.session_id,
+                                generation = event.generation,
+                                "installation world binding reapplication failed"
+                            );
+                        }
+                    }
+                    RuntimeEventKind::Ready => {
+                        tracing::info!(
+                            session_id = %event.session_id,
+                            generation = event.generation,
+                            "authoritative simulator reported runtime readiness"
+                        );
+                        subscribers
+                            .notify_resource_updated(uris::live_cameras(&event.session_id))
+                            .await;
+                    }
+                },
                 Err(error) => {
                     tracing::warn!(%error, "rejected malformed pod-local runtime event");
                 }
@@ -151,6 +181,15 @@ mod tests {
         )
         .unwrap();
         assert_eq!(event.event, RuntimeEventKind::Ready);
+        assert_eq!(
+            parse(
+                br#"{"schema":"veoveo.io/uav-runtime-event/v1","event":"adapter_ready","sessionId":"session-alpha","generation":2}"#,
+                &expected,
+            )
+            .unwrap()
+            .event,
+            RuntimeEventKind::AdapterReady
+        );
         assert_eq!(event.generation, 2);
         assert!(
             parse(

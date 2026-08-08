@@ -109,10 +109,13 @@ restart recreates the configured world, cameras, and products through the one-sh
 installation binding. Viewer leases disappear when the MCP server restarts, and the App
 opens new leases. Native WebRTC stop and signaling-failure events start a bounded
 fresh-lease reconnect sequence for selected cameras. A subscribed live-camera resource
-update immediately retries cameras waiting for simulator readiness. The runtime emits
-that update once, after its running lifecycle and streamed-world readiness are both
-current, through a private Unix datagram. Delivery is best effort and never delays the
-simulator. If the companion is absent, its later startup reads current runtime state
+update immediately retries cameras waiting for simulator readiness. The runtime emits an
+`adapter_ready` edge after its preconfiguration endpoint binds, allowing an existing
+companion to reapply the same immutable installation binding after an independent
+simulator-container restart. It emits a second `ready` edge after its running lifecycle
+and streamed-world readiness are both current; that edge produces the subscribed resource
+update. Both use a private Unix datagram. Delivery is best effort and never delays the
+simulator. If the companion is absent, its later startup applies the installation binding
 directly. Closing a tile or tearing down the App cancels its reconnect state, and
 exhausting the bounded connection attempts waits for the next resource notification
 without polling. There is no desired-versus-realized renderer deployment or periodic

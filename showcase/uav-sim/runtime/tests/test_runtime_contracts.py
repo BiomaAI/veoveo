@@ -45,6 +45,7 @@ from veoveo_uav_sim.realtime import (
 )
 from veoveo_uav_sim.runtime_events import (
     RUNTIME_EVENT_SCHEMA,
+    notify_adapter_ready,
     notify_runtime_ready,
 )
 from veoveo_uav_sim.state import (
@@ -254,6 +255,30 @@ class RuntimeConfigTests(unittest.TestCase):
             {
                 "schema": RUNTIME_EVENT_SCHEMA,
                 "event": "ready",
+                "sessionId": "uav-showcase",
+                "generation": 7,
+            },
+        )
+
+    def test_adapter_ready_event_is_one_nonblocking_datagram(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            event_socket = Path(directory) / "runtime-events.sock"
+            with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as receiver:
+                receiver.bind(str(event_socket))
+                receiver.settimeout(1.0)
+                self.assertTrue(
+                    notify_adapter_ready(
+                        event_socket,
+                        session_id="uav-showcase",
+                        generation=7,
+                    )
+                )
+                payload = json.loads(receiver.recv(1024))
+        self.assertEqual(
+            payload,
+            {
+                "schema": RUNTIME_EVENT_SCHEMA,
+                "event": "adapter_ready",
                 "sessionId": "uav-showcase",
                 "generation": 7,
             },
