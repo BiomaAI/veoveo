@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::PathBuf;
-use std::process::Stdio;
+use std::process::{ExitStatus, Stdio};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -71,7 +71,6 @@ struct LiveSessionState {
     dropped_video_chunks: u64,
     received_video_frames: u64,
     last_video_sequence: Option<u64>,
-    last_video_timestamp_us: Option<u64>,
     child: Option<Child>,
 }
 
@@ -355,7 +354,6 @@ impl LiveSessionManager {
                 dropped_video_chunks: 0,
                 received_video_frames: 0,
                 last_video_sequence: None,
-                last_video_timestamp_us: None,
                 child: Some(child),
             }),
         });
@@ -496,14 +494,7 @@ impl LiveSessionManager {
                 chunk.sequence == expected,
                 "H.264 sequence is not contiguous"
             );
-            if let Some(timestamp) = state.last_video_timestamp_us {
-                ensure!(
-                    chunk.timestamp_us >= timestamp,
-                    "H.264 timestamps moved backwards"
-                );
-            }
             state.last_video_sequence = Some(chunk.sequence);
-            state.last_video_timestamp_us = Some(chunk.timestamp_us);
             state.received_video_frames += 1;
             if state.video_chunks.len() == self.max_preview_chunks {
                 state.video_chunks.pop_front();
@@ -535,8 +526,10 @@ impl LiveSessionManager {
         let mut state = session.state.lock().await;
         let child = state.child.take();
         drop(state);
-        let exit = if let Some(mut child) = child {
-            child.wait().await.ok()
+        let exit = if let Some(child) = child {
+            // The event loop owns the runner only after its private event stream has
+            // failed or ended unexpectedly. A normal stop takes the child first.
+            reap_runner(child, true).await
         } else {
             None
         };
@@ -688,6 +681,18 @@ impl LiveSessionManager {
     }
 }
 
+async fn reap_runner(mut child: Child, terminate: bool) -> Option<ExitStatus> {
+    if terminate {
+        match child.try_wait() {
+            Ok(Some(status)) => return Some(status),
+            Ok(None) | Err(_) => {
+                let _ = child.kill().await;
+            }
+        }
+    }
+    child.wait().await.ok()
+}
+
 fn reader_allows(owner: &TaskOwner, caller: &TaskOwner) -> bool {
     owner.tenant_key() == caller.tenant_key()
         && owner.authority.tenant == caller.authority.tenant
@@ -825,5 +830,18 @@ mod tests {
             task_owner("operator", "flight", WorkContextMembershipLevel::Owner, &[]);
         assert!(!reader_allows(&automation, &other_context));
         assert!(!reader_allows(&automation, &missing_label));
+    }
+
+    #[tokio::test]
+    async fn event_failure_terminates_the_native_runner_before_waiting() {
+        let child = Command::new("sleep")
+            .arg("60")
+            .spawn()
+            .expect("spawn bounded native-runner fixture");
+        let status = tokio::time::timeout(Duration::from_secs(2), reap_runner(child, true))
+            .await
+            .expect("failed runner must be reaped promptly")
+            .expect("failed runner must return an exit status");
+        assert!(!status.success());
     }
 }
