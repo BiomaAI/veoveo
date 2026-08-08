@@ -14,7 +14,6 @@ from .event_queue import NonBlockingEventQueue
 from .geo import enu_to_geodetic
 from .h264 import NativeH264AccessUnit
 from .state import VehicleTelemetry
-from .stream_output import RtpH264Publisher
 from .world_config import WorldConfiguration
 
 LOGGER = logging.getLogger("veoveo.uav_sim.recording")
@@ -83,7 +82,7 @@ type _RecordingEvent = (
 
 
 class RecordedH264CameraStream:
-    """Fan one native Isaac NVENC access unit to Recording and optional RTP."""
+    """Publish one native Isaac NVENC access unit to governed Recording."""
 
     def __init__(
         self,
@@ -91,11 +90,9 @@ class RecordedH264CameraStream:
         entity_path: str,
         width: int,
         height: int,
-        stream_output: RtpH264Publisher | None,
     ) -> None:
         self._recording = recording
         self._entity_path = entity_path
-        self._stream_output = stream_output
         self._recording.log(
             entity_path,
             rr.VideoStream(codec=rr.VideoCodec.H264),
@@ -109,8 +106,6 @@ class RecordedH264CameraStream:
         simulation_time_s: float,
         physics_step: int,
     ) -> None:
-        if self._stream_output is not None:
-            self._stream_output.publish(access_unit.sample, simulation_time_s)
         self._set_time(simulation_time_s, physics_step)
         self._recording.log(
             self._entity_path,
@@ -119,10 +114,6 @@ class RecordedH264CameraStream:
                 is_keyframe=access_unit.is_keyframe,
             ),
         )
-
-    def close(self) -> None:
-        if self._stream_output is not None:
-            self._stream_output.close()
 
     def _set_time(self, simulation_time_s: float, physics_step: int) -> None:
         self._recording.set_time("simulation_time", duration=simulation_time_s)
@@ -312,17 +303,11 @@ class _RecordingSink:
             static=True,
         )
         camera_entity = f"{self._root}/vehicle/{config.camera.vehicle_id}/camera/down"
-        stream_output = (
-            RtpH264Publisher(config.stream_publication)
-            if config.stream_publication is not None
-            else None
-        )
         self._camera = RecordedH264CameraStream(
             self._recording,
             camera_entity,
             config.camera.width,
             config.camera.height,
-            stream_output,
         )
 
     def handle(

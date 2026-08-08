@@ -160,6 +160,7 @@ def run(config: RuntimeConfig) -> None:
         TimelineControls,
     )
     from .state import RuntimeState, VehicleTelemetry
+    from .stream_output import StreamPublicationWorker
     from .vehicle_model import PX4_IRIS_SENSOR_CADENCE, Px4IrisThrustCurve
     from .world_config import WorldConfiguration, WorldConfigurationSlot
     from .world_health import assess_tile_health
@@ -170,6 +171,7 @@ def run(config: RuntimeConfig) -> None:
     command_queue = MainThreadQueue()
     timeline = omni.timeline.get_timeline_interface()
     recording: RecordingPublisher | None = None
+    stream_publication: StreamPublicationWorker | None = None
     server: AdapterServer | None = None
     connection_executor: concurrent.futures.ThreadPoolExecutor | None = None
     tileset_path: str | None = None
@@ -210,6 +212,10 @@ def run(config: RuntimeConfig) -> None:
             )
         state = RuntimeState(config, world_config)
         recording = RecordingPublisher(config, world_config)
+        if config.stream_publication is not None:
+            stream_publication = StreamPublicationWorker(
+                config.stream_publication
+            )
         world = World(
             physics_dt=1.0 / config.physics_hz,
             rendering_dt=1.0 / config.rendering_hz,
@@ -776,6 +782,11 @@ def run(config: RuntimeConfig) -> None:
                             frame.simulation_time_s,
                             frame.physics_step,
                         )
+                        if stream_publication is not None:
+                            stream_publication.offer(
+                                frame.access_unit,
+                                frame.simulation_time_s,
+                            )
                     else:
                         sensor_status = sensor.status()
                         if sensor_status.lifecycle == "degraded":
@@ -934,6 +945,8 @@ def run(config: RuntimeConfig) -> None:
             _cleanup("operator stream products", operator_products.close)
         for camera_sensor in camera_sensors.values():
             _cleanup("native Isaac H.264 camera sensor", camera_sensor.close)
+        if stream_publication is not None:
+            _cleanup("native H.264 RTP publication", stream_publication.close)
         if timeline.is_playing():
             _cleanup("timeline", timeline.stop)
         for commander in commanders.values():

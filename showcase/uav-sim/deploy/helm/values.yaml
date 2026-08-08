@@ -232,6 +232,7 @@ streamPublication:
   endpointPort: 9000
   payloadType: 96
   sourceVehicleId: uav-1
+  queueCapacity: 32
 
 interactive:
   enabled: true

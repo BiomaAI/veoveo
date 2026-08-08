@@ -1,17 +1,46 @@
 from __future__ import annotations
 
+import logging
 import math
+import queue
 import secrets
 import socket
 import struct
+import threading
+from dataclasses import dataclass
 
 from .config import StreamPublicationConfig
-from .h264 import annex_b_nals
+from .event_queue import NonBlockingEventQueue
+from .h264 import NativeH264AccessUnit, annex_b_nals
 
 
+LOGGER = logging.getLogger("veoveo.uav_sim.stream_output")
 _RTP_CLOCK_RATE = 90_000
 _MAX_RTP_PAYLOAD_BYTES = 1_200
 _FU_A_TYPE = 28
+
+
+@dataclass(frozen=True, slots=True)
+class StreamPublicationStatus:
+    lifecycle: str
+    queued_access_units: int
+    dropped_access_units: int
+    published_access_units: int
+    last_error: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class _AccessUnitEvent:
+    access_unit: NativeH264AccessUnit
+    simulation_time_s: float
+
+
+@dataclass(frozen=True, slots=True)
+class _StopEvent:
+    pass
+
+
+type _PublicationEvent = _AccessUnitEvent | _StopEvent
 
 
 class RtpH264Publisher:
@@ -64,6 +93,107 @@ class RtpH264Publisher:
 
     def close(self) -> None:
         self._socket.close()
+
+
+class StreamPublicationWorker:
+    """Nonblocking fan-out consumer for the optional live RTP transport."""
+
+    def __init__(self, config: StreamPublicationConfig) -> None:
+        self._config = config
+        self._events = NonBlockingEventQueue[_PublicationEvent](
+            config.queue_capacity
+        )
+        self._closed = threading.Event()
+        self._status_lock = threading.Lock()
+        self._lifecycle = "connecting"
+        self._published_access_units = 0
+        self._last_error: str | None = None
+        self._worker = threading.Thread(
+            target=self._run,
+            name="uav-native-sensor-rtp",
+            daemon=True,
+        )
+        self._worker.start()
+
+    def offer(
+        self,
+        access_unit: NativeH264AccessUnit,
+        simulation_time_s: float,
+    ) -> None:
+        if self._closed.is_set():
+            return
+        self._events.offer(_AccessUnitEvent(access_unit, simulation_time_s))
+
+    def status(self) -> StreamPublicationStatus:
+        with self._status_lock:
+            return StreamPublicationStatus(
+                lifecycle=self._lifecycle,
+                queued_access_units=self._events.depth(),
+                dropped_access_units=self._events.dropped(),
+                published_access_units=self._published_access_units,
+                last_error=self._last_error,
+            )
+
+    def close(self) -> None:
+        if self._closed.is_set():
+            return
+        self._closed.set()
+        self._events.offer(_StopEvent())
+        self._worker.join(timeout=5.0)
+
+    def _run(self) -> None:
+        publisher: RtpH264Publisher | None = None
+        try:
+            while True:
+                try:
+                    event = self._events.take(0.5)
+                except queue.Empty:
+                    if self._closed.is_set():
+                        return
+                    continue
+                if isinstance(event, _StopEvent):
+                    self._set_status("stopped", None)
+                    return
+                try:
+                    if publisher is None:
+                        publisher = RtpH264Publisher(self._config)
+                    publisher.publish(
+                        event.access_unit.sample,
+                        event.simulation_time_s,
+                    )
+                    self._mark_published()
+                except Exception as error:
+                    if publisher is not None:
+                        publisher.close()
+                        publisher = None
+                    self._set_status("degraded", _bounded_diagnostic(error))
+        finally:
+            if publisher is not None:
+                publisher.close()
+
+    def _set_status(self, lifecycle: str, error: str | None) -> None:
+        with self._status_lock:
+            previous_error = self._last_error
+            self._lifecycle = lifecycle
+            self._last_error = error
+        if lifecycle == "degraded" and error != previous_error:
+            LOGGER.error(
+                "native H.264 RTP publication degraded; simulation continues: %s",
+                error,
+            )
+
+    def _mark_published(self) -> None:
+        with self._status_lock:
+            previous_lifecycle = self._lifecycle
+            self._lifecycle = "ready"
+            self._published_access_units += 1
+            self._last_error = None
+        if previous_lifecycle == "degraded":
+            LOGGER.info("native H.264 RTP publication recovered")
+
+
+def _bounded_diagnostic(error: BaseException) -> str:
+    return f"{type(error).__name__}: {error}"[:512]
 
 
 def _rtp_timestamp(timestamp_offset: int, simulation_time_s: float) -> int:

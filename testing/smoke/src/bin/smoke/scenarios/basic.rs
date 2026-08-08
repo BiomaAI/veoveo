@@ -252,9 +252,15 @@ pub(crate) async fn helm_config() -> Result<()> {
         "mountPath: /etc/veoveo/gateway",
         "runAsUser: 65532",
         "runAsUser: 10001",
+        "max-dropout-time=1000 max-misorder-time=100 faststart-min-packets=2",
     ] {
         contains(&platform, expected)?;
     }
+    let stream_catalog = fs::read_to_string("configs/stream/catalog.example.json")?;
+    contains(
+        &stream_catalog,
+        "max-dropout-time=1000 max-misorder-time=100 faststart-min-packets=2",
+    )?;
     for forbidden in [
         "OTEL_EXPORTER_OTLP_ENDPOINT",
         "name: renderer-control",

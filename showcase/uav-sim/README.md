@@ -136,15 +136,20 @@ to IDR boundaries when needed for independent Recording shards. Runtime state re
 declared rate, observed access-unit count, last encoded size, and keyframe state. There is
 no PyAV encoder, duplicate encode, or GPU-to-CPU pixel readback.
 
+Recording and live RTP publication own separate bounded, nonblocking queues. Recording
+reconnects therefore cannot reset the live publisher's SSRC, RTP sequence origin, or
+timestamp origin. A live transport failure sheds only that consumer's queued access units;
+it never delays simulation, native rendering, NVENC, or governed Recording publication.
+
 One bounded recording contains four-vehicle poses, velocities, geographic positions,
 IMU values, changing health state, and leader video. The producer Blueprint opens Fleet
 3D, Leader camera, and Fleet map views. Installation-owned browser map credentials never
 enter RRD bytes or Blueprint metadata.
 
-Recording publication uses a bounded worker queue. Queue pressure may shed recording
-observations according to policy, but it cannot delay physics, PX4, or operator rendering.
-The producer-local forwarder moves batches to Recording Hub and can recover its own
-durable queue independently.
+Recording publication uses its own bounded worker queue. Queue pressure may shed
+recording observations according to policy, but it cannot delay physics, PX4, operator
+rendering, or the optional live RTP path. The producer-local forwarder moves batches to
+Recording Hub and can recover its own durable queue independently.
 
 ## Configuration
 

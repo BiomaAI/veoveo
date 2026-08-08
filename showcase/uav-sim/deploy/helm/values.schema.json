@@ -1071,14 +1071,16 @@
         "endpointHost",
         "endpointPort",
         "payloadType",
-        "sourceVehicleId"
+        "sourceVehicleId",
+        "queueCapacity"
       ],
       "properties": {
         "enabled": {"type": "boolean"},
         "endpointHost": {"$ref": "#/definitions/dnsNameOrIp"},
         "endpointPort": {"type": "integer", "minimum": 1, "maximum": 65535},
         "payloadType": {"type": "integer", "minimum": 96, "maximum": 127},
-        "sourceVehicleId": {"$ref": "#/definitions/identity"}
+        "sourceVehicleId": {"$ref": "#/definitions/identity"},
+        "queueCapacity": {"type": "integer", "minimum": 2, "maximum": 4096}
       }
     },
     "interactive": {
