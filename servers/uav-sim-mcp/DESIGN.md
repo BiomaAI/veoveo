@@ -227,6 +227,11 @@ Hydra-texture, RTX-render, Cesium-viewport, and NVENC-session counts by exactly 
 the configured slot bound. No shared-bitstream fan-out, SFU, RTSP relay, WHEP adapter, or
 software encode path exists.
 
+The native client may resume its signaling socket after the media peer is established.
+A credentialed `reconnect=1` request reuses the already-admitted lease and slot without
+increasing the connected-viewer count. It cannot create the initial admission, revive a
+closed lease, or bypass token and expiry checks.
+
 Lease expiry uses one exact deadline task created with the lease. Slot release is part
 of close, expiry, revocation, and signaling teardown. Neither path polls. Runtime health
 is read on demand and announced through MCP subscriptions.

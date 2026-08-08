@@ -20,7 +20,7 @@ use tokio_tungstenite::{
 use url::Url;
 use veoveo_mcp_contract::{LiveViewId, SubscriptionHub};
 
-use super::live_view::{LeaseSignal, LiveViewError, LiveViewService};
+use super::live_view::{LeaseSignal, LiveViewError, LiveViewService, SignalingAdmission};
 use crate::uris;
 
 const TOKEN_PROTOCOL_PREFIX: &str = "authorization.bearer.";
@@ -34,6 +34,16 @@ pub(super) struct SignalingState {
     subscriptions: Arc<SubscriptionHub>,
     upstream: Url,
     public_media_port_base: u16,
+}
+
+struct BridgeContext {
+    state: SignalingState,
+    session_id: veoveo_mcp_contract::LiveSessionId,
+    live_view_id: LiveViewId,
+    session_protocol: String,
+    upstream_url: Url,
+    lease_events: tokio::sync::watch::Receiver<LeaseSignal>,
+    admission: SignalingAdmission,
 }
 
 impl SignalingState {
@@ -82,6 +92,11 @@ pub(super) async fn upgrade(
         .iter()
         .find(|protocol| protocol.starts_with(SESSION_PROTOCOL_PREFIX));
     let live_view_id = live_view_id(&uri);
+    let admission = if reconnect(&uri) {
+        SignalingAdmission::Reconnect
+    } else {
+        SignalingAdmission::Initial
+    };
     let (Some(token), Some(session_protocol), Some(live_view_id)) =
         (token, session_protocol.cloned(), live_view_id)
     else {
@@ -93,7 +108,7 @@ pub(super) async fn upgrade(
     };
     let authorized = match state
         .service
-        .authorize_signaling(&live_view_id, token)
+        .authorize_signaling(&live_view_id, token, admission)
         .await
     {
         Ok(authorized) => authorized,
@@ -108,7 +123,7 @@ pub(super) async fn upgrade(
     {
         state
             .service
-            .cancel_signaling_admission(&live_view_id)
+            .cancel_signaling_admission(&live_view_id, authorized.admission)
             .await;
         return (
             StatusCode::SERVICE_UNAVAILABLE,
@@ -123,7 +138,7 @@ pub(super) async fn upgrade(
     if session_protocol != expected_session_protocol {
         state
             .service
-            .cancel_signaling_admission(&live_view_id)
+            .cancel_signaling_admission(&live_view_id, authorized.admission)
             .await;
         return (
             StatusCode::FORBIDDEN,
@@ -141,7 +156,7 @@ pub(super) async fn upgrade(
         Err(status) => {
             state
                 .service
-                .cancel_signaling_admission(&live_view_id)
+                .cancel_signaling_admission(&live_view_id, authorized.admission)
                 .await;
             return status.into_response();
         }
@@ -160,59 +175,56 @@ pub(super) async fn upgrade(
         slot,
         "accepted simulator-hosted live-view signaling"
     );
+    let bridge_context = BridgeContext {
+        state,
+        session_id: authorized.state.session_id,
+        live_view_id,
+        session_protocol,
+        upstream_url,
+        lease_events: authorized.events,
+        admission: authorized.admission,
+    };
     upgrade
         .max_message_size(MAX_SIGNALING_MESSAGE_BYTES)
-        .protocols([session_protocol.clone()])
-        .on_upgrade(move |socket| {
-            bridge(
-                state,
-                authorized.state.session_id,
-                live_view_id,
-                session_protocol,
-                upstream_url,
-                socket,
-                authorized.events,
-            )
-        })
+        .protocols([bridge_context.session_protocol.clone()])
+        .on_upgrade(move |socket| bridge(bridge_context, socket))
 }
 
-async fn bridge(
-    state: SignalingState,
-    session_id: veoveo_mcp_contract::LiveSessionId,
-    live_view_id: LiveViewId,
-    upstream_session_protocol: String,
-    upstream_url: Url,
-    downstream: WebSocket,
-    lease_events: tokio::sync::watch::Receiver<LeaseSignal>,
-) {
+async fn bridge(context: BridgeContext, downstream: WebSocket) {
     let result = bridge_inner(
-        &upstream_session_protocol,
-        upstream_url,
+        &context.session_protocol,
+        context.upstream_url,
         downstream,
-        lease_events,
+        context.lease_events,
     )
     .await;
     match result {
         Ok(()) => {
             tracing::debug!(
-                %live_view_id,
+                live_view_id = %context.live_view_id,
                 "native signaling negotiation completed; media lease remains active"
             );
         }
         Err(error) => {
-            state
+            context
+                .state
                 .service
-                .cancel_signaling_admission(&live_view_id)
+                .cancel_signaling_admission(&context.live_view_id, context.admission)
                 .await;
-            state
+            context
+                .state
                 .subscriptions
-                .notify_resource_updated(uris::live_view(&session_id, &live_view_id))
+                .notify_resource_updated(uris::live_view(
+                    &context.session_id,
+                    &context.live_view_id,
+                ))
                 .await;
-            state
+            context
+                .state
                 .subscriptions
-                .notify_resource_updated(uris::live_views(&session_id))
+                .notify_resource_updated(uris::live_views(&context.session_id))
                 .await;
-            tracing::warn!(%live_view_id, %error, "simulator-hosted signaling bridge failed");
+            tracing::warn!(live_view_id = %context.live_view_id, %error, "simulator-hosted signaling bridge failed");
         }
     }
 }
@@ -293,6 +305,15 @@ fn live_view_id(uri: &axum::http::Uri) -> Option<LiveViewId> {
         return None;
     }
     value.parse().ok()
+}
+
+fn reconnect(uri: &axum::http::Uri) -> bool {
+    let mut values = uri.query().into_iter().flat_map(|query| {
+        url::form_urlencoded::parse(query.as_bytes())
+            .filter(|(name, _)| name == "reconnect")
+            .map(|(_, value)| value)
+    });
+    matches!(values.next().as_deref(), Some("1")) && values.next().is_none()
 }
 
 fn upstream_url(
@@ -388,13 +409,19 @@ mod tests {
     fn proxy_removes_private_identity_and_selects_capacity_slot() {
         let base = Url::parse("ws://127.0.0.1:49100/webrtc").unwrap();
         let public: axum::http::Uri =
-            "/uav-sim/signaling/sign_in?live_view_id=view-1&pairing_id=secret"
+            "/uav-sim/signaling/sign_in?live_view_id=view-1&pairing_id=secret&reconnect=1"
                 .parse()
                 .unwrap();
         let product = veoveo_mcp_contract::LiveStreamProductId::new("product-follow").unwrap();
         assert_eq!(
             upstream_url(&base, &public, 2, &product).unwrap().as_str(),
-            "ws://127.0.0.1:49102/webrtc/sign_in?pairing_id=product-follow"
+            "ws://127.0.0.1:49102/webrtc/sign_in?reconnect=1&pairing_id=product-follow"
         );
+        assert!(reconnect(&public));
+        assert!(!reconnect(
+            &"/uav-sim/signaling/sign_in?live_view_id=view-1"
+                .parse()
+                .unwrap()
+        ));
     }
 }

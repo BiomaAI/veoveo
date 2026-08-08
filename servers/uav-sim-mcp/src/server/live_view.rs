@@ -41,6 +41,13 @@ pub(super) struct LeaseSignal {
 pub(super) struct SignalingAuthorization {
     pub(super) state: LiveViewState,
     pub(super) events: watch::Receiver<LeaseSignal>,
+    pub(super) admission: SignalingAdmission,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SignalingAdmission {
+    Initial,
+    Reconnect,
 }
 
 #[derive(Debug)]
@@ -434,6 +441,7 @@ impl LiveViewService {
         &self,
         live_view_id: &LiveViewId,
         token: &str,
+        admission: SignalingAdmission,
     ) -> Result<SignalingAuthorization, LiveViewError> {
         let supplied: [u8; 32] = Sha256::digest(token.as_bytes()).into();
         let mut state = self.state.lock().await;
@@ -441,21 +449,39 @@ impl LiveViewService {
             .leases
             .get_mut(live_view_id)
             .ok_or_else(|| LiveViewError::ViewNotFound(live_view_id.clone()))?;
-        if !active(&lease.state)
-            || supplied.ct_eq(&lease.token_hash).unwrap_u8() != 1
-            || lease.state.connected_viewers >= lease.state.viewer_limit
-        {
+        if !active(&lease.state) || supplied.ct_eq(&lease.token_hash).unwrap_u8() != 1 {
             return Err(LiveViewError::Access);
         }
-        lease.state.connected_viewers += 1;
-        lease.state.lifecycle = LiveViewLifecycle::Live;
+        match admission {
+            SignalingAdmission::Reconnect if lease.state.connected_viewers == 0 => {
+                return Err(LiveViewError::Access);
+            }
+            SignalingAdmission::Reconnect => {}
+            SignalingAdmission::Initial
+                if lease.state.connected_viewers >= lease.state.viewer_limit =>
+            {
+                return Err(LiveViewError::Access);
+            }
+            SignalingAdmission::Initial => {
+                lease.state.connected_viewers += 1;
+                lease.state.lifecycle = LiveViewLifecycle::Live;
+            }
+        }
         Ok(SignalingAuthorization {
             state: lease.state.clone(),
             events: lease.events.subscribe(),
+            admission,
         })
     }
 
-    pub(super) async fn cancel_signaling_admission(&self, live_view_id: &LiveViewId) {
+    pub(super) async fn cancel_signaling_admission(
+        &self,
+        live_view_id: &LiveViewId,
+        admission: SignalingAdmission,
+    ) {
+        if admission == SignalingAdmission::Reconnect {
+            return;
+        }
         let mut state = self.state.lock().await;
         let Some(lease) = state.leases.get_mut(live_view_id) else {
             return;
@@ -858,7 +884,8 @@ mod tests {
             service
                 .authorize_signaling(
                     &second.stream.live_view_id,
-                    second.access_token.expose_for_signaling()
+                    second.access_token.expose_for_signaling(),
+                    SignalingAdmission::Initial,
                 )
                 .await
                 .is_ok()
@@ -894,7 +921,8 @@ mod tests {
             service
                 .authorize_signaling(
                     &opened.stream.live_view_id,
-                    opened.access_token.expose_for_signaling()
+                    opened.access_token.expose_for_signaling(),
+                    SignalingAdmission::Initial,
                 )
                 .await
                 .is_err()
@@ -903,7 +931,8 @@ mod tests {
             service
                 .authorize_signaling(
                     &renewed.stream.live_view_id,
-                    renewed.access_token.expose_for_signaling()
+                    renewed.access_token.expose_for_signaling(),
+                    SignalingAdmission::Initial,
                 )
                 .await
                 .is_ok()
@@ -944,7 +973,8 @@ mod tests {
             service
                 .authorize_signaling(
                     &alice_view.stream.live_view_id,
-                    alice_view.access_token.expose_for_signaling()
+                    alice_view.access_token.expose_for_signaling(),
+                    SignalingAdmission::Initial,
                 )
                 .await
                 .is_err()
@@ -953,7 +983,8 @@ mod tests {
             service
                 .authorize_signaling(
                     &bob_view.stream.live_view_id,
-                    bob_view.access_token.expose_for_signaling()
+                    bob_view.access_token.expose_for_signaling(),
+                    SignalingAdmission::Initial,
                 )
                 .await
                 .is_ok()
@@ -1119,11 +1150,12 @@ mod tests {
             .authorize_signaling(
                 &opened.stream.live_view_id,
                 opened.access_token.expose_for_signaling(),
+                SignalingAdmission::Initial,
             )
             .await
             .unwrap();
         service
-            .cancel_signaling_admission(&opened.stream.live_view_id)
+            .cancel_signaling_admission(&opened.stream.live_view_id, SignalingAdmission::Initial)
             .await;
         let ready = service
             .get(&owner(), &actor, &opened.stream.live_view_id)
@@ -1141,9 +1173,59 @@ mod tests {
             .authorize_signaling(
                 &opened.stream.live_view_id,
                 opened.access_token.expose_for_signaling(),
+                SignalingAdmission::Initial,
             )
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn signaling_reconnect_reuses_the_admitted_viewer() {
+        let (service, _) = service(1).await;
+        let actor = PrincipalId::new("alice").unwrap();
+        let opened = service
+            .open(owner(), actor.clone(), request("browser-a"))
+            .await
+            .unwrap();
+
+        assert!(
+            service
+                .authorize_signaling(
+                    &opened.stream.live_view_id,
+                    opened.access_token.expose_for_signaling(),
+                    SignalingAdmission::Reconnect,
+                )
+                .await
+                .is_err()
+        );
+        let first = service
+            .authorize_signaling(
+                &opened.stream.live_view_id,
+                opened.access_token.expose_for_signaling(),
+                SignalingAdmission::Initial,
+            )
+            .await
+            .unwrap();
+        assert_eq!(first.admission, SignalingAdmission::Initial);
+        let resumed = service
+            .authorize_signaling(
+                &opened.stream.live_view_id,
+                opened.access_token.expose_for_signaling(),
+                SignalingAdmission::Reconnect,
+            )
+            .await
+            .unwrap();
+        assert_eq!(resumed.admission, SignalingAdmission::Reconnect);
+        service
+            .cancel_signaling_admission(&opened.stream.live_view_id, SignalingAdmission::Reconnect)
+            .await;
+
+        let live = service
+            .list(&owner(), &actor, &opened.stream.session_id)
+            .await
+            .remove(0);
+        assert_eq!(live.lifecycle, LiveViewLifecycle::Live);
+        assert_eq!(live.connected_viewers, 1);
     }
 
     #[tokio::test]
@@ -1161,6 +1243,7 @@ mod tests {
             .authorize_signaling(
                 &opened.stream.live_view_id,
                 opened.access_token.expose_for_signaling(),
+                SignalingAdmission::Initial,
             )
             .await
             .unwrap();
@@ -1188,6 +1271,7 @@ mod tests {
             .authorize_signaling(
                 &opened.stream.live_view_id,
                 opened.access_token.expose_for_signaling(),
+                SignalingAdmission::Initial,
             )
             .await
             .unwrap();
