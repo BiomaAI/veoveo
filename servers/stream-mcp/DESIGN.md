@@ -80,8 +80,15 @@ Rust validates every detection, H.264 byte bound, Annex B prefix, and
 decode-order sequence before retaining it. An encoded chunk's timestamp is its
 H.264 presentation timestamp for WebCodecs. AVC frame reordering can make that
 timestamp move backward in decode sequence, so timestamp monotonicity is not an
-admission rule. Result and preview rings are bounded. Overflow drops the oldest
-retained App history; it never blocks the live pipeline.
+admission rule. Live detection indices are monotonic decode-order identities
+assigned after NVDEC; Recording analysis retains its governed source-timeline
+indices. Result and preview rings are bounded. Overflow drops the oldest retained
+App history; it never blocks the live pipeline.
+
+A native probe failure posts a private application message to the pipeline bus.
+The runner exits immediately with the typed cause, and Stream reaps it before
+releasing the admitted UDP port. A failed probe cannot leave a session marked
+running while silently suppressing all later frames.
 
 The live path does not resolve a recording, wait for Recording Hub
 acknowledgement, or create a task snapshot. A frame that has just arrived can
