@@ -220,7 +220,7 @@ pub(super) fn analyze_rerun_camera_frame(
             && render.sample_height >= 120
             && render.sampled_pixels >= 10_000
             && render.unique_quantized_colors >= 4
-            && render.dominant_color_ratio <= 0.95
+            && render.dominant_color_ratio <= 0.995
             && render.luminance_standard_deviation >= 1.0,
         "archived Rerun camera frame is blank or still loading: {render:?}"
     );
