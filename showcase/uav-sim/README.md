@@ -97,6 +97,11 @@ adapter uses a bounded event wait and releases the slot on activation failure. M
 users, profiles, or tabs receive independent leases, camera clones, RTX renders, NVENC
 sessions, and peer state even when they select the same logical camera.
 
+The live App requests Compute Pressure access for the pinned NVIDIA browser client on
+platforms that expose CPU pressure observations. The Console grants it only to that
+sandboxed App frame. This browser telemetry does not alter the RTX, NVENC, or native
+WebRTC data plane.
+
 The qualified one-GPU profile targets 16 FPS for each of two simultaneous 1280×720
 viewer products. Acceptance requires at least 12 delivered FPS, source-to-render p95
 below 85 ms after the 256-event warm window, and a conservative composed

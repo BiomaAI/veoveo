@@ -272,6 +272,12 @@ decode as hardware only when the browser reports `powerEfficient`; supported smo
 software decode is labeled explicitly. Browser acceptance still requires a headed,
 hardware-backed WebGPU or WebGL context.
 
+The App declares the repository-owned `computePressure` permission required by the
+pinned NVIDIA browser client on platforms that expose CPU pressure observations. The
+Console delegates `compute-pressure` only to that opaque App frame. NVIDIA's local AVIF
+capability probe uses a CSP-admitted `data:` fetch and does not add a remote origin.
+Neither capability changes RTX rendering, NVENC encoding, or WebRTC transport.
+
 Focused browser acceptance combines the runtime source-to-render window with WebRTC
 `requestVideoFrameCallback` capture, receive, and expected-display timestamps. It rejects
 source-to-render p95 at 85 ms and motion-to-photon p95 at 250 ms. The measured

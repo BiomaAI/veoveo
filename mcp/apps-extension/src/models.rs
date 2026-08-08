@@ -42,8 +42,36 @@ pub struct ResourceUiMeta {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub csp: Option<UiCsp>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub permissions: Option<UiPermissions>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prefers_border: Option<bool>,
 }
+
+/// Browser capabilities requested by an app view. MCP Apps `2026-01-26`
+/// defines camera, microphone, geolocation, and clipboard-write requests.
+/// Veoveo adds `computePressure` for bounded native-stream telemetry clients;
+/// hosts still decide which declared capabilities to grant.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UiPermissions {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub camera: Option<UiPermissionRequest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub microphone: Option<UiPermissionRequest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub geolocation: Option<UiPermissionRequest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clipboard_write: Option<UiPermissionRequest>,
+    /// Repository-owned extension mapped to Permission Policy
+    /// `compute-pressure` by supporting hosts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compute_pressure: Option<UiPermissionRequest>,
+}
+
+/// Empty MCP Apps permission request object (`{}`).
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiPermissionRequest {}
 
 /// Content-security domains an app view declares. Most Veoveo apps are fully
 /// self-contained. A live-data app may name exact installation-owned origins;
@@ -100,5 +128,20 @@ mod tests {
         )
         .expect("parses");
         assert!(!model_only.visible_to_app());
+    }
+
+    #[test]
+    fn compute_pressure_permission_uses_the_typed_extension_shape() {
+        let meta = ResourceUiMeta {
+            permissions: Some(UiPermissions {
+                compute_pressure: Some(UiPermissionRequest::default()),
+                ..UiPermissions::default()
+            }),
+            ..ResourceUiMeta::default()
+        };
+        assert_eq!(
+            serde_json::to_value(meta).expect("serializes"),
+            serde_json::json!({"permissions": {"computePressure": {}}})
+        );
     }
 }

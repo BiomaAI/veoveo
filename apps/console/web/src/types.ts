@@ -349,6 +349,7 @@ export interface AppDescriptor {
   title?: string;
   description?: string;
   icons?: string[];
+  permissions?: Array<"compute-pressure">;
   tools: AppToolDescriptor[];
   resourceDependencies: AppResourceDependency[];
 }
