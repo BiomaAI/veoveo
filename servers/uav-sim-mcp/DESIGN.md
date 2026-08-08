@@ -271,8 +271,11 @@ hardware-backed WebGPU or WebGL context.
 
 Focused browser acceptance combines the runtime source-to-render window with WebRTC
 `requestVideoFrameCallback` capture, receive, and expected-display timestamps. It rejects
-source-to-render p95 at 50 ms and motion-to-photon p95 at 200 ms. Smoothing response is
-reported by the camera profile and is not counted as transport latency. The same run
+source-to-render p95 at 85 ms and motion-to-photon p95 at 250 ms. The measured
+two-viewer reference profile targets 16 FPS and rejects delivery below 12 FPS. NVIDIA's
+total frame- and packet-loss counters are evaluated as deltas after the 256-event warm
+window. Smoothing response is reported by the camera profile and is not counted as
+transport latency. The same run
 opens two cameras in one App, proves one browser-instance identity with distinct leases,
 products, and physical slots, observes both videos advancing, then proves both slots
 return immediately to the inactive pool.
@@ -338,8 +341,9 @@ pose-mirroring protocol. First-party visual certification remains the GPU UAV sh
 Hardware acceptance requires one NVIDIA GPU, a headed hardware-backed browser, RTX
 rendering, NVIDIA NVENC, advancing H.264 frames, several authoritative cameras, correct
 Cesium alignment, isolated-product multi-viewer evidence, and no software renderer,
-encoder, or media relay. It also proves source-to-render p95 below 50 ms and WebRTC
-capture-to-display p95 below 200 ms from reactive frame events. The smoke entry points
+encoder, or media relay. It also proves delivery of at least 12 FPS, source-to-render
+p95 below 85 ms, and WebRTC capture-to-display p95 below 250 ms from reactive frame
+events. The smoke entry points
 are:
 
 ```sh

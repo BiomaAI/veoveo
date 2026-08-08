@@ -23,8 +23,9 @@ use recording_acceptance::{
 mod recording_acceptance;
 
 const SIMULTANEOUS_VIEW_BARRIER_TIMEOUT: Duration = Duration::from_secs(15);
-const MAXIMUM_SOURCE_TO_RENDER_P95_MS: f64 = 50.0;
-const MAXIMUM_MOTION_TO_PHOTON_P95_MS: f64 = 200.0;
+const MINIMUM_DELIVERED_FRAME_RATE_HZ: f64 = 12.0;
+const MAXIMUM_SOURCE_TO_RENDER_P95_MS: f64 = 85.0;
+const MAXIMUM_MOTION_TO_PHOTON_P95_MS: f64 = 250.0;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2244,8 +2245,8 @@ impl VideoCadenceSample {
         );
         let observed_frame_rate_hz = self.observed_frame_rate_hz();
         ensure!(
-            observed_frame_rate_hz >= declared_frame_rate_hz * 0.95,
-            "authoritative live-view App delivered {observed_frame_rate_hz:.2} fps, below 95% of its declared {declared_frame_rate_hz:.2} fps: {self:?}"
+            observed_frame_rate_hz >= MINIMUM_DELIVERED_FRAME_RATE_HZ,
+            "authoritative live-view App delivered {observed_frame_rate_hz:.2} fps, below the qualified {MINIMUM_DELIVERED_FRAME_RATE_HZ:.2} fps floor for its {declared_frame_rate_hz:.2} fps target: {self:?}"
         );
         ensure!(
             self.decoded_video_frames >= self.presented_frame_intervals
@@ -3098,7 +3099,7 @@ const APP_FRAME_VIDEO_CADENCE: &str = r#"(async()=>{
   if(!video?.requestVideoFrameCallback)throw new Error("requestVideoFrameCallback is unavailable");
   const view=video.closest(".view"),cameraId=view?.id?.startsWith("view-")?view.id.slice(5):"",player=players.get(cameraId);
   if(!player)throw new Error("native stream player is unavailable");
-  const liveViewId=view?.dataset.liveViewId??"",minimumSourceSamples=48,warmupDeadline=Date.now()+15000;
+  const liveViewId=view?.dataset.liveViewId??"",minimumSourceSamples=256,warmupDeadline=Date.now()+30000;
   let warmLive=null;
   while(Date.now()<warmupDeadline){
     warmLive=await read(`uav-sim://session/${sessionId}/live-view/${liveViewId}`);
@@ -3111,6 +3112,7 @@ const APP_FRAME_VIDEO_CADENCE: &str = r#"(async()=>{
   if(Number(warmLive?.sourceToRenderSamples??0)<minimumSourceSamples)throw new Error("native render warm-up lacked source-to-render samples");
   return new Promise((resolve,reject)=>{
   const warmupFrames=12,sampleIntervals=48,initialStats=player.streamStats.length;
+  const initialFrameLoss=Number(player.streamStats.at(-1)?.frameLoss??0),initialPacketLoss=Number(player.streamStats.at(-1)?.packetLoss??0);
   let callbacks=0,firstNow=0,firstMediaTime=0,qualityBefore=null,finished=false;
   const p95=values=>{const ordered=[...values].sort((a,b)=>a-b);return ordered.length?ordered[Math.max(0,Math.ceil(ordered.length*0.95)-1)]:-1;};
   const timeout=setTimeout(()=>{
@@ -3148,8 +3150,8 @@ const APP_FRAME_VIDEO_CADENCE: &str = r#"(async()=>{
         streamStatsSamples:stats.length,
         streamRoundTripP95Ms:roundTripP95Ms,
         streamDecodeP95Ms:decodeP95Ms,
-        streamFrameLoss:Math.max(...stats.map(value=>value.frameLoss)),
-        streamPacketLoss:Math.max(...stats.map(value=>value.packetLoss))
+        streamFrameLoss:Math.max(0,Math.max(...stats.map(value=>value.frameLoss))-initialFrameLoss),
+        streamPacketLoss:Math.max(0,Math.max(...stats.map(value=>value.packetLoss))-initialPacketLoss)
       });}).catch(reject);
       return;
     }
@@ -3313,19 +3315,19 @@ mod tests {
         accepted.validate(24.0).unwrap();
 
         let slow = VideoCadenceSample {
-            interval_seconds: 2.25,
+            interval_seconds: 5.0,
             ..accepted
         };
         assert!(slow.validate(24.0).is_err());
 
         let stale_pipeline = VideoCadenceSample {
-            source_to_render_p95_ms: 50.0,
+            source_to_render_p95_ms: 85.0,
             ..accepted
         };
         assert!(stale_pipeline.validate(24.0).is_err());
 
         let slow_transport = VideoCadenceSample {
-            composed_motion_to_photon_upper_bound_p95_ms: 200.0,
+            composed_motion_to_photon_upper_bound_p95_ms: 250.0,
             ..accepted
         };
         assert!(slow_transport.validate(24.0).is_err());

@@ -97,6 +97,13 @@ adapter uses a bounded event wait and releases the slot on activation failure. M
 users, profiles, or tabs receive independent leases, camera clones, RTX renders, NVENC
 sessions, and peer state even when they select the same logical camera.
 
+The qualified one-GPU profile targets 16 FPS for each of two simultaneous 1280×720
+viewer products. Acceptance requires at least 12 delivered FPS, source-to-render p95
+below 85 ms after the 256-event warm window, and a conservative composed
+motion-to-photon upper bound below 250 ms. These are measured product limits rather
+than adaptive downgrade rules; admission never rewrites a camera's requested optics or
+codec.
+
 After a simulator restart, the runtime emits one nonblocking readiness datagram when
 physics, the streamed world, and logical cameras are ready again. The MCP companion
 turns that edge into a live-camera resource notification. Selected App tiles reconnect

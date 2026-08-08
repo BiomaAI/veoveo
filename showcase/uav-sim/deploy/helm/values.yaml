@@ -85,7 +85,7 @@ session:
   id: uav-showcase
   vehicleCount: 4
   physicsHz: 60
-  renderingHz: 24
+  renderingHz: 16
   tileReadyFrames: 30
   px4ConnectTimeoutSeconds: 180
   privacyConsent: false
@@ -164,7 +164,7 @@ liveView:
       optics: &operatorOptics
         widthPx: 1280
         heightPx: 720
-        frameRateHz: 24
+        frameRateHz: 16
         verticalFovDegrees: 60.0
         nearClipM: 0.1
         farClipM: 100000.0
