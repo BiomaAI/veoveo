@@ -3011,7 +3011,7 @@ const APP_FRAME_VIDEO_STATE: &str = r#"(() => {
     sampledAtMs:performance.now(),
     totalVideoFrames:quality?.totalVideoFrames ?? 0,
     droppedVideoFrames:quality?.droppedVideoFrames ?? 0,
-    declaredFrameRateHz:Number(view?.querySelector(".stats span:nth-child(2)")?.textContent?.split(" ")[0] ?? 0),
+    declaredFrameRateHz:Number(view?.querySelector(".stats span")?.textContent?.match(/·\s*([\d.]+)\s*fps/)?.[1] ?? 0),
     observedFrameRateHz:0,
     ...frame,
     decodeLabel:document.getElementById("decode")?.textContent ?? "",

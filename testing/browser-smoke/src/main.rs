@@ -21,7 +21,7 @@ use browser::{
     capture_console_live_app, capture_console_live_app_grid, capture_console_live_app_pair,
     capture_console_recording, preflight_console_live_app,
 };
-use restart::verify_live_view_restarts;
+use restart::{RestartVerification, verify_live_view_restarts};
 
 const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-live-view-browser-evidence/v9";
 const MAX_RECORDING_SOURCE_LAG_SECONDS: f64 = 1.0;
@@ -55,6 +55,9 @@ struct Args {
 }
 
 #[derive(Debug, Subcommand)]
+// These are deliberately full, stable xtask dispatch names in a focused UAV
+// browser binary; the shared prefix is part of the CLI rather than Rust type noise.
+#[allow(clippy::enum_variant_names)]
 enum SmokeCommand {
     /// Repeat headed Console acceptance without restarting or commanding the simulation.
     UavShowcaseBrowserVerify {
@@ -259,16 +262,16 @@ async fn main() -> Result<()> {
             restart_timeout_seconds,
             evidence_root,
         } => {
-            verify_live_view_restarts(
-                &conformance_bin,
-                &scenario,
-                &context,
-                &namespace,
-                &public_base_url,
-                &chrome_cdp_url,
-                Duration::from_secs(restart_timeout_seconds),
-                &evidence_root,
-            )
+            verify_live_view_restarts(RestartVerification {
+                conformance: &conformance_bin,
+                scenario_path: &scenario,
+                context: &context,
+                namespace: &namespace,
+                public_base_url: &public_base_url,
+                chrome_cdp_url: &chrome_cdp_url,
+                restart_timeout: Duration::from_secs(restart_timeout_seconds),
+                evidence_root: &evidence_root,
+            })
             .await
         }
         SmokeCommand::UavRecordingBrowserVerify {
