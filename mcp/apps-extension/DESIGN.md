@@ -15,6 +15,7 @@ Implemented in this workspace.
 |---|---|
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | App discovery and invocation remain ordinary MCP resource, tool, and task traffic. The hosting path uses JSON-RPC 2.0 over Streamable HTTP. |
 | MCP Apps SEP-1865 / `ext-apps` | Version `2026-01-26`, with `ui://` resources, `text/html;profile=mcp-app`, tool-to-app metadata, host context, lifecycle notifications, and the `postMessage` bridge. |
+| Veoveo reactive App resource adapter | Repository-owned extension over MCP Apps `2026-01-26`. A sandboxed App may request ordinary MCP `resources/subscribe` and `resources/unsubscribe`; the Console projects contentless `ui/notifications/resource-updated` wakes from the authenticated pooled MCP session. This adapter is not claimed as part of SEP-1865. |
 | [Veoveo final task extension](../task-extension) | Version `2026-06-30`; app-started durable work retains the same task lifecycle and ownership rules as a normal MCP client. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Linked tool arguments and structured results use the same canonical schemas exposed outside the app. |
 | HTML iframe sandbox and Content Security Policy | HTML runs in an opaque-origin `sandbox="allow-scripts"` frame. The default CSP denies network access; a live-data App may declare exact origins through `_meta.ui.csp`, which the host validates before adding them. Cookies, storage, and same-origin privilege remain absent. |
@@ -96,6 +97,16 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
   tools may start tasks, and a view may only poll tasks it started
   (`servers/view-mcp/assets/preview-app.template.html` is the reference
   task-driving view).
+- **Reactive resources** — the Console intercepts App `resources/subscribe`
+  and `resources/unsubscribe` requests because MCP Apps `2026-01-26` does not
+  include them. The BFF registers one UUID-bound reference on the pooled MCP
+  session and returns a contentless authenticated SSE wake stream. Upstream
+  `notifications/resources/updated` becomes
+  `ui/notifications/resource-updated` inside the opaque frame. Reconnecting
+  the SSE stream reuses its UUID, and multiple frames retain independent
+  references to the one upstream subscription. Authorization expiry closes
+  the stream. Domain state never travels in the wake; the App reads the
+  current resource through the ordinary bridge.
 - **Navigation** — the host's menu merges its static platform views with one
   entry per discovered app (label from the resource title, icon from the
   resource icons). Catalog failures degrade the menu to platform views only;
@@ -141,6 +152,9 @@ The view side of the postMessage protocol (see
   `ui/resource-teardown`.
 - Handle tool/resource failures inline (authorization errors surface as
   ordinary failed requests — degrade to read-only or show the error).
+- A reactive view subscribes only to resources owned by its server, treats
+  each update as a wake to read current state, and unsubscribes during
+  teardown. It does not use a timer as a substitute for resource updates.
 
 ## Why not admin REST
 

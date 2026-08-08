@@ -19,7 +19,15 @@ import {
   type Result,
   type TaskMetadata,
 } from "@modelcontextprotocol/sdk/types.js";
-import { callAppTool, cancelAppTask, getAppTask, getAppTaskResult, readAppResource } from "../api";
+import {
+  appResourceEventsUrl,
+  callAppTool,
+  cancelAppTask,
+  getAppTask,
+  getAppTaskResult,
+  readAppResource,
+  unsubscribeAppResource,
+} from "../api";
 import { appFrameOuterHeight } from "../appFrameSizing";
 import type { AppDescriptor } from "../types";
 import type { AppTheme } from "../theme";
@@ -107,6 +115,123 @@ function interceptTaskRequests(inner: Transport, app: AppDescriptor): Transport 
   return transport;
 }
 
+interface ResourceSubscription {
+  id: string;
+  source: EventSource;
+  opened: boolean;
+}
+
+function resourceOwnedByApp(app: AppDescriptor, uri: string): boolean {
+  return !uri.includes("..") && uri.startsWith(`${app.server}://`) && uri.length > app.server.length + 3;
+}
+
+/**
+ * MCP Apps 2026-01-26 does not carry MCP resource subscribe/unsubscribe or
+ * resource-updated notifications. Veoveo's generic host adapter projects
+ * those three frames through one authenticated SSE wake stream while every
+ * payload read remains an ordinary app-scoped `resources/read`.
+ */
+function interceptResourceSubscriptions(
+  inner: Transport,
+  app: AppDescriptor
+): { transport: Transport; dispose: () => void } {
+  const subscriptions = new Map<string, ResourceSubscription>();
+  const transport: Transport = {
+    start: () => inner.start(),
+    send: (message, options) => inner.send(message, options),
+    close: () => inner.close(),
+  };
+
+  const reply = (id: string | number, result: Result) =>
+    inner.send({ jsonrpc: "2.0", id, result });
+  const reject = (id: string | number, message: string) =>
+    inner.send({
+      jsonrpc: "2.0",
+      id,
+      error: { code: ErrorCode.InternalError, message },
+    });
+  const close = (uri: string) => {
+    const subscription = subscriptions.get(uri);
+    if (!subscription) return Promise.resolve();
+    subscriptions.delete(uri);
+    subscription.source.close();
+    return unsubscribeAppResource(subscription.id);
+  };
+
+  inner.onclose = () => transport.onclose?.();
+  inner.onerror = (error) => transport.onerror?.(error);
+  inner.onmessage = (message, extra) => {
+    if (
+      !isJSONRPCRequest(message) ||
+      (message.method !== "resources/subscribe" && message.method !== "resources/unsubscribe")
+    ) {
+      transport.onmessage?.(message, extra);
+      return;
+    }
+    const { uri } = (message.params ?? {}) as { uri?: unknown };
+    if (typeof uri !== "string" || !resourceOwnedByApp(app, uri)) {
+      void reject(message.id, "resource subscription is not owned by this App's server");
+      return;
+    }
+    if (message.method === "resources/unsubscribe") {
+      void close(uri).then(
+        () => reply(message.id, {}),
+        (error: unknown) => reject(message.id, error instanceof Error ? error.message : String(error))
+      );
+      return;
+    }
+    if (subscriptions.has(uri)) {
+      void reply(message.id, {});
+      return;
+    }
+    const subscriptionId = crypto.randomUUID();
+    const source = new EventSource(
+      appResourceEventsUrl(app.server, app.resourceUri, uri, subscriptionId)
+    );
+    const subscription: ResourceSubscription = {
+      id: subscriptionId,
+      source,
+      opened: false,
+    };
+    subscriptions.set(uri, subscription);
+    source.onopen = () => {
+      if (subscription.opened || subscriptions.get(uri) !== subscription) return;
+      subscription.opened = true;
+      void reply(message.id, {});
+    };
+    source.addEventListener("resource-updated", (event) => {
+      if (subscriptions.get(uri) !== subscription) return;
+      try {
+        const params = JSON.parse((event as MessageEvent<string>).data) as { uri: string };
+        void inner.send({
+          jsonrpc: "2.0",
+          method: "ui/notifications/resource-updated",
+          params,
+        } as never);
+      } catch (error) {
+        transport.onerror?.(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+    source.onerror = () => {
+      if (subscription.opened || subscriptions.get(uri) !== subscription) return;
+      subscriptions.delete(uri);
+      source.close();
+      void reject(message.id, "resource subscription stream failed to open");
+    };
+  };
+
+  return {
+    transport,
+    dispose: () => {
+      for (const uri of [...subscriptions.keys()]) {
+        void close(uri).catch((error: unknown) =>
+          console.error("MCP App resource unsubscribe failed", error)
+        );
+      }
+    },
+  };
+}
+
 export function attachAppBridge(
   iframe: HTMLIFrameElement,
   app: AppDescriptor,
@@ -157,10 +282,14 @@ export function attachAppBridge(
     iframe.style.height = `${appFrameOuterHeight(height, nonContentHeight)}px`;
   });
 
-  const transport = interceptTaskRequests(
-    new PostMessageTransport(iframe.contentWindow, iframe.contentWindow),
-    app
+  const subscriptions = interceptResourceSubscriptions(
+    interceptTaskRequests(
+      new PostMessageTransport(iframe.contentWindow, iframe.contentWindow),
+      app
+    ),
+    app,
   );
+  const transport = subscriptions.transport;
   transport.onerror = (error) => console.error("MCP App transport error", error);
   void bridge.connect(transport).catch((error: unknown) => {
     console.error("MCP App bridge failed", error);
@@ -168,6 +297,7 @@ export function attachAppBridge(
 
   return {
     dispose: () => {
+      subscriptions.dispose();
       void bridge.close();
     },
     notifyToolResult: (result) => {

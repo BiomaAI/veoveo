@@ -9,21 +9,34 @@ use anyhow::Context;
 use chrono::Utc;
 use rmcp::{
     ClientHandler, ServiceExt,
-    model::{ClientCapabilities, ClientInfo, Implementation},
-    service::RunningService,
+    model::{
+        ClientCapabilities, ClientInfo, Implementation, ResourceUpdatedNotificationParam,
+        SubscribeRequestParams, UnsubscribeRequestParams,
+    },
+    service::{NotificationContext, RoleClient, RunningService},
     transport::{
         StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
     },
 };
 use sha2::{Digest, Sha256};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, broadcast};
+use uuid::Uuid;
 
 use crate::{config::Config, outbound_http::OutboundTrust};
 
 /// Console host MCP client: declares the apps extension so servers know an
 /// app-capable host is attached; everything else is default client behavior.
-#[derive(Clone, Default)]
-pub(crate) struct ConsoleHostHandler;
+#[derive(Clone)]
+pub(crate) struct ConsoleHostHandler {
+    resource_updates: broadcast::Sender<String>,
+}
+
+impl Default for ConsoleHostHandler {
+    fn default() -> Self {
+        let (resource_updates, _) = broadcast::channel(128);
+        Self { resource_updates }
+    }
+}
 
 impl ClientHandler for ConsoleHostHandler {
     fn get_info(&self) -> ClientInfo {
@@ -37,6 +50,14 @@ impl ClientHandler for ConsoleHostHandler {
             capabilities,
             Implementation::new("veoveo-console", env!("CARGO_PKG_VERSION")),
         )
+    }
+
+    async fn on_resource_updated(
+        &self,
+        params: ResourceUpdatedNotificationParam,
+        _context: NotificationContext<RoleClient>,
+    ) {
+        let _ = self.resource_updates.send(params.uri);
     }
 }
 
@@ -64,6 +85,14 @@ impl McpAppCatalog {
 pub(crate) struct McpSessionContext {
     service: Arc<RunningMcpSession>,
     app_catalog: Mutex<Option<Arc<McpAppCatalog>>>,
+    resource_updates: broadcast::Sender<String>,
+    app_resource_subscriptions: Mutex<AppResourceSubscriptions>,
+}
+
+#[derive(Default)]
+struct AppResourceSubscriptions {
+    by_id: BTreeMap<Uuid, String>,
+    counts_by_uri: BTreeMap<String, usize>,
 }
 
 impl Deref for McpSessionContext {
@@ -82,6 +111,62 @@ impl McpSessionContext {
             Ok(McpAppCatalog { resources, tools })
         })
         .await
+    }
+
+    /// Register one browser-App subscription on the pooled MCP session.
+    /// EventSource reconnects reuse the same UUID and therefore do not add
+    /// another upstream subscription or reference count.
+    pub(crate) async fn subscribe_app_resource(
+        &self,
+        subscription_id: Uuid,
+        uri: String,
+    ) -> anyhow::Result<broadcast::Receiver<String>> {
+        let receiver = self.resource_updates.subscribe();
+        let mut subscriptions = self.app_resource_subscriptions.lock().await;
+        if let Some(existing) = subscriptions.by_id.get(&subscription_id) {
+            anyhow::ensure!(
+                existing == &uri,
+                "app resource subscription identity is already bound to another URI"
+            );
+            return Ok(receiver);
+        }
+        let first_for_uri = !subscriptions.counts_by_uri.contains_key(&uri);
+        if first_for_uri {
+            self.service
+                .subscribe(SubscribeRequestParams::new(uri.clone()))
+                .await
+                .context("subscribing pooled Console MCP session to App resource")?;
+        }
+        subscriptions.by_id.insert(subscription_id, uri.clone());
+        *subscriptions.counts_by_uri.entry(uri).or_default() += 1;
+        Ok(receiver)
+    }
+
+    /// Release one App subscription. Multiple tabs sharing the same Console
+    /// MCP session retain the one upstream subscription until the final UUID
+    /// closes.
+    pub(crate) async fn unsubscribe_app_resource(
+        &self,
+        subscription_id: Uuid,
+    ) -> anyhow::Result<()> {
+        let mut subscriptions = self.app_resource_subscriptions.lock().await;
+        let Some(uri) = subscriptions.by_id.get(&subscription_id).cloned() else {
+            return Ok(());
+        };
+        let final_for_uri = subscriptions.counts_by_uri.get(&uri).copied() == Some(1);
+        if final_for_uri {
+            self.service
+                .unsubscribe(UnsubscribeRequestParams::new(uri.clone()))
+                .await
+                .context("unsubscribing pooled Console MCP session from App resource")?;
+        }
+        subscriptions.by_id.remove(&subscription_id);
+        if final_for_uri {
+            subscriptions.counts_by_uri.remove(&uri);
+        } else if let Some(count) = subscriptions.counts_by_uri.get_mut(&uri) {
+            *count -= 1;
+        }
+        Ok(())
     }
 }
 
@@ -158,8 +243,10 @@ impl McpSessionPool {
                 // access token rotates.
                 .reinit_on_expired_session(true),
         );
+        let handler = ConsoleHostHandler::default();
         let service = Arc::new(
-            ConsoleHostHandler
+            handler
+                .clone()
                 .serve(transport)
                 .await
                 .context("initializing console MCP session to the gateway")?,
@@ -167,6 +254,8 @@ impl McpSessionPool {
         let session = Arc::new(McpSessionContext {
             service,
             app_catalog: Mutex::new(None),
+            resource_updates: handler.resource_updates,
+            app_resource_subscriptions: Mutex::new(AppResourceSubscriptions::default()),
         });
         sessions.insert(
             key,

@@ -414,3 +414,20 @@ export async function readAppResource(
     body: JSON.stringify({ server, appUri, uri }),
   });
 }
+
+export function appResourceEventsUrl(
+  server: string,
+  appUri: string,
+  uri: string,
+  subscriptionId: string
+): string {
+  const query = new URLSearchParams({ server, appUri, uri, subscriptionId });
+  return `/console/api/apps/resource-events?${query.toString()}`;
+}
+
+export async function unsubscribeAppResource(subscriptionId: string): Promise<void> {
+  await consoleMutation<Record<string, never>>("apps/resource-unsubscribe", {
+    method: "POST",
+    body: JSON.stringify({ subscriptionId }),
+  });
+}
