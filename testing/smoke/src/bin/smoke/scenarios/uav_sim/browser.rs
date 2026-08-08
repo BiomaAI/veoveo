@@ -136,8 +136,8 @@ impl ConsoleLiveCaptureEvidence {
         self.video.source_to_render_p95_ms
     }
 
-    pub(crate) fn motion_to_photon_p95_ms(&self) -> f64 {
-        self.video.motion_to_photon_p95_ms
+    pub(crate) fn composed_motion_to_photon_upper_bound_p95_ms(&self) -> f64 {
+        self.video.composed_motion_to_photon_upper_bound_p95_ms
     }
 }
 
@@ -1711,10 +1711,13 @@ async fn wait_for_console_video_advance(
     second.cadence_dropped_frames = cadence.dropped_video_frames;
     second.source_to_render_p95_ms = cadence.source_to_render_p95_ms;
     second.source_to_render_samples = cadence.source_to_render_samples;
-    second.motion_to_photon_p95_ms = cadence.motion_to_photon_p95_ms;
-    second.capture_to_receive_p95_ms = cadence.capture_to_receive_p95_ms;
-    second.browser_timing_samples = cadence.browser_timing_samples;
-    second.receive_timing_samples = cadence.receive_timing_samples;
+    second.composed_motion_to_photon_upper_bound_p95_ms =
+        cadence.composed_motion_to_photon_upper_bound_p95_ms;
+    second.stream_stats_samples = cadence.stream_stats_samples;
+    second.stream_round_trip_p95_ms = cadence.stream_round_trip_p95_ms;
+    second.stream_decode_p95_ms = cadence.stream_decode_p95_ms;
+    second.stream_frame_loss = cadence.stream_frame_loss;
+    second.stream_packet_loss = cadence.stream_packet_loss;
     Ok(second)
 }
 
@@ -2113,13 +2116,17 @@ struct AppVideoState {
     #[serde(default)]
     source_to_render_samples: u64,
     #[serde(default)]
-    motion_to_photon_p95_ms: f64,
+    composed_motion_to_photon_upper_bound_p95_ms: f64,
     #[serde(default)]
-    capture_to_receive_p95_ms: f64,
+    stream_stats_samples: u64,
     #[serde(default)]
-    browser_timing_samples: u64,
+    stream_round_trip_p95_ms: f64,
     #[serde(default)]
-    receive_timing_samples: u64,
+    stream_decode_p95_ms: f64,
+    #[serde(default)]
+    stream_frame_loss: u64,
+    #[serde(default)]
+    stream_packet_loss: u64,
     mean_luma: f64,
     luma_standard_deviation: f64,
     minimum_luma: u8,
@@ -2180,10 +2187,12 @@ struct VideoCadenceSample {
     dropped_video_frames: u64,
     source_to_render_p95_ms: f64,
     source_to_render_samples: u64,
-    motion_to_photon_p95_ms: f64,
-    capture_to_receive_p95_ms: f64,
-    browser_timing_samples: u64,
-    receive_timing_samples: u64,
+    composed_motion_to_photon_upper_bound_p95_ms: f64,
+    stream_stats_samples: u64,
+    stream_round_trip_p95_ms: f64,
+    stream_decode_p95_ms: f64,
+    stream_frame_loss: u64,
+    stream_packet_loss: u64,
 }
 
 impl VideoCadenceSample {
@@ -2216,13 +2225,19 @@ impl VideoCadenceSample {
             "authoritative camera source-to-render p95 exceeded {MAXIMUM_SOURCE_TO_RENDER_P95_MS:.0} ms or lacked evidence: {self:?}"
         );
         ensure!(
-            self.browser_timing_samples >= self.presented_frame_intervals * 95 / 100
-                && self.receive_timing_samples >= self.presented_frame_intervals * 95 / 100
-                && self.motion_to_photon_p95_ms.is_finite()
-                && (0.0..MAXIMUM_MOTION_TO_PHOTON_P95_MS).contains(&self.motion_to_photon_p95_ms)
-                && self.capture_to_receive_p95_ms.is_finite()
-                && self.capture_to_receive_p95_ms >= 0.0,
-            "native WebRTC motion-to-photon p95 exceeded {MAXIMUM_MOTION_TO_PHOTON_P95_MS:.0} ms or lacked capture timing: {self:?}"
+            self.stream_stats_samples > 0
+                && self.stream_round_trip_p95_ms.is_finite()
+                && self.stream_round_trip_p95_ms >= 0.0
+                && self.stream_decode_p95_ms.is_finite()
+                && self.stream_decode_p95_ms >= 0.0
+                && self.stream_frame_loss == 0
+                && self.stream_packet_loss == 0
+                && self
+                    .composed_motion_to_photon_upper_bound_p95_ms
+                    .is_finite()
+                && (0.0..MAXIMUM_MOTION_TO_PHOTON_P95_MS)
+                    .contains(&self.composed_motion_to_photon_upper_bound_p95_ms),
+            "native WebRTC composed motion-to-photon upper bound exceeded {MAXIMUM_MOTION_TO_PHOTON_P95_MS:.0} ms or lacked NVIDIA stream statistics: {self:?}"
         );
         Ok(())
     }
@@ -3047,9 +3062,10 @@ const APP_FRAME_GRID_VIDEO_STATES: &str = r#"(() => {
 const APP_FRAME_VIDEO_CADENCE: &str = r#"new Promise((resolve,reject)=>{
   const video=document.querySelector("video");
   if(!video?.requestVideoFrameCallback){reject(new Error("requestVideoFrameCallback is unavailable"));return;}
-  const warmupFrames=12,sampleIntervals=48;
+  const view=video.closest(".view"),cameraId=view?.id?.startsWith("view-")?view.id.slice(5):"",player=players.get(cameraId);
+  if(!player){reject(new Error("native stream player is unavailable"));return;}
+  const warmupFrames=12,sampleIntervals=48,initialStats=player.streamStats.length;
   let callbacks=0,firstNow=0,firstMediaTime=0,qualityBefore=null,finished=false;
-  const captureToDisplay=[],captureToReceive=[];
   const p95=values=>{const ordered=[...values].sort((a,b)=>a-b);return ordered.length?ordered[Math.max(0,Math.ceil(ordered.length*0.95)-1)]:-1;};
   const timeout=setTimeout(()=>{
     if(finished)return;
@@ -3064,29 +3080,31 @@ const APP_FRAME_VIDEO_CADENCE: &str = r#"new Promise((resolve,reject)=>{
       firstMediaTime=metadata.mediaTime;
       qualityBefore=video.getVideoPlaybackQuality?.() ?? {totalVideoFrames:0,droppedVideoFrames:0};
     }
-    if(callbacks>warmupFrames&&Number.isFinite(metadata.captureTime)){
-      const displayTime=Number.isFinite(metadata.expectedDisplayTime)?metadata.expectedDisplayTime:now;
-      captureToDisplay.push(Math.max(0,displayTime-metadata.captureTime));
-      if(Number.isFinite(metadata.receiveTime))captureToReceive.push(Math.max(0,metadata.receiveTime-metadata.captureTime));
-    }
-    if(callbacks===warmupFrames+sampleIntervals){
+    const stats=player.streamStats.slice(initialStats);
+    if(callbacks>=warmupFrames+sampleIntervals&&stats.length){
       const qualityAfter=video.getVideoPlaybackQuality?.() ?? qualityBefore;
       finished=true;
       clearTimeout(timeout);
-      const view=video.closest(".view"),liveViewId=view?.dataset.liveViewId??"";
-      read(`uav-sim://session/${sessionId}/live-view/${liveViewId}`).then(live=>resolve({
-        intervalSeconds:(now-firstNow)/1000,
+      const liveViewId=view?.dataset.liveViewId??"",intervalSeconds=(now-firstNow)/1000,presentedFrameIntervals=callbacks-warmupFrames;
+      read(`uav-sim://session/${sessionId}/live-view/${liveViewId}`).then(live=>{
+        const sourceToRenderP95Ms=Number(live.sourceToRenderP95Microseconds??-1000)/1000;
+        const streamFps=p95(stats.map(value=>value.fps)),roundTripP95Ms=p95(stats.map(value=>value.rtd)),decodeP95Ms=p95(stats.map(value=>value.avgDecodeTime));
+        const boundedFps=Math.max(1,Math.min(streamFps,presentedFrameIntervals/intervalSeconds));
+        resolve({
+        intervalSeconds,
         mediaTimeSeconds:metadata.mediaTime-firstMediaTime,
-        presentedFrameIntervals:sampleIntervals,
+        presentedFrameIntervals,
         decodedVideoFrames:Math.max(0,(qualityAfter?.totalVideoFrames??0)-(qualityBefore?.totalVideoFrames??0)),
         droppedVideoFrames:Math.max(0,(qualityAfter?.droppedVideoFrames??0)-(qualityBefore?.droppedVideoFrames??0)),
-        sourceToRenderP95Ms:Number(live.sourceToRenderP95Microseconds??-1000)/1000,
+        sourceToRenderP95Ms,
         sourceToRenderSamples:Number(live.sourceToRenderSamples??0),
-        motionToPhotonP95Ms:p95(captureToDisplay),
-        captureToReceiveP95Ms:p95(captureToReceive),
-        browserTimingSamples:captureToDisplay.length,
-        receiveTimingSamples:captureToReceive.length
-      })).catch(reject);
+        composedMotionToPhotonUpperBoundP95Ms:sourceToRenderP95Ms+roundTripP95Ms+decodeP95Ms+2000/boundedFps,
+        streamStatsSamples:stats.length,
+        streamRoundTripP95Ms:roundTripP95Ms,
+        streamDecodeP95Ms:decodeP95Ms,
+        streamFrameLoss:Math.max(...stats.map(value=>value.frameLoss)),
+        streamPacketLoss:Math.max(...stats.map(value=>value.packetLoss))
+      });}).catch(reject);
       return;
     }
     video.requestVideoFrameCallback(observe);
@@ -3238,10 +3256,12 @@ mod tests {
             dropped_video_frames: 0,
             source_to_render_p95_ms: 18.0,
             source_to_render_samples: 48,
-            motion_to_photon_p95_ms: 85.0,
-            capture_to_receive_p95_ms: 42.0,
-            browser_timing_samples: 48,
-            receive_timing_samples: 48,
+            composed_motion_to_photon_upper_bound_p95_ms: 85.0,
+            stream_stats_samples: 2,
+            stream_round_trip_p95_ms: 7.0,
+            stream_decode_p95_ms: 2.0,
+            stream_frame_loss: 0,
+            stream_packet_loss: 0,
         };
         accepted.validate(24.0).unwrap();
 
@@ -3258,7 +3278,7 @@ mod tests {
         assert!(stale_pipeline.validate(24.0).is_err());
 
         let slow_transport = VideoCadenceSample {
-            motion_to_photon_p95_ms: 200.0,
+            composed_motion_to_photon_upper_bound_p95_ms: 200.0,
             ..accepted
         };
         assert!(slow_transport.validate(24.0).is_err());
