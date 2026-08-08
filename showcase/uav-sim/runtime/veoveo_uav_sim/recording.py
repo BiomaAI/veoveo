@@ -109,10 +109,7 @@ class RecordedH264CameraStream:
         self._set_time(simulation_time_s, physics_step)
         self._recording.log(
             self._entity_path,
-            _video_packet(
-                access_unit.sample,
-                is_keyframe=access_unit.is_keyframe,
-            ),
+            _video_packet(access_unit.sample),
         )
 
     def _set_time(self, simulation_time_s: float, physics_step: int) -> None:
@@ -120,13 +117,8 @@ class RecordedH264CameraStream:
         self._recording.set_time("physics_step", sequence=physics_step)
 
 
-def _video_packet(sample: bytes, *, is_keyframe: bool = False) -> rr.VideoStream:
-    fields: dict[str, object] = {
-        "sample": sample,
-    }
-    if is_keyframe:
-        fields["is_keyframe"] = True
-    return rr.VideoStream.from_fields(**fields)
+def _video_packet(sample: bytes) -> rr.VideoStream:
+    return rr.VideoStream.from_fields(sample=sample)
 
 
 class RecordingPublisher:
