@@ -221,7 +221,13 @@ class IsaacFleetPhysicsBatch:
         velocities = self._rigid_body_view.get_velocities()
         self._warp.copy(self._transforms_host, transforms)
         self._warp.copy(self._velocities_host, velocities)
-        self._warp.synchronize_device(self._device)
+        # Wait only for this simulation thread's current Warp stream. A
+        # device-wide barrier also waits for RTX, NVENC and native WebRTC work
+        # owned by other frameworks on the same GPU, which lets a viewer stall
+        # authoritative physics. The two device-to-host copies above are
+        # ordered on the current stream, so this is the narrow synchronization
+        # boundary required before reading their NumPy views.
+        self._warp.synchronize_stream(self._device)
         assert self._transforms_numpy is not None
         assert self._velocities_numpy is not None
         self._accumulator.update_states(

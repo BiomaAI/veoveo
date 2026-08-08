@@ -1,18 +1,5 @@
 from __future__ import annotations
 
-import math
-
-
-MAXIMUM_NATIVE_PHYSICS_SUBSTEPS = 60
-
-
-def native_minimum_frame_rate(physics_hz: int) -> int:
-    """Admit one second of native PhysX catch-up without a Python clock."""
-    if physics_hz < 1:
-        raise ValueError("physics cadence must be positive")
-    return max(1, math.ceil(physics_hz / MAXIMUM_NATIVE_PHYSICS_SUBSTEPS))
-
-
 class FixedStepCadenceGate:
     """Select an exact rational output cadence from monotonic physics steps."""
 
@@ -33,3 +20,26 @@ class FixedStepCadenceGate:
 
     def reset(self) -> None:
         self._last_step = 0
+
+
+class PhysicsRenderSchedule:
+    """Partition exact fixed physics steps across fixed render updates."""
+
+    def __init__(self, physics_hz: int, rendering_hz: int) -> None:
+        if physics_hz < 1 or rendering_hz < 1 or rendering_hz > physics_hz:
+            raise ValueError("physics/render cadence is invalid")
+        self._physics_hz = physics_hz
+        self._rendering_hz = rendering_hz
+        self._remainder = 0
+
+    def next_step_count(self) -> int:
+        self._remainder += self._physics_hz
+        step_count, self._remainder = divmod(
+            self._remainder, self._rendering_hz
+        )
+        if step_count < 1:
+            raise RuntimeError("render update omitted its authoritative physics step")
+        return step_count
+
+    def reset(self) -> None:
+        self._remainder = 0

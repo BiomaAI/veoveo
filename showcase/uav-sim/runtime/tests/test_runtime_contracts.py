@@ -40,9 +40,8 @@ from veoveo_uav_sim.physical_camera import (
 )
 from veoveo_uav_sim.px4 import Px4Commander, Px4CommandRejected
 from veoveo_uav_sim.realtime import (
-    MAXIMUM_NATIVE_PHYSICS_SUBSTEPS,
     FixedStepCadenceGate,
-    native_minimum_frame_rate,
+    PhysicsRenderSchedule,
 )
 from veoveo_uav_sim.runtime_events import (
     RUNTIME_EVENT_SCHEMA,
@@ -179,13 +178,6 @@ class RuntimeConfigTests(unittest.TestCase):
         np.testing.assert_allclose(
             converted, [0.0, 0.0, -math.sqrt(0.5), -math.sqrt(0.5)]
         )
-
-    def test_native_catch_up_preserves_long_streamed_world_frames(self) -> None:
-        self.assertEqual(MAXIMUM_NATIVE_PHYSICS_SUBSTEPS, 60)
-        self.assertEqual(native_minimum_frame_rate(60), 1)
-        self.assertEqual(native_minimum_frame_rate(100), 2)
-        with self.assertRaisesRegex(ValueError, "physics cadence must be positive"):
-            native_minimum_frame_rate(0)
 
     def test_px4_sensor_cadence_is_bounded_by_the_physics_clock(self) -> None:
         PX4_IRIS_SENSOR_CADENCE.validate_for_physics(60)
@@ -338,16 +330,20 @@ class RuntimeConfigTests(unittest.TestCase):
         ).read_text()
         self.assertIn("CreateHorizontalApertureAttr", operator_camera_source)
 
+        hydra_camera_source = (
+            Path(__file__).parents[1] / "veoveo_uav_sim" / "hydra_camera.py"
+        ).read_text()
+        operator_product_source = (
+            Path(__file__).parents[1]
+            / "veoveo_uav_sim"
+            / "operator_products.py"
+        ).read_text()
         product_sources = "".join(
-            (
-                Path(__file__).parents[1]
-                / "veoveo_uav_sim"
-                / source_name
-            ).read_text()
-            for source_name in ("hydra_camera.py", "operator_products.py")
+            (hydra_camera_source, operator_product_source)
         )
         self.assertEqual(product_sources.count("get_frame_info"), 1)
-        self.assertEqual(product_sources.count("is_async_low_latency=False"), 2)
+        self.assertIn("is_async_low_latency=False", hydra_camera_source)
+        self.assertIn("is_async_low_latency=False", operator_product_source)
 
     def test_physical_capture_requests_are_coalesced(self) -> None:
         requests = CaptureRequestState()
@@ -1010,7 +1006,7 @@ class RigidBodyBatchTests(unittest.TestCase):
         np.testing.assert_array_equal(batch.forces, np.zeros((1, 3)))
         np.testing.assert_array_equal(batch.torques, np.zeros((1, 3)))
 
-    def test_submitted_tensor_uses_the_live_warp_owned_accumulator(self) -> None:
+    def test_tensor_batch_uses_live_buffers_and_stream_local_sync(self) -> None:
         class FakeArray:
             def __init__(self, value: np.ndarray) -> None:
                 self.value = value
@@ -1029,7 +1025,7 @@ class RigidBodyBatchTests(unittest.TestCase):
             uint32 = np.uint32
 
             def __init__(self) -> None:
-                self.synchronized = False
+                self.stream_syncs = 0
 
             def get_device(self, _device: object) -> FakeDevice:
                 return FakeDevice()
@@ -1056,13 +1052,34 @@ class RigidBodyBatchTests(unittest.TestCase):
                 np.copyto(target.value, source.value)
 
             def synchronize_stream(self, _device: object) -> None:
-                self.synchronized = True
+                self.stream_syncs += 1
+
+            def synchronize_device(self, _device: object) -> None:
+                raise AssertionError(
+                    "fleet physics must not synchronize unrelated GPU streams"
+                )
 
         class FakeRigidBodyView:
             prim_paths = ("/World/uav_1/body",)
 
             def __init__(self) -> None:
                 self.submitted_forces: np.ndarray | None = None
+
+            def get_transforms(self) -> FakeArray:
+                return FakeArray(
+                    np.array(
+                        [[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]],
+                        dtype=np.float32,
+                    )
+                )
+
+            def get_velocities(self) -> FakeArray:
+                return FakeArray(
+                    np.array(
+                        [[4.0, 5.0, 6.0, 0.1, 0.2, 0.3]],
+                        dtype=np.float32,
+                    )
+                )
 
             def apply_forces_and_torques_at_position(
                 self,
@@ -1090,10 +1107,14 @@ class RigidBodyBatchTests(unittest.TestCase):
         physics_view = FakeSimulationView()
         with patch.dict(sys.modules, {"warp": fake_warp}):
             batch = IsaacFleetPhysicsBatch(("/World/uav_1/body",), physics_view)
+            batch.refresh_states()
+            state = batch.state("/World/uav_1/body")
             batch.queue_force("/World/uav_1/body", (0.0, 0.0, 4.0), (0.0, 0.0, 0.0))
             batch.flush_forces()
 
-        self.assertTrue(fake_warp.synchronized)
+        self.assertEqual(fake_warp.stream_syncs, 2)
+        np.testing.assert_array_equal(state.position_xyz, [1.0, 2.0, 3.0])
+        np.testing.assert_array_equal(state.linear_velocity_xyz, [4.0, 5.0, 6.0])
         np.testing.assert_array_equal(
             physics_view.rigid_body_view.submitted_forces,
             [0.0, 0.0, 4.0],
@@ -1177,16 +1198,28 @@ class _FleetLoopCommander:
 
 
 class NativeCadenceTests(unittest.TestCase):
-    def test_runtime_uses_measured_native_updates_with_physics_substeps(self) -> None:
+    def test_runtime_orders_fixed_physics_before_one_render_update(self) -> None:
         app_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py"
         ).read_text()
-        self.assertIn("world.step(render=True)", app_source)
-        self.assertIn("loop_runner.set_manual_mode(False)", app_source)
-        self.assertIn('"/persistent/simulation/minFrameRate"', app_source)
+        self.assertIn("world.step(render=False)", app_source)
+        self.assertIn("world.render()", app_source)
+        self.assertNotIn("world.step(render=True)", app_source)
+        self.assertIn("loop_runner.set_manual_mode(True)", app_source)
         self.assertNotIn("RealtimePhysicsClock", app_source)
         self.assertNotIn("PeriodicDeadline", app_source)
         self.assertNotIn("time.sleep(wait_seconds)", app_source)
+
+    def test_render_schedule_partitions_exact_rational_physics_steps(self) -> None:
+        schedule = PhysicsRenderSchedule(60, 24)
+        first_second = [schedule.next_step_count() for _ in range(24)]
+        self.assertEqual(first_second, [2, 3] * 12)
+        self.assertEqual(sum(first_second), 60)
+        schedule.reset()
+        self.assertEqual(schedule.next_step_count(), 2)
+
+        with self.assertRaisesRegex(ValueError, "invalid"):
+            PhysicsRenderSchedule(24, 60)
 
     def test_physics_step_gate_selects_exact_render_cadence(self) -> None:
         gate = FixedStepCadenceGate(60, 30)
