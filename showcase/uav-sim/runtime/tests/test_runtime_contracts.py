@@ -612,8 +612,8 @@ class RuntimeConfigTests(unittest.TestCase):
             "def _video_packet(", maxsplit=1
         )[1].split("\n\n\nclass RecordingPublisher:", maxsplit=1)[0]
         self.assertNotIn('"codec"', video_packet_source)
-        self.assertIn('"sample": sample', video_packet_source)
-        self.assertIn('fields["is_keyframe"] = True', video_packet_source)
+        self.assertIn("rr.VideoStream.from_fields(sample=sample)", video_packet_source)
+        self.assertNotIn("is_keyframe", video_packet_source)
         publish_source = camera_stream_source.split(
             "    def publish(", maxsplit=1
         )[1].split("    def _set_time(", maxsplit=1)[0]

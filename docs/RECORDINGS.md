@@ -10,7 +10,7 @@
 | Fetch Standard and Veoveo framed RRD stream v2 | One authenticated same-origin GET carries unsigned four-byte big-endian lengths followed by complete RRD payloads. The exact media type is `application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=2`. The required start header distinguishes an empty-channel bootstrap from a current-head resume on an existing Rerun channel. |
 | Veoveo recording ingest `2026-08-06` | Authenticated protobuf batches and distinct producer Blueprint publications preserve native Rerun store identities, order, idempotency, decoder-reentrant rollover, and policy-scoped single-recording replacement. |
 | Veoveo recording playback `v8` | `veoveo.io/recording-playback/v8` binds one producer Blueprint, one lazy archive dataset, one optional recording-scoped `rerun_rrd_channel_v2` live source, catalog revision, and scoped session. Console selects exactly one recording receiver at a time. |
-| H.264/AVC Annex B | Decoder-reentrant `VideoStream` access units, sparse keyframe markers, and exact producer timeline indices. |
+| H.264/AVC Annex B | Decoder-reentrant `VideoStream` access units and exact producer timeline indices. Archive materialization derives canonical sparse keyframe markers from encoded bytes; the Rerun 0.35 live-view adapter omits marker columns and preserves dense sample chunks. |
 | JSON Web Token and SHA-256 | Host-limited Redap read access and immutable shard, layer-revision, and artifact identities. |
 
 Recording ingest begins at a producer-local forwarder. Native Rerun gRPC stays
@@ -229,8 +229,12 @@ HA and a distributed recording filesystem are outside the current contract.
 
 Encoded camera streams use the canonical H.264 `VideoStream` profile documented
 in [`servers/stream-mcp/DESIGN.md`](../servers/stream-mcp/DESIGN.md).
-Keyframes use sparse `is_keyframe=true` markers; non-keyframe samples omit the
-component. This shape is required by Rerun's video cache and GoP rebatching.
+Producers log one sample-only update for each encoded access unit. Hub derives
+decoder-reentrant boundaries from the Annex B bytes. Archive materialization
+adds canonical sparse `is_keyframe=true` markers for GoP rebatching and indexed
+playback. The bounded Rerun 0.35 live adapter removes marker columns after
+compaction because that viewer derives sync samples from H.264 bytes and indexes
+the sample component as dense within each physical chunk.
 Stream replay and Reason accept frozen or sealed RRD segments and task-start
 snapshots of complete acknowledged ingest parts. Video readers merge authorized
 sources when a requested clip crosses a source boundary. The authenticated
