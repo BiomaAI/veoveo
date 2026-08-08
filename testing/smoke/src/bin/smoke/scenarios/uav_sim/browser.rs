@@ -1742,7 +1742,7 @@ async fn wait_for_console_video_advance(
     expected_camera_id: &str,
     first: AppVideoState,
 ) -> Result<AppVideoState> {
-    let cadence: VideoCadenceSample = evaluate_console_app(
+    let startup_cadence: VideoCadenceSample = evaluate_console_app(
         cdp,
         target_id,
         session_id,
@@ -1751,6 +1751,22 @@ async fn wait_for_console_video_advance(
         true,
     )
     .await?;
+    let cadence = if startup_cadence.needs_steady_state_sample(first.declared_frame_rate_hz) {
+        eprintln!(
+            "native WebRTC startup window is still warming; requiring one strict steady-state window: {startup_cadence:?}"
+        );
+        evaluate_console_app(
+            cdp,
+            target_id,
+            session_id,
+            "uav-sim",
+            APP_FRAME_VIDEO_CADENCE,
+            true,
+        )
+        .await?
+    } else {
+        startup_cadence
+    };
     let mut second = wait_for_console_video(cdp, target_id, session_id, expected_camera_id).await?;
     ensure!(
         second.document_epoch_ms == first.document_epoch_ms
@@ -2255,6 +2271,27 @@ struct VideoCadenceSample {
 impl VideoCadenceSample {
     fn observed_frame_rate_hz(&self) -> f64 {
         self.presented_frame_intervals as f64 / self.interval_seconds
+    }
+
+    fn needs_steady_state_sample(&self, declared_frame_rate_hz: f64) -> bool {
+        self.interval_seconds > 0.0
+            && self.media_time_seconds > 0.0
+            && self.presented_frame_intervals >= 48
+            && declared_frame_rate_hz > 0.0
+            && (self.observed_frame_rate_hz() < MINIMUM_DELIVERED_FRAME_RATE_HZ
+                || self.source_to_render_samples < 12
+                || !self.source_to_render_p95_ms.is_finite()
+                || self.source_to_render_p95_ms >= MAXIMUM_SOURCE_TO_RENDER_P95_MS
+                || self.stream_stats_samples == 0
+                || !self.stream_round_trip_p95_ms.is_finite()
+                || !self.stream_decode_p95_ms.is_finite()
+                || self.stream_frame_loss > 0
+                || self.stream_packet_loss > 0
+                || !self
+                    .composed_motion_to_photon_upper_bound_p95_ms
+                    .is_finite()
+                || self.composed_motion_to_photon_upper_bound_p95_ms
+                    >= MAXIMUM_MOTION_TO_PHOTON_P95_MS)
     }
 
     fn validate(&self, declared_frame_rate_hz: f64) -> Result<()> {
@@ -3335,24 +3372,28 @@ mod tests {
             stream_packet_loss: 0,
         };
         accepted.validate(24.0).unwrap();
+        assert!(!accepted.needs_steady_state_sample(24.0));
 
         let slow = VideoCadenceSample {
             interval_seconds: 5.0,
             ..accepted
         };
         assert!(slow.validate(24.0).is_err());
+        assert!(slow.needs_steady_state_sample(24.0));
 
         let stale_pipeline = VideoCadenceSample {
             source_to_render_p95_ms: 85.0,
             ..accepted
         };
         assert!(stale_pipeline.validate(24.0).is_err());
+        assert!(stale_pipeline.needs_steady_state_sample(24.0));
 
         let slow_transport = VideoCadenceSample {
             composed_motion_to_photon_upper_bound_p95_ms: 250.0,
             ..accepted
         };
         assert!(slow_transport.validate(24.0).is_err());
+        assert!(slow_transport.needs_steady_state_sample(24.0));
     }
 
     #[test]
