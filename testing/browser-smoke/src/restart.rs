@@ -56,9 +56,12 @@ struct KubernetesPod {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct KubernetesMetadata {
     name: String,
     uid: String,
+    #[serde(default)]
+    deletion_timestamp: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -77,6 +80,7 @@ struct KubernetesContainerStatus {
     name: String,
     ready: bool,
     restart_count: u32,
+    #[serde(default)]
     image_id: String,
     #[serde(default)]
     container_id: String,
@@ -383,11 +387,17 @@ async fn current_uav_pod(
         timeout,
     )
     .await?;
-    let mut pods: KubernetesPodList =
+    let pods: KubernetesPodList =
         serde_json::from_slice(&output).context("decoding authoritative simulator pod list")?;
+    select_current_uav_pod(pods)
+}
+
+fn select_current_uav_pod(mut pods: KubernetesPodList) -> Result<KubernetesPod> {
+    pods.items
+        .retain(|pod| pod.metadata.deletion_timestamp.is_none());
     ensure!(
         pods.items.len() == 1,
-        "restart acceptance requires exactly one authoritative simulator pod, found {}",
+        "restart acceptance requires exactly one non-terminating authoritative simulator pod, found {}",
         pods.items.len()
     );
     Ok(pods.items.remove(0))
@@ -431,7 +441,7 @@ async fn request_container_restart(
             "--",
             "/bin/sh",
             "-c",
-            "kill -TERM 1",
+            "set -- $(cat /proc/1/task/1/children); [ \"$#\" -eq 1 ]; kill -TERM \"$1\"",
         ])
         .kill_on_drop(true)
         .stdout(Stdio::piped())
@@ -471,4 +481,49 @@ async fn kubectl_checked<const N: usize>(
         String::from_utf8_lossy(&output.stderr)
     );
     Ok(output.stdout)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn current_pod_selection_ignores_a_terminating_status_without_image_id() {
+        let pods: KubernetesPodList = serde_json::from_value(serde_json::json!({
+            "items": [
+                {
+                    "metadata": {
+                        "name": "uav-sim-old",
+                        "uid": "old",
+                        "deletionTimestamp": "2026-08-08T04:00:00Z"
+                    },
+                    "status": {
+                        "phase": "Running",
+                        "containerStatuses": [{
+                            "name": "uav-sim-mcp",
+                            "ready": false,
+                            "restartCount": 0
+                        }]
+                    }
+                },
+                {
+                    "metadata": {"name": "uav-sim-current", "uid": "current"},
+                    "status": {
+                        "phase": "Running",
+                        "containerStatuses": [{
+                            "name": "uav-sim-mcp",
+                            "ready": true,
+                            "restartCount": 0,
+                            "imageId": "registry.example/uav-sim-mcp@sha256:abc",
+                            "containerId": "containerd://current"
+                        }]
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        let selected = select_current_uav_pod(pods).unwrap();
+        assert_eq!(selected.metadata.name, "uav-sim-current");
+    }
 }
