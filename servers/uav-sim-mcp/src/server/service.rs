@@ -1142,6 +1142,8 @@ pub(super) async fn serve() -> anyhow::Result<()> {
             super::runtime_events::RuntimeEventListener::bind(
                 &args.runtime_event_socket,
                 runtime_session_id,
+                args.world_bootstrap_file.clone(),
+                adapter.clone(),
             )
         })
         .transpose()?;

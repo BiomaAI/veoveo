@@ -490,6 +490,9 @@
 
   - Existing slot assignments disappear.
   - Existing viewers disconnect.
+  - A pod-local adapter-ready edge causes the existing MCP companion to reapply the same
+    installation-owned immutable world binding. This is an event-triggered configuration
+    handoff, not desired-state polling or a periodic replay loop.
   - Native WebRTC stop or signaling failure starts a bounded reconnect sequence for each
     selected camera. This is connection recovery, not status polling.
   - A subscribed live-camera resource update immediately retries selected cameras that
