@@ -17,9 +17,10 @@ mod browser;
 mod restart;
 
 use browser::{
-    ConsoleLiveCaptureEvidence, ConsoleLiveGridEvidence, ConsoleRecordingCaptureEvidence,
-    capture_console_live_app, capture_console_live_app_grid, capture_console_live_app_pair,
-    capture_console_recording, preflight_console_live_app,
+    ConsoleLiveCaptureEvidence, ConsoleLiveGridEvidence, ConsoleRecordingArchiveCaptureEvidence,
+    ConsoleRecordingCaptureEvidence, capture_console_live_app, capture_console_live_app_grid,
+    capture_console_live_app_pair, capture_console_recording, capture_console_recording_archive,
+    preflight_console_live_app,
 };
 use restart::{RestartVerification, verify_live_view_restarts};
 
@@ -113,6 +114,20 @@ enum SmokeCommand {
         #[arg(long, default_value = "output/acceptance/uav-recording-browser")]
         evidence_root: PathBuf,
     },
+    /// Verify one governed sealed Recording through the lazy Redap archive path.
+    UavRecordingArchiveBrowserVerify {
+        #[arg(long)]
+        recording_id: String,
+        #[arg(long)]
+        public_base_url: String,
+        #[arg(long, default_value = "http://127.0.0.1:9222")]
+        chrome_cdp_url: String,
+        #[arg(
+            long,
+            default_value = "output/acceptance/uav-recording-archive-browser"
+        )]
+        evidence_root: PathBuf,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -159,6 +174,17 @@ struct RecordingBrowserAcceptanceEvidence {
     recording_source_lag_seconds: f64,
     source_alignment: SourceTimelineAlignmentEvidence,
     recording: ConsoleRecordingCaptureEvidence,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RecordingArchiveBrowserAcceptanceEvidence {
+    schema: &'static str,
+    completed_at: chrono::DateTime<Utc>,
+    source_revision: String,
+    run_id: String,
+    recording_id: String,
+    recording: ConsoleRecordingArchiveCaptureEvidence,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -290,7 +316,71 @@ async fn main() -> Result<()> {
             )
             .await
         }
+        SmokeCommand::UavRecordingArchiveBrowserVerify {
+            recording_id,
+            public_base_url,
+            chrome_cdp_url,
+            evidence_root,
+        } => {
+            verify_recording_archive(
+                &recording_id,
+                &public_base_url,
+                &chrome_cdp_url,
+                &evidence_root,
+            )
+            .await
+        }
     }
+}
+
+async fn verify_recording_archive(
+    recording_id: &str,
+    public_base_url: &str,
+    chrome_cdp_url: &str,
+    evidence_root: &Path,
+) -> Result<()> {
+    ensure!(
+        uuid::Uuid::parse_str(recording_id)?.get_version_num() == 7,
+        "archive recording identity must be UUIDv7"
+    );
+    let public_base_url = public_base_url.trim_end_matches('/');
+    ensure!(
+        url::Url::parse(public_base_url)?.scheme() == "https",
+        "focused archive browser acceptance requires public HTTPS"
+    );
+    let source_revision = git_revision()?;
+    let run_id = uuid::Uuid::now_v7().to_string();
+    let evidence_directory = evidence_root.join(&source_revision).join(&run_id);
+    fs::create_dir_all(&evidence_directory).with_context(|| {
+        format!(
+            "creating recording archive evidence directory {}",
+            evidence_directory.display()
+        )
+    })?;
+    let recording = capture_console_recording_archive(
+        chrome_cdp_url,
+        public_base_url,
+        recording_id,
+        &evidence_directory.join("recording-archive.png"),
+        Duration::from_secs(300),
+    )
+    .await?;
+    let evidence = RecordingArchiveBrowserAcceptanceEvidence {
+        schema: "veoveo.io/uav-recording-archive-browser-evidence/v1",
+        completed_at: Utc::now(),
+        source_revision,
+        run_id,
+        recording_id: recording_id.to_owned(),
+        recording,
+    };
+    let manifest = evidence_directory.join("evidence.json");
+    fs::write(&manifest, serde_json::to_vec_pretty(&evidence)?)
+        .with_context(|| format!("writing recording archive evidence {}", manifest.display()))?;
+    println!(
+        "Focused recording archive browser acceptance passed. Evidence: {}",
+        manifest.display()
+    );
+    Ok(())
 }
 
 async fn verify_running_recording(

@@ -201,6 +201,24 @@ pub(super) fn analyze_rerun_camera_render(
     })
 }
 
+pub(super) fn analyze_rerun_camera_frame(
+    screenshot_path: &Path,
+    viewer_bounds: ElementBounds,
+) -> Result<RerunRenderEvidence> {
+    let screenshot = fs::read(screenshot_path).with_context(|| {
+        format!(
+            "reading archived Rerun camera screenshot {}",
+            screenshot_path.display()
+        )
+    })?;
+    let pixels = image::load_from_memory(&screenshot)
+        .context("decoding archived Rerun camera screenshot")?
+        .to_rgb8();
+    let render = analyze_rerun_pixels(&pixels, viewer_bounds, [0.63, 0.15, 0.96, 0.34])?;
+    render.validate_content(240, 120)?;
+    Ok(render)
+}
+
 fn analyze_rerun_pixels(
     pixels: &image::RgbImage,
     viewer_bounds: ElementBounds,
@@ -717,6 +735,41 @@ mod tests {
             ..evidence
         };
         assert!(completed.validate().is_err());
+    }
+
+    #[test]
+    fn archive_playback_requires_the_complete_redap_read_subset() {
+        let successful_redap_paths = [
+            "WhoAmI",
+            "FindEntries",
+            "ReadDatasetEntry",
+            "GetRrdManifest",
+            "GetSegmentTableSchema",
+        ]
+        .map(|method| format!("/rerun.cloud.v1alpha1.RerunCloudService/{method}"))
+        .to_vec();
+        let evidence = RecordingPlaybackNetworkEvidence {
+            playback_mode: RecordingPlaybackMode::Archive,
+            manifest_responses: 1,
+            redap_responses: successful_redap_paths.len(),
+            live_responses: 0,
+            completed_live_responses: 0,
+            blueprint_responses: 1,
+            legacy_archive_requests: 0,
+            canceled_playback_requests: 0,
+            cancellations: Vec::new(),
+            failed_playback_requests: 0,
+            failures: Vec::new(),
+            redap_paths: successful_redap_paths.clone(),
+            successful_redap_paths,
+        };
+        evidence.validate().unwrap();
+
+        let mixed = RecordingPlaybackNetworkEvidence {
+            live_responses: 1,
+            ..evidence
+        };
+        assert!(mixed.validate().is_err());
     }
 
     #[test]

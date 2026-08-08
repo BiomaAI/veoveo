@@ -152,6 +152,7 @@ fn dispatcher_binary(arguments: &[OsString]) -> Result<CargoBinary> {
         "uav-showcase-browser-verify"
             | "uav-showcase-live-restart-verify"
             | "uav-recording-browser-verify"
+            | "uav-recording-archive-browser-verify"
     ) {
         Ok(BROWSER_SMOKE)
     } else {
@@ -330,6 +331,12 @@ mod tests {
     #[test]
     fn recording_browser_acceptance_uses_the_focused_harness() {
         let arguments = [OsString::from("uav-recording-browser-verify")];
+        assert_eq!(dispatcher_binary(&arguments).unwrap(), BROWSER_SMOKE);
+    }
+
+    #[test]
+    fn recording_archive_browser_acceptance_uses_the_focused_harness() {
+        let arguments = [OsString::from("uav-recording-archive-browser-verify")];
         assert_eq!(dispatcher_binary(&arguments).unwrap(), BROWSER_SMOKE);
     }
 

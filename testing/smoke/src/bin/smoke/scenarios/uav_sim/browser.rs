@@ -15,8 +15,8 @@ use url::Url;
 use super::*;
 use recording_acceptance::{
     ElementBounds, RecordingPlaybackMode, RecordingPlaybackNetworkEvidence,
-    RerunCameraRenderEvidence, RerunRenderEvidence, analyze_rerun_camera_render,
-    analyze_rerun_render,
+    RerunCameraRenderEvidence, RerunRenderEvidence, analyze_rerun_camera_frame,
+    analyze_rerun_camera_render, analyze_rerun_render,
 };
 
 #[path = "browser/recording_acceptance.rs"]
@@ -158,6 +158,22 @@ pub(crate) struct ConsoleRecordingCaptureEvidence {
     camera_render: RerunCameraRenderEvidence,
     initial_responsiveness: RerunResponsivenessEvidence,
     final_responsiveness: RerunResponsivenessEvidence,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ConsoleRecordingArchiveCaptureEvidence {
+    schema: &'static str,
+    captured_at: chrono::DateTime<chrono::Utc>,
+    page_url: String,
+    recording_id: String,
+    screenshot_path: String,
+    screenshot_sha256: String,
+    hardware: HardwareIdentity,
+    network: RecordingPlaybackNetworkEvidence,
+    render: RerunRenderEvidence,
+    camera_render: RerunRenderEvidence,
+    responsiveness: RerunResponsivenessEvidence,
 }
 
 impl ConsoleRecordingCaptureEvidence {
@@ -330,6 +346,22 @@ pub(crate) async fn capture_console_recording(
     )
     .await
     .with_context(|| format!("Console Rerun capture exceeded {timeout:?}"))?
+}
+
+pub(crate) async fn capture_console_recording_archive(
+    cdp_base: &str,
+    public_base_url: &str,
+    recording_id: &str,
+    screenshot_path: &Path,
+    timeout: Duration,
+) -> Result<ConsoleRecordingArchiveCaptureEvidence> {
+    let page_url = console_acceptance_url(public_base_url, &format!("/recordings/{recording_id}"));
+    tokio::time::timeout(
+        timeout,
+        capture_console_recording_archive_inner(cdp_base, &page_url, recording_id, screenshot_path),
+    )
+    .await
+    .with_context(|| format!("Console archived Rerun capture exceeded {timeout:?}"))?
 }
 
 pub(crate) async fn capture_console_stream_app(
@@ -887,56 +919,7 @@ async fn capture_console_recording_inner(
         let hardware: HardwareIdentity =
             cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
         hardware.validate()?;
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(300);
-        loop {
-            let state: Value = cdp
-                .evaluate(
-                    &session_id,
-                    r#"(() => ({
-                      recordingVisible:document.body?.innerText?.includes("recording://recordings/") ?? false,
-                      canvasCount:document.querySelectorAll(".rerun-web-viewer-host canvas").length,
-                      loading:Boolean(document.querySelector(".recording-viewer-state")),
-                      error:document.querySelector(".recording-viewer-error")?.textContent ?? "",
-                      mapError:document.querySelector(".recording-viewer-map-error")?.textContent ?? "",
-                      bodyText:document.body?.innerText ?? ""
-                    }))()"#,
-                    false,
-                )
-                .await?;
-            let body = state
-                .get("bodyText")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            ensure!(
-                state.get("error").and_then(Value::as_str).unwrap_or("").is_empty(),
-                "Console Rerun viewer failed: {state}"
-            );
-            ensure!(
-                state
-                    .get("mapError")
-                    .and_then(Value::as_str)
-                    .unwrap_or("")
-                    .is_empty(),
-                "Console Rerun map provider failed: {state}"
-            );
-            ensure!(
-                !software_renderer(&body.to_ascii_lowercase()),
-                "Console Rerun viewer exposed a software-renderer warning"
-            );
-            if state.get("recordingVisible").and_then(Value::as_bool) == Some(true)
-                && state.get("canvasCount").and_then(Value::as_u64).unwrap_or(0) > 0
-                && state.get("loading").and_then(Value::as_bool) == Some(false)
-                && body.contains(recording_id)
-            {
-                break;
-            }
-            ensure!(
-                tokio::time::Instant::now() < deadline,
-                "Console did not render governed recording {recording_id}: {state}"
-            );
-            assert_page_visible(&mut cdp, &session_id).await?;
-            tokio::time::sleep(Duration::from_secs(1)).await;
-        }
+        wait_for_console_recording_surface(&mut cdp, &session_id, recording_id).await?;
         let (initial_live_follow, initial_follow_seconds) =
             wait_for_rerun_live_follow(&mut cdp, &session_id).await?;
         let initial_responsiveness = sample_rerun_responsiveness(&mut cdp, &session_id).await?;
@@ -969,26 +952,7 @@ async fn capture_console_recording_inner(
         let final_hardware: HardwareIdentity =
             cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
         final_hardware.validate()?;
-        let viewer_bounds: ElementBounds = cdp
-            .evaluate(
-                &session_id,
-                r#"(() => {
-                    const bounds = document.querySelector(".rerun-web-viewer-host")
-                      ?.getBoundingClientRect();
-                    if (!bounds) return null;
-                    return {
-                      x: bounds.x,
-                      y: bounds.y,
-                      width: bounds.width,
-                      height: bounds.height,
-                      viewportWidth: window.innerWidth,
-                      viewportHeight: window.innerHeight
-                    };
-                })()"#,
-                false,
-            )
-            .await
-            .context("Console did not expose the Rerun viewport bounds")?;
+        let viewer_bounds = rerun_viewer_bounds(&mut cdp, &session_id).await?;
         let before_path = screenshot_path.with_extension("camera-before.png");
         capture_screenshot(&mut cdp, &session_id, &before_path).await?;
         tokio::time::sleep(Duration::from_secs(2)).await;
@@ -1030,6 +994,154 @@ async fn capture_console_recording_inner(
     let evidence = acceptance?;
     close?;
     Ok(evidence)
+}
+
+async fn capture_console_recording_archive_inner(
+    cdp_base: &str,
+    page_url: &str,
+    recording_id: &str,
+    screenshot_path: &Path,
+) -> Result<ConsoleRecordingArchiveCaptureEvidence> {
+    let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, page_url).await?;
+    let acceptance = async {
+        wait_for_document(&mut cdp, &session_id).await?;
+        assert_page_visible(&mut cdp, &session_id).await?;
+        let hardware: HardwareIdentity =
+            cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
+        hardware.validate()?;
+        wait_for_console_recording_surface(&mut cdp, &session_id, recording_id).await?;
+
+        let network_deadline = tokio::time::Instant::now() + Duration::from_secs(120);
+        let network = loop {
+            match cdp
+                .recording_playback_network_evidence(recording_id, RecordingPlaybackMode::Archive)
+            {
+                Ok(network) => break network,
+                Err(_) if tokio::time::Instant::now() < network_deadline => {
+                    assert_page_visible(&mut cdp, &session_id).await?;
+                    cdp.assert_no_software_renderer_events()?;
+                    tokio::time::sleep(Duration::from_millis(250)).await;
+                }
+                Err(error) => return Err(error).context("archived Rerun transport did not settle"),
+            }
+        };
+        let responsiveness = sample_rerun_responsiveness(&mut cdp, &session_id).await?;
+        responsiveness.validate()?;
+        let viewer_bounds = rerun_viewer_bounds(&mut cdp, &session_id).await?;
+        let screenshot_sha256 = capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
+        let render = analyze_rerun_render(screenshot_path, viewer_bounds)?;
+        render.validate()?;
+        let camera_render = analyze_rerun_camera_frame(screenshot_path, viewer_bounds)?;
+        let final_hardware: HardwareIdentity =
+            cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
+        final_hardware.validate()?;
+        cdp.assert_no_software_renderer_events()?;
+        Ok(ConsoleRecordingArchiveCaptureEvidence {
+            schema: "veoveo.io/uav-console-recording-archive-capture/v1",
+            captured_at: chrono::Utc::now(),
+            page_url: page_url.to_owned(),
+            recording_id: recording_id.to_owned(),
+            screenshot_path: screenshot_path.display().to_string(),
+            screenshot_sha256,
+            hardware: final_hardware,
+            network,
+            render,
+            camera_render,
+            responsiveness,
+        })
+    }
+    .await;
+    let close = close_target(&mut cdp, &target_id).await;
+    let evidence = acceptance?;
+    close?;
+    Ok(evidence)
+}
+
+async fn wait_for_console_recording_surface(
+    cdp: &mut Cdp,
+    session_id: &str,
+    recording_id: &str,
+) -> Result<()> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(300);
+    loop {
+        let state: Value = cdp
+            .evaluate(
+                session_id,
+                r#"(() => ({
+                  recordingVisible:document.body?.innerText?.includes("recording://recordings/") ?? false,
+                  canvasCount:document.querySelectorAll(".rerun-web-viewer-host canvas").length,
+                  loading:Boolean(document.querySelector(".recording-viewer-state")),
+                  error:document.querySelector(".recording-viewer-error")?.textContent ?? "",
+                  mapError:document.querySelector(".recording-viewer-map-error")?.textContent ?? "",
+                  bodyText:document.body?.innerText ?? ""
+                }))()"#,
+                false,
+            )
+            .await?;
+        let body = state
+            .get("bodyText")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        ensure!(
+            state
+                .get("error")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .is_empty(),
+            "Console Rerun viewer failed: {state}"
+        );
+        ensure!(
+            state
+                .get("mapError")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .is_empty(),
+            "Console Rerun map provider failed: {state}"
+        );
+        ensure!(
+            !software_renderer(&body.to_ascii_lowercase()),
+            "Console Rerun viewer exposed a software-renderer warning"
+        );
+        if state.get("recordingVisible").and_then(Value::as_bool) == Some(true)
+            && state
+                .get("canvasCount")
+                .and_then(Value::as_u64)
+                .unwrap_or(0)
+                > 0
+            && state.get("loading").and_then(Value::as_bool) == Some(false)
+            && body.contains(recording_id)
+        {
+            return Ok(());
+        }
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "Console did not render governed recording {recording_id}: {state}"
+        );
+        assert_page_visible(cdp, session_id).await?;
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+}
+
+async fn rerun_viewer_bounds(cdp: &mut Cdp, session_id: &str) -> Result<ElementBounds> {
+    cdp.evaluate(
+        session_id,
+        r#"(() => {
+            const bounds = document.querySelector(".rerun-web-viewer-host")
+              ?.getBoundingClientRect();
+            if (!bounds) return null;
+            return {
+              x: bounds.x,
+              y: bounds.y,
+              width: bounds.width,
+              height: bounds.height,
+              viewportWidth: window.innerWidth,
+              viewportHeight: window.innerHeight
+            };
+        })()"#,
+        false,
+    )
+    .await
+    .context("Console did not expose the Rerun viewport bounds")
 }
 
 async fn wait_for_rerun_live_follow(
