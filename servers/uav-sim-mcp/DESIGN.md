@@ -267,7 +267,10 @@ hardware-backed WebGPU or WebGL context.
 Focused browser acceptance combines the runtime source-to-render window with WebRTC
 `requestVideoFrameCallback` capture, receive, and expected-display timestamps. It rejects
 source-to-render p95 at 50 ms and motion-to-photon p95 at 200 ms. Smoothing response is
-reported by the camera profile and is not counted as transport latency.
+reported by the camera profile and is not counted as transport latency. The same run
+opens two cameras in one App, proves one browser-instance identity with distinct leases,
+products, and physical slots, observes both videos advancing, then proves both slots
+return immediately to the inactive pool.
 
 Physical-camera state includes a bounded `render_pose` agreement measurement after the
 first rendered frame. It reports the rendered ENU position and forward direction beside
