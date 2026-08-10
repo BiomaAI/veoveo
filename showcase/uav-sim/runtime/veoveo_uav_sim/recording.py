@@ -54,7 +54,7 @@ class _TilesEvent:
     resident_tiles: int
     visible_tiles: int
     loading_tiles: int
-    recovery_count: int
+    refresh_count: int
     lifecycle: str
     simulation_time_s: float
     physics_step: int
@@ -180,7 +180,7 @@ class RecordingPublisher:
         resident_tiles: int,
         visible_tiles: int,
         loading_tiles: int,
-        recovery_count: int,
+        refresh_count: int,
         lifecycle: str,
         simulation_time_s: float,
         physics_step: int,
@@ -190,7 +190,7 @@ class RecordingPublisher:
                 resident_tiles=resident_tiles,
                 visible_tiles=visible_tiles,
                 loading_tiles=loading_tiles,
-                recovery_count=recovery_count,
+                refresh_count=refresh_count,
                 lifecycle=lifecycle,
                 simulation_time_s=simulation_time_s,
                 physics_step=physics_step,
@@ -438,7 +438,7 @@ class _RecordingSink:
             event.resident_tiles,
             event.visible_tiles,
             event.loading_tiles,
-            event.recovery_count,
+            event.refresh_count,
             event.lifecycle,
         )
         if status == self._last_tiles:
@@ -451,7 +451,7 @@ class _RecordingSink:
                 resident=event.resident_tiles,
                 visible=event.visible_tiles,
                 loading=event.loading_tiles,
-                recovery_count=event.recovery_count,
+                refresh_count=event.refresh_count,
                 lifecycle=event.lifecycle,
             ),
         )

@@ -10,6 +10,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
@@ -67,6 +68,11 @@ from veoveo_uav_sim.stream_output import (
     _packetize_nal,
     _rtp_timestamp,
 )
+from veoveo_uav_sim.tile_lifecycle import (
+    NativeTileEvent,
+    NativeTileEventBridge,
+    TileLifecycleController,
+)
 from veoveo_uav_sim.vehicle_model import (
     PX4_IRIS_MOMENT_CONSTANT,
     PX4_IRIS_MOTOR_CONSTANT,
@@ -86,7 +92,6 @@ from veoveo_uav_sim.world_config import (
     WorldConfigurationError,
     WorldConfigurationSlot,
 )
-from veoveo_uav_sim.world_health import assess_tile_health
 
 VALID_ENVIRONMENT = {
     "CESIUM_ION_ACCESS_TOKEN": "test-token",
@@ -432,6 +437,22 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIn("externallyManagedViewports", patch)
         self.assertIn("externallyManagedViewports = false", patch)
         self.assertIn("if not settings.get_as_bool", patch)
+
+        lifecycle_patch = (
+            runtime_root
+            / "patches"
+            / "cesium-0.29.0-lifecycle-events.patch"
+        ).read_text()
+        native_patch = (
+            runtime_root
+            / "patches"
+            / "cesium-native-ca0311f-tile-load-events.patch"
+        ).read_text()
+        self.assertIn("cesium-0.29.0-lifecycle-events.patch", dockerfile)
+        self.assertIn("cesium-native-ca0311f-tile-load-events.patch", dockerfile)
+        self.assertIn("TILESET_LOAD_FAILED", lifecycle_patch)
+        self.assertIn("TileContent", native_patch)
+        self.assertNotIn("releases/download", dockerfile)
 
     def test_recording_policy_is_typed_and_bounded(self) -> None:
         environment = {
@@ -1708,66 +1729,147 @@ class WorldConfigurationTests(unittest.TestCase):
 
 
 class StreamedWorldHealthTests(unittest.TestCase):
-    def test_absent_tiles_degrade_without_becoming_simulation_authority(self) -> None:
-        health = assess_tile_health(
-            resident_tiles=0,
-            visible_tiles=0,
-            loading_tiles=0,
-            coverage_frames=0,
-            ready_frames=30,
-            absent_seconds=30.0,
+    def test_native_event_payload_is_reduced_to_the_typed_safe_surface(self) -> None:
+        event = SimpleNamespace(
+            payload={
+                "tilesetPath": "/World/Tileset",
+                "generation": 7,
+                "loadType": "tile_content",
+                "statusCode": 400,
+            }
         )
-        self.assertEqual(health.lifecycle, "failed")
-        self.assertTrue(health.recovery_required)
-        self.assertIn("unavailable", health.diagnostic or "")
+        parsed = NativeTileEventBridge._parse(event, kind="load_failed")
+        self.assertEqual(
+            parsed,
+            NativeTileEvent(
+                kind="load_failed",
+                tileset_path="/World/Tileset",
+                generation=7,
+                load_type="tile_content",
+                http_status=400,
+            ),
+        )
 
-    def test_tiles_recover_after_the_required_visible_coverage_frames(self) -> None:
-        health = assess_tile_health(
-            resident_tiles=4,
-            visible_tiles=2,
-            loading_tiles=2,
-            coverage_frames=29,
-            ready_frames=30,
-            absent_seconds=0.0,
-            failed_latched=True,
+    def test_visibility_absence_never_infers_provider_failure(self) -> None:
+        controller = TileLifecycleController(
+            tileset_path="/World/Tileset", ready_frames=2
         )
-        self.assertEqual(health.lifecycle, "ready")
-        self.assertEqual(health.coverage_frames, 30)
-        self.assertFalse(health.recovery_required)
-        self.assertIsNone(health.diagnostic)
+        for _ in range(10_000):
+            state = controller.observe_render(
+                resident_tiles=30_000,
+                visible_tiles=0,
+                loading_tiles=0,
+            )
+        self.assertEqual(state.lifecycle, "streaming")
+        self.assertEqual(state.refresh_count, 0)
+        self.assertIsNone(state.last_failure)
 
-    def test_historical_residency_cannot_claim_current_coverage(self) -> None:
-        health = assess_tile_health(
-            resident_tiles=35_000,
-            visible_tiles=0,
-            loading_tiles=0,
-            coverage_frames=30,
-            ready_frames=30,
-            absent_seconds=30.0,
+    def test_session_rejection_requests_one_generation_refresh(self) -> None:
+        controller = TileLifecycleController(
+            tileset_path="/World/Tileset", ready_frames=2
         )
-        self.assertEqual(health.lifecycle, "failed")
-        self.assertEqual(health.coverage_frames, 0)
-        self.assertTrue(health.recovery_required)
+        event = NativeTileEvent(
+            kind="load_failed",
+            tileset_path="/World/Tileset",
+            generation=1,
+            load_type="tile_content",
+            http_status=400,
+        )
+        self.assertTrue(controller.accept(event).reload_tileset)
+        self.assertFalse(controller.accept(event).reload_tileset)
+        state = controller.snapshot()
+        self.assertEqual(state.lifecycle, "refreshing")
+        self.assertEqual(state.provider_generation, 1)
+        self.assertEqual(state.refresh_count, 1)
+        self.assertEqual(
+            state.last_failure.code if state.last_failure else None,
+            "provider_session_rejected",
+        )
 
-    def test_failed_coverage_requests_one_recovery_until_tiles_return(self) -> None:
-        health = assess_tile_health(
-            resident_tiles=35_000,
-            visible_tiles=0,
-            loading_tiles=0,
-            coverage_frames=0,
-            ready_frames=30,
-            absent_seconds=31.0,
-            failed_latched=True,
+    def test_matching_replacement_generation_recovers_deterministically(self) -> None:
+        controller = TileLifecycleController(
+            tileset_path="/World/Tileset", ready_frames=2
         )
-        self.assertEqual(health.lifecycle, "failed")
-        self.assertFalse(health.recovery_required)
+        controller.accept(
+            NativeTileEvent(
+                kind="load_failed",
+                tileset_path="/World/Tileset",
+                generation=1,
+                load_type="tile_content",
+                http_status=400,
+            )
+        )
+        controller.accept(
+            NativeTileEvent(
+                kind="loaded",
+                tileset_path="/World/Tileset",
+                generation=2,
+            )
+        )
+        first = controller.observe_render(
+            resident_tiles=20, visible_tiles=4, loading_tiles=2
+        )
+        recovered = controller.observe_render(
+            resident_tiles=24, visible_tiles=6, loading_tiles=0
+        )
+        self.assertEqual(first.lifecycle, "streaming")
+        self.assertEqual(recovered.lifecycle, "ready")
+        self.assertIsNone(recovered.diagnostic)
+
+    def test_rejected_replacement_generation_degrades_without_a_loop(self) -> None:
+        controller = TileLifecycleController(
+            tileset_path="/World/Tileset", ready_frames=1
+        )
+        first = NativeTileEvent(
+            kind="load_failed",
+            tileset_path="/World/Tileset",
+            generation=1,
+            load_type="tile_content",
+            http_status=400,
+        )
+        second = NativeTileEvent(
+            kind="load_failed",
+            tileset_path="/World/Tileset",
+            generation=2,
+            load_type="tile_content",
+            http_status=400,
+        )
+        self.assertTrue(controller.accept(first).reload_tileset)
+        self.assertFalse(controller.accept(second).reload_tileset)
+        self.assertFalse(controller.accept(second).reload_tileset)
+        state = controller.snapshot()
+        self.assertEqual(state.lifecycle, "degraded")
+        self.assertEqual(state.refresh_count, 1)
+
+    def test_credential_failure_is_typed_and_never_refreshed(self) -> None:
+        controller = TileLifecycleController(
+            tileset_path="/World/Tileset", ready_frames=1
+        )
+        action = controller.accept(
+            NativeTileEvent(
+                kind="load_failed",
+                tileset_path="/World/Tileset",
+                generation=1,
+                load_type="ion_endpoint",
+                http_status=401,
+            )
+        )
+        state = controller.snapshot()
+        self.assertFalse(action.reload_tileset)
+        self.assertEqual(state.lifecycle, "degraded")
+        self.assertEqual(
+            state.last_failure.code if state.last_failure else None,
+            "credentials_rejected",
+        )
 
     def test_visual_health_is_not_simulation_authority(self) -> None:
         source = (Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py").read_text()
-        self.assertIn("assess_tile_health(", source)
+        self.assertIn("TileLifecycleController(", source)
         self.assertIn('sensor_status.lifecycle == "degraded"', source)
         self.assertIn("statistics.tiles_rendered", source)
         self.assertIn("cesium_interface.reload_tileset(tileset_path)", source)
+        self.assertNotIn("tile_absent_since", source)
+        self.assertNotIn("assess_tile_health", source)
         self.assertNotIn('raise RuntimeError("Google Photorealistic', source)
         self.assertNotIn(
             'raise RuntimeError(\n                                f"down camera', source

@@ -11,6 +11,7 @@ from .geo import enu_to_geodetic
 from .operator_camera_config import live_camera_descriptor
 from .physics_batch import FleetPhysicsTiming
 from .render_pose import RenderPoseAgreement
+from .tile_lifecycle import TileLifecycleSnapshot
 from .world_config import WorldConfiguration
 
 
@@ -72,7 +73,9 @@ class RuntimeState:
                 "resident_tiles": 0,
                 "visible_tiles": 0,
                 "loading_tiles": 0,
-                "recovery_count": 0,
+                "provider_generation": 0,
+                "event_sequence": 0,
+                "refresh_count": 0,
             },
             "cameras": [
                 {
@@ -147,24 +150,30 @@ class RuntimeState:
 
     def set_tiles(
         self,
-        lifecycle: str,
-        resident_tiles: int,
-        visible_tiles: int,
-        loading_tiles: int,
-        recovery_count: int,
-        diagnostic: str | None = None,
+        snapshot: TileLifecycleSnapshot,
     ) -> None:
         with self._condition:
             tiles = self._state["tiles"]
             tiles.update(
-                lifecycle=lifecycle,
-                resident_tiles=max(0, resident_tiles),
-                visible_tiles=max(0, visible_tiles),
-                loading_tiles=max(0, loading_tiles),
-                recovery_count=max(0, recovery_count),
+                lifecycle=snapshot.lifecycle,
+                resident_tiles=snapshot.resident_tiles,
+                visible_tiles=snapshot.visible_tiles,
+                loading_tiles=snapshot.loading_tiles,
+                provider_generation=snapshot.provider_generation,
+                event_sequence=snapshot.event_sequence,
+                refresh_count=snapshot.refresh_count,
             )
-            if diagnostic:
-                tiles["diagnostic"] = diagnostic
+            if snapshot.last_failure is not None:
+                tiles["last_failure"] = {
+                    "code": snapshot.last_failure.code,
+                    "load_type": snapshot.last_failure.load_type,
+                    "http_status": snapshot.last_failure.http_status,
+                    "generation": snapshot.last_failure.generation,
+                }
+            else:
+                tiles.pop("last_failure", None)
+            if snapshot.diagnostic:
+                tiles["diagnostic"] = snapshot.diagnostic
             else:
                 tiles.pop("diagnostic", None)
             self._touch()

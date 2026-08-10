@@ -980,7 +980,10 @@ mod tests {
                 resident_tiles: 20,
                 visible_tiles: 12,
                 loading_tiles: 0,
-                recovery_count: 0,
+                provider_generation: 1,
+                event_sequence: 0,
+                refresh_count: 0,
+                last_failure: None,
                 diagnostic: None,
             },
             cameras: vec![CameraState {
