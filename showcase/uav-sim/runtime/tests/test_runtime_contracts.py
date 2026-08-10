@@ -1776,7 +1776,9 @@ class StreamedWorldHealthTests(unittest.TestCase):
             http_status=400,
         )
         self.assertTrue(controller.accept(event).reload_tileset)
-        self.assertFalse(controller.accept(event).reload_tileset)
+        duplicate = controller.accept(event)
+        self.assertFalse(duplicate.reload_tileset)
+        self.assertFalse(duplicate.report_failure)
         state = controller.snapshot()
         self.assertEqual(state.lifecycle, "refreshing")
         self.assertEqual(state.provider_generation, 1)
@@ -1785,6 +1787,35 @@ class StreamedWorldHealthTests(unittest.TestCase):
             state.last_failure.code if state.last_failure else None,
             "provider_session_rejected",
         )
+
+    def test_distinct_failure_can_supersede_an_earlier_failure_in_one_generation(
+        self,
+    ) -> None:
+        controller = TileLifecycleController(
+            tileset_path="/World/Tileset", ready_frames=2
+        )
+        unavailable = controller.accept(
+            NativeTileEvent(
+                kind="load_failed",
+                tileset_path="/World/Tileset",
+                generation=1,
+                load_type="tile_content",
+                http_status=404,
+            )
+        )
+        rejected = controller.accept(
+            NativeTileEvent(
+                kind="load_failed",
+                tileset_path="/World/Tileset",
+                generation=1,
+                load_type="tile_content",
+                http_status=400,
+            )
+        )
+        self.assertTrue(unavailable.report_failure)
+        self.assertFalse(unavailable.reload_tileset)
+        self.assertTrue(rejected.report_failure)
+        self.assertTrue(rejected.reload_tileset)
 
     def test_matching_replacement_generation_recovers_deterministically(self) -> None:
         controller = TileLifecycleController(

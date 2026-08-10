@@ -833,7 +833,7 @@ def run(config: RuntimeConfig) -> None:
                 assert tile_controller is not None
                 for tile_event in tile_event_bridge.drain():
                     tile_action = tile_controller.accept(tile_event)
-                    if tile_event.kind == "load_failed":
+                    if tile_action.report_failure:
                         LOGGER.error(
                             (
                                 "streamed-world load failed: type=%s "

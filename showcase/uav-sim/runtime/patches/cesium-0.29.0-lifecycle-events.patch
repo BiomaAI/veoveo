@@ -42,19 +42,21 @@ diff --git a/src/core/include/cesium/omniverse/OmniTileset.h b/src/core/include/
 index 809cdb5..95ff75f 100644
 --- a/src/core/include/cesium/omniverse/OmniTileset.h
 +++ b/src/core/include/cesium/omniverse/OmniTileset.h
-@@ -3,6 +3,7 @@
+@@ -3,6 +3,8 @@
  #include <glm/glm.hpp>
  #include <pxr/usd/sdf/path.h>
  
 +#include <cstdint>
++#include <unordered_set>
  #include <optional>
  
  #include <gsl/span>
-@@ -114,6 +115,7 @@ class OmniTileset {
+@@ -114,6 +116,8 @@ class OmniTileset {
      std::vector<Cesium3DTilesSelection::ViewState> _viewStates;
      bool _extentSet{false};
      bool _activeLoading{false};
 +    uint64_t _loadGeneration{0};
++    std::unordered_set<uint64_t> _reportedLoadFailures;
  };
  
  } // namespace cesium::omniverse
@@ -215,7 +217,7 @@ index 0aa8dd8..8553ba2 100644
      destroyNativeTileset();
  
      _pRenderResourcesPreparer = std::make_shared<FabricPrepareRenderResources>(_pContext, this);
-@@ -567,16 +582,33 @@ void OmniTileset::reload() {
+@@ -567,16 +582,39 @@ void OmniTileset::reload() {
      options.ellipsoid = getEllipsoid();
  
      options.loadErrorCallback =
@@ -239,16 +241,22 @@ index 0aa8dd8..8553ba2 100644
  
 -            _pContext->getLogger()->error(error.message);
 +            const char* const loadType = loadTypeName(error.type);
-+            Broadcast::tilesetLoadFailed(
-+                tilesetPath,
-+                loadGeneration,
-+                loadType,
-+                error.statusCode);
-+            _pContext->getLogger()->error(
-+                "Cesium tileset load failed: type={} status={} generation={}",
-+                loadType,
-+                error.statusCode,
-+                loadGeneration);
++            const uint64_t failureSignature =
++                (loadGeneration << 32) |
++                (static_cast<uint64_t>(error.type) << 16) |
++                static_cast<uint64_t>(error.statusCode);
++            if (_reportedLoadFailures.insert(failureSignature).second) {
++                Broadcast::tilesetLoadFailed(
++                    tilesetPath,
++                    loadGeneration,
++                    loadType,
++                    error.statusCode);
++                _pContext->getLogger()->error(
++                    "Cesium tileset load failed: type={} status={} generation={}",
++                    loadType,
++                    error.statusCode,
++                    loadGeneration);
++            }
          };
  
      options.contentOptions.ktx2TranscodeTargets = GltfUtil::getKtx2TranscodeTargets();
