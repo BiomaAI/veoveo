@@ -67,6 +67,7 @@ class TileLifecycleSnapshot:
 @dataclass(frozen=True, slots=True)
 class TileLifecycleAction:
     reload_tileset: bool = False
+    report_failure: bool = False
 
 
 def classify_failure(load_type: TileLoadType, http_status: int) -> TileFailureCode:
@@ -119,7 +120,7 @@ class TileLifecycleController:
         self._diagnostic: str | None = None
         self._refresh_target_generation: int | None = None
         self._loaded_generation = 0
-        self._handled_failure_generations: set[int] = set()
+        self._handled_failures: set[tuple[int, TileLoadType, int]] = set()
 
     def accept(self, event: NativeTileEvent) -> TileLifecycleAction:
         if event.tileset_path != self._tileset_path:
@@ -134,7 +135,7 @@ class TileLifecycleController:
         self._provider_generation = max(self._provider_generation, event.generation)
         if event.kind == "loaded":
             self._loaded_generation = max(self._loaded_generation, event.generation)
-            if event.generation not in self._handled_failure_generations and (
+            if (
                 self._refresh_target_generation is None
                 or event.generation >= self._refresh_target_generation
             ):
@@ -143,9 +144,14 @@ class TileLifecycleController:
                 self._diagnostic = None
             return TileLifecycleAction()
 
-        if event.generation in self._handled_failure_generations:
+        failure_signature = (
+            event.generation,
+            event.load_type,
+            max(0, event.http_status),
+        )
+        if failure_signature in self._handled_failures:
             return TileLifecycleAction()
-        self._handled_failure_generations.add(event.generation)
+        self._handled_failures.add(failure_signature)
         code = classify_failure(event.load_type, event.http_status)
         self._last_failure = TileFailure(
             code=code,
@@ -163,10 +169,10 @@ class TileLifecycleController:
             self._refresh_count += 1
             self._refresh_target_generation = event.generation + 1
             self._lifecycle = "refreshing"
-            return TileLifecycleAction(reload_tileset=True)
+            return TileLifecycleAction(reload_tileset=True, report_failure=True)
 
         self._lifecycle = "degraded"
-        return TileLifecycleAction()
+        return TileLifecycleAction(report_failure=True)
 
     def observe_render(
         self,
