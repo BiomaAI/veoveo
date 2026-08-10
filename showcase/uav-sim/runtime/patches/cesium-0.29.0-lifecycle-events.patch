@@ -51,11 +51,12 @@ index 809cdb5..95ff75f 100644
  #include <optional>
  
  #include <gsl/span>
-@@ -114,6 +116,8 @@ class OmniTileset {
+@@ -114,6 +116,9 @@ class OmniTileset {
      std::vector<Cesium3DTilesSelection::ViewState> _viewStates;
      bool _extentSet{false};
      bool _activeLoading{false};
 +    uint64_t _loadGeneration{0};
++    uint64_t _lastReportedLoadedGeneration{0};
 +    std::unordered_set<uint64_t> _reportedLoadFailures;
  };
  
@@ -260,12 +261,15 @@ index 0aa8dd8..8553ba2 100644
          };
  
      options.contentOptions.ktx2TranscodeTargets = GltfUtil::getKtx2TranscodeTargets();
-@@ -807,7 +839,7 @@ void OmniTileset::updateLoadStatus() {
+@@ -807,7 +839,10 @@ void OmniTileset::updateLoadStatus() {
      if (loadProgress < 100.0f) {
          _activeLoading = true;
      } else if (_activeLoading) {
 -        Broadcast::tilesetLoaded(_path);
-+        Broadcast::tilesetLoaded(_path, _loadGeneration);
++        if (_lastReportedLoadedGeneration != _loadGeneration) {
++            Broadcast::tilesetLoaded(_path, _loadGeneration);
++            _lastReportedLoadedGeneration = _loadGeneration;
++        }
          _activeLoading = false;
      }
  }
