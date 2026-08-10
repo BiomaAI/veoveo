@@ -82,7 +82,7 @@ index f15aa16..7e5b6a5 100644
 +    sendMessageToBusWithPayload(
 +        TILESET_LOADED_KEY,
 +        std::make_pair("tilesetPath", tilesetPath.GetText()),
-+        std::make_pair("generation", generation));
++        std::make_pair("generation", static_cast<int64_t>(generation)));
 +}
 +
 +void tilesetLoadFailed(
@@ -93,9 +93,9 @@ index f15aa16..7e5b6a5 100644
 +    sendMessageToBusWithPayload(
 +        TILESET_LOAD_FAILED_KEY,
 +        std::make_pair("tilesetPath", tilesetPath.GetText()),
-+        std::make_pair("generation", generation),
++        std::make_pair("generation", static_cast<int64_t>(generation)),
 +        std::make_pair("loadType", loadType),
-+        std::make_pair("statusCode", statusCode));
++        std::make_pair("statusCode", static_cast<int64_t>(statusCode)));
  }
  
  void sendMessageToBus(carb::events::EventType eventType) {
