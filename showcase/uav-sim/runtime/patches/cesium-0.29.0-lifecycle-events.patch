@@ -1,0 +1,300 @@
+diff --git a/src/core/include/cesium/omniverse/Broadcast.h b/src/core/include/cesium/omniverse/Broadcast.h
+index 82b320c..1f612f4 100644
+--- a/src/core/include/cesium/omniverse/Broadcast.h
++++ b/src/core/include/cesium/omniverse/Broadcast.h
+@@ -8,6 +8,8 @@
+ #include <carb/events/IEvents.h>
+ #include <pxr/usd/usd/common.h>
+ 
++#include <cstdint>
++
+ namespace cesium::omniverse::Broadcast {
+ 
+ void assetsUpdated();
+@@ -22,7 +24,12 @@ void showTroubleshooter(
+     const std::string& rasterOverlayName,
+     const std::string& message);
+ void setDefaultTokenComplete();
+-void tilesetLoaded(const pxr::SdfPath& tilesetPath);
++void tilesetLoaded(const pxr::SdfPath& tilesetPath, uint64_t generation);
++void tilesetLoadFailed(
++    const pxr::SdfPath& tilesetPath,
++    uint64_t generation,
++    const char* loadType,
++    uint16_t statusCode);
+ void sendMessageToBus(carb::events::EventType eventType);
+ void sendMessageToBus(const std::string_view& eventKey);
+ 
+diff --git a/src/core/include/cesium/omniverse/LoggerSink.h b/src/core/include/cesium/omniverse/LoggerSink.h
+index 305239b..84fb2ec 100644
+--- a/src/core/include/cesium/omniverse/LoggerSink.h
++++ b/src/core/include/cesium/omniverse/LoggerSink.h
+@@ -14,6 +14,8 @@
+ 
+ namespace cesium::omniverse {
+ 
++std::string redactSensitiveUrlQuery(std::string message);
++
+ class LoggerSink final : public spdlog::sinks::base_sink<spdlog::details::null_mutex> {
+   public:
+     LoggerSink(omni::log::Level logLevel);
+diff --git a/src/core/include/cesium/omniverse/OmniTileset.h b/src/core/include/cesium/omniverse/OmniTileset.h
+index 809cdb5..95ff75f 100644
+--- a/src/core/include/cesium/omniverse/OmniTileset.h
++++ b/src/core/include/cesium/omniverse/OmniTileset.h
+@@ -3,6 +3,7 @@
+ #include <glm/glm.hpp>
+ #include <pxr/usd/sdf/path.h>
+ 
++#include <cstdint>
+ #include <optional>
+ 
+ #include <gsl/span>
+@@ -114,6 +115,7 @@ class OmniTileset {
+     std::vector<Cesium3DTilesSelection::ViewState> _viewStates;
+     bool _extentSet{false};
+     bool _activeLoading{false};
++    uint64_t _loadGeneration{0};
+ };
+ 
+ } // namespace cesium::omniverse
+diff --git a/src/core/src/Broadcast.cpp b/src/core/src/Broadcast.cpp
+index f15aa16..7e5b6a5 100644
+--- a/src/core/src/Broadcast.cpp
++++ b/src/core/src/Broadcast.cpp
+@@ -22,6 +22,7 @@ const std::string_view TOKENS_UPDATED_EVENT_KEY = "cesium.omniverse.TOKENS_UPDAT
+ const std::string_view SHOW_TROUBLESHOOTER_EVENT_KEY = "cesium.omniverse.SHOW_TROUBLESHOOTER";
+ const std::string_view SET_DEFAULT_PROJECT_TOKEN_COMPLETE_KEY = "cesium.omniverse.SET_DEFAULT_PROJECT_TOKEN_COMPLETE";
+ const std::string_view TILESET_LOADED_KEY = "cesium.omniverse.TILESET_LOADED";
++const std::string_view TILESET_LOAD_FAILED_KEY = "cesium.omniverse.TILESET_LOAD_FAILED";
+ 
+ template <typename... ValuesT>
+ void sendMessageToBusWithPayload(carb::events::EventType eventType, ValuesT&&... payload) {
+@@ -75,8 +76,24 @@ void setDefaultTokenComplete() {
+     sendMessageToBus(SET_DEFAULT_PROJECT_TOKEN_COMPLETE_KEY);
+ }
+ 
+-void tilesetLoaded(const pxr::SdfPath& tilesetPath) {
+-    sendMessageToBusWithPayload(TILESET_LOADED_KEY, std::make_pair("tilesetPath", tilesetPath.GetText()));
++void tilesetLoaded(const pxr::SdfPath& tilesetPath, uint64_t generation) {
++    sendMessageToBusWithPayload(
++        TILESET_LOADED_KEY,
++        std::make_pair("tilesetPath", tilesetPath.GetText()),
++        std::make_pair("generation", generation));
++}
++
++void tilesetLoadFailed(
++    const pxr::SdfPath& tilesetPath,
++    uint64_t generation,
++    const char* loadType,
++    uint16_t statusCode) {
++    sendMessageToBusWithPayload(
++        TILESET_LOAD_FAILED_KEY,
++        std::make_pair("tilesetPath", tilesetPath.GetText()),
++        std::make_pair("generation", generation),
++        std::make_pair("loadType", loadType),
++        std::make_pair("statusCode", statusCode));
+ }
+ 
+ void sendMessageToBus(carb::events::EventType eventType) {
+diff --git a/src/core/src/LoggerSink.cpp b/src/core/src/LoggerSink.cpp
+index b20e56d..ee81bc7 100644
+--- a/src/core/src/LoggerSink.cpp
++++ b/src/core/src/LoggerSink.cpp
+@@ -1,7 +1,72 @@
+ #include "cesium/omniverse/LoggerSink.h"
+ 
++#include <array>
++#include <cctype>
++#include <string_view>
++
+ namespace cesium::omniverse {
+ 
++namespace {
++
++bool isSensitiveQueryName(std::string_view name) {
++    constexpr std::array<std::string_view, 4> sensitiveNames{{
++        "access_token",
++        "key",
++        "session",
++        "token",
++    }};
++    for (const std::string_view sensitiveName : sensitiveNames) {
++        if (name.size() != sensitiveName.size()) {
++            continue;
++        }
++        bool matches = true;
++        for (size_t i = 0; i < name.size(); ++i) {
++            if (static_cast<char>(std::tolower(static_cast<unsigned char>(name[i]))) != sensitiveName[i]) {
++                matches = false;
++                break;
++            }
++        }
++        if (matches) {
++            return true;
++        }
++    }
++    return false;
++}
++
++} // namespace
++
++std::string redactSensitiveUrlQuery(std::string message) {
++    size_t delimiter = message.find('?');
++    while (delimiter != std::string::npos) {
++        size_t nameStart = delimiter + 1;
++        while (nameStart < message.size()) {
++            const size_t equals = message.find('=', nameStart);
++            if (equals == std::string::npos) {
++                break;
++            }
++            const size_t nameEnd = message.find_first_of("& #\t\r\n\"'", nameStart);
++            if (nameEnd != std::string::npos && nameEnd < equals) {
++                break;
++            }
++            size_t valueEnd = message.find_first_of("& #\t\r\n\"'", equals + 1);
++            if (valueEnd == std::string::npos) {
++                valueEnd = message.size();
++            }
++            if (isSensitiveQueryName(std::string_view(message).substr(nameStart, equals - nameStart))) {
++                constexpr std::string_view replacement = "[REDACTED]";
++                message.replace(equals + 1, valueEnd - equals - 1, replacement);
++                valueEnd = equals + 1 + replacement.size();
++            }
++            if (valueEnd >= message.size() || message[valueEnd] != '&') {
++                break;
++            }
++            nameStart = valueEnd + 1;
++        }
++        delimiter = message.find('?', delimiter + 1);
++    }
++    return message;
++}
++
+ LoggerSink::LoggerSink(omni::log::Level logLevel)
+     : _logLevel(logLevel) {
+     switch (logLevel) {
+@@ -61,6 +126,6 @@ std::string LoggerSink::formatMessage(const spdlog::details::log_msg& msg) {
+ 
+     spdlog::memory_buf_t formatted;
+     formatter_->format(msg, formatted);
+-    return fmt::to_string(formatted);
++    return redactSensitiveUrlQuery(fmt::to_string(formatted));
+ }
+ } // namespace cesium::omniverse
+diff --git a/src/core/src/OmniTileset.cpp b/src/core/src/OmniTileset.cpp
+index 0aa8dd8..8553ba2 100644
+--- a/src/core/src/OmniTileset.cpp
++++ b/src/core/src/OmniTileset.cpp
+@@ -43,6 +43,20 @@ namespace cesium::omniverse {
+ 
+ namespace {
+ 
++const char* loadTypeName(Cesium3DTilesSelection::TilesetLoadType type) {
++    switch (type) {
++        case Cesium3DTilesSelection::TilesetLoadType::CesiumIon:
++            return "ion_endpoint";
++        case Cesium3DTilesSelection::TilesetLoadType::TilesetJson:
++            return "tileset_json";
++        case Cesium3DTilesSelection::TilesetLoadType::TileContent:
++            return "tile_content";
++        case Cesium3DTilesSelection::TilesetLoadType::Unknown:
++        default:
++            return "unknown";
++    }
++}
++
+ void forEachFabricMaterial(
+     Cesium3DTilesSelection::Tileset* pTileset,
+     const std::function<void(FabricMaterial& fabricMaterial)>& callback) {
+@@ -531,6 +545,7 @@ void OmniTileset::updateTilesetOptions() {
+ }
+ 
+ void OmniTileset::reload() {
++    const uint64_t loadGeneration = ++_loadGeneration;
+     destroyNativeTileset();
+ 
+     _pRenderResourcesPreparer = std::make_shared<FabricPrepareRenderResources>(_pContext, this);
+@@ -567,16 +582,33 @@ void OmniTileset::reload() {
+     options.ellipsoid = getEllipsoid();
+ 
+     options.loadErrorCallback =
+-        [this, tilesetPath, ionAssetId, name](const Cesium3DTilesSelection::TilesetLoadFailureDetails& error) {
++        [this, tilesetPath, ionAssetId, name, loadGeneration](
++            const Cesium3DTilesSelection::TilesetLoadFailureDetails& error) {
+             // Check for a 401 connecting to Cesium ion, which means the token is invalid
+             // (or perhaps the asset ID is). Also check for a 404, because ion returns 404
+             // when the token is valid but not authorized for the asset.
+             if (error.type == Cesium3DTilesSelection::TilesetLoadType::CesiumIon &&
+                 (error.statusCode == 401 || error.statusCode == 404)) {
+-                Broadcast::showTroubleshooter(tilesetPath, ionAssetId, name, 0, "", error.message);
++                Broadcast::showTroubleshooter(
++                    tilesetPath,
++                    ionAssetId,
++                    name,
++                    0,
++                    "",
++                    "The configured ion asset could not be authorized.");
+             }
+ 
+-            _pContext->getLogger()->error(error.message);
++            const char* const loadType = loadTypeName(error.type);
++            Broadcast::tilesetLoadFailed(
++                tilesetPath,
++                loadGeneration,
++                loadType,
++                error.statusCode);
++            _pContext->getLogger()->error(
++                "Cesium tileset load failed: type={} status={} generation={}",
++                loadType,
++                error.statusCode,
++                loadGeneration);
+         };
+ 
+     options.contentOptions.ktx2TranscodeTargets = GltfUtil::getKtx2TranscodeTargets();
+@@ -807,7 +839,7 @@ void OmniTileset::updateLoadStatus() {
+     if (loadProgress < 100.0f) {
+         _activeLoading = true;
+     } else if (_activeLoading) {
+-        Broadcast::tilesetLoaded(_path);
++        Broadcast::tilesetLoaded(_path, _loadGeneration);
+         _activeLoading = false;
+     }
+ }
+diff --git a/tests/src/LoggerSinkTests.cpp b/tests/src/LoggerSinkTests.cpp
+new file mode 100644
+index 0000000..8627491
+--- /dev/null
++++ b/tests/src/LoggerSinkTests.cpp
+@@ -0,0 +1,31 @@
++#include "cesium/omniverse/LoggerSink.h"
++
++#include <doctest/doctest.h>
++
++namespace cesium::omniverse::tests {
++
++TEST_SUITE("Logger sink") {
++    TEST_CASE("sensitive URL query values are redacted") {
++        const std::string message =
++            "request https://example.invalid/tile.glb?key=secret-key&session=secret-session&safe=value failed";
++        const std::string redacted = redactSensitiveUrlQuery(message);
++
++        CHECK(redacted.find("secret-key") == std::string::npos);
++        CHECK(redacted.find("secret-session") == std::string::npos);
++        CHECK(redacted.find("key=[REDACTED]") != std::string::npos);
++        CHECK(redacted.find("session=[REDACTED]") != std::string::npos);
++        CHECK(redacted.find("safe=value") != std::string::npos);
++    }
++
++    TEST_CASE("query names are matched case-insensitively") {
++        const std::string redacted = redactSensitiveUrlQuery(
++            "https://example.invalid/root.json?ACCESS_TOKEN=one&TOKEN=two");
++
++        CHECK(redacted.find("one") == std::string::npos);
++        CHECK(redacted.find("two") == std::string::npos);
++        CHECK(redacted.find("ACCESS_TOKEN=[REDACTED]") != std::string::npos);
++        CHECK(redacted.find("TOKEN=[REDACTED]") != std::string::npos);
++    }
++}
++
++} // namespace cesium::omniverse::tests
