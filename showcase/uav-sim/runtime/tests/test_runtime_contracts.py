@@ -451,6 +451,14 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIn("cesium-0.29.0-lifecycle-events.patch", dockerfile)
         self.assertIn("cesium-native-ca0311f-tile-load-events.patch", dockerfile)
         self.assertIn("TILESET_LOAD_FAILED", lifecycle_patch)
+        self.assertIn(
+            'std::make_pair("generation", static_cast<int64_t>(generation))',
+            lifecycle_patch,
+        )
+        self.assertIn(
+            'std::make_pair("statusCode", static_cast<int64_t>(statusCode))',
+            lifecycle_patch,
+        )
         self.assertIn("TileContent", native_patch)
         self.assertNotIn("releases/download", dockerfile)
 
