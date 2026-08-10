@@ -19,7 +19,7 @@ publishes their NVIDIA NVENC products to the governed live-view App.
 | Rerun RRD | Version `0.35.0` telemetry, leader-camera video, and producer Blueprint publication. |
 | NVIDIA CUDA, Vulkan, RTX, and NVENC | Mandatory simulation, rendering, and server-side video encoding. |
 | MAVLink 2 and ROS 2 Jazzy | Pod-local PX4 command, telemetry, and simulator integration. |
-| OGC 3D Tiles | Cesium-streamed photorealistic terrain and buildings. |
+| OGC 3D Tiles | Cesium Omniverse `0.29.0` and its pinned Cesium Native revision stream photorealistic terrain and buildings. A repository-owned internal event extension reports redacted load lifecycle state. |
 | WGS 84, ECEF, ENU, NED, and FLU | Explicit Frames-governed world, physics, entity, sensor, and operator-camera mappings. |
 
 ## Ownership
@@ -61,6 +61,25 @@ replacement children are ready, while ancestor and sibling preloading keep the n
 camera footprint warm. The chart admits 20 concurrent tile loads by default and keeps
 the decoded cache bounded. A fast nadir camera therefore sees lower-detail coverage
 during refinement instead of the renderer clear color.
+
+The image builds the exact Cesium Omniverse `0.29.0` source commit and exact upstream
+Cesium Native submodule revision in the digest-pinned upstream builder. Two reviewed
+patches add child-content failure delivery, load generations, and query-secret log
+redaction. Existing material, viewport-authority, and vendor-install patches apply to the
+resulting extension package. No runtime download or locally rebuilt installation is
+accepted.
+
+Native message-bus events drive streamed-world recovery. A tile-content HTTP 400 marks
+the current provider generation rejected and requests one fresh generation. Hundreds of
+child failures from that generation remain one refresh. The replacement either reaches
+native load completion plus visible coverage or settles in a typed degraded state. Other
+HTTP and transport failures never trigger speculative reloads.
+
+The runtime projects `provider_generation`, `event_sequence`, `refresh_count`, and a
+typed `last_failure` without a URL or credential. Visibility counters remain render
+observations. They never start a timeout, poll a provider, or stop simulation. Existing
+operator streams may continue showing resident content while a replacement generation
+loads.
 
 Fleet dynamics use CUDA-backed PhysX tensor views. Elapsed monotonic time determines the
 number of authoritative fixed physics steps due on each scheduler pass. The clock retains

@@ -24,7 +24,7 @@ for visualization.
 | OpenUSD and RTX Hydra | Isaac Sim `6.0.1` stage and render products inside the authoritative runtime. These are implementation details, not MCP wire types. |
 | Native sensor video | Isaac Sim `6.0.1` packages `omni.kit.livestream.aov` `10.2.0` and `omni.kit.livestream.rtsp` `10.2.3`. The private adapter consumes the loopback RTSP/RTP H.264 stream without decoding or re-encoding. This is not an MCP wire type. |
 | RTSP, RTP, and H.264 | RTSP 1.0 over loopback TCP with interleaved RTP/RTCP. The adapter supports the RFC 6184 single-NAL, STAP-A, and FU-A packetization modes and emits decoder-reentrant Annex B access units. |
-| OGC 3D Tiles | Cesium-backed streamed-world rendering from one simulator-owned world and cache. |
+| OGC 3D Tiles | Cesium Omniverse `0.29.0` with pinned Cesium Native commit `ca0311f25c412b74ad1af9a3636924122cc76156`, one simulator-owned world, and one cache. The repository extension adds private redacted lifecycle events; it does not add an MCP wire protocol. |
 | WGS 84, ECEF, ENU, NED, and FLU | Explicit world, physics, entity, rig, and camera coordinate boundaries. |
 | MAVLink 2 and ROS 2 Jazzy | Private simulator integrations. Neither protocol is projected as high-rate MCP traffic. |
 | Rerun RRD | Version `0.35.0` recording data and producer-authored Blueprint stores sent independently to Recording Hub. |
@@ -122,6 +122,26 @@ directly. Closing a tile or tearing down the App cancels its reconnect state, an
 exhausting the bounded connection attempts waits for the next resource notification
 without polling. There is no desired-versus-realized renderer deployment or periodic
 replay controller.
+
+The streamed-world data plane has a smaller reactive lifecycle inside the simulator.
+The pinned Cesium extension emits a typed event when the ion endpoint, root tileset, or
+tile content request fails. Events contain only the tileset path, load generation, load
+type, and HTTP status. Provider URLs, keys, sessions, tokens, headers, and response bodies
+never enter the event or projected runtime state.
+
+A rejected tile-content session produces one generation-safe tileset refresh. Duplicate
+failures from the rejected generation collapse into the same action. The replacement
+generation must report native load completion and current visible coverage before it is
+ready. A rejected replacement becomes `degraded` without a reload loop. Credential,
+quota, transport, asset, and provider failures are typed directly and never masquerade
+as a provider-session refresh.
+
+Render statistics describe current coverage; they do not infer network failure. Zero
+visible tiles can be valid while a camera crosses an unavailable footprint or while
+refinement is active, so no elapsed-time or visibility threshold triggers provider work.
+This lifecycle can change visual readiness, but it cannot change simulation readiness,
+physics, pose flow, missions, recording publication, or an already active native camera
+product.
 
 ## Authoritative Operator Cameras
 
