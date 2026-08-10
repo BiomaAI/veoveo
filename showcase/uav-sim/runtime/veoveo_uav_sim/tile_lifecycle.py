@@ -130,6 +130,8 @@ class TileLifecycleController:
             return TileLifecycleAction()
         if event.generation < self._provider_generation:
             return TileLifecycleAction()
+        if event.kind == "loaded" and event.generation <= self._loaded_generation:
+            return TileLifecycleAction()
 
         self._event_sequence += 1
         self._provider_generation = max(self._provider_generation, event.generation)

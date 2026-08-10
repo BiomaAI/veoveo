@@ -1855,6 +1855,33 @@ class StreamedWorldHealthTests(unittest.TestCase):
         self.assertEqual(recovered.lifecycle, "ready")
         self.assertIsNone(recovered.diagnostic)
 
+    def test_duplicate_loaded_event_does_not_destabilize_ready_generation(self) -> None:
+        controller = TileLifecycleController(
+            tileset_path="/World/Tileset", ready_frames=2
+        )
+        loaded = NativeTileEvent(
+            kind="loaded",
+            tileset_path="/World/Tileset",
+            generation=1,
+        )
+        controller.accept(loaded)
+        controller.observe_render(
+            resident_tiles=20, visible_tiles=4, loading_tiles=1
+        )
+        ready = controller.observe_render(
+            resident_tiles=24, visible_tiles=6, loading_tiles=0
+        )
+        self.assertEqual(ready.lifecycle, "ready")
+        self.assertEqual(ready.event_sequence, 1)
+
+        duplicate = controller.accept(loaded)
+        stable = controller.observe_render(
+            resident_tiles=24, visible_tiles=6, loading_tiles=2
+        )
+        self.assertFalse(duplicate.reload_tileset)
+        self.assertEqual(stable.lifecycle, "ready")
+        self.assertEqual(stable.event_sequence, 1)
+
     def test_rejected_replacement_generation_degrades_without_a_loop(self) -> None:
         controller = TileLifecycleController(
             tileset_path="/World/Tileset", ready_frames=1
