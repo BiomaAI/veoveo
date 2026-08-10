@@ -135,7 +135,38 @@ pub enum TileLifecycle {
     Connecting,
     Streaming,
     Ready,
-    Failed,
+    Refreshing,
+    Degraded,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum TileLoadType {
+    IonEndpoint,
+    TilesetJson,
+    TileContent,
+    Unknown,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum TileFailureCode {
+    ProviderSessionRejected,
+    CredentialsRejected,
+    AssetUnavailable,
+    QuotaExceeded,
+    ProviderUnavailable,
+    TransportFailed,
+    RequestFailed,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TileFailureState {
+    pub code: TileFailureCode,
+    pub load_type: TileLoadType,
+    pub http_status: u16,
+    pub generation: u64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -253,7 +284,11 @@ pub struct TileState {
     pub resident_tiles: u64,
     pub visible_tiles: u64,
     pub loading_tiles: u64,
-    pub recovery_count: u64,
+    pub provider_generation: u64,
+    pub event_sequence: u64,
+    pub refresh_count: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_failure: Option<TileFailureState>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diagnostic: Option<String>,
 }

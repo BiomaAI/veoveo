@@ -109,7 +109,9 @@ class PreconfigurationApplication:
                     "resident_tiles": 0,
                     "visible_tiles": 0,
                     "loading_tiles": 0,
-                    "recovery_count": 0,
+                    "provider_generation": 0,
+                    "event_sequence": 0,
+                    "refresh_count": 0,
                 },
                 "cameras": [],
                 "live_cameras": [
@@ -369,7 +371,10 @@ class AdapterApplication:
             return web.json_response({"error": str(error)}, status=409)
 
     def _stream_content_ready(self) -> bool:
-        return self._state.snapshot()["tiles"]["lifecycle"] == "ready"
+        tiles = self._state.snapshot()["tiles"]
+        return tiles["lifecycle"] == "ready" or (
+            tiles["lifecycle"] == "refreshing" and tiles["visible_tiles"] > 0
+        )
 
     def _execute_command(self, command: DirectCommand) -> dict[str, object]:
         self._state.require_session(command.session_id)

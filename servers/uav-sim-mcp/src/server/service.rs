@@ -1323,7 +1323,10 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             resident_tiles: 20,
             loading_tiles: 0,
             visible_tiles: 12,
-            recovery_count: 0,
+            provider_generation: 1,
+            event_sequence: 0,
+            refresh_count: 0,
+            last_failure: None,
             diagnostic: None,
         },
         cameras: vec![CameraState {

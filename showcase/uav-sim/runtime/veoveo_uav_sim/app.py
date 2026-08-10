@@ -161,9 +161,9 @@ def run(config: RuntimeConfig) -> None:
     )
     from .state import RuntimeState, VehicleTelemetry
     from .stream_output import StreamPublicationWorker
+    from .tile_lifecycle import NativeTileEventBridge, TileLifecycleController
     from .vehicle_model import PX4_IRIS_SENSOR_CADENCE, Px4IrisThrustCurve
     from .world_config import WorldConfiguration, WorldConfigurationSlot
-    from .world_health import assess_tile_health
 
     state: RuntimeState | None = None
     world_config: WorldConfiguration | None = None
@@ -189,6 +189,8 @@ def run(config: RuntimeConfig) -> None:
     operator_cameras: AuthoritativeOperatorCameraCollection | None = None
     operator_products: OperatorProductCollection | None = None
     simulation_generation = 1
+    tile_event_bridge: NativeTileEventBridge | None = None
+    tile_controller: TileLifecycleController | None = None
 
     try:
         preconfiguration = PreconfigurationApplication(config, world_slot)
@@ -666,6 +668,12 @@ def run(config: RuntimeConfig) -> None:
         fleet_loop.start()
 
         cesium_interface = acquire_cesium_omniverse_interface()
+        assert tileset_path is not None
+        tile_event_bridge = NativeTileEventBridge()
+        tile_controller = TileLifecycleController(
+            tileset_path=tileset_path,
+            ready_frames=config.tile_ready_frames,
+        )
         # The Cesium extension starts before this headless application authors
         # its runtime-only tileset. Rebind the completed stage through Cesium's
         # public lifecycle contract so its native asset registry enumerates the
@@ -716,11 +724,6 @@ def run(config: RuntimeConfig) -> None:
                 )
             cesium_interface.on_update_frame(cesium_viewports, False)
 
-        tile_coverage_frames = 0
-        tile_absent_since: float | None = time.monotonic()
-        tile_failure_latched = False
-        tile_recovery_count = 0
-        tile_unavailable_reported = False
         runtime_ready_notified = False
         physics_clock.reset(physics_step)
         render_cadence.reset(physics_step)
@@ -753,11 +756,15 @@ def run(config: RuntimeConfig) -> None:
                     )
                     assert operator_products is not None
                     operator_products.observe_render_completion(time.monotonic())
+                    tile_state = state.snapshot()["tiles"]
                     state.update_stream_products(
                         operator_products.state(
                             content_ready=(
-                                state.snapshot()["tiles"]["lifecycle"]
-                                == "ready"
+                                tile_state["lifecycle"] == "ready"
+                                or (
+                                    tile_state["lifecycle"] == "refreshing"
+                                    and tile_state["visible_tiles"] > 0
+                                )
                             )
                         )
                     )
@@ -822,54 +829,48 @@ def run(config: RuntimeConfig) -> None:
                             )
 
             if render:
+                assert tile_event_bridge is not None
+                assert tile_controller is not None
+                for tile_event in tile_event_bridge.drain():
+                    tile_action = tile_controller.accept(tile_event)
+                    if tile_event.kind == "load_failed":
+                        LOGGER.error(
+                            (
+                                "streamed-world load failed: type=%s "
+                                "status=%d generation=%d; simulation continues"
+                            ),
+                            tile_event.load_type,
+                            tile_event.http_status,
+                            tile_event.generation,
+                        )
+                    if tile_action.reload_tileset:
+                        try:
+                            cesium_interface.reload_tileset(tileset_path)
+                            LOGGER.info(
+                                "streamed-world provider generation refresh requested"
+                            )
+                        except Exception:
+                            tile_controller.mark_refresh_command_failed()
+                            LOGGER.exception(
+                                "streamed-world generation refresh failed; simulation continues"
+                            )
                 statistics = cesium_interface.get_render_statistics()
                 resident = int(statistics.tiles_loaded)
                 visible = int(statistics.tiles_rendered)
                 loading = int(statistics.tiles_loading_worker) + int(
                     statistics.tiles_loading_main
                 )
-                now = time.monotonic()
-                if visible > 0:
-                    tile_absent_since = None
-                elif tile_absent_since is None:
-                    tile_absent_since = now
-                tile_health = assess_tile_health(
+                tile_health = tile_controller.observe_render(
                     resident_tiles=resident,
                     visible_tiles=visible,
                     loading_tiles=loading,
-                    coverage_frames=tile_coverage_frames,
-                    ready_frames=config.tile_ready_frames,
-                    absent_seconds=(
-                        0.0 if tile_absent_since is None else now - tile_absent_since
-                    ),
-                    failed_latched=tile_failure_latched,
                 )
-                tile_coverage_frames = tile_health.coverage_frames
-                tile_diagnostic = tile_health.diagnostic
-                if tile_health.recovery_required:
-                    tile_recovery_count += 1
-                    try:
-                        assert tileset_path is not None
-                        cesium_interface.reload_tileset(tileset_path)
-                    except Exception:  # noqa: BLE001 - visual failure is non-authoritative
-                        tile_diagnostic = "streamed-world provider reload failed"
-                        LOGGER.exception(
-                            "streamed-world provider reload failed; simulation continues"
-                        )
-                tile_failure_latched = tile_health.lifecycle == "failed"
-                state.set_tiles(
-                    tile_health.lifecycle,
-                    resident,
-                    visible,
-                    loading,
-                    tile_recovery_count,
-                    diagnostic=tile_diagnostic,
-                )
+                state.set_tiles(tile_health)
                 recording.log_tiles(
                     resident,
                     visible,
                     loading,
-                    tile_recovery_count,
+                    tile_health.refresh_count,
                     tile_health.lifecycle,
                     simulation_time_s,
                     physics_step,
@@ -881,14 +882,6 @@ def run(config: RuntimeConfig) -> None:
                     recording_status.dropped_events,
                     recording_status.last_error,
                 )
-                if tile_health.lifecycle == "failed" and not tile_unavailable_reported:
-                    tile_unavailable_reported = True
-                    LOGGER.error(
-                        "Google Photorealistic 3D Tiles are unavailable; simulation continues"
-                    )
-                elif tile_health.lifecycle != "failed":
-                    tile_unavailable_reported = False
-
                 state.observe_render_cycle(
                     native_update_wall_seconds,
                     time.monotonic() - render_cycle_started,
@@ -954,6 +947,8 @@ def run(config: RuntimeConfig) -> None:
                     stage.SetEditTarget(previous_target)
 
             _cleanup("clear Cesium ion token", clear_ion_token)
+        if tile_event_bridge is not None:
+            _cleanup("Cesium tile lifecycle events", tile_event_bridge.close)
         if connection_executor is not None:
             _cleanup(
                 "PX4 connection executor",
