@@ -1,14 +1,13 @@
 # syntax=docker/dockerfile:1.25.0@sha256:0adf442eae370b6087e08edc7c50b552d80ddf261576f4ebd6421006b2461f12
 ARG TARGETPLATFORM=linux/amd64
 ARG PX4_BUILDER_IMAGE=px4io/px4-dev:v1.17.0@sha256:82e3ddcf4bf3fa4dbc0be6489c6de4158d0efbc8530182c691184302027335ce
+ARG CESIUM_BUILDER_IMAGE=cesiumgs/omniverse-ubuntu22-build:2026-03-03@sha256:0882bce3c6de59074eab2255c126b6cdbcc32b2af71e657b6e965f85af4c30b4
 ARG SIMULATION_RUNTIME_IMAGE=veoveo/simulation-runtime:2026.07.0
 
 FROM --platform=${TARGETPLATFORM} ${PX4_BUILDER_IMAGE} AS uav-upstream
 
 ARG PX4_COMMIT=d6f12ad1c4f70ad3230afd7d86e971421e02fef4
 ARG PEGASUS_COMMIT=644da37e9d5268e5f9a34e78bdcfd57a8bab82b4
-ARG CESIUM_VERSION=0.29.0
-ARG CESIUM_SHA256=fe38d6195974620e87d7cdad32bb4b38d5933389523d56e75bbae23bcf4da55f
 
 WORKDIR /src
 RUN git clone https://github.com/PX4/PX4-Autopilot.git px4 \
@@ -33,16 +32,42 @@ RUN git -C pegasus apply --unidiff-zero --check /tmp/pegasus.patch \
     && git -C pegasus apply /tmp/pegasus-hot-path.patch \
     && rm -rf pegasus/.git
 
-RUN curl --fail --location --show-error \
-      --output /tmp/cesium.zip \
-      "https://github.com/CesiumGS/cesium-omniverse/releases/download/v${CESIUM_VERSION}/CesiumGS-cesium-omniverse-linux-x86_64-v${CESIUM_VERSION}.zip" \
-    && echo "${CESIUM_SHA256}  /tmp/cesium.zip" | sha256sum --check --strict \
-    && mkdir -p /src/cesium \
-    && unzip -q /tmp/cesium.zip -d /src/cesium
+FROM --platform=${TARGETPLATFORM} ${CESIUM_BUILDER_IMAGE} AS cesium-upstream
+
+ARG CESIUM_COMMIT=c9728dfe481e2aa1b9fe38ca69839f90680ba9b6
+ARG CESIUM_NATIVE_COMMIT=ca0311f25c412b74ad1af9a3636924122cc76156
+
+WORKDIR /src
+RUN git clone https://github.com/CesiumGS/cesium-omniverse.git cesium \
+    && git -C cesium checkout --detach "${CESIUM_COMMIT}" \
+    && git -C cesium submodule update --init --recursive \
+    && test "$(git -C cesium/extern/cesium-native rev-parse HEAD)" = "${CESIUM_NATIVE_COMMIT}"
+COPY patches/cesium-native-ca0311f-tile-load-events.patch /tmp/cesium-native.patch
+COPY patches/cesium-0.29.0-lifecycle-events.patch /tmp/cesium-lifecycle.patch
+RUN --mount=type=cache,id=veoveo-cesium-omniverse-0.29.0-build,target=/src/cesium/build-package,sharing=locked \
+    --mount=type=cache,id=veoveo-cesium-packman,target=/root/.cache/packman,sharing=locked \
+    --mount=type=cache,id=veoveo-cesium-ezvcpkg,target=/root/.ezvcpkg,sharing=locked \
+    --mount=type=cache,id=veoveo-cesium-conan,target=/root/.conan,sharing=locked \
+    git -C cesium/extern/cesium-native apply --check /tmp/cesium-native.patch \
+    && git -C cesium/extern/cesium-native apply /tmp/cesium-native.patch \
+    && git -C cesium apply --check /tmp/cesium-lifecycle.patch \
+    && git -C cesium apply /tmp/cesium-lifecycle.patch \
+    && cmake -S cesium -B cesium/build-package \
+      -D CMAKE_BUILD_TYPE=Release \
+      -D CESIUM_OMNI_ENABLE_TESTS=OFF \
+      -D CESIUM_OMNI_ENABLE_DOCUMENTATION=OFF \
+      -D CESIUM_OMNI_ENABLE_SANITIZERS=OFF \
+      -D CESIUM_OMNI_ENABLE_LINTERS=OFF \
+      -D VCPKG_TRIPLET=x64-linux \
+    && cmake --build cesium/build-package --parallel "$(nproc)" \
+    && cmake --build cesium/build-package --target install \
+    && mkdir -p /src/cesium-package \
+    && cp -a cesium/exts/cesium.omniverse cesium/exts/cesium.usd.plugins /src/cesium-package/
+
 COPY patches/cesium-0.29.0-preinstalled-vendor.patch /tmp/cesium.patch
 COPY patches/cesium-0.29.0-external-viewports.patch /tmp/cesium-viewports.patch
-RUN patch --directory=/src/cesium --strip=1 < /tmp/cesium.patch
-RUN patch --directory=/src/cesium --strip=1 < /tmp/cesium-viewports.patch
+RUN patch --directory=/src/cesium-package --strip=1 < /tmp/cesium.patch \
+    && patch --directory=/src/cesium-package --strip=1 < /tmp/cesium-viewports.patch
 
 FROM --platform=${TARGETPLATFORM} ${SIMULATION_RUNTIME_IMAGE} AS uav-overlay
 
@@ -65,7 +90,7 @@ ARG PYARROW_VERSION=25.0.0
 ARG FASTCRC_VERSION=0.3.6
 
 USER root
-COPY --from=uav-upstream --chown=10001:10001 /src/cesium/ /opt/veoveo/extensions/
+COPY --from=cesium-upstream --chown=10001:10001 /src/cesium-package/ /opt/veoveo/extensions/
 RUN /isaac-sim/python.sh -m pip install \
       --disable-pip-version-check \
       --no-cache-dir \

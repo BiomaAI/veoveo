@@ -1,0 +1,66 @@
+diff --git a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetLoadFailureDetails.h b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetLoadFailureDetails.h
+index a1ac6db..2026c81 100644
+--- a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetLoadFailureDetails.h
++++ b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetLoadFailureDetails.h
+@@ -28,7 +28,12 @@ enum class TilesetLoadType {
+   /**
+    * @brief The root tileset.json.
+    */
+-  TilesetJson
++  TilesetJson,
++
++  /**
++   * @brief Content referenced by a tile in the tileset.
++   */
++  TileContent
+ };
+ 
+ class TilesetLoadFailureDetails {
+diff --git a/Cesium3DTilesSelection/src/TilesetContentManager.cpp b/Cesium3DTilesSelection/src/TilesetContentManager.cpp
+index 693d090..5c01eba 100644
+--- a/Cesium3DTilesSelection/src/TilesetContentManager.cpp
++++ b/Cesium3DTilesSelection/src/TilesetContentManager.cpp
+@@ -1040,14 +1040,41 @@ void TilesetContentManager::loadTileContent(
+             .createResolvedFuture<TileLoadResultAndRenderResources>(
+                 {std::move(result), nullptr});
+       })
+-      .thenInMainThread([&tile, thiz](TileLoadResultAndRenderResources&& pair) {
++      .thenInMainThread([&tile,
++                         thiz,
++                         loadErrorCallback = tilesetOptions.loadErrorCallback](
++                            TileLoadResultAndRenderResources&& pair) {
++        if (pair.result.state == TileLoadResultState::Failed &&
++            loadErrorCallback) {
++          uint16_t statusCode = 0;
++          if (pair.result.pCompletedRequest &&
++              pair.result.pCompletedRequest->response()) {
++            statusCode =
++                pair.result.pCompletedRequest->response()->statusCode();
++          }
++          loadErrorCallback(TilesetLoadFailureDetails{
++              nullptr,
++              TilesetLoadType::TileContent,
++              statusCode,
++              "Tile content request failed."});
++        }
+         setTileContent(tile, std::move(pair.result), pair.pRenderResources);
+ 
+         thiz->notifyTileDoneLoading(&tile);
+       })
+-      .catchInMainThread([pLogger = this->_externals.pLogger, &tile, thiz](
++      .catchInMainThread([pLogger = this->_externals.pLogger,
++                          &tile,
++                          thiz,
++                          loadErrorCallback = tilesetOptions.loadErrorCallback](
+                              std::exception&& e) {
+         thiz->notifyTileDoneLoading(&tile);
++        if (loadErrorCallback) {
++          loadErrorCallback(TilesetLoadFailureDetails{
++              nullptr,
++              TilesetLoadType::TileContent,
++              0,
++              "Tile content request failed."});
++        }
+         SPDLOG_LOGGER_ERROR(
+             pLogger,
+             "An unexpected error occurs when loading tile: {}",
