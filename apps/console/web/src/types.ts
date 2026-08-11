@@ -176,6 +176,7 @@ export interface AgentSummary {
   name: string;
   profile: string;
   state: "idle" | "running" | "waiting" | "disabled" | "failed";
+  runnerLeaseExpiresAt?: string;
   pendingWakes: number;
   lastEpisodeAt?: string;
   detail: string;

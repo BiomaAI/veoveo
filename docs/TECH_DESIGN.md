@@ -498,6 +498,11 @@ Authenticated human control stays available through the gateway and Console BFF;
 agent pod is never an ingress service. An operator message is committed as a
 UUIDv7-idempotent durable wake inside the caller's exact tenant, Work Context, profile,
 and agent tuple, so it may arrive while an episode or detached task is running.
+Console snapshots and change events identify that target by its tenant-scoped symbolic
+`agent_key`, which is the same identifier accepted by every control route; internal
+SurrealDB record keys never become public control identities. The snapshot also carries
+the current runner-lease deadline. Console projects an absent or expired lease as
+offline at that exact deadline without polling or changing durable episode state.
 Elicitation decisions use the same governed path and durable record. The kernel opens a
 SurrealDB live-query hint before rereading that record, which closes the subscribe/read
 race without status polling. A decision that arrives after the bounded in-episode wait

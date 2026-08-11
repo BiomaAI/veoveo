@@ -1,4 +1,5 @@
 import { demoSnapshot } from "./demo";
+import { agentElicitationDecisionPath, agentElicitationsApiPath } from "./agentControl";
 import type {
   CallToolResult,
   CancelTaskResult,
@@ -170,7 +171,7 @@ export async function loadAgentElicitations(
   signal?: AbortSignal,
 ): Promise<AgentElicitation[]> {
   const response = await fetch(
-    `/console/api/agents/${encodeURIComponent(agentId)}/elicitations`,
+    agentElicitationsApiPath(agentId),
     {
       credentials: "same-origin",
       headers: { Accept: "application/json" },
@@ -200,7 +201,7 @@ export async function decideAgentElicitation(
   decision: { action: "accept"; content: Record<string, unknown> } | { action: "decline" | "cancel" },
 ): Promise<AgentWakeReceipt> {
   const wire = await consoleMutation<AgentWakeReceiptWire>(
-    `agents/${encodeURIComponent(agentId)}/elicitations/${encodeURIComponent(elicitationId)}/decision`,
+    agentElicitationDecisionPath(agentId, elicitationId),
     {
       method: "POST",
       body: JSON.stringify({ request_id: requestId, ...decision }),

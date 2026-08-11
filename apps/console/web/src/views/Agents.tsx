@@ -5,10 +5,30 @@ import {
   loadAgentElicitations,
   sendAgentMessage,
 } from "../api";
-import { uuidV7 } from "../agentControl";
+import { agentDisplayState, uuidV7 } from "../agentControl";
 import { EmptyState, SectionHeader, StatusPill } from "../components/primitives";
 import { formatDate } from "../format";
 import type { AgentElicitation, AgentSummary, InstallationSnapshot } from "../types";
+
+function useAgentDisplayState(agent: AgentSummary) {
+  const [, refreshAtExpiry] = useState(0);
+  useEffect(() => {
+    const expiresAt = Date.parse(agent.runnerLeaseExpiresAt ?? "");
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) return;
+    let timer: number | undefined;
+    const schedule = () => {
+      const remaining = expiresAt - Date.now();
+      if (remaining <= 0) {
+        refreshAtExpiry((revision) => revision + 1);
+        return;
+      }
+      timer = window.setTimeout(schedule, Math.min(remaining + 25, 2_147_483_647));
+    };
+    schedule();
+    return () => window.clearTimeout(timer);
+  }, [agent.runnerLeaseExpiresAt]);
+  return agentDisplayState(agent);
+}
 
 function AgentCard({ agent }: { agent: AgentSummary }) {
   const [message, setMessage] = useState("");
@@ -24,6 +44,7 @@ function AgentCard({ agent }: { agent: AgentSummary }) {
     fingerprint: string;
   }>>({});
   const [decidingId, setDecidingId] = useState<string>();
+  const displayState = useAgentDisplayState(agent);
 
   const refreshElicitations = useCallback(async (signal?: AbortSignal) => {
     setLoadingElicitations(true);
@@ -118,7 +139,7 @@ function AgentCard({ agent }: { agent: AgentSummary }) {
     <article className="item-card agent-card">
       <div className="item-card-head">
         <div className="object-icon"><Bot size={18} /></div>
-        <StatusPill value={agent.state} />
+        <StatusPill value={displayState} />
       </div>
       <h3>{agent.name}</h3>
       <span className="mono subdued">{agent.id}</span>
