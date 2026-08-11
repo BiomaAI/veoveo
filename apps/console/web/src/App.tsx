@@ -296,7 +296,13 @@ export function App() {
             window.history.replaceState(null, "", `#/recordings/${encodeURIComponent(recordingId)}`);
           }} />}
           {view === "mcp" && <McpView snapshot={snapshot} />}
-          {view === "apps" && <AppsView selectedUri={selectedAppUri} onSelect={navigateApp} />}
+          {view === "apps" && (
+            <AppsView
+              selectedUri={selectedAppUri}
+              onSelect={navigateApp}
+              onPlatformSelect={navigate}
+            />
+          )}
           {view === "access" && <AccessView snapshot={snapshot} />}
           {view === "audit" && <AuditView snapshot={snapshot} />}
           {view === "cluster" && <ClusterView snapshot={snapshot} />}

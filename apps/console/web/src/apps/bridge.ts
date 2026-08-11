@@ -44,6 +44,8 @@ export interface AppBridge {
   notifyToolInput: (args: Record<string, unknown>) => void;
 }
 
+export type InternalAppLinkHandler = (url: string) => boolean;
+
 const TASK_METHODS = new Set(["tasks/get", "tasks/result", "tasks/cancel"]);
 
 function isTaskAugmentedCall(request: JSONRPCRequest): boolean {
@@ -310,7 +312,8 @@ function interceptResourceSubscriptions(
 export function attachAppBridge(
   iframe: HTMLIFrameElement,
   app: AppDescriptor,
-  theme: AppTheme
+  theme: AppTheme,
+  openInternalLink?: InternalAppLinkHandler,
 ): AppBridge {
   if (!iframe.contentWindow) throw new Error("MCP App frame is not ready");
 
@@ -343,6 +346,9 @@ export function attachAppBridge(
     return readAppResource(app.server, app.resourceUri, uri);
   };
   bridge.onopenlink = async ({ url }) => {
+    if (url.startsWith("ui://") || url.startsWith("veoveo-console://")) {
+      return openInternalLink?.(url) ? {} : { isError: true };
+    }
     const confirmed =
       url.startsWith("https://") &&
       window.confirm(`This app wants to open:\n${url}\n\nOpen in a new tab?`);

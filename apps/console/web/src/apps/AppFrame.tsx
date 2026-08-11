@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { appFrameUrl } from "../api";
-import { attachAppBridge, type AppBridge } from "./bridge";
+import { attachAppBridge, type AppBridge, type InternalAppLinkHandler } from "./bridge";
 import type { AppDescriptor } from "../types";
 import { useTheme } from "../theme";
 
@@ -11,7 +11,13 @@ import { useTheme } from "../theme";
  * the control plane. Exact network origins declared in `_meta.ui.csp` may be
  * admitted by the BFF for direct media data planes such as WebRTC signaling.
  */
-export function AppFrame({ app }: { app: AppDescriptor }) {
+export function AppFrame({
+  app,
+  onInternalLink,
+}: {
+  app: AppDescriptor;
+  onInternalLink?: InternalAppLinkHandler;
+}) {
   const { appTheme } = useTheme();
   const frameRef = useRef<HTMLIFrameElement>(null);
   const bridgeRef = useRef<AppBridge>(null);
@@ -19,13 +25,13 @@ export function AppFrame({ app }: { app: AppDescriptor }) {
   useEffect(() => {
     const iframe = frameRef.current;
     if (!iframe) return;
-    const bridge = attachAppBridge(iframe, app, appTheme);
+    const bridge = attachAppBridge(iframe, app, appTheme, onInternalLink);
     bridgeRef.current = bridge;
     return () => {
       bridgeRef.current = null;
       bridge.dispose();
     };
-  }, [app, appTheme]);
+  }, [app, appTheme, onInternalLink]);
 
   return (
     <iframe
