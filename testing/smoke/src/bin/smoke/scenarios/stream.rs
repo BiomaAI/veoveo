@@ -29,6 +29,8 @@ const RECORDING_PROXY: &str = "rerun+http://127.0.0.1:9876/proxy";
 pub(crate) const RECORDING_FORWARDER: &str = "target/debug/recording-forwarder";
 const STREAM_MCP_URL: &str = "http://127.0.0.1:8797/stream/mcp";
 const STREAM_READY_URL: &str = "http://127.0.0.1:8797/stream/readyz";
+const STREAM_HOST: &str = "stream-mcp:8797";
+const DEFAULT_KUBERNETES_NAMESPACE: &str = "veoveo";
 
 pub(crate) async fn stream_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
     ensure!(
@@ -58,12 +60,13 @@ pub(crate) async fn stream_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
         "recording-producer",
     );
     let producer_key_id = required_environment(&environment, "VEOVEO_RECORDING_PRODUCER_KEY_ID")?;
+    let namespace = kubernetes_namespace(&environment);
 
     run_checked(
         Path::new("kubectl"),
         [
             "-n".into(),
-            "veoveo".into(),
+            namespace.into(),
             "rollout".into(),
             "status".into(),
             "deployment/stream-mcp".into(),
@@ -98,9 +101,9 @@ pub(crate) async fn stream_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
         )
     })?;
     wait_for_recording_forwarder(&forwarder_log).await?;
-    let _stream_forward = PortForwardGuard::spawn("stream-mcp", 8797, 8797)?;
-    let _surreal_forward = PortForwardGuard::spawn("surrealdb", 8000, 8000)?;
-    wait_for_stream().await?;
+    let _stream_forward = PortForwardGuard::spawn(namespace, "stream-mcp", 8797, 8797)?;
+    let _surreal_forward = PortForwardGuard::spawn(namespace, "surrealdb", 8000, 8000)?;
+    wait_for_stream(namespace).await?;
 
     let recording_key = uuid::Uuid::now_v7().to_string();
     publish_h264_recording(&recording_key, &sample_h264).await?;
@@ -119,14 +122,15 @@ pub(crate) async fn stream_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
 
     let bearer_token =
         issue_internal_token(signing_key, signing_key_id, "stream", "stream-gpu-smoke")?;
-    let task_client = FinalTaskSmokeClient::new(STREAM_MCP_URL, bearer_token);
+    let task_client =
+        FinalTaskSmokeClient::new(STREAM_MCP_URL, bearer_token).with_host(STREAM_HOST);
     let task = task_client
         .run_tool_structured("run_recording", arguments, Duration::from_secs(300))
         .await;
     let task = match task {
         Ok(output) => output,
         Err(error) => {
-            let logs = kubernetes_logs("deployment/stream-mcp")
+            let logs = kubernetes_logs(namespace, "deployment/stream-mcp")
                 .unwrap_or_else(|log_error| format!("failed to collect logs: {log_error:#}"));
             bail!("Stream MCP recording run failed: {error:#}\nKubernetes logs:\n{logs}");
         }
@@ -198,6 +202,14 @@ pub(crate) fn optional_environment<'a>(
         .map(String::as_str)
         .filter(|value| !value.trim().is_empty())
         .unwrap_or(default)
+}
+
+pub(crate) fn kubernetes_namespace(environment: &BTreeMap<String, String>) -> &str {
+    optional_environment(
+        environment,
+        "VEOVEO_KUBERNETES_NAMESPACE",
+        DEFAULT_KUBERNETES_NAMESPACE,
+    )
 }
 
 pub(crate) async fn wait_for_recording_forwarder(log: &Path) -> Result<()> {
@@ -286,11 +298,12 @@ pub(crate) async fn wait_for_recording_catalog(
     bail!("Recording Hub did not catalog recording key {recording_key}")
 }
 
-async fn wait_for_stream() -> Result<()> {
+async fn wait_for_stream(namespace: &str) -> Result<()> {
     let client = reqwest::Client::new();
     for _ in 0..90 {
         if client
             .get(STREAM_READY_URL)
+            .header(reqwest::header::HOST, STREAM_HOST)
             .send()
             .await
             .is_ok_and(|response| response.status().is_success())
@@ -299,7 +312,7 @@ async fn wait_for_stream() -> Result<()> {
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
-    let logs = kubernetes_logs("deployment/stream-mcp")
+    let logs = kubernetes_logs(namespace, "deployment/stream-mcp")
         .unwrap_or_else(|error| format!("failed to collect logs: {error:#}"));
     bail!("Stream MCP did not become ready\n{logs}")
 }
@@ -457,7 +470,12 @@ pub(crate) struct PortForwardGuard {
 }
 
 impl PortForwardGuard {
-    pub(crate) fn spawn(resource: &str, local_port: u16, remote_port: u16) -> Result<Self> {
+    pub(crate) fn spawn(
+        namespace: &str,
+        resource: &str,
+        local_port: u16,
+        remote_port: u16,
+    ) -> Result<Self> {
         let resource = if resource.contains('/') {
             resource.to_owned()
         } else {
@@ -466,7 +484,7 @@ impl PortForwardGuard {
         let child = Command::new("kubectl")
             .args([
                 "-n",
-                "veoveo",
+                namespace,
                 "port-forward",
                 &resource,
                 &format!("{local_port}:{remote_port}"),
@@ -486,7 +504,7 @@ impl Drop for PortForwardGuard {
     }
 }
 
-pub(crate) fn kubernetes_logs(primary_workload: &str) -> Result<String> {
+pub(crate) fn kubernetes_logs(namespace: &str, primary_workload: &str) -> Result<String> {
     let mut output = String::new();
     for (workload, container) in [
         (primary_workload, None),
@@ -495,7 +513,7 @@ pub(crate) fn kubernetes_logs(primary_workload: &str) -> Result<String> {
     ] {
         let mut arguments = vec![
             "-n".into(),
-            "veoveo".into(),
+            namespace.into(),
             "logs".into(),
             workload.into(),
             "--tail=300".into(),

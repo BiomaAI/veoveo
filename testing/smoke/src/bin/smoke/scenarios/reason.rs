@@ -5,14 +5,16 @@ use anyhow::{Context, Result, bail, ensure};
 use serde_json::{Value, json};
 
 use super::stream::{
-    PortForwardGuard, RECORDING_FORWARDER, issue_internal_token, kubernetes_logs, load_environment,
-    optional_environment, prepare_sample_h264, publish_h264_recording, required_environment,
-    wait_for_recording_catalog, wait_for_recording_forwarder,
+    PortForwardGuard, RECORDING_FORWARDER, issue_internal_token, kubernetes_logs,
+    kubernetes_namespace, load_environment, optional_environment, prepare_sample_h264,
+    publish_h264_recording, required_environment, wait_for_recording_catalog,
+    wait_for_recording_forwarder,
 };
 use super::*;
 
 const REASON_MCP_URL: &str = "http://127.0.0.1:8803/reason/mcp";
 const REASON_READY_URL: &str = "http://127.0.0.1:8803/reason/readyz";
+const REASON_HOST: &str = "reason-mcp:8803";
 
 pub(crate) async fn reason_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
     ensure!(
@@ -42,12 +44,13 @@ pub(crate) async fn reason_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
         "recording-producer",
     );
     let producer_key_id = required_environment(&environment, "VEOVEO_RECORDING_PRODUCER_KEY_ID")?;
+    let namespace = kubernetes_namespace(&environment);
 
     run_checked(
         Path::new("kubectl"),
         [
             "-n".into(),
-            "veoveo".into(),
+            namespace.into(),
             "rollout".into(),
             "status".into(),
             "deployment/reason-mcp".into(),
@@ -82,9 +85,9 @@ pub(crate) async fn reason_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
         )
     })?;
     wait_for_recording_forwarder(&forwarder_log).await?;
-    let _reason_forward = PortForwardGuard::spawn("reason-mcp", 8803, 8803)?;
-    let _surreal_forward = PortForwardGuard::spawn("surrealdb", 8000, 8000)?;
-    wait_for_reason().await?;
+    let _reason_forward = PortForwardGuard::spawn(namespace, "reason-mcp", 8803, 8803)?;
+    let _surreal_forward = PortForwardGuard::spawn(namespace, "surrealdb", 8000, 8000)?;
+    wait_for_reason(namespace).await?;
     assert_unauthenticated_rejected().await?;
 
     let recording_key = uuid::Uuid::now_v7().to_string();
@@ -107,14 +110,15 @@ pub(crate) async fn reason_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
 
     let bearer_token =
         issue_internal_token(signing_key, signing_key_id, "reason", "reason-gpu-smoke")?;
-    let task_client = FinalTaskSmokeClient::new(REASON_MCP_URL, bearer_token);
+    let task_client =
+        FinalTaskSmokeClient::new(REASON_MCP_URL, bearer_token).with_host(REASON_HOST);
     let task = task_client
         .run_tool_structured("analyze_recording", arguments, Duration::from_secs(600))
         .await;
     let output = match task {
         Ok(output) => output,
         Err(error) => {
-            let logs = kubernetes_logs("deployment/reason-mcp")
+            let logs = kubernetes_logs(namespace, "deployment/reason-mcp")
                 .unwrap_or_else(|log_error| format!("failed to collect logs: {log_error:#}"));
             bail!("reason MCP task failed: {error:#}\nKubernetes logs:\n{logs}");
         }
@@ -172,11 +176,12 @@ fn validate_reason_workspace(
     Ok(())
 }
 
-async fn wait_for_reason() -> Result<()> {
+async fn wait_for_reason(namespace: &str) -> Result<()> {
     let client = reqwest::Client::new();
     for _ in 0..90 {
         if client
             .get(REASON_READY_URL)
+            .header(reqwest::header::HOST, REASON_HOST)
             .send()
             .await
             .is_ok_and(|response| response.status().is_success())
@@ -185,7 +190,7 @@ async fn wait_for_reason() -> Result<()> {
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
-    let logs = kubernetes_logs("deployment/reason-mcp")
+    let logs = kubernetes_logs(namespace, "deployment/reason-mcp")
         .unwrap_or_else(|error| format!("failed to collect logs: {error:#}"));
     bail!("reason MCP did not become ready\n{logs}")
 }
@@ -194,6 +199,7 @@ async fn wait_for_reason() -> Result<()> {
 async fn assert_unauthenticated_rejected() -> Result<()> {
     let response = reqwest::Client::new()
         .post(REASON_MCP_URL)
+        .header(reqwest::header::HOST, REASON_HOST)
         .header("content-type", "application/json")
         .body(r#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#)
         .send()
