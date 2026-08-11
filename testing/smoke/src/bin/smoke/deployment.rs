@@ -78,6 +78,7 @@ struct ResolvedSource {
     repository: PathBuf,
     revision: String,
     image_digests: BTreeMap<String, String>,
+    deployment_image_digests: BTreeMap<String, String>,
     _checkout: tempfile::TempDir,
 }
 
@@ -448,6 +449,7 @@ fn resolve_sources(profile: &LoadedProfile) -> Result<Vec<ResolvedSource>> {
             repository: destination.to_path_buf(),
             revision,
             image_digests: BTreeMap::new(),
+            deployment_image_digests: BTreeMap::new(),
             _checkout: checkout,
         });
     }
@@ -546,6 +548,7 @@ fn resolve_locked_sources(
     lock: &DeploymentLock,
 ) -> Result<Vec<ResolvedSource>> {
     let mut resolved = Vec::with_capacity(profile.definition.sources.len());
+    let deployment_image_digests = locked_image_digests(profile, &lock.sources)?;
     for source in &profile.definition.sources {
         let locked = lock
             .sources
@@ -618,7 +621,8 @@ fn resolve_locked_sources(
             definition: source.clone(),
             repository: destination.to_path_buf(),
             revision,
-            image_digests: locked_image_digests(profile, locked)?,
+            image_digests: locked_image_digests(profile, std::slice::from_ref(locked))?,
+            deployment_image_digests: deployment_image_digests.clone(),
             _checkout: checkout,
         });
     }
@@ -697,22 +701,35 @@ fn validate_locked_charts(
 
 fn locked_image_digests(
     profile: &LoadedProfile,
-    locked: &LockedSource,
+    sources: &[LockedSource],
 ) -> Result<BTreeMap<String, String>> {
-    let prefix = format!("{}/", profile.definition.registry.address);
-    locked
-        .images
-        .iter()
-        .map(|image| {
+    locked_image_digests_for_registry(&profile.definition.registry.address, sources)
+}
+
+fn locked_image_digests_for_registry(
+    registry: &str,
+    sources: &[LockedSource],
+) -> Result<BTreeMap<String, String>> {
+    let prefix = format!("{registry}/");
+    let mut image_digests = BTreeMap::new();
+    for source in sources {
+        for image in &source.images {
             let repository = image.repository.strip_prefix(&prefix).with_context(|| {
                 format!(
                     "locked image {} repository {} is outside profile registry {}",
-                    image.name, image.repository, profile.definition.registry.address
+                    image.name, image.repository, registry
                 )
             })?;
-            Ok((repository.to_owned(), image.digest.clone()))
-        })
-        .collect()
+            ensure!(
+                image_digests
+                    .insert(repository.to_owned(), image.digest.clone())
+                    .is_none(),
+                "locked image repository {} is owned by more than one deployment source",
+                image.repository
+            );
+        }
+    }
+    Ok(image_digests)
 }
 
 fn validate_locked_images(
@@ -1347,12 +1364,17 @@ fn helm_up(
         args.push("--values".to_owned());
         args.push(path_str(&values)?.to_owned());
     }
+    let image_digests = release_image_digests(
+        release.values_contract,
+        &source.image_digests,
+        &source.deployment_image_digests,
+    );
     append_release_values(
         &mut args,
         profile,
         release,
         &source.revision,
-        Some(&source.image_digests),
+        Some(image_digests),
         components,
         mcp_servers,
     )?;
@@ -1363,6 +1385,17 @@ fn helm_up(
     ]);
     let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
     status_checked("helm", refs, &[], None)
+}
+
+fn release_image_digests<'a>(
+    values_contract: ReleaseValuesContract,
+    source: &'a BTreeMap<String, String>,
+    deployment: &'a BTreeMap<String, String>,
+) -> &'a BTreeMap<String, String> {
+    match values_contract {
+        ReleaseValuesContract::Extension => deployment,
+        ReleaseValuesContract::Platform | ReleaseValuesContract::VeoveoSource => source,
+    }
 }
 
 fn helm_render(
@@ -1740,14 +1773,94 @@ fn path_str(path: &Path) -> Result<&str> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::{Path, PathBuf};
+    use std::{
+        collections::BTreeMap,
+        path::{Path, PathBuf},
+    };
 
-    use veoveo_deploy_contract::{LoadedProfile, ReleaseSpec, ReleaseValuesContract};
+    use veoveo_deploy_contract::{
+        DeploymentSourceRole, LoadedProfile, LockedImage, LockedSource, ReleaseSpec,
+        ReleaseValuesContract,
+    };
 
     use super::{
-        gateway_mount_key, normalize_origin, ordered_release_values, prepare_gateway_activation,
+        gateway_mount_key, locked_image_digests_for_registry, normalize_origin,
+        ordered_release_values, prepare_gateway_activation, release_image_digests,
         validate_gateway_public_file,
     };
+
+    const DIGEST_A: &str =
+        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const DIGEST_B: &str =
+        "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+    #[test]
+    fn deployment_image_closure_spans_sources() {
+        let sources = [
+            LockedSource {
+                name: "platform".to_owned(),
+                role: DeploymentSourceRole::Platform,
+                repository: "https://example.invalid/platform".to_owned(),
+                revision: "a".repeat(40),
+                images: vec![LockedImage {
+                    name: "agent-kernel".to_owned(),
+                    repository: "registry.example/veoveo/agent-kernel".to_owned(),
+                    digest: DIGEST_A.to_owned(),
+                    publication_digest: DIGEST_B.to_owned(),
+                }],
+                charts: vec![],
+            },
+            LockedSource {
+                name: "extension".to_owned(),
+                role: DeploymentSourceRole::Extension,
+                repository: "https://example.invalid/extension".to_owned(),
+                revision: "b".repeat(40),
+                images: vec![LockedImage {
+                    name: "runtime".to_owned(),
+                    repository: "registry.example/extension/runtime".to_owned(),
+                    digest: DIGEST_B.to_owned(),
+                    publication_digest: DIGEST_A.to_owned(),
+                }],
+                charts: vec![],
+            },
+        ];
+
+        assert_eq!(
+            locked_image_digests_for_registry("registry.example", &sources).unwrap(),
+            [
+                ("extension/runtime".to_owned(), DIGEST_B.to_owned()),
+                ("veoveo/agent-kernel".to_owned(), DIGEST_A.to_owned()),
+            ]
+            .into_iter()
+            .collect()
+        );
+    }
+
+    #[test]
+    fn external_values_receive_platform_images_without_polluting_platform_values() {
+        let source = [("veoveo/gateway".to_owned(), DIGEST_A.to_owned())]
+            .into_iter()
+            .collect::<BTreeMap<_, _>>();
+        let deployment = [
+            ("extension/runtime".to_owned(), DIGEST_B.to_owned()),
+            ("veoveo/gateway".to_owned(), DIGEST_A.to_owned()),
+        ]
+        .into_iter()
+        .collect::<BTreeMap<_, _>>();
+
+        assert_eq!(
+            release_image_digests(ReleaseValuesContract::Platform, &source, &deployment),
+            &source
+        );
+        assert_eq!(
+            release_image_digests(ReleaseValuesContract::VeoveoSource, &source, &deployment),
+            &source
+        );
+        assert_eq!(
+            release_image_digests(ReleaseValuesContract::Extension, &source, &deployment),
+            &deployment
+        );
+    }
 
     #[test]
     fn normalizes_scp_git_origins_for_lock_comparison() {

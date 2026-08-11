@@ -44,6 +44,7 @@
           "artifact-service",
           "recording-data-plane",
           "simulation-runtime-support",
+          "agent-runtime-support",
           "console",
           "telemetry",
           "ingress"

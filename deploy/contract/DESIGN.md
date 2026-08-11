@@ -137,9 +137,13 @@ checked-out installation repository to match the locked revision and rejects cha
 untracked profile inputs. It checks out each recorded source revision, confirms the
 normalized source origin, recomputes every source-chart archive digest, and compares the
 locked image repositories with the exact Bake selection. Helm applies source values
-first and installation values second, then receives a source-owned image-digest map
-with production enforcement enabled. It does not resolve mutable source expressions
-during installation.
+first and installation values second. Platform and Veoveo-source values contracts
+receive only their chart-owning source's digest map. An extension values contract
+receives the complete, collision-checked deployment image closure, which lets a separate
+release consume a platform-owned support image without copying or republishing it. The
+platform chart's closed image schema never receives extension image keys, and the lock
+retains one source owner for every repository. The installer does not resolve mutable
+source expressions during installation.
 
 The acceptance test creates independent platform, extension, and installation Git
 repositories, resolves distinct commits, loads installation-owned Helm values from the
