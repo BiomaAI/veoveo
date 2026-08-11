@@ -2106,6 +2106,50 @@
           "metadata": {}
         },
         {
+          "id": "allow_operator_agent_control",
+          "effect": "allow",
+          "actions": [
+            "agents_read",
+            "agents_message",
+            "agents_elicitation_answer"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "operator"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_admin_agent_control",
+          "effect": "allow",
+          "actions": [
+            "agents_read",
+            "agents_message",
+            "agents_elicitation_answer"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "administrator"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
           "id": "allow_rerun_mcp_use",
           "effect": "allow",
           "actions": [

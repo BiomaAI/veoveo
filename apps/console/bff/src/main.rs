@@ -119,6 +119,18 @@ async fn main() -> anyhow::Result<()> {
             post(api::cancel_task),
         )
         .route(
+            "/console/api/agents/{agent_id}/messages",
+            post(api::send_agent_message),
+        )
+        .route(
+            "/console/api/agents/{agent_id}/elicitations",
+            get(api::list_agent_elicitations),
+        )
+        .route(
+            "/console/api/agents/{agent_id}/elicitations/{elicitation_id}/decision",
+            post(api::decide_agent_elicitation),
+        )
+        .route(
             "/console/api/artifacts/{artifact_id}/release-state",
             put(api::set_artifact_release_state),
         )

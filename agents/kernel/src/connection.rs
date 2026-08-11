@@ -37,10 +37,8 @@ use tokio::sync::watch;
 use veoveo_agent_runtime::AgentRuntime;
 
 use crate::{
-    delegate::KernelNotificationDelegate,
-    elicitation::{ElicitationWaiters, ParkedElicitationHandler},
-    manifest::AgentManifest,
-    wake::WakeBus,
+    delegate::KernelNotificationDelegate, elicitation::ParkedElicitationHandler,
+    manifest::AgentManifest, wake::WakeBus,
 };
 
 /// Kernel surfaces wired into every gateway session (and re-wired on each
@@ -50,7 +48,6 @@ use crate::{
 pub struct KernelHandlers {
     pub bus: WakeBus,
     pub runtime: AgentRuntime,
-    pub waiters: ElicitationWaiters,
     pub elicitation_grace: Duration,
 }
 
@@ -199,7 +196,6 @@ impl GatewayConnection {
         .with_elicitation_handler(ParkedElicitationHandler::new(
             self.handlers.runtime.clone(),
             self.handlers.bus.clone(),
-            self.handlers.waiters.clone(),
             self.handlers.elicitation_grace,
         ));
         let service = handler

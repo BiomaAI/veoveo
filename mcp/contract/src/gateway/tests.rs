@@ -2058,6 +2058,36 @@ fn control_plane_rejects_policy_action_outside_server_capabilities() {
 }
 
 #[test]
+fn agent_control_actions_are_gateway_scoped() {
+    let mut config = control_plane_with_server_and_secrets(media_manifest(), default_secrets());
+    let rule = &mut config.policies[0].rules[0];
+    rule.actions = BTreeSet::from([
+        GatewayAction::AgentsRead,
+        GatewayAction::AgentsMessage,
+        GatewayAction::AgentsElicitationAnswer,
+    ]);
+    rule.servers.clear();
+    rule.tools.clear();
+    config
+        .validate()
+        .expect("agent control is an explicit gateway policy surface");
+
+    config.policies[0].rules[0].servers = BTreeSet::from([ServerSlug::new("media").unwrap()]);
+    let error = config
+        .validate()
+        .expect_err("agent control cannot inherit an MCP server filter");
+    assert!(matches!(
+        error,
+        GatewayControlPlaneError::PolicyRuleActionUnsupportedByServerScope {
+            action: GatewayAction::AgentsRead
+                | GatewayAction::AgentsMessage
+                | GatewayAction::AgentsElicitationAnswer,
+            ..
+        }
+    ));
+}
+
+#[test]
 fn policy_decision_defaults_to_explicit_deny() {
     let decision = PolicyDecision::deny(
         GatewayProfileId::new("default").unwrap(),

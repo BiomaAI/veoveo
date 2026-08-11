@@ -513,6 +513,20 @@ a.button { text-decoration: none; }
 .decision-note { padding: 7px; border-radius: 4px; background: var(--surface-soft); }
 .review-actions { display: grid; grid-template-columns: minmax(0, 1fr) 34px 34px; gap: 6px; }
 .review-actions input { min-width: 0; height: 34px; padding: 0 7px; border: 1px solid var(--border); border-radius: 5px; background: var(--control); color: var(--text-soft); font-size: var(--text-xs); }
+.agent-grid { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.agent-card { align-content: start; }
+.agent-detail { min-height: 38px; margin: 0; color: var(--muted); }
+.agent-control, .agent-elicitations { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+.agent-control label { display: grid; gap: 5px; color: var(--muted); font-size: var(--text-xs); }
+.agent-control textarea, .agent-elicitation textarea { width: 100%; resize: vertical; padding: 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--control); color: var(--text); font: var(--text-xs)/17px inherit; }
+.agent-control .button { justify-self: start; }
+.control-help { margin: 0; color: var(--muted); font-size: var(--text-2xs); }
+.agent-elicitations-head, .agent-decision-actions { display: flex; align-items: center; gap: 7px; }
+.agent-elicitations-head { justify-content: space-between; }
+.agent-elicitations-head .button { min-width: 32px; padding: 5px; }
+.agent-elicitation { display: grid; gap: 7px; padding: 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--control); }
+.agent-decision-actions { flex-wrap: wrap; }
+.action-success { margin: 0; color: var(--green); font-size: var(--text-xs); }
 .drawer-footer { min-height: 58px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 10px 15px; border-top: 1px solid var(--border); background: var(--surface-soft); }
 
 .modal-layer { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; }
