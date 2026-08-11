@@ -29,5 +29,5 @@ spec:
               service:
                 name: uav-sim-mcp
                 port:
-                  number: {{ .Values.service.port }}
+                  number: {{ .Values.liveView.signalingGatePort }}
 {{- end }}

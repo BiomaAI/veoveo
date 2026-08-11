@@ -123,7 +123,8 @@ session:
         z: -0.7071067811865476
 
 liveView:
-  publicSignalingUrl: ws://127.0.0.1:8802/uav-sim/signaling
+  publicSignalingUrl: ws://127.0.0.1:8803/uav-sim/signaling
+  signalingGatePort: 8803
   publicMediaHost: 127.0.0.1
   signalingPortBase: 49100
   mediaPortBase: 47998

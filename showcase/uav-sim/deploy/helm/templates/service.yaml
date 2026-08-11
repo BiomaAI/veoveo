@@ -13,6 +13,9 @@ spec:
     - name: http
       port: {{ .Values.service.port }}
       targetPort: mcp
+    - name: signaling
+      port: {{ .Values.liveView.signalingGatePort }}
+      targetPort: signaling
 ---
 apiVersion: v1
 kind: Service

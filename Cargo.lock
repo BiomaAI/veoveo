@@ -12563,7 +12563,6 @@ dependencies = [
  "subtle",
  "thiserror 2.0.18",
  "tokio",
- "tokio-tungstenite 0.30.0",
  "tokio-util",
  "tower",
  "tower-http 0.7.0",

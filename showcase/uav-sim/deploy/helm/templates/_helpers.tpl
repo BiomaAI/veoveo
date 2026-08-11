@@ -188,6 +188,12 @@
 {{- fail "liveView.viewerSlots must be between 1 and 32" -}}
 {{- end -}}
 {{- $lastSlot := sub $slotCount 1 -}}
+{{- if eq (int .Values.liveView.signalingGatePort) (int .Values.service.port) -}}
+{{- fail "liveView.signalingGatePort must differ from service.port" -}}
+{{- end -}}
+{{- if or (lt (int .Values.liveView.signalingGatePort) 1) (gt (int .Values.liveView.signalingGatePort) 65535) -}}
+{{- fail "liveView.signalingGatePort must be between 1 and 65535" -}}
+{{- end -}}
 {{- if gt (add (int .Values.liveView.signalingPortBase) $lastSlot) 65535 -}}
 {{- fail "liveView signaling port range exceeds 65535" -}}
 {{- end -}}

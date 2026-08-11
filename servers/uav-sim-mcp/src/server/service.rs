@@ -1217,16 +1217,18 @@ pub(super) async fn serve() -> anyhow::Result<()> {
         InternalMcpAuthState { verifier },
         authenticate_internal_mcp,
     ));
-    let signaling_state = super::signaling::SignalingState::new(
+    anyhow::ensure!(
+        args.signaling_gate_port != args.port,
+        "native signaling gate port must differ from the MCP port"
+    );
+    let signaling_gate = super::signaling::SignalingGate::new(
         live_views,
         subscribers,
+        &args.public_signaling_url,
         &args.native_signaling_url,
         args.public_media_port_base,
+        args.live_view_maximum_viewers,
     )?;
-    let signaling_router = Router::new()
-        .route("/signaling", get(super::signaling::upgrade))
-        .route("/signaling/{*path}", get(super::signaling::upgrade))
-        .with_state(signaling_state);
     let router = Router::new()
         .nest(
             public_endpoint.mount_path(),
@@ -1234,8 +1236,7 @@ pub(super) async fn serve() -> anyhow::Result<()> {
                 .route("/healthz", get(|| async { "ok" }))
                 .route("/readyz", get(ready))
                 .nest("/admin", admin_router)
-                .nest("/mcp", mcp_router)
-                .merge(signaling_router),
+                .nest("/mcp", mcp_router),
         )
         .with_state(state)
         .layer(middleware::from_fn_with_state(allowed_hosts, validate_host))
@@ -1245,22 +1246,36 @@ pub(super) async fn serve() -> anyhow::Result<()> {
         );
 
     let address = SocketAddr::from(([0, 0, 0, 0], args.port));
+    let signaling_address = SocketAddr::from(([0, 0, 0, 0], args.signaling_gate_port));
     tracing::info!(%address, public_url = public_endpoint.public_url(), "UAV simulation MCP listening");
     let listener = tokio::net::TcpListener::bind(address).await?;
-    let result = axum::serve(listener, router)
-        .with_graceful_shutdown({
+    let server = std::future::IntoFuture::into_future(
+        axum::serve(listener, router).with_graceful_shutdown({
             let shutdown = shutdown.clone();
             async move {
                 let _ = tokio::signal::ctrl_c().await;
                 shutdown.cancel();
             }
-        })
-        .await;
+        }),
+    );
+    let mut signaling_task =
+        tokio::spawn(signaling_gate.run(signaling_address, shutdown.child_token()));
+    tokio::pin!(server);
+    let result = tokio::select! {
+        result = &mut server => result.map_err(Into::into),
+        result = &mut signaling_task => match result {
+            Ok(result) => result,
+            Err(error) => Err(error.into()),
+        },
+    };
     shutdown.cancel();
+    if !signaling_task.is_finished() {
+        signaling_task.await??;
+    }
     if let Some(task) = runtime_event_task {
         task.await?;
     }
-    result.map_err(Into::into)
+    result
 }
 
 async fn ready(State(state): State<Arc<AppState>>) -> StatusCode {
