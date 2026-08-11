@@ -338,6 +338,8 @@ pub enum PlatformComponent {
     RecordingDataPlane,
     /// Canonical simulation runtime compatibility artifacts and conformance gates.
     SimulationRuntimeSupport,
+    /// Continuously scheduled agent kernel artifact for external agent workloads.
+    AgentRuntimeSupport,
     Console,
     Telemetry,
     Ingress,
@@ -1262,6 +1264,7 @@ impl PlatformComponent {
             Self::ArtifactService,
             Self::RecordingDataPlane,
             Self::SimulationRuntimeSupport,
+            Self::AgentRuntimeSupport,
             Self::Console,
             Self::Telemetry,
             Self::Ingress,
@@ -1339,6 +1342,19 @@ impl ResolvedPlatformSelection {
             self.require_component(
                 PlatformComponent::Gateway,
                 "console and ingress require gateway",
+            )?;
+        }
+        if self
+            .components
+            .contains(&PlatformComponent::AgentRuntimeSupport)
+        {
+            self.require_component(
+                PlatformComponent::Gateway,
+                "agent runtime support requires gateway",
+            )?;
+            self.require_component(
+                PlatformComponent::PlatformStore,
+                "agent runtime support requires platform store",
             )?;
         }
         if self
@@ -1707,6 +1723,7 @@ impl PlatformComponent {
             Self::ArtifactService => &["artifact-service"],
             Self::RecordingDataPlane => &["recording-hub", "recording-forwarder"],
             Self::SimulationRuntimeSupport => &["simulation-runtime"],
+            Self::AgentRuntimeSupport => &["agent-kernel"],
             Self::Console => &["console-bff"],
             Self::PlatformStore | Self::ObjectStore | Self::Telemetry | Self::Ingress => &[],
         }
@@ -2710,6 +2727,28 @@ mod tests {
                 "recording-hub".to_owned(),
                 "recording-mcp".to_owned(),
             ])
+        );
+    }
+
+    #[test]
+    fn agent_runtime_support_selects_the_external_agent_kernel_image() {
+        let selection = PlatformSelection {
+            installation_preset: InstallationPreset::Custom,
+            components: BTreeSet::from([
+                PlatformComponent::Gateway,
+                PlatformComponent::PlatformStore,
+                PlatformComponent::AgentRuntimeSupport,
+            ]),
+            mcp_servers: BTreeSet::new(),
+            artifact_audiences: BTreeSet::new(),
+            external_workloads: BTreeSet::new(),
+            gpu_scheduling: None,
+        }
+        .resolve()
+        .expect("valid external agent runtime selection");
+        assert_eq!(
+            selection.required_images(),
+            BTreeSet::from(["agent-kernel".to_owned(), "mcp-gateway".to_owned()])
         );
     }
 

@@ -21,10 +21,12 @@ argument, storage, and GPU definitions for every first-party server under
 `definitions/domain-services.yaml`; an installation selects server identities instead
 of reproducing internal workload records.
 
-The typed components distinguish `recording-data-plane` and
-`simulation-runtime-support` from hosted MCP servers. Simulation applications ship
-their own domain MCP server and authoritative runtime in a separate release. The Rust
-profile resolver accounts for those independently owned GPU workloads and rejects an
+The typed components distinguish `recording-data-plane`,
+`simulation-runtime-support`, and `agent-runtime-support` from hosted MCP servers.
+Simulation applications and continuously scheduled agents ship their authoritative
+workloads in separate releases. Support components add the exact platform-owned runtime
+images to the deployment lock without rendering a duplicate platform workload. The Rust
+profile resolver accounts for independently owned GPU workloads and rejects an
 impossible exclusive placement before Helm.
 
 The Rust deployment resolver applies the same dependency graph before rendering. A

@@ -1,6 +1,6 @@
 {{- define "veoveo.selectedComponents" -}}
 {{- if eq .Values.installationPreset "full" -}}
-{{- toYaml (list "gateway" "platform-store" "object-store" "artifact-service" "recording-data-plane" "console" "telemetry" "ingress") -}}
+{{- toYaml (list "gateway" "platform-store" "object-store" "artifact-service" "recording-data-plane" "simulation-runtime-support" "agent-runtime-support" "console" "telemetry" "ingress") -}}
 {{- else if eq .Values.installationPreset "extension-foundation" -}}
 {{- toYaml (list "gateway" "platform-store" "object-store" "artifact-service" "recording-data-plane") -}}
 {{- else -}}
@@ -52,6 +52,12 @@
 {{- end -}}
 {{- if and (has "recording-data-plane" $components) (not (has "artifact-service" $components)) -}}
 {{- fail "component recording-data-plane requires component artifact-service" -}}
+{{- end -}}
+{{- if and (has "agent-runtime-support" $components) (not (has "gateway" $components)) -}}
+{{- fail "component agent-runtime-support requires component gateway" -}}
+{{- end -}}
+{{- if and (has "agent-runtime-support" $components) (not (has "platform-store" $components)) -}}
+{{- fail "component agent-runtime-support requires component platform-store" -}}
 {{- end -}}
 {{- $artifactServers := list "artifact" "media" "timeseries" "optimization" "frames" "map" "datasheet" "duckdb" "recording" "stream" "reason" -}}
 {{- range $server := $servers -}}
