@@ -106,6 +106,14 @@ and liveness require the exact executor protocol, a CUDA 13.2-capable driver,
 and one visible hardware GPU. The pod uses the `nvidia` RuntimeClass and has no
 CPU solver or GPU-optional deployment mode.
 
+`reason-mcp` never downloads a checkpoint during a request or at pod startup.
+Set `reason.modelCache.existingClaim` to an installation-owned PVC populated
+with a complete immutable checkpoint snapshot. The mounted path and SHA-256
+snapshot identity belong in `reason.model.path` and `reason.model.digest`. The
+chart writes that identity into the Reason catalog and its pod checksum. When
+`existingClaim` is empty, the chart creates `reason-model-cache`, but populating
+its bytes remains installation work.
+
 `serverBootstrap` delivers installation-time domain configuration to any MCP
 server component, keyed by domain-service name. Each entry renders a
 `{name}-bootstrap` ConfigMap mounted at the canonical
