@@ -73,6 +73,25 @@ const LIVE_APP_TOOLS: &[&str] = &[
 ];
 const LIVE_APP_ICON: &str = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2NmU0ZmYiIHN0cm9rZS13aWR0aD0iMiI+PHJlY3QgeD0iMiIgeT0iNSIgd2lkdGg9IjIwIiBoZWlnaHQ9IjE0IiByeD0iMiIvPjxwYXRoIGQ9Im04IDlsNiAzLTYgM3oiLz48L3N2Zz4=";
 
+fn live_app_resource(connect_origin: &str) -> Resource {
+    veoveo_mcp_apps_extension::app_resource_with_meta(
+        uris::LIVE_APP_URI,
+        "uav-sim-live-app",
+        veoveo_mcp_apps_extension::ResourceUiMeta {
+            csp: Some(veoveo_mcp_apps_extension::UiCsp {
+                connect_domains: vec![connect_origin.to_owned()],
+                ..Default::default()
+            }),
+            ..Default::default()
+        },
+    )
+    .with_title("UAV live cameras")
+    .with_description(
+        "Authoritative simulator camera collection with one isolated native NVIDIA WebRTC product per active viewer.",
+    )
+    .with_icons(vec![rmcp::model::Icon::new(LIVE_APP_ICON)])
+}
+
 /// The crate documents embedded at build time and served under the well-known
 /// surface: `uav-sim://docs`, `uav-sim://docs/{doc_id}`, `uav-sim://contract`,
 /// and the administrative `admin/docs` routes (contract C18-C21).
@@ -687,24 +706,7 @@ impl ServerHandler for UavSimMcp {
         resources.extend(well_known_resources());
         let identity = internal_identity(&context)?;
         if identity_has_scope(&identity, "uav-sim:stream") {
-            resources.push(
-                veoveo_mcp_apps_extension::app_resource_with_meta(
-                    uris::LIVE_APP_URI,
-                    "uav-sim-live-app",
-                    veoveo_mcp_apps_extension::ResourceUiMeta {
-                        csp: Some(veoveo_mcp_apps_extension::UiCsp {
-                            connect_domains: vec![self.state.live_view_connect_origin.clone()],
-                            ..Default::default()
-                        }),
-                        prefers_border: Some(true),
-                    },
-                )
-                .with_title("UAV live cameras")
-                .with_description(
-                    "Authoritative simulator camera collection with one isolated native NVIDIA WebRTC product per active viewer.",
-                )
-                .with_icons(vec![rmcp::model::Icon::new(LIVE_APP_ICON)]),
-            );
+            resources.push(live_app_resource(&self.state.live_view_connect_origin));
             let live_session_id: LiveSessionId =
                 state.session_id.as_str().parse().map_err(invalid)?;
             let owner = LiveViewOwner::from_identity(&identity);
@@ -1974,6 +1976,21 @@ mod tests {
         let text = serde_json::to_string(&world_view(&fake_state().unwrap())).unwrap();
         assert!(!text.contains("token"));
         assert!(!text.contains("CESIUM_ION_ACCESS_TOKEN"));
+    }
+
+    #[test]
+    fn live_app_uses_the_default_complete_console_content_workspace() {
+        let resource = live_app_resource("wss://stream.example.com");
+        let metadata = veoveo_mcp_apps_extension::resource_ui_meta(&resource)
+            .expect("live App UI metadata is valid");
+        assert_eq!(metadata.prefers_border, None);
+        assert_eq!(
+            metadata
+                .csp
+                .expect("live App CSP is present")
+                .connect_domains,
+            vec!["wss://stream.example.com"]
+        );
     }
 }
 
