@@ -649,6 +649,23 @@ fn validate_policy_rule_actions(
     server_scope: &[&ServerManifest],
 ) -> Result<(), GatewayControlPlaneError> {
     for action in &rule.actions {
+        if action.is_agent_control() {
+            if !rule.protected_resources.is_empty()
+                || !rule.servers.is_empty()
+                || !rule.tools.is_empty()
+                || !rule.resource_schemes.is_empty()
+                || !rule.prompts.is_empty()
+            {
+                return Err(
+                    GatewayControlPlaneError::PolicyRuleActionUnsupportedByServerScope {
+                        policy: policy.version.clone(),
+                        rule: rule.id.clone(),
+                        action: *action,
+                    },
+                );
+            }
+            continue;
+        }
         if action.is_recording_ingest() {
             if rule.protected_resources.is_empty()
                 || !rule.servers.is_empty()
@@ -706,6 +723,9 @@ fn server_supports_gateway_action(server: &ServerManifest, action: GatewayAction
         | GatewayAction::TasksCancel
         | GatewayAction::TasksSubscribe => server.capabilities.tasks,
         GatewayAction::ArtifactRead | GatewayAction::UsageRead => server.capabilities.resources,
+        GatewayAction::AgentsRead
+        | GatewayAction::AgentsMessage
+        | GatewayAction::AgentsElicitationAnswer => false,
         GatewayAction::AdminRead | GatewayAction::AdminWrite => true,
         GatewayAction::RecordingStreamOpen
         | GatewayAction::RecordingStreamStatus

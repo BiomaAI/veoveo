@@ -11497,6 +11497,7 @@ name = "veoveo-agent-runtime"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "futures",
  "secrecy",
  "serde",
  "serde_json",
@@ -11956,6 +11957,7 @@ dependencies = [
  "url",
  "uuid",
  "vaultrs",
+ "veoveo-agent-runtime",
  "veoveo-artifact-client",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",

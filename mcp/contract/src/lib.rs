@@ -9,6 +9,7 @@
 pub const HOSTED_MCP_CONTRACT_REVISION: &str = "veoveo.io/hosted-mcp/v1";
 
 pub mod access;
+pub mod agents;
 #[cfg(feature = "analytics")]
 pub mod analytics;
 pub mod artifact_service;
@@ -40,6 +41,10 @@ pub use access::{
     ARTIFACT_PLANE_SCHEME, AccessDecision, AccessLevel, AccessRequest, ArtifactId, ArtifactIdError,
     Grant, GroupMembership, GroupRole, decide, grant_level_for_caller, mac_satisfied,
     parse_artifact_plane_uri, role_in_group,
+};
+pub use agents::{
+    AgentElicitationDecisionRequest, AgentElicitationView, AgentOperatorMessageRequest,
+    AgentWakeReceipt,
 };
 #[cfg(feature = "analytics")]
 pub use analytics::{DuckDbAnalytics, SharedDuckDbConnection, open_duckdb};

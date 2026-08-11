@@ -341,6 +341,38 @@
           "metadata": {}
         },
         {
+          "id": "allow_operator_agent_control",
+          "effect": "allow",
+          "actions": [
+            "agents_read",
+            "agents_message",
+            "agents_elicitation_answer"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_admin_agent_control",
+          "effect": "allow",
+          "actions": [
+            "agents_read",
+            "agents_message",
+            "agents_elicitation_answer"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
           "id": "allow_smoke_recording_ingest",
           "effect": "allow",
           "actions": [

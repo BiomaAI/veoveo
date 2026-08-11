@@ -197,6 +197,7 @@ protocol tooling.
 | File | Responsibility |
 |---|---|
 | `access.rs` | artifact access levels, user/group subjects, grant composition |
+| `agents.rs` | authenticated operator-message, elicitation-decision, wake-receipt, and elicitation-view contracts |
 | `artifact_service.rs` | artifact-plane requests, capabilities, share links, native async port |
 | `duckdb.rs` | shared DuckDB source types and safe read-function SQL fragments |
 | `coordinates.rs` | shared coordinate spaces, world/revision/frame identities, complete frame-tree vocabulary, WGS84 positions, and operation provenance |
@@ -730,6 +731,11 @@ task extension adapter, durable task, MCP surface, composition).
 
 SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persistence.
 
+| File | Responsibility |
+|---|---|
+| `control.rs` | database-authenticated, exact-context external operator messages and elicitation decisions with UUIDv7 idempotency, durable wakes, and actor attribution |
+| `runtime.rs` | lease-fenced agent mutations, inactive-manifest reconciliation, and race-safe durable elicitation terminal waits |
+
 ### `agents/kernel`
 
 | File | Responsibility |
@@ -744,6 +750,12 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `budget.rs` | enforced episode/tool/cost budgets |
 | `connection.rs` | reconnectable gateway epoch and task resumer |
 
+### `platform/gateway/src/bin/gateway/admin`
+
+| File | Responsibility |
+|---|---|
+| `agents.rs` | human-only policy and audit boundary for agent messages, parked-elicitation reads, and decisions; resolves the caller's tenant and Work Context before using the runtime control plane |
+
 ## Console
 
 ### `apps/console/bff`
@@ -752,7 +764,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 |---|---|
 | `oauth.rs` | PKCE login, token exchange, refresh rotation |
 | `session.rs` | XChaCha20-Poly1305 cookies and CSRF material |
-| `api.rs` | snapshot, SSE, mutation, and artifact preview/download BFF projections |
+| `api.rs` | snapshot, SSE, mutation, artifact preview/download, and same-origin CSRF-protected agent-message/elicitation BFF projections; browser credentials and database authority never enter an MCP App |
 | `recording_playback.rs` | authenticated playback-manifest and framed live-stream pass-through; no archive bytes or BFF session store |
 | `apps.rs`, `mcp_client.rs` | MCP Apps host backend: gateway MCP session pool over the independently selected transport, public gateway authority preservation, app catalog, sandboxed frame serving, allowlisted tool calls, implicit own-server reads, and gateway-projected cross-server reads |
 | `config.rs`, `viewer_config.rs` | validated public/gateway/OAuth-resource/MCP-transport and embedded-map configuration, exact profile binding, redacted provider credentials, and the authenticated no-store Rerun map projection |
@@ -765,7 +777,8 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `App.tsx` | application shell: platform navigation plus catalog-driven MCP App entries, topbar, view routing, drawer mounting |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
 | `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `rerunLiveChannel.ts`, `recordingRrdFetch.ts`, `rerunMap.ts` | persistent WebViewer lifecycle, producer Blueprint-first opening, one native incremental-RRD or lazy-archive receiver, exact same-origin RRD authorization, duplicate-free current-head reconnect, event-driven rollover without cursor forcing, archive-only credential renewal, and installation-owned browser map-provider activation |
-| `views/` | remaining platform-plane views (overview, work, artifacts, agents, MCP, apps, access, audit, cluster); domain views ship as MCP Apps, never here |
+| `views/Agents.tsx`, `agentControl.ts` | reactive agent state, durable message submission, parked-elicitation decisions, and client-owned UUIDv7 retry identity |
+| `views/` | remaining platform-plane views (overview, work, artifacts, MCP, apps, access, audit, cluster); domain views ship as MCP Apps, never here |
 | `drawers/ArtifactDrawer.tsx` | artifact preview, recording provenance, download, release, grant, and share-link workflows |
 | `drawers/` | remaining detail drawers with mutation workflows |
 | `components/ArtifactPreview.tsx` | bounded text and inline image/audio/video/PDF previews with explicit governed-access failures |

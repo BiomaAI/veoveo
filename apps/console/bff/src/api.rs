@@ -17,8 +17,9 @@ use chrono::Utc;
 use futures::StreamExt;
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    AccessSubject, ArtifactAccessRequestId, ArtifactAccessRequestScope, ArtifactAccessRequestState,
-    ArtifactId, ArtifactShareLinkId, CreateArtifactAccessRequest, CreateArtifactShareLinkRequest,
+    AccessSubject, AgentElicitationDecisionRequest, AgentOperatorMessageRequest,
+    ArtifactAccessRequestId, ArtifactAccessRequestScope, ArtifactAccessRequestState, ArtifactId,
+    ArtifactShareLinkId, CreateArtifactAccessRequest, CreateArtifactShareLinkRequest,
     DecideArtifactAccessRequest, ListArtifactAccessRequests, PutGrantRequest,
     SetArtifactReleaseStateRequest,
 };
@@ -199,6 +200,69 @@ pub(crate) async fn cancel_task(
         None,
     )
     .await
+}
+
+pub(crate) async fn send_agent_message(
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+    request_headers: HeaderMap,
+    axum::Json(request): axum::Json<AgentOperatorMessageRequest>,
+) -> Response {
+    if !valid_agent_id(&agent_id) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    proxy_json(
+        &state,
+        &request_headers,
+        Method::POST,
+        &format!("agents/{agent_id}/messages"),
+        Some(&request),
+    )
+    .await
+}
+
+pub(crate) async fn list_agent_elicitations(
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+    request_headers: HeaderMap,
+) -> Response {
+    if !valid_agent_id(&agent_id) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    proxy_json::<()>(
+        &state,
+        &request_headers,
+        Method::GET,
+        &format!("agents/{agent_id}/elicitations"),
+        None,
+    )
+    .await
+}
+
+pub(crate) async fn decide_agent_elicitation(
+    State(state): State<AppState>,
+    Path((agent_id, elicitation_id)): Path<(String, String)>,
+    request_headers: HeaderMap,
+    axum::Json(request): axum::Json<AgentElicitationDecisionRequest>,
+) -> Response {
+    let Ok(elicitation_id) = uuid::Uuid::parse_str(&elicitation_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    if !valid_agent_id(&agent_id) || elicitation_id.get_version_num() != 7 {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    proxy_json(
+        &state,
+        &request_headers,
+        Method::POST,
+        &format!("agents/{agent_id}/elicitations/{elicitation_id}/decision"),
+        Some(&request),
+    )
+    .await
+}
+
+fn valid_agent_id(value: &str) -> bool {
+    !value.trim().is_empty() && value.len() <= 256 && !value.chars().any(char::is_control)
 }
 
 pub(crate) async fn set_artifact_release_state(

@@ -181,6 +181,21 @@ export interface AgentSummary {
   detail: string;
 }
 
+export interface AgentWakeReceipt {
+  requestId: string;
+  wakeId: string;
+  agentId: string;
+  workContext: string;
+  acceptedAt: string;
+}
+
+export interface AgentElicitation {
+  elicitationId: string;
+  message: string;
+  requestedSchema?: unknown;
+  requestedAt: string;
+}
+
 export interface RecordingSummary {
   id: string;
   application: string;

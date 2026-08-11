@@ -81,6 +81,9 @@ pub enum GatewayAction {
     TasksSubscribe,
     ArtifactRead,
     UsageRead,
+    AgentsRead,
+    AgentsMessage,
+    AgentsElicitationAnswer,
     AdminRead,
     AdminWrite,
     RecordingStreamOpen,
@@ -110,6 +113,9 @@ impl GatewayAction {
             Self::TasksSubscribe => Some("subscriptions/listen"),
             Self::ArtifactRead
             | Self::UsageRead
+            | Self::AgentsRead
+            | Self::AgentsMessage
+            | Self::AgentsElicitationAnswer
             | Self::AdminRead
             | Self::AdminWrite
             | Self::RecordingStreamOpen
@@ -128,6 +134,13 @@ impl GatewayAction {
                 | Self::RecordingBatchAppend
                 | Self::RecordingBlueprintPublish
                 | Self::RecordingStreamFinish
+        )
+    }
+
+    pub fn is_agent_control(self) -> bool {
+        matches!(
+            self,
+            Self::AgentsRead | Self::AgentsMessage | Self::AgentsElicitationAnswer
         )
     }
 }

@@ -10,6 +10,8 @@ import type {
 } from "@modelcontextprotocol/sdk/types.js";
 import type {
   AppCatalog,
+  AgentElicitation,
+  AgentWakeReceipt,
   ArtifactAccessRequest,
   ArtifactAccessRequestPage,
   ArtifactAccessRequestState,
@@ -121,6 +123,90 @@ export async function cancelTask(taskId: string): Promise<void> {
     method: "POST",
     body: ""
   });
+}
+
+interface AgentWakeReceiptWire {
+  request_id: string;
+  wake_id: string;
+  agent_id: string;
+  work_context: string;
+  accepted_at: string;
+}
+
+interface AgentElicitationWire {
+  elicitation_id: string;
+  message: string;
+  requested_schema?: unknown;
+  requested_at: string;
+}
+
+function agentWakeReceipt(wire: AgentWakeReceiptWire): AgentWakeReceipt {
+  return {
+    requestId: wire.request_id,
+    wakeId: wire.wake_id,
+    agentId: wire.agent_id,
+    workContext: wire.work_context,
+    acceptedAt: wire.accepted_at,
+  };
+}
+
+export async function sendAgentMessage(
+  agentId: string,
+  requestId: string,
+  message: string,
+): Promise<AgentWakeReceipt> {
+  const wire = await consoleMutation<AgentWakeReceiptWire>(
+    `agents/${encodeURIComponent(agentId)}/messages`,
+    {
+      method: "POST",
+      body: JSON.stringify({ request_id: requestId, message }),
+    },
+  );
+  return agentWakeReceipt(wire);
+}
+
+export async function loadAgentElicitations(
+  agentId: string,
+  signal?: AbortSignal,
+): Promise<AgentElicitation[]> {
+  const response = await fetch(
+    `/console/api/agents/${encodeURIComponent(agentId)}/elicitations`,
+    {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+      signal,
+    },
+  );
+  const rotatedToken = response.headers.get("x-veoveo-csrf-token");
+  if (rotatedToken) csrfToken = rotatedToken;
+  if (response.status === 401) authenticationRequired();
+  if (response.status === 403) {
+    throw new Error("Agent elicitations are not permitted for this Console session.");
+  }
+  if (!response.ok) throw new Error(`Agent elicitations returned ${response.status}`);
+  const values = (await response.json()) as AgentElicitationWire[];
+  return values.map((wire) => ({
+    elicitationId: wire.elicitation_id,
+    message: wire.message,
+    requestedSchema: wire.requested_schema,
+    requestedAt: wire.requested_at,
+  }));
+}
+
+export async function decideAgentElicitation(
+  agentId: string,
+  elicitationId: string,
+  requestId: string,
+  decision: { action: "accept"; content: Record<string, unknown> } | { action: "decline" | "cancel" },
+): Promise<AgentWakeReceipt> {
+  const wire = await consoleMutation<AgentWakeReceiptWire>(
+    `agents/${encodeURIComponent(agentId)}/elicitations/${encodeURIComponent(elicitationId)}/decision`,
+    {
+      method: "POST",
+      body: JSON.stringify({ request_id: requestId, ...decision }),
+    },
+  );
+  return agentWakeReceipt(wire);
 }
 
 export async function setArtifactReleaseState(artifactId: string, releaseState: ReleaseState): Promise<void> {

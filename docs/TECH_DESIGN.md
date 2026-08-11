@@ -494,6 +494,17 @@ canonical origin, while an in-cluster agent may connect through a private servic
 address. Both values are required bare HTTP(S) origins. The kernel preserves the
 canonical HTTP authority across the private transport.
 
+Authenticated human control stays available through the gateway and Console BFF; the
+agent pod is never an ingress service. An operator message is committed as a
+UUIDv7-idempotent durable wake inside the caller's exact tenant, Work Context, profile,
+and agent tuple, so it may arrive while an episode or detached task is running.
+Elicitation decisions use the same governed path and durable record. The kernel opens a
+SurrealDB live-query hint before rereading that record, which closes the subscribe/read
+race without status polling. A decision that arrives after the bounded in-episode wait
+becomes a new wake instead of being lost. Messages and answers remain untrusted,
+actor-attributed input; downstream domain policy still decides whether a proposed
+change may take effect.
+
 ## Deployment
 
 Helm defines the canonical Kubernetes service graph. k3d runs that chart locally
