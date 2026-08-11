@@ -74,6 +74,8 @@ pub enum UiVisibility {
 pub struct ResourceUiMeta {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub csp: Option<UiCsp>,
+    /// Requests host framing when true. Hosts dedicate their content workspace
+    /// to the App when this field is absent or false.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prefers_border: Option<bool>,
 }

@@ -3,9 +3,9 @@ import test from "node:test";
 
 import { isFullBleedApp } from "./appPresentation.ts";
 
-test("only an explicit border opt-out selects full-bleed presentation", () => {
+test("Apps use the full workspace unless they explicitly request a border", () => {
   assert.equal(isFullBleedApp({ prefersBorder: false }), true);
   assert.equal(isFullBleedApp({ prefersBorder: true }), false);
-  assert.equal(isFullBleedApp({}), false);
+  assert.equal(isFullBleedApp({}), true);
   assert.equal(isFullBleedApp(undefined), false);
 });
