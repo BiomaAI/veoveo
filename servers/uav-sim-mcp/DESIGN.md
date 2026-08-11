@@ -207,6 +207,17 @@ or connect to the listener. Failure releases that exact slot before any public l
 signaling endpoint is returned. Close, expiry, revocation, and signaling loss pause the
 slot immediately.
 
+Product assignment is transaction-like across the MCP companion and simulator boundary.
+After any ambiguous assignment or release result, the companion rereads the exact slot,
+requires one unique slot identity, and releases only an assignment whose `liveViewId`
+matches the operation. It rereads the slot again and accepts cleanup only after the full
+inactive product state is observable. Before physical capacity denial, the companion
+compares active products with its active logical leases and reclaims exact untracked
+assignments. Missing identity, identity mismatch, duplicate or missing slots, unavailable
+runtime state, failed release, and unobserved release fail closed as
+`orphan_product_cleanup_failed` with bounded audit details. An individual open, renewal,
+close, expiry, or recovery never invokes the runtime's broad product reset.
+
 The runtime timestamps each active clone when the current authoritative entity snapshot
 becomes its USD camera pose. The corresponding Hydra drawable event closes that
 source-to-render interval. Each slot retains the latest 256 event-derived samples and

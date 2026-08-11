@@ -23,6 +23,10 @@ use crate::{
     server::live_view_audit::LiveViewAudit,
 };
 
+mod reconciliation;
+
+use reconciliation::ProductReconciliationError;
+
 #[derive(Debug, Clone)]
 struct Lease {
     state: LiveViewState,
@@ -120,13 +124,6 @@ impl LiveViewService {
         }))
     }
 
-    pub(super) async fn release_all_viewer_slots(&self) -> Result<(), LiveViewError> {
-        self.adapter
-            .release_all_viewer_slots()
-            .await
-            .map_err(|error| LiveViewError::Runtime(error.to_string()))
-    }
-
     pub(super) async fn open(
         self: &Arc<Self>,
         owner: LiveViewOwner,
@@ -160,7 +157,7 @@ impl LiveViewService {
             ));
         }
 
-        let simulation = self
+        let mut simulation = self
             .adapter
             .state()
             .await
@@ -168,6 +165,7 @@ impl LiveViewService {
         if simulation.session_id.as_str() != request.session_id.as_str() {
             return Err(LiveViewError::SessionNotFound(request.session_id));
         }
+        reconciliation::ensure_unique_capacity_slots(&simulation)?;
         let camera = simulation
             .live_cameras
             .iter()
@@ -177,51 +175,55 @@ impl LiveViewService {
         if camera.stream_policy == LiveCameraStreamPolicy::Disabled {
             return Err(LiveViewError::CameraUnavailable);
         }
-        let capacity_slot = simulation
-            .stream_products
-            .iter()
-            .filter(|product| {
-                product.lifecycle == veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive
-                    && product.camera_id.is_none()
-                    && product.live_view_id.is_none()
-            })
-            .map(|product| product.capacity_slot)
-            .min()
-            .ok_or(LiveViewError::Capacity(
-                LiveViewCapacityDimension::ViewerSlots,
-            ))?;
+        let mut capacity_slot = inactive_capacity_slot(&simulation);
+        if capacity_slot.is_none() {
+            simulation = self
+                .reclaim_untracked_products_locked(simulation, &state)
+                .await?;
+            capacity_slot = inactive_capacity_slot(&simulation);
+        }
+        let capacity_slot = capacity_slot.ok_or(LiveViewError::Capacity(
+            LiveViewCapacityDimension::ViewerSlots,
+        ))?;
 
         let now = Utc::now();
         let expires_at = expiry(now, self.config.lease_duration)?;
         let live_view_id = LiveViewId::new(format!("view-{}", Uuid::now_v7()))
             .map_err(|_| LiveViewError::Identifier)?;
         let token = new_token()?;
-        let product = self
+        let endpoint = self.endpoint(capacity_slot)?;
+        let resource_uri = LiveViewUri::new(format!(
+            "uav-sim://session/{}/live-view/{live_view_id}",
+            request.session_id
+        ))
+        .map_err(|_| LiveViewError::Identifier)?;
+        let product = match self
             .adapter
             .assign_live_product(capacity_slot, &camera.camera_id, &live_view_id)
             .await
-            .map_err(|error| LiveViewError::Runtime(error.to_string()))?;
+        {
+            Ok(product) => product,
+            Err(error) => {
+                let transition_error = LiveViewError::Runtime(error.to_string());
+                self.reconcile_exact_product(capacity_slot, &live_view_id)
+                    .await?;
+                return Err(transition_error);
+            }
+        };
         if product.capacity_slot != capacity_slot
             || product.camera_id.as_ref() != Some(&camera.camera_id)
             || product.live_view_id.as_ref() != Some(&live_view_id)
         {
-            let _ = self
-                .adapter
-                .release_live_product(capacity_slot, &live_view_id)
-                .await;
+            self.reconcile_exact_product(capacity_slot, &live_view_id)
+                .await?;
             return Err(LiveViewError::Contract);
         }
-        let endpoint = self.endpoint(capacity_slot)?;
         let stream = LiveViewState {
             schema_version: LIVE_VIEW_SCHEMA.to_owned(),
             live_view_id: live_view_id.clone(),
             stream_product_id: product.stream_product_id.clone(),
             capacity_slot,
-            resource_uri: LiveViewUri::new(format!(
-                "uav-sim://session/{}/live-view/{live_view_id}",
-                request.session_id
-            ))
-            .map_err(|_| LiveViewError::Identifier)?,
+            resource_uri,
             owner,
             viewer_actor,
             viewer_instance_id: request.viewer_instance_id,
@@ -254,17 +256,13 @@ impl LiveViewService {
             expires_at,
         };
         if stream.lifecycle == LiveViewLifecycle::Failed {
-            let _ = self
-                .adapter
-                .release_live_product(capacity_slot, &live_view_id)
-                .await;
+            self.reconcile_exact_product(capacity_slot, &live_view_id)
+                .await?;
             return Err(LiveViewError::CameraUnavailable);
         }
         if stream.validate().is_err() {
-            let _ = self
-                .adapter
-                .release_live_product(capacity_slot, &live_view_id)
-                .await;
+            self.reconcile_exact_product(capacity_slot, &live_view_id)
+                .await?;
             return Err(LiveViewError::Contract);
         }
         let (events, _) = watch::channel(signal(&stream));
@@ -510,18 +508,6 @@ impl LiveViewService {
         })
     }
 
-    async fn release_product(
-        &self,
-        capacity_slot: u16,
-        live_view_id: &LiveViewId,
-    ) -> Result<(), LiveViewError> {
-        self.adapter
-            .release_live_product(capacity_slot, live_view_id)
-            .await
-            .map(|_| ())
-            .map_err(|error| LiveViewError::Runtime(error.to_string()))
-    }
-
     fn arm_expiry(
         self: &Arc<Self>,
         live_view_id: LiveViewId,
@@ -550,6 +536,28 @@ impl LiveViewService {
                     capacity_slot,
                     "failed to release expired viewer product"
                 );
+                if let Some(audit) = &service.audit {
+                    let mut details = error.audit_details();
+                    details.insert(
+                        "failure_code".to_owned(),
+                        serde_json::Value::String(error.code().to_owned()),
+                    );
+                    if let Err(audit_error) = audit
+                        .append_lease(
+                            &expired,
+                            "expiry_release_failed",
+                            veoveo_platform_store::AuditOutcome::Denied,
+                            details,
+                        )
+                        .await
+                    {
+                        tracing::error!(
+                            %audit_error,
+                            %live_view_id,
+                            "failed to persist live-view expiry cleanup audit"
+                        );
+                    }
+                }
             }
             if let Some(audit) = &service.audit
                 && let Err(error) = audit
@@ -689,6 +697,8 @@ pub(super) enum LiveViewError {
     Time,
     #[error("simulator live-product transition failed: {0}")]
     Runtime(String),
+    #[error("simulator live-product reconciliation failed: {0}")]
+    Reconciliation(ProductReconciliationError),
 }
 
 impl LiveViewError {
@@ -707,6 +717,7 @@ impl LiveViewError {
             Self::Contract => "invalid_contract",
             Self::Time => "time_overflow",
             Self::Runtime(_) => "product_transition_failed",
+            Self::Reconciliation(_) => "orphan_product_cleanup_failed",
         }
     }
 
@@ -716,6 +727,22 @@ impl LiveViewError {
             _ => None,
         }
     }
+
+    pub(super) fn audit_details(&self) -> BTreeMap<String, serde_json::Value> {
+        match self {
+            Self::Reconciliation(error) => error.audit_details(),
+            _ => BTreeMap::new(),
+        }
+    }
+}
+
+fn inactive_capacity_slot(simulation: &SimulationState) -> Option<u16> {
+    simulation
+        .stream_products
+        .iter()
+        .filter(|product| reconciliation::inactive_product(product))
+        .map(|product| product.capacity_slot)
+        .min()
 }
 
 #[cfg(test)]
@@ -807,6 +834,22 @@ mod tests {
             camera_id: LiveCameraId::new("follow").unwrap(),
             viewer_instance_id: LiveViewerInstanceId::new(instance).unwrap(),
         }
+    }
+
+    fn fake_adapter(adapter: &Arc<Adapter>) -> Arc<TokioMutex<FakeAdapter>> {
+        match adapter.as_ref() {
+            Adapter::Fake(adapter) => adapter.clone(),
+            Adapter::Http(_) => panic!("test requires the fake simulator adapter"),
+        }
+    }
+
+    fn cleanup_failure(error: &LiveViewError) -> String {
+        error
+            .audit_details()
+            .get("cleanup_failure")
+            .and_then(serde_json::Value::as_str)
+            .expect("reconciliation error carries a typed cleanup failure")
+            .to_owned()
     }
 
     #[tokio::test]
@@ -1045,6 +1088,251 @@ mod tests {
             .unwrap();
         assert_eq!(third.stream.capacity_slot, first.stream.capacity_slot);
         assert_ne!(third.stream.live_view_id, first.stream.live_view_id);
+    }
+
+    #[tokio::test]
+    async fn lost_assignment_response_reclaims_only_the_exact_product() {
+        let (service, adapter) = service(1).await;
+        fake_adapter(&adapter)
+            .lock()
+            .await
+            .fail_assignment_after_mutation(None);
+
+        let error = service
+            .open(
+                owner(),
+                PrincipalId::new("alice").unwrap(),
+                request("browser-a"),
+            )
+            .await
+            .unwrap_err();
+
+        assert!(matches!(error, LiveViewError::Runtime(_)));
+        let runtime = adapter.state().await.unwrap();
+        assert!(reconciliation::inactive_product(
+            &runtime.stream_products[0]
+        ));
+        let release_calls = fake_adapter(&adapter).lock().await.release_calls().to_vec();
+        assert_eq!(release_calls.len(), 1);
+        assert_eq!(release_calls[0].0, 0);
+
+        let retried = service
+            .open(
+                owner(),
+                PrincipalId::new("alice").unwrap(),
+                request("browser-a"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(retried.stream.capacity_slot, 0);
+        assert_ne!(retried.stream.live_view_id, release_calls[0].1);
+    }
+
+    #[tokio::test]
+    async fn orphan_reclaim_preserves_a_valid_logical_lease() {
+        let (service, adapter) = service(2).await;
+        let valid = service
+            .open(
+                owner(),
+                PrincipalId::new("alice").unwrap(),
+                request("browser-a"),
+            )
+            .await
+            .unwrap();
+        let orphan_id = LiveViewId::new("view-orphan").unwrap();
+        {
+            let fake = fake_adapter(&adapter);
+            let mut fake = fake.lock().await;
+            let product = &mut fake.state_mut().stream_products[1];
+            product.camera_id = Some(LiveCameraId::new("follow").unwrap());
+            product.live_view_id = Some(orphan_id.clone());
+            product.lifecycle = veoveo_mcp_contract::LiveStreamProductLifecycle::Ready;
+            product.active_viewer_leases = 1;
+            product.nvenc_sessions = 1;
+        }
+
+        let opened = service
+            .open(
+                owner(),
+                PrincipalId::new("bob").unwrap(),
+                request("browser-b"),
+            )
+            .await
+            .unwrap();
+
+        let runtime = adapter.state().await.unwrap();
+        assert_eq!(
+            runtime.stream_products[0].live_view_id,
+            Some(valid.stream.live_view_id)
+        );
+        assert_eq!(
+            runtime.stream_products[1].live_view_id,
+            Some(opened.stream.live_view_id)
+        );
+        assert_eq!(
+            fake_adapter(&adapter).lock().await.release_calls(),
+            &[(1, orphan_id)]
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_exact_cleanup_is_typed_and_fails_closed() {
+        let (service, adapter) = service(1).await;
+        {
+            let fake = fake_adapter(&adapter);
+            let mut fake = fake.lock().await;
+            fake.fail_assignment_after_mutation(None);
+            fake.fail_release_before_mutation();
+        }
+
+        let error = service
+            .open(
+                owner(),
+                PrincipalId::new("alice").unwrap(),
+                request("browser-a"),
+            )
+            .await
+            .unwrap_err();
+
+        assert_eq!(error.code(), "orphan_product_cleanup_failed");
+        assert_eq!(cleanup_failure(&error), "exact_release_failed");
+        assert_eq!(
+            adapter.state().await.unwrap().stream_products[0].nvenc_sessions,
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn mismatched_assignment_identity_is_never_released() {
+        let (service, adapter) = service(1).await;
+        let replacement = LiveViewId::new("view-owned-elsewhere").unwrap();
+        fake_adapter(&adapter)
+            .lock()
+            .await
+            .fail_assignment_after_mutation(Some(replacement.clone()));
+
+        let error = service
+            .open(
+                owner(),
+                PrincipalId::new("alice").unwrap(),
+                request("browser-a"),
+            )
+            .await
+            .unwrap_err();
+
+        assert_eq!(error.code(), "orphan_product_cleanup_failed");
+        assert_eq!(cleanup_failure(&error), "assignment_identity_mismatch");
+        assert!(
+            fake_adapter(&adapter)
+                .lock()
+                .await
+                .release_calls()
+                .is_empty()
+        );
+        assert_eq!(
+            adapter.state().await.unwrap().stream_products[0].live_view_id,
+            Some(replacement)
+        );
+    }
+
+    #[tokio::test]
+    async fn release_response_loss_is_accepted_only_after_inactive_is_observed() {
+        let (service, adapter) = service(1).await;
+        let actor = PrincipalId::new("alice").unwrap();
+        let opened = service
+            .open(owner(), actor.clone(), request("browser-a"))
+            .await
+            .unwrap();
+        fake_adapter(&adapter)
+            .lock()
+            .await
+            .fail_release_after_mutation();
+
+        service
+            .close(
+                &owner(),
+                &actor,
+                CloseLiveViewRequest {
+                    session_id: opened.stream.session_id,
+                    live_view_id: opened.stream.live_view_id,
+                    viewer_instance_id: LiveViewerInstanceId::new("browser-a").unwrap(),
+                },
+            )
+            .await
+            .unwrap();
+
+        assert!(reconciliation::inactive_product(
+            &adapter.state().await.unwrap().stream_products[0]
+        ));
+    }
+
+    #[tokio::test]
+    async fn successful_release_without_runtime_mutation_fails_closed() {
+        let (service, adapter) = service(1).await;
+        let actor = PrincipalId::new("alice").unwrap();
+        let opened = service
+            .open(owner(), actor.clone(), request("browser-a"))
+            .await
+            .unwrap();
+        fake_adapter(&adapter)
+            .lock()
+            .await
+            .release_without_mutation();
+
+        let error = service
+            .close(
+                &owner(),
+                &actor,
+                CloseLiveViewRequest {
+                    session_id: opened.stream.session_id,
+                    live_view_id: opened.stream.live_view_id,
+                    viewer_instance_id: LiveViewerInstanceId::new("browser-a").unwrap(),
+                },
+            )
+            .await
+            .unwrap_err();
+
+        assert_eq!(cleanup_failure(&error), "exact_release_not_observed");
+        assert_eq!(
+            adapter.state().await.unwrap().stream_products[0].nvenc_sessions,
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn cleanup_rejects_missing_and_duplicate_capacity_slots() {
+        let (service, adapter) = service(1).await;
+        let expected = LiveViewId::new("view-expected").unwrap();
+        let missing = service
+            .reconcile_exact_product(9, &expected)
+            .await
+            .unwrap_err();
+        assert_eq!(cleanup_failure(&missing), "capacity_slot_not_unique");
+
+        {
+            let fake = fake_adapter(&adapter);
+            let mut fake = fake.lock().await;
+            let duplicate = fake.state_mut().stream_products[0].clone();
+            fake.state_mut().stream_products.push(duplicate);
+        }
+        let duplicate = service
+            .reconcile_exact_product(0, &expected)
+            .await
+            .unwrap_err();
+        assert_eq!(cleanup_failure(&duplicate), "capacity_slot_not_unique");
+    }
+
+    #[tokio::test]
+    async fn cleanup_refresh_failure_is_typed() {
+        let (service, adapter) = service(1).await;
+        fake_adapter(&adapter).lock().await.fail_state_call(1);
+
+        let error = service
+            .reconcile_exact_product(0, &LiveViewId::new("view-expected").unwrap())
+            .await
+            .unwrap_err();
+
+        assert_eq!(cleanup_failure(&error), "runtime_state_unavailable");
     }
 
     #[tokio::test]
@@ -1312,7 +1600,7 @@ mod tests {
         let after_restart =
             LiveViewService::new_for_test(adapter.clone(), test_config(Duration::from_secs(30), 1))
                 .unwrap();
-        after_restart.release_all_viewer_slots().await.unwrap();
+        after_restart.reconcile_untracked_products().await.unwrap();
 
         let released = adapter.state().await.unwrap().stream_products.remove(0);
         assert_eq!(

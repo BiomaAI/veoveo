@@ -277,6 +277,7 @@ impl UavSimMcp {
             Ok(connection) => connection,
             Err(error) => {
                 let mut denied_details = details;
+                denied_details.extend(error.audit_details());
                 denied_details.insert(
                     "failure_code".to_owned(),
                     serde_json::Value::String(error.code().to_owned()),
@@ -351,6 +352,7 @@ impl UavSimMcp {
                     "renew_denied"
                 };
                 let mut details = live_view_details(&session_id, None);
+                details.extend(error.audit_details());
                 details.insert(
                     "failure_code".to_owned(),
                     serde_json::Value::String(error.code().to_owned()),
@@ -418,8 +420,28 @@ impl UavSimMcp {
             .state
             .live_views
             .close(&owner, &identity.actor.id, request)
-            .await
-            .map_err(live_view_error)?;
+            .await;
+        let result = match result {
+            Ok(result) => result,
+            Err(error) => {
+                let mut details = live_view_details(&session_id, None);
+                details.extend(error.audit_details());
+                details.insert(
+                    "failure_code".to_owned(),
+                    serde_json::Value::String(error.code().to_owned()),
+                );
+                audit_live_view(
+                    &self.state,
+                    &identity,
+                    Some(&live_view_id),
+                    "close_denied",
+                    veoveo_platform_store::AuditOutcome::Denied,
+                    details,
+                )
+                .await;
+                return Err(live_view_error(error));
+            }
+        };
         audit_live_view(
             &self.state,
             &identity,
@@ -1129,7 +1151,7 @@ pub(super) async fn serve() -> anyhow::Result<()> {
             maximum_viewer_leases: args.live_view_maximum_viewers,
         },
     )?;
-    live_views.release_all_viewer_slots().await?;
+    live_views.reconcile_untracked_products().await?;
     let signaling_url = url::Url::parse(&args.public_signaling_url)?;
     let live_view_connect_origin = signaling_url.origin().ascii_serialization();
     anyhow::ensure!(
