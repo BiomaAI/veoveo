@@ -148,6 +148,7 @@ fn compile_gpu_placement(
             })
         })
         .collect::<Vec<_>>();
+    let devices = canonical_resource_claim_devices(requests, constraints, configuration);
     let manifest = serde_json::json!({
         "apiVersion": "resource.k8s.io/v1",
         "kind": "ResourceClaim",
@@ -163,11 +164,7 @@ fn compile_gpu_placement(
             }
         },
         "spec": {
-            "devices": {
-                "requests": requests,
-                "constraints": constraints,
-                "config": configuration
-            }
+            "devices": devices
         }
     });
     Ok(PreparedGpuPlacement {
@@ -178,6 +175,23 @@ fn compile_gpu_placement(
         workload_replicas,
         manifest,
     })
+}
+
+fn canonical_resource_claim_devices(
+    requests: Vec<Value>,
+    constraints: Vec<Value>,
+    configuration: Vec<Value>,
+) -> Value {
+    // Kubernetes omits empty optional device lists from persisted claims. Build
+    // that canonical shape before comparing a profile with its live claim.
+    let mut devices = serde_json::json!({"requests": requests});
+    if !constraints.is_empty() {
+        devices["constraints"] = serde_json::json!(constraints);
+    }
+    if !configuration.is_empty() {
+        devices["config"] = serde_json::json!(configuration);
+    }
+    devices
 }
 
 pub(super) fn ensure_gpu_allocator(
@@ -1201,9 +1215,24 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        conflicting_device_plugin_pods, debian_package_version, parse_version,
-        validate_resource_slices,
+        canonical_resource_claim_devices, conflicting_device_plugin_pods, debian_package_version,
+        parse_version, validate_resource_slices,
     };
+
+    #[test]
+    fn resource_claim_devices_omit_empty_api_defaulted_lists() {
+        let requests = vec![json!({"name": "simulator"})];
+        let canonical = canonical_resource_claim_devices(requests.clone(), vec![], vec![]);
+        assert_eq!(canonical, json!({"requests": requests}));
+
+        let populated = canonical_resource_claim_devices(
+            vec![json!({"name": "simulator"})],
+            vec![json!({"requests": ["simulator"]})],
+            vec![json!({"opaque": {"driver": "gpu.nvidia.com"}})],
+        );
+        assert!(populated.get("constraints").is_some());
+        assert!(populated.get("config").is_some());
+    }
 
     #[test]
     fn resource_slice_inventory_requires_distinct_physical_gpus_and_current_driver() {

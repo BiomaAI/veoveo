@@ -505,6 +505,7 @@ fn service_error(error: anyhow::Error) -> Response {
     }
     tracing::warn!(
         error_code = "untyped_ingest_failure",
+        error = ?error,
         "recording ingest request failed without a typed protocol error"
     );
     ingest_error(
