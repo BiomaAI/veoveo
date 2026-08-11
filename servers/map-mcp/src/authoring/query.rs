@@ -95,7 +95,7 @@ pub(super) fn query_features(
          LIMIT ?",
         predicates.join(" AND ")
     );
-    let connection = analytics.connection(true)?;
+    let connection = analytics.read_connection()?;
     let mut statement = connection.prepare(&sql)?;
     let mut rows = statement.query(params_from_iter(parameters.iter()))?;
     let mut features = Vec::new();

@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+};
 
 use anyhow::{Context, Result, bail};
 use chrono::{DateTime, NaiveDate, Utc};
@@ -86,9 +89,51 @@ pub struct AttachSpec {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FileAccess {
     Denied,
+    /// One service-owned root. SQL may access only descendants selected and
+    /// validated by the service; the database file must live outside it.
+    ServiceRoot(PathBuf),
     /// One directory created for this request. SQL may read and write only
     /// within it; all network access remains disabled.
     RequestDirectory(PathBuf),
+}
+
+#[derive(Clone, Debug)]
+pub struct SharedDatabase {
+    root: Arc<Mutex<Connection>>,
+}
+
+impl SharedDatabase {
+    pub fn open(
+        db_path: &Path,
+        attach: &[AttachSpec],
+        files: &FileAccess,
+        settings: &EngineSettings,
+    ) -> Result<Self> {
+        validate_database_location(db_path, files)?;
+        let root = open_connection(db_path, false, attach, files, settings)?;
+        Ok(Self {
+            root: Arc::new(Mutex::new(root)),
+        })
+    }
+
+    /// Clone a connection inside the already configured DuckDB instance.
+    pub fn connection(&self) -> Result<Connection> {
+        self.root
+            .lock()
+            .map_err(|_| anyhow::anyhow!("shared DuckDB root connection lock is poisoned"))?
+            .try_clone()
+            .context("cloning shared DuckDB connection")
+    }
+
+    /// Start an explicit read-only transaction on a connection inside the
+    /// shared instance. Callers may commit or let drop roll it back.
+    pub fn read_connection(&self) -> Result<Connection> {
+        let connection = self.connection()?;
+        connection
+            .execute_batch("BEGIN TRANSACTION READ ONLY")
+            .context("starting read-only DuckDB transaction")?;
+        Ok(connection)
+    }
 }
 
 pub fn open_connection(
@@ -125,13 +170,13 @@ pub fn open_in_memory(files: &FileAccess, settings: &EngineSettings) -> Result<C
 fn prepare_directories(files: &FileAccess, settings: &EngineSettings) -> Result<()> {
     std::fs::create_dir_all(&settings.spill_dir)
         .with_context(|| format!("creating spill directory {}", settings.spill_dir.display()))?;
-    if let FileAccess::RequestDirectory(directory) = files {
+    if let FileAccess::RequestDirectory(directory) | FileAccess::ServiceRoot(directory) = files {
         std::fs::create_dir_all(directory)
             .with_context(|| format!("creating request directory {}", directory.display()))?;
         let spill = settings.spill_dir.canonicalize()?;
         let request = directory.canonicalize()?;
         if spill == request || spill.starts_with(&request) || request.starts_with(&spill) {
-            bail!("DuckDB spill and request directories must be disjoint");
+            bail!("DuckDB spill and authorized file directories must be disjoint");
         }
     }
     Ok(())
@@ -172,7 +217,7 @@ fn configure(
     for extension in &settings.trusted_extensions {
         load_trusted_extension(conn, extension)?;
     }
-    if let FileAccess::RequestDirectory(directory) = files {
+    if let FileAccess::RequestDirectory(directory) | FileAccess::ServiceRoot(directory) = files {
         let directory = quote_sql_literal(directory.to_string_lossy().as_ref());
         conn.execute_batch(&format!("SET allowed_directories = [{directory}];"))
             .context("allowing request-local DuckDB directory")?;
@@ -182,6 +227,37 @@ fn configure(
          SET lock_configuration = true;",
     )
     .context("locking down DuckDB configuration")?;
+    Ok(())
+}
+
+fn validate_database_location(db_path: &Path, files: &FileAccess) -> Result<()> {
+    let FileAccess::ServiceRoot(root) = files else {
+        return Ok(());
+    };
+    let root = root
+        .canonicalize()
+        .with_context(|| format!("canonicalizing service file root {}", root.display()))?;
+    let database = if db_path.exists() {
+        db_path
+            .canonicalize()
+            .with_context(|| format!("canonicalizing database file {}", db_path.display()))?
+    } else {
+        let parent = db_path.parent().ok_or_else(|| {
+            anyhow::anyhow!("DuckDB database path {} has no parent", db_path.display())
+        })?;
+        parent
+            .canonicalize()
+            .with_context(|| format!("canonicalizing database directory {}", parent.display()))?
+            .join(db_path.file_name().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "DuckDB database path {} has no file name",
+                    db_path.display()
+                )
+            })?)
+    };
+    if database.starts_with(root) {
+        bail!("DuckDB database file must be outside the authorized service file root");
+    }
     Ok(())
 }
 
@@ -783,6 +859,53 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn shared_database_clones_one_configured_instance() {
+        let dir = TempDir::new().unwrap();
+        let (path, settings, _) = setup(&dir);
+        let service_root = dir.path().join("tasks");
+        std::fs::create_dir_all(&service_root).unwrap();
+        let database = SharedDatabase::open(
+            &path,
+            &[],
+            &FileAccess::ServiceRoot(service_root),
+            &settings,
+        )
+        .unwrap();
+        database
+            .connection()
+            .unwrap()
+            .execute_batch(
+                "CREATE TABLE shared_state(value INTEGER); INSERT INTO shared_state VALUES (7)",
+            )
+            .unwrap();
+        let read = database.read_connection().unwrap();
+        let value: i64 = read
+            .query_row("SELECT value FROM shared_state", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(value, 7);
+        assert!(
+            read.execute_batch("INSERT INTO shared_state VALUES (8)")
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn shared_database_must_live_outside_its_file_root() {
+        let dir = TempDir::new().unwrap();
+        let (_, settings, _) = setup(&dir);
+        let service_root = dir.path().join("tasks");
+        std::fs::create_dir_all(&service_root).unwrap();
+        let error = SharedDatabase::open(
+            &service_root.join("map.duckdb"),
+            &[],
+            &FileAccess::ServiceRoot(service_root),
+            &settings,
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("database file must be outside"));
     }
 
     #[test]
