@@ -39,6 +39,16 @@ pub fn build_agent(
     if let Some(temperature) = manifest.model.temperature {
         builder = builder.temperature(temperature);
     }
+    let mut sampling = serde_json::Map::new();
+    if let Some(top_p) = manifest.model.top_p {
+        sampling.insert("top_p".to_owned(), serde_json::json!(top_p));
+    }
+    if let Some(top_k) = manifest.model.top_k {
+        sampling.insert("top_k".to_owned(), serde_json::json!(top_k));
+    }
+    if !sampling.is_empty() {
+        builder = builder.additional_params(serde_json::Value::Object(sampling));
+    }
     if let Some(max_tokens) = manifest.model.max_output_tokens {
         builder = builder.max_tokens(max_tokens);
     }
