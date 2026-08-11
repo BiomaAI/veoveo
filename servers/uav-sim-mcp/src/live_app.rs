@@ -44,8 +44,9 @@ mod tests {
             ".padStart(2,\"0\")",
             "fixedFps(stats.fps)",
             "Google Photorealistic 3D Tiles",
-            "MAX_RECOVERY_ATTEMPTS=8",
+            "MAX_RECOVERY_BACKOFF_ATTEMPT=8",
             "Camera recovery is waiting for simulator readiness",
+            "ensureSubscription",
             "retrySelectedNow",
         ] {
             assert!(html.contains(expected), "missing {expected}");
@@ -54,6 +55,10 @@ mod tests {
             assert!(!html.contains(removed), "obsolete App surface {removed}");
         }
         assert!(html.contains("{session_id:sessionId}"));
+        assert!(html.contains("if(name===\"open_live_view\")await ensureSubscription()"));
+        assert!(!html.contains(
+            "error(\"Camera recovery is waiting for simulator readiness\");status();return;"
+        ));
         assert!(!html.contains("first.sessionId"));
         assert!(!html.contains("setInterval"));
     }

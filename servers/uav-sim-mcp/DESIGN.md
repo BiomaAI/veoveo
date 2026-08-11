@@ -109,19 +109,22 @@ on its admitted loop until a later mission command takes authority.
 Restart behavior is intentionally simple. Simulator objects are runtime state. A pod
 restart recreates the configured world, cameras, and products through the one-shot
 installation binding. Viewer leases disappear when the MCP server restarts, and the App
-opens new leases. Native WebRTC stop and signaling-failure events start a bounded
-fresh-lease reconnect sequence for selected cameras. A subscribed live-camera resource
-update immediately retries cameras waiting for simulator readiness. The runtime emits an
+opens new leases. Native WebRTC stop and signaling-failure events start a fresh-lease
+reconnect sequence with a five-second maximum backoff for selected cameras. The App
+renews its resource subscription before every open attempt, so an MCP companion restart
+cannot strand recovery behind a stale session subscription. A subscribed live-camera
+resource update immediately retries cameras waiting for simulator readiness. The runtime
+emits an
 `adapter_ready` edge after its preconfiguration endpoint binds, allowing an existing
 companion to reapply the same immutable installation binding after an independent
 simulator-container restart. It emits a second `ready` edge after its running lifecycle
 and streamed-world readiness are both current; that edge produces the subscribed resource
 update. Both use a private Unix datagram. Delivery is best effort and never delays the
 simulator. If the companion is absent, its later startup applies the installation binding
-directly. Closing a tile or tearing down the App cancels its reconnect state, and
-exhausting the bounded connection attempts waits for the next resource notification
-without polling. There is no desired-versus-realized renderer deployment or periodic
-replay controller.
+directly. Closing a tile or tearing down the App cancels its reconnect state. A selected
+camera keeps retrying at the capped backoff until it succeeds, is deselected, or the App
+tears down. There is no desired-versus-realized renderer deployment or periodic replay
+controller.
 
 The streamed-world data plane has a smaller reactive lifecycle inside the simulator.
 The pinned Cesium extension emits a typed event when the ion endpoint, root tileset, or
@@ -255,8 +258,9 @@ lease state. The server retains a SHA-256 token hash in memory and compares it i
 time. Renew rotates only that lease. Close, expiry, and teardown invalidate only that
 lease. Closing one viewer cannot stop another viewer or rotate another actor's token.
 
-The signaling proxy authorizes the lease before opening that slot's stable native
-product endpoint, then strips the credential before forwarding. Each viewer receives
+The byte-transparent signaling gate authorizes the lease before opening that slot's
+stable native product endpoint, then strips the credential from the forwarded HTTP
+upgrade. It never terminates or reframes the upgraded WebSocket. Each viewer receives
 separate peer and SRTP state. Every admitted viewer increases active camera-clone,
 Hydra-texture, RTX-render, Cesium-viewport, and NVENC-session counts by exactly one up to
 the configured slot bound. No shared-bitstream fan-out, SFU, RTSP relay, WHEP adapter, or
@@ -359,8 +363,8 @@ physical viewer slots and validated by the chart. `liveView.activationTimeoutSec
 bounds first-frame and native-listener activation without introducing a readiness
 poller.
 
-The same pod owns MCP HTTP, the public signaling proxy, private native signaling ports,
-public UDP media ports, one Cesium cache, and the authoritative runtime. Network policy
+The same pod owns MCP HTTP, the public byte-transparent signaling gate, private native
+signaling ports, public UDP media ports, one Cesium cache, and the authoritative runtime. Network policy
 admits gateway traffic, signaling, bounded media, DNS, and the configured public TLS
 world provider. Provider credentials come from installation-owned Secrets and never
 appear in Helm-rendered ConfigMaps or MCP state.

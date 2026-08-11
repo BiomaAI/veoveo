@@ -21,7 +21,7 @@ spec:
     {{- if .Values.liveView.signalingIngress.enabled }}
     - ports:
         - protocol: TCP
-          port: 8802
+          port: {{ .Values.liveView.signalingGatePort }}
     {{- end }}
     - ports:
         {{- range $slot := until (int .Values.liveView.viewerSlots) }}

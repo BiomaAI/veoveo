@@ -78,6 +78,8 @@ pub(super) struct Args {
     pub(super) internal_trust_jwks: String,
     #[arg(long, env = "UAV_SIM_PUBLIC_SIGNALING_URL")]
     pub(super) public_signaling_url: String,
+    #[arg(long, env = "UAV_SIM_SIGNALING_GATE_PORT", default_value_t = 8803)]
+    pub(super) signaling_gate_port: u16,
     #[arg(
         long,
         env = "UAV_SIM_NATIVE_SIGNALING_URL",
