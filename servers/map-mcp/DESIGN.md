@@ -214,6 +214,34 @@ Spatial queries use `ST_Contains`, `ST_Intersects`, and `ST_Distance_Sphere`.
 The Spatial extension is copied into the image at build time and loaded only
 from its pinned local path.
 
+Release-product projection is attempt scoped. Each preparation receives a
+private UUIDv7 attempt and writes complete source features in transactions of
+at most 256 features or 32 MiB of canonical source-feature data. Stable logical
+ids remain unchanged across releases. Stored rows add the tenant, immutable
+release, attempt, and contiguous ordinal needed to keep simultaneous releases
+and interrupted retries distinct.
+
+The completion ledger is the visibility boundary. Its final transaction checks
+the row count, distinct ordinal count, ordinal range, and logical-id uniqueness
+for every high-volume release table. It also checks the raster count. Only the
+winning attempt becomes readable or activatable. An interrupted attempt may
+remain on disk, but its rows cannot enter tools, resources, routing, or spatial
+queries. A release retains at most eight attempts before preparation stops with
+an instruction to rebuild this derived projection. The supported deployment
+uses one Map replica and one release writer.
+
+Source tags stay in the immutable feature JSON. Equality predicates match only
+JSON strings, while existence predicates include a present JSON null. JSON
+Pointer escaping protects tag keys containing `/` or `~`. This avoids the
+write amplification of an exploded tag table without weakening release and
+attempt isolation.
+
+Schema version 9 is a hard cut. Map refuses to open an older analytical schema
+or managed tables without a valid marker. During upgrade, preserve SurrealDB,
+the artifact plane, and retained release products, then rebuild only the local
+DuckDB projection and replay the retained products before activation. No source
+reacquisition or compatibility migration is part of this contract.
+
 The artifact plane stores immutable raw source bytes, normalized products,
 routing builds, quality reports, and large task outputs. Cross-server artifact
 identity remains `artifact://{artifact_id}`. Map projects those artifacts as
