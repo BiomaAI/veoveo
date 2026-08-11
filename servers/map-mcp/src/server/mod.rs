@@ -88,6 +88,7 @@ async fn serve(args: Args) -> Result<()> {
     }
     let analytics = MapAnalytics::open(MapAnalyticsConfig {
         database_path: args.map_database.clone(),
+        authoring_task_root: args.authoring_task_root.clone(),
         spill_dir: args.duckdb_spill_dir.clone(),
         spatial_extension: args.spatial_extension.clone(),
         memory_limit: args.duckdb_memory_limit.clone(),
@@ -96,10 +97,6 @@ async fn serve(args: Args) -> Result<()> {
     analytics.verify_spatial()?;
     let authoring = AuthoringService::new(catalog.store().clone(), analytics.clone());
     authoring.reconcile_projection().await?;
-    if !args.authoring_task_root.is_absolute() {
-        anyhow::bail!("authoring task root must be absolute");
-    }
-    std::fs::create_dir_all(&args.authoring_task_root)?;
     let authoring_task_root = args.authoring_task_root.canonicalize()?;
     let valhalla_client = ValhallaClient::new(ValhallaClientConfig {
         base_url: args.valhalla_url.clone(),

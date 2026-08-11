@@ -201,7 +201,12 @@ SurrealDB is the canonical operational catalog. It stores:
 - immutable publication products, map composition heads, and composition
   revisions.
 
-DuckDB Spatial is the local analytical projection. Its schema is tenant keyed
+DuckDB Spatial is the local analytical projection. The service opens one
+configured database instance for its lifetime and clones connections inside
+that instance for concurrent work. Read paths begin explicit read-only
+transactions. Task exports receive only a validated direct child of the
+installation-owned task root, while the database and spill directory remain
+outside that file surface. Its schema is tenant keyed
 and contains active-release pointers, locations, facilities, boundaries,
 governed network edges, authored feature revision and head projections, and
 Work Context-scoped raster and spatial derivations.

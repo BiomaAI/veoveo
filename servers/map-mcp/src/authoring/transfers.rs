@@ -766,10 +766,12 @@ mod tests {
             return;
         };
         let root = tempfile::tempdir().unwrap();
-        let request = root.path().join("request");
+        let task_root = root.path().join("tasks");
+        let request = task_root.join("request");
         let analytics =
             crate::analytics::MapAnalytics::open(crate::analytics::MapAnalyticsConfig {
                 database_path: root.path().join("map.duckdb"),
+                authoring_task_root: task_root,
                 spill_dir: root.path().join("spill"),
                 spatial_extension: extension.into(),
                 memory_limit: "256MB".to_owned(),
@@ -777,7 +779,7 @@ mod tests {
             })
             .unwrap();
         analytics
-            .connection(false)
+            .connection()
             .unwrap()
             .execute(
                 "INSERT INTO map_authored_feature_revision VALUES (?, ?, ?, ?, 1, 1, 1, ?, 1, false, 'Point', ST_Point(-89.2, 13.7), -89.2, 13.7, -89.2, 13.7, NULL, NULL, 'place', 'Test', '{\"name\":\"Test\"}'::JSON, '{}'::JSON, now())",

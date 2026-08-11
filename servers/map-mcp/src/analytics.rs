@@ -5,7 +5,7 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use duckdb::{Connection, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use veoveo_duckdb_runtime::{EngineSettings, FileAccess, TrustedExtension, open_connection};
+use veoveo_duckdb_runtime::{EngineSettings, FileAccess, SharedDatabase, TrustedExtension};
 use veoveo_mcp_contract::WorkContextId;
 
 use crate::contract::{
@@ -21,6 +21,7 @@ const SCHEMA_VERSION: i64 = 6;
 #[derive(Clone, Debug)]
 pub struct MapAnalyticsConfig {
     pub database_path: PathBuf,
+    pub authoring_task_root: PathBuf,
     pub spill_dir: PathBuf,
     pub spatial_extension: PathBuf,
     pub memory_limit: String,
@@ -30,7 +31,8 @@ pub struct MapAnalyticsConfig {
 #[derive(Clone, Debug)]
 pub struct MapAnalytics {
     database_path: PathBuf,
-    settings: EngineSettings,
+    authoring_task_root: PathBuf,
+    instance: SharedDatabase,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -58,9 +60,26 @@ impl MapAnalytics {
         settings
             .trusted_extensions
             .push(TrustedExtension::new("spatial", config.spatial_extension)?);
+        if !config.authoring_task_root.is_absolute() {
+            bail!("authoring task root must be absolute");
+        }
+        std::fs::create_dir_all(&config.authoring_task_root).with_context(|| {
+            format!(
+                "creating authoring task root {}",
+                config.authoring_task_root.display()
+            )
+        })?;
+        let authoring_task_root = config.authoring_task_root.canonicalize()?;
+        let instance = SharedDatabase::open(
+            &config.database_path,
+            &[],
+            &FileAccess::ServiceRoot(authoring_task_root.clone()),
+            &settings,
+        )?;
         let analytics = Self {
             database_path: config.database_path,
-            settings,
+            authoring_task_root,
+            instance,
         };
         analytics.initialize()?;
         Ok(analytics)
@@ -71,7 +90,7 @@ impl MapAnalytics {
     }
 
     pub fn verify_spatial(&self) -> Result<()> {
-        let connection = self.connection(false)?;
+        let connection = self.connection()?;
         let text: String = connection
             .query_row("SELECT ST_AsText(ST_Point(1, 2))", [], |row| row.get(0))
             .context("verifying DuckDB Spatial")?;
@@ -93,7 +112,7 @@ impl MapAnalytics {
         if !(1..=100).contains(&request.limit) {
             bail!("location search limit must be within 1..=100");
         }
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut locations = Vec::new();
         let location_longitude_predicate = longitude_predicate(&request.coverage, "longitude_deg");
         let sql = format!(
@@ -166,7 +185,7 @@ impl MapAnalytics {
         location_id: &crate::contract::LocationId,
     ) -> Result<Option<MapLocation>> {
         select_canonical(
-            &self.connection(true)?,
+            &self.read_connection()?,
             "map_location",
             "location_key",
             location_id.as_str(),
@@ -180,7 +199,7 @@ impl MapAnalytics {
         facility_id: &crate::contract::FacilityId,
     ) -> Result<Option<Facility>> {
         select_canonical(
-            &self.connection(true)?,
+            &self.read_connection()?,
             "map_facility",
             "facility_key",
             facility_id.as_str(),
@@ -202,7 +221,7 @@ impl MapAnalytics {
         if !(1..=100).contains(&limit) {
             bail!("nearby facility limit must be within 1..=100");
         }
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection.prepare(
             "SELECT canonical_json FROM map_facility \
              WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?) \
@@ -231,7 +250,7 @@ impl MapAnalytics {
         if !(1..=10_000).contains(&limit) {
             bail!("facility list limit must be within 1..=10000");
         }
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection
             .prepare("SELECT canonical_json FROM map_facility WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?) ORDER BY name ASC LIMIT ?")?;
         let mut rows = statement.query(params![tenant_key, tenant_key, limit])?;
@@ -246,7 +265,7 @@ impl MapAnalytics {
         if !(1..=10_000).contains(&limit) {
             bail!("location list limit must be within 1..=10000");
         }
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection
             .prepare("SELECT canonical_json FROM map_location WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?) ORDER BY name ASC LIMIT ?")?;
         let mut rows = statement.query(params![tenant_key, tenant_key, limit])?;
@@ -259,7 +278,7 @@ impl MapAnalytics {
 
     pub fn put_location(&self, tenant_key: &str, location: &MapLocation) -> Result<()> {
         location.position.validate()?;
-        let connection = self.connection(false)?;
+        let connection = self.connection()?;
         connection.execute(
             "INSERT OR REPLACE INTO map_location VALUES (?, ?, ?, ?, ?, ?, ?)",
             params![
@@ -277,7 +296,7 @@ impl MapAnalytics {
 
     pub fn put_facility(&self, tenant_key: &str, facility: &Facility) -> Result<()> {
         facility.position.validate()?;
-        let connection = self.connection(false)?;
+        let connection = self.connection()?;
         connection.execute(
             "INSERT OR REPLACE INTO map_facility VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             params![
@@ -297,7 +316,7 @@ impl MapAnalytics {
     pub fn put_boundary(&self, tenant_key: &str, boundary: &MapBoundary) -> Result<()> {
         boundary.geometry.validate()?;
         let geometry = polygon_geojson(&boundary.geometry)?;
-        let connection = self.connection(false)?;
+        let connection = self.connection()?;
         connection.execute(
             "INSERT OR REPLACE INTO map_boundary VALUES (?, ?, ?, ?, ST_GeomFromGeoJSON(?), ?, ?)",
             params![
@@ -317,7 +336,7 @@ impl MapAnalytics {
         feature.validate()?;
         let geometry = feature.geometry.to_geojson_string()?;
         let normalized_text = source_feature_normalized_text(feature)?;
-        let mut connection = self.connection(false)?;
+        let mut connection = self.connection()?;
         let transaction = connection.transaction()?;
         transaction.execute(
             "INSERT OR REPLACE INTO map_source_feature VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ST_GeomFromGeoJSON(?), ?, ?, ?, ?)",
@@ -369,7 +388,7 @@ impl MapAnalytics {
         release_id: &crate::contract::DatasetReleaseId,
         feature_id: &SourceFeatureId,
     ) -> Result<Option<SourceFeature>> {
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection.prepare(
             "SELECT canonical_json FROM map_source_feature WHERE tenant_key = ? AND release_key = ? AND feature_key = ? LIMIT 1",
         )?;
@@ -386,7 +405,7 @@ impl MapAnalytics {
 
     pub fn put_raster_product(&self, tenant_key: &str, raster: &RasterProduct) -> Result<()> {
         raster.validate()?;
-        let connection = self.connection(false)?;
+        let connection = self.connection()?;
         connection.execute(
             "INSERT OR REPLACE INTO map_raster_product VALUES (?, ?, ?, ?, ?, ?)",
             params![
@@ -406,7 +425,7 @@ impl MapAnalytics {
         tenant_key: &str,
         raster_id: &RasterProductId,
     ) -> Result<Option<RasterProduct>> {
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection.prepare(
             "SELECT canonical_json FROM map_raster_product WHERE tenant_key = ? AND raster_key = ? LIMIT 1",
         )?;
@@ -426,7 +445,7 @@ impl MapAnalytics {
         if !(1..=10_000).contains(&limit) {
             bail!("raster product limit must be within 1..=10000");
         }
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let sql = if release_id.is_some() {
             "SELECT canonical_json FROM map_raster_product WHERE tenant_key = ? AND release_key = ? ORDER BY raster_key LIMIT ?"
         } else {
@@ -451,7 +470,7 @@ impl MapAnalytics {
         derivation: &RasterDerivation,
     ) -> Result<()> {
         derivation.validate()?;
-        let connection = self.connection(false)?;
+        let connection = self.connection()?;
         connection.execute(
             "INSERT OR REPLACE INTO map_raster_derivation VALUES (?, ?, ?, ?, ?, ?, ?)",
             params![
@@ -473,7 +492,7 @@ impl MapAnalytics {
         work_context: &WorkContextId,
         derivation_id: &RasterDerivationId,
     ) -> Result<Option<RasterDerivation>> {
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection.prepare(
             "SELECT canonical_json FROM map_raster_derivation WHERE tenant_key = ? AND work_context_key = ? AND derivation_key = ? LIMIT 1",
         )?;
@@ -497,7 +516,7 @@ impl MapAnalytics {
         if !(1..=10_000).contains(&limit) {
             bail!("raster derivation limit must be within 1..=10000");
         }
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection.prepare(
             "SELECT canonical_json FROM map_raster_derivation WHERE tenant_key = ? AND work_context_key = ? ORDER BY derivation_key LIMIT ?",
         )?;
@@ -515,7 +534,7 @@ impl MapAnalytics {
         derivation: &SpatialDerivation,
     ) -> Result<()> {
         derivation.validate()?;
-        let connection = self.connection(false)?;
+        let connection = self.connection()?;
         connection.execute(
             "INSERT OR REPLACE INTO map_spatial_derivation VALUES (?, ?, ?, ?, ?, ?, ?)",
             params![
@@ -537,7 +556,7 @@ impl MapAnalytics {
         work_context: &WorkContextId,
         derivation_id: &SpatialDerivationId,
     ) -> Result<Option<SpatialDerivation>> {
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection.prepare(
             "SELECT canonical_json FROM map_spatial_derivation WHERE tenant_key = ? AND work_context_key = ? AND derivation_key = ? LIMIT 1",
         )?;
@@ -561,7 +580,7 @@ impl MapAnalytics {
         if !(1..=10_000).contains(&limit) {
             bail!("spatial derivation limit must be within 1..=10000");
         }
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection.prepare(
             "SELECT canonical_json FROM map_spatial_derivation WHERE tenant_key = ? AND work_context_key = ? ORDER BY derivation_key LIMIT ?",
         )?;
@@ -675,7 +694,7 @@ impl MapAnalytics {
             predicates.join(" AND "),
             u64::from(request.limit) + 1
         );
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection.prepare(&sql)?;
         let mut rows = statement.query([])?;
         let mut features = Vec::new();
@@ -712,7 +731,7 @@ impl MapAnalytics {
         position: &Wgs84Position,
     ) -> Result<Vec<MapBoundaryId>> {
         position.validate()?;
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let active_releases = active_release_keys(&connection, tenant_key)?;
         if active_releases.is_empty() {
             return Ok(Vec::new());
@@ -749,7 +768,7 @@ impl MapAnalytics {
     ) -> Result<Vec<MapBoundaryId>> {
         corridor.validate()?;
         let geometry = line_geojson(corridor)?;
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let active_releases = active_release_keys(&connection, tenant_key)?;
         if active_releases.is_empty() {
             return Ok(Vec::new());
@@ -779,7 +798,7 @@ impl MapAnalytics {
         tenant_key: &str,
         release_id: &crate::contract::DatasetReleaseId,
     ) -> Result<()> {
-        let mut connection = self.connection(false)?;
+        let mut connection = self.connection()?;
         let transaction = connection.transaction()?;
         for (table, release_column) in [
             ("map_location", "source_release_key"),
@@ -806,7 +825,7 @@ impl MapAnalytics {
         dataset_id: &crate::contract::MapDatasetId,
         release_id: &crate::contract::DatasetReleaseId,
     ) -> Result<()> {
-        let mut connection = self.connection(false)?;
+        let mut connection = self.connection()?;
         let transaction = connection.transaction()?;
         transaction.execute(
             "DELETE FROM map_active_release WHERE tenant_key = ? AND dataset_key = ?",
@@ -826,7 +845,7 @@ impl MapAnalytics {
         release_id: &crate::contract::DatasetReleaseId,
         edges: &[NetworkEdge],
     ) -> Result<()> {
-        let mut connection = self.connection(false)?;
+        let mut connection = self.connection()?;
         let transaction = connection.transaction()?;
         transaction.execute(
             "DELETE FROM map_network_edge WHERE tenant_key = ? AND source_release_key = ?",
@@ -874,7 +893,7 @@ impl MapAnalytics {
         {
             bail!("network edge invariants are invalid");
         }
-        let connection = self.connection(false)?;
+        let connection = self.connection()?;
         connection.execute(
             "INSERT OR REPLACE INTO map_network_edge VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             params![
@@ -900,7 +919,7 @@ impl MapAnalytics {
         tenant_key: &str,
         map_family: MapFamily,
     ) -> Result<Vec<NetworkEdge>> {
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let family = serde_json::to_value(map_family)?
             .as_str()
             .context("map family wire value")?
@@ -928,7 +947,7 @@ impl MapAnalytics {
     }
 
     fn initialize(&self) -> Result<()> {
-        let connection = self.connection(false)?;
+        let connection = self.connection()?;
         connection.execute_batch(&format!(
             "CREATE TABLE IF NOT EXISTS map_schema (version BIGINT NOT NULL);\n\
              INSERT INTO map_schema SELECT {SCHEMA_VERSION} WHERE NOT EXISTS (SELECT 1 FROM map_schema);\n\
@@ -1083,24 +1102,24 @@ impl MapAnalytics {
         self.verify_spatial()
     }
 
-    pub(crate) fn connection(&self, read_only: bool) -> Result<Connection> {
-        open_connection(
-            &self.database_path,
-            read_only,
-            &[],
-            &FileAccess::Denied,
-            &self.settings,
-        )
+    pub(crate) fn connection(&self) -> Result<Connection> {
+        self.instance.connection()
+    }
+
+    pub(crate) fn read_connection(&self) -> Result<Connection> {
+        self.instance.read_connection()
     }
 
     pub(crate) fn task_connection(&self, directory: &Path) -> Result<Connection> {
-        open_connection(
-            &self.database_path,
-            false,
-            &[],
-            &FileAccess::RequestDirectory(directory.to_path_buf()),
-            &self.settings,
-        )
+        std::fs::create_dir_all(directory)
+            .with_context(|| format!("creating task directory {}", directory.display()))?;
+        let directory = directory
+            .canonicalize()
+            .with_context(|| format!("canonicalizing task directory {}", directory.display()))?;
+        if directory.parent() != Some(self.authoring_task_root.as_path()) {
+            bail!("task directory must be a direct child of the authoring task root");
+        }
+        self.instance.connection()
     }
 }
 
