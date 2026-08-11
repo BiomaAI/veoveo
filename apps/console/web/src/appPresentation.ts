@@ -1,8 +1,8 @@
 import type { AppDescriptor } from "./types";
 
-/** An explicit border opt-out asks the host to dedicate its content area to the App. */
+/** Apps receive the complete content workspace unless they explicitly request host framing. */
 export function isFullBleedApp(
   app: Pick<AppDescriptor, "prefersBorder"> | undefined,
 ): boolean {
-  return app?.prefersBorder === false;
+  return app !== undefined && app.prefersBorder !== true;
 }

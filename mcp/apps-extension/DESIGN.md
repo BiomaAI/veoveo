@@ -83,8 +83,9 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
   origin, sorts and deduplicates the result, and adds only those exact sources
   to the relevant directive. Local `data:` fetches do not add a remote network
   origin. The opaque origin has no cookies, storage, or same-origin privilege.
-  An explicit `_meta.ui.prefersBorder: false` gives the App the complete
-  Console content workspace; absent metadata keeps the bordered presentation.
+  Apps receive the complete Console content workspace by default. An explicit
+  `_meta.ui.prefersBorder: true` requests the bordered presentation; absent or
+  `false` metadata retains the full-workspace presentation.
 - **Bridge** — the host declares `serverTools` and `serverResources`
   capabilities. `tools/call` from a view is proxied only to app-visible
   tools linked to that exact view on that view's server. Own-server resource

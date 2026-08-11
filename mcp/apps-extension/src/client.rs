@@ -110,16 +110,15 @@ mod tests {
                     connect_domains: vec!["wss://stream.example.com".to_owned()],
                     ..crate::UiCsp::default()
                 }),
-                prefers_border: Some(false),
+                prefers_border: None,
             },
         );
+        let networked_meta = resource_ui_meta(&networked).expect("UI metadata parses");
         assert_eq!(
-            resource_ui_meta(&networked)
-                .and_then(|metadata| metadata.csp)
-                .expect("CSP parses")
-                .connect_domains,
+            networked_meta.csp.expect("CSP parses").connect_domains,
             vec!["wss://stream.example.com"]
         );
+        assert_eq!(networked_meta.prefers_border, None);
 
         let messaged = crate::with_agent_message_targets(
             app_resource("ui://workflow/control.html", "control"),
