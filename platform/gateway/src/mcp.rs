@@ -120,6 +120,12 @@ impl GatewayMcp {
             return Ok(CachedUpstream { key, peer });
         }
 
+        let initialization_lock = self.upstreams.initialization_lock(&key).await;
+        let _initialization_guard = initialization_lock.lock().await;
+        if let Some(peer) = self.upstreams.reusable_peer(&key).await {
+            return Ok(CachedUpstream { key, peer });
+        }
+
         let server = snapshot
             .catalog()
             .server(server_slug)
@@ -129,10 +135,6 @@ impl GatewayMcp {
             return Err(mcp_internal(format!(
                 "unsupported upstream transport for server `{server_slug}`"
             )));
-        }
-
-        if let Some(peer) = self.upstreams.reusable_peer(&key).await {
-            return Ok(CachedUpstream { key, peer });
         }
 
         let http_client = self

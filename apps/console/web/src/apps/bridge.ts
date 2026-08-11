@@ -20,17 +20,23 @@ import {
   type TaskMetadata,
 } from "@modelcontextprotocol/sdk/types.js";
 import {
-  appResourceEventsUrl,
   callAppTool,
   cancelAppTask,
   getAppTask,
   getAppTaskResult,
+  openAppResourceEvents,
   readAppResource,
   unsubscribeAppResource,
 } from "../api";
 import { appFrameOuterHeight } from "../appFrameSizing";
+import { isFullBleedApp } from "../appPresentation";
 import type { AppDescriptor } from "../types";
 import type { AppTheme } from "../theme";
+import {
+  openResourceEventStream,
+  type ResourceEventStream,
+} from "./resourceEventStream";
+import { interceptResourceReadRequests } from "./resourceRead";
 
 export interface AppBridge {
   dispose: () => void;
@@ -117,8 +123,8 @@ function interceptTaskRequests(inner: Transport, app: AppDescriptor): Transport 
 
 interface ResourceSubscription {
   id: string;
-  source: EventSource;
   opened: boolean;
+  requests: Array<string | number>;
 }
 
 function resourceOwnedByApp(app: AppDescriptor, uri: string): boolean {
@@ -136,6 +142,11 @@ function interceptResourceSubscriptions(
   app: AppDescriptor
 ): { transport: Transport; dispose: () => void } {
   const subscriptions = new Map<string, ResourceSubscription>();
+  let source: ResourceEventStream | undefined;
+  let openScheduled = false;
+  let recoveryTimer: ReturnType<typeof setTimeout> | undefined;
+  let generation = 0;
+  let disposed = false;
   const transport: Transport = {
     start: () => inner.start(),
     send: (message, options) => inner.send(message, options),
@@ -150,11 +161,95 @@ function interceptResourceSubscriptions(
       id,
       error: { code: ErrorCode.InternalError, message },
     });
+  const report = (error: unknown) =>
+    transport.onerror?.(error instanceof Error ? error : new Error(String(error)));
+  const notifyUpdated = (uri: string) => {
+    if (!subscriptions.has(uri)) return;
+    void inner.send({
+      jsonrpc: "2.0",
+      method: "ui/notifications/resource-updated",
+      params: { uri },
+    } as never).catch(report);
+  };
+  const open = () => {
+    openScheduled = false;
+    source?.close();
+    source = undefined;
+    const active = [...subscriptions.entries()];
+    if (disposed || active.length === 0) return;
+    const activeGeneration = ++generation;
+    const batch = active.map(([uri, subscription]) => ({
+      subscriptionId: subscription.id,
+      uri,
+    }));
+    source = openResourceEventStream(
+      "/console/api/apps/resource-events",
+      {
+        onOpen: () => {
+          if (disposed || generation !== activeGeneration) return;
+          for (const [uri, subscription] of active) {
+            if (subscriptions.get(uri) !== subscription) continue;
+            if (subscription.opened) {
+              notifyUpdated(uri);
+              continue;
+            }
+            subscription.opened = true;
+            for (const requestId of subscription.requests) {
+              void reply(requestId, {}).catch(report);
+            }
+            subscription.requests = [];
+          }
+        },
+        onEvent: (event) => {
+          if (event.type !== "resource-updated" || generation !== activeGeneration) return;
+          try {
+            const params = JSON.parse(event.data) as { uri?: string; uris?: string[] };
+            if (typeof params.uri === "string") notifyUpdated(params.uri);
+            if (Array.isArray(params.uris)) {
+              for (const uri of params.uris) notifyUpdated(uri);
+            }
+          } catch (error) {
+            report(error);
+          }
+        },
+        onInitialError: (error) => {
+          if (disposed || generation !== activeGeneration) return;
+          for (const [uri, subscription] of active) {
+            if (subscription.opened || subscriptions.get(uri) !== subscription) continue;
+            subscriptions.delete(uri);
+            for (const requestId of subscription.requests) {
+              void reject(requestId, "resource subscription stream failed to open").catch(report);
+            }
+          }
+          if (subscriptions.size > 0) {
+            recoveryTimer = setTimeout(() => {
+              recoveryTimer = undefined;
+              open();
+            }, 250);
+          }
+          report(error);
+        },
+      },
+      (_input, init) => openAppResourceEvents(app.server, app.resourceUri, batch, init?.signal),
+    );
+  };
+  const scheduleOpen = () => {
+    if (disposed || openScheduled) return;
+    if (recoveryTimer !== undefined) {
+      clearTimeout(recoveryTimer);
+      recoveryTimer = undefined;
+    }
+    openScheduled = true;
+    queueMicrotask(open);
+  };
   const close = (uri: string) => {
     const subscription = subscriptions.get(uri);
     if (!subscription) return Promise.resolve();
     subscriptions.delete(uri);
-    subscription.source.close();
+    for (const requestId of subscription.requests) {
+      void reject(requestId, "resource subscription was cancelled before admission").catch(report);
+    }
+    scheduleOpen();
     return unsubscribeAppResource(subscription.id);
   };
 
@@ -181,48 +276,28 @@ function interceptResourceSubscriptions(
       return;
     }
     if (subscriptions.has(uri)) {
-      void reply(message.id, {});
+      const subscription = subscriptions.get(uri)!;
+      if (subscription.opened) void reply(message.id, {}).catch(report);
+      else subscription.requests.push(message.id);
       return;
     }
     const subscriptionId = crypto.randomUUID();
-    const source = new EventSource(
-      appResourceEventsUrl(app.server, app.resourceUri, uri, subscriptionId)
-    );
     const subscription: ResourceSubscription = {
       id: subscriptionId,
-      source,
       opened: false,
+      requests: [message.id],
     };
     subscriptions.set(uri, subscription);
-    source.onopen = () => {
-      if (subscription.opened || subscriptions.get(uri) !== subscription) return;
-      subscription.opened = true;
-      void reply(message.id, {});
-    };
-    source.addEventListener("resource-updated", (event) => {
-      if (subscriptions.get(uri) !== subscription) return;
-      try {
-        const params = JSON.parse((event as MessageEvent<string>).data) as { uri: string };
-        void inner.send({
-          jsonrpc: "2.0",
-          method: "ui/notifications/resource-updated",
-          params,
-        } as never);
-      } catch (error) {
-        transport.onerror?.(error instanceof Error ? error : new Error(String(error)));
-      }
-    });
-    source.onerror = () => {
-      if (subscription.opened || subscriptions.get(uri) !== subscription) return;
-      subscriptions.delete(uri);
-      source.close();
-      void reject(message.id, "resource subscription stream failed to open");
-    };
+    scheduleOpen();
   };
 
   return {
     transport,
     dispose: () => {
+      disposed = true;
+      generation += 1;
+      if (recoveryTimer !== undefined) clearTimeout(recoveryTimer);
+      source?.close();
       for (const uri of [...subscriptions.keys()]) {
         void close(uri).catch((error: unknown) =>
           console.error("MCP App resource unsubscribe failed", error)
@@ -277,6 +352,7 @@ export function attachAppBridge(
   };
   bridge.onrequestdisplaymode = async () => ({ mode: "inline" });
   bridge.addEventListener("sizechange", ({ height }) => {
+    if (isFullBleedApp(app)) return;
     if (height === undefined || !Number.isFinite(height)) return;
     const nonContentHeight = Math.max(0, iframe.offsetHeight - iframe.clientHeight);
     iframe.style.height = `${appFrameOuterHeight(height, nonContentHeight)}px`;
@@ -284,8 +360,12 @@ export function attachAppBridge(
 
   const subscriptions = interceptResourceSubscriptions(
     interceptTaskRequests(
-      new PostMessageTransport(iframe.contentWindow, iframe.contentWindow),
-      app
+      interceptResourceReadRequests(
+        new PostMessageTransport(iframe.contentWindow, iframe.contentWindow),
+        app,
+        readAppResource,
+      ),
+      app,
     ),
     app,
   );

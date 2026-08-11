@@ -501,14 +501,36 @@ export async function readAppResource(
   });
 }
 
-export function appResourceEventsUrl(
+export interface AppResourceEventSubscription {
+  subscriptionId: string;
+  uri: string;
+}
+
+export async function openAppResourceEvents(
   server: string,
   appUri: string,
-  uri: string,
-  subscriptionId: string
-): string {
-  const query = new URLSearchParams({ server, appUri, uri, subscriptionId });
-  return `/console/api/apps/resource-events?${query.toString()}`;
+  subscriptions: AppResourceEventSubscription[],
+  signal?: AbortSignal | null,
+): Promise<Response> {
+  if (!csrfToken) throw new Error("Console session has not been initialized");
+  const response = await fetch("/console/api/apps/resource-events", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      Accept: "text/event-stream",
+      "Content-Type": "application/json",
+      "X-Veoveo-CSRF-Token": csrfToken,
+    },
+    body: JSON.stringify({ server, appUri, subscriptions }),
+    signal,
+  });
+  const rotatedToken = response.headers.get("x-veoveo-csrf-token");
+  if (rotatedToken) csrfToken = rotatedToken;
+  if (response.status === 401) authenticationRequired();
+  if (response.status === 403) {
+    throw new Error("This App resource subscription is not permitted by the active Console policy.");
+  }
+  return response;
 }
 
 export async function unsubscribeAppResource(subscriptionId: string): Promise<void> {

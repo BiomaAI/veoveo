@@ -1,5 +1,5 @@
 use std::{
-    collections::VecDeque,
+    collections::{BTreeSet, VecDeque},
     convert::Infallible,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
@@ -26,6 +26,7 @@ use crate::{AppState, api, mcp_client::McpSession};
 const MAX_APP_HTML_BYTES: usize = 2 * 1024 * 1024;
 const MAX_CALL_ARGUMENT_BYTES: usize = 256 * 1024;
 const MAX_CALL_RESULT_BYTES: usize = 2 * 1024 * 1024;
+const MAX_APP_RESOURCE_SUBSCRIPTIONS: usize = 64;
 
 const MAX_TRACKED_APP_TASKS: usize = 1024;
 const APP_TASK_RETENTION: Duration = Duration::from_secs(60 * 60);
@@ -56,6 +57,8 @@ struct AppDescriptor {
     /// does not fetch remote images, and apps are self-contained by contract.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     icons: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    prefers_border: Option<bool>,
     tools: Vec<AppToolDescriptor>,
     resource_dependencies: Vec<AppResourceDependency>,
 }
@@ -323,6 +326,7 @@ pub(crate) async fn list_apps(
                 .filter(|icon| icon.src.starts_with("data:image/"))
                 .map(|icon| icon.src.clone())
                 .collect(),
+            prefers_border: resource_ui_meta(resource).and_then(|metadata| metadata.prefers_border),
             tools,
             resource_dependencies: app_resource_dependencies(resource),
         });
@@ -594,33 +598,71 @@ pub(crate) async fn read_app_resource(
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct AppResourceEventsQuery {
+pub(crate) struct AppResourceEventsRequest {
     server: String,
     app_uri: String,
+    subscriptions: Vec<AppResourceEventSubscription>,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AppResourceEventSubscription {
     uri: String,
     subscription_id: uuid::Uuid,
 }
 
-/// Project one authorized upstream MCP resource subscription into a
-/// contentless browser SSE wake stream. The App still reads current state
+fn app_resource_event_uris(
+    server: &str,
+    subscriptions: &[AppResourceEventSubscription],
+) -> Result<BTreeSet<String>, (StatusCode, &'static str)> {
+    if subscriptions.is_empty() || subscriptions.len() > MAX_APP_RESOURCE_SUBSCRIPTIONS {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "resource subscription batch has an invalid size",
+        ));
+    }
+    let mut subscription_ids = BTreeSet::new();
+    let mut uris = BTreeSet::new();
+    for subscription in subscriptions {
+        if !subscription_ids.insert(subscription.subscription_id)
+            || !uris.insert(subscription.uri.clone())
+        {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "resource subscription batch contains a duplicate",
+            ));
+        }
+    }
+    if uris
+        .iter()
+        .any(|uri| !app_resource_uri_allowed(server, uri))
+    {
+        return Err((
+            StatusCode::FORBIDDEN,
+            "resource subscription is not owned by this App's server",
+        ));
+    }
+    Ok(uris)
+}
+
+/// Project an authorized batch of upstream MCP resource subscriptions into
+/// one contentless browser SSE wake stream. The App still reads current state
 /// through `resources/read`; notifications never carry domain payloads.
 pub(crate) async fn app_resource_events(
     State(state): State<AppState>,
     request_headers: HeaderMap,
-    Query(query): Query<AppResourceEventsQuery>,
+    Json(request): Json<AppResourceEventsRequest>,
 ) -> Response {
-    if app_uri_server(&query.app_uri) != Some(query.server.as_str()) {
+    if app_uri_server(&request.app_uri) != Some(request.server.as_str()) {
         return call_error(
             StatusCode::BAD_REQUEST,
             "app URI does not belong to the server",
         );
     }
-    if !app_resource_uri_allowed(&query.server, &query.uri) {
-        return call_error(
-            StatusCode::FORBIDDEN,
-            "resource subscription is not owned by this App's server",
-        );
-    }
+    let uris = match app_resource_event_uris(&request.server, &request.subscriptions) {
+        Ok(uris) => uris,
+        Err((status, message)) => return call_error(status, message),
+    };
     let listing = with_apps_session(&state, &request_headers, |mcp| async move {
         mcp.app_catalog().await
     })
@@ -642,27 +684,61 @@ pub(crate) async fn app_resource_events(
         }
     };
     if !catalog.resources().iter().any(|resource| {
-        resource.uri == query.app_uri
+        resource.uri == request.app_uri
             && is_app_resource(resource)
-            && app_uri_server(&resource.uri) == Some(query.server.as_str())
+            && app_uri_server(&resource.uri) == Some(request.server.as_str())
     }) {
         return with_session_headers(
             call_error(StatusCode::FORBIDDEN, "App resource is not available"),
             response_headers,
         );
     }
-    let receiver = match session
-        .subscribe_app_resource(query.subscription_id, query.uri.clone())
-        .await
-    {
-        Ok(receiver) => receiver,
-        Err(error) => {
-            tracing::error!(%error, uri = %query.uri, "console App resource subscription failed");
-            return with_session_headers(
-                call_error(StatusCode::BAD_GATEWAY, "resource subscription failed"),
-                response_headers,
-            );
+    let results = futures::future::join_all(request.subscriptions.iter().map(|subscription| {
+        session.subscribe_app_resource(subscription.subscription_id, subscription.uri.clone())
+    }))
+    .await;
+    let mut receiver = None;
+    let mut newly_registered = Vec::new();
+    for (subscription, result) in request.subscriptions.iter().zip(results) {
+        match result {
+            Ok(candidate) => {
+                receiver.get_or_insert(candidate.receiver);
+                if candidate.newly_registered {
+                    newly_registered.push(subscription.subscription_id);
+                }
+            }
+            Err(error) => {
+                tracing::error!(
+                    %error,
+                    uri = %subscription.uri,
+                    "console App resource subscription batch failed"
+                );
+                for subscription_id in newly_registered {
+                    if let Err(rollback_error) =
+                        session.unsubscribe_app_resource(subscription_id).await
+                    {
+                        tracing::warn!(
+                            %rollback_error,
+                            %subscription_id,
+                            "failed to roll back partial App resource subscription batch"
+                        );
+                    }
+                }
+                return with_session_headers(
+                    call_error(StatusCode::BAD_GATEWAY, "resource subscription failed"),
+                    response_headers,
+                );
+            }
         }
+    }
+    let Some(receiver) = receiver else {
+        return with_session_headers(
+            call_error(
+                StatusCode::BAD_REQUEST,
+                "resource subscription batch is empty",
+            ),
+            response_headers,
+        );
     };
     let remaining = access_expires_at
         .saturating_sub(5)
@@ -672,12 +748,16 @@ pub(crate) async fn app_resource_events(
         remaining.unsigned_abs(),
     )));
     let stream = futures::stream::unfold(
-        (receiver, query.uri, deadline, true),
-        |(mut receiver, uri, mut deadline, initial)| async move {
+        (receiver, uris, deadline, true),
+        |(mut receiver, uris, mut deadline, initial)| async move {
             if initial {
+                let event = Event::default()
+                    .event("subscribed")
+                    .json_data(serde_json::json!({"uris": uris}))
+                    .expect("resource subscription URIs serialize");
                 return Some((
-                    Ok::<Event, Infallible>(Event::default().event("subscribed").data("{}")),
-                    (receiver, uri, deadline, false),
+                    Ok::<Event, Infallible>(event),
+                    (receiver, uris, deadline, false),
                 ));
             }
             loop {
@@ -686,25 +766,25 @@ pub(crate) async fn app_resource_events(
                     updated = receiver.recv() => updated,
                 };
                 match updated {
-                    Ok(updated) if updated == uri => {
+                    Ok(updated) if uris.contains(&updated) => {
                         let event = Event::default()
                             .event("resource-updated")
                             .json_data(serde_json::json!({"uri": updated}))
                             .expect("resource update URI serializes");
                         return Some((
                             Ok::<Event, Infallible>(event),
-                            (receiver, uri, deadline, false),
+                            (receiver, uris, deadline, false),
                         ));
                     }
                     Ok(_) => {}
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
                         let event = Event::default()
                             .event("resource-updated")
-                            .json_data(serde_json::json!({"uri": uri}))
-                            .expect("resource update URI serializes");
+                            .json_data(serde_json::json!({"uris": uris}))
+                            .expect("resource update URIs serialize");
                         return Some((
                             Ok::<Event, Infallible>(event),
-                            (receiver, uri, deadline, false),
+                            (receiver, uris, deadline, false),
                         ));
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
@@ -1261,6 +1341,76 @@ mod tests {
             },
         );
         assert!(frame_csp(&invalid).is_err());
+    }
+
+    #[test]
+    fn app_descriptor_preserves_explicit_border_preference() {
+        let descriptor = AppDescriptor {
+            server: "fleet".to_owned(),
+            resource_uri: "ui://fleet/overview.html".to_owned(),
+            name: "overview".to_owned(),
+            title: Some("Overview".to_owned()),
+            description: None,
+            icons: Vec::new(),
+            prefers_border: Some(false),
+            tools: Vec::new(),
+            resource_dependencies: Vec::new(),
+        };
+        let value = serde_json::to_value(descriptor).expect("descriptor serializes");
+        assert_eq!(value["prefersBorder"], false);
+    }
+
+    #[test]
+    fn app_resource_event_batch_requires_unique_owned_subscriptions() {
+        let first_id = uuid::Uuid::now_v7();
+        let valid = vec![
+            AppResourceEventSubscription {
+                uri: "fleet://vehicles".to_owned(),
+                subscription_id: first_id,
+            },
+            AppResourceEventSubscription {
+                uri: "fleet://scenario".to_owned(),
+                subscription_id: uuid::Uuid::now_v7(),
+            },
+        ];
+        assert_eq!(
+            app_resource_event_uris("fleet", &valid).unwrap(),
+            BTreeSet::from(["fleet://scenario".to_owned(), "fleet://vehicles".to_owned()])
+        );
+
+        let mut duplicate_id = valid.clone();
+        duplicate_id[1].subscription_id = first_id;
+        assert_eq!(
+            app_resource_event_uris("fleet", &duplicate_id)
+                .unwrap_err()
+                .0,
+            StatusCode::BAD_REQUEST
+        );
+
+        let mut foreign = valid;
+        foreign[1].uri = "map://sources".to_owned();
+        assert_eq!(
+            app_resource_event_uris("fleet", &foreign).unwrap_err().0,
+            StatusCode::FORBIDDEN
+        );
+    }
+
+    #[test]
+    fn app_resource_event_batch_is_bounded() {
+        assert_eq!(
+            app_resource_event_uris("fleet", &[]).unwrap_err().0,
+            StatusCode::BAD_REQUEST
+        );
+        let oversized = (0..=MAX_APP_RESOURCE_SUBSCRIPTIONS)
+            .map(|index| AppResourceEventSubscription {
+                uri: format!("fleet://resource/{index}"),
+                subscription_id: uuid::Uuid::now_v7(),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            app_resource_event_uris("fleet", &oversized).unwrap_err().0,
+            StatusCode::BAD_REQUEST
+        );
     }
 
     #[test]

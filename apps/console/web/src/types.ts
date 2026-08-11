@@ -364,6 +364,7 @@ export interface AppDescriptor {
   title?: string;
   description?: string;
   icons?: string[];
+  prefersBorder?: boolean;
   tools: AppToolDescriptor[];
   resourceDependencies: AppResourceDependency[];
 }

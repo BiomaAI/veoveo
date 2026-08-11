@@ -81,6 +81,8 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
   origin, sorts and deduplicates the result, and adds only those exact sources
   to the relevant directive. Local `data:` fetches do not add a remote network
   origin. The opaque origin has no cookies, storage, or same-origin privilege.
+  An explicit `_meta.ui.prefersBorder: false` gives the App the complete
+  Console content workspace; absent metadata keeps the bordered presentation.
 - **Bridge** — the host declares `serverTools` and `serverResources`
   capabilities. `tools/call` from a view is proxied only to app-visible
   tools linked to that exact view on that view's server. Own-server resource
@@ -99,18 +101,23 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
   task-driving view).
 - **Reactive resources** — the Console intercepts App `resources/subscribe`
   and `resources/unsubscribe` requests because MCP Apps `2026-01-26` does not
-  include them. The BFF registers one UUID-bound reference on the pooled MCP
-  session and returns a contentless authenticated SSE wake stream. Upstream
+  include them. The BFF registers UUID-bound references concurrently on the
+  pooled MCP session and returns one contentless authenticated SSE wake stream
+  for the App's bounded subscription set. This multiplexed fetch stream avoids
+  the browser's per-origin `EventSource` limit. Upstream
   `notifications/resources/updated` becomes
   `ui/notifications/resource-updated` inside the opaque frame. Reconnecting
-  the SSE stream reuses its UUID, and multiple frames retain independent
-  references to the one upstream subscription. Authorization expiry closes
-  the stream. Domain state never travels in the wake; the App reads the
-  current resource through the ordinary bridge.
+  the stream reuses each UUID, and multiple frames retain independent
+  references to the one upstream subscription. Healthy operation is
+  notification-driven; bounded backoff runs only after the stream fails.
+  Authorization expiry closes the stream. Domain state never travels in the
+  wake; the App reads current state through an explicitly settled ordinary
+  bridge request.
 - **Navigation** — the host's menu merges its static platform views with one
   entry per discovered app (label from the resource title, icon from the
-  resource icons). Catalog failures degrade the menu to platform views only;
-  they never block the shell.
+  resource icons). Discovery failures are isolated by server and surface.
+  Healthy Apps remain available beside a typed degradation notice, and a
+  failed server never blocks the shell or the rest of the catalog.
 
 ## Governed Cross-Server Resources
 

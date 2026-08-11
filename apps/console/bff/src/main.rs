@@ -97,7 +97,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/console/api/apps/read", post(apps::read_app_resource))
         .route(
             "/console/api/apps/resource-events",
-            get(apps::app_resource_events),
+            post(apps::app_resource_events),
         )
         .route(
             "/console/api/apps/resource-unsubscribe",
