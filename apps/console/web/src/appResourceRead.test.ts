@@ -11,6 +11,7 @@ const app: AppDescriptor = {
   resourceUri: "ui://fleet/overview.html",
   name: "overview",
   tools: [],
+  agentMessageTargets: [],
   resourceDependencies: [
     {
       app_resource: "ui://fleet/overview.html",

@@ -368,6 +368,7 @@ export interface AppDescriptor {
   prefersBorder?: boolean;
   tools: AppToolDescriptor[];
   resourceDependencies: AppResourceDependency[];
+  agentMessageTargets: string[];
 }
 
 export interface AppResourceDependency {

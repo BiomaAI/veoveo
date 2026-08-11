@@ -9,6 +9,7 @@ const app = {
   name: "view-preview",
   tools: [],
   resourceDependencies: [],
+  agentMessageTargets: [],
 } satisfies AppDescriptor;
 
 test("app links resolve only exact cataloged resources", () => {

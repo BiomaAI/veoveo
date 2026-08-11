@@ -15,7 +15,9 @@ use axum::{
     response::{IntoResponse, Response, sse::Event, sse::Sse},
 };
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_apps_extension::{APP_MIME_TYPE, is_app_resource, resource_ui_meta, tool_app_link};
+use veoveo_mcp_apps_extension::{
+    APP_MIME_TYPE, is_app_resource, resource_agent_message_targets, resource_ui_meta, tool_app_link,
+};
 use veoveo_mcp_contract::{
     APP_RESOURCE_DEPENDENCIES_META_KEY, AppResourceDependency, AppResourceOperation,
     GatewayDiscoveryFailure,
@@ -61,6 +63,7 @@ struct AppDescriptor {
     prefers_border: Option<bool>,
     tools: Vec<AppToolDescriptor>,
     resource_dependencies: Vec<AppResourceDependency>,
+    agent_message_targets: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -329,6 +332,7 @@ pub(crate) async fn list_apps(
             prefers_border: resource_ui_meta(resource).and_then(|metadata| metadata.prefers_border),
             tools,
             resource_dependencies: app_resource_dependencies(resource),
+            agent_message_targets: resource_agent_message_targets(resource),
         });
     }
     let degradations = catalog.degradation().failures.clone();
@@ -1355,6 +1359,7 @@ mod tests {
             prefers_border: Some(false),
             tools: Vec::new(),
             resource_dependencies: Vec::new(),
+            agent_message_targets: Vec::new(),
         };
         let value = serde_json::to_value(descriptor).expect("descriptor serializes");
         assert_eq!(value["prefersBorder"], false);

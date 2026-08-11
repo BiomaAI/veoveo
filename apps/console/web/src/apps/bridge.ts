@@ -26,12 +26,14 @@ import {
   getAppTaskResult,
   openAppResourceEvents,
   readAppResource,
+  sendAgentMessage,
   unsubscribeAppResource,
 } from "../api";
 import { appFrameOuterHeight } from "../appFrameSizing";
 import { isFullBleedApp } from "../appPresentation";
 import type { AppDescriptor } from "../types";
 import type { AppTheme } from "../theme";
+import { AGENT_MESSAGE_METHOD, appAgentMessageRequest } from "./agentMessage";
 import {
   openResourceEventStream,
   type ResourceEventStream,
@@ -47,6 +49,52 @@ export interface AppBridge {
 export type InternalAppLinkHandler = (url: string) => boolean;
 
 const TASK_METHODS = new Set(["tasks/get", "tasks/result", "tasks/cancel"]);
+
+/**
+ * Agent messaging is admitted only for exact targets declared by the App
+ * resource. The BFF retains the authenticated human, CSRF, Work Context,
+ * policy, audit, idempotency, and durable-wake boundaries.
+ */
+function interceptAgentMessages(inner: Transport, app: AppDescriptor): Transport {
+  const transport: Transport = {
+    start: () => inner.start(),
+    send: (message, options) => inner.send(message, options),
+    close: () => inner.close(),
+  };
+  inner.onclose = () => transport.onclose?.();
+  inner.onerror = (error) => transport.onerror?.(error);
+  inner.onmessage = (message, extra) => {
+    if (!isJSONRPCRequest(message) || message.method !== AGENT_MESSAGE_METHOD) {
+      transport.onmessage?.(message, extra);
+      return;
+    }
+    const request = appAgentMessageRequest(app, message.params);
+    if (request === undefined) {
+      void inner.send({
+        jsonrpc: "2.0",
+        id: message.id,
+        error: { code: ErrorCode.InvalidParams, message: "agent message request is not allowed" },
+      });
+      return;
+    }
+    sendAgentMessage(request.agentId, request.requestId, request.message)
+      .then(
+        (result) =>
+          inner.send({ jsonrpc: "2.0", id: message.id, result: result as unknown as Result }),
+        (error: unknown) =>
+          inner.send({
+            jsonrpc: "2.0",
+            id: message.id,
+            error: {
+              code: ErrorCode.InternalError,
+              message: error instanceof Error ? error.message : String(error),
+            },
+          }),
+      )
+      .catch((error: unknown) => console.error("MCP App agent-message reply failed", error));
+  };
+  return transport;
+}
 
 function isTaskAugmentedCall(request: JSONRPCRequest): boolean {
   if (request.method !== "tools/call") return false;
@@ -367,7 +415,10 @@ export function attachAppBridge(
   const subscriptions = interceptResourceSubscriptions(
     interceptTaskRequests(
       interceptResourceReadRequests(
-        new PostMessageTransport(iframe.contentWindow, iframe.contentWindow),
+        interceptAgentMessages(
+          new PostMessageTransport(iframe.contentWindow, iframe.contentWindow),
+          app,
+        ),
         app,
         readAppResource,
       ),

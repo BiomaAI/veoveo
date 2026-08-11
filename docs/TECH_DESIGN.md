@@ -181,6 +181,13 @@ never receives the gateway bearer. Server design documents specify their MCP
 administration, persistence records, authorization scopes, App resources, and any
 accepted HTTP projection.
 
+An App can address an always-on agent only when its listed resource names that exact
+target in `io.veoveo/agent-message-targets`. The opaque frame sends a closed UUIDv7 and
+bounded-text request through the host bridge. Console then uses its existing authenticated
+human-message route, preserving CSRF enforcement, actor attribution, Work Context policy,
+audit, idempotency, and durable wake ordering without exposing cookies or agent authority
+to the frame.
+
 ## Durable Platform Store
 
 SurrealDB `3.2.1` is the only platform coordination store. The canonical release uses
