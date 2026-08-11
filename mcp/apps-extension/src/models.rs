@@ -9,6 +9,39 @@ pub const SPEC_VERSION: &str = "2026-01-26";
 pub const APP_MIME_TYPE: &str = "text/html;profile=mcp-app";
 /// `_meta` key under which UI metadata nests on tools and resources.
 pub const UI_META_KEY: &str = "ui";
+/// Resource `_meta` key declaring the exact always-on agents an App may
+/// address through the Console's authenticated human-message bridge.
+pub const AGENT_MESSAGE_TARGETS_META_KEY: &str = "io.veoveo/agent-message-targets";
+
+/// Closed declaration for a view's generic agent-message targets. The host
+/// validates every identifier and treats malformed metadata as no authority.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct AgentMessageTargets(pub Vec<String>);
+
+impl AgentMessageTargets {
+    pub fn new(values: impl IntoIterator<Item = String>) -> Option<Self> {
+        let mut values = values.into_iter().collect::<Vec<_>>();
+        if values.is_empty()
+            || values.len() > 32
+            || values.iter().any(|value| !valid_agent_id(value))
+        {
+            return None;
+        }
+        values.sort();
+        values.dedup();
+        Some(Self(values))
+    }
+}
+
+fn valid_agent_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value.as_bytes()[0].is_ascii_alphanumeric()
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+}
 
 /// `_meta.ui` on a tool: links the tool to the app view that renders it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -72,6 +105,10 @@ mod tests {
         assert_eq!(SPEC_VERSION, "2026-01-26");
         assert_eq!(APP_MIME_TYPE, "text/html;profile=mcp-app");
         assert_eq!(UI_META_KEY, "ui");
+        assert_eq!(
+            AGENT_MESSAGE_TARGETS_META_KEY,
+            "io.veoveo/agent-message-targets"
+        );
     }
 
     #[test]
@@ -100,5 +137,19 @@ mod tests {
         )
         .expect("parses");
         assert!(!model_only.visible_to_app());
+    }
+
+    #[test]
+    fn agent_message_targets_are_sorted_bounded_and_fail_closed() {
+        let targets = AgentMessageTargets::new([
+            "workflow-coordinator".to_owned(),
+            "assistant.2".to_owned(),
+            "workflow-coordinator".to_owned(),
+        ])
+        .expect("valid targets");
+        assert_eq!(targets.0, ["assistant.2", "workflow-coordinator"]);
+        assert!(AgentMessageTargets::new(Vec::<String>::new()).is_none());
+        assert!(AgentMessageTargets::new(["../agent".to_owned()]).is_none());
+        assert!(AgentMessageTargets::new(["agent:other".to_owned()]).is_none());
     }
 }

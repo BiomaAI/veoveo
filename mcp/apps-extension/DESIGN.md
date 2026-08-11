@@ -17,6 +17,7 @@ Implemented in this workspace.
 | MCP Apps SEP-1865 / `ext-apps` | Version `2026-01-26`, with `ui://` resources, `text/html;profile=mcp-app`, tool-to-app metadata, host context, lifecycle notifications, and the `postMessage` bridge. |
 | Veoveo reactive App resource adapter | Repository-owned extension over MCP Apps `2026-01-26`. A sandboxed App may request ordinary MCP `resources/subscribe` and `resources/unsubscribe`; the Console projects contentless `ui/notifications/resource-updated` wakes from the authenticated pooled MCP session. This adapter is not claimed as part of SEP-1865. |
 | Veoveo internal App navigation adapter | Repository-owned `ui/open-link` profile. Exact `ui://` targets navigate only when present in the caller-visible App catalog; `veoveo-console://agents` and `veoveo-console://recordings` are the only platform-view targets. Other custom, missing, or unexposed targets fail closed. |
+| Veoveo App agent-message adapter | Repository-owned `veoveo/agents/message` profile. An App resource declares exact targets in `_meta["io.veoveo/agent-message-targets"]`; the Console validates that declaration and submits only UUIDv7-idempotent bounded text through its existing authenticated human-message BFF path. This adapter is not part of SEP-1865. |
 | [Veoveo final task extension](../task-extension) | Version `2026-06-30`; app-started durable work retains the same task lifecycle and ownership rules as a normal MCP client. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Linked tool arguments and structured results use the same canonical schemas exposed outside the app. |
 | HTML iframe sandbox and Content Security Policy | HTML runs in an opaque-origin `sandbox="allow-scripts"` frame. The default CSP denies remote network access while permitting local `data:` fetches; a live-data App may declare exact origins through `_meta.ui.csp`, which the host validates before adding them. Cookies, storage, and same-origin privilege remain absent. |
@@ -123,6 +124,15 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
   resource or one of the two declared platform targets. The Console resolves
   App targets against its current caller-visible catalog and never accepts a
   browser-supplied server alias or arbitrary Console route.
+- **Always-on agent messages** — an App may send `veoveo/agents/message` only
+  when its listed resource declares that exact agent in
+  `_meta["io.veoveo/agent-message-targets"]`. The bridge accepts a closed
+  `{agentId, requestId, message}` object, requires a UUIDv7 request identity and
+  at most 16 KiB of nonempty UTF-8 text, and forwards it to the ordinary
+  same-origin BFF mutation. The BFF and gateway retain human identity, Work
+  Context, CSRF, policy, audit, idempotency, and durable-wake authority. The
+  iframe receives no cookie, gateway bearer, agent credential, or database
+  access, and malformed metadata grants no targets.
 
 ## Governed Cross-Server Resources
 
