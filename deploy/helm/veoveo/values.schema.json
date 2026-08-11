@@ -705,6 +705,7 @@
         "runtimeClassName",
         "image",
         "modelCache",
+        "model",
         "engine",
         "observation",
         "resources"
@@ -717,9 +718,71 @@
         "image": {
           "$ref": "#/definitions/image"
         },
-      "modelCache": {
-        "$ref": "#/definitions/persistence"
-      },
+        "modelCache": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "existingClaim",
+            "size",
+            "storageClass",
+            "accessModes"
+          ],
+          "properties": {
+            "existingClaim": {
+              "type": "string",
+              "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+            },
+            "size": {
+              "type": "string",
+              "minLength": 1
+            },
+            "storageClass": {
+              "type": "string"
+            },
+            "accessModes": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "model": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "title",
+            "description",
+            "path",
+            "digest"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "path": {
+              "type": "string",
+              "pattern": "^/models(?:/[A-Za-z0-9._-]+)+$"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^$|^sha256:[0-9a-f]{64}$"
+            }
+          }
+        },
       "engine": {
         "type": "object",
         "required": [
@@ -772,6 +835,32 @@
           "type": "object"
         }
       },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "modelCache": {
+                "properties": {
+                  "existingClaim": {
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "model": {
+                "properties": {
+                  "digest": {
+                    "pattern": "^sha256:[0-9a-f]{64}$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
       "additionalProperties": false
     },
     "consoleBff": {

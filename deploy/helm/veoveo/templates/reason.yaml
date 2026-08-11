@@ -1,4 +1,5 @@
 {{- if include "veoveo.mcpServerEnabled" (list . "reason") }}
+{{- if not .Values.reason.modelCache.existingClaim }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -16,6 +17,7 @@ spec:
     requests:
       storage: {{ .Values.reason.modelCache.size }}
 ---
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -141,7 +143,7 @@ spec:
       volumes:
         - name: models
           persistentVolumeClaim:
-            claimName: reason-model-cache
+            claimName: {{ default "reason-model-cache" .Values.reason.modelCache.existingClaim }}
         - name: runtime-config
           configMap:
             name: reason-runtime

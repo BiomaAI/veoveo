@@ -233,9 +233,16 @@ reason:
     tag: 0.1.0
     digest: ""
   modelCache:
+    existingClaim: ""
     size: 20Gi
     storageClass: ""
     accessModes: [ReadWriteOnce]
+  model:
+    id: world-model
+    title: Installation world model
+    description: Installation-supplied world-model checkpoint for video reasoning.
+    path: /models/world-model
+    digest: ""
   engine:
     gpuMemoryUtilization: 0.6
     maxModelLen: 8192
