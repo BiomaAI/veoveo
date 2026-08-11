@@ -344,17 +344,6 @@ impl HttpAdapter {
         decode(response).await
     }
 
-    pub async fn release_all_viewer_slots(&self) -> Result<(), AdapterError> {
-        let response = self
-            .client
-            .post(self.endpoint("v1/live-products/release-all")?)
-            .send()
-            .await
-            .map_err(AdapterError::Transport)?;
-        let _: serde_json::Value = decode(response).await?;
-        Ok(())
-    }
-
     async fn resolve_recording_keys(
         &self,
         recording_keys: Vec<String>,
@@ -490,15 +479,88 @@ where
 
 pub struct FakeAdapter {
     state: SimulationState,
+    #[cfg(test)]
+    live_product_faults: FakeLiveProductFaults,
+}
+
+#[cfg(test)]
+#[derive(Default)]
+struct FakeLiveProductFaults {
+    state_calls: u64,
+    fail_state_calls: std::collections::BTreeSet<u64>,
+    fail_assignment_after_mutation: bool,
+    assignment_replacement_live_view_id: Option<LiveViewId>,
+    fail_release_before_mutation: bool,
+    fail_release_after_mutation: bool,
+    release_without_mutation: bool,
+    release_calls: Vec<(u16, LiveViewId)>,
 }
 
 impl FakeAdapter {
     pub fn new(state: SimulationState) -> Self {
-        Self { state }
+        Self {
+            state,
+            #[cfg(test)]
+            live_product_faults: FakeLiveProductFaults::default(),
+        }
     }
 
     pub fn state(&self) -> SimulationState {
         self.state.clone()
+    }
+
+    #[cfg(test)]
+    fn state_result(&mut self) -> Result<SimulationState, AdapterError> {
+        self.live_product_faults.state_calls += 1;
+        if self
+            .live_product_faults
+            .fail_state_calls
+            .remove(&self.live_product_faults.state_calls)
+        {
+            return Err(AdapterError::InvalidState(
+                "injected simulator state failure".to_owned(),
+            ));
+        }
+        Ok(self.state())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_state_call(&mut self, call: u64) {
+        self.live_product_faults.fail_state_calls.insert(call);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_assignment_after_mutation(
+        &mut self,
+        replacement_live_view_id: Option<LiveViewId>,
+    ) {
+        self.live_product_faults.fail_assignment_after_mutation = true;
+        self.live_product_faults.assignment_replacement_live_view_id = replacement_live_view_id;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_release_before_mutation(&mut self) {
+        self.live_product_faults.fail_release_before_mutation = true;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_release_after_mutation(&mut self) {
+        self.live_product_faults.fail_release_after_mutation = true;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn release_without_mutation(&mut self) {
+        self.live_product_faults.release_without_mutation = true;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn state_mut(&mut self) -> &mut SimulationState {
+        &mut self.state
+    }
+
+    #[cfg(test)]
+    pub(crate) fn release_calls(&self) -> &[(u16, LiveViewId)] {
+        &self.live_product_faults.release_calls
     }
 
     pub fn configure_world(
@@ -709,6 +771,20 @@ impl FakeAdapter {
         product.lifecycle = veoveo_mcp_contract::LiveStreamProductLifecycle::Ready;
         product.active_viewer_leases = 1;
         product.nvenc_sessions = 1;
+        #[cfg(test)]
+        if self.live_product_faults.fail_assignment_after_mutation {
+            self.live_product_faults.fail_assignment_after_mutation = false;
+            if let Some(replacement) = self
+                .live_product_faults
+                .assignment_replacement_live_view_id
+                .take()
+            {
+                product.live_view_id = Some(replacement);
+            }
+            return Err(AdapterError::InvalidState(
+                "injected assignment response loss".to_owned(),
+            ));
+        }
         Ok(product.clone())
     }
 
@@ -717,6 +793,18 @@ impl FakeAdapter {
         capacity_slot: u16,
         live_view_id: &LiveViewId,
     ) -> Result<LiveStreamProductState, AdapterError> {
+        #[cfg(test)]
+        {
+            self.live_product_faults
+                .release_calls
+                .push((capacity_slot, live_view_id.clone()));
+            if self.live_product_faults.fail_release_before_mutation {
+                self.live_product_faults.fail_release_before_mutation = false;
+                return Err(AdapterError::InvalidState(
+                    "injected release failure".to_owned(),
+                ));
+            }
+        }
         let product = self
             .state
             .stream_products
@@ -728,14 +816,20 @@ impl FakeAdapter {
                 "viewer slot {capacity_slot} is not assigned to {live_view_id}"
             )));
         }
-        release_fake_product(product);
-        Ok(product.clone())
-    }
-
-    pub fn release_all_viewer_slots(&mut self) {
-        for product in &mut self.state.stream_products {
-            release_fake_product(product);
+        #[cfg(test)]
+        if self.live_product_faults.release_without_mutation {
+            self.live_product_faults.release_without_mutation = false;
+            return Ok(product.clone());
         }
+        release_fake_product(product);
+        #[cfg(test)]
+        if self.live_product_faults.fail_release_after_mutation {
+            self.live_product_faults.fail_release_after_mutation = false;
+            return Err(AdapterError::InvalidState(
+                "injected release response loss".to_owned(),
+            ));
+        }
+        Ok(product.clone())
     }
 
     fn require_session(&self, session_id: &crate::contract::SessionId) -> Result<(), AdapterError> {
@@ -809,7 +903,16 @@ impl Adapter {
     pub async fn state(&self) -> Result<SimulationState, AdapterError> {
         match self {
             Self::Http(adapter) => adapter.state().await,
-            Self::Fake(adapter) => Ok(adapter.lock().await.state()),
+            Self::Fake(adapter) => {
+                #[cfg(test)]
+                {
+                    adapter.lock().await.state_result()
+                }
+                #[cfg(not(test))]
+                {
+                    Ok(adapter.lock().await.state())
+                }
+            }
         }
     }
 
@@ -869,16 +972,6 @@ impl Adapter {
                 .lock()
                 .await
                 .release_live_product(capacity_slot, live_view_id),
-        }
-    }
-
-    pub async fn release_all_viewer_slots(&self) -> Result<(), AdapterError> {
-        match self {
-            Self::Http(adapter) => adapter.release_all_viewer_slots().await,
-            Self::Fake(adapter) => {
-                adapter.lock().await.release_all_viewer_slots();
-                Ok(())
-            }
         }
     }
 }
