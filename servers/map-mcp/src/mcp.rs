@@ -1759,7 +1759,14 @@ fn discoverable_resources(access: ResourceDiscoveryAccess) -> Vec<Resource> {
     }
     if access.feature_read {
         resources.push(
-            veoveo_mcp_apps_extension::app_resource(uris::EDITOR_APP_URI, "map-editor-app")
+            veoveo_mcp_apps_extension::app_resource_with_meta(
+                uris::EDITOR_APP_URI,
+                "map-editor-app",
+                veoveo_mcp_apps_extension::ResourceUiMeta {
+                    prefers_border: Some(false),
+                    ..Default::default()
+                },
+            )
                 .with_title("Map feature editor")
                 .with_description(
                     "Interactive MCP App for governed feature layers, changesets, publications, and compositions.",
@@ -2511,7 +2518,8 @@ mod well_known_tests {
 
 #[cfg(test)]
 mod admin_app_tests {
-    use super::MapMcp;
+    use super::{MapMcp, ResourceDiscoveryAccess, discoverable_resources};
+    use crate::uris;
 
     #[test]
     fn tool_input_schemas_use_the_canonical_profile() {
@@ -2552,5 +2560,22 @@ mod admin_app_tests {
         assert!(!EDITOR_APP.contains("fetch("));
         assert!(!EDITOR_APP.contains("XMLHttpRequest"));
         assert!(!EDITOR_APP.contains("innerHTML"));
+    }
+
+    #[test]
+    fn editor_requests_the_complete_console_content_workspace() {
+        let editor = discoverable_resources(ResourceDiscoveryAccess {
+            admin: false,
+            dataset_read: false,
+            feature_read: true,
+            spatial_derive: false,
+        })
+        .into_iter()
+        .find(|resource| resource.uri == uris::EDITOR_APP_URI)
+        .expect("feature editor is discoverable");
+        let metadata = veoveo_mcp_apps_extension::resource_ui_meta(&editor)
+            .expect("feature editor UI metadata is valid");
+
+        assert_eq!(metadata.prefers_border, Some(false));
     }
 }
