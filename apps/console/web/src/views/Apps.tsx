@@ -1,6 +1,8 @@
 import { LayoutGrid } from "lucide-react";
+import { useMemo } from "react";
 import { EmptyState, SectionHeader } from "../components/primitives";
 import { AppFrame } from "../apps/AppFrame";
+import { isFullBleedApp } from "../appPresentation";
 import { useApps } from "../queries";
 import type { AppCatalogDegradation, AppDescriptor } from "../types";
 
@@ -12,6 +14,7 @@ export function AppsView({
   onSelect: (app: AppDescriptor) => void;
 }) {
   const { data, error, isLoading } = useApps();
+  const apps = useMemo(() => data?.apps ?? [], [data?.apps]);
 
   if (isLoading) {
     return (
@@ -20,7 +23,6 @@ export function AppsView({
       </section>
     );
   }
-  const apps = data?.apps ?? [];
   const degradations = data?.degradations ?? [];
   const degradationNotice = degradations.length ? (
     <p className="catalog-degradation" role="status">
@@ -71,6 +73,21 @@ export function AppsView({
     );
   }
 
+  const frame = <AppFrame key={selected.resourceUri} app={selected} />;
+
+  if (isFullBleedApp(selected)) {
+    return (
+      <section className="app-workspace">
+        {degradations.length ? (
+          <p className="catalog-degradation catalog-degradation-fullbleed" role="status">
+            Some hosted Apps are temporarily unavailable: {formatDegradations(degradations)}.
+          </p>
+        ) : null}
+        <div className="app-frame-panel app-frame-panel-fullbleed">{frame}</div>
+      </section>
+    );
+  }
+
   return (
     <section className="panel full-panel">
       <SectionHeader title={selected.title ?? selected.name} />
@@ -80,9 +97,7 @@ export function AppsView({
           "Interactive view shipped by the MCP server, rendered in an isolated sandbox."}{" "}
         Tools this app may call: {selected.tools.map((tool) => tool.name).join(", ") || "none"}.
       </p>
-      <div className="app-frame-panel">
-        <AppFrame key={selected.resourceUri} app={selected} />
-      </div>
+      <div className="app-frame-panel">{frame}</div>
     </section>
   );
 }
