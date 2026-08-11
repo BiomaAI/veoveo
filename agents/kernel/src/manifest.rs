@@ -170,6 +170,10 @@ pub struct ModelConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_p: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_k: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_output_tokens: Option<u64>,
 }
 
@@ -299,6 +303,19 @@ impl AgentManifest {
         }
         if self.agent.tenant.trim().is_empty() || self.agent.tenant.chars().any(char::is_control) {
             bail!("agent.tenant must be non-empty and contain no control characters");
+        }
+        if let Some(temperature) = self.model.temperature
+            && !(0.0..=2.0).contains(&temperature)
+        {
+            bail!("model.temperature must be in [0, 2], got {temperature}");
+        }
+        if let Some(top_p) = self.model.top_p
+            && !(top_p > 0.0 && top_p <= 1.0)
+        {
+            bail!("model.top_p must be in (0, 1], got {top_p}");
+        }
+        if self.model.top_k == Some(0) {
+            bail!("model.top_k must be greater than zero");
         }
         for (field, value) in [
             ("model.base_url", &self.model.base_url),
@@ -530,6 +547,28 @@ mod tests {
         let mut value = manifest_json();
         value["surprise"] = serde_json::json!(true);
         assert!(serde_json::from_value::<AgentManifest>(value).is_err());
+    }
+
+    #[test]
+    fn model_sampling_parameters_are_bounded() {
+        // SAFETY: test-only env mutation, keys are unique to this test.
+        unsafe {
+            std::env::set_var("TEST_MANIFEST_API_KEY", "k");
+            std::env::set_var("TEST_MANIFEST_PRIVATE_KEY", "p");
+        }
+        for (field, invalid) in [
+            ("temperature", serde_json::json!(2.1)),
+            ("top_p", serde_json::json!(0.0)),
+            ("top_k", serde_json::json!(0)),
+        ] {
+            let mut value = manifest_json();
+            value["model"][field] = invalid;
+            let manifest: AgentManifest = serde_json::from_value(value).expect("parses");
+            assert!(
+                manifest.validate().is_err(),
+                "accepted invalid model.{field}"
+            );
+        }
     }
 
     #[test]
