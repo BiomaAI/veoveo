@@ -248,6 +248,24 @@ pub(crate) async fn map_mcp(
         "map-smoke-acquisition-osm",
     )
     .await?;
+    let active = call_map_tool(
+        conformance,
+        &mcp_url,
+        "list_active_dataset_releases",
+        &serde_json::json!({
+            "source_id": osm_source.source_id,
+            "limit": 10
+        }),
+    )?;
+    let active = structured_output(&active)?;
+    if active
+        .pointer("/releases/0/release/release_id")
+        .and_then(Value::as_str)
+        != Some(osm_release.release_id.as_str())
+        || active.get("truncated").and_then(Value::as_bool) != Some(false)
+    {
+        bail!("active-release discovery did not resolve the selected release: {active}");
+    }
     let road_route_id = assert_road_route_workflow(conformance, &mcp_url).await?;
 
     let network_source = register_source(

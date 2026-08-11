@@ -274,6 +274,27 @@ reason:
 #       mobility_profiles: []
 serverBootstrap: {}
 
+# Installation-owned, read-only source inputs for domain services whose
+# contract declares a controlled source mount. Values select existing
+# Kubernetes objects; acquisition and activation remain governed server work.
+# domainServiceSourceMounts:
+#   map-mcp:
+#     exchangeClaim: map-source-exchange
+#     secretName: map-source-credentials
+domainServiceSourceMounts: {}
+
+# Per-service resource overrides avoid inflating every hosted MCP workload when
+# one installation-owned acquisition or indexing job needs a larger envelope.
+# domainServiceResources:
+#   map-mcp:
+#     requests:
+#       cpu: "1"
+#       memory: 1Gi
+#     limits:
+#       cpu: "8"
+#       memory: 8Gi
+domainServiceResources: {}
+
 consoleBff:
   image:
     repository: veoveo/console-bff
