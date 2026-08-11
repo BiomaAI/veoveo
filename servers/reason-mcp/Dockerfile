@@ -19,6 +19,7 @@ RUN apt-get update \
 WORKDIR /src
 ARG VEOVEO_CARGO_CACHE_ID
 ARG VEOVEO_TARGET_CACHE_ID
+ARG VEOVEO_CARGO_BUILD_JOBS=8
 RUN --mount=type=bind,source=.,target=/src,readonly \
     --mount=type=cache,id=${VEOVEO_CARGO_CACHE_ID}-registry-v1,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=${VEOVEO_CARGO_CACHE_ID}-git-v1,target=/usr/local/cargo/git,sharing=locked \
@@ -26,7 +27,8 @@ RUN --mount=type=bind,source=.,target=/src,readonly \
     toolchain="$(rustup default | awk 'NR == 1 { print $1 }')" \
     && test -n "${toolchain}" \
     && RUSTUP_TOOLCHAIN="${toolchain}" CARGO_TARGET_DIR=/target \
-        cargo build --release --locked -p veoveo-reason-mcp --bin reason-mcp \
+        cargo build --release --locked --jobs "${VEOVEO_CARGO_BUILD_JOBS}" \
+        -p veoveo-reason-mcp --bin reason-mcp \
     && mkdir -p /out/bin \
     && install -m 0755 /target/release/reason-mcp /out/bin/reason-mcp
 
