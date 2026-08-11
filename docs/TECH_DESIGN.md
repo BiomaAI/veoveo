@@ -488,6 +488,12 @@ leases, retry schedules, retention pins, results, and wakes survive process rest
 Outbox/changefeed events wake the next episode. DuckDB and RRD are analytical memory
 planes; chat history is not the source of truth.
 
+Agent manifests separate the Gateway's canonical public origin from its physical
+HTTP transport origin. OAuth audience and protected-resource identity use the
+canonical origin, while an in-cluster agent may connect through a private service
+address. Both values are required bare HTTP(S) origins. The kernel preserves the
+canonical HTTP authority across the private transport.
+
 ## Deployment
 
 Helm defines the canonical Kubernetes service graph. k3d runs that chart locally
