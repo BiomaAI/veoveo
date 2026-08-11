@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use futures::StreamExt;
+use futures::{StreamExt, stream};
 use rmcp::{
     model::{
         CallToolRequest, CallToolRequestParams, CallToolResult, ClientRequest, CreateTaskResult,
@@ -10,7 +10,9 @@ use rmcp::{
     service::{PeerRequestOptions, RequestContext, RoleServer},
 };
 use serde_json::Value;
-use veoveo_mcp_contract::{GatewayAction, LocalToolName, paginate, related_task_meta};
+use veoveo_mcp_contract::{
+    GatewayAction, GatewayDiscoverySurface, LocalToolName, paginate, related_task_meta,
+};
 use veoveo_mcp_task_extension::{
     CLIENT_CAPABILITIES_META_KEY, DetailedTask, PROTOCOL_VERSION_META_KEY, ProtocolTaskId,
     RequestMeta, TASK_RETENTION_PIN_META_KEY, Task as FinalTask, TaskStatus as FinalTaskStatus,
@@ -23,7 +25,11 @@ use crate::mcp_support::{
     project_tool_resource_metadata, unexpected_upstream_response, upstream_error,
 };
 
-use super::{GATEWAY_PAGE_SIZE, GatewayMcp};
+use super::{
+    GATEWAY_PAGE_SIZE, GatewayMcp,
+    discovery::{DiscoveryCacheKey, MAX_CONCURRENT_DISCOVERY, isolate_discovery_failures},
+    invocation_authorization_fingerprint,
+};
 
 impl GatewayMcp {
     pub(super) async fn handle_list_tools(
@@ -34,58 +40,100 @@ impl GatewayMcp {
         let subject = self.authenticated(&context)?;
         let project_tasks = self.client_allows_task_projection(&subject)?;
         let adapt_required_tasks = self.client_uses_direct_task_call_adapter(&subject)?;
-        let mut tools = Vec::new();
-        for server_slug in self.profile_servers() {
-            let catalog = self.catalog.current();
-            let (_, exposure, manifest) = catalog
-                .profile_server(&self.profile_id, &server_slug)
-                .ok_or_else(|| mcp_internal(format!("unknown profile server `{server_slug}`")))?;
-            let tasks_exposed = exposure.tasks == veoveo_mcp_contract::TaskExposure::Enabled;
-            let manifest = manifest.clone();
-            let final_tasks = if project_tasks && tasks_exposed && manifest.capabilities.tasks {
-                let client = self.final_task_client(&server_slug, &subject).await?;
-                client.discover().await?;
-                true
-            } else {
-                false
-            };
-            let upstream_tools = self
-                .idempotent_upstream_request(
-                    &server_slug,
-                    context.peer.clone(),
-                    &subject,
-                    |upstream| async move { upstream.list_all_tools().await },
-                )
-                .await?;
-            for mut tool in upstream_tools {
-                let local_tool =
-                    LocalToolName::new(tool.name.as_ref().to_owned()).map_err(|err| {
-                        mcp_internal(format!("upstream exposed invalid tool name: {err}"))
-                    })?;
-                if !self.client_allows_compatibility_helper(&subject, &server_slug, &local_tool)? {
-                    continue;
+        let snapshot = self.catalog.snapshot();
+        let catalog = snapshot.catalog().clone();
+        let catalog_generation = snapshot.generation();
+        let authorization_fingerprint =
+            invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
+        let results = stream::iter(self.profile_servers().into_iter().map(|server_slug| {
+            let catalog = catalog.clone();
+            let context = &context;
+            let subject = &subject;
+            async move {
+                let key = DiscoveryCacheKey {
+                    catalog_generation,
+                    principal: subject.actor.id.clone(),
+                    authorization_fingerprint,
+                    server: server_slug.clone(),
+                };
+                if let Some(tools) = self.discovery.tools(&key).await {
+                    return (server_slug, Ok::<_, McpError>(tools));
                 }
-                if !self
-                    .allows_tool(
-                        &context,
-                        GatewayAction::ToolsList,
-                        server_slug.clone(),
-                        local_tool.clone(),
-                    )
-                    .await?
-                {
-                    continue;
+                let result = async {
+                    let (_, exposure, manifest) = catalog
+                        .profile_server(&self.profile_id, &server_slug)
+                        .ok_or_else(|| {
+                            mcp_internal(format!("unknown profile server `{server_slug}`"))
+                        })?;
+                    let tasks_exposed =
+                        exposure.tasks == veoveo_mcp_contract::TaskExposure::Enabled;
+                    let manifest = manifest.clone();
+                    let final_tasks =
+                        if project_tasks && tasks_exposed && manifest.capabilities.tasks {
+                            let client = self.final_task_client(&server_slug, subject).await?;
+                            client.discover().await?;
+                            true
+                        } else {
+                            false
+                        };
+                    let upstream_tools = self
+                        .idempotent_upstream_request(
+                            &server_slug,
+                            context.peer.clone(),
+                            subject,
+                            |upstream| async move { upstream.list_all_tools().await },
+                        )
+                        .await?;
+                    let mut tools = Vec::new();
+                    for mut tool in upstream_tools {
+                        let local_tool = LocalToolName::new(tool.name.as_ref().to_owned())
+                            .map_err(|err| {
+                                mcp_internal(format!("upstream exposed invalid tool name: {err}"))
+                            })?;
+                        if !self.client_allows_compatibility_helper(
+                            subject,
+                            &server_slug,
+                            &local_tool,
+                        )? {
+                            continue;
+                        }
+                        if !self
+                            .allows_tool(
+                                context,
+                                GatewayAction::ToolsList,
+                                server_slug.clone(),
+                                local_tool.clone(),
+                            )
+                            .await?
+                        {
+                            continue;
+                        }
+                        project_tool_resource_metadata(&manifest, &mut tool)?;
+                        let gateway_name = catalog
+                            .project_tool_name(&server_slug, &local_tool)
+                            .map_err(|err| {
+                                mcp_internal(format!("failed to project tool name: {err}"))
+                            })?;
+                        tool.name = Cow::Owned(gateway_name.to_string());
+                        if final_tasks && adapt_required_tasks {
+                            adapt_required_task_tool(&mut tool);
+                        }
+                        tools.push(tool);
+                    }
+                    self.discovery.store_tools(key, tools.clone()).await;
+                    Ok(tools)
                 }
-                project_tool_resource_metadata(&manifest, &mut tool)?;
-                let gateway_name = catalog
-                    .project_tool_name(&server_slug, &local_tool)
-                    .map_err(|err| mcp_internal(format!("failed to project tool name: {err}")))?;
-                tool.name = Cow::Owned(gateway_name.to_string());
-                if final_tasks && adapt_required_tasks {
-                    adapt_required_task_tool(&mut tool);
-                }
-                tools.push(tool);
+                .await;
+                (server_slug, result)
             }
+        }))
+        .buffer_unordered(MAX_CONCURRENT_DISCOVERY)
+        .collect::<Vec<_>>()
+        .await;
+        let (mut tools, degradation, errors) =
+            isolate_discovery_failures(GatewayDiscoverySurface::Tools, results);
+        for (server, error) in errors {
+            tracing::warn!(%server, %error, "isolated upstream tool discovery failure");
         }
         tools.sort_by(|left, right| left.name.cmp(&right.name));
         let page = paginate(tools, request.as_ref(), GATEWAY_PAGE_SIZE)
@@ -93,7 +141,7 @@ impl GatewayMcp {
         Ok(ListToolsResult {
             tools: page.items,
             next_cursor: page.next_cursor,
-            meta: None,
+            meta: degradation.into_meta(),
         })
     }
 

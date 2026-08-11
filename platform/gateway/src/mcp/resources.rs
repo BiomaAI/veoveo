@@ -1,4 +1,5 @@
 use chrono::Utc;
+use futures::{StreamExt, stream};
 use rmcp::{
     model::{
         ErrorData as McpError, ListResourceTemplatesResult, ListResourcesResult,
@@ -8,9 +9,9 @@ use rmcp::{
     service::{RequestContext, RoleServer},
 };
 use veoveo_mcp_contract::{
-    GATEWAY_TASK_RESOURCE_TEMPLATE, GatewayAction, GatewayResourceProjection,
-    GatewayResourceSubscription, GatewayTaskStatus, GatewayTaskStatusDocument, PolicyReasonCode,
-    paginate, parse_gateway_task_resource_uri,
+    GATEWAY_TASK_RESOURCE_TEMPLATE, GatewayAction, GatewayDiscoverySurface,
+    GatewayResourceProjection, GatewayResourceSubscription, GatewayTaskStatus,
+    GatewayTaskStatusDocument, PolicyReasonCode, paginate, parse_gateway_task_resource_uri,
 };
 
 use crate::mcp_support::{
@@ -21,7 +22,11 @@ use crate::mcp_support::{
 };
 
 use super::tools::{project_detailed_task_resource_uris, project_task_from_detailed};
-use super::{GATEWAY_PAGE_SIZE, GatewayMcp};
+use super::{
+    GATEWAY_PAGE_SIZE, GatewayMcp,
+    discovery::{DiscoveryCacheKey, MAX_CONCURRENT_DISCOVERY, isolate_discovery_failures},
+    invocation_authorization_fingerprint,
+};
 
 impl GatewayMcp {
     pub(super) async fn handle_list_resources(
@@ -32,44 +37,78 @@ impl GatewayMcp {
         let subject = self.authenticated(&context)?;
         let profile_server_list = self.profile_servers();
         let profile_servers = profile_server_list.iter().cloned().collect();
-        let mut resources = Vec::new();
-        for server_slug in profile_server_list {
-            let catalog = self.catalog.current();
-            let manifest = catalog
-                .server(&server_slug)
-                .ok_or_else(|| mcp_internal(format!("unknown profile server `{server_slug}`")))?;
-            let upstream_resources = self
-                .idempotent_upstream_request(
-                    &server_slug,
-                    context.peer.clone(),
-                    &subject,
-                    |upstream| async move { upstream.list_all_resources().await },
-                )
-                .await?;
-            for mut resource in upstream_resources {
-                let projection = self.project_upstream_resource(&server_slug, &resource.uri)?;
-                project_listed_resource_uri(manifest, &mut resource)?;
-                project_listed_resource(&mut resource, &projection);
-                project_app_resource_dependencies(
-                    manifest,
-                    &mut resource,
-                    &profile_servers,
-                    &subject.actor.scopes,
-                    &subject.actor.data_labels,
-                )?;
-                if !self
-                    .allows_resource(
-                        &context,
-                        GatewayAction::ResourcesList,
-                        projection.server.clone(),
-                        &resource.uri,
-                    )
-                    .await?
-                {
-                    continue;
+        let snapshot = self.catalog.snapshot();
+        let catalog = snapshot.catalog().clone();
+        let catalog_generation = snapshot.generation();
+        let authorization_fingerprint =
+            invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
+        let results = stream::iter(profile_server_list.into_iter().map(|server_slug| {
+            let catalog = catalog.clone();
+            let profile_servers = &profile_servers;
+            let context = &context;
+            let subject = &subject;
+            async move {
+                let key = DiscoveryCacheKey {
+                    catalog_generation,
+                    principal: subject.actor.id.clone(),
+                    authorization_fingerprint,
+                    server: server_slug.clone(),
+                };
+                if let Some(resources) = self.discovery.resources(&key).await {
+                    return (server_slug, Ok::<_, McpError>(resources));
                 }
-                resources.push(resource);
+                let result = async {
+                    let manifest = catalog.server(&server_slug).ok_or_else(|| {
+                        mcp_internal(format!("unknown profile server `{server_slug}`"))
+                    })?;
+                    let upstream_resources = self
+                        .idempotent_upstream_request(
+                            &server_slug,
+                            context.peer.clone(),
+                            subject,
+                            |upstream| async move { upstream.list_all_resources().await },
+                        )
+                        .await?;
+                    let mut resources = Vec::new();
+                    for mut resource in upstream_resources {
+                        let projection =
+                            self.project_upstream_resource(&server_slug, &resource.uri)?;
+                        project_listed_resource_uri(manifest, &mut resource)?;
+                        project_listed_resource(&mut resource, &projection);
+                        project_app_resource_dependencies(
+                            manifest,
+                            &mut resource,
+                            profile_servers,
+                            &subject.actor.scopes,
+                            &subject.actor.data_labels,
+                        )?;
+                        if !self
+                            .allows_resource(
+                                context,
+                                GatewayAction::ResourcesList,
+                                projection.server.clone(),
+                                &resource.uri,
+                            )
+                            .await?
+                        {
+                            continue;
+                        }
+                        resources.push(resource);
+                    }
+                    self.discovery.store_resources(key, resources.clone()).await;
+                    Ok(resources)
+                }
+                .await;
+                (server_slug, result)
             }
+        }))
+        .buffer_unordered(MAX_CONCURRENT_DISCOVERY)
+        .collect::<Vec<_>>()
+        .await;
+        let (mut resources, degradation, errors) =
+            isolate_discovery_failures(GatewayDiscoverySurface::Resources, results);
+        for (server, error) in errors {
+            tracing::warn!(%server, %error, "isolated upstream resource discovery failure");
         }
         resources.sort_by(|left, right| left.uri.cmp(&right.uri));
         let page = paginate(resources, request.as_ref(), GATEWAY_PAGE_SIZE)
@@ -77,7 +116,7 @@ impl GatewayMcp {
         Ok(ListResourcesResult {
             resources: page.items,
             next_cursor: page.next_cursor,
-            meta: None,
+            meta: degradation.into_meta(),
         })
     }
 
@@ -87,35 +126,69 @@ impl GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
         let subject = self.authenticated(&context)?;
-        let mut templates = Vec::new();
-        for server_slug in self.profile_servers() {
-            let catalog = self.catalog.current();
-            let manifest = catalog
-                .server(&server_slug)
-                .ok_or_else(|| mcp_internal(format!("unknown profile server `{server_slug}`")))?;
-            let upstream_templates = self
-                .idempotent_upstream_request(
-                    &server_slug,
-                    context.peer.clone(),
-                    &subject,
-                    |upstream| async move { upstream.list_all_resource_templates().await },
-                )
-                .await?;
-            for mut template in upstream_templates {
-                project_resource_template_uri(manifest, &mut template)?;
-                if !self
-                    .allows_resource(
-                        &context,
-                        GatewayAction::ResourcesTemplatesList,
-                        server_slug.clone(),
-                        &template.uri_template,
-                    )
-                    .await?
-                {
-                    continue;
+        let snapshot = self.catalog.snapshot();
+        let catalog = snapshot.catalog().clone();
+        let catalog_generation = snapshot.generation();
+        let authorization_fingerprint =
+            invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
+        let results = stream::iter(self.profile_servers().into_iter().map(|server_slug| {
+            let catalog = catalog.clone();
+            let context = &context;
+            let subject = &subject;
+            async move {
+                let key = DiscoveryCacheKey {
+                    catalog_generation,
+                    principal: subject.actor.id.clone(),
+                    authorization_fingerprint,
+                    server: server_slug.clone(),
+                };
+                if let Some(templates) = self.discovery.resource_templates(&key).await {
+                    return (server_slug, Ok::<_, McpError>(templates));
                 }
-                templates.push(template);
+                let result = async {
+                    let manifest = catalog.server(&server_slug).ok_or_else(|| {
+                        mcp_internal(format!("unknown profile server `{server_slug}`"))
+                    })?;
+                    let upstream_templates = self
+                        .idempotent_upstream_request(
+                            &server_slug,
+                            context.peer.clone(),
+                            subject,
+                            |upstream| async move { upstream.list_all_resource_templates().await },
+                        )
+                        .await?;
+                    let mut templates = Vec::new();
+                    for mut template in upstream_templates {
+                        project_resource_template_uri(manifest, &mut template)?;
+                        if !self
+                            .allows_resource(
+                                context,
+                                GatewayAction::ResourcesTemplatesList,
+                                server_slug.clone(),
+                                &template.uri_template,
+                            )
+                            .await?
+                        {
+                            continue;
+                        }
+                        templates.push(template);
+                    }
+                    self.discovery
+                        .store_resource_templates(key, templates.clone())
+                        .await;
+                    Ok(templates)
+                }
+                .await;
+                (server_slug, result)
             }
+        }))
+        .buffer_unordered(MAX_CONCURRENT_DISCOVERY)
+        .collect::<Vec<_>>()
+        .await;
+        let (mut templates, degradation, errors) =
+            isolate_discovery_failures(GatewayDiscoverySurface::ResourceTemplates, results);
+        for (server, error) in errors {
+            tracing::warn!(%server, %error, "isolated upstream resource-template discovery failure");
         }
         if self.client_allows_task_projection(&subject)? {
             templates.push(
@@ -133,7 +206,7 @@ impl GatewayMcp {
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
-            meta: None,
+            meta: degradation.into_meta(),
         })
     }
 

@@ -1,7 +1,10 @@
 use std::{
     collections::{BTreeMap, HashMap},
     ops::Deref,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
     time::Duration,
 };
 
@@ -10,8 +13,8 @@ use chrono::Utc;
 use rmcp::{
     ClientHandler, ServiceExt,
     model::{
-        ClientCapabilities, ClientInfo, Implementation, ResourceUpdatedNotificationParam,
-        SubscribeRequestParams, UnsubscribeRequestParams,
+        ClientCapabilities, ClientInfo, Implementation, PaginatedRequestParams, Resource,
+        ResourceUpdatedNotificationParam, SubscribeRequestParams, Tool, UnsubscribeRequestParams,
     },
     service::{NotificationContext, RoleClient, RunningService},
     transport::{
@@ -21,6 +24,7 @@ use rmcp::{
 use sha2::{Digest, Sha256};
 use tokio::sync::{Mutex, broadcast};
 use uuid::Uuid;
+use veoveo_mcp_contract::GatewayDiscoveryDegradation;
 
 use crate::{config::Config, outbound_http::OutboundTrust};
 
@@ -29,12 +33,22 @@ use crate::{config::Config, outbound_http::OutboundTrust};
 #[derive(Clone)]
 pub(crate) struct ConsoleHostHandler {
     resource_updates: broadcast::Sender<String>,
+    catalog_revision: Arc<AtomicU64>,
 }
 
 impl Default for ConsoleHostHandler {
     fn default() -> Self {
         let (resource_updates, _) = broadcast::channel(128);
-        Self { resource_updates }
+        Self {
+            resource_updates,
+            catalog_revision: Arc::new(AtomicU64::new(0)),
+        }
+    }
+}
+
+impl ConsoleHostHandler {
+    fn invalidate_catalog(&self) {
+        self.catalog_revision.fetch_add(1, Ordering::AcqRel);
     }
 }
 
@@ -59,17 +73,26 @@ impl ClientHandler for ConsoleHostHandler {
     ) {
         let _ = self.resource_updates.send(params.uri);
     }
+
+    async fn on_resource_list_changed(&self, _context: NotificationContext<RoleClient>) {
+        self.invalidate_catalog();
+    }
+
+    async fn on_tool_list_changed(&self, _context: NotificationContext<RoleClient>) {
+        self.invalidate_catalog();
+    }
 }
 
 type RunningMcpSession = RunningService<rmcp::RoleClient, ConsoleHostHandler>;
 
 /// The App authorization surface projected by one initialized gateway
-/// session. Resources and tools are immutable for that authority/profile
-/// snapshot. Token rotation or transport invalidation drops it.
+/// session. MCP list-change notifications invalidate its successful snapshot;
+/// partial snapshots retry unavailable servers on the next explicit request.
 #[derive(Debug)]
 pub(crate) struct McpAppCatalog {
     resources: Vec<rmcp::model::Resource>,
     tools: Vec<rmcp::model::Tool>,
+    degradation: GatewayDiscoveryDegradation,
 }
 
 impl McpAppCatalog {
@@ -80,11 +103,21 @@ impl McpAppCatalog {
     pub(crate) fn tools(&self) -> &[rmcp::model::Tool] {
         &self.tools
     }
+
+    pub(crate) fn degradation(&self) -> &GatewayDiscoveryDegradation {
+        &self.degradation
+    }
+}
+
+struct CachedMcpAppCatalog {
+    revision: u64,
+    catalog: Arc<McpAppCatalog>,
 }
 
 pub(crate) struct McpSessionContext {
     service: Arc<RunningMcpSession>,
-    app_catalog: Mutex<Option<Arc<McpAppCatalog>>>,
+    app_catalog: Mutex<Option<CachedMcpAppCatalog>>,
+    catalog_revision: Arc<AtomicU64>,
     resource_updates: broadcast::Sender<String>,
     app_resource_subscriptions: Mutex<AppResourceSubscriptions>,
 }
@@ -105,12 +138,31 @@ impl Deref for McpSessionContext {
 
 impl McpSessionContext {
     pub(crate) async fn app_catalog(&self) -> Result<Arc<McpAppCatalog>, rmcp::ServiceError> {
-        cached_or_load(&self.app_catalog, || async {
-            let resources = self.service.list_all_resources().await?;
-            let tools = self.service.list_all_tools().await?;
-            Ok(McpAppCatalog { resources, tools })
-        })
-        .await
+        let revision = self.catalog_revision.load(Ordering::Acquire);
+        let mut cached = self.app_catalog.lock().await;
+        if let Some(cached) = cached.as_ref()
+            && cached.revision == revision
+            && cached.catalog.degradation.is_empty()
+        {
+            return Ok(cached.catalog.clone());
+        }
+        let (resources, tools) = tokio::try_join!(
+            list_resources_with_degradation(&self.service),
+            list_tools_with_degradation(&self.service),
+        )?;
+        let (resources, mut degradation) = resources;
+        let (tools, tool_degradation) = tools;
+        degradation.merge(tool_degradation);
+        let catalog = Arc::new(McpAppCatalog {
+            resources,
+            tools,
+            degradation,
+        });
+        *cached = Some(CachedMcpAppCatalog {
+            revision,
+            catalog: catalog.clone(),
+        });
+        Ok(catalog)
     }
 
     /// Register one browser-App subscription on the pooled MCP session.
@@ -254,6 +306,7 @@ impl McpSessionPool {
         let session = Arc::new(McpSessionContext {
             service,
             app_catalog: Mutex::new(None),
+            catalog_revision: handler.catalog_revision,
             resource_updates: handler.resource_updates,
             app_resource_subscriptions: Mutex::new(AppResourceSubscriptions::default()),
         });
@@ -283,18 +336,56 @@ impl McpSessionPool {
     }
 }
 
-async fn cached_or_load<T, E, F, Fut>(cache: &Mutex<Option<Arc<T>>>, load: F) -> Result<Arc<T>, E>
-where
-    F: FnOnce() -> Fut,
-    Fut: Future<Output = Result<T, E>>,
-{
-    let mut cached = cache.lock().await;
-    if let Some(value) = cached.as_ref() {
-        return Ok(value.clone());
+async fn list_resources_with_degradation(
+    service: &RunningMcpSession,
+) -> Result<(Vec<Resource>, GatewayDiscoveryDegradation), rmcp::ServiceError> {
+    let mut cursor = None;
+    let mut resources = Vec::new();
+    let mut degradation = GatewayDiscoveryDegradation::default();
+    loop {
+        let result = service
+            .list_resources(Some(PaginatedRequestParams::default().with_cursor(cursor)))
+            .await?;
+        let page_degradation = GatewayDiscoveryDegradation::from_meta(result.meta.as_ref())
+            .map_err(|error| {
+                rmcp::ServiceError::McpError(rmcp::ErrorData::internal_error(
+                    format!("gateway returned invalid resource discovery metadata: {error}"),
+                    None,
+                ))
+            })?;
+        degradation.merge(page_degradation);
+        resources.extend(result.resources);
+        cursor = result.next_cursor;
+        if cursor.is_none() {
+            return Ok((resources, degradation));
+        }
     }
-    let value = Arc::new(load().await?);
-    *cached = Some(value.clone());
-    Ok(value)
+}
+
+async fn list_tools_with_degradation(
+    service: &RunningMcpSession,
+) -> Result<(Vec<Tool>, GatewayDiscoveryDegradation), rmcp::ServiceError> {
+    let mut cursor = None;
+    let mut tools = Vec::new();
+    let mut degradation = GatewayDiscoveryDegradation::default();
+    loop {
+        let result = service
+            .list_tools(Some(PaginatedRequestParams::default().with_cursor(cursor)))
+            .await?;
+        let page_degradation = GatewayDiscoveryDegradation::from_meta(result.meta.as_ref())
+            .map_err(|error| {
+                rmcp::ServiceError::McpError(rmcp::ErrorData::internal_error(
+                    format!("gateway returned invalid tool discovery metadata: {error}"),
+                    None,
+                ))
+            })?;
+        degradation.merge(page_degradation);
+        tools.extend(result.tools);
+        cursor = result.next_cursor;
+        if cursor.is_none() {
+            return Ok((tools, degradation));
+        }
+    }
 }
 
 fn fingerprint(access_token: &str) -> String {
@@ -309,8 +400,6 @@ fn hex_encode(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
     use axum::Router;
     use rmcp::{
         ServerHandler,
@@ -323,45 +412,13 @@ mod tests {
 
     use super::*;
 
-    #[tokio::test]
-    async fn session_cache_loads_once() {
-        let cache = Mutex::new(None);
-        let loads = AtomicUsize::new(0);
-
-        let first = cached_or_load(&cache, || async {
-            loads.fetch_add(1, Ordering::SeqCst);
-            Ok::<_, ()>(41)
-        })
-        .await
-        .unwrap();
-        let cached = cached_or_load(&cache, || async {
-            loads.fetch_add(1, Ordering::SeqCst);
-            Ok::<_, ()>(42)
-        })
-        .await
-        .unwrap();
-
-        assert!(Arc::ptr_eq(&first, &cached));
-        assert_eq!(*cached, 41);
-        assert_eq!(loads.load(Ordering::SeqCst), 1);
-    }
-
-    #[tokio::test]
-    async fn failed_catalog_load_is_not_cached() {
-        let cache = Mutex::new(None);
-
-        assert_eq!(
-            cached_or_load(&cache, || async { Err::<usize, _>("catalog unavailable") })
-                .await
-                .unwrap_err(),
-            "catalog unavailable"
-        );
-        assert_eq!(
-            *cached_or_load(&cache, || async { Ok::<_, &str>(7) })
-                .await
-                .unwrap(),
-            7
-        );
+    #[test]
+    fn list_change_notifications_advance_catalog_revision() {
+        let handler = ConsoleHostHandler::default();
+        assert_eq!(handler.catalog_revision.load(Ordering::Acquire), 0);
+        handler.invalidate_catalog();
+        handler.invalidate_catalog();
+        assert_eq!(handler.catalog_revision.load(Ordering::Acquire), 2);
     }
 
     #[derive(Clone, Default)]

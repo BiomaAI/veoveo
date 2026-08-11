@@ -9,7 +9,7 @@ use veoveo_mcp_contract::{GatewayProfileId, PrincipalId, ServerSlug};
 
 use crate::{GatewayCatalogHandle, mcp_support::project_upstream_resource};
 
-use super::progress::GatewayProgressTokens;
+use super::{discovery::CatalogDiscoveryCache, progress::GatewayProgressTokens};
 
 const DOWNSTREAM_NOTIFICATION_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -21,6 +21,7 @@ pub(super) struct GatewayUpstreamHandler {
     upstream_server: ServerSlug,
     downstream: Peer<RoleServer>,
     progress_tokens: GatewayProgressTokens,
+    discovery: std::sync::Arc<CatalogDiscoveryCache>,
 }
 
 impl GatewayUpstreamHandler {
@@ -31,6 +32,7 @@ impl GatewayUpstreamHandler {
         upstream_server: ServerSlug,
         downstream: Peer<RoleServer>,
         progress_tokens: GatewayProgressTokens,
+        discovery: std::sync::Arc<CatalogDiscoveryCache>,
     ) -> Self {
         Self {
             catalog,
@@ -39,6 +41,7 @@ impl GatewayUpstreamHandler {
             upstream_server,
             downstream,
             progress_tokens,
+            discovery,
         }
     }
 }
@@ -116,6 +119,9 @@ impl ClientHandler for GatewayUpstreamHandler {
     }
 
     async fn on_resource_list_changed(&self, _context: NotificationContext<RoleClient>) {
+        self.discovery
+            .invalidate_resource_surfaces(&self.upstream_server)
+            .await;
         let downstream = self.downstream.clone();
         forward_notification(self.upstream_server.clone(), "resource list", async move {
             downstream.notify_resource_list_changed().await
@@ -124,6 +130,7 @@ impl ClientHandler for GatewayUpstreamHandler {
     }
 
     async fn on_tool_list_changed(&self, _context: NotificationContext<RoleClient>) {
+        self.discovery.invalidate_tools(&self.upstream_server).await;
         let downstream = self.downstream.clone();
         forward_notification(self.upstream_server.clone(), "tool list", async move {
             downstream.notify_tool_list_changed().await

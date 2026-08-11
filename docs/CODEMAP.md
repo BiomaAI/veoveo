@@ -316,8 +316,9 @@ The runtime is the source of truth. The extension is transport only.
 | `policy.rs` | policy evaluation entrypoint |
 | `mcp_support.rs` | MCP URI projection, including declared cross-server resource identities |
 | `mcp/authorization.rs` | per-method/profile/server target authorization |
-| `mcp/tools.rs` | aggregated tool projection and explicit helper gating |
-| `mcp/resources.rs` | resource/list/read/subscribe projection |
+| `mcp/discovery.rs` | exact-authority catalog discovery cache, bounded concurrency, per-server failure isolation, and list-change invalidation |
+| `mcp/tools.rs` | failure-isolated aggregated tool projection and explicit helper gating |
+| `mcp/resources.rs` | failure-isolated resource/list projection plus fail-closed read/subscribe routing |
 | `mcp/prompts.rs`, `completion.rs` | prompt and completion projection |
 | `mcp/final_tasks.rs` | canonical upstream final task client/projection |
 | `mcp/tasks.rs` | explicit weak-client task projection |
@@ -766,7 +767,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `session.rs` | XChaCha20-Poly1305 cookies and CSRF material |
 | `api.rs` | snapshot, SSE, mutation, artifact preview/download, and same-origin CSRF-protected agent-message/elicitation BFF projections; browser credentials and database authority never enter an MCP App |
 | `recording_playback.rs` | authenticated playback-manifest and framed live-stream pass-through; no archive bytes or BFF session store |
-| `apps.rs`, `mcp_client.rs` | MCP Apps host backend: gateway MCP session pool over the independently selected transport, public gateway authority preservation, app catalog, sandboxed frame serving, allowlisted tool calls, implicit own-server reads, and gateway-projected cross-server reads |
+| `apps.rs`, `mcp_client.rs` | MCP Apps host backend: gateway MCP session pool over the independently selected transport, public gateway authority preservation, reactive failure-isolated app catalog, sandboxed frame serving, allowlisted tool calls, implicit own-server reads, and gateway-projected cross-server reads |
 | `config.rs`, `viewer_config.rs` | validated public/gateway/OAuth-resource/MCP-transport and embedded-map configuration, exact profile binding, redacted provider credentials, and the authenticated no-store Rerun map projection |
 | `outbound_http.rs` | additive installation CA trust shared by Console HTTP, streaming, live, MCP, and Kubernetes clients |
 

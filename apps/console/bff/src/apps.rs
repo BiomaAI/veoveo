@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use veoveo_mcp_apps_extension::{APP_MIME_TYPE, is_app_resource, resource_ui_meta, tool_app_link};
 use veoveo_mcp_contract::{
     APP_RESOURCE_DEPENDENCIES_META_KEY, AppResourceDependency, AppResourceOperation,
+    GatewayDiscoveryFailure,
 };
 
 use crate::{AppState, api, mcp_client::McpSession};
@@ -38,6 +39,7 @@ const FRAME_CSP_OFFLINE: &str = "default-src 'none'; script-src 'unsafe-inline';
 #[serde(rename_all = "camelCase")]
 struct AppCatalog {
     apps: Vec<AppDescriptor>,
+    degradations: Vec<GatewayDiscoveryFailure>,
 }
 
 #[derive(Serialize)]
@@ -325,7 +327,17 @@ pub(crate) async fn list_apps(
             resource_dependencies: app_resource_dependencies(resource),
         });
     }
-    with_session_headers(Json(AppCatalog { apps }).into_response(), response_headers)
+    let degradations = catalog.degradation().failures.clone();
+    if !degradations.is_empty() {
+        tracing::warn!(
+            degraded_surfaces = degradations.len(),
+            "console returned a partial MCP App catalog"
+        );
+    }
+    with_session_headers(
+        Json(AppCatalog { apps, degradations }).into_response(),
+        response_headers,
+    )
 }
 
 #[derive(Deserialize)]
