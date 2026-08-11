@@ -1177,16 +1177,14 @@ fn validate_public_key(
     value: &str,
     prefix: &'static str,
 ) -> Result<(), StoreError> {
+    const REASON: &str =
+        "must use the canonical prefix followed by a generated UUIDv7 or stable UUIDv5";
     let raw = value
         .strip_prefix(prefix)
-        .ok_or_else(|| invalid_map(field, "must use the canonical prefix followed by a UUIDv7"))?;
-    let uuid = Uuid::parse_str(raw)
-        .map_err(|_| invalid_map(field, "must use the canonical prefix followed by a UUIDv7"))?;
-    if uuid.get_version_num() != 7 {
-        return Err(invalid_map(
-            field,
-            "must use the canonical prefix followed by a UUIDv7",
-        ));
+        .ok_or_else(|| invalid_map(field, REASON))?;
+    let uuid = Uuid::parse_str(raw).map_err(|_| invalid_map(field, REASON))?;
+    if !matches!(uuid.get_version_num(), 5 | 7) {
+        return Err(invalid_map(field, REASON));
     }
     Ok(())
 }
@@ -1261,10 +1259,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn canonical_map_keys_require_the_expected_uuid_v7_prefix() {
+    fn canonical_map_keys_accept_generated_and_stable_contract_ids() {
         assert!(
             validate_public_key("route_key", &format!("route-{}", Uuid::now_v7()), "route-")
                 .is_ok()
+        );
+        assert!(
+            validate_public_key(
+                "route_key",
+                &format!(
+                    "route-{}",
+                    Uuid::new_v5(&Uuid::NAMESPACE_URL, b"map-contract/stable-route")
+                ),
+                "route-"
+            )
+            .is_ok()
         );
         assert!(
             validate_public_key("route_key", &format!("route-{}", Uuid::new_v4()), "route-")

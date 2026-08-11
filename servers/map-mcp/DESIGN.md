@@ -722,6 +722,7 @@ as every other raster derivation.
 | Tool | Invocation | Required scope | Result |
 |---|---|---|---|
 | `search_locations` | direct | `map:dataset:read` | bounded named locations and optional facilities |
+| `list_active_dataset_releases` | direct | `map:dataset:read` | bounded active immutable release identities, digests, and pointer revisions |
 | `query_source_features` | direct | `map:dataset:read` | deterministic page from one immutable complete source release |
 | `inspect_location` | direct | `map:dataset:read` | location, nearby facilities, containing boundaries, lineage, gaps |
 | `transform_crs` | direct | `map:dataset:read` | bounded 2D CRS transformation |
@@ -961,6 +962,13 @@ mounts one `map-data` volume and the optional source exchange read-only, exposes
 only port 8799 inside the cluster, and deploys one replica with a 100 GiB
 `ReadWriteOnce` claim. The offline image lock contains
 `veoveo/map-mcp:0.1.0` and its Dockerfile.
+
+An installation selects its existing, controlled source PVC and optional
+credential Secret through `domainServiceSourceMounts.map-mcp.exchangeClaim`
+and `domainServiceSourceMounts.map-mcp.secretName`. The chart mounts these
+objects read-only; it never copies source bytes or turns acquisition into a
+Helm side effect. `domainServiceResources.map-mcp` independently sets the Map
+pod's acquisition and indexing envelope without inflating every hosted server.
 
 Important arguments include:
 

@@ -1057,6 +1057,32 @@
     "podDisruptionBudget": {
       "type": "object"
     },
+    "domainServiceSourceMounts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "exchangeClaim": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          },
+          "secretName": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "domainServiceResources": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "minProperties": 1
+      }
+    },
     "serverBootstrap": {
       "type": "object",
       "additionalProperties": {

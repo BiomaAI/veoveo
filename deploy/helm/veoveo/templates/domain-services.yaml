@@ -22,6 +22,11 @@
 {{- range $service := $serviceDefinitions }}
 {{- if has (get $serverIds $service.name) $selectedServers }}
 {{- $gpuWorkload := get $gpuWorkloads $service.name | default "" -}}
+{{- $sourceMount := get $.Values.domainServiceSourceMounts $service.name | default dict -}}
+{{- $sourceExchangeClaim := get $sourceMount "exchangeClaim" | default $service.sourceExchangeClaim -}}
+{{- $sourceSecretName := get $sourceMount "secretName" | default $service.sourceSecretName -}}
+{{- $baseResources := default $.Values.gateway.resources $service.resources -}}
+{{- $serviceResources := default $baseResources (index $.Values.domainServiceResources $service.name) -}}
 {{- if $service.persistence }}
 ---
 apiVersion: v1
@@ -209,9 +214,9 @@ spec:
             {{- include "veoveo.containerSecurityContext" $ | nindent 12 }}
           resources:
             {{- if and $gpuWorkload (ne $gpuWorkload "cuopt-executor") }}
-            {{- include "veoveo.gpuResources" (list $ $gpuWorkload (default $.Values.gateway.resources $service.resources)) | nindent 12 }}
+            {{- include "veoveo.gpuResources" (list $ $gpuWorkload $serviceResources) | nindent 12 }}
             {{- else }}
-            {{- toYaml (default $.Values.gateway.resources $service.resources) | nindent 12 }}
+            {{- toYaml $serviceResources | nindent 12 }}
             {{- end }}
           volumeMounts:
             - name: runtime
@@ -225,12 +230,12 @@ spec:
             - name: workspace
               mountPath: {{ default "/var/lib/veoveo/duckdb" $service.persistenceMountPath }}
             {{- end }}
-            {{- if $service.sourceExchangeClaim }}
+            {{- if $sourceExchangeClaim }}
             - name: source-exchange
               mountPath: /data/map-sources
               readOnly: true
             {{- end }}
-            {{- if $service.sourceSecretName }}
+            {{- if $sourceSecretName }}
             - name: source-secrets
               mountPath: /run/secrets/map
               readOnly: true
@@ -298,15 +303,15 @@ spec:
           persistentVolumeClaim:
             claimName: {{ $service.name }}-workspace
         {{- end }}
-        {{- if $service.sourceExchangeClaim }}
+        {{- if $sourceExchangeClaim }}
         - name: source-exchange
           persistentVolumeClaim:
-            claimName: {{ $service.sourceExchangeClaim }}
+            claimName: {{ $sourceExchangeClaim }}
         {{- end }}
-        {{- if $service.sourceSecretName }}
+        {{- if $sourceSecretName }}
         - name: source-secrets
           secret:
-            secretName: {{ $service.sourceSecretName }}
+            secretName: {{ $sourceSecretName }}
         {{- end }}
         {{- if hasKey $.Values.serverBootstrap $service.name }}
         - name: bootstrap
