@@ -27,6 +27,9 @@ use gpu::{apply_gpu_placement, ensure_gpu_allocator, prepare_gpu_placement, veri
 
 const VALIDATION_REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
 const GATEWAY_MOUNT_ROOT: &str = "/etc/veoveo/gateway/";
+// Source resolution needs only the selected build paths. Keep unrelated LFS
+// objects as pointers; a selected LFS input still fails in its owning build.
+const GIT_SKIP_LFS_SMUDGE: &[(&str, &str)] = &[("GIT_LFS_SKIP_SMUDGE", "1")];
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -425,13 +428,13 @@ fn resolve_sources(profile: &LoadedProfile) -> Result<Vec<ResolvedSource>> {
             path_str(&origin)?,
             path_str(destination)?,
         ];
-        status_checked("git", clone_args, &[], None)
+        status_checked("git", clone_args, GIT_SKIP_LFS_SMUDGE, None)
             .with_context(|| format!("cloning deployment source {}", source.name))?;
         let revision = resolve_revision(destination, &source.revision)?;
         status_checked(
             "git",
             ["checkout", "--quiet", "--detach", revision.as_str()],
-            &[],
+            GIT_SKIP_LFS_SMUDGE,
             Some(destination),
         )
         .with_context(|| {
@@ -586,7 +589,7 @@ fn resolve_locked_sources(
                 clone_origin.as_str(),
                 path_str(destination)?,
             ],
-            &[],
+            GIT_SKIP_LFS_SMUDGE,
             None,
         )
         .with_context(|| format!("cloning deployment source {}", source.name))?;
@@ -601,7 +604,7 @@ fn resolve_locked_sources(
         status_checked(
             "git",
             ["checkout", "--quiet", "--detach", revision.as_str()],
-            &[],
+            GIT_SKIP_LFS_SMUDGE,
             Some(destination),
         )
         .with_context(|| {
