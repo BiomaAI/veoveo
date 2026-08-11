@@ -120,9 +120,11 @@ pub(crate) async fn agent_kernel_detach_resume(
                 "model": "fake/kimi"
             },
             "gateway": {
-                "url": gateway_base,
+                "url": PUBLIC_BASE_URL,
+                "transport_url": gateway_base,
                 "profile": "operator",
                 "client_id": "operator-service",
+                "work_context": "operations",
                 "audience": format!("{PUBLIC_BASE_URL}/oauth/token"),
                 "resource": format!("{PUBLIC_BASE_URL}/mcp/operator"),
                 "scopes": ["operator:use"],
@@ -387,9 +389,11 @@ pub(crate) async fn agent_kernel_scheduler(
                 "model": "fake/kimi"
             },
             "gateway": {
-                "url": gateway_base,
+                "url": PUBLIC_BASE_URL,
+                "transport_url": gateway_base,
                 "profile": "operator",
                 "client_id": "operator-service",
+                "work_context": "operations",
                 "audience": format!("{PUBLIC_BASE_URL}/oauth/token"),
                 "resource": format!("{PUBLIC_BASE_URL}/mcp/operator"),
                 "scopes": ["operator:use"],
@@ -710,7 +714,8 @@ pub(crate) async fn agent_pilot_mission(
                 "model": "fake/kimi"
             },
             "gateway": {
-                "url": gateway_base,
+                "url": PUBLIC_BASE_URL,
+                "transport_url": gateway_base,
                 "profile": "operator",
                 "client_id": "operator-service",
                 "work_context": "operations",
@@ -1030,9 +1035,11 @@ pub(crate) async fn agent_sleep_wake(
                 "temperature": 0.0
             },
             "gateway": {
-                "url": gateway_base,
+                "url": PUBLIC_BASE_URL,
+                "transport_url": gateway_base,
                 "profile": "operator",
                 "client_id": "operator-service",
+                "work_context": "operations",
                 "audience": format!("{PUBLIC_BASE_URL}/oauth/token"),
                 "resource": format!("{PUBLIC_BASE_URL}/mcp/operator"),
                 "scopes": ["operator:use"],

@@ -160,8 +160,12 @@ pub struct ModelConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GatewayAccess {
-    /// Gateway base URL the agent connects to (e.g. `http://127.0.0.1:8788`).
+    /// Canonical public gateway origin used for HTTP authority and OAuth
+    /// identity. `${VAR}` placeholders are expanded at load time.
     pub url: String,
+    /// Physical HTTP(S) origin used to reach the gateway from this network.
+    /// `${VAR}` placeholders are expanded at load time.
+    pub transport_url: String,
     /// Gateway profile mounted under `/mcp/{profile}`.
     pub profile: String,
     /// OAuth client id for the client-credentials grant.
@@ -170,8 +174,10 @@ pub struct GatewayAccess {
     pub work_context: String,
     /// Audience for the private-key JWT client assertion (the public token
     /// endpoint URL, which may differ from the connect URL behind an edge).
+    /// `${VAR}` placeholders are expanded at load time.
     pub audience: String,
-    /// Protected resource the token is minted for.
+    /// Protected resource the token is minted for. `${VAR}` placeholders are
+    /// expanded at load time.
     pub resource: String,
     pub scopes: Vec<String>,
     /// Environment variable holding the base64 DER RSA private key that signs
@@ -252,6 +258,9 @@ impl AgentManifest {
             .with_context(|| format!("parsing agent manifest {}", path.display()))?;
         manifest.model.base_url = expand_env_placeholders(&manifest.model.base_url)?;
         manifest.gateway.url = expand_env_placeholders(&manifest.gateway.url)?;
+        manifest.gateway.transport_url = expand_env_placeholders(&manifest.gateway.transport_url)?;
+        manifest.gateway.audience = expand_env_placeholders(&manifest.gateway.audience)?;
+        manifest.gateway.resource = expand_env_placeholders(&manifest.gateway.resource)?;
         if let (Some(dir), Some(parent)) = (&manifest.migrations_dir, path.parent())
             && dir.is_relative()
         {
@@ -277,6 +286,7 @@ impl AgentManifest {
             ("model.api_key_env", &self.model.api_key_env),
             ("model.model", &self.model.model),
             ("gateway.url", &self.gateway.url),
+            ("gateway.transport_url", &self.gateway.transport_url),
             ("gateway.profile", &self.gateway.profile),
             ("gateway.client_id", &self.gateway.client_id),
             ("gateway.work_context", &self.gateway.work_context),
@@ -289,6 +299,19 @@ impl AgentManifest {
             if value.trim().is_empty() {
                 bail!("{field} must not be empty");
             }
+        }
+        let gateway_url = validate_http_origin("gateway.url", &self.gateway.url)?;
+        validate_http_origin("gateway.transport_url", &self.gateway.transport_url)?;
+        let token_audience = gateway_url
+            .join("oauth/token")
+            .context("building canonical gateway token audience")?;
+        if self.gateway.audience != token_audience.as_str() {
+            bail!("gateway.audience must be the canonical gateway token URL `{token_audience}`");
+        }
+        let resource = url::Url::parse(&self.gateway.resource)
+            .context("gateway.resource must be an absolute URL")?;
+        if resource.origin() != gateway_url.origin() {
+            bail!("gateway.resource must use the canonical gateway origin");
         }
         if self.gateway.scopes.is_empty() {
             bail!("gateway.scopes must list at least one scope");
@@ -335,13 +358,28 @@ impl AgentManifest {
     pub fn mcp_url(&self) -> String {
         format!(
             "{}/mcp/{}",
-            self.gateway.url.trim_end_matches('/'),
+            self.gateway.transport_url.trim_end_matches('/'),
             self.gateway.profile
         )
     }
 
     pub fn token_url(&self) -> String {
-        format!("{}/oauth/token", self.gateway.url.trim_end_matches('/'))
+        format!(
+            "{}/oauth/token",
+            self.gateway.transport_url.trim_end_matches('/')
+        )
+    }
+
+    pub fn gateway_authority(&self) -> Result<String> {
+        let url = validate_http_origin("gateway.url", &self.gateway.url)?;
+        let host = match url.host().context("gateway.url has no host")? {
+            url::Host::Ipv6(address) => format!("[{address}]"),
+            host => host.to_string(),
+        };
+        Ok(match url.port() {
+            Some(port) => format!("{host}:{port}"),
+            None => host,
+        })
     }
 
     pub fn request_timeout(&self) -> Duration {
@@ -351,6 +389,21 @@ impl AgentManifest {
     pub fn task_deadline(&self) -> Duration {
         Duration::from_secs(self.episode.task_deadline_s)
     }
+}
+
+fn validate_http_origin(field: &str, value: &str) -> Result<url::Url> {
+    let url = url::Url::parse(value).with_context(|| format!("{field} must be an absolute URL"))?;
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.path() != "/"
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        bail!("{field} must be an HTTP(S) origin without credentials, path, query, or fragment");
+    }
+    Ok(url)
 }
 
 /// Expand `${VAR}` placeholders from the environment, failing closed on any
@@ -387,12 +440,13 @@ mod tests {
                 "model": "test/model"
             },
             "gateway": {
-                "url": "http://127.0.0.1:9",
+                "url": "https://veoveo.example",
+                "transport_url": "http://127.0.0.1:9",
                 "profile": "operator",
                 "client_id": "operator-service",
                 "work_context": "operations",
-                "audience": "http://127.0.0.1:9/oauth/token",
-                "resource": "http://127.0.0.1:9/mcp/operator",
+                "audience": "https://veoveo.example/oauth/token",
+                "resource": "https://veoveo.example/mcp/operator",
                 "scopes": ["operator:use"],
                 "private_key_env": "TEST_MANIFEST_PRIVATE_KEY",
                 "private_key_kid": "test-key"
@@ -415,6 +469,10 @@ mod tests {
         assert!((manifest.gateway.token_refresh_fraction - 0.6).abs() < f64::EPSILON);
         assert_eq!(manifest.mcp_url(), "http://127.0.0.1:9/mcp/operator");
         assert_eq!(manifest.token_url(), "http://127.0.0.1:9/oauth/token");
+        assert_eq!(
+            manifest.gateway_authority().expect("authority"),
+            "veoveo.example"
+        );
     }
 
     #[test]
@@ -436,5 +494,66 @@ mod tests {
         );
         assert!(expand_env_placeholders("${TEST_MANIFEST_MISSING_VAR}").is_err());
         assert!(expand_env_placeholders("${unterminated").is_err());
+    }
+
+    #[test]
+    fn gateway_identity_and_transport_fail_closed() {
+        // SAFETY: test-only env mutation, keys are unique to this test.
+        unsafe {
+            std::env::set_var("TEST_MANIFEST_API_KEY", "k");
+            std::env::set_var("TEST_MANIFEST_PRIVATE_KEY", "p");
+        }
+        for (field, invalid) in [
+            ("url", "https://veoveo.example/path"),
+            ("transport_url", "http://gateway.internal:8788/path"),
+        ] {
+            let mut value = manifest_json();
+            value["gateway"][field] = serde_json::json!(invalid);
+            let manifest: AgentManifest = serde_json::from_value(value).expect("parses");
+            assert!(
+                manifest.validate().is_err(),
+                "accepted invalid gateway {field}"
+            );
+        }
+
+        let mut value = manifest_json();
+        value["gateway"]["audience"] = serde_json::json!("http://127.0.0.1:9/oauth/token");
+        let manifest: AgentManifest = serde_json::from_value(value).expect("parses");
+        assert!(manifest.validate().is_err());
+    }
+
+    #[test]
+    fn gateway_identity_coordinates_expand_together_before_validation() {
+        // SAFETY: test-only env mutation, keys are unique to this test.
+        unsafe {
+            std::env::set_var("TEST_GATEWAY_IDENTITY_API_KEY", "k");
+            std::env::set_var("TEST_GATEWAY_IDENTITY_PRIVATE_KEY", "p");
+            std::env::set_var("TEST_GATEWAY_IDENTITY_ORIGIN", "https://veoveo.example");
+            std::env::set_var("TEST_GATEWAY_IDENTITY_TRANSPORT", "http://127.0.0.1:9");
+        }
+        let mut value = manifest_json();
+        value["model"]["api_key_env"] = serde_json::json!("TEST_GATEWAY_IDENTITY_API_KEY");
+        value["gateway"]["private_key_env"] =
+            serde_json::json!("TEST_GATEWAY_IDENTITY_PRIVATE_KEY");
+        value["gateway"]["url"] = serde_json::json!("${TEST_GATEWAY_IDENTITY_ORIGIN}");
+        value["gateway"]["transport_url"] = serde_json::json!("${TEST_GATEWAY_IDENTITY_TRANSPORT}");
+        value["gateway"]["audience"] =
+            serde_json::json!("${TEST_GATEWAY_IDENTITY_ORIGIN}/oauth/token");
+        value["gateway"]["resource"] =
+            serde_json::json!("${TEST_GATEWAY_IDENTITY_ORIGIN}/mcp/operator");
+        let directory = tempfile::tempdir().expect("temp directory");
+        let path = directory.path().join("manifest.json");
+        std::fs::write(&path, serde_json::to_vec(&value).expect("manifest json"))
+            .expect("write manifest");
+
+        let manifest = AgentManifest::load(&path).expect("manifest loads");
+        assert_eq!(
+            manifest.gateway.audience,
+            "https://veoveo.example/oauth/token"
+        );
+        assert_eq!(
+            manifest.gateway.resource,
+            "https://veoveo.example/mcp/operator"
+        );
     }
 }

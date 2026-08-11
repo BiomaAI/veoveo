@@ -12,6 +12,7 @@
   },
   "gateway": {
     "url": "${PILOT_GATEWAY_URL}",
+    "transport_url": "${PILOT_GATEWAY_TRANSPORT_URL}",
     "profile": "operator",
     "client_id": "pilot-agent",
     "work_context": "operations",
