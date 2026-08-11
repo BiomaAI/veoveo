@@ -7,10 +7,11 @@
 //! `ToolServerHandle`.
 //!
 //! rmcp fixes the auth header at transport construction, so token refresh is
-//! connection rotation: mint → connect the replacement → publish the new
-//! epoch → cancel the old service (make-before-break). Task watchers hold the
-//! epoch receiver and re-resume in-flight tasks on the fresh sink; task ids
-//! are principal-scoped at the gateway, so continuity holds across rotations.
+//! connection rotation: mint → connect the replacement → restore declared
+//! resource subscriptions → publish the new epoch → cancel the old service
+//! (make-before-break). Task watchers hold the epoch receiver and re-resume
+//! in-flight tasks on the fresh sink; task ids are principal-scoped at the
+//! gateway, so continuity holds across rotations.
 
 use std::{
     collections::HashMap,
@@ -26,7 +27,7 @@ use rig_core::tool::{
     server::ToolServerHandle,
 };
 use rmcp::{
-    model::{ClientCapabilities, ClientInfo, Implementation},
+    model::{ClientCapabilities, ClientInfo, Implementation, SubscribeRequestParams},
     service::{RoleClient, RunningService},
     transport::{
         StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
@@ -202,6 +203,18 @@ impl GatewayConnection {
             .connect(transport)
             .await
             .map_err(|err| anyhow::anyhow!("connecting to gateway MCP: {err}"))?;
+        let subscription_count = self.manifest.resource_subscriptions.len();
+        if let Err(error) =
+            restore_resource_subscriptions(&service, &self.manifest.resource_subscriptions).await
+        {
+            match service.cancel().await {
+                Ok(reason) => tracing::debug!(?reason, "unready gateway session closed"),
+                Err(close_error) => {
+                    tracing::warn!(%close_error, "unready gateway session join failed")
+                }
+            }
+            return Err(error);
+        }
         let resumer = Arc::new(service.service().task_resumer(service.peer().clone()));
 
         let previous = self.live.replace(Live {
@@ -215,7 +228,7 @@ impl GatewayConnection {
             epoch,
             resumer: Some(resumer),
         });
-        tracing::info!(epoch, "gateway connection rotated");
+        tracing::info!(epoch, subscription_count, "gateway connection rotated");
 
         if let Some(previous) = previous {
             match previous.service.cancel().await {
@@ -279,4 +292,22 @@ impl GatewayConnection {
         }
         Ok(token)
     }
+}
+
+async fn restore_resource_subscriptions(
+    service: &RunningService<RoleClient, McpClientHandler>,
+    subscriptions: &[crate::manifest::ResourceSubscription],
+) -> Result<()> {
+    for subscription in subscriptions {
+        service
+            .subscribe(SubscribeRequestParams::new(subscription.uri.clone()))
+            .await
+            .with_context(|| {
+                format!(
+                    "restoring declared resource subscription `{}`",
+                    subscription.uri
+                )
+            })?;
+    }
+    Ok(())
 }

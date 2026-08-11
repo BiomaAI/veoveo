@@ -5,10 +5,14 @@
 //! Loading is fail-closed: unknown fields, missing environment variables, and
 //! out-of-range knobs are hard errors before the agent boots.
 
-use std::{path::Path, time::Duration};
+use std::{collections::BTreeSet, path::Path, time::Duration};
 
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
+use url::Url;
+
+const MAX_RESOURCE_SUBSCRIPTIONS: usize = 128;
+const MAX_RESOURCE_URI_BYTES: usize = 2_048;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -25,12 +29,24 @@ pub struct AgentManifest {
     pub budgets: BudgetConfig,
     #[serde(default)]
     pub schedule: ScheduleConfig,
+    /// Stable MCP resources whose updates create durable wakes. A replacement
+    /// gateway session restores the complete set before becoming active.
+    #[serde(default)]
+    pub resource_subscriptions: Vec<ResourceSubscription>,
     /// Directory of `NNNN_*.sql` domain migrations applied at boot, relative
     /// to the manifest file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub migrations_dir: Option<std::path::PathBuf>,
     /// System preamble for every episode.
     pub preamble: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ResourceSubscription {
+    /// Absolute resource URI. `${VAR}` placeholders are expanded from the
+    /// environment while loading the manifest.
+    pub uri: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -261,6 +277,9 @@ impl AgentManifest {
         manifest.gateway.transport_url = expand_env_placeholders(&manifest.gateway.transport_url)?;
         manifest.gateway.audience = expand_env_placeholders(&manifest.gateway.audience)?;
         manifest.gateway.resource = expand_env_placeholders(&manifest.gateway.resource)?;
+        for subscription in &mut manifest.resource_subscriptions {
+            subscription.uri = expand_env_placeholders(&subscription.uri)?;
+        }
         if let (Some(dir), Some(parent)) = (&manifest.migrations_dir, path.parent())
             && dir.is_relative()
         {
@@ -325,6 +344,36 @@ impl AgentManifest {
         }
         if self.schedule.heartbeat_interval_s == 0 {
             bail!("schedule.heartbeat_interval_s must be greater than zero");
+        }
+        if self.resource_subscriptions.len() > MAX_RESOURCE_SUBSCRIPTIONS {
+            bail!(
+                "resource_subscriptions must contain at most {MAX_RESOURCE_SUBSCRIPTIONS} entries"
+            );
+        }
+        let mut resource_uris = BTreeSet::new();
+        for (index, subscription) in self.resource_subscriptions.iter().enumerate() {
+            let uri = subscription.uri.trim();
+            if uri.is_empty()
+                || uri.len() > MAX_RESOURCE_URI_BYTES
+                || uri.chars().any(char::is_control)
+            {
+                bail!(
+                    "resource_subscriptions[{index}].uri must be non-empty, at most \
+                     {MAX_RESOURCE_URI_BYTES} bytes, and contain no control characters"
+                );
+            }
+            let parsed = Url::parse(uri).with_context(|| {
+                format!("resource_subscriptions[{index}].uri must be an absolute URI")
+            })?;
+            if !parsed.username().is_empty() || parsed.password().is_some() {
+                bail!("resource_subscriptions[{index}].uri must not contain credentials");
+            }
+            if parsed.fragment().is_some() {
+                bail!("resource_subscriptions[{index}].uri must not contain a fragment");
+            }
+            if !resource_uris.insert(uri) {
+                bail!("resource_subscriptions contains duplicate URI `{uri}`");
+            }
         }
         for table in &self.memory.memory_write_tables {
             if table.trim().is_empty() || table.contains('.') {
@@ -469,6 +518,7 @@ mod tests {
         assert!((manifest.gateway.token_refresh_fraction - 0.6).abs() < f64::EPSILON);
         assert_eq!(manifest.mcp_url(), "http://127.0.0.1:9/mcp/operator");
         assert_eq!(manifest.token_url(), "http://127.0.0.1:9/oauth/token");
+        assert!(manifest.resource_subscriptions.is_empty());
         assert_eq!(
             manifest.gateway_authority().expect("authority"),
             "veoveo.example"
@@ -555,5 +605,67 @@ mod tests {
             manifest.gateway.resource,
             "https://veoveo.example/mcp/operator"
         );
+    }
+
+    #[test]
+    fn declarative_resource_subscriptions_expand_and_validate() {
+        // SAFETY: test-only env mutation, keys are unique to this test.
+        unsafe {
+            std::env::set_var("TEST_RESOURCE_SUBSCRIPTION_API_KEY", "k");
+            std::env::set_var("TEST_RESOURCE_SUBSCRIPTION_PRIVATE_KEY", "p");
+            std::env::set_var("TEST_RESOURCE_SESSION", "simulation-alpha");
+        }
+        let mut value = manifest_json();
+        value["model"]["api_key_env"] = serde_json::json!("TEST_RESOURCE_SUBSCRIPTION_API_KEY");
+        value["gateway"]["private_key_env"] =
+            serde_json::json!("TEST_RESOURCE_SUBSCRIPTION_PRIVATE_KEY");
+        value["resource_subscriptions"] = serde_json::json!([
+            {"uri": "telemetry://session/${TEST_RESOURCE_SESSION}/events/latest"},
+            {"uri": "telemetry://session/${TEST_RESOURCE_SESSION}/plans"}
+        ]);
+        let directory = tempfile::tempdir().expect("temp directory");
+        let path = directory.path().join("manifest.json");
+        std::fs::write(&path, serde_json::to_vec(&value).expect("manifest json"))
+            .expect("write manifest");
+
+        let manifest = AgentManifest::load(&path).expect("manifest loads");
+        assert_eq!(
+            manifest.resource_subscriptions,
+            vec![
+                ResourceSubscription {
+                    uri: "telemetry://session/simulation-alpha/events/latest".to_owned(),
+                },
+                ResourceSubscription {
+                    uri: "telemetry://session/simulation-alpha/plans".to_owned(),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn invalid_resource_subscriptions_fail_closed() {
+        // SAFETY: test-only env mutation, keys are unique to this test.
+        unsafe {
+            std::env::set_var("TEST_MANIFEST_API_KEY", "k");
+            std::env::set_var("TEST_MANIFEST_PRIVATE_KEY", "p");
+        }
+        for uris in [
+            vec!["not-an-absolute-uri"],
+            vec!["telemetry://user:secret@session/current/plans"],
+            vec!["telemetry://session/current/plans#fragment"],
+            vec![
+                "telemetry://session/current/plans",
+                "telemetry://session/current/plans",
+            ],
+        ] {
+            let mut value = manifest_json();
+            value["resource_subscriptions"] = serde_json::Value::Array(
+                uris.into_iter()
+                    .map(|uri| serde_json::json!({"uri": uri}))
+                    .collect(),
+            );
+            let manifest: AgentManifest = serde_json::from_value(value).expect("parses");
+            assert!(manifest.validate().is_err());
+        }
     }
 }
