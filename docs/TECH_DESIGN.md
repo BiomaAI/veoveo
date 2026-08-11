@@ -492,7 +492,11 @@ Agent manifests separate the Gateway's canonical public origin from its physical
 HTTP transport origin. OAuth audience and protected-resource identity use the
 canonical origin, while an in-cluster agent may connect through a private service
 address. Both values are required bare HTTP(S) origins. The kernel preserves the
-canonical HTTP authority across the private transport.
+canonical HTTP authority across the private transport. A manifest may also declare a
+bounded set of absolute MCP resource URIs that wake the agent on change. During token
+rotation, the kernel connects the replacement session and restores the complete
+subscription set before publishing its connection epoch; a failed subscription leaves
+the prior authenticated session active.
 
 Authenticated human control stays available through the gateway and Console BFF; the
 agent pod is never an ingress service. An operator message is committed as a

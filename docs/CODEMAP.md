@@ -741,7 +741,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 
 | File | Responsibility |
 |---|---|
-| `manifest.rs` | agent, model, profile, tool, and budget configuration models |
+| `manifest.rs` | agent, model, profile, tool, budget, and bounded MCP resource-subscription configuration models |
 | `episode.rs` | bounded reasoning episode lifecycle |
 | `tools.rs` | MCP tool dispatch and durable task descriptor capture |
 | `tasks.rs` | detached watcher lease/resume/result-to-wake flow |
@@ -749,7 +749,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `memory.rs` | durable memory API over analytical stores |
 | `rrd.rs`, `recorder.rs` | episode/world Rerun recording |
 | `budget.rs` | enforced episode/tool/cost budgets |
-| `connection.rs` | reconnectable gateway epoch and task resumer |
+| `connection.rs` | reconnectable gateway epoch, make-before-break resource-subscription restoration, and task resumer |
 
 ### `platform/gateway/src/bin/gateway/admin`
 
