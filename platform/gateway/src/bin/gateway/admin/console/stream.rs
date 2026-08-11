@@ -30,9 +30,9 @@ use veoveo_platform_store::{
 };
 
 use super::projection::{
-    ArtifactAccessContext, ArtifactGrantSummary, ArtifactShareLinkSummary, agent_summary,
-    artifact_grant_summary, artifact_summary, audit_summary, load_projection, record_key,
-    recording_summary, server_summary, share_link_summary, task_summary,
+    ArtifactAccessContext, ArtifactGrantSummary, ArtifactShareLinkSummary, agent_public_key,
+    agent_summary, artifact_grant_summary, artifact_summary, audit_summary, load_projection,
+    record_key, recording_summary, server_summary, share_link_summary, task_summary,
 };
 use crate::{
     admin::admin_profile_id,
@@ -790,9 +790,10 @@ impl ConsoleStreamState {
                         None => Ok(None),
                     },
                     PlatformTable::Agent => {
+                        let agent: AgentRecord = original.into_t()?;
                         self.agents.remove(&key);
                         self.wakes.retain(|_, (agent, _)| *agent != key);
-                        Ok(out("agent", delete_payload(&key)))
+                        Ok(out("agent", delete_payload(agent_public_key(&agent))))
                     }
                     PlatformTable::Wake => match self.wakes.remove(&key) {
                         Some((agent, _)) => self.emit_agent(&agent, versionstamp, rank),
