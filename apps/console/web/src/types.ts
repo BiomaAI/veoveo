@@ -380,4 +380,11 @@ export interface AppResourceDependency {
 
 export interface AppCatalog {
   apps: AppDescriptor[];
+  degradations: AppCatalogDegradation[];
+}
+
+export interface AppCatalogDegradation {
+  server: string;
+  surface: "resources" | "resource_templates" | "tools";
+  code: "upstream_unavailable";
 }

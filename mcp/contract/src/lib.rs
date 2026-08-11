@@ -14,6 +14,7 @@ pub mod agents;
 pub mod analytics;
 pub mod artifact_service;
 pub mod bootstrap;
+pub mod catalog;
 pub mod coordinates;
 pub mod deployment;
 pub mod docs;
@@ -63,6 +64,10 @@ pub use bootstrap::{
     SERVER_BOOTSTRAP_FLAG, SERVER_BOOTSTRAP_ISSUER, SERVER_BOOTSTRAP_MOUNT_PATH,
     SERVER_BOOTSTRAP_VALIDATE_COMMAND, ServerBootstrapDocument, ServerBootstrapError,
     server_bootstrap_principal,
+};
+pub use catalog::{
+    GATEWAY_DISCOVERY_DEGRADATION_META_KEY, GatewayDiscoveryDegradation, GatewayDiscoveryFailure,
+    GatewayDiscoveryFailureCode, GatewayDiscoverySurface,
 };
 pub use coordinates::{
     CoordinateIdError, CoordinateOperationId, CoordinateOperationKind,

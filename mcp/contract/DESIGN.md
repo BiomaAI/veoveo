@@ -147,6 +147,15 @@ Capability declarations name the exact signal a server can produce.
 `tools.listChanged`, `prompts.listChanged`, and `resources.listChanged` are
 independent claims. The gateway merges and forwards only the declared claims.
 
+Federated list discovery isolates an unavailable hosted server. The gateway
+returns authorized results from healthy servers and attaches a typed
+`veoveo.io/gateway-discovery-degradation` result metadata document naming only
+the server, surface, and bounded failure code. Successful per-server results
+are cached for the exact catalog generation and invocation authority. A failed
+server is never cached. Its next explicit list request retries discovery, while
+the matching MCP `listChanged` notification invalidates successful cache state
+without polling. Direct resource reads and tool calls remain fail closed.
+
 ## Schemas And Types
 
 Tool inputs publish one canonical JSON Schema 2020-12 document generated from
@@ -282,6 +291,7 @@ Server crates are named `*-mcp`.
 | C28 | MUST | Tool, prompt, and resource list-change capabilities are declared independently and match emitted notifications. |
 | C29 | MUST | Each logical MCP endpoint has one active process and a non-overlapping replacement strategy. |
 | C30 | MUST | Gateway sessions with equivalent upstream transport security share one catalog-revision-scoped HTTP connection pool and initialized TLS trust store while retaining independent MCP session state. |
+| C31 | MUST | Federated list discovery preserves healthy server results when one server fails, reports typed degradation metadata, caches only successful exact-authority results, and invalidates those results from MCP list-change notifications without polling. |
 
 ## Enforcement
 
