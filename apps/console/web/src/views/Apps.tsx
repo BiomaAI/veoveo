@@ -1,7 +1,8 @@
 import { LayoutGrid } from "lucide-react";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { EmptyState, SectionHeader } from "../components/primitives";
 import { AppFrame } from "../apps/AppFrame";
+import { resolveAppLink, type PlatformAppLink } from "../apps/links";
 import { isFullBleedApp } from "../appPresentation";
 import { useApps } from "../queries";
 import type { AppCatalogDegradation, AppDescriptor } from "../types";
@@ -9,12 +10,29 @@ import type { AppCatalogDegradation, AppDescriptor } from "../types";
 export function AppsView({
   selectedUri,
   onSelect,
+  onPlatformSelect,
 }: {
   selectedUri?: string;
   onSelect: (app: AppDescriptor) => void;
+  onPlatformSelect: (view: PlatformAppLink) => void;
 }) {
   const { data, error, isLoading } = useApps();
   const apps = useMemo(() => data?.apps ?? [], [data?.apps]);
+  const openInternalLink = useCallback(
+    (url: string) => {
+      const target = resolveAppLink(url, apps);
+      if (target?.kind === "app") {
+        onSelect(target.app);
+        return true;
+      }
+      if (target?.kind === "platform") {
+        onPlatformSelect(target.view);
+        return true;
+      }
+      return false;
+    },
+    [apps, onPlatformSelect, onSelect],
+  );
 
   if (isLoading) {
     return (
@@ -73,7 +91,9 @@ export function AppsView({
     );
   }
 
-  const frame = <AppFrame key={selected.resourceUri} app={selected} />;
+  const frame = (
+    <AppFrame key={selected.resourceUri} app={selected} onInternalLink={openInternalLink} />
+  );
 
   if (isFullBleedApp(selected)) {
     return (

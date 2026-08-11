@@ -788,7 +788,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `queries.ts`, `queryClient.ts` | TanStack Query keys, snapshot/apps/cluster queries, mutation hooks with targeted cache patches |
 | `live.ts` | EventSource console stream feeding row upserts into the snapshot cache |
 | `theme.ts`, `ThemeProvider.tsx` | persisted Console theme registry, semantic palette selection, and MCP App light/dark host context |
-| `apps/` | MCP Apps host: sandboxed iframe component, stable postMessage bridge, explicit resource-read adapter, and fetch-backed multiplexed SSE wake decoder |
+| `apps/` | MCP Apps host: sandboxed iframe component, stable postMessage bridge, closed internal navigation, explicit resource-read adapter, and fetch-backed multiplexed SSE wake decoder |
 | `auth.ts` | one-way authentication transition shared by every 401 handler |
 | `api.ts` | ordered same-origin BFF calls and CSRF rotation |
 | `types.ts` | TypeScript snapshot and mutation response shapes |

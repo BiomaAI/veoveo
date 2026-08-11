@@ -16,6 +16,7 @@ Implemented in this workspace.
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | App discovery and invocation remain ordinary MCP resource, tool, and task traffic. The hosting path uses JSON-RPC 2.0 over Streamable HTTP. |
 | MCP Apps SEP-1865 / `ext-apps` | Version `2026-01-26`, with `ui://` resources, `text/html;profile=mcp-app`, tool-to-app metadata, host context, lifecycle notifications, and the `postMessage` bridge. |
 | Veoveo reactive App resource adapter | Repository-owned extension over MCP Apps `2026-01-26`. A sandboxed App may request ordinary MCP `resources/subscribe` and `resources/unsubscribe`; the Console projects contentless `ui/notifications/resource-updated` wakes from the authenticated pooled MCP session. This adapter is not claimed as part of SEP-1865. |
+| Veoveo internal App navigation adapter | Repository-owned `ui/open-link` profile. Exact `ui://` targets navigate only when present in the caller-visible App catalog; `veoveo-console://agents` and `veoveo-console://recordings` are the only platform-view targets. Other custom, missing, or unexposed targets fail closed. |
 | [Veoveo final task extension](../task-extension) | Version `2026-06-30`; app-started durable work retains the same task lifecycle and ownership rules as a normal MCP client. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Linked tool arguments and structured results use the same canonical schemas exposed outside the app. |
 | HTML iframe sandbox and Content Security Policy | HTML runs in an opaque-origin `sandbox="allow-scripts"` frame. The default CSP denies remote network access while permitting local `data:` fetches; a live-data App may declare exact origins through `_meta.ui.csp`, which the host validates before adding them. Cookies, storage, and same-origin privilege remain absent. |
@@ -118,6 +119,10 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
   resource icons). Discovery failures are isolated by server and surface.
   Healthy Apps remain available beside a typed degradation notice, and a
   failed server never blocks the shell or the rest of the catalog.
+- **Context links** — an App may send `ui/open-link` for another exact `ui://`
+  resource or one of the two declared platform targets. The Console resolves
+  App targets against its current caller-visible catalog and never accepts a
+  browser-supplied server alias or arbitrary Console route.
 
 ## Governed Cross-Server Resources
 
