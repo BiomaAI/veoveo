@@ -11,6 +11,7 @@ pub mod archive;
 pub mod blueprint;
 pub mod catalog;
 pub mod config;
+mod diagnostics;
 mod governance;
 pub mod ingest;
 pub mod ingest_http;
@@ -24,6 +25,10 @@ pub use archive::{ArchiveMaterialization, materialize_archive_shard};
 pub use blueprint::{BlueprintMapProviderSelection, ValidatedBlueprint, validate_blueprint_rrd};
 pub use catalog::{CatalogPolicy, PlatformCatalog, SegmentInspection, inspect_segment};
 pub use config::{DatasetName, DatasetRoute, QUARANTINE_DATASET, SpoolerConfig};
+pub use diagnostics::{
+    RECORDING_INGEST_DIAGNOSTICS_SCHEMA, RecordingIngestDiagnostics,
+    RecordingIngestDiagnosticsDocument,
+};
 pub use ingest::{
     RecordingBlueprintPublicationError, RecordingIngestService, RecordingIngestServiceConfig,
     ingest_part_paths, ingest_part_sequence, ingest_recording_static_context_path,

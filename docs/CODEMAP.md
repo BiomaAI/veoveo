@@ -609,6 +609,7 @@ types.
 |---|---|
 | `ingest_http.rs` | cluster-internal authenticated protobuf routes and typed error projection |
 | `ingest.rs` | producer authorization, atomic no-clobber journal and Blueprint publication, quota-bound append, ordered live parts, rollover merge, and restart reconciliation |
+| `diagnostics.rs` | bounded authenticated-ingest acceptance, duplication, materialization-backlog, and last-success counters |
 | `blueprint.rs` | complete Blueprint-store validation, application association, and confined immutable paths |
 | `spool.rs` | segment encode/flush/fsync/freeze, idle completion, and recovery |
 | `catalog.rs` | per-stream identity, capture timestamps, segment verification, and catalog publication |

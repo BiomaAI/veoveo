@@ -1,12 +1,12 @@
 //! Cluster-internal protobuf HTTP surface for Recording Hub ingest.
 
 use axum::{
-    Router,
+    Json, Router,
     body::Bytes,
     extract::{DefaultBodyLimit, Path, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{post, put},
+    routing::{get, post, put},
 };
 use prost::Message;
 use veoveo_mcp_contract::{GatewayInternalResourceIdentity, GatewayInternalResourceTokenVerifier};
@@ -26,6 +26,7 @@ use veoveo_recording_protocol::{
 use crate::RecordingIngestService;
 
 const INTERNAL_STREAMS_PATH: &str = "/internal/recording-ingest/v1/streams";
+const INTERNAL_DIAGNOSTICS_PATH: &str = "/internal/recording-ingest/v1/diagnostics";
 
 #[derive(Clone)]
 struct IngestHttpState {
@@ -56,6 +57,7 @@ pub fn recording_ingest_internal_router(
         .unwrap_or(usize::MAX)
         .saturating_add(64 * 1024);
     Router::new()
+        .route(INTERNAL_DIAGNOSTICS_PATH, get(ingest_diagnostics))
         .route(INTERNAL_STREAMS_PATH, post(open_stream))
         .route(
             &format!("{INTERNAL_STREAMS_PATH}/{{stream_id}}/status"),
@@ -75,6 +77,13 @@ pub fn recording_ingest_internal_router(
         )
         .layer(DefaultBodyLimit::max(maximum_body_bytes))
         .with_state(IngestHttpState { service, verifier })
+}
+
+async fn ingest_diagnostics(State(state): State<IngestHttpState>, headers: HeaderMap) -> Response {
+    if let Err(error) = authenticate(&state, &headers) {
+        return error.into_response();
+    }
+    Json(state.service.diagnostics()).into_response()
 }
 
 async fn open_stream(

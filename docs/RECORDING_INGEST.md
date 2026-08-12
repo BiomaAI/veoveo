@@ -5,6 +5,16 @@ and Kubernetes routes. A producer sends native Rerun traffic to a loopback forwa
 The forwarder persists bounded batches locally, obtains an OAuth client-credentials token,
 and uploads versioned protobuf envelopes to `/ingest/recordings/v1`.
 
+## Standards And Protocols
+
+| Boundary | Supported profile |
+|---|---|
+| OAuth 2.0 client credentials and `private_key_jwt` | machine producer authentication at the installation gateway |
+| Protocol Buffers | versioned Recording ingest envelopes with the repository-owned media type |
+| Rerun RRD 0.35.0 | complete bounded recording and Blueprint store payloads |
+| SHA-256 | immutable batch and Blueprint content identity |
+| `veoveo.io/recording-ingest-diagnostics/v1` | aggregate authenticated-ingest process counters without tenant or stream identity |
+
 The OAuth protected resource is installation-specific. A representative installation uses
 `https://platform.example/ingest/recordings` and the `recording:ingest` scope. Public and
 split-horizon local DNS select different network routes to the same gateway resource.
@@ -92,6 +102,15 @@ ownership binding. The transaction compares revision and sequence before it
 commits; a process restart or conflict rehydrates both checkpoints from
 SurrealDB. Successful commits project the exact written fields locally and
 avoid redundant database and catalog readbacks on the live path.
+
+Authenticated ingest exposes bounded aggregate diagnostics at the cluster-internal
+`/internal/recording-ingest/v1/diagnostics` route. The same gateway assertion required by
+the write routes protects this projection. It reports unique accepted batches, messages,
+and bytes; duplicate append requests; batches and bytes waiting for materialization; and
+the last completed append time. Every successful append emits the same fields as one
+structured event. The projection contains no tenant, producer, stream, recording, token,
+or filesystem identity. Direct loopback Rerun counters remain separate because they do
+not prove authenticated forwarder acceptance.
 
 Producer rate and byte quotas use fixed UTC minute and UTC day windows. One
 deterministic counter record per active window is updated atomically with the
