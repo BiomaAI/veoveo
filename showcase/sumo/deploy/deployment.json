@@ -1,8 +1,9 @@
 {
-  "schemaVersion": "veoveo.io/deployment/v5",
+  "schemaVersion": "veoveo.io/deployment/v6",
   "name": "sumo",
   "registry": {
-    "address": "k3d-veoveo-registry.localhost:5001",
+    "pushAddress": "127.0.0.1:5001",
+    "pullAddress": "k3d-veoveo-registry.localhost:5001",
     "transport": "insecure-http",
     "localConfig": "../../../deploy/local/k3d/registry.json"
   },

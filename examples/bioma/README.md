@@ -75,9 +75,13 @@ CHART_VERSION=0.1.0-$(git rev-parse --short=12 HEAD)
 
 cargo xtask image builder ensure
 cargo xtask release images --group platform-full \
-  --registry localhost:5001 --revision "$REVISION"
+  --push-registry 127.0.0.1:5001 \
+  --pull-registry k3d-veoveo-registry.localhost:5001 \
+  --registry-transport insecure-http --revision "$REVISION"
 cargo xtask release images --group showcase-uav-sim \
-  --registry localhost:5001 --revision "$REVISION"
+  --push-registry 127.0.0.1:5001 \
+  --pull-registry k3d-veoveo-registry.localhost:5001 \
+  --registry-transport insecure-http --revision "$REVISION"
 
 cargo xtask release helm-charts \
   --revision "$REVISION" --version "$CHART_VERSION" \

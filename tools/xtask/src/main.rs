@@ -151,9 +151,15 @@ struct ImageAffectedArgs {
 struct ImageStageArgs {
     #[command(flatten)]
     selection: ImageSelectionArgs,
-    /// OCI registry receiving the immutable staged runtime image.
+    /// OCI registry endpoint reachable by the publication host.
     #[arg(long)]
-    registry: String,
+    push_registry: String,
+    /// OCI registry endpoint used by Kubernetes image pulls.
+    #[arg(long)]
+    pull_registry: String,
+    /// Explicit transport used by the registry endpoints.
+    #[arg(long, value_enum)]
+    registry_transport: RegistryTransportArg,
     /// Exact committed source revision to stage.
     #[arg(long)]
     revision: String,
@@ -184,10 +190,25 @@ enum PlanFormat {
     Json,
 }
 
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum RegistryTransportArg {
+    Tls,
+    InsecureHttp,
+}
+
+impl From<RegistryTransportArg> for veoveo_deploy_contract::RegistryTransport {
+    fn from(value: RegistryTransportArg) -> Self {
+        match value {
+            RegistryTransportArg::Tls => Self::Tls,
+            RegistryTransportArg::InsecureHttp => Self::InsecureHttp,
+        }
+    }
+}
+
 #[derive(Debug, Args)]
 struct ReleaseImagesArgs {
     /// Deployment profile path, interpreted inside the selected profile revision.
-    #[arg(long, conflicts_with_all = ["target", "group", "registry"])]
+    #[arg(long, conflicts_with_all = ["target", "group", "push_registry", "pull_registry", "registry_transport"])]
     profile: Option<PathBuf>,
     /// Exact configuration-repository revision containing the deployment profile.
     #[arg(long, requires = "profile", conflicts_with = "revision")]
@@ -198,9 +219,15 @@ struct ReleaseImagesArgs {
     /// One Docker Bake image group.
     #[arg(long, conflicts_with_all = ["profile", "target"])]
     group: Option<String>,
-    /// OCI registry for a direct target or group release.
+    /// OCI registry endpoint reachable by the publication host for a direct release.
     #[arg(long)]
-    registry: Option<String>,
+    push_registry: Option<String>,
+    /// OCI registry endpoint used by Kubernetes image pulls for a direct release.
+    #[arg(long)]
+    pull_registry: Option<String>,
+    /// Explicit transport used by direct-release registry endpoints.
+    #[arg(long, value_enum)]
+    registry_transport: Option<RegistryTransportArg>,
     /// Exact source revision for a direct target or group release.
     #[arg(long)]
     revision: Option<String>,

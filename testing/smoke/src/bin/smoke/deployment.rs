@@ -464,14 +464,8 @@ fn validate_locked_profile(profile: &LoadedProfile, lock: &DeploymentLock) -> Re
         profile.definition.name
     );
     ensure!(
-        lock.registry == profile.definition.registry.address,
-        "deployment lock registry {} does not match profile registry {}",
-        lock.registry,
-        profile.definition.registry.address
-    );
-    ensure!(
-        lock.registry_transport == profile.definition.registry.transport,
-        "deployment lock registry transport does not match the profile"
+        lock.registry == profile.definition.registry.locked(),
+        "deployment lock registry endpoints do not match the profile"
     );
     let profile_revision = resolve_revision(&profile.repository, "HEAD")?;
     ensure!(
@@ -703,7 +697,7 @@ fn locked_image_digests(
     profile: &LoadedProfile,
     sources: &[LockedSource],
 ) -> Result<BTreeMap<String, String>> {
-    locked_image_digests_for_registry(&profile.definition.registry.address, sources)
+    locked_image_digests_for_registry(&profile.definition.registry.pull_address, sources)
 }
 
 fn locked_image_digests_for_registry(
@@ -788,9 +782,9 @@ fn validate_locked_images(
             repository
         );
         ensure!(
-            repository.starts_with(&format!("{}/", profile.definition.registry.address)),
+            repository.starts_with(&format!("{}/", profile.definition.registry.pull_address)),
             "locked image repository {repository} is outside profile registry {}",
-            profile.definition.registry.address
+            profile.definition.registry.pull_address
         );
     }
     Ok(())
@@ -1004,7 +998,7 @@ fn validate_bake_selections(
             let output = command
                 .arg("--print")
                 .current_dir(&source.repository)
-                .env("VEOVEO_REGISTRY", &profile.definition.registry.address)
+                .env("VEOVEO_REGISTRY", &profile.definition.registry.pull_address)
                 .env("VEOVEO_IMAGE_TAG", &source.revision)
                 .output()
                 .with_context(|| {
@@ -1082,7 +1076,7 @@ fn validate_helm_releases(profile: &LoadedProfile, sources: &[ResolvedSource]) -
                 "Helm release {} rendered no container images",
                 release.name
             );
-            let registry_prefix = format!("{}/", profile.definition.registry.address);
+            let registry_prefix = format!("{}/", profile.definition.registry.pull_address);
             let owned = images
                 .iter()
                 .filter(|image| image.starts_with(&registry_prefix))
@@ -1091,7 +1085,7 @@ fn validate_helm_releases(profile: &LoadedProfile, sources: &[ResolvedSource]) -
                 !owned.is_empty(),
                 "Helm release {} rendered no images from selected registry {}",
                 release.name,
-                profile.definition.registry.address
+                profile.definition.registry.pull_address
             );
             for image in owned {
                 ensure!(
@@ -1464,7 +1458,7 @@ fn append_release_values(
                 "--set-string".to_owned(),
                 format!(
                     "global.veoveoRegistry={}",
-                    profile.definition.registry.address
+                    profile.definition.registry.pull_address
                 ),
                 "--set-string".to_owned(),
                 format!("global.veoveoTag={revision}"),
@@ -1540,7 +1534,10 @@ fn append_release_values(
         ReleaseValuesContract::Extension => {
             args.extend([
                 "--set-string".to_owned(),
-                format!("veoveo.registry={}", profile.definition.registry.address),
+                format!(
+                    "veoveo.registry={}",
+                    profile.definition.registry.pull_address
+                ),
                 "--set-string".to_owned(),
                 format!("veoveo.sourceTag={revision}"),
                 "--set-string".to_owned(),

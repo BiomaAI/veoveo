@@ -22,7 +22,7 @@ their installation-owned containment boundary.
 | JSON Schema 2020-12 | Closed schemas for controlled agent manifests, tool inputs, tool outputs, gateway configuration, extension fragments, and installation bindings. |
 | [`veoveo.io/gateway-binding/v1`](../mcp/composer/DESIGN.md) | Installation-owned capability exposure, authorization policy, tenant binding, artifact audiences, and data-label requirements. |
 | [Work Context governance](WORK_CONTEXT_GOVERNANCE.md) | Durable invocation authority, output ownership, membership, classification, data labels, and retained provenance. |
-| OCI, Helm, Kubernetes, and [`veoveo.io/deployment-lock/v5`](ENTERPRISE_DEPLOYMENT.md) | Digest-addressed software, installation-owned desired state, and immutable evidence for the selected runtime closure. |
+| OCI, Helm, Kubernetes, and [`veoveo.io/deployment-lock/v6`](ENTERPRISE_DEPLOYMENT.md) | Digest-addressed software, installation-owned desired state, and immutable evidence for the selected runtime closure. |
 
 ## Security Objective
 

@@ -1,8 +1,9 @@
 {
-  "schemaVersion": "veoveo.io/deployment/v5",
+  "schemaVersion": "veoveo.io/deployment/v6",
   "name": "anonymous-extension",
   "registry": {
-    "address": "registry.example.internal:5002",
+    "pushAddress": "registry.example.internal:5002",
+    "pullAddress": "registry.example.internal:5002",
     "transport": "tls",
     "localConfig": null
   },

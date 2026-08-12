@@ -12,9 +12,9 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 /// Canonical multi-source deployment profile.
-pub const PROFILE_SCHEMA: &str = "veoveo.io/deployment/v5";
+pub const PROFILE_SCHEMA: &str = "veoveo.io/deployment/v6";
 /// Canonical immutable multi-source deployment lock.
-pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.io/deployment-lock/v5";
+pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.io/deployment-lock/v6";
 /// Canonical non-release image closure used by development GitOps deployments.
 pub const DEVELOPMENT_IMAGE_LOCK_SCHEMA: &str = "veoveo.io/development-image-lock/v1";
 /// Canonical local OCI registry declaration.
@@ -89,12 +89,52 @@ pub struct DeploymentProfile {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RegistryReference {
-    /// Registry host and optional port, without a URL scheme.
-    pub address: String,
+    /// Registry host and optional port reachable by the publication host.
+    pub push_address: String,
+    /// Registry host and optional port used by Kubernetes image pulls.
+    pub pull_address: String,
     /// Transport and trust mode used by OCI and BuildKit clients.
     pub transport: RegistryTransport,
     /// Optional repository-local lifecycle declaration.
     pub local_config: Option<PathBuf>,
+}
+
+/// Immutable registry endpoints selected by a deployment lock.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LockedRegistry {
+    /// Registry host and optional port reachable by the publication host.
+    pub push_address: String,
+    /// Registry host and optional port used by Kubernetes image pulls.
+    pub pull_address: String,
+    /// Transport and trust mode shared by publication and pull clients.
+    pub transport: RegistryTransport,
+}
+
+impl RegistryReference {
+    /// Returns the immutable registry endpoints recorded in deployment evidence.
+    #[must_use]
+    pub fn locked(&self) -> LockedRegistry {
+        LockedRegistry {
+            push_address: self.push_address.clone(),
+            pull_address: self.pull_address.clone(),
+            transport: self.transport,
+        }
+    }
+
+    fn validate(&self) -> Result<()> {
+        validate_registry_address(&self.push_address)?;
+        validate_registry_address(&self.pull_address)?;
+        Ok(())
+    }
+}
+
+impl LockedRegistry {
+    fn validate(&self) -> Result<()> {
+        validate_registry_address(&self.push_address)?;
+        validate_registry_address(&self.pull_address)?;
+        Ok(())
+    }
 }
 
 /// Registry transport and trust profile.
@@ -617,8 +657,7 @@ pub struct DeploymentLock {
     pub profile: String,
     /// Exact installation-repository revision that owns the profile and installation values.
     pub profile_revision: String,
-    pub registry: String,
-    pub registry_transport: RegistryTransport,
+    pub registry: LockedRegistry,
     pub sources: Vec<LockedSource>,
     pub platform: ResolvedPlatformSelection,
 }
@@ -634,7 +673,7 @@ pub struct DevelopmentImageLock {
     pub schema_version: String,
     pub release_eligible: bool,
     pub base_deployment_lock_digest: String,
-    pub registry: String,
+    pub registry: LockedRegistry,
     pub images: Vec<DevelopmentLockedImage>,
 }
 
@@ -893,7 +932,7 @@ impl LoadedProfile {
         );
         validate_name("profile", &profile.name)?;
         validate_name("namespace", &profile.namespace)?;
-        validate_registry_address(&profile.registry.address)?;
+        profile.registry.validate()?;
         ensure!(!profile.sources.is_empty(), "sources cannot be empty");
         ensure_unique(
             "deployment source",
@@ -965,9 +1004,9 @@ impl LoadedProfile {
             require_file(&self.resolve(&cluster.config), "k3d cluster config")?;
             let cluster_config = fs::read_to_string(self.resolve(&cluster.config))?;
             ensure!(
-                cluster_config.contains(&profile.registry.address),
+                cluster_config.contains(&profile.registry.pull_address),
                 "k3d cluster config must use registry {}",
-                profile.registry.address
+                profile.registry.pull_address
             );
             for manifest in &cluster.node_bootstrap_manifests {
                 require_file(
@@ -983,10 +1022,16 @@ impl LoadedProfile {
             );
             let registry = load_local_registry(&self.resolve(config))?;
             ensure!(
-                registry.address()? == profile.registry.address,
-                "local registry config resolves to {}, profile uses {}",
-                registry.address()?,
-                profile.registry.address
+                registry.push_address()? == profile.registry.push_address,
+                "local registry config host endpoint resolves to {}, profile uses {}",
+                registry.push_address()?,
+                profile.registry.push_address
+            );
+            ensure!(
+                registry.pull_address()? == profile.registry.pull_address,
+                "local registry config cluster endpoint resolves to {}, profile uses {}",
+                registry.pull_address()?,
+                profile.registry.pull_address
             );
         }
         for manifest in &profile.resources.manifests {
@@ -1778,7 +1823,7 @@ impl DeploymentLock {
         );
         validate_name("profile", &self.profile)?;
         validate_revision(&self.profile_revision)?;
-        validate_registry_address(&self.registry)?;
+        self.registry.validate()?;
         self.platform.validate_dependencies()?;
         ensure!(!self.sources.is_empty(), "locked sources cannot be empty");
         ensure_unique("locked source", self.sources.iter().map(|item| &item.name))?;
@@ -1878,7 +1923,7 @@ impl DevelopmentImageLock {
             "development image lock must declare releaseEligible=false"
         );
         validate_digest(&self.base_deployment_lock_digest)?;
-        validate_registry_address(&self.registry)?;
+        self.registry.validate()?;
         ensure!(
             !self.images.is_empty(),
             "development image lock must contain at least one image"
@@ -1898,10 +1943,12 @@ impl DevelopmentImageLock {
                 image.target
             );
             ensure!(
-                image.repository.starts_with(&format!("{}/", self.registry)),
+                image
+                    .repository
+                    .starts_with(&format!("{}/", self.registry.pull_address)),
                 "development image repository {} is outside registry {}",
                 image.repository,
-                self.registry
+                self.registry.pull_address
             );
             ensure!(
                 !image.repository.contains('@') && !image.repository.ends_with(":latest"),
@@ -1932,8 +1979,23 @@ impl DevelopmentImageLock {
 }
 
 impl LocalRegistrySpec {
+    /// Returns the registry address reachable by host publication tools.
+    pub fn push_address(&self) -> Result<String> {
+        let parsed = Url::parse(&format!("http://{}", self.host_port))
+            .context("local registry hostPort must be HOST:PORT")?;
+        ensure!(
+            parsed.host_str().is_some()
+                && parsed.port().is_some()
+                && parsed.path() == "/"
+                && parsed.query().is_none()
+                && parsed.fragment().is_none(),
+            "local registry hostPort must be HOST:PORT"
+        );
+        Ok(self.host_port.clone())
+    }
+
     /// Returns the registry address visible from k3d nodes.
-    pub fn address(&self) -> Result<String> {
+    pub fn pull_address(&self) -> Result<String> {
         let (_, port) = self
             .host_port
             .rsplit_once(':')
@@ -1977,7 +2039,8 @@ pub fn load_local_registry(path: &Path) -> Result<LocalRegistrySpec> {
         registry.volume.ends_with(":/var/lib/registry"),
         "local registry volume must mount /var/lib/registry"
     );
-    let _ = registry.address()?;
+    let _ = registry.push_address()?;
+    let _ = registry.pull_address()?;
     Ok(registry)
 }
 
