@@ -263,6 +263,13 @@ Python and Rerun graph, the canonical simulation payload, and all runtime source
 cached. Its 255.647-second Buildx duration was dominated by the 225.9-second reproducible
 export of the inherited image.
 
+The first-party UAV image adds a second cache boundary. `uav-sim-dependencies` owns the
+pinned PX4 and Pegasus sources, Cesium build, locked Python wheels, and canonical
+simulation payload. `uav-sim-runtime` copies only repository-owned runtime source and
+its overlay identity over that named context. A Python runtime edit therefore cannot
+invalidate upstream checkout, native compilation, wheel installation, or simulator
+payload assembly.
+
 The registry exporter still traverses large cached images when rewriting timestamps.
 The full platform run spent about 148 seconds there despite uploading payload layers in
 0.3 seconds. This cost is now isolated from dependency compilation and belongs to a
