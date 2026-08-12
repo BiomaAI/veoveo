@@ -270,6 +270,18 @@ its overlay identity over that named context. A Python runtime edit therefore ca
 invalidate upstream checkout, native compilation, wheel installation, or simulator
 payload assembly.
 
+Target selection now narrows the Cargo command as well as the image set. A target in a
+compatible builder family contributes only its declared package and binary to that
+solve. Family-wide compilation remains available only when the caller explicitly
+selects the family. The current target plans resolve in 3.24-4.49 seconds and show one
+Rust package for Console BFF, Map MCP, and UAV MCP; the Python UAV runtime plan contains
+no Rust unit.
+
+Build and stage commands stream bounded phase and vertex transitions during a solve.
+The terminal progress is an operator view of the same BuildKit events stored in the v2
+run record, not a second timing source. Completed evidence therefore remains suitable
+for exact phase comparison even when an interrupted developer run was observed live.
+
 The registry exporter still traverses large cached images when rewriting timestamps.
 The full platform run spent about 148 seconds there despite uploading payload layers in
 0.3 seconds. This cost is now isolated from dependency compilation and belongs to a
@@ -322,6 +334,10 @@ the registry cache protects both paths.
 | Cold and warm output equality | all six runtime image digests match across three clean committed-source runs | pass |
 | Gateway edit avoids unrelated compilation | Cargo output names only `veoveo-mcp-gateway` | pass |
 | Unchanged runtime images remain identical | five non-gateway digests match | pass |
+| One selected target avoids family-wide Rust compilation | current Console BFF, Map MCP, and UAV MCP plans each name one package and one binary | pass |
+| UAV source overlay preserves immutable dependency work | `uav-sim-dependencies` owns pinned payloads and `uav-sim-runtime` copies only repository runtime source | pass |
+| Affected planning remains interactive | current affected plan completes in 3.43 s; sampled selected plans complete in 3.24-4.49 s | pass |
+| Long solves expose bounded live progress | the BuildKit adapter emits phase and vertex transitions while retaining raw v2 event evidence | pass |
 | Execution evidence is immutable | unique create-only evidence directory for every run | pass |
 | Release output timestamps are reproducible | epoch input and timestamp-rewriting registry exporter | pass |
 | Revision-only metadata preserves simulation payload cache | trailing build arguments, identical payload layers, and cross-revision publications | pass |
