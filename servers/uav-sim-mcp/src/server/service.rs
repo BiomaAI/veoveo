@@ -1130,6 +1130,7 @@ pub(super) async fn serve() -> anyhow::Result<()> {
             args.adapter_url()?,
             args.adapter_timeout()?,
             args.adapter_operation_timeout()?,
+            args.adapter_bearer_token.clone(),
             tasks.platform_store().clone(),
             &args.recording_tenant_key,
         )?)),
@@ -1161,16 +1162,13 @@ pub(super) async fn serve() -> anyhow::Result<()> {
         "public live-view signaling URL must have an HTTP(S) origin"
     );
     let subscribers = Arc::new(SubscriptionHub::new());
-    let runtime_event_listener = (args.adapter == AdapterKind::Http)
-        .then(|| {
-            super::runtime_events::RuntimeEventListener::bind(
-                &args.runtime_event_socket,
-                runtime_session_id,
-                args.world_bootstrap_file.clone(),
-                adapter.clone(),
-            )
-        })
-        .transpose()?;
+    let runtime_event_listener = (args.adapter == AdapterKind::Http).then(|| {
+        super::runtime_events::RuntimeEventListener::new(
+            runtime_session_id,
+            args.world_bootstrap_file.clone(),
+            adapter.clone(),
+        )
+    });
     let state = Arc::new(AppState {
         adapter,
         tasks,

@@ -19,7 +19,7 @@ for visualization.
 | Model Context Protocol | Version `2025-11-25` over the repository Streamable HTTP profile, including tools, resources, templates, subscriptions, tasks, and one MCP App. |
 | JSON Schema | Draft 2020-12 strict request, result, camera, product, capacity, and health schemas. |
 | `veoveo.io/live-view/v2` | Repository-owned provider-neutral profile for authoritative cameras, stable encoded products, ephemeral viewer leases, capacity, endpoints, and redacted state. |
-| `veoveo.io/uav-runtime-event/v1` | Private pod-local Unix datagram carrying an `adapter_ready` edge before world admission and a final `ready` edge after authoritative visual admission. It is an internal adapter event, not a public MCP resource or a simulation control protocol. |
+| `veoveo.io/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream carrying an `adapter_ready` edge before world admission and a final `ready` edge after authoritative visual admission. It is an internal adapter event, not a public MCP resource or a simulation control protocol. |
 | WebRTC and H.264 | One direct NVIDIA NVENC H.264 product, native WebRTC peer, and SRTP state for each active viewer lease. Shared-bitstream fan-out and media relays are outside this profile. |
 | OpenUSD and RTX Hydra | Isaac Sim `6.0.1` stage and render products inside the authoritative runtime. These are implementation details, not MCP wire types. |
 | Native sensor video | Isaac Sim `6.0.1` packages `omni.kit.livestream.aov` `10.2.0` and `omni.kit.livestream.rtsp` `10.2.3`. The private adapter consumes the loopback RTSP/RTP H.264 stream without decoding or re-encoding. This is not an MCP wire type. |
@@ -37,7 +37,7 @@ stage, Cesium georeference, domain sensors, operator cameras, Hydra render produ
 and NVENC products. The Rust server owns caller authorization, MCP state projection,
 ephemeral viewer leases, signaling authorization, and access audit.
 
-The pod-local adapter is the only boundary between those responsibilities. It exposes
+The cluster-private adapter is the only boundary between those responsibilities. It exposes
 typed configuration, command, state, and live-product activation operations. It does
 not carry a visualization pose stream. No MCP request participates in the physics or
 render loop.
@@ -49,7 +49,7 @@ gateway actor
 UAV Simulation MCP server
   governance + ephemeral viewer leases + signaling + audit + App
     |
-    | pod-local typed adapter
+    | authenticated cluster-private typed adapter
     v
 authoritative Isaac runtime
   physics + USD/Cesium + operator cameras + Hydra + NVENC
@@ -298,14 +298,13 @@ back an already-issued lease, interrupt a viewer, or stop simulation. A product 
 failure returns `product_transition_failed`; camera and capacity failures retain their
 own codes.
 
-The Kubernetes pod starts the authoritative simulator as its first native restartable
-init sidecar. Its startup probe admits the recording forwarder and UAV MCP server only
-after the pod-local adapter exists. A Gateway or recording outage may delay those
-dependent containers, but it cannot prevent or restart simulation. This ordering uses
-the stable Kubernetes sidecar-container contract available since Kubernetes 1.29. The
-simulator's preconfiguration API accepts an ephemeral-product reset as an idempotent
-no-op because no live render product exists before immutable world admission. This
-breaks the startup cycle while preserving mandatory cleanup after an MCP-only restart.
+The GPU Deployment starts the authoritative simulator and recording forwarder together.
+The independent MCP Deployment starts whenever the platform database is reachable and
+reports unavailable until the authenticated simulator adapter answers. A Gateway, MCP,
+or recording outage cannot prevent or restart simulation. The simulator's
+preconfiguration API accepts an ephemeral-product reset as an idempotent no-op because
+no live render product exists before immutable world admission. This breaks the startup
+cycle while preserving mandatory cleanup after an MCP-only restart.
 
 Gateway authority is evaluated for every MCP open, renew, close, and resource read. If
 the same actor and browser instance presents a changed output owner, policy revision, or
@@ -348,16 +347,17 @@ products, and physical slots, observes both videos advancing, then proves both s
 return immediately to the inactive pool.
 
 Restart acceptance keeps the same headed App document and viewer-instance identity
-mounted while independently restarting the Rust companion and the restartable Isaac
-container. Each recovery must produce a new lease, advancing native video, and unchanged
+mounted while independently restarting the MCP pod and the Isaac container. MCP restart
+evidence requires the simulator pod UID, container ID, and restart count to remain
+unchanged. Each recovery must produce a new lease, advancing native video, and unchanged
 hardware-browser evidence. The stable preallocated product ID may be reused when the
 allocator selects the same physical slot.
 
-The companion image uses a minimal PID 1 shell that forwards pod termination to one
+The MCP image uses a minimal PID 1 shell that forwards pod termination to one
 Rust child and exits with that child. Restart acceptance terminates that sole child
-through `kubectl exec`, which lets kubelet restart one container without replacing the
-pod or the authoritative simulator. No restart endpoint or public control surface
-exists.
+through `kubectl exec`, which lets kubelet restart the MCP container without replacing
+its pod or the authoritative simulator Deployment. No restart endpoint or public
+control surface exists.
 
 Physical-camera state includes a bounded `render_pose` agreement measurement after the
 first rendered frame. It reports the rendered ENU position and forward direction beside
@@ -367,23 +367,25 @@ state.
 
 ## Deployment
 
-The UAV chart deploys one pod with exactly one GPU request. The Isaac container receives
-`compute,graphics,utility,video` NVIDIA capabilities. The companion Rust MCP container
-does not request another GPU. Stable signaling and media port ranges are derived from
-physical viewer slots and validated by the chart. `liveView.activationTimeoutSeconds`
-bounds first-frame and native-listener activation without introducing a readiness
-poller.
+The UAV chart deploys one GPU runtime Deployment and one independent MCP Deployment.
+Only the Isaac container requests one GPU and receives
+`compute,graphics,utility,video` NVIDIA capabilities. Stable signaling and media port
+ranges are derived from physical viewer slots and validated by the chart.
+`liveView.activationTimeoutSeconds` bounds first-frame and native-listener activation
+without introducing a readiness poller.
 
-The same pod owns MCP HTTP, the public byte-transparent signaling gate, private native
-signaling ports, public UDP media ports, one Cesium cache, and the authoritative runtime. Network policy
-admits gateway traffic, signaling, bounded media, DNS, and the configured public TLS
-world provider. Provider credentials come from installation-owned Secrets and never
-appear in Helm-rendered ConfigMaps or MCP state.
+The runtime Service exposes the authenticated adapter and private native signaling to
+the MCP pod. Public UDP media selects the runtime pod directly. The MCP Service owns MCP
+HTTP and the public byte-transparent signaling gate. Separate network policies admit
+only those edges, platform dependencies, DNS, and the configured public TLS world
+provider. Provider and adapter credentials come from distinct installation-owned
+Secrets and never appear in Helm-rendered ConfigMaps or MCP state.
 
-One pod-local `emptyDir` carries `/var/run/veoveo-uav-sim/runtime-events.sock`. The
-simulator sends readiness without waiting, while the MCP companion owns the receiving
-socket and projects the edge through the subscribed live-camera resource. Neither the
-socket nor its payload crosses the pod boundary.
+The runtime retains its latest typed lifecycle edge and exposes it on the authenticated
+NDJSON stream. The MCP consumer reconnects only after transport failure, receives the
+latest edge immediately, reapplies the immutable binding after `adapter_ready`, and
+projects final `ready` through the subscribed live-camera resource. A missing consumer
+never blocks the runtime.
 
 The platform chart contains no generic simulation renderer, pose ingress, mirror cache,
 or live-view GPU workload. External simulation implementations package the same

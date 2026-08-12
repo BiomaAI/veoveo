@@ -70,8 +70,6 @@ struct KubernetesPodStatus {
     phase: String,
     #[serde(default)]
     container_statuses: Vec<KubernetesContainerStatus>,
-    #[serde(default)]
-    init_container_statuses: Vec<KubernetesContainerStatus>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -89,28 +87,41 @@ struct KubernetesContainerStatus {
 #[derive(Clone, Copy)]
 enum KubernetesStatusCollection {
     Application,
-    RestartableInit,
 }
 
 impl KubernetesStatusCollection {
     fn field(self) -> &'static str {
         match self {
             Self::Application => "containerStatuses",
-            Self::RestartableInit => "initContainerStatuses",
         }
     }
 
     fn label(self) -> &'static str {
         match self {
             Self::Application => "application",
-            Self::RestartableInit => "restartable_init",
         }
     }
 
     fn statuses(self, pod: &KubernetesPod) -> &[KubernetesContainerStatus] {
         match self {
             Self::Application => &pod.status.container_statuses,
-            Self::RestartableInit => &pod.status.init_container_statuses,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum UavWorkload {
+    Runtime,
+    Mcp,
+}
+
+impl UavWorkload {
+    fn selector(self) -> &'static str {
+        match self {
+            Self::Runtime => "app.kubernetes.io/name=uav-sim,app.kubernetes.io/component=uav-sim",
+            Self::Mcp => {
+                "app.kubernetes.io/name=uav-sim-mcp,app.kubernetes.io/component=uav-sim-mcp"
+            }
         }
     }
 }
@@ -196,6 +207,7 @@ pub(super) async fn verify_live_view_restarts(config: RestartVerification<'_>) -
             restart_kubernetes_container(
                 context,
                 namespace,
+                UavWorkload::Mcp,
                 "uav-sim-mcp",
                 KubernetesStatusCollection::Application,
                 restart_timeout,
@@ -219,8 +231,9 @@ pub(super) async fn verify_live_view_restarts(config: RestartVerification<'_>) -
             restart_kubernetes_container(
                 context,
                 namespace,
+                UavWorkload::Runtime,
                 "isaac-sim",
-                KubernetesStatusCollection::RestartableInit,
+                KubernetesStatusCollection::Application,
                 restart_timeout,
             )
             .await
@@ -279,11 +292,17 @@ fn require_running_live_camera(state: &Value, camera_id: &str) -> Result<()> {
 async fn restart_kubernetes_container(
     context: &str,
     namespace: &str,
+    workload: UavWorkload,
     container_name: &str,
     collection: KubernetesStatusCollection,
     timeout: Duration,
 ) -> Result<KubernetesRestartEvidence> {
-    let before_pod = current_uav_pod(context, namespace, timeout).await?;
+    let before_pod = current_uav_pod(context, namespace, workload, timeout).await?;
+    let runtime_before = if matches!(workload, UavWorkload::Mcp) {
+        Some(current_uav_pod(context, namespace, UavWorkload::Runtime, timeout).await?)
+    } else {
+        None
+    };
     ensure!(
         before_pod.status.phase == "Running",
         "authoritative simulator pod is not Running: {} is {}",
@@ -344,7 +363,7 @@ async fn restart_kubernetes_container(
     .await
     .with_context(|| format!("waiting for {container_name} readiness"))?;
 
-    let after_pod = current_uav_pod(context, namespace, timeout).await?;
+    let after_pod = current_uav_pod(context, namespace, workload, timeout).await?;
     ensure!(
         after_pod.metadata.name == pod_name && after_pod.metadata.uid == pod_uid,
         "container restart unexpectedly replaced the authoritative simulator pod"
@@ -357,6 +376,30 @@ async fn restart_kubernetes_container(
             && after.image_id == before_image_id,
         "container {container_name} did not restart once on the same immutable image"
     );
+    if let Some(runtime_before) = runtime_before {
+        let runtime_after =
+            current_uav_pod(context, namespace, UavWorkload::Runtime, timeout).await?;
+        ensure!(
+            runtime_after.metadata.name == runtime_before.metadata.name
+                && runtime_after.metadata.uid == runtime_before.metadata.uid,
+            "UAV MCP restart replaced the independent authoritative simulator pod"
+        );
+        let simulator_before = container_status(
+            &runtime_before,
+            "isaac-sim",
+            KubernetesStatusCollection::Application,
+        )?;
+        let simulator_after = container_status(
+            &runtime_after,
+            "isaac-sim",
+            KubernetesStatusCollection::Application,
+        )?;
+        ensure!(
+            simulator_after.container_id == simulator_before.container_id
+                && simulator_after.restart_count == simulator_before.restart_count,
+            "UAV MCP restart disturbed the authoritative simulator container"
+        );
+    }
     Ok(KubernetesRestartEvidence {
         pod_name,
         pod_uid,
@@ -373,17 +416,14 @@ async fn restart_kubernetes_container(
 async fn current_uav_pod(
     context: &str,
     namespace: &str,
+    workload: UavWorkload,
     timeout: Duration,
 ) -> Result<KubernetesPod> {
+    let selector_argument = format!("--selector={}", workload.selector());
     let output = kubectl_checked(
         context,
         namespace,
-        [
-            "get",
-            "pods",
-            "--selector=app.kubernetes.io/name=uav-sim,app.kubernetes.io/component=uav-sim",
-            "--output=json",
-        ],
+        ["get", "pods", selector_argument.as_str(), "--output=json"],
         timeout,
     )
     .await?;

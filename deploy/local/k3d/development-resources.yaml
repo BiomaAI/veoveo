@@ -28,6 +28,15 @@ stringData:
 apiVersion: v1
 kind: Secret
 metadata:
+  name: veoveo-uav-sim-adapter
+  namespace: veoveo
+type: Opaque
+stringData:
+  bearer-token: local-uav-sim-adapter-token-000000000000000000000000
+---
+apiVersion: v1
+kind: Secret
+metadata:
   name: veoveo-installation-secrets
   namespace: veoveo
 type: Opaque

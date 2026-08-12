@@ -5,6 +5,7 @@ platform:
   installationId: veoveo
   publicBaseUrl: https://veoveo.bioma.ai
   cesiumSecret: veoveo-uav-sim-secrets
+  adapterSecret: veoveo-uav-sim-adapter
   recordingTenantKey: bioma
 
 recording:

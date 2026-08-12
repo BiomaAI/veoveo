@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import math
 import os
-import socket
 import struct
 import sys
 import tempfile
@@ -14,8 +13,11 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
+from aiohttp import web
+from aiohttp.test_utils import TestClient, TestServer
 from pymavlink import mavutil
 from veoveo_uav_sim.app import kit_live_render_arguments
+from veoveo_uav_sim.adapter_auth import authorization_middleware
 from veoveo_uav_sim.config import (
     FleetLoopConfig,
     RuntimeConfig,
@@ -56,6 +58,8 @@ from veoveo_uav_sim.rtsp_h264 import (
 )
 from veoveo_uav_sim.runtime_events import (
     RUNTIME_EVENT_SCHEMA,
+    RuntimeEvent,
+    RuntimeEventPublisher,
     notify_adapter_ready,
     notify_runtime_ready,
 )
@@ -98,6 +102,7 @@ VALID_ENVIRONMENT = {
     "UAV_SIM_CESIUM_ION_ASSET_ID": "2275207",
     "UAV_SIM_RECORDING_KEY": "019f7122-3d89-7d21-8312-8940d1e0f510",
     "UAV_SIM_SESSION_ID": "uav-showcase",
+    "UAV_SIM_ADAPTER_BEARER_TOKEN": "test-adapter-token-0000000000000000",
     "UAV_SIM_TILE_CACHE_POLICY": "persistent",
     "UAV_SIM_WORLD_SOURCE": "google_photorealistic_3d_tiles",
     "UAV_SIM_RENDERING_HZ": "30",
@@ -235,10 +240,8 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertTrue(config.tile_streaming.preload_ancestors)
         self.assertTrue(config.tile_streaming.preload_siblings)
         self.assertTrue(config.tile_streaming.forbid_holes)
-        self.assertEqual(
-            config.runtime_event_socket,
-            Path("/var/run/veoveo-uav-sim/runtime-events.sock"),
-        )
+        self.assertEqual(config.adapter_host, "0.0.0.0")
+        self.assertEqual(config.adapter_bearer_token, VALID_ENVIRONMENT["UAV_SIM_ADAPTER_BEARER_TOKEN"])
 
         invalid_holes = {
             **VALID_ENVIRONMENT,
@@ -253,22 +256,16 @@ class RuntimeConfigTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Google Photorealistic 3D Tiles"):
                 RuntimeConfig.from_environment()
 
-    def test_runtime_ready_event_is_one_nonblocking_datagram(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            event_socket = Path(directory) / "runtime-events.sock"
-            with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as receiver:
-                receiver.bind(str(event_socket))
-                receiver.settimeout(1.0)
-                self.assertTrue(
-                    notify_runtime_ready(
-                        event_socket,
-                        session_id="uav-showcase",
-                        generation=7,
-                    )
-                )
-                payload = json.loads(receiver.recv(1024))
+    def test_runtime_events_are_typed_and_publish_without_a_consumer(self) -> None:
+        publisher = RuntimeEventPublisher()
+        notify_adapter_ready(
+            publisher, session_id="uav-showcase", generation=7
+        )
+        notify_runtime_ready(
+            publisher, session_id="uav-showcase", generation=7
+        )
         self.assertEqual(
-            payload,
+            json.loads(RuntimeEvent("ready", "uav-showcase", 7).encode()),
             {
                 "schema": RUNTIME_EVENT_SCHEMA,
                 "event": "ready",
@@ -276,48 +273,68 @@ class RuntimeConfigTests(unittest.TestCase):
                 "generation": 7,
             },
         )
+        with self.assertRaisesRegex(ValueError, "identity is invalid"):
+            notify_runtime_ready(publisher, session_id="", generation=0)
 
-    def test_adapter_ready_event_is_one_nonblocking_datagram(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            event_socket = Path(directory) / "runtime-events.sock"
-            with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as receiver:
-                receiver.bind(str(event_socket))
-                receiver.settimeout(1.0)
-                self.assertTrue(
-                    notify_adapter_ready(
-                        event_socket,
-                        session_id="uav-showcase",
-                        generation=7,
-                    )
-                )
-                payload = json.loads(receiver.recv(1024))
+    def test_adapter_bearer_token_is_strict(self) -> None:
+        invalid = {**VALID_ENVIRONMENT, "UAV_SIM_ADAPTER_BEARER_TOKEN": "short"}
+        with patch.dict(os.environ, invalid, clear=True):
+            with self.assertRaisesRegex(ValueError, "32-512"):
+                RuntimeConfig.from_environment()
+
+
+class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            config = RuntimeConfig.from_environment()
+        self.publisher = RuntimeEventPublisher()
+        application = web.Application(
+            middlewares=[authorization_middleware(config.adapter_bearer_token)]
+        )
+
+        async def health(_request: web.Request) -> web.Response:
+            return web.Response(text="ok")
+
+        application.add_routes(
+            [
+                web.get("/healthz", health),
+                web.get("/v1/events", self.publisher.stream),
+            ]
+        )
+        self.client = TestClient(TestServer(application))
+        await self.client.start_server()
+
+    async def asyncTearDown(self) -> None:
+        await self.client.close()
+
+    async def test_private_adapter_requires_bearer_and_replays_latest_event(
+        self,
+    ) -> None:
+        unauthorized = await self.client.get("/v1/events")
+        self.assertEqual(unauthorized.status, 401)
         self.assertEqual(
-            payload,
-            {
-                "schema": RUNTIME_EVENT_SCHEMA,
-                "event": "adapter_ready",
-                "sessionId": "uav-showcase",
-                "generation": 7,
-            },
+            await unauthorized.json(),
+            {"error": "simulator adapter authorization failed"},
         )
 
-    def test_runtime_ready_event_does_not_wait_for_a_missing_consumer(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            missing = Path(directory) / "runtime-events.sock"
-            self.assertFalse(
-                notify_runtime_ready(
-                    missing,
-                    session_id="uav-showcase",
-                    generation=1,
-                )
+        headers = {
+            "Authorization": (
+                "Bearer " + VALID_ENVIRONMENT["UAV_SIM_ADAPTER_BEARER_TOKEN"]
             )
-        self.assertFalse(
-            notify_runtime_ready(
-                Path("/does/not/matter/runtime-events.sock"),
-                session_id="",
-                generation=0,
-            )
+        }
+        health = await self.client.get("/healthz")
+        self.assertEqual(health.status, 200)
+        self.publisher.publish(
+            event="adapter_ready",
+            session_id="uav-showcase",
+            generation=3,
         )
+        events = await self.client.get("/v1/events", headers=headers)
+        self.assertEqual(events.status, 200)
+        event = json.loads(await events.content.readline())
+        self.assertEqual(event["schema"], RUNTIME_EVENT_SCHEMA)
+        self.assertEqual(event["event"], "adapter_ready")
+        self.assertEqual(event["generation"], 3)
 
     def test_direct_google_key_is_not_a_runtime_input(self) -> None:
         environment = {**VALID_ENVIRONMENT, "GOOGLE_MAPS_API_KEY": "not-used"}

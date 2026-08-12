@@ -26,6 +26,8 @@ platform:
   installationSecret: veoveo-installation-secrets
   cesiumSecret: veoveo-uav-sim-secrets
   cesiumTokenKey: cesium-ion-access-token
+  adapterSecret: veoveo-uav-sim-adapter
+  adapterTokenKey: bearer-token
   surrealService: surrealdb
   surrealNamespace: veoveo
   surrealDatabase: platform
@@ -261,11 +263,17 @@ resources:
       memory: 2Gi
 
 scheduling:
-  runtimeClassName: nvidia
-  nodeSelector:
-    kubernetes.io/arch: amd64
-  tolerations: []
-  affinity: {}
+  runtime:
+    runtimeClassName: nvidia
+    nodeSelector:
+      kubernetes.io/arch: amd64
+    tolerations: []
+    affinity: {}
+  mcp:
+    nodeSelector:
+      kubernetes.io/arch: amd64
+    tolerations: []
+    affinity: {}
 
 networkPolicy:
   enabled: true
