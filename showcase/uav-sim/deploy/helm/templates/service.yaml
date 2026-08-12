@@ -8,7 +8,7 @@ metadata:
 spec:
   type: ClusterIP
   selector:
-    {{- include "uav-sim.selectorLabels" . | nindent 4 }}
+    {{- include "uav-sim.mcpSelectorLabels" . | nindent 4 }}
   ports:
     - name: http
       port: {{ .Values.service.port }}
@@ -16,6 +16,27 @@ spec:
     - name: signaling
       port: {{ .Values.liveView.signalingGatePort }}
       targetPort: signaling
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: uav-sim-runtime
+  labels:
+    {{- include "uav-sim.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "uav-sim.runtimeSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: adapter
+      port: 8810
+      targetPort: adapter
+    {{- range $slot := until (int .Values.liveView.viewerSlots) }}
+    - name: {{ printf "signal-%d" $slot }}
+      port: {{ add $.Values.liveView.signalingPortBase $slot }}
+      targetPort: {{ printf "signal-%d" $slot }}
+      protocol: TCP
+    {{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -30,7 +51,7 @@ spec:
   loadBalancerIP: {{ . | quote }}
   {{- end }}
   selector:
-    {{- include "uav-sim.selectorLabels" . | nindent 4 }}
+    {{- include "uav-sim.runtimeSelectorLabels" . | nindent 4 }}
   ports:
     {{- range $slot := until (int .Values.liveView.viewerSlots) }}
     - name: {{ printf "media-%d" $slot }}

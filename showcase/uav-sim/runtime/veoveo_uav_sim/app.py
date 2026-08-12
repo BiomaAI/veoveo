@@ -152,7 +152,11 @@ def run(config: RuntimeConfig) -> None:
     from .realtime import FixedStepCadenceGate, MonotonicPhysicsClock
     from .recording import ImuTelemetry, RecordingPublisher
     from .render_pose import rendered_pose_agreement
-    from .runtime_events import notify_adapter_ready, notify_runtime_ready
+    from .runtime_events import (
+        RuntimeEventPublisher,
+        notify_adapter_ready,
+        notify_runtime_ready,
+    )
     from .server import (
         AdapterApplication,
         AdapterServer,
@@ -191,13 +195,16 @@ def run(config: RuntimeConfig) -> None:
     simulation_generation = 1
     tile_event_bridge: NativeTileEventBridge | None = None
     tile_controller: TileLifecycleController | None = None
+    runtime_events = RuntimeEventPublisher()
 
     try:
-        preconfiguration = PreconfigurationApplication(config, world_slot)
+        preconfiguration = PreconfigurationApplication(
+            config, world_slot, runtime_events
+        )
         server = AdapterServer(config, preconfiguration.application)
         server.start()
         notify_adapter_ready(
-            config.runtime_event_socket,
+            runtime_events,
             session_id=config.session_id,
             generation=simulation_generation,
         )
@@ -629,6 +636,7 @@ def run(config: RuntimeConfig) -> None:
             world_slot,
             fleet_loop,
             operator_products,
+            runtime_events,
             command_queue.submit,
         )
         assert server is not None
@@ -919,7 +927,7 @@ def run(config: RuntimeConfig) -> None:
                 and snapshot["tiles"]["lifecycle"] == "ready"
             ):
                 notify_runtime_ready(
-                    config.runtime_event_socket,
+                    runtime_events,
                     session_id=config.session_id,
                     generation=simulation_generation,
                 )

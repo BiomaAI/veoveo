@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from math import sqrt
 from pathlib import Path
@@ -333,7 +333,7 @@ class RuntimeConfig:
     vehicle_count: int
     adapter_host: str
     adapter_port: int
-    runtime_event_socket: Path
+    adapter_bearer_token: str = field(repr=False)
     physics_hz: int
     rendering_hz: int
     tile_ready_frames: int
@@ -436,19 +436,13 @@ class RuntimeConfig:
         )
         if not cache_directory.is_absolute() or ".." in cache_directory.parts:
             raise ValueError("XDG_CACHE_HOME must be an absolute normalized path")
-        runtime_event_socket = Path(
-            os.environ.get(
-                "UAV_SIM_RUNTIME_EVENT_SOCKET",
-                "/var/run/veoveo-uav-sim/runtime-events.sock",
-            )
-        )
-        if (
-            not runtime_event_socket.is_absolute()
-            or ".." in runtime_event_socket.parts
-            or runtime_event_socket.name != "runtime-events.sock"
+        adapter_bearer_token = _required("UAV_SIM_ADAPTER_BEARER_TOKEN")
+        if not 32 <= len(adapter_bearer_token) <= 512 or any(
+            character.isspace() or not character.isascii()
+            for character in adapter_bearer_token
         ):
             raise ValueError(
-                "UAV_SIM_RUNTIME_EVENT_SOCKET must be an absolute normalized runtime-events.sock path"
+                "UAV_SIM_ADAPTER_BEARER_TOKEN must contain 32-512 non-whitespace ASCII characters"
             )
         return cls(
             session_id=session_id,
@@ -458,9 +452,9 @@ class RuntimeConfig:
             tile_streaming=TileStreamingConfig.from_environment(),
             cache_directory=cache_directory,
             vehicle_count=_int("UAV_SIM_VEHICLE_COUNT", "1", 1, 16),
-            adapter_host=os.environ.get("UAV_SIM_ADAPTER_HOST", "127.0.0.1"),
+            adapter_host=os.environ.get("UAV_SIM_ADAPTER_HOST", "0.0.0.0"),
             adapter_port=_int("UAV_SIM_ADAPTER_PORT", "8810", 1, 65_535),
-            runtime_event_socket=runtime_event_socket,
+            adapter_bearer_token=adapter_bearer_token,
             physics_hz=_int("UAV_SIM_PHYSICS_HZ", "60", 30, 1_000),
             rendering_hz=_int("UAV_SIM_RENDERING_HZ", "2", 1, 120),
             tile_ready_frames=_int("UAV_SIM_TILE_READY_FRAMES", "30", 1, 600),

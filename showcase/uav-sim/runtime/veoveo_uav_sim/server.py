@@ -9,6 +9,7 @@ from typing import Callable
 
 from aiohttp import web
 
+from .adapter_auth import authorization_middleware
 from .config import RuntimeConfig
 from .contracts import (
     ContractError,
@@ -22,6 +23,7 @@ from .operator_camera_config import live_camera_descriptor
 from .operator_products import OperatorProductCollection
 from .px4 import Px4Commander
 from .recording import RecordingPublisher
+from .runtime_events import RuntimeEventPublisher
 from .state import RuntimeState, initial_runtime_timing
 from .world_config import (
     WorldConfiguration,
@@ -54,11 +56,17 @@ def _world_configuration_response(
 
 class PreconfigurationApplication:
     def __init__(
-        self, config: RuntimeConfig, world_slot: WorldConfigurationSlot
+        self,
+        config: RuntimeConfig,
+        world_slot: WorldConfigurationSlot,
+        runtime_events: RuntimeEventPublisher,
     ) -> None:
         self._config = config
         self._world_slot = world_slot
-        self._app = web.Application(client_max_size=2 * 1024 * 1024)
+        self._app = web.Application(
+            client_max_size=2 * 1024 * 1024,
+            middlewares=[authorization_middleware(config.adapter_bearer_token)],
+        )
         self._app.add_routes(
             [
                 web.get("/healthz", self._health),
@@ -69,6 +77,7 @@ class PreconfigurationApplication:
                     "/v1/live-products/release-all",
                     self._release_all_viewer_slots,
                 ),
+                web.get("/v1/events", runtime_events.stream),
             ]
         )
 
@@ -171,6 +180,7 @@ class AdapterApplication:
         world_slot: WorldConfigurationSlot,
         fleet_loop: FleetLoopController,
         operator_products: OperatorProductCollection,
+        runtime_events: RuntimeEventPublisher,
         submit_main_thread: Callable[[Callable[[], object]], object],
     ) -> None:
         self._config = config
@@ -182,7 +192,10 @@ class AdapterApplication:
         self._fleet_loop = fleet_loop
         self._operator_products = operator_products
         self._submit_main_thread = submit_main_thread
-        self._app = web.Application(client_max_size=2 * 1024 * 1024)
+        self._app = web.Application(
+            client_max_size=2 * 1024 * 1024,
+            middlewares=[authorization_middleware(config.adapter_bearer_token)],
+        )
         self._app.add_routes(
             [
                 web.get("/healthz", self._health),
@@ -203,6 +216,7 @@ class AdapterApplication:
                     "/v1/live-products/release-all",
                     self._release_all_viewer_slots,
                 ),
+                web.get("/v1/events", runtime_events.stream),
             ]
         )
 

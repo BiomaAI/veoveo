@@ -553,6 +553,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: CESIUM_ION_ACCESS_TOKEN",
         "name: veoveo-uav-sim-secrets",
         "key: cesium-ion-access-token",
+        "name: veoveo-uav-sim-adapter",
+        "key: bearer-token",
         "name: UAV_SIM_CESIUM_ION_ASSET_ID",
         "value: \"2275207\"",
         "name: UAV_SIM_TILE_CACHE_POLICY",
@@ -582,7 +584,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: UAV_SIM_PUBLIC_SIGNALING_URL",
         "value: \"wss://veoveo.bioma.ai/uav-sim/signaling\"",
         "name: UAV_SIM_NATIVE_SIGNALING_URL",
-        "value: \"ws://127.0.0.1:49100/webrtc\"",
+        "value: \"ws://uav-sim-runtime:49100/webrtc\"",
         "name: UAV_SIM_LIVE_VIEW_MAXIMUM_VIEWERS",
         "name: uav-sim-media",
         "nodePort: 30998",
@@ -597,7 +599,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         "http://127.0.0.1:8810/healthz",
         "http://127.0.0.1:8810/readyz",
         "nvidia.com/gpu: 1",
-        "veoveo.ai/chart-revision: \"0.1.0\"",
+        "name: uav-sim-runtime",
+        "value: \"http://uav-sim-runtime:8810/\"",
     ] {
         contains(&uav_sim, expected)?;
     }
@@ -609,6 +612,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         "path: /webrtc",
         "name: stream-signal",
         "name: stream-media",
+        "UAV_SIM_RUNTIME_EVENT_SOCKET",
+        "veoveo.ai/chart-revision",
     ] {
         if uav_sim.contains(forbidden) {
             bail!("UAV simulation render must not contain `{forbidden}`");
@@ -618,15 +623,9 @@ pub(crate) async fn helm_config() -> Result<()> {
         uav_sim.matches("name: CESIUM_ION_ACCESS_TOKEN").count() == 1,
         "interactive UAV render must inject the Cesium ion token exactly once"
     );
-    let init = uav_sim
-        .find("initContainers:")
-        .context("UAV render omits init containers")?;
     let simulator = uav_sim
         .find("- name: isaac-sim")
         .context("UAV render omits the authoritative simulator")?;
-    let sidecar = uav_sim
-        .find("restartPolicy: Always")
-        .context("authoritative simulator is not a native restartable init sidecar")?;
     let forwarder = uav_sim
         .find("- name: recording-forwarder")
         .context("UAV render omits the recording forwarder")?;
@@ -634,8 +633,14 @@ pub(crate) async fn helm_config() -> Result<()> {
         .find("- name: uav-sim-mcp")
         .context("UAV render omits the UAV MCP server")?;
     ensure!(
-        init < simulator && simulator < sidecar && sidecar < forwarder && forwarder < mcp,
-        "authoritative simulator must start before recording and MCP dependencies"
+        simulator < forwarder && forwarder < mcp,
+        "authoritative simulator and recording forwarder must precede the independent MCP deployment"
+    );
+    ensure!(
+        uav_sim.matches("kind: Deployment").count() == 2
+            && uav_sim.matches("runtimeClassName: nvidia").count() == 1
+            && uav_sim.matches("nvidia.com/gpu: 1").count() == 2,
+        "UAV chart must render one GPU runtime deployment and one GPU-independent MCP deployment"
     );
 
     let production_without_digests = Command::new("helm")

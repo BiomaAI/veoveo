@@ -70,6 +70,8 @@
         "installationSecret",
         "cesiumSecret",
         "cesiumTokenKey",
+        "adapterSecret",
+        "adapterTokenKey",
         "surrealService",
         "surrealNamespace",
         "surrealDatabase",
@@ -85,6 +87,8 @@
         "installationSecret": {"type": "string", "minLength": 1},
         "cesiumSecret": {"type": "string", "minLength": 1},
         "cesiumTokenKey": {"const": "cesium-ion-access-token"},
+        "adapterSecret": {"type": "string", "minLength": 1},
+        "adapterTokenKey": {"const": "bearer-token"},
         "surrealService": {"type": "string", "minLength": 1},
         "surrealNamespace": {"type": "string", "minLength": 1},
         "surrealDatabase": {"type": "string", "minLength": 1},
@@ -1116,12 +1120,10 @@
     "scheduling": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["runtimeClassName", "nodeSelector", "tolerations", "affinity"],
+      "required": ["runtime", "mcp"],
       "properties": {
-        "runtimeClassName": {"type": "string", "minLength": 1},
-        "nodeSelector": {"type": "object", "additionalProperties": {"type": "string"}},
-        "tolerations": {"type": "array", "items": {"type": "object"}},
-        "affinity": {"type": "object"}
+        "runtime": {"$ref": "#/definitions/runtimeScheduling"},
+        "mcp": {"$ref": "#/definitions/mcpScheduling"}
       }
     },
     "networkPolicy": {
@@ -1135,6 +1137,27 @@
     }
   },
   "definitions": {
+    "runtimeScheduling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runtimeClassName", "nodeSelector", "tolerations", "affinity"],
+      "properties": {
+        "runtimeClassName": {"type": "string", "minLength": 1},
+        "nodeSelector": {"type": "object", "additionalProperties": {"type": "string"}},
+        "tolerations": {"type": "array", "items": {"type": "object"}},
+        "affinity": {"type": "object"}
+      }
+    },
+    "mcpScheduling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodeSelector", "tolerations", "affinity"],
+      "properties": {
+        "nodeSelector": {"type": "object", "additionalProperties": {"type": "string"}},
+        "tolerations": {"type": "array", "items": {"type": "object"}},
+        "affinity": {"type": "object"}
+      }
+    },
     "identity": {
       "type": "string",
       "minLength": 1,

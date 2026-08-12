@@ -1,59 +1,110 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
-import socket
-from pathlib import Path
+import threading
+from dataclasses import dataclass
+
+from aiohttp import web
 
 
 LOGGER = logging.getLogger(__name__)
-RUNTIME_EVENT_SCHEMA = "veoveo.io/uav-runtime-event/v1"
+RUNTIME_EVENT_SCHEMA = "veoveo.io/uav-runtime-event/v2"
 
 
-def _notify_runtime_event(
-    socket_path: Path,
-    *,
-    event: str,
-    session_id: str,
-    generation: int,
-) -> bool:
-    """Send one pod-local lifecycle edge without waiting for a consumer."""
-    if not session_id or generation < 1:
-        LOGGER.error("UAV runtime lifecycle notification has an invalid identity")
-        return False
-    payload = json.dumps(
-        {
-            "schema": RUNTIME_EVENT_SCHEMA,
-            "event": event,
-            "sessionId": session_id,
-            "generation": generation,
-        },
-        separators=(",", ":"),
-        sort_keys=True,
-    ).encode("utf-8")
-    try:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sender:
-            sender.setblocking(False)
-            sender.sendto(payload, str(socket_path))
-        return True
-    except OSError as error:
-        LOGGER.info(
-            "UAV runtime lifecycle notification was not delivered; companion startup "
-            "will read current state: %s",
-            error,
+@dataclass(frozen=True, slots=True)
+class RuntimeEvent:
+    event: str
+    session_id: str
+    generation: int
+
+    def encode(self) -> bytes:
+        return json.dumps(
+            {
+                "schema": RUNTIME_EVENT_SCHEMA,
+                "event": self.event,
+                "sessionId": self.session_id,
+                "generation": self.generation,
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+
+
+class RuntimeEventPublisher:
+    """Publishes lifecycle edges to authenticated long-lived HTTP subscribers."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._latest: RuntimeEvent | None = None
+        self._subscribers: dict[
+            int, tuple[asyncio.AbstractEventLoop, asyncio.Queue[bytes]]
+        ] = {}
+        self._next_subscriber_id = 1
+
+    def publish(
+        self, *, event: str, session_id: str, generation: int
+    ) -> None:
+        if event not in {"adapter_ready", "ready"}:
+            raise ValueError("runtime event kind is not supported")
+        if not session_id or generation < 1:
+            raise ValueError("runtime event identity is invalid")
+        runtime_event = RuntimeEvent(event, session_id, generation)
+        payload = runtime_event.encode()
+        with self._lock:
+            self._latest = runtime_event
+            subscribers = tuple(self._subscribers.values())
+        for loop, queue in subscribers:
+            loop.call_soon_threadsafe(self._offer, queue, payload)
+
+    async def stream(self, request: web.Request) -> web.StreamResponse:
+        response = web.StreamResponse(
+            status=200,
+            headers={
+                "Content-Type": "application/x-ndjson",
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+            },
         )
-        return False
+        await response.prepare(request)
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=1)
+        with self._lock:
+            subscriber_id = self._next_subscriber_id
+            self._next_subscriber_id += 1
+            self._subscribers[subscriber_id] = (loop, queue)
+            latest = self._latest
+        if latest is not None:
+            self._offer(queue, latest.encode())
+        try:
+            while True:
+                payload = await queue.get()
+                await response.write(payload + b"\n")
+        except (asyncio.CancelledError, ConnectionError):
+            raise
+        finally:
+            with self._lock:
+                self._subscribers.pop(subscriber_id, None)
+        return response
+
+    @staticmethod
+    def _offer(queue: asyncio.Queue[bytes], payload: bytes) -> None:
+        if queue.full():
+            try:
+                queue.get_nowait()
+            except asyncio.QueueEmpty:
+                pass
+        queue.put_nowait(payload)
 
 
 def notify_adapter_ready(
-    socket_path: Path,
+    publisher: RuntimeEventPublisher,
     *,
     session_id: str,
     generation: int,
-) -> bool:
-    """Report that the preconfiguration adapter accepts the immutable world binding."""
-    return _notify_runtime_event(
-        socket_path,
+) -> None:
+    publisher.publish(
         event="adapter_ready",
         session_id=session_id,
         generation=generation,
@@ -61,14 +112,12 @@ def notify_adapter_ready(
 
 
 def notify_runtime_ready(
-    socket_path: Path,
+    publisher: RuntimeEventPublisher,
     *,
     session_id: str,
     generation: int,
-) -> bool:
-    """Report that the configured simulation and streamed world are current."""
-    return _notify_runtime_event(
-        socket_path,
+) -> None:
+    publisher.publish(
         event="ready",
         session_id=session_id,
         generation=generation,

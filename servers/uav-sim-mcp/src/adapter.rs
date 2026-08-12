@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use reqwest::{Client, Method, StatusCode, Url};
+use secrecy::{ExposeSecret as _, SecretString};
 use serde::Deserialize;
 use thiserror::Error;
 use tokio::sync::Mutex;
@@ -102,7 +103,9 @@ enum AdapterDurableOperationResult {
 #[derive(Clone)]
 pub struct HttpAdapter {
     client: Client,
+    event_client: Client,
     base_url: Url,
+    bearer_token: SecretString,
     operation_timeout: Duration,
     platform_store: PlatformStore,
     recording_tenant_id: TenantId,
@@ -113,6 +116,7 @@ impl HttpAdapter {
         base_url: Url,
         timeout: Duration,
         operation_timeout: Duration,
+        bearer_token: SecretString,
         platform_store: PlatformStore,
         recording_tenant_key: &str,
     ) -> Result<Self, AdapterError> {
@@ -125,9 +129,15 @@ impl HttpAdapter {
             .timeout(timeout)
             .build()
             .map_err(AdapterError::Transport)?;
+        let event_client = Client::builder()
+            .connect_timeout(timeout)
+            .build()
+            .map_err(AdapterError::Transport)?;
         Ok(Self {
             client,
+            event_client,
             base_url,
+            bearer_token,
             operation_timeout,
             platform_store,
             recording_tenant_id: deterministic_tenant_id(recording_tenant_key)
@@ -311,6 +321,7 @@ impl HttpAdapter {
                 Method::PUT,
                 self.endpoint(&format!("v1/live-products/{capacity_slot}/assignment"))?,
             )
+            .bearer_auth(self.bearer_token.expose_secret())
             .json(&Assignment {
                 camera_id,
                 live_view_id,
@@ -337,6 +348,7 @@ impl HttpAdapter {
                 Method::DELETE,
                 self.endpoint(&format!("v1/live-products/{capacity_slot}/assignment"))?,
             )
+            .bearer_auth(self.bearer_token.expose_secret())
             .json(&Release { live_view_id })
             .send()
             .await
@@ -414,6 +426,7 @@ impl HttpAdapter {
         let response = self
             .client
             .get(self.endpoint(path)?)
+            .bearer_auth(self.bearer_token.expose_secret())
             .send()
             .await
             .map_err(AdapterError::Transport)?;
@@ -428,6 +441,7 @@ impl HttpAdapter {
         let response = self
             .client
             .post(self.endpoint(path)?)
+            .bearer_auth(self.bearer_token.expose_secret())
             .json(input)
             .send()
             .await
@@ -448,6 +462,7 @@ impl HttpAdapter {
         let response = self
             .client
             .post(self.endpoint(path)?)
+            .bearer_auth(self.bearer_token.expose_secret())
             .timeout(timeout)
             .json(input)
             .send()
@@ -458,6 +473,26 @@ impl HttpAdapter {
 
     fn endpoint(&self, path: &str) -> Result<Url, AdapterError> {
         self.base_url.join(path).map_err(AdapterError::InvalidUrl)
+    }
+
+    pub(crate) async fn runtime_events(&self) -> Result<reqwest::Response, AdapterError> {
+        let response = self
+            .event_client
+            .get(self.endpoint("v1/events")?)
+            .bearer_auth(self.bearer_token.expose_secret())
+            .send()
+            .await
+            .map_err(AdapterError::Transport)?;
+        if response.status().is_success() {
+            Ok(response)
+        } else {
+            let status = response.status();
+            let detail = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "adapter response body unavailable".to_owned());
+            Err(AdapterError::Rejected { status, detail })
+        }
     }
 }
 

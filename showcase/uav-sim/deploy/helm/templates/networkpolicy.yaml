@@ -2,27 +2,25 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: uav-sim
+  name: uav-sim-runtime
   labels:
     {{- include "uav-sim.labels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      {{- include "veoveo-extension.componentSelector" (dict "installation" .Values.platform.installationId "component" "uav-sim") | nindent 6 }}
+      {{- include "uav-sim.runtimeSelectorLabels" . | nindent 6 }}
   policyTypes: [Ingress, Egress]
   ingress:
     - from:
         - podSelector:
             matchLabels:
-              {{- include "veoveo-extension.componentSelector" (dict "installation" .Values.platform.installationId "component" "gateway") | nindent 14 }}
+              {{- include "uav-sim.mcpSelectorLabels" . | nindent 14 }}
       ports:
+        - {protocol: TCP, port: 8810}
+        {{- range $slot := until (int .Values.liveView.viewerSlots) }}
         - protocol: TCP
-          port: 8802
-    {{- if .Values.liveView.signalingIngress.enabled }}
-    - ports:
-        - protocol: TCP
-          port: {{ .Values.liveView.signalingGatePort }}
-    {{- end }}
+          port: {{ add $.Values.liveView.signalingPortBase $slot }}
+        {{- end }}
     - ports:
         {{- range $slot := until (int .Values.liveView.viewerSlots) }}
         - protocol: UDP
@@ -38,20 +36,50 @@ spec:
             matchLabels:
               {{- toYaml .Values.networkPolicy.dnsNamespaceSelector | nindent 14 }}
       ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-    # NetworkPolicy cannot match Cesium ion hostnames. The runtime permits only
-    # public TLS at this layer; Cesium owns the destination URL contract.
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    # Hostname-aware admission remains in the Cesium adapter. NetworkPolicy
+    # limits the renderer's external data plane to public TLS.
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
-            except:
-              - 10.0.0.0/8
-              - 172.16.0.0/12
-              - 192.168.0.0/16
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
       ports:
+        - {protocol: TCP, port: 443}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: uav-sim-mcp
+  labels:
+    {{- include "uav-sim.mcpLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "uav-sim.mcpSelectorLabels" . | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "veoveo-extension.componentSelector" (dict "installation" .Values.platform.installationId "component" "gateway") | nindent 14 }}
+      ports:
+        - {protocol: TCP, port: 8802}
+    {{- if .Values.liveView.signalingIngress.enabled }}
+    - ports:
         - protocol: TCP
-          port: 443
+          port: {{ .Values.liveView.signalingGatePort }}
+    {{- end }}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "veoveo-extension.installationSelector" (dict "installation" .Values.platform.installationId) | nindent 14 }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dnsNamespaceSelector | nindent 14 }}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
 {{- end }}

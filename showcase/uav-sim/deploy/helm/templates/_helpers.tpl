@@ -10,11 +10,35 @@
 {{- end }}
 
 {{- define "uav-sim.selectorLabels" -}}
+{{- include "uav-sim.runtimeSelectorLabels" . -}}
+{{- end }}
+
+{{- define "uav-sim.runtimeSelectorLabels" -}}
 {{ include "veoveo-extension.selectorLabels" (dict
     "name" "uav-sim"
     "releaseName" .Release.Name
     "installation" .Values.platform.installationId
     "component" "uav-sim"
+  ) }}
+{{- end }}
+
+{{- define "uav-sim.mcpLabels" -}}
+{{ include "veoveo-extension.labels" (dict
+    "name" "uav-sim-mcp"
+    "releaseName" .Release.Name
+    "managedBy" .Release.Service
+    "chart" (printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_")
+    "installation" .Values.platform.installationId
+    "component" "uav-sim-mcp"
+  ) }}
+{{- end }}
+
+{{- define "uav-sim.mcpSelectorLabels" -}}
+{{ include "veoveo-extension.selectorLabels" (dict
+    "name" "uav-sim-mcp"
+    "releaseName" .Release.Name
+    "installation" .Values.platform.installationId
+    "component" "uav-sim-mcp"
   ) }}
 {{- end }}
 
@@ -67,8 +91,11 @@
   value: {{ printf "/var/lib/veoveo/runtime-cache/%s" .root.Values.cache.version | quote }}
 - name: UAV_SIM_SESSION_ID
   value: {{ .sessionId | quote }}
-- name: UAV_SIM_RUNTIME_EVENT_SOCKET
-  value: /var/run/veoveo-uav-sim/runtime-events.sock
+- name: UAV_SIM_ADAPTER_BEARER_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ .root.Values.platform.adapterSecret }}
+      key: {{ .root.Values.platform.adapterTokenKey }}
 - name: UAV_SIM_VEHICLE_COUNT
   value: {{ .root.Values.session.vehicleCount | quote }}
 - name: UAV_SIM_PHYSICS_HZ
@@ -241,6 +268,7 @@
     "batchMessageLimit" .root.Values.recordingForwarder.batchMessageLimit
     "grpcMemoryLimitBytes" (printf "%.0f" .root.Values.recordingForwarder.grpcMemoryLimitBytes)
     "finishSupersededRecordings" true
+    "restartableInit" false
     "resources" .root.Values.recordingForwarder.resources
   ) -}}
 {{- end }}

@@ -22,7 +22,7 @@ dotenvy.workspace = true
 futures.workspace = true
 getrandom.workspace = true
 hex.workspace = true
-reqwest = { workspace = true, features = ["json", "rustls-no-provider"] }
+reqwest = { workspace = true, features = ["json", "rustls-no-provider", "stream"] }
 rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"] }
 rustls.workspace = true
 schemars.workspace = true

@@ -35,10 +35,11 @@ pub(super) struct Args {
     pub(super) world_bootstrap_file: Option<PathBuf>,
     #[arg(
         long,
-        env = "UAV_SIM_RUNTIME_EVENT_SOCKET",
-        default_value = "/var/run/veoveo-uav-sim/runtime-events.sock"
+        env = "UAV_SIM_ADAPTER_BEARER_TOKEN",
+        hide_env_values = true,
+        value_parser = parse_secret
     )]
-    pub(super) runtime_event_socket: PathBuf,
+    pub(super) adapter_bearer_token: SecretString,
     #[arg(long, env = "UAV_SIM_ADAPTER_TIMEOUT_SECONDS", default_value_t = 90)]
     pub(super) adapter_timeout_seconds: u64,
     #[arg(

@@ -191,6 +191,7 @@ claims:
     "maximumQueueBytes" (printf "%.0f" $config.maximumQueueBytes)
     "batchMessageLimit" $config.batchMessageLimit
     "grpcMemoryLimitBytes" (printf "%.0f" $config.grpcMemoryLimitBytes)
+    "restartableInit" true
     "resources" $config.resources
   ) -}}
 {{- end }}

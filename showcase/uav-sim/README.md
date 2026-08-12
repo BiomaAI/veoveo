@@ -12,7 +12,7 @@ publishes their NVIDIA NVENC products to the governed live-view App.
 | Isaac Sim | Marketing release `6.0.1`; internal build `6.0.1-rc.7+release.42383.32955d8d.gl`. |
 | `veoveo.io/simulation-runtime-build-lock/v1` | Exact base inputs, immutable overlay components, and NVIDIA runtime requirements. |
 | `veoveo.io/live-view/v2` | Authoritative operator cameras, stable encoded products, ephemeral viewer leases, and typed capacity. |
-| `veoveo.io/uav-runtime-event/v1` | Private pod-local Unix datagram with an `adapter_ready` edge for immutable world-binding reapplication and a final `ready` edge for live-camera recovery. |
+| `veoveo.io/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream with an `adapter_ready` edge for immutable world-binding reapplication and a final `ready` edge for live-camera recovery. |
 | WebRTC and H.264 | One isolated native Omniverse WebRTC and NVIDIA NVENC product per active viewer lease. |
 | Native sensor video | `omni.kit.livestream.aov` `10.2.0` and `omni.kit.livestream.rtsp` `10.2.3`, packaged by Isaac Sim `6.0.1`, for CUDA-AOV-to-NVENC H.264 output. |
 | RTSP, RTP, and H.264 | Pod-local RTSP 1.0 with interleaved RTP/RTCP and RFC 6184 single-NAL, STAP-A, and FU-A packetization. |
@@ -27,9 +27,9 @@ publishes their NVIDIA NVENC products to the governed live-view App.
 | Path | Responsibility |
 |---|---|
 | `../../platform/runtimes/simulation/` | Canonical Isaac, Isaac Lab, Warp, Newton, CUDA, and RTX lineage. |
-| `runtime/` | Cesium, Pegasus, PX4, fleet physics, domain sensors, authoritative operator cameras, Hydra/NVENC products, recording, and the pod-local adapter. |
+| `runtime/` | Cesium, Pegasus, PX4, fleet physics, domain sensors, authoritative operator cameras, Hydra/NVENC products, recording, and the cluster-private adapter. |
 | `../../servers/uav-sim-mcp/` | Domain tools, resources, tasks, subscriptions, camera/product projection, viewer leases, signaling, audit, and the live App. |
-| `deploy/helm/` | One GPU-required simulator pod, Rust MCP companion, recording forwarder, stable media ports, cache, and NetworkPolicy. |
+| `deploy/helm/` | Independent GPU runtime and MCP Deployments, recording forwarder, stable media ports, cache, and NetworkPolicy. |
 | `scenarios/` | Installation-independent Frames trees and acceptance parameters. |
 
 There is one stage, one Cesium world, one runtime cache, and one GPU allocation. No
@@ -132,12 +132,13 @@ motion-to-photon upper bound below 250 ms. These are measured product limits rat
 than adaptive downgrade rules; admission never rewrites a camera's requested optics or
 codec.
 
-After a simulator restart, the runtime emits a nonblocking `adapter_ready` edge when its
-preconfiguration endpoint can accept the immutable installation binding. The MCP
-companion reapplies that binding and waits for the runtime's final `ready` edge, emitted
+After a simulator restart, the runtime retains a nonblocking `adapter_ready` edge when
+its preconfiguration endpoint can accept the immutable installation binding. The MCP
+server receives that edge on an authenticated HTTP stream, reapplies the binding, and
+waits for the runtime's final `ready` edge, emitted
 after physics, the streamed world, and logical cameras are current. The companion turns
 the final edge into a live-camera resource notification, and selected App tiles reconnect
-with fresh leases. No browser, MCP server, or missing datagram consumer can delay the
+with fresh leases. No browser, MCP server, or disconnected event consumer can delay the
 simulation loop.
 
 ## Domain Sensor And Recording
@@ -177,6 +178,7 @@ Recording Hub and can recover its own durable queue independently.
 The chart requires:
 
 - one installation Secret containing the streamed-world provider credential;
+- one installation Secret containing the private adapter bearer token;
 - one immutable Frames world and simulation frame, with an optional installation-owned
   startup binding ConfigMap for restart-stable always-on operation;
 - bounded fleet route, takeoff, vehicle, and PX4 parameters;
@@ -189,8 +191,9 @@ The chart requires:
   `compute,graphics,utility,video`;
 - digest-pinned images in production.
 
-The public signaling URL is credential-free. Provider credentials are mounted from a
-Secret and never enter ConfigMaps, MCP resources, logs, recordings, or evidence.
+The public signaling URL is credential-free. Provider and adapter credentials are
+mounted from distinct Secrets and never enter ConfigMaps, MCP resources, logs,
+recordings, or evidence.
 
 `liveView.mediaService.nodePortBase` is required when an installation maps a fixed
 public UDP range through Kubernetes NodePorts. The chart assigns one contiguous
@@ -203,7 +206,8 @@ allocator-owned NodePorts.
 ```sh
 cargo test -p veoveo-uav-sim-mcp --all-targets
 PYTHONPATH=showcase/uav-sim/runtime:sdk/python/src \
-  uv run --with numpy==2.5.1 --with pymavlink==2.4.49 --python python3 \
+  uv run --with numpy==2.5.1 --with aiohttp==3.14.1 \
+  --with pymavlink==2.4.49 --with fastcrc==0.3.6 --python 3.13 \
   python -m unittest discover -s showcase/uav-sim/runtime/tests -v
 helm lint showcase/uav-sim/deploy/helm
 cargo test -p veoveo-smoke --bin smoke

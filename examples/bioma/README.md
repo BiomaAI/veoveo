@@ -231,6 +231,15 @@ jq -n '{
 
 jq -n '{
   apiVersion: "v1", kind: "Secret",
+  metadata: {name: "veoveo-uav-sim-adapter", namespace: "veoveo"},
+  type: "Opaque",
+  stringData: {
+    "bearer-token": env.VEOVEO_UAV_SIM_ADAPTER_TOKEN
+  }
+}' | kubectl --context k3d-veoveo-bioma apply -f -
+
+jq -n '{
+  apiVersion: "v1", kind: "Secret",
   metadata: {name: "veoveo-recording-producer", namespace: "veoveo"},
   type: "Opaque",
   stringData: {
