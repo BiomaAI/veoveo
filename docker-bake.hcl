@@ -564,12 +564,28 @@ target "uav-sim-runtime" {
   tags       = [image_ref("uav-sim-runtime")]
   contexts = {
     simulation-runtime = "target:simulation-runtime-payload"
+    uav-sim-dependencies = "target:uav-sim-dependencies"
   }
   args = {
     SIMULATION_RUNTIME_IMAGE = "simulation-runtime"
   }
   cache-from = registry_cache("uav-sim-runtime")
   cache-to   = registry_cache_export("uav-sim-runtime")
+}
+
+target "uav-sim-dependencies" {
+  context    = "showcase/uav-sim/runtime"
+  dockerfile = "Dockerfile.dependencies"
+  platforms  = ["linux/amd64"]
+  target     = "dependencies"
+  contexts = {
+    simulation-runtime = "target:simulation-runtime-payload"
+  }
+  args = {
+    SIMULATION_RUNTIME_IMAGE = "simulation-runtime"
+  }
+  cache-from = registry_cache("uav-sim-dependencies")
+  cache-to   = registry_cache_export("uav-sim-dependencies")
 }
 
 target "simulation-overlay-acceptance" {

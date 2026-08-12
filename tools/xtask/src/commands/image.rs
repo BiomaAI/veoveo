@@ -545,57 +545,13 @@ pub(crate) fn prepare_with_builder(
         });
     }
 
-    let all_targets = if family_units
-        .keys()
-        .any(|family| family.shared_artifact_target().is_some())
-    {
-        let started = Instant::now();
-        let result = Some(bake_print_all(
-            builder_repository,
-            source_repository.root(),
-            environment,
-        )?);
-        planning.graph_resolution_millis = planning
-            .graph_resolution_millis
-            .saturating_add(elapsed_millis(started));
-        result
-    } else {
-        None
-    };
     let mut families = Vec::new();
     for (family, selected_units) in &family_units {
         validate_family_modes(*family, selected_units)?;
-        let units = if family.shared_artifact_target().is_some() {
-            let canonical_definition = all_targets
-                .as_ref()
-                .expect("the complete Bake graph was loaded for a shared family");
-            let mut canonical_units = Vec::new();
-            for (name, target) in &canonical_definition.target {
-                if let Some(unit) = parse_rust_unit(name, target, &package_index)?
-                    && unit.family == *family
-                {
-                    canonical_units.push((name.clone(), unit));
-                }
-            }
-            let canonical_names = canonical_units
-                .iter()
-                .map(|(name, _)| name.as_str())
-                .collect::<BTreeSet<_>>();
-            for (name, _) in selected_units {
-                ensure!(
-                    canonical_names.contains(name.as_str()),
-                    "Rust target {name} is missing from the complete Bake family catalog"
-                );
-            }
-            validate_family_modes(*family, &canonical_units)?;
-            canonical_units
-        } else {
-            selected_units.clone()
-        };
         let mut packages = BTreeSet::new();
         let mut binaries = BTreeSet::new();
         let mut auxiliary = BTreeSet::new();
-        for (_, unit) in &units {
+        for (_, unit) in selected_units {
             packages.insert(unit.package.clone());
             binaries.extend(unit.binaries.iter().cloned());
             auxiliary.extend(unit.auxiliary.iter().copied());
@@ -670,9 +626,10 @@ impl OutputMode {
             // inherited layer makes a tiny Isaac overlay re-export the full
             // multi-gigabyte base without strengthening release evidence.
             Self::Load => "type=docker",
+            // Staging and qualification must produce the same runnable digest.
             // The source commit timestamp is later than every admitted pinned
-            // parent image. BuildKit therefore retains inherited layer blobs and
-            // normalizes only newer entries produced by this source build.
+            // parent image, so BuildKit retains older inherited layer blobs and
+            // normalizes source-produced entries.
             Self::Staged | Self::Qualified => "type=registry,rewrite-timestamp=true",
         }
     }

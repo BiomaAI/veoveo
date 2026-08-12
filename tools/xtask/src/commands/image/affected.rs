@@ -206,6 +206,8 @@ fn resolve(repository: &RepositoryContext, since: &str) -> Result<AffectedPlan> 
         }
     }
 
+    apply_contract_consumers(&changed_paths, &mut initially_affected, &mut reasons);
+
     let affected_graph = consumer_closure(&definition, initially_affected);
     for target in &affected_graph {
         for (consumer, definition) in &definition.target {
@@ -465,6 +467,27 @@ fn select(
         .insert(reason.into());
 }
 
+fn apply_contract_consumers(
+    changed_paths: &BTreeSet<String>,
+    targets: &mut BTreeSet<String>,
+    reasons: &mut BTreeMap<String, BTreeSet<String>>,
+) {
+    let apps_contract_changed = changed_paths
+        .iter()
+        .any(|path| path_matches_input(path, "mcp/apps-extension"));
+    let app_host_changed = changed_paths
+        .iter()
+        .any(|path| path_matches_input(path, "apps/console/web"));
+    if apps_contract_changed || app_host_changed {
+        select(
+            targets,
+            reasons,
+            "console-bff",
+            "MCP App presentation or host contract changed",
+        );
+    }
+}
+
 fn path_may_affect_context(path: &str, target: &BakeTarget) -> bool {
     let context = normalize_relative(if target.context.is_empty() {
         "."
@@ -607,5 +630,18 @@ mod tests {
             consumer_closure(&definition, BTreeSet::from(["base".to_owned()])),
             BTreeSet::from(["base".to_owned(), "overlay".to_owned()])
         );
+    }
+
+    #[test]
+    fn app_contract_selects_console_consumer() {
+        let mut targets = BTreeSet::new();
+        let mut reasons = BTreeMap::new();
+        apply_contract_consumers(
+            &BTreeSet::from(["mcp/apps-extension/src/models.rs".to_owned()]),
+            &mut targets,
+            &mut reasons,
+        );
+        assert_eq!(targets, BTreeSet::from(["console-bff".to_owned()]));
+        assert!(reasons["console-bff"].contains("MCP App presentation or host contract changed"));
     }
 }

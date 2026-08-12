@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs,
     io::{BufRead, BufReader, Write},
     path::Path,
@@ -68,6 +68,70 @@ struct TraceSummary {
     export: TimeWindow,
     push: TimeWindow,
     completed_vertices: BTreeMap<String, bool>,
+}
+
+#[derive(Default)]
+struct ProgressEmitter {
+    completed_vertices: BTreeSet<String>,
+    active_phases: BTreeSet<&'static str>,
+    completed_phases: BTreeSet<&'static str>,
+}
+
+impl ProgressEmitter {
+    fn observe(&mut self, value: &Value) {
+        if let Some(vertexes) = value.get("vertexes").and_then(Value::as_array) {
+            for vertex in vertexes {
+                let Some(digest) = vertex.get("digest").and_then(Value::as_str) else {
+                    continue;
+                };
+                let name = vertex.get("name").and_then(Value::as_str).unwrap_or("");
+                if let Some(phase) = build_phase(name)
+                    && vertex.get("started").is_some()
+                    && self.active_phases.insert(phase)
+                {
+                    eprintln!("BuildKit phase started: {phase}");
+                }
+                if vertex.get("completed").is_none()
+                    || !self.completed_vertices.insert(digest.to_owned())
+                {
+                    continue;
+                }
+                let result = if vertex
+                    .get("cached")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false)
+                {
+                    "cached"
+                } else {
+                    "completed"
+                };
+                eprintln!("BuildKit {result}: {}", bounded_name(name));
+                if let Some(phase) = build_phase(name)
+                    && self.completed_phases.insert(phase)
+                {
+                    eprintln!("BuildKit phase completed: {phase}");
+                }
+            }
+        }
+        if let Some(statuses) = value.get("statuses").and_then(Value::as_array) {
+            for status in statuses {
+                let name = status
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .or_else(|| status.get("name").and_then(Value::as_str))
+                    .unwrap_or("");
+                let Some(phase) = build_phase(name) else {
+                    continue;
+                };
+                if status.get("started").is_some() && self.active_phases.insert(phase) {
+                    eprintln!("BuildKit phase started: {phase}");
+                }
+                if status.get("completed").is_some() && self.completed_phases.insert(phase) {
+                    eprintln!("BuildKit phase completed: {phase}");
+                }
+            }
+        }
+    }
 }
 
 impl TraceSummary {
@@ -173,6 +237,7 @@ pub(crate) fn execute(
         .context("starting Docker Buildx Bake")?;
     let stderr = child.stderr.take().context("capturing Buildx progress")?;
     let mut summary = TraceSummary::default();
+    let mut progress = ProgressEmitter::default();
     for line in BufReader::new(stderr).lines() {
         let line = line.context("reading BuildKit progress")?;
         trace.write_all(line.as_bytes())?;
@@ -180,6 +245,7 @@ pub(crate) fn execute(
         match serde_json::from_str::<Value>(&line) {
             Ok(value) => {
                 summary.observe(&value);
+                progress.observe(&value);
                 emit_logs(&value);
                 emit_terminal_vertex(&value);
             }
@@ -188,6 +254,37 @@ pub(crate) fn execute(
     }
     let status = child.wait().context("waiting for Docker Buildx Bake")?;
     Ok((status, summary.finish()))
+}
+
+fn build_phase(name: &str) -> Option<&'static str> {
+    let name = name.to_ascii_lowercase();
+    if name.contains("cargo build")
+        || name.contains("cargo \"")
+        || name.contains("veoveo_cargo_packages")
+    {
+        Some("compile")
+    } else if name.contains("sbom") || name.contains("spdx") {
+        Some("sbom")
+    } else if name.contains("provenance") || name.contains("slsa") {
+        Some("provenance")
+    } else if name.contains("rewriting layers with source-date-epoch") {
+        Some("timestamp-normalization")
+    } else if name.contains("exporting") {
+        Some("export")
+    } else if name.contains("pushing") || name.contains("uploading") {
+        Some("push")
+    } else {
+        None
+    }
+}
+
+fn bounded_name(name: &str) -> String {
+    const MAX_CHARS: usize = 120;
+    let mut result = name.chars().take(MAX_CHARS).collect::<String>();
+    if name.chars().count() > MAX_CHARS {
+        result.push('…');
+    }
+    result
 }
 
 fn emit_logs(value: &Value) {
@@ -250,5 +347,13 @@ mod tests {
         assert_eq!(result.export_millis, 3_000);
         assert_eq!(result.executed_vertices, 2);
         assert_eq!(result.cached_vertices, 1);
+    }
+
+    #[test]
+    fn progress_is_bounded_and_classifies_export_phases() {
+        assert_eq!(build_phase("exporting to image"), Some("export"));
+        assert_eq!(build_phase("pushing layers"), Some("push"));
+        assert_eq!(bounded_name(&"x".repeat(121)).chars().count(), 121);
+        assert!(bounded_name(&"x".repeat(121)).ends_with('…'));
     }
 }

@@ -200,8 +200,10 @@ The current controls address the main observed sinks:
 | Sink | Control |
 |---|---|
 | One all-images build after any edit | affected target and consumer closure |
+| One selected Rust image compiling its entire builder family | selected-target package and binary closure; compatible group members still share one Cargo invocation |
 | Release attestations on every test | staging without release attestations, followed by digest-preserving qualification |
 | Rewriting large inherited image layers | commit-timestamp clamping with clean reproducibility proof |
+| Rebuilding pinned simulator dependencies after a runtime-source edit | stable `uav-sim-dependencies` payload beneath the source-only runtime overlay |
 | Mutable developer tags | development image lock and complete digest values |
 | Full smoke graph for deployment commands | `veoveo-deployment-smoke` partition |
 | Full smoke graph for browser retries | `veoveo-browser-smoke` partition |
