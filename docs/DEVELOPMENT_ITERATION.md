@@ -170,7 +170,8 @@ should not infer producer health from browser latency.
 |---|---|
 | Producer to forwarder | offered/sent/replaced source counters |
 | Forwarder durable queue | queued and maximum bytes, stream count, pending batches and Blueprints, finishing streams |
-| Hub materialization | messages, bytes, opened/frozen segments, quarantine, Blueprint publication and rejection |
+| Hub authenticated ingest | accepted batches, messages, and bytes; duplicate batches; materialization backlog batches and bytes; last successful append |
+| Hub materialization | opened/frozen segments, quarantine, Blueprint publication and rejection |
 | Live Recording playback | current live segment bytes, bounded history seconds, video preroll seconds, canceled and failed browser requests |
 | Authoritative live view | logical-camera revision, encoded-product identity, hardware encoder, frame age, connected viewer leases, capacity denials |
 | Browser | hardware adapter, video advance, decode identity, Rerun network mode, request cancellation, screenshot digest |
@@ -192,6 +193,53 @@ Recording live playback watches filesystem changes and transmits only static con
 one live-profile-compacted recent-history bootstrap, and newly durable data. It does not
 scan an entire active recording for every new viewer or leave initial compaction on the
 browser rendering thread.
+
+Recording Hub exposes process-lifetime ingest diagnostics through the authenticated
+`/internal/recording-ingest/v1/diagnostics` route. The counters advance at the durable
+journal and database commit boundary. Materialization backlog remains visible when
+projection work fails after that commit, which distinguishes accepted source traffic
+from downstream segment construction without placing metrics on the unauthenticated
+listener.
+
+## Iteration Improvement Register
+
+This register is the priority source for iteration work. The measured sink tables below
+remain an observation archive; an archived observation is not an open task unless this
+register says it is. Each active item names a falsifiable acceptance boundary rather
+than a general request to make builds faster.
+
+### Completed In The Current Improvement Cycle
+
+| Boundary | Owning component | Completed correction | Acceptance evidence |
+|---|---|---|---|
+| UAV control-plane rollout isolation | UAV chart and runtime contracts | `uav-sim-mcp` has its own CPU Deployment, Service, and network policy; authenticated NDJSON events replace the removed shared socket | chart contract tests and the restart verifier prove that replacing the MCP pod leaves the GPU simulator pod identity unchanged |
+| Registry authority and reachability | image orchestration | staging accepts one typed host push authority, cluster pull authority, and transport; it verifies `/v2/` before BuildKit starts | malformed revisions fail before worker acquisition, unreachable registries fail at preflight, and the local registry returns HTTP 200 |
+| Stable BuildKit worker | image orchestration | local and registry operations share one registry-capable builder configuration and preserve its cache state | `cargo xtask image builder ensure` retained builder `veoveo` with Buildx 0.35.0, BuildKit 0.31.2, and the 240/320/80 GB garbage-collection envelope in 7.57 s |
+| Selected Rust build closure | image planner and Rust builder families | a selected target builds only its declared package and binary instead of every member of the compatible family | current plans for Console BFF, Map MCP, and UAV MCP each contain one package and one binary and resolve in 3.24-4.49 s |
+| UAV dependency boundary | UAV image graph | pinned simulator, PX4, Cesium, native, and Python payload work lives in `uav-sim-dependencies`; runtime source is a thin overlay | the runtime plan selects the dependency and runtime Bake targets without introducing a Rust build unit |
+| Long-running build visibility | BuildKit evidence adapter | bounded phase and vertex transitions stream while Bake runs; the complete machine event trace remains in immutable evidence | formatter and image-orchestration tests cover progress reduction and bounded emission |
+| Deterministic GitOps convergence | focused deployment harness | the harness requests hard refresh, consumes Kubernetes watch events, verifies exact parent and configuration commits, then attributes render, apply, rollout, and readiness time | a healthy fixture converged in under one second; an unavailable application wrote failed rollout evidence instead of hiding the phase |
+| Recording ingress visibility | Recording Hub | the authenticated ingest path exposes accepted traffic, duplicates, materialization backlog, and last-success state without logging identities or secrets | all 32 Hub unit tests, five spool integration tests, and strict Clippy pass; the focused diagnostics test completes in 4.11 s |
+
+### Active Follow-Ups Worth Fixing Next
+
+| Priority | Boundary | Owning component | Acceptance condition |
+|---:|---|---|---|
+| 1 | Large-image normalized export and push tail | OCI exporter and UAV image graph | one committed source-only UAV runtime stage reuses normalized dependency layers and completes in under 30 s while retaining the same dependency payload digests |
+| 2 | Console static presentation updates | Console image graph | a web-only edit stages the frontend without compiling unrelated Rust binaries and completes in under 30 s |
+| 3 | Map source-isolated Rust cache and dependency closure | Map image graph | a Map-only edit uses the retained registry and target cache, excludes unrelated visual-server features, and completes a warm stage in under 30 s |
+| 4 | Shared multi-target staging | image orchestration | one exact Bake solve publishes all selected targets, preserves the named builder, and emits one independent digest and evidence record per target |
+| 5 | Focused composed-flight harness closure | smoke harness ownership | a verifier-only edit neither compiles nor links store, task, recording, or unrelated server runtimes, and dispatch remains below 2 s warm |
+| 6 | Stream native and Rust cache boundaries | Stream image graph | catalog or embedded-document edits do not rebuild the native runner or unrelated Rust packages, and the warm target stage completes in under 30 s |
+
+### Deferred Or Separately Owned Work
+
+| Boundary | Disposition |
+|---|---|
+| Full release attestation and large inherited-image qualification | reserved for release acceptance; development staging must not pay this cost before behavior is accepted |
+| GPU-renderer startup and live-camera latency | runtime performance work under the UAV design, not an image-orchestration fallback or a reason to weaken GPU acceptance |
+| Provider and external network recovery | owned by the relevant runtime contract; provider completion remains webhook-only |
+| Documentation publication automation | useful, but it does not block the source-to-running-workload fast path |
 
 ## Iteration Budgets
 
@@ -217,6 +265,22 @@ export, and push. Diagnose the largest phase before changing tools. A cached com
 with a slow export is not a Rust build problem. A cold SDK/base extraction with no
 source change is a cache-retention problem. A slow smoke dispatch that compiles
 unrelated crates is a partitioning problem.
+
+### Current Warm Checkpoints
+
+These measurements were taken after the current improvement cycle. They validate the
+control-plane budgets without claiming that the still-open large-image export tail has
+met its 30-second target.
+
+| Checkpoint | Measured | Budget | Result |
+|---|---:|---:|---|
+| Affected-target plan | 3.43 s | 10 s | pass |
+| Slowest sampled selected-target plan | 4.49 s | 10 s | pass |
+| Focused deployment harness dispatch | 1.21 s | 2 s | pass |
+| Recording ingest diagnostics test | 4.11 s | 10 s | pass |
+| GitOps controller convergence against a healthy fixture | under 1 s | 30 s | pass |
+| Managed builder ensure without replacement | 7.57 s | diagnostic only | stable worker retained |
+| Source-only UAV runtime stage | not remeasured | 30 s | open pending exporter correction |
 
 ## Recorded Iteration Sinks
 
