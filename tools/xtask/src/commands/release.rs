@@ -13,19 +13,19 @@ use sha2::{Digest, Sha256};
 use veoveo_deploy_contract::{
     DEPLOYMENT_LOCK_SCHEMA, DEVELOPMENT_IMAGE_LOCK_SCHEMA, DeploymentLock, DeploymentProfile,
     DeploymentSource, DeploymentSourceRole, DevelopmentImageLock, DevelopmentImageOrigin,
-    DevelopmentLockedImage, LoadedProfile, LockedChart, LockedImage, LockedSource, PlannedImage,
-    RegistryTransport, SourceRepository,
+    DevelopmentLockedImage, LoadedProfile, LockedChart, LockedImage, LockedRegistry, LockedSource,
+    PlannedImage, RegistryTransport, SourceRepository,
 };
 
-const IMAGE_RELEASE_EVIDENCE_SCHEMA: &str = "veoveo.io/image-release-evidence/v1";
-const IMAGE_STAGE_EVIDENCE_SCHEMA: &str = "veoveo.io/image-stage-evidence/v1";
+const IMAGE_RELEASE_EVIDENCE_SCHEMA: &str = "veoveo.io/image-release-evidence/v2";
+const IMAGE_STAGE_EVIDENCE_SCHEMA: &str = "veoveo.io/image-stage-evidence/v2";
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ImageReleaseEvidence<'a> {
     schema_version: &'static str,
     source_revision: &'a str,
-    registry: &'a str,
+    registry: &'a LockedRegistry,
     images: &'a [LockedImage],
 }
 
@@ -34,7 +34,7 @@ struct ImageReleaseEvidence<'a> {
 struct ImageStageEvidence<'a> {
     schema_version: &'static str,
     source_revision: &'a str,
-    registry: &'a str,
+    registry: &'a LockedRegistry,
     release_eligible: bool,
     images: &'a [StagedImage],
 }
@@ -64,7 +64,7 @@ struct StagedImageInput {
 struct ImageStageEvidenceInput {
     schema_version: String,
     source_revision: String,
-    registry: String,
+    registry: LockedRegistry,
     release_eligible: bool,
     images: Vec<StagedImageInput>,
 }
@@ -97,7 +97,7 @@ use crate::{
     commands::{
         builder, compatibility as compatibility_release, helm,
         image::{self, OutputMode, Selection},
-        image_manifest, python, simulation,
+        image_manifest, python, registry as registry_command, simulation,
         source::PublicationSource,
     },
     context::RepositoryContext,
@@ -130,9 +130,13 @@ pub(crate) fn simulation_runtime(
     let lock: DeploymentLock = serde_json::from_slice(&lock_bytes)
         .with_context(|| format!("decoding deployment lock {}", lock_path.display()))?;
     lock.validate()?;
-    let _builder =
-        builder::ensure_for_registry(repository, &lock.registry, lock.registry_transport)?;
     let publication = PublicationSource::prepare(repository, &args.revision)?;
+    registry_command::preflight(&lock.registry.push_address, lock.registry.transport)?;
+    let _builder = builder::ensure_for_registry(
+        repository,
+        &lock.registry.push_address,
+        lock.registry.transport,
+    )?;
     let platform_source = lock
         .sources
         .iter()
@@ -154,7 +158,7 @@ pub(crate) fn simulation_runtime(
         repository,
         publication.path(),
         publication.revision(),
-        &lock.registry,
+        &lock.registry.push_address,
         args,
         &output,
     )?;
@@ -262,21 +266,25 @@ pub(crate) fn images(repository: &RepositoryContext, args: &ReleaseImagesArgs) -
 
 pub(crate) fn stage_images(repository: &RepositoryContext, args: &ImageStageArgs) -> Result<()> {
     let selection = Selection::from_args(&args.selection)?;
-    validate_registry(&args.registry)?;
-    let allow_insecure_registry = registry_is_loopback(&args.registry)?;
-    let transport = if allow_insecure_registry {
-        RegistryTransport::InsecureHttp
-    } else {
-        RegistryTransport::Tls
-    };
-    let _builder = builder::ensure_for_registry(repository, &args.registry, transport)?;
     let publication = PublicationSource::prepare(repository, &args.revision)?;
+    validate_registry(&args.push_registry)?;
+    validate_registry(&args.pull_registry)?;
+    let transport: RegistryTransport = args.registry_transport.into();
+    let registry = LockedRegistry {
+        push_address: args.push_registry.clone(),
+        pull_address: args.pull_registry.clone(),
+        transport,
+    };
+    registry_command::preflight(&registry.push_address, registry.transport)?;
+    let allow_insecure_registry = registry.transport.is_insecure();
+    let _builder =
+        builder::ensure_for_registry(repository, &registry.push_address, registry.transport)?;
     let source_repository = RepositoryContext::discover(publication.path())?;
-    let environment = publication_environment(&args.registry, publication.revision());
+    let environment = publication_environment(&registry.push_address, publication.revision());
     let prepared =
         image::prepare_with_builder(repository, &source_repository, selection, &environment)?;
     for (_, reference) in prepared.image_references() {
-        validate_revision_reference(&reference, &args.registry, publication.revision())?;
+        validate_revision_reference(&reference, &registry.push_address, publication.revision())?;
     }
     let evidence = image::evidence_run(repository, &prepared.plan, "stage")?;
     image::execute(
@@ -296,7 +304,7 @@ pub(crate) fn stage_images(repository: &RepositoryContext, args: &ImageStageArgs
                 .get(&output.target)
                 .with_context(|| format!("Buildx metadata omitted staged image {}", output.target))?
                 .clone();
-            let repository = output
+            let push_repository = output
                 .reference
                 .strip_suffix(&format!(":{}", publication.revision()))
                 .with_context(|| {
@@ -307,14 +315,18 @@ pub(crate) fn stage_images(repository: &RepositoryContext, args: &ImageStageArgs
                 })?
                 .to_owned();
             let digests = image_manifest::inspect_staged(
-                &repository,
+                &push_repository,
                 &staging_index_digest,
                 &output.platform,
                 allow_insecure_registry,
             )?;
             Ok(StagedImage {
                 target: output.target,
-                repository,
+                repository: translate_registry(
+                    &push_repository,
+                    &registry.push_address,
+                    &registry.pull_address,
+                )?,
                 runtime_digest: digests.runtime,
                 staging_index_digest,
                 platform: output.platform,
@@ -331,7 +343,7 @@ pub(crate) fn stage_images(repository: &RepositoryContext, args: &ImageStageArgs
         &ImageStageEvidence {
             schema_version: IMAGE_STAGE_EVIDENCE_SCHEMA,
             source_revision: publication.revision(),
-            registry: &args.registry,
+            registry: &registry,
             release_eligible: false,
             images: &staged,
         },
@@ -390,9 +402,7 @@ pub(crate) fn development_image_lock(
         );
         ensure!(
             evidence.registry == base.registry,
-            "stage evidence registry {} does not match qualified base registry {}",
-            evidence.registry,
-            base.registry
+            "stage evidence registry endpoints do not match the qualified base registry"
         );
         ensure!(
             !evidence.images.is_empty(),
@@ -447,7 +457,7 @@ pub(crate) fn development_image_lock(
     };
     lock.validate()?;
 
-    let registry_prefix = format!("{}/", lock.registry);
+    let registry_prefix = format!("{}/", lock.registry.pull_address);
     let image_digests = lock
         .images
         .iter()
@@ -462,7 +472,7 @@ pub(crate) fn development_image_lock(
         .collect::<BTreeMap<_, _>>();
     let values = DevelopmentHelmValues {
         global: DevelopmentGlobalValues {
-            veoveo_registry: lock.registry.clone(),
+            veoveo_registry: lock.registry.pull_address.clone(),
             image_digests,
         },
     };
@@ -498,25 +508,37 @@ fn release_direct_images(repository: &RepositoryContext, args: &ReleaseImagesArg
         (None, Some(group)) => Selection::group(group)?,
         _ => bail!("release images requires --profile or exactly one --target/--group"),
     };
-    let registry = args
-        .registry
+    let push_registry = args
+        .push_registry
         .as_deref()
-        .context("a direct target or group release requires --registry")?;
-    validate_registry(registry)?;
-    let allow_insecure_registry = registry_is_loopback(registry)?;
-    let transport = if allow_insecure_registry {
-        RegistryTransport::InsecureHttp
-    } else {
-        RegistryTransport::Tls
+        .context("a direct target or group release requires --push-registry")?;
+    let pull_registry = args
+        .pull_registry
+        .as_deref()
+        .context("a direct target or group release requires --pull-registry")?;
+    let transport: RegistryTransport = args
+        .registry_transport
+        .context("a direct target or group release requires --registry-transport")?
+        .into();
+    let registry = LockedRegistry {
+        push_address: push_registry.to_owned(),
+        pull_address: pull_registry.to_owned(),
+        transport,
     };
-    let _builder = builder::ensure_for_registry(repository, registry, transport)?;
     let publication = PublicationSource::prepare(repository, revision)?;
+    validate_registry(&registry.push_address)?;
+    validate_registry(&registry.pull_address)?;
+    registry_command::preflight(&registry.push_address, registry.transport)?;
+    let allow_insecure_registry = registry.transport.is_insecure();
+    let _builder =
+        builder::ensure_for_registry(repository, &registry.push_address, registry.transport)?;
     let selected_repository = RepositoryContext::discover(publication.path())?;
     let images = publish_image_selections(
         repository,
         &selected_repository,
         publication.revision(),
-        registry,
+        &registry.push_address,
+        &registry.pull_address,
         vec![selection],
         allow_insecure_registry,
     )?;
@@ -525,7 +547,7 @@ fn release_direct_images(repository: &RepositoryContext, args: &ReleaseImagesArg
             repository,
             stage_evidence,
             publication.revision(),
-            registry,
+            &registry,
             &images,
         )?;
     }
@@ -547,7 +569,7 @@ fn release_direct_images(repository: &RepositoryContext, args: &ReleaseImagesArg
         &ImageReleaseEvidence {
             schema_version: IMAGE_RELEASE_EVIDENCE_SCHEMA,
             source_revision: publication.revision(),
-            registry,
+            registry: &registry,
             images: &images,
         },
     )?;
@@ -558,7 +580,7 @@ fn release_direct_images(repository: &RepositoryContext, args: &ReleaseImagesArg
     println!(
         "Published immutable revision {} to {}",
         publication.revision(),
-        registry
+        registry.push_address
     );
     Ok(())
 }
@@ -571,7 +593,9 @@ fn release_profile_images(
     ensure!(
         args.target.is_none()
             && args.group.is_none()
-            && args.registry.is_none()
+            && args.push_registry.is_none()
+            && args.pull_registry.is_none()
+            && args.registry_transport.is_none()
             && args.revision.is_none()
             && args.evidence_output.is_none()
             && args.stage_evidence.is_none(),
@@ -583,13 +607,6 @@ fn release_profile_images(
         .context("a profile image release requires --profile-revision")?;
     let (profile_repository, profile_path, relative) = profile_location(repository, profile_path)?;
     let working_profile = LoadedProfile::load(&profile_path, profile_repository.root())?;
-    let working_registry = &working_profile.definition.registry;
-    validate_registry(&working_registry.address)?;
-    let _builder = builder::ensure_for_registry(
-        repository,
-        &working_registry.address,
-        working_registry.transport,
-    )?;
     let profile_publication = Arc::new(PublicationSource::prepare(
         &profile_repository,
         profile_revision,
@@ -605,10 +622,13 @@ fn release_profile_images(
         &committed_profile,
         profile_publication.revision(),
     )?;
-    let registry = committed_profile.definition.registry.address.clone();
-    validate_registry(&registry)?;
-    let registry_transport = committed_profile.definition.registry.transport;
-    let allow_insecure_registry = registry_transport.is_insecure();
+    let registry = committed_profile.definition.registry.locked();
+    validate_registry(&registry.push_address)?;
+    validate_registry(&registry.pull_address)?;
+    registry_command::preflight(&registry.push_address, registry.transport)?;
+    let _builder =
+        builder::ensure_for_registry(repository, &registry.push_address, registry.transport)?;
+    let allow_insecure_registry = registry.transport.is_insecure();
     let platform_targets = committed_profile.required_platform_images()?;
     let mut prepared_sources = Vec::new();
     let mut publications = BTreeMap::new();
@@ -627,7 +647,7 @@ fn release_profile_images(
             repository,
             &working_profile,
             source,
-            &registry,
+            &registry.push_address,
             &platform_targets,
             &mut publications,
         )?);
@@ -640,7 +660,13 @@ fn release_profile_images(
     let locked_sources = prepared_sources
         .into_iter()
         .map(|source| {
-            publish_prepared_source(repository, &registry, source, allow_insecure_registry)
+            publish_prepared_source(
+                repository,
+                &registry.push_address,
+                &registry.pull_address,
+                source,
+                allow_insecure_registry,
+            )
         })
         .collect::<Result<Vec<_>>>()?;
     let lock = DeploymentLock {
@@ -648,7 +674,6 @@ fn release_profile_images(
         profile: committed_profile.definition.name.clone(),
         profile_revision: profile_publication.revision().to_owned(),
         registry,
-        registry_transport,
         sources: locked_sources,
         platform: committed_profile.resolved_platform()?,
     };
@@ -805,11 +830,12 @@ fn prepare_profile_source(
 
 fn publish_prepared_source(
     evidence_repository: &RepositoryContext,
-    registry: &str,
+    push_registry: &str,
+    pull_registry: &str,
     source: PreparedSourceRelease,
     allow_insecure_registry: bool,
 ) -> Result<LockedSource> {
-    let environment = publication_environment(registry, &source.revision);
+    let environment = publication_environment(push_registry, &source.revision);
     let phase_count = source.phases.len();
     let mut references = BTreeMap::new();
     for (index, phase) in source.phases.iter().enumerate() {
@@ -852,7 +878,13 @@ fn publish_prepared_source(
         }
         println!("Release evidence: {}", evidence.directory().display());
     }
-    let images = lock_published_images(references, &source.revision, allow_insecure_registry)?;
+    let images = lock_published_images(
+        references,
+        &source.revision,
+        push_registry,
+        pull_registry,
+        allow_insecure_registry,
+    )?;
     Ok(LockedSource {
         name: source.definition.name,
         role: source.definition.role,
@@ -867,11 +899,12 @@ fn publish_image_selections(
     evidence_repository: &RepositoryContext,
     source_repository: &RepositoryContext,
     revision: &str,
-    registry: &str,
+    push_registry: &str,
+    pull_registry: &str,
     selections: Vec<Selection>,
     allow_insecure_registry: bool,
 ) -> Result<Vec<LockedImage>> {
-    let environment = publication_environment(registry, revision);
+    let environment = publication_environment(push_registry, revision);
     let phase_count = selections.len();
     let phases = selections
         .into_iter()
@@ -884,7 +917,7 @@ fn publish_image_selections(
                 &environment,
             )?;
             for (_, reference) in plan.image_references() {
-                validate_revision_reference(&reference, registry, revision)?;
+                validate_revision_reference(&reference, push_registry, revision)?;
             }
             Ok(PreparedImagePhase { name, plan })
         })
@@ -944,12 +977,20 @@ fn publish_image_selections(
         }
         println!("Release evidence: {}", evidence.directory().display());
     }
-    lock_published_images(references, revision, allow_insecure_registry)
+    lock_published_images(
+        references,
+        revision,
+        push_registry,
+        pull_registry,
+        allow_insecure_registry,
+    )
 }
 
 fn lock_published_images(
     references: BTreeMap<String, PublishedImageOutput>,
     revision: &str,
+    push_registry: &str,
+    pull_registry: &str,
     allow_insecure_registry: bool,
 ) -> Result<Vec<LockedImage>> {
     references
@@ -960,21 +1001,21 @@ fn lock_published_images(
                 publication_digest,
                 platform,
             } = output;
-            let repository = reference
+            let push_repository = reference
                 .strip_suffix(&format!(":{revision}"))
                 .with_context(|| {
                     format!("published image {reference} does not use source revision tag")
                 })?
                 .to_owned();
             let digests = image_manifest::inspect(
-                &repository,
+                &push_repository,
                 &publication_digest,
                 &platform,
                 allow_insecure_registry,
             )?;
             Ok(LockedImage {
                 name,
-                repository,
+                repository: translate_registry(&push_repository, push_registry, pull_registry)?,
                 digest: digests.runtime,
                 publication_digest: digests.publication,
             })
@@ -986,7 +1027,7 @@ fn validate_qualified_runtime_identity(
     repository: &RepositoryContext,
     stage_evidence: &Path,
     revision: &str,
-    registry: &str,
+    registry: &LockedRegistry,
     qualified: &[LockedImage],
 ) -> Result<()> {
     let path = absolute_output(repository, stage_evidence);
@@ -1009,9 +1050,8 @@ fn validate_qualified_runtime_identity(
         staged.source_revision
     );
     ensure!(
-        staged.registry == registry,
-        "staged registry {} does not match qualified registry {registry}",
-        staged.registry
+        &staged.registry == registry,
+        "staged registry endpoints do not match qualified registry endpoints"
     );
     let staged = staged
         .images
@@ -1087,6 +1127,13 @@ fn validate_revision_reference(reference: &str, registry: &str, revision: &str) 
         "published image reference {reference} does not use source revision tag {revision}"
     );
     Ok(())
+}
+
+fn translate_registry(repository: &str, source: &str, destination: &str) -> Result<String> {
+    let path = repository
+        .strip_prefix(&format!("{source}/"))
+        .with_context(|| format!("image repository {repository} is outside registry {source}"))?;
+    Ok(format!("{destination}/{path}"))
 }
 
 fn validate_installation_inputs(
@@ -1329,19 +1376,6 @@ fn validate_registry(registry: &str) -> Result<()> {
     Ok(())
 }
 
-fn registry_is_loopback(registry: &str) -> Result<bool> {
-    let parsed = url::Url::parse(&format!("http://{registry}"))
-        .with_context(|| format!("parsing registry address {registry}"))?;
-    let host = parsed
-        .host_str()
-        .context("registry address must contain a host")?;
-    Ok(host == "localhost"
-        || host.ends_with(".localhost")
-        || host
-            .parse::<std::net::IpAddr>()
-            .is_ok_and(|address| address.is_loopback()))
-}
-
 #[cfg(test)]
 mod tests {
     use std::{fs, path::Path, process::Command};
@@ -1349,13 +1383,28 @@ mod tests {
     use tempfile::tempdir;
     use veoveo_deploy_contract::{DevelopmentImageLock, DevelopmentImageOrigin};
 
-    use super::{development_image_lock, load_committed_profile, profile_location};
+    use super::{
+        development_image_lock, load_committed_profile, profile_location, translate_registry,
+    };
     use crate::{ImageDevelopmentLockArgs, context::RepositoryContext};
 
     const STAGED_RUNTIME: &str =
         "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     const STAGED_INDEX: &str =
         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+    #[test]
+    fn translates_host_publication_authority_to_cluster_pull_authority() {
+        assert_eq!(
+            translate_registry(
+                "127.0.0.1:5001/veoveo/gateway",
+                "127.0.0.1:5001",
+                "k3d-registry.localhost:5001",
+            )
+            .expect("translate registry"),
+            "k3d-registry.localhost:5001/veoveo/gateway"
+        );
+    }
 
     fn git_init(path: &Path) {
         fs::create_dir(path).expect("create repository");
@@ -1432,9 +1481,13 @@ mod tests {
         fs::write(
             &stage,
             serde_json::to_vec_pretty(&serde_json::json!({
-                "schemaVersion": "veoveo.io/image-stage-evidence/v1",
+                "schemaVersion": "veoveo.io/image-stage-evidence/v2",
                 "sourceRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                "registry": "k3d-veoveo-registry.localhost:5001",
+                "registry": {
+                    "pushAddress": "127.0.0.1:5001",
+                    "pullAddress": "k3d-veoveo-registry.localhost:5001",
+                    "transport": "insecure-http"
+                },
                 "releaseEligible": false,
                 "images": [{
                     "target": "simulation-runtime",

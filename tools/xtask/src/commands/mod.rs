@@ -6,6 +6,7 @@ pub(crate) mod helm;
 pub(crate) mod image;
 pub(crate) mod image_manifest;
 pub(crate) mod python;
+pub(crate) mod registry;
 pub(crate) mod release;
 pub(crate) mod simulation;
 pub(crate) mod smoke;

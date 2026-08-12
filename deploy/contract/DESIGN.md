@@ -4,8 +4,8 @@
 
 | Standard or protocol | Supported profile |
 |---|---|
-| `veoveo.io/deployment/v5` | installation-repository profile with exact platform targets, independently versioned workload and extension sources, split Helm values ownership, explicit registry transport, and a managed GPU allocator closure |
-| `veoveo.io/deployment-lock/v5` | immutable installation revision, registry transport, source-role, OCI image, chart, platform resolution, and GPU allocator artifacts |
+| `veoveo.io/deployment/v6` | installation-repository profile with exact platform targets, independently versioned workload and extension sources, split Helm values ownership, explicit host-push and cluster-pull registry endpoints, and a managed GPU allocator closure |
+| `veoveo.io/deployment-lock/v6` | immutable installation revision, registry endpoints and transport, source-role, OCI image, chart, platform resolution, and GPU allocator artifacts |
 | `veoveo.io/local-registry/v1` | repository-owned loopback registry declaration |
 | Docker Buildx Bake | one exact multi-target platform build plus source-owned workload and extension groups |
 | Kubernetes/K3s v1.36.2 and Helm v4.2.3 | qualified DRA destination and ordered release inputs; process execution remains outside this crate |
@@ -35,7 +35,8 @@ exact activation revision to the platform Helm release. Repeating the command re
 same public bundle. A changed document or trust file creates a new bundle before rollout;
 the installation-owned Secret is never rewritten by this path.
 
-The lock records the exact installation-repository revision and registry transport
+The lock records the exact installation-repository revision, host-push endpoint,
+cluster-pull endpoint, and registry transport
 alongside source revisions, runnable platform-manifest digests, attested
 publication-index digests, and chart-content digests. Helm consumes the runnable
 digest. The publication digest retains the exact SBOM and provenance envelope emitted
@@ -43,13 +44,14 @@ by one release invocation. Local development may use source charts; production
 composition replaces source coordinates with digest-addressed private OCI chart
 coordinates.
 
-Deployment v5 also carries the complete managed GPU allocator closure. The profile and
+Deployment v6 also carries the complete managed GPU allocator closure. The profile and
 lock name the standalone NVIDIA chart, its OCI manifest digest, the downloaded archive
 digest, the multi-platform driver image index, and each admitted platform manifest.
 They select eligible nodes, a host driver root, a bounded Helm timeout, and one typed
 removal of a conflicting device plugin. Validation accepts only the qualified
-`0.4.1` release. This is a hard cut from deployment v4; an installation migrates by
-adding `gpuScheduling.allocator.installation` and regenerating its lock.
+`0.4.1` release. This is a hard cut from deployment v5; an installation replaces
+`registry.address` with `registry.pushAddress` and `registry.pullAddress`, then
+regenerates its lock.
 
 The platform resolver expands `full`, `extension-foundation`, or a typed custom
 selection. Gateway composition requirements fail closed against that graph. Artifact,

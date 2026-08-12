@@ -62,8 +62,20 @@ pub fn status(repository: &Path) -> Result<()> {
 }
 
 pub fn ensure(repository: &Path) -> Result<BuilderLease> {
-    let configuration = base_configuration(repository)?;
-    ensure_configuration(repository, configuration)
+    let lease = acquire_lease(repository)?;
+    ensure_buildx(repository)?;
+    if inspect(repository)?.is_none() {
+        let configuration = base_configuration(repository)?;
+        create(repository, &configuration)?;
+    }
+    buildx_status(repository, ["inspect", "--bootstrap", BUILDER_NAME])?;
+    let inspection =
+        inspect(repository)?.context("managed builder disappeared after creation or bootstrap")?;
+    validate_identity(repository, &inspection)?;
+    println!(
+        "Builder {BUILDER_NAME} is ready with Buildx {BUILDX_VERSION} and BuildKit {BUILDKIT_VERSION}"
+    );
+    Ok(lease)
 }
 
 pub fn ensure_for_registry(
@@ -71,6 +83,9 @@ pub fn ensure_for_registry(
     registry: &str,
     transport: RegistryTransport,
 ) -> Result<BuilderLease> {
+    if transport == RegistryTransport::Tls {
+        return ensure(repository);
+    }
     let configuration = registry_configuration(repository, registry, transport)?;
     ensure_configuration(repository, configuration)
 }

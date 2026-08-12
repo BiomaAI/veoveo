@@ -12,7 +12,7 @@
 | `veoveo.io/image-build-plan/v2` | repository-owned resolved build-plan evidence with the source commit timestamp |
 | `veoveo.io/image-build-run/v2` | repository-owned immutable execution record with BuildKit phase timings |
 | `veoveo.io/image-affected-plan/v1` | changed-path to image-consumer closure |
-| `veoveo.io/image-stage-evidence/v1` | non-release runnable identity from a staged registry publication |
+| `veoveo.io/image-stage-evidence/v2` | non-release runnable identity from a staged registry publication with explicit host-push and cluster-pull endpoints |
 | `veoveo.io/development-image-lock/v1` | complete development-only image closure derived from a qualified lock |
 | Cargo metadata version 1 | package and production-binary discovery |
 
@@ -67,7 +67,9 @@ cargo xtask image build --group showcase-sumo
 
 cargo xtask image stage \
   --target mcp-gateway \
-  --registry registry.example.com \
+  --push-registry registry.example.com \
+  --pull-registry registry.example.com \
+  --registry-transport tls \
   --revision "$(git rev-parse HEAD)" \
   --evidence-output output/stage/mcp-gateway.json
 ```
@@ -79,10 +81,12 @@ not a supported Rust build command.
 The managed builder is named `veoveo`. Commands always pass that name explicitly and do
 not change Docker's globally selected builder. `ensure` creates a missing builder and
 fails when an existing one has a different driver, BuildKit image, or daemon version.
-Profile publication generates the exact registry stanza from the profile's address and
-transport. A configuration change recreates only the builder definition with
-`--keep-state`, preserving the worker cache. The explicit maintenance command restores
-the checked-in base configuration:
+Profile publication generates the exact registry stanza from the profile's host-push
+endpoint and transport. The publisher probes `/v2/` before acquiring the builder.
+Ordinary local builds retain an already configured registry-capable worker. A genuinely
+different insecure endpoint recreates only the builder definition with `--keep-state`,
+preserving the worker cache. The explicit maintenance command restores the checked-in
+base configuration:
 
 ```bash
 cargo xtask image builder reconfigure --confirm veoveo
@@ -178,12 +182,16 @@ cargo xtask release images \
 
 cargo xtask release images \
   --group platform-full \
-  --registry registry.example.com \
+  --push-registry registry.example.com \
+  --pull-registry registry.example.com \
+  --registry-transport tls \
   --revision "$(git rev-parse HEAD)"
 
 cargo xtask release images \
   --target mcp-gateway \
-  --registry registry.example.com \
+  --push-registry registry.example.com \
+  --pull-registry registry.example.com \
+  --registry-transport tls \
   --revision "$(git rev-parse HEAD)" \
   --stage-evidence output/stage/mcp-gateway.json
 ```

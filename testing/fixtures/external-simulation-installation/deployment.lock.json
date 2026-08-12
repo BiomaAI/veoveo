@@ -1,9 +1,12 @@
 {
-  "schemaVersion": "veoveo.io/deployment-lock/v5",
+  "schemaVersion": "veoveo.io/deployment-lock/v6",
   "profile": "anonymous-simulation-extension",
   "profileRevision": "d2b80d11b49767ed12118ab00eabfdb00add7a45",
-  "registry": "k3d-veoveo-registry.localhost:5001",
-  "registryTransport": "insecure-http",
+  "registry": {
+    "pushAddress": "127.0.0.1:5001",
+    "pullAddress": "k3d-veoveo-registry.localhost:5001",
+    "transport": "insecure-http"
+  },
   "sources": [
     {
       "name": "veoveo",

@@ -13,7 +13,7 @@ The current complete profile is the SUMO development environment:
 | Local image destination | Profile-selected registry host and port with revision-addressed image tags |
 | Platform workload graph | deploy/helm/veoveo |
 | Showcase workload graph | Its adjacent Helm chart |
-| Development composition | A `veoveo.io/deployment/v5` installation-repository JSON profile |
+| Development composition | A `veoveo.io/deployment/v6` installation-repository JSON profile |
 | Local registry lifecycle | deploy/local/k3d/registry.json |
 
 ## Workflow
@@ -39,9 +39,10 @@ cargo xtask smoke profile-up --profile "$PROFILE" --lock "$LOCK"
 
 BuildKit pushes images directly to the profile-selected OCI registry. It does not load
 release images into the host Docker image store. The publisher configures the managed
-builder from `registry.address` and `registry.transport`; an insecure development
-registry may use any declared host port. A transport change preserves the builder state
-and its cache.
+builder from `registry.pushAddress` and `registry.transport`. Kubernetes receives
+`registry.pullAddress`. An insecure development registry may use different host and
+cluster authorities for the same content store. Ordinary local builds preserve the
+registry-capable builder state and cache.
 
 The exact typed platform closure runs as one multi-target Bake invocation. Bake retains
 the shared dependency graph and Cargo family consolidation inside that invocation.
@@ -59,9 +60,10 @@ paths resolve inside that source's exact checkout. The fields are:
 
 | Field | Meaning |
 |---|---|
-| schemaVersion | `veoveo.io/deployment/v5` |
+| schemaVersion | `veoveo.io/deployment/v6` |
 | name | Stable local environment identity |
-| registry.address | OCI host and port |
+| registry.pushAddress | OCI host and port reachable from the publication host |
+| registry.pullAddress | OCI host and port reachable from Kubernetes nodes |
 | registry.transport | `tls` or explicitly admitted `insecure-http` |
 | registry.localConfig | Shared k3d registry definition |
 | sources | Named repositories with `platform`, `workload`, or `extension` ownership and independent revisions |
@@ -91,8 +93,8 @@ commit, then resolves each source revision independently.
 The publisher derives only the required platform targets, rejects missing or
 unnecessary platform images and duplicate repository/tag references, and executes the
 platform set once. Workload and extension groups remain source-owned. It writes one
-`veoveo.io/deployment-lock/v5` document with the installation revision, registry
-transport, source repositories and revisions, image manifest digests, chart-content
+`veoveo.io/deployment-lock/v6` document with the installation revision, registry
+endpoints and transport, source repositories and revisions, image manifest digests, chart-content
 digests, and expanded platform graph.
 
 `cargo xtask smoke profile-up` requires that lock. It verifies the installation
@@ -126,9 +128,10 @@ Secrets are projected by the owner's secret-management platform.
 ## Registry and GPU
 
 One standalone OCI Distribution registry may serve several local k3d clusters. Its host
-port comes from `registry.address` and the matching local registry declaration; it is
-not a Veoveo constant. Nodes pull missing layers into their containerd store through
-the registry. Deleting a cluster leaves the shared registry volume intact.
+host port comes from `registry.pushAddress`; the node address comes from
+`registry.pullAddress`. Both must match the local registry declaration. Nodes pull
+missing layers into their containerd store through the cluster endpoint. Deleting a
+cluster leaves the shared registry volume intact.
 
 A profile without physical placement may apply the NVIDIA device-plugin bootstrap and
 wait for allocatable `nvidia.com/gpu` capacity. A profile with `gpuScheduling` instead
