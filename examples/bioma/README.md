@@ -96,6 +96,32 @@ commit. Record that commit's full SHA. A follow-up rollout commit must set the
 The parent Application then changes the chart and its values source in one child
 Application update.
 
+After pushing that parent commit, observe the exact rollout through the focused typed
+harness. Pass every Deployment whose digest changed; do not list an unchanged simulator
+for a control-plane-only update.
+
+~~~bash
+PARENT_REVISION="$(git rev-parse HEAD)"
+CONFIGURATION_REVISION="$(yq -r '.spec.sources[] | select(.ref == "configuration") | .targetRevision' examples/bioma/gitops/applications/veoveo.yaml)"
+
+cargo xtask smoke gitops-converge \
+  --context k3d-veoveo-bioma \
+  --control-namespace argocd \
+  --parent bioma \
+  --child bioma-veoveo \
+  --child bioma-uav-sim \
+  --source-ref configuration \
+  --parent-revision "$PARENT_REVISION" \
+  --configuration-revision "$CONFIGURATION_REVISION" \
+  --deployment veoveo/<changed-deployment> \
+  --evidence-output output/development/gitops-convergence.json
+~~~
+
+The command requests controller refresh and watches the exact parent and child
+revisions. Its evidence separates repository fetch, child rendering, apply, rollout,
+and readiness. Re-running with the same output path is rejected because convergence
+evidence is create-only.
+
 Never point a child Application's `configuration` source at a mutable branch. A mutable
 values source can expose new image digests to the old chart before the parent updates
 the chart revision. That ordering breaks the release boundary and can revive an old

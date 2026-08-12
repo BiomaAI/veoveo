@@ -12,6 +12,7 @@
 | Rerun 0.35.0 RRD | bounded live history and governed archive playback |
 | `veoveo.io/image-affected-plan/v1` | repository-owned affected-surface closure |
 | `veoveo.io/development-image-lock/v1` | repository-owned non-release deployment closure |
+| `veoveo.io/gitops-convergence-evidence/v1` | repository-owned exact-revision fetch, render, apply, rollout, and readiness evidence |
 | `veoveo.io/uav-live-view-browser-evidence/v8` | focused authoritative-camera pixels, event-derived source-to-render and motion-to-photon p95, cadence, isolated-viewer products, sensor separation, and simulation real-time-factor evidence over a running simulation |
 | `veoveo.io/uav-recording-browser-evidence/v2` | source-clock and camera-pane evidence for one live governed recording |
 
@@ -88,6 +89,30 @@ cargo xtask smoke profile-gpu-verify --profile <profile.json>
 
 These commands compile `veoveo-deployment-smoke`, not the broad protocol and visual
 smoke graph.
+
+Observe a GitOps rollout with the same focused harness. The parent revision is the
+commit rendered by the root Application. The configuration revision is the earlier
+immutable commit selected by each child source, since a commit cannot select itself.
+
+```bash
+cargo xtask smoke gitops-converge \
+  --context <kubernetes-context> \
+  --control-namespace <gitops-namespace> \
+  --parent <root-application> \
+  --child <platform-application> \
+  --child <extension-application> \
+  --source-ref configuration \
+  --parent-revision <full-parent-commit> \
+  --configuration-revision <full-configuration-commit> \
+  --deployment <namespace/platform-deployment> \
+  --deployment <namespace/extension-deployment> \
+  --evidence-output output/development/gitops-convergence.json
+```
+
+The command requests hard refreshes, then consumes Kubernetes watch events. It does not
+sleep between status reads. Parent fetch, child render, controller apply, Deployment
+rollout, and readiness retain separate elapsed times. A timeout writes failed evidence
+for the exact phase that did not converge.
 
 ## Acceptance Checkpoints
 

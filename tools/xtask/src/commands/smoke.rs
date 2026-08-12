@@ -145,6 +145,7 @@ fn dispatcher_binary(arguments: &[OsString]) -> Result<CargoBinary> {
             | "profile-up"
             | "profile-gpu-verify"
             | "profile-down"
+            | "gitops-converge"
     ) {
         Ok(DEPLOYMENT_SMOKE)
     } else if matches!(
@@ -217,6 +218,7 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         | "profile-up"
         | "profile-gpu-verify"
         | "profile-down"
+        | "gitops-converge"
         | "gpu-allocation-verify"
         | "bioma-verify"
         | "surreal-integration"
@@ -295,6 +297,23 @@ mod tests {
     #[test]
     fn profile_commands_build_only_the_focused_deployment_harness() {
         let arguments = [OsString::from("profile-up")];
+        assert_eq!(
+            cargo_build_arguments(&arguments).unwrap(),
+            [
+                "build",
+                "--locked",
+                "--package",
+                "veoveo-deployment-smoke",
+                "--bin",
+                "deployment-smoke",
+            ]
+        );
+    }
+
+    #[test]
+    fn gitops_convergence_builds_only_the_focused_deployment_harness() {
+        let arguments = [OsString::from("gitops-converge")];
+        assert_eq!(dispatcher_binary(&arguments).unwrap(), DEPLOYMENT_SMOKE);
         assert_eq!(
             cargo_build_arguments(&arguments).unwrap(),
             [
