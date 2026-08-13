@@ -120,6 +120,10 @@ async fn main() -> anyhow::Result<()> {
             post(api::send_agent_message),
         )
         .route(
+            "/console/api/agents/{agent_id}/conversation",
+            get(api::read_agent_conversation),
+        )
+        .route(
             "/console/api/agents/{agent_id}/input-requests",
             get(api::list_agent_input_requests),
         )

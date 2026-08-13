@@ -29,6 +29,8 @@ use crate::{
 
 const AGENT_MESSAGE_METHOD: &str = "admin/agents/messages";
 const AGENT_MESSAGE_RESULT_METHOD: &str = "admin/agents/messages/result";
+const AGENT_CONVERSATION_METHOD: &str = "admin/agents/conversation";
+const AGENT_CONVERSATION_RESULT_METHOD: &str = "admin/agents/conversation/result";
 const AGENT_INPUT_REQUESTS_METHOD: &str = "admin/agents/input-requests";
 const AGENT_INPUT_REQUESTS_RESULT_METHOD: &str = "admin/agents/input-requests/result";
 const AGENT_INPUT_REQUEST_DECISION_METHOD: &str = "admin/agents/input-requests/decision";
@@ -37,6 +39,7 @@ const AGENT_INPUT_REQUEST_DECISION_RESULT_METHOD: &str =
 
 #[derive(Clone, Copy)]
 enum AgentOperation {
+    ReadConversation,
     ReadInputRequests,
     SendMessage,
     DecideInputRequest,
@@ -45,7 +48,7 @@ enum AgentOperation {
 impl AgentOperation {
     const fn action(self) -> GatewayAction {
         match self {
-            Self::ReadInputRequests => GatewayAction::AgentsRead,
+            Self::ReadConversation | Self::ReadInputRequests => GatewayAction::AgentsRead,
             Self::SendMessage => GatewayAction::AgentsMessage,
             Self::DecideInputRequest => GatewayAction::AgentsInputRequestAnswer,
         }
@@ -53,6 +56,7 @@ impl AgentOperation {
 
     const fn method(self) -> &'static str {
         match self {
+            Self::ReadConversation => AGENT_CONVERSATION_METHOD,
             Self::ReadInputRequests => AGENT_INPUT_REQUESTS_METHOD,
             Self::SendMessage => AGENT_MESSAGE_METHOD,
             Self::DecideInputRequest => AGENT_INPUT_REQUEST_DECISION_METHOD,
@@ -61,6 +65,7 @@ impl AgentOperation {
 
     const fn result_method(self) -> &'static str {
         match self {
+            Self::ReadConversation => AGENT_CONVERSATION_RESULT_METHOD,
             Self::ReadInputRequests => AGENT_INPUT_REQUESTS_RESULT_METHOD,
             Self::SendMessage => AGENT_MESSAGE_RESULT_METHOD,
             Self::DecideInputRequest => AGENT_INPUT_REQUEST_DECISION_RESULT_METHOD,
@@ -69,6 +74,7 @@ impl AgentOperation {
 
     const fn failure(self) -> AdminOperationFailure {
         match self {
+            Self::ReadConversation => AdminOperationFailure::AgentConversation,
             Self::ReadInputRequests | Self::DecideInputRequest => {
                 AdminOperationFailure::AgentInputRequest
             }
@@ -78,6 +84,7 @@ impl AgentOperation {
 
     const fn name(self) -> &'static str {
         match self {
+            Self::ReadConversation => "read_agent_conversation",
             Self::ReadInputRequests => "list_agent_input_requests",
             Self::SendMessage => "send_agent_message",
             Self::DecideInputRequest => "decide_agent_input_request",
@@ -90,6 +97,40 @@ struct AuthorizedAgentOperation {
     subject: AuthenticatedSubject,
     target: AgentControlTarget,
     metadata: BTreeMap<String, String>,
+}
+
+pub(crate) async fn read_agent_conversation(
+    State(state): State<AdminState>,
+    AxumPath((profile, agent_id)): AxumPath<(String, String)>,
+    Extension(subject): Extension<AuthenticatedSubject>,
+) -> Response {
+    let started_at = Instant::now();
+    let operation = AgentOperation::ReadConversation;
+    let context =
+        match authorize_agent_operation(&state, profile, agent_id, subject, operation, started_at)
+            .await
+        {
+            Ok(context) => context,
+            Err(response) => return response,
+        };
+    match state.agent_control.conversation(&context.target).await {
+        Ok(conversation) => {
+            if let Err(error) = record_agent_result(
+                &state,
+                &context,
+                operation,
+                started_at,
+                AdminOperationStatus::Succeeded,
+                None,
+            )
+            .await
+            {
+                return internal_error_response(error);
+            }
+            Json(conversation).into_response()
+        }
+        Err(error) => handle_runtime_error(&state, &context, operation, started_at, error).await,
+    }
 }
 
 pub(crate) async fn send_agent_message(

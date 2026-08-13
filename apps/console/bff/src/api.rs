@@ -222,6 +222,24 @@ pub(crate) async fn send_agent_message(
     .await
 }
 
+pub(crate) async fn read_agent_conversation(
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+    request_headers: HeaderMap,
+) -> Response {
+    if !valid_agent_id(&agent_id) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    proxy_json::<()>(
+        &state,
+        &request_headers,
+        Method::GET,
+        &format!("agents/{agent_id}/conversation"),
+        None,
+    )
+    .await
+}
+
 pub(crate) async fn list_agent_input_requests(
     State(state): State<AppState>,
     Path(agent_id): Path<String>,

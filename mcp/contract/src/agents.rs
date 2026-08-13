@@ -59,6 +59,53 @@ pub struct AgentInputRequestView {
     pub requested_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentConversationRole {
+    Operator,
+    Agent,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentConversationEntryState {
+    Accepted,
+    Running,
+    Completed,
+    BudgetTerminated,
+    Failed,
+}
+
+/// One actor-attributed projection of durable agent runtime state.
+///
+/// Conversation entries are not a second source of truth. Operator entries
+/// project durable wakes and agent entries project durable episodes.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentConversationEntry {
+    pub entry_id: String,
+    pub role: AgentConversationRole,
+    pub actor_id: String,
+    pub content: String,
+    pub state: AgentConversationEntryState,
+    pub occurred_at: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wake_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub episode_id: Option<Uuid>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub in_reply_to_request_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentConversationView {
+    pub agent_id: String,
+    pub entries: Vec<AgentConversationEntry>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -83,5 +130,25 @@ mod tests {
         let request: AgentInputRequestDecision =
             serde_json::from_value(value).expect("decision parses");
         assert!(matches!(request, AgentInputRequestDecision::Accept { .. }));
+    }
+
+    #[test]
+    fn conversation_contract_contains_no_domain_fields() {
+        let value = serde_json::to_value(AgentConversationEntry {
+            entry_id: "wake:019f0000-0000-7000-8000-000000000001".to_owned(),
+            role: AgentConversationRole::Operator,
+            actor_id: "https://idp.example#operator".to_owned(),
+            content: "inspect the active route".to_owned(),
+            state: AgentConversationEntryState::Accepted,
+            occurred_at: Utc::now(),
+            request_id: Some(Uuid::now_v7()),
+            wake_id: Some(Uuid::now_v7()),
+            episode_id: None,
+            in_reply_to_request_ids: Vec::new(),
+        })
+        .expect("conversation entry serializes");
+        assert!(value.get("vehicle_id").is_none());
+        assert!(value.get("mission_id").is_none());
+        assert!(value.get("fleet_id").is_none());
     }
 }

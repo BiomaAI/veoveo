@@ -724,7 +724,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 
 | File | Responsibility |
 |---|---|
-| `control.rs` | database-authenticated, exact-context external operator messages and input-request decisions with UUIDv7 idempotency, durable wakes, and actor attribution |
+| `control.rs` | database-authenticated, exact-context external operator messages and input-request decisions with UUIDv7 idempotency, durable wakes, actor attribution, and a domain-neutral conversation projection over wakes and episodes |
 | `runtime.rs` | lease-fenced agent mutations, inactive-manifest reconciliation, and race-safe durable input-request terminal waits |
 
 ### `agents/kernel`
@@ -745,7 +745,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 
 | File | Responsibility |
 |---|---|
-| `agents.rs` | human-only policy and audit boundary for agent messages, pending input-request reads, and decisions; resolves the caller's tenant and Work Context before using the runtime control plane |
+| `agents.rs` | human-only policy and audit boundary for agent messages, actor-attributed conversation reads, pending input-request reads, and decisions; resolves the caller's tenant and Work Context before using the runtime control plane |
 
 ## Console
 
@@ -768,7 +768,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `App.tsx` | application shell: platform navigation plus catalog-driven MCP App entries, topbar, view routing, drawer mounting |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
 | `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `rerunLiveChannel.ts`, `recordingRrdFetch.ts`, `rerunMap.ts` | persistent WebViewer lifecycle, producer Blueprint-first opening, one native incremental-RRD or lazy-archive receiver, exact same-origin RRD authorization, duplicate-free current-head reconnect, event-driven rollover without cursor forcing, archive-only credential renewal, and installation-owned browser map-provider activation |
-| `views/Agents.tsx`, `agentControl.ts` | reactive agent state, durable message submission, pending input-request decisions, and client-owned UUIDv7 retry identity |
+| `views/Agents.tsx`, `agentControl.ts` | reactive agent state, actor-attributed conversation, durable message submission, pending input-request decisions, and client-owned UUIDv7 retry identity |
 | `views/` | remaining platform-plane views (overview, work, artifacts, MCP, apps, access, audit, cluster); domain views ship as MCP Apps, never here |
 | `drawers/ArtifactDrawer.tsx` | artifact preview, recording provenance, download, release, grant, and share-link workflows |
 | `drawers/` | remaining detail drawers with mutation workflows |
