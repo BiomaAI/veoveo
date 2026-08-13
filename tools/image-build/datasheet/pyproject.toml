@@ -12,4 +12,4 @@ package = false
 
 [tool.uv.sources]
 datasheet-mcp = { path = "../../../templates/python-mcp" }
-veoveo-mcp = { path = "../../../sdk/python" }
+veoveo-mcp = { path = "../../../sdk/python", editable = true }
