@@ -312,7 +312,7 @@
 - name: rerun-bridge
   runtimeClassName: nvidia
   image:
-    repository: veoveo/mcp-stdio-bridge
+    repository: veoveo/mcp-legacy-bridge
     tag: 0.1.0
     digest: ""
   port: 8790
@@ -323,7 +323,7 @@
     - 0.0.0.0:8790
     - --allowed-host
     - rerun-bridge:8790
-    - --
+    - stdio
     - rerun
     - viewer-mcp
   resources:
