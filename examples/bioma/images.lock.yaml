@@ -12,6 +12,7 @@ global:
     veoveo/frames-mcp: sha256:265899709b36c8307f776e9a86604e1b761711de6cc3a0bb6ca919b9cefdb039
     veoveo/map-mcp: sha256:6cc00bf3c208272faf21c92585ea49da84e80181aadd874ce8a21efecfd6259a
     veoveo/mcp-gateway: sha256:876e2f6eff2890f43dfdbad1b84e2a7f40d9f6e634bb036486bb69972b41b3af
+    veoveo/mcp-legacy-bridge: sha256:0f96ce62bff774e447ef6018b7a6a39ee42d1923ccfd96aa87c6e2ab978f4d5b
     veoveo/mcp-stdio-bridge: sha256:7f9b5ee0d72f81c628502e57e3873387d4bd08c90d0140af621d557653b600e5
     veoveo/media-mcp: sha256:d33f1b53a3cddf3409bfca96843c0fb987b318a7a24ef59a354b0706dcdf8247
     veoveo/optimization-mcp: sha256:7a2d599f577d497c1231f5af52b5a27bfad69d980038d6f9f907511d1803027a
