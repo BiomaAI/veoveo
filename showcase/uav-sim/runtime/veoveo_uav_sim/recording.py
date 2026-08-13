@@ -332,7 +332,6 @@ class _RecordingSink:
             )
 
     def close(self) -> None:
-        self._camera.close()
         self._recording.flush()
         self._recording.disconnect()
 

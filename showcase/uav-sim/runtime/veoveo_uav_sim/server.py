@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
-import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable
 
 from aiohttp import web
 
+from .adapter_server import AdapterServer
 from .adapter_auth import authorization_middleware
 from .config import RuntimeConfig
 from .contracts import (
@@ -550,53 +550,6 @@ class AdapterApplication:
     def _duration(operation: DurableOperation) -> float:
         assert operation.duration_seconds is not None
         return operation.duration_seconds
-
-
-class AdapterServer:
-    def __init__(self, config: RuntimeConfig, application: web.Application) -> None:
-        self._config = config
-        self._application = application
-        self._thread: threading.Thread | None = None
-        self._loop: asyncio.AbstractEventLoop | None = None
-        self._runner: web.AppRunner | None = None
-        self._started = threading.Event()
-        self._error: BaseException | None = None
-
-    def start(self) -> None:
-        self._thread = threading.Thread(
-            target=self._run, name="uav-adapter-http", daemon=True
-        )
-        self._thread.start()
-        if not self._started.wait(30.0):
-            raise TimeoutError("UAV adapter HTTP server did not start")
-        if self._error is not None:
-            raise RuntimeError("UAV adapter HTTP server failed") from self._error
-
-    def close(self) -> None:
-        if self._loop is not None and self._runner is not None:
-            future = asyncio.run_coroutine_threadsafe(
-                self._runner.cleanup(), self._loop
-            )
-            future.result(timeout=30.0)
-            self._loop.call_soon_threadsafe(self._loop.stop)
-        if self._thread is not None:
-            self._thread.join(timeout=30.0)
-
-    def _run(self) -> None:
-        try:
-            self._loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self._loop)
-            self._runner = web.AppRunner(self._application, access_log=None)
-            self._loop.run_until_complete(self._runner.setup())
-            site = web.TCPSite(
-                self._runner, self._config.adapter_host, self._config.adapter_port
-            )
-            self._loop.run_until_complete(site.start())
-            self._started.set()
-            self._loop.run_forever()
-        except BaseException as error:
-            self._error = error
-            self._started.set()
 
 
 def _identity(field: str, value: object) -> str:
