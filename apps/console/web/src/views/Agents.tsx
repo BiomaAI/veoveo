@@ -2,13 +2,19 @@ import { useCallback, useEffect, useState } from "react";
 import { Bot, Check, RefreshCw, Send, X } from "lucide-react";
 import {
   decideAgentInputRequest,
+  loadAgentConversation,
   loadAgentInputRequests,
   sendAgentMessage,
 } from "../api";
 import { agentDisplayState, uuidV7 } from "../agentControl";
 import { EmptyState, SectionHeader, StatusPill } from "../components/primitives";
 import { formatDate } from "../format";
-import type { AgentInputRequest, AgentSummary, InstallationSnapshot } from "../types";
+import type {
+  AgentConversationEntry,
+  AgentInputRequest,
+  AgentSummary,
+  InstallationSnapshot,
+} from "../types";
 
 function useAgentDisplayState(agent: AgentSummary) {
   const [, refreshAtExpiry] = useState(0);
@@ -36,6 +42,8 @@ function AgentCard({ agent }: { agent: AgentSummary }) {
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<string>();
   const [error, setError] = useState<string>();
+  const [conversation, setConversation] = useState<AgentConversationEntry[]>([]);
+  const [loadingConversation, setLoadingConversation] = useState(true);
   const [inputRequests, setInputRequests] = useState<AgentInputRequest[]>([]);
   const [loadingInputRequests, setLoadingInputRequests] = useState(true);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -57,6 +65,18 @@ function AgentCard({ agent }: { agent: AgentSummary }) {
     }
   }, [agent.id]);
 
+  const refreshConversation = useCallback(async (signal?: AbortSignal) => {
+    setLoadingConversation(true);
+    try {
+      const value = await loadAgentConversation(agent.id, signal);
+      if (!signal?.aborted) setConversation(value.entries);
+    } catch (cause) {
+      if (!signal?.aborted) setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      if (!signal?.aborted) setLoadingConversation(false);
+    }
+  }, [agent.id]);
+
   useEffect(() => {
     const controller = new AbortController();
     loadAgentInputRequests(agent.id, controller.signal).then(
@@ -70,6 +90,23 @@ function AgentCard({ agent }: { agent: AgentSummary }) {
       },
     ).finally(() => {
       if (!controller.signal.aborted) setLoadingInputRequests(false);
+    });
+    return () => controller.abort();
+  }, [agent.id, agent.lastEpisodeAt, agent.pendingWakes, agent.state]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    loadAgentConversation(agent.id, controller.signal).then(
+      (value) => {
+        if (!controller.signal.aborted) setConversation(value.entries);
+      },
+      (cause: unknown) => {
+        if (!controller.signal.aborted) {
+          setError(cause instanceof Error ? cause.message : String(cause));
+        }
+      },
+    ).finally(() => {
+      if (!controller.signal.aborted) setLoadingConversation(false);
     });
     return () => controller.abort();
   }, [agent.id, agent.lastEpisodeAt, agent.pendingWakes, agent.state]);
@@ -90,7 +127,7 @@ function AgentCard({ agent }: { agent: AgentSummary }) {
       setMessage("");
       setMessageRequestId(undefined);
       setNotice(`Accepted as wake ${receipt.wakeId}`);
-      await refreshInputRequests();
+      await Promise.all([refreshInputRequests(), refreshConversation()]);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -149,6 +186,37 @@ function AgentCard({ agent }: { agent: AgentSummary }) {
         <div><dt>Last episode</dt><dd>{formatDate(agent.lastEpisodeAt)}</dd></div>
       </dl>
       <p className="agent-detail">{agent.detail}</p>
+      <div className="agent-conversation">
+        <div className="agent-conversation-head">
+          <strong>Conversation</strong>
+          <button
+            className="button button-secondary"
+            disabled={loadingConversation}
+            onClick={() => void refreshConversation()}
+            aria-label={`Refresh ${agent.name} conversation`}
+          >
+            <RefreshCw size={13} className={loadingConversation ? "spin" : ""} />
+          </button>
+        </div>
+        {loadingConversation && conversation.length === 0 ? (
+          <span className="subdued">Loading conversation…</span>
+        ) : conversation.length === 0 ? (
+          <span className="subdued">No conversation yet.</span>
+        ) : (
+          <div className="agent-conversation-log">
+            {conversation.map((entry) => (
+              <article className={`agent-conversation-entry ${entry.role}`} key={entry.entryId}>
+                <div>
+                  <strong>{entry.role === "agent" ? agent.name : entry.actorId}</strong>
+                  <StatusPill value={entry.state} />
+                </div>
+                {entry.content && <p>{entry.content}</p>}
+                <span className="subdued">{formatDate(entry.occurredAt)}</span>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
       <div className="agent-control">
         <label>
           <span>Message this agent</span>

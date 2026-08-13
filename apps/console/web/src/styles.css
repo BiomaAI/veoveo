@@ -525,7 +525,15 @@ a.button { text-decoration: none; }
 .agent-grid { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
 .agent-card { align-content: start; }
 .agent-detail { min-height: 38px; margin: 0; color: var(--muted); }
-.agent-control, .agent-input-requests { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+.agent-conversation, .agent-control, .agent-input-requests { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+.agent-conversation-head { display: flex; align-items: center; justify-content: space-between; gap: 7px; }
+.agent-conversation-head .button { min-width: 32px; padding: 5px; }
+.agent-conversation-log { display: grid; gap: 7px; max-height: 320px; overflow: auto; }
+.agent-conversation-entry { display: grid; gap: 5px; padding: 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--control); }
+.agent-conversation-entry.agent { border-left: 3px solid var(--accent); }
+.agent-conversation-entry.operator { border-right: 3px solid var(--border-strong); }
+.agent-conversation-entry > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.agent-conversation-entry p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .agent-control label { display: grid; gap: 5px; color: var(--muted); font-size: var(--text-xs); }
 .agent-control textarea, .agent-input-request textarea { width: 100%; resize: vertical; padding: 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--control); color: var(--text); font: var(--text-xs)/17px inherit; }
 .agent-control .button { justify-self: start; }

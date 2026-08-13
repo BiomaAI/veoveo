@@ -190,6 +190,24 @@ export interface AgentWakeReceipt {
   acceptedAt: string;
 }
 
+export interface AgentConversationEntry {
+  entryId: string;
+  role: "operator" | "agent";
+  actorId: string;
+  content: string;
+  state: "accepted" | "running" | "completed" | "budget_terminated" | "failed";
+  occurredAt: string;
+  requestId?: string;
+  wakeId?: string;
+  episodeId?: string;
+  inReplyToRequestIds: string[];
+}
+
+export interface AgentConversation {
+  agentId: string;
+  entries: AgentConversationEntry[];
+}
+
 export interface AgentInputRequest {
   inputRequestId: string;
   message: string;

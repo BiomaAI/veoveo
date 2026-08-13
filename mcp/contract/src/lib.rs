@@ -43,7 +43,9 @@ pub use access::{
     parse_artifact_plane_uri, role_in_group,
 };
 pub use agents::{
-    AgentInputRequestDecision, AgentInputRequestView, AgentOperatorMessageRequest, AgentWakeReceipt,
+    AgentConversationEntry, AgentConversationEntryState, AgentConversationRole,
+    AgentConversationView, AgentInputRequestDecision, AgentInputRequestView,
+    AgentOperatorMessageRequest, AgentWakeReceipt,
 };
 #[cfg(feature = "analytics")]
 pub use analytics::{DuckDbAnalytics, SharedDuckDbConnection, open_duckdb};

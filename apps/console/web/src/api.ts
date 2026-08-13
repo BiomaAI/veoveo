@@ -10,6 +10,7 @@ import type {
 } from "./apps/protocol";
 import type {
   AppCatalog,
+  AgentConversation,
   AgentInputRequest,
   AgentWakeReceipt,
   ArtifactAccessRequest,
@@ -140,6 +141,22 @@ interface AgentInputRequestWire {
   requested_at: string;
 }
 
+interface AgentConversationWire {
+  agent_id: string;
+  entries: Array<{
+    entry_id: string;
+    role: "operator" | "agent";
+    actor_id: string;
+    content: string;
+    state: "accepted" | "running" | "completed" | "budget_terminated" | "failed";
+    occurred_at: string;
+    request_id?: string;
+    wake_id?: string;
+    episode_id?: string;
+    in_reply_to_request_ids?: string[];
+  }>;
+}
+
 function agentWakeReceipt(wire: AgentWakeReceiptWire): AgentWakeReceipt {
   return {
     requestId: wire.request_id,
@@ -163,6 +180,43 @@ export async function sendAgentMessage(
     },
   );
   return agentWakeReceipt(wire);
+}
+
+export async function loadAgentConversation(
+  agentId: string,
+  signal?: AbortSignal,
+): Promise<AgentConversation> {
+  const response = await fetch(
+    `/console/api/agents/${encodeURIComponent(agentId)}/conversation`,
+    {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+      signal,
+    },
+  );
+  const rotatedToken = response.headers.get("x-veoveo-csrf-token");
+  if (rotatedToken) csrfToken = rotatedToken;
+  if (response.status === 401) authenticationRequired();
+  if (response.status === 403) {
+    throw new Error("Agent conversation is not permitted for this Console session.");
+  }
+  if (!response.ok) throw new Error(`Agent conversation returned ${response.status}`);
+  const wire = (await response.json()) as AgentConversationWire;
+  return {
+    agentId: wire.agent_id,
+    entries: wire.entries.map((entry) => ({
+      entryId: entry.entry_id,
+      role: entry.role,
+      actorId: entry.actor_id,
+      content: entry.content,
+      state: entry.state,
+      occurredAt: entry.occurred_at,
+      requestId: entry.request_id,
+      wakeId: entry.wake_id,
+      episodeId: entry.episode_id,
+      inReplyToRequestIds: entry.in_reply_to_request_ids ?? [],
+    })),
+  };
 }
 
 export async function loadAgentInputRequests(
