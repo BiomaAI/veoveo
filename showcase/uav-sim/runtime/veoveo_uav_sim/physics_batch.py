@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -14,6 +15,22 @@ class RigidBodyState:
     orientation_xyzw: np.ndarray
     linear_velocity_xyz: np.ndarray
     angular_velocity_xyz: np.ndarray
+
+
+@dataclass(frozen=True, slots=True)
+class FleetPhysicsTiming:
+    """Cumulative wall-time attribution for the authoritative physics callback."""
+
+    physics_steps: int
+    refresh_states_wall_seconds: float
+    vehicle_update_wall_seconds: float
+    state_update_wall_seconds: float
+    dynamics_update_wall_seconds: float
+    sensor_update_wall_seconds: float
+    backend_state_wall_seconds: float
+    flush_forces_wall_seconds: float
+    after_step_wall_seconds: float
+    maximum_physics_step_ms: float
 
 
 class RigidBodyBatchAccumulator:
@@ -118,9 +135,9 @@ class RigidBodyBatchAccumulator:
 class IsaacFleetPhysicsBatch:
     """One reusable GPU tensor path for all Pegasus vehicle bodies."""
 
-    def __init__(self, body_paths: Sequence[str], simulation_view: Any) -> None:
+    def __init__(self, body_paths: Sequence[str], physics_view: Any) -> None:
         self._accumulator = RigidBodyBatchAccumulator(body_paths)
-        self._simulation_view: Any = None
+        self._physics_view: Any = None
         self._rigid_body_view: Any = None
         self._warp: Any = None
         self._device: Any = None
@@ -133,7 +150,7 @@ class IsaacFleetPhysicsBatch:
         self._velocities_host: Any = None
         self._transforms_numpy: np.ndarray | None = None
         self._velocities_numpy: np.ndarray | None = None
-        self.rebind(simulation_view)
+        self.rebind(physics_view)
 
     @property
     def device(self) -> str:
@@ -143,13 +160,13 @@ class IsaacFleetPhysicsBatch:
     def body_count(self) -> int:
         return len(self._accumulator.paths)
 
-    def rebind(self, simulation_view: Any) -> None:
+    def rebind(self, physics_view: Any) -> None:
         import warp as wp
 
-        if simulation_view is None:
+        if physics_view is None:
             raise RuntimeError("Isaac World did not initialize its physics tensor view")
-        simulation_view.set_subspace_roots("/")
-        rigid_body_view = simulation_view.create_rigid_body_view(
+        physics_view.set_subspace_roots("/")
+        rigid_body_view = physics_view.create_rigid_body_view(
             list(self._accumulator.paths)
         )
         actual_paths = tuple(rigid_body_view.prim_paths)
@@ -160,7 +177,7 @@ class IsaacFleetPhysicsBatch:
                 "Isaac rigid-body tensor view does not exactly match the fleet; "
                 f"expected {self._accumulator.paths}, received {actual_paths}"
             )
-        device = wp.get_device(simulation_view.device)
+        device = wp.get_device(physics_view.device)
         if not device.is_cuda:
             raise RuntimeError(
                 "UAV fleet physics requires a CUDA-backed Isaac tensor view"
@@ -172,7 +189,7 @@ class IsaacFleetPhysicsBatch:
         # zero NumPy accumulator would therefore submit frozen zero forces for
         # every later physics step.
         count = len(actual_paths)
-        self._simulation_view = simulation_view
+        self._physics_view = physics_view
         self._rigid_body_view = rigid_body_view
         self._warp = wp
         self._device = device
@@ -204,7 +221,13 @@ class IsaacFleetPhysicsBatch:
         velocities = self._rigid_body_view.get_velocities()
         self._warp.copy(self._transforms_host, transforms)
         self._warp.copy(self._velocities_host, velocities)
-        self._warp.synchronize_device(self._device)
+        # Wait only for this simulation thread's current Warp stream. A
+        # device-wide barrier also waits for RTX, NVENC and native WebRTC work
+        # owned by other frameworks on the same GPU, which lets a viewer stall
+        # authoritative physics. The two device-to-host copies above are
+        # ordered on the current stream, so this is the narrow synchronization
+        # boundary required before reading their NumPy views.
+        self._warp.synchronize_stream(self._device)
         assert self._transforms_numpy is not None
         assert self._velocities_numpy is not None
         self._accumulator.update_states(
@@ -269,6 +292,16 @@ class FleetPhysicsLifecycle:
         self._batch_factory = batch_factory
         self._after_step = after_step
         self._batch: Any = None
+        self._physics_steps = 0
+        self._refresh_states_wall_seconds = 0.0
+        self._vehicle_update_wall_seconds = 0.0
+        self._state_update_wall_seconds = 0.0
+        self._dynamics_update_wall_seconds = 0.0
+        self._sensor_update_wall_seconds = 0.0
+        self._backend_state_wall_seconds = 0.0
+        self._flush_forces_wall_seconds = 0.0
+        self._after_step_wall_seconds = 0.0
+        self._maximum_physics_step_ms = 0.0
 
     @property
     def batch(self) -> Any:
@@ -276,18 +309,32 @@ class FleetPhysicsLifecycle:
             raise RuntimeError("fleet physics batch has not been initialized")
         return self._batch
 
+    def timing(self) -> FleetPhysicsTiming:
+        return FleetPhysicsTiming(
+            physics_steps=self._physics_steps,
+            refresh_states_wall_seconds=self._refresh_states_wall_seconds,
+            vehicle_update_wall_seconds=self._vehicle_update_wall_seconds,
+            state_update_wall_seconds=self._state_update_wall_seconds,
+            dynamics_update_wall_seconds=self._dynamics_update_wall_seconds,
+            sensor_update_wall_seconds=self._sensor_update_wall_seconds,
+            backend_state_wall_seconds=self._backend_state_wall_seconds,
+            flush_forces_wall_seconds=self._flush_forces_wall_seconds,
+            after_step_wall_seconds=self._after_step_wall_seconds,
+            maximum_physics_step_ms=self._maximum_physics_step_ms,
+        )
+
     def reset(self) -> Any:
         # World.reset advances PhysX. No callback may reference the old tensor
         # stage or an as-yet-unbound batch during that transition.
         self.remove_callbacks()
         self._world.reset()
-        simulation_view = self._world.physics_sim_view
-        if simulation_view is None:
+        physics_view = self._world.physics_sim_view
+        if physics_view is None:
             raise RuntimeError("Isaac World reset without a physics tensor view")
         if self._batch is None:
-            self._batch = self._batch_factory(self._body_paths, simulation_view)
+            self._batch = self._batch_factory(self._body_paths, physics_view)
         else:
-            self._batch.rebind(simulation_view)
+            self._batch.rebind(physics_view)
         for vehicle in self._vehicles.values():
             vehicle.bind_physics_batch(self._batch)
         self._world.add_physics_callback(self._CALLBACK_NAME, self._update)
@@ -304,16 +351,44 @@ class FleetPhysicsLifecycle:
             self._world.remove_physics_callback(self._CALLBACK_NAME)
 
     def _update(self, dt: float) -> None:
+        physics_step_started = time.perf_counter()
         batch = self.batch
+        phase_started = time.perf_counter()
         batch.refresh_states()
+        self._refresh_states_wall_seconds += time.perf_counter() - phase_started
+
+        phase_started = time.perf_counter()
         for vehicle in self._vehicles.values():
+            method_started = time.perf_counter()
             vehicle.update_state(dt)
+            self._state_update_wall_seconds += time.perf_counter() - method_started
+
+            method_started = time.perf_counter()
             vehicle.update(dt)
+            self._dynamics_update_wall_seconds += time.perf_counter() - method_started
+
+            method_started = time.perf_counter()
             vehicle.update_sensors(dt)
+            self._sensor_update_wall_seconds += time.perf_counter() - method_started
+
+            method_started = time.perf_counter()
             vehicle.update_sim_state(dt)
+            self._backend_state_wall_seconds += time.perf_counter() - method_started
+        self._vehicle_update_wall_seconds += time.perf_counter() - phase_started
+
+        phase_started = time.perf_counter()
         batch.flush_forces()
+        self._flush_forces_wall_seconds += time.perf_counter() - phase_started
+
+        phase_started = time.perf_counter()
         if self._after_step is not None:
             self._after_step(dt)
+        self._after_step_wall_seconds += time.perf_counter() - phase_started
+        self._physics_steps += 1
+        self._maximum_physics_step_ms = max(
+            self._maximum_physics_step_ms,
+            (time.perf_counter() - physics_step_started) * 1_000.0,
+        )
 
 
 def _vector3(value: Sequence[float], label: str) -> tuple[float, float, float]:

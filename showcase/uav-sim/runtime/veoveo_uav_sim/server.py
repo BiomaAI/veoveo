@@ -9,6 +9,7 @@ from typing import Callable
 
 from aiohttp import web
 
+from .adapter_auth import authorization_middleware
 from .config import RuntimeConfig
 from .contracts import (
     ContractError,
@@ -18,9 +19,11 @@ from .contracts import (
     parse_operation,
 )
 from .fleet_loop import FleetLoopController
-from .pose import initial_pose_publication
+from .operator_camera_config import live_camera_descriptor
+from .operator_products import OperatorProductCollection
 from .px4 import Px4Commander
 from .recording import RecordingPublisher
+from .runtime_events import RuntimeEventPublisher
 from .state import RuntimeState, initial_runtime_timing
 from .world_config import (
     WorldConfiguration,
@@ -53,17 +56,28 @@ def _world_configuration_response(
 
 class PreconfigurationApplication:
     def __init__(
-        self, config: RuntimeConfig, world_slot: WorldConfigurationSlot
+        self,
+        config: RuntimeConfig,
+        world_slot: WorldConfigurationSlot,
+        runtime_events: RuntimeEventPublisher,
     ) -> None:
         self._config = config
         self._world_slot = world_slot
-        self._app = web.Application(client_max_size=2 * 1024 * 1024)
+        self._app = web.Application(
+            client_max_size=2 * 1024 * 1024,
+            middlewares=[authorization_middleware(config.adapter_bearer_token)],
+        )
         self._app.add_routes(
             [
                 web.get("/healthz", self._health),
                 web.get("/readyz", self._ready),
                 web.get("/v1/state", self._get_state),
                 web.post("/v1/world", self._configure_world),
+                web.post(
+                    "/v1/live-products/release-all",
+                    self._release_all_viewer_slots,
+                ),
+                web.get("/v1/events", runtime_events.stream),
             ]
         )
 
@@ -104,14 +118,30 @@ class PreconfigurationApplication:
                     "resident_tiles": 0,
                     "visible_tiles": 0,
                     "loading_tiles": 0,
-                    "recovery_count": 0,
+                    "provider_generation": 0,
+                    "event_sequence": 0,
+                    "refresh_count": 0,
                 },
                 "cameras": [],
-                "pose_publication": initial_pose_publication(
-                    self._config.pose_publication,
-                    self._config.vehicle_count,
-                    self._config.pose_cadence_hz,
-                ),
+                "live_cameras": [
+                    live_camera_descriptor(self._config.session_id, camera)
+                    for camera in self._config.operator_live_view.cameras
+                ],
+                "stream_products": [
+                    {
+                        "streamProductId": f"product-slot-{capacity_slot}",
+                        "capacitySlot": capacity_slot,
+                        "lifecycle": "inactive",
+                        "activeViewerLeases": 0,
+                        "connectedViewers": 0,
+                        "nvencSessions": 0,
+                        "encodedFrames": 0,
+                        "sourceToRenderSamples": 0,
+                    }
+                    for capacity_slot in range(
+                        self._config.operator_live_view.viewer_slot_count
+                    )
+                ],
                 "vehicles": [],
                 "recordings": [],
                 "updated_at": now,
@@ -133,6 +163,11 @@ class PreconfigurationApplication:
             _world_configuration_response(self._config.session_id, configured)
         )
 
+    async def _release_all_viewer_slots(
+        self, _request: web.Request
+    ) -> web.Response:
+        return web.json_response({"accepted": True})
+
 
 class AdapterApplication:
     def __init__(
@@ -144,6 +179,9 @@ class AdapterApplication:
         recording: RecordingPublisher,
         world_slot: WorldConfigurationSlot,
         fleet_loop: FleetLoopController,
+        operator_products: OperatorProductCollection,
+        runtime_events: RuntimeEventPublisher,
+        submit_main_thread: Callable[[Callable[[], object]], object],
     ) -> None:
         self._config = config
         self._state = state
@@ -152,7 +190,12 @@ class AdapterApplication:
         self._recording = recording
         self._world_slot = world_slot
         self._fleet_loop = fleet_loop
-        self._app = web.Application(client_max_size=2 * 1024 * 1024)
+        self._operator_products = operator_products
+        self._submit_main_thread = submit_main_thread
+        self._app = web.Application(
+            client_max_size=2 * 1024 * 1024,
+            middlewares=[authorization_middleware(config.adapter_bearer_token)],
+        )
         self._app.add_routes(
             [
                 web.get("/healthz", self._health),
@@ -161,6 +204,19 @@ class AdapterApplication:
                 web.post("/v1/world", self._configure_world),
                 web.post("/v1/commands", self._command),
                 web.post("/v1/operations", self._operation),
+                web.put(
+                    "/v1/live-products/{capacity_slot}/assignment",
+                    self._assign_product,
+                ),
+                web.delete(
+                    "/v1/live-products/{capacity_slot}/assignment",
+                    self._release_product,
+                ),
+                web.post(
+                    "/v1/live-products/release-all",
+                    self._release_all_viewer_slots,
+                ),
+                web.get("/v1/events", runtime_events.stream),
             ]
         )
 
@@ -177,8 +233,6 @@ class AdapterApplication:
         snapshot = self._state.snapshot()
         simulation_ready = (
             snapshot["lifecycle"] in {"ready", "running", "paused"}
-            and snapshot["pose_publication"]["lifecycle"] == "ready"
-            and snapshot["pose_publication"]["sent_snapshots"] > 0
             and bool(snapshot["vehicles"])
             and all(vehicle["px4_connected"] for vehicle in snapshot["vehicles"])
         )
@@ -234,6 +288,107 @@ class AdapterApplication:
             return web.json_response({"error": str(error)}, status=400)
         except (RuntimeError, TimeoutError) as error:
             return web.json_response({"error": str(error)}, status=409)
+
+    async def _release_all_viewer_slots(
+        self, _request: web.Request
+    ) -> web.Response:
+        try:
+            await asyncio.to_thread(
+                self._submit_main_thread,
+                self._operator_products.release_all,
+            )
+            self._state.update_stream_products(
+                self._operator_products.state(
+                    content_ready=self._stream_content_ready()
+                )
+            )
+            return web.json_response({"accepted": True})
+        except (RuntimeError, TimeoutError) as error:
+            return web.json_response({"error": str(error)}, status=409)
+
+    async def _assign_product(self, request: web.Request) -> web.Response:
+        try:
+            capacity_slot = int(request.match_info["capacity_slot"])
+            body = await request.json()
+            if not isinstance(body, dict) or set(body) != {"cameraId", "liveViewId"}:
+                raise ValueError("viewer-product assignment requires cameraId and liveViewId")
+            camera_id = body["cameraId"]
+            live_view_id = body["liveViewId"]
+            if not isinstance(camera_id, str) or not isinstance(live_view_id, str):
+                raise ValueError("viewer-product assignment identities must be strings")
+            await asyncio.to_thread(
+                self._submit_main_thread,
+                lambda: self._operator_products.assign(
+                    capacity_slot,
+                    camera_id,
+                    live_view_id,
+                    content_ready=self._stream_content_ready(),
+                ),
+            )
+            try:
+                result = await asyncio.to_thread(
+                    self._operator_products.wait_until_ready,
+                    capacity_slot,
+                    live_view_id,
+                    timeout_seconds=(
+                        self._config.operator_live_view.activation_timeout_seconds
+                    ),
+                    content_ready=self._stream_content_ready(),
+                )
+            except (RuntimeError, TimeoutError):
+                await asyncio.to_thread(
+                    self._submit_main_thread,
+                    lambda: self._operator_products.release(
+                        capacity_slot,
+                        live_view_id,
+                        content_ready=self._stream_content_ready(),
+                    ),
+                )
+                raise
+            self._state.update_stream_products(
+                self._operator_products.state(
+                    content_ready=self._stream_content_ready()
+                )
+            )
+            return web.json_response(result)
+        except (TypeError, ValueError) as error:
+            return web.json_response({"error": str(error)}, status=400)
+        except (RuntimeError, TimeoutError) as error:
+            return web.json_response({"error": str(error)}, status=409)
+
+    async def _release_product(self, request: web.Request) -> web.Response:
+        try:
+            capacity_slot = int(request.match_info["capacity_slot"])
+            body = await request.json()
+            if not isinstance(body, dict) or set(body) != {"liveViewId"}:
+                raise ValueError("viewer-product release requires liveViewId")
+            live_view_id = body["liveViewId"]
+            if not isinstance(live_view_id, str):
+                raise ValueError("viewer-product liveViewId must be a string")
+            result = await asyncio.to_thread(
+                self._submit_main_thread,
+                lambda: self._operator_products.release(
+                    capacity_slot,
+                    live_view_id,
+                    content_ready=self._stream_content_ready(),
+                ),
+            )
+            self._state.update_stream_products(
+                self._operator_products.state(
+                    content_ready=self._stream_content_ready()
+                )
+            )
+            return web.json_response(result)
+        except (TypeError, ValueError) as error:
+            return web.json_response({"error": str(error)}, status=400)
+        except (RuntimeError, TimeoutError) as error:
+            return web.json_response({"error": str(error)}, status=409)
+
+    def _stream_content_ready(self) -> bool:
+        tiles = self._state.snapshot()["tiles"]
+        return tiles["lifecycle"] == "ready" or (
+            tiles["lifecycle"] == "refreshing" and tiles["visible_tiles"] > 0
+        )
 
     def _execute_command(self, command: DirectCommand) -> dict[str, object]:
         self._state.require_session(command.session_id)

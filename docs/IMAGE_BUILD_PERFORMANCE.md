@@ -263,10 +263,66 @@ Python and Rerun graph, the canonical simulation payload, and all runtime source
 cached. Its 255.647-second Buildx duration was dominated by the 225.9-second reproducible
 export of the inherited image.
 
+The first-party UAV image adds a second cache boundary. `uav-sim-dependencies` owns the
+pinned PX4 and Pegasus sources, Cesium build, locked Python wheels, and canonical
+simulation payload. `uav-sim-runtime` copies only repository-owned runtime source and
+its overlay identity over that named context. A Python runtime edit therefore cannot
+invalidate upstream checkout, native compilation, wheel installation, or simulator
+payload assembly.
+
+Target selection now narrows the Cargo command as well as the image set. A target in a
+compatible builder family contributes only its declared package and binary to that
+solve. Family-wide compilation remains available only when the caller explicitly
+selects the family. The current target plans resolve in 3.24-4.49 seconds and show one
+Rust package for Console BFF, Map MCP, and UAV MCP; the Python UAV runtime plan contains
+no Rust unit.
+
+Build and stage commands stream bounded phase and vertex transitions during a solve.
+The terminal progress is an operator view of the same BuildKit events stored in the v2
+run record, not a second timing source. Completed evidence therefore remains suitable
+for exact phase comparison even when an interrupted developer run was observed live.
+
 The registry exporter still traverses large cached images when rewriting timestamps.
 The full platform run spent about 148 seconds there despite uploading payload layers in
 0.3 seconds. This cost is now isolated from dependency compilation and belongs to a
 future exporter optimization.
+
+## External Source Cache Boundary
+
+The UAV runtime assembles pinned PX4, Pegasus, and Cesium sources inside its BuildKit
+graph. A release starts from a clean committed-source checkout, so a worker-local cache
+alone cannot protect that graph when the managed builder is replaced or garbage
+collection removes its execution history.
+
+The `uav-sim-runtime` Bake target exports its complete cache graph to
+`<registry>/veoveo/build-cache/uav-sim-runtime:buildkit` whenever a publication registry
+is configured. Later publications import that same target-specific reference before the
+solve. The cache uses OCI media types and a single image manifest; it is build evidence,
+not a runnable image or deployment input. An empty registry leaves both cache lists
+empty for local non-publishing builds.
+
+The first publication after introducing or deliberately clearing this boundary performs
+the complete upstream build and seeds the cache. Qualification of the boundary requires
+a later committed revision whose runtime source changed while the pinned upstream inputs
+did not. Its BuildKit evidence must show those upstream source and compilation vertices
+cached; an identical-revision build is not sufficient.
+
+`SOURCE_DATE_EPOCH` is kept at the repository `buildDateEpoch` across those revisions.
+The selected commit timestamp remains separate evidence. This distinction matters
+because BuildKit treats the predefined epoch as an input to every stage, including the
+pinned upstream checkout and compile stages that do not consume repository source.
+
+The accepted cold and cross-revision runs used the same registry cache reference:
+
+| Case | Total qualified publication | Upstream result |
+|---|---:|---|
+| Cold seed `ed1bf0a` | 905.602 s | PX4 checkout and 1,109-step SITL build executed |
+| Source-only revision `b200045` | 305.902 s | PX4 checkout and SITL build were cache hits |
+
+The warm run spent 300.406 seconds in provenance and 154.983 seconds in export while
+the registry push itself took 0.118 seconds. Development iteration therefore stages the
+affected image first and reserves full qualification for an accepted source revision;
+the registry cache protects both paths.
 
 ## Acceptance Matrix
 
@@ -278,6 +334,10 @@ future exporter optimization.
 | Cold and warm output equality | all six runtime image digests match across three clean committed-source runs | pass |
 | Gateway edit avoids unrelated compilation | Cargo output names only `veoveo-mcp-gateway` | pass |
 | Unchanged runtime images remain identical | five non-gateway digests match | pass |
+| One selected target avoids family-wide Rust compilation | current Console BFF, Map MCP, and UAV MCP plans each name one package and one binary | pass |
+| UAV source overlay preserves immutable dependency work | `uav-sim-dependencies` owns pinned payloads and `uav-sim-runtime` copies only repository runtime source | pass |
+| Affected planning remains interactive | current affected plan completes in 3.43 s; sampled selected plans complete in 3.24-4.49 s | pass |
+| Long solves expose bounded live progress | the BuildKit adapter emits phase and vertex transitions while retaining raw v2 event evidence | pass |
 | Execution evidence is immutable | unique create-only evidence directory for every run | pass |
 | Release output timestamps are reproducible | epoch input and timestamp-rewriting registry exporter | pass |
 | Revision-only metadata preserves simulation payload cache | trailing build arguments, identical payload layers, and cross-revision publications | pass |

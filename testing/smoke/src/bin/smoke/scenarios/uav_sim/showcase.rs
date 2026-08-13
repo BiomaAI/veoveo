@@ -1,14 +1,15 @@
-use chrono::{SecondsFormat, Utc};
+use chrono::Utc;
 use serde::Serialize;
 
-use super::*;
-use crate::scenarios::simulation_view::browser::{
+use super::browser::{
     ConsoleLiveCaptureEvidence, ConsoleRecordingCaptureEvidence, ConsoleStreamCaptureEvidence,
     capture_console_live_app, capture_console_recording, capture_console_stream_app,
     preflight_console_live_app,
 };
+use super::*;
 
-const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-acceptance-evidence/v2";
+const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-acceptance-evidence/v4";
+const PRIMARY_CAMERA_ID: &str = "follow";
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -17,7 +18,7 @@ struct FlightCheckpointEvidence {
     captured_at: chrono::DateTime<Utc>,
     flight_state: String,
     relative_altitude_m: f64,
-    pose_sequence: u64,
+    native_sensor_frame_sequence: u64,
     console: ConsoleLiveCaptureEvidence,
 }
 
@@ -38,9 +39,6 @@ struct ShowcaseEvidence {
     run_id: String,
     scenario_path: String,
     session_id: String,
-    scene_digest: String,
-    pose_producer_id: String,
-    pose_producer_spiffe_id: String,
     camera_id: String,
     camera_rig: &'static str,
     recording_id: String,
@@ -57,14 +55,6 @@ struct RecordingSourceLatencyEvidence {
     source_timeline_seconds: f64,
     viewer_timeline_seconds: f64,
     source_to_viewer_seconds: f64,
-}
-
-#[derive(Debug)]
-struct ViewResources {
-    session_id: String,
-    session_revision: u64,
-    camera_id: String,
-    camera_revision: u64,
 }
 
 struct FlightEvidence {
@@ -97,7 +87,6 @@ pub(crate) async fn uav_showcase_verify(
         "composed UAV showcase acceptance requires public HTTPS"
     );
     assert_showcase_gpu_workloads(context, namespace)?;
-
     let operator = OperatorClient {
         conformance,
         base: public_base_url,
@@ -106,60 +95,30 @@ pub(crate) async fn uav_showcase_verify(
         .conformance(&["info"], Duration::from_secs(60))
         .await?;
     for tool in [
-        "uav-sim__prepare_view_scene",
-        "simulation-view__create_session",
-        "simulation-view__bind_scene",
-        "simulation-view__authorize_pose_producer",
-        "simulation-view__create_camera",
-        "simulation-view__close_camera",
-        "simulation-view__close_session",
+        "uav-sim__list_live_cameras",
+        "uav-sim__open_live_view",
+        "uav-sim__renew_live_view",
+        "uav-sim__close_live_view",
     ] {
         contains(&info, tool)?;
     }
 
     ensure_world_configured(&operator, &scenario).await?;
-    close_existing_view(&operator, &scenario.session_id).await?;
-    let prepared = wait_for_prepared_scene(
+    wait_for_live_capacity(
         &operator,
         &scenario,
-        Duration::from_secs(scenario.world_ready_timeout_seconds),
+        PRIMARY_CAMERA_ID,
+        Duration::from_secs(scenario.view.timeout_seconds),
     )
     .await?;
-    let scene = prepared
-        .get("scene")
-        .cloned()
-        .context("UAV scene preparation omitted scene")?;
-    let scene_digest = json_string(&prepared, "/scene/digest")?.to_owned();
-    let epoch_id = json_string(&prepared, "/scene/body/epochId")?.to_owned();
-    let producer_id = json_string(&prepared, "/producer_id")?.to_owned();
-    let producer_spiffe_id = json_string(&prepared, "/producer_spiffe_id")?.to_owned();
-    ensure!(
-        json_string(&prepared, "/scene/body/sessionId")? == scenario.session_id,
-        "UAV scene declaration changed its authoritative session identity: {prepared}"
-    );
-
-    let mut resources = create_view(
-        &operator,
-        &scenario,
-        scene,
-        &epoch_id,
-        &producer_id,
-        &producer_spiffe_id,
-    )
-    .await?;
-    if let Err(error) = preflight_console_live_app(
+    preflight_console_live_app(
         chrome_cdp_url,
         public_base_url,
         Duration::from_secs(scenario.view.timeout_seconds),
     )
     .await
-    {
-        let cleanup = cleanup_view(&operator, &mut resources).await;
-        return Err(with_cleanup_error(
-            error.context("preflighting the authenticated Console Simulation View App"),
-            cleanup,
-        ));
-    }
+    .context("preflighting the authenticated Console UAV live-view App")?;
+
     let source_revision = run_checked(
         Path::new("git"),
         ["rev-parse", "HEAD"].map(OsString::from),
@@ -197,45 +156,16 @@ pub(crate) async fn uav_showcase_verify(
         &scenario,
         chrome_cdp_url,
         public_base_url,
-        &resources.camera_id,
+        PRIMARY_CAMERA_ID,
         &evidence_directory,
         VisualCaptureSignals {
             stream_complete: stream_capture_complete,
             moving_recording_complete: recording_capture_complete,
         },
     );
-    // Do not cancel domain acceptance when visual acceptance fails after
-    // takeoff. The domain future owns postflight landing recovery and must run
-    // to completion on every composed path.
-    let acceptance = tokio::join!(domain, visual);
-    let flight = match acceptance {
-        (Ok(()), Ok(flight)) => flight,
-        (Err(domain_error), Ok(_)) => {
-            let cleanup = cleanup_view(&operator, &mut resources).await;
-            return Err(with_cleanup_error(
-                domain_error.context("composed UAV domain acceptance failed"),
-                cleanup,
-            ));
-        }
-        (Ok(()), Err(visual_error)) => {
-            let cleanup = cleanup_view(&operator, &mut resources).await;
-            return Err(with_cleanup_error(
-                visual_error.context("composed UAV visual acceptance failed"),
-                cleanup,
-            ));
-        }
-        (Err(domain_error), Err(visual_error)) => {
-            let cleanup = cleanup_view(&operator, &mut resources).await;
-            let acceptance_error = anyhow!(
-                "composed UAV domain acceptance failed: {domain_error:#}; visual acceptance also \
-                 failed: {visual_error:#}"
-            );
-            return Err(with_cleanup_error(acceptance_error, cleanup));
-        }
-    };
-
-    let cleanup = cleanup_view(&operator, &mut resources).await;
-    cleanup?;
+    let (domain_result, visual_result) = tokio::join!(domain, visual);
+    domain_result.context("composed UAV domain acceptance failed")?;
+    let flight = visual_result.context("composed UAV visual acceptance failed")?;
 
     let evidence = ShowcaseEvidence {
         schema: EVIDENCE_SCHEMA,
@@ -244,10 +174,7 @@ pub(crate) async fn uav_showcase_verify(
         run_id,
         scenario_path: scenario_path.display().to_string(),
         session_id: scenario.session_id.clone(),
-        scene_digest,
-        pose_producer_id: producer_id,
-        pose_producer_spiffe_id: producer_spiffe_id,
-        camera_id: resources.camera_id,
+        camera_id: PRIMARY_CAMERA_ID.to_owned(),
         camera_rig: "follow_entity",
         recording_id: flight.recording_id,
         checkpoints: flight.checkpoints,
@@ -259,11 +186,9 @@ pub(crate) async fn uav_showcase_verify(
     fs::write(&manifest_path, serde_json::to_vec_pretty(&evidence)?)
         .with_context(|| format!("writing acceptance evidence {}", manifest_path.display()))?;
     println!(
-        "UAV showcase acceptance ok: the UAV-owned governed scene drove an independent Simulation \
-         View follow camera through takeoff, mission, and landing; the authenticated Console \
-         displayed advancing NVIDIA NVENC H.264 at every checkpoint, the Stream App displayed the \
-         direct live feed with fresh typed overlays, and Console opened the governed Rerun \
-         recording. Evidence: {}",
+        "UAV showcase acceptance ok: one authoritative simulation owned the world, camera, RTX \
+         render product, and NVIDIA NVENC product throughout takeoff, mission, and landing. \
+         Evidence: {}",
         manifest_path.display()
     );
     Ok(())
@@ -284,239 +209,67 @@ pub(crate) async fn uav_showcase_up(
         "composed UAV showcase activation requires public HTTPS"
     );
     assert_showcase_gpu_workloads(context, namespace)?;
-
     let operator = OperatorClient {
         conformance,
         base: public_base_url,
     };
     ensure_world_configured(&operator, &scenario).await?;
-    close_existing_view(&operator, &scenario.session_id).await?;
-    let prepared = wait_for_prepared_scene(
+    let viewer_slots = wait_for_live_capacity(
         &operator,
         &scenario,
-        Duration::from_secs(scenario.world_ready_timeout_seconds),
-    )
-    .await?;
-    let scene = prepared
-        .get("scene")
-        .cloned()
-        .context("UAV scene preparation omitted scene")?;
-    let epoch_id = json_string(&prepared, "/scene/body/epochId")?.to_owned();
-    let producer_id = json_string(&prepared, "/producer_id")?.to_owned();
-    let producer_spiffe_id = json_string(&prepared, "/producer_spiffe_id")?.to_owned();
-    let resources = create_view(
-        &operator,
-        &scenario,
-        scene,
-        &epoch_id,
-        &producer_id,
-        &producer_spiffe_id,
-    )
-    .await?;
-    let sequence = wait_for_live_camera(
-        &operator,
-        &scenario,
-        &resources.camera_id,
+        PRIMARY_CAMERA_ID,
         Duration::from_secs(scenario.view.timeout_seconds),
     )
     .await?;
-
     println!(
-        "UAV showcase is live: session={}, camera={}, poseSequence={sequence}",
-        resources.session_id, resources.camera_id
+        "UAV showcase is live: session={}, camera={}, native-viewer-slots={viewer_slots}",
+        scenario.session_id, PRIMARY_CAMERA_ID,
     );
     Ok(())
 }
 
-async fn wait_for_live_camera(
+async fn wait_for_live_capacity(
     operator: &OperatorClient<'_>,
     scenario: &UavAcceptanceScenario,
     camera_id: &str,
     timeout: Duration,
-) -> Result<u64> {
+) -> Result<usize> {
     let deadline = tokio::time::Instant::now() + timeout;
-    let camera_uri = format!(
-        "simulation-view://session/{}/camera/{camera_id}",
-        scenario.session_id
-    );
     loop {
         let state = simulation_state(operator, scenario).await?;
-        let camera = read_json_resource(operator, &camera_uri).await?;
-        let sequence = camera
-            .get("lastPoseSequence")
-            .and_then(Value::as_u64)
-            .unwrap_or_default();
+        let camera = state
+            .get("live_cameras")
+            .and_then(Value::as_array)
+            .and_then(|items| {
+                items
+                    .iter()
+                    .find(|item| item.get("cameraId").and_then(Value::as_str) == Some(camera_id))
+            });
+        let products: Vec<LiveStreamProductState> = serde_json::from_value(
+            state
+                .get("stream_products")
+                .cloned()
+                .context("authoritative simulator omitted its native viewer-slot pool")?,
+        )
+        .context("authoritative simulator returned an invalid native viewer-slot pool")?;
+        let inactive_slots = products.len();
         if json_string(&state, "/lifecycle").ok() == Some("running")
-            && state.pointer("/vehicles/0").is_some()
-            && json_string(&state, "/pose_publication/lifecycle").ok() == Some("ready")
-            && json_string(&camera, "/health").ok() == Some("healthy")
-            && camera.get("lastFrameAt").and_then(Value::as_str).is_some()
-            && sequence > 0
+            && camera
+                .and_then(|item| item.get("health"))
+                .and_then(Value::as_str)
+                == Some("healthy")
+            && camera.is_some_and(|item| item.get("streamProductId").is_none())
+            && idle_viewer_slot_pool_matches_contract(&products)
         {
-            return Ok(sequence);
+            return Ok(inactive_slots);
         }
         ensure!(
             json_string(&state, "/lifecycle").ok() != Some("failed")
-                && json_string(&camera, "/health").ok() != Some("failed")
                 && tokio::time::Instant::now() < deadline,
-            "UAV showcase did not reach an advancing healthy live camera within {timeout:?}: \
-             simulation={state}, camera={camera}"
+            "authoritative UAV logical camera and native viewer capacity did not become healthy within {timeout:?}: {state}"
         );
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        tokio::time::sleep(Duration::from_millis(250)).await;
     }
-}
-
-async fn close_existing_view(operator: &OperatorClient<'_>, session_id: &str) -> Result<()> {
-    let state = match operator
-        .call_tool(
-            "simulation-view__get_session_state",
-            serde_json::json!({"sessionId": session_id}),
-        )
-        .await
-    {
-        Ok(state) => state,
-        Err(_) => return Ok(()),
-    };
-    if json_string(&state, "/lifecycle").ok() == Some("closed") {
-        return Ok(());
-    }
-    let closed = operator
-        .call_tool(
-            "simulation-view__close_session",
-            serde_json::json!({
-                "sessionId": session_id,
-                "expectedRevision": json_u64(&state, "/revision")?,
-            }),
-        )
-        .await?;
-    ensure!(
-        closed.get("closed").and_then(Value::as_bool) == Some(true),
-        "stale Simulation View session did not close: {closed}"
-    );
-    Ok(())
-}
-
-async fn wait_for_prepared_scene(
-    operator: &OperatorClient<'_>,
-    scenario: &UavAcceptanceScenario,
-    timeout: Duration,
-) -> Result<Value> {
-    let deadline = tokio::time::Instant::now() + timeout;
-    loop {
-        match operator
-            .call_tool(
-                "uav-sim__prepare_view_scene",
-                serde_json::json!({
-                    "session_id": scenario.session_id,
-                    "geospatial_layer_id": scenario.geospatial_layer_id,
-                }),
-            )
-            .await
-        {
-            Ok(prepared) => return Ok(prepared),
-            Err(error) if tokio::time::Instant::now() >= deadline => {
-                return Err(error.context(format!(
-                    "UAV did not prepare its governed Simulation View scene within {timeout:?}"
-                )));
-            }
-            Err(_) => {}
-        }
-        tokio::time::sleep(Duration::from_secs(2)).await;
-    }
-}
-
-async fn create_view(
-    operator: &OperatorClient<'_>,
-    scenario: &UavAcceptanceScenario,
-    scene: Value,
-    epoch_id: &str,
-    producer_id: &str,
-    producer_spiffe_id: &str,
-) -> Result<ViewResources> {
-    let created = operator
-        .call_tool(
-            "simulation-view__create_session",
-            serde_json::json!({
-                "sessionId": scenario.session_id,
-                "epochId": epoch_id,
-            }),
-        )
-        .await?;
-    let mut session_revision = json_u64(&created, "/revision")?;
-    let bound = operator
-        .call_tool(
-            "simulation-view__bind_scene",
-            serde_json::json!({
-                "sessionId": scenario.session_id,
-                "expectedRevision": session_revision,
-                "scene": scene,
-            }),
-        )
-        .await?;
-    session_revision = json_u64(&bound, "/revision")?;
-    ensure!(
-        json_string(&bound, "/lifecycle")? == "scene_bound",
-        "Simulation View did not bind the UAV-owned scene: {bound}"
-    );
-    let authorized = operator
-        .call_tool(
-            "simulation-view__authorize_pose_producer",
-            serde_json::json!({
-                "sessionId": scenario.session_id,
-                "expectedRevision": session_revision,
-                "producerId": producer_id,
-                "spiffeId": producer_spiffe_id,
-                "expiresAt": (Utc::now() + chrono::Duration::minutes(30))
-                    .to_rfc3339_opts(SecondsFormat::Millis, true),
-            }),
-        )
-        .await?;
-    ensure!(
-        json_string(&authorized, "/producerId")? == producer_id
-            && json_string(&authorized, "/spiffeId")? == producer_spiffe_id,
-        "Simulation View authorized a different UAV pose producer: {authorized}"
-    );
-    session_revision += 1;
-
-    let camera = &scenario.view.camera;
-    let admission = operator
-        .call_tool(
-            "simulation-view__create_camera",
-            serde_json::json!({
-                "sessionId": scenario.session_id,
-                "definition": {
-                    "rig": {
-                        "kind": "follow_entity",
-                        "targetEntity": scenario.vehicle_id,
-                        "offsetFluM": {
-                            "x": camera.offset_flu_m.x,
-                            "y": camera.offset_flu_m.y,
-                            "z": camera.offset_flu_m.z,
-                        },
-                        "smoothingSeconds": camera.smoothing_seconds,
-                    },
-                    "widthPx": camera.width_px,
-                    "heightPx": camera.height_px,
-                    "frameRateMillihertz": camera.frame_rate_millihertz,
-                    "verticalFovDegrees": camera.vertical_fov_degrees,
-                    "nearClipM": camera.near_clip_m,
-                    "farClipM": camera.far_clip_m,
-                    "streamPolicy": "on_demand",
-                    "recordingPolicy": "disabled",
-                }
-            }),
-        )
-        .await?;
-    ensure!(
-        json_string(&admission, "/status")? == "admitted",
-        "UAV follow camera was not admitted at its requested quality: {admission}"
-    );
-    Ok(ViewResources {
-        session_id: scenario.session_id.clone(),
-        session_revision,
-        camera_id: json_string(&admission, "/camera/cameraId")?.to_owned(),
-        camera_revision: json_u64(&admission, "/camera/revision")?,
-    })
 }
 
 async fn monitor_flight(
@@ -562,7 +315,7 @@ async fn monitor_flight(
         Some(
             takeoff
                 .1
-                .saturating_add(scenario.view.minimum_mission_pose_delta),
+                .saturating_add(scenario.view.minimum_mission_sensor_frames),
         ),
         Duration::from_secs(scenario.mission.task_timeout_seconds),
     )
@@ -599,9 +352,7 @@ async fn monitor_flight(
     )
     .await
     .context("capturing composed UAV Rerun evidence while its camera is airborne")?;
-    let source_state = simulation_state(operator, scenario)
-        .await
-        .context("reading the live source timeline after Rerun capture")?;
+    let source_state = simulation_state(operator, scenario).await?;
     let source_timeline_seconds = source_state
         .get("simulation_time_s")
         .and_then(Value::as_f64)
@@ -610,7 +361,9 @@ async fn monitor_flight(
     let source_to_viewer_seconds = source_timeline_seconds - viewer_timeline_seconds;
     ensure!(
         (-0.25..=1.0).contains(&source_to_viewer_seconds),
-        "Rerun live playback is not close to its authoritative simulation timeline: source={source_timeline_seconds:.3}s viewer={viewer_timeline_seconds:.3}s lag={source_to_viewer_seconds:.3}s"
+        "Rerun live playback is not close to its authoritative simulation timeline: \
+         source={source_timeline_seconds:.3}s viewer={viewer_timeline_seconds:.3}s \
+         lag={source_to_viewer_seconds:.3}s"
     );
     let recording_source_latency = RecordingSourceLatencyEvidence {
         sampled_at: Utc::now(),
@@ -668,24 +421,36 @@ async fn wait_for_checkpoint(
     timeout: Duration,
 ) -> Result<(Value, u64)> {
     let deadline = tokio::time::Instant::now() + timeout;
-    let camera_uri = format!(
-        "simulation-view://session/{}/camera/{camera_id}",
-        scenario.session_id
-    );
     loop {
         let state = simulation_state(operator, scenario).await?;
-        let camera = read_json_resource(operator, &camera_uri).await?;
+        let sensor_camera = state
+            .get("cameras")
+            .and_then(Value::as_array)
+            .and_then(|items| {
+                items.iter().find(|item| {
+                    item.get("vehicle_id").and_then(Value::as_str)
+                        == Some(scenario.vehicle_id.as_str())
+                })
+            })
+            .context("UAV state omitted the selected native sensor camera")?;
+        let logical_camera = state
+            .get("live_cameras")
+            .and_then(Value::as_array)
+            .and_then(|items| {
+                items
+                    .iter()
+                    .find(|item| item.get("cameraId").and_then(Value::as_str) == Some(camera_id))
+            })
+            .context("UAV state omitted the selected logical operator camera")?;
+        let sequence = sensor_camera
+            .get("frames_observed")
+            .and_then(Value::as_u64)
+            .unwrap_or_default();
         let flight_state = json_string(&state, "/vehicles/0/flight_state")?;
         let altitude = state
             .pointer("/vehicles/0/enu/up_m")
             .and_then(Value::as_f64)
             .unwrap_or_default();
-        let sequence = camera
-            .get("lastPoseSequence")
-            .and_then(Value::as_u64)
-            .unwrap_or_default();
-        let camera_ready = json_string(&camera, "/health").ok() == Some("healthy")
-            && camera.get("lastFrameAt").and_then(Value::as_str).is_some();
         let phase_ready = match phase {
             FlightCheckpoint::Takeoff => {
                 flight_state == "flying" && altitude >= scenario.takeoff.minimum_reached_altitude_m
@@ -699,24 +464,29 @@ async fn wait_for_checkpoint(
                     && minimum_sequence.is_some_and(|minimum| sequence >= minimum)
             }
         };
-        if camera_ready && phase_ready {
+        if sensor_camera.get("lifecycle").and_then(Value::as_str) == Some("ready")
+            && logical_camera.get("health").and_then(Value::as_str) == Some("healthy")
+            && phase_ready
+        {
             return Ok((state, sequence));
         }
         ensure!(
             flight_state != "failed"
-                && json_string(&camera, "/health").ok() != Some("failed")
+                && sensor_camera.get("lifecycle").and_then(Value::as_str) != Some("failed")
+                && logical_camera.get("health").and_then(Value::as_str) != Some("failed")
                 && tokio::time::Instant::now() < deadline,
-            "{phase:?} checkpoint did not reach an advancing healthy follow camera within \
-             {timeout:?}: flight={state}, camera={camera}"
+            "{phase:?} checkpoint did not reach an advancing native sensor and healthy logical \
+             operator camera within {timeout:?}: flight={state}, sensor={sensor_camera}, \
+             logical={logical_camera}"
         );
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        tokio::time::sleep(Duration::from_millis(250)).await;
     }
 }
 
 fn checkpoint_evidence(
     phase: FlightCheckpoint,
     state: &Value,
-    pose_sequence: u64,
+    native_sensor_frame_sequence: u64,
     console: ConsoleLiveCaptureEvidence,
 ) -> Result<FlightCheckpointEvidence> {
     Ok(FlightCheckpointEvidence {
@@ -727,7 +497,7 @@ fn checkpoint_evidence(
             .pointer("/vehicles/0/enu/up_m")
             .and_then(Value::as_f64)
             .context("UAV checkpoint omitted relative altitude")?,
-        pose_sequence,
+        native_sensor_frame_sequence,
         console,
     })
 }
@@ -749,58 +519,6 @@ fn recording_id(state: &Value) -> Result<String> {
     Ok(id.to_owned())
 }
 
-async fn read_json_resource(operator: &OperatorClient<'_>, uri: &str) -> Result<Value> {
-    serde_json::from_str(
-        &operator
-            .conformance(&["resource", uri], Duration::from_secs(60))
-            .await?,
-    )
-    .with_context(|| format!("decoding MCP resource {uri}"))
-}
-
-async fn cleanup_view(operator: &OperatorClient<'_>, resources: &mut ViewResources) -> Result<()> {
-    let mut first_error = None;
-    if !resources.camera_id.is_empty()
-        && let Err(error) = operator
-            .call_tool(
-                "simulation-view__close_camera",
-                serde_json::json!({
-                    "sessionId": resources.session_id,
-                    "cameraId": resources.camera_id,
-                    "expectedRevision": resources.camera_revision,
-                }),
-            )
-            .await
-    {
-        first_error = Some(error);
-    }
-    if let Err(error) = operator
-        .call_tool(
-            "simulation-view__close_session",
-            serde_json::json!({
-                "sessionId": resources.session_id,
-                "expectedRevision": resources.session_revision,
-            }),
-        )
-        .await
-    {
-        first_error.get_or_insert(error);
-    }
-    if let Some(error) = first_error {
-        return Err(error.context("cleaning composed Simulation View state"));
-    }
-    Ok(())
-}
-
-fn with_cleanup_error(primary: anyhow::Error, cleanup: Result<()>) -> anyhow::Error {
-    match cleanup {
-        Ok(()) => primary,
-        Err(cleanup_error) => {
-            anyhow!("{primary:#}; composed Simulation View cleanup also failed: {cleanup_error:#}")
-        }
-    }
-}
-
 fn assert_showcase_gpu_workloads(context: &str, namespace: &str) -> Result<()> {
     run_checked(
         Path::new("kubectl"),
@@ -808,14 +526,7 @@ fn assert_showcase_gpu_workloads(context: &str, namespace: &str) -> Result<()> {
         [],
     )
     .context("composed UAV showcase acceptance requires its Kubernetes cluster")?;
-    for deployment in [
-        "uav-sim",
-        "simulation-view-renderer",
-        "simulation-view-mcp",
-        "view-mcp",
-        "stream-mcp",
-        "reason-mcp",
-    ] {
+    for deployment in ["uav-sim", "view-mcp", "stream-mcp", "reason-mcp"] {
         run_checked(
             Path::new("kubectl"),
             [
@@ -832,60 +543,48 @@ fn assert_showcase_gpu_workloads(context: &str, namespace: &str) -> Result<()> {
         )
         .with_context(|| format!("{deployment} is not concurrently available"))?;
     }
-    for (deployment, container) in [
-        ("uav-sim", "isaac-sim"),
-        ("simulation-view-renderer", "simulation-view-isaac"),
-    ] {
-        let gpu = run_checked(
-            Path::new("kubectl"),
-            [
-                "--context".into(),
-                context.into(),
-                "-n".into(),
-                namespace.into(),
-                "exec".into(),
-                format!("deployment/{deployment}").into(),
-                "-c".into(),
-                container.into(),
-                "--".into(),
-                "nvidia-smi".into(),
-                "--query-gpu=name,uuid,driver_version".into(),
-                "--format=csv,noheader".into(),
-            ],
-            [],
-        )?;
-        let gpu = parse_single_nvidia_smi_gpu(&gpu)?;
-        let visible_devices = run_checked(
-            Path::new("kubectl"),
-            [
-                "--context".into(),
-                context.into(),
-                "-n".into(),
-                namespace.into(),
-                "exec".into(),
-                format!("deployment/{deployment}").into(),
-                "-c".into(),
-                container.into(),
-                "--".into(),
-                "printenv".into(),
-                "NVIDIA_VISIBLE_DEVICES".into(),
-            ],
-            [],
-        )?;
-        let allocated_uuid = NvidiaGpuUuid::from_visible_devices(&visible_devices)?;
-        ensure!(
-            allocated_uuid == gpu.uuid,
-            "{deployment} saw GPU {} but the device plugin allocated {}",
-            gpu.uuid.as_str(),
-            allocated_uuid.as_str()
-        );
-    }
+    let gpu = run_checked(
+        Path::new("kubectl"),
+        [
+            "--context".into(),
+            context.into(),
+            "-n".into(),
+            namespace.into(),
+            "exec".into(),
+            "deployment/uav-sim".into(),
+            "-c".into(),
+            "isaac-sim".into(),
+            "--".into(),
+            "nvidia-smi".into(),
+            "--query-gpu=name,uuid,driver_version".into(),
+            "--format=csv,noheader".into(),
+        ],
+        [],
+    )?;
+    let gpu = parse_single_nvidia_smi_gpu(&gpu)?;
+    let visible_devices = run_checked(
+        Path::new("kubectl"),
+        [
+            "--context".into(),
+            context.into(),
+            "-n".into(),
+            namespace.into(),
+            "exec".into(),
+            "deployment/uav-sim".into(),
+            "-c".into(),
+            "isaac-sim".into(),
+            "--".into(),
+            "printenv".into(),
+            "NVIDIA_VISIBLE_DEVICES".into(),
+        ],
+        [],
+    )?;
+    let allocated_uuid = NvidiaGpuUuid::from_visible_devices(&visible_devices)?;
+    ensure!(
+        allocated_uuid == gpu.uuid,
+        "uav-sim saw GPU {} but Kubernetes allocated {}",
+        gpu.uuid.as_str(),
+        allocated_uuid.as_str()
+    );
     Ok(())
-}
-
-fn json_u64(value: &Value, pointer: &str) -> Result<u64> {
-    value
-        .pointer(pointer)
-        .and_then(Value::as_u64)
-        .with_context(|| format!("JSON output omitted integer {pointer}: {value}"))
 }

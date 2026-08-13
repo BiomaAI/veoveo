@@ -181,6 +181,13 @@ never receives the gateway bearer. Server design documents specify their MCP
 administration, persistence records, authorization scopes, App resources, and any
 accepted HTTP projection.
 
+An App can address an always-on agent only when its listed resource names that exact
+target in `io.veoveo/agent-message-targets`. The opaque frame sends a closed UUIDv7 and
+bounded-text request through the host bridge. Console then uses its existing authenticated
+human-message route, preserving CSRF enforcement, actor attribution, Work Context policy,
+audit, idempotency, and durable wake ordering without exposing cookies or agent authority
+to the frame.
+
 ## Durable Platform Store
 
 SurrealDB `3.2.1` is the only platform coordination store. The canonical release uses
@@ -462,14 +469,14 @@ producer. Artifact previews use a separate inline route and keep text reads boun
 The Recording Hub is a push-based durability service. Producers send native Rerun log
 messages to a loopback forwarder. The forwarder obtains an OAuth client-credentials token
 and uploads bounded, sequenced protobuf batches through the gateway. It begins a batch at
-each H.264 IDR, which gives storage a decoder-reentrant rollover boundary without changing
-the producer's logical recording. Public, local-network, and Kubernetes traffic use this
-same resource and protocol.
+each H.264 video sample. Hub admits a rollover boundary only when the first access unit
+contains SPS, PPS, and IDR. Public, local-network, and Kubernetes traffic use this same
+resource and protocol.
 
 The hub validates each complete Rerun payload, fsyncs it into a deterministic journal,
 and advances its SurrealDB checkpoint only after the journal rename is durable. One
 ordered materializer compacts hour-or-192-MiB input windows with Rerun's object-store
-profile, aligns video rollover to a keyframe-bearing batch, writes the footer manifest,
+profile, aligns video rollover to a decoder-reentrant batch, writes the footer manifest,
 and publishes immutable RRD archive shards under the stream's authenticated tenant,
 owner, dataset, classification, and labels. Raw Rerun ingest, durable parts, and
 filesystem paths are not installation ingress or read surfaces.
@@ -487,6 +494,32 @@ The agent kernel runs bounded episodes and persists scheduling through
 leases, retry schedules, retention pins, results, and wakes survive process restart.
 Outbox/changefeed events wake the next episode. DuckDB and RRD are analytical memory
 planes; chat history is not the source of truth.
+
+Agent manifests separate the Gateway's canonical public origin from its physical
+HTTP transport origin. OAuth audience and protected-resource identity use the
+canonical origin, while an in-cluster agent may connect through a private service
+address. Both values are required bare HTTP(S) origins. The kernel preserves the
+canonical HTTP authority across the private transport. A manifest may also declare a
+bounded set of absolute MCP resource URIs that wake the agent on change. During token
+rotation, the kernel connects the replacement session and restores the complete
+subscription set before publishing its connection epoch; a failed subscription leaves
+the prior authenticated session active.
+
+Authenticated human control stays available through the gateway and Console BFF; the
+agent pod is never an ingress service. An operator message is committed as a
+UUIDv7-idempotent durable wake inside the caller's exact tenant, Work Context, profile,
+and agent tuple, so it may arrive while an episode or detached task is running.
+Console snapshots and change events identify that target by its tenant-scoped symbolic
+`agent_key`, which is the same identifier accepted by every control route; internal
+SurrealDB record keys never become public control identities. The snapshot also carries
+the current runner-lease deadline. Console projects an absent or expired lease as
+offline at that exact deadline without polling or changing durable episode state.
+Elicitation decisions use the same governed path and durable record. The kernel opens a
+SurrealDB live-query hint before rereading that record, which closes the subscribe/read
+race without status polling. A decision that arrives after the bounded in-episode wait
+becomes a new wake instead of being lost. Messages and answers remain untrusted,
+actor-attributed input; downstream domain policy still decides whether a proposed
+change may take effect.
 
 ## Deployment
 

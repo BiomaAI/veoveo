@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import {
   Activity,
   Archive,
@@ -36,6 +36,7 @@ import { ArtifactDrawer } from "./drawers/ArtifactDrawer";
 import { TaskDrawer } from "./drawers/TaskDrawer";
 import type { AppDescriptor, ArtifactSummary, TaskSummary } from "./types";
 import { consoleThemes, useTheme, type ConsoleTheme } from "./theme";
+import { isFullBleedApp } from "./appPresentation";
 
 // Platform-plane views only. Domain servers contribute their own entries
 // through the MCP app catalog — never add a domain page here.
@@ -87,6 +88,26 @@ export function App() {
   const [selectedRecordingId, setSelectedRecordingId] = useState<string | undefined>(initial.recordingId);
   const [signOutError, setSignOutError] = useState<string>();
   const [signingOut, setSigningOut] = useState(false);
+
+  const navigate = useCallback((next: ViewId, recordingId?: string) => {
+    setView(next);
+    setSelectedRecordingId(recordingId);
+    setSelectedAppUri(undefined);
+    setMobileNav(false);
+    window.history.replaceState(
+      null,
+      "",
+      recordingId ? `#/${next}/${encodeURIComponent(recordingId)}` : `#/${next}`
+    );
+  }, []);
+
+  const navigateApp = useCallback((app: AppDescriptor) => {
+    setView("apps");
+    setSelectedAppUri(app.resourceUri);
+    setSelectedRecordingId(undefined);
+    setMobileNav(false);
+    window.history.replaceState(null, "", appRoute(app.resourceUri));
+  }, []);
 
   const retrySnapshot = () => void queryClient.invalidateQueries({ queryKey: queryKeys.snapshot });
 
@@ -141,26 +162,6 @@ export function App() {
       </div>
     );
   }
-
-  const navigate = (next: ViewId, recordingId?: string) => {
-    setView(next);
-    setSelectedRecordingId(recordingId);
-    setSelectedAppUri(undefined);
-    setMobileNav(false);
-    window.history.replaceState(
-      null,
-      "",
-      recordingId ? `#/${next}/${encodeURIComponent(recordingId)}` : `#/${next}`
-    );
-  };
-
-  const navigateApp = (app: AppDescriptor) => {
-    setView("apps");
-    setSelectedAppUri(app.resourceUri);
-    setSelectedRecordingId(undefined);
-    setMobileNav(false);
-    window.history.replaceState(null, "", appRoute(app.resourceUri));
-  };
 
   const apps = appsCatalog?.apps ?? [];
   const selectedApp = selectedAppUri
@@ -277,7 +278,15 @@ export function App() {
           </div>
         </header>
 
-        <main className={view === "recordings" ? "content content-recordings" : "content"}>
+        <main
+          className={
+            view === "recordings"
+              ? "content content-recordings"
+              : view === "apps" && isFullBleedApp(selectedApp)
+                ? "content content-app-fullbleed"
+                : "content"
+          }
+        >
           {view === "overview" && <Overview snapshot={snapshot} onArtifact={setSelectedArtifact} onTask={setSelectedTask} />}
           {view === "work" && <WorkView tasks={snapshot.tasks} onSelect={setSelectedTask} />}
           {view === "artifacts" && <ArtifactsView artifacts={snapshot.artifacts} onSelect={setSelectedArtifact} />}
@@ -287,7 +296,13 @@ export function App() {
             window.history.replaceState(null, "", `#/recordings/${encodeURIComponent(recordingId)}`);
           }} />}
           {view === "mcp" && <McpView snapshot={snapshot} />}
-          {view === "apps" && <AppsView selectedUri={selectedAppUri} onSelect={navigateApp} />}
+          {view === "apps" && (
+            <AppsView
+              selectedUri={selectedAppUri}
+              onSelect={navigateApp}
+              onPlatformSelect={navigate}
+            />
+          )}
           {view === "access" && <AccessView snapshot={snapshot} />}
           {view === "audit" && <AuditView snapshot={snapshot} />}
           {view === "cluster" && <ClusterView snapshot={snapshot} />}

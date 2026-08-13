@@ -1,9 +1,4 @@
-use std::{
-    collections::HashMap,
-    str::FromStr,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{collections::HashMap, str::FromStr, sync::Arc, time::Duration};
 
 use anyhow::{Context, Result, bail};
 use rig_core::tool::server::ToolServer;
@@ -102,11 +97,9 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
     )?);
 
     let (bus, wake_rx) = WakeBus::channel(runtime.clone(), 256);
-    let waiters = Arc::new(Mutex::new(HashMap::new()));
     let handlers = KernelHandlers {
         bus: bus.clone(),
         runtime: runtime.clone(),
-        waiters,
         elicitation_grace: Duration::from_secs(manifest.schedule.elicitation_grace_s),
     };
 
@@ -140,6 +133,7 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
             .await?;
     }
     if args.halt_after_episode {
+        tracing::info!("single agent episode completed; scheduler stopping as requested");
         runtime.release_lease().await?;
         return Ok(());
     }
@@ -335,13 +329,24 @@ async fn render_wake_body(runtime: &AgentRuntime, batch: &WakeBatch) -> Result<S
                 }
             }
             WakeKind::OperatorMessage => {
-                if let Some(text) = wake
-                    .payload
-                    .as_map()
-                    .get("text")
-                    .and_then(serde_json::Value::as_str)
-                {
-                    parts.push(format!("Operator message: {text}"));
+                let payload = wake.payload.as_map();
+                if let Some(text) = payload.get("text").and_then(serde_json::Value::as_str) {
+                    let request_id = payload
+                        .get("request_id")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("unknown-request");
+                    let actor_id = payload
+                        .get("actor_id")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("unknown-actor");
+                    let work_context = payload
+                        .get("work_context")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("unknown-context");
+                    parts.push(format!(
+                        "Operator message `{request_id}` from actor `{actor_id}` in Work Context \
+                         `{work_context}`:\n\n{text}"
+                    ));
                 }
             }
             WakeKind::Elicitation => {

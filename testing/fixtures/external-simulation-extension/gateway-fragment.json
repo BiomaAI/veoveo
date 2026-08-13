@@ -13,7 +13,7 @@
     "capabilities": {
       "tools": true,
       "resources": true,
-      "apps": false,
+      "apps": true,
       "resource_templates": false,
       "resource_subscriptions": false,
       "prompts": false,
@@ -24,32 +24,22 @@
       "resources_list_changed": false
     },
     "resource_projection": "server_owned",
-    "referenced_resource_schemes": [
-      "artifact",
-      "frames"
-    ],
+    "referenced_resource_schemes": [],
     "tools": [
-      "prepare_scene",
-      "start_pose_producer",
-      "stop_pose_producer",
+      "list_live_cameras",
+      "open_live_view",
+      "renew_live_view",
+      "close_live_view",
       "get_fixture_state"
     ],
-    "required_scopes": [
-      "operator:use"
-    ],
+    "required_scopes": ["operator:use"],
     "metadata": {
       "contract_revision": 2,
-      "role": "simulation_view_pose_producer"
+      "role": "authoritative_simulation_live_view"
     }
   },
-  "requiredPlatformCapabilities": [
-    "artifact",
-    "frames",
-    "simulation_view"
-  ],
-  "requiredArtifactAudiences": [
-    "anonymous-simulation"
-  ],
+  "requiredPlatformCapabilities": [],
+  "requiredArtifactAudiences": [],
   "recordingProducerRequired": false,
   "metadata": {
     "fixture": "anonymous_external_simulation"

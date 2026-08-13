@@ -35,8 +35,9 @@ The public contract is provider-neutral:
   paths remain private deployment configuration.
 - Recording Hub owns durable recording identity, ingest, retention, freezing,
   and sealing.
-- Simulation View owns independent RTX scene rendering, cameras, NVENC
-  sessions, and WebRTC presentation.
+- Each authoritative simulation owns its operator cameras, shared RTX render
+  products, NVENC bitstreams, and WebRTC presentation. Stream consumes an
+  admitted encoded source without becoming simulation authority.
 
 A GStreamer graph is deployment-code-equivalent. Changing it requires the same
 review and rollout discipline as changing a container image. MCP clients cannot
@@ -75,9 +76,19 @@ media. This socket is a private process protocol and is never exposed from the
 pod.
 
 Inference results and encoded access units are independent event variants.
-Rust validates every detection, H.264 byte bound, Annex B prefix, sequence, and
-timestamp before retaining it. Result and preview rings are bounded. Overflow
-drops the oldest retained App history; it never blocks the live pipeline.
+Rust validates every detection, H.264 byte bound, Annex B prefix, and
+decode-order sequence before retaining it. An encoded chunk's timestamp is its
+H.264 presentation timestamp for WebCodecs. AVC frame reordering can make that
+timestamp move backward in decode sequence, so timestamp monotonicity is not an
+admission rule. Live detection indices are monotonic decode-order identities
+assigned after NVDEC; Recording analysis retains its governed source-timeline
+indices. Result and preview rings are bounded. Overflow drops the oldest retained
+App history; it never blocks the live pipeline.
+
+A native probe failure posts a private application message to the pipeline bus.
+The runner exits immediately with the typed cause, and Stream reaps it before
+releasing the admitted UDP port. A failed probe cannot leave a session marked
+running while silently suppressing all later frames.
 
 The live path does not resolve a recording, wait for Recording Hub
 acknowledgement, or create a task snapshot. A frame that has just arrived can
@@ -99,7 +110,9 @@ shared with authorized viewers in the same tenant and Work Context when the
 session's data labels are a subset of the viewer's labels. Cross-context,
 cross-tenant, and under-labeled reads fail closed. Stopping a session
 terminates its native runner and retains the bounded result history for
-inspection.
+inspection. Invalid native events and unexpected event-channel closure also
+terminate and reap the runner before the session enters `failed`; a failed
+runner cannot retain the pipeline's exclusive UDP port.
 
 ## Stream MCP App
 
@@ -135,6 +148,19 @@ streams visible to the operator's Work Context without changing their
 pipelines or transport. This permits a logged-in human to inspect a stream
 started by an authorized automation principal without granting that human
 ownership of the pipeline.
+
+An RTP publisher creates a new random SSRC, sequence origin, and timestamp
+origin whenever its process starts. The admitted jitter buffer treats a large
+sequence discontinuity as a new source epoch within one second and starts on
+two consecutive packets. A simulator pod replacement therefore resumes an
+existing Stream session without retaining the old source clock or waiting for
+the jitter buffer's 60-second default dropout window.
+
+The platform Helm chart renders that same qualified jitter-buffer contract as
+the source catalog. A chart-local launch graph is not a second profile and must
+not omit the bounded dropout, misorder, or fast-start settings. The simulator's
+live RTP publisher is an independent consumer of native NVENC access units;
+Recording reconnects do not restart its source epoch.
 
 The preview resource is meant for an operator view, not bulk media
 distribution. It keeps the MCP boundary portable across Console and external
@@ -210,7 +236,9 @@ conversion to the repository-owned event schemas.
 
 Recording replay writes one bounded JSON response file atomically. Live mode
 writes newline-delimited typed events to one Unix socket. Native stdout is
-redirected to diagnostics so it cannot become a second data protocol.
+redirected to diagnostics so it cannot become a second data protocol. Event
+validation failure closes the native graph process before publishing the typed
+session failure.
 
 The pod requests an NVIDIA GPU. NVDEC, inference, and tracking have no CPU
 fallback. Missing plugins, model engines, driver capabilities, runner binary,
@@ -295,7 +323,7 @@ must prove:
 
 The UAV showcase starts the live Stream session before flight, sends the
 already encoded nadir-camera access units to Stream before logging them to
-Rerun, and retains its independent Recording and Simulation View evidence.
+Rerun, and retains independent Recording and authoritative live-camera evidence.
 After fresh live inference and the authenticated App capture succeed, the
 acceptance stops that live session before starting the independent replay
 graph. This keeps each admitted DeepStream/TensorRT workload bounded without

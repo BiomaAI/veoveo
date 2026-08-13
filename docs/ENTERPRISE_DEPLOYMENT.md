@@ -17,8 +17,8 @@ changing the chart, image, configuration, or Secret contracts.
 | OCI Distribution Specification | authenticated private image, chart, SBOM, provenance, schema, and evidence distribution |
 | Helm and Kubernetes | separately reconciled platform and extension application charts |
 | `veoveo.io/extension-release/v1` | independently published extension image, chart, fragment, conformance, and source identity |
-| `veoveo.io/deployment/v5` | optional repository-development publication profile with exact platform selection, installation-owned Helm values, and managed GPU allocator closure |
-| `veoveo.io/deployment-lock/v5` | immutable installation, source, and managed allocator evidence from the repository-development publication flow |
+| `veoveo.io/deployment/v6` | optional repository-development publication profile with exact platform selection, installation-owned Helm values, and managed GPU allocator closure |
+| `veoveo.io/deployment-lock/v6` | immutable installation, source, and managed allocator evidence from the repository-development publication flow |
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned hosted-server contribution |
 | `veoveo.io/gateway-binding/v1` | installation-owned exposure, tenant, producer, and authorization policy |
 | `veoveo.io/compatibility-manifest/v1` | supported SDK, chart library, standalone tools, schemas, and optional simulation tuple |
@@ -159,7 +159,7 @@ ownership. Keep `consoleBff.oauthResource` at the public protected-resource URL 
 `consoleBff.mcpTransportUrl` to the endpoint reachable by the BFF pod. Corporate roots
 belong in a non-secret installation ConfigMap selected by
 `consoleBff.outboundCa.existingConfigMap`; the chart mounts its configured PEM key and
-the BFF adds those roots to the standard verifier. A deployment/v5 source lists the
+the BFF adds those roots to the standard verifier. A deployment/v6 source lists the
 owning values file under the platform release's `installationValues`. Missing ConfigMap
 data blocks the pod mount, while malformed trust material blocks BFF startup.
 
@@ -176,8 +176,7 @@ The platform chart expects these Secret contracts by default:
 |---|---|
 | veoveo-surreal-admin | username, password |
 | veoveo-surreal-runtime | username, password |
-| veoveo-installation-secrets | internal-signing-key-der-b64, internal-signing-key-id, internal-trust-jwks, oidc-client-secret, authorization-server-private-key-der-b64, refresh-delivery-key-b64, console-session-key, recording-playback-token-key, object-store-access-key, object-store-secret-key, media-provider-api-key, google-maps-api-key, media-provider-webhook-secret, simulation-view-renderer-control-token, simulation-view-pose-control-token |
-| simulation-view-pose-tls | tls.crt.der, tls.key.der, ca.crt.der |
+| veoveo-installation-secrets | internal-signing-key-der-b64, internal-signing-key-id, internal-trust-jwks, oidc-client-secret, authorization-server-private-key-der-b64, refresh-delivery-key-b64, console-session-key, recording-playback-token-key, object-store-access-key, object-store-secret-key, media-provider-api-key, google-maps-api-key, media-provider-webhook-secret |
 
 An extension declares its own least-privilege Secret references. It does not add
 provider credentials to the platform Secret merely for convenience. Registry

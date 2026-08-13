@@ -625,29 +625,22 @@ mod tests {
 
     #[test]
     fn server_owned_projection_preserves_app_websocket_csp_origins() {
-        let server = test_server(
-            "simulation-view",
-            "simulation-view",
-            ResourceProjectionMode::ServerOwned,
-        );
-        let mut resource =
-            Resource::new("ui://simulation-view/live.html", "simulation-view-live-app").with_meta(
-                {
-                    let mut meta = rmcp::model::Meta::new();
-                    meta.insert(
-                        "ui".to_owned(),
-                        serde_json::json!({
-                            "csp": {
-                                "connectDomains": [
-                                    "wss://stream.example",
-                                    "ws://127.0.0.1:49101"
-                                ]
-                            }
-                        }),
-                    );
-                    meta
-                },
+        let server = test_server("uav-sim", "uav-sim", ResourceProjectionMode::ServerOwned);
+        let mut resource = Resource::new("ui://uav-sim/live.html", "uav-sim-live-app").with_meta({
+            let mut meta = rmcp::model::Meta::new();
+            meta.insert(
+                "ui".to_owned(),
+                serde_json::json!({
+                    "csp": {
+                        "connectDomains": [
+                            "wss://stream.example",
+                            "ws://127.0.0.1:49101"
+                        ]
+                    }
+                }),
             );
+            meta
+        });
 
         project_listed_resource_uri(&server, &mut resource).unwrap();
 

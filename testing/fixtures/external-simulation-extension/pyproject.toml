@@ -1,7 +1,7 @@
 [project]
 name = "anonymous-simulation-mcp"
 version = "0.1.0"
-description = "Anonymous external Simulation View producer acceptance fixture"
+description = "Anonymous simulator-hosted live-view conformance fixture"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "veoveo-mcp==0.1.0",

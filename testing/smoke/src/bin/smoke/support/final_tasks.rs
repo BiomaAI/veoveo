@@ -4,7 +4,7 @@ use std::sync::{
 };
 
 use anyhow::ensure;
-use reqwest::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
+use reqwest::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HOST, HeaderValue};
 use rmcp::model::CallToolResult;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Map, Value, json};
@@ -20,6 +20,7 @@ pub(crate) struct FinalTaskSmokeClient {
     http: reqwest::Client,
     endpoint: String,
     bearer_token: String,
+    host: Option<HeaderValue>,
     request_ids: Arc<AtomicU64>,
 }
 
@@ -29,8 +30,14 @@ impl FinalTaskSmokeClient {
             http: reqwest::Client::new(),
             endpoint: endpoint.to_owned(),
             bearer_token,
+            host: None,
             request_ids: Arc::new(AtomicU64::new(1)),
         }
+    }
+
+    pub(crate) fn with_host(mut self, host: &'static str) -> Self {
+        self.host = Some(HeaderValue::from_static(host));
+        self
     }
 
     pub(crate) async fn run_tool(
@@ -178,6 +185,9 @@ impl FinalTaskSmokeClient {
             }));
         if let Some(name) = name {
             request = request.header(HEADER_MCP_NAME, name);
+        }
+        if let Some(host) = &self.host {
+            request = request.header(HOST, host);
         }
         let response = request.send().await?;
         let status = response.status();

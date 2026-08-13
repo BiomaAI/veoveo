@@ -469,7 +469,7 @@ enum Cmd {
         #[arg(long)]
         public_base_url: String,
     },
-    /// Converge the always-on UAV loop and its governed Simulation View camera.
+    /// Converge the always-on UAV loop and its simulator-hosted operator cameras.
     UavShowcaseUp {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
@@ -488,7 +488,7 @@ enum Cmd {
         #[arg(long)]
         public_base_url: String,
     },
-    /// Run UAV flight and prove its independent Simulation View follow camera in the real Console.
+    /// Run UAV flight and prove its authoritative live camera in the real Console.
     UavShowcaseVerify {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
@@ -512,41 +512,6 @@ enum Cmd {
         /// Root for revision- and run-qualified JSON and PNG evidence.
         #[arg(long, default_value = "output/acceptance/uav")]
         evidence_root: PathBuf,
-    },
-    /// Verify the independent Simulation View renderer with an anonymous pose producer and headed hardware browser.
-    SimulationViewVerify {
-        #[arg(long, default_value = "target/debug/conformance")]
-        conformance_bin: PathBuf,
-        /// Kubernetes context containing the composed platform and external fixture.
-        #[arg(long)]
-        context: String,
-        /// Namespace containing Simulation View and the anonymous fixture.
-        #[arg(long, default_value = "veoveo")]
-        namespace: String,
-        /// Public gateway and signaling origin.
-        #[arg(long)]
-        public_base_url: String,
-        /// Work Context selected for the automated operator identity.
-        #[arg(long, default_value = "operations")]
-        work_context: String,
-        /// HTTP discovery or direct ws:// browser endpoint for headed hardware-backed Chrome.
-        #[arg(long, default_value = "http://127.0.0.1:9222")]
-        chrome_cdp_url: String,
-        /// Directory that receives immutable per-run visual evidence.
-        #[arg(long, default_value = "output/acceptance/simulation-view")]
-        evidence_root: PathBuf,
-        /// Maximum time for Isaac, poses, render products, NVENC, WebRTC, and video playback.
-        #[arg(long, default_value_t = 300)]
-        timeout_seconds: u64,
-    },
-    /// Compare paired native and Simulation View frames against fixed visual-fidelity bounds.
-    SimulationViewVisualCompare {
-        /// Typed manifest containing pose- and camera-matched local image pairs.
-        #[arg(long)]
-        manifest: PathBuf,
-        /// New immutable JSON evidence file. Existing files are never replaced.
-        #[arg(long)]
-        output: PathBuf,
     },
     /// Certify an immutable simulation overlay and base on NVIDIA hardware.
     SimulationCertify {
@@ -896,31 +861,6 @@ async fn main() -> Result<()> {
                 &evidence_root,
             )
             .await
-        }
-        Cmd::SimulationViewVerify {
-            conformance_bin,
-            context,
-            namespace,
-            public_base_url,
-            work_context,
-            chrome_cdp_url,
-            evidence_root,
-            timeout_seconds,
-        } => {
-            simulation_view_verify(SimulationViewVerifyRequest {
-                conformance: &conformance_bin,
-                context: &context,
-                namespace: &namespace,
-                public_base_url: &public_base_url,
-                work_context: &work_context,
-                chrome_cdp_url: &chrome_cdp_url,
-                evidence_root: &evidence_root,
-                timeout: Duration::from_secs(timeout_seconds),
-            })
-            .await
-        }
-        Cmd::SimulationViewVisualCompare { manifest, output } => {
-            simulation_view_visual_compare(&manifest, &output)
         }
         Cmd::SimulationCertify {
             deployment_lock,

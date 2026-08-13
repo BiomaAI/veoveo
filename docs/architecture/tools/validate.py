@@ -21,7 +21,7 @@ CATALOGS = ARCH / "catalogs"
 MODEL = ARCH / "model" / "veoveo-uaf-sysml.xmi"
 XMI_NS = "http://www.omg.org/spec/XMI/20131001"
 EXPECTED_TOOLS = {"package.py", "qa.py", "render.py", "validate.py"}
-EXPECTED_VERSION = "0.2.0"
+EXPECTED_VERSION = "0.3.0"
 
 
 def fail(message: str) -> None:
@@ -63,8 +63,8 @@ def main() -> None:
     interfaces = rows("interfaces-and-protocols.csv")
     requirements = rows("requirements-traceability.csv")
     glossary = rows("model-glossary.csv")
-    if len(components) != 71:
-        fail(f"expected 71 components, found {len(components)}")
+    if len(components) != 70:
+        fail(f"expected 70 components, found {len(components)}")
     if len(interfaces) != 43:
         fail(f"expected 43 interfaces, found {len(interfaces)}")
     if len(requirements) != 20:
@@ -96,8 +96,8 @@ def main() -> None:
     missing_workspace_paths = sorted(workspace_paths - catalog_paths)
     if missing_workspace_paths:
         fail(f"workspace packages missing from component catalog: {missing_workspace_paths}")
-    if len(workspace_paths) != 45:
-        fail(f"expected 45 Rust workspace packages, found {len(workspace_paths)}")
+    if len(workspace_paths) != 44:
+        fail(f"expected 44 Rust workspace packages, found {len(workspace_paths)}")
 
     gateway = json.loads((REPO / "configs/gateway.local.json").read_text(encoding="utf-8"))
     slugs = {server["slug"] for server in gateway["servers"]}
@@ -114,7 +114,6 @@ def main() -> None:
         "reason",
         "recording",
         "rerun",
-        "simulation-view",
         "time",
         "timeseries",
         "uav-sim",

@@ -835,7 +835,7 @@ dependencies = [
     { name = "uuid7" },
 ]
 wheels = [
-    { url = "https://packages.example.internal/veoveo/artifacts/veoveo_mcp-0.1.0-py3-none-any.whl", hash = "sha256:3a12b26f667ab480d08b21dc84f8c274d09fa92ec707d9630b8fc40df5da26e5" },
+    { url = "https://packages.example.internal/veoveo/artifacts/veoveo_mcp-0.1.0-py3-none-any.whl", hash = "sha256:081d249027c39295d0491c143ef7a1d475ea5cd4cb118428015031e084b5d51c" },
 ]
 
 [[package]]

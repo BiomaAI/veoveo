@@ -8,9 +8,9 @@
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Recording-scoped read subset over HTTP/2 and gRPC-Web. Veoveo does not expose a general Rerun catalog or mutation surface. |
 | Rerun 0.35.0 WebViewer `LogChannel` | Console opens one incremental channel with `WebViewer.open_channel` and sends complete RRD arrays with `LogChannel.send_rrd`. |
 | Fetch Standard and Veoveo framed RRD stream v2 | One authenticated same-origin GET carries unsigned four-byte big-endian lengths followed by complete RRD payloads. The exact media type is `application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=2`. The required start header distinguishes an empty-channel bootstrap from a current-head resume on an existing Rerun channel. |
-| Veoveo recording ingest `2026-08-06` | Authenticated protobuf batches and distinct producer Blueprint publications preserve native Rerun store identities, order, idempotency, IDR-aligned rollover, and policy-scoped single-recording replacement. |
+| Veoveo recording ingest `2026-08-06` | Authenticated protobuf batches and distinct producer Blueprint publications preserve native Rerun store identities, order, idempotency, decoder-reentrant rollover, and policy-scoped single-recording replacement. |
 | Veoveo recording playback `v8` | `veoveo.io/recording-playback/v8` binds one producer Blueprint, one lazy archive dataset, one optional recording-scoped `rerun_rrd_channel_v2` live source, catalog revision, and scoped session. Console selects exactly one recording receiver at a time. |
-| H.264/AVC Annex B | Decoder-reentrant `VideoStream` access units, sparse keyframe markers, and exact producer timeline indices. |
+| H.264/AVC Annex B | Decoder-reentrant `VideoStream` access units and exact producer timeline indices. Archive materialization derives canonical sparse keyframe markers from encoded bytes; the Rerun 0.35 live-view adapter omits marker columns and preserves dense sample chunks. |
 | JSON Web Token and SHA-256 | Host-limited Redap read access and immutable shard, layer-revision, and artifact identities. |
 
 Recording ingest begins at a producer-local forwarder. Native Rerun gRPC stays
@@ -25,11 +25,12 @@ SurrealDB checkpoint, then materializes immutable ordered parts beneath one
 cataloged writing segment. These small parts are an internal crash-recovery
 format and never become archive playback URLs. The normal archive boundary is
 one hour, with a 192 MiB pre-compaction safety cap below the artifact-plane
-upload ceiling. A video-bearing writer that reaches either boundary waits for
-the next batch whose first video sample is an H.264 IDR, then starts the new
-shard with that batch. The forwarder inspects the encoded sample and closes its
-pending batch before every IDR, which makes each video GoP an available durable
-rollover boundary even when telemetry and camera messages share one stream.
+upload ceiling. A video-bearing writer that reaches either boundary waits for the next
+batch whose first video sample contains H.264 SPS, PPS, and IDR, then starts the new
+shard with that batch. An IDR without parameter sets is not independently decodable and
+cannot begin a shard. The forwarder closes its pending batch before every video sample.
+Hub identifies decoder-reentrant samples from their encoded bytes, preserving eligible
+rollover boundaries when telemetry and camera messages share one stream.
 
 Freeze runs one materialization pass with Rerun 0.35.0's `object-store`
 optimization profile. It compacts the one-row ingest chunks into chunks capped
@@ -182,11 +183,12 @@ Console exposes explicit Live and History modes because Rerun 0.35 cannot keep
 two receivers with the same recording Store ID open safely. Live selects only
 the current bounded channel stream. History selects only the lazy immutable
 archive dataset. A producer Blueprint remains a distinct presentation store and
-opens before either selected receiver. The canonical camera producer
-emits the IDR first at each GoP timestamp, then reasserts pinhole metadata. Its
-one-second GoP bounds rollover delay and supplies the declared live preroll.
-Once the producer's world is ready, diagnostic image quality does not interrupt
-encoding or the IDR cadence.
+opens before either selected receiver. The reference sensor producer publishes one
+native decoder-reentrant access unit at each sensor timestamp and declares pinhole
+metadata once as static context. The pinned Isaac encoder includes SPS, PPS, and IDR in
+every access unit, making every recorded frame an eligible rollover and reconnect
+boundary. Once the producer's world is ready, diagnostic image quality does not alter
+the native encoder profile.
 
 The live response crosses rollover without closing. Recording MCP reacts to the
 catalog change, attaches the successor writing segment, and keeps the same
@@ -227,14 +229,18 @@ HA and a distributed recording filesystem are outside the current contract.
 
 Encoded camera streams use the canonical H.264 `VideoStream` profile documented
 in [`servers/stream-mcp/DESIGN.md`](../servers/stream-mcp/DESIGN.md).
-Keyframes use sparse `is_keyframe=true` markers; non-keyframe samples omit the
-component. This shape is required by Rerun's video cache and GoP rebatching.
+Producers log one sample-only update for each encoded access unit. Hub derives
+decoder-reentrant boundaries from the Annex B bytes. Archive materialization
+adds canonical sparse `is_keyframe=true` markers for GoP rebatching and indexed
+playback. The bounded Rerun 0.35 live adapter removes marker columns after
+compaction because that viewer derives sync samples from H.264 bytes and indexes
+the sample component as dense within each physical chunk.
 Stream replay and Reason accept frozen or sealed RRD segments and task-start
 snapshots of complete acknowledged ingest parts. Video readers merge authorized
 sources when a requested clip crosses a source boundary. The authenticated
-production path carries static context into every shard and begins rollover
-shards at a keyframe, while the one-second producer GoP supplies decoder
-preroll for just-arrived live ranges.
+production path carries static context into every shard and begins rollover shards at
+a decoder-reentrant access unit. The bounded live response supplies recent video
+preroll for just-arrived ranges without assuming a producer-specific GoP duration.
 
 ## Representative archive measurement
 

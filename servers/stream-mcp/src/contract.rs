@@ -286,6 +286,8 @@ pub struct LiveSessionView {
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct LiveResultFrame {
+    /// Decode-order identity assigned after the GPU decoder. Presentation timestamps
+    /// are intentionally not used because AVC reordering can make them non-monotonic.
     pub index: i64,
     pub observed_at: String,
     pub detections: Vec<Detection>,
@@ -303,7 +305,10 @@ pub struct LiveResultsView {
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct EncodedVideoChunk {
+    /// Decode-order identity. This is the ordering contract for retained chunks.
     pub sequence: u64,
+    /// H.264 presentation timestamp in microseconds. AVC frame reordering can make
+    /// presentation timestamps non-monotonic in decode sequence.
     pub timestamp_us: u64,
     pub keyframe: bool,
     pub data_base64: String,

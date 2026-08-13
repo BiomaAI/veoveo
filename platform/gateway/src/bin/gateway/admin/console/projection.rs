@@ -260,6 +260,8 @@ pub(crate) struct AgentSummary {
     pub(crate) name: String,
     pub(crate) profile: String,
     pub(crate) state: veoveo_platform_store::AgentState,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) runner_lease_expires_at: Option<DateTime<Utc>>,
     pub(crate) pending_wakes: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) last_episode_at: Option<DateTime<Utc>>,
@@ -624,20 +626,25 @@ pub(crate) fn agent_summary(
     agent: AgentRecord,
     pending_wakes: usize,
 ) -> anyhow::Result<AgentSummary> {
-    let id = record_key(&agent.id)?;
+    let runner_lease_expires_at = agent.lease_owner.as_ref().and(agent.lease_expires_at);
     let detail = match agent.last_episode.as_ref() {
         Some(episode) => format!("Episode {}", record_key(episode)?),
         None => "No completed episode".to_owned(),
     };
     Ok(AgentSummary {
-        id,
+        id: agent_public_key(&agent).to_owned(),
         name: agent.display_name,
         profile: record_key(&agent.profile)?,
         state: agent.state,
+        runner_lease_expires_at,
         pending_wakes,
         last_episode_at: agent.last_episode.as_ref().map(|_| agent.updated_at),
         detail,
     })
+}
+
+pub(crate) fn agent_public_key(agent: &AgentRecord) -> &str {
+    &agent.agent_key
 }
 
 pub(crate) fn recording_summary(
@@ -830,6 +837,12 @@ fn unsupported_record_key(record: &RecordId, key_kind: &'static str) -> Unsuppor
 
 #[cfg(test)]
 mod tests {
+    use veoveo_platform_store::{
+        AgentState, ArtifactGrantSubjectKind, InvocationAuthorityRecord,
+        InvocationMode as StoreInvocationMode, OpenObject,
+        WorkContextMembershipLevel as StoreWorkContextMembershipLevel,
+    };
+
     use super::*;
 
     #[test]
@@ -852,5 +865,56 @@ mod tests {
         assert!(!encoded.contains("tokenHash"));
         assert!(!encoded.contains("url"));
         assert_eq!(value["active"], true);
+    }
+
+    #[test]
+    fn agent_snapshot_uses_the_symbolic_control_key_and_runner_lease() {
+        let now = Utc::now();
+        let lease_expires_at = now + chrono::Duration::seconds(30);
+        let record_id = "019fd9bc-e7d1-7fff-bfff-ffffffffffff";
+        let agent = AgentRecord {
+            id: RecordId::new("agent", record_id),
+            tenant: RecordId::new("tenant", "example"),
+            agent_key: "mission-supervisor".to_owned(),
+            display_name: "Mission Supervisor".to_owned(),
+            profile: RecordId::new("profile", "operator"),
+            work_context: RecordId::new("work_context", "operations"),
+            policy_revision: "r1".to_owned(),
+            authority: InvocationAuthorityRecord {
+                context_key: "operations".to_owned(),
+                membership: StoreWorkContextMembershipLevel::Contributor,
+                policy_revision: "r1".to_owned(),
+                owner_kind: ArtifactGrantSubjectKind::Principal,
+                owner_key: "mission-supervisor".to_owned(),
+                initial_grants: Vec::new(),
+                classification: None,
+                data_labels: Vec::new(),
+                invocation_mode: StoreInvocationMode::Automated,
+                initiator_key: None,
+                delegation_id: None,
+            },
+            state: AgentState::Running,
+            manifest: OpenObject::default(),
+            memory_database: "supervisor.duckdb".to_owned(),
+            last_episode: None,
+            next_episode_sequence: 1,
+            lease_owner: Some("runner-instance".to_owned()),
+            lease_expires_at: Some(lease_expires_at),
+            heartbeat_at: Some(now),
+            fence: 1,
+            revision: 1,
+            created_at: now,
+            updated_at: now,
+        };
+
+        let value = serde_json::to_value(agent_summary(agent, 2).unwrap()).unwrap();
+
+        assert_eq!(value["id"], "mission-supervisor");
+        assert_eq!(
+            value["runnerLeaseExpiresAt"],
+            serde_json::json!(lease_expires_at)
+        );
+        assert_eq!(value["pendingWakes"], 2);
+        assert!(!value.to_string().contains(record_id));
     }
 }

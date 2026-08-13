@@ -60,16 +60,12 @@ published and its server contract is registered in the gateway control plane.
 
 ## Release publication
 
-Production workloads use the repository and digest map in images.lock.yaml. The
-platform and UAV Applications select immutable chart versions independently. The
-platform and UAV Applications currently select chart `0.1.0-171ed16f8b99`. The
-coordinated image closure was published from commit
-`171ed16f8b992625be86e3dfbf8c996be8e59f36`; the Gateway image includes the schema
-correction published from `b84bd89a62721440ee41f542e154e9ade3720e6e`. The UAV
-runtime includes the visual-health isolation correction published from
-`a10d43f0f4b4fed36c6d2acf1836d7d40105f0fb`. Each selected digest is the
-workload's release identity. A release-input commit advances the coordinated runtime
-closure.
+Production workloads use the repository and digest map in `images.lock.yaml`. The
+platform and UAV Applications select immutable chart versions independently in
+`gitops/applications/`. Those files and the lock, rather than a copied revision in this
+manual, define the current deployment closure. Each selected image digest is the
+workload's immutable identity. A release-input commit advances the coordinated runtime
+closure before a qualified publication promotes those exact inputs.
 
 Publish a new local release directly to the shared registry:
 
@@ -79,9 +75,13 @@ CHART_VERSION=0.1.0-$(git rev-parse --short=12 HEAD)
 
 cargo xtask image builder ensure
 cargo xtask release images --group platform-full \
-  --registry localhost:5001 --revision "$REVISION"
+  --push-registry 127.0.0.1:5001 \
+  --pull-registry k3d-veoveo-registry.localhost:5001 \
+  --registry-transport insecure-http --revision "$REVISION"
 cargo xtask release images --group showcase-uav-sim \
-  --registry localhost:5001 --revision "$REVISION"
+  --push-registry 127.0.0.1:5001 \
+  --pull-registry k3d-veoveo-registry.localhost:5001 \
+  --registry-transport insecure-http --revision "$REVISION"
 
 cargo xtask release helm-charts \
   --revision "$REVISION" --version "$CHART_VERSION" \
@@ -95,6 +95,32 @@ commit. Record that commit's full SHA. A follow-up rollout commit must set the
 `configuration` source targetRevision in both child Applications to the recorded SHA.
 The parent Application then changes the chart and its values source in one child
 Application update.
+
+After pushing that parent commit, observe the exact rollout through the focused typed
+harness. Pass every Deployment whose digest changed; do not list an unchanged simulator
+for a control-plane-only update.
+
+~~~bash
+PARENT_REVISION="$(git rev-parse HEAD)"
+CONFIGURATION_REVISION="$(yq -r '.spec.sources[] | select(.ref == "configuration") | .targetRevision' examples/bioma/gitops/applications/veoveo.yaml)"
+
+cargo xtask smoke gitops-converge \
+  --context k3d-veoveo-bioma \
+  --control-namespace argocd \
+  --parent bioma \
+  --child bioma-veoveo \
+  --child bioma-uav-sim \
+  --source-ref configuration \
+  --parent-revision "$PARENT_REVISION" \
+  --configuration-revision "$CONFIGURATION_REVISION" \
+  --deployment veoveo/<changed-deployment> \
+  --evidence-output output/development/gitops-convergence.json
+~~~
+
+The command requests controller refresh and watches the exact parent and child
+revisions. Its evidence separates repository fetch, child rendering, apply, rollout,
+and readiness. Re-running with the same output path is rejected because convergence
+evidence is create-only.
 
 Never point a child Application's `configuration` source at a mutable branch. A mutable
 values source can expose new image digests to the old chart before the parent updates
@@ -125,34 +151,37 @@ kubectl --context k3d-veoveo-bioma -n kube-system rollout status   daemonset/nvi
 kubectl --context k3d-veoveo-bioma get nodes   -o 'custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\.com/gpu'
 ~~~
 
-The node must report seven allocatable GPU shares before application bootstrap.
-The local time-slicing profile keeps the UAV simulator, Simulation View
-renderer, View, Stream, Reason, the cuOpt executor, and the Rerun viewer MCP in separate
-GPU-requesting workloads. Fielded installations use their measured exclusive,
+The node must report six allocatable GPU shares before application bootstrap.
+The local time-slicing profile keeps the authoritative UAV simulator, View, Stream,
+Reason, the cuOpt executor, and the Rerun viewer MCP in separate GPU-requesting
+workloads. Fielded installations use their measured exclusive,
 MIG, or time-slicing placement instead of inheriting this development profile.
 Each required workload still requests nvidia.com/gpu: 1 and the nvidia runtime
-class. The shares make all seven render and GPU-compute workloads schedulable
+class. The shares make all six render and GPU-compute workloads schedulable
 together; they are not a CPU fallback.
 
 The local Reason profile reserves 35% of the 24 GiB NVIDIA device for vLLM. This
 bound preserves device-memory headroom for the six-frame multimodal pass while
-Isaac Sim, Simulation View, cuOpt, Rerun, and the other GPU services remain
+the authoritative Isaac simulator, cuOpt, Rerun, and the other GPU services remain
 resident. Installations with different checkpoints, solver pools, or GPU capacity
 size `reason.engine.gpuMemoryUtilization` and
-`VEOVEO_CUOPT_POOL_GIB` against all seven concurrently resident workloads.
-The development chart requests 4 GiB of host memory for the cuOpt executor and
-8 GiB for the Simulation View renderer. Their higher memory limits remain available
-for bursts without making the seven-workload placement unschedulable on the reference
+`VEOVEO_CUOPT_POOL_GIB` against all six concurrently resident workloads.
+The development chart requests 4 GiB of host memory for the cuOpt executor. The
+simulator's operator-camera products remain inside the simulator allocation. Higher
+memory limits remain available
+for bursts without making the six-workload placement unschedulable on the reference
 64 GiB node.
 
-The local fixture advertises Simulation View signaling through
-`wss://veoveo.bioma.ai/simulation-view/signaling` and its bounded UDP media
-range through `127.0.0.1:47998-48001`. The chart assigns those four slots to
-the explicit NodePort range `30998-31001`, and the k3d bindings forward each
-public port to its matching NodePort. The fixed mapping is part of the
+The local fixture advertises simulator-owned live-view signaling through
+`wss://veoveo.bioma.ai/uav-sim/signaling`. Its two preallocated viewer slots use
+the bounded UDP media range `192.168.68.69:47998-47999`. The chart assigns those
+slots to NodePorts `30998-30999`, and the k3d bindings admit each UDP port on the
+host's network interfaces before forwarding it to the matching NodePort. The fixed
+mapping is part of the
 acceptance contract because a Kubernetes-assigned NodePort cannot satisfy a
 predeclared browser media endpoint. An installation on a different network
-must advertise its routable signaling origin and UDP media address instead.
+must advertise its routable signaling origin and UDP media address instead. A
+loopback media address is valid only when every browser runs on the cluster host.
 
 Install the local platform fixture separately:
 
@@ -213,8 +242,6 @@ jq -n '{
     "refresh-delivery-key-b64": env.VEOVEO_REFRESH_DELIVERY_KEY_B64,
     "console-session-key": env.VEOVEO_CONSOLE_SESSION_KEY,
     "recording-playback-token-key": env.VEOVEO_RECORDING_PLAYBACK_TOKEN_KEY,
-    "simulation-view-renderer-control-token": env.SIMULATION_VIEW_RENDERER_CONTROL_TOKEN,
-    "simulation-view-pose-control-token": env.SIMULATION_VIEW_POSE_CONTROL_TOKEN,
     "object-store-access-key": env.VEOVEO_OBJECT_STORE_ACCESS_KEY,
     "object-store-secret-key": env.VEOVEO_OBJECT_STORE_SECRET_KEY,
     "media-provider-api-key": env.MEDIA_PROVIDER_API_KEY,
@@ -234,6 +261,15 @@ jq -n '{
 
 jq -n '{
   apiVersion: "v1", kind: "Secret",
+  metadata: {name: "veoveo-uav-sim-adapter", namespace: "veoveo"},
+  type: "Opaque",
+  stringData: {
+    "bearer-token": env.VEOVEO_UAV_SIM_ADAPTER_TOKEN
+  }
+}' | kubectl --context k3d-veoveo-bioma apply -f -
+
+jq -n '{
+  apiVersion: "v1", kind: "Secret",
   metadata: {name: "veoveo-recording-producer", namespace: "veoveo"},
   type: "Opaque",
   stringData: {
@@ -248,77 +284,11 @@ jq -n '{
   stringData: {token: env.CLOUDFLARED_TUNNEL_TOKEN}
 }' | kubectl --context k3d-veoveo-bioma apply -f -
 
-pose_tls_dir=$(mktemp -d)
-trap 'rm -rf "$pose_tls_dir"' EXIT
-umask 077
-
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 \
-  -out "$pose_tls_dir/ca.key.pem"
-openssl req -x509 -new -sha256 -days 30 \
-  -key "$pose_tls_dir/ca.key.pem" \
-  -subj '/CN=VeoVeo Reference Pose CA' \
-  -out "$pose_tls_dir/ca.crt.pem"
-
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 \
-  -out "$pose_tls_dir/server.key.pem"
-openssl req -new -sha256 \
-  -key "$pose_tls_dir/server.key.pem" \
-  -subj '/CN=simulation-view-pose' \
-  -addext 'subjectAltName=DNS:simulation-view-pose,DNS:simulation-view-pose.veoveo.svc,DNS:simulation-view-pose.veoveo.svc.cluster.local' \
-  -addext 'extendedKeyUsage=serverAuth' \
-  -out "$pose_tls_dir/server.csr.pem"
-openssl x509 -req -sha256 -days 30 -copy_extensions copy \
-  -in "$pose_tls_dir/server.csr.pem" \
-  -CA "$pose_tls_dir/ca.crt.pem" \
-  -CAkey "$pose_tls_dir/ca.key.pem" \
-  -CAcreateserial \
-  -out "$pose_tls_dir/server.crt.pem"
-
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 \
-  -out "$pose_tls_dir/producer.key.pem"
-openssl req -new -sha256 \
-  -key "$pose_tls_dir/producer.key.pem" \
-  -subj '/CN=uav-sim' \
-  -addext 'subjectAltName=URI:spiffe://veoveo.local/simulation/uav-sim' \
-  -addext 'extendedKeyUsage=clientAuth' \
-  -out "$pose_tls_dir/producer.csr.pem"
-openssl x509 -req -sha256 -days 30 -copy_extensions copy \
-  -in "$pose_tls_dir/producer.csr.pem" \
-  -CA "$pose_tls_dir/ca.crt.pem" \
-  -CAkey "$pose_tls_dir/ca.key.pem" \
-  -CAcreateserial \
-  -out "$pose_tls_dir/producer.crt.pem"
-
-openssl x509 -in "$pose_tls_dir/ca.crt.pem" -outform DER \
-  -out "$pose_tls_dir/ca.crt.der"
-openssl x509 -in "$pose_tls_dir/server.crt.pem" -outform DER \
-  -out "$pose_tls_dir/server.crt.der"
-openssl pkcs8 -topk8 -nocrypt -inform PEM -outform DER \
-  -in "$pose_tls_dir/server.key.pem" \
-  -out "$pose_tls_dir/server.key.der"
-
-kubectl --context k3d-veoveo-bioma -n veoveo create secret generic \
-  simulation-view-pose-tls \
-  --from-file=tls.crt.der="$pose_tls_dir/server.crt.der" \
-  --from-file=tls.key.der="$pose_tls_dir/server.key.der" \
-  --from-file=ca.crt.der="$pose_tls_dir/ca.crt.der" \
-  --dry-run=client -o yaml | \
-  kubectl --context k3d-veoveo-bioma apply -f -
-
-kubectl --context k3d-veoveo-bioma -n veoveo create secret generic \
-  uav-sim-pose-producer-tls \
-  --from-file=ca.crt="$pose_tls_dir/ca.crt.pem" \
-  --from-file=tls.crt="$pose_tls_dir/producer.crt.pem" \
-  --from-file=tls.key="$pose_tls_dir/producer.key.pem" \
-  --dry-run=client -o yaml | \
-  kubectl --context k3d-veoveo-bioma apply -f -
 ~~~
 
 A production installation projects the same keys from its secret manager. The UAV,
 Cloudflare, and recording-producer credentials remain separate least-privilege
-Secrets. The local pose certificates above expire after 30 days and exist only for
-the disposable reference cluster. Rotate them through the installation secret manager
-in a fielded deployment. The committed JWKS files contain public keys only. Bioma mounts the
+Secrets. The committed JWKS files contain public keys only. The reference installation mounts the
 installation-owned machine-client JWKS with the gateway control plane, which keeps
 local client assertions independent of an external JWKS endpoint.
 
@@ -377,8 +347,9 @@ Apply only the root Application:
 kubectl --context k3d-veoveo-bioma apply   -f examples/bioma/gitops/bootstrap.yaml
 ~~~
 
-Argo creates the namespace configuration, gateway ConfigMap, AppProject, Cloudflare
-connector, platform child Application, and UAV extension child Application. Inspect
+Argo creates the namespace configuration, gateway and immutable UAV-world ConfigMaps,
+AppProject, Cloudflare connector, platform child Application, and UAV extension child
+Application. Inspect
 reconciliation with standard Kubernetes or Argo CD commands:
 
 ~~~bash
@@ -481,7 +452,7 @@ cargo xtask smoke uav-showcase-verify \
 ~~~
 
 `uav-showcase-up` converges the immutable Frames world, starts the perpetual fleet
-loop, and leaves its governed Simulation View camera live. The verification commands
+loop, and leaves its authoritative simulator-hosted camera live. The verification commands
 exercise bounded missions and may take temporary ownership of individual vehicles.
 
 The Pilot acceptance starts the real cuOpt executor on the host GPU, sends a typed

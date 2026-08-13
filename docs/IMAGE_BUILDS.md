@@ -12,7 +12,7 @@
 | `veoveo.io/image-build-plan/v2` | repository-owned resolved build-plan evidence with the source commit timestamp |
 | `veoveo.io/image-build-run/v2` | repository-owned immutable execution record with BuildKit phase timings |
 | `veoveo.io/image-affected-plan/v1` | changed-path to image-consumer closure |
-| `veoveo.io/image-stage-evidence/v1` | non-release runnable identity from a staged registry publication |
+| `veoveo.io/image-stage-evidence/v2` | non-release runnable identity from a staged registry publication with explicit host-push and cluster-pull endpoints |
 | `veoveo.io/development-image-lock/v1` | complete development-only image closure derived from a qualified lock |
 | Cargo metadata version 1 | package and production-binary discovery |
 
@@ -67,7 +67,9 @@ cargo xtask image build --group showcase-sumo
 
 cargo xtask image stage \
   --target mcp-gateway \
-  --registry registry.example.com \
+  --push-registry registry.example.com \
+  --pull-registry registry.example.com \
+  --registry-transport tls \
   --revision "$(git rev-parse HEAD)" \
   --evidence-output output/stage/mcp-gateway.json
 ```
@@ -79,10 +81,12 @@ not a supported Rust build command.
 The managed builder is named `veoveo`. Commands always pass that name explicitly and do
 not change Docker's globally selected builder. `ensure` creates a missing builder and
 fails when an existing one has a different driver, BuildKit image, or daemon version.
-Profile publication generates the exact registry stanza from the profile's address and
-transport. A configuration change recreates only the builder definition with
-`--keep-state`, preserving the worker cache. The explicit maintenance command restores
-the checked-in base configuration:
+Profile publication generates the exact registry stanza from the profile's host-push
+endpoint and transport. The publisher probes `/v2/` before acquiring the builder.
+Ordinary local builds retain an already configured registry-capable worker. A genuinely
+different insecure endpoint recreates only the builder definition with `--keep-state`,
+preserving the worker cache. The explicit maintenance command restores the checked-in
+base configuration:
 
 ```bash
 cargo xtask image builder reconfigure --confirm veoveo
@@ -141,9 +145,17 @@ the exact runnable platform-manifest digest.
 `image affected` computes the consumer closure before staging. It includes committed
 changes since the selected baseline and current working-tree changes. Cargo reverse
 dependencies, Dockerfile `COPY` and `ADD` inputs, Bake named contexts, and target
-consumers participate in the result. The plan reports Helm, SDK, generated-contract,
-and lock-input changes separately. A graph-wide input broadens the result and records
-the reason.
+consumers participate in the result. Explicit contract-consumer edges cover surfaces
+that do not appear in either graph; an MCP App presentation or host-contract change,
+for example, selects Console with the serving MCP image. The plan reports Helm, SDK,
+generated-contract, and lock-input changes separately. A graph-wide input broadens the
+result and records the reason.
+
+A target build compiles only the Rust packages and binaries declared by its selected
+image targets. A group or exact build still consolidates every selected member of a
+compatible family into one Cargo invocation. The UAV runtime follows the same boundary:
+its dependency payload contains pinned Isaac, Cesium, PX4, Pegasus, and Python wheels,
+while the runnable target adds only repository-owned runtime source and identity.
 
 A development image lock starts from one validated qualified deployment lock. Each
 staged image replaces the matching source/target/repository tuple, while every
@@ -178,12 +190,16 @@ cargo xtask release images \
 
 cargo xtask release images \
   --group platform-full \
-  --registry registry.example.com \
+  --push-registry registry.example.com \
+  --pull-registry registry.example.com \
+  --registry-transport tls \
   --revision "$(git rev-parse HEAD)"
 
 cargo xtask release images \
   --target mcp-gateway \
-  --registry registry.example.com \
+  --push-registry registry.example.com \
+  --pull-registry registry.example.com \
+  --registry-transport tls \
   --revision "$(git rev-parse HEAD)" \
   --stage-evidence output/stage/mcp-gateway.json
 ```
@@ -221,10 +237,14 @@ private development registry at its configured address. Direct publication admit
 transport only for a loopback registry. Private production registries remain
 TLS-verified.
 
-Image execution sets `SOURCE_DATE_EPOCH` to the selected Git commit timestamp. BuildKit
-clamps newer filesystem metadata to that stable boundary without rewriting older
-inherited base layers. Registry publication rewrites output timestamps at export. A
-local build uses the
+Image evidence records the selected Git commit timestamp as `sourceDateEpoch`.
+Execution sets `SOURCE_DATE_EPOCH` to the repository's separate `buildDateEpoch`, which
+is a pinned cache ABI rather than revision metadata. BuildKit folds this predefined
+argument into every stage key, so changing it for each commit would invalidate otherwise
+identical dependency work. The build epoch advances only when a newly pinned parent image
+contains newer metadata. BuildKit clamps newer filesystem metadata to that stable
+boundary without rewriting older inherited base layers. Registry publication rewrites
+output timestamps at export. A local build uses the
 Docker exporter and is a disposable developer artifact; its image identity is not
 release evidence. Cold and warm registry builds of one source state must produce the
 same runnable platform-manifest digest. Build cache remains an optimization and never

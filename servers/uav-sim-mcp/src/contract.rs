@@ -4,8 +4,10 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 pub use veoveo_mcp_contract::Wgs84Position;
-use veoveo_mcp_contract::{FrameWorldRevision, FrameWorldRevisionUri, WorldFrameUri};
-use veoveo_simulation_scene::SceneDeclaration;
+use veoveo_mcp_contract::{
+    FrameWorldRevision, FrameWorldRevisionUri, LiveCameraDescriptor, LiveStreamProductState,
+    WorldFrameUri,
+};
 
 fn validate_id(value: &str) -> Result<(), IdentityError> {
     if value.is_empty() || value.len() > 128 {
@@ -113,66 +115,6 @@ domain_id!(
 domain_id!(MissionId, "Stable identity of one submitted mission.");
 domain_id!(RecordingId, "Stable identity of one governed recording.");
 domain_id!(RecordingKey, "Producer identity of one recording stream.");
-domain_id!(
-    PoseProducerId,
-    "Stable identity authorized to publish this simulator's complete pose snapshots."
-);
-
-#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
-pub struct SpiffeId(String);
-
-impl SpiffeId {
-    pub fn new(value: impl Into<String>) -> Result<Self, IdentityError> {
-        let value = value.into();
-        let remainder = value.strip_prefix("spiffe://").ok_or_else(|| {
-            IdentityError::new(&value, "must be a SPIFFE URI beginning with spiffe://")
-        })?;
-        if value.len() > 512
-            || remainder.is_empty()
-            || remainder.starts_with('/')
-            || remainder.chars().any(char::is_whitespace)
-        {
-            return Err(IdentityError::new(
-                &value,
-                "must be a normalized SPIFFE URI of at most 512 characters",
-            ));
-        }
-        Ok(Self(value))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl fmt::Display for SpiffeId {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.0)
-    }
-}
-
-impl FromStr for SpiffeId {
-    type Err = IdentityError;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        Self::new(value)
-    }
-}
-
-impl TryFrom<String> for SpiffeId {
-    type Error = IdentityError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::new(value)
-    }
-}
-
-impl From<SpiffeId> for String {
-    fn from(value: SpiffeId) -> Self {
-        value.0
-    }
-}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -193,7 +135,38 @@ pub enum TileLifecycle {
     Connecting,
     Streaming,
     Ready,
-    Failed,
+    Refreshing,
+    Degraded,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum TileLoadType {
+    IonEndpoint,
+    TilesetJson,
+    TileContent,
+    Unknown,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum TileFailureCode {
+    ProviderSessionRejected,
+    CredentialsRejected,
+    AssetUnavailable,
+    QuotaExceeded,
+    ProviderUnavailable,
+    TransportFailed,
+    RequestFailed,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TileFailureState {
+    pub code: TileFailureCode,
+    pub load_type: TileLoadType,
+    pub http_status: u16,
+    pub generation: u64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -203,21 +176,6 @@ pub enum CameraLifecycle {
     Ready,
     Degraded,
     Failed,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum CameraContent {
-    Black,
-    Uniform,
-    Visible,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum CameraDiagnosticCode {
-    FrameBlack,
-    FrameUniform,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -234,49 +192,17 @@ pub enum CameraEncoder {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+pub enum CameraTransport {
+    RtspRtp,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum RecordingPublisherLifecycle {
     Connecting,
     Ready,
     Degraded,
     Stopped,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub enum PoseProtocolSchema {
-    #[serde(rename = "veoveo.io/simulation-view-pose/v1")]
-    SimulationViewPoseV1,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum PosePublicationLifecycle {
-    Starting,
-    Connecting,
-    Ready,
-    Degraded,
-    Failed,
-    Stopped,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct PosePublicationState {
-    pub protocol_schema: PoseProtocolSchema,
-    pub producer_id: PoseProducerId,
-    pub producer_spiffe_id: SpiffeId,
-    pub epoch_id: veoveo_simulation_pose::EpochId,
-    pub entity_table_revision: u64,
-    pub entity_table_digest: veoveo_simulation_pose::Sha256Digest,
-    #[schemars(range(min = 1, max = 120))]
-    pub cadence_hz: u32,
-    pub lifecycle: PosePublicationLifecycle,
-    pub offered_snapshots: u64,
-    pub sent_snapshots: u64,
-    pub replaced_snapshots: u64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub last_sent_sequence: Option<u64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub diagnostic: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -329,6 +255,28 @@ pub struct QuaternionXyzw {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+pub struct EnuDirection {
+    #[schemars(range(min = -1.0, max = 1.0))]
+    pub east: f64,
+    #[schemars(range(min = -1.0, max = 1.0))]
+    pub north: f64,
+    #[schemars(range(min = -1.0, max = 1.0))]
+    pub up: f64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CameraRenderPoseState {
+    #[schemars(range(min = 0.0))]
+    pub position_error_m: f64,
+    #[schemars(range(min = 0.0, max = 180.0))]
+    pub forward_error_degrees: f64,
+    pub rendered_position_enu_m: EnuVector,
+    pub rendered_forward_enu: EnuDirection,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct TileState {
     pub lifecycle: TileLifecycle,
     pub source: String,
@@ -336,7 +284,11 @@ pub struct TileState {
     pub resident_tiles: u64,
     pub visible_tiles: u64,
     pub loading_tiles: u64,
-    pub recovery_count: u64,
+    pub provider_generation: u64,
+    pub event_sequence: u64,
+    pub refresh_count: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_failure: Option<TileFailureState>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diagnostic: Option<String>,
 }
@@ -365,20 +317,15 @@ pub struct CameraState {
     pub lifecycle: CameraLifecycle,
     pub width: u32,
     pub height: u32,
+    pub frame_rate_hz: u32,
     pub codec: CameraCodec,
     pub encoder: CameraEncoder,
+    pub transport: CameraTransport,
     pub frames_observed: u64,
-    #[schemars(range(min = 0.0, max = 255.0))]
-    pub mean_luma: f32,
-    pub dynamic_range: u8,
-    pub robust_dynamic_range: u8,
-    #[schemars(range(min = 0.0, max = 127.5))]
-    pub luma_standard_deviation: f32,
-    #[schemars(range(min = 0.0, max = 1.0))]
-    pub non_black_fraction: f32,
-    pub content: CameraContent,
+    pub last_access_unit_bytes: u64,
+    pub last_frame_keyframe: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub diagnostic_code: Option<CameraDiagnosticCode>,
+    pub render_pose: Option<CameraRenderPoseState>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diagnostic: Option<String>,
 }
@@ -421,14 +368,21 @@ pub struct RuntimeTimingState {
     pub physics_hz: u32,
     #[schemars(range(min = 1, max = 120))]
     pub native_rendering_hz: u32,
-    #[schemars(range(min = 1, max = 120))]
-    pub pose_cadence_hz: u32,
-    #[schemars(range(min = 50, max = 5000))]
-    pub pose_buffer_duration_ms: u32,
-    pub pose_queued_snapshots: u32,
-    pub pose_buffer_target_snapshots: u32,
-    pub realtime_rebases: u64,
-    pub discarded_wall_seconds: f64,
+    pub render_cycles: u64,
+    pub physics_steps: u64,
+    pub refresh_states_wall_seconds: f64,
+    pub vehicle_update_wall_seconds: f64,
+    pub state_update_wall_seconds: f64,
+    pub dynamics_update_wall_seconds: f64,
+    pub sensor_update_wall_seconds: f64,
+    pub backend_state_wall_seconds: f64,
+    pub flush_forces_wall_seconds: f64,
+    pub after_step_wall_seconds: f64,
+    pub native_update_wall_seconds: f64,
+    pub render_cycle_wall_seconds: f64,
+    pub maximum_physics_step_ms: f64,
+    pub maximum_native_update_ms: f64,
+    pub maximum_render_cycle_ms: f64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -443,7 +397,8 @@ pub struct SimulationState {
     pub world: Option<SimulationWorldBinding>,
     pub tiles: TileState,
     pub cameras: Vec<CameraState>,
-    pub pose_publication: PosePublicationState,
+    pub live_cameras: Vec<LiveCameraDescriptor>,
+    pub stream_products: Vec<LiveStreamProductState>,
     pub vehicles: Vec<VehicleState>,
     pub recordings: Vec<RecordingState>,
     pub updated_at: DateTime<Utc>,
@@ -456,23 +411,6 @@ pub struct SimulationWorldBinding {
     pub spec_sha256: String,
     pub simulation_frame_uri: WorldFrameUri,
     pub georeference_origin: Wgs84Position,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct PrepareViewSceneRequest {
-    pub session_id: SessionId,
-    pub geospatial_layer_id: Option<veoveo_simulation_scene::GeospatialLayerId>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct PreparedViewScene {
-    pub scene: SceneDeclaration,
-    pub producer_id: PoseProducerId,
-    pub producer_spiffe_id: SpiffeId,
-    pub entity_table_revision: u64,
-    pub entity_table_digest: veoveo_simulation_pose::Sha256Digest,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -495,6 +433,37 @@ pub struct ConfigureWorldOutput {
 #[serde(deny_unknown_fields)]
 pub struct SessionRequest {
     pub session_id: SessionId,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OpenLiveViewRequest {
+    pub session_id: veoveo_mcp_contract::LiveSessionId,
+    pub camera_id: veoveo_mcp_contract::LiveCameraId,
+    pub viewer_instance_id: veoveo_mcp_contract::LiveViewerInstanceId,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RenewLiveViewRequest {
+    pub session_id: veoveo_mcp_contract::LiveSessionId,
+    pub live_view_id: veoveo_mcp_contract::LiveViewId,
+    pub viewer_instance_id: veoveo_mcp_contract::LiveViewerInstanceId,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CloseLiveViewRequest {
+    pub session_id: veoveo_mcp_contract::LiveSessionId,
+    pub live_view_id: veoveo_mcp_contract::LiveViewId,
+    pub viewer_instance_id: veoveo_mcp_contract::LiveViewerInstanceId,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CloseLiveViewResult {
+    pub resource_uri: String,
+    pub closed: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]

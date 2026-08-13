@@ -29,8 +29,8 @@ profiles:
 | `veoveo.io/image-build-run/v1` | internal immutable record of an image execution, its output mode, elapsed time, result, and Buildx metadata reference |
 | Model Context Protocol | public server protocol governed by `mcp/contract/DESIGN.md`; the current Streamable HTTP verification uses protocol version `2025-11-25` and only claims the repository profile defined there |
 | JSON Schema 2020-12 | canonical MCP tool-input and controlled configuration schemas |
-| `veoveo.io/deployment/v5` | repository-development profile for independently resolved sources, exact platform targets, installation-owned Helm values, typed registry transport, and a managed GPU allocator closure |
-| `veoveo.io/deployment-lock/v5` | immutable installation revision, combined source evidence, and managed GPU allocator artifacts emitted by repository-development publication |
+| `veoveo.io/deployment/v6` | repository-development profile for independently resolved sources, exact platform targets, installation-owned Helm values, typed registry transport, and a managed GPU allocator closure |
+| `veoveo.io/deployment-lock/v6` | immutable installation revision, combined source evidence, and managed GPU allocator artifacts emitted by repository-development publication |
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned declaration of one hosted server's protocol surface and platform requirements |
 | `veoveo.io/gateway-binding/v1` | installation-owned declaration of exposure, authorization, tenant, policy, and producer bindings |
 | Offline bundle schema version 1 | repository-owned image and payload integrity contract |
@@ -424,8 +424,8 @@ verifiable.
 
 Static UAV registration checks now live with `servers/uav-sim-mcp`. SUMO deployment
 checks live with the SUMO crate, and Bioma control-plane and cross-surface checks live
-under `examples/bioma/acceptance`. UAV domain acceptance and generic Simulation View
-acceptance remain independent. A showcase-owned composed command consumes both and
+under `examples/bioma/acceptance`. UAV domain acceptance and provider-neutral live-view
+conformance remain independent. A showcase-owned composed command consumes both and
 captures the real Console follow camera at takeoff, mission, and landing plus the
 governed Rerun recording. Its revision-qualified evidence is a migration input for the
 smoke-kit sequence below; it does not justify adding example-specific assertions to
@@ -1116,8 +1116,8 @@ cargo xtask image build --target <target>
 cargo xtask image build --group <group>
 
 cargo xtask release images --profile <path> --profile-revision <ref>
-cargo xtask release images --target <target> --registry <registry> --revision <ref>
-cargo xtask release images --group <group> --registry <registry> --revision <ref>
+cargo xtask release images --target <target> --push-registry <host-registry> --pull-registry <cluster-registry> --registry-transport <transport> --revision <ref>
+cargo xtask release images --group <group> --push-registry <host-registry> --pull-registry <cluster-registry> --registry-transport <transport> --revision <ref>
 ```
 
 `image plan` and `image build` use the current checkout and record its full revision and
@@ -1187,7 +1187,7 @@ The first delivery supports one explicit target platform, `linux/amd64`.
 
 | Family | Initial Rust image units |
 |---|---|
-| `rust-trixie-v1` | gateway, artifact service, recording forwarder, recording hub, recording MCP, Console BFF, artifact MCP, media MCP, timeseries MCP, DuckDB MCP, optimization MCP, frames MCP, stdio bridge, conformance, composer, simulation view, UAV MCP, and agent kernel |
+| `rust-trixie-v1` | gateway, artifact service, recording forwarder, recording hub, recording MCP, Console BFF, artifact MCP, media MCP, timeseries MCP, DuckDB MCP, optimization MCP, frames MCP, stdio bridge, conformance, composer, UAV MCP, and agent kernel |
 | `rust-bookworm-v1` | map MCP, time MCP, and view MCP |
 | `rust-deepstream-v1` | Stream MCP |
 | `rust-vllm-v1` | reason MCP |

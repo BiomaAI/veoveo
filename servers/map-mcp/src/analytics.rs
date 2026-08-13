@@ -5,22 +5,27 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use duckdb::{Connection, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use veoveo_duckdb_runtime::{EngineSettings, FileAccess, TrustedExtension, open_connection};
+use veoveo_duckdb_runtime::{EngineSettings, FileAccess, SharedDatabase, TrustedExtension};
 use veoveo_mcp_contract::WorkContextId;
 
 use crate::contract::{
-    Facility, MapBoundary, MapBoundaryId, MapFamily, MapLocation, Meters,
-    QuerySourceFeaturesOutput, QuerySourceFeaturesRequest, RasterDerivation, RasterDerivationId,
-    RasterProduct, RasterProductId, SearchLocationsOutput, SearchLocationsRequest, SourceFeature,
-    SourceFeatureId, SourceFeatureMatch, SourceSpatialQuery, SpatialDerivation,
-    SpatialDerivationId, Wgs84BoundingBox, Wgs84LineString, Wgs84Position,
+    Facility, MapBoundaryId, MapFamily, MapLocation, Meters, QuerySourceFeaturesOutput,
+    QuerySourceFeaturesRequest, RasterDerivation, RasterDerivationId, RasterProduct,
+    RasterProductId, SearchLocationsOutput, SearchLocationsRequest, SourceFeature, SourceFeatureId,
+    SourceFeatureMatch, SourceSpatialQuery, SpatialDerivation, SpatialDerivationId,
+    Wgs84BoundingBox, Wgs84LineString, Wgs84Position,
 };
 
-const SCHEMA_VERSION: i64 = 6;
+mod projection;
+
+pub(crate) use projection::ReleaseProjectionWriter;
+
+const SCHEMA_VERSION: i64 = 9;
 
 #[derive(Clone, Debug)]
 pub struct MapAnalyticsConfig {
     pub database_path: PathBuf,
+    pub authoring_task_root: PathBuf,
     pub spill_dir: PathBuf,
     pub spatial_extension: PathBuf,
     pub memory_limit: String,
@@ -30,7 +35,8 @@ pub struct MapAnalyticsConfig {
 #[derive(Clone, Debug)]
 pub struct MapAnalytics {
     database_path: PathBuf,
-    settings: EngineSettings,
+    authoring_task_root: PathBuf,
+    instance: SharedDatabase,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -58,9 +64,26 @@ impl MapAnalytics {
         settings
             .trusted_extensions
             .push(TrustedExtension::new("spatial", config.spatial_extension)?);
+        if !config.authoring_task_root.is_absolute() {
+            bail!("authoring task root must be absolute");
+        }
+        std::fs::create_dir_all(&config.authoring_task_root).with_context(|| {
+            format!(
+                "creating authoring task root {}",
+                config.authoring_task_root.display()
+            )
+        })?;
+        let authoring_task_root = config.authoring_task_root.canonicalize()?;
+        let instance = SharedDatabase::open(
+            &config.database_path,
+            &[],
+            &FileAccess::ServiceRoot(authoring_task_root.clone()),
+            &settings,
+        )?;
         let analytics = Self {
             database_path: config.database_path,
-            settings,
+            authoring_task_root,
+            instance,
         };
         analytics.initialize()?;
         Ok(analytics)
@@ -71,7 +94,7 @@ impl MapAnalytics {
     }
 
     pub fn verify_spatial(&self) -> Result<()> {
-        let connection = self.connection(false)?;
+        let connection = self.connection()?;
         let text: String = connection
             .query_row("SELECT ST_AsText(ST_Point(1, 2))", [], |row| row.get(0))
             .context("verifying DuckDB Spatial")?;
@@ -93,11 +116,11 @@ impl MapAnalytics {
         if !(1..=100).contains(&request.limit) {
             bail!("location search limit must be within 1..=100");
         }
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut locations = Vec::new();
         let location_longitude_predicate = longitude_predicate(&request.coverage, "longitude_deg");
         let sql = format!(
-            "SELECT canonical_json FROM map_location WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?) AND name ILIKE '%' || ? || '%' AND latitude_deg BETWEEN ? AND ? AND {location_longitude_predicate} ORDER BY name ASC LIMIT ?"
+            "SELECT canonical_json FROM map_visible_location WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?) AND name ILIKE '%' || ? || '%' AND latitude_deg BETWEEN ? AND ? AND {location_longitude_predicate} ORDER BY name ASC, location_key ASC, source_release_key ASC LIMIT ?"
         );
         let mut statement = connection.prepare(&sql)?;
         let mut rows = if request.coverage.west <= request.coverage.east {
@@ -133,7 +156,7 @@ impl MapAnalytics {
             let facility_longitude_predicate =
                 longitude_predicate(&request.coverage, "longitude_deg");
             let sql = format!(
-                "SELECT canonical_json FROM map_facility WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?) AND name ILIKE '%' || ? || '%' AND latitude_deg BETWEEN ? AND ? AND {facility_longitude_predicate} ORDER BY name ASC LIMIT ?"
+                "SELECT canonical_json FROM map_visible_facility WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?) AND name ILIKE '%' || ? || '%' AND latitude_deg BETWEEN ? AND ? AND {facility_longitude_predicate} ORDER BY name ASC, facility_key ASC, source_release_key ASC LIMIT ?"
             );
             let mut statement = connection.prepare(&sql)?;
             let mut rows = statement.query(params![
@@ -166,8 +189,8 @@ impl MapAnalytics {
         location_id: &crate::contract::LocationId,
     ) -> Result<Option<MapLocation>> {
         select_canonical(
-            &self.connection(true)?,
-            "map_location",
+            &self.read_connection()?,
+            "map_visible_location",
             "location_key",
             location_id.as_str(),
             tenant_key,
@@ -180,8 +203,8 @@ impl MapAnalytics {
         facility_id: &crate::contract::FacilityId,
     ) -> Result<Option<Facility>> {
         select_canonical(
-            &self.connection(true)?,
-            "map_facility",
+            &self.read_connection()?,
+            "map_visible_facility",
             "facility_key",
             facility_id.as_str(),
             tenant_key,
@@ -202,12 +225,12 @@ impl MapAnalytics {
         if !(1..=100).contains(&limit) {
             bail!("nearby facility limit must be within 1..=100");
         }
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection.prepare(
-            "SELECT canonical_json FROM map_facility \
+            "SELECT canonical_json FROM map_visible_facility \
              WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?) \
              AND ST_Distance_Sphere(ST_Point(longitude_deg, latitude_deg), ST_Point(?, ?)) <= ? \
-             ORDER BY ST_Distance_Sphere(ST_Point(longitude_deg, latitude_deg), ST_Point(?, ?)) ASC \
+             ORDER BY ST_Distance_Sphere(ST_Point(longitude_deg, latitude_deg), ST_Point(?, ?)) ASC, facility_key ASC, source_release_key ASC \
              LIMIT ?",
         )?;
         let mut rows = statement.query(params![
@@ -231,9 +254,9 @@ impl MapAnalytics {
         if !(1..=10_000).contains(&limit) {
             bail!("facility list limit must be within 1..=10000");
         }
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection
-            .prepare("SELECT canonical_json FROM map_facility WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?) ORDER BY name ASC LIMIT ?")?;
+            .prepare("SELECT canonical_json FROM map_visible_facility WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?) ORDER BY name ASC, facility_key ASC, source_release_key ASC LIMIT ?")?;
         let mut rows = statement.query(params![tenant_key, tenant_key, limit])?;
         let mut facilities = Vec::new();
         while let Some(row) = rows.next()? {
@@ -246,9 +269,9 @@ impl MapAnalytics {
         if !(1..=10_000).contains(&limit) {
             bail!("location list limit must be within 1..=10000");
         }
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection
-            .prepare("SELECT canonical_json FROM map_location WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?) ORDER BY name ASC LIMIT ?")?;
+            .prepare("SELECT canonical_json FROM map_visible_location WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?) ORDER BY name ASC, location_key ASC, source_release_key ASC LIMIT ?")?;
         let mut rows = statement.query(params![tenant_key, tenant_key, limit])?;
         let mut locations = Vec::new();
         while let Some(row) = rows.next()? {
@@ -257,121 +280,15 @@ impl MapAnalytics {
         Ok(locations)
     }
 
-    pub fn put_location(&self, tenant_key: &str, location: &MapLocation) -> Result<()> {
-        location.position.validate()?;
-        let connection = self.connection(false)?;
-        connection.execute(
-            "INSERT OR REPLACE INTO map_location VALUES (?, ?, ?, ?, ?, ?, ?)",
-            params![
-                tenant_key,
-                location.location_id.as_str(),
-                location.name,
-                location.position.longitude_deg,
-                location.position.latitude_deg,
-                serde_json::to_string(location)?,
-                location.lineage.release_id.as_str(),
-            ],
-        )?;
-        Ok(())
-    }
-
-    pub fn put_facility(&self, tenant_key: &str, facility: &Facility) -> Result<()> {
-        facility.position.validate()?;
-        let connection = self.connection(false)?;
-        connection.execute(
-            "INSERT OR REPLACE INTO map_facility VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            params![
-                tenant_key,
-                facility.facility_id.as_str(),
-                facility.name,
-                serde_json::to_string(&facility.kind)?,
-                facility.position.longitude_deg,
-                facility.position.latitude_deg,
-                serde_json::to_string(facility)?,
-                facility.lineage.release_id.as_str(),
-            ],
-        )?;
-        Ok(())
-    }
-
-    pub fn put_boundary(&self, tenant_key: &str, boundary: &MapBoundary) -> Result<()> {
-        boundary.geometry.validate()?;
-        let geometry = polygon_geojson(&boundary.geometry)?;
-        let connection = self.connection(false)?;
-        connection.execute(
-            "INSERT OR REPLACE INTO map_boundary VALUES (?, ?, ?, ?, ST_GeomFromGeoJSON(?), ?, ?)",
-            params![
-                tenant_key,
-                boundary.boundary_id.as_str(),
-                boundary.name,
-                boundary.boundary_kind,
-                geometry,
-                serde_json::to_string(boundary)?,
-                boundary.lineage.release_id.as_str(),
-            ],
-        )?;
-        Ok(())
-    }
-
-    pub fn put_source_feature(&self, tenant_key: &str, feature: &SourceFeature) -> Result<()> {
-        feature.validate()?;
-        let geometry = feature.geometry.to_geojson_string()?;
-        let normalized_text = source_feature_normalized_text(feature)?;
-        let mut connection = self.connection(false)?;
-        let transaction = connection.transaction()?;
-        transaction.execute(
-            "INSERT OR REPLACE INTO map_source_feature VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ST_GeomFromGeoJSON(?), ?, ?, ?, ?)",
-            params![
-                tenant_key,
-                feature.release_id.as_str(),
-                feature.feature_id.as_str(),
-                feature.source_id.as_str(),
-                enum_wire(feature.source_element_type)?,
-                feature.source_element_id,
-                feature.source_element_version,
-                enum_wire(feature.representation)?,
-                feature.geometry_digest_sha256,
-                geometry,
-                normalized_text,
-                serde_json::to_string(&feature.normalized_tags)?,
-                serde_json::to_string(feature)?,
-                feature.source_digest_sha256,
-            ],
-        )?;
-        transaction.execute(
-            "DELETE FROM map_source_feature_tag WHERE tenant_key = ? AND release_key = ? AND feature_key = ?",
-            params![
-                tenant_key,
-                feature.release_id.as_str(),
-                feature.feature_id.as_str()
-            ],
-        )?;
-        {
-            let mut statement =
-                transaction.prepare("INSERT INTO map_source_feature_tag VALUES (?, ?, ?, ?, ?)")?;
-            for (key, value) in &feature.normalized_tags {
-                statement.execute(params![
-                    tenant_key,
-                    feature.release_id.as_str(),
-                    feature.feature_id.as_str(),
-                    key,
-                    serde_json::to_string(value)?,
-                ])?;
-            }
-        }
-        transaction.commit()?;
-        Ok(())
-    }
-
     pub fn source_feature(
         &self,
         tenant_key: &str,
         release_id: &crate::contract::DatasetReleaseId,
         feature_id: &SourceFeatureId,
     ) -> Result<Option<SourceFeature>> {
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection.prepare(
-            "SELECT canonical_json FROM map_source_feature WHERE tenant_key = ? AND release_key = ? AND feature_key = ? LIMIT 1",
+            "SELECT canonical_json FROM map_visible_source_feature WHERE tenant_key = ? AND release_key = ? AND feature_key = ? LIMIT 1",
         )?;
         let mut rows = statement.query(params![
             tenant_key,
@@ -384,31 +301,14 @@ impl MapAnalytics {
         Ok(Some(serde_json::from_str(&row.get::<_, String>(0)?)?))
     }
 
-    pub fn put_raster_product(&self, tenant_key: &str, raster: &RasterProduct) -> Result<()> {
-        raster.validate()?;
-        let connection = self.connection(false)?;
-        connection.execute(
-            "INSERT OR REPLACE INTO map_raster_product VALUES (?, ?, ?, ?, ?, ?)",
-            params![
-                tenant_key,
-                raster.raster_id.as_str(),
-                raster.release_id.as_str(),
-                raster.source_id.as_str(),
-                raster.checksum_sha256,
-                serde_json::to_string(raster)?,
-            ],
-        )?;
-        Ok(())
-    }
-
     pub fn raster_product(
         &self,
         tenant_key: &str,
         raster_id: &RasterProductId,
     ) -> Result<Option<RasterProduct>> {
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection.prepare(
-            "SELECT canonical_json FROM map_raster_product WHERE tenant_key = ? AND raster_key = ? LIMIT 1",
+            "SELECT canonical_json FROM map_visible_raster_product WHERE tenant_key = ? AND raster_key = ? ORDER BY release_key ASC LIMIT 1",
         )?;
         let mut rows = statement.query(params![tenant_key, raster_id.as_str()])?;
         let Some(row) = rows.next()? else {
@@ -426,11 +326,11 @@ impl MapAnalytics {
         if !(1..=10_000).contains(&limit) {
             bail!("raster product limit must be within 1..=10000");
         }
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let sql = if release_id.is_some() {
-            "SELECT canonical_json FROM map_raster_product WHERE tenant_key = ? AND release_key = ? ORDER BY raster_key LIMIT ?"
+            "SELECT canonical_json FROM map_visible_raster_product WHERE tenant_key = ? AND release_key = ? ORDER BY raster_key LIMIT ?"
         } else {
-            "SELECT canonical_json FROM map_raster_product WHERE tenant_key = ? ORDER BY release_key, raster_key LIMIT ?"
+            "SELECT canonical_json FROM map_visible_raster_product WHERE tenant_key = ? ORDER BY release_key, raster_key LIMIT ?"
         };
         let mut statement = connection.prepare(sql)?;
         let mut rows = if let Some(release_id) = release_id {
@@ -451,7 +351,7 @@ impl MapAnalytics {
         derivation: &RasterDerivation,
     ) -> Result<()> {
         derivation.validate()?;
-        let connection = self.connection(false)?;
+        let connection = self.connection()?;
         connection.execute(
             "INSERT OR REPLACE INTO map_raster_derivation VALUES (?, ?, ?, ?, ?, ?, ?)",
             params![
@@ -473,7 +373,7 @@ impl MapAnalytics {
         work_context: &WorkContextId,
         derivation_id: &RasterDerivationId,
     ) -> Result<Option<RasterDerivation>> {
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection.prepare(
             "SELECT canonical_json FROM map_raster_derivation WHERE tenant_key = ? AND work_context_key = ? AND derivation_key = ? LIMIT 1",
         )?;
@@ -497,7 +397,7 @@ impl MapAnalytics {
         if !(1..=10_000).contains(&limit) {
             bail!("raster derivation limit must be within 1..=10000");
         }
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection.prepare(
             "SELECT canonical_json FROM map_raster_derivation WHERE tenant_key = ? AND work_context_key = ? ORDER BY derivation_key LIMIT ?",
         )?;
@@ -515,7 +415,7 @@ impl MapAnalytics {
         derivation: &SpatialDerivation,
     ) -> Result<()> {
         derivation.validate()?;
-        let connection = self.connection(false)?;
+        let connection = self.connection()?;
         connection.execute(
             "INSERT OR REPLACE INTO map_spatial_derivation VALUES (?, ?, ?, ?, ?, ?, ?)",
             params![
@@ -537,7 +437,7 @@ impl MapAnalytics {
         work_context: &WorkContextId,
         derivation_id: &SpatialDerivationId,
     ) -> Result<Option<SpatialDerivation>> {
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection.prepare(
             "SELECT canonical_json FROM map_spatial_derivation WHERE tenant_key = ? AND work_context_key = ? AND derivation_key = ? LIMIT 1",
         )?;
@@ -561,7 +461,7 @@ impl MapAnalytics {
         if !(1..=10_000).contains(&limit) {
             bail!("spatial derivation limit must be within 1..=10000");
         }
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection.prepare(
             "SELECT canonical_json FROM map_spatial_derivation WHERE tenant_key = ? AND work_context_key = ? ORDER BY derivation_key LIMIT ?",
         )?;
@@ -625,16 +525,20 @@ impl MapAnalytics {
             ));
         }
         for filter in &request.tags_equal {
+            let path = json_pointer_path(&filter.key);
             predicates.push(format!(
-                "EXISTS (SELECT 1 FROM map_source_feature_tag AS tag WHERE tag.tenant_key = feature.tenant_key AND tag.release_key = feature.release_key AND tag.feature_key = feature.feature_key AND tag.tag_key = {} AND tag.tag_json = {})",
-                duckdb_string_literal(&filter.key),
-                duckdb_string_literal(&serde_json::to_string(&filter.value)?)
+                "json_exists(feature.tags_json, {}) AND json_type(feature.tags_json, {}) = 'VARCHAR' AND json_extract_string(feature.tags_json, {}) = {}",
+                duckdb_string_literal(&path),
+                duckdb_string_literal(&path),
+                duckdb_string_literal(&path),
+                duckdb_string_literal(&filter.value)
             ));
         }
         for key in &request.tags_exist {
+            let path = json_pointer_path(key);
             predicates.push(format!(
-                "EXISTS (SELECT 1 FROM map_source_feature_tag AS tag WHERE tag.tenant_key = feature.tenant_key AND tag.release_key = feature.release_key AND tag.feature_key = feature.feature_key AND tag.tag_key = {})",
-                duckdb_string_literal(key)
+                "json_exists(feature.tags_json, {})",
+                duckdb_string_literal(&path)
             ));
         }
 
@@ -670,12 +574,12 @@ impl MapAnalytics {
         );
         let sql = format!(
             "SELECT feature.canonical_json, {distance_projection} AS distance_m \
-             FROM map_source_feature AS feature \
+             FROM map_visible_source_feature AS feature \
              WHERE {} ORDER BY {ordering} LIMIT {}",
             predicates.join(" AND "),
             u64::from(request.limit) + 1
         );
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let mut statement = connection.prepare(&sql)?;
         let mut rows = statement.query([])?;
         let mut features = Vec::new();
@@ -712,7 +616,7 @@ impl MapAnalytics {
         position: &Wgs84Position,
     ) -> Result<Vec<MapBoundaryId>> {
         position.validate()?;
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let active_releases = active_release_keys(&connection, tenant_key)?;
         if active_releases.is_empty() {
             return Ok(Vec::new());
@@ -723,11 +627,11 @@ impl MapAnalytics {
         // escaped constants while keeping the tenant value parameterized.
         let sql = format!(
             "SELECT boundary.boundary_key \
-             FROM map_boundary AS boundary \
+             FROM map_visible_boundary AS boundary \
              WHERE boundary.tenant_key = ? \
                AND boundary.source_release_key IN ({}) \
                AND ST_Contains(boundary.geometry, ST_Point({}, {})) \
-             ORDER BY boundary.boundary_key \
+             ORDER BY boundary.boundary_key, boundary.source_release_key \
              LIMIT 1000",
             sql_string_list(&active_releases),
             position.longitude_deg,
@@ -749,18 +653,18 @@ impl MapAnalytics {
     ) -> Result<Vec<MapBoundaryId>> {
         corridor.validate()?;
         let geometry = line_geojson(corridor)?;
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let active_releases = active_release_keys(&connection, tenant_key)?;
         if active_releases.is_empty() {
             return Ok(Vec::new());
         }
         let sql = format!(
             "SELECT boundary.boundary_key \
-             FROM map_boundary AS boundary \
+             FROM map_visible_boundary AS boundary \
              WHERE boundary.tenant_key = ? \
                AND boundary.source_release_key IN ({}) \
                AND ST_Intersects(boundary.geometry, ST_GeomFromGeoJSON({})) \
-             ORDER BY boundary.boundary_key \
+             ORDER BY boundary.boundary_key, boundary.source_release_key \
              LIMIT 1000",
             sql_string_list(&active_releases),
             duckdb_string_literal(&geometry)
@@ -774,30 +678,41 @@ impl MapAnalytics {
         Ok(result)
     }
 
-    pub fn remove_release_products(
+    pub(crate) fn replace_release_products<T>(
         &self,
         tenant_key: &str,
         release_id: &crate::contract::DatasetReleaseId,
-    ) -> Result<()> {
-        let mut connection = self.connection(false)?;
-        let transaction = connection.transaction()?;
-        for (table, release_column) in [
-            ("map_location", "source_release_key"),
-            ("map_facility", "source_release_key"),
-            ("map_boundary", "source_release_key"),
-            ("map_network_edge", "source_release_key"),
-            ("map_source_feature_tag", "release_key"),
-            ("map_source_feature", "release_key"),
-            ("map_raster_product", "release_key"),
-            ("map_raster_derivation", "release_key"),
-        ] {
-            transaction.execute(
-                &format!("DELETE FROM {table} WHERE tenant_key = ? AND {release_column} = ?"),
-                params![tenant_key, release_id.as_str()],
-            )?;
+        operation: impl FnOnce(&ReleaseProjectionWriter) -> Result<T>,
+    ) -> Result<T> {
+        let writer = ReleaseProjectionWriter::new(self.clone(), tenant_key, release_id)?;
+        match operation(&writer) {
+            Ok(output) => match writer.finish() {
+                Ok(()) => Ok(output),
+                Err(error) => {
+                    writer.abort();
+                    Err(error)
+                }
+            },
+            Err(error) => {
+                writer.abort();
+                Err(error)
+            }
         }
-        transaction.commit()?;
-        Ok(())
+    }
+
+    pub(crate) fn release_projection_complete(
+        &self,
+        tenant_key: &str,
+        release_id: &crate::contract::DatasetReleaseId,
+    ) -> Result<bool> {
+        let connection = self.read_connection()?;
+        connection
+            .query_row(
+                "SELECT count(*) = 1 FROM map_release_projection WHERE tenant_key = ? AND release_key = ?",
+                params![tenant_key, release_id.as_str()],
+                |row| row.get(0),
+            )
+            .context("checking Map release projection completion")
     }
 
     pub fn activate_release(
@@ -806,8 +721,16 @@ impl MapAnalytics {
         dataset_id: &crate::contract::MapDatasetId,
         release_id: &crate::contract::DatasetReleaseId,
     ) -> Result<()> {
-        let mut connection = self.connection(false)?;
+        let mut connection = self.connection()?;
         let transaction = connection.transaction()?;
+        let complete: bool = transaction.query_row(
+            "SELECT count(*) = 1 FROM map_release_projection WHERE tenant_key = ? AND release_key = ?",
+            params![tenant_key, release_id.as_str()],
+            |row| row.get(0),
+        )?;
+        if !complete {
+            bail!("Map release projection is incomplete and cannot be activated");
+        }
         transaction.execute(
             "DELETE FROM map_active_release WHERE tenant_key = ? AND dataset_key = ?",
             params![tenant_key, dataset_id.as_str()],
@@ -820,93 +743,18 @@ impl MapAnalytics {
         Ok(())
     }
 
-    pub fn replace_network_edges(
-        &self,
-        tenant_key: &str,
-        release_id: &crate::contract::DatasetReleaseId,
-        edges: &[NetworkEdge],
-    ) -> Result<()> {
-        let mut connection = self.connection(false)?;
-        let transaction = connection.transaction()?;
-        transaction.execute(
-            "DELETE FROM map_network_edge WHERE tenant_key = ? AND source_release_key = ?",
-            params![tenant_key, release_id.as_str()],
-        )?;
-        {
-            let mut statement = transaction
-                .prepare("INSERT INTO map_network_edge VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")?;
-            for edge in edges {
-                edge.geometry.validate()?;
-                if edge.source_release_id != *release_id
-                    || !edge.distance_m.is_finite()
-                    || edge.distance_m <= 0.0
-                    || !edge.nominal_duration_s.is_finite()
-                    || edge.nominal_duration_s <= 0.0
-                {
-                    bail!("network edge invariants are invalid");
-                }
-                statement.execute(params![
-                    tenant_key,
-                    edge.edge_id,
-                    serde_json::to_value(edge.map_family)?
-                        .as_str()
-                        .context("map family wire value")?,
-                    edge.from_node,
-                    edge.to_node,
-                    serde_json::to_string(&edge.geometry)?,
-                    edge.distance_m,
-                    edge.nominal_duration_s,
-                    edge.bidirectional,
-                    edge.source_release_id.as_str(),
-                ])?;
-            }
-        }
-        transaction.commit()?;
-        Ok(())
-    }
-
-    pub fn put_network_edge(&self, tenant_key: &str, edge: &NetworkEdge) -> Result<()> {
-        edge.geometry.validate()?;
-        if !edge.distance_m.is_finite()
-            || edge.distance_m <= 0.0
-            || !edge.nominal_duration_s.is_finite()
-            || edge.nominal_duration_s <= 0.0
-        {
-            bail!("network edge invariants are invalid");
-        }
-        let connection = self.connection(false)?;
-        connection.execute(
-            "INSERT OR REPLACE INTO map_network_edge VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            params![
-                tenant_key,
-                edge.edge_id,
-                serde_json::to_value(edge.map_family)?
-                    .as_str()
-                    .context("map family wire value")?,
-                edge.from_node,
-                edge.to_node,
-                serde_json::to_string(&edge.geometry)?,
-                edge.distance_m,
-                edge.nominal_duration_s,
-                edge.bidirectional,
-                edge.source_release_id.as_str(),
-            ],
-        )?;
-        Ok(())
-    }
-
     pub fn network_edges(
         &self,
         tenant_key: &str,
         map_family: MapFamily,
     ) -> Result<Vec<NetworkEdge>> {
-        let connection = self.connection(true)?;
+        let connection = self.read_connection()?;
         let family = serde_json::to_value(map_family)?
             .as_str()
             .context("map family wire value")?
             .to_owned();
         let mut statement = connection.prepare(
-            "SELECT edge_key, map_family, from_node, to_node, geometry_json, distance_m, nominal_duration_s, bidirectional, source_release_key FROM map_network_edge WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?) AND map_family = ? ORDER BY edge_key",
+            "SELECT edge_key, map_family, from_node, to_node, geometry_json, distance_m, nominal_duration_s, bidirectional, source_release_key FROM map_visible_network_edge WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?) AND map_family = ? ORDER BY edge_key, source_release_key",
         )?;
         let mut rows = statement.query(params![tenant_key, tenant_key, family])?;
         let mut result = Vec::new();
@@ -928,29 +776,60 @@ impl MapAnalytics {
     }
 
     fn initialize(&self) -> Result<()> {
-        let connection = self.connection(false)?;
+        let connection = self.connection()?;
+        let managed_table_count: u64 = connection.query_row(
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'main' AND starts_with(table_name, 'map_')",
+            [],
+            |row| row.get(0),
+        )?;
+        let schema_exists: bool = connection.query_row(
+            "SELECT count(*) > 0 FROM information_schema.tables WHERE table_schema = 'main' AND table_name = 'map_schema'",
+            [],
+            |row| row.get(0),
+        )?;
+        if schema_exists {
+            let version: Option<i64> = connection
+                .query_row(
+                    "SELECT version FROM map_schema WHERE version = ? AND (SELECT count(*) FROM map_schema) = 1",
+                    params![SCHEMA_VERSION],
+                    |row| row.get(0),
+                )
+                .ok();
+            if version != Some(SCHEMA_VERSION) {
+                bail!(
+                    "unsupported map analytics schema marker; rebuild the derived Map projection"
+                );
+            }
+        } else if managed_table_count != 0 {
+            bail!(
+                "map analytics tables exist without a schema marker; rebuild the derived Map projection"
+            );
+        }
         connection.execute_batch(&format!(
             "CREATE TABLE IF NOT EXISTS map_schema (version BIGINT NOT NULL);\n\
              INSERT INTO map_schema SELECT {SCHEMA_VERSION} WHERE NOT EXISTS (SELECT 1 FROM map_schema);\n\
              CREATE TABLE IF NOT EXISTS map_location (\
-               tenant_key VARCHAR NOT NULL, location_key VARCHAR NOT NULL, name VARCHAR NOT NULL, longitude_deg DOUBLE NOT NULL, latitude_deg DOUBLE NOT NULL, canonical_json VARCHAR NOT NULL, source_release_key VARCHAR NOT NULL, PRIMARY KEY (tenant_key, location_key)\
+               tenant_key VARCHAR NOT NULL, location_key VARCHAR NOT NULL, name VARCHAR NOT NULL, longitude_deg DOUBLE NOT NULL, latitude_deg DOUBLE NOT NULL, canonical_json VARCHAR NOT NULL, source_release_key VARCHAR NOT NULL, projection_attempt_key VARCHAR NOT NULL, projection_ordinal UBIGINT NOT NULL\
              );\n\
-             CREATE INDEX IF NOT EXISTS map_location_name ON map_location(tenant_key, name);\n\
              CREATE TABLE IF NOT EXISTS map_facility (\
-               tenant_key VARCHAR NOT NULL, facility_key VARCHAR NOT NULL, name VARCHAR NOT NULL, kind VARCHAR NOT NULL, longitude_deg DOUBLE NOT NULL, latitude_deg DOUBLE NOT NULL, canonical_json VARCHAR NOT NULL, source_release_key VARCHAR NOT NULL, PRIMARY KEY (tenant_key, facility_key)\
+               tenant_key VARCHAR NOT NULL, facility_key VARCHAR NOT NULL, name VARCHAR NOT NULL, kind VARCHAR NOT NULL, longitude_deg DOUBLE NOT NULL, latitude_deg DOUBLE NOT NULL, canonical_json VARCHAR NOT NULL, source_release_key VARCHAR NOT NULL, projection_attempt_key VARCHAR NOT NULL, projection_ordinal UBIGINT NOT NULL\
              );\n\
-             CREATE INDEX IF NOT EXISTS map_facility_name ON map_facility(tenant_key, name);\n\
              CREATE TABLE IF NOT EXISTS map_active_release (\
                tenant_key VARCHAR NOT NULL, dataset_key VARCHAR NOT NULL, release_key VARCHAR NOT NULL, PRIMARY KEY (tenant_key, dataset_key), UNIQUE (tenant_key, release_key)\
              );\n\
+             CREATE TABLE IF NOT EXISTS map_release_projection (\
+               tenant_key VARCHAR NOT NULL, release_key VARCHAR NOT NULL, projection_attempt_key VARCHAR NOT NULL, location_count UBIGINT NOT NULL, facility_count UBIGINT NOT NULL, boundary_count UBIGINT NOT NULL, network_edge_count UBIGINT NOT NULL, source_feature_count UBIGINT NOT NULL, raster_product_count UBIGINT NOT NULL, completed_at TIMESTAMPTZ NOT NULL, PRIMARY KEY (tenant_key, release_key)\
+             );\n\
+             CREATE TABLE IF NOT EXISTS map_release_projection_attempt (\
+               tenant_key VARCHAR NOT NULL, release_key VARCHAR NOT NULL, projection_attempt_key VARCHAR NOT NULL, started_at TIMESTAMPTZ NOT NULL, PRIMARY KEY (tenant_key, release_key, projection_attempt_key)\
+             );\n\
              CREATE TABLE IF NOT EXISTS map_boundary (\
-               tenant_key VARCHAR NOT NULL, boundary_key VARCHAR NOT NULL, name VARCHAR NOT NULL, kind VARCHAR NOT NULL, geometry GEOMETRY NOT NULL, canonical_json VARCHAR NOT NULL, source_release_key VARCHAR NOT NULL, PRIMARY KEY (tenant_key, boundary_key)\
+               tenant_key VARCHAR NOT NULL, boundary_key VARCHAR NOT NULL, name VARCHAR NOT NULL, kind VARCHAR NOT NULL, geometry GEOMETRY NOT NULL, canonical_json VARCHAR NOT NULL, source_release_key VARCHAR NOT NULL, projection_attempt_key VARCHAR NOT NULL, projection_ordinal UBIGINT NOT NULL\
              );\n\
              CREATE INDEX IF NOT EXISTS map_boundary_geometry ON map_boundary USING RTREE (geometry);\n\
              CREATE TABLE IF NOT EXISTS map_network_edge (\
-               tenant_key VARCHAR NOT NULL, edge_key VARCHAR NOT NULL, map_family VARCHAR NOT NULL, from_node VARCHAR NOT NULL, to_node VARCHAR NOT NULL, geometry_json VARCHAR NOT NULL, distance_m DOUBLE NOT NULL, nominal_duration_s DOUBLE NOT NULL, bidirectional BOOLEAN NOT NULL, source_release_key VARCHAR NOT NULL, PRIMARY KEY (tenant_key, edge_key)\
+               tenant_key VARCHAR NOT NULL, edge_key VARCHAR NOT NULL, map_family VARCHAR NOT NULL, from_node VARCHAR NOT NULL, to_node VARCHAR NOT NULL, geometry_json VARCHAR NOT NULL, distance_m DOUBLE NOT NULL, nominal_duration_s DOUBLE NOT NULL, bidirectional BOOLEAN NOT NULL, source_release_key VARCHAR NOT NULL, projection_attempt_key VARCHAR NOT NULL, projection_ordinal UBIGINT NOT NULL\
              );\n\
-             CREATE INDEX IF NOT EXISTS map_network_edge_family ON map_network_edge(tenant_key, map_family);
              CREATE TABLE IF NOT EXISTS map_source_feature (
                tenant_key VARCHAR NOT NULL,
                release_key VARCHAR NOT NULL,
@@ -966,20 +845,10 @@ impl MapAnalytics {
                tags_json JSON NOT NULL,
                canonical_json JSON NOT NULL,
                source_digest_sha256 VARCHAR NOT NULL,
-               PRIMARY KEY (tenant_key, release_key, feature_key)
+               projection_attempt_key VARCHAR NOT NULL,
+               projection_ordinal UBIGINT NOT NULL
              );
              CREATE INDEX IF NOT EXISTS map_source_feature_geometry ON map_source_feature USING RTREE (geometry);
-             CREATE INDEX IF NOT EXISTS map_source_feature_identity ON map_source_feature(tenant_key, release_key, source_key, source_element_key, feature_key);
-             CREATE INDEX IF NOT EXISTS map_source_feature_text ON map_source_feature(tenant_key, release_key, normalized_text);
-             CREATE TABLE IF NOT EXISTS map_source_feature_tag (
-               tenant_key VARCHAR NOT NULL,
-               release_key VARCHAR NOT NULL,
-               feature_key VARCHAR NOT NULL,
-               tag_key VARCHAR NOT NULL,
-               tag_json VARCHAR NOT NULL,
-               PRIMARY KEY (tenant_key, release_key, feature_key, tag_key)
-             );
-             CREATE INDEX IF NOT EXISTS map_source_feature_tag_lookup ON map_source_feature_tag(tenant_key, release_key, tag_key, tag_json, feature_key);
              CREATE TABLE IF NOT EXISTS map_raster_product (
                tenant_key VARCHAR NOT NULL,
                raster_key VARCHAR NOT NULL,
@@ -987,9 +856,21 @@ impl MapAnalytics {
                source_key VARCHAR NOT NULL,
                checksum_sha256 VARCHAR NOT NULL,
                canonical_json JSON NOT NULL,
-               PRIMARY KEY (tenant_key, raster_key)
+               projection_attempt_key VARCHAR NOT NULL,
+               PRIMARY KEY (tenant_key, release_key, projection_attempt_key, raster_key)
              );
-             CREATE INDEX IF NOT EXISTS map_raster_product_release ON map_raster_product(tenant_key, release_key, raster_key);
+             CREATE VIEW IF NOT EXISTS map_visible_location AS
+               SELECT item.* FROM map_location AS item JOIN map_release_projection AS projection ON projection.tenant_key = item.tenant_key AND projection.release_key = item.source_release_key AND projection.projection_attempt_key = item.projection_attempt_key;
+             CREATE VIEW IF NOT EXISTS map_visible_facility AS
+               SELECT item.* FROM map_facility AS item JOIN map_release_projection AS projection ON projection.tenant_key = item.tenant_key AND projection.release_key = item.source_release_key AND projection.projection_attempt_key = item.projection_attempt_key;
+             CREATE VIEW IF NOT EXISTS map_visible_boundary AS
+               SELECT item.* FROM map_boundary AS item JOIN map_release_projection AS projection ON projection.tenant_key = item.tenant_key AND projection.release_key = item.source_release_key AND projection.projection_attempt_key = item.projection_attempt_key;
+             CREATE VIEW IF NOT EXISTS map_visible_network_edge AS
+               SELECT item.* FROM map_network_edge AS item JOIN map_release_projection AS projection ON projection.tenant_key = item.tenant_key AND projection.release_key = item.source_release_key AND projection.projection_attempt_key = item.projection_attempt_key;
+             CREATE VIEW IF NOT EXISTS map_visible_source_feature AS
+               SELECT item.* FROM map_source_feature AS item JOIN map_release_projection AS projection ON projection.tenant_key = item.tenant_key AND projection.release_key = item.release_key AND projection.projection_attempt_key = item.projection_attempt_key;
+             CREATE VIEW IF NOT EXISTS map_visible_raster_product AS
+               SELECT item.* FROM map_raster_product AS item JOIN map_release_projection AS projection ON projection.tenant_key = item.tenant_key AND projection.release_key = item.release_key AND projection.projection_attempt_key = item.projection_attempt_key;
              CREATE TABLE IF NOT EXISTS map_raster_derivation (
                tenant_key VARCHAR NOT NULL,
                work_context_key VARCHAR NOT NULL,
@@ -1073,7 +954,7 @@ impl MapAnalytics {
                last_sequence BIGINT NOT NULL,
                updated_at TIMESTAMPTZ NOT NULL
              );
-             UPDATE map_schema SET version = {SCHEMA_VERSION} WHERE version IN (2, 3, 4, 5);"
+             "
         ))?;
         let version: i64 =
             connection.query_row("SELECT max(version) FROM map_schema", [], |row| row.get(0))?;
@@ -1083,24 +964,24 @@ impl MapAnalytics {
         self.verify_spatial()
     }
 
-    pub(crate) fn connection(&self, read_only: bool) -> Result<Connection> {
-        open_connection(
-            &self.database_path,
-            read_only,
-            &[],
-            &FileAccess::Denied,
-            &self.settings,
-        )
+    pub(crate) fn connection(&self) -> Result<Connection> {
+        self.instance.connection()
+    }
+
+    pub(crate) fn read_connection(&self) -> Result<Connection> {
+        self.instance.read_connection()
     }
 
     pub(crate) fn task_connection(&self, directory: &Path) -> Result<Connection> {
-        open_connection(
-            &self.database_path,
-            false,
-            &[],
-            &FileAccess::RequestDirectory(directory.to_path_buf()),
-            &self.settings,
-        )
+        std::fs::create_dir_all(directory)
+            .with_context(|| format!("creating task directory {}", directory.display()))?;
+        let directory = directory
+            .canonicalize()
+            .with_context(|| format!("canonicalizing task directory {}", directory.display()))?;
+        if directory.parent() != Some(self.authoring_task_root.as_path()) {
+            bail!("task directory must be a direct child of the authoring task root");
+        }
+        self.instance.connection()
     }
 }
 
@@ -1267,6 +1148,10 @@ fn duckdb_string_literal(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
 }
 
+fn json_pointer_path(key: &str) -> String {
+    format!("/{}", key.replace('~', "~0").replace('/', "~1"))
+}
+
 fn sql_string_list(values: &[String]) -> String {
     values
         .iter()
@@ -1303,7 +1188,7 @@ fn select_canonical<T: serde::de::DeserializeOwned>(
     tenant_key: &str,
 ) -> Result<Option<T>> {
     let sql = format!(
-        "SELECT canonical_json FROM {table} WHERE tenant_key = ? AND {key_column} = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?) LIMIT 1"
+        "SELECT canonical_json FROM {table} WHERE tenant_key = ? AND {key_column} = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?) ORDER BY source_release_key ASC LIMIT 1"
     );
     let mut statement = connection.prepare(&sql)?;
     let mut rows = statement.query(params![tenant_key, key, tenant_key])?;
@@ -1316,7 +1201,90 @@ fn select_canonical<T: serde::de::DeserializeOwned>(
 
 #[cfg(test)]
 mod tests {
+    use chrono::Utc;
+    use tempfile::TempDir;
+
+    use crate::contract::{
+        AuthorityClass, DatasetLicense, DatasetReleaseId, FeatureGeometry, GeoJsonPosition,
+        HttpsEndpoint, LocationId, MapDatasetId, MapSourceId, SOURCE_FEATURE_SCHEMA_VERSION,
+        SourceElementType, SourceFeatureRepresentation, SourceLineage, SourceTagEquality,
+    };
+
     use super::*;
+
+    fn analytics_config(root: &TempDir, spatial_extension: &std::ffi::OsStr) -> MapAnalyticsConfig {
+        MapAnalyticsConfig {
+            database_path: root.path().join("map.duckdb"),
+            authoring_task_root: root.path().join("tasks"),
+            spill_dir: root.path().join("spill"),
+            spatial_extension: spatial_extension.into(),
+            memory_limit: "256MB".to_owned(),
+            threads: 1,
+        }
+    }
+
+    fn configured_analytics(root: &TempDir, spatial_extension: &std::ffi::OsStr) -> MapAnalytics {
+        MapAnalytics::open(analytics_config(root, spatial_extension)).unwrap()
+    }
+
+    fn test_location(release_id: &DatasetReleaseId, name: &str) -> MapLocation {
+        MapLocation {
+            location_id: LocationId::from_stable_key(b"stable-location"),
+            name: name.to_owned(),
+            position: Wgs84Position::new(-73.9857, 40.7484, None).unwrap(),
+            alternate_names: Default::default(),
+            lineage: SourceLineage {
+                release_id: release_id.clone(),
+                source_feature_id: "source-feature".to_owned(),
+                authority: AuthorityClass::SyntheticTest,
+                valid_from: Utc::now(),
+                valid_until: None,
+            },
+        }
+    }
+
+    fn test_source_feature(release_id: &DatasetReleaseId, index: usize) -> SourceFeature {
+        let geometry = FeatureGeometry::Point(GeoJsonPosition::new(-73.9857, 40.7484, None));
+        let geometry_digest_sha256 =
+            hex::encode(Sha256::digest(geometry.to_geojson_string().unwrap()));
+        SourceFeature {
+            schema_version: SOURCE_FEATURE_SCHEMA_VERSION,
+            feature_id: SourceFeatureId::from_stable_key(format!("feature-{index}").as_bytes()),
+            source_id: MapSourceId::from_stable_key(b"synthetic-source"),
+            release_id: release_id.clone(),
+            source_element_type: SourceElementType::Node,
+            source_element_id: format!("node-{index}"),
+            source_element_version: "1".to_owned(),
+            representation: SourceFeatureRepresentation::Point,
+            source_geometry_path: Vec::new(),
+            geometry,
+            geometry_digest_sha256,
+            normalized_tags: [
+                (
+                    "source/ref~id".to_owned(),
+                    serde_json::Value::String(format!("lamp-{index}")),
+                ),
+                ("height".to_owned(), serde_json::json!(42)),
+                ("nullable".to_owned(), serde_json::Value::Null),
+            ]
+            .into_iter()
+            .collect(),
+            original_names: Default::default(),
+            original_references: Default::default(),
+            operating_area_ids: Default::default(),
+            source_digest_sha256: hex::encode(Sha256::digest(b"synthetic-source")),
+            license: DatasetLicense {
+                license_id: "synthetic-license".to_owned(),
+                source_terms_uri: HttpsEndpoint::parse("https://example.com/terms").unwrap(),
+                attribution: "Synthetic test data".to_owned(),
+                redistribution_allowed: true,
+                derivatives_allowed: true,
+                offline_bundle_allowed: true,
+                expires_at: None,
+            },
+            acquired_at: Utc::now(),
+        }
+    }
 
     #[test]
     fn longitude_predicate_supports_dateline_crossing() {
@@ -1366,5 +1334,165 @@ mod tests {
             decode_source_cursor(&encoded).unwrap().query_digest_sha256,
             digest
         );
+    }
+
+    #[test]
+    fn completed_release_attempts_preserve_stable_ids_across_releases() {
+        let Some(extension) = std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION") else {
+            return;
+        };
+        let root = TempDir::new().unwrap();
+        let analytics = configured_analytics(&root, &extension);
+        let releases = [DatasetReleaseId::new(), DatasetReleaseId::new()];
+        for (index, release) in releases.iter().enumerate() {
+            let location = test_location(release, "shared location");
+            analytics
+                .replace_release_products("tenant", release, |writer| {
+                    writer.put_location("tenant", &location)
+                })
+                .unwrap();
+            analytics
+                .activate_release("tenant", &MapDatasetId::new(), release)
+                .unwrap();
+            assert!(
+                analytics
+                    .release_projection_complete("tenant", &releases[index])
+                    .unwrap()
+            );
+        }
+        let locations = analytics.list_locations("tenant", 10).unwrap();
+        assert_eq!(locations.len(), 2);
+        assert_eq!(locations[0].location_id, locations[1].location_id);
+        assert!(
+            locations[0].lineage.release_id.as_str() < locations[1].lineage.release_id.as_str()
+        );
+    }
+
+    #[test]
+    fn invalid_projection_never_becomes_visible_or_activatable() {
+        let Some(extension) = std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION") else {
+            return;
+        };
+        let root = TempDir::new().unwrap();
+        let analytics = configured_analytics(&root, &extension);
+        let release = DatasetReleaseId::new();
+        let location = test_location(&release, "duplicate location");
+        let error = analytics
+            .replace_release_products("tenant", &release, |writer| {
+                writer.put_location("tenant", &location)?;
+                writer.put_location("tenant", &location)
+            })
+            .unwrap_err();
+        assert!(error.to_string().contains("duplicate stored identities"));
+        assert!(
+            !analytics
+                .release_projection_complete("tenant", &release)
+                .unwrap()
+        );
+        assert!(analytics.list_locations("tenant", 10).unwrap().is_empty());
+        assert!(
+            analytics
+                .activate_release("tenant", &MapDatasetId::new(), &release)
+                .unwrap_err()
+                .to_string()
+                .contains("incomplete")
+        );
+    }
+
+    #[test]
+    fn obsolete_projection_schema_requires_an_explicit_rebuild() {
+        let Some(extension) = std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION") else {
+            return;
+        };
+        let root = TempDir::new().unwrap();
+        let database_path = root.path().join("map.duckdb");
+        let connection = duckdb::Connection::open(&database_path).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE map_schema(version BIGINT); INSERT INTO map_schema VALUES (6)",
+            )
+            .unwrap();
+        drop(connection);
+        let error = MapAnalytics::open(analytics_config(&root, &extension)).unwrap_err();
+        assert!(error.to_string().contains("schema marker"));
+    }
+
+    #[test]
+    fn interrupted_batches_stay_invisible_and_retry_under_a_new_attempt() {
+        let Some(extension) = std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION") else {
+            return;
+        };
+        let root = TempDir::new().unwrap();
+        let analytics = configured_analytics(&root, &extension);
+        let release = DatasetReleaseId::new();
+        let interrupted =
+            ReleaseProjectionWriter::new(analytics.clone(), "tenant", &release).unwrap();
+        for index in 0..=256 {
+            interrupted
+                .put_source_feature("tenant", &test_source_feature(&release, index))
+                .unwrap();
+        }
+        drop(interrupted);
+        let feature = test_source_feature(&release, 0);
+        assert!(
+            analytics
+                .source_feature("tenant", &release, &feature.feature_id)
+                .unwrap()
+                .is_none()
+        );
+
+        analytics
+            .replace_release_products("tenant", &release, |writer| {
+                writer.put_source_feature("tenant", &feature)
+            })
+            .unwrap();
+        assert!(
+            analytics
+                .source_feature("tenant", &release, &feature.feature_id)
+                .unwrap()
+                .is_some()
+        );
+        let query = analytics
+            .query_source_features(
+                "tenant",
+                &QuerySourceFeaturesRequest {
+                    release_id: release.clone(),
+                    source_id: None,
+                    source_element_id: None,
+                    representation: None,
+                    tags_equal: vec![SourceTagEquality {
+                        key: "source/ref~id".to_owned(),
+                        value: "lamp-0".to_owned(),
+                    }],
+                    tags_exist: vec!["nullable".to_owned()],
+                    normalized_text: None,
+                    spatial: None,
+                    limit: 10,
+                    cursor: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(query.features.len(), 1);
+        let numeric_does_not_match_string = analytics
+            .query_source_features(
+                "tenant",
+                &QuerySourceFeaturesRequest {
+                    release_id: release,
+                    source_id: None,
+                    source_element_id: None,
+                    representation: None,
+                    tags_equal: vec![SourceTagEquality {
+                        key: "height".to_owned(),
+                        value: "42".to_owned(),
+                    }],
+                    tags_exist: Vec::new(),
+                    normalized_text: None,
+                    spatial: None,
+                    limit: 10,
+                    cursor: None,
+                },
+            )
+            .unwrap();
+        assert!(numeric_does_not_match_string.features.is_empty());
     }
 }

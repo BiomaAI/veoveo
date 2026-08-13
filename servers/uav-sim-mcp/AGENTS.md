@@ -10,7 +10,7 @@ exposing simulator native control ports through the gateway. The server owns
 the typed simulation protocol, caller ownership, task state, resource
 identities, subscriptions, and recording references; the simulator adapter
 owns Isaac stage mutation, Cesium tiles, Pegasus vehicles, PX4 transport, and
-the thin telemetry adapter that uses the shared Simulation View pose SDK.
+authoritative operator cameras and encoded products.
 
 ## Invariants
 
@@ -27,20 +27,21 @@ the thin telemetry adapter that uses the shared Simulation View pose SDK.
   to an immutable Frames world revision and a static simulation frame from that
   revision. The adapter derives Cesium and Pegasus georeferencing from that
   binding, converts ENU/NED locally, and makes no MCP calls in the physics loop.
-- Operator cameras, RTX rendering, NVIDIA NVENC, WebRTC, stream leases, and
-  the live App belong only to the independent Simulation View service. This
-  server does not implement, alias, or retain those surfaces.
-- The simulator publishes complete newest-value snapshots through
-  `veoveo.io/simulation-view-pose/v1`. DNS, TLS, and socket I/O stay on the
-  shared SDK worker and never block physics. Readiness requires one delivered
-  snapshot and a currently ready publisher.
+- Operator cameras, RTX rendering, and NVIDIA NVENC products stay inside the
+  authoritative simulator. This server owns ephemeral actor-and-browser viewer
+  leases, access audit, signaling authorization, and `ui://uav-sim/live.html`.
+  It never persists renderer desired state or mirrors entity poses.
+- Every active viewer lease owns one exclusively assigned physical slot with a
+  camera clone, RTX render, Cesium viewport, NVIDIA NVENC session, and native
+  WebRTC peer. Logical cameras and their final poses may be shared; encoded
+  products and transport state are never shared between viewers.
 - `CESIUM_ION_ACCESS_TOKEN` comes only from the dedicated Kubernetes Secret.
   It is never a tool argument, ConfigMap value, resource field, log field, or
   exported USD content.
 - Recording state publishes its producer key and typed catalog lifecycle
   immediately. The canonical `recording://recordings/{recording_id}` identity
   appears only after catalog resolution; catalog delay or failure never blocks
-  simulation, pose publication, or scene preparation. Native Recording Hub
+  simulation, operator rendering, or live-view signaling. Native Recording Hub
   ports stay private.
 
 ## Build And Test

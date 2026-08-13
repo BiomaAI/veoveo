@@ -1,0 +1,162 @@
+diff --git a/extensions/pegasus.simulator/pegasus/simulator/logic/sensors/imu.py b/extensions/pegasus.simulator/pegasus/simulator/logic/sensors/imu.py
+index a57ceb9..22e066a 100644
+--- a/extensions/pegasus.simulator/pegasus/simulator/logic/sensors/imu.py
++++ b/extensions/pegasus.simulator/pegasus/simulator/logic/sensors/imu.py
+@@ -7,12 +7,15 @@
+ __all__ = ["IMU"]
+ 
+ import numpy as np
+-from scipy.spatial.transform import Rotation
+ 
+ from pegasus.simulator.logic.state import State
+ from pegasus.simulator.logic.sensors import Sensor
+-from pegasus.simulator.logic.rotations import rot_FLU_to_FRD, rot_ENU_to_NED
+ from pegasus.simulator.logic.sensors.geo_mag_utils import GRAVITY_VECTOR
++from veoveo_uav_sim.vehicle_model import (
++    attitude_enu_flu_to_ned_frd,
++    flu_to_frd_vector,
++    inverse_rotate_vector_xyzw,
++)
+ 
+ 
+ class IMU(Sensor):
+@@ -138,7 +141,9 @@ class IMU(Sensor):
+         self._prev_linear_velocity = state.linear_velocity
+ 
+         # Compute the linear acceleration of the body frame, with respect to the inertial frame, expressed in the body frame
+-        linear_acceleration = np.array(Rotation.from_quat(state.attitude).inv().apply(linear_acceleration_inertial))
++        linear_acceleration = inverse_rotate_vector_xyzw(
++            state.attitude, linear_acceleration_inertial
++        )
+ 
+         # Simulate the accelerometer noise processes and add them to the true linear aceleration values
+         for i in range(3):
+@@ -154,19 +159,17 @@ class IMU(Sensor):
+         # --------------------------------------------------------------------------------------------
+ 
+         # Convert the orientation to the FRD-NED standard
+-        attitude_flu_enu = Rotation.from_quat(state.attitude)
+-        attitude_frd_enu = attitude_flu_enu * rot_FLU_to_FRD
+-        attitude_frd_ned = rot_ENU_to_NED * attitude_frd_enu
++        attitude_frd_ned = attitude_enu_flu_to_ned_frd(state.attitude)
+ 
+         # Convert the angular velocity from FLU to FRD standard
+-        angular_velocity_frd = rot_FLU_to_FRD.apply(angular_velocity)
++        angular_velocity_frd = flu_to_frd_vector(angular_velocity)
+ 
+         # Convert the linear acceleration in the body frame from FLU to FRD standard
+-        linear_acceleration_frd = rot_FLU_to_FRD.apply(linear_acceleration)
++        linear_acceleration_frd = flu_to_frd_vector(linear_acceleration)
+ 
+         # Add the values to the dictionary and return it
+         self._state = {
+-            "orientation": attitude_frd_ned.as_quat(),
++            "orientation": attitude_frd_ned,
+             "angular_velocity": angular_velocity_frd,
+             "linear_acceleration": linear_acceleration_frd,
+         }
+diff --git a/extensions/pegasus.simulator/pegasus/simulator/logic/state.py b/extensions/pegasus.simulator/pegasus/simulator/logic/state.py
+index 7464139..2d982b0 100644
+--- a/extensions/pegasus.simulator/pegasus/simulator/logic/state.py
++++ b/extensions/pegasus.simulator/pegasus/simulator/logic/state.py
+@@ -7,8 +7,11 @@
+ __all__ = ["State"]
+ 
+ import numpy as np
+-from scipy.spatial.transform import Rotation
+-from pegasus.simulator.logic.rotations import rot_ENU_to_NED, rot_FLU_to_FRD
++from veoveo_uav_sim.vehicle_model import (
++    attitude_enu_flu_to_ned_frd,
++    enu_to_ned_vector,
++    flu_to_frd_vector,
++)
+ 
+ 
+ class State:
+@@ -57,7 +60,7 @@ class State:
+         Returns:
+             np.ndarray: A numpy array with the [x,y,z] of the vehicle expressed in the inertial frame according to an NED convention.
+         """
+-        return rot_ENU_to_NED.apply(self.position)
++        return enu_to_ned_vector(self.position)
+ 
+     def get_attitude_ned_frd(self):
+         """
+@@ -67,8 +70,7 @@ class State:
+         Returns:
+             np.ndarray: A numpy array with the quaternion [qx, qy, qz, qw] that encodes the attitude of the vehicle's FRD body frame, relative to an NED inertial frame, expressed in the NED inertial frame.
+         """
+-        attitude_frd_ned = rot_ENU_to_NED * Rotation.from_quat(self.attitude) * rot_FLU_to_FRD
+-        return attitude_frd_ned.as_quat()
++        return attitude_enu_flu_to_ned_frd(self.attitude)
+ 
+     def get_linear_body_velocity_ned_frd(self):
+         """
+@@ -79,11 +81,7 @@ class State:
+             np.ndarray: A numpy array with [u,v,w] that defines the velocity of the vehicle expressed in the FRD body frame.
+         """
+ 
+-        # Get the linear acceleration in FLU convention
+-        linear_acc_body_flu = Rotation.from_quat(self.attitude).inv().apply(self.linear_acceleration)
+-
+-        # Convert the linear acceleration in the body frame expressed in FLU convention to the FRD convention
+-        return rot_FLU_to_FRD.apply(linear_acc_body_flu)
++        return flu_to_frd_vector(self.linear_body_velocity)
+ 
+     def get_linear_velocity_ned(self):
+         """
+@@ -94,7 +92,7 @@ class State:
+         Returns:
+             np.ndarray: A numpy array with [vx,vy,vz] that defines the velocity of the vehicle expressed in the inertial frame according to a NED convention.
+         """
+-        return rot_ENU_to_NED.apply(self.linear_velocity)
++        return enu_to_ned_vector(self.linear_velocity)
+ 
+     def get_angular_velocity_frd(self):
+         """
+@@ -105,7 +103,7 @@ class State:
+         Returns:
+             np.ndarray: A numpy array with [p,q,r] with the angular velocity of the vehicle's FRD body frame, relative to an NED inertial frame, expressed in the FRD body frame.
+         """
+-        return rot_FLU_to_FRD.apply(self.angular_velocity)
++        return flu_to_frd_vector(self.angular_velocity)
+ 
+     def get_linear_acceleration_ned(self):
+         """
+@@ -116,4 +114,4 @@ class State:
+         Returns:
+             np.ndarray: An array with [x_ddot, y_ddot, z_ddot] with the acceleration of the vehicle expressed in the inertial frame according to an NED convention.
+         """
+-        return rot_ENU_to_NED.apply(self.linear_acceleration)
++        return enu_to_ned_vector(self.linear_acceleration)
+diff --git a/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/vehicle.py b/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/vehicle.py
+index 6391da4..f53f5c8 100644
+--- a/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/vehicle.py
++++ b/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/vehicle.py
+@@ -7,7 +7,7 @@
+ 
+ # Numerical computations
+ import numpy as np
+-from scipy.spatial.transform import Rotation
++from veoveo_uav_sim.vehicle_model import inverse_rotate_vector_xyzw
+ 
+ # Low level APIs
+ from pxr import Usd, Gf
+@@ -303,11 +303,15 @@ class Vehicle(Robot):
+         # The linear velocity V =[u,v,w] of the vehicle's body frame expressed in the body frame of reference
+         # Note that: x_dot = Rot * V
+         self._state.linear_body_velocity = (
+-            Rotation.from_quat(self._state.attitude).inv().apply(self._state.linear_velocity)
++            inverse_rotate_vector_xyzw(
++                self._state.attitude, self._state.linear_velocity
++            )
+         )
+ 
+         # omega = [p,q,r]
+-        self._state.angular_velocity = Rotation.from_quat(self._state.attitude).inv().apply(np.array(ang_vel))
++        self._state.angular_velocity = inverse_rotate_vector_xyzw(
++            self._state.attitude, ang_vel
++        )
+ 
+         # The acceleration of the vehicle expressed in the inertial frame X_ddot = [x_ddot, y_ddot, z_ddot]
+         self._state.linear_acceleration = linear_acceleration

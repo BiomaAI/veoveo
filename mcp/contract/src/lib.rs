@@ -9,10 +9,12 @@
 pub const HOSTED_MCP_CONTRACT_REVISION: &str = "veoveo.io/hosted-mcp/v1";
 
 pub mod access;
+pub mod agents;
 #[cfg(feature = "analytics")]
 pub mod analytics;
 pub mod artifact_service;
 pub mod bootstrap;
+pub mod catalog;
 pub mod coordinates;
 pub mod deployment;
 pub mod docs;
@@ -41,6 +43,10 @@ pub use access::{
     Grant, GroupMembership, GroupRole, decide, grant_level_for_caller, mac_satisfied,
     parse_artifact_plane_uri, role_in_group,
 };
+pub use agents::{
+    AgentElicitationDecisionRequest, AgentElicitationView, AgentOperatorMessageRequest,
+    AgentWakeReceipt,
+};
 #[cfg(feature = "analytics")]
 pub use analytics::{DuckDbAnalytics, SharedDuckDbConnection, open_duckdb};
 pub use artifact_service::{
@@ -58,6 +64,10 @@ pub use bootstrap::{
     SERVER_BOOTSTRAP_FLAG, SERVER_BOOTSTRAP_ISSUER, SERVER_BOOTSTRAP_MOUNT_PATH,
     SERVER_BOOTSTRAP_VALIDATE_COMMAND, ServerBootstrapDocument, ServerBootstrapError,
     server_bootstrap_principal,
+};
+pub use catalog::{
+    GATEWAY_DISCOVERY_DEGRADATION_META_KEY, GatewayDiscoveryDegradation, GatewayDiscoveryFailure,
+    GatewayDiscoveryFailureCode, GatewayDiscoverySurface,
 };
 pub use coordinates::{
     CoordinateIdError, CoordinateOperationId, CoordinateOperationKind,

@@ -5,6 +5,7 @@
 #include <nvdsmeta.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <climits>
 #include <cmath>
@@ -260,13 +261,26 @@ struct ProbeContext {
   std::uint64_t encoded_sequence = 0;
   std::size_t estimated_response_bytes = 128;
   std::optional<std::int64_t> last_index;
+  std::atomic<GstElement *> pipeline{nullptr};
   std::mutex error_mutex;
   std::string error;
 
   void fail(std::string message) {
-    std::lock_guard lock(error_mutex);
-    if (error.empty()) {
-      error = std::move(message);
+    bool first_failure = false;
+    {
+      std::lock_guard lock(error_mutex);
+      if (error.empty()) {
+        error = std::move(message);
+        first_failure = true;
+      }
+    }
+    auto *current_pipeline = pipeline.load(std::memory_order_acquire);
+    if (first_failure && current_pipeline != nullptr) {
+      gst_element_post_message(
+          current_pipeline,
+          gst_message_new_application(
+              GST_OBJECT(current_pipeline),
+              gst_structure_new_empty("veoveo-stream-probe-failure")));
     }
   }
 
@@ -274,6 +288,24 @@ struct ProbeContext {
     std::lock_guard lock(error_mutex);
     return error;
   }
+};
+
+class ProbePipelineBinding {
+public:
+  ProbePipelineBinding(ProbeContext &probe, GstElement *pipeline)
+      : probe_(probe) {
+    probe_.pipeline.store(pipeline, std::memory_order_release);
+  }
+
+  ProbePipelineBinding(const ProbePipelineBinding &) = delete;
+  ProbePipelineBinding &operator=(const ProbePipelineBinding &) = delete;
+
+  ~ProbePipelineBinding() {
+    probe_.pipeline.store(nullptr, std::memory_order_release);
+  }
+
+private:
+  ProbeContext &probe_;
 };
 
 [[noreturn]] void fail(const std::string &message) {
@@ -618,25 +650,36 @@ GstPadProbeReturn inference_probe(GstPad *, GstPadProbeInfo *info,
       context.fail("DeepStream batch contains null frame metadata");
       continue;
     }
-    if (frame_meta->buf_pts == GST_CLOCK_TIME_NONE ||
-        frame_meta->buf_pts > static_cast<std::uint64_t>(
-                                  std::numeric_limits<std::int64_t>::max())) {
-      context.fail("decoded frame has no representable presentation timestamp");
-      continue;
+    std::int64_t index = 0;
+    if (context.request.live) {
+      const auto maximum_live_sequence = static_cast<std::uint64_t>(
+          std::numeric_limits<std::int64_t>::max());
+      if (context.processed_frames > maximum_live_sequence) {
+        context.fail("live decoded-frame sequence overflowed i64");
+        continue;
+      }
+      index = static_cast<std::int64_t>(context.processed_frames);
+      ++context.processed_frames;
+    } else {
+      if (frame_meta->buf_pts == GST_CLOCK_TIME_NONE ||
+          frame_meta->buf_pts > static_cast<std::uint64_t>(
+                                    std::numeric_limits<std::int64_t>::max())) {
+        context.fail("decoded frame has no representable presentation timestamp");
+        continue;
+      }
+      const auto pts = static_cast<std::int64_t>(frame_meta->buf_pts);
+      if (pts > 0 && context.request.decode_start_index >
+                         std::numeric_limits<std::int64_t>::max() - pts) {
+        context.fail("decoded frame index overflowed i64");
+        continue;
+      }
+      index = context.request.decode_start_index + pts;
+      if (index < context.request.requested_range.start ||
+          index > context.request.requested_range.end) {
+        continue;
+      }
+      ++context.processed_frames;
     }
-    const auto pts = static_cast<std::int64_t>(frame_meta->buf_pts);
-    if (pts > 0 && context.request.decode_start_index >
-                       std::numeric_limits<std::int64_t>::max() - pts) {
-      context.fail("decoded frame index overflowed i64");
-      continue;
-    }
-    const auto index = context.request.decode_start_index + pts;
-    if (!context.request.live &&
-        (index < context.request.requested_range.start ||
-         index > context.request.requested_range.end)) {
-      continue;
-    }
-    ++context.processed_frames;
     if (!should_emit(context)) {
       continue;
     }
@@ -820,6 +863,7 @@ void run_pipeline(const Request &request, ProbeContext &probe) {
         gst_element_set_state(value, GST_STATE_NULL);
         gst_object_unref(value);
       });
+  ProbePipelineBinding probe_pipeline(probe, pipeline);
 
   if (!request.source_element) {
     fail("admitted GStreamer graph omitted source_element");
@@ -910,9 +954,22 @@ void run_pipeline(const Request &request, ProbeContext &probe) {
     fail("DeepStream pipeline refused the PLAYING state");
   }
   GstBus *bus = gst_element_get_bus(pipeline);
-  GstMessage *message = gst_bus_timed_pop_filtered(
-      bus, GST_CLOCK_TIME_NONE,
-      static_cast<GstMessageType>(GST_MESSAGE_ERROR | GST_MESSAGE_EOS));
+  GstMessage *message = nullptr;
+  while (message == nullptr) {
+    auto *candidate = gst_bus_timed_pop_filtered(
+        bus, GST_CLOCK_TIME_NONE,
+        static_cast<GstMessageType>(GST_MESSAGE_ERROR | GST_MESSAGE_EOS |
+                                    GST_MESSAGE_APPLICATION));
+    if (candidate == nullptr) {
+      break;
+    }
+    if (GST_MESSAGE_TYPE(candidate) == GST_MESSAGE_APPLICATION &&
+        probe.error_copy().empty()) {
+      gst_message_unref(candidate);
+      continue;
+    }
+    message = candidate;
+  }
   gst_object_unref(bus);
   if (message == nullptr) {
     fail("DeepStream pipeline ended without EOS or an error");

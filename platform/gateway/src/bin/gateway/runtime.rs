@@ -6,6 +6,7 @@ use chrono::{DateTime, TimeDelta, Utc};
 use parking_lot::RwLock;
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
+use veoveo_agent_runtime::AgentControl;
 use veoveo_mcp_contract::{
     CertificateAuthoritySource, GatewayInternalTokenIssuer, GatewayProfileId,
     ResourceAuthorizationServer, ServerSlug,
@@ -50,6 +51,7 @@ pub(super) struct ProfileAuthState {
 
 #[derive(Clone)]
 pub(super) struct AdminState {
+    pub(super) agent_control: AgentControl,
     pub(super) catalog: SharedCatalog,
     pub(super) http: SharedHttpClient,
     pub(super) control_store: GatewayControlStore,

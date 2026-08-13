@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import math
+import time
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any, Mapping
 
 
 @dataclass(frozen=True, slots=True)
@@ -217,7 +219,6 @@ class CameraOptics:
 @dataclass(frozen=True, slots=True)
 class OperatorCameraDefinition:
     camera_id: str
-    physical_slot: int
     rig_kind: CameraRigKind
     rig: object
     optics: CameraOptics
@@ -227,10 +228,43 @@ class OperatorCameraDefinition:
     def __post_init__(self) -> None:
         if not self.camera_id or len(self.camera_id) > 128:
             raise ValueError("operator-camera identity is invalid")
-        if not 0 <= self.physical_slot <= 255:
-            raise ValueError("operator-camera physical slot must be 0-255")
         if self.revision < 1:
             raise ValueError("operator-camera revision must be positive")
+
+
+def define_usd_camera(stage: Any, camera_path: str, optics: CameraOptics) -> Any:
+    from pxr import Gf, UsdGeom
+
+    camera = UsdGeom.Camera.Define(stage, camera_path)
+    vertical_aperture_mm = 20.25
+    horizontal_aperture_mm = vertical_aperture_mm * (
+        optics.width_px / optics.height_px
+    )
+    camera.CreateHorizontalApertureAttr(horizontal_aperture_mm)
+    focal_length_mm = (vertical_aperture_mm * 0.5) / math.tan(
+        math.radians(optics.vertical_fov_degrees) * 0.5
+    )
+    camera.CreateVerticalApertureAttr(vertical_aperture_mm)
+    camera.CreateFocalLengthAttr(focal_length_mm)
+    camera.CreateClippingRangeAttr(
+        Gf.Vec2f(optics.near_clip_m, optics.far_clip_m)
+    )
+    return UsdGeom.Xformable(camera.GetPrim()).AddTransformOp(
+        precision=UsdGeom.XformOp.PrecisionDouble
+    )
+
+
+def apply_usd_camera_pose(transform_operation: Any, pose: Pose) -> None:
+    from pxr import Gf
+
+    orientation = pose.orientation_xyzw.normalized()
+    rotation = Gf.Quatd(
+        orientation.w,
+        Gf.Vec3d(orientation.x, orientation.y, orientation.z),
+    )
+    matrix = Gf.Matrix4d().SetRotate(rotation)
+    matrix.SetTranslateOnly(Gf.Vec3d(*pose.position_m.as_tuple()))
+    transform_operation.Set(matrix)
 
 
 def compose_pose(parent: Pose, local: Pose) -> Pose:
@@ -239,3 +273,122 @@ def compose_pose(parent: Pose, local: Pose) -> Pose:
         parent.position_m + parent_orientation.rotate(local.position_m),
         (parent_orientation * local.orientation_xyzw.normalized()).normalized(),
     )
+
+
+class AuthoritativeOperatorCamera:
+    CAMERA_ROOT = "/World/OperatorCameras"
+
+    def __init__(
+        self,
+        definition: OperatorCameraDefinition,
+        camera_path: str,
+        transform_operation: Any,
+    ) -> None:
+        from .operator_camera_rigs import smoothing_profile
+        from .operator_camera_smoothing import CameraPoseFilter
+
+        self.definition = definition
+        self.camera_path = camera_path
+        self._transform_operation = transform_operation
+        profile = smoothing_profile(definition.rig)  # type: ignore[arg-type]
+        self._filter = CameraPoseFilter(profile) if profile is not None else None
+        self._last_pose: Pose | None = None
+
+    @classmethod
+    def create(
+        cls,
+        definition: OperatorCameraDefinition,
+        stage: Any,
+    ) -> "AuthoritativeOperatorCamera":
+        camera_path = f"{cls.CAMERA_ROOT}/{definition.camera_id}"
+        transform = define_usd_camera(stage, camera_path, definition.optics)
+        return cls(definition, camera_path, transform)
+
+    @property
+    def last_pose(self) -> Pose | None:
+        return self._last_pose
+
+    @property
+    def smoothing_diagnostics(self) -> object | None:
+        return self._filter.diagnostics if self._filter is not None else None
+
+    def update(
+        self,
+        entities: Mapping[str, EntityTransform],
+        *,
+        simulation_generation: int,
+        physics_step: int,
+        monotonic_seconds: float | None = None,
+    ) -> Pose:
+        from .operator_camera_rigs import desired_camera_pose, target_identity
+
+        desired = desired_camera_pose(  # type: ignore[arg-type]
+            self.definition.rig,
+            entities,
+        )
+        if self._filter is None:
+            pose = desired
+        else:
+            pose = self._filter.update(
+                desired,
+                monotonic_seconds=(
+                    time.monotonic()
+                    if monotonic_seconds is None
+                    else monotonic_seconds
+                ),
+                target_identity=target_identity(self.definition.rig),  # type: ignore[arg-type]
+                camera_revision=self.definition.revision,
+                simulation_generation=simulation_generation,
+                physics_step=physics_step,
+            )
+        self._apply_pose(pose)
+        self._last_pose = pose
+        return pose
+
+    def _apply_pose(self, pose: Pose) -> None:
+        apply_usd_camera_pose(self._transform_operation, pose)
+
+
+class AuthoritativeOperatorCameraCollection:
+    def __init__(self, cameras: tuple[AuthoritativeOperatorCamera, ...]) -> None:
+        self._cameras = {camera.definition.camera_id: camera for camera in cameras}
+        if len(self._cameras) != len(cameras):
+            raise ValueError("authoritative operator-camera identities must be unique")
+
+    @classmethod
+    def create(
+        cls,
+        definitions: tuple[OperatorCameraDefinition, ...],
+        stage: Any,
+    ) -> "AuthoritativeOperatorCameraCollection":
+        return cls(
+            tuple(
+                AuthoritativeOperatorCamera.create(definition, stage)
+                for definition in definitions
+            )
+        )
+
+    @property
+    def cameras(self) -> tuple[AuthoritativeOperatorCamera, ...]:
+        return tuple(
+            sorted(
+                self._cameras.values(),
+                key=lambda camera: camera.definition.camera_id,
+            )
+        )
+
+    def update(
+        self,
+        entities: Mapping[str, EntityTransform],
+        *,
+        simulation_generation: int,
+        physics_step: int,
+        monotonic_seconds: float | None = None,
+    ) -> None:
+        for camera in self.cameras:
+            camera.update(
+                entities,
+                simulation_generation=simulation_generation,
+                physics_step=physics_step,
+                monotonic_seconds=monotonic_seconds,
+            )

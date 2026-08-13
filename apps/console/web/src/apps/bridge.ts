@@ -19,10 +19,26 @@ import {
   type Result,
   type TaskMetadata,
 } from "@modelcontextprotocol/sdk/types.js";
-import { callAppTool, cancelAppTask, getAppTask, getAppTaskResult, readAppResource } from "../api";
+import {
+  callAppTool,
+  cancelAppTask,
+  getAppTask,
+  getAppTaskResult,
+  openAppResourceEvents,
+  readAppResource,
+  sendAgentMessage,
+  unsubscribeAppResource,
+} from "../api";
 import { appFrameOuterHeight } from "../appFrameSizing";
+import { isFullBleedApp } from "../appPresentation";
 import type { AppDescriptor } from "../types";
 import type { AppTheme } from "../theme";
+import { AGENT_MESSAGE_METHOD, appAgentMessageRequest } from "./agentMessage";
+import {
+  openResourceEventStream,
+  type ResourceEventStream,
+} from "./resourceEventStream";
+import { interceptResourceReadRequests } from "./resourceRead";
 
 export interface AppBridge {
   dispose: () => void;
@@ -30,7 +46,55 @@ export interface AppBridge {
   notifyToolInput: (args: Record<string, unknown>) => void;
 }
 
+export type InternalAppLinkHandler = (url: string) => boolean;
+
 const TASK_METHODS = new Set(["tasks/get", "tasks/result", "tasks/cancel"]);
+
+/**
+ * Agent messaging is admitted only for exact targets declared by the App
+ * resource. The BFF retains the authenticated human, CSRF, Work Context,
+ * policy, audit, idempotency, and durable-wake boundaries.
+ */
+function interceptAgentMessages(inner: Transport, app: AppDescriptor): Transport {
+  const transport: Transport = {
+    start: () => inner.start(),
+    send: (message, options) => inner.send(message, options),
+    close: () => inner.close(),
+  };
+  inner.onclose = () => transport.onclose?.();
+  inner.onerror = (error) => transport.onerror?.(error);
+  inner.onmessage = (message, extra) => {
+    if (!isJSONRPCRequest(message) || message.method !== AGENT_MESSAGE_METHOD) {
+      transport.onmessage?.(message, extra);
+      return;
+    }
+    const request = appAgentMessageRequest(app, message.params);
+    if (request === undefined) {
+      void inner.send({
+        jsonrpc: "2.0",
+        id: message.id,
+        error: { code: ErrorCode.InvalidParams, message: "agent message request is not allowed" },
+      });
+      return;
+    }
+    sendAgentMessage(request.agentId, request.requestId, request.message)
+      .then(
+        (result) =>
+          inner.send({ jsonrpc: "2.0", id: message.id, result: result as unknown as Result }),
+        (error: unknown) =>
+          inner.send({
+            jsonrpc: "2.0",
+            id: message.id,
+            error: {
+              code: ErrorCode.InternalError,
+              message: error instanceof Error ? error.message : String(error),
+            },
+          }),
+      )
+      .catch((error: unknown) => console.error("MCP App agent-message reply failed", error));
+  };
+  return transport;
+}
 
 function isTaskAugmentedCall(request: JSONRPCRequest): boolean {
   if (request.method !== "tools/call") return false;
@@ -107,10 +171,197 @@ function interceptTaskRequests(inner: Transport, app: AppDescriptor): Transport 
   return transport;
 }
 
+interface ResourceSubscription {
+  id: string;
+  opened: boolean;
+  requests: Array<string | number>;
+}
+
+function resourceOwnedByApp(app: AppDescriptor, uri: string): boolean {
+  return !uri.includes("..") && uri.startsWith(`${app.server}://`) && uri.length > app.server.length + 3;
+}
+
+/**
+ * MCP Apps 2026-01-26 does not carry MCP resource subscribe/unsubscribe or
+ * resource-updated notifications. Veoveo's generic host adapter projects
+ * those three frames through one authenticated SSE wake stream while every
+ * payload read remains an ordinary app-scoped `resources/read`.
+ */
+function interceptResourceSubscriptions(
+  inner: Transport,
+  app: AppDescriptor
+): { transport: Transport; dispose: () => void } {
+  const subscriptions = new Map<string, ResourceSubscription>();
+  let source: ResourceEventStream | undefined;
+  let openScheduled = false;
+  let recoveryTimer: ReturnType<typeof setTimeout> | undefined;
+  let generation = 0;
+  let disposed = false;
+  const transport: Transport = {
+    start: () => inner.start(),
+    send: (message, options) => inner.send(message, options),
+    close: () => inner.close(),
+  };
+
+  const reply = (id: string | number, result: Result) =>
+    inner.send({ jsonrpc: "2.0", id, result });
+  const reject = (id: string | number, message: string) =>
+    inner.send({
+      jsonrpc: "2.0",
+      id,
+      error: { code: ErrorCode.InternalError, message },
+    });
+  const report = (error: unknown) =>
+    transport.onerror?.(error instanceof Error ? error : new Error(String(error)));
+  const notifyUpdated = (uri: string) => {
+    if (!subscriptions.has(uri)) return;
+    void inner.send({
+      jsonrpc: "2.0",
+      method: "ui/notifications/resource-updated",
+      params: { uri },
+    } as never).catch(report);
+  };
+  const open = () => {
+    openScheduled = false;
+    source?.close();
+    source = undefined;
+    const active = [...subscriptions.entries()];
+    if (disposed || active.length === 0) return;
+    const activeGeneration = ++generation;
+    const batch = active.map(([uri, subscription]) => ({
+      subscriptionId: subscription.id,
+      uri,
+    }));
+    source = openResourceEventStream(
+      "/console/api/apps/resource-events",
+      {
+        onOpen: () => {
+          if (disposed || generation !== activeGeneration) return;
+          for (const [uri, subscription] of active) {
+            if (subscriptions.get(uri) !== subscription) continue;
+            if (subscription.opened) {
+              notifyUpdated(uri);
+              continue;
+            }
+            subscription.opened = true;
+            for (const requestId of subscription.requests) {
+              void reply(requestId, {}).catch(report);
+            }
+            subscription.requests = [];
+          }
+        },
+        onEvent: (event) => {
+          if (event.type !== "resource-updated" || generation !== activeGeneration) return;
+          try {
+            const params = JSON.parse(event.data) as { uri?: string; uris?: string[] };
+            if (typeof params.uri === "string") notifyUpdated(params.uri);
+            if (Array.isArray(params.uris)) {
+              for (const uri of params.uris) notifyUpdated(uri);
+            }
+          } catch (error) {
+            report(error);
+          }
+        },
+        onInitialError: (error) => {
+          if (disposed || generation !== activeGeneration) return;
+          for (const [uri, subscription] of active) {
+            if (subscription.opened || subscriptions.get(uri) !== subscription) continue;
+            subscriptions.delete(uri);
+            for (const requestId of subscription.requests) {
+              void reject(requestId, "resource subscription stream failed to open").catch(report);
+            }
+          }
+          if (subscriptions.size > 0) {
+            recoveryTimer = setTimeout(() => {
+              recoveryTimer = undefined;
+              open();
+            }, 250);
+          }
+          report(error);
+        },
+      },
+      (_input, init) => openAppResourceEvents(app.server, app.resourceUri, batch, init?.signal),
+    );
+  };
+  const scheduleOpen = () => {
+    if (disposed || openScheduled) return;
+    if (recoveryTimer !== undefined) {
+      clearTimeout(recoveryTimer);
+      recoveryTimer = undefined;
+    }
+    openScheduled = true;
+    queueMicrotask(open);
+  };
+  const close = (uri: string) => {
+    const subscription = subscriptions.get(uri);
+    if (!subscription) return Promise.resolve();
+    subscriptions.delete(uri);
+    for (const requestId of subscription.requests) {
+      void reject(requestId, "resource subscription was cancelled before admission").catch(report);
+    }
+    scheduleOpen();
+    return unsubscribeAppResource(subscription.id);
+  };
+
+  inner.onclose = () => transport.onclose?.();
+  inner.onerror = (error) => transport.onerror?.(error);
+  inner.onmessage = (message, extra) => {
+    if (
+      !isJSONRPCRequest(message) ||
+      (message.method !== "resources/subscribe" && message.method !== "resources/unsubscribe")
+    ) {
+      transport.onmessage?.(message, extra);
+      return;
+    }
+    const { uri } = (message.params ?? {}) as { uri?: unknown };
+    if (typeof uri !== "string" || !resourceOwnedByApp(app, uri)) {
+      void reject(message.id, "resource subscription is not owned by this App's server");
+      return;
+    }
+    if (message.method === "resources/unsubscribe") {
+      void close(uri).then(
+        () => reply(message.id, {}),
+        (error: unknown) => reject(message.id, error instanceof Error ? error.message : String(error))
+      );
+      return;
+    }
+    if (subscriptions.has(uri)) {
+      const subscription = subscriptions.get(uri)!;
+      if (subscription.opened) void reply(message.id, {}).catch(report);
+      else subscription.requests.push(message.id);
+      return;
+    }
+    const subscriptionId = crypto.randomUUID();
+    const subscription: ResourceSubscription = {
+      id: subscriptionId,
+      opened: false,
+      requests: [message.id],
+    };
+    subscriptions.set(uri, subscription);
+    scheduleOpen();
+  };
+
+  return {
+    transport,
+    dispose: () => {
+      disposed = true;
+      generation += 1;
+      if (recoveryTimer !== undefined) clearTimeout(recoveryTimer);
+      source?.close();
+      for (const uri of [...subscriptions.keys()]) {
+        void close(uri).catch((error: unknown) =>
+          console.error("MCP App resource unsubscribe failed", error)
+        );
+      }
+    },
+  };
+}
+
 export function attachAppBridge(
   iframe: HTMLIFrameElement,
   app: AppDescriptor,
-  theme: AppTheme
+  theme: AppTheme,
+  openInternalLink?: InternalAppLinkHandler,
 ): AppBridge {
   if (!iframe.contentWindow) throw new Error("MCP App frame is not ready");
 
@@ -143,6 +394,9 @@ export function attachAppBridge(
     return readAppResource(app.server, app.resourceUri, uri);
   };
   bridge.onopenlink = async ({ url }) => {
+    if (url.startsWith("ui://") || url.startsWith("veoveo-console://")) {
+      return openInternalLink?.(url) ? {} : { isError: true };
+    }
     const confirmed =
       url.startsWith("https://") &&
       window.confirm(`This app wants to open:\n${url}\n\nOpen in a new tab?`);
@@ -152,15 +406,27 @@ export function attachAppBridge(
   };
   bridge.onrequestdisplaymode = async () => ({ mode: "inline" });
   bridge.addEventListener("sizechange", ({ height }) => {
+    if (isFullBleedApp(app)) return;
     if (height === undefined || !Number.isFinite(height)) return;
     const nonContentHeight = Math.max(0, iframe.offsetHeight - iframe.clientHeight);
     iframe.style.height = `${appFrameOuterHeight(height, nonContentHeight)}px`;
   });
 
-  const transport = interceptTaskRequests(
-    new PostMessageTransport(iframe.contentWindow, iframe.contentWindow),
-    app
+  const subscriptions = interceptResourceSubscriptions(
+    interceptTaskRequests(
+      interceptResourceReadRequests(
+        interceptAgentMessages(
+          new PostMessageTransport(iframe.contentWindow, iframe.contentWindow),
+          app,
+        ),
+        app,
+        readAppResource,
+      ),
+      app,
+    ),
+    app,
   );
+  const transport = subscriptions.transport;
   transport.onerror = (error) => console.error("MCP App transport error", error);
   void bridge.connect(transport).catch((error: unknown) => {
     console.error("MCP App bridge failed", error);
@@ -168,6 +434,7 @@ export function attachAppBridge(
 
   return {
     dispose: () => {
+      subscriptions.dispose();
       void bridge.close();
     },
     notifyToolResult: (result) => {

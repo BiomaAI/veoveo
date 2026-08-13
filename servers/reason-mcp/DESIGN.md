@@ -33,6 +33,8 @@ inference service, and no agent framework.
 | ISO Base Media File Format / MP4 | A bounded source range is remuxed without re-encoding for the task-local decoder and world-model runner. |
 | Typed JSON process protocol | One schema-controlled request and response per isolated runner process. This boundary is private and does not replace MCP. |
 | OAuth bearer and signed JWT identity | Source recording, grounding artifacts, results, and derived artifacts retain gateway-resolved Work Context authority and labels. |
+| vLLM official Muse Glimmer launch image | Hardware-GPU execution through the upstream model launch image. Upstream publishes this model profile under an unversioned tag; Veoveo pins the 2026-08-11 snapshot built from vLLM commit `99a10304dce8945119bd0b1a072297803c52a749` by OCI manifest digest. |
+| Hugging Face checkpoint | A site-supplied, revision- and digest-pinned checkpoint in native Transformers layout. |
 
 ## Data path
 

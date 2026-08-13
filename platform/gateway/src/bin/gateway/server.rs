@@ -16,6 +16,7 @@ use secrecy::{ExposeSecret, SecretString};
 use tokio_util::sync::CancellationToken;
 use tower::ServiceExt;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
+use veoveo_agent_runtime::AgentControl;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalSigningKey, GatewayInternalTokenIssuer,
     GatewayProfileId, PublicDeployment, TokenIssuer, public_allowed_hosts,
@@ -29,11 +30,12 @@ use veoveo_mcp_gateway::{
 use super::{
     admin::{
         authorize_console_cluster, cancel_artifact_access_request, cancel_task,
-        create_artifact_access_request, create_artifact_share_link, decide_artifact_access_request,
-        grant_artifact, list_artifact_access_requests, proxy_server_admin, prune_jwt_revocations,
+        create_artifact_access_request, create_artifact_share_link, decide_agent_elicitation,
+        decide_artifact_access_request, grant_artifact, list_agent_elicitations,
+        list_artifact_access_requests, proxy_server_admin, prune_jwt_revocations,
         read_console_snapshot, read_control_plane, revoke_artifact_grant,
-        revoke_artifact_share_link, revoke_jwt, set_artifact_release_state, spawn_console_wake_hub,
-        spawn_server_health_prober, stream_console, update_control_plane,
+        revoke_artifact_share_link, revoke_jwt, send_agent_message, set_artifact_release_state,
+        spawn_console_wake_hub, spawn_server_health_prober, stream_console, update_control_plane,
     },
     artifact_download::download_artifact,
     auth::{
@@ -82,6 +84,7 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
     } = config;
     let gateway_state =
         veoveo_mcp_gateway::GatewayState::new(control_store.platform_store().clone());
+    let agent_control = AgentControl::new(control_store.platform_store().clone())?;
     run_gateway_retention_gc(&gateway_state, retention).await?;
     spawn_gateway_retention_gc_loop(gateway_state.clone(), retention);
     spawn_refresh_delivery_gc_loop(gateway_state.clone());
@@ -211,6 +214,7 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
     let console_stream =
         spawn_console_wake_hub(control_store.platform_store().clone(), ct.child_token());
     let admin_state = AdminState {
+        agent_control,
         catalog: catalog.clone(),
         http: http.clone(),
         control_store,
@@ -243,6 +247,18 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             post(prune_jwt_revocations),
         )
         .route("/admin/{profile}/tasks/{task_id}/cancel", post(cancel_task))
+        .route(
+            "/admin/{profile}/agents/{agent_id}/messages",
+            post(send_agent_message),
+        )
+        .route(
+            "/admin/{profile}/agents/{agent_id}/elicitations",
+            get(list_agent_elicitations),
+        )
+        .route(
+            "/admin/{profile}/agents/{agent_id}/elicitations/{elicitation_id}/decision",
+            post(decide_agent_elicitation),
+        )
         .route(
             "/admin/{profile}/servers/{server}/{*path}",
             any(proxy_server_admin),

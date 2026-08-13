@@ -3,7 +3,7 @@ use std::{collections::BTreeSet, path::Path};
 use veoveo_deploy_contract::{LoadedProfile, PlannedImage};
 
 #[test]
-fn external_simulation_profile_selects_only_core_renderer_gpu_images() {
+fn external_simulation_profile_keeps_live_view_inside_the_extension() {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let path = repository.join("testing/fixtures/external-simulation-installation/deployment.json");
     let loaded = LoadedProfile::load(&path, &repository).expect("load external simulation profile");
@@ -12,16 +12,7 @@ fn external_simulation_profile_selects_only_core_renderer_gpu_images() {
         .expect("resolve platform image closure");
     assert_eq!(
         required,
-        BTreeSet::from([
-            "artifact-mcp".to_owned(),
-            "artifact-service".to_owned(),
-            "frames-mcp".to_owned(),
-            "mcp-gateway".to_owned(),
-            "simulation-runtime".to_owned(),
-            "simulation-view-isaac".to_owned(),
-            "simulation-view-mcp".to_owned(),
-            "simulation-view-pose".to_owned(),
-        ])
+        BTreeSet::from(["mcp-gateway".to_owned(), "simulation-runtime".to_owned()])
     );
 
     let mut images = required
@@ -43,25 +34,10 @@ fn external_simulation_profile_selects_only_core_renderer_gpu_images() {
         .expect("validate source-qualified platform and extension plan");
 
     let platform = loaded.resolved_platform().expect("resolve platform");
+    assert!(platform.artifact_audiences.is_empty());
+    assert!(platform.gpu_scheduling.is_none());
     assert_eq!(
-        platform.artifact_audiences,
-        BTreeSet::from([
-            "anonymous-simulation".to_owned(),
-            "simulation-view".to_owned(),
-        ])
-    );
-    let scheduling = platform
-        .gpu_scheduling
-        .expect("Simulation View requires explicit GPU scheduling");
-    assert_eq!(scheduling.allocatable_devices, 1);
-    assert_eq!(scheduling.same_physical_device_groups.len(), 1);
-    assert_eq!(
-        scheduling.same_physical_device_groups[0].workloads[0].workload,
-        "simulation-view-renderer"
-    );
-    assert!(
-        platform
-            .external_workloads
-            .contains("anonymous-simulation-mcp")
+        platform.external_workloads,
+        BTreeSet::from(["anonymous-simulation-mcp".to_owned()])
     );
 }

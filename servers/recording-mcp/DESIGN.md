@@ -16,7 +16,7 @@ in [`docs/RECORDINGS.md`](../../docs/RECORDINGS.md).
 | Veoveo recording ingest | Version `2026-08-06`; authenticated protobuf batches and distinct Blueprint publications carry native Rerun stores from a producer-local forwarder through the gateway to Recording Hub, with policy-scoped single-recording replacement. |
 | Veoveo recording playback manifest | Version `veoveo.io/recording-playback/v8`; one finite producer Blueprint, one stable Redap archive URI, one optional recording-scoped `rerun_rrd_channel_v2` source, a catalog revision, and recording-scoped access material. |
 | [JSON Web Token](https://www.rfc-editor.org/rfc/rfc7519) | Rerun-compatible HS256 read tokens carry the standard Redap audience and an exact installation hostname. A server-side session binds each token subject to one recording and one authorized Veoveo actor. |
-| H.264 Annex B in Rerun `VideoStream` | The governed video profile stores decoder-reentrant access units, keyframe markers, and original timeline indices inside RRD. |
+| H.264 Annex B in Rerun `VideoStream` | Producers store decoder-reentrant access units and original timeline indices. Archive materialization derives canonical sparse keyframe markers from the encoded bytes. The internal live-view adapter omits keyframe columns because the pinned viewer derives sync samples from H.264 and requires dense sample chunks. |
 | SHA-256 | Frozen shard and artifact manifests bind immutable bytes to a digest. |
 
 The MCP surface owns recording discovery, bounded queries, subscriptions, and
@@ -67,6 +67,15 @@ protobuf transport. A typed catalog subscription advances the same response to
 the next writing shard after rollover. It never replays a shard already sent to
 that receiver.
 
+The live projection removes every `VideoStream:is_keyframe` column after
+compaction. Rerun 0.35 discovers H.264 sync samples from the access-unit bytes,
+while its viewer cache indexes `VideoStream:sample` as a dense physical column.
+Omitting the sparse marker prevents messages from separate live batches from
+being compacted into a chunk whose sample component has fewer values than rows.
+This adapter does not alter the durable ingest parts. Archive materialization
+derives and validates its canonical keyframe markers from the same encoded
+bytes.
+
 WebViewer opens one `LogChannel` for the selected live recording. Console fetches
 the recording-scoped stream through the HttpOnly session and parses only enough
 bytes to recover each complete framed RRD. It passes that array directly to
@@ -79,6 +88,25 @@ browser-readable cookie. Catalog SSE events refresh recording metadata, while
 the recording-scoped stream follows segment rollover within its existing
 response. History remains the lazy archive dataset and is the only mode that
 renews a Redap credential.
+
+## Validation
+
+The focused headed-browser gates retain the authoritative simulator and require
+a hardware-backed WebGL or WebGPU adapter. Live acceptance follows the active
+recording for two minutes and proves zero source lag plus changing H.264 camera
+content. Archive acceptance requires the exclusive recording-scoped Redap read
+subset, the producer Blueprint, and a nonblank archived camera frame:
+
+```sh
+cargo xtask smoke uav-recording-browser-verify \
+  --public-base-url https://installation.example \
+  --chrome-cdp-url http://127.0.0.1:9222
+
+cargo xtask smoke uav-recording-archive-browser-verify \
+  --recording-id <ready-recording-uuidv7> \
+  --public-base-url https://installation.example \
+  --chrome-cdp-url http://127.0.0.1:9222
+```
 
 Rerun 0.35 persists standalone-viewer state unconditionally. Before starting an
 embedded viewer, Console clears the pinned Rerun state keys. A previously opened

@@ -16,6 +16,7 @@ mod gateway_runtime;
 mod governance;
 mod identity;
 mod ids;
+mod live_views;
 mod map;
 mod map_authoring;
 mod map_presentations;
@@ -25,7 +26,6 @@ mod outbox;
 mod recording_blueprints;
 mod recording_ingest;
 mod recordings;
-mod simulation_view;
 mod store;
 mod table;
 mod time;
@@ -86,10 +86,6 @@ pub use recording_ingest::{
     RecordingIngestStreamDraft,
 };
 pub use recordings::{RecordingDraft, RecordingSeal, SegmentDraft, SegmentSealBinding};
-pub use simulation_view::{
-    SIMULATION_VIEW_DESIRED_DIGEST_SCHEMA, SimulationViewStateDraft,
-    simulation_view_state_record_id,
-};
 pub use store::{PlatformClient, PlatformStore};
 pub use surrealdb::types::{RecordId, RecordIdKey, Value};
 pub use table::PlatformTable;

@@ -117,7 +117,6 @@ artifactService:
     - recording
     - stream
     - reason
-    - simulation-view
     - datasheet
   resources:
     requests:
@@ -234,9 +233,16 @@ reason:
     tag: 0.1.0
     digest: ""
   modelCache:
+    existingClaim: ""
     size: 20Gi
     storageClass: ""
     accessModes: [ReadWriteOnce]
+  model:
+    id: world-model
+    title: Installation world model
+    description: Installation-supplied world-model checkpoint for video reasoning.
+    path: /models/world-model
+    digest: ""
   engine:
     gpuMemoryUtilization: 0.6
     maxModelLen: 8192
@@ -254,120 +260,6 @@ reason:
       memory: 24Gi
       nvidia.com/gpu: "1"
 
-simulationView:
-  runtimeClassName: nvidia
-  mcpImage:
-    repository: veoveo/simulation-view-mcp
-    tag: 0.1.0
-    digest: ""
-  rendererImage:
-    repository: veoveo/simulation-view-isaac
-    tag: 0.1.0
-    digest: ""
-  poseImage:
-    repository: veoveo/simulation-view-pose
-    tag: 0.1.0
-    digest: ""
-  publicSignalingUrl: wss://veoveo.enterprise.example/simulation-view/signaling
-  publicMediaIp: 192.0.2.10
-  streamTargetFps: 30
-  ports:
-    mcp: 8808
-    rendererControl: 8810
-    poseControl: 8811
-    poseTls: 7443
-    signalingBase: 49100
-    mediaBase: 47998
-  signaling:
-    exposure: Ingress
-    nodePort: 0
-    loadBalancerIP: ""
-    externalTrafficPolicy: Local
-  media:
-    exposure: LoadBalancer
-    nodePortBase: 0
-    loadBalancerIP: ""
-    externalTrafficPolicy: Local
-  poseIngress:
-    exposure: ClusterIP
-    nodePort: 0
-    loadBalancerIP: ""
-    externalTrafficPolicy: Local
-    existingTlsSecret: simulation-view-pose-tls
-    certificateKey: tls.crt.der
-    privateKeyKey: tls.key.der
-    clientCaKey: ca.crt.der
-    allowedCidrs: []
-  reconciliation:
-    retryDelaySeconds: 2
-    authorizationRenewalLeadSeconds: 300
-  artifacts:
-    existingClaim: ""
-    size: 20Gi
-    storageClass: ""
-    accessModes: [ReadWriteOnce]
-  sharedMemory:
-    sizeLimit: 2Gi
-  cache:
-    existingClaim: ""
-    size: 20Gi
-    storageClass: ""
-    accessModes: [ReadWriteOnce]
-    version: isaac-6.0.1-cesium-0.29.0-v1
-  streamedWorld:
-    enabled: false
-    existingConfigMap: ""
-    catalogDigest: ""
-    catalogKey: layers.json
-    catalog:
-      schemaVersion: veoveo.io/simulation-view-layer-catalog/v1
-      layers: []
-    credentialBindings: []
-    egressCidrs: []
-  capacity:
-    profile: rtx4090-development-v1
-    maximumLogicalCameras: 16
-    maximumRenderedCameras: 4
-    maximumStreamedCameras: 2
-    maximumRenderPixelsPerSecond: 497664000
-    maximumNvencSessions: 2
-    gpuMemoryBudgetBytes: 21474836480
-    maximumEntityInstances: 10000
-    maximumCamerasPerOwner: 8
-    maximumCamerasPerWorkContext: 12
-    maximumAssetBytes: 4294967296
-    maximumFrameAgeMs: 500
-    leaseSeconds: 120
-    maximumPoseSessions: 64
-    maximumPoseConnections: 64
-  placement:
-    nodeSelector: {}
-    tolerations: []
-    affinity: {}
-  mcpResources:
-    requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      cpu: "1"
-      memory: 1Gi
-  poseResources:
-    requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      cpu: "1"
-      memory: 1Gi
-  rendererResources:
-    requests:
-      cpu: "4"
-      memory: 8Gi
-      nvidia.com/gpu: "1"
-    limits:
-      cpu: "16"
-      memory: 32Gi
-      nvidia.com/gpu: "1"
-
 # Installation-time server bootstrap documents, keyed by domain-service
 # name. Each entry renders a `{name}-bootstrap` ConfigMap mounted at the
 # canonical /etc/veoveo/bootstrap/catalog.json and passed to the server via
@@ -381,6 +273,27 @@ simulationView:
 #       sources: []
 #       mobility_profiles: []
 serverBootstrap: {}
+
+# Installation-owned, read-only source inputs for domain services whose
+# contract declares a controlled source mount. Values select existing
+# Kubernetes objects; acquisition and activation remain governed server work.
+# domainServiceSourceMounts:
+#   map-mcp:
+#     exchangeClaim: map-source-exchange
+#     secretName: map-source-credentials
+domainServiceSourceMounts: {}
+
+# Per-service resource overrides avoid inflating every hosted MCP workload when
+# one installation-owned acquisition or indexing job needs a larger envelope.
+# domainServiceResources:
+#   map-mcp:
+#     requests:
+#       cpu: "1"
+#       memory: 1Gi
+#     limits:
+#       cpu: "8"
+#       memory: 8Gi
+domainServiceResources: {}
 
 consoleBff:
   image:
@@ -409,9 +322,7 @@ consoleBff:
   oauthScopes:
     - operator:use
     - admin:manage
-    - simulation-view:read
-    - simulation-view:write
-    - simulation-view:stream
+    - uav-sim:stream
     - map:admin
     - map:dataset:read
     - map:feature:admin

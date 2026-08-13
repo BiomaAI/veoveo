@@ -8,7 +8,8 @@ RUN apt-get update \
 RUN useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo
 
 COPY --from=veoveo-rust-artifacts /bin/uav-sim-mcp /usr/local/bin/uav-sim-mcp
+COPY --chmod=0555 servers/uav-sim-mcp/entrypoint.sh /usr/local/bin/uav-sim-mcp-entrypoint
 
 USER veoveo
 EXPOSE 8802
-ENTRYPOINT ["/usr/local/bin/uav-sim-mcp"]
+ENTRYPOINT ["/usr/local/bin/uav-sim-mcp-entrypoint"]

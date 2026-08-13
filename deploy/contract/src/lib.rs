@@ -12,9 +12,9 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 /// Canonical multi-source deployment profile.
-pub const PROFILE_SCHEMA: &str = "veoveo.io/deployment/v5";
+pub const PROFILE_SCHEMA: &str = "veoveo.io/deployment/v6";
 /// Canonical immutable multi-source deployment lock.
-pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.io/deployment-lock/v5";
+pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.io/deployment-lock/v6";
 /// Canonical non-release image closure used by development GitOps deployments.
 pub const DEVELOPMENT_IMAGE_LOCK_SCHEMA: &str = "veoveo.io/development-image-lock/v1";
 /// Canonical local OCI registry declaration.
@@ -89,12 +89,52 @@ pub struct DeploymentProfile {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RegistryReference {
-    /// Registry host and optional port, without a URL scheme.
-    pub address: String,
+    /// Registry host and optional port reachable by the publication host.
+    pub push_address: String,
+    /// Registry host and optional port used by Kubernetes image pulls.
+    pub pull_address: String,
     /// Transport and trust mode used by OCI and BuildKit clients.
     pub transport: RegistryTransport,
     /// Optional repository-local lifecycle declaration.
     pub local_config: Option<PathBuf>,
+}
+
+/// Immutable registry endpoints selected by a deployment lock.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LockedRegistry {
+    /// Registry host and optional port reachable by the publication host.
+    pub push_address: String,
+    /// Registry host and optional port used by Kubernetes image pulls.
+    pub pull_address: String,
+    /// Transport and trust mode shared by publication and pull clients.
+    pub transport: RegistryTransport,
+}
+
+impl RegistryReference {
+    /// Returns the immutable registry endpoints recorded in deployment evidence.
+    #[must_use]
+    pub fn locked(&self) -> LockedRegistry {
+        LockedRegistry {
+            push_address: self.push_address.clone(),
+            pull_address: self.pull_address.clone(),
+            transport: self.transport,
+        }
+    }
+
+    fn validate(&self) -> Result<()> {
+        validate_registry_address(&self.push_address)?;
+        validate_registry_address(&self.pull_address)?;
+        Ok(())
+    }
+}
+
+impl LockedRegistry {
+    fn validate(&self) -> Result<()> {
+        validate_registry_address(&self.push_address)?;
+        validate_registry_address(&self.pull_address)?;
+        Ok(())
+    }
 }
 
 /// Registry transport and trust profile.
@@ -336,10 +376,10 @@ pub enum PlatformComponent {
     ArtifactService,
     /// Durable ingest, spool, and publication plane for recordings.
     RecordingDataPlane,
-    /// Hardware-only renderer workload and its private pose/media services.
-    GpuRenderer,
     /// Canonical simulation runtime compatibility artifacts and conformance gates.
     SimulationRuntimeSupport,
+    /// Continuously scheduled agent kernel artifact for external agent workloads.
+    AgentRuntimeSupport,
     Console,
     Telemetry,
     Ingress,
@@ -366,7 +406,6 @@ pub enum FirstPartyMcpServer {
     Recording,
     Stream,
     Reason,
-    SimulationView,
 }
 
 /// Platform capability names accepted from gateway composition requirements.
@@ -382,7 +421,6 @@ pub enum PlatformCapability {
     Optimization,
     Recording,
     Rrd,
-    SimulationView,
 }
 
 /// Provider-neutral isolation selected for one physical-device group.
@@ -619,8 +657,7 @@ pub struct DeploymentLock {
     pub profile: String,
     /// Exact installation-repository revision that owns the profile and installation values.
     pub profile_revision: String,
-    pub registry: String,
-    pub registry_transport: RegistryTransport,
+    pub registry: LockedRegistry,
     pub sources: Vec<LockedSource>,
     pub platform: ResolvedPlatformSelection,
 }
@@ -636,7 +673,7 @@ pub struct DevelopmentImageLock {
     pub schema_version: String,
     pub release_eligible: bool,
     pub base_deployment_lock_digest: String,
-    pub registry: String,
+    pub registry: LockedRegistry,
     pub images: Vec<DevelopmentLockedImage>,
 }
 
@@ -895,7 +932,7 @@ impl LoadedProfile {
         );
         validate_name("profile", &profile.name)?;
         validate_name("namespace", &profile.namespace)?;
-        validate_registry_address(&profile.registry.address)?;
+        profile.registry.validate()?;
         ensure!(!profile.sources.is_empty(), "sources cannot be empty");
         ensure_unique(
             "deployment source",
@@ -967,9 +1004,9 @@ impl LoadedProfile {
             require_file(&self.resolve(&cluster.config), "k3d cluster config")?;
             let cluster_config = fs::read_to_string(self.resolve(&cluster.config))?;
             ensure!(
-                cluster_config.contains(&profile.registry.address),
+                cluster_config.contains(&profile.registry.pull_address),
                 "k3d cluster config must use registry {}",
-                profile.registry.address
+                profile.registry.pull_address
             );
             for manifest in &cluster.node_bootstrap_manifests {
                 require_file(
@@ -985,10 +1022,16 @@ impl LoadedProfile {
             );
             let registry = load_local_registry(&self.resolve(config))?;
             ensure!(
-                registry.address()? == profile.registry.address,
-                "local registry config resolves to {}, profile uses {}",
-                registry.address()?,
-                profile.registry.address
+                registry.push_address()? == profile.registry.push_address,
+                "local registry config host endpoint resolves to {}, profile uses {}",
+                registry.push_address()?,
+                profile.registry.push_address
+            );
+            ensure!(
+                registry.pull_address()? == profile.registry.pull_address,
+                "local registry config cluster endpoint resolves to {}, profile uses {}",
+                registry.pull_address()?,
+                profile.registry.pull_address
             );
         }
         for manifest in &profile.resources.manifests {
@@ -1265,8 +1308,8 @@ impl PlatformComponent {
             Self::ObjectStore,
             Self::ArtifactService,
             Self::RecordingDataPlane,
-            Self::GpuRenderer,
             Self::SimulationRuntimeSupport,
+            Self::AgentRuntimeSupport,
             Self::Console,
             Self::Telemetry,
             Self::Ingress,
@@ -1292,7 +1335,6 @@ impl FirstPartyMcpServer {
             Self::Recording,
             Self::Stream,
             Self::Reason,
-            Self::SimulationView,
         ])
     }
 }
@@ -1349,6 +1391,19 @@ impl ResolvedPlatformSelection {
         }
         if self
             .components
+            .contains(&PlatformComponent::AgentRuntimeSupport)
+        {
+            self.require_component(
+                PlatformComponent::Gateway,
+                "agent runtime support requires gateway",
+            )?;
+            self.require_component(
+                PlatformComponent::PlatformStore,
+                "agent runtime support requires platform store",
+            )?;
+        }
+        if self
+            .components
             .contains(&PlatformComponent::RecordingDataPlane)
         {
             self.require_component(
@@ -1360,38 +1415,6 @@ impl ResolvedPlatformSelection {
                 "recording data plane requires artifact service",
             )?;
         }
-        if self.components.contains(&PlatformComponent::GpuRenderer) {
-            self.require_component(
-                PlatformComponent::SimulationRuntimeSupport,
-                "GPU renderer requires simulation runtime support",
-            )?;
-            self.require_server(
-                FirstPartyMcpServer::SimulationView,
-                "GPU renderer requires Simulation View MCP",
-            )?;
-        }
-        if self
-            .mcp_servers
-            .contains(&FirstPartyMcpServer::SimulationView)
-        {
-            self.require_component(
-                PlatformComponent::ArtifactService,
-                "Simulation View scene materialization requires the artifact service",
-            )?;
-            self.require_component(
-                PlatformComponent::GpuRenderer,
-                "Simulation View MCP requires the GPU renderer",
-            )?;
-            self.require_server(
-                FirstPartyMcpServer::Frames,
-                "Simulation View scene declarations require Frames MCP",
-            )?;
-            self.require_artifact_audience(
-                "simulation-view",
-                "Simulation View scene materialization requires its Artifact data-plane audience",
-            )?;
-        }
-
         let platform_store_servers = [
             FirstPartyMcpServer::Artifact,
             FirstPartyMcpServer::Media,
@@ -1496,12 +1519,6 @@ impl ResolvedPlatformSelection {
                         "recording and rrd capabilities require Recording MCP and hub",
                     )?;
                 }
-                PlatformCapability::SimulationView => {
-                    self.require_server(
-                        FirstPartyMcpServer::SimulationView,
-                        "simulation_view capability requires Simulation View MCP",
-                    )?;
-                }
             }
         }
         for audience in &requirements.artifact_audiences {
@@ -1515,9 +1532,6 @@ impl ResolvedPlatformSelection {
 
     fn validate_gpu_scheduling(&self) -> Result<()> {
         let mut required = BTreeSet::new();
-        if self.components.contains(&PlatformComponent::GpuRenderer) {
-            required.insert("simulation-view-renderer");
-        }
         if self.mcp_servers.contains(&FirstPartyMcpServer::View) {
             required.insert("view-renderer");
         }
@@ -1536,11 +1550,7 @@ impl ResolvedPlatformSelection {
         {
             required.insert("cuopt-executor");
         }
-        if required.is_empty() {
-            ensure!(
-                self.gpu_scheduling.is_none(),
-                "gpuScheduling is present but no selected first-party workload requires a GPU"
-            );
+        if required.is_empty() && self.gpu_scheduling.is_none() {
             return Ok(());
         }
 
@@ -1749,14 +1759,6 @@ impl ResolvedPlatformSelection {
         );
         Ok(())
     }
-
-    fn require_artifact_audience(&self, audience: &str, reason: &str) -> Result<()> {
-        ensure!(
-            self.artifact_audiences.contains(audience),
-            "{reason}; missing artifactAudience {audience}"
-        );
-        Ok(())
-    }
 }
 
 impl PlatformComponent {
@@ -1765,8 +1767,8 @@ impl PlatformComponent {
             Self::Gateway => &["mcp-gateway"],
             Self::ArtifactService => &["artifact-service"],
             Self::RecordingDataPlane => &["recording-hub", "recording-forwarder"],
-            Self::GpuRenderer => &["simulation-view-isaac", "simulation-view-pose"],
             Self::SimulationRuntimeSupport => &["simulation-runtime"],
+            Self::AgentRuntimeSupport => &["agent-kernel"],
             Self::Console => &["console-bff"],
             Self::PlatformStore | Self::ObjectStore | Self::Telemetry | Self::Ingress => &[],
         }
@@ -1791,7 +1793,6 @@ impl FirstPartyMcpServer {
             Self::Recording => &["recording-mcp"],
             Self::Stream => &["stream-mcp"],
             Self::Reason => &["reason-mcp"],
-            Self::SimulationView => &["simulation-view-mcp"],
         }
     }
 }
@@ -1822,7 +1823,7 @@ impl DeploymentLock {
         );
         validate_name("profile", &self.profile)?;
         validate_revision(&self.profile_revision)?;
-        validate_registry_address(&self.registry)?;
+        self.registry.validate()?;
         self.platform.validate_dependencies()?;
         ensure!(!self.sources.is_empty(), "locked sources cannot be empty");
         ensure_unique("locked source", self.sources.iter().map(|item| &item.name))?;
@@ -1922,7 +1923,7 @@ impl DevelopmentImageLock {
             "development image lock must declare releaseEligible=false"
         );
         validate_digest(&self.base_deployment_lock_digest)?;
-        validate_registry_address(&self.registry)?;
+        self.registry.validate()?;
         ensure!(
             !self.images.is_empty(),
             "development image lock must contain at least one image"
@@ -1942,10 +1943,12 @@ impl DevelopmentImageLock {
                 image.target
             );
             ensure!(
-                image.repository.starts_with(&format!("{}/", self.registry)),
+                image
+                    .repository
+                    .starts_with(&format!("{}/", self.registry.pull_address)),
                 "development image repository {} is outside registry {}",
                 image.repository,
-                self.registry
+                self.registry.pull_address
             );
             ensure!(
                 !image.repository.contains('@') && !image.repository.ends_with(":latest"),
@@ -1976,8 +1979,23 @@ impl DevelopmentImageLock {
 }
 
 impl LocalRegistrySpec {
+    /// Returns the registry address reachable by host publication tools.
+    pub fn push_address(&self) -> Result<String> {
+        let parsed = Url::parse(&format!("http://{}", self.host_port))
+            .context("local registry hostPort must be HOST:PORT")?;
+        ensure!(
+            parsed.host_str().is_some()
+                && parsed.port().is_some()
+                && parsed.path() == "/"
+                && parsed.query().is_none()
+                && parsed.fragment().is_none(),
+            "local registry hostPort must be HOST:PORT"
+        );
+        Ok(self.host_port.clone())
+    }
+
     /// Returns the registry address visible from k3d nodes.
-    pub fn address(&self) -> Result<String> {
+    pub fn pull_address(&self) -> Result<String> {
         let (_, port) = self
             .host_port
             .rsplit_once(':')
@@ -2021,7 +2039,8 @@ pub fn load_local_registry(path: &Path) -> Result<LocalRegistrySpec> {
         registry.volume.ends_with(":/var/lib/registry"),
         "local registry volume must mount /var/lib/registry"
     );
-    let _ = registry.address()?;
+    let _ = registry.push_address()?;
+    let _ = registry.pull_address()?;
     Ok(registry)
 }
 
@@ -2473,14 +2492,12 @@ mod tests {
                     workloads: vec![GpuWorkloadPlacement {
                         workload: workload.to_owned(),
                         deployment: match workload {
-                            "simulation-view-renderer" => "simulation-view-renderer",
                             "view-renderer" => "view-mcp",
                             "cuopt-executor" => "optimization-mcp",
                             value => value,
                         }
                         .to_owned(),
                         container: match workload {
-                            "simulation-view-renderer" => "simulation-view-isaac",
                             "view-renderer" => "view-mcp",
                             value => value,
                         }
@@ -2777,6 +2794,28 @@ mod tests {
     }
 
     #[test]
+    fn agent_runtime_support_selects_the_external_agent_kernel_image() {
+        let selection = PlatformSelection {
+            installation_preset: InstallationPreset::Custom,
+            components: BTreeSet::from([
+                PlatformComponent::Gateway,
+                PlatformComponent::PlatformStore,
+                PlatformComponent::AgentRuntimeSupport,
+            ]),
+            mcp_servers: BTreeSet::new(),
+            artifact_audiences: BTreeSet::new(),
+            external_workloads: BTreeSet::new(),
+            gpu_scheduling: None,
+        }
+        .resolve()
+        .expect("valid external agent runtime selection");
+        assert_eq!(
+            selection.required_images(),
+            BTreeSet::from(["agent-kernel".to_owned(), "mcp-gateway".to_owned()])
+        );
+    }
+
+    #[test]
     fn optimization_image_closure_includes_gpu_executor() {
         let requirements =
             serde_json::from_value::<GatewayDeploymentRequirements>(serde_json::json!({
@@ -2818,52 +2857,6 @@ mod tests {
     }
 
     #[test]
-    fn simulation_view_image_closure_is_complete() {
-        let selection = PlatformSelection {
-            installation_preset: InstallationPreset::Custom,
-            components: BTreeSet::from([
-                PlatformComponent::Gateway,
-                PlatformComponent::PlatformStore,
-                PlatformComponent::ObjectStore,
-                PlatformComponent::ArtifactService,
-                PlatformComponent::GpuRenderer,
-                PlatformComponent::SimulationRuntimeSupport,
-            ]),
-            mcp_servers: BTreeSet::from([
-                FirstPartyMcpServer::Frames,
-                FirstPartyMcpServer::SimulationView,
-            ]),
-            artifact_audiences: BTreeSet::from(["simulation-view".to_owned()]),
-            external_workloads: BTreeSet::new(),
-            gpu_scheduling: Some(exclusive_gpu_scheduling(["simulation-view-renderer"], 1)),
-        }
-        .resolve()
-        .expect("valid Simulation View selection");
-        assert_eq!(
-            selection.required_images(),
-            BTreeSet::from([
-                "artifact-service".to_owned(),
-                "frames-mcp".to_owned(),
-                "mcp-gateway".to_owned(),
-                "simulation-runtime".to_owned(),
-                "simulation-view-isaac".to_owned(),
-                "simulation-view-mcp".to_owned(),
-                "simulation-view-pose".to_owned(),
-            ])
-        );
-        let mut missing_artifact_audience = selection;
-        missing_artifact_audience.artifact_audiences.clear();
-        let error = missing_artifact_audience
-            .validate_dependencies()
-            .expect_err("Simulation View cannot materialize scenes without its Artifact audience");
-        assert!(
-            error
-                .to_string()
-                .contains("missing artifactAudience simulation-view")
-        );
-    }
-
-    #[test]
     fn two_physical_groups_fail_on_one_device() {
         let error = PlatformSelection {
             installation_preset: InstallationPreset::Custom,
@@ -2871,18 +2864,16 @@ mod tests {
                 PlatformComponent::Gateway,
                 PlatformComponent::PlatformStore,
                 PlatformComponent::ObjectStore,
-                PlatformComponent::ArtifactService,
-                PlatformComponent::GpuRenderer,
                 PlatformComponent::SimulationRuntimeSupport,
             ]),
-            mcp_servers: BTreeSet::from([
-                FirstPartyMcpServer::Frames,
-                FirstPartyMcpServer::SimulationView,
+            mcp_servers: BTreeSet::new(),
+            artifact_audiences: BTreeSet::new(),
+            external_workloads: BTreeSet::from([
+                "external-simulator".to_owned(),
+                "external-view".to_owned(),
             ]),
-            artifact_audiences: BTreeSet::from(["simulation-view".to_owned()]),
-            external_workloads: BTreeSet::from(["external-simulator".to_owned()]),
             gpu_scheduling: Some(exclusive_gpu_scheduling(
-                ["simulation-view-renderer", "external-simulator"],
+                ["external-simulator", "external-view"],
                 1,
             )),
         }
@@ -2927,12 +2918,8 @@ mod tests {
                 group(
                     "simulation",
                     vec![
-                        workload(
-                            "simulation-view-renderer",
-                            "simulation-view-renderer",
-                            "simulation-view-isaac",
-                        ),
                         workload("external-simulator", "external-simulator", "simulator"),
+                        workload("external-live-view", "external-simulator", "simulator"),
                     ],
                     '2',
                 ),
@@ -2955,16 +2942,12 @@ mod tests {
                 PlatformComponent::Gateway,
                 PlatformComponent::PlatformStore,
                 PlatformComponent::ObjectStore,
-                PlatformComponent::ArtifactService,
-                PlatformComponent::GpuRenderer,
                 PlatformComponent::SimulationRuntimeSupport,
             ]),
-            mcp_servers: BTreeSet::from([
-                FirstPartyMcpServer::Frames,
-                FirstPartyMcpServer::SimulationView,
-            ]),
-            artifact_audiences: BTreeSet::from(["simulation-view".to_owned()]),
+            mcp_servers: BTreeSet::new(),
+            artifact_audiences: BTreeSet::new(),
             external_workloads: BTreeSet::from([
+                "external-live-view".to_owned(),
                 "external-optimizer".to_owned(),
                 "external-simulator".to_owned(),
                 "external-view".to_owned(),

@@ -1,0 +1,13 @@
+{
+  "session_id": "uav-showcase",
+  "world": {
+    "revision_uri": "frames://world/uav-showcase-new-york-f75bf0b755676d08/revision/revision-019fc946-4665-7563-a115-1177c01240a0",
+    "spec_sha256": "7941fba19b5edcce73d37e1c1bef82d98f42e9c79b5fdb19671e21d1924e3b8a",
+    "simulation_frame_uri": "frames://world/uav-showcase-new-york-f75bf0b755676d08/revision/revision-019fc946-4665-7563-a115-1177c01240a0/frame/isaac-world",
+    "georeference_origin": {
+      "latitude_degrees": 40.758,
+      "longitude_degrees": -73.9855,
+      "ellipsoid_height_m": -17.0
+    }
+  }
+}

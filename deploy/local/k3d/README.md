@@ -56,8 +56,8 @@ The node image combines K3s with the NVIDIA Container Toolkit and a CDI-enabled
 containerd runtime. It does not embed an allocator. Each deployment profile chooses
 the canonical managed DRA path or explicitly bootstraps the NVIDIA device plugin;
 the two allocators never run on the same node. GPU workloads do not have a CPU fallback.
-The SUMO profile publishes seven time-sliced device-plugin allocations because
-UAV Isaac Sim, Simulation View, View, Stream, Reason, the cuOpt executor, and the
+The reference profile publishes six time-sliced device-plugin allocations because
+the authoritative UAV simulator, View, Stream, Reason, the cuOpt executor, and the
 Rerun viewer MCP run at the same time. Each workload still requests one ordinary
 `nvidia.com/gpu` resource. Time-slicing provides schedulability, not memory or
 fault isolation. Profiles that need restart-stable physical pairing use the managed

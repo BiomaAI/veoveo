@@ -1,35 +1,21 @@
 # Anonymous Simulation Installation
 
-This installation fixture composes the Veoveo platform source with an
-independently built external simulation source. The platform selection
-contains Artifact, Frames, the canonical simulation runtime, and Simulation
-View. Only `simulation-view-renderer` receives an NVIDIA GPU.
+This fixture composes the platform source with an independently packaged simulation
+MCP source. The extension owns its camera, encoded-product, viewer-lease, signaling,
+and App contract. The platform supplies gateway, ingress, trust, and simulation runtime
+support without installing a generic simulation renderer.
 
-The installation owns `gateway-binding.json`, the composed `gateway.json`,
-composition provenance, OCI credentials, trust roots, the pose-producer
-certificate, public media coordinates, GPU placement, and the combined
-deployment lock. The extension source owns its server fragment, application
-chart, image, and release manifest.
+The installation owns `gateway-binding.json`, the composed gateway document and
+provenance, OCI coordinates, trust material, public signaling/media coordinates, and the
+combined deployment lock. The extension owns its server fragment, chart, image, and
+release manifest.
 
-Because this acceptance fixture is checked into the Veoveo test tree, both
-local source declarations resolve the surrounding Git repository. The
-`external-simulation-extension-fixture` Bake group uses the adjacent repository
-adapter Dockerfile. That adapter installs the dependency closure from the
-extension's exact lock, then copies the selected SDK and fixture modules from
-the same committed source. It neither needs private package credentials nor
-changes the external repository's native release path. `smoke
-external-simulation-fixture` separately copies the subtree into an isolated
-checkout and exercises its native Bake graph, authenticated private package
-lock, tests, and package build.
+Both source declarations resolve the surrounding repository only because this is a
+checked-in test fixture. `smoke external-simulation-fixture` copies the extension into
+an isolated checkout and proves its authenticated private package lock, tests, package,
+Bake graph, and Helm chart without a source-tree import.
 
-The checked-in cluster profile is loopback-only. Its control tokens and mTLS
-private keys are public development credentials, and its NVIDIA device plugin
-advertises one exclusive GPU allocation. Four host UDP ports map exactly to
-the four declared media slots. Fielded installations replace the PKI, tokens,
-origins, media addresses, and registry.
-
-Regenerate the deterministic gateway outputs after changing a fragment,
-binding, or base selection:
+Regenerate deterministic gateway outputs after changing a fragment, binding, or base:
 
 ```sh
 jq -f testing/fixtures/external-simulation-installation/gateway-base.jq \
@@ -46,7 +32,7 @@ target/debug/gateway-compose \
   --provenance testing/fixtures/external-simulation-installation/gateway-provenance.json
 ```
 
-Publish and install one exact committed revision:
+Validate, publish, and install one committed revision:
 
 ```sh
 PROFILE=testing/fixtures/external-simulation-installation/deployment.json
@@ -55,8 +41,6 @@ REVISION=$(git rev-parse HEAD)
 
 cargo xtask smoke profile-validate --profile "$PROFILE"
 cargo xtask smoke profile-cluster-up --profile "$PROFILE"
-docker exec k3d-anonymous-simulation-server-0 \
-  sysctl -w fs.inotify.max_user_instances=1024
 cargo xtask release images \
   --profile "$PROFILE" \
   --profile-revision "$REVISION" \
@@ -64,66 +48,16 @@ cargo xtask release images \
 cargo xtask smoke profile-up --profile "$PROFILE" --lock "$LOCK"
 ```
 
-The fixture raises the running node's nonpersistent inotify instance ceiling because
-one workstation may host several independent k3d clusters. Fielded hosts set an
-equivalent persistent ceiling through their normal node configuration.
+The locked deployment verifies every source revision, chart, values file, and image
+digest before Helm. It never resolves a moving source expression during installation.
+The fixture is intentionally contract-only: its declared synthetic product does not
+qualify GPU rendering, NVENC, WebRTC media, or browser playback. Each real external
+simulation implementation owns that hardware evidence; the first-party UAV showcase
+provides the repository's NVIDIA reference.
 
-Profile publication configures the managed builder for the fixture registry and derives
-the exact platform image targets. `profile-up` consumes the combined lock explicitly.
-It verifies the installation revision and installation-owned values, checks out every
-source at the locked revision, verifies the source-owned image and chart closure, and
-supplies only digest-addressed images to Helm. It never resolves moving source
-expressions again during installation. Each image entry separates the stable runnable
-platform-manifest `digest` from the `publicationDigest` whose OCI index carries that
-release invocation's SPDX SBOM and SLSA provenance.
-
-Use the operator's persistent, authenticated headed Chrome profile on the
-active X11 display. The acceptance command rejects HeadlessChrome and requires
-at least one NVIDIA-backed WebGPU or WebGL path before it loads the App.
-
-```sh
-CHROME_PROFILE_DIR="${CHROME_PROFILE_DIR:-$HOME/.config/google-chrome-veoveo-dev}"
-test -d "$CHROME_PROFILE_DIR"
-
-google-chrome-stable \
-  --user-data-dir="$CHROME_PROFILE_DIR" \
-  --remote-debugging-address=127.0.0.1 \
-  --remote-debugging-port=9222 \
-  --ozone-platform=x11 \
-  http://localhost:8782/console/
-```
-
-The local development workstation already authenticates that persistent
-profile. Another workstation sets `CHROME_PROFILE_DIR` to its existing
-authenticated Chrome user-data directory. Never remove the existence check:
-without it Chrome creates an empty profile and the visual proof no longer
-exercises the operator's Console session. Do not force a graphics backend;
-hardware-backed WebGPU or WebGL satisfies the browser preflight.
-
-Then run:
-
-```sh
-cargo xtask smoke simulation-view-verify \
-  --context k3d-anonymous-simulation \
-  --public-base-url http://localhost:8782 \
-  --chrome-cdp-url http://127.0.0.1:9222
-```
-
-The command drives the anonymous producer through the core Simulation View
-contract. It exercises several cameras, capacity admission, live leases, and
-the real MCP App in headed hardware-backed Chrome. Each successful run writes
-its screenshot and typed evidence manifest beneath
-`output/acceptance/simulation-view/`. The fixture has no UAV runtime or
-UAV-owned rendering behavior.
-
-Stop the fixture cluster after acceptance:
+Stop the local fixture with:
 
 ```sh
 cargo xtask smoke profile-cluster-stop \
   --profile testing/fixtures/external-simulation-installation/deployment.json
 ```
-
-The stopped cluster retains its deployment state for the next independent
-run. Its renderer must not remain active while another local profile performs
-GPU acceptance because separate k3d schedulers cannot coordinate allocation
-of the same host GPU.

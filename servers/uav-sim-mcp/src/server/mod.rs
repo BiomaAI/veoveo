@@ -3,15 +3,17 @@ mod admin;
 mod auth;
 mod config;
 mod host;
+mod live_view;
+mod live_view_audit;
 mod ownership;
 mod prompts;
+mod runtime_events;
 mod service;
+mod signaling;
 mod state;
 mod task_extension;
 mod task_worker;
-
-#[cfg(test)]
-pub(crate) use service::fake_state;
+mod world_bootstrap;
 
 pub fn run() -> anyhow::Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();

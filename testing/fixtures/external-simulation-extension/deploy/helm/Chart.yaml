@@ -1,6 +1,6 @@
 apiVersion: v2
 name: anonymous-simulation
-description: Anonymous external producer for Veoveo Simulation View acceptance
+description: Anonymous simulator-hosted live-view contract fixture
 type: application
 version: 0.1.0
 appVersion: "0.1.0"

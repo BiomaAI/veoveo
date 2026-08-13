@@ -11,7 +11,7 @@
     "world",
     "cache",
     "session",
-    "posePublication",
+    "liveView",
     "streamPublication",
     "interactive",
     "service",
@@ -70,6 +70,8 @@
         "installationSecret",
         "cesiumSecret",
         "cesiumTokenKey",
+        "adapterSecret",
+        "adapterTokenKey",
         "surrealService",
         "surrealNamespace",
         "surrealDatabase",
@@ -85,6 +87,8 @@
         "installationSecret": {"type": "string", "minLength": 1},
         "cesiumSecret": {"type": "string", "minLength": 1},
         "cesiumTokenKey": {"const": "cesium-ion-access-token"},
+        "adapterSecret": {"type": "string", "minLength": 1},
+        "adapterTokenKey": {"const": "bearer-token"},
         "surrealService": {"type": "string", "minLength": 1},
         "surrealNamespace": {"type": "string", "minLength": 1},
         "surrealDatabase": {"type": "string", "minLength": 1},
@@ -150,10 +154,54 @@
     "world": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["source", "cesiumIonAssetId"],
+      "required": ["source", "cesiumIonAssetId", "bootstrap", "streaming"],
       "properties": {
         "source": {"const": "google_photorealistic_3d_tiles"},
-        "cesiumIonAssetId": {"const": 2275207}
+        "cesiumIonAssetId": {"const": 2275207},
+        "bootstrap": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["existingConfigMap", "key"],
+          "properties": {
+            "existingConfigMap": {
+              "type": "string",
+              "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+            },
+            "key": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"}
+          }
+        },
+        "streaming": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "maximumScreenSpaceError",
+            "maximumSimultaneousLoads",
+            "maximumCachedBytes",
+            "preloadAncestors",
+            "preloadSiblings",
+            "forbidHoles"
+          ],
+          "properties": {
+            "maximumScreenSpaceError": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 64
+            },
+            "maximumSimultaneousLoads": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 64
+            },
+            "maximumCachedBytes": {
+              "type": "integer",
+              "minimum": 67108864,
+              "maximum": 17179869184
+            },
+            "preloadAncestors": {"const": true},
+            "preloadSiblings": {"const": true},
+            "forbidHoles": {"const": true}
+          }
+        }
       }
     },
     "cache": {
@@ -231,13 +279,12 @@
         "camera": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["vehicleId", "width", "height", "fps", "bitRateBps", "optics", "mount"],
+          "required": ["vehicleId", "width", "height", "fps", "optics", "mount"],
           "properties": {
             "vehicleId": {"$ref": "#/definitions/identity"},
             "width": {"type": "integer", "minimum": 64, "maximum": 3840},
             "height": {"type": "integer", "minimum": 64, "maximum": 2160},
             "fps": {"type": "integer", "minimum": 1, "maximum": 60},
-            "bitRateBps": {"type": "integer", "minimum": 100000, "maximum": 50000000},
             "optics": {
               "type": "object",
               "additionalProperties": false,
@@ -272,44 +319,759 @@
         }
       }
     },
-    "posePublication": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "cadenceHz",
-        "bufferDurationMs",
-        "producerId",
-        "producerSpiffeId",
-        "epochId",
-        "endpointHost",
-        "endpointPort",
-        "serverHostname",
-        "entityTableRevision",
-        "existingTlsSecret",
-        "caCertificateKey",
-        "clientCertificateKey",
-        "clientPrivateKeyKey"
-      ],
-      "properties": {
-        "cadenceHz": {"type": "integer", "minimum": 1, "maximum": 120},
-        "bufferDurationMs": {"type": "integer", "minimum": 50, "maximum": 5000},
-        "producerId": {"$ref": "#/definitions/identity"},
-        "producerSpiffeId": {
-          "type": "string",
-          "minLength": 10,
-          "maxLength": 512,
-          "pattern": "^spiffe://[^/\\s][^\\s]*$"
-        },
-        "epochId": {"$ref": "#/definitions/identity"},
-        "endpointHost": {"$ref": "#/definitions/dnsNameOrIp"},
-        "endpointPort": {"type": "integer", "minimum": 1, "maximum": 65535},
-        "serverHostname": {"$ref": "#/definitions/dnsNameOrIp"},
-        "entityTableRevision": {"type": "integer", "minimum": 1},
-        "existingTlsSecret": {"type": "string", "minLength": 1},
-        "caCertificateKey": {"type": "string", "minLength": 1},
-        "clientCertificateKey": {"type": "string", "minLength": 1},
-        "clientPrivateKeyKey": {"type": "string", "minLength": 1}
-      }
+    "liveView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+            "publicSignalingUrl",
+            "publicMediaHost",
+            "signalingGatePort",
+            "signalingPortBase",
+            "mediaPortBase",
+            "viewerSlots",
+            "activationTimeoutSeconds",
+            "leaseSeconds",
+            "maximumFrameAgeMs",
+            "signalingIngress",
+            "mediaService",
+            "cameras"
+        ],
+        "properties": {
+            "publicSignalingUrl": {
+                "type": "string",
+                "pattern": "^(ws|wss)://[^/@\\s]+(/[^\\s]*)?$"
+            },
+            "publicMediaHost": {
+                "type": "string",
+                "oneOf": [
+                    {
+                        "format": "ipv4"
+                    },
+                    {
+                        "format": "ipv6"
+                    }
+                ]
+            },
+            "signalingGatePort": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+            },
+            "signalingPortBase": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+            },
+            "mediaPortBase": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+            },
+            "viewerSlots": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 32
+            },
+            "activationTimeoutSeconds": {
+                "type": "number",
+                "minimum": 0.1,
+                "maximum": 60
+            },
+            "leaseSeconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3600
+            },
+            "maximumFrameAgeMs": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 60000
+            },
+            "signalingIngress": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "enabled",
+                    "className",
+                    "host",
+                    "annotations",
+                    "tls"
+                ],
+                "properties": {
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "className": {
+                        "type": "string"
+                    },
+                    "host": {
+                        "type": "string"
+                    },
+                    "annotations": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    },
+                    "tls": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                            "enabled",
+                            "secretName"
+                        ],
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean"
+                            },
+                            "secretName": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "mediaService": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "type",
+                    "loadBalancerIP",
+                    "externalTrafficPolicy"
+                ],
+                "properties": {
+                    "type": {
+                        "const": "LoadBalancer"
+                    },
+                    "loadBalancerIP": {
+                        "type": "string"
+                    },
+                    "externalTrafficPolicy": {
+                        "enum": [
+                            "Cluster",
+                            "Local"
+                        ]
+                    },
+                    "nodePortBase": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 30000,
+                        "maximum": 32767
+                    }
+                }
+            },
+            "cameras": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 32,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "cameraId",
+                        "revision",
+                        "rig",
+                        "optics",
+                        "streamPolicy"
+                    ],
+                    "properties": {
+                        "cameraId": {
+                            "$ref": "#/definitions/identity"
+                        },
+                        "revision": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "rig": {
+                            "oneOf": [
+                                {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                        "kind",
+                                        "pose"
+                                    ],
+                                    "properties": {
+                                        "kind": {
+                                            "const": "fixed"
+                                        },
+                                        "pose": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                                "positionM",
+                                                "orientationXyzw"
+                                            ],
+                                            "properties": {
+                                                "positionM": {
+                                                    "type": "object",
+                                                    "additionalProperties": false,
+                                                    "required": [
+                                                        "x",
+                                                        "y",
+                                                        "z"
+                                                    ],
+                                                    "properties": {
+                                                        "x": {
+                                                            "type": "number"
+                                                        },
+                                                        "y": {
+                                                            "type": "number"
+                                                        },
+                                                        "z": {
+                                                            "type": "number"
+                                                        }
+                                                    }
+                                                },
+                                                "orientationXyzw": {
+                                                    "type": "object",
+                                                    "additionalProperties": false,
+                                                    "required": [
+                                                        "x",
+                                                        "y",
+                                                        "z",
+                                                        "w"
+                                                    ],
+                                                    "properties": {
+                                                        "x": {
+                                                            "type": "number"
+                                                        },
+                                                        "y": {
+                                                            "type": "number"
+                                                        },
+                                                        "z": {
+                                                            "type": "number"
+                                                        },
+                                                        "w": {
+                                                            "type": "number"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                        "kind",
+                                        "eyeM",
+                                        "targetM",
+                                        "smoothing"
+                                    ],
+                                    "properties": {
+                                        "kind": {
+                                            "const": "look_at"
+                                        },
+                                        "eyeM": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                                "x",
+                                                "y",
+                                                "z"
+                                            ],
+                                            "properties": {
+                                                "x": {
+                                                    "type": "number"
+                                                },
+                                                "y": {
+                                                    "type": "number"
+                                                },
+                                                "z": {
+                                                    "type": "number"
+                                                }
+                                            }
+                                        },
+                                        "targetM": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                                "x",
+                                                "y",
+                                                "z"
+                                            ],
+                                            "properties": {
+                                                "x": {
+                                                    "type": "number"
+                                                },
+                                                "y": {
+                                                    "type": "number"
+                                                },
+                                                "z": {
+                                                    "type": "number"
+                                                }
+                                            }
+                                        },
+                                        "smoothing": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                                "translationHalfLifeMs",
+                                                "rotationHalfLifeMs",
+                                                "teleportDistanceM",
+                                                "resetAfterGapMs"
+                                            ],
+                                            "properties": {
+                                                "translationHalfLifeMs": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 10000
+                                                },
+                                                "rotationHalfLifeMs": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 10000
+                                                },
+                                                "teleportDistanceM": {
+                                                    "type": "number",
+                                                    "exclusiveMinimum": 0,
+                                                    "maximum": 100000
+                                                },
+                                                "resetAfterGapMs": {
+                                                    "type": "integer",
+                                                    "minimum": 1,
+                                                    "maximum": 60000
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                        "kind",
+                                        "targetEntityId",
+                                        "radiusM",
+                                        "azimuthDegrees",
+                                        "elevationDegrees",
+                                        "smoothing"
+                                    ],
+                                    "properties": {
+                                        "kind": {
+                                            "const": "orbit"
+                                        },
+                                        "targetEntityId": {
+                                            "$ref": "#/definitions/identity"
+                                        },
+                                        "radiusM": {
+                                            "type": "number",
+                                            "exclusiveMinimum": 0.1
+                                        },
+                                        "azimuthDegrees": {
+                                            "type": "number"
+                                        },
+                                        "elevationDegrees": {
+                                            "type": "number",
+                                            "minimum": -89.9,
+                                            "maximum": 89.9
+                                        },
+                                        "smoothing": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                                "translationHalfLifeMs",
+                                                "rotationHalfLifeMs",
+                                                "teleportDistanceM",
+                                                "resetAfterGapMs"
+                                            ],
+                                            "properties": {
+                                                "translationHalfLifeMs": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 10000
+                                                },
+                                                "rotationHalfLifeMs": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 10000
+                                                },
+                                                "teleportDistanceM": {
+                                                    "type": "number",
+                                                    "exclusiveMinimum": 0,
+                                                    "maximum": 100000
+                                                },
+                                                "resetAfterGapMs": {
+                                                    "type": "integer",
+                                                    "minimum": 1,
+                                                    "maximum": 60000
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                        "kind",
+                                        "targetEntityId",
+                                        "eyeOffsetFluM",
+                                        "targetOffsetFluM",
+                                        "smoothing"
+                                    ],
+                                    "properties": {
+                                        "kind": {
+                                            "const": "follow_entity"
+                                        },
+                                        "targetEntityId": {
+                                            "$ref": "#/definitions/identity"
+                                        },
+                                        "eyeOffsetFluM": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                                "x",
+                                                "y",
+                                                "z"
+                                            ],
+                                            "properties": {
+                                                "x": {
+                                                    "type": "number"
+                                                },
+                                                "y": {
+                                                    "type": "number"
+                                                },
+                                                "z": {
+                                                    "type": "number"
+                                                }
+                                            }
+                                        },
+                                        "targetOffsetFluM": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                                "x",
+                                                "y",
+                                                "z"
+                                            ],
+                                            "properties": {
+                                                "x": {
+                                                    "type": "number"
+                                                },
+                                                "y": {
+                                                    "type": "number"
+                                                },
+                                                "z": {
+                                                    "type": "number"
+                                                }
+                                            }
+                                        },
+                                        "smoothing": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                                "translationHalfLifeMs",
+                                                "rotationHalfLifeMs",
+                                                "teleportDistanceM",
+                                                "resetAfterGapMs"
+                                            ],
+                                            "properties": {
+                                                "translationHalfLifeMs": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 10000
+                                                },
+                                                "rotationHalfLifeMs": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 10000
+                                                },
+                                                "teleportDistanceM": {
+                                                    "type": "number",
+                                                    "exclusiveMinimum": 0,
+                                                    "maximum": 100000
+                                                },
+                                                "resetAfterGapMs": {
+                                                    "type": "integer",
+                                                    "minimum": 1,
+                                                    "maximum": 60000
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                        "kind",
+                                        "targetEntityId",
+                                        "distanceM",
+                                        "heightM",
+                                        "smoothing"
+                                    ],
+                                    "properties": {
+                                        "kind": {
+                                            "const": "chase_entity"
+                                        },
+                                        "targetEntityId": {
+                                            "$ref": "#/definitions/identity"
+                                        },
+                                        "distanceM": {
+                                            "type": "number",
+                                            "exclusiveMinimum": 0.1
+                                        },
+                                        "heightM": {
+                                            "type": "number"
+                                        },
+                                        "smoothing": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                                "translationHalfLifeMs",
+                                                "rotationHalfLifeMs",
+                                                "teleportDistanceM",
+                                                "resetAfterGapMs"
+                                            ],
+                                            "properties": {
+                                                "translationHalfLifeMs": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 10000
+                                                },
+                                                "rotationHalfLifeMs": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 10000
+                                                },
+                                                "teleportDistanceM": {
+                                                    "type": "number",
+                                                    "exclusiveMinimum": 0,
+                                                    "maximum": 100000
+                                                },
+                                                "resetAfterGapMs": {
+                                                    "type": "integer",
+                                                    "minimum": 1,
+                                                    "maximum": 60000
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                        "kind",
+                                        "targetEntityId",
+                                        "mount",
+                                        "smoothing"
+                                    ],
+                                    "properties": {
+                                        "kind": {
+                                            "const": "stabilized_mounted_entity"
+                                        },
+                                        "targetEntityId": {
+                                            "$ref": "#/definitions/identity"
+                                        },
+                                        "mount": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                                "positionM",
+                                                "orientationXyzw"
+                                            ],
+                                            "properties": {
+                                                "positionM": {
+                                                    "type": "object",
+                                                    "additionalProperties": false,
+                                                    "required": [
+                                                        "x",
+                                                        "y",
+                                                        "z"
+                                                    ],
+                                                    "properties": {
+                                                        "x": {
+                                                            "type": "number"
+                                                        },
+                                                        "y": {
+                                                            "type": "number"
+                                                        },
+                                                        "z": {
+                                                            "type": "number"
+                                                        }
+                                                    }
+                                                },
+                                                "orientationXyzw": {
+                                                    "type": "object",
+                                                    "additionalProperties": false,
+                                                    "required": [
+                                                        "x",
+                                                        "y",
+                                                        "z",
+                                                        "w"
+                                                    ],
+                                                    "properties": {
+                                                        "x": {
+                                                            "type": "number"
+                                                        },
+                                                        "y": {
+                                                            "type": "number"
+                                                        },
+                                                        "z": {
+                                                            "type": "number"
+                                                        },
+                                                        "w": {
+                                                            "type": "number"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "smoothing": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                                "translationHalfLifeMs",
+                                                "rotationHalfLifeMs",
+                                                "teleportDistanceM",
+                                                "resetAfterGapMs"
+                                            ],
+                                            "properties": {
+                                                "translationHalfLifeMs": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 10000
+                                                },
+                                                "rotationHalfLifeMs": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 10000
+                                                },
+                                                "teleportDistanceM": {
+                                                    "type": "number",
+                                                    "exclusiveMinimum": 0,
+                                                    "maximum": 100000
+                                                },
+                                                "resetAfterGapMs": {
+                                                    "type": "integer",
+                                                    "minimum": 1,
+                                                    "maximum": 60000
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                        "kind",
+                                        "targetEntityIds",
+                                        "paddingM",
+                                        "smoothing"
+                                    ],
+                                    "properties": {
+                                        "kind": {
+                                            "const": "formation_overview"
+                                        },
+                                        "targetEntityIds": {
+                                            "type": "array",
+                                            "minItems": 1,
+                                            "maxItems": 256,
+                                            "uniqueItems": true,
+                                            "items": {
+                                                "$ref": "#/definitions/identity"
+                                            }
+                                        },
+                                        "paddingM": {
+                                            "type": "number",
+                                            "minimum": 0
+                                        },
+                                        "smoothing": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                                "translationHalfLifeMs",
+                                                "rotationHalfLifeMs",
+                                                "teleportDistanceM",
+                                                "resetAfterGapMs"
+                                            ],
+                                            "properties": {
+                                                "translationHalfLifeMs": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 10000
+                                                },
+                                                "rotationHalfLifeMs": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 10000
+                                                },
+                                                "teleportDistanceM": {
+                                                    "type": "number",
+                                                    "exclusiveMinimum": 0,
+                                                    "maximum": 100000
+                                                },
+                                                "resetAfterGapMs": {
+                                                    "type": "integer",
+                                                    "minimum": 1,
+                                                    "maximum": 60000
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "optics": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                                "widthPx",
+                                "heightPx",
+                                "frameRateHz",
+                                "verticalFovDegrees",
+                                "nearClipM",
+                                "farClipM"
+                            ],
+                            "properties": {
+                                "widthPx": {
+                                    "type": "integer",
+                                    "minimum": 64,
+                                    "maximum": 3840
+                                },
+                                "heightPx": {
+                                    "type": "integer",
+                                    "minimum": 64,
+                                    "maximum": 2160
+                                },
+                                "frameRateHz": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 120
+                                },
+                                "verticalFovDegrees": {
+                                    "type": "number",
+                                    "exclusiveMinimum": 1,
+                                    "exclusiveMaximum": 179
+                                },
+                                "nearClipM": {
+                                    "type": "number",
+                                    "exclusiveMinimum": 0
+                                },
+                                "farClipM": {
+                                    "type": "number",
+                                    "exclusiveMinimum": 0
+                                }
+                            }
+                        },
+                        "streamPolicy": {
+                            "enum": [
+                                "disabled",
+                                "on_demand",
+                                "continuous"
+                            ]
+                        }
+                    }
+                }
+            }
+        }
     },
     "streamPublication": {
       "type": "object",
@@ -319,14 +1081,16 @@
         "endpointHost",
         "endpointPort",
         "payloadType",
-        "sourceVehicleId"
+        "sourceVehicleId",
+        "queueCapacity"
       ],
       "properties": {
         "enabled": {"type": "boolean"},
         "endpointHost": {"$ref": "#/definitions/dnsNameOrIp"},
         "endpointPort": {"type": "integer", "minimum": 1, "maximum": 65535},
         "payloadType": {"type": "integer", "minimum": 96, "maximum": 127},
-        "sourceVehicleId": {"$ref": "#/definitions/identity"}
+        "sourceVehicleId": {"$ref": "#/definitions/identity"},
+        "queueCapacity": {"type": "integer", "minimum": 2, "maximum": 4096}
       }
     },
     "interactive": {
@@ -356,12 +1120,10 @@
     "scheduling": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["runtimeClassName", "nodeSelector", "tolerations", "affinity"],
+      "required": ["runtime", "mcp"],
       "properties": {
-        "runtimeClassName": {"type": "string", "minLength": 1},
-        "nodeSelector": {"type": "object", "additionalProperties": {"type": "string"}},
-        "tolerations": {"type": "array", "items": {"type": "object"}},
-        "affinity": {"type": "object"}
+        "runtime": {"$ref": "#/definitions/runtimeScheduling"},
+        "mcp": {"$ref": "#/definitions/mcpScheduling"}
       }
     },
     "networkPolicy": {
@@ -375,6 +1137,27 @@
     }
   },
   "definitions": {
+    "runtimeScheduling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runtimeClassName", "nodeSelector", "tolerations", "affinity"],
+      "properties": {
+        "runtimeClassName": {"type": "string", "minLength": 1},
+        "nodeSelector": {"type": "object", "additionalProperties": {"type": "string"}},
+        "tolerations": {"type": "array", "items": {"type": "object"}},
+        "affinity": {"type": "object"}
+      }
+    },
+    "mcpScheduling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodeSelector", "tolerations", "affinity"],
+      "properties": {
+        "nodeSelector": {"type": "object", "additionalProperties": {"type": "string"}},
+        "tolerations": {"type": "array", "items": {"type": "object"}},
+        "affinity": {"type": "object"}
+      }
+    },
     "identity": {
       "type": "string",
       "minLength": 1,

@@ -75,7 +75,7 @@ pub fn materialize_archive_shard(
             codec == re_sdk_types::components::VideoCodec::H264,
             "archive materialization supports H.264 VideoStream data"
         );
-        crate::h264_access_unit_is_idr(data)
+        crate::h264_access_unit_is_decoder_reentrant(data)
     });
     let options = CompactionOptions {
         config: store_config,

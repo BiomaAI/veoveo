@@ -42,7 +42,7 @@ impl AuthoringProjection {
     }
 
     pub fn sequence(&self) -> Result<u64> {
-        let connection = self.analytics.connection(true)?;
+        let connection = self.analytics.read_connection()?;
         let sequence = connection.query_row(
             "SELECT coalesce(max(last_sequence), 0) FROM map_authored_projection WHERE consumer = ?",
             params![CONSUMER],
@@ -165,7 +165,7 @@ impl AuthoringProjection {
     }
 
     fn apply_page(&self, revisions: &[ProjectedRevision], sequence: i64) -> Result<()> {
-        let mut connection = self.analytics.connection(false)?;
+        let mut connection = self.analytics.connection()?;
         let transaction = connection.transaction()?;
         for revision in revisions {
             insert_revision(&transaction, revision)?;

@@ -1,9 +1,12 @@
 {
-  "schemaVersion": "veoveo.io/deployment-lock/v5",
+  "schemaVersion": "veoveo.io/deployment-lock/v6",
   "profile": "anonymous-simulation-extension",
   "profileRevision": "d2b80d11b49767ed12118ab00eabfdb00add7a45",
-  "registry": "k3d-veoveo-registry.localhost:5001",
-  "registryTransport": "insecure-http",
+  "registry": {
+    "pushAddress": "127.0.0.1:5001",
+    "pullAddress": "k3d-veoveo-registry.localhost:5001",
+    "transport": "insecure-http"
+  },
   "sources": [
     {
       "name": "veoveo",
@@ -11,24 +14,6 @@
       "repository": "ssh://git@github.com/BiomaAI/veoveo",
       "revision": "d2b80d11b49767ed12118ab00eabfdb00add7a45",
       "images": [
-        {
-          "name": "artifact-mcp",
-          "repository": "k3d-veoveo-registry.localhost:5001/veoveo/artifact-mcp",
-          "digest": "sha256:ccee379f6ed27405bc2080f5c53634431c9cd0c06fb9e31c776cf048dcc41d92",
-          "publicationDigest": "sha256:61f73fbde2f133cd3bb90f319ab77faa91a43187703e49a4b39b516619854ed6"
-        },
-        {
-          "name": "artifact-service",
-          "repository": "k3d-veoveo-registry.localhost:5001/veoveo/artifact-service",
-          "digest": "sha256:14a2431d07603233b5e0ba6c4f08c9a7b5d067ca87bc212e8918b94aa14cc494",
-          "publicationDigest": "sha256:2c1bf54d6f6d3d97b4e8a4dd573f207462adb356c186d1840083f403b0ba2a64"
-        },
-        {
-          "name": "frames-mcp",
-          "repository": "k3d-veoveo-registry.localhost:5001/veoveo/frames-mcp",
-          "digest": "sha256:6abf27478b8d8369dd8b75873f1bc65c779203ff3dfe04dd18eb00e24a26976c",
-          "publicationDigest": "sha256:2a27f329d1c5e1f0a0260f737b272a3136747f996726e38f8a2eda45c9c9cb4a"
-        },
         {
           "name": "mcp-gateway",
           "repository": "k3d-veoveo-registry.localhost:5001/veoveo/mcp-gateway",
@@ -40,24 +25,6 @@
           "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-runtime",
           "digest": "sha256:e142841a7f9791dc04b4dc9a358fa3f41b222ce7b0c8fd3bcb73c7dd6856ea42",
           "publicationDigest": "sha256:a48393490b2d1075c26a81be623dcd4e38a1aaa7e6cdfa83e35ba03249cc8746"
-        },
-        {
-          "name": "simulation-view-isaac",
-          "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-view-isaac",
-          "digest": "sha256:95423dbedd03f0f2cdb0344950ad0b546499bd582762c095b9897a434f38b090",
-          "publicationDigest": "sha256:c7f728af2e1d531d0b924a47eab7d5f8b136a94c9018808804bd89b3d028808f"
-        },
-        {
-          "name": "simulation-view-mcp",
-          "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-view-mcp",
-          "digest": "sha256:26a95cb4a1833980d91367672c9b5bab849edffdbefe28a19df2d73be6d1a5ba",
-          "publicationDigest": "sha256:00af780755248bc2f9758a17de8a2d5b0f7e57e209296bdb558029be3c2ae344"
-        },
-        {
-          "name": "simulation-view-pose",
-          "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-view-pose",
-          "digest": "sha256:c83bdf4cb02bd29fe1ae626e3a9568e97dbc181fdcc2c82f7083ec81917bab20",
-          "publicationDigest": "sha256:3cc107534f8331e1569b6f85b68276e80dba2e245dc177524dd48e3bd174dba6"
         }
       ],
       "charts": [
@@ -93,83 +60,14 @@
   "platform": {
     "components": [
       "gateway",
-      "platform-store",
-      "object-store",
-      "artifact-service",
-      "gpu-renderer",
       "simulation-runtime-support",
       "ingress"
     ],
-    "mcpServers": [
-      "artifact",
-      "frames",
-      "simulation-view"
-    ],
-    "artifactAudiences": [
-      "anonymous-simulation",
-      "simulation-view"
-    ],
+    "mcpServers": [],
+    "artifactAudiences": [],
     "externalWorkloads": [
       "anonymous-simulation-mcp"
     ],
-    "gpuScheduling": {
-      "runtimeClassName": "nvidia",
-      "allocatableDevices": 1,
-      "evidenceDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-      "allocator": {
-        "claimName": "anonymous-simulation-gpu",
-        "fullDeviceClassName": "gpu.nvidia.com",
-        "migDeviceClassName": "mig.nvidia.com",
-        "driverName": "gpu.nvidia.com",
-        "configurationApiVersion": "resource.nvidia.com/v1beta1",
-        "installation": {
-          "releaseName": "dra-driver-nvidia-gpu",
-          "namespace": "nvidia-dra-driver-gpu",
-          "chart": {
-            "coordinate": "oci://registry.k8s.io/dra-driver-nvidia/charts/dra-driver-nvidia-gpu",
-            "version": "0.4.1",
-            "digest": "sha256:7a00373fdef1025f27ebb1d353719446bbbe6ec4697e9a503c5ffd7e4f1525dd",
-            "contentDigest": "sha256:c1c316f6bdcfe5fed3ff649cff1b43be50d27d0cb1aaf9d29e7bdca1eaa331ce"
-          },
-          "image": {
-            "repository": "registry.k8s.io/dra-driver-nvidia/dra-driver-nvidia-gpu",
-            "tag": "v0.4.1",
-            "digest": "sha256:eefe67396dedea4df74f68a94d5883f33204888b83979babd42b91501a2de1d8",
-            "platformDigests": {
-              "linux/amd64": "sha256:ad86983849542f6ef22f02e963ecbf545706e037455e0c265889ace137863556",
-              "linux/arm64": "sha256:b51290bbc1ee6745adf8ffff040d2b917d3e07dbd5cd36fd444b0e371ccc9166"
-            }
-          },
-          "nvidiaDriverRoot": "/",
-          "eligibleNodeSelector": {
-            "kubernetes.io/hostname": "k3d-anonymous-simulation-server-0"
-          },
-          "conflictingDevicePluginRemoval": {
-            "mode": "require-absent"
-          },
-          "maturityAcceptance": "technology-preview",
-          "timeoutSeconds": 600
-        }
-      },
-      "samePhysicalDeviceGroups": [
-        {
-          "name": "simulation-view",
-          "workloads": [
-            {
-              "workload": "simulation-view-renderer",
-              "deployment": "simulation-view-renderer",
-              "container": "simulation-view-isaac",
-              "replicas": 1
-            }
-          ],
-          "isolation": "exclusive",
-          "maximumConsumers": 1,
-          "evidenceDigest": null,
-          "migProfile": null,
-          "timeSliceInterval": null
-        }
-      ],
-      "differentPhysicalDeviceGroups": []
-    }
+    "gpuScheduling": null
   }
 }

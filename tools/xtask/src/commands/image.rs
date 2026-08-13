@@ -28,6 +28,10 @@ const PACKAGE_LABEL: &str = "io.veoveo.build.package";
 const BINARIES_LABEL: &str = "io.veoveo.build.binaries";
 const FAMILY_LABEL: &str = "io.veoveo.build.family";
 const AUXILIARY_LABEL: &str = "io.veoveo.build.auxiliary";
+// SOURCE_DATE_EPOCH is a predefined BuildKit argument and therefore part of
+// every stage's cache key. Keep it stable across source revisions. Bump this
+// cache ABI only when an admitted pinned parent image contains newer metadata.
+const REPRODUCIBLE_BUILD_EPOCH: u64 = 1_786_076_699;
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -102,6 +106,7 @@ pub(crate) struct BuildPlanV1 {
     selection: Selection,
     source: SourceRevision,
     source_date_epoch: u64,
+    build_date_epoch: u64,
     planning: PlanningTimings,
     source_revision_targets: Vec<String>,
     targets: Vec<ImageTarget>,
@@ -290,6 +295,7 @@ struct BuildRunV1<'a> {
     selection: &'a Selection,
     source: &'a SourceRevision,
     source_date_epoch: u64,
+    build_date_epoch: u64,
     started_at_unix_millis: u64,
     elapsed_millis: u64,
     result: BuildRunResult,
@@ -539,57 +545,13 @@ pub(crate) fn prepare_with_builder(
         });
     }
 
-    let all_targets = if family_units
-        .keys()
-        .any(|family| family.shared_artifact_target().is_some())
-    {
-        let started = Instant::now();
-        let result = Some(bake_print_all(
-            builder_repository,
-            source_repository.root(),
-            environment,
-        )?);
-        planning.graph_resolution_millis = planning
-            .graph_resolution_millis
-            .saturating_add(elapsed_millis(started));
-        result
-    } else {
-        None
-    };
     let mut families = Vec::new();
     for (family, selected_units) in &family_units {
         validate_family_modes(*family, selected_units)?;
-        let units = if family.shared_artifact_target().is_some() {
-            let canonical_definition = all_targets
-                .as_ref()
-                .expect("the complete Bake graph was loaded for a shared family");
-            let mut canonical_units = Vec::new();
-            for (name, target) in &canonical_definition.target {
-                if let Some(unit) = parse_rust_unit(name, target, &package_index)?
-                    && unit.family == *family
-                {
-                    canonical_units.push((name.clone(), unit));
-                }
-            }
-            let canonical_names = canonical_units
-                .iter()
-                .map(|(name, _)| name.as_str())
-                .collect::<BTreeSet<_>>();
-            for (name, _) in selected_units {
-                ensure!(
-                    canonical_names.contains(name.as_str()),
-                    "Rust target {name} is missing from the complete Bake family catalog"
-                );
-            }
-            validate_family_modes(*family, &canonical_units)?;
-            canonical_units
-        } else {
-            selected_units.clone()
-        };
         let mut packages = BTreeSet::new();
         let mut binaries = BTreeSet::new();
         let mut auxiliary = BTreeSet::new();
-        for (_, unit) in &units {
+        for (_, unit) in selected_units {
             packages.insert(unit.package.clone());
             binaries.extend(unit.binaries.iter().cloned());
             auxiliary.extend(unit.auxiliary.iter().copied());
@@ -613,6 +575,7 @@ pub(crate) fn prepare_with_builder(
         selection,
         source: source_revision,
         source_date_epoch,
+        build_date_epoch: REPRODUCIBLE_BUILD_EPOCH,
         planning,
         source_revision_targets,
         targets,
@@ -663,9 +626,10 @@ impl OutputMode {
             // inherited layer makes a tiny Isaac overlay re-export the full
             // multi-gigabyte base without strengthening release evidence.
             Self::Load => "type=docker",
+            // Staging and qualification must produce the same runnable digest.
             // The source commit timestamp is later than every admitted pinned
-            // parent image. BuildKit therefore retains inherited layer blobs and
-            // normalizes only newer entries produced by this source build.
+            // parent image, so BuildKit retains older inherited layer blobs and
+            // normalizes source-produced entries.
             Self::Staged | Self::Qualified => "type=registry,rewrite-timestamp=true",
         }
     }
@@ -723,7 +687,7 @@ pub(crate) fn execute(
         .arg(evidence.metadata_path())
         .env(
             "SOURCE_DATE_EPOCH",
-            prepared.plan.source_date_epoch.to_string(),
+            prepared.plan.build_date_epoch.to_string(),
         )
         .envs(environment)
         .stdin(Stdio::null());
@@ -872,6 +836,7 @@ impl EvidenceRun {
             selection: &plan.selection,
             source: &plan.source,
             source_date_epoch: plan.source_date_epoch,
+            build_date_epoch: plan.build_date_epoch,
             started_at_unix_millis: self.started_at_unix_millis,
             elapsed_millis,
             result,
@@ -1429,8 +1394,9 @@ fn validate_identifier(kind: &str, value: &str) -> Result<()> {
 mod tests {
     use super::{
         AUXILIARY_LABEL, BINARIES_LABEL, BakeDefinition, BakeTarget, BuilderFamily, FAMILY_LABEL,
-        MODE_LABEL, PACKAGE_LABEL, Selection, parse_publication_index_digests, rust_labels_present,
-        target_dependency_closure, validate_standalone_builder_stage,
+        MODE_LABEL, PACKAGE_LABEL, REPRODUCIBLE_BUILD_EPOCH, Selection,
+        parse_publication_index_digests, rust_labels_present, target_dependency_closure,
+        validate_standalone_builder_stage,
     };
     use std::collections::{BTreeMap, BTreeSet};
 
@@ -1472,6 +1438,11 @@ mod tests {
         assert!(
             identities.contains("veoveo-target-v1-aaaaaaaaaaaa-9b79bf6f1617-linux-amd64-release")
         );
+    }
+
+    #[test]
+    fn image_build_epoch_is_stable_across_source_revisions() {
+        assert_eq!(REPRODUCIBLE_BUILD_EPOCH, 1_786_076_699);
     }
 
     #[test]

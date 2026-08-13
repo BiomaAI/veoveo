@@ -21,11 +21,13 @@ argument, storage, and GPU definitions for every first-party server under
 `definitions/domain-services.yaml`; an installation selects server identities instead
 of reproducing internal workload records.
 
-The typed components distinguish `recording-data-plane`, `gpu-renderer`, and
-`simulation-runtime-support` from hosted MCP servers. Selecting `simulation-view`
-requires Frames MCP and both simulation components. The Rust profile resolver also
-accounts for independently owned GPU workloads and rejects two exclusive one-GPU
-requests on one ordinary GPU.
+The typed components distinguish `recording-data-plane`,
+`simulation-runtime-support`, and `agent-runtime-support` from hosted MCP servers.
+Simulation applications and continuously scheduled agents ship their authoritative
+workloads in separate releases. Support components add the exact platform-owned runtime
+images to the deployment lock without rendering a duplicate platform workload. The Rust
+profile resolver accounts for independently owned GPU workloads and rejects an
+impossible exclusive placement before Helm.
 
 The Rust deployment resolver applies the same dependency graph before rendering. A
 selected hosted server requires the gateway. Artifact-backed servers require the
@@ -63,90 +65,22 @@ installation's existing public origin. The chart routes only
 host-limited token and server-side recording session protect the route; the
 general Rerun catalog and mutation methods are unavailable.
 
-Simulation View uses a separate provider-neutral MCP pod and one hardware-GPU pod. The
-GPU pod contains the Isaac/RTX renderer and the mTLS pose-ingress sidecar. Those
-containers exchange complete latest-pose snapshots through a memory-backed volume;
-the renderer never gains network egress. A read-only governed-artifact volume supplies
-content-addressed USD, USDZ, GLB, glTF, and texture inputs. A direct chart installation
-requests exactly one `nvidia.com/gpu`. A deployment profile with
-`gpuScheduling` instead injects `global.gpuPlacement`, binds each GPU container to one
-named request in an installation-owned DRA ResourceClaim, and removes the legacy
-extended resource from that container. The allocator supplies the selected UUID. The
-chart never sets `NVIDIA_VISIBLE_DEVICES`, and workloads retain their required
-`NVIDIA_DRIVER_CAPABILITIES`.
+Simulation live views belong to each simulation application's release. The
+application owns one authoritative simulator GPU, its logical cameras, bounded physical
+viewer slots, isolated Hydra/NVENC/WebRTC products, signaling proxy, media ports, cache,
+and MCP App. The platform chart does not
+install a shared renderer, pose ingress, mirror cache, or reconciliation controller.
+Viewer leases remain ephemeral in the domain server. A simulator restart recreates its
+configured logical cameras and preallocated viewer slots through ordinary runtime startup,
+and browsers open fresh
+leases.
 
-An exclusive multi-GPU node can prove that boundary before profile acceptance. Supply
-one digest-pinned CUDA-capable image already admitted by the installation:
-
-```sh
-cargo xtask smoke gpu-allocation-verify \
-  --context <kube-context> \
-  --node <two-gpu-node> \
-  --image <registry/image@sha256:digest>
-```
-
-The Rust smoke harness schedules two simultaneous one-GPU pods on that node. Each pod
-must see one allocated UUID, and the UUIDs must differ. This command verifies the
-device-plugin boundary. Deployment profiles use DRA for restart-stable same-device and
-different-device placement, then `profile-up` reports and checks every assigned UUID.
-
-`simulationView.signaling`, `simulationView.media`, and
-`simulationView.poseIngress` select the installation-owned exposure. Signaling accepts
-Ingress, ClusterIP, NodePort, or LoadBalancer. Media is a bounded UDP port collection,
-while pose ingress is one TLS 1.3 port authenticated by client certificates. The
-installation supplies the exact public signaling URL, media host and IP, pose PKI
-Secret, port allocation, and any admitted producer CIDRs. In-cluster producers carry
-the `veoveo.ai/simulation-view-pose-producer: "true"` pod label. Readiness requires the
-named RTX render product, NVENC, and a visible non-stale hardware frame.
-
-`simulationView.reconciliation` configures the platform-owned lifecycle
-controller. Durable commits wake the controller through the transactional
-outbox, and renderer or pose-ingress boot generations wake it through an
-authenticated internal event. Healthy sessions are not replayed on an
-interval. `authorizationRenewalLeadSeconds` sets the maximum lead before a
-bounded pose authorization expires; shorter authorizations use one third of
-their lifetime. `retryDelaySeconds` is the exact delay after a failed runtime
-transition or disconnected durable event stream. The MCP pod uses the
-installation database identity and its existing private runtime control
-credentials; no Console or producer credential is added.
-
-The MCP readiness probe calls `/simulation-view/readyz` and admits the control
-plane when its store and Artifact dependency are reachable. The liveness probe
-continues to call `/simulation-view/healthz`, so a recoverable private-runtime
-failure does not restart or isolate the reconciler. Full renderer, pose-ingress,
-and durable desired-state convergence appears at
-`/simulation-view/runtimez`. `profile-up` probes that endpoint after rollout
-and fails with its typed report if the desired revision remains unrealized.
-
-Simulation View stores its session, scene, producer binding, logical cameras,
-revocation tombstone, and typed reconciliation status in the platform store.
-Browser viewer leases remain ephemeral. It restores durable intent after MCP,
-renderer, or pose-ingress replacement. An explicit producer revocation is
-durable and is never renewed automatically.
-
-`simulationView.streamedWorld` supplies the closed live-world catalog. The chart
-can render `catalog` into its owned ConfigMap or mount `existingConfigMap` under
-`catalogKey`. An external ConfigMap requires the exact lowercase SHA-256 value
-in `catalogDigest`; changing it rolls the renderer even though Helm does not own
-the ConfigMap bytes. Inline catalogs derive that digest automatically. Each
-`credentialBindings` entry maps a catalog environment name to one key in an
-installation Secret; only the Isaac renderer receives those values.
-`egressCidrs` admits provider and redirect address ranges over HTTPS, while the
-catalog admits their exact hostnames. Enabling streamed worlds without at least
-one egress CIDR fails chart rendering. Keep provider credentials out of the
-catalog and scene declarations.
-
-`simulationView.streamTargetFps` is the exact hardware stream target applied to
-every bounded renderer slot. Existing external layer catalogs must add
-`streamedWorld.catalogDigest` before upgrade. Chart-owned inline catalogs need
-no migration value.
-
-`simulationView.cache` is a persistent, versioned renderer cache. The chart
-creates its `ReadWriteOnce` claim unless `existingClaim` names an
-installation-owned claim. Isaac portable state, compiled Warp and MDL data,
-and streamed-world provider caches live beneath the declared `version`
-directory. Change that version only when the pinned Isaac/Cesium cache format
-changes; older directories remain isolated and available for rollback.
+A deployment profile may bind an application-owned GPU container to a named DRA
+request. The allocator supplies the selected UUID; no chart may set
+`NVIDIA_VISIBLE_DEVICES`. Required driver capabilities remain explicit. Use
+`gpu-allocation-verify` to prove exclusive device-plugin isolation, and use the
+application's hardware acceptance to prove isolated per-viewer RTX, NVENC, and native
+WebRTC products.
 
 Every MCP workload has one active pod and uses `Recreate`. This includes the
 gateway MCP endpoint, domain servers, GPU servers, and the stdio bridge that
@@ -173,6 +107,14 @@ prepared governed problems on its `ReadWriteOnce` workspace. Startup, readiness,
 and liveness require the exact executor protocol, a CUDA 13.2-capable driver,
 and one visible hardware GPU. The pod uses the `nvidia` RuntimeClass and has no
 CPU solver or GPU-optional deployment mode.
+
+`reason-mcp` never downloads a checkpoint during a request or at pod startup.
+Set `reason.modelCache.existingClaim` to an installation-owned PVC populated
+with a complete immutable checkpoint snapshot. The mounted path and SHA-256
+snapshot identity belong in `reason.model.path` and `reason.model.digest`. The
+chart writes that identity into the Reason catalog and its pod checksum. When
+`existingClaim` is empty, the chart creates `reason-model-cache`, but populating
+its bytes remains installation work.
 
 `serverBootstrap` delivers installation-time domain configuration to any MCP
 server component, keyed by domain-service name. Each entry renders a
@@ -220,7 +162,7 @@ fails the mount when the ConfigMap or key is absent. The BFF fails startup when 
 mounted file is unreadable, empty, or invalid. These roots augment the standard trust
 store and the projected Kubernetes API root; certificate verification remains enabled.
 Changing the ConfigMap contents requires a Console BFF rollout because clients load the
-bundle at startup. A deployment/v5 installation places these values in a file selected
+bundle at startup. A deployment/v6 installation places these values in a file selected
 through the platform release's `installationValues` array.
 
 ### Embedded Rerun maps
@@ -270,16 +212,7 @@ The operator must create these resources before installation:
 - `global.existingSecret`: gateway signing keys, internal JWKS, console session
   key, provider credentials, object-store credentials, the gateway refresh
   delivery key under `refresh-delivery-key-b64`, and a distinct 32-byte
-  base64 playback key under `recording-playback-token-key`. Simulation View
-  also reads `simulation-view-renderer-control-token` and
-  `simulation-view-pose-control-token`.
-- `simulationView.poseIngress.existingTlsSecret`: DER server certificate under
-  `certificateKey`, PKCS#8 DER private key under `privateKeyKey`, and DER producer
-  trust anchor under `clientCaKey`.
-- `simulationView.streamedWorld.credentialBindings`: provider credentials in
-  dedicated Secrets. The installation also owns catalog host and redirect
-  allowlists, network CIDRs, budgets, attribution, and the exact Frames revision
-  plus WGS 84 origin.
+  base64 playback key under `recording-playback-token-key`.
 - `gateway.existingControlPlaneConfigMap`: the typed gateway JSON under
   `gateway.controlPlaneKey`, plus any file-backed JWKS or CA documents referenced
   by that JSON.

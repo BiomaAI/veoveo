@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::process::Stdio;
 
 use anyhow::ensure;
@@ -8,7 +9,8 @@ use sha2::{Digest, Sha256};
 use tokio::sync::oneshot;
 use veoveo_mcp_contract::{
     FrameBasis, FrameId, FrameNode, FrameParentTransform, FrameWorldId, FrameWorldRevision,
-    FrameWorldTree, Wgs84Position,
+    FrameWorldTree, LiveCameraDescriptor, LiveCameraHealth, LiveStreamProductLifecycle,
+    LiveStreamProductState, Wgs84Position,
 };
 use veoveo_stream_mcp::contract::{
     LiveSessionLifecycle, LiveSessionView, StartLiveSessionOutput, StopLiveSessionOutput,
@@ -16,6 +18,8 @@ use veoveo_stream_mcp::contract::{
 
 use super::*;
 
+#[path = "uav_sim/browser.rs"]
+mod browser;
 #[path = "uav_sim/showcase.rs"]
 mod showcase;
 
@@ -25,9 +29,7 @@ const NAMESPACE: &str = "veoveo";
 const GOOGLE_PHOTOREALISTIC_3D_TILES_ASSET_ID: u64 = 2_275_207;
 const OPERATOR_PROFILE_SCOPES: &[&str] = &[
     "operator:use",
-    "simulation-view:read",
-    "simulation-view:write",
-    "simulation-view:stream",
+    "uav-sim:stream",
     "view:read",
     "view:write",
     "view:capture",
@@ -88,33 +90,13 @@ struct TakeoffScenario {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CameraAcceptance {
-    detail_timeout_seconds: u64,
-    operational: OperationalCameraAcceptance,
-    aerial_detail: AerialCameraAcceptance,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct OperationalCameraAcceptance {
-    minimum_mean_luma: f64,
-    minimum_non_black_fraction: f64,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct AerialCameraAcceptance {
-    minimum_mean_luma: f64,
-    minimum_dynamic_range: u64,
-    minimum_robust_dynamic_range: u64,
-    minimum_luma_standard_deviation: f64,
-    minimum_non_black_fraction: f64,
+    stream_timeout_seconds: u64,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct MissionScenario {
     longitude_offset_degrees: f64,
-    relative_altitude_m: f64,
     speed_mps: f64,
     hold_seconds: f64,
     task_timeout_seconds: u64,
@@ -134,6 +116,12 @@ struct StreamScenario {
     maximum_result_age_ms: u64,
     live_timeout_seconds: u64,
     recording_replay: RecordingReplayAcceptance,
+}
+
+struct AcceptanceLiveSession {
+    session_id: String,
+    preview_uri: String,
+    owned_by_acceptance: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -158,7 +146,7 @@ struct ReasonScenario {
 #[serde(deny_unknown_fields)]
 struct ViewAcceptance {
     timeout_seconds: u64,
-    minimum_mission_pose_delta: u64,
+    minimum_mission_sensor_frames: u64,
     camera: ViewCameraAcceptance,
 }
 
@@ -261,7 +249,7 @@ impl UavAcceptanceScenario {
 
     fn validate(&self) -> Result<()> {
         ensure!(
-            self.schema == "veoveo.uav-sim-acceptance/v9",
+            self.schema == "veoveo.uav-sim-acceptance/v10",
             "unsupported UAV acceptance scenario schema {:?}",
             self.schema
         );
@@ -320,7 +308,7 @@ impl UavAcceptanceScenario {
         ensure!(
             self.world_ready_timeout_seconds > 0
                 && self.takeoff.state_timeout_seconds > 0
-                && self.camera.detail_timeout_seconds > 0
+                && self.camera.stream_timeout_seconds > 0
                 && self.mission.task_timeout_seconds > 0
                 && self.recording.live_rows_timeout_seconds > 0
                 && self.stream.live_timeout_seconds > 0
@@ -330,39 +318,9 @@ impl UavAcceptanceScenario {
             "scenario timeouts must be positive"
         );
         ensure!(
-            self.camera.operational.minimum_mean_luma.is_finite()
-                && (0.0..=255.0).contains(&self.camera.operational.minimum_mean_luma)
-                && self
-                    .camera
-                    .operational
-                    .minimum_non_black_fraction
-                    .is_finite()
-                && (0.0..=1.0).contains(&self.camera.operational.minimum_non_black_fraction)
-                && self.camera.aerial_detail.minimum_mean_luma.is_finite()
-                && (0.0..=255.0).contains(&self.camera.aerial_detail.minimum_mean_luma)
-                && self.camera.aerial_detail.minimum_dynamic_range <= 255
-                && self.camera.aerial_detail.minimum_robust_dynamic_range <= 255
-                && self
-                    .camera
-                    .aerial_detail
-                    .minimum_luma_standard_deviation
-                    .is_finite()
-                && (0.0..=127.5)
-                    .contains(&self.camera.aerial_detail.minimum_luma_standard_deviation,)
-                && self
-                    .camera
-                    .aerial_detail
-                    .minimum_non_black_fraction
-                    .is_finite()
-                && (0.0..=1.0).contains(&self.camera.aerial_detail.minimum_non_black_fraction),
-            "camera thresholds are outside RGB8 bounds"
-        );
-        ensure!(
             self.mission.longitude_offset_degrees.is_finite()
                 && self.mission.longitude_offset_degrees.abs() <= 1.0
                 && self.mission.longitude_offset_degrees != 0.0
-                && self.mission.relative_altitude_m.is_finite()
-                && (1.0..=10_000.0).contains(&self.mission.relative_altitude_m)
                 && self.mission.speed_mps.is_finite()
                 && (0.1..=100.0).contains(&self.mission.speed_mps)
                 && self.mission.hold_seconds.is_finite()
@@ -417,7 +375,7 @@ impl UavAcceptanceScenario {
                 .all(f64::is_finite)
                 && view.smoothing_seconds.is_finite()
                 && (0.0..=60.0).contains(&view.smoothing_seconds)
-                && self.view.minimum_mission_pose_delta > 0,
+                && self.view.minimum_mission_sensor_frames > 0,
             "view parameters must define one bounded follow camera and advancing mission checkpoint"
         );
         Ok(())
@@ -541,27 +499,11 @@ async fn uav_sim_verify_with_visual_hold(
             && stream_app.contains("hardware H.264 decode"),
         "Stream MCP App does not expose video decoding, preview, and decode-path status"
     );
-    recover_live_stream_pipeline(&operator, &scenario.stream.live_pipeline_id).await?;
-    let live: StartLiveSessionOutput = serde_json::from_value(
-        operator
-            .call_tool(
-                "stream__start_live_session",
-                serde_json::json!({
-                    "pipeline_id": scenario.stream.live_pipeline_id
-                }),
-            )
-            .await
-            .context("starting the recording-independent live Stream session")?,
-    )
-    .context("decoding the typed live Stream session")?;
-    ensure!(
-        live.results_uri == format!("stream://session/{}/results", live.session_id)
-            && live.preview_uri == format!("stream://session/{}/preview", live.session_id),
-        "Stream returned inconsistent live-session resources: {live:?}"
-    );
+    let live = prepare_live_stream_pipeline(&operator, &scenario.stream.live_pipeline_id).await?;
     let live_session_id = live.session_id;
     let live_preview_uri = live.preview_uri;
-    let mut live_session_stopped = false;
+    let owned_live_session = live.owned_by_acceptance;
+    let mut owned_live_session_stopped = false;
     let (mut visual_stream_capture, mut moving_recording_capture) = match visual_holds {
         Some(holds) => (
             Some(holds.stream_capture_complete),
@@ -617,20 +559,22 @@ async fn uav_sim_verify_with_visual_hold(
                 .is_some_and(|up_m| up_m >= scenario.takeoff.minimum_reached_altitude_m),
             "UAV did not reach the configured aerial-tiles acceptance altitude: {state}"
         );
-        state = wait_for_aerial_camera_content(
+        state = wait_for_native_camera_stream(
             &operator,
-            Duration::from_secs(scenario.camera.detail_timeout_seconds),
+            Duration::from_secs(scenario.camera.stream_timeout_seconds),
             &scenario,
         )
         .await?;
 
-        let origin = state
-            .pointer("/world/georeference_origin")
-            .and_then(Value::as_object)
-            .context("UAV state omitted georeference_origin")?;
-        let latitude = json_number(origin, "latitude_degrees")?;
-        let longitude = json_number(origin, "longitude_degrees")?;
-        let height = json_number(origin, "ellipsoid_height_m")?;
+        let current_position: Wgs84Position = serde_json::from_value(
+            state
+                .pointer("/vehicles/0/wgs84")
+                .cloned()
+                .context("UAV state omitted the current vehicle WGS84 position")?,
+        )
+        .context("UAV state returned an invalid current vehicle WGS84 position")?;
+        let target_position =
+            nearby_mission_position(&current_position, scenario.mission.longitude_offset_degrees)?;
         let mission = serde_json::json!({
             "session_id": scenario.session_id,
             "mission_id": format!("acceptance-{}", uuid::Uuid::now_v7()),
@@ -638,13 +582,7 @@ async fn uav_sim_verify_with_visual_hold(
             "vehicles": [{
                 "vehicle_id": scenario.vehicle_id,
                 "waypoints": [{
-                    "position": {
-                        "latitude_degrees": latitude,
-                        "longitude_degrees": longitude
-                            + scenario.mission.longitude_offset_degrees,
-                        "ellipsoid_height_m": height
-                            + scenario.mission.relative_altitude_m
-                    },
+                    "position": target_position,
                     "speed_mps": scenario.mission.speed_mps,
                     "hold_seconds": scenario.mission.hold_seconds
                 }]
@@ -700,8 +638,10 @@ async fn uav_sim_verify_with_visual_hold(
                 );
             }
         }
-        stop_live_stream_session(&operator, &live_session_id, "live acceptance").await?;
-        live_session_stopped = true;
+        if owned_live_session {
+            stop_live_stream_session(&operator, &live_session_id, "live acceptance").await?;
+            owned_live_session_stopped = true;
+        }
 
         state = simulation_state(&operator, &scenario).await?;
         let simulation_time_s = state
@@ -823,7 +763,7 @@ async fn uav_sim_verify_with_visual_hold(
     }
     .await;
     let landing_result = ensure_vehicle_landed(&operator, &scenario, "postflight recovery").await;
-    let stream_stop_result = if live_session_stopped {
+    let stream_stop_result = if !owned_live_session || owned_live_session_stopped {
         Ok(())
     } else {
         stop_live_stream_session(&operator, &live_session_id, "postflight cleanup").await
@@ -861,34 +801,90 @@ async fn uav_sim_verify_with_visual_hold(
     Ok(())
 }
 
-async fn recover_live_stream_pipeline(
+async fn prepare_live_stream_pipeline(
     operator: &OperatorClient<'_>,
     pipeline_id: &str,
-) -> Result<()> {
+) -> Result<AcceptanceLiveSession> {
     let sessions: Vec<LiveSessionView> = serde_json::from_value(
         operator
             .resource("stream://sessions", Duration::from_secs(60))
             .await?,
     )
     .context("decoding visible live Stream sessions")?;
-    for session in sessions {
-        if session.pipeline_id == pipeline_id && session.lifecycle != LiveSessionLifecycle::Stopped
-        {
-            eprintln!(
-                "preflight recovery: stopping {} live Stream session {} for pipeline {}",
-                match session.lifecycle {
-                    LiveSessionLifecycle::Starting => "starting",
-                    LiveSessionLifecycle::Running => "running",
-                    LiveSessionLifecycle::Failed => "failed",
-                    LiveSessionLifecycle::Stopped => "stopped",
-                },
-                session.session_id,
-                pipeline_id
-            );
-            stop_live_stream_session(operator, &session.session_id, "preflight recovery").await?;
-        }
+    if let Some(session) = reusable_live_stream_session(&sessions, pipeline_id)? {
+        eprintln!(
+            "preflight: reusing visible {} live Stream session {} for pipeline {} without taking ownership",
+            match session.lifecycle {
+                LiveSessionLifecycle::Starting => "starting",
+                LiveSessionLifecycle::Running => "running",
+                LiveSessionLifecycle::Failed | LiveSessionLifecycle::Stopped => unreachable!(),
+            },
+            session.session_id,
+            pipeline_id
+        );
+        return acceptance_live_session(
+            &session.session_id,
+            &session.results_uri,
+            &session.preview_uri,
+            false,
+        );
     }
-    Ok(())
+
+    let started: StartLiveSessionOutput = serde_json::from_value(
+        operator
+            .call_tool(
+                "stream__start_live_session",
+                serde_json::json!({"pipeline_id": pipeline_id}),
+            )
+            .await
+            .context("starting the recording-independent live Stream session")?,
+    )
+    .context("decoding the typed live Stream session")?;
+    acceptance_live_session(
+        &started.session_id,
+        &started.results_uri,
+        &started.preview_uri,
+        true,
+    )
+}
+
+fn reusable_live_stream_session<'a>(
+    sessions: &'a [LiveSessionView],
+    pipeline_id: &str,
+) -> Result<Option<&'a LiveSessionView>> {
+    let active = sessions
+        .iter()
+        .filter(|session| {
+            session.pipeline_id == pipeline_id
+                && matches!(
+                    session.lifecycle,
+                    LiveSessionLifecycle::Starting | LiveSessionLifecycle::Running
+                )
+        })
+        .collect::<Vec<_>>();
+    ensure!(
+        active.len() <= 1,
+        "Stream exposed multiple active sessions for admitted pipeline {pipeline_id}: {active:?}"
+    );
+    Ok(active.into_iter().next())
+}
+
+fn acceptance_live_session(
+    session_id: &str,
+    results_uri: &str,
+    preview_uri: &str,
+    owned_by_acceptance: bool,
+) -> Result<AcceptanceLiveSession> {
+    ensure!(
+        results_uri == format!("stream://session/{session_id}/results")
+            && preview_uri == format!("stream://session/{session_id}/preview"),
+        "Stream returned inconsistent live-session resources for {session_id}: results={results_uri}, preview={preview_uri}"
+    );
+    Ok(AcceptanceLiveSession {
+        session_id: session_id.to_owned(),
+        preview_uri: preview_uri.to_owned(),
+        owned_by_acceptance,
+    })
 }
 
 async fn stop_live_stream_session(
@@ -988,7 +984,7 @@ fn validate_live_preview(chunks: &[Value]) -> Result<()> {
         "live preview must begin at a keyframe"
     );
     let mut last_sequence = None;
-    let mut last_timestamp = None;
+    let mut timestamps = BTreeSet::new();
     for chunk in chunks {
         let sequence = chunk
             .get("sequence")
@@ -1004,12 +1000,10 @@ fn validate_live_preview(chunks: &[Value]) -> Result<()> {
                 "live preview sequence is not contiguous"
             );
         }
-        if let Some(previous) = last_timestamp {
-            ensure!(
-                timestamp >= previous,
-                "live preview timestamps moved backwards"
-            );
-        }
+        ensure!(
+            timestamps.insert(timestamp),
+            "live preview repeated a presentation timestamp"
+        );
         let encoded = chunk
             .get("data_base64")
             .and_then(Value::as_str)
@@ -1022,7 +1016,6 @@ fn validate_live_preview(chunks: &[Value]) -> Result<()> {
             "live preview chunk is not Annex B H.264"
         );
         last_sequence = Some(sequence);
-        last_timestamp = Some(timestamp);
     }
     Ok(())
 }
@@ -1457,12 +1450,7 @@ fn assert_concurrent_gpu_workloads(context: &str) -> Result<()> {
     Ok(())
 }
 
-fn assert_world_ready(
-    state: &Value,
-    scenario: &UavAcceptanceScenario,
-    revision_uri: &str,
-    simulation_frame_uri: &str,
-) -> Result<()> {
+fn assert_world_ready(state: &Value, revision_uri: &str, simulation_frame_uri: &str) -> Result<()> {
     ensure!(
         matches!(
             json_string(state, "/lifecycle")?,
@@ -1498,37 +1486,110 @@ fn assert_world_ready(
             == Some(true),
         "PX4 is not connected: {state}"
     );
+    let sensor_camera = state
+        .pointer("/cameras/0")
+        .context("authoritative simulator state omitted its sensor camera")?;
     ensure!(
-        json_string(state, "/cameras/0/lifecycle")? == "ready"
-            && json_string(state, "/cameras/0/content")? == "visible"
-            && state
-                .pointer("/cameras/0/frames_observed")
-                .and_then(Value::as_u64)
-                .is_some_and(|count| count >= 3)
-            && state
-                .pointer("/cameras/0/mean_luma")
-                .and_then(Value::as_f64)
-                .is_some_and(|value| value >= scenario.camera.operational.minimum_mean_luma)
-            && state
-                .pointer("/cameras/0/non_black_fraction")
-                .and_then(Value::as_f64)
-                .is_some_and(|value| {
-                    value >= scenario.camera.operational.minimum_non_black_fraction
-                }),
-        "Isaac nadir camera is not operational: {state}"
+        sensor_camera_is_started(sensor_camera),
+        "Isaac nadir camera is not producing native NVENC access units: {state}"
     );
+    let live_cameras: Vec<LiveCameraDescriptor> = serde_json::from_value(
+        state
+            .get("live_cameras")
+            .cloned()
+            .context("authoritative simulator state omitted live_cameras")?,
+    )
+    .context("authoritative simulator returned invalid live_cameras")?;
     ensure!(
-        json_string(state, "/pose_publication/protocol_schema")?
-            == "veoveo.io/simulation-view-pose/v1"
-            && json_string(state, "/pose_publication/lifecycle")? == "ready"
-            && json_string(state, "/pose_publication/entity_table_digest")?.starts_with("sha256:")
-            && state
-                .pointer("/pose_publication/sent_snapshots")
-                .and_then(Value::as_u64)
-                .is_some_and(|count| count > 0),
-        "Simulation View pose publication is not ready: {state}"
+        !live_cameras.is_empty()
+            && live_cameras
+                .iter()
+                .all(|camera| camera.validate().is_ok()
+                    && camera.health == LiveCameraHealth::Healthy),
+        "authoritative simulator cameras are not healthy: {state}"
+    );
+    let products: Vec<LiveStreamProductState> = serde_json::from_value(
+        state
+            .get("stream_products")
+            .cloned()
+            .context("authoritative simulator state omitted stream_products")?,
+    )
+    .context("authoritative simulator returned invalid stream_products")?;
+    ensure!(
+        viewer_slot_pool_matches_contract(&products),
+        "authoritative simulator viewer-slot pool violates its native product contract: {state}"
     );
     Ok(())
+}
+
+fn viewer_slot_pool_matches_contract(products: &[LiveStreamProductState]) -> bool {
+    if products.is_empty() {
+        return false;
+    }
+    let product_ids = products
+        .iter()
+        .map(|product| &product.stream_product_id)
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut capacity_slots = products
+        .iter()
+        .map(|product| usize::from(product.capacity_slot))
+        .collect::<Vec<_>>();
+    capacity_slots.sort_unstable();
+    product_ids.len() == products.len()
+        && capacity_slots == (0..products.len()).collect::<Vec<_>>()
+        && products.iter().all(|product| match product.lifecycle {
+            LiveStreamProductLifecycle::Inactive => {
+                product.camera_id.is_none()
+                    && product.live_view_id.is_none()
+                    && product.active_viewer_leases == 0
+                    && product.connected_viewers == 0
+                    && product.nvenc_sessions == 0
+                    && product.last_frame_at.is_none()
+                    && product.visible.is_none()
+                    && product.diagnostic.is_none()
+            }
+            LiveStreamProductLifecycle::Starting => {
+                product.camera_id.is_some()
+                    && product.live_view_id.is_some()
+                    && product.active_viewer_leases == 1
+                    && product.connected_viewers <= 1
+                    && product.nvenc_sessions == 1
+            }
+            LiveStreamProductLifecycle::Ready => {
+                product.camera_id.is_some()
+                    && product.live_view_id.is_some()
+                    && product.active_viewer_leases == 1
+                    && product.connected_viewers <= 1
+                    && product.nvenc_sessions == 1
+                    && product.encoded_frames > 0
+                    && product.last_frame_at.is_some()
+                    && product.visible != Some(false)
+                    && product.diagnostic.is_none()
+            }
+            LiveStreamProductLifecycle::Failed => false,
+        })
+}
+
+fn idle_viewer_slot_pool_matches_contract(products: &[LiveStreamProductState]) -> bool {
+    viewer_slot_pool_matches_contract(products)
+        && products
+            .iter()
+            .all(|product| product.lifecycle == LiveStreamProductLifecycle::Inactive)
+}
+
+fn sensor_camera_is_started(camera: &Value) -> bool {
+    camera.get("lifecycle").and_then(Value::as_str) == Some("ready")
+        && camera.get("transport").and_then(Value::as_str) == Some("rtsp_rtp")
+        && camera.get("codec").and_then(Value::as_str) == Some("h264")
+        && camera.get("encoder").and_then(Value::as_str) == Some("nvidia_nvenc")
+        && camera
+            .get("frames_observed")
+            .and_then(Value::as_u64)
+            .is_some_and(|count| count >= 3)
+        && camera
+            .get("last_access_unit_bytes")
+            .and_then(Value::as_u64)
+            .is_some_and(|bytes| bytes > 0)
 }
 
 async fn wait_for_world_ready(
@@ -1547,7 +1608,7 @@ async fn wait_for_world_ready(
             "UAV simulation failed while loading its frame world: {state}"
         );
         if matches!(lifecycle, "ready" | "running" | "paused") {
-            assert_world_ready(&state, scenario, revision_uri, simulation_frame_uri)?;
+            assert_world_ready(&state, revision_uri, simulation_frame_uri)?;
             return Ok(state);
         }
         if tokio::time::Instant::now() >= deadline {
@@ -1635,7 +1696,7 @@ async fn wait_for_flight_state(
     }
 }
 
-async fn wait_for_aerial_camera_content(
+async fn wait_for_native_camera_stream(
     operator: &OperatorClient<'_>,
     timeout: Duration,
     scenario: &UavAcceptanceScenario,
@@ -1643,46 +1704,19 @@ async fn wait_for_aerial_camera_content(
     let deadline = tokio::time::Instant::now() + timeout;
     loop {
         let state = simulation_state(operator, scenario).await?;
-        let camera_has_detail = state
-            .pointer("/cameras/0/mean_luma")
-            .and_then(Value::as_f64)
-            .is_some_and(|value| value >= scenario.camera.aerial_detail.minimum_mean_luma)
-            && state
-                .pointer("/cameras/0/dynamic_range")
-                .and_then(Value::as_u64)
-                .is_some_and(|value| value >= scenario.camera.aerial_detail.minimum_dynamic_range)
-            && state
-                .pointer("/cameras/0/robust_dynamic_range")
-                .and_then(Value::as_u64)
-                .is_some_and(|value| {
-                    value >= scenario.camera.aerial_detail.minimum_robust_dynamic_range
-                })
-            && state
-                .pointer("/cameras/0/luma_standard_deviation")
-                .and_then(Value::as_f64)
-                .is_some_and(|value| {
-                    value
-                        >= scenario
-                            .camera
-                            .aerial_detail
-                            .minimum_luma_standard_deviation
-                })
-            && state
-                .pointer("/cameras/0/non_black_fraction")
-                .and_then(Value::as_f64)
-                .is_some_and(|value| {
-                    value >= scenario.camera.aerial_detail.minimum_non_black_fraction
-                });
-        if camera_has_detail {
+        let camera = state
+            .pointer("/cameras/0")
+            .context("UAV state omitted its sensor camera")?;
+        if sensor_camera_is_started(camera) {
             return Ok(state);
         }
         ensure!(
             json_string(&state, "/cameras/0/lifecycle")? != "failed",
-            "Isaac nadir camera failed before aerial content became visible: {state}"
+            "Isaac nadir camera failed before native NVENC output became available: {state}"
         );
         if tokio::time::Instant::now() >= deadline {
             bail!(
-                "Isaac nadir camera did not show detailed Google tiles within {timeout:?}; \
+                "Isaac nadir camera did not produce native NVENC access units within {timeout:?}; \
                  final state: {state}"
             );
         }
@@ -1772,6 +1806,26 @@ fn assert_georeference_origin(state: &Value, scenario: &UavAcceptanceScenario) -
     Ok(())
 }
 
+fn nearby_mission_position(
+    current: &Wgs84Position,
+    longitude_offset_degrees: f64,
+) -> Result<Wgs84Position> {
+    current
+        .validate()
+        .map_err(anyhow::Error::msg)
+        .context("validating the current mission position")?;
+    let target = Wgs84Position {
+        latitude_degrees: current.latitude_degrees,
+        longitude_degrees: current.longitude_degrees + longitude_offset_degrees,
+        ellipsoid_height_m: current.ellipsoid_height_m,
+    };
+    target
+        .validate()
+        .map_err(anyhow::Error::msg)
+        .context("the nearby mission offset left the WGS84 envelope")?;
+    Ok(target)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1781,10 +1835,41 @@ mod tests {
             .join("../../showcase/uav-sim/scenarios/new-york-aerial.json")
     }
 
+    fn live_session(session_id: &str, pipeline_id: &str, lifecycle: &str) -> LiveSessionView {
+        serde_json::from_value(serde_json::json!({
+            "session_id": session_id,
+            "session_uri": format!("stream://session/{session_id}"),
+            "results_uri": format!("stream://session/{session_id}/results"),
+            "pipeline_id": pipeline_id,
+            "pipeline_uri": format!("stream://pipeline/{pipeline_id}"),
+            "ingress": {
+                "transport": "rtp_h264_udp",
+                "host": "stream-mcp",
+                "port": 5004,
+                "payload_type": 96,
+                "clock_rate": 90000,
+                "caps": "application/x-rtp,media=video,encoding-name=H264"
+            },
+            "video": {
+                "codec": "avc1.640028",
+                "width": 640,
+                "height": 480,
+                "frame_rate": 2,
+                "expected_bitrate_bps": 4000000
+            },
+            "preview_uri": format!("stream://session/{session_id}/preview"),
+            "lifecycle": lifecycle,
+            "started_at": "2026-08-07T18:00:00Z",
+            "received_video_frames": 12,
+            "processed_frames": 12
+        }))
+        .unwrap()
+    }
+
     #[test]
     fn canonical_mission_is_runtime_loaded_and_validated() {
         let scenario = UavAcceptanceScenario::load(&canonical_scenario()).unwrap();
-        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v9");
+        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v10");
         assert_eq!(scenario.session_id, "uav-showcase");
         assert_eq!(scenario.world.world_id.as_str(), "uav-showcase-new-york");
         assert_eq!(scenario.world.tree.frames.len(), 15);
@@ -1804,13 +1889,11 @@ mod tests {
         assert_eq!(origin.ellipsoid_height_m, -17.0);
         assert_eq!(scenario.takeoff.relative_altitude_m, 300.0);
         assert_eq!(scenario.takeoff.state_timeout_seconds, 1800);
+        assert_eq!(scenario.mission.longitude_offset_degrees, 0.0002);
         assert_eq!(scenario.mission.speed_mps, 3.0);
+        assert_eq!(scenario.mission.task_timeout_seconds, 120);
         assert_eq!(scenario.recording.live_rows_timeout_seconds, 120);
-        assert_eq!(scenario.camera.aerial_detail.minimum_dynamic_range, 8);
-        assert_eq!(
-            scenario.camera.aerial_detail.minimum_robust_dynamic_range,
-            12
-        );
+        assert_eq!(scenario.camera.stream_timeout_seconds, 60);
         assert_eq!(scenario.stream.recording_replay.range_lag_seconds, 1.0);
         assert_eq!(
             scenario
@@ -1822,7 +1905,7 @@ mod tests {
         assert!(!scenario.reason.prompt.is_empty());
         assert_eq!(scenario.reason.maximum_frames, 6);
         assert_eq!(scenario.view.camera.width_px, 640);
-        assert_eq!(scenario.view.minimum_mission_pose_delta, 30);
+        assert_eq!(scenario.view.minimum_mission_sensor_frames, 10);
     }
 
     #[test]
@@ -1834,5 +1917,129 @@ mod tests {
             .canonicalize()
             .unwrap();
         assert!(!scenario.starts_with(runtime_context));
+    }
+
+    #[test]
+    fn stream_product_acceptance_requires_an_idle_contiguous_viewer_slot_pool() {
+        let products: Vec<LiveStreamProductState> = serde_json::from_value(serde_json::json!([
+            {"streamProductId":"product-slot-0","capacitySlot":0,"lifecycle":"inactive",
+             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":12,
+             "sourceToRenderSamples":0},
+            {"streamProductId":"product-slot-1","capacitySlot":1,"lifecycle":"inactive",
+             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":9,
+             "sourceToRenderSamples":0}
+        ]))
+        .unwrap();
+        assert!(idle_viewer_slot_pool_matches_contract(&products));
+        assert!(viewer_slot_pool_matches_contract(&products));
+    }
+
+    #[test]
+    fn stream_product_acceptance_allows_valid_assignment_but_idle_preflight_rejects_it() {
+        let assigned: Vec<LiveStreamProductState> = serde_json::from_value(serde_json::json!([
+            {"streamProductId":"product-slot-0","capacitySlot":0,"cameraId":"follow",
+             "liveViewId":"view-a","lifecycle":"ready","activeViewerLeases":1,
+             "connectedViewers":1,"nvencSessions":1,"encodedFrames":12,
+             "sourceToRenderP95Microseconds":18000,"sourceToRenderSamples":120,
+             "lastFrameAt":"2026-08-07T18:00:00Z","visible":true}
+        ]))
+        .unwrap();
+        assert!(!idle_viewer_slot_pool_matches_contract(&assigned));
+        assert!(viewer_slot_pool_matches_contract(&assigned));
+    }
+
+    #[test]
+    fn stream_product_acceptance_rejects_duplicate_viewer_slots() {
+        let duplicate: Vec<LiveStreamProductState> = serde_json::from_value(serde_json::json!([
+            {"streamProductId":"product-slot-0","capacitySlot":0,"lifecycle":"inactive",
+             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":0,
+             "sourceToRenderSamples":0},
+            {"streamProductId":"product-slot-1","capacitySlot":0,"lifecycle":"inactive",
+             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":0,
+             "sourceToRenderSamples":0}
+        ]))
+        .unwrap();
+        assert!(!idle_viewer_slot_pool_matches_contract(&duplicate));
+        assert!(!viewer_slot_pool_matches_contract(&duplicate));
+    }
+
+    #[test]
+    fn stream_preflight_reuses_one_visible_session_without_claiming_ownership() {
+        let sessions = vec![
+            live_session("stopped", "traffic", "stopped"),
+            live_session("active", "traffic", "running"),
+            live_session("other", "another-pipeline", "running"),
+        ];
+        let selected = reusable_live_stream_session(&sessions, "traffic")
+            .unwrap()
+            .unwrap();
+        assert_eq!(selected.session_id, "active");
+    }
+
+    #[test]
+    fn stream_preflight_rejects_multiple_visible_active_sessions() {
+        let sessions = vec![
+            live_session("first", "traffic", "starting"),
+            live_session("second", "traffic", "running"),
+        ];
+        assert!(reusable_live_stream_session(&sessions, "traffic").is_err());
+    }
+
+    #[test]
+    fn acceptance_mission_is_bounded_from_the_current_authorized_pose() {
+        let current = Wgs84Position {
+            latitude_degrees: 40.758,
+            longitude_degrees: -73.9855,
+            ellipsoid_height_m: 283.0,
+        };
+        let target = nearby_mission_position(&current, 0.0002).unwrap();
+        assert_eq!(target.latitude_degrees, current.latitude_degrees);
+        assert_eq!(target.longitude_degrees, -73.9853);
+        assert_eq!(target.ellipsoid_height_m, current.ellipsoid_height_m);
+    }
+
+    #[test]
+    fn native_sensor_stream_requires_nvenc_access_units() {
+        let ready = serde_json::json!({
+            "lifecycle":"ready",
+            "transport":"rtsp_rtp",
+            "codec":"h264",
+            "encoder":"nvidia_nvenc",
+            "frames_observed":13,
+            "last_access_unit_bytes":4821,
+            "last_frame_keyframe":false
+        });
+        assert!(sensor_camera_is_started(&ready));
+
+        let no_access_unit = serde_json::json!({
+            "lifecycle":"ready",
+            "transport":"rtsp_rtp",
+            "codec":"h264",
+            "encoder":"nvidia_nvenc",
+            "frames_observed":13,
+            "last_access_unit_bytes":0,
+            "last_frame_keyframe":false
+        });
+        assert!(!sensor_camera_is_started(&no_access_unit));
+    }
+
+    #[test]
+    fn live_preview_orders_reordered_h264_by_decode_sequence() {
+        let access_unit = BASE64_STANDARD.encode([0, 0, 0, 1, 0x65]);
+        let chunks = vec![
+            serde_json::json!({
+                "sequence": 0,
+                "timestamp_us": 200_000,
+                "keyframe": true,
+                "data_base64": access_unit,
+            }),
+            serde_json::json!({
+                "sequence": 1,
+                "timestamp_us": 100_000,
+                "keyframe": false,
+                "data_base64": access_unit,
+            }),
+        ];
+        validate_live_preview(&chunks).expect("AVC presentation reordering is valid");
     }
 }

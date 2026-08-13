@@ -1,6 +1,8 @@
 {{- define "veoveo-extension.recordingForwarder" -}}
 - name: recording-forwarder
+  {{- if .restartableInit }}
   restartPolicy: Always
+  {{- end }}
   image: {{ include "veoveo-extension.image" (dict
       "image" .image
       "registry" .registry
