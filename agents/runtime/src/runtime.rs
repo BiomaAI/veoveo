@@ -13,14 +13,16 @@ use std::sync::{
 use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
+use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
 use veoveo_platform_store::{
     AgentElicitationId, AgentElicitationRecord, AgentElicitationState, AgentEpisodeId,
     AgentEpisodeRecord, AgentEpisodeState, AgentId, AgentRecord, AgentState, AgentTaskId,
     AgentTaskRecord, AgentTaskWatchState, InvocationAuthorityRecord, OpenObject, OutboxDraft,
-    PlatformIdentity, PlatformStore, PrincipalKind, StoreAuthLevel, TaskId, TaskRecord, WakeId,
-    WakeKind, WakeRecord, WakeState, deterministic_work_context_id,
+    OutboxEventRecord, PlatformIdentity, PlatformStore, PlatformTable, PrincipalKind,
+    StoreAuthLevel, TaskId, TaskRecord, WakeId, WakeKind, WakeRecord, WakeState,
+    deterministic_work_context_id,
 };
 use veoveo_task_runtime::TaskRetentionPin;
 
@@ -171,10 +173,41 @@ impl AgentRuntime {
             )
             .await?;
 
-        if let Some(record) =
+        if let Some(mut record) =
             find_agent(&store, identity.tenant_id.record_id(), &spec.agent_key).await?
         {
             validate_agent_record(&record, &spec)?;
+            if record.manifest != spec.manifest {
+                let now = Utc::now();
+                let agent_id = agent_id_from_record(&record.id)?;
+                let event = outbox(
+                    &identity,
+                    "agent",
+                    agent_id.to_string(),
+                    "agent.manifest_updated",
+                    object([(
+                        "previous_revision".to_owned(),
+                        serde_json::json!(record.revision),
+                    )]),
+                );
+                store
+                    .client()
+                    .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $agent SET manifest = $manifest, revision += 1, updated_at = $now WHERE revision = $revision AND (lease_owner = NONE OR lease_expires_at = NONE OR lease_expires_at <= $now) RETURN AFTER); IF $updated = NONE { THROW 'agent manifest update conflict'; }; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+                    .bind(("agent", record.id.clone()))
+                    .bind(("manifest", spec.manifest.clone()))
+                    .bind(("revision", record.revision))
+                    .bind(("now", now))
+                    .bind(("event", event))
+                    .await?
+                    .check()?;
+                record = find_agent(&store, identity.tenant_id.record_id(), &spec.agent_key)
+                    .await?
+                    .ok_or(AgentRuntimeError::NotFound { entity: "agent" })?;
+                validate_agent_record(&record, &spec)?;
+                if record.manifest != spec.manifest {
+                    return Err(AgentRuntimeError::AgentConflict(spec.agent_key.clone()));
+                }
+            }
             return Ok(Self {
                 store,
                 identity,
@@ -536,7 +569,7 @@ impl AgentRuntime {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM wake WHERE agent = $agent AND state = 'pending' AND available_at <= $now ORDER BY available_at ASC, created_at ASC LIMIT $limit;")
+            .query("SELECT * FROM wake WHERE agent = $agent AND state = 'pending' AND available_at <= $now ORDER BY available_at ASC, created_at ASC, id ASC LIMIT $limit;")
             .bind(("agent", self.agent_id.record_id()))
             .bind(("now", now))
             .bind(("limit", i64::from(limit)))
@@ -1403,6 +1436,42 @@ impl AgentRuntime {
         elicitation_id: AgentElicitationId,
     ) -> Result<AgentElicitationRecord> {
         self.elicitation_record(elicitation_id).await
+    }
+
+    /// Wait for an externally governed answer without exposing the agent pod
+    /// as ingress. LIVE is a wake hint; the authoritative record is reread
+    /// after each edge, and subscribing before the first read closes the race.
+    pub async fn wait_for_elicitation_terminal(
+        &self,
+        elicitation_id: AgentElicitationId,
+        maximum_wait: Duration,
+    ) -> Result<Option<AgentElicitationRecord>> {
+        let mut live = self
+            .store
+            .live::<OutboxEventRecord>(PlatformTable::OutboxEvent)
+            .await?;
+        let current = self.elicitation_record(elicitation_id).await?;
+        if current.state != AgentElicitationState::Parked {
+            return Ok(Some(current));
+        }
+        let wait = async {
+            loop {
+                match live.next().await {
+                    Some(Ok(_)) => {
+                        let current = self.elicitation_record(elicitation_id).await?;
+                        if current.state != AgentElicitationState::Parked {
+                            return Ok(Some(current));
+                        }
+                    }
+                    Some(Err(error)) => return Err(AgentRuntimeError::Database(error)),
+                    None => return Ok(None),
+                }
+            }
+        };
+        match tokio::time::timeout(maximum_wait, wait).await {
+            Ok(result) => result,
+            Err(_) => Ok(None),
+        }
     }
 
     async fn task_by_task_id(&self, task_id: TaskId) -> Result<Option<AgentTaskRecord>> {

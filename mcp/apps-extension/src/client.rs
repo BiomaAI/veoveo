@@ -1,6 +1,9 @@
 use rmcp::model::{Resource, ServerCapabilities, Tool};
 
-use crate::models::{APP_MIME_TYPE, EXTENSION_ID, ResourceUiMeta, ToolUiMeta, UI_META_KEY};
+use crate::models::{
+    AGENT_MESSAGE_TARGETS_META_KEY, APP_MIME_TYPE, AgentMessageTargets, EXTENSION_ID,
+    ResourceUiMeta, ToolUiMeta, UI_META_KEY,
+};
 
 /// The host-side capability declaration announced at `initialize`:
 /// `capabilities.extensions["io.modelcontextprotocol/ui"]`. Declaring is
@@ -30,6 +33,18 @@ pub fn is_app_resource(resource: &Resource) -> bool {
 pub fn resource_ui_meta(resource: &Resource) -> Option<ResourceUiMeta> {
     let ui = resource.meta.as_ref()?.0.get(UI_META_KEY)?;
     serde_json::from_value(ui.clone()).ok()
+}
+
+/// Exact generic agent-message targets declared by an App resource. Invalid
+/// metadata grants no targets.
+pub fn resource_agent_message_targets(resource: &Resource) -> Vec<String> {
+    resource
+        .meta
+        .as_ref()
+        .and_then(|meta| meta.0.get(AGENT_MESSAGE_TARGETS_META_KEY))
+        .and_then(|value| serde_json::from_value::<AgentMessageTargets>(value.clone()).ok())
+        .and_then(|targets| AgentMessageTargets::new(targets.0))
+        .map_or_else(Vec::new, |targets| targets.0)
 }
 
 /// The tool's app link, when it has one.
@@ -88,22 +103,31 @@ mod tests {
         assert!(!tool_visible_to_app(&model_only));
 
         let networked = app_resource_with_meta(
-            "ui://simulation-view/live.html",
-            "simulation-view-live",
+            "ui://uav-sim/live.html",
+            "uav-sim-live",
             ResourceUiMeta {
                 csp: Some(crate::UiCsp {
                     connect_domains: vec!["wss://stream.example.com".to_owned()],
                     ..crate::UiCsp::default()
                 }),
-                prefers_border: Some(false),
+                prefers_border: None,
             },
         );
+        let networked_meta = resource_ui_meta(&networked).expect("UI metadata parses");
         assert_eq!(
-            resource_ui_meta(&networked)
-                .and_then(|metadata| metadata.csp)
-                .expect("CSP parses")
-                .connect_domains,
+            networked_meta.csp.expect("CSP parses").connect_domains,
             vec!["wss://stream.example.com"]
+        );
+        assert_eq!(networked_meta.prefers_border, None);
+
+        let messaged = crate::with_agent_message_targets(
+            app_resource("ui://workflow/control.html", "control"),
+            ["workflow-coordinator".to_owned()],
+        )
+        .expect("valid targets");
+        assert_eq!(
+            resource_agent_message_targets(&messaged),
+            ["workflow-coordinator"]
         );
     }
 }

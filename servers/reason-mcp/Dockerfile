@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1.25.0@sha256:0adf442eae370b6087e08edc7c50b552d80ddf261576f4ebd6421006b2461f12
-ARG VLLM_VERSION=v0.25.1
+ARG VLLM_IMAGE=vllm/vllm-openai:muse-glimmer@sha256:413c8fbecb1204a218117c77a4ea4b3a211d5686ff99c31d82ba6dd0cec8c5a6
 
 # The vLLM image is used as the build stage so the server binary links against
 # the same glibc the runtime stage ships.
-FROM vllm/vllm-openai:${VLLM_VERSION}@sha256:e4f88a835143cd22aee2397a26ec6bb80b3a4a6fe0c882bcbc63822904766089 AS builder
+FROM ${VLLM_IMAGE} AS builder
 
 USER root
 ENV RUSTUP_HOME=/usr/local/rustup \
@@ -19,6 +19,7 @@ RUN apt-get update \
 WORKDIR /src
 ARG VEOVEO_CARGO_CACHE_ID
 ARG VEOVEO_TARGET_CACHE_ID
+ARG VEOVEO_CARGO_BUILD_JOBS=8
 RUN --mount=type=bind,source=.,target=/src,readonly \
     --mount=type=cache,id=${VEOVEO_CARGO_CACHE_ID}-registry-v1,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=${VEOVEO_CARGO_CACHE_ID}-git-v1,target=/usr/local/cargo/git,sharing=locked \
@@ -26,11 +27,12 @@ RUN --mount=type=bind,source=.,target=/src,readonly \
     toolchain="$(rustup default | awk 'NR == 1 { print $1 }')" \
     && test -n "${toolchain}" \
     && RUSTUP_TOOLCHAIN="${toolchain}" CARGO_TARGET_DIR=/target \
-        cargo build --release --locked -p veoveo-reason-mcp --bin reason-mcp \
+        cargo build --release --locked --jobs "${VEOVEO_CARGO_BUILD_JOBS}" \
+        -p veoveo-reason-mcp --bin reason-mcp \
     && mkdir -p /out/bin \
     && install -m 0755 /target/release/reason-mcp /out/bin/reason-mcp
 
-FROM vllm/vllm-openai:${VLLM_VERSION}@sha256:e4f88a835143cd22aee2397a26ec6bb80b3a4a6fe0c882bcbc63822904766089
+FROM ${VLLM_IMAGE}
 
 USER root
 RUN useradd --system --uid 10001 --create-home \

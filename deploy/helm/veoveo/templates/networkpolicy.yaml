@@ -21,12 +21,6 @@ spec:
   podSelector:
     matchLabels:
       {{- include "veoveo.selectorLabels" . | nindent 6 }}
-    {{- if include "veoveo.mcpServerEnabled" (list . "simulation-view") }}
-    matchExpressions:
-      - key: app.kubernetes.io/component
-        operator: NotIn
-        values: [simulation-view-renderer]
-    {{- end }}
   policyTypes: [Egress]
   egress:
     - to:
@@ -57,9 +51,6 @@ spec:
           - object-store-init
           {{- if include "veoveo.componentEnabled" (list . "recording-data-plane") }}
           - recording
-          {{- end }}
-          {{- if include "veoveo.mcpServerEnabled" (list . "simulation-view") }}
-          - simulation-view-renderer
           {{- end }}
   policyTypes: [Ingress, Egress]
   ingress:
@@ -255,88 +246,6 @@ spec:
         - protocol: TCP
           port: 443
 {{- end }}
-{{- if include "veoveo.mcpServerEnabled" (list . "simulation-view") }}
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: {{ include "veoveo.fullname" . }}-simulation-view-renderer-control
-  labels:
-    {{- include "veoveo.labels" . | nindent 4 }}
-spec:
-  podSelector:
-    matchLabels:
-      {{- include "veoveo.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: simulation-view-renderer
-  policyTypes: [Ingress, Egress]
-  ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              {{- include "veoveo.selectorLabels" . | nindent 14 }}
-              app.kubernetes.io/component: simulation-view-mcp
-      ports:
-        - protocol: TCP
-          port: {{ .Values.simulationView.ports.rendererControl }}
-        - protocol: TCP
-          port: {{ .Values.simulationView.ports.poseControl }}
-        {{- range $slot := until (int .Values.simulationView.capacity.maximumRenderedCameras) }}
-        - protocol: TCP
-          port: {{ add $.Values.simulationView.ports.signalingBase $slot }}
-        {{- end }}
-    - ports:
-        {{- range $slot := until (int .Values.simulationView.capacity.maximumRenderedCameras) }}
-        - protocol: UDP
-          port: {{ add $.Values.simulationView.ports.mediaBase $slot }}
-        {{- end }}
-    - from:
-        - namespaceSelector: {}
-          podSelector:
-            matchLabels:
-              veoveo.ai/simulation-view-pose-producer: "true"
-        {{- range .Values.simulationView.poseIngress.allowedCidrs }}
-        - ipBlock:
-            cidr: {{ . | quote }}
-        {{- end }}
-      ports:
-        - protocol: TCP
-          port: {{ .Values.simulationView.ports.poseTls }}
-  egress: []
-{{- end }}
-{{- if and (include "veoveo.mcpServerEnabled" (list . "simulation-view")) .Values.simulationView.streamedWorld.enabled }}
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: {{ include "veoveo.fullname" . }}-simulation-view-streamed-world
-  labels:
-    {{- include "veoveo.labels" . | nindent 4 }}
-spec:
-  podSelector:
-    matchLabels:
-      {{- include "veoveo.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: simulation-view-renderer
-  policyTypes: [Egress]
-  egress:
-    - to:
-        - namespaceSelector: {}
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-    - to:
-        {{- range .Values.simulationView.streamedWorld.egressCidrs }}
-        - ipBlock:
-            cidr: {{ . | quote }}
-        {{- end }}
-      ports:
-        - protocol: TCP
-          port: 443
-{{- end }}
 {{- if include "veoveo.mcpServerEnabled" (list . "stream") }}
 ---
 apiVersion: networking.k8s.io/v1
@@ -382,9 +291,6 @@ spec:
           {{- if include "veoveo.mcpServerEnabled" (list . "recording") }}
           - recording
           {{- end }}
-          {{- if include "veoveo.mcpServerEnabled" (list . "simulation-view") }}
-          - simulation-view-mcp
-          {{- end }}
   policyTypes: [Ingress]
   ingress:
     - ports:
@@ -401,9 +307,5 @@ spec:
         {{- if include "veoveo.mcpServerEnabled" (list . "recording") }}
         - protocol: TCP
           port: 8796
-        {{- end }}
-        {{- if include "veoveo.mcpServerEnabled" (list . "simulation-view") }}
-        - protocol: TCP
-          port: {{ .Values.simulationView.ports.mcp }}
         {{- end }}
 {{- end }}

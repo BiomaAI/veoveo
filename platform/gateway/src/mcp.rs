@@ -1,5 +1,6 @@
 mod authorization;
 mod completion;
+mod discovery;
 mod final_tasks;
 mod health;
 mod info;
@@ -15,7 +16,7 @@ mod upstream_cache;
 mod upstream_http;
 pub use upstream_http::GatewayUpstreamHttpClientPool;
 
-use std::future::Future;
+use std::{future::Future, sync::Arc};
 
 use chrono::{DateTime, TimeDelta, Utc};
 use rmcp::{
@@ -46,6 +47,7 @@ use crate::{
     AuthenticatedSubject, GatewayCatalogHandle, GatewayState,
     mcp_support::{mcp_internal, mcp_invalid_params, mcp_invalid_request},
 };
+use discovery::CatalogDiscoveryCache;
 use upstream::GatewayUpstreamHandler;
 use upstream_authorized_http::GatewayAuthorizedHttpClient;
 use upstream_cache::{UpstreamCacheKey, UpstreamConnection, UpstreamConnectionCache};
@@ -71,6 +73,7 @@ pub struct GatewayMcp {
     internal_token_issuer: GatewayInternalTokenIssuer,
     upstream_http: GatewayUpstreamHttpClientPool,
     upstreams: UpstreamConnectionCache,
+    discovery: Arc<CatalogDiscoveryCache>,
     progress_tokens: progress::GatewayProgressTokens,
 }
 
@@ -91,6 +94,7 @@ impl GatewayMcp {
             internal_token_issuer,
             upstream_http,
             upstreams: UpstreamConnectionCache::new(),
+            discovery: Arc::new(CatalogDiscoveryCache::default()),
             progress_tokens: progress::GatewayProgressTokens::default(),
         }
     }
@@ -116,6 +120,12 @@ impl GatewayMcp {
             return Ok(CachedUpstream { key, peer });
         }
 
+        let initialization_lock = self.upstreams.initialization_lock(&key).await;
+        let _initialization_guard = initialization_lock.lock().await;
+        if let Some(peer) = self.upstreams.reusable_peer(&key).await {
+            return Ok(CachedUpstream { key, peer });
+        }
+
         let server = snapshot
             .catalog()
             .server(server_slug)
@@ -125,10 +135,6 @@ impl GatewayMcp {
             return Err(mcp_internal(format!(
                 "unsupported upstream transport for server `{server_slug}`"
             )));
-        }
-
-        if let Some(peer) = self.upstreams.reusable_peer(&key).await {
-            return Ok(CachedUpstream { key, peer });
         }
 
         let http_client = self
@@ -154,6 +160,7 @@ impl GatewayMcp {
             server_slug.clone(),
             downstream,
             self.progress_tokens.clone(),
+            self.discovery.clone(),
         );
         let running = handler
             .serve(transport)

@@ -13,6 +13,10 @@ configMapGenerator:
       - gateway.json
       - recording-producer-jwks.json
       - service-client-jwks.json
+  - name: uav-sim-world-binding
+    namespace: veoveo
+    files:
+      - world.json=uav-sim-world.json
 generatorOptions:
   disableNameSuffixHash: true
   labels:

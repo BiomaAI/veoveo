@@ -7,12 +7,14 @@
 //! `ToolServerHandle`.
 //!
 //! rmcp fixes the auth header at transport construction, so token refresh is
-//! connection rotation: mint → connect the replacement → publish the new
-//! epoch → cancel the old service (make-before-break). Task watchers hold the
-//! epoch receiver and re-resume in-flight tasks on the fresh sink; task ids
-//! are principal-scoped at the gateway, so continuity holds across rotations.
+//! connection rotation: mint → connect the replacement → restore declared
+//! resource subscriptions → publish the new epoch → cancel the old service
+//! (make-before-break). Task watchers hold the epoch receiver and re-resume
+//! in-flight tasks on the fresh sink; task ids are principal-scoped at the
+//! gateway, so continuity holds across rotations.
 
 use std::{
+    collections::HashMap,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -25,7 +27,7 @@ use rig_core::tool::{
     server::ToolServerHandle,
 };
 use rmcp::{
-    model::{ClientCapabilities, ClientInfo, Implementation},
+    model::{ClientCapabilities, ClientInfo, Implementation, SubscribeRequestParams},
     service::{RoleClient, RunningService},
     transport::{
         StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
@@ -36,10 +38,8 @@ use tokio::sync::watch;
 use veoveo_agent_runtime::AgentRuntime;
 
 use crate::{
-    delegate::KernelNotificationDelegate,
-    elicitation::{ElicitationWaiters, ParkedElicitationHandler},
-    manifest::AgentManifest,
-    wake::WakeBus,
+    delegate::KernelNotificationDelegate, elicitation::ParkedElicitationHandler,
+    manifest::AgentManifest, wake::WakeBus,
 };
 
 /// Kernel surfaces wired into every gateway session (and re-wired on each
@@ -49,7 +49,6 @@ use crate::{
 pub struct KernelHandlers {
     pub bus: WakeBus,
     pub runtime: AgentRuntime,
-    pub waiters: ElicitationWaiters,
     pub elicitation_grace: Duration,
 }
 
@@ -119,7 +118,16 @@ impl GatewayConnection {
             .decode(key_b64.trim())
             .context("gateway private key must be base64 DER")?;
         let encoding_key = EncodingKey::from_rsa_der(&key_der);
-        let http = reqwest::Client::new();
+        let gateway_host = manifest
+            .gateway_authority()?
+            .parse()
+            .context("gateway.url authority is not a valid HTTP Host header")?;
+        let mut default_headers = reqwest::header::HeaderMap::new();
+        default_headers.insert(reqwest::header::HOST, gateway_host);
+        let http = reqwest::Client::builder()
+            .default_headers(default_headers)
+            .build()
+            .context("building gateway HTTP client")?;
 
         let mut connection = Self {
             manifest,
@@ -162,9 +170,19 @@ impl GatewayConnection {
     /// Make-before-break reconnect with a freshly minted token.
     pub async fn rotate(&mut self) -> Result<()> {
         let token = self.mint_token().await?;
-        let transport = StreamableHttpClientTransport::from_config(
+        let mut transport_headers = HashMap::new();
+        transport_headers.insert(
+            reqwest::header::HOST,
+            self.manifest
+                .gateway_authority()?
+                .parse()
+                .context("gateway.url authority is not a valid HTTP Host header")?,
+        );
+        let transport = StreamableHttpClientTransport::with_client(
+            self.http.clone(),
             StreamableHttpClientTransportConfig::with_uri(self.manifest.mcp_url())
-                .auth_header(token.access_token.clone()),
+                .auth_header(token.access_token.clone())
+                .custom_headers(transport_headers),
         );
         let handler = McpClientHandler::new(
             ClientInfo::new(
@@ -179,13 +197,24 @@ impl GatewayConnection {
         .with_elicitation_handler(ParkedElicitationHandler::new(
             self.handlers.runtime.clone(),
             self.handlers.bus.clone(),
-            self.handlers.waiters.clone(),
             self.handlers.elicitation_grace,
         ));
         let service = handler
             .connect(transport)
             .await
             .map_err(|err| anyhow::anyhow!("connecting to gateway MCP: {err}"))?;
+        let subscription_count = self.manifest.resource_subscriptions.len();
+        if let Err(error) =
+            restore_resource_subscriptions(&service, &self.manifest.resource_subscriptions).await
+        {
+            match service.cancel().await {
+                Ok(reason) => tracing::debug!(?reason, "unready gateway session closed"),
+                Err(close_error) => {
+                    tracing::warn!(%close_error, "unready gateway session join failed")
+                }
+            }
+            return Err(error);
+        }
         let resumer = Arc::new(service.service().task_resumer(service.peer().clone()));
 
         let previous = self.live.replace(Live {
@@ -199,7 +228,7 @@ impl GatewayConnection {
             epoch,
             resumer: Some(resumer),
         });
-        tracing::info!(epoch, "gateway connection rotated");
+        tracing::info!(epoch, subscription_count, "gateway connection rotated");
 
         if let Some(previous) = previous {
             match previous.service.cancel().await {
@@ -263,4 +292,22 @@ impl GatewayConnection {
         }
         Ok(token)
     }
+}
+
+async fn restore_resource_subscriptions(
+    service: &RunningService<RoleClient, McpClientHandler>,
+    subscriptions: &[crate::manifest::ResourceSubscription],
+) -> Result<()> {
+    for subscription in subscriptions {
+        service
+            .subscribe(SubscribeRequestParams::new(subscription.uri.clone()))
+            .await
+            .with_context(|| {
+                format!(
+                    "restoring declared resource subscription `{}`",
+                    subscription.uri
+                )
+            })?;
+    }
+    Ok(())
 }

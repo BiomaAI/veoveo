@@ -145,11 +145,15 @@ fn dispatcher_binary(arguments: &[OsString]) -> Result<CargoBinary> {
             | "profile-up"
             | "profile-gpu-verify"
             | "profile-down"
+            | "gitops-converge"
     ) {
         Ok(DEPLOYMENT_SMOKE)
     } else if matches!(
         scenario,
-        "uav-showcase-browser-verify" | "uav-recording-browser-verify"
+        "uav-showcase-browser-verify"
+            | "uav-showcase-live-restart-verify"
+            | "uav-recording-browser-verify"
+            | "uav-recording-archive-browser-verify"
     ) {
         Ok(BROWSER_SMOKE)
     } else {
@@ -177,8 +181,7 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         | "sumo-verify"
         | "uav-domain-verify"
         | "uav-showcase-up"
-        | "uav-showcase-verify"
-        | "simulation-view-verify" => &[CONFORMANCE],
+        | "uav-showcase-verify" => &[CONFORMANCE],
         "otel"
         | "gateway-http"
         | "gateway-keycloak"
@@ -215,6 +218,7 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         | "profile-up"
         | "profile-gpu-verify"
         | "profile-down"
+        | "gitops-converge"
         | "gpu-allocation-verify"
         | "bioma-verify"
         | "surreal-integration"
@@ -222,7 +226,6 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         | "view-google-live"
         | "sumo-push"
         | "simulation-certify"
-        | "simulation-view-visual-compare"
         | "help" => &[],
         unknown => bail!(
             "unknown smoke scenario `{unknown}`; run `cargo xtask smoke help` to list scenarios"
@@ -308,6 +311,23 @@ mod tests {
     }
 
     #[test]
+    fn gitops_convergence_builds_only_the_focused_deployment_harness() {
+        let arguments = [OsString::from("gitops-converge")];
+        assert_eq!(dispatcher_binary(&arguments).unwrap(), DEPLOYMENT_SMOKE);
+        assert_eq!(
+            cargo_build_arguments(&arguments).unwrap(),
+            [
+                "build",
+                "--locked",
+                "--package",
+                "veoveo-deployment-smoke",
+                "--bin",
+                "deployment-smoke",
+            ]
+        );
+    }
+
+    #[test]
     fn repeated_browser_acceptance_builds_only_its_focused_harness() {
         let arguments = [OsString::from("uav-showcase-browser-verify")];
         assert_eq!(
@@ -331,6 +351,33 @@ mod tests {
     fn recording_browser_acceptance_uses_the_focused_harness() {
         let arguments = [OsString::from("uav-recording-browser-verify")];
         assert_eq!(dispatcher_binary(&arguments).unwrap(), BROWSER_SMOKE);
+    }
+
+    #[test]
+    fn recording_archive_browser_acceptance_uses_the_focused_harness() {
+        let arguments = [OsString::from("uav-recording-archive-browser-verify")];
+        assert_eq!(dispatcher_binary(&arguments).unwrap(), BROWSER_SMOKE);
+    }
+
+    #[test]
+    fn live_restart_acceptance_uses_the_focused_harness() {
+        let arguments = [OsString::from("uav-showcase-live-restart-verify")];
+        assert_eq!(dispatcher_binary(&arguments).unwrap(), BROWSER_SMOKE);
+        assert_eq!(
+            cargo_build_arguments(&arguments).unwrap(),
+            [
+                "build",
+                "--locked",
+                "--package",
+                "veoveo-browser-smoke",
+                "--bin",
+                "browser-smoke",
+                "--package",
+                "veoveo-mcp-conformance",
+                "--bin",
+                "conformance",
+            ]
+        );
     }
 
     #[test]

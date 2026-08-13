@@ -12,14 +12,14 @@ spec:
   sources:
     - repoURL: charts-registry.argocd.svc.cluster.local/charts
       chart: uav-sim
-      targetRevision: 0.1.0-f0d078cc8f5e
+      targetRevision: 0.1.0-4e6c3113054e
       helm:
         releaseName: uav-sim
         valueFiles:
           - $configuration/examples/bioma/uav-sim-values.yaml
           - $configuration/examples/bioma/images.lock.yaml
     - repoURL: https://github.com/BiomaAI/veoveo.git
-      targetRevision: cb837bea9c3730452fb76502678fc6017df11fc7
+      targetRevision: 3c0609c187bd4f41016cb49a2418e1b29bec78d3
       ref: configuration
   destination:
     server: https://kubernetes.default.svc

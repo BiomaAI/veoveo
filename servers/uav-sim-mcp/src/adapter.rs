@@ -2,10 +2,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use reqwest::{Client, StatusCode, Url};
+use reqwest::{Client, Method, StatusCode, Url};
+use secrecy::{ExposeSecret as _, SecretString};
 use serde::Deserialize;
 use thiserror::Error;
 use tokio::sync::Mutex;
+use veoveo_mcp_contract::{LiveCameraDescriptor, LiveCameraId, LiveStreamProductState, LiveViewId};
 use veoveo_platform_store::{
     PlatformStore, RecordIdKey, RecordingId as PlatformRecordingId, TenantId,
     deterministic_tenant_id,
@@ -15,10 +17,10 @@ use crate::{
     contract::{
         CameraState, CaptureDatasetResult, CommandAcknowledgement, ConfigureWorldOutput,
         ConfigureWorldRequest, DurableOperation, DurableOperationResult, MissionId,
-        MissionLifecycle, MissionResult, PosePublicationState, RecordingCatalogLifecycle,
-        RecordingId, RecordingKey, RecordingPublisherLifecycle, RecordingState, RuntimeTimingState,
-        ScenarioResult, SessionId, SimulationCommand, SimulationLifecycle, SimulationState,
-        SimulationWorldBinding, TileState, VehicleFlightState, VehicleState,
+        MissionLifecycle, MissionResult, RecordingCatalogLifecycle, RecordingId, RecordingKey,
+        RecordingPublisherLifecycle, RecordingState, RuntimeTimingState, ScenarioResult, SessionId,
+        SimulationCommand, SimulationLifecycle, SimulationState, SimulationWorldBinding, TileState,
+        VehicleFlightState, VehicleState,
     },
     uris,
 };
@@ -54,7 +56,8 @@ struct AdapterSimulationState {
     world: Option<SimulationWorldBinding>,
     tiles: TileState,
     cameras: Vec<CameraState>,
-    pose_publication: PosePublicationState,
+    live_cameras: Vec<LiveCameraDescriptor>,
+    stream_products: Vec<LiveStreamProductState>,
     vehicles: Vec<VehicleState>,
     recordings: Vec<AdapterRecordingState>,
     updated_at: DateTime<Utc>,
@@ -100,7 +103,9 @@ enum AdapterDurableOperationResult {
 #[derive(Clone)]
 pub struct HttpAdapter {
     client: Client,
+    event_client: Client,
     base_url: Url,
+    bearer_token: SecretString,
     operation_timeout: Duration,
     platform_store: PlatformStore,
     recording_tenant_id: TenantId,
@@ -111,6 +116,7 @@ impl HttpAdapter {
         base_url: Url,
         timeout: Duration,
         operation_timeout: Duration,
+        bearer_token: SecretString,
         platform_store: PlatformStore,
         recording_tenant_key: &str,
     ) -> Result<Self, AdapterError> {
@@ -123,9 +129,15 @@ impl HttpAdapter {
             .timeout(timeout)
             .build()
             .map_err(AdapterError::Transport)?;
+        let event_client = Client::builder()
+            .connect_timeout(timeout)
+            .build()
+            .map_err(AdapterError::Transport)?;
         Ok(Self {
             client,
+            event_client,
             base_url,
+            bearer_token,
             operation_timeout,
             platform_store,
             recording_tenant_id: deterministic_tenant_id(recording_tenant_key)
@@ -205,7 +217,8 @@ impl HttpAdapter {
             world: state.world,
             tiles: state.tiles,
             cameras: state.cameras,
-            pose_publication: state.pose_publication,
+            live_cameras: state.live_cameras,
+            stream_products: state.stream_products,
             vehicles: state.vehicles,
             recordings,
             updated_at: state.updated_at,
@@ -218,19 +231,22 @@ impl HttpAdapter {
     ) -> Result<ConfigureWorldOutput, AdapterError> {
         let world = crate::world::world_binding(request)
             .map_err(|error| AdapterError::InvalidState(error.to_string()))?;
+        self.configure_world_binding(&request.session_id, &world)
+            .await
+    }
+
+    pub async fn configure_world_binding(
+        &self,
+        session_id: &SessionId,
+        world: &SimulationWorldBinding,
+    ) -> Result<ConfigureWorldOutput, AdapterError> {
         #[derive(serde::Serialize)]
         struct AdapterWorldRequest<'a> {
             session_id: &'a SessionId,
             world: &'a SimulationWorldBinding,
         }
-        self.post(
-            "v1/world",
-            &AdapterWorldRequest {
-                session_id: &request.session_id,
-                world: &world,
-            },
-        )
-        .await
+        self.post("v1/world", &AdapterWorldRequest { session_id, world })
+            .await
     }
 
     pub async fn command(
@@ -285,6 +301,59 @@ impl HttpAdapter {
                 })
             }
         })
+    }
+
+    pub async fn assign_live_product(
+        &self,
+        capacity_slot: u16,
+        camera_id: &LiveCameraId,
+        live_view_id: &LiveViewId,
+    ) -> Result<LiveStreamProductState, AdapterError> {
+        #[derive(serde::Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Assignment<'a> {
+            camera_id: &'a LiveCameraId,
+            live_view_id: &'a LiveViewId,
+        }
+        let response = self
+            .client
+            .request(
+                Method::PUT,
+                self.endpoint(&format!("v1/live-products/{capacity_slot}/assignment"))?,
+            )
+            .bearer_auth(self.bearer_token.expose_secret())
+            .json(&Assignment {
+                camera_id,
+                live_view_id,
+            })
+            .send()
+            .await
+            .map_err(AdapterError::Transport)?;
+        decode(response).await
+    }
+
+    pub async fn release_live_product(
+        &self,
+        capacity_slot: u16,
+        live_view_id: &LiveViewId,
+    ) -> Result<LiveStreamProductState, AdapterError> {
+        #[derive(serde::Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Release<'a> {
+            live_view_id: &'a LiveViewId,
+        }
+        let response = self
+            .client
+            .request(
+                Method::DELETE,
+                self.endpoint(&format!("v1/live-products/{capacity_slot}/assignment"))?,
+            )
+            .bearer_auth(self.bearer_token.expose_secret())
+            .json(&Release { live_view_id })
+            .send()
+            .await
+            .map_err(AdapterError::Transport)?;
+        decode(response).await
     }
 
     async fn resolve_recording_keys(
@@ -357,6 +426,7 @@ impl HttpAdapter {
         let response = self
             .client
             .get(self.endpoint(path)?)
+            .bearer_auth(self.bearer_token.expose_secret())
             .send()
             .await
             .map_err(AdapterError::Transport)?;
@@ -371,6 +441,7 @@ impl HttpAdapter {
         let response = self
             .client
             .post(self.endpoint(path)?)
+            .bearer_auth(self.bearer_token.expose_secret())
             .json(input)
             .send()
             .await
@@ -391,6 +462,7 @@ impl HttpAdapter {
         let response = self
             .client
             .post(self.endpoint(path)?)
+            .bearer_auth(self.bearer_token.expose_secret())
             .timeout(timeout)
             .json(input)
             .send()
@@ -401,6 +473,26 @@ impl HttpAdapter {
 
     fn endpoint(&self, path: &str) -> Result<Url, AdapterError> {
         self.base_url.join(path).map_err(AdapterError::InvalidUrl)
+    }
+
+    pub(crate) async fn runtime_events(&self) -> Result<reqwest::Response, AdapterError> {
+        let response = self
+            .event_client
+            .get(self.endpoint("v1/events")?)
+            .bearer_auth(self.bearer_token.expose_secret())
+            .send()
+            .await
+            .map_err(AdapterError::Transport)?;
+        if response.status().is_success() {
+            Ok(response)
+        } else {
+            let status = response.status();
+            let detail = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "adapter response body unavailable".to_owned());
+            Err(AdapterError::Rejected { status, detail })
+        }
     }
 }
 
@@ -416,35 +508,117 @@ where
             .unwrap_or_else(|_| "adapter response body unavailable".to_owned());
         return Err(AdapterError::Rejected { status, detail });
     }
-    response.json().await.map_err(AdapterError::Transport)
+    let body = response.bytes().await.map_err(AdapterError::Transport)?;
+    serde_json::from_slice(&body).map_err(AdapterError::InvalidResponse)
 }
 
 pub struct FakeAdapter {
     state: SimulationState,
+    #[cfg(test)]
+    live_product_faults: FakeLiveProductFaults,
+}
+
+#[cfg(test)]
+#[derive(Default)]
+struct FakeLiveProductFaults {
+    state_calls: u64,
+    fail_state_calls: std::collections::BTreeSet<u64>,
+    fail_assignment_after_mutation: bool,
+    assignment_replacement_live_view_id: Option<LiveViewId>,
+    fail_release_before_mutation: bool,
+    fail_release_after_mutation: bool,
+    release_without_mutation: bool,
+    release_calls: Vec<(u16, LiveViewId)>,
 }
 
 impl FakeAdapter {
     pub fn new(state: SimulationState) -> Self {
-        Self { state }
+        Self {
+            state,
+            #[cfg(test)]
+            live_product_faults: FakeLiveProductFaults::default(),
+        }
     }
 
     pub fn state(&self) -> SimulationState {
         self.state.clone()
     }
 
+    #[cfg(test)]
+    fn state_result(&mut self) -> Result<SimulationState, AdapterError> {
+        self.live_product_faults.state_calls += 1;
+        if self
+            .live_product_faults
+            .fail_state_calls
+            .remove(&self.live_product_faults.state_calls)
+        {
+            return Err(AdapterError::InvalidState(
+                "injected simulator state failure".to_owned(),
+            ));
+        }
+        Ok(self.state())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_state_call(&mut self, call: u64) {
+        self.live_product_faults.fail_state_calls.insert(call);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_assignment_after_mutation(
+        &mut self,
+        replacement_live_view_id: Option<LiveViewId>,
+    ) {
+        self.live_product_faults.fail_assignment_after_mutation = true;
+        self.live_product_faults.assignment_replacement_live_view_id = replacement_live_view_id;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_release_before_mutation(&mut self) {
+        self.live_product_faults.fail_release_before_mutation = true;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_release_after_mutation(&mut self) {
+        self.live_product_faults.fail_release_after_mutation = true;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn release_without_mutation(&mut self) {
+        self.live_product_faults.release_without_mutation = true;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn state_mut(&mut self) -> &mut SimulationState {
+        &mut self.state
+    }
+
+    #[cfg(test)]
+    pub(crate) fn release_calls(&self) -> &[(u16, LiveViewId)] {
+        &self.live_product_faults.release_calls
+    }
+
     pub fn configure_world(
         &mut self,
         request: &ConfigureWorldRequest,
     ) -> Result<ConfigureWorldOutput, AdapterError> {
-        self.require_session(&request.session_id)?;
         let world = crate::world::world_binding(request)
             .map_err(|error| AdapterError::InvalidState(error.to_string()))?;
+        self.configure_world_binding(&request.session_id, &world)
+    }
+
+    pub fn configure_world_binding(
+        &mut self,
+        session_id: &SessionId,
+        world: &SimulationWorldBinding,
+    ) -> Result<ConfigureWorldOutput, AdapterError> {
+        self.require_session(session_id)?;
         if let Some(existing) = &self.state.world {
-            if existing == &world {
+            if existing == world {
                 return Ok(ConfigureWorldOutput {
                     accepted: true,
-                    world,
-                    resource_uri: uris::world(&request.session_id),
+                    world: world.clone(),
+                    resource_uri: uris::world(session_id),
                 });
             }
             return Err(AdapterError::InvalidState(
@@ -456,8 +630,8 @@ impl FakeAdapter {
         self.state.updated_at = Utc::now();
         Ok(ConfigureWorldOutput {
             accepted: true,
-            world,
-            resource_uri: uris::world(&request.session_id),
+            world: world.clone(),
+            resource_uri: uris::world(session_id),
         })
     }
 
@@ -605,6 +779,94 @@ impl FakeAdapter {
         }
     }
 
+    pub fn assign_live_product(
+        &mut self,
+        capacity_slot: u16,
+        camera_id: &LiveCameraId,
+        live_view_id: &LiveViewId,
+    ) -> Result<LiveStreamProductState, AdapterError> {
+        let product = self
+            .state
+            .stream_products
+            .iter_mut()
+            .find(|product| product.capacity_slot == capacity_slot)
+            .ok_or(AdapterError::UnknownViewerSlot(capacity_slot))?;
+        if product.lifecycle != veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive {
+            if product.camera_id.as_ref() == Some(camera_id)
+                && product.live_view_id.as_ref() == Some(live_view_id)
+            {
+                return Ok(product.clone());
+            }
+            return Err(AdapterError::InvalidState(format!(
+                "viewer slot {capacity_slot} is already assigned"
+            )));
+        }
+        product.camera_id = Some(camera_id.clone());
+        product.live_view_id = Some(live_view_id.clone());
+        product.lifecycle = veoveo_mcp_contract::LiveStreamProductLifecycle::Ready;
+        product.active_viewer_leases = 1;
+        product.nvenc_sessions = 1;
+        #[cfg(test)]
+        if self.live_product_faults.fail_assignment_after_mutation {
+            self.live_product_faults.fail_assignment_after_mutation = false;
+            if let Some(replacement) = self
+                .live_product_faults
+                .assignment_replacement_live_view_id
+                .take()
+            {
+                product.live_view_id = Some(replacement);
+            }
+            return Err(AdapterError::InvalidState(
+                "injected assignment response loss".to_owned(),
+            ));
+        }
+        Ok(product.clone())
+    }
+
+    pub fn release_live_product(
+        &mut self,
+        capacity_slot: u16,
+        live_view_id: &LiveViewId,
+    ) -> Result<LiveStreamProductState, AdapterError> {
+        #[cfg(test)]
+        {
+            self.live_product_faults
+                .release_calls
+                .push((capacity_slot, live_view_id.clone()));
+            if self.live_product_faults.fail_release_before_mutation {
+                self.live_product_faults.fail_release_before_mutation = false;
+                return Err(AdapterError::InvalidState(
+                    "injected release failure".to_owned(),
+                ));
+            }
+        }
+        let product = self
+            .state
+            .stream_products
+            .iter_mut()
+            .find(|product| product.capacity_slot == capacity_slot)
+            .ok_or(AdapterError::UnknownViewerSlot(capacity_slot))?;
+        if product.live_view_id.as_ref() != Some(live_view_id) {
+            return Err(AdapterError::InvalidState(format!(
+                "viewer slot {capacity_slot} is not assigned to {live_view_id}"
+            )));
+        }
+        #[cfg(test)]
+        if self.live_product_faults.release_without_mutation {
+            self.live_product_faults.release_without_mutation = false;
+            return Ok(product.clone());
+        }
+        release_fake_product(product);
+        #[cfg(test)]
+        if self.live_product_faults.fail_release_after_mutation {
+            self.live_product_faults.fail_release_after_mutation = false;
+            return Err(AdapterError::InvalidState(
+                "injected release response loss".to_owned(),
+            ));
+        }
+        Ok(product.clone())
+    }
+
     fn require_session(&self, session_id: &crate::contract::SessionId) -> Result<(), AdapterError> {
         if &self.state.session_id == session_id {
             Ok(())
@@ -633,6 +895,15 @@ impl FakeAdapter {
     }
 }
 
+fn release_fake_product(product: &mut LiveStreamProductState) {
+    product.camera_id = None;
+    product.live_view_id = None;
+    product.lifecycle = veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive;
+    product.active_viewer_leases = 0;
+    product.connected_viewers = 0;
+    product.nvenc_sessions = 0;
+}
+
 #[derive(Clone)]
 pub enum Adapter {
     Http(Box<HttpAdapter>),
@@ -650,10 +921,33 @@ impl Adapter {
         }
     }
 
+    pub async fn configure_world_binding(
+        &self,
+        session_id: &SessionId,
+        world: &SimulationWorldBinding,
+    ) -> Result<ConfigureWorldOutput, AdapterError> {
+        match self {
+            Self::Http(adapter) => adapter.configure_world_binding(session_id, world).await,
+            Self::Fake(adapter) => adapter
+                .lock()
+                .await
+                .configure_world_binding(session_id, world),
+        }
+    }
+
     pub async fn state(&self) -> Result<SimulationState, AdapterError> {
         match self {
             Self::Http(adapter) => adapter.state().await,
-            Self::Fake(adapter) => Ok(adapter.lock().await.state()),
+            Self::Fake(adapter) => {
+                #[cfg(test)]
+                {
+                    adapter.lock().await.state_result()
+                }
+                #[cfg(not(test))]
+                {
+                    Ok(adapter.lock().await.state())
+                }
+            }
         }
     }
 
@@ -676,6 +970,45 @@ impl Adapter {
             Self::Fake(adapter) => adapter.lock().await.execute(operation),
         }
     }
+
+    pub async fn assign_live_product(
+        &self,
+        capacity_slot: u16,
+        camera_id: &LiveCameraId,
+        live_view_id: &LiveViewId,
+    ) -> Result<LiveStreamProductState, AdapterError> {
+        match self {
+            Self::Http(adapter) => {
+                adapter
+                    .assign_live_product(capacity_slot, camera_id, live_view_id)
+                    .await
+            }
+            Self::Fake(adapter) => {
+                adapter
+                    .lock()
+                    .await
+                    .assign_live_product(capacity_slot, camera_id, live_view_id)
+            }
+        }
+    }
+
+    pub async fn release_live_product(
+        &self,
+        capacity_slot: u16,
+        live_view_id: &LiveViewId,
+    ) -> Result<LiveStreamProductState, AdapterError> {
+        match self {
+            Self::Http(adapter) => {
+                adapter
+                    .release_live_product(capacity_slot, live_view_id)
+                    .await
+            }
+            Self::Fake(adapter) => adapter
+                .lock()
+                .await
+                .release_live_product(capacity_slot, live_view_id),
+        }
+    }
 }
 
 #[derive(Debug, Error)]
@@ -686,12 +1019,18 @@ pub enum AdapterError {
     InvalidUrl(url::ParseError),
     #[error("adapter transport failed: {0}")]
     Transport(reqwest::Error),
+    #[error("adapter returned a response that violates its typed contract: {0}")]
+    InvalidResponse(#[source] serde_json::Error),
     #[error("adapter rejected the request with {status}: {detail}")]
     Rejected { status: StatusCode, detail: String },
     #[error("unknown simulation session `{0}`")]
     UnknownSession(String),
     #[error("unknown vehicle `{0}`")]
     UnknownVehicle(String),
+    #[error("unknown live camera `{0}`")]
+    UnknownCamera(String),
+    #[error("unknown live-view capacity slot `{0}`")]
+    UnknownViewerSlot(u16),
     #[error("invalid simulator state: {0}")]
     InvalidState(String),
     #[error("recording catalog failed: {0}")]
@@ -709,9 +1048,8 @@ mod tests {
     use super::*;
     use crate::contract::{
         CameraCodec, CameraEncoder, CameraLifecycle, CameraState, EnuVector, NedVector,
-        PoseProducerId, PoseProtocolSchema, PosePublicationLifecycle, PosePublicationState,
-        QuaternionXyzw, SessionId, SimulationWorldBinding, SpiffeId, StepSimulationRequest,
-        TileLifecycle, TileState, VehicleId, VehicleState, Wgs84Position,
+        QuaternionXyzw, SessionId, SimulationWorldBinding, StepSimulationRequest, TileLifecycle,
+        TileState, VehicleId, VehicleState, Wgs84Position,
     };
     use veoveo_mcp_contract::{
         FrameId, FrameWorldId, FrameWorldRevisionId, FrameWorldRevisionUri, WorldFrameUri,
@@ -746,12 +1084,21 @@ mod tests {
             timing: RuntimeTimingState {
                 physics_hz: 60,
                 native_rendering_hz: 2,
-                pose_cadence_hz: 20,
-                pose_buffer_duration_ms: 500,
-                pose_queued_snapshots: 10,
-                pose_buffer_target_snapshots: 10,
-                realtime_rebases: 0,
-                discarded_wall_seconds: 0.0,
+                render_cycles: 0,
+                physics_steps: 0,
+                refresh_states_wall_seconds: 0.0,
+                vehicle_update_wall_seconds: 0.0,
+                state_update_wall_seconds: 0.0,
+                dynamics_update_wall_seconds: 0.0,
+                sensor_update_wall_seconds: 0.0,
+                backend_state_wall_seconds: 0.0,
+                flush_forces_wall_seconds: 0.0,
+                after_step_wall_seconds: 0.0,
+                native_update_wall_seconds: 0.0,
+                render_cycle_wall_seconds: 0.0,
+                maximum_physics_step_ms: 0.0,
+                maximum_native_update_ms: 0.0,
+                maximum_render_cycle_ms: 0.0,
             },
             world: Some(fake_world()),
             tiles: TileState {
@@ -761,7 +1108,10 @@ mod tests {
                 resident_tiles: 20,
                 visible_tiles: 12,
                 loading_tiles: 0,
-                recovery_count: 0,
+                provider_generation: 1,
+                event_sequence: 0,
+                refresh_count: 0,
+                last_failure: None,
                 diagnostic: None,
             },
             cameras: vec![CameraState {
@@ -770,38 +1120,18 @@ mod tests {
                 lifecycle: CameraLifecycle::Ready,
                 width: 640,
                 height: 480,
+                frame_rate_hz: 2,
                 codec: CameraCodec::H264,
                 encoder: CameraEncoder::NvidiaNvenc,
+                transport: crate::contract::CameraTransport::RtspRtp,
                 frames_observed: 10,
-                mean_luma: 96.0,
-                dynamic_range: 224,
-                robust_dynamic_range: 180,
-                luma_standard_deviation: 42.0,
-                non_black_fraction: 0.95,
-                content: crate::contract::CameraContent::Visible,
-                diagnostic_code: None,
+                last_access_unit_bytes: 32_768,
+                last_frame_keyframe: false,
+                render_pose: None,
                 diagnostic: None,
             }],
-            pose_publication: PosePublicationState {
-                protocol_schema: PoseProtocolSchema::SimulationViewPoseV1,
-                producer_id: PoseProducerId::new("uav-sim").unwrap(),
-                producer_spiffe_id: SpiffeId::new("spiffe://veoveo.local/simulation/uav-sim")
-                    .unwrap(),
-                epoch_id: veoveo_simulation_pose::EpochId::new("epoch-1").unwrap(),
-                entity_table_revision: 1,
-                entity_table_digest: veoveo_simulation_pose::Sha256Digest::new(format!(
-                    "sha256:{}",
-                    "1".repeat(64)
-                ))
-                .unwrap(),
-                cadence_hz: 20,
-                lifecycle: PosePublicationLifecycle::Ready,
-                offered_snapshots: 10,
-                sent_snapshots: 10,
-                replaced_snapshots: 0,
-                last_sent_sequence: Some(10),
-                diagnostic: None,
-            },
+            live_cameras: Vec::new(),
+            stream_products: Vec::new(),
             vehicles: vec![VehicleState {
                 vehicle_id: VehicleId::new("uav-1").unwrap(),
                 flight_state: VehicleFlightState::Standby,
@@ -906,20 +1236,63 @@ mod tests {
             "lifecycle": "ready",
             "width": 640,
             "height": 480,
+            "frame_rate_hz": 2,
             "codec": "h264",
             "encoder": "nvidia_nvenc",
+            "transport": "rtsp_rtp",
             "frames_observed": 10,
-            "mean_luma": 96.0,
-            "dynamic_range": 224,
-            "robust_dynamic_range": 180,
-            "luma_standard_deviation": 42.0,
-            "non_black_fraction": 0.95,
-            "content": "visible"
+            "last_access_unit_bytes": 32768,
+            "last_frame_keyframe": false,
+            "render_pose": {
+                "position_error_m": 0.02,
+                "forward_error_degrees": 0.01,
+                "rendered_position_enu_m": {
+                    "east_m": 10.0,
+                    "north_m": 20.0,
+                    "up_m": 30.0
+                },
+                "rendered_forward_enu": {
+                    "east": 0.0,
+                    "north": 0.0,
+                    "up": -1.0
+                }
+            }
         }))
         .unwrap();
 
         assert_eq!(camera.codec, CameraCodec::H264);
         assert_eq!(camera.encoder, CameraEncoder::NvidiaNvenc);
+        assert_eq!(camera.frame_rate_hz, 2);
+        assert_eq!(camera.render_pose.unwrap().position_error_m, 0.02);
+    }
+
+    #[test]
+    fn private_adapter_timing_wire_requires_render_cadence_measurements() {
+        let timing: RuntimeTimingState = serde_json::from_value(serde_json::json!({
+            "physics_hz": 60,
+            "native_rendering_hz": 30,
+            "render_cycles": 120,
+            "physics_steps": 240,
+            "refresh_states_wall_seconds": 0.4,
+            "vehicle_update_wall_seconds": 0.8,
+            "state_update_wall_seconds": 0.1,
+            "dynamics_update_wall_seconds": 0.4,
+            "sensor_update_wall_seconds": 0.2,
+            "backend_state_wall_seconds": 0.1,
+            "flush_forces_wall_seconds": 0.2,
+            "after_step_wall_seconds": 0.1,
+            "native_update_wall_seconds": 3.0,
+            "render_cycle_wall_seconds": 3.5,
+            "maximum_physics_step_ms": 12.0,
+            "maximum_native_update_ms": 31.0,
+            "maximum_render_cycle_ms": 35.0
+        }))
+        .unwrap();
+
+        assert_eq!(timing.render_cycles, 120);
+        assert_eq!(timing.physics_steps, 240);
+        assert_eq!(timing.maximum_physics_step_ms, 12.0);
+        assert_eq!(timing.maximum_render_cycle_ms, 35.0);
     }
 
     #[test]
@@ -939,5 +1312,29 @@ mod tests {
         .unwrap_err();
 
         assert!(error.to_string().contains("unknown field `recording_uri`"));
+    }
+
+    #[test]
+    fn private_adapter_product_wire_preserves_visibility() {
+        let product: LiveStreamProductState = serde_json::from_value(serde_json::json!({
+            "streamProductId": "product-slot-0",
+            "capacitySlot": 0,
+            "cameraId": "follow",
+            "liveViewId": "view-019fdb63-e95e-7930-804c-47c8622d4160",
+            "lifecycle": "ready",
+            "activeViewerLeases": 1,
+            "connectedViewers": 0,
+            "nvencSessions": 1,
+            "encodedFrames": 12,
+            "sourceToRenderP95Microseconds": 18000,
+            "sourceToRenderSamples": 120,
+            "lastFrameAt": "2026-08-07T03:39:14Z",
+            "visible": true
+        }))
+        .unwrap();
+
+        assert_eq!(product.visible, Some(true));
+        assert_eq!(product.source_to_render_p95_microseconds, Some(18_000));
+        assert_eq!(product.source_to_render_samples, 120);
     }
 }

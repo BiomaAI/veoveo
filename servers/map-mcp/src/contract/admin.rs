@@ -111,6 +111,27 @@ pub struct ActiveReleasePointer {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ListActiveDatasetReleasesRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_id: Option<MapSourceId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dataset_id: Option<MapDatasetId>,
+    pub limit: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ActiveDatasetRelease {
+    pub pointer: ActiveReleasePointer,
+    pub release: DatasetRelease,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ListActiveDatasetReleasesOutput {
+    pub releases: Vec<ActiveDatasetRelease>,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ReleaseMutationRequest {
     pub release_id: DatasetReleaseId,
     pub expected_record_version: u64,

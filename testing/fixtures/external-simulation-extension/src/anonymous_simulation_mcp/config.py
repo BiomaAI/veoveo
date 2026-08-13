@@ -1,14 +1,13 @@
-"""Fail-closed configuration for the anonymous external fixture."""
+"""Fail-closed configuration for the simulator-hosted live-view fixture."""
 
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import os
 from dataclasses import dataclass
-from pathlib import Path
 
 from veoveo_mcp.host import parse_allowed_host_authority
-from veoveo_mcp.simulation_pose import PoseTlsConfig
 
 
 SERVER_SLUG = "anonymous-simulation"
@@ -20,16 +19,17 @@ class Config:
     port: int
     allowed_hosts: tuple[str, ...]
     internal_trust_jwks: str
-    artifact_service_url: str
-    producer_id: str
-    producer_spiffe_id: str
-    pose_tls: PoseTlsConfig
+    public_signaling_url: str
+    public_media_host: str
+    public_media_port: int
+    lease_seconds: int
+    viewer_slots: int
 
 
 def parse_config(argv: list[str] | None = None) -> Config:
     parser = argparse.ArgumentParser(
         prog="anonymous-simulation-mcp",
-        description="Anonymous external Simulation View producer fixture",
+        description="Simulator-hosted live-view conformance fixture",
     )
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument(
@@ -40,65 +40,30 @@ def parse_config(argv: list[str] | None = None) -> Config:
         default=os.environ.get("VEOVEO_INTERNAL_TRUST_JWKS"),
     )
     parser.add_argument(
-        "--artifact-service-url",
+        "--public-signaling-url",
         default=os.environ.get(
-            "ARTIFACT_SERVICE_URL", "http://artifact-service:8790"
+            "ANONYMOUS_SIMULATION_PUBLIC_SIGNALING_URL",
+            "ws://127.0.0.1:8812/anonymous-simulation/signaling",
         ),
     )
     parser.add_argument(
-        "--producer-id",
-        default=os.environ.get(
-            "ANONYMOUS_SIMULATION_PRODUCER_ID", "anonymous-synthetic"
-        ),
+        "--public-media-host",
+        default=os.environ.get("ANONYMOUS_SIMULATION_PUBLIC_MEDIA_HOST", "127.0.0.1"),
     )
     parser.add_argument(
-        "--producer-spiffe-id",
-        default=os.environ.get("ANONYMOUS_SIMULATION_PRODUCER_SPIFFE_ID"),
-    )
-    parser.add_argument(
-        "--pose-host",
-        default=os.environ.get(
-            "ANONYMOUS_SIMULATION_POSE_HOST", "simulation-view-pose"
-        ),
-    )
-    parser.add_argument(
-        "--pose-port",
+        "--public-media-port",
         type=int,
-        default=int(os.environ.get("ANONYMOUS_SIMULATION_POSE_PORT", "7443")),
+        default=int(os.environ.get("ANONYMOUS_SIMULATION_PUBLIC_MEDIA_PORT", "48030")),
     )
     parser.add_argument(
-        "--pose-server-hostname",
-        default=os.environ.get("ANONYMOUS_SIMULATION_POSE_SERVER_HOSTNAME"),
+        "--lease-seconds",
+        type=int,
+        default=int(os.environ.get("ANONYMOUS_SIMULATION_LEASE_SECONDS", "120")),
     )
     parser.add_argument(
-        "--pose-ca-certificate",
-        type=Path,
-        default=Path(
-            os.environ.get(
-                "ANONYMOUS_SIMULATION_POSE_CA_CERTIFICATE",
-                "/run/secrets/simulation-view-pose/ca.crt",
-            )
-        ),
-    )
-    parser.add_argument(
-        "--pose-client-certificate",
-        type=Path,
-        default=Path(
-            os.environ.get(
-                "ANONYMOUS_SIMULATION_POSE_CLIENT_CERTIFICATE",
-                "/run/secrets/simulation-view-pose/tls.crt",
-            )
-        ),
-    )
-    parser.add_argument(
-        "--pose-client-private-key",
-        type=Path,
-        default=Path(
-            os.environ.get(
-                "ANONYMOUS_SIMULATION_POSE_CLIENT_PRIVATE_KEY",
-                "/run/secrets/simulation-view-pose/tls.key",
-            )
-        ),
+        "--viewer-slots",
+        type=int,
+        default=int(os.environ.get("ANONYMOUS_SIMULATION_VIEWER_SLOTS", "2")),
     )
     args = parser.parse_args(argv)
 
@@ -111,36 +76,29 @@ def parse_config(argv: list[str] | None = None) -> Config:
             parser.error(f"invalid --allowed-host {host!r}")
     if not args.internal_trust_jwks:
         parser.error("--internal-trust-jwks is required")
-    if not args.artifact_service_url.startswith(("http://", "https://")):
-        parser.error("--artifact-service-url must be an absolute HTTP(S) URL")
-    if (
-        not args.producer_id
-        or len(args.producer_id) > 128
-        or not args.producer_spiffe_id
-        or not args.producer_spiffe_id.startswith("spiffe://")
-        or any(character.isspace() for character in args.producer_spiffe_id)
-    ):
-        parser.error("producer identity and SPIFFE URI are required and bounded")
-    if not args.pose_server_hostname:
-        parser.error("--pose-server-hostname is required")
-
+    if not args.public_signaling_url.startswith(("ws://", "wss://")):
+        parser.error("--public-signaling-url must be an absolute WS(S) URL")
+    if "@" in args.public_signaling_url:
+        parser.error("--public-signaling-url must not contain credentials")
     try:
-        pose_tls = PoseTlsConfig(
-            host=args.pose_host,
-            port=args.pose_port,
-            server_hostname=args.pose_server_hostname,
-            ca_certificate=args.pose_ca_certificate,
-            client_certificate=args.pose_client_certificate,
-            client_private_key=args.pose_client_private_key,
-        )
-    except ValueError as error:
-        parser.error(str(error))
+        ipaddress.ip_address(args.public_media_host)
+    except ValueError:
+        parser.error("--public-media-host must be a numeric IP address")
+    if not 1_024 <= args.public_media_port <= 65_535:
+        parser.error("--public-media-port must be between 1024 and 65535")
+    if not 5 <= args.lease_seconds <= 3_600:
+        parser.error("--lease-seconds must be between 5 and 3600")
+    if not 1 <= args.viewer_slots <= 32:
+        parser.error("--viewer-slots must be between 1 and 32")
+    if args.public_media_port + args.viewer_slots - 1 > 65_535:
+        parser.error("the viewer-slot media port range exceeds 65535")
     return Config(
         port=args.port,
         allowed_hosts=tuple(args.allowed_hosts),
         internal_trust_jwks=args.internal_trust_jwks,
-        artifact_service_url=args.artifact_service_url.rstrip("/"),
-        producer_id=args.producer_id,
-        producer_spiffe_id=args.producer_spiffe_id,
-        pose_tls=pose_tls,
+        public_signaling_url=args.public_signaling_url,
+        public_media_host=args.public_media_host,
+        public_media_port=args.public_media_port,
+        lease_seconds=args.lease_seconds,
+        viewer_slots=args.viewer_slots,
     )

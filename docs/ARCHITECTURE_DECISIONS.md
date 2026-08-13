@@ -131,9 +131,10 @@ Small RRD parts are the ordered write-path materialization of that journal. They
 internal. Finishing and rollover run one fail-closed object-store compaction pass that
 publishes an immutable, footer-indexed archive shard. The normal shard boundary is one
 hour or 192 MiB of unoptimized input, and video rollover starts the next shard at a
-keyframe-bearing batch. The producer-local forwarder recognizes H.264 IDRs and begins a
-new durable batch at each GoP, which guarantees an eligible boundary after the limit is
-reached. Frozen and sealed archive shards remain the governed long-term recording authority.
+decoder-reentrant batch. The producer-local forwarder begins a durable batch at every
+H.264 sample. Hub recognizes only an access unit containing SPS, PPS, and IDR as an
+eligible shard boundary. Frozen and sealed archive shards remain the governed long-term
+recording authority.
 
 Console live playback receives bounded recent history and follows the authorized writing
 segment after each Hub flush. Completed playback opens one recording-scoped Rerun Data
@@ -294,11 +295,18 @@ Stream consumes newly encoded simulator camera frames directly for live
 processing. Its reproducible replay profile consumes governed recording
 identities rather than a simulator-private media URL.
 
-Bioma runs the UAV simulator, Simulation View renderer, View, Stream, Reason,
+The authoritative simulator also owns operator live cameras. Logical cameras share one
+final smoothed pose, while every actor-and-browser viewer lease reserves a preallocated
+camera clone and an isolated RTX, NVENC, and native WebRTC product. Camera smoothing
+changes only the logical operator-camera transform at the current simulator tick. The
+platform does not mirror scenes, transport visualization poses, reconcile a second
+renderer, relay media, or persist browser leases.
+
+The reference deployment runs the authoritative UAV simulator, View, Stream, Reason,
 the cuOpt executor, and the Rerun viewer concurrently. Their Helm workloads
 declare ordinary GPU requests and remain independently schedulable. No
 application profile disables one GPU service to admit another; cluster capacity
-must satisfy the complete seven-workload declaration.
+must satisfy the complete six-workload declaration.
 
 Visual workflows fail closed without hardware acceleration. Browser automation,
 interactive demonstrations, screenshots, and publication rendering require a

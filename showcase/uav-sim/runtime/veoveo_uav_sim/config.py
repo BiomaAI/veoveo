@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import os
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from math import sqrt
 from pathlib import Path
 
+from .operator_camera_config import OperatorLiveViewRuntimeConfig
 
 GOOGLE_PHOTOREALISTIC_3D_TILES_ION_ASSET_ID = 2_275_207
 
@@ -32,6 +33,15 @@ def _int(name: str, default: str, minimum: int, maximum: int) -> int:
     return value
 
 
+def _bool(name: str, default: str) -> bool:
+    value = os.environ.get(name, default)
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    raise ValueError(f"{name} must be true or false")
+
+
 def _identity(name: str, value: str) -> str:
     if not 1 <= len(value) <= 128 or not all(
         character.isascii()
@@ -47,6 +57,40 @@ def _identity(name: str, value: str) -> str:
 class TileCachePolicy(str, Enum):
     EPHEMERAL = "ephemeral"
     PERSISTENT = "persistent"
+
+
+@dataclass(frozen=True, slots=True)
+class TileStreamingConfig:
+    maximum_screen_space_error: float
+    maximum_simultaneous_loads: int
+    maximum_cached_bytes: int
+    preload_ancestors: bool
+    preload_siblings: bool
+    forbid_holes: bool
+
+    @classmethod
+    def from_environment(cls) -> "TileStreamingConfig":
+        return cls(
+            maximum_screen_space_error=_float(
+                "UAV_SIM_TILE_MAXIMUM_SCREEN_SPACE_ERROR", "16.0", 1.0, 64.0
+            ),
+            maximum_simultaneous_loads=_int(
+                "UAV_SIM_TILE_MAXIMUM_SIMULTANEOUS_LOADS", "20", 1, 64
+            ),
+            maximum_cached_bytes=_int(
+                "UAV_SIM_TILE_MAXIMUM_CACHED_BYTES",
+                str(2 * 1024 * 1024 * 1024),
+                64 * 1024 * 1024,
+                16 * 1024 * 1024 * 1024,
+            ),
+            preload_ancestors=_bool(
+                "UAV_SIM_TILE_PRELOAD_ANCESTORS", "true"
+            ),
+            preload_siblings=_bool(
+                "UAV_SIM_TILE_PRELOAD_SIBLINGS", "true"
+            ),
+            forbid_holes=_bool("UAV_SIM_TILE_FORBID_HOLES", "true"),
+        )
 
 
 class RecordingMapProvider(str, Enum):
@@ -73,7 +117,7 @@ class CameraConfig:
     width: int
     height: int
     fps: int
-    bit_rate_bps: int
+    rtsp_port: int
     focal_length_mm: float
     clipping_near_m: float
     clipping_far_m: float
@@ -120,9 +164,7 @@ class CameraConfig:
             width=_int("UAV_SIM_CAMERA_WIDTH", "640", 64, 3_840),
             height=_int("UAV_SIM_CAMERA_HEIGHT", "480", 64, 2_160),
             fps=_int("UAV_SIM_CAMERA_FPS", "2", 1, 60),
-            bit_rate_bps=_int(
-                "UAV_SIM_CAMERA_BIT_RATE_BPS", "750000", 100_000, 50_000_000
-            ),
+            rtsp_port=_int("UAV_SIM_CAMERA_RTSP_PORT", "8554", 1, 65_534),
             focal_length_mm=_float(
                 "UAV_SIM_CAMERA_FOCAL_LENGTH_MM", "8.0", 0.1, 1_000.0
             ),
@@ -228,6 +270,7 @@ class StreamPublicationConfig:
     port: int
     payload_type: int
     source_vehicle_id: str
+    queue_capacity: int
 
     def __post_init__(self) -> None:
         if (
@@ -240,6 +283,10 @@ class StreamPublicationConfig:
             raise ValueError(
                 "UAV_SIM_STREAM_PAYLOAD_TYPE must be a dynamic RTP payload type"
             )
+        if not 2 <= self.queue_capacity <= 4_096:
+            raise ValueError(
+                "UAV_SIM_STREAM_QUEUE_CAPACITY must be between 2 and 4096"
+            )
         _identity("UAV_SIM_STREAM_SOURCE_VEHICLE_ID", self.source_vehicle_id)
 
     @classmethod
@@ -250,6 +297,7 @@ class StreamPublicationConfig:
                 "UAV_SIM_STREAM_PORT",
                 "UAV_SIM_STREAM_PAYLOAD_TYPE",
                 "UAV_SIM_STREAM_SOURCE_VEHICLE_ID",
+                "UAV_SIM_STREAM_QUEUE_CAPACITY",
             ):
                 if os.environ.get(name, "").strip():
                     raise ValueError(
@@ -268,73 +316,8 @@ class StreamPublicationConfig:
                     "UAV_SIM_STREAM_SOURCE_VEHICLE_ID", "uav-1"
                 ),
             ),
-        )
-
-
-@dataclass(frozen=True, slots=True)
-class PosePublisherConfig:
-    producer_id: str
-    producer_spiffe_id: str
-    epoch_id: str
-    ingress_host: str
-    ingress_port: int
-    server_hostname: str
-    ca_certificate: Path
-    client_certificate: Path
-    client_private_key: Path
-    entity_table_revision: int
-
-    def __post_init__(self) -> None:
-        _identity("UAV_SIM_POSE_PRODUCER_ID", self.producer_id)
-        _identity("UAV_SIM_POSE_EPOCH_ID", self.epoch_id)
-        spiffe_remainder = self.producer_spiffe_id.removeprefix("spiffe://")
-        if (
-            spiffe_remainder == self.producer_spiffe_id
-            or not spiffe_remainder
-            or spiffe_remainder.startswith("/")
-            or len(self.producer_spiffe_id) > 512
-            or any(character.isspace() for character in self.producer_spiffe_id)
-        ):
-            raise ValueError(
-                "UAV_SIM_POSE_PRODUCER_SPIFFE_ID must be a normalized SPIFFE URI"
-            )
-        for name, value in (
-            ("UAV_SIM_POSE_INGRESS_HOST", self.ingress_host),
-            ("UAV_SIM_POSE_SERVER_HOSTNAME", self.server_hostname),
-        ):
-            if not value or "/" in value or any(character.isspace() for character in value):
-                raise ValueError(f"{name} must be a DNS name or IP address")
-        for name, path in (
-            ("UAV_SIM_POSE_CA_CERTIFICATE", self.ca_certificate),
-            ("UAV_SIM_POSE_CLIENT_CERTIFICATE", self.client_certificate),
-            ("UAV_SIM_POSE_CLIENT_PRIVATE_KEY", self.client_private_key),
-        ):
-            if not path.is_absolute() or ".." in path.parts:
-                raise ValueError(f"{name} must be an absolute normalized path")
-
-    @classmethod
-    def from_environment(cls) -> "PosePublisherConfig":
-        return cls(
-            producer_id=_required("UAV_SIM_POSE_PRODUCER_ID"),
-            producer_spiffe_id=_required("UAV_SIM_POSE_PRODUCER_SPIFFE_ID"),
-            epoch_id=_required("UAV_SIM_POSE_EPOCH_ID"),
-            ingress_host=_required("UAV_SIM_POSE_INGRESS_HOST"),
-            ingress_port=_int(
-                "UAV_SIM_POSE_INGRESS_PORT", "7443", 1, 65_535
-            ),
-            server_hostname=_required("UAV_SIM_POSE_SERVER_HOSTNAME"),
-            ca_certificate=Path(_required("UAV_SIM_POSE_CA_CERTIFICATE")),
-            client_certificate=Path(
-                _required("UAV_SIM_POSE_CLIENT_CERTIFICATE")
-            ),
-            client_private_key=Path(
-                _required("UAV_SIM_POSE_CLIENT_PRIVATE_KEY")
-            ),
-            entity_table_revision=_int(
-                "UAV_SIM_POSE_ENTITY_TABLE_REVISION",
-                "1",
-                1,
-                2**63 - 1,
+            queue_capacity=_int(
+                "UAV_SIM_STREAM_QUEUE_CAPACITY", "32", 2, 4_096
             ),
         )
 
@@ -345,14 +328,14 @@ class RuntimeConfig:
     cesium_ion_access_token: str
     cesium_ion_asset_id: int
     tile_cache_policy: TileCachePolicy
+    tile_streaming: TileStreamingConfig
     cache_directory: Path
     vehicle_count: int
     adapter_host: str
     adapter_port: int
+    adapter_bearer_token: str = field(repr=False)
     physics_hz: int
     rendering_hz: int
-    pose_cadence_hz: int
-    pose_buffer_duration_ms: int
     tile_ready_frames: int
     px4_connect_timeout_seconds: float
     px4_directory: str
@@ -360,19 +343,44 @@ class RuntimeConfig:
     recording_key: uuid.UUID
     recording: RecordingConfig
     camera: CameraConfig
+    operator_live_view: OperatorLiveViewRuntimeConfig
     fleet_loop: FleetLoopConfig
     stream_publication: StreamPublicationConfig | None
-    pose_publication: PosePublisherConfig
     extension_directory: str
 
     def __post_init__(self) -> None:
-        if self.rendering_hz != self.camera.fps:
-            raise ValueError("UAV_SIM_RENDERING_HZ must match UAV_SIM_CAMERA_FPS")
-        if self.pose_cadence_hz > self.physics_hz:
-            raise ValueError("UAV_SIM_POSE_CADENCE_HZ must not exceed UAV_SIM_PHYSICS_HZ")
+        from .hydra_camera import native_sensor_aov_signal_port
+
+        maximum_operator_fps = max(
+            camera.optics.frame_rate_hz
+            for camera in self.operator_live_view.cameras
+            if camera.stream_policy.value != "disabled"
+        )
+        if self.rendering_hz < maximum_operator_fps:
+            raise ValueError(
+                "UAV_SIM_RENDERING_HZ must be at least the maximum active "
+                "operator-camera frame rate"
+            )
         if self.recording.telemetry_hz > self.physics_hz:
             raise ValueError(
                 "UAV_SIM_RECORDING_TELEMETRY_HZ must not exceed UAV_SIM_PHYSICS_HZ"
+            )
+        sensor_aov_ports = {
+            self.camera.rtsp_port,
+            native_sensor_aov_signal_port(self.camera.rtsp_port),
+        }
+        operator_aov_ports = {
+            base + slot
+            for base in (
+                self.operator_live_view.signaling_port_base,
+                self.operator_live_view.media_port_base,
+            )
+            for slot in range(self.operator_live_view.viewer_slot_count)
+        }
+        if overlap := sorted(sensor_aov_ports & operator_aov_ports):
+            raise ValueError(
+                "native sensor and operator AOV port ranges overlap at "
+                + ", ".join(str(port) for port in overlap)
             )
         admitted_vehicle_ids = {
             f"uav-{index + 1}" for index in range(self.vehicle_count)
@@ -428,21 +436,27 @@ class RuntimeConfig:
         )
         if not cache_directory.is_absolute() or ".." in cache_directory.parts:
             raise ValueError("XDG_CACHE_HOME must be an absolute normalized path")
+        adapter_bearer_token = _required("UAV_SIM_ADAPTER_BEARER_TOKEN")
+        if not 32 <= len(adapter_bearer_token) <= 512 or any(
+            character.isspace() or not character.isascii()
+            for character in adapter_bearer_token
+        ):
+            raise ValueError(
+                "UAV_SIM_ADAPTER_BEARER_TOKEN must contain 32-512 non-whitespace ASCII characters"
+            )
         return cls(
             session_id=session_id,
             cesium_ion_access_token=_required("CESIUM_ION_ACCESS_TOKEN"),
             cesium_ion_asset_id=asset_id,
             tile_cache_policy=cache_policy,
+            tile_streaming=TileStreamingConfig.from_environment(),
             cache_directory=cache_directory,
             vehicle_count=_int("UAV_SIM_VEHICLE_COUNT", "1", 1, 16),
-            adapter_host=os.environ.get("UAV_SIM_ADAPTER_HOST", "127.0.0.1"),
+            adapter_host=os.environ.get("UAV_SIM_ADAPTER_HOST", "0.0.0.0"),
             adapter_port=_int("UAV_SIM_ADAPTER_PORT", "8810", 1, 65_535),
+            adapter_bearer_token=adapter_bearer_token,
             physics_hz=_int("UAV_SIM_PHYSICS_HZ", "60", 30, 1_000),
             rendering_hz=_int("UAV_SIM_RENDERING_HZ", "2", 1, 120),
-            pose_cadence_hz=_int("UAV_SIM_POSE_CADENCE_HZ", "20", 1, 120),
-            pose_buffer_duration_ms=_int(
-                "UAV_SIM_POSE_BUFFER_DURATION_MS", "500", 50, 5_000
-            ),
             tile_ready_frames=_int("UAV_SIM_TILE_READY_FRAMES", "30", 1, 600),
             px4_connect_timeout_seconds=_float(
                 "UAV_SIM_PX4_CONNECT_TIMEOUT_SECONDS", "180.0", 30.0, 600.0
@@ -454,9 +468,27 @@ class RuntimeConfig:
             recording_key=recording_key,
             recording=RecordingConfig.from_environment(),
             camera=CameraConfig.from_environment(),
+            operator_live_view=OperatorLiveViewRuntimeConfig.from_json(
+                _required("UAV_SIM_OPERATOR_CAMERAS_JSON"),
+                viewer_slot_count=_int(
+                    "UAV_SIM_LIVE_VIEWER_SLOTS", "2", 1, 32
+                ),
+                activation_timeout_seconds=_float(
+                    "UAV_SIM_LIVE_ACTIVATION_TIMEOUT_SECONDS",
+                    "10.0",
+                    0.1,
+                    60.0,
+                ),
+                signaling_port_base=_int(
+                    "UAV_SIM_LIVE_SIGNALING_PORT_BASE", "49100", 1, 65_535
+                ),
+                media_port_base=_int(
+                    "UAV_SIM_LIVE_MEDIA_PORT_BASE", "47998", 1, 65_535
+                ),
+                public_media_ip=_required("UAV_SIM_LIVE_PUBLIC_MEDIA_IP"),
+            ),
             fleet_loop=FleetLoopConfig.from_environment(),
             stream_publication=StreamPublicationConfig.from_environment(),
-            pose_publication=PosePublisherConfig.from_environment(),
             extension_directory=os.environ.get(
                 "UAV_SIM_EXTENSION_DIRECTORY", "/opt/veoveo/extensions"
             ),

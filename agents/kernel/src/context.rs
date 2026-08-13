@@ -60,7 +60,8 @@ pub fn assemble(
     }
 
     parts.push(
-        "## Operating rules\n\nAct using your tools. Long-running gateway tools are dispatched \
+        "## Operating rules\n\nAct using your native function-call tools; never emit pseudo tool-call \
+         text or hand-written tool envelopes. Long-running gateway tools are dispatched \
          as background tasks — you will be woken with their results; never wait or poll for \
          them. Record durable conclusions with memory_write. End your turn when nothing \
          actionable remains."

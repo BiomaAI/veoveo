@@ -1,21 +1,13 @@
 # Anonymous External Simulation Extension
 
-This fixture represents a repository owned outside Veoveo. It publishes two
-declarative OpenUSD assets and complete moving-entity snapshots through the
-public Simulation View scene contract and private mTLS pose protocol.
+This fixture represents a simulation MCP server built in an independent repository.
+It owns one simulator-hosted logical camera, bounded viewer-product slots, ephemeral viewer leases,
+signaling authorization, and an MCP App. It imports no platform renderer or source
+checkout.
 
-Simulation View owns scene mirroring, camera admission, RTX render products,
-NVENC, WebRTC, leases, signaling, and the generic MCP App. This extension owns
-none of those mechanisms. It needs no GPU because it is only a synthetic pose
-producer; the installation schedules the independent
-`simulation-view-renderer` on NVIDIA hardware.
-
-## Published Inputs
-
-The compatibility release selects `veoveo-mcp==0.1.0` for CPython 3.13. The
-repository-native `uv.lock` records the private index coordinate and exact
-wheel hash. Credentials are provided only through uv's named-index
-environment variables:
+The compatibility release selects `veoveo-mcp==0.1.0` for CPython 3.13. The committed
+`uv.lock` records the private index coordinate and exact wheel hash. Credentials enter
+only through uv's named-index environment variables:
 
 ```sh
 export UV_INDEX_VEOVEO_USERNAME=token
@@ -25,27 +17,15 @@ uv run --locked --all-extras pytest
 uv build
 ```
 
-The Docker build receives the private index token through the
-`veoveo-python-index` BuildKit secret. The named index URL stays in
-`pyproject.toml`, while credentials remain outside source control. The source
-checkout never refers to a Veoveo filesystem path and does not join its Cargo
-workspace.
+The Docker build receives the package credential through the
+`veoveo-python-index` BuildKit secret. The checkout never refers to a Veoveo filesystem
+path and does not join its Cargo workspace.
 
-## Release Surface
+The extension owns its release manifest, gateway fragment, hosted-server conformance
+document, Helm chart, and application image. The adjacent installation fixture owns the
+gateway binding, trust, public endpoints, platform selection, and digest lock.
 
-The extension owns:
-
-- `release/extension-release.json`;
-- `gateway-fragment.json`;
-- `conformance/hosted-server.json`;
-- `deploy/helm`, including `Chart.lock`;
-- one CPU-only application image built by `docker-bake.hcl`.
-
-The adjacent installation repository fixture owns `gateway-binding.json`,
-platform selection, trust roots, the producer certificate, public network
-coordinates, GPU placement, and image digests.
-
-The canonical acceptance copies this fixture into a temporary independent
-Git checkout, serves the SDK wheel from an authenticated package index, and
-runs locked tests and packaging there. No Python import resolves from the
-Veoveo source tree.
+Canonical acceptance copies this directory into a temporary independent checkout,
+serves the SDK wheel from an authenticated package index, and runs locked tests,
+packaging, Bake graph validation, and Helm validation there. Its synthetic product
+cannot count as GPU, NVENC, WebRTC media, or browser visual evidence.

@@ -1,4 +1,5 @@
 import { demoSnapshot } from "./demo";
+import { agentElicitationDecisionPath, agentElicitationsApiPath } from "./agentControl";
 import type {
   CallToolResult,
   CancelTaskResult,
@@ -10,6 +11,8 @@ import type {
 } from "@modelcontextprotocol/sdk/types.js";
 import type {
   AppCatalog,
+  AgentElicitation,
+  AgentWakeReceipt,
   ArtifactAccessRequest,
   ArtifactAccessRequestPage,
   ArtifactAccessRequestState,
@@ -121,6 +124,90 @@ export async function cancelTask(taskId: string): Promise<void> {
     method: "POST",
     body: ""
   });
+}
+
+interface AgentWakeReceiptWire {
+  request_id: string;
+  wake_id: string;
+  agent_id: string;
+  work_context: string;
+  accepted_at: string;
+}
+
+interface AgentElicitationWire {
+  elicitation_id: string;
+  message: string;
+  requested_schema?: unknown;
+  requested_at: string;
+}
+
+function agentWakeReceipt(wire: AgentWakeReceiptWire): AgentWakeReceipt {
+  return {
+    requestId: wire.request_id,
+    wakeId: wire.wake_id,
+    agentId: wire.agent_id,
+    workContext: wire.work_context,
+    acceptedAt: wire.accepted_at,
+  };
+}
+
+export async function sendAgentMessage(
+  agentId: string,
+  requestId: string,
+  message: string,
+): Promise<AgentWakeReceipt> {
+  const wire = await consoleMutation<AgentWakeReceiptWire>(
+    `agents/${encodeURIComponent(agentId)}/messages`,
+    {
+      method: "POST",
+      body: JSON.stringify({ request_id: requestId, message }),
+    },
+  );
+  return agentWakeReceipt(wire);
+}
+
+export async function loadAgentElicitations(
+  agentId: string,
+  signal?: AbortSignal,
+): Promise<AgentElicitation[]> {
+  const response = await fetch(
+    agentElicitationsApiPath(agentId),
+    {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+      signal,
+    },
+  );
+  const rotatedToken = response.headers.get("x-veoveo-csrf-token");
+  if (rotatedToken) csrfToken = rotatedToken;
+  if (response.status === 401) authenticationRequired();
+  if (response.status === 403) {
+    throw new Error("Agent elicitations are not permitted for this Console session.");
+  }
+  if (!response.ok) throw new Error(`Agent elicitations returned ${response.status}`);
+  const values = (await response.json()) as AgentElicitationWire[];
+  return values.map((wire) => ({
+    elicitationId: wire.elicitation_id,
+    message: wire.message,
+    requestedSchema: wire.requested_schema,
+    requestedAt: wire.requested_at,
+  }));
+}
+
+export async function decideAgentElicitation(
+  agentId: string,
+  elicitationId: string,
+  requestId: string,
+  decision: { action: "accept"; content: Record<string, unknown> } | { action: "decline" | "cancel" },
+): Promise<AgentWakeReceipt> {
+  const wire = await consoleMutation<AgentWakeReceiptWire>(
+    agentElicitationDecisionPath(agentId, elicitationId),
+    {
+      method: "POST",
+      body: JSON.stringify({ request_id: requestId, ...decision }),
+    },
+  );
+  return agentWakeReceipt(wire);
 }
 
 export async function setArtifactReleaseState(artifactId: string, releaseState: ReleaseState): Promise<void> {
@@ -412,5 +499,44 @@ export async function readAppResource(
   return consoleMutation<ReadResourceResult>("apps/read", {
     method: "POST",
     body: JSON.stringify({ server, appUri, uri }),
+  });
+}
+
+export interface AppResourceEventSubscription {
+  subscriptionId: string;
+  uri: string;
+}
+
+export async function openAppResourceEvents(
+  server: string,
+  appUri: string,
+  subscriptions: AppResourceEventSubscription[],
+  signal?: AbortSignal | null,
+): Promise<Response> {
+  if (!csrfToken) throw new Error("Console session has not been initialized");
+  const response = await fetch("/console/api/apps/resource-events", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      Accept: "text/event-stream",
+      "Content-Type": "application/json",
+      "X-Veoveo-CSRF-Token": csrfToken,
+    },
+    body: JSON.stringify({ server, appUri, subscriptions }),
+    signal,
+  });
+  const rotatedToken = response.headers.get("x-veoveo-csrf-token");
+  if (rotatedToken) csrfToken = rotatedToken;
+  if (response.status === 401) authenticationRequired();
+  if (response.status === 403) {
+    throw new Error("This App resource subscription is not permitted by the active Console policy.");
+  }
+  return response;
+}
+
+export async function unsubscribeAppResource(subscriptionId: string): Promise<void> {
+  await consoleMutation<Record<string, never>>("apps/resource-unsubscribe", {
+    method: "POST",
+    body: JSON.stringify({ subscriptionId }),
   });
 }

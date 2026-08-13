@@ -14,23 +14,29 @@ use re_sdk_types::external::re_types_core::Loggable;
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct RrdVideoBoundary {
     pub contains_video: bool,
-    pub begins_with_keyframe: bool,
+    pub begins_with_decoder_reentrant_access_unit: bool,
 }
 
 impl RrdVideoBoundary {
     fn observe(&mut self, sample: &VideoSample) -> Result<()> {
-        let keyframe = h264_access_unit_is_idr(sample.0.0.as_ref())?;
+        let decoder_reentrant = h264_access_unit_is_decoder_reentrant(sample.0.0.as_ref())?;
         if !self.contains_video {
-            self.begins_with_keyframe = keyframe;
+            self.begins_with_decoder_reentrant_access_unit = decoder_reentrant;
         }
         self.contains_video = true;
         Ok(())
     }
 }
 
-/// Return whether an Annex B access unit contains an H.264 IDR picture.
-pub fn h264_access_unit_is_idr(bytes: &[u8]) -> Result<bool> {
-    Ok(annex_b_nals(bytes)?.iter().any(|nal| nal[0] & 0x1f == 5))
+/// Return whether an Annex B access unit can initialize a fresh H.264 decoder.
+pub fn h264_access_unit_is_decoder_reentrant(bytes: &[u8]) -> Result<bool> {
+    let nal_types = annex_b_nals(bytes)?
+        .iter()
+        .map(|nal| nal[0] & 0x1f)
+        .collect::<Vec<_>>();
+    Ok([5, 7, 8]
+        .into_iter()
+        .all(|required| nal_types.contains(&required)))
 }
 
 pub fn inspect_rrd_video_boundary(encoded_rrd: &[u8]) -> Result<RrdVideoBoundary> {
@@ -122,8 +128,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn detects_h264_idr_access_units() {
-        assert!(h264_access_unit_is_idr(&[0, 0, 0, 1, 0x65, 1]).unwrap());
-        assert!(!h264_access_unit_is_idr(&[0, 0, 1, 0x41, 1]).unwrap());
+    fn detects_decoder_reentrant_h264_access_units() {
+        let native = [
+            0, 0, 0, 1, 0x67, 1, 0, 0, 0, 1, 0x68, 1, 0, 0, 0, 1, 0x65, 1,
+        ];
+        assert!(h264_access_unit_is_decoder_reentrant(&native).unwrap());
+        assert!(!h264_access_unit_is_decoder_reentrant(&[0, 0, 0, 1, 0x65, 1]).unwrap());
+        assert!(!h264_access_unit_is_decoder_reentrant(&[0, 0, 1, 0x41, 1]).unwrap());
     }
 }

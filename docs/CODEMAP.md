@@ -41,7 +41,6 @@ authoritative until each planned change lands:
 |---|---|
 | [`REPOSITORY_HARDENING_PLAN.md`](REPOSITORY_HARDENING_PLAN.md) | compiled repository tooling, contract enforcement, test and smoke ownership, architecture policy, supply-chain hardening, external-extension seams, and governance |
 | [`RMCP_3_MIGRATION.md`](RMCP_3_MIGRATION.md) | hard cut to MCP `2026-07-28` and `rmcp` 3, official Tasks and multi-round requests, stateless transport, subscription and replica redesign, Rig migration, duplicate protocol deletion, and acceptance |
-| [`SIMULATION_LIVE_VIEW_HARD_CUT.md`](SIMULATION_LIVE_VIEW_HARD_CUT.md) | early hard cut from the mirrored Simulation View stack to simulator-hosted authoritative cameras, one encoded product per camera, ephemeral viewer leases, and shared conformance |
 
 MCP designs live with the crate whose public contract they specify:
 
@@ -51,9 +50,6 @@ MCP designs live with the crate whose public contract they specify:
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, and standalone distribution |
 | [`mcp/composer/DESIGN.md`](../mcp/composer/DESIGN.md) | offline external gateway fragment/binding composition, requirements, and deterministic provenance |
 | [`platform/runtimes/simulation/DESIGN.md`](../platform/runtimes/simulation/DESIGN.md) | canonical hardware-GPU Isaac Sim and Isaac Lab runtime, selected extension profile, and conformance probes |
-| [`platform/simulation/pose/DESIGN.md`](../platform/simulation/pose/DESIGN.md) | provider-neutral binary latest-pose schema, freshness rules, shared memory, and streaming framing |
-| [`platform/simulation/scene/DESIGN.md`](../platform/simulation/scene/DESIGN.md) | provider-neutral governed scene declaration shared by simulation producers and Simulation View |
-| [`servers/simulation-view-mcp/DESIGN.md`](../servers/simulation-view-mcp/DESIGN.md) | renderer-only scene mirroring, logical cameras, capacity, live-view leases, signaling, and the generic App |
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and bounded transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration |
@@ -64,7 +60,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) | temporal authority, operational calendars, clock quality, and events |
 | [`servers/timeseries-mcp/DESIGN.md`](../servers/timeseries-mcp/DESIGN.md) | timeseries forecasting, preview contract, and the forecast MCP App view |
 | [`servers/view-mcp/DESIGN.md`](../servers/view-mcp/DESIGN.md) | governed static scene compositions, 3D Tiles residency, declarative overlays, and GPU frame capture |
-| [`servers/uav-sim-mcp/DESIGN.md`](../servers/uav-sim-mcp/DESIGN.md) | governed UAV simulation sessions, missions, vehicles, tiles, recordings, and independent Simulation View pose publication |
+| [`servers/uav-sim-mcp/DESIGN.md`](../servers/uav-sim-mcp/DESIGN.md) | governed UAV simulation sessions, missions, vehicles, tiles, recordings, authoritative cameras and render products, ephemeral viewer leases, signaling, and the live-view App |
 
 Deployment, examples, templates, and fixtures keep their instructions beside the
 material they operate:
@@ -92,8 +88,8 @@ the headed Chrome `Page.printToPDF` contract that produces the
 [`whitepaper PDF`](veoveo-whitepaper.pdf) and
 [`harness PDF`](autonomy-harness.pdf). [`autonomy-harness.html`](autonomy-harness.html)
 is the browser edition of the harness document. These three publication
-surfaces describe the same 17-server catalog and use the normative component
-designs above for Stream, Reason, UAV Simulation, Simulation View, Recording
+surfaces describe the same 16-server catalog and use the normative component
+designs above for Stream, Reason, authoritative UAV live view, Recording
 Hub, administration, and GPU policy.
 
 ## Root
@@ -125,15 +121,14 @@ Hub, administration, and GPU policy.
 | `testing/` | conformance tooling and multi-process smoke harnesses |
 | `sdk/` | language SDK workspaces |
 | `deploy/helm/veoveo/` | Kubernetes installation chart, chart-owned first-party service definitions, and typed component/server presets |
-| `deploy/helm/veoveo/templates/simulation-view.yaml` | independently selected Simulation View MCP plus co-located hardware Isaac renderer and mTLS pose ingress, bounded signaling/media Services, shared memory, artifacts, versioned persistent renderer cache, and per-container DRA claim binding |
+| `showcase/uav-sim/deploy/helm/` | authoritative GPU simulator, UAV MCP server, live-view signaling/media ingress, render-product capacity, and per-viewer lease configuration |
 | `testing/smoke/src/bin/smoke/deployment.rs` | profile validation and orchestration, immutable gateway activation, and ordered Helm release inputs |
 | `testing/smoke/src/bin/smoke/deployment/gpu.rs` | managed NVIDIA DRA orchestration, ResourceSlice inventory, persistent-claim preservation, and workload placement proof |
 | `testing/smoke/src/bin/smoke/deployment/gpu/helm.rs` | Helm v4 release metadata, exact allocator artifact and render verification, and atomic installation |
 | `testing/smoke/src/bin/smoke/deployment/gpu/admission.rs` | kubelet-plugin selector, DaemonSet readiness, node taint, and pod scheduling diagnostics |
 | `testing/smoke/src/bin/smoke/deployment/gpu/workloads.rs` | typed Deployment selector, current ReplicaSet ownership, Ready Pod/container, replica-count, and in-container GPU evidence targeting |
-| `testing/smoke/src/bin/smoke/deployment/readiness.rs` | post-rollout Simulation View control-plane port-forward and full durable-runtime convergence gate |
-| `testing/deployment-smoke/` | focused deployment-profile CLI that avoids compiling unrelated protocol and visual scenarios |
-| `testing/browser-smoke/` | focused headed-browser acceptance over an already-running simulation without simulator lifecycle mutation |
+| `testing/deployment-smoke/` | focused deployment-profile and exact-revision GitOps convergence CLI that avoids compiling unrelated protocol and visual scenarios |
+| `testing/browser-smoke/` | focused headed-browser acceptance over an already-running simulation plus explicit native live-view container-restart recovery evidence |
 | `deploy/helm/veoveo-extension/` | private reusable extension-chart helper API and immutable chart package source |
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
@@ -143,8 +138,8 @@ Hub, administration, and GPU policy.
 | `templates/python-mcp/` | canonical Python server template (`datasheet`) |
 | `testing/fixtures/extension-helm-consumer/` | anonymous cross-release Helm library acceptance fixture |
 | `testing/fixtures/external-extension-installation/` | anonymous deployment v5 platform selection and exact Artifact/Frames/Map/Media/Recording/RRD image-closure acceptance |
-| `testing/fixtures/external-simulation-extension/` | isolated Python extension fixture that publishes governed OpenUSD assets and typed latest poses while consuming core Simulation View |
-| `testing/fixtures/external-simulation-installation/` | independent platform/extension source composition, exact Simulation View image closure, installation-owned gateway binding, and exclusive renderer GPU placement |
+| `testing/fixtures/external-simulation-extension/` | isolated contract-only Python simulation extension with typed authoritative camera and render-product declarations; it is never visual GPU evidence |
+| `testing/fixtures/external-simulation-installation/` | independent platform/extension source composition, installation-owned gateway binding, and contract-only simulation deployment closure |
 | `deploy/contract/tests/multi_repository.rs` | anonymous acceptance using independent platform, extension, and installation Git histories with one combined deployment lock |
 | `testing/fixtures/simulation-overlay/` | repository-neutral overlay identity and CUDA probe for canonical simulation-base acceptance |
 | `tools/image-build/` | registry-neutral managed BuildKit base configuration, shared Rust builder inputs, and the source-locked first-party Datasheet image environment |
@@ -179,7 +174,9 @@ MCP Apps (SEP-1865 / ext-apps "2026-01-26") support: pinned protocol
 constants (`io.modelcontextprotocol/ui`, `text/html;profile=mcp-app`), typed
 `_meta.ui` shapes, server helpers (capability declaration, `ui://` app
 resources, tool links), and host helpers (capability declaration, app
-detection, visibility checks). `mcp/apps-extension/DESIGN.md` is the
+detection, and visibility checks). The Console owns the generic reactive-resource
+adapter that carries ordinary MCP subscription wakes across the pinned Apps
+bridge without exposing domain payloads. `mcp/apps-extension/DESIGN.md` is the
 canonical server↔core↔UI contract: domain reads are resources, domain
 mutations are tools, domain views are `ui://` apps — never bespoke admin
 REST or hardcoded console pages.
@@ -200,6 +197,7 @@ protocol tooling.
 | File | Responsibility |
 |---|---|
 | `access.rs` | artifact access levels, user/group subjects, grant composition |
+| `agents.rs` | authenticated operator-message, elicitation-decision, wake-receipt, and elicitation-view contracts |
 | `artifact_service.rs` | artifact-plane requests, capabilities, share links, native async port |
 | `duckdb.rs` | shared DuckDB source types and safe read-function SQL fragments |
 | `coordinates.rs` | shared coordinate spaces, world/revision/frame identities, complete frame-tree vocabulary, WGS84 positions, and operation provenance |
@@ -280,7 +278,7 @@ The only durable platform persistence layer.
 | `recording_ingest.rs`, `recording_blueprints.rs` | producer streams, idempotent batch checkpoints, immutable producer Blueprint revisions, and journal state |
 | `usage.rs` | shared domain/media usage records |
 | `outbox.rs`, `changefeed.rs` | transactional events, checkpoints, LIVE acceleration |
-| `simulation_view.rs` | Simulation View-specific desired-state commits, revision guards, restart loading, and reconciliation audit transactions |
+| `live_views.rs` | append-only audit records for authoritative simulation live-view products and ephemeral viewer leases |
 | `store.rs` | connection and transaction helpers over domain records |
 
 Migrations `0001` through the current version live under `migrations/`. Runtime services
@@ -318,8 +316,9 @@ The runtime is the source of truth. The extension is transport only.
 | `policy.rs` | policy evaluation entrypoint |
 | `mcp_support.rs` | MCP URI projection, including declared cross-server resource identities |
 | `mcp/authorization.rs` | per-method/profile/server target authorization |
-| `mcp/tools.rs` | aggregated tool projection and explicit helper gating |
-| `mcp/resources.rs` | resource/list/read/subscribe projection |
+| `mcp/discovery.rs` | exact-authority catalog discovery cache, bounded concurrency, per-server failure isolation, and list-change invalidation |
+| `mcp/tools.rs` | failure-isolated aggregated tool projection and explicit helper gating |
+| `mcp/resources.rs` | failure-isolated resource/list projection plus fail-closed read/subscribe routing |
 | `mcp/prompts.rs`, `completion.rs` | prompt and completion projection |
 | `mcp/final_tasks.rs` | canonical upstream final task client/projection |
 | `mcp/tasks.rs` | explicit weak-client task projection |
@@ -411,11 +410,10 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/stream-mcp` | admitted live and replay GStreamer execution, typed pipeline profiles and results, encoded preview, and the Stream MCP App |
 | `servers/reason-mcp` | local recorded-video reasoning, grounding, and Rerun annotations |
 | `servers/recording-mcp` | governed recording catalog, queries, subscriptions, and sealing |
-| `servers/simulation-view-mcp` | governed renderer sessions, streamed Artifact-plane scene materialization, immutable visual scenes, durable pose-producer authorization renewal, ordered runtime reconciliation, logical camera admission, live-view leases, authenticated signaling, and the generic live-view App |
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifacts |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | immutable governed scene compositions, owner and Work Context scoped geospatial views, shared 3D Tiles streaming, GPU overlays, and captured frames |
-| `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, missions, vehicles, tasks, subscriptions, recording references, governed Simulation View scene preparation, and typed pose-publication health |
+| `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, missions, vehicles, tasks, subscriptions, recording references, authoritative logical cameras, isolated per-viewer GPU products, ephemeral viewer leases, authenticated signaling, and the live-view App |
 
 The packaged Node chart server keeps its Veoveo boundary beside the image:
 
@@ -428,16 +426,35 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 
 | Path | Responsibility |
 |---|---|
-| `servers/uav-sim-mcp/src/view_scene.rs` | caller-authorized publication of UAV-owned OpenUSD assets and authoritative typed scene/pose binding without camera or renderer ownership |
-| `servers/uav-sim-mcp/assets/view/` | self-contained declarative reference environment and UAV visual prototype |
-| `showcase/uav-sim/runtime/` | thin domain overlay on the canonical Isaac runtime with Cesium/Pegasus compatibility, PX4 lifecycle, RTX domain sensors, direct encoded Stream publication, Rerun publication, and a UAV telemetry adapter over the shared Simulation View pose SDK |
-| `showcase/uav-sim/deploy/` | commit-addressed OCI publication, MCP-configured GPU simulator workload, private pose-producer TLS, versioned persistent cache, typed sensor configuration, and network policy; operator media remains in Simulation View |
+| `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser viewer leases, exclusive viewer-slot admission, bounded capacity, renewal, closure, expiry, and typed denial state |
+| `servers/uav-sim-mcp/src/server/signaling.rs` | authenticated WebRTC signaling authorization and per-viewer peer attachment to simulator-owned encoded products |
+| `servers/uav-sim-mcp/src/server/live_view_audit.rs` | durable audit projection for camera, product, lease, denial, expiry, and revocation events |
+| `servers/uav-sim-mcp/src/server/runtime_events.rs` | strict authenticated adapter-ready and final-ready HTTP stream ingestion, immutable binding reapplication trigger, and subscribed live-camera notification |
+| `servers/uav-sim-mcp/assets/live-app.html` | self-contained authoritative-camera selection and multi-view live App |
+| `showcase/uav-sim/runtime/` | thin domain overlay on the canonical Isaac runtime with Cesium/Pegasus compatibility, PX4 lifecycle, RTX domain sensors, authoritative logical cameras, isolated per-viewer RTX/NVENC products, direct Stream publication, and Rerun publication |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera.py` | operator-camera orchestration over focused rig, smoothing, product, and health modules |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_rigs.py` | authoritative target sampling and desired poses for every supported camera rig |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_smoothing.py` | frame-rate-independent position and shortest-arc orientation filters with typed reset rules |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/operator_products.py` | bounded preallocated viewer slots, each with an isolated camera clone, RTX render product, NVENC bitstream, and native WebRTC peer |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/render_pose.py` | bounded agreement diagnostics between authoritative camera poses and rendered Hydra frames |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/physical_camera.py` | exact authoritative body-and-mount USD sensor camera, distinct from smoothed operator views |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/hydra_camera.py` | physical-camera Hydra product, CUDA AOV-to-native-RTSP configuration, encoded-frame pairing, and nonblocking sensor health |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/rtsp_h264.py` | pod-local RTSP client, interleaved RTP parser, RFC 6184 depacketizer, and native encoded access-unit delivery |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/h264.py` | strict native Annex B GOP parsing and decoder-reentrant SPS/PPS/IDR qualification |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/runtime_events.py` | retained nonblocking adapter-ready and final-ready lifecycle edges over the authenticated private HTTP stream |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/tile_lifecycle.py` | generation-safe reduction of redacted native Cesium load events, one-shot provider-session refresh, and current coverage state without polling |
+| `showcase/uav-sim/runtime/patches/cesium-0.29.0-external-viewports.patch` | pinned headless viewport-authority switch that prevents interactive window discovery from clearing simulator-managed Cesium views |
+| `showcase/uav-sim/runtime/patches/cesium-0.29.0-lifecycle-events.patch` | pinned Omniverse extension events, load generations, and query-secret log redaction |
+| `showcase/uav-sim/runtime/patches/cesium-native-ca0311f-tile-load-events.patch` | pinned Cesium Native child-content failure delivery through the existing tileset callback |
+| `servers/uav-sim-mcp/src/server/world_bootstrap.rs` | strict startup application and reactive same-binding reapplication of an installation-owned immutable world binding |
+| `showcase/uav-sim/deploy/` | commit-addressed OCI publication, MCP-configured GPU simulator workload, signaling/media ingress, render-product capacity, versioned persistent cache, typed sensor configuration, and network policy |
 | `showcase/uav-sim/scenarios/` | reusable world trees plus strongly typed live mission and acceptance parameters outside the Isaac image context |
-| `examples/bioma/uav-sim-values.yaml` | Bioma reference sensor, pose-producer, public gateway origin, and recording tenant binding |
-| `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | runtime world publication and binding plus credentialed Google tiles, PX4, independent live Stream processing, Recording Hub replay, Reason, and concurrent GPU acceptance |
-| `testing/smoke/src/bin/smoke/scenarios/uav_sim/showcase.rs` | showcase-owned UAV scene composition with independent Simulation View, real authenticated Console follow-camera checkpoints, governed Rerun playback, and revision-qualified evidence |
-| `testing/smoke/src/bin/smoke/scenarios/simulation_view/browser.rs` | headed authenticated Chrome attachment, hardware WebGPU-or-WebGL enforcement, Console App interaction, screenshots, and shared CDP transport |
-| `testing/smoke/src/bin/smoke/scenarios/simulation_view/browser/recording_acceptance.rs` | scoped Redap network evidence, live-source continuity, legacy archive-request rejection, and nonblank Rerun viewport measurement |
+| `examples/bioma/uav-sim-values.yaml` | reference authoritative camera, product, public gateway origin, and recording tenant binding |
+| `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | runtime world publication plus credentialed Google tiles, PX4, independent live Stream processing, Recording Hub replay, Reason, and concurrent GPU acceptance |
+| `testing/smoke/src/bin/smoke/scenarios/uav_sim/showcase.rs` | showcase-owned authoritative UAV cameras and products, real authenticated Console checkpoints, governed Rerun playback, and revision-qualified evidence |
+| `testing/smoke/src/bin/smoke/scenarios/uav_sim/browser.rs` | headed authenticated Chrome attachment, hardware WebGPU-or-WebGL enforcement, dedicated simultaneous-viewer windows, Console live-view interaction, and screenshots |
+| `testing/browser-smoke/src/restart.rs` | focused same-document native live-view recovery across independent MCP-pod and simulator-container restarts, including proof that MCP replacement leaves the GPU pod unchanged |
+| `testing/smoke/src/bin/smoke/scenarios/uav_sim/browser/recording_acceptance.rs` | scoped Redap network evidence, live-source continuity, archive-request rejection, and nonblank Rerun viewport measurement |
 
 ### Geospatial Domains
 
@@ -554,35 +571,29 @@ Simulation runtime ownership:
 | `tools/image-build/control/` | shared pinned Buildx, BuildKit registry configuration, and cross-worktree builder lease used by image release and certification |
 | `testing/smoke/src/bin/smoke/scenarios/simulation.rs` | deployment-lock registry authorization, published environment invariants, local image materialization, GPU certification, and retained transcripts |
 
-Simulation View data-plane ownership:
+Authoritative simulation live-view ownership:
 
 | Path | Responsibility |
 |---|---|
-| `platform/simulation/scene/` | typed governed scene body, installation layer catalog, exact Frames/WGS 84 bindings, visual assets, entity bindings, transforms, quality, attribution, health, validation, and canonical digest |
-| `servers/simulation-view-mcp/src/contract.rs` | renderer sessions, generic camera rigs, explicit capacity, direct MCP requests and results, and public re-export of the shared scene contract |
-| `servers/simulation-view-mcp/src/state.rs` | shared in-memory state, configuration, operation serialization, and revision helpers |
-| `servers/simulation-view-mcp/src/state/session.rs` | owner-scoped session, immutable scene, and pose-producer intent transitions |
-| `servers/simulation-view-mcp/src/state/camera.rs` | logical camera mutation, admission, render slots, and capacity accounting |
-| `servers/simulation-view-mcp/src/state/lease.rs` | actor/browser viewer leases, signaling authority, token rotation, and stream products |
-| `servers/simulation-view-mcp/src/state/runtime_health.rs` | camera, pose, streamed-world, and stream-product realized health updates |
-| `servers/simulation-view-mcp/src/state/reconciliation.rs` | durable snapshots, restoration, renewal/retry scheduling, and realized-state transitions |
-| `servers/simulation-view-mcp/src/state/tests.rs` | state-machine coverage across session, camera, lease, health, and reconciliation boundaries |
-| `servers/simulation-view-mcp/src/durability.rs` | Simulation View-specific platform-store adapter, normalized desired-state snapshots, restart restoration, and audit emission |
-| `servers/simulation-view-mcp/src/reconciler.rs` | outbox- and generation-woken renderer, scene, producer, and camera realization with exact renewal/retry timers and typed failure state |
-| `servers/simulation-view-mcp/src/artifacts.rs` | caller-authorized Artifact-plane streaming into the private renderer digest-ingest boundary |
-| `servers/simulation-view-mcp/src/mcp.rs` | canonical tools, resources, subscriptions, well-known surface, and App declarations |
-| `servers/simulation-view-mcp/src/server/` | signed gateway auth, public host checks, control-plane readiness, authenticated runtime-generation events, durable-runtime status, administrative docs, and signaling |
-| `servers/simulation-view-mcp/assets/live.html` | self-contained selected-view and bounded multi-camera MCP App |
-| `servers/simulation-view-mcp/dependencies.lock.json` | verified NVIDIA browser client release and byte identities |
-| `platform/simulation/pose/src/contract.rs` | session, epoch, Frames, entity-table, coordinate, limit, and pose types |
-| `platform/simulation/pose/src/codec.rs` | deterministic `simulation-view-pose/v1` binary encoding |
-| `platform/simulation/pose/src/store.rs` | nonblocking latest-value admission, epoch reset, heartbeat, and staleness |
-| `platform/simulation/pose/src/shared_memory.rs` | atomic bounded-history co-located transport with ordered generation drains |
-| `platform/simulation/pose/src/stream.rs` | identical length-delimited framing for mutually authenticated streams |
-| `platform/simulation/pose/src/ingress.rs` | typed private producer-binding control declarations and readiness |
-| `platform/simulation/pose-ingress/` | TLS 1.3 mutual-authentication ingress, SPIFFE producer authorization, private control endpoint, and shared-memory publication |
-| `platform/simulation/view-isaac/` | hardware-only Isaac/RTX renderer, atomic digest-addressed artifact ingest and preflight, render-only USD mirroring, installation-configured 3D Tiles streaming, pose consumption, generic camera rigs, AOV/NVENC slot pools, and private runtime control |
-| `platform/simulation/view-isaac/veoveo_simulation_view/interpolation.py` | typed hold-latest and bounded delayed-linear pose timeline, shortest-arc quaternion interpolation, discontinuity resets, shared rendered frames, and credential-free runtime diagnostics |
+| `mcp/contract/src/live_view.rs` | shared provider-neutral logical-camera, encoded-product, per-viewer lease, capacity, health, and signaling contract |
+| `servers/uav-sim-mcp/src/contract.rs` | UAV session and authoritative live-view tool schemas built from the shared contract |
+| `servers/uav-sim-mcp/src/server/state.rs` | authoritative session, vehicle, mission, logical-camera, and product state |
+| `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser viewer leases, exclusive viewer-slot assignment, bounded capacity, expiry, closure, and typed denial behavior |
+| `servers/uav-sim-mcp/src/server/signaling.rs` | authenticated signaling sessions that attach viewer peers to simulator-owned encoded products |
+| `servers/uav-sim-mcp/src/server/live_view_audit.rs` | append-only live-view audit writes without runtime coupling |
+| `servers/uav-sim-mcp/src/server/runtime_events.rs` | strict authenticated adapter-ready and final-ready stream receiver, immutable binding reapplication trigger, and MCP subscription projection |
+| `servers/uav-sim-mcp/src/server/service.rs` | MCP tools, resources, subscriptions, well-known surface, and authoritative live-view orchestration |
+| `servers/uav-sim-mcp/assets/live-app.html` | self-contained selected-camera and bounded multi-view MCP App |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera.py` | simulator-tick camera orchestration, frame transforms, and shared camera/target time |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_rigs.py` | desired-pose computation for follow, chase, orbit, look-at, stabilized-mounted, formation, and fixed rigs |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_smoothing.py` | half-life translation/quaternion filtering and reset rules |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/operator_products.py` | preallocated viewer-camera clones and isolated RTX, NVENC, native WebRTC, activation, and release lifecycle per assigned slot |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/operator_health.py` | CUDA, RTX, NVENC, product, frame, and capacity evidence |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/runtime_events.py` | retained nonblocking adapter-ready edge before world admission and final-ready edge after authoritative visual admission |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/tile_lifecycle.py` | reactive, deduplicated provider generation state derived from native Cesium lifecycle events and render coverage observations |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/server.py` | simulator-local control boundary for camera and product realization |
+| `platform/store/src/live_views.rs` | durable audit persistence for camera, product, lease, denial, expiry, and revocation facts |
+| `platform/store/migrations/0036_remove_simulation_view_mirror_state.surql` | forward-only removal of obsolete mirrored desired/runtime state |
 
 ## Recordings
 
@@ -598,14 +609,15 @@ types.
 |---|---|
 | `ingest_http.rs` | cluster-internal authenticated protobuf routes and typed error projection |
 | `ingest.rs` | producer authorization, atomic no-clobber journal and Blueprint publication, quota-bound append, ordered live parts, rollover merge, and restart reconciliation |
+| `diagnostics.rs` | bounded authenticated-ingest acceptance, duplication, materialization-backlog, and last-success counters |
 | `blueprint.rs` | complete Blueprint-store validation, application association, and confined immutable paths |
 | `spool.rs` | segment encode/flush/fsync/freeze, idle completion, and recovery |
 | `catalog.rs` | per-stream identity, capture timestamps, segment verification, and catalog publication |
 | `query.rs` | governed RRD query/readback |
 | `config.rs` | validated raw gRPC spool and segment limits |
 | `archive.rs` | one-time object-store compaction, GoP rebatching, footer encoding, and atomic archive publication |
-| `ingest.rs` | authenticated durable-part journal projection, compact static-context snapshots, and keyframe-aligned rollover |
-| `spool.rs` | direct loopback writer, keyframe-aligned rollover, and archive freeze |
+| `ingest.rs` | authenticated durable-part journal projection, compact static-context snapshots, and decoder-reentrant rollover |
+| `spool.rs` | direct loopback writer, decoder-reentrant rollover, and archive freeze |
 | `bin/spooler.rs` | thin composition of authenticated ingest, loopback Rerun receiver, catalog, and shutdown |
 | `bin/hub_smoke.rs` | Rust crash/restart/rollover/catalog smoke scenarios |
 
@@ -613,7 +625,7 @@ types.
 
 | File | Responsibility |
 |---|---|
-| `src/batch.rs` | per-recording accumulation, IDR-aligned GoP boundaries, complete RRD encoding, and byte-bounded splitting |
+| `src/batch.rs` | per-recording accumulation, per-video-sample batches, decoder-reentrant boundary detection, complete RRD encoding, and byte-bounded splitting |
 | `src/queue.rs` | bounded-memory fsynced producer queue, stream identity, checkpoint acknowledgement, and disk backpressure |
 | `src/oauth.rs` | RFC 8414 discovery and `private_key_jwt` client-credentials tokens |
 | `src/client.rs` | typed protobuf discovery, open, append, Blueprint publication, and finish operations |
@@ -704,7 +716,6 @@ stays the source of truth for every wire shape and schema.
 | `host.py` | host-authority validation and 421 rejection |
 | `deployment.py`, `pagination.py` | mount identities and cursor pagination |
 | `schema.py` | self-contained JSON Schema 2020-12 generation for MCP tool inputs |
-| `simulation_pose.py` | exact Simulation View pose encoding and bounded newest-value or ordered TLS 1.3 mTLS producers |
 | `task_extension/` | final task extension models, ASGI middleware, projection |
 | `tasks/` | durable SurrealDB task runtime port: leases, CAS transitions, outbox, recovery, prune |
 | `artifacts.py` | artifact-plane HTTP client and capability redemption |
@@ -722,11 +733,16 @@ task extension adapter, durable task, MCP surface, composition).
 
 SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persistence.
 
+| File | Responsibility |
+|---|---|
+| `control.rs` | database-authenticated, exact-context external operator messages and elicitation decisions with UUIDv7 idempotency, durable wakes, and actor attribution |
+| `runtime.rs` | lease-fenced agent mutations, inactive-manifest reconciliation, and race-safe durable elicitation terminal waits |
+
 ### `agents/kernel`
 
 | File | Responsibility |
 |---|---|
-| `manifest.rs` | agent, model, profile, tool, and budget configuration models |
+| `manifest.rs` | agent, model, profile, tool, budget, and bounded MCP resource-subscription configuration models |
 | `episode.rs` | bounded reasoning episode lifecycle |
 | `tools.rs` | MCP tool dispatch and durable task descriptor capture |
 | `tasks.rs` | detached watcher lease/resume/result-to-wake flow |
@@ -734,7 +750,13 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `memory.rs` | durable memory API over analytical stores |
 | `rrd.rs`, `recorder.rs` | episode/world Rerun recording |
 | `budget.rs` | enforced episode/tool/cost budgets |
-| `connection.rs` | reconnectable gateway epoch and task resumer |
+| `connection.rs` | reconnectable gateway epoch, make-before-break resource-subscription restoration, and task resumer |
+
+### `platform/gateway/src/bin/gateway/admin`
+
+| File | Responsibility |
+|---|---|
+| `agents.rs` | human-only policy and audit boundary for agent messages, parked-elicitation reads, and decisions; resolves the caller's tenant and Work Context before using the runtime control plane |
 
 ## Console
 
@@ -744,9 +766,9 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 |---|---|
 | `oauth.rs` | PKCE login, token exchange, refresh rotation |
 | `session.rs` | XChaCha20-Poly1305 cookies and CSRF material |
-| `api.rs` | snapshot, SSE, mutation, and artifact preview/download BFF projections |
+| `api.rs` | snapshot, SSE, mutation, artifact preview/download, and same-origin CSRF-protected agent-message/elicitation BFF projections; browser credentials and database authority never enter an MCP App |
 | `recording_playback.rs` | authenticated playback-manifest and framed live-stream pass-through; no archive bytes or BFF session store |
-| `apps.rs`, `mcp_client.rs` | MCP Apps host backend: gateway MCP session pool over the independently selected transport, public gateway authority preservation, app catalog, sandboxed frame serving, allowlisted tool calls, implicit own-server reads, and gateway-projected cross-server reads |
+| `apps.rs`, `mcp_client.rs` | MCP Apps host backend: gateway MCP session pool over the independently selected transport, public gateway authority preservation, reactive failure-isolated app catalog, sandboxed frame serving, declared agent-message targets, allowlisted tool calls, explicit resource-read settlement, and one bounded multiplexed resource-wake stream per App |
 | `config.rs`, `viewer_config.rs` | validated public/gateway/OAuth-resource/MCP-transport and embedded-map configuration, exact profile binding, redacted provider credentials, and the authenticated no-store Rerun map projection |
 | `outbound_http.rs` | additive installation CA trust shared by Console HTTP, streaming, live, MCP, and Kubernetes clients |
 
@@ -757,7 +779,8 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `App.tsx` | application shell: platform navigation plus catalog-driven MCP App entries, topbar, view routing, drawer mounting |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
 | `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `rerunLiveChannel.ts`, `recordingRrdFetch.ts`, `rerunMap.ts` | persistent WebViewer lifecycle, producer Blueprint-first opening, one native incremental-RRD or lazy-archive receiver, exact same-origin RRD authorization, duplicate-free current-head reconnect, event-driven rollover without cursor forcing, archive-only credential renewal, and installation-owned browser map-provider activation |
-| `views/` | remaining platform-plane views (overview, work, artifacts, agents, MCP, apps, access, audit, cluster); domain views ship as MCP Apps, never here |
+| `views/Agents.tsx`, `agentControl.ts` | reactive agent state, durable message submission, parked-elicitation decisions, and client-owned UUIDv7 retry identity |
+| `views/` | remaining platform-plane views (overview, work, artifacts, MCP, apps, access, audit, cluster); domain views ship as MCP Apps, never here |
 | `drawers/ArtifactDrawer.tsx` | artifact preview, recording provenance, download, release, grant, and share-link workflows |
 | `drawers/` | remaining detail drawers with mutation workflows |
 | `components/ArtifactPreview.tsx` | bounded text and inline image/audio/video/PDF previews with explicit governed-access failures |
@@ -766,7 +789,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `queries.ts`, `queryClient.ts` | TanStack Query keys, snapshot/apps/cluster queries, mutation hooks with targeted cache patches |
 | `live.ts` | EventSource console stream feeding row upserts into the snapshot cache |
 | `theme.ts`, `ThemeProvider.tsx` | persisted Console theme registry, semantic palette selection, and MCP App light/dark host context |
-| `apps/` | MCP Apps host: sandboxed iframe component and the postMessage bridge |
+| `apps/` | MCP Apps host: sandboxed iframe component, stable postMessage bridge, closed internal navigation, declared agent messages, explicit resource-read adapter, and fetch-backed multiplexed SSE wake decoder |
 | `auth.ts` | one-way authentication transition shared by every 401 handler |
 | `api.ts` | ordered same-origin BFF calls and CSRF rotation |
 | `types.ts` | TypeScript snapshot and mutation response shapes |

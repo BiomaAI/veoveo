@@ -12,21 +12,32 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 #[allow(dead_code)]
-#[path = "../../smoke/src/bin/smoke/scenarios/simulation_view/browser.rs"]
+#[path = "../../smoke/src/bin/smoke/scenarios/uav_sim/browser.rs"]
 mod browser;
+mod restart;
 
 use browser::{
-    ConsoleLiveCaptureEvidence, ConsoleRecordingCaptureEvidence, ConsoleStreamCaptureEvidence,
-    capture_console_live_app, capture_console_recording, capture_console_stream_app,
+    ConsoleLiveCaptureEvidence, ConsoleLiveGridEvidence, ConsoleRecordingArchiveCaptureEvidence,
+    ConsoleRecordingCaptureEvidence, capture_console_live_app, capture_console_live_app_grid,
+    capture_console_live_app_pair, capture_console_recording, capture_console_recording_archive,
+    preflight_console_live_app,
 };
+use restart::{RestartVerification, verify_live_view_restarts};
 
-const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-browser-evidence/v3";
+const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-live-view-browser-evidence/v11";
 const MAX_RECORDING_SOURCE_LAG_SECONDS: f64 = 1.0;
+const MINIMUM_PHYSICS_REAL_TIME_FACTOR: f64 = 0.98;
+const PRIMARY_CAMERA_ID: &str = "follow";
+const QUALIFIED_CAMERA_IDS: [&str; 5] = [
+    PRIMARY_CAMERA_ID,
+    "chase",
+    "orbit",
+    "stabilized",
+    "formation",
+];
 const OPERATOR_PROFILE_SCOPES: &[&str] = &[
     "operator:use",
-    "simulation-view:read",
-    "simulation-view:write",
-    "simulation-view:stream",
+    "uav-sim:stream",
     "view:read",
     "view:write",
     "view:capture",
@@ -45,6 +56,9 @@ struct Args {
 }
 
 #[derive(Debug, Subcommand)]
+// These are deliberately full, stable xtask dispatch names in a focused UAV
+// browser binary; the shared prefix is part of the CLI rather than Rust type noise.
+#[allow(clippy::enum_variant_names)]
 enum SmokeCommand {
     /// Repeat headed Console acceptance without restarting or commanding the simulation.
     UavShowcaseBrowserVerify {
@@ -62,6 +76,28 @@ enum SmokeCommand {
         #[arg(long, default_value = "output/acceptance/uav-browser")]
         evidence_root: PathBuf,
     },
+    /// Keep a headed live view mounted while restarting the MCP and simulator containers.
+    UavShowcaseLiveRestartVerify {
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        #[arg(
+            long,
+            default_value = "showcase/uav-sim/scenarios/new-york-aerial.json"
+        )]
+        scenario: PathBuf,
+        #[arg(long)]
+        context: String,
+        #[arg(long, default_value = "veoveo")]
+        namespace: String,
+        #[arg(long)]
+        public_base_url: String,
+        #[arg(long, default_value = "http://127.0.0.1:9222")]
+        chrome_cdp_url: String,
+        #[arg(long, default_value_t = 1_800)]
+        restart_timeout_seconds: u64,
+        #[arg(long, default_value = "output/acceptance/uav-live-restart")]
+        evidence_root: PathBuf,
+    },
     /// Verify only governed live Recording playback against the running source.
     UavRecordingBrowserVerify {
         #[arg(long, default_value = "target/debug/conformance")]
@@ -76,6 +112,20 @@ enum SmokeCommand {
         #[arg(long, default_value = "http://127.0.0.1:9222")]
         chrome_cdp_url: String,
         #[arg(long, default_value = "output/acceptance/uav-recording-browser")]
+        evidence_root: PathBuf,
+    },
+    /// Verify one governed sealed Recording through the lazy Redap archive path.
+    UavRecordingArchiveBrowserVerify {
+        #[arg(long)]
+        recording_id: String,
+        #[arg(long)]
+        public_base_url: String,
+        #[arg(long, default_value = "http://127.0.0.1:9222")]
+        chrome_cdp_url: String,
+        #[arg(
+            long,
+            default_value = "output/acceptance/uav-recording-archive-browser"
+        )]
         evidence_root: PathBuf,
     },
 }
@@ -101,17 +151,12 @@ struct BrowserAcceptanceEvidence {
     run_id: String,
     scenario_path: String,
     session_id: String,
-    camera_id: String,
-    recording_id: String,
-    initial_pose_sequence: u64,
-    final_pose_sequence: u64,
-    source_simulation_time_seconds: f64,
-    recording_simulation_time_seconds: f64,
-    recording_source_lag_seconds: f64,
-    source_alignment: SourceTimelineAlignmentEvidence,
-    live: ConsoleLiveCaptureEvidence,
-    stream: ConsoleStreamCaptureEvidence,
-    recording: ConsoleRecordingCaptureEvidence,
+    camera_ids: Vec<String>,
+    source_window: SourceTimelineWindowEvidence,
+    sensor_isolation: SensorIsolationEvidence,
+    performance: LiveViewPerformanceEvidence,
+    grid: ConsoleLiveGridEvidence,
+    live_views: Vec<ConsoleLiveCaptureEvidence>,
 }
 
 #[derive(Debug, Serialize)]
@@ -131,11 +176,40 @@ struct RecordingBrowserAcceptanceEvidence {
     recording: ConsoleRecordingCaptureEvidence,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RecordingArchiveBrowserAcceptanceEvidence {
+    schema: &'static str,
+    completed_at: chrono::DateTime<Utc>,
+    source_revision: String,
+    run_id: String,
+    recording_id: String,
+    recording: ConsoleRecordingArchiveCaptureEvidence,
+}
+
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SourceTimelineSample {
     updated_at: chrono::DateTime<Utc>,
     simulation_time_seconds: f64,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SourceTimelineWindowEvidence {
+    before: SourceTimelineSample,
+    after: SourceTimelineSample,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SensorIsolationEvidence {
+    vehicle_id: String,
+    declared_frame_rate_hz: f64,
+    frames_before: u64,
+    frames_after: u64,
+    simulation_seconds: f64,
+    observed_frame_rate_hz: f64,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -146,6 +220,19 @@ struct SourceTimelineAlignmentEvidence {
     recording_observed_at: chrono::DateTime<Utc>,
     interpolation_fraction: f64,
     aligned_simulation_time_seconds: f64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LiveViewPerformanceEvidence {
+    physics_real_time_factor: f64,
+    qualified_camera_count: usize,
+    simultaneous_viewer_count: usize,
+    minimum_observed_frame_rate_hz: f64,
+    maximum_observed_frame_rate_hz: f64,
+    browser_dropped_frames: u64,
+    maximum_source_to_render_p95_ms: f64,
+    maximum_composed_motion_to_photon_upper_bound_p95_ms: f64,
 }
 
 struct OperatorClient<'a> {
@@ -191,6 +278,28 @@ async fn main() -> Result<()> {
             )
             .await
         }
+        SmokeCommand::UavShowcaseLiveRestartVerify {
+            conformance_bin,
+            scenario,
+            context,
+            namespace,
+            public_base_url,
+            chrome_cdp_url,
+            restart_timeout_seconds,
+            evidence_root,
+        } => {
+            verify_live_view_restarts(RestartVerification {
+                conformance: &conformance_bin,
+                scenario_path: &scenario,
+                context: &context,
+                namespace: &namespace,
+                public_base_url: &public_base_url,
+                chrome_cdp_url: &chrome_cdp_url,
+                restart_timeout: Duration::from_secs(restart_timeout_seconds),
+                evidence_root: &evidence_root,
+            })
+            .await
+        }
         SmokeCommand::UavRecordingBrowserVerify {
             conformance_bin,
             scenario,
@@ -207,7 +316,71 @@ async fn main() -> Result<()> {
             )
             .await
         }
+        SmokeCommand::UavRecordingArchiveBrowserVerify {
+            recording_id,
+            public_base_url,
+            chrome_cdp_url,
+            evidence_root,
+        } => {
+            verify_recording_archive(
+                &recording_id,
+                &public_base_url,
+                &chrome_cdp_url,
+                &evidence_root,
+            )
+            .await
+        }
     }
+}
+
+async fn verify_recording_archive(
+    recording_id: &str,
+    public_base_url: &str,
+    chrome_cdp_url: &str,
+    evidence_root: &Path,
+) -> Result<()> {
+    ensure!(
+        uuid::Uuid::parse_str(recording_id)?.get_version_num() == 7,
+        "archive recording identity must be UUIDv7"
+    );
+    let public_base_url = public_base_url.trim_end_matches('/');
+    ensure!(
+        url::Url::parse(public_base_url)?.scheme() == "https",
+        "focused archive browser acceptance requires public HTTPS"
+    );
+    let source_revision = git_revision()?;
+    let run_id = uuid::Uuid::now_v7().to_string();
+    let evidence_directory = evidence_root.join(&source_revision).join(&run_id);
+    fs::create_dir_all(&evidence_directory).with_context(|| {
+        format!(
+            "creating recording archive evidence directory {}",
+            evidence_directory.display()
+        )
+    })?;
+    let recording = capture_console_recording_archive(
+        chrome_cdp_url,
+        public_base_url,
+        recording_id,
+        &evidence_directory.join("recording-archive.png"),
+        Duration::from_secs(300),
+    )
+    .await?;
+    let evidence = RecordingArchiveBrowserAcceptanceEvidence {
+        schema: "veoveo.io/uav-recording-archive-browser-evidence/v1",
+        completed_at: Utc::now(),
+        source_revision,
+        run_id,
+        recording_id: recording_id.to_owned(),
+        recording,
+    };
+    let manifest = evidence_directory.join("evidence.json");
+    fs::write(&manifest, serde_json::to_vec_pretty(&evidence)?)
+        .with_context(|| format!("writing recording archive evidence {}", manifest.display()))?;
+    println!(
+        "Focused recording archive browser acceptance passed. Evidence: {}",
+        manifest.display()
+    );
+    Ok(())
 }
 
 async fn verify_running_recording(
@@ -322,6 +495,8 @@ async fn verify_running_showcase(
         url::Url::parse(public_base_url)?.scheme() == "https",
         "focused browser acceptance requires public HTTPS"
     );
+    let timeout = Duration::from_secs(scenario.view.timeout_seconds);
+    preflight_console_live_app(chrome_cdp_url, public_base_url, timeout).await?;
     let token = gateway_token(conformance, public_base_url).await?;
     let operator = OperatorClient {
         conformance,
@@ -333,29 +508,51 @@ async fn verify_running_showcase(
         json_string(&initial_state, "/lifecycle")? == "running",
         "focused browser acceptance requires the existing simulation to remain running: {initial_state}"
     );
-    let recording_id = recording_id(&initial_state)?;
-    let cameras = read_json_resource(
-        &operator,
-        &format!("simulation-view://session/{}/cameras", scenario.session_id),
-    )
-    .await?;
-    let camera = cameras
-        .as_array()
-        .context("Simulation View camera collection is not an array")?
+    let cameras = initial_state
+        .get("live_cameras")
+        .and_then(Value::as_array)
+        .context("authoritative simulator omitted its live camera collection")?;
+    for camera_id in QUALIFIED_CAMERA_IDS {
+        let camera = cameras
+            .iter()
+            .find(|camera| camera.get("cameraId").and_then(Value::as_str) == Some(camera_id))
+            .with_context(|| format!("running showcase omitted qualified camera {camera_id}"))?;
+        ensure!(
+            camera.get("health").and_then(Value::as_str) == Some("healthy"),
+            "qualified camera {camera_id} is not healthy: {camera}"
+        );
+        ensure!(
+            camera.get("streamProductId").is_none(),
+            "logical camera retained a physical stream-product identity: {camera}"
+        );
+    }
+    let primary_camera = cameras
         .iter()
-        .find(|camera| {
-            camera
-                .pointer("/definition/rig/targetEntity")
-                .and_then(Value::as_str)
-                == Some(scenario.vehicle_id.as_str())
-                && camera.get("health").and_then(Value::as_str) == Some("healthy")
-        })
-        .context("running showcase has no healthy leader follow camera")?;
-    let camera_id = json_string(camera, "/cameraId")?.to_owned();
-    let initial_pose_sequence = camera
-        .get("lastPoseSequence")
-        .and_then(Value::as_u64)
-        .context("existing follow camera has no admitted pose sequence")?;
+        .find(|camera| camera.get("cameraId").and_then(Value::as_str) == Some(PRIMARY_CAMERA_ID))
+        .context("running showcase has no primary follow camera")?;
+    ensure!(
+        primary_camera
+            .pointer("/rig/targetEntityId")
+            .and_then(Value::as_str)
+            == Some(scenario.vehicle_id.as_str()),
+        "primary camera does not follow the scenario vehicle: {primary_camera}"
+    );
+    let initial_products = initial_state
+        .get("stream_products")
+        .and_then(Value::as_array)
+        .context("authoritative simulator omitted its viewer-slot collection")?;
+    ensure!(
+        initial_products
+            .iter()
+            .filter(|product| {
+                product.get("lifecycle").and_then(Value::as_str) == Some("inactive")
+                    && product.get("cameraId").is_none()
+                    && product.get("liveViewId").is_none()
+            })
+            .count()
+            >= 2,
+        "focused browser acceptance requires two unassigned native viewer slots: {initial_products:?}"
+    );
 
     let source_revision = git_revision()?;
     let run_id = uuid::Uuid::now_v7().to_string();
@@ -366,62 +563,115 @@ async fn verify_running_showcase(
             evidence_directory.display()
         )
     })?;
-    let timeout = Duration::from_secs(scenario.view.timeout_seconds);
-    let live = capture_console_live_app(
+    let (first_live, second_live) = capture_console_live_app_pair(
         chrome_cdp_url,
         public_base_url,
-        &camera_id,
-        &evidence_directory.join("simulation-view.png"),
+        PRIMARY_CAMERA_ID,
+        &evidence_directory.join("uav-live-view-first.png"),
+        &evidence_directory.join("uav-live-view-second.png"),
         timeout,
     )
     .await?;
-    let stream = capture_console_stream_app(
-        chrome_cdp_url,
-        public_base_url,
-        &evidence_directory.join("stream.png"),
-        timeout,
-    )
-    .await?;
-    let recording = capture_console_recording(
-        chrome_cdp_url,
-        public_base_url,
-        &recording_id,
-        &evidence_directory.join("recording.png"),
-        timeout,
-    )
-    .await?;
-
-    let final_camera = read_json_resource(
-        &operator,
-        &format!(
-            "simulation-view://session/{}/camera/{camera_id}",
-            scenario.session_id
-        ),
-    )
-    .await?;
-    let final_pose_sequence = final_camera
-        .get("lastPoseSequence")
-        .and_then(Value::as_u64)
-        .context("follow camera lost its admitted pose sequence")?;
     ensure!(
-        final_pose_sequence > initial_pose_sequence,
-        "pose sequence did not advance during focused browser acceptance: {initial_pose_sequence} -> {final_pose_sequence}"
+        first_live.viewer_instance_id() != second_live.viewer_instance_id()
+            && first_live.live_view_id() != second_live.live_view_id()
+            && first_live.stream_product_id() != second_live.stream_product_id()
+            && first_live.capacity_slot() != second_live.capacity_slot(),
+        "simultaneous browser instances did not receive isolated native viewer slots: \
+         first=({}, {}, {}, {}) second=({}, {}, {}, {})",
+        first_live.viewer_instance_id(),
+        first_live.live_view_id(),
+        first_live.stream_product_id(),
+        first_live.capacity_slot(),
+        second_live.viewer_instance_id(),
+        second_live.live_view_id(),
+        second_live.stream_product_id(),
+        second_live.capacity_slot(),
     );
+    let mut live_views = vec![first_live, second_live];
+    let grid = capture_console_live_app_grid(
+        chrome_cdp_url,
+        public_base_url,
+        &[PRIMARY_CAMERA_ID, "chase"],
+        &evidence_directory.join("uav-live-view-grid.png"),
+        timeout,
+    )
+    .await?;
+    for camera_id in QUALIFIED_CAMERA_IDS.iter().skip(1) {
+        live_views.push(
+            capture_console_live_app(
+                chrome_cdp_url,
+                public_base_url,
+                camera_id,
+                &evidence_directory.join(format!("uav-live-view-{camera_id}.png")),
+                timeout,
+            )
+            .await
+            .with_context(|| format!("qualifying authoritative camera {camera_id}"))?,
+        );
+    }
+    for camera_id in QUALIFIED_CAMERA_IDS {
+        let expected_captures = if camera_id == PRIMARY_CAMERA_ID { 2 } else { 1 };
+        ensure!(
+            live_views
+                .iter()
+                .filter(|capture| capture.camera_id() == camera_id)
+                .count()
+                == expected_captures,
+            "focused browser evidence omitted qualified camera {camera_id}: expected {expected_captures} captures"
+        );
+    }
     let final_state = simulation_state(&operator, &scenario.session_id).await?;
+    let final_products = final_state
+        .get("stream_products")
+        .and_then(Value::as_array)
+        .context("authoritative simulator lost its viewer-slot collection")?;
+    for live in &live_views {
+        let released = final_products.iter().find(|product| {
+            product.get("streamProductId").and_then(Value::as_str) == Some(live.stream_product_id())
+        });
+        ensure!(
+            released.is_some_and(|product| {
+                product.get("capacitySlot").and_then(Value::as_u64)
+                    == Some(u64::from(live.capacity_slot()))
+                    && product.get("lifecycle").and_then(Value::as_str) == Some("inactive")
+                    && product.get("cameraId").is_none()
+                    && product.get("liveViewId").is_none()
+                    && product.get("nvencSessions").and_then(Value::as_u64) == Some(0)
+            }),
+            "browser close did not release native viewer slot {} immediately: {final_products:?}",
+            live.capacity_slot(),
+        );
+    }
+    for (stream_product_id, capacity_slot) in grid.products() {
+        let released = final_products.iter().find(|product| {
+            product.get("streamProductId").and_then(Value::as_str)
+                == Some(stream_product_id.as_str())
+        });
+        ensure!(
+            released.is_some_and(|product| {
+                product.get("capacitySlot").and_then(Value::as_u64)
+                    == Some(u64::from(capacity_slot))
+                    && product.get("lifecycle").and_then(Value::as_str) == Some("inactive")
+                    && product.get("cameraId").is_none()
+                    && product.get("liveViewId").is_none()
+                    && product.get("nvencSessions").and_then(Value::as_u64) == Some(0)
+            }),
+            "browser grid close did not release native viewer slot {capacity_slot} immediately: {final_products:?}",
+        );
+    }
     ensure!(
         json_string(&final_state, "/lifecycle")? == "running",
         "focused browser acceptance altered the running simulation: {final_state}"
     );
-    let source_alignment =
-        align_source_timeline(&initial_state, &final_state, recording.captured_at())?;
-    let source_simulation_time_seconds = source_alignment.aligned_simulation_time_seconds;
-    let recording_simulation_time_seconds = recording.final_timeline_seconds();
-    let recording_source_lag_seconds =
-        source_simulation_time_seconds - recording_simulation_time_seconds;
-    ensure!(
-        (0.0..=MAX_RECORDING_SOURCE_LAG_SECONDS).contains(&recording_source_lag_seconds),
-        "live Rerun playback is not current with its simulation source: source={source_simulation_time_seconds:.3}s recording={recording_simulation_time_seconds:.3}s lag={recording_source_lag_seconds:.3}s"
-    );
+    let source_window = source_timeline_window(&initial_state, &final_state)?;
+    let sensor_isolation = sensor_isolation(
+        &initial_state,
+        &final_state,
+        &source_window,
+        &scenario.vehicle_id,
+    )?;
+    let performance = live_view_performance(&source_window, &live_views)?;
     let evidence = BrowserAcceptanceEvidence {
         schema: EVIDENCE_SCHEMA,
         completed_at: Utc::now(),
@@ -429,17 +679,15 @@ async fn verify_running_showcase(
         run_id,
         scenario_path: scenario_path.display().to_string(),
         session_id: scenario.session_id,
-        camera_id,
-        recording_id,
-        initial_pose_sequence,
-        final_pose_sequence,
-        source_simulation_time_seconds,
-        recording_simulation_time_seconds,
-        recording_source_lag_seconds,
-        source_alignment,
-        live,
-        stream,
-        recording,
+        camera_ids: QUALIFIED_CAMERA_IDS
+            .iter()
+            .map(|camera_id| (*camera_id).to_owned())
+            .collect(),
+        source_window,
+        sensor_isolation,
+        performance,
+        grid,
+        live_views,
     };
     let manifest = evidence_directory.join("evidence.json");
     fs::write(&manifest, serde_json::to_vec_pretty(&evidence)?)
@@ -449,6 +697,131 @@ async fn verify_running_showcase(
         manifest.display()
     );
     Ok(())
+}
+
+fn live_view_performance(
+    source_window: &SourceTimelineWindowEvidence,
+    live_views: &[ConsoleLiveCaptureEvidence],
+) -> Result<LiveViewPerformanceEvidence> {
+    let wall_seconds = (source_window.after.updated_at - source_window.before.updated_at)
+        .num_nanoseconds()
+        .context("source timeline performance window exceeds supported duration")?
+        as f64
+        / 1_000_000_000.0;
+    let simulation_seconds =
+        source_window.after.simulation_time_seconds - source_window.before.simulation_time_seconds;
+    ensure!(
+        wall_seconds > 0.0 && simulation_seconds > 0.0,
+        "source timeline performance window did not advance"
+    );
+    let physics_real_time_factor = simulation_seconds / wall_seconds;
+    ensure!(
+        physics_real_time_factor >= MINIMUM_PHYSICS_REAL_TIME_FACTOR,
+        "authoritative simulation real-time factor {physics_real_time_factor:.4} is below the required {MINIMUM_PHYSICS_REAL_TIME_FACTOR:.2}"
+    );
+    let minimum_observed_frame_rate_hz = live_views
+        .iter()
+        .map(ConsoleLiveCaptureEvidence::observed_frame_rate_hz)
+        .fold(f64::INFINITY, f64::min);
+    let maximum_observed_frame_rate_hz = live_views
+        .iter()
+        .map(ConsoleLiveCaptureEvidence::observed_frame_rate_hz)
+        .fold(f64::NEG_INFINITY, f64::max);
+    ensure!(
+        minimum_observed_frame_rate_hz.is_finite() && maximum_observed_frame_rate_hz.is_finite(),
+        "authoritative camera cadence evidence was empty"
+    );
+    Ok(LiveViewPerformanceEvidence {
+        physics_real_time_factor,
+        qualified_camera_count: QUALIFIED_CAMERA_IDS.len(),
+        simultaneous_viewer_count: 2,
+        minimum_observed_frame_rate_hz,
+        maximum_observed_frame_rate_hz,
+        browser_dropped_frames: live_views
+            .iter()
+            .map(ConsoleLiveCaptureEvidence::cadence_dropped_frames)
+            .sum(),
+        maximum_source_to_render_p95_ms: live_views
+            .iter()
+            .map(ConsoleLiveCaptureEvidence::source_to_render_p95_ms)
+            .fold(f64::NEG_INFINITY, f64::max),
+        maximum_composed_motion_to_photon_upper_bound_p95_ms: live_views
+            .iter()
+            .map(ConsoleLiveCaptureEvidence::composed_motion_to_photon_upper_bound_p95_ms)
+            .fold(f64::NEG_INFINITY, f64::max),
+    })
+}
+
+fn source_timeline_window(before: &Value, after: &Value) -> Result<SourceTimelineWindowEvidence> {
+    let before = source_timeline_sample(before)?;
+    let after = source_timeline_sample(after)?;
+    ensure!(
+        after.updated_at > before.updated_at
+            && after.simulation_time_seconds > before.simulation_time_seconds,
+        "running simulation source timeline did not advance: {before:?} -> {after:?}"
+    );
+    Ok(SourceTimelineWindowEvidence { before, after })
+}
+
+fn sensor_isolation(
+    before: &Value,
+    after: &Value,
+    source_window: &SourceTimelineWindowEvidence,
+    vehicle_id: &str,
+) -> Result<SensorIsolationEvidence> {
+    let before_camera = physical_sensor(before, vehicle_id)?;
+    let after_camera = physical_sensor(after, vehicle_id)?;
+    let declared_frame_rate_hz = before_camera
+        .get("frame_rate_hz")
+        .and_then(Value::as_f64)
+        .context("physical sensor omitted frame_rate_hz")?;
+    ensure!(
+        after_camera.get("frame_rate_hz").and_then(Value::as_f64) == Some(declared_frame_rate_hz)
+            && before_camera.get("encoder").and_then(Value::as_str) == Some("nvidia_nvenc")
+            && after_camera.get("encoder").and_then(Value::as_str) == Some("nvidia_nvenc"),
+        "viewer activity changed the physical sensor contract: before={before_camera} after={after_camera}"
+    );
+    let frames_before = before_camera
+        .get("frames_observed")
+        .and_then(Value::as_u64)
+        .context("physical sensor omitted frames_observed")?;
+    let frames_after = after_camera
+        .get("frames_observed")
+        .and_then(Value::as_u64)
+        .context("physical sensor omitted frames_observed")?;
+    let simulation_seconds =
+        source_window.after.simulation_time_seconds - source_window.before.simulation_time_seconds;
+    ensure!(
+        declared_frame_rate_hz > 0.0 && simulation_seconds > 0.0 && frames_after > frames_before,
+        "physical sensor did not advance while viewer products were active"
+    );
+    let observed_frame_rate_hz = (frames_after - frames_before) as f64 / simulation_seconds;
+    let minimum = declared_frame_rate_hz * 0.90;
+    let maximum = declared_frame_rate_hz * 1.10;
+    ensure!(
+        (minimum..=maximum).contains(&observed_frame_rate_hz),
+        "viewer activity changed physical sensor cadence: declared={declared_frame_rate_hz:.3}Hz observed={observed_frame_rate_hz:.3}Hz"
+    );
+    Ok(SensorIsolationEvidence {
+        vehicle_id: vehicle_id.to_owned(),
+        declared_frame_rate_hz,
+        frames_before,
+        frames_after,
+        simulation_seconds,
+        observed_frame_rate_hz,
+    })
+}
+
+fn physical_sensor<'a>(state: &'a Value, vehicle_id: &str) -> Result<&'a Value> {
+    state
+        .get("cameras")
+        .and_then(Value::as_array)
+        .and_then(|cameras| {
+            cameras
+                .iter()
+                .find(|camera| camera.get("vehicle_id").and_then(Value::as_str) == Some(vehicle_id))
+        })
+        .with_context(|| format!("simulation state omitted physical sensor for {vehicle_id}"))
 }
 
 fn align_source_timeline(
@@ -522,15 +895,6 @@ async fn simulation_state(operator: &OperatorClient<'_>, session_id: &str) -> Re
         }
     }
     Err(last_error.context("UAV state read exhausted its retry budget")?)
-}
-
-async fn read_json_resource(operator: &OperatorClient<'_>, uri: &str) -> Result<Value> {
-    serde_json::from_str(
-        &operator
-            .conformance(&["resource", uri], Duration::from_secs(60))
-            .await?,
-    )
-    .with_context(|| format!("decoding MCP resource {uri}"))
 }
 
 async fn gateway_token(conformance: &Path, base: &str) -> Result<String> {
@@ -682,5 +1046,62 @@ mod tests {
             .with_timezone(&Utc);
 
         assert!(align_source_timeline(&before, &after, observed_at).is_err());
+    }
+
+    #[test]
+    fn live_view_window_preserves_the_declared_sensor_cadence() {
+        let before = serde_json::json!({
+            "simulation_time_s": 100.0,
+            "updated_at": "2026-08-05T12:00:00Z",
+            "cameras": [{
+                "vehicle_id": "uav-1",
+                "frame_rate_hz": 2,
+                "frames_observed": 500,
+                "encoder": "nvidia_nvenc"
+            }]
+        });
+        let after = serde_json::json!({
+            "simulation_time_s": 120.0,
+            "updated_at": "2026-08-05T12:00:20Z",
+            "cameras": [{
+                "vehicle_id": "uav-1",
+                "frame_rate_hz": 2,
+                "frames_observed": 540,
+                "encoder": "nvidia_nvenc"
+            }]
+        });
+        let window = source_timeline_window(&before, &after).unwrap();
+
+        let evidence = sensor_isolation(&before, &after, &window, "uav-1").unwrap();
+
+        assert_eq!(evidence.observed_frame_rate_hz, 2.0);
+        assert_eq!(evidence.frames_after - evidence.frames_before, 40);
+    }
+
+    #[test]
+    fn live_view_window_rejects_sensor_cadence_coupled_to_operator_video() {
+        let before = serde_json::json!({
+            "simulation_time_s": 100.0,
+            "updated_at": "2026-08-05T12:00:00Z",
+            "cameras": [{
+                "vehicle_id": "uav-1",
+                "frame_rate_hz": 2,
+                "frames_observed": 500,
+                "encoder": "nvidia_nvenc"
+            }]
+        });
+        let after = serde_json::json!({
+            "simulation_time_s": 110.0,
+            "updated_at": "2026-08-05T12:00:10Z",
+            "cameras": [{
+                "vehicle_id": "uav-1",
+                "frame_rate_hz": 2,
+                "frames_observed": 800,
+                "encoder": "nvidia_nvenc"
+            }]
+        });
+        let window = source_timeline_window(&before, &after).unwrap();
+
+        assert!(sensor_isolation(&before, &after, &window, "uav-1").is_err());
     }
 }

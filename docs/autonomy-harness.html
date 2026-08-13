@@ -769,7 +769,7 @@ flowchart LR
   REPLAY --> RESULTS
   RESULTS -->|optional grounding| REASON
   REASON --> ANSWERS[("Grounded events · answers&lt;br/&gt;+ governed artifacts")]
-  KERNEL["Agent Kernel&lt;br/&gt;bounded episodes"] -->|17-server profile| GW
+  KERNEL["Agent Kernel&lt;br/&gt;bounded episodes"] -->|16-server profile| GW
   CONSOLE["Console + MCP Apps"] -->|session| GW
   GW --> SRV["Hosted MCP servers&lt;br/&gt;17 canonical identities"]
   SRV --- STORE[("Platform store")]
@@ -1036,11 +1036,11 @@ flowchart LR
   <section class="layer">
     <div class="layer-head">
       <h2 class="layer-title">Hosted Capabilities</h2>
-      <span class="layer-sub">seventeen canonical server identities — and any MCP server you connect — under one contract</span>
+      <span class="layer-sub">sixteen canonical server identities — and any MCP server you connect — under one contract</span>
     </div>
     <div class="layer-body">
       <p class="agent-lede" style="margin:0 0 16px">
-        The canonical control plane defines seventeen hosted server identities. Each declares the
+        The canonical control plane defines sixteen hosted server identities. Each declares the
         MCP surfaces its domain needs and runs inside the installation behind gateway-signed
         identity. A new local, bridged, or <strong>remote MCP endpoint</strong> registers in the
         validated catalog and immediately answers to the same task, artifact, identity, policy,
@@ -1318,35 +1318,20 @@ flowchart LR
           <div class="server-head">
             <span class="scheme">uav-sim://</span>
             <h4><span class="dot" style="background:var(--hue-opt)"></span>UAV Simulation</h4>
-            <p>Govern simulation sessions, missions, vehicles, terrain, and dataset capture while
-               keeping simulator-native control ports private.</p>
+            <p>Govern simulation sessions, missions, vehicles, terrain, dataset capture,
+               authoritative operator cameras, and isolated viewer products while keeping
+               simulator-native control ports private.</p>
           </div>
           <div class="tools"><table>
             <tr><td class="tn">configure_world</td><td>Bind the governed world, scene, vehicles, frames, and runtime inputs for one session.</td></tr>
             <tr><td class="tn">execute_mission</td><td>Run one bounded multi-vehicle mission as durable simulator work.</td></tr>
             <tr><td class="tn">capture_dataset</td><td>Capture synchronized camera, pose, telemetry, and mission evidence.</td></tr>
+            <tr><td class="tn">list_live_cameras</td><td>Discover installation-configured simulator-hosted logical cameras and bounded viewer capacity.</td></tr>
+            <tr><td class="tn">open_live_view</td><td>Assign one isolated native RTX, NVENC, and WebRTC product to an actor-and-browser-specific lease.</td></tr>
           </table></div>
           <div class="server-foot">
-            <span class="cap">durable tasks</span><span class="cap">recordings</span>
-            <span class="cap plain">PX4 and MAVLink</span><span class="cap plain">typed adapter</span><span class="cap plain">GPU simulation</span>
-          </div>
-        </div>
-
-        <div class="server">
-          <div class="server-head">
-            <span class="scheme">simulation-view://</span>
-            <h4><span class="dot" style="background:var(--hue-viewer)"></span>Simulation View</h4>
-            <p>Render provider-neutral simulation scenes through logical cameras and bounded
-               live-view leases without taking ownership of domain dynamics or control.</p>
-          </div>
-          <div class="tools"><table>
-            <tr><td class="tn">create_session</td><td>Bind renderer capacity to one owner-scoped scene session.</td></tr>
-            <tr><td class="tn">create_camera · set_camera</td><td>Create and revise a logical camera against the admitted scene.</td></tr>
-            <tr><td class="tn">open_live_view</td><td>Issue a bounded WebRTC lease rendered in <code>ui://simulation-view/live.html</code>.</td></tr>
-          </table></div>
-          <div class="server-foot">
-            <span class="cap">MCP App</span><span class="cap">GPU rendering</span>
-            <span class="cap plain">WebRTC</span><span class="cap plain">capacity admission</span><span class="cap plain">pose freshness</span>
+            <span class="cap">durable tasks</span><span class="cap">recordings</span><span class="cap">MCP App</span>
+            <span class="cap plain">PX4 and MAVLink</span><span class="cap plain">WebRTC</span><span class="cap plain">GPU simulation and NVENC</span>
           </div>
         </div>
 

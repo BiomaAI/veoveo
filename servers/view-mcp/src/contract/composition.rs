@@ -207,7 +207,6 @@ impl GovernedResourceUri {
                     "recording://recording/",
                     "recording://artifact/",
                     "frames://operation/",
-                    "simulation-view://snapshot/",
                 ]
                 .iter()
                 .any(|prefix| {
@@ -876,9 +875,7 @@ pub enum SceneCompositionError {
     InvalidIdentifier(&'static str),
     #[error("SHA-256 digest must contain 64 lowercase hexadecimal characters")]
     InvalidSha256,
-    #[error(
-        "governed resource must be one exact Map, Frames, Artifact, Recording, or Simulation View identity"
-    )]
+    #[error("governed resource must be one exact Map, Frames, Artifact, or Recording identity")]
     InvalidGovernedResourceUri,
     #[error("Map release URI must use map://dataset/{{dataset}}/release/{{release}}")]
     InvalidMapReleaseUri,

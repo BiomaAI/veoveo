@@ -32,6 +32,7 @@ use veoveo_recording_protocol::{
     },
 };
 
+use crate::diagnostics::IngestDiagnostics;
 use crate::governance::{authority_record, governed_classification, governed_labels};
 use crate::inspect_segment;
 
@@ -176,6 +177,7 @@ pub struct RecordingIngestService {
         Arc<std::sync::Mutex<BTreeMap<RecordingIngestStreamId, AuthorizedIngestStream>>>,
     active_segments: Arc<std::sync::Mutex<BTreeMap<RecordingIngestStreamId, ActiveIngestSegment>>>,
     segment_byte_lengths: Arc<std::sync::Mutex<BTreeMap<PathBuf, u64>>>,
+    diagnostics: IngestDiagnostics,
 }
 
 #[derive(Clone)]
@@ -209,7 +211,12 @@ impl RecordingIngestService {
             authorized_streams: Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             active_segments: Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             segment_byte_lengths: Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+            diagnostics: IngestDiagnostics::default(),
         })
+    }
+
+    pub fn diagnostics(&self) -> crate::RecordingIngestDiagnosticsDocument {
+        self.diagnostics.document()
     }
 
     pub async fn open(
@@ -469,10 +476,34 @@ impl RecordingIngestService {
             .await?;
         let mut stream = outcome.stream;
         if outcome.batch.state == RecordingIngestBatchState::Durable {
-            stream = self
+            self.diagnostics.durable_batch(
+                stream_id,
+                batch.sequence,
+                batch.message_count,
+                batch.encoded_rrd.len() as u64,
+                outcome.duplicate,
+            );
+            let materialized = self
                 .materialize(&identity, stream_id, &stream, batch, &journal_path)
-                .await?;
+                .await;
+            match materialized {
+                Ok(updated) => {
+                    stream = updated;
+                    self.diagnostics.materialized(stream_id, batch.sequence);
+                }
+                Err(error) => return Err(error),
+            }
         } else {
+            if outcome.duplicate {
+                self.diagnostics.durable_batch(
+                    stream_id,
+                    batch.sequence,
+                    batch.message_count,
+                    batch.encoded_rrd.len() as u64,
+                    true,
+                );
+                self.diagnostics.materialized(stream_id, batch.sequence);
+            }
             remove_if_exists(&journal_path)?;
         }
         self.authorized_streams
@@ -486,11 +517,24 @@ impl RecordingIngestService {
                     quota,
                 },
             );
-        Ok(AppendRecordingBatchResult {
+        let result = AppendRecordingBatchResult {
             durable_through_sequence: durable_through(&stream)?,
             materialized_through_sequence: materialized_through(&stream)?,
             duplicate: outcome.duplicate,
-        })
+        };
+        self.diagnostics.request_succeeded(chrono::Utc::now());
+        let diagnostics = self.diagnostics.document().diagnostics;
+        tracing::info!(
+            accepted_batches_total = diagnostics.accepted_batches_total,
+            accepted_messages_total = diagnostics.accepted_messages_total,
+            accepted_bytes_total = diagnostics.accepted_bytes_total,
+            duplicate_batches_total = diagnostics.duplicate_batches_total,
+            materialization_backlog_batches = diagnostics.materialization_backlog_batches,
+            materialization_backlog_bytes = diagnostics.materialization_backlog_bytes,
+            last_success_at = ?diagnostics.last_success_at,
+            "authenticated recording ingest append completed"
+        );
+        Ok(result)
     }
 
     pub async fn publish_blueprint(
@@ -844,7 +888,8 @@ impl RecordingIngestService {
         let mut segment_byte_len = self.segment_byte_len(&parts_directory)?;
         if parts_directory.exists()
             && self.segment_is_due(&segment, segment_byte_len)?
-            && (!segment_contains_video(&parts_directory) || video.begins_with_keyframe)
+            && (!segment_contains_video(&parts_directory)
+                || video.begins_with_decoder_reentrant_access_unit)
         {
             self.freeze_segment(identity, stream_id, segment, &path)
                 .await?;

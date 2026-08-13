@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import math
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -9,8 +8,10 @@ from typing import Any, Callable
 
 from .config import RuntimeConfig
 from .geo import enu_to_geodetic
-from .camera_quality import CameraFrameQuality
-from .pose import initial_pose_publication
+from .operator_camera_config import live_camera_descriptor
+from .physics_batch import FleetPhysicsTiming
+from .render_pose import RenderPoseAgreement
+from .tile_lifecycle import TileLifecycleSnapshot
 from .world_config import WorldConfiguration
 
 
@@ -34,19 +35,21 @@ def initial_runtime_timing(config: RuntimeConfig) -> dict[str, int | float]:
     return {
         "physics_hz": config.physics_hz,
         "native_rendering_hz": config.rendering_hz,
-        "pose_cadence_hz": config.pose_cadence_hz,
-        "pose_buffer_duration_ms": config.pose_buffer_duration_ms,
-        "pose_queued_snapshots": 0,
-        "pose_buffer_target_snapshots": max(
-            2,
-            math.ceil(
-                config.pose_cadence_hz
-                * config.pose_buffer_duration_ms
-                / 1_000
-            ),
-        ),
-        "realtime_rebases": 0,
-        "discarded_wall_seconds": 0.0,
+        "render_cycles": 0,
+        "physics_steps": 0,
+        "refresh_states_wall_seconds": 0.0,
+        "vehicle_update_wall_seconds": 0.0,
+        "state_update_wall_seconds": 0.0,
+        "dynamics_update_wall_seconds": 0.0,
+        "sensor_update_wall_seconds": 0.0,
+        "backend_state_wall_seconds": 0.0,
+        "flush_forces_wall_seconds": 0.0,
+        "after_step_wall_seconds": 0.0,
+        "native_update_wall_seconds": 0.0,
+        "render_cycle_wall_seconds": 0.0,
+        "maximum_physics_step_ms": 0.0,
+        "maximum_native_update_ms": 0.0,
+        "maximum_render_cycle_ms": 0.0,
     }
 
 
@@ -70,7 +73,9 @@ class RuntimeState:
                 "resident_tiles": 0,
                 "visible_tiles": 0,
                 "loading_tiles": 0,
-                "recovery_count": 0,
+                "provider_generation": 0,
+                "event_sequence": 0,
+                "refresh_count": 0,
             },
             "cameras": [
                 {
@@ -82,22 +87,34 @@ class RuntimeState:
                     "lifecycle": "warming",
                     "width": config.camera.width,
                     "height": config.camera.height,
+                    "frame_rate_hz": config.camera.fps,
                     "codec": "h264",
                     "encoder": "nvidia_nvenc",
+                    "transport": "rtsp_rtp",
                     "frames_observed": 0,
-                    "mean_luma": 0.0,
-                    "dynamic_range": 0,
-                    "robust_dynamic_range": 0,
-                    "luma_standard_deviation": 0.0,
-                    "non_black_fraction": 0.0,
-                    "content": "black",
+                    "last_access_unit_bytes": 0,
+                    "last_frame_keyframe": False,
                 }
             ],
-            "pose_publication": initial_pose_publication(
-                config.pose_publication,
-                config.vehicle_count,
-                config.pose_cadence_hz,
-            ),
+            "live_cameras": [
+                live_camera_descriptor(config.session_id, camera)
+                for camera in config.operator_live_view.cameras
+            ],
+            "stream_products": [
+                {
+                    "streamProductId": f"product-slot-{capacity_slot}",
+                    "capacitySlot": capacity_slot,
+                    "lifecycle": "inactive",
+                    "activeViewerLeases": 0,
+                    "connectedViewers": 0,
+                    "nvencSessions": 0,
+                    "encodedFrames": 0,
+                    "sourceToRenderSamples": 0,
+                }
+                for capacity_slot in range(
+                    config.operator_live_view.viewer_slot_count
+                )
+            ],
             "vehicles": [],
             "recordings": [
                 {
@@ -133,24 +150,30 @@ class RuntimeState:
 
     def set_tiles(
         self,
-        lifecycle: str,
-        resident_tiles: int,
-        visible_tiles: int,
-        loading_tiles: int,
-        recovery_count: int,
-        diagnostic: str | None = None,
+        snapshot: TileLifecycleSnapshot,
     ) -> None:
         with self._condition:
             tiles = self._state["tiles"]
             tiles.update(
-                lifecycle=lifecycle,
-                resident_tiles=max(0, resident_tiles),
-                visible_tiles=max(0, visible_tiles),
-                loading_tiles=max(0, loading_tiles),
-                recovery_count=max(0, recovery_count),
+                lifecycle=snapshot.lifecycle,
+                resident_tiles=snapshot.resident_tiles,
+                visible_tiles=snapshot.visible_tiles,
+                loading_tiles=snapshot.loading_tiles,
+                provider_generation=snapshot.provider_generation,
+                event_sequence=snapshot.event_sequence,
+                refresh_count=snapshot.refresh_count,
             )
-            if diagnostic:
-                tiles["diagnostic"] = diagnostic
+            if snapshot.last_failure is not None:
+                tiles["last_failure"] = {
+                    "code": snapshot.last_failure.code,
+                    "load_type": snapshot.last_failure.load_type,
+                    "http_status": snapshot.last_failure.http_status,
+                    "generation": snapshot.last_failure.generation,
+                }
+            else:
+                tiles.pop("last_failure", None)
+            if snapshot.diagnostic:
+                tiles["diagnostic"] = snapshot.diagnostic
             else:
                 tiles.pop("diagnostic", None)
             self._touch()
@@ -161,13 +184,52 @@ class RuntimeState:
             self._state["physics_step"] = physics_step
             self._touch()
 
-    def update_realtime_clock(
-        self, rebases: int, discarded_wall_seconds: float
+    def observe_render_cycle(
+        self,
+        native_update_wall_seconds: float,
+        render_cycle_wall_seconds: float,
+        physics_timing: FleetPhysicsTiming,
     ) -> None:
+        if native_update_wall_seconds < 0.0 or render_cycle_wall_seconds < 0.0:
+            raise ValueError("render timing cannot be negative")
+        if render_cycle_wall_seconds < native_update_wall_seconds:
+            raise ValueError("render-cycle timing cannot be shorter than native update")
         with self._condition:
-            self._state["timing"].update(
-                realtime_rebases=max(0, rebases),
-                discarded_wall_seconds=max(0.0, discarded_wall_seconds),
+            timing = self._state["timing"]
+            timing["render_cycles"] += 1
+            timing["physics_steps"] = physics_timing.physics_steps
+            timing["refresh_states_wall_seconds"] = (
+                physics_timing.refresh_states_wall_seconds
+            )
+            timing["vehicle_update_wall_seconds"] = (
+                physics_timing.vehicle_update_wall_seconds
+            )
+            timing["state_update_wall_seconds"] = (
+                physics_timing.state_update_wall_seconds
+            )
+            timing["dynamics_update_wall_seconds"] = (
+                physics_timing.dynamics_update_wall_seconds
+            )
+            timing["sensor_update_wall_seconds"] = (
+                physics_timing.sensor_update_wall_seconds
+            )
+            timing["backend_state_wall_seconds"] = (
+                physics_timing.backend_state_wall_seconds
+            )
+            timing["flush_forces_wall_seconds"] = (
+                physics_timing.flush_forces_wall_seconds
+            )
+            timing["after_step_wall_seconds"] = physics_timing.after_step_wall_seconds
+            timing["native_update_wall_seconds"] += native_update_wall_seconds
+            timing["render_cycle_wall_seconds"] += render_cycle_wall_seconds
+            timing["maximum_physics_step_ms"] = physics_timing.maximum_physics_step_ms
+            timing["maximum_native_update_ms"] = max(
+                timing["maximum_native_update_ms"],
+                native_update_wall_seconds * 1_000.0,
+            )
+            timing["maximum_render_cycle_ms"] = max(
+                timing["maximum_render_cycle_ms"],
+                render_cycle_wall_seconds * 1_000.0,
             )
             self._touch()
 
@@ -176,52 +238,72 @@ class RuntimeState:
         vehicle_id: str,
         lifecycle: str,
         frames_observed: int,
-        quality: CameraFrameQuality,
-        diagnostic_code: str | None = None,
+        access_unit_bytes: int,
+        *,
+        keyframe: bool,
         diagnostic: str | None = None,
+        render_pose: RenderPoseAgreement | None = None,
     ) -> None:
+        if access_unit_bytes < 0:
+            raise ValueError("camera access-unit size must be non-negative")
         with self._condition:
             for camera in self._state["cameras"]:
                 if camera["vehicle_id"] == vehicle_id:
                     camera.update(
                         lifecycle=lifecycle,
                         frames_observed=max(0, frames_observed),
-                        mean_luma=quality.mean_luma,
-                        dynamic_range=quality.dynamic_range,
-                        robust_dynamic_range=quality.robust_dynamic_range,
-                        luma_standard_deviation=quality.luma_standard_deviation,
-                        non_black_fraction=quality.non_black_fraction,
-                        content=quality.content,
+                        last_access_unit_bytes=access_unit_bytes,
+                        last_frame_keyframe=keyframe,
                     )
-                    if diagnostic_code:
-                        camera["diagnostic_code"] = diagnostic_code
-                    else:
-                        camera.pop("diagnostic_code", None)
                     if diagnostic:
                         camera["diagnostic"] = diagnostic
                     else:
                         camera.pop("diagnostic", None)
+                    if render_pose is not None:
+                        camera["render_pose"] = render_pose.as_dict()
                     self._touch()
                     return
             raise ValueError(f"unknown camera vehicle {vehicle_id!r}")
 
+    def update_stream_products(self, products: list[dict[str, object]]) -> None:
+        by_camera: dict[str, list[dict[str, object]]] = {}
+        for product in products:
+            camera_id = product.get("cameraId")
+            if camera_id is not None:
+                by_camera.setdefault(str(camera_id), []).append(product)
+        with self._condition:
+            self._state["stream_products"] = copy.deepcopy(products)
+            for camera in self._state["live_cameras"]:
+                assigned_products = by_camera.get(str(camera["cameraId"]), [])
+                if not assigned_products:
+                    camera["health"] = "healthy"
+                    camera.pop("lastFrameAt", None)
+                    continue
+                lifecycles = {
+                    str(product["lifecycle"]) for product in assigned_products
+                }
+                if "ready" in lifecycles:
+                    camera["health"] = "healthy"
+                elif "starting" in lifecycles:
+                    camera["health"] = "warming"
+                elif lifecycles == {"failed"}:
+                    camera["health"] = "failed"
+                else:
+                    camera["health"] = "healthy"
+                frame_times = [
+                    str(product["lastFrameAt"])
+                    for product in assigned_products
+                    if "lastFrameAt" in product
+                ]
+                if frame_times:
+                    camera["lastFrameAt"] = max(frame_times)
+                else:
+                    camera.pop("lastFrameAt", None)
+            self._touch()
+
     def update_vehicles(self, vehicles: list[VehicleTelemetry]) -> None:
         with self._condition:
             self._state["vehicles"] = [self._vehicle_state(vehicle) for vehicle in vehicles]
-            self._touch()
-
-    def update_pose_publication(self, publication: dict[str, Any]) -> None:
-        with self._condition:
-            sanitized = copy.deepcopy(publication)
-            queued = sanitized.pop("queued_snapshots", None)
-            target = sanitized.pop("buffer_target_snapshots", None)
-            if queued is not None:
-                self._state["timing"]["pose_queued_snapshots"] = max(0, queued)
-            if target is not None:
-                self._state["timing"]["pose_buffer_target_snapshots"] = max(
-                    2, target
-                )
-            self._state["pose_publication"] = sanitized
             self._touch()
 
     def set_recording_active(self, active: bool) -> None:

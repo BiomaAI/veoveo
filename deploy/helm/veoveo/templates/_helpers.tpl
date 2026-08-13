@@ -191,6 +191,7 @@ claims:
     "maximumQueueBytes" (printf "%.0f" $config.maximumQueueBytes)
     "batchMessageLimit" $config.batchMessageLimit
     "grpcMemoryLimitBytes" (printf "%.0f" $config.grpcMemoryLimitBytes)
+    "restartableInit" true
     "resources" $config.resources
   ) -}}
 {{- end }}
@@ -200,11 +201,14 @@ catalog.json: |
   {
     "models": [
       {
-        "id": "world-model",
-        "title": "Site world model",
-        "description": "Site-supplied world-model checkpoint for video reasoning.",
+        "id": {{ .Values.reason.model.id | toJson }},
+        "title": {{ .Values.reason.model.title | toJson }},
+        "description": {{ .Values.reason.model.description | toJson }},
         "format": "local_checkpoint",
-        "model_path": "/models/world-model",
+        "model_path": {{ .Values.reason.model.path | toJson }},
+        {{- if .Values.reason.model.digest }}
+        "model_digest": {{ .Values.reason.model.digest | toJson }},
+        {{- end }}
         "engine": {
           "kind": "vllm",
           "gpu_memory_utilization": {{ .Values.reason.engine.gpuMemoryUtilization }},
@@ -218,7 +222,7 @@ catalog.json: |
         "title": "Video reasoning",
         "description": "Describe segments, detect events, and answer questions over recording video.",
         "operation": "video_reasoning",
-        "model_id": "world-model",
+        "model_id": {{ .Values.reason.model.id | toJson }},
         "prompt_template_path": "/etc/veoveo/reason/prompt-template.txt",
         "prompt_revision": "v1",
         "observation": {

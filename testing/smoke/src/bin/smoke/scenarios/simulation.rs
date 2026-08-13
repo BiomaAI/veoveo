@@ -537,11 +537,11 @@ fn registry_access(
         .with_context(|| format!("decoding deployment lock {}", path.display()))?;
     lock.validate()?;
     for (field, image) in [("base image", base_image), ("overlay image", overlay_image)] {
-        validate_locked_authority(field, image, &lock.registry)?;
+        validate_locked_authority(field, image, &lock.registry.pull_address)?;
     }
     Ok(RegistryAccess {
-        address: Some(lock.registry),
-        transport: lock.registry_transport,
+        address: Some(lock.registry.push_address),
+        transport: lock.registry.transport,
     })
 }
 

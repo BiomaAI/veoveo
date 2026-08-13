@@ -4,8 +4,10 @@
 //! LIVE streams are latency hints only; every recovery path starts from the
 //! persisted pending rows.
 
+mod control;
 mod runtime;
 mod types;
 
+pub use control::*;
 pub use runtime::AgentRuntime;
 pub use types::*;

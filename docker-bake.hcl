@@ -28,6 +28,24 @@ function "image_ref" {
   )
 }
 
+function "registry_cache" {
+  params = [name]
+  result = VEOVEO_REGISTRY != "" ? [format(
+    "type=registry,ref=%s/veoveo/build-cache/%s:buildkit",
+    VEOVEO_REGISTRY,
+    name,
+  )] : []
+}
+
+function "registry_cache_export" {
+  params = [name]
+  result = VEOVEO_REGISTRY != "" ? [format(
+    "type=registry,ref=%s/veoveo/build-cache/%s:buildkit,mode=max,oci-mediatypes=true,image-manifest=true",
+    VEOVEO_REGISTRY,
+    name,
+  )] : []
+}
+
 group "platform-core" {
   targets = [
     "mcp-gateway",
@@ -63,9 +81,6 @@ group "platform-full" {
     "chart-mcp",
     "mcp-stdio-bridge",
     "simulation-runtime",
-    "simulation-view-mcp",
-    "simulation-view-pose",
-    "simulation-view-isaac",
   ]
 }
 
@@ -90,9 +105,6 @@ group "external-simulation-platform" {
     "artifact-mcp",
     "frames-mcp",
     "simulation-runtime",
-    "simulation-view-mcp",
-    "simulation-view-pose",
-    "simulation-view-isaac",
   ]
 }
 
@@ -114,15 +126,6 @@ group "showcase-uav-sim" {
 
 group "simulation-runtime" {
   targets = ["simulation-runtime"]
-}
-
-group "simulation-view" {
-  targets = [
-    "simulation-runtime",
-    "simulation-view-mcp",
-    "simulation-view-pose",
-    "simulation-view-isaac",
-  ]
 }
 
 group "showcase-uav-sim-overlay-acceptance" {
@@ -536,45 +539,6 @@ target "simulation-runtime" {
   tags       = [image_ref("simulation-runtime")]
 }
 
-target "simulation-view-mcp" {
-  inherits   = ["_rust-trixie-runtime"]
-  dockerfile = "servers/simulation-view-mcp/Dockerfile"
-  tags       = [image_ref("simulation-view-mcp")]
-  labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-simulation-view-mcp"
-    "io.veoveo.build.binaries"  = "simulation-view-mcp"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
-  }
-}
-
-target "simulation-view-pose" {
-  inherits   = ["_rust-trixie-runtime"]
-  dockerfile = "platform/simulation/pose-ingress/Dockerfile"
-  tags       = [image_ref("simulation-view-pose")]
-  labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-simulation-view-pose-ingress"
-    "io.veoveo.build.binaries"  = "simulation-view-pose"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
-  }
-}
-
-target "simulation-view-isaac" {
-  context    = "platform/simulation/view-isaac"
-  dockerfile = "Dockerfile"
-  platforms  = ["linux/amd64"]
-  tags       = [image_ref("simulation-view-isaac")]
-  contexts = {
-    simulation-runtime = "target:simulation-runtime-payload"
-  }
-  args = {
-    SIMULATION_RUNTIME_IMAGE = "simulation-runtime"
-  }
-}
-
 target "anonymous-simulation-mcp" {
   context    = "."
   dockerfile = "testing/fixtures/external-simulation-installation/Dockerfile.anonymous-simulation-mcp"
@@ -587,8 +551,8 @@ target "anonymous-simulation-mcp" {
     ),
   ]
   labels = {
-    "org.opencontainers.image.title" = "Anonymous external Simulation View producer fixture"
-    "io.veoveo.extension.role"       = "simulation-producer"
+    "org.opencontainers.image.title" = "Anonymous simulator-hosted live-view conformance fixture"
+    "io.veoveo.extension.role"       = "authoritative-simulation"
   }
 }
 
@@ -600,11 +564,28 @@ target "uav-sim-runtime" {
   tags       = [image_ref("uav-sim-runtime")]
   contexts = {
     simulation-runtime = "target:simulation-runtime-payload"
-    simulation-pose-sdk = "./sdk/python/src/veoveo_mcp"
+    uav-sim-dependencies = "target:uav-sim-dependencies"
   }
   args = {
     SIMULATION_RUNTIME_IMAGE = "simulation-runtime"
   }
+  cache-from = registry_cache("uav-sim-runtime")
+  cache-to   = registry_cache_export("uav-sim-runtime")
+}
+
+target "uav-sim-dependencies" {
+  context    = "showcase/uav-sim/runtime"
+  dockerfile = "Dockerfile.dependencies"
+  platforms  = ["linux/amd64"]
+  target     = "dependencies"
+  contexts = {
+    simulation-runtime = "target:simulation-runtime-payload"
+  }
+  args = {
+    SIMULATION_RUNTIME_IMAGE = "simulation-runtime"
+  }
+  cache-from = registry_cache("uav-sim-dependencies")
+  cache-to   = registry_cache_export("uav-sim-dependencies")
 }
 
 target "simulation-overlay-acceptance" {

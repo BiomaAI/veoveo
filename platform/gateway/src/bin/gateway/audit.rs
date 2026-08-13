@@ -143,6 +143,9 @@ impl AdminOperationStatus {
 
 #[derive(Debug, Clone, Copy)]
 pub(super) enum AdminOperationFailure {
+    AgentCaller,
+    AgentElicitation,
+    AgentMessage,
     ArtifactGrant,
     ArtifactGrantRevoke,
     ArtifactReleaseState,
@@ -168,6 +171,9 @@ pub(super) enum AdminOperationFailure {
 impl AdminOperationFailure {
     fn as_str(self) -> &'static str {
         match self {
+            Self::AgentCaller => "agent_caller",
+            Self::AgentElicitation => "agent_elicitation",
+            Self::AgentMessage => "agent_message",
             Self::ArtifactGrant => "artifact_grant",
             Self::ArtifactGrantRevoke => "artifact_grant_revoke",
             Self::ArtifactReleaseState => "artifact_release_state",

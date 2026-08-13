@@ -1,7 +1,10 @@
 use std::{
     collections::{BTreeMap, HashMap},
     ops::Deref,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
     time::Duration,
 };
 
@@ -9,21 +12,45 @@ use anyhow::Context;
 use chrono::Utc;
 use rmcp::{
     ClientHandler, ServiceExt,
-    model::{ClientCapabilities, ClientInfo, Implementation},
-    service::RunningService,
+    model::{
+        ClientCapabilities, ClientInfo, Implementation, PaginatedRequestParams, Resource,
+        ResourceUpdatedNotificationParam, SubscribeRequestParams, Tool, UnsubscribeRequestParams,
+    },
+    service::{NotificationContext, RoleClient, RunningService},
     transport::{
         StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
     },
 };
 use sha2::{Digest, Sha256};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, broadcast};
+use uuid::Uuid;
+use veoveo_mcp_contract::GatewayDiscoveryDegradation;
 
 use crate::{config::Config, outbound_http::OutboundTrust};
 
 /// Console host MCP client: declares the apps extension so servers know an
 /// app-capable host is attached; everything else is default client behavior.
-#[derive(Clone, Default)]
-pub(crate) struct ConsoleHostHandler;
+#[derive(Clone)]
+pub(crate) struct ConsoleHostHandler {
+    resource_updates: broadcast::Sender<String>,
+    catalog_revision: Arc<AtomicU64>,
+}
+
+impl Default for ConsoleHostHandler {
+    fn default() -> Self {
+        let (resource_updates, _) = broadcast::channel(128);
+        Self {
+            resource_updates,
+            catalog_revision: Arc::new(AtomicU64::new(0)),
+        }
+    }
+}
+
+impl ConsoleHostHandler {
+    fn invalidate_catalog(&self) {
+        self.catalog_revision.fetch_add(1, Ordering::AcqRel);
+    }
+}
 
 impl ClientHandler for ConsoleHostHandler {
     fn get_info(&self) -> ClientInfo {
@@ -38,17 +65,34 @@ impl ClientHandler for ConsoleHostHandler {
             Implementation::new("veoveo-console", env!("CARGO_PKG_VERSION")),
         )
     }
+
+    async fn on_resource_updated(
+        &self,
+        params: ResourceUpdatedNotificationParam,
+        _context: NotificationContext<RoleClient>,
+    ) {
+        let _ = self.resource_updates.send(params.uri);
+    }
+
+    async fn on_resource_list_changed(&self, _context: NotificationContext<RoleClient>) {
+        self.invalidate_catalog();
+    }
+
+    async fn on_tool_list_changed(&self, _context: NotificationContext<RoleClient>) {
+        self.invalidate_catalog();
+    }
 }
 
 type RunningMcpSession = RunningService<rmcp::RoleClient, ConsoleHostHandler>;
 
 /// The App authorization surface projected by one initialized gateway
-/// session. Resources and tools are immutable for that authority/profile
-/// snapshot. Token rotation or transport invalidation drops it.
+/// session. MCP list-change notifications invalidate its successful snapshot;
+/// partial snapshots retry unavailable servers on the next explicit request.
 #[derive(Debug)]
 pub(crate) struct McpAppCatalog {
     resources: Vec<rmcp::model::Resource>,
     tools: Vec<rmcp::model::Tool>,
+    degradation: GatewayDiscoveryDegradation,
 }
 
 impl McpAppCatalog {
@@ -59,11 +103,35 @@ impl McpAppCatalog {
     pub(crate) fn tools(&self) -> &[rmcp::model::Tool] {
         &self.tools
     }
+
+    pub(crate) fn degradation(&self) -> &GatewayDiscoveryDegradation {
+        &self.degradation
+    }
+}
+
+struct CachedMcpAppCatalog {
+    revision: u64,
+    catalog: Arc<McpAppCatalog>,
 }
 
 pub(crate) struct McpSessionContext {
     service: Arc<RunningMcpSession>,
-    app_catalog: Mutex<Option<Arc<McpAppCatalog>>>,
+    app_catalog: Mutex<Option<CachedMcpAppCatalog>>,
+    catalog_revision: Arc<AtomicU64>,
+    resource_updates: broadcast::Sender<String>,
+    app_resource_subscriptions: Mutex<AppResourceSubscriptions>,
+    app_resource_subscription_locks: Mutex<BTreeMap<String, Arc<Mutex<()>>>>,
+}
+
+pub(crate) struct AppResourceSubscription {
+    pub(crate) receiver: broadcast::Receiver<String>,
+    pub(crate) newly_registered: bool,
+}
+
+#[derive(Default)]
+struct AppResourceSubscriptions {
+    by_id: BTreeMap<Uuid, String>,
+    counts_by_uri: BTreeMap<String, usize>,
 }
 
 impl Deref for McpSessionContext {
@@ -76,12 +144,142 @@ impl Deref for McpSessionContext {
 
 impl McpSessionContext {
     pub(crate) async fn app_catalog(&self) -> Result<Arc<McpAppCatalog>, rmcp::ServiceError> {
-        cached_or_load(&self.app_catalog, || async {
-            let resources = self.service.list_all_resources().await?;
-            let tools = self.service.list_all_tools().await?;
-            Ok(McpAppCatalog { resources, tools })
+        let revision = self.catalog_revision.load(Ordering::Acquire);
+        let mut cached = self.app_catalog.lock().await;
+        if let Some(cached) = cached.as_ref()
+            && cached.revision == revision
+            && cached.catalog.degradation.is_empty()
+        {
+            return Ok(cached.catalog.clone());
+        }
+        let (resources, tools) = tokio::try_join!(
+            list_resources_with_degradation(&self.service),
+            list_tools_with_degradation(&self.service),
+        )?;
+        let (resources, mut degradation) = resources;
+        let (tools, tool_degradation) = tools;
+        degradation.merge(tool_degradation);
+        let catalog = Arc::new(McpAppCatalog {
+            resources,
+            tools,
+            degradation,
+        });
+        *cached = Some(CachedMcpAppCatalog {
+            revision,
+            catalog: catalog.clone(),
+        });
+        Ok(catalog)
+    }
+
+    /// Register one browser-App subscription on the pooled MCP session.
+    /// EventSource reconnects reuse the same UUID and therefore do not add
+    /// another upstream subscription or reference count.
+    pub(crate) async fn subscribe_app_resource(
+        &self,
+        subscription_id: Uuid,
+        uri: String,
+    ) -> anyhow::Result<AppResourceSubscription> {
+        let receiver = self.resource_updates.subscribe();
+        let uri_lock = self.app_resource_subscription_lock(&uri).await;
+        let _uri_guard = uri_lock.lock().await;
+        let mut subscriptions = self.app_resource_subscriptions.lock().await;
+        if let Some(existing) = subscriptions.by_id.get(&subscription_id) {
+            anyhow::ensure!(
+                existing == &uri,
+                "app resource subscription identity is already bound to another URI"
+            );
+            return Ok(AppResourceSubscription {
+                receiver,
+                newly_registered: false,
+            });
+        }
+        let first_for_uri = !subscriptions.counts_by_uri.contains_key(&uri);
+        if first_for_uri {
+            drop(subscriptions);
+            self.service
+                .subscribe(SubscribeRequestParams::new(uri.clone()))
+                .await
+                .context("subscribing pooled Console MCP session to App resource")?;
+            subscriptions = self.app_resource_subscriptions.lock().await;
+            if let Some(existing) = subscriptions.by_id.get(&subscription_id) {
+                if existing != &uri {
+                    drop(subscriptions);
+                    self.service
+                        .unsubscribe(UnsubscribeRequestParams::new(uri))
+                        .await
+                        .context(
+                            "rolling back App resource subscription with a conflicting identity",
+                        )?;
+                    anyhow::bail!(
+                        "app resource subscription identity is already bound to another URI"
+                    );
+                }
+                return Ok(AppResourceSubscription {
+                    receiver,
+                    newly_registered: false,
+                });
+            }
+        }
+        subscriptions.by_id.insert(subscription_id, uri.clone());
+        *subscriptions.counts_by_uri.entry(uri).or_default() += 1;
+        Ok(AppResourceSubscription {
+            receiver,
+            newly_registered: true,
         })
-        .await
+    }
+
+    /// Release one App subscription. Multiple tabs sharing the same Console
+    /// MCP session retain the one upstream subscription until the final UUID
+    /// closes.
+    pub(crate) async fn unsubscribe_app_resource(
+        &self,
+        subscription_id: Uuid,
+    ) -> anyhow::Result<()> {
+        let Some(uri) = self
+            .app_resource_subscriptions
+            .lock()
+            .await
+            .by_id
+            .get(&subscription_id)
+            .cloned()
+        else {
+            return Ok(());
+        };
+        let uri_lock = self.app_resource_subscription_lock(&uri).await;
+        let _uri_guard = uri_lock.lock().await;
+        let mut subscriptions = self.app_resource_subscriptions.lock().await;
+        let Some(current_uri) = subscriptions.by_id.get(&subscription_id) else {
+            return Ok(());
+        };
+        anyhow::ensure!(
+            current_uri == &uri,
+            "app resource subscription identity changed URI while unsubscribing"
+        );
+        let final_for_uri = subscriptions.counts_by_uri.get(&uri).copied() == Some(1);
+        if final_for_uri {
+            drop(subscriptions);
+            self.service
+                .unsubscribe(UnsubscribeRequestParams::new(uri.clone()))
+                .await
+                .context("unsubscribing pooled Console MCP session from App resource")?;
+            subscriptions = self.app_resource_subscriptions.lock().await;
+        }
+        subscriptions.by_id.remove(&subscription_id);
+        if final_for_uri {
+            subscriptions.counts_by_uri.remove(&uri);
+        } else if let Some(count) = subscriptions.counts_by_uri.get_mut(&uri) {
+            *count -= 1;
+        }
+        Ok(())
+    }
+
+    async fn app_resource_subscription_lock(&self, uri: &str) -> Arc<Mutex<()>> {
+        self.app_resource_subscription_locks
+            .lock()
+            .await
+            .entry(uri.to_owned())
+            .or_default()
+            .clone()
     }
 }
 
@@ -158,8 +356,10 @@ impl McpSessionPool {
                 // access token rotates.
                 .reinit_on_expired_session(true),
         );
+        let handler = ConsoleHostHandler::default();
         let service = Arc::new(
-            ConsoleHostHandler
+            handler
+                .clone()
                 .serve(transport)
                 .await
                 .context("initializing console MCP session to the gateway")?,
@@ -167,6 +367,10 @@ impl McpSessionPool {
         let session = Arc::new(McpSessionContext {
             service,
             app_catalog: Mutex::new(None),
+            catalog_revision: handler.catalog_revision,
+            resource_updates: handler.resource_updates,
+            app_resource_subscriptions: Mutex::new(AppResourceSubscriptions::default()),
+            app_resource_subscription_locks: Mutex::new(BTreeMap::new()),
         });
         sessions.insert(
             key,
@@ -194,18 +398,56 @@ impl McpSessionPool {
     }
 }
 
-async fn cached_or_load<T, E, F, Fut>(cache: &Mutex<Option<Arc<T>>>, load: F) -> Result<Arc<T>, E>
-where
-    F: FnOnce() -> Fut,
-    Fut: Future<Output = Result<T, E>>,
-{
-    let mut cached = cache.lock().await;
-    if let Some(value) = cached.as_ref() {
-        return Ok(value.clone());
+async fn list_resources_with_degradation(
+    service: &RunningMcpSession,
+) -> Result<(Vec<Resource>, GatewayDiscoveryDegradation), rmcp::ServiceError> {
+    let mut cursor = None;
+    let mut resources = Vec::new();
+    let mut degradation = GatewayDiscoveryDegradation::default();
+    loop {
+        let result = service
+            .list_resources(Some(PaginatedRequestParams::default().with_cursor(cursor)))
+            .await?;
+        let page_degradation = GatewayDiscoveryDegradation::from_meta(result.meta.as_ref())
+            .map_err(|error| {
+                rmcp::ServiceError::McpError(rmcp::ErrorData::internal_error(
+                    format!("gateway returned invalid resource discovery metadata: {error}"),
+                    None,
+                ))
+            })?;
+        degradation.merge(page_degradation);
+        resources.extend(result.resources);
+        cursor = result.next_cursor;
+        if cursor.is_none() {
+            return Ok((resources, degradation));
+        }
     }
-    let value = Arc::new(load().await?);
-    *cached = Some(value.clone());
-    Ok(value)
+}
+
+async fn list_tools_with_degradation(
+    service: &RunningMcpSession,
+) -> Result<(Vec<Tool>, GatewayDiscoveryDegradation), rmcp::ServiceError> {
+    let mut cursor = None;
+    let mut tools = Vec::new();
+    let mut degradation = GatewayDiscoveryDegradation::default();
+    loop {
+        let result = service
+            .list_tools(Some(PaginatedRequestParams::default().with_cursor(cursor)))
+            .await?;
+        let page_degradation = GatewayDiscoveryDegradation::from_meta(result.meta.as_ref())
+            .map_err(|error| {
+                rmcp::ServiceError::McpError(rmcp::ErrorData::internal_error(
+                    format!("gateway returned invalid tool discovery metadata: {error}"),
+                    None,
+                ))
+            })?;
+        degradation.merge(page_degradation);
+        tools.extend(result.tools);
+        cursor = result.next_cursor;
+        if cursor.is_none() {
+            return Ok((tools, degradation));
+        }
+    }
 }
 
 fn fingerprint(access_token: &str) -> String {
@@ -220,59 +462,243 @@ fn hex_encode(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::AtomicUsize;
 
     use axum::Router;
     use rmcp::{
-        ServerHandler,
-        model::{ServerCapabilities, ServerInfo},
+        ErrorData as McpError, RoleServer, ServerHandler,
+        model::{ServerCapabilities, ServerInfo, SubscribeRequestParams, UnsubscribeRequestParams},
+        service::RequestContext,
         transport::streamable_http_server::{
             StreamableHttpService, session::local::LocalSessionManager,
         },
     };
+    use tokio::{sync::Semaphore, task::JoinHandle};
     use url::Url;
 
     use super::*;
 
-    #[tokio::test]
-    async fn session_cache_loads_once() {
-        let cache = Mutex::new(None);
-        let loads = AtomicUsize::new(0);
+    #[test]
+    fn list_change_notifications_advance_catalog_revision() {
+        let handler = ConsoleHostHandler::default();
+        assert_eq!(handler.catalog_revision.load(Ordering::Acquire), 0);
+        handler.invalidate_catalog();
+        handler.invalidate_catalog();
+        assert_eq!(handler.catalog_revision.load(Ordering::Acquire), 2);
+    }
 
-        let first = cached_or_load(&cache, || async {
-            loads.fetch_add(1, Ordering::SeqCst);
-            Ok::<_, ()>(41)
+    struct SubscriptionProbe {
+        subscribe_calls: AtomicUsize,
+        unsubscribe_calls: AtomicUsize,
+        in_flight: AtomicUsize,
+        max_in_flight: AtomicUsize,
+        fail_next: AtomicUsize,
+        release: Semaphore,
+    }
+
+    impl Default for SubscriptionProbe {
+        fn default() -> Self {
+            Self {
+                subscribe_calls: AtomicUsize::new(0),
+                unsubscribe_calls: AtomicUsize::new(0),
+                in_flight: AtomicUsize::new(0),
+                max_in_flight: AtomicUsize::new(0),
+                fail_next: AtomicUsize::new(0),
+                release: Semaphore::new(0),
+            }
+        }
+    }
+
+    #[derive(Clone, Default)]
+    struct DelayedSubscriptionMcp {
+        probe: Arc<SubscriptionProbe>,
+    }
+
+    impl ServerHandler for DelayedSubscriptionMcp {
+        fn get_info(&self) -> ServerInfo {
+            ServerInfo::new(ServerCapabilities::builder().enable_resources().build())
+        }
+
+        async fn subscribe(
+            &self,
+            _request: SubscribeRequestParams,
+            _context: RequestContext<RoleServer>,
+        ) -> Result<(), McpError> {
+            self.probe.subscribe_calls.fetch_add(1, Ordering::SeqCst);
+            let in_flight = self.probe.in_flight.fetch_add(1, Ordering::SeqCst) + 1;
+            self.probe
+                .max_in_flight
+                .fetch_max(in_flight, Ordering::SeqCst);
+            self.probe
+                .release
+                .acquire()
+                .await
+                .expect("subscription test release remains open")
+                .forget();
+            self.probe.in_flight.fetch_sub(1, Ordering::SeqCst);
+            if self
+                .probe
+                .fail_next
+                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
+                    remaining.checked_sub(1)
+                })
+                .is_ok()
+            {
+                return Err(McpError::internal_error(
+                    "injected subscription failure",
+                    None,
+                ));
+            }
+            Ok(())
+        }
+
+        async fn unsubscribe(
+            &self,
+            _request: UnsubscribeRequestParams,
+            _context: RequestContext<RoleServer>,
+        ) -> Result<(), McpError> {
+            self.probe.unsubscribe_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    async fn subscription_test_session(
+        handler: DelayedSubscriptionMcp,
+    ) -> (McpSession, JoinHandle<()>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind subscription test MCP");
+        let address = listener
+            .local_addr()
+            .expect("subscription test MCP address");
+        let service: StreamableHttpService<DelayedSubscriptionMcp, LocalSessionManager> =
+            StreamableHttpService::new(
+                move || Ok(handler.clone()),
+                LocalSessionManager::default().into(),
+                veoveo_mcp_contract::canonical_streamable_http_server_config(),
+            );
+        let server = tokio::spawn(async move {
+            axum::serve(listener, Router::new().nest_service("/mcp/admin", service))
+                .await
+                .expect("serve subscription test MCP");
+        });
+        let gateway_url = Url::parse(&format!("http://{address}")).unwrap();
+        let config = Config::for_test(gateway_url);
+        let pool = McpSessionPool::new(&OutboundTrust::default()).unwrap();
+        let session = pool
+            .session(
+                &config,
+                "subscription-test-access-token",
+                Utc::now().timestamp() + 60,
+            )
+            .await
+            .expect("initialize subscription test MCP client");
+        (session, server)
+    }
+
+    async fn wait_for_subscribe_calls(probe: &SubscriptionProbe, expected: usize) {
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while probe.subscribe_calls.load(Ordering::SeqCst) < expected {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
         })
         .await
-        .unwrap();
-        let cached = cached_or_load(&cache, || async {
-            loads.fetch_add(1, Ordering::SeqCst);
-            Ok::<_, ()>(42)
-        })
-        .await
-        .unwrap();
-
-        assert!(Arc::ptr_eq(&first, &cached));
-        assert_eq!(*cached, 41);
-        assert_eq!(loads.load(Ordering::SeqCst), 1);
+        .expect("expected upstream subscription calls");
     }
 
     #[tokio::test]
-    async fn failed_catalog_load_is_not_cached() {
-        let cache = Mutex::new(None);
+    async fn distinct_app_resources_subscribe_concurrently() {
+        let handler = DelayedSubscriptionMcp::default();
+        let probe = handler.probe.clone();
+        let (session, server) = subscription_test_session(handler).await;
+        let first_session = session.clone();
+        let first = tokio::spawn(async move {
+            first_session
+                .subscribe_app_resource(Uuid::now_v7(), "fleet://plans".to_owned())
+                .await
+        });
+        let second_session = session.clone();
+        let second = tokio::spawn(async move {
+            second_session
+                .subscribe_app_resource(Uuid::now_v7(), "fleet://objectives".to_owned())
+                .await
+        });
 
-        assert_eq!(
-            cached_or_load(&cache, || async { Err::<usize, _>("catalog unavailable") })
+        wait_for_subscribe_calls(&probe, 2).await;
+        assert_eq!(probe.max_in_flight.load(Ordering::SeqCst), 2);
+        probe.release.add_permits(2);
+        first.await.unwrap().unwrap();
+        second.await.unwrap().unwrap();
+
+        session.cancellation_token().cancel();
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn same_app_resource_reuses_one_upstream_subscription() {
+        let handler = DelayedSubscriptionMcp::default();
+        let probe = handler.probe.clone();
+        let (session, server) = subscription_test_session(handler).await;
+        let first_id = Uuid::now_v7();
+        let second_id = Uuid::now_v7();
+        let first_session = session.clone();
+        let first = tokio::spawn(async move {
+            first_session
+                .subscribe_app_resource(first_id, "fleet://plans".to_owned())
                 .await
-                .unwrap_err(),
-            "catalog unavailable"
-        );
-        assert_eq!(
-            *cached_or_load(&cache, || async { Ok::<_, &str>(7) })
+        });
+        wait_for_subscribe_calls(&probe, 1).await;
+        let second_session = session.clone();
+        let second = tokio::spawn(async move {
+            second_session
+                .subscribe_app_resource(second_id, "fleet://plans".to_owned())
                 .await
-                .unwrap(),
-            7
-        );
+        });
+        tokio::time::sleep(Duration::from_millis(25)).await;
+        assert_eq!(probe.subscribe_calls.load(Ordering::SeqCst), 1);
+        probe.release.add_permits(1);
+        first.await.unwrap().unwrap();
+        second.await.unwrap().unwrap();
+
+        session.unsubscribe_app_resource(first_id).await.unwrap();
+        assert_eq!(probe.unsubscribe_calls.load(Ordering::SeqCst), 0);
+        session.unsubscribe_app_resource(second_id).await.unwrap();
+        assert_eq!(probe.unsubscribe_calls.load(Ordering::SeqCst), 1);
+
+        session.cancellation_token().cancel();
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn failed_app_resource_subscription_can_be_retried() {
+        let handler = DelayedSubscriptionMcp::default();
+        let probe = handler.probe.clone();
+        probe.fail_next.store(1, Ordering::SeqCst);
+        let (session, server) = subscription_test_session(handler).await;
+        let subscription_id = Uuid::now_v7();
+        let failed_session = session.clone();
+        let failed = tokio::spawn(async move {
+            failed_session
+                .subscribe_app_resource(subscription_id, "fleet://plans".to_owned())
+                .await
+        });
+        wait_for_subscribe_calls(&probe, 1).await;
+        probe.release.add_permits(1);
+        assert!(failed.await.unwrap().is_err());
+
+        let retry_session = session.clone();
+        let retry = tokio::spawn(async move {
+            retry_session
+                .subscribe_app_resource(subscription_id, "fleet://plans".to_owned())
+                .await
+        });
+        wait_for_subscribe_calls(&probe, 2).await;
+        probe.release.add_permits(1);
+        retry.await.unwrap().unwrap();
+        assert_eq!(probe.subscribe_calls.load(Ordering::SeqCst), 2);
+
+        session.cancellation_token().cancel();
+        server.abort();
     }
 
     #[derive(Clone, Default)]

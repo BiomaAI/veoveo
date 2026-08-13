@@ -135,9 +135,7 @@ mod tests {
             scopes,
             [
                 "operator:use",
-                "simulation-view:read",
-                "simulation-view:write",
-                "simulation-view:stream",
+                "uav-sim:stream",
                 "view:read",
                 "view:write",
                 "view:capture",
@@ -150,7 +148,7 @@ mod tests {
                 "https://veoveo.bioma.ai/.well-known/oauth-protected-resource/mcp/operator",
                 &profile.required_scopes,
             ),
-            "Bearer resource_metadata=\"https://veoveo.bioma.ai/.well-known/oauth-protected-resource/mcp/operator\", scope=\"operator:use simulation-view:read simulation-view:write simulation-view:stream view:read view:write view:capture map:dataset:read time:read\""
+            "Bearer resource_metadata=\"https://veoveo.bioma.ai/.well-known/oauth-protected-resource/mcp/operator\", scope=\"operator:use uav-sim:stream view:read view:write view:capture map:dataset:read time:read\""
         );
     }
 

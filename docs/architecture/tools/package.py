@@ -17,10 +17,10 @@ ARCH = Path(__file__).resolve().parents[1]
 REPO = ARCH.parents[1]
 OUTPUT = REPO / "output" / "architecture"
 STAGING = REPO / "tmp" / "architecture-packages"
-VERSION = "0.2.0"
-REVISION_DATE = "2026-07-29"
-SOURCE_COMMIT = "6b7d59a9d26a3b077084bbd535378d00620d4097"
-FIXED_ZIP_TIME = (2026, 7, 29, 12, 0, 0)
+VERSION = "0.3.0"
+REVISION_DATE = "2026-08-07"
+SOURCE_COMMIT = "1a12539706eefcc9fde7359a4bb5f5f8114eb5f2"
+FIXED_ZIP_TIME = (2026, 8, 7, 12, 0, 0)
 
 
 def digest(path: Path) -> str:

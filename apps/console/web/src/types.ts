@@ -176,9 +176,25 @@ export interface AgentSummary {
   name: string;
   profile: string;
   state: "idle" | "running" | "waiting" | "disabled" | "failed";
+  runnerLeaseExpiresAt?: string;
   pendingWakes: number;
   lastEpisodeAt?: string;
   detail: string;
+}
+
+export interface AgentWakeReceipt {
+  requestId: string;
+  wakeId: string;
+  agentId: string;
+  workContext: string;
+  acceptedAt: string;
+}
+
+export interface AgentElicitation {
+  elicitationId: string;
+  message: string;
+  requestedSchema?: unknown;
+  requestedAt: string;
 }
 
 export interface RecordingSummary {
@@ -349,8 +365,10 @@ export interface AppDescriptor {
   title?: string;
   description?: string;
   icons?: string[];
+  prefersBorder?: boolean;
   tools: AppToolDescriptor[];
   resourceDependencies: AppResourceDependency[];
+  agentMessageTargets: string[];
 }
 
 export interface AppResourceDependency {
@@ -365,4 +383,11 @@ export interface AppResourceDependency {
 
 export interface AppCatalog {
   apps: AppDescriptor[];
+  degradations: AppCatalogDegradation[];
+}
+
+export interface AppCatalogDegradation {
+  server: string;
+  surface: "resources" | "resource_templates" | "tools";
+  code: "upstream_unavailable";
 }

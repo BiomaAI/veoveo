@@ -35,8 +35,9 @@ use crate::{
         CreateMobilityProfileRequest, CreateSourceRequest, DatasetReleaseId, DeriveRasterRequest,
         DeriveSpatialGeometryRequest, DisableSourceRequest, FacilityId, GeodesicDirectOutput,
         GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest,
-        InspectLocationOutput, InspectLocationRequest, LocationId, MapDatasetId, MapSourceId,
-        MobilityProfile, MobilityProfileId, PublishRestrictionRequest, QuerySourceFeaturesOutput,
+        InspectLocationOutput, InspectLocationRequest, ListActiveDatasetReleasesOutput,
+        ListActiveDatasetReleasesRequest, LocationId, MapDatasetId, MapSourceId, MobilityProfile,
+        MobilityProfileId, PublishRestrictionRequest, QuerySourceFeaturesOutput,
         QuerySourceFeaturesRequest, RasterDerivation, RasterDerivationId, RasterProductId,
         ReachableArea, ReachableAreaRequest, RegisteredSource, ReleaseMutationRequest,
         ReleaseMutationResponse, ReplaceSourceRequest, RestrictionId, RestrictionMutationOutput,
@@ -181,6 +182,68 @@ impl MapMcp {
             .map_err(invalid_params)?;
         structured_result(
             format!("found {} location(s)", output.locations.len()),
+            &output,
+        )
+    }
+
+    #[tool(
+        title = "List active dataset releases",
+        description = "Resolve bounded immutable release identities and active-pointer revisions for an optional stable source or dataset identity.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<ListActiveDatasetReleasesOutput>(),
+        annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn list_active_dataset_releases(
+        &self,
+        Parameters(request): Parameters<ListActiveDatasetReleasesRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        if !(1..=100).contains(&request.limit) {
+            return Err(invalid_params("limit must be within 1..=100"));
+        }
+        let identity = require_scope(&context, "map:dataset:read")?;
+        let scope = self.state.scope(&identity).await.map_err(internal)?;
+        let pointers = self
+            .state
+            .catalog
+            .list_active_releases(&scope)
+            .await
+            .map_err(internal)?;
+        let mut releases = Vec::new();
+        for pointer in pointers {
+            if request
+                .dataset_id
+                .as_ref()
+                .is_some_and(|dataset_id| *dataset_id != pointer.dataset_id)
+            {
+                continue;
+            }
+            let release = self
+                .state
+                .catalog
+                .release(&scope, &pointer.release_id)
+                .await
+                .map_err(internal)?
+                .ok_or_else(|| internal("active dataset release is missing"))?;
+            if request
+                .source_id
+                .as_ref()
+                .is_some_and(|source_id| *source_id != release.source_id)
+            {
+                continue;
+            }
+            releases.push(crate::contract::ActiveDatasetRelease { pointer, release });
+        }
+        let truncated = releases.len() > request.limit as usize;
+        releases.truncate(request.limit as usize);
+        let output = ListActiveDatasetReleasesOutput {
+            releases,
+            truncated,
+        };
+        structured_result(
+            format!(
+                "resolved {} active dataset release(s)",
+                output.releases.len()
+            ),
             &output,
         )
     }
@@ -840,262 +903,7 @@ impl ServerHandler for MapMcp {
             .resource_observers
             .observe(context.peer.clone())
             .await;
-        let scope = self.state.scope(&identity).await.map_err(internal)?;
-        let mut resources = Vec::new();
-        resources.extend(well_known_resources());
-        if identity_has_scope(&identity, "map:admin") {
-            resources.push(
-                veoveo_mcp_apps_extension::app_resource(uris::ADMIN_APP_URI, "map-admin-app")
-                    .with_title("Map data")
-                    .with_description(
-                        "Interactive MCP App governing map sources, acquisitions, dataset \
-                         releases, and mobility profiles.",
-                    )
-                    .with_icons(vec![rmcp::model::Icon::new(ADMIN_APP_ICON)]),
-            );
-            resources.push(json_resource_descriptor(
-                uris::ACQUISITIONS_URI.to_owned(),
-                "Map acquisitions".to_owned(),
-                "Governed acquisition jobs (map:admin).",
-            ));
-            resources.push(json_resource_descriptor(
-                uris::ACTIVE_RELEASES_URI.to_owned(),
-                "Active releases".to_owned(),
-                "Active dataset release pointers (map:admin).",
-            ));
-        }
-        if identity_has_scope(&identity, "map:dataset:read") {
-            resources.extend(root_resources());
-            if identity_has_scope(&identity, "map:spatial:derive") {
-                resources.push(json_resource_descriptor(
-                    uris::SPATIAL_DERIVATIONS_URI.to_owned(),
-                    "Spatial derivations".to_owned(),
-                    "Work Context-scoped advisory geometry and mobility validation.",
-                ));
-                for derivation in self
-                    .state
-                    .analytics
-                    .list_spatial_derivations(
-                        &scope.tenant_key(),
-                        &identity.authority.work_context,
-                        10_000,
-                    )
-                    .map_err(internal)?
-                {
-                    resources.push(json_resource_descriptor(
-                        derivation.resource_uri,
-                        format!("spatial derivation {}", derivation.derivation_id),
-                        "Immutable governed spatial derivation.",
-                    ));
-                }
-            }
-            for source in self
-                .state
-                .catalog
-                .list_sources(&scope)
-                .await
-                .map_err(internal)?
-            {
-                resources.push(json_resource_descriptor(
-                    uris::source_uri(source.source_id.as_str()),
-                    format!("source {}", source.name),
-                    "Authorized source provenance without acquisition secrets.",
-                ));
-            }
-            for release in self
-                .state
-                .catalog
-                .list_releases(&scope)
-                .await
-                .map_err(internal)?
-            {
-                resources.push(json_resource_descriptor(
-                    uris::release_uri(release.dataset_id.as_str(), release.release_id.as_str()),
-                    format!("release {}", release.version_label),
-                    "Immutable governed dataset release.",
-                ));
-            }
-            for location in self
-                .state
-                .analytics
-                .list_locations(&scope.tenant_key(), 10_000)
-                .map_err(internal)?
-            {
-                resources.push(json_resource_descriptor(
-                    uris::location_uri(location.location_id.as_str()),
-                    location.name,
-                    "Named Earth location with source lineage.",
-                ));
-            }
-            for facility in self
-                .state
-                .analytics
-                .list_facilities(&scope.tenant_key(), 10_000)
-                .map_err(internal)?
-            {
-                resources.push(json_resource_descriptor(
-                    uris::facility_uri(facility.facility_id.as_str()),
-                    facility.name,
-                    "Logistics facility and transfer point.",
-                ));
-            }
-            for profile in self
-                .state
-                .catalog
-                .list_mobility_profiles(&scope)
-                .await
-                .map_err(internal)?
-            {
-                let metadata = profile.metadata();
-                resources.push(json_resource_descriptor(
-                    uris::mobility_profile_uri(metadata.profile_id.as_str(), metadata.version),
-                    metadata.name.clone(),
-                    "Versioned human or vehicle mobility profile.",
-                ));
-            }
-            for restriction in self
-                .state
-                .catalog
-                .list_restrictions(&scope)
-                .await
-                .map_err(internal)?
-            {
-                resources.push(json_resource_descriptor(
-                    uris::restriction_uri(restriction.restriction_id.as_str()),
-                    format!("restriction {}", restriction.restriction_id),
-                    "Effective governed transport restriction.",
-                ));
-            }
-            for route in self
-                .state
-                .catalog
-                .list_routes(&scope)
-                .await
-                .map_err(internal)?
-            {
-                resources.push(json_resource_descriptor(
-                    uris::route_uri(route.route_id.as_str()),
-                    format!("route {}", route.route_id),
-                    "Owner-scoped route with pinned provenance.",
-                ));
-            }
-            for matrix in self
-                .state
-                .catalog
-                .list_matrices(&scope)
-                .await
-                .map_err(internal)?
-            {
-                resources.push(json_resource_descriptor(
-                    uris::matrix_uri(matrix.matrix_id.as_str()),
-                    format!("matrix {}", matrix.matrix_id),
-                    "Owner-scoped many-to-many route matrix.",
-                ));
-            }
-            for travel_model in
-                crate::server::tasks::visible_travel_models(self.state.as_ref(), &identity)
-                    .await
-                    .map_err(internal)?
-            {
-                resources.push(json_resource_descriptor(
-                    travel_model.travel_model_uri,
-                    format!("travel model {}", travel_model.travel_model_id),
-                    "Immutable cuOpt-ready Map travel model.",
-                ));
-            }
-        }
-        if identity_has_scope(&identity, "map:feature:read") {
-            resources.push(
-                veoveo_mcp_apps_extension::app_resource(uris::EDITOR_APP_URI, "map-editor-app")
-                    .with_title("Map feature editor")
-                    .with_description(
-                        "Interactive MCP App for governed feature layers, changesets, publications, and compositions.",
-                    )
-                    .with_icons(vec![rmcp::model::Icon::new(ADMIN_APP_ICON)]),
-            );
-            resources.push(json_resource_descriptor(
-                uris::FEATURE_LAYERS_URI.to_owned(),
-                "Authored feature layers".to_owned(),
-                "Work Context-scoped mutable layer heads and immutable revision links.",
-            ));
-            resources.push(json_resource_descriptor(
-                uris::PUBLICATIONS_URI.to_owned(),
-                "Feature layer publications".to_owned(),
-                "Immutable published layer revisions.",
-            ));
-            resources.push(json_resource_descriptor(
-                uris::LAYER_PRODUCTS_URI.to_owned(),
-                "Feature layer products".to_owned(),
-                "Immutable artifacts derived from published feature layers.",
-            ));
-            resources.push(json_resource_descriptor(
-                uris::COMPOSITIONS_URI.to_owned(),
-                "Map compositions".to_owned(),
-                "Work Context-scoped maps built from immutable publication pins.",
-            ));
-            for layer in self
-                .state
-                .authoring
-                .list_layers(&identity, &scope, false)
-                .await
-                .map_err(internal)?
-            {
-                resources.push(json_resource_descriptor(
-                    uris::feature_layer_uri(layer.layer_id.as_str()),
-                    layer.title,
-                    "Governed authored feature layer.",
-                ));
-            }
-            for publication in self
-                .state
-                .authoring
-                .list_publications(&identity, &scope, None)
-                .await
-                .map_err(internal)?
-            {
-                resources.push(json_resource_descriptor(
-                    uris::publication_uri(
-                        publication.layer_id.as_str(),
-                        publication.publication_id.as_str(),
-                    ),
-                    publication
-                        .title
-                        .unwrap_or_else(|| format!("publication {}", publication.publication_id)),
-                    "Immutable authored feature layer publication.",
-                ));
-            }
-            for product in self
-                .state
-                .authoring
-                .list_layer_products(&identity, &scope, None)
-                .await
-                .map_err(internal)?
-            {
-                resources.push(json_resource_descriptor(
-                    uris::layer_product_uri(
-                        product.layer_id.as_str(),
-                        product.publication_id.as_str(),
-                        product.product_id.as_str(),
-                    ),
-                    format!("{:?} product {}", product.format, product.product_id),
-                    "Immutable artifact derived from a layer publication.",
-                ));
-            }
-            for composition in self
-                .state
-                .authoring
-                .list_compositions(&identity, &scope, false)
-                .await
-                .map_err(internal)?
-            {
-                resources.push(json_resource_descriptor(
-                    uris::composition_uri(composition.composition_id.as_str()),
-                    composition.title,
-                    "Governed map composition head.",
-                ));
-            }
-        }
-        resources.sort_by(|left, right| left.uri.cmp(&right.uri));
+        let resources = discoverable_resources(ResourceDiscoveryAccess::from_identity(&identity));
         let page = mcp_page(resources, request.as_ref())?;
         Ok(ListResourcesResult {
             resources: page.items,
@@ -1890,6 +1698,99 @@ impl ServerHandler for MapMcp {
     }
 }
 
+#[derive(Clone, Copy)]
+struct ResourceDiscoveryAccess {
+    admin: bool,
+    dataset_read: bool,
+    feature_read: bool,
+    spatial_derive: bool,
+}
+
+impl ResourceDiscoveryAccess {
+    fn from_identity(identity: &GatewayInternalIdentity) -> Self {
+        Self {
+            admin: identity_has_scope(identity, "map:admin"),
+            dataset_read: identity_has_scope(identity, "map:dataset:read"),
+            feature_read: identity_has_scope(identity, "map:feature:read"),
+            spatial_derive: identity_has_scope(identity, "map:spatial:derive"),
+        }
+    }
+}
+
+/// Protocol discovery remains constant in tenant data size. Instance
+/// resources stay directly addressable through templates and bounded root
+/// indexes; listing the MCP surface never scans the Map catalog or DuckDB.
+fn discoverable_resources(access: ResourceDiscoveryAccess) -> Vec<Resource> {
+    let mut resources = well_known_resources();
+    if access.admin {
+        resources.push(
+            veoveo_mcp_apps_extension::app_resource(uris::ADMIN_APP_URI, "map-admin-app")
+                .with_title("Map data")
+                .with_description(
+                    "Interactive MCP App governing map sources, acquisitions, dataset releases, and mobility profiles.",
+                )
+                .with_icons(vec![rmcp::model::Icon::new(ADMIN_APP_ICON)]),
+        );
+        resources.push(json_resource_descriptor(
+            uris::ACQUISITIONS_URI.to_owned(),
+            "Map acquisitions".to_owned(),
+            "Governed acquisition jobs (map:admin).",
+        ));
+        resources.push(json_resource_descriptor(
+            uris::ACTIVE_RELEASES_URI.to_owned(),
+            "Active releases".to_owned(),
+            "Active dataset release pointers (map:admin).",
+        ));
+    }
+    if access.dataset_read {
+        resources.extend(root_resources());
+        resources.push(json_resource_descriptor(
+            uris::RASTER_DERIVATIONS_URI.to_owned(),
+            "Raster derivations".to_owned(),
+            "Work Context-scoped governed raster derivations.",
+        ));
+        if access.spatial_derive {
+            resources.push(json_resource_descriptor(
+                uris::SPATIAL_DERIVATIONS_URI.to_owned(),
+                "Spatial derivations".to_owned(),
+                "Work Context-scoped advisory geometry and mobility validation.",
+            ));
+        }
+    }
+    if access.feature_read {
+        resources.push(
+            veoveo_mcp_apps_extension::app_resource(uris::EDITOR_APP_URI, "map-editor-app")
+                .with_title("Map feature editor")
+                .with_description(
+                    "Interactive MCP App for governed feature layers, changesets, publications, and compositions.",
+                )
+                .with_icons(vec![rmcp::model::Icon::new(ADMIN_APP_ICON)]),
+        );
+        resources.push(json_resource_descriptor(
+            uris::FEATURE_LAYERS_URI.to_owned(),
+            "Authored feature layers".to_owned(),
+            "Work Context-scoped mutable layer heads and immutable revision links.",
+        ));
+        resources.push(json_resource_descriptor(
+            uris::PUBLICATIONS_URI.to_owned(),
+            "Feature layer publications".to_owned(),
+            "Immutable published layer revisions.",
+        ));
+        resources.push(json_resource_descriptor(
+            uris::LAYER_PRODUCTS_URI.to_owned(),
+            "Feature layer products".to_owned(),
+            "Immutable artifacts derived from published feature layers.",
+        ));
+        resources.push(json_resource_descriptor(
+            uris::COMPOSITIONS_URI.to_owned(),
+            "Map compositions".to_owned(),
+            "Work Context-scoped maps built from immutable publication pins.",
+        ));
+    }
+    resources.sort_by(|left, right| left.uri.cmp(&right.uri));
+    resources
+}
+
 /// Every advertised resource template. `list_resource_templates` serves this
 /// list and the `map://contract` capability inventory declares it, so the two
 /// cannot diverge.
@@ -2478,7 +2379,10 @@ mod well_known_tests {
         CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
     };
 
-    use super::{MapMcp, SERVER_DOCS, resource_templates, stable_resource_uris};
+    use super::{
+        MapMcp, ResourceDiscoveryAccess, SERVER_DOCS, discoverable_resources, resource_templates,
+        stable_resource_uris,
+    };
     use crate::uris;
 
     #[test]
@@ -2516,7 +2420,12 @@ mod well_known_tests {
     #[test]
     fn capability_inventory_matches_the_registered_surface() {
         let inventory = MapMcp::capability_inventory();
-        for tool in ["search_locations", "route", "commit_feature_changes"] {
+        for tool in [
+            "search_locations",
+            "list_active_dataset_releases",
+            "route",
+            "commit_feature_changes",
+        ] {
             assert!(
                 inventory.tools.iter().any(|name| name == tool),
                 "inventory is missing tool {tool}"
@@ -2575,11 +2484,35 @@ mod well_known_tests {
             );
         }
     }
+
+    #[test]
+    fn resource_discovery_is_bounded_by_the_protocol_surface() {
+        let resources = discoverable_resources(ResourceDiscoveryAccess {
+            admin: true,
+            dataset_read: true,
+            feature_read: true,
+            spatial_derive: true,
+        });
+        assert_eq!(resources.len(), stable_resource_uris().len());
+        assert!(resources.len() < 32);
+        assert!(resources.windows(2).all(|pair| pair[0].uri < pair[1].uri));
+        assert!(
+            resources
+                .iter()
+                .any(|resource| resource.uri == uris::DATASETS_URI)
+        );
+        assert!(
+            resources
+                .iter()
+                .all(|resource| !resource.uri.starts_with("map://release/"))
+        );
+    }
 }
 
 #[cfg(test)]
 mod admin_app_tests {
-    use super::MapMcp;
+    use super::{MapMcp, ResourceDiscoveryAccess, discoverable_resources};
+    use crate::uris;
 
     #[test]
     fn tool_input_schemas_use_the_canonical_profile() {
@@ -2620,5 +2553,21 @@ mod admin_app_tests {
         assert!(!EDITOR_APP.contains("fetch("));
         assert!(!EDITOR_APP.contains("XMLHttpRequest"));
         assert!(!EDITOR_APP.contains("innerHTML"));
+    }
+
+    #[test]
+    fn editor_uses_the_default_complete_console_content_workspace() {
+        let editor = discoverable_resources(ResourceDiscoveryAccess {
+            admin: false,
+            dataset_read: false,
+            feature_read: true,
+            spatial_derive: false,
+        })
+        .into_iter()
+        .find(|resource| resource.uri == uris::EDITOR_APP_URI)
+        .expect("feature editor is discoverable");
+        let metadata = veoveo_mcp_apps_extension::resource_ui_meta(&editor)
+            .expect("feature editor UI metadata is valid");
+        assert_eq!(metadata.prefers_border, None);
     }
 }

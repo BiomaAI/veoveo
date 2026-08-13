@@ -11,7 +11,7 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    analytics::{MapAnalytics, NetworkEdge},
+    analytics::{MapAnalytics, NetworkEdge, ReleaseProjectionWriter},
     contract::{
         DatasetRelease, Facility, FacilityId, FeatureGeometry, GeoJsonPosition, LocationId,
         MAX_SOURCE_GEOMETRY_COLLECTION_DEPTH, MAX_SOURCE_GEOMETRY_PARTS, MapBoundary,
@@ -111,12 +111,12 @@ impl ReleaseProducts {
                     release.release_id
                 );
             }
-            analytics.remove_release_products(&tenant_key, &release.release_id)?;
-            let result = ingest_directory(&analytics, &tenant_key, &directory, &release, &source);
-            if result.is_err() {
-                let _ = analytics.remove_release_products(&tenant_key, &release.release_id);
+            if analytics.release_projection_complete(&tenant_key, &release.release_id)? {
+                return Ok(());
             }
-            result
+            analytics.replace_release_products(&tenant_key, &release.release_id, |writer| {
+                ingest_directory(writer, &tenant_key, &directory, &release, &source)
+            })
         })
         .await?
     }
@@ -159,7 +159,7 @@ fn copy_product(source: &Path, destination: &Path, index: usize, routing: bool) 
 }
 
 fn ingest_directory(
-    analytics: &MapAnalytics,
+    analytics: &ReleaseProjectionWriter,
     tenant_key: &str,
     directory: &Path,
     release: &DatasetRelease,
@@ -216,7 +216,7 @@ struct RasterMetadataSidecar {
 }
 
 fn ingest_raster_products(
-    analytics: &MapAnalytics,
+    analytics: &ReleaseProjectionWriter,
     tenant_key: &str,
     paths: &[PathBuf],
     release: &DatasetRelease,
@@ -312,7 +312,7 @@ fn sha256_file(path: &Path) -> Result<String> {
 
 #[derive(Clone, Copy)]
 struct SourceIngestContext<'a> {
-    analytics: &'a MapAnalytics,
+    analytics: &'a ReleaseProjectionWriter,
     tenant_key: &'a str,
     release: &'a DatasetRelease,
     source: &'a RegisteredSource,

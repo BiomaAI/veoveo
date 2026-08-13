@@ -201,13 +201,46 @@ SurrealDB is the canonical operational catalog. It stores:
 - immutable publication products, map composition heads, and composition
   revisions.
 
-DuckDB Spatial is the local analytical projection. Its schema is tenant keyed
+DuckDB Spatial is the local analytical projection. The service opens one
+configured database instance for its lifetime and clones connections inside
+that instance for concurrent work. Read paths begin explicit read-only
+transactions. Task exports receive only a validated direct child of the
+installation-owned task root, while the database and spill directory remain
+outside that file surface. Its schema is tenant keyed
 and contains active-release pointers, locations, facilities, boundaries,
 governed network edges, authored feature revision and head projections, and
 Work Context-scoped raster and spatial derivations.
 Spatial queries use `ST_Contains`, `ST_Intersects`, and `ST_Distance_Sphere`.
 The Spatial extension is copied into the image at build time and loaded only
 from its pinned local path.
+
+Release-product projection is attempt scoped. Each preparation receives a
+private UUIDv7 attempt and writes complete source features in transactions of
+at most 256 features or 32 MiB of canonical source-feature data. Stable logical
+ids remain unchanged across releases. Stored rows add the tenant, immutable
+release, attempt, and contiguous ordinal needed to keep simultaneous releases
+and interrupted retries distinct.
+
+The completion ledger is the visibility boundary. Its final transaction checks
+the row count, distinct ordinal count, ordinal range, and logical-id uniqueness
+for every high-volume release table. It also checks the raster count. Only the
+winning attempt becomes readable or activatable. An interrupted attempt may
+remain on disk, but its rows cannot enter tools, resources, routing, or spatial
+queries. A release retains at most eight attempts before preparation stops with
+an instruction to rebuild this derived projection. The supported deployment
+uses one Map replica and one release writer.
+
+Source tags stay in the immutable feature JSON. Equality predicates match only
+JSON strings, while existence predicates include a present JSON null. JSON
+Pointer escaping protects tag keys containing `/` or `~`. This avoids the
+write amplification of an exploded tag table without weakening release and
+attempt isolation.
+
+Schema version 9 is a hard cut. Map refuses to open an older analytical schema
+or managed tables without a valid marker. During upgrade, preserve SurrealDB,
+the artifact plane, and retained release products, then rebuild only the local
+DuckDB projection and replay the retained products before activation. No source
+reacquisition or compatibility migration is part of this contract.
 
 The artifact plane stores immutable raw source bytes, normalized products,
 routing builds, quality reports, and large task outputs. Cross-server artifact
@@ -722,6 +755,7 @@ as every other raster derivation.
 | Tool | Invocation | Required scope | Result |
 |---|---|---|---|
 | `search_locations` | direct | `map:dataset:read` | bounded named locations and optional facilities |
+| `list_active_dataset_releases` | direct | `map:dataset:read` | bounded active immutable release identities, digests, and pointer revisions |
 | `query_source_features` | direct | `map:dataset:read` | deterministic page from one immutable complete source release |
 | `inspect_location` | direct | `map:dataset:read` | location, nearby facilities, containing boundaries, lineage, gaps |
 | `transform_crs` | direct | `map:dataset:read` | bounded 2D CRS transformation |
@@ -961,6 +995,13 @@ mounts one `map-data` volume and the optional source exchange read-only, exposes
 only port 8799 inside the cluster, and deploys one replica with a 100 GiB
 `ReadWriteOnce` claim. The offline image lock contains
 `veoveo/map-mcp:0.1.0` and its Dockerfile.
+
+An installation selects its existing, controlled source PVC and optional
+credential Secret through `domainServiceSourceMounts.map-mcp.exchangeClaim`
+and `domainServiceSourceMounts.map-mcp.secretName`. The chart mounts these
+objects read-only; it never copies source bytes or turns acquisition into a
+Helm side effect. `domainServiceResources.map-mcp` independently sets the Map
+pod's acquisition and indexing envelope without inflating every hosted server.
 
 Important arguments include:
 

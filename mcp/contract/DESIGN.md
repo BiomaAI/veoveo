@@ -23,19 +23,23 @@ complies with in its crate documents and in its contract resource.
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned server capabilities and platform requirements |
 | `veoveo.io/gateway-binding/v1` | installation-owned exposure, policy, artifact audience, and recording producer declarations |
 | `veoveo.io/gateway-composition-provenance/v1` | exact input/output SHA-256 identities and contributed-object summaries |
-| `veoveo.io/live-view/v2` | provider-neutral authoritative camera descriptions, stable encoded products, actor-and-browser viewer leases, hardware encode identity, endpoint metadata, capacity, and redacted connection tokens |
+| `veoveo.io/live-view/v2` | provider-neutral authoritative camera descriptions, bounded viewer-product slots, actor-and-browser viewer leases, hardware encode identity, endpoint metadata, capacity, and redacted connection tokens |
 | `io.veoveo/app-resource-dependencies` | deterministic gateway projection of exact cross-server App resource-read requirements admitted under active profile and actor authority |
 
 ## Live View Extension
 
 The live-view extension describes cameras rendered by the authoritative domain
-runtime. A simulation server owns its camera rigs and creates one stable encoded
-product for each active camera. Viewer leases identify both the gateway actor and
-browser instance. They remain ephemeral and never become renderer desired state.
+runtime. A simulation server owns its shared logical camera rigs and a bounded pool
+of physical viewer-product slots. Each viewer lease identifies both the gateway actor
+and browser instance and reserves one isolated render, encode, and WebRTC product.
+Viewer leases remain ephemeral and never become renderer desired state.
 
 The shared types define camera poses, optics, smoothing, health, stream policy,
 physical product slots, NVIDIA NVENC metadata, signaling endpoints, and separate
-capacity accounting for cameras and viewers. Domain-owned resource URIs use the
+capacity accounting for cameras and viewers. Product state reports a bounded
+authoritative-source-to-render sample count and p95 in integer microseconds; the
+implementation defines the exact source and render events that bracket that measurement.
+Domain-owned resource URIs use the
 canonical shape `{scheme}://session/{session_id}/live-view/{live_view_id}`. The
 contract does not prescribe Isaac, USD paths, a scene mirror, or a common renderer.
 
@@ -142,6 +146,15 @@ authorization and protocol state.
 Capability declarations name the exact signal a server can produce.
 `tools.listChanged`, `prompts.listChanged`, and `resources.listChanged` are
 independent claims. The gateway merges and forwards only the declared claims.
+
+Federated list discovery isolates an unavailable hosted server. The gateway
+returns authorized results from healthy servers and attaches a typed
+`veoveo.io/gateway-discovery-degradation` result metadata document naming only
+the server, surface, and bounded failure code. Successful per-server results
+are cached for the exact catalog generation and invocation authority. A failed
+server is never cached. Its next explicit list request retries discovery, while
+the matching MCP `listChanged` notification invalidates successful cache state
+without polling. Direct resource reads and tool calls remain fail closed.
 
 ## Schemas And Types
 
@@ -278,6 +291,7 @@ Server crates are named `*-mcp`.
 | C28 | MUST | Tool, prompt, and resource list-change capabilities are declared independently and match emitted notifications. |
 | C29 | MUST | Each logical MCP endpoint has one active process and a non-overlapping replacement strategy. |
 | C30 | MUST | Gateway sessions with equivalent upstream transport security share one catalog-revision-scoped HTTP connection pool and initialized TLS trust store while retaining independent MCP session state. |
+| C31 | MUST | Federated list discovery preserves healthy server results when one server fails, reports typed degradation metadata, caches only successful exact-authority results, and invalidates those results from MCP list-change notifications without polling. |
 
 ## Enforcement
 

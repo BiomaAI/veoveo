@@ -1,24 +1,24 @@
 {
   "schemaVersion": "veoveo.io/gateway-composition-provenance/v1",
-  "outputSha256": "sha256:5cff711ac6f7970e15a93a520786b27e09a321be94af749415e26ac425381ad4",
+  "outputSha256": "sha256:b58d9aac5769638acf7ff8fd0faf75a70d1ef91bbc067582cd8f1a7b4976213e",
   "inputs": [
     {
       "kind": "base_control_plane",
       "identity": "base-control-plane",
       "schemaVersion": "veoveo.io/gateway-control-plane/v1",
-      "sha256": "sha256:daf66cf3b47d52c0696e9c6d3497806c4b225191b043ef65d523d49a8c31b9a2"
+      "sha256": "sha256:74dd9e6da6057646c3e78ee19703b318b340935717ac548db579b989f06e9e18"
     },
     {
       "kind": "server_fragment",
       "identity": "anonymous-simulation",
       "schemaVersion": "veoveo.io/gateway-server-fragment/v1",
-      "sha256": "sha256:beb11e495eae8c24dd9364d03ed8a1b22302f887e701e7813443914f2495016f"
+      "sha256": "sha256:135cd9b196c18938726d5d4e980b5fbf78f1ef16f2d87dc1ac9036bc4d161a46"
     },
     {
       "kind": "binding",
       "identity": "anonymous-simulation",
       "schemaVersion": "veoveo.io/gateway-binding/v1",
-      "sha256": "sha256:f1ebd2edd2266d788b3aef0c922645c0d2e6a2b1a0cebe3ac60bfd2aca57ca38"
+      "sha256": "sha256:86d395498d0f8007a445798f660321fea270b135ce42cdd1f326bd6c9bf404d0"
     }
   ],
   "contributions": [
@@ -31,24 +31,12 @@
         "2026-07-02"
       ],
       "recordingProducers": [],
-      "platformCapabilities": [
-        "artifact",
-        "frames",
-        "simulation_view"
-      ],
-      "artifactAudiences": [
-        "anonymous-simulation"
-      ]
+      "platformCapabilities": [],
+      "artifactAudiences": []
     }
   ],
   "requirements": {
-    "platformCapabilities": [
-      "artifact",
-      "frames",
-      "simulation_view"
-    ],
-    "artifactAudiences": [
-      "anonymous-simulation"
-    ]
+    "platformCapabilities": [],
+    "artifactAudiences": []
   }
 }

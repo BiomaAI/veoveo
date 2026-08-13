@@ -95,6 +95,14 @@ async fn main() -> anyhow::Result<()> {
         .route("/console/api/apps/frame", get(apps::app_frame))
         .route("/console/api/apps/call", post(apps::call_app_tool))
         .route("/console/api/apps/read", post(apps::read_app_resource))
+        .route(
+            "/console/api/apps/resource-events",
+            post(apps::app_resource_events),
+        )
+        .route(
+            "/console/api/apps/resource-unsubscribe",
+            post(apps::unsubscribe_app_resource),
+        )
         .route("/console/api/apps/task/get", post(apps::get_app_task))
         .route(
             "/console/api/apps/task/result",
@@ -109,6 +117,18 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/console/api/tasks/{task_id}/cancel",
             post(api::cancel_task),
+        )
+        .route(
+            "/console/api/agents/{agent_id}/messages",
+            post(api::send_agent_message),
+        )
+        .route(
+            "/console/api/agents/{agent_id}/elicitations",
+            get(api::list_agent_elicitations),
+        )
+        .route(
+            "/console/api/agents/{agent_id}/elicitations/{elicitation_id}/decision",
+            post(api::decide_agent_elicitation),
         )
         .route(
             "/console/api/artifacts/{artifact_id}/release-state",

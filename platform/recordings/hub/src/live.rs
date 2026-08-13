@@ -6,6 +6,7 @@ use anyhow::{Context, Result, ensure};
 use re_chunk_store::{CompactionOptions, IsStartOfGop, OptimizationProfile};
 use re_entity_db::EntityDb;
 use re_log_types::{LogMsg, StoreId};
+use re_sdk_types::archetypes::VideoStream;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LiveRrdBatchKind {
@@ -48,7 +49,7 @@ pub fn optimize_live_rrd_messages(
             codec == re_sdk_types::components::VideoCodec::H264,
             "live RRD optimization supports H.264 VideoStream data"
         );
-        crate::h264_access_unit_is_idr(data)
+        crate::h264_access_unit_is_decoder_reentrant(data)
     });
     let options = CompactionOptions {
         config: store_config,
@@ -69,18 +70,59 @@ pub fn optimize_live_rrd_messages(
         *engine.write().store() = compacted;
     }
 
-    stores
+    let messages = stores
         .values()
         .flat_map(|database| database.to_messages(None))
         .collect::<Result<Vec<_>, _>>()
-        .context("encoding bounded live RRD batch messages")
+        .context("encoding bounded live RRD batch messages")?;
+    omit_live_video_keyframe_markers(messages)
+}
+
+/// Remove producer-authored and compaction-authored keyframe columns from the
+/// browser live projection.
+///
+/// Rerun 0.35 discovers H.264 sync samples from the encoded access units. Its
+/// viewer cache also assumes every `VideoStream:sample` value is dense within
+/// the physical chunk. A sparse keyframe marker can otherwise become the
+/// compaction key that co-locates samples from different batches and violates
+/// that invariant. The durable source remains unchanged, and archive
+/// materialization derives canonical keyframe markers from the H.264 bytes.
+fn omit_live_video_keyframe_markers(messages: Vec<LogMsg>) -> Result<Vec<LogMsg>> {
+    let keyframe_component = VideoStream::descriptor_is_keyframe().component;
+    let mut projected = Vec::with_capacity(messages.len());
+    for message in messages {
+        let LogMsg::ArrowMsg(store_id, arrow) = message else {
+            projected.push(message);
+            continue;
+        };
+        let chunk =
+            re_chunk::Chunk::from_arrow_msg(&arrow).context("decoding bounded live RRD chunk")?;
+        if chunk.raw_component_array(keyframe_component).is_none() {
+            projected.push(LogMsg::ArrowMsg(store_id, arrow));
+            continue;
+        }
+        let chunk = chunk.component_dropped(keyframe_component);
+        if chunk.num_components() == 0 {
+            continue;
+        }
+        projected.push(LogMsg::ArrowMsg(
+            store_id,
+            chunk
+                .to_arrow_msg()
+                .context("encoding bounded live RRD chunk without keyframe markers")?,
+        ));
+    }
+    Ok(projected)
 }
 
 #[cfg(test)]
 mod tests {
     use re_log_types::LogMsg;
     use re_sdk::RecordingStreamBuilder;
-    use re_sdk_types::archetypes::Scalars;
+    use re_sdk_types::{
+        archetypes::{Scalars, VideoStream},
+        components::{IsKeyframe, VideoCodec},
+    };
 
     use super::*;
 
@@ -118,5 +160,56 @@ mod tests {
             chunks.iter().map(re_chunk::Chunk::num_rows).sum::<usize>(),
             32
         );
+    }
+
+    #[test]
+    fn live_projection_omits_keyframe_markers_and_keeps_samples_dense() {
+        const KEYFRAME: &[u8] = &[
+            0, 0, 0, 1, 0x67, 1, 0, 0, 0, 1, 0x68, 1, 0, 0, 0, 1, 0x65, 1,
+        ];
+        const INTER_FRAME: &[u8] = &[0, 0, 0, 1, 0x41, 1];
+
+        let (recording, storage) = RecordingStreamBuilder::new("live-video-test")
+            .recording_id("recording-video")
+            .memory()
+            .unwrap();
+        recording
+            .log_static("camera/front", &VideoStream::new(VideoCodec::H264))
+            .unwrap();
+        for index in 0..4 {
+            recording.set_time_sequence("frame", index);
+            let sample = if index == 0 { KEYFRAME } else { INTER_FRAME };
+            let mut stream = VideoStream::update_fields().with_sample(sample.to_vec());
+            if index == 0 {
+                stream = stream.with_is_keyframe(IsKeyframe::from(true));
+            }
+            recording.log("camera/front", &stream).unwrap();
+            recording.flush_blocking().unwrap();
+        }
+
+        let optimized =
+            optimize_live_rrd_messages(storage.take(), LiveRrdBatchKind::Bootstrap).unwrap();
+        let keyframe_component = VideoStream::descriptor_is_keyframe().component;
+        let sample_component = VideoStream::descriptor_sample().component;
+        let mut sample_rows = 0;
+        for message in &optimized {
+            let LogMsg::ArrowMsg(_, arrow) = message else {
+                continue;
+            };
+            let chunk = re_chunk::Chunk::from_arrow_msg(arrow).unwrap();
+            assert!(
+                chunk.raw_component_array(keyframe_component).is_none(),
+                "live projection must not expose sparse keyframe markers"
+            );
+            if chunk.raw_component_array(sample_component).is_some() {
+                let offsets = chunk
+                    .iter_component_offsets(sample_component)
+                    .collect::<Vec<_>>();
+                assert_eq!(offsets.len(), chunk.num_rows());
+                assert!(offsets.iter().all(|offset| offset.len == 1));
+                sample_rows += chunk.num_rows();
+            }
+        }
+        assert_eq!(sample_rows, 4);
     }
 }

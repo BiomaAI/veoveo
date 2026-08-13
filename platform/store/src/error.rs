@@ -134,12 +134,6 @@ pub enum StoreError {
     RecordingBlueprintRevisionGap { expected: u64, actual: u64 },
     #[error("recording ingest producer exceeded the {quota} quota")]
     RecordingIngestQuotaExceeded { quota: RecordingIngestQuota },
-    #[error("simulation-view desired state for session `{0}` was not found")]
-    SimulationViewStateNotFound(String),
-    #[error("simulation-view desired revision expected {expected}, received {actual}")]
-    SimulationViewRevisionGap { expected: u64, actual: u64 },
-    #[error("simulation-view desired revision {revision} conflicts with its durable digest")]
-    SimulationViewRevisionConflict { revision: u64 },
     #[error("invalid domain usage field {field}: {reason}")]
     InvalidUsageField {
         field: &'static str,

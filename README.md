@@ -237,11 +237,10 @@ without changing the underlying server identities.
 | `reason` | Semantic and temporal reasoning over recordings with grounded, audited output. |
 | `recording` | Recording discovery, bounded queries, subscriptions, publication, and viewer projection. |
 | `rerun` | The bridged Rerun viewer surface. |
-| `simulation-view` | Renderer-independent scenes, logical cameras, live-view leases, capacity, and a GPU-backed WebRTC App. |
 | `stream` | Operator-admitted live and replay GStreamer pipelines, typed detection profiles, and an MCP App for encoded video with overlays. |
 | `time` | Authority-bound civil time, calendars, clocks, timelines, and event operations. |
 | `timeseries` | Forecasting, uncertainty output, governed artifacts, and an interactive forecast app. |
-| `uav-sim` | Live sessions, multi-vehicle missions, bounded dataset capture, and provider-neutral vehicle control. |
+| `uav-sim` | Authoritative multi-vehicle simulation, missions, datasets, simulator-hosted operator cameras, shared NVENC products, governed viewer leases, and a WebRTC App. |
 | `view` | 3D Tiles views rendered on cluster GPUs, camera control, and reproducible offscreen frame capture. |
 
 The runtime for autonomous agents adds durable episodes, detach and resume,

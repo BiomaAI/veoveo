@@ -5,15 +5,21 @@ platform:
   installationId: veoveo
   publicBaseUrl: https://veoveo.bioma.ai
   cesiumSecret: veoveo-uav-sim-secrets
+  adapterSecret: veoveo-uav-sim-adapter
   recordingTenantKey: bioma
 
 recording:
   mapProvider: openStreetMap
 
+world:
+  bootstrap:
+    existingConfigMap: uav-sim-world-binding
+    key: world.json
+
 session:
   vehicleCount: 4
   physicsHz: 60
-  renderingHz: 2
+  renderingHz: 16
   fleetLoop:
     takeoffTimeoutSeconds: 1800
   camera:
@@ -21,7 +27,6 @@ session:
     width: 640
     height: 480
     fps: 2
-    bitRateBps: 750000
     optics:
       focalLengthMm: 8.0
       clippingRangeM:
@@ -37,17 +42,14 @@ session:
         x: 0.0
         "y": 0.0
         z: -0.7071067811865476
-posePublication:
-  cadenceHz: 20
-  bufferDurationMs: 500
-  producerId: uav-sim
-  producerSpiffeId: spiffe://veoveo.local/simulation/uav-sim
-  epochId: epoch-1
-  endpointHost: simulation-view-pose
-  endpointPort: 7443
-  serverHostname: simulation-view-pose
-  entityTableRevision: 1
-  existingTlsSecret: uav-sim-pose-producer-tls
-  caCertificateKey: ca.crt
-  clientCertificateKey: tls.crt
-  clientPrivateKeyKey: tls.key
+liveView:
+  publicSignalingUrl: wss://veoveo.bioma.ai/uav-sim/signaling
+  publicMediaHost: 192.168.68.69
+  mediaService:
+    nodePortBase: 30998
+  signalingIngress:
+    enabled: true
+    className: traefik
+    host: veoveo.bioma.ai
+    tls:
+      enabled: false

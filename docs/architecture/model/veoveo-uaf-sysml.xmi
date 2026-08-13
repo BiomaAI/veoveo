@@ -285,10 +285,10 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-053-COMMENT" body="Owns the canonical versioned protobuf schema, media type, routes, limits, digest validation, stream checkpoints, discovery records, and typed recording ingest errors." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-054" name="UAV Simulation MCP server">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-054-COMMENT" body="Governs simulation sessions, missions, vehicles, tiles, recording references, durable tasks, resources, subscriptions, prompts, and typed adapter commands without exposing simulator-native control ports." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-054-COMMENT" body="Governs simulation sessions, missions, vehicles, tiles, recording references, durable tasks, authoritative logical cameras, exclusive viewer-product slots, ephemeral actor/browser viewer leases, authenticated signaling, resources, subscriptions, prompts, and typed adapter commands without exposing simulator-native control ports." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-055" name="UAV simulation runtime and adapter">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-055-COMMENT" body="Owns the typed pod-private simulator adapter, Isaac stage mutation, camera and telemetry capture, MAVLink lifecycle, frame conversion, and Rerun publication." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-055-COMMENT" body="Owns the typed pod-private simulator adapter, Isaac stage mutation, simulator-tick logical cameras, a bounded pool of preallocated viewer-camera clones, one isolated RTX render product, NVENC bitstream, and native WebRTC peer per assigned viewer slot, camera and telemetry capture, MAVLink lifecycle, frame conversion, and Rerun publication." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-056" name="UAV simulation execution stack">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-056-COMMENT" body="Renders Google Photorealistic 3D Tiles, supplies multirotor physics and PX4 integration, and executes the simulator-native callbacks governed by the UAV adapter." />
@@ -320,23 +320,20 @@
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-065" name="MCP task wire contract">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-065-COMMENT" body="Owns storage-independent UUIDv7 task identities and bounded retention pins shared by the final MCP task extension and durable runtime." />
       </packagedElement>
-      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-066" name="Simulation pose protocol">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-066-COMMENT" body="Defines deterministic complete latest-pose snapshots stable entity tables freshness admission and shared-memory or length-delimited streaming transports without carrying dynamics authority." />
-      </packagedElement>
-      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-067" name="Simulation View pose ingress">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-067-COMMENT" body="Authenticates one authorized simulation producer over mutual TLS validates bounded pose snapshots and publishes the newest complete value to renderer-private shared memory without backpressuring the simulator." />
-      </packagedElement>
-      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-068" name="Simulation scene contract">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-068-COMMENT" body="Defines the provider-neutral immutable scene declaration for governed visual assets Frames identity entity prototypes admitted camera kinds lighting and renderer bounds without owning renderer lifecycle." />
-      </packagedElement>
-      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-069" name="Simulation View MCP server">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-069-COMMENT" body="Owns renderer-independent scene binding logical cameras admission leases signaling and a live MCP App while keeping domain simulation dynamics and controls outside the service." />
-      </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-070" name="cuOpt executor">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-070-COMMENT" body="Loads the pinned cuOpt runtime, owns the CUDA context and bounded RMM pool, executes one prepared routing batch or mathematical model at a time, and returns solver-native results to the Rust control plane." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-071" name="NVIDIA cuOpt and CUDA runtime">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-071-COMMENT" body="Executes heterogeneous vehicle routing and BatchSolve plus continuous LP QP QCQP SOCP and linear MILP formulations on an NVIDIA GPU." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-072" name="Headed browser smoke harness">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-072-COMMENT" body="Attaches to a headed browser, proves a hardware-backed WebGPU or WebGL context, drives authenticated Console live-view acceptance, and records bounded visual evidence." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-073" name="Deployment smoke harness">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-073-COMMENT" body="Validates typed deployment profiles and drives focused installation readiness without compiling unrelated protocol or visual scenarios." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-074" name="Image build control">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-074-COMMENT" body="Owns the shared pinned Buildx and BuildKit configuration, cross-worktree builder lease, cache namespaces, and deterministic builder preparation used by image publication and certification." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-SYS-001" name="Veoveo Installation System">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-SYS-001-COMMENT" body="Aggregate resource performer composed from the canonical Veoveo software and infrastructure service graph." />
@@ -446,14 +443,14 @@
       <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-035" name="Gateway recording delivery" informationSource="VV-CMP-001" informationTarget="VV-CMP-005">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-035-COMMENT" body="Private HTTP; versioned protobuf. Direction: outbound. Identity and policy: Gateway policy and audit; short-lived internal assertion addressed to Recording Hub. Data: Authorized producer binding and validated recording operations. Availability and recovery: Hub fsyncs journal state and materializes the batch before acknowledgement." />
       </packagedElement>
-      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-036" name="UAV simulation control" informationSource="VV-CMP-054" informationTarget="VV-CMP-055">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-036-COMMENT" body="Pod-private typed HTTP. Direction: bidirectional. Identity and policy: Gateway-forwarded caller owns the MCP operation; the simulator adapter is not externally routed. Data: Session state vehicle commands missions capture requests tiles and health. Availability and recovery: Reads remain available during durable work; uncertain live mutations are interrupted-indeterminate." />
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-036" name="UAV simulation and live-view control" informationSource="VV-CMP-054" informationTarget="VV-CMP-055">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-036-COMMENT" body="Pod-private typed HTTP. Direction: bidirectional. Identity and policy: Gateway-forwarded caller owns the MCP operation; the simulator adapter is not externally routed. Data: Session state vehicle commands missions logical camera definitions exclusive viewer-slot assignment capture requests tiles and health. Availability and recovery: Reads remain available during durable work; viewer assignment is idempotent by actor browser instance and logical camera; uncertain live mutations are interrupted-indeterminate." />
       </packagedElement>
       <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-037" name="UAV recording publication" informationSource="VV-CMP-055" informationTarget="VV-CMP-051">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-037-COMMENT" body="Pod-loopback Rerun gRPC. Direction: outbound. Identity and policy: Producer-local transport; registered application and tenant authority are enforced at gateway upload. Data: Camera H.264 poses transforms IMU vehicles missions collisions and tile diagnostics. Availability and recovery: Dedicated persistent forwarder queue survives producer or network restart." />
       </packagedElement>
       <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-038" name="UAV simulator execution" informationSource="VV-CMP-055" informationTarget="VV-CMP-056">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-038-COMMENT" body="Isaac extension and Python APIs; USD; MAVLink 2; ROS 2. Direction: bidirectional. Identity and policy: Pinned dependency identities; provider credential from Kubernetes Secret; canonical Frames identity. Data: Rendered tiles camera frames multirotor state PX4 commands and telemetry. Availability and recovery: Explicit startup readiness bounded mission execution and no simulator-native public control port." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-038-COMMENT" body="Isaac extension and Python APIs; USD; Vulkan; CUDA; NVENC; WebRTC; MAVLink 2; ROS 2. Direction: bidirectional. Identity and policy: Pinned dependency identities; provider credential from Kubernetes Secret; canonical Frames identity; hardware GPU required. Data: Rendered tiles authoritative logical cameras isolated viewer products H.264 bitstreams multirotor state PX4 commands and telemetry. Availability and recovery: Explicit startup readiness bounded mission execution one native GPU product per assigned viewer slot and no simulator-native public control port." />
       </packagedElement>
       <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-039" name="Live Stream publication" informationSource="VV-EXT-PRODUCER" informationTarget="VV-CMP-022">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-039-COMMENT" body="RTP 2.0 with RFC 6184 H.264 over admitted UDP. Direction: outbound. Identity and policy: Installation NetworkPolicy and one operator-admitted pipeline endpoint. Data: Annex B H.264 access units with 90 kHz timestamps. Availability and recovery: Live processing begins on arriving frames without resolving or waiting for Recording Hub." />
@@ -705,8 +702,8 @@
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-19-03" name="satisfy" client="VV-CMP-032" supplier="VV-REQ-019" />
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-19-04" name="satisfy" client="VV-CMP-044" supplier="VV-REQ-019" />
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-19-05" name="satisfy" client="VV-CMP-050" supplier="VV-REQ-019" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-19-06" name="satisfy" client="VV-CMP-055" supplier="VV-REQ-019" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-19-07" name="satisfy" client="VV-CMP-069" supplier="VV-REQ-019" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-19-06" name="satisfy" client="VV-CMP-054" supplier="VV-REQ-019" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-19-07" name="satisfy" client="VV-CMP-055" supplier="VV-REQ-019" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-20-1" name="tracesTo" client="VV-REQ-020" supplier="VV-CAP-013" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-20-2" name="tracesTo" client="VV-CAP-013" supplier="VV-OPA-011" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-20-3" name="tracesTo" client="VV-OPA-011" supplier="VV-SVC-013" />
@@ -887,18 +884,16 @@
   <SysML:Block xmi:id="VV-CMP-064-SYSML" base_Class="VV-CMP-064" isEncapsulated="true" />
   <UAF:Software xmi:id="VV-CMP-065-UAF" base_Class="VV-CMP-065" />
   <SysML:Block xmi:id="VV-CMP-065-SYSML" base_Class="VV-CMP-065" isEncapsulated="true" />
-  <UAF:Software xmi:id="VV-CMP-066-UAF" base_Class="VV-CMP-066" />
-  <SysML:Block xmi:id="VV-CMP-066-SYSML" base_Class="VV-CMP-066" isEncapsulated="true" />
-  <UAF:Software xmi:id="VV-CMP-067-UAF" base_Class="VV-CMP-067" />
-  <SysML:Block xmi:id="VV-CMP-067-SYSML" base_Class="VV-CMP-067" isEncapsulated="true" />
-  <UAF:Software xmi:id="VV-CMP-068-UAF" base_Class="VV-CMP-068" />
-  <SysML:Block xmi:id="VV-CMP-068-SYSML" base_Class="VV-CMP-068" isEncapsulated="true" />
-  <UAF:Software xmi:id="VV-CMP-069-UAF" base_Class="VV-CMP-069" />
-  <SysML:Block xmi:id="VV-CMP-069-SYSML" base_Class="VV-CMP-069" isEncapsulated="true" />
   <UAF:Software xmi:id="VV-CMP-070-UAF" base_Class="VV-CMP-070" />
   <SysML:Block xmi:id="VV-CMP-070-SYSML" base_Class="VV-CMP-070" isEncapsulated="true" />
   <UAF:System xmi:id="VV-CMP-071-UAF" base_Class="VV-CMP-071" />
   <SysML:Block xmi:id="VV-CMP-071-SYSML" base_Class="VV-CMP-071" isEncapsulated="true" />
+  <UAF:Software xmi:id="VV-CMP-072-UAF" base_Class="VV-CMP-072" />
+  <SysML:Block xmi:id="VV-CMP-072-SYSML" base_Class="VV-CMP-072" isEncapsulated="true" />
+  <UAF:Software xmi:id="VV-CMP-073-UAF" base_Class="VV-CMP-073" />
+  <SysML:Block xmi:id="VV-CMP-073-SYSML" base_Class="VV-CMP-073" isEncapsulated="true" />
+  <UAF:Software xmi:id="VV-CMP-074-UAF" base_Class="VV-CMP-074" />
+  <SysML:Block xmi:id="VV-CMP-074-SYSML" base_Class="VV-CMP-074" isEncapsulated="true" />
   <UAF:System xmi:id="VV-SYS-001-UAF" base_Class="VV-SYS-001" />
   <SysML:Block xmi:id="VV-SYS-001-SYSML" base_Class="VV-SYS-001" isEncapsulated="true" />
   <UAF:ActualResource xmi:id="VV-AR-001-UAF" base_InstanceSpecification="VV-AR-001" />

@@ -7,24 +7,18 @@
       "tools": {
         "mode": "listed",
         "items": [
-          "prepare_scene",
-          "start_pose_producer",
-          "stop_pose_producer",
+          "list_live_cameras",
+          "open_live_view",
+          "renew_live_view",
+          "close_live_view",
           "get_fixture_state"
         ]
       },
       "resources": {
         "mode": "listed",
-        "items": [
-          {
-            "kind": "scheme",
-            "scheme": "anonymous-simulation"
-          }
-        ]
+        "items": [{"kind": "scheme", "scheme": "anonymous-simulation"}]
       },
-      "prompts": {
-        "mode": "none"
-      },
+      "prompts": {"mode": "none"},
       "completions": "disabled",
       "tasks": "disabled"
     }
@@ -34,41 +28,25 @@
       "policyVersion": "2026-07-02",
       "rules": [
         {
-          "id": "allow_anonymous_simulation_use",
+          "id": "allow_authoritative_simulation_live_view",
           "effect": "allow",
-          "actions": [
-            "tools_list",
-            "tools_call",
-            "resources_list",
-            "resources_read"
-          ],
-          "profiles": [
-            "operator"
-          ],
-          "servers": [
-            "anonymous-simulation"
-          ],
+          "actions": ["tools_list", "tools_call", "resources_list", "resources_read"],
+          "profiles": ["operator"],
+          "servers": ["anonymous-simulation"],
           "tools": [
-            "prepare_scene",
-            "start_pose_producer",
-            "stop_pose_producer",
+            "list_live_cameras",
+            "open_live_view",
+            "renew_live_view",
+            "close_live_view",
             "get_fixture_state"
           ],
-          "resource_schemes": [
-            "anonymous-simulation"
-          ],
-          "required_scopes": [
-            "operator:use"
-          ],
+          "resource_schemes": ["anonymous-simulation", "ui"],
+          "required_scopes": ["operator:use"],
           "metadata": {}
         }
       ]
     }
   ],
-  "allowedArtifactAudiences": [
-    "anonymous-simulation"
-  ],
-  "metadata": {
-    "owner": "installation"
-  }
+  "allowedArtifactAudiences": [],
+  "metadata": {"owner": "installation"}
 }

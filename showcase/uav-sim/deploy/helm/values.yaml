@@ -26,6 +26,8 @@ platform:
   installationSecret: veoveo-installation-secrets
   cesiumSecret: veoveo-uav-sim-secrets
   cesiumTokenKey: cesium-ion-access-token
+  adapterSecret: veoveo-uav-sim-adapter
+  adapterTokenKey: bearer-token
   surrealService: surrealdb
   surrealNamespace: veoveo
   surrealDatabase: platform
@@ -63,6 +65,16 @@ recording:
 world:
   source: google_photorealistic_3d_tiles
   cesiumIonAssetId: 2275207
+  bootstrap:
+    existingConfigMap: ""
+    key: world.json
+  streaming:
+    maximumScreenSpaceError: 32
+    maximumSimultaneousLoads: 20
+    maximumCachedBytes: 2147483648
+    preloadAncestors: true
+    preloadSiblings: true
+    forbidHoles: true
 
 cache:
   policy: persistent
@@ -73,9 +85,9 @@ cache:
 
 session:
   id: uav-showcase
-  vehicleCount: 1
+  vehicleCount: 4
   physicsHz: 60
-  renderingHz: 2
+  renderingHz: 16
   tileReadyFrames: 30
   px4ConnectTimeoutSeconds: 180
   privacyConsent: false
@@ -96,7 +108,6 @@ session:
     width: 640
     height: 480
     fps: 2
-    bitRateBps: 750000
     optics:
       focalLengthMm: 8.0
       clippingRangeM:
@@ -113,20 +124,110 @@ session:
         "y": 0.0
         z: -0.7071067811865476
 
-posePublication:
-  cadenceHz: 20
-  bufferDurationMs: 500
-  producerId: uav-sim
-  producerSpiffeId: spiffe://veoveo.local/simulation/uav-sim
-  epochId: epoch-1
-  endpointHost: simulation-view-pose
-  endpointPort: 7443
-  serverHostname: simulation-view-pose
-  entityTableRevision: 1
-  existingTlsSecret: uav-sim-pose-producer-tls
-  caCertificateKey: ca.crt
-  clientCertificateKey: tls.crt
-  clientPrivateKeyKey: tls.key
+liveView:
+  publicSignalingUrl: ws://127.0.0.1:8803/uav-sim/signaling
+  signalingGatePort: 8803
+  publicMediaHost: 127.0.0.1
+  signalingPortBase: 49100
+  mediaPortBase: 47998
+  viewerSlots: 2
+  activationTimeoutSeconds: 10
+  leaseSeconds: 120
+  maximumFrameAgeMs: 2000
+  signalingIngress:
+    enabled: false
+    className: ""
+    host: ""
+    annotations: {}
+    tls:
+      enabled: false
+      secretName: ""
+  mediaService:
+    type: LoadBalancer
+    loadBalancerIP: ""
+    externalTrafficPolicy: Local
+    # Set when an installation pre-binds public UDP ports to a fixed Kubernetes
+    # NodePort range, as local k3d profiles do. Leave null for allocator-owned
+    # NodePorts behind a normal LoadBalancer.
+    nodePortBase: null
+  cameras:
+    - cameraId: follow
+      revision: 1
+      rig:
+        kind: follow_entity
+        targetEntityId: uav-1
+        eyeOffsetFluM: {x: -12.0, "y": 2.0, z: 4.0}
+        targetOffsetFluM: {x: 0.0, "y": 0.0, z: 0.2}
+        smoothing:
+          translationHalfLifeMs: 150
+          rotationHalfLifeMs: 120
+          teleportDistanceM: 100.0
+          resetAfterGapMs: 1000
+      optics: &operatorOptics
+        widthPx: 1280
+        heightPx: 720
+        frameRateHz: 16
+        verticalFovDegrees: 60.0
+        nearClipM: 0.1
+        farClipM: 100000.0
+      streamPolicy: continuous
+    - cameraId: chase
+      revision: 1
+      rig:
+        kind: chase_entity
+        targetEntityId: uav-1
+        distanceM: 15.0
+        heightM: 4.0
+        smoothing:
+          translationHalfLifeMs: 120
+          rotationHalfLifeMs: 100
+          teleportDistanceM: 100.0
+          resetAfterGapMs: 1000
+      optics: *operatorOptics
+      streamPolicy: on_demand
+    - cameraId: orbit
+      revision: 1
+      rig:
+        kind: orbit
+        targetEntityId: uav-1
+        radiusM: 25.0
+        azimuthDegrees: 225.0
+        elevationDegrees: 20.0
+        smoothing:
+          translationHalfLifeMs: 160
+          rotationHalfLifeMs: 140
+          teleportDistanceM: 100.0
+          resetAfterGapMs: 1000
+      optics: *operatorOptics
+      streamPolicy: on_demand
+    - cameraId: stabilized
+      revision: 1
+      rig:
+        kind: stabilized_mounted_entity
+        targetEntityId: uav-1
+        mount:
+          positionM: {x: 0.60, "y": 0.0, z: -0.20}
+          orientationXyzw: {x: 0.0, "y": 0.0, z: 0.0, w: 1.0}
+        smoothing:
+          translationHalfLifeMs: 120
+          rotationHalfLifeMs: 100
+          teleportDistanceM: 100.0
+          resetAfterGapMs: 1000
+      optics: *operatorOptics
+      streamPolicy: on_demand
+    - cameraId: formation
+      revision: 1
+      rig:
+        kind: formation_overview
+        targetEntityIds: [uav-1, uav-2, uav-3, uav-4]
+        paddingM: 30.0
+        smoothing:
+          translationHalfLifeMs: 180
+          rotationHalfLifeMs: 160
+          teleportDistanceM: 150.0
+          resetAfterGapMs: 1000
+      optics: *operatorOptics
+      streamPolicy: on_demand
 
 streamPublication:
   enabled: true
@@ -134,6 +235,7 @@ streamPublication:
   endpointPort: 9000
   payloadType: 96
   sourceVehicleId: uav-1
+  queueCapacity: 32
 
 interactive:
   enabled: true
@@ -161,11 +263,17 @@ resources:
       memory: 2Gi
 
 scheduling:
-  runtimeClassName: nvidia
-  nodeSelector:
-    kubernetes.io/arch: amd64
-  tolerations: []
-  affinity: {}
+  runtime:
+    runtimeClassName: nvidia
+    nodeSelector:
+      kubernetes.io/arch: amd64
+    tolerations: []
+    affinity: {}
+  mcp:
+    nodeSelector:
+      kubernetes.io/arch: amd64
+    tolerations: []
+    affinity: {}
 
 networkPolicy:
   enabled: true

@@ -52,10 +52,11 @@ fn independent_git_sources_produce_one_validated_installation_lock() {
     );
 
     let profile = serde_json::json!({
-        "schemaVersion": "veoveo.io/deployment/v5",
+        "schemaVersion": "veoveo.io/deployment/v6",
         "name": "anonymous-installation",
         "registry": {
-            "address": "registry.example.internal",
+            "pushAddress": "registry.example.internal",
+            "pullAddress": "registry.example.internal",
             "transport": "tls",
             "localConfig": null
         },
@@ -164,8 +165,7 @@ fn independent_git_sources_produce_one_validated_installation_lock() {
         schema_version: DEPLOYMENT_LOCK_SCHEMA.to_owned(),
         profile: loaded.definition.name.clone(),
         profile_revision: git_output(&installation, ["rev-parse", "HEAD"]),
-        registry: loaded.definition.registry.address.clone(),
-        registry_transport: loaded.definition.registry.transport,
+        registry: loaded.definition.registry.locked(),
         sources: vec![
             LockedSource {
                 name: "platform".to_owned(),

@@ -1,77 +1,143 @@
 from __future__ import annotations
 
+import json
+import math
 import os
+import struct
 import sys
+import tempfile
 import threading
-import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
+from aiohttp import web
+from aiohttp.test_utils import TestClient, TestServer
 from pymavlink import mavutil
-
-from veoveo_mcp.simulation_pose import (
-    POSE_PROTOCOL_SCHEMA,
-    PosePublisherStatus,
-    entity_table_digest,
+from veoveo_uav_sim.app import kit_live_render_arguments
+from veoveo_uav_sim.adapter_auth import authorization_middleware
+from veoveo_uav_sim.config import (
+    FleetLoopConfig,
+    RuntimeConfig,
+    StreamPublicationConfig,
 )
-from veoveo_uav_sim.camera_quality import (
-    assess_camera_health,
-    measure_camera_frame,
-    normalize_rgb_frame,
-    should_record_camera_frame,
-)
-from veoveo_uav_sim.config import FleetLoopConfig, RuntimeConfig
 from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operation
-from veoveo_uav_sim.fleet_loop import FleetLoopController, vehicle_loop_route
 from veoveo_uav_sim.event_queue import NonBlockingEventQueue
+from veoveo_uav_sim.fleet_loop import FleetLoopController, vehicle_loop_route
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
+from veoveo_uav_sim.h264 import (
+    annex_b_nals,
+    make_decoder_reentrant,
+    parse_native_h264_access_unit,
+)
+from veoveo_uav_sim.hydra_camera import (
+    native_sensor_aov_arguments,
+    native_sensor_aov_signal_port,
+)
+from veoveo_uav_sim.physical_camera import (
+    physical_camera_path,
+    physical_camera_product_name,
+)
 from veoveo_uav_sim.physics_batch import (
     FleetPhysicsLifecycle,
+    FleetPhysicsTiming,
     IsaacFleetPhysicsBatch,
     RigidBodyBatchAccumulator,
 )
-from veoveo_uav_sim.pose import PhysicsCadenceGate, PoseProducer, entity_ids
 from veoveo_uav_sim.px4 import Px4Commander, Px4CommandRejected
-from veoveo_uav_sim.realtime import PeriodicDeadline, RealtimePhysicsClock
+from veoveo_uav_sim.realtime import (
+    FixedStepCadenceGate,
+    MonotonicPhysicsClock,
+)
+from veoveo_uav_sim.rtsp_h264 import (
+    H264RtpDepacketizer,
+    RtpPacket,
+    parse_rtp_packet,
+)
+from veoveo_uav_sim.runtime_events import (
+    RUNTIME_EVENT_SCHEMA,
+    RuntimeEvent,
+    RuntimeEventPublisher,
+    notify_adapter_ready,
+    notify_runtime_ready,
+)
 from veoveo_uav_sim.state import (
     RuntimeState,
-    VehicleTelemetry,
     initial_runtime_timing,
+)
+from veoveo_uav_sim.stream_output import (
+    StreamPublicationWorker,
+    _packetize_nal,
+    _rtp_timestamp,
+)
+from veoveo_uav_sim.tile_lifecycle import (
+    NativeTileEvent,
+    NativeTileEventBridge,
+    TileLifecycleController,
 )
 from veoveo_uav_sim.vehicle_model import (
     PX4_IRIS_MOMENT_CONSTANT,
     PX4_IRIS_MOTOR_CONSTANT,
+    PX4_IRIS_SENSOR_CADENCE,
     PX4_IRIS_YAW_MOMENT_COEFFICIENT,
+    Px4IrisSensorCadence,
     Px4IrisThrustCurve,
+    attitude_enu_flu_to_ned_frd,
+    enu_to_ned_vector,
+    flu_to_frd_vector,
+    inverse_rotate_vector_xyzw,
+    quaternion_multiply_xyzw,
 )
-from veoveo_uav_sim.stream_output import _annex_b_nals, _packetize_nal
 from veoveo_uav_sim.world_config import (
     GeoreferenceOrigin,
     WorldConfiguration,
     WorldConfigurationError,
     WorldConfigurationSlot,
 )
-from veoveo_uav_sim.world_health import assess_tile_health
-
 
 VALID_ENVIRONMENT = {
     "CESIUM_ION_ACCESS_TOKEN": "test-token",
     "UAV_SIM_CESIUM_ION_ASSET_ID": "2275207",
     "UAV_SIM_RECORDING_KEY": "019f7122-3d89-7d21-8312-8940d1e0f510",
     "UAV_SIM_SESSION_ID": "uav-showcase",
+    "UAV_SIM_ADAPTER_BEARER_TOKEN": "test-adapter-token-0000000000000000",
     "UAV_SIM_TILE_CACHE_POLICY": "persistent",
     "UAV_SIM_WORLD_SOURCE": "google_photorealistic_3d_tiles",
-    "UAV_SIM_POSE_PRODUCER_ID": "uav-sim",
-    "UAV_SIM_POSE_PRODUCER_SPIFFE_ID": ("spiffe://veoveo.local/simulation/uav-sim"),
-    "UAV_SIM_POSE_EPOCH_ID": "epoch-1",
-    "UAV_SIM_POSE_INGRESS_HOST": "simulation-view-pose",
-    "UAV_SIM_POSE_INGRESS_PORT": "7443",
-    "UAV_SIM_POSE_SERVER_HOSTNAME": "simulation-view-pose.veoveo.svc",
-    "UAV_SIM_POSE_CA_CERTIFICATE": "/run/secrets/simulation-view-pose/ca.crt",
-    "UAV_SIM_POSE_CLIENT_CERTIFICATE": ("/run/secrets/simulation-view-pose/tls.crt"),
-    "UAV_SIM_POSE_CLIENT_PRIVATE_KEY": ("/run/secrets/simulation-view-pose/tls.key"),
+    "UAV_SIM_RENDERING_HZ": "30",
+    "UAV_SIM_LIVE_VIEWER_SLOTS": "2",
+    "UAV_SIM_LIVE_ACTIVATION_TIMEOUT_SECONDS": "7.5",
+    "UAV_SIM_LIVE_PUBLIC_MEDIA_IP": "127.0.0.1",
+    "UAV_SIM_OPERATOR_CAMERAS_JSON": json.dumps(
+        [
+            {
+                "cameraId": "follow",
+                "revision": 1,
+                "rig": {
+                    "kind": "follow_entity",
+                    "targetEntityId": "uav-1",
+                    "eyeOffsetFluM": {"x": -12.0, "y": 2.0, "z": 4.0},
+                    "targetOffsetFluM": {"x": 0.0, "y": 0.0, "z": 0.2},
+                    "smoothing": {
+                        "translationHalfLifeMs": 150,
+                        "rotationHalfLifeMs": 120,
+                        "teleportDistanceM": 100.0,
+                        "resetAfterGapMs": 1000,
+                    },
+                },
+                "optics": {
+                    "widthPx": 1280,
+                    "heightPx": 720,
+                    "frameRateHz": 30,
+                    "verticalFovDegrees": 60.0,
+                    "nearClipM": 0.1,
+                    "farClipM": 100000.0,
+                },
+                "streamPolicy": "continuous",
+            }
+        ]
+    ),
 }
 
 WORLD = WorldConfiguration(
@@ -89,16 +155,186 @@ WORLD = WorldConfiguration(
 
 
 class RuntimeConfigTests(unittest.TestCase):
+    def test_rtp_timestamp_has_a_per_source_epoch_and_wraps(self) -> None:
+        self.assertEqual(_rtp_timestamp(0x12345678, 0.0), 0x12345678)
+        self.assertEqual(_rtp_timestamp(0xFFFF_FFF0, 1.0), 89_984)
+        with self.assertRaisesRegex(ValueError, "finite and non-negative"):
+            _rtp_timestamp(1, -1.0)
+
+    def test_physical_camera_uses_a_stable_usd_identifier(self) -> None:
+        self.assertEqual(
+            physical_camera_path("uav-1"),
+            "/World/PhysicalCameras/uav_1_down",
+        )
+        self.assertEqual(
+            physical_camera_product_name("uav-1"),
+            "physical_uav_1_down",
+        )
+        with self.assertRaisesRegex(ValueError, "vehicle identity is invalid"):
+            physical_camera_path("uav/1")
+
+    def test_px4_frame_transforms_do_not_require_scipy_objects(self) -> None:
+        np.testing.assert_allclose(
+            enu_to_ned_vector([1.0, 2.0, 3.0]), [2.0, 1.0, -3.0]
+        )
+        np.testing.assert_allclose(
+            flu_to_frd_vector([1.0, 2.0, 3.0]), [1.0, -2.0, -3.0]
+        )
+        np.testing.assert_allclose(
+            inverse_rotate_vector_xyzw([0.0, 0.0, 0.0, 1.0], [1.0, 2.0, 3.0]),
+            [1.0, 2.0, 3.0],
+        )
+        quarter_turn_z = [0.0, 0.0, math.sqrt(0.5), math.sqrt(0.5)]
+        np.testing.assert_allclose(
+            inverse_rotate_vector_xyzw(quarter_turn_z, [0.0, 1.0, 0.0]),
+            [1.0, 0.0, 0.0],
+            atol=1.0e-12,
+        )
+        np.testing.assert_allclose(
+            quaternion_multiply_xyzw(
+                quarter_turn_z, [0.0, 0.0, 0.0, 1.0]
+            ),
+            quarter_turn_z,
+        )
+        converted = attitude_enu_flu_to_ned_frd([0.0, 0.0, 0.0, 1.0])
+        self.assertAlmostEqual(float(np.linalg.norm(converted)), 1.0)
+        np.testing.assert_allclose(
+            converted, [0.0, 0.0, -math.sqrt(0.5), -math.sqrt(0.5)]
+        )
+
+    def test_px4_sensor_cadence_is_bounded_by_the_physics_clock(self) -> None:
+        PX4_IRIS_SENSOR_CADENCE.validate_for_physics(60)
+        self.assertEqual(PX4_IRIS_SENSOR_CADENCE.imu_hz, 60)
+        self.assertEqual(PX4_IRIS_SENSOR_CADENCE.barometer_hz, 30)
+        self.assertEqual(PX4_IRIS_SENSOR_CADENCE.magnetometer_hz, 30)
+        self.assertEqual(PX4_IRIS_SENSOR_CADENCE.gps_hz, 10)
+
+        with self.assertRaisesRegex(ValueError, "exceeds physics cadence"):
+            Px4IrisSensorCadence(imu_hz=120).validate_for_physics(60)
+        with self.assertRaisesRegex(ValueError, "must divide physics cadence"):
+            Px4IrisSensorCadence(gps_hz=11).validate_for_physics(60)
+
+    def test_authoritative_tick_does_not_wait_for_present_threads(self) -> None:
+        arguments = kit_live_render_arguments()
+        self.assertEqual(
+            arguments,
+            [
+                "--/app/runLoops/main/rateLimitEnabled=false",
+                "--/app/player/useFixedTimeStepping=false",
+                "--/app/runLoops/main/syncToPresent=false",
+                "--/app/runLoops/rendering_0/syncToPresent=false",
+                "--/app/runLoops/rendering_1/syncToPresent=false",
+                "--/app/runLoopsGlobal/syncToPresent=false",
+                "--/exts/omni.kit.renderer.core/present/presentAfterRendering=false",
+            ],
+        )
+
     def test_google_tiles_are_mandatory_and_exact(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             config = RuntimeConfig.from_environment()
         self.assertEqual(config.cesium_ion_asset_id, 2_275_207)
         self.assertEqual(config.tile_cache_policy.value, "persistent")
+        self.assertEqual(config.tile_streaming.maximum_screen_space_error, 16.0)
+        self.assertEqual(config.tile_streaming.maximum_simultaneous_loads, 20)
+        self.assertEqual(config.tile_streaming.maximum_cached_bytes, 2_147_483_648)
+        self.assertTrue(config.tile_streaming.preload_ancestors)
+        self.assertTrue(config.tile_streaming.preload_siblings)
+        self.assertTrue(config.tile_streaming.forbid_holes)
+        self.assertEqual(config.adapter_host, "0.0.0.0")
+        self.assertEqual(config.adapter_bearer_token, VALID_ENVIRONMENT["UAV_SIM_ADAPTER_BEARER_TOKEN"])
+
+        invalid_holes = {
+            **VALID_ENVIRONMENT,
+            "UAV_SIM_TILE_FORBID_HOLES": "sometimes",
+        }
+        with patch.dict(os.environ, invalid_holes, clear=True):
+            with self.assertRaisesRegex(ValueError, "must be true or false"):
+                RuntimeConfig.from_environment()
 
         invalid = {**VALID_ENVIRONMENT, "UAV_SIM_CESIUM_ION_ASSET_ID": "1"}
         with patch.dict(os.environ, invalid, clear=True):
             with self.assertRaisesRegex(ValueError, "Google Photorealistic 3D Tiles"):
                 RuntimeConfig.from_environment()
+
+    def test_runtime_events_are_typed_and_publish_without_a_consumer(self) -> None:
+        publisher = RuntimeEventPublisher()
+        notify_adapter_ready(
+            publisher, session_id="uav-showcase", generation=7
+        )
+        notify_runtime_ready(
+            publisher, session_id="uav-showcase", generation=7
+        )
+        self.assertEqual(
+            json.loads(RuntimeEvent("ready", "uav-showcase", 7).encode()),
+            {
+                "schema": RUNTIME_EVENT_SCHEMA,
+                "event": "ready",
+                "sessionId": "uav-showcase",
+                "generation": 7,
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "identity is invalid"):
+            notify_runtime_ready(publisher, session_id="", generation=0)
+
+    def test_adapter_bearer_token_is_strict(self) -> None:
+        invalid = {**VALID_ENVIRONMENT, "UAV_SIM_ADAPTER_BEARER_TOKEN": "short"}
+        with patch.dict(os.environ, invalid, clear=True):
+            with self.assertRaisesRegex(ValueError, "32-512"):
+                RuntimeConfig.from_environment()
+
+
+class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            config = RuntimeConfig.from_environment()
+        self.publisher = RuntimeEventPublisher()
+        application = web.Application(
+            middlewares=[authorization_middleware(config.adapter_bearer_token)]
+        )
+
+        async def health(_request: web.Request) -> web.Response:
+            return web.Response(text="ok")
+
+        application.add_routes(
+            [
+                web.get("/healthz", health),
+                web.get("/v1/events", self.publisher.stream),
+            ]
+        )
+        self.client = TestClient(TestServer(application))
+        await self.client.start_server()
+
+    async def asyncTearDown(self) -> None:
+        await self.client.close()
+
+    async def test_private_adapter_requires_bearer_and_replays_latest_event(
+        self,
+    ) -> None:
+        unauthorized = await self.client.get("/v1/events")
+        self.assertEqual(unauthorized.status, 401)
+        self.assertEqual(
+            await unauthorized.json(),
+            {"error": "simulator adapter authorization failed"},
+        )
+
+        headers = {
+            "Authorization": (
+                "Bearer " + VALID_ENVIRONMENT["UAV_SIM_ADAPTER_BEARER_TOKEN"]
+            )
+        }
+        health = await self.client.get("/healthz")
+        self.assertEqual(health.status, 200)
+        self.publisher.publish(
+            event="adapter_ready",
+            session_id="uav-showcase",
+            generation=3,
+        )
+        events = await self.client.get("/v1/events", headers=headers)
+        self.assertEqual(events.status, 200)
+        event = json.loads(await events.content.readline())
+        self.assertEqual(event["schema"], RUNTIME_EVENT_SCHEMA)
+        self.assertEqual(event["event"], "adapter_ready")
+        self.assertEqual(event["generation"], 3)
 
     def test_direct_google_key_is_not_a_runtime_input(self) -> None:
         environment = {**VALID_ENVIRONMENT, "GOOGLE_MAPS_API_KEY": "not-used"}
@@ -106,17 +342,16 @@ class RuntimeConfigTests(unittest.TestCase):
             config = RuntimeConfig.from_environment()
         self.assertEqual(config.cesium_ion_access_token, "test-token")
 
-    def test_default_render_cadence_matches_the_camera(self) -> None:
+    def test_operator_render_cadence_is_independent_of_sensor_cadence(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             config = RuntimeConfig.from_environment()
         self.assertEqual(config.physics_hz, 60)
-        self.assertEqual(config.rendering_hz, 2)
-        self.assertEqual(config.rendering_hz, config.camera.fps)
-        self.assertEqual(config.pose_cadence_hz, 20)
-        self.assertEqual(config.pose_buffer_duration_ms, 500)
+        self.assertEqual(config.rendering_hz, 30)
+        self.assertEqual(config.camera.fps, 2)
+        self.assertEqual(config.operator_live_view.cameras[0].optics.frame_rate_hz, 30)
+        self.assertEqual(config.operator_live_view.activation_timeout_seconds, 7.5)
         self.assertEqual(config.px4_connect_timeout_seconds, 180.0)
         self.assertEqual(config.camera.vehicle_id, "uav-1")
-        self.assertEqual(config.camera.bit_rate_bps, 750_000)
         self.assertEqual(config.recording.telemetry_hz, 5)
         self.assertEqual(config.recording.queue_capacity, 256)
         self.assertEqual(config.recording.map_provider.value, "openStreetMap")
@@ -124,12 +359,125 @@ class RuntimeConfigTests(unittest.TestCase):
         app_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py"
         ).read_text()
-        self.assertNotIn("omni.replicator", app_source)
+        self.assertIn('"omni.kit.livestream.rtsp"', app_source)
+        self.assertNotIn('"omni.replicator.nv"', app_source)
+        self.assertNotIn('"omni.replicator.core"', app_source)
         self.assertNotIn("import CameraSensor", app_source)
-        self.assertIn("HydraRgbCameraSensor", app_source)
-        self.assertIn("PoseProducer", app_source)
-        self.assertNotIn("livestream", app_source.lower())
+        self.assertNotIn("RtxCamera", app_source)
+        self.assertNotIn("isaacsim.sensors.experimental.rtx", app_source)
+        self.assertIn("NativeH264CameraSensor", app_source)
+        self.assertIn("create_physical_rgb_camera", app_source)
+        self.assertIn("omni.kit.livestream.aov", app_source)
+        self.assertIn("AuthoritativeOperatorCameraCollection", app_source)
+        self.assertIn('"sync_loads": False', app_source)
+        self.assertIn('"disable_viewport_updates": True', app_source)
+        self.assertIn(
+            '"--/exts/cesium.omniverse/externallyManagedViewports=true"',
+            app_source,
+        )
+        self.assertNotIn("get_active_viewport", app_source)
+        self.assertIn("current_pose_cesium_viewport", app_source)
         self.assertNotIn("follow_camera", app_source)
+        self.assertNotIn("operator_camera_cadence", app_source)
+        self.assertIn("update_operator_cameras()", app_source)
+        self.assertNotIn("physical_camera_cadence", app_source)
+        self.assertIn("render_fps=config.camera.fps", app_source)
+        self.assertIn("sensor.observe_simulation_time(", app_source)
+        self.assertIn("simulation_time_s, physics_step", app_source)
+
+        operator_camera_source = (
+            Path(__file__).parents[1]
+            / "veoveo_uav_sim"
+            / "operator_camera.py"
+        ).read_text()
+        self.assertIn("CreateHorizontalApertureAttr", operator_camera_source)
+
+        hydra_camera_source = (
+            Path(__file__).parents[1] / "veoveo_uav_sim" / "hydra_camera.py"
+        ).read_text()
+        operator_product_source = (
+            Path(__file__).parents[1]
+            / "veoveo_uav_sim"
+            / "operator_products.py"
+        ).read_text()
+        product_sources = "".join(
+            (hydra_camera_source, operator_product_source)
+        )
+        self.assertEqual(product_sources.count("get_frame_info"), 1)
+        self.assertIn("is_async_low_latency=False", hydra_camera_source)
+        self.assertIn("is_async_low_latency=False", operator_product_source)
+        self.assertNotIn("AnnotatorRegistry", hydra_camera_source)
+        self.assertNotIn("omni.replicator", hydra_camera_source)
+        self.assertIn('"streamType": "rtsp"', hydra_camera_source)
+        self.assertIn("RtspH264Receiver", hydra_camera_source)
+
+    def test_native_sensor_aov_uses_one_internal_nvenc_stream(self) -> None:
+        arguments = native_sensor_aov_arguments(
+            "physical_uav_1_down",
+            rtsp_port=8554,
+            target_fps=2,
+        )
+        self.assertEqual(len(arguments), 5)
+        self.assertTrue(all("physical_uav_1_down.LdrColor" in value for value in arguments))
+        self.assertTrue(any(value.endswith("/streamType=rtsp") for value in arguments))
+        self.assertTrue(any(value.endswith("/signalPort=8555") for value in arguments))
+        self.assertTrue(any(value.endswith("/streamPort=8554") for value in arguments))
+        self.assertEqual(native_sensor_aov_signal_port(8554), 8555)
+        with self.assertRaisesRegex(ValueError, "between 1 and 65534"):
+            native_sensor_aov_signal_port(65_535)
+
+    def test_native_sensor_aov_ports_cannot_overlap_operator_products(self) -> None:
+        environment = {
+            **VALID_ENVIRONMENT,
+            "UAV_SIM_LIVE_SIGNALING_PORT_BASE": "8555",
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            with self.assertRaisesRegex(ValueError, "AOV port ranges overlap at 8555"):
+                RuntimeConfig.from_environment()
+
+    def test_physical_capture_cadence_is_exact(self) -> None:
+        cadence = FixedStepCadenceGate(60, 2)
+        self.assertEqual(
+            [step for step in range(1, 121) if cadence.due(step)],
+            [30, 60, 90, 120],
+        )
+
+    def test_headless_cesium_has_one_authoritative_viewport_writer(self) -> None:
+        runtime_root = Path(__file__).parents[1]
+        dockerfile = (runtime_root / "Dockerfile").read_text()
+        patch = (
+            runtime_root
+            / "patches"
+            / "cesium-0.29.0-external-viewports.patch"
+        ).read_text()
+        self.assertIn("cesium-0.29.0-external-viewports.patch", dockerfile)
+        self.assertIn("externallyManagedViewports", patch)
+        self.assertIn("externallyManagedViewports = false", patch)
+        self.assertIn("if not settings.get_as_bool", patch)
+
+        lifecycle_patch = (
+            runtime_root
+            / "patches"
+            / "cesium-0.29.0-lifecycle-events.patch"
+        ).read_text()
+        native_patch = (
+            runtime_root
+            / "patches"
+            / "cesium-native-ca0311f-tile-load-events.patch"
+        ).read_text()
+        self.assertIn("cesium-0.29.0-lifecycle-events.patch", dockerfile)
+        self.assertIn("cesium-native-ca0311f-tile-load-events.patch", dockerfile)
+        self.assertIn("TILESET_LOAD_FAILED", lifecycle_patch)
+        self.assertIn(
+            'std::make_pair("generation", static_cast<int64_t>(generation))',
+            lifecycle_patch,
+        )
+        self.assertIn(
+            'std::make_pair("statusCode", static_cast<int64_t>(statusCode))',
+            lifecycle_patch,
+        )
+        self.assertIn("TileContent", native_patch)
+        self.assertNotIn("releases/download", dockerfile)
 
     def test_recording_policy_is_typed_and_bounded(self) -> None:
         environment = {
@@ -152,24 +500,50 @@ class RuntimeConfigTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "openStreetMap or mapboxSatellite"):
                 RuntimeConfig.from_environment()
 
-    def test_preconfiguration_state_uses_the_pose_timing_contract(self) -> None:
+    def test_preconfiguration_state_uses_authoritative_runtime_timing(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             config = RuntimeConfig.from_environment()
 
         timing = initial_runtime_timing(config)
         self.assertEqual(timing["physics_hz"], 60)
-        self.assertEqual(timing["native_rendering_hz"], 2)
-        self.assertEqual(timing["pose_cadence_hz"], 20)
-        self.assertEqual(timing["pose_buffer_target_snapshots"], 10)
+        self.assertEqual(timing["native_rendering_hz"], 30)
+        self.assertEqual(timing["render_cycles"], 0)
+        self.assertEqual(timing["physics_steps"], 0)
+        self.assertEqual(timing["refresh_states_wall_seconds"], 0.0)
+        self.assertEqual(timing["vehicle_update_wall_seconds"], 0.0)
+        self.assertEqual(timing["state_update_wall_seconds"], 0.0)
+        self.assertEqual(timing["dynamics_update_wall_seconds"], 0.0)
+        self.assertEqual(timing["sensor_update_wall_seconds"], 0.0)
+        self.assertEqual(timing["backend_state_wall_seconds"], 0.0)
+        self.assertEqual(timing["flush_forces_wall_seconds"], 0.0)
+        self.assertEqual(timing["after_step_wall_seconds"], 0.0)
+        self.assertEqual(timing["native_update_wall_seconds"], 0.0)
+        self.assertEqual(timing["render_cycle_wall_seconds"], 0.0)
+        self.assertEqual(timing["maximum_physics_step_ms"], 0.0)
+        self.assertEqual(timing["maximum_native_update_ms"], 0.0)
+        self.assertEqual(timing["maximum_render_cycle_ms"], 0.0)
 
         server_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "server.py"
         ).read_text()
         self.assertIn('"timing": initial_runtime_timing(self._config)', server_source)
-        self.assertIn("self._config.pose_cadence_hz", server_source)
         self.assertNotIn(
             "self._config.vehicle_count,\n                    self._config.rendering_hz",
             server_source,
+        )
+
+    def test_preconfiguration_accepts_ephemeral_viewer_slot_reset(self) -> None:
+        server_source = (
+            Path(__file__).parents[1] / "veoveo_uav_sim" / "server.py"
+        ).read_text()
+        preconfiguration = server_source.split(
+            "class PreconfigurationApplication:", maxsplit=1
+        )[1].split("class AdapterApplication:", maxsplit=1)[0]
+        self.assertIn(
+            '"/v1/live-products/release-all"', preconfiguration
+        )
+        self.assertIn(
+            'return web.json_response({"accepted": True})', preconfiguration
         )
 
     def test_multi_instance_px4_has_distinct_gcs_ports(self) -> None:
@@ -227,6 +601,7 @@ class RuntimeConfigTests(unittest.TestCase):
         assert publication is not None
         self.assertEqual(publication.host, "stream-mcp")
         self.assertEqual(publication.port, 9000)
+        self.assertEqual(publication.queue_capacity, 32)
 
         with patch.dict(
             os.environ,
@@ -235,41 +610,6 @@ class RuntimeConfigTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(ValueError, "requires UAV_SIM_STREAM_HOST"):
                 RuntimeConfig.from_environment()
-
-    def test_pose_publication_is_mandatory_and_strongly_identified(self) -> None:
-        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
-            config = RuntimeConfig.from_environment()
-            state = RuntimeState(config, WORLD).snapshot()
-        publication = state["pose_publication"]
-        self.assertEqual(publication["protocol_schema"], POSE_PROTOCOL_SCHEMA)
-        self.assertEqual(publication["producer_id"], "uav-sim")
-        self.assertEqual(
-            publication["producer_spiffe_id"],
-            "spiffe://veoveo.local/simulation/uav-sim",
-        )
-        self.assertEqual(publication["epoch_id"], "epoch-1")
-        self.assertEqual(publication["cadence_hz"], config.pose_cadence_hz)
-        self.assertEqual(state["timing"]["physics_hz"], 60)
-        self.assertEqual(state["timing"]["native_rendering_hz"], 2)
-        self.assertEqual(state["timing"]["pose_cadence_hz"], 20)
-        self.assertEqual(
-            publication["entity_table_digest"],
-            str(entity_table_digest(1, entity_ids(config.vehicle_count))),
-        )
-
-    def test_pose_publication_rejects_invalid_spiffe_or_secret_paths(self) -> None:
-        for override, message in (
-            ({"UAV_SIM_POSE_PRODUCER_SPIFFE_ID": "https://example.test"}, "SPIFFE"),
-            ({"UAV_SIM_POSE_CLIENT_PRIVATE_KEY": "tls.key"}, "absolute"),
-        ):
-            with self.subTest(override=override):
-                with patch.dict(
-                    os.environ,
-                    {**VALID_ENVIRONMENT, **override},
-                    clear=True,
-                ):
-                    with self.assertRaisesRegex(ValueError, message):
-                        RuntimeConfig.from_environment()
 
     def test_nadir_camera_is_the_only_canonical_stream(self) -> None:
         with patch.dict(
@@ -287,12 +627,14 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertNotIn("front", camera_path)
         self.assertEqual(camera["codec"], "h264")
         self.assertEqual(camera["encoder"], "nvidia_nvenc")
+        self.assertEqual(camera["transport"], "rtsp_rtp")
         self.assertEqual(state["recordings"][0]["camera_streams"], [camera_path])
 
         recording_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "recording.py"
         ).read_text()
-        self.assertIn('add_stream("h264_nvenc"', recording_source)
+        self.assertNotIn("import av", recording_source)
+        self.assertNotIn("VideoFrame", recording_source)
         self.assertNotIn("libx264", recording_source)
         self.assertIn("rr.send_blueprint(", recording_source)
         self.assertIn("make_active=True", recording_source)
@@ -304,7 +646,7 @@ class RuntimeConfigTests(unittest.TestCase):
             "batcher_config=rr.ChunkBatcherConfig.LOW_LATENCY()", recording_source
         )
         camera_stream_source = recording_source.split(
-            "class H264CameraStream:", maxsplit=1
+            "class RecordedH264CameraStream:", maxsplit=1
         )[1].split("class RecordingPublisher:", maxsplit=1)[0]
         self.assertEqual(camera_stream_source.count("rr.Pinhole("), 1)
         self.assertIn("static=True", camera_stream_source)
@@ -316,12 +658,64 @@ class RuntimeConfigTests(unittest.TestCase):
             "def _video_packet(", maxsplit=1
         )[1].split("\n\n\nclass RecordingPublisher:", maxsplit=1)[0]
         self.assertNotIn('"codec"', video_packet_source)
-        self.assertIn('"sample": sample', video_packet_source)
-        self.assertIn('fields["is_keyframe"] = True', video_packet_source)
-        encode_source = camera_stream_source.split(
-            "    def encode(", maxsplit=1
-        )[1].split("    def close(", maxsplit=1)[0]
-        self.assertNotIn("rr.Pinhole(", encode_source)
+        self.assertIn("rr.VideoStream.from_fields(sample=sample)", video_packet_source)
+        self.assertNotIn("is_keyframe", video_packet_source)
+        publish_source = camera_stream_source.split(
+            "    def publish(", maxsplit=1
+        )[1].split("    def _set_time(", maxsplit=1)[0]
+        self.assertNotIn("rr.Pinhole(", publish_source)
+        self.assertIn("access_unit.sample", publish_source)
+
+    def test_stream_publication_owns_a_stable_independent_rtp_epoch(self) -> None:
+        published = threading.Event()
+        published_twice = threading.Event()
+        instances: list[object] = []
+
+        class FakePublisher:
+            def __init__(self, _config: StreamPublicationConfig) -> None:
+                self.closed = False
+                self.samples: list[tuple[bytes, float]] = []
+                instances.append(self)
+
+            def publish(self, sample: bytes, simulation_time_s: float) -> None:
+                self.samples.append((sample, simulation_time_s))
+                published.set()
+                if len(self.samples) == 2:
+                    published_twice.set()
+
+            def close(self) -> None:
+                self.closed = True
+
+        config = StreamPublicationConfig(
+            host="stream-mcp",
+            port=9000,
+            payload_type=96,
+            source_vehicle_id="uav-1",
+            queue_capacity=4,
+        )
+        access_unit = parse_native_h264_access_unit(
+            b"\x00\x00\x00\x01\x65\x88\x84"
+        )
+        with patch(
+            "veoveo_uav_sim.stream_output.RtpH264Publisher",
+            FakePublisher,
+        ):
+            worker = StreamPublicationWorker(config)
+            worker.offer(access_unit, 1.0)
+            self.assertTrue(published.wait(1.0))
+            worker.offer(access_unit, 1.05)
+            self.assertTrue(published_twice.wait(1.0))
+            worker.close()
+            status = worker.status()
+
+        self.assertEqual(len(instances), 1)
+        publisher = instances[0]
+        assert isinstance(publisher, FakePublisher)
+        self.assertEqual(len(publisher.samples), 2)
+        self.assertTrue(publisher.closed)
+        self.assertEqual(status.lifecycle, "stopped")
+        self.assertEqual(status.dropped_access_units, 0)
+        self.assertEqual(status.published_access_units, 2)
 
     def test_recording_degradation_is_visible_without_blocking_readiness(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
@@ -335,6 +729,117 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(recording["queued_events"], 17)
         self.assertEqual(recording["dropped_events"], 9)
         self.assertEqual(recording["diagnostic"], "network unavailable")
+
+    def test_inactive_viewer_slots_do_not_require_camera_assignments(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            state = RuntimeState(RuntimeConfig.from_environment(), WORLD)
+        inactive_slots = state.snapshot()["stream_products"]
+
+        state.update_stream_products(inactive_slots)
+
+        snapshot = state.snapshot()
+        self.assertEqual(
+            [product["capacitySlot"] for product in snapshot["stream_products"]],
+            [0, 1],
+        )
+        self.assertTrue(
+            all("cameraId" not in product for product in snapshot["stream_products"])
+        )
+        self.assertEqual(snapshot["live_cameras"][0]["health"], "healthy")
+
+    def test_shared_logical_camera_aggregates_distinct_viewer_slots(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            state = RuntimeState(RuntimeConfig.from_environment(), WORLD)
+        state.update_stream_products(
+            [
+                {
+                    "streamProductId": "product-slot-0",
+                    "capacitySlot": 0,
+                    "cameraId": "follow",
+                    "liveViewId": "view-a",
+                    "lifecycle": "failed",
+                    "lastFrameAt": "2026-08-07T18:00:00Z",
+                },
+                {
+                    "streamProductId": "product-slot-1",
+                    "capacitySlot": 1,
+                    "cameraId": "follow",
+                    "liveViewId": "view-b",
+                    "lifecycle": "ready",
+                    "lastFrameAt": "2026-08-07T18:00:01Z",
+                },
+            ]
+        )
+
+        camera = state.snapshot()["live_cameras"][0]
+        self.assertEqual(camera["health"], "healthy")
+        self.assertEqual(camera["lastFrameAt"], "2026-08-07T18:00:01Z")
+
+    def test_render_timing_separates_native_update_from_complete_cycle(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            state = RuntimeState(RuntimeConfig.from_environment(), WORLD)
+        state.observe_render_cycle(
+            0.02,
+            0.03,
+            FleetPhysicsTiming(
+                physics_steps=2,
+                refresh_states_wall_seconds=0.002,
+                vehicle_update_wall_seconds=0.004,
+                state_update_wall_seconds=0.0005,
+                dynamics_update_wall_seconds=0.002,
+                sensor_update_wall_seconds=0.001,
+                backend_state_wall_seconds=0.0005,
+                flush_forces_wall_seconds=0.006,
+                after_step_wall_seconds=0.008,
+                maximum_physics_step_ms=11.0,
+            ),
+        )
+        state.observe_render_cycle(
+            0.04,
+            0.05,
+            FleetPhysicsTiming(
+                physics_steps=5,
+                refresh_states_wall_seconds=0.005,
+                vehicle_update_wall_seconds=0.010,
+                state_update_wall_seconds=0.001,
+                dynamics_update_wall_seconds=0.005,
+                sensor_update_wall_seconds=0.003,
+                backend_state_wall_seconds=0.001,
+                flush_forces_wall_seconds=0.015,
+                after_step_wall_seconds=0.020,
+                maximum_physics_step_ms=13.0,
+            ),
+        )
+
+        timing = state.snapshot()["timing"]
+        self.assertEqual(timing["render_cycles"], 2)
+        self.assertEqual(timing["physics_steps"], 5)
+        self.assertAlmostEqual(timing["refresh_states_wall_seconds"], 0.005)
+        self.assertAlmostEqual(timing["vehicle_update_wall_seconds"], 0.010)
+        self.assertAlmostEqual(timing["state_update_wall_seconds"], 0.001)
+        self.assertAlmostEqual(timing["dynamics_update_wall_seconds"], 0.005)
+        self.assertAlmostEqual(timing["sensor_update_wall_seconds"], 0.003)
+        self.assertAlmostEqual(timing["backend_state_wall_seconds"], 0.001)
+        self.assertAlmostEqual(timing["flush_forces_wall_seconds"], 0.015)
+        self.assertAlmostEqual(timing["after_step_wall_seconds"], 0.020)
+        self.assertAlmostEqual(timing["native_update_wall_seconds"], 0.06)
+        self.assertAlmostEqual(timing["render_cycle_wall_seconds"], 0.08)
+        self.assertAlmostEqual(timing["maximum_physics_step_ms"], 13.0)
+        self.assertAlmostEqual(timing["maximum_native_update_ms"], 40.0)
+        self.assertAlmostEqual(timing["maximum_render_cycle_ms"], 50.0)
+
+        with self.assertRaisesRegex(ValueError, "cannot be negative"):
+            state.observe_render_cycle(
+                -0.01,
+                0.01,
+                FleetPhysicsTiming(5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            )
+        with self.assertRaisesRegex(ValueError, "cannot be shorter"):
+            state.observe_render_cycle(
+                0.02,
+                0.01,
+                FleetPhysicsTiming(5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            )
 
     def test_camera_optics_and_mount_are_typed_runtime_inputs(self) -> None:
         environment = {
@@ -408,9 +913,65 @@ class StreamOutputTests(unittest.TestCase):
             b"\x00\x00\x00\x01\x65\x04\x05"
         )
         self.assertEqual(
-            _annex_b_nals(access_unit),
-            [b"\x67\x01\x02", b"\x68\x03", b"\x65\x04\x05"],
+            annex_b_nals(access_unit),
+            (b"\x67\x01\x02", b"\x68\x03", b"\x65\x04\x05"),
         )
+        parsed = parse_native_h264_access_unit(access_unit)
+        self.assertTrue(parsed.is_keyframe)
+        self.assertTrue(parsed.is_decoder_reentrant)
+        self.assertEqual(parsed.nal_types, (7, 8, 5))
+
+    def test_native_access_unit_accepts_inter_frame(self) -> None:
+        parsed = parse_native_h264_access_unit(b"\x00\x00\x00\x01\x41\x01")
+        self.assertFalse(parsed.is_keyframe)
+        self.assertFalse(parsed.is_decoder_reentrant)
+
+    def test_parameter_sets_make_native_idr_decoder_reentrant(self) -> None:
+        parsed = parse_native_h264_access_unit(b"\x00\x00\x00\x01\x65\x01")
+        qualified = make_decoder_reentrant(parsed, b"\x67\x01", b"\x68\x02")
+        self.assertTrue(qualified.is_decoder_reentrant)
+        self.assertEqual(qualified.nal_types, (7, 8, 5))
+
+    def test_rtp_parser_honors_extension_and_padding(self) -> None:
+        header = struct.pack("!BBHII", 0xB0, 0xE0, 7, 9, 11)
+        extension = struct.pack("!HHI", 0xBEDE, 1, 0x01020304)
+        packet = parse_rtp_packet(header + extension + b"\x65\x99" + b"\x00\x02")
+        self.assertEqual(packet.sequence, 7)
+        self.assertEqual(packet.timestamp, 9)
+        self.assertTrue(packet.marker)
+        self.assertEqual(packet.payload_type, 96)
+        self.assertEqual(packet.payload, b"\x65\x99")
+
+    def test_rtsp_rtp_depacketizer_qualifies_first_idr_and_retains_p_frames(self) -> None:
+        depacketizer = H264RtpDepacketizer(
+            96,
+            sequence_parameter_set=b"\x67\x01",
+            picture_parameter_set=b"\x68\x02",
+        )
+        idr = depacketizer.push(RtpPacket(1, 100, True, 96, b"\x65\x03"))
+        self.assertIsNotNone(idr)
+        assert idr is not None
+        self.assertTrue(idr.is_decoder_reentrant)
+        inter = depacketizer.push(RtpPacket(2, 200, True, 96, b"\x41\x04"))
+        self.assertIsNotNone(inter)
+        assert inter is not None
+        self.assertFalse(inter.is_keyframe)
+
+    def test_rtsp_rtp_depacketizer_reassembles_fu_a(self) -> None:
+        depacketizer = H264RtpDepacketizer(
+            96,
+            sequence_parameter_set=b"\x67\x01",
+            picture_parameter_set=b"\x68\x02",
+        )
+        self.assertIsNone(
+            depacketizer.push(RtpPacket(1, 100, False, 96, b"\x7c\x85\x03"))
+        )
+        access_unit = depacketizer.push(
+            RtpPacket(2, 100, True, 96, b"\x7c\x45\x04")
+        )
+        self.assertIsNotNone(access_unit)
+        assert access_unit is not None
+        self.assertEqual(annex_b_nals(access_unit.sample)[-1], b"\x65\x03\x04")
 
     def test_large_nal_uses_rfc_6184_fu_a_boundaries(self) -> None:
         nal = bytes([0x65]) + bytes(range(1, 16))
@@ -546,7 +1107,7 @@ class RigidBodyBatchTests(unittest.TestCase):
                 self.callbacks[name] = callback
 
         class FakeBatch:
-            def rebind(self, _simulation_view: object) -> None:
+            def rebind(self, _physics_view: object) -> None:
                 events.append("rebind")
 
             def refresh_states(self) -> None:
@@ -578,7 +1139,7 @@ class RigidBodyBatchTests(unittest.TestCase):
             {"uav-1": FakeVehicle()},
             {"uav-1": prefix},
             (prefix + "/body",),
-            batch_factory=lambda _paths, _simulation_view: (
+            batch_factory=lambda _paths, _physics_view: (
                 events.append("create") or batch
             ),
             after_step=lambda _dt: events.append("after"),
@@ -623,6 +1184,17 @@ class RigidBodyBatchTests(unittest.TestCase):
                 "after",
             ],
         )
+        timing = lifecycle.timing()
+        self.assertEqual(timing.physics_steps, 1)
+        self.assertGreaterEqual(timing.refresh_states_wall_seconds, 0.0)
+        self.assertGreaterEqual(timing.vehicle_update_wall_seconds, 0.0)
+        self.assertGreaterEqual(timing.state_update_wall_seconds, 0.0)
+        self.assertGreaterEqual(timing.dynamics_update_wall_seconds, 0.0)
+        self.assertGreaterEqual(timing.sensor_update_wall_seconds, 0.0)
+        self.assertGreaterEqual(timing.backend_state_wall_seconds, 0.0)
+        self.assertGreaterEqual(timing.flush_forces_wall_seconds, 0.0)
+        self.assertGreaterEqual(timing.after_step_wall_seconds, 0.0)
+        self.assertGreaterEqual(timing.maximum_physics_step_ms, 0.0)
 
     def test_force_at_position_is_reduced_to_force_and_torque(self) -> None:
         batch = RigidBodyBatchAccumulator(("/World/uav_1/body",))
@@ -644,7 +1216,7 @@ class RigidBodyBatchTests(unittest.TestCase):
         np.testing.assert_array_equal(batch.forces, np.zeros((1, 3)))
         np.testing.assert_array_equal(batch.torques, np.zeros((1, 3)))
 
-    def test_submitted_tensor_uses_the_live_warp_owned_accumulator(self) -> None:
+    def test_tensor_batch_uses_live_buffers_and_stream_local_sync(self) -> None:
         class FakeArray:
             def __init__(self, value: np.ndarray) -> None:
                 self.value = value
@@ -663,7 +1235,7 @@ class RigidBodyBatchTests(unittest.TestCase):
             uint32 = np.uint32
 
             def __init__(self) -> None:
-                self.synchronized = False
+                self.stream_syncs = 0
 
             def get_device(self, _device: object) -> FakeDevice:
                 return FakeDevice()
@@ -690,13 +1262,34 @@ class RigidBodyBatchTests(unittest.TestCase):
                 np.copyto(target.value, source.value)
 
             def synchronize_stream(self, _device: object) -> None:
-                self.synchronized = True
+                self.stream_syncs += 1
+
+            def synchronize_device(self, _device: object) -> None:
+                raise AssertionError(
+                    "fleet physics must not synchronize unrelated GPU streams"
+                )
 
         class FakeRigidBodyView:
             prim_paths = ("/World/uav_1/body",)
 
             def __init__(self) -> None:
                 self.submitted_forces: np.ndarray | None = None
+
+            def get_transforms(self) -> FakeArray:
+                return FakeArray(
+                    np.array(
+                        [[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]],
+                        dtype=np.float32,
+                    )
+                )
+
+            def get_velocities(self) -> FakeArray:
+                return FakeArray(
+                    np.array(
+                        [[4.0, 5.0, 6.0, 0.1, 0.2, 0.3]],
+                        dtype=np.float32,
+                    )
+                )
 
             def apply_forces_and_torques_at_position(
                 self,
@@ -721,15 +1314,19 @@ class RigidBodyBatchTests(unittest.TestCase):
                 return self.rigid_body_view
 
         fake_warp = FakeWarp()
-        simulation_view = FakeSimulationView()
+        physics_view = FakeSimulationView()
         with patch.dict(sys.modules, {"warp": fake_warp}):
-            batch = IsaacFleetPhysicsBatch(("/World/uav_1/body",), simulation_view)
+            batch = IsaacFleetPhysicsBatch(("/World/uav_1/body",), physics_view)
+            batch.refresh_states()
+            state = batch.state("/World/uav_1/body")
             batch.queue_force("/World/uav_1/body", (0.0, 0.0, 4.0), (0.0, 0.0, 0.0))
             batch.flush_forces()
 
-        self.assertTrue(fake_warp.synchronized)
+        self.assertEqual(fake_warp.stream_syncs, 2)
+        np.testing.assert_array_equal(state.position_xyz, [1.0, 2.0, 3.0])
+        np.testing.assert_array_equal(state.linear_velocity_xyz, [4.0, 5.0, 6.0])
         np.testing.assert_array_equal(
-            simulation_view.rigid_body_view.submitted_forces,
+            physics_view.rigid_body_view.submitted_forces,
             [0.0, 0.0, 4.0],
         )
 
@@ -810,168 +1407,59 @@ class _FleetLoopCommander:
         self.interrupt.clear()
 
 
-class PoseProducerTests(unittest.TestCase):
-    def test_pose_cadence_is_exact_and_independent_of_render_steps(self) -> None:
-        gate = PhysicsCadenceGate(physics_hz=250, output_hz=20)
-        due_steps = [step for step in range(1, 251) if gate.due(step)]
-        self.assertEqual(len(due_steps), 20)
-        self.assertEqual(due_steps[0], 13)
-        self.assertEqual(due_steps[-1], 250)
-        self.assertEqual(set(np.diff(due_steps)), {12, 13})
+class NativeCadenceTests(unittest.TestCase):
+    def test_runtime_coalesces_render_work_after_due_fixed_physics(self) -> None:
+        app_source = (
+            Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py"
+        ).read_text()
+        self.assertIn("physics_clock.due_steps(physics_step)", app_source)
+        self.assertIn("render_cadence.due(physics_step)", app_source)
+        self.assertIn("world.step(render=False)", app_source)
+        self.assertIn("world.render()", app_source)
+        physics_index = app_source.rindex("world.step(render=False)")
+        camera_index = app_source.rindex("update_operator_cameras()")
+        render_index = app_source.rindex("world.render()")
+        self.assertLess(physics_index, camera_index)
+        self.assertLess(camera_index, render_index)
+        self.assertNotIn("world.step(render=True)", app_source)
+        self.assertIn("loop_runner.set_manual_mode(True)", app_source)
+        self.assertNotIn("RealtimePhysicsClock", app_source)
+        self.assertNotIn("PeriodicDeadline", app_source)
 
-        gate.reset()
-        self.assertFalse(gate.due(1))
-        with self.assertRaisesRegex(RuntimeError, "increase monotonically"):
-            gate.due(1)
-
-    def test_complete_snapshots_keep_a_monotonic_renderer_timeline(self) -> None:
-        publishers: list[_FakePosePublisher] = []
-
-        def create_publisher(*args: object, **kwargs: object) -> _FakePosePublisher:
-            publisher = _FakePosePublisher(*args, **kwargs)
-            publishers.append(publisher)
-            return publisher
-
-        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
-            config = RuntimeConfig.from_environment()
-        updates: list[dict[str, object]] = []
-        with patch(
-            "veoveo_uav_sim.pose.OrderedPosePublisher",
-            side_effect=create_publisher,
-        ):
-            producer = PoseProducer(
-                config=config.pose_publication,
-                session_id=config.session_id,
-                world=WORLD,
-                vehicle_count=1,
-                cadence_hz=20,
-                buffer_duration_ms=50,
-                update_state=updates.append,
-            )
-            telemetry = VehicleTelemetry(
-                vehicle_id="uav-1",
-                position_enu=(1.0, 2.0, 3.0),
-                attitude_xyzw=(0.0, 0.0, 0.0, 1.0),
-                linear_velocity_enu_mps=(4.0, 5.0, 6.0),
-                flight_state="flying",
-                battery_percent=90.0,
-                px4_connected=True,
-            )
-            producer.offer([telemetry])
-            producer.offer([telemetry])
-            deadline = time.monotonic() + 1.0
-            while len(publishers[0].snapshots) < 2 and time.monotonic() < deadline:
-                time.sleep(0.005)
-            producer.close()
-
-        snapshots = publishers[0].snapshots
-        self.assertEqual([snapshot.sequence for snapshot in snapshots], [1, 2])
-        self.assertEqual(
-            [snapshot.simulation_timestamp_ns for snapshot in snapshots],
-            [50_000_000, 100_000_000],
-        )
-        self.assertEqual(len(snapshots[0].entities), 1)
-        self.assertIsNone(snapshots[0].entities[0].velocity)
-        self.assertEqual(
-            snapshots[0].entity_table_digest,
-            entity_table_digest(1, entity_ids(1)),
-        )
-        self.assertTrue(any(update["lifecycle"] == "ready" for update in updates))
-        self.assertEqual(updates[-1]["lifecycle"], "stopped")
-
-    def test_incomplete_entity_snapshots_are_rejected(self) -> None:
-        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
-            config = RuntimeConfig.from_environment()
-        with patch(
-            "veoveo_uav_sim.pose.OrderedPosePublisher",
-            _FakePosePublisher,
-        ):
-            producer = PoseProducer(
-                config=config.pose_publication,
-                session_id=config.session_id,
-                world=WORLD,
-                vehicle_count=1,
-                cadence_hz=20,
-                buffer_duration_ms=50,
-                update_state=lambda _publication: None,
-            )
-            with self.assertRaisesRegex(RuntimeError, "complete snapshot"):
-                producer.offer([])
-            producer.close()
-
-    def test_lazy_tls_startup_does_not_replace_buffered_poses(self) -> None:
-        publishers: list[_LazyFakePosePublisher] = []
-
-        def create_publisher(*args: object, **kwargs: object) -> _LazyFakePosePublisher:
-            publisher = _LazyFakePosePublisher(*args, **kwargs)
-            publishers.append(publisher)
-            return publisher
-
-        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
-            config = RuntimeConfig.from_environment()
-        with patch(
-            "veoveo_uav_sim.pose.OrderedPosePublisher",
-            side_effect=create_publisher,
-        ):
-            producer = PoseProducer(
-                config=config.pose_publication,
-                session_id=config.session_id,
-                world=WORLD,
-                vehicle_count=1,
-                cadence_hz=20,
-                buffer_duration_ms=50,
-                update_state=lambda _publication: None,
-            )
-            telemetry = VehicleTelemetry(
-                vehicle_id="uav-1",
-                position_enu=(1.0, 2.0, 3.0),
-                attitude_xyzw=(0.0, 0.0, 0.0, 1.0),
-                linear_velocity_enu_mps=(4.0, 5.0, 6.0),
-                flight_state="flying",
-                battery_percent=90.0,
-                px4_connected=True,
-            )
-            producer.offer([telemetry])
-            producer.offer([telemetry])
-            deadline = time.monotonic() + 1.0
-            while publishers[0].sent_snapshots < 2 and time.monotonic() < deadline:
-                time.sleep(0.005)
-            producer.close()
-
-        self.assertEqual(publishers[0].offered_snapshots, 2)
-        self.assertEqual(publishers[0].sent_snapshots, 2)
-        self.assertEqual(publishers[0].replaced_snapshots, 0)
-
-
-class RealtimeClockTests(unittest.TestCase):
-    def test_physics_clock_never_batches_missed_actuator_intervals(self) -> None:
+    def test_monotonic_clock_retains_bounded_physics_debt(self) -> None:
         now = [100.0]
-        clock = RealtimePhysicsClock(60, clock=lambda: now[0])
-
+        clock = MonotonicPhysicsClock(
+            60,
+            maximum_steps_per_pass=60,
+            clock=lambda: now[0],
+        )
+        clock.reset(0)
         self.assertEqual(clock.due_steps(0), 0)
-        now[0] += 0.09
-        self.assertEqual(clock.due_steps(0), 1)
-        self.assertEqual(clock.due_steps(1), 0)
-        self.assertGreater(clock.seconds_until_next_step(1), 0.0)
 
-    def test_physics_clock_discards_wall_lag_instead_of_replaying_it(self) -> None:
-        now = [10.0]
-        clock = RealtimePhysicsClock(60, clock=lambda: now[0])
+        now[0] += 0.11
+        self.assertEqual(clock.due_steps(0), 6)
+        self.assertEqual(clock.due_steps(6), 0)
+
         now[0] += 2.0
+        self.assertEqual(clock.due_steps(6), 60)
+        self.assertEqual(clock.due_steps(66), 60)
+        self.assertEqual(clock.due_steps(126), 0)
+        self.assertGreater(clock.seconds_until_next_step(126), 0.0)
 
-        self.assertEqual(clock.due_steps(0), 1)
-        status = clock.status()
-        self.assertEqual(status.rebases, 1)
-        self.assertAlmostEqual(status.discarded_wall_seconds, 119 / 60)
+        with self.assertRaisesRegex(ValueError, "maximum physics steps"):
+            MonotonicPhysicsClock(60, maximum_steps_per_pass=0)
 
-    def test_render_deadline_skips_missed_periods(self) -> None:
-        now = [20.0]
-        deadline = PeriodicDeadline(2, clock=lambda: now[0])
-        self.assertTrue(deadline.due())
-        self.assertFalse(deadline.due())
-        now[0] += 1.6
-        self.assertTrue(deadline.due())
-        self.assertGreater(deadline.seconds_until_due(), 0.0)
+    def test_physics_step_gate_selects_exact_render_cadence(self) -> None:
+        gate = FixedStepCadenceGate(60, 30)
+        self.assertEqual(
+            [step for step in range(1, 9) if gate.due(step)],
+            [2, 4, 6, 8],
+        )
+        gate.reset(8)
+        self.assertEqual(
+            [step for step in range(9, 13) if gate.due(step)],
+            [10, 12],
+        )
 
 
 class Px4IrisVehicleModelTests(unittest.TestCase):
@@ -1005,72 +1493,6 @@ class Px4IrisVehicleModelTests(unittest.TestCase):
         model.set_input_reference([900.0, 900.0, 300.0, 300.0])
         _, _, moment = model.update(None, 1.0)
         self.assertLess(moment, 0.0)
-
-
-class _FakePosePublisher:
-    def __init__(self, *_args: object, **_kwargs: object) -> None:
-        self.snapshots: list[object] = []
-        self.closed = False
-
-    def offer(self, snapshot: object) -> None:
-        self.snapshots.append(snapshot)
-
-    def status(self) -> PosePublisherStatus:
-        sent = len(self.snapshots)
-        last_sequence = (
-            getattr(self.snapshots[-1], "sequence") if self.snapshots else None
-        )
-        return PosePublisherStatus(
-            running=not self.closed,
-            connected=not self.closed,
-            offered_snapshots=sent,
-            sent_snapshots=sent,
-            replaced_snapshots=0,
-            last_sent_sequence=last_sequence,
-            last_error=None,
-        )
-
-    def close(self) -> None:
-        self.closed = True
-
-
-class _LazyFakePosePublisher:
-    def __init__(self, *_args: object, **_kwargs: object) -> None:
-        self.closed = False
-        self.offered_snapshots = 0
-        self.sent_snapshots = 0
-        self.replaced_snapshots = 0
-        self._pending_sequence: int | None = None
-        self._pending_since = 0.0
-        self._last_sent_sequence: int | None = None
-
-    def offer(self, snapshot: object) -> None:
-        self.offered_snapshots += 1
-        if self._pending_sequence is not None:
-            self.replaced_snapshots += 1
-        self._pending_sequence = int(getattr(snapshot, "sequence"))
-        self._pending_since = time.monotonic()
-
-    def status(self) -> PosePublisherStatus:
-        if (
-            self._pending_sequence is not None
-            and time.monotonic() - self._pending_since >= 0.05
-        ):
-            self.sent_snapshots += 1
-            self._last_sent_sequence = self._pending_sequence
-            self._pending_sequence = None
-        return PosePublisherStatus(
-            running=not self.closed,
-            connected=self.sent_snapshots > 0 and not self.closed,
-            offered_snapshots=self.offered_snapshots,
-            sent_snapshots=self.sent_snapshots,
-            replaced_snapshots=self.replaced_snapshots,
-            last_sent_sequence=self._last_sent_sequence,
-            last_error=None,
-        )
-
-    def close(self) -> None:
-        self.closed = True
 
 
 class AdapterContractTests(unittest.TestCase):
@@ -1331,183 +1753,216 @@ class WorldConfigurationTests(unittest.TestCase):
             slot.configure(other)
 
 
-class CameraQualityTests(unittest.TestCase):
-    def test_black_camera_frame_is_not_visible(self) -> None:
-        quality = measure_camera_frame(np.zeros((48, 64, 3), dtype=np.uint8))
-        self.assertFalse(quality.operational)
-        self.assertFalse(quality.visible)
-        self.assertEqual(quality.content, "black")
-        self.assertEqual(quality.mean_luma, 0.0)
-        self.assertEqual(quality.dynamic_range, 0)
-        self.assertEqual(quality.robust_dynamic_range, 0)
-        self.assertEqual(quality.luma_standard_deviation, 0.0)
-        self.assertEqual(quality.non_black_fraction, 0.0)
-
-    def test_visible_camera_frame_is_accepted(self) -> None:
-        frame = np.zeros((48, 64, 3), dtype=np.uint8)
-        frame[8:40, 8:56] = (32, 128, 224)
-        quality = measure_camera_frame(frame)
-        self.assertTrue(quality.operational)
-        self.assertTrue(quality.visible)
-        self.assertEqual(quality.content, "visible")
-        self.assertGreater(quality.mean_luma, 2.0)
-        self.assertGreater(quality.dynamic_range, 8)
-        self.assertGreater(quality.robust_dynamic_range, 8)
-        self.assertGreater(quality.luma_standard_deviation, 4.0)
-        self.assertGreater(quality.non_black_fraction, 0.02)
-
-    def test_uniform_bright_frame_is_not_visible_content(self) -> None:
-        frame = np.full((48, 64, 3), 128, dtype=np.uint8)
-        quality = measure_camera_frame(frame)
-        self.assertTrue(quality.operational)
-        self.assertFalse(quality.visible)
-        self.assertEqual(quality.content, "uniform")
-        self.assertEqual(quality.dynamic_range, 0)
-
-    def test_sparse_outliers_do_not_make_a_uniform_frame_visible(self) -> None:
-        frame = np.full((100, 100, 3), 214, dtype=np.uint8)
-        frame[:2, :2] = 0
-        quality = measure_camera_frame(frame)
-        self.assertGreater(quality.dynamic_range, 200)
-        self.assertEqual(quality.robust_dynamic_range, 0)
-        self.assertFalse(quality.visible)
-        self.assertEqual(quality.content, "uniform")
-
-    def test_uniform_camera_frames_do_not_enter_recording_or_live_rtp(self) -> None:
-        quality = measure_camera_frame(np.full((48, 64, 3), 128, dtype=np.uint8))
-        self.assertFalse(quality.visible)
-        self.assertFalse(should_record_camera_frame(quality))
-
-    def test_warming_world_withholds_non_visible_camera_frames(self) -> None:
-        quality = measure_camera_frame(np.zeros((48, 64, 3), dtype=np.uint8))
-        self.assertFalse(should_record_camera_frame(quality))
-
-    def test_normalized_float_rgb_is_scaled_before_encoding(self) -> None:
-        frame = np.full((4, 4, 3), 0.5, dtype=np.float32)
-        normalized = normalize_rgb_frame(frame)
-        self.assertEqual(normalized.dtype, np.uint8)
-        self.assertEqual(int(normalized[0, 0, 0]), 128)
-
-    def test_prolonged_black_camera_degrades_without_becoming_authority(self) -> None:
-        quality = measure_camera_frame(np.zeros((48, 64, 3), dtype=np.uint8))
-        health = assess_camera_health(
-            quality,
-            visible_streak=0,
-            unusable_streak_after_tiles=60,
-            was_ready=True,
-            prolonged_unusable_threshold=60,
-        )
-        self.assertEqual(health.lifecycle, "degraded")
-        self.assertEqual(health.diagnostic_code, "frame_black")
-        self.assertIn("black", health.diagnostic or "")
-
-    def test_prolonged_uniform_camera_degrades_with_typed_diagnostic(self) -> None:
-        quality = measure_camera_frame(np.full((48, 64, 3), 214, dtype=np.uint8))
-        health = assess_camera_health(
-            quality,
-            visible_streak=0,
-            unusable_streak_after_tiles=6,
-            was_ready=True,
-            prolonged_unusable_threshold=6,
-        )
-        self.assertEqual(health.lifecycle, "degraded")
-        self.assertEqual(health.diagnostic_code, "frame_uniform")
-        self.assertIn("lacks visible scene detail", health.diagnostic or "")
-
-    def test_camera_recovers_after_three_operational_frames(self) -> None:
-        frame = np.zeros((48, 64, 3), dtype=np.uint8)
-        frame[8:40, 8:56] = (32, 128, 224)
-        health = assess_camera_health(
-            measure_camera_frame(frame),
-            visible_streak=3,
-            unusable_streak_after_tiles=0,
-            was_ready=True,
-            prolonged_unusable_threshold=60,
-        )
-        self.assertEqual(health.lifecycle, "ready")
-        self.assertIsNone(health.diagnostic_code)
-        self.assertIsNone(health.diagnostic)
-
-    def test_visible_camera_warmup_does_not_claim_a_uniform_frame(self) -> None:
-        frame = np.zeros((48, 64, 3), dtype=np.uint8)
-        frame[8:40, 8:56] = (32, 128, 224)
-        health = assess_camera_health(
-            measure_camera_frame(frame),
-            visible_streak=1,
-            unusable_streak_after_tiles=0,
-            was_ready=False,
-            prolonged_unusable_threshold=6,
-        )
-        self.assertEqual(health.lifecycle, "warming")
-        self.assertIsNone(health.diagnostic_code)
-        self.assertIsNone(health.diagnostic)
-
-
 class StreamedWorldHealthTests(unittest.TestCase):
-    def test_absent_tiles_degrade_without_becoming_simulation_authority(self) -> None:
-        health = assess_tile_health(
-            resident_tiles=0,
-            visible_tiles=0,
-            loading_tiles=0,
-            coverage_frames=0,
-            ready_frames=30,
-            absent_seconds=30.0,
+    def test_native_event_payload_is_reduced_to_the_typed_safe_surface(self) -> None:
+        event = SimpleNamespace(
+            payload={
+                "tilesetPath": "/World/Tileset",
+                "generation": 7,
+                "loadType": "tile_content",
+                "statusCode": 400,
+            }
         )
-        self.assertEqual(health.lifecycle, "failed")
-        self.assertTrue(health.recovery_required)
-        self.assertIn("unavailable", health.diagnostic or "")
+        parsed = NativeTileEventBridge._parse(event, kind="load_failed")
+        self.assertEqual(
+            parsed,
+            NativeTileEvent(
+                kind="load_failed",
+                tileset_path="/World/Tileset",
+                generation=7,
+                load_type="tile_content",
+                http_status=400,
+            ),
+        )
 
-    def test_tiles_recover_after_the_required_visible_coverage_frames(self) -> None:
-        health = assess_tile_health(
-            resident_tiles=4,
-            visible_tiles=2,
-            loading_tiles=2,
-            coverage_frames=29,
-            ready_frames=30,
-            absent_seconds=0.0,
-            failed_latched=True,
+    def test_visibility_absence_never_infers_provider_failure(self) -> None:
+        controller = TileLifecycleController(
+            tileset_path="/World/Tileset", ready_frames=2
         )
-        self.assertEqual(health.lifecycle, "ready")
-        self.assertEqual(health.coverage_frames, 30)
-        self.assertFalse(health.recovery_required)
-        self.assertIsNone(health.diagnostic)
+        for _ in range(10_000):
+            state = controller.observe_render(
+                resident_tiles=30_000,
+                visible_tiles=0,
+                loading_tiles=0,
+            )
+        self.assertEqual(state.lifecycle, "streaming")
+        self.assertEqual(state.refresh_count, 0)
+        self.assertIsNone(state.last_failure)
 
-    def test_historical_residency_cannot_claim_current_coverage(self) -> None:
-        health = assess_tile_health(
-            resident_tiles=35_000,
-            visible_tiles=0,
-            loading_tiles=0,
-            coverage_frames=30,
-            ready_frames=30,
-            absent_seconds=30.0,
+    def test_session_rejection_requests_one_generation_refresh(self) -> None:
+        controller = TileLifecycleController(
+            tileset_path="/World/Tileset", ready_frames=2
         )
-        self.assertEqual(health.lifecycle, "failed")
-        self.assertEqual(health.coverage_frames, 0)
-        self.assertTrue(health.recovery_required)
+        event = NativeTileEvent(
+            kind="load_failed",
+            tileset_path="/World/Tileset",
+            generation=1,
+            load_type="tile_content",
+            http_status=400,
+        )
+        self.assertTrue(controller.accept(event).reload_tileset)
+        duplicate = controller.accept(event)
+        self.assertFalse(duplicate.reload_tileset)
+        self.assertFalse(duplicate.report_failure)
+        state = controller.snapshot()
+        self.assertEqual(state.lifecycle, "refreshing")
+        self.assertEqual(state.provider_generation, 1)
+        self.assertEqual(state.refresh_count, 1)
+        self.assertEqual(
+            state.last_failure.code if state.last_failure else None,
+            "provider_session_rejected",
+        )
 
-    def test_failed_coverage_requests_one_recovery_until_tiles_return(self) -> None:
-        health = assess_tile_health(
-            resident_tiles=35_000,
-            visible_tiles=0,
-            loading_tiles=0,
-            coverage_frames=0,
-            ready_frames=30,
-            absent_seconds=31.0,
-            failed_latched=True,
+    def test_distinct_failure_can_supersede_an_earlier_failure_in_one_generation(
+        self,
+    ) -> None:
+        controller = TileLifecycleController(
+            tileset_path="/World/Tileset", ready_frames=2
         )
-        self.assertEqual(health.lifecycle, "failed")
-        self.assertFalse(health.recovery_required)
+        unavailable = controller.accept(
+            NativeTileEvent(
+                kind="load_failed",
+                tileset_path="/World/Tileset",
+                generation=1,
+                load_type="tile_content",
+                http_status=404,
+            )
+        )
+        rejected = controller.accept(
+            NativeTileEvent(
+                kind="load_failed",
+                tileset_path="/World/Tileset",
+                generation=1,
+                load_type="tile_content",
+                http_status=400,
+            )
+        )
+        self.assertTrue(unavailable.report_failure)
+        self.assertFalse(unavailable.reload_tileset)
+        self.assertTrue(rejected.report_failure)
+        self.assertTrue(rejected.reload_tileset)
+
+    def test_matching_replacement_generation_recovers_deterministically(self) -> None:
+        controller = TileLifecycleController(
+            tileset_path="/World/Tileset", ready_frames=2
+        )
+        controller.accept(
+            NativeTileEvent(
+                kind="load_failed",
+                tileset_path="/World/Tileset",
+                generation=1,
+                load_type="tile_content",
+                http_status=400,
+            )
+        )
+        controller.accept(
+            NativeTileEvent(
+                kind="loaded",
+                tileset_path="/World/Tileset",
+                generation=2,
+            )
+        )
+        first = controller.observe_render(
+            resident_tiles=20, visible_tiles=4, loading_tiles=2
+        )
+        recovered = controller.observe_render(
+            resident_tiles=24, visible_tiles=6, loading_tiles=0
+        )
+        self.assertEqual(first.lifecycle, "streaming")
+        self.assertEqual(recovered.lifecycle, "ready")
+        self.assertIsNone(recovered.diagnostic)
+
+    def test_duplicate_loaded_event_does_not_destabilize_ready_generation(self) -> None:
+        controller = TileLifecycleController(
+            tileset_path="/World/Tileset", ready_frames=2
+        )
+        loaded = NativeTileEvent(
+            kind="loaded",
+            tileset_path="/World/Tileset",
+            generation=1,
+        )
+        controller.accept(loaded)
+        controller.observe_render(
+            resident_tiles=20, visible_tiles=4, loading_tiles=1
+        )
+        ready = controller.observe_render(
+            resident_tiles=24, visible_tiles=6, loading_tiles=0
+        )
+        self.assertEqual(ready.lifecycle, "ready")
+        self.assertEqual(ready.event_sequence, 1)
+
+        duplicate = controller.accept(loaded)
+        stable = controller.observe_render(
+            resident_tiles=24, visible_tiles=6, loading_tiles=2
+        )
+        self.assertFalse(duplicate.reload_tileset)
+        self.assertEqual(stable.lifecycle, "ready")
+        self.assertEqual(stable.event_sequence, 1)
+
+    def test_rejected_replacement_generation_degrades_without_a_loop(self) -> None:
+        controller = TileLifecycleController(
+            tileset_path="/World/Tileset", ready_frames=1
+        )
+        first = NativeTileEvent(
+            kind="load_failed",
+            tileset_path="/World/Tileset",
+            generation=1,
+            load_type="tile_content",
+            http_status=400,
+        )
+        second = NativeTileEvent(
+            kind="load_failed",
+            tileset_path="/World/Tileset",
+            generation=2,
+            load_type="tile_content",
+            http_status=400,
+        )
+        self.assertTrue(controller.accept(first).reload_tileset)
+        self.assertFalse(controller.accept(second).reload_tileset)
+        self.assertFalse(controller.accept(second).reload_tileset)
+        state = controller.snapshot()
+        self.assertEqual(state.lifecycle, "degraded")
+        self.assertEqual(state.refresh_count, 1)
+
+    def test_credential_failure_is_typed_and_never_refreshed(self) -> None:
+        controller = TileLifecycleController(
+            tileset_path="/World/Tileset", ready_frames=1
+        )
+        action = controller.accept(
+            NativeTileEvent(
+                kind="load_failed",
+                tileset_path="/World/Tileset",
+                generation=1,
+                load_type="ion_endpoint",
+                http_status=401,
+            )
+        )
+        state = controller.snapshot()
+        self.assertFalse(action.reload_tileset)
+        self.assertEqual(state.lifecycle, "degraded")
+        self.assertEqual(
+            state.last_failure.code if state.last_failure else None,
+            "credentials_rejected",
+        )
 
     def test_visual_health_is_not_simulation_authority(self) -> None:
         source = (Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py").read_text()
-        self.assertIn("assess_camera_health(", source)
-        self.assertIn("assess_tile_health(", source)
+        self.assertIn("TileLifecycleController(", source)
+        self.assertIn('sensor_status.lifecycle == "degraded"', source)
         self.assertIn("statistics.tiles_rendered", source)
         self.assertIn("cesium_interface.reload_tileset(tileset_path)", source)
+        self.assertNotIn("tile_absent_since", source)
+        self.assertNotIn("assess_tile_health", source)
         self.assertNotIn('raise RuntimeError("Google Photorealistic', source)
         self.assertNotIn(
             'raise RuntimeError(\n                                f"down camera', source
         )
+
+        sensor_source = (
+            Path(__file__).parents[1] / "veoveo_uav_sim" / "hydra_camera.py"
+        ).read_text()
+        self.assertIn("simulation continues", sensor_source)
+        self.assertNotIn("raise RuntimeError(\"native Isaac", sensor_source)
 
         server_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "server.py"
@@ -1520,16 +1975,21 @@ class StreamedWorldHealthTests(unittest.TestCase):
         self.assertNotIn('snapshot["recordings"]', simulation_ready)
         self.assertIn("visual_ready", server_source)
 
-    def test_encoder_drain_packets_do_not_enter_live_rtp(self) -> None:
-        source = (
+    def test_native_camera_fanout_has_no_software_encoder_or_drain(self) -> None:
+        recording_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "recording.py"
         ).read_text()
-        close_body = source.split(
-            "    def close(self, simulation_time_s: float, physics_step: int) -> None:\n",
-            maxsplit=1,
-        )[1].split("\n\n", maxsplit=1)[0]
-        self.assertIn("for packet in self._stream.encode(None):", close_body)
-        self.assertNotIn("self._stream_output.publish", close_body)
+        app_source = (
+            Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py"
+        ).read_text()
+        self.assertNotIn("import av", recording_source)
+        self.assertNotIn("h264_nvenc", recording_source)
+        self.assertNotIn("encode(None)", recording_source)
+        self.assertIn("class RecordedH264CameraStream", recording_source)
+        self.assertNotIn("RtpH264Publisher", recording_source)
+        self.assertNotIn("stream_output", recording_source)
+        self.assertIn("recording.offer_camera_access_unit(", app_source)
+        self.assertIn("stream_publication.offer(", app_source)
 
 
 if __name__ == "__main__":

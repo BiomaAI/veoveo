@@ -1,19 +1,2 @@
 global:
   publicBaseUrl: http://localhost:8782
-
-simulationView:
-  publicSignalingUrl: ws://localhost:8782/simulation-view/signaling
-  publicMediaIp: 127.0.0.1
-  ports:
-    mediaBase: 48010
-  signaling:
-    exposure: Ingress
-  poseIngress:
-    exposure: ClusterIP
-  media:
-    exposure: NodePort
-    nodePortBase: 31010
-  artifacts:
-    size: 2Gi
-  cache:
-    size: 12Gi

@@ -15,9 +15,12 @@ Implemented in this workspace.
 |---|---|
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | App discovery and invocation remain ordinary MCP resource, tool, and task traffic. The hosting path uses JSON-RPC 2.0 over Streamable HTTP. |
 | MCP Apps SEP-1865 / `ext-apps` | Version `2026-01-26`, with `ui://` resources, `text/html;profile=mcp-app`, tool-to-app metadata, host context, lifecycle notifications, and the `postMessage` bridge. |
+| Veoveo reactive App resource adapter | Repository-owned extension over MCP Apps `2026-01-26`. A sandboxed App may request ordinary MCP `resources/subscribe` and `resources/unsubscribe`; the Console projects contentless `ui/notifications/resource-updated` wakes from the authenticated pooled MCP session. This adapter is not claimed as part of SEP-1865. |
+| Veoveo internal App navigation adapter | Repository-owned `ui/open-link` profile. Exact `ui://` targets navigate only when present in the caller-visible App catalog; `veoveo-console://agents` and `veoveo-console://recordings` are the only platform-view targets. Other custom, missing, or unexposed targets fail closed. |
+| Veoveo App agent-message adapter | Repository-owned `veoveo/agents/message` profile. An App resource declares exact targets in `_meta["io.veoveo/agent-message-targets"]`; the Console validates that declaration and submits only UUIDv7-idempotent bounded text through its existing authenticated human-message BFF path. This adapter is not part of SEP-1865. |
 | [Veoveo final task extension](../task-extension) | Version `2026-06-30`; app-started durable work retains the same task lifecycle and ownership rules as a normal MCP client. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Linked tool arguments and structured results use the same canonical schemas exposed outside the app. |
-| HTML iframe sandbox and Content Security Policy | HTML runs in an opaque-origin `sandbox="allow-scripts"` frame. The default CSP denies network access; a live-data App may declare exact origins through `_meta.ui.csp`, which the host validates before adding them. Cookies, storage, and same-origin privilege remain absent. |
+| HTML iframe sandbox and Content Security Policy | HTML runs in an opaque-origin `sandbox="allow-scripts"` frame. The default CSP denies remote network access while permitting local `data:` fetches; a live-data App may declare exact origins through `_meta.ui.csp`, which the host validates before adding them. Cookies, storage, and same-origin privilege remain absent. |
 
 ## The rule
 
@@ -78,8 +81,11 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
 - **Frame** — app HTML is served same-origin with `default-src 'none'` into an
   `<iframe sandbox="allow-scripts">`. The BFF validates every declared CSP
   origin, sorts and deduplicates the result, and adds only those exact sources
-  to the relevant directive. Apps without a declaration keep the offline
-  policy. The opaque origin has no cookies, storage, or same-origin privilege.
+  to the relevant directive. Local `data:` fetches do not add a remote network
+  origin. The opaque origin has no cookies, storage, or same-origin privilege.
+  Apps receive the complete Console content workspace by default. An explicit
+  `_meta.ui.prefersBorder: true` requests the bordered presentation; absent or
+  `false` metadata retains the full-workspace presentation.
 - **Bridge** — the host declares `serverTools` and `serverResources`
   capabilities. `tools/call` from a view is proxied only to app-visible
   tools linked to that exact view on that view's server. Own-server resource
@@ -96,10 +102,38 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
   tools may start tasks, and a view may only poll tasks it started
   (`servers/view-mcp/assets/preview-app.template.html` is the reference
   task-driving view).
+- **Reactive resources** — the Console intercepts App `resources/subscribe`
+  and `resources/unsubscribe` requests because MCP Apps `2026-01-26` does not
+  include them. The BFF registers UUID-bound references concurrently on the
+  pooled MCP session and returns one contentless authenticated SSE wake stream
+  for the App's bounded subscription set. This multiplexed fetch stream avoids
+  the browser's per-origin `EventSource` limit. Upstream
+  `notifications/resources/updated` becomes
+  `ui/notifications/resource-updated` inside the opaque frame. Reconnecting
+  the stream reuses each UUID, and multiple frames retain independent
+  references to the one upstream subscription. Healthy operation is
+  notification-driven; bounded backoff runs only after the stream fails.
+  Authorization expiry closes the stream. Domain state never travels in the
+  wake; the App reads current state through an explicitly settled ordinary
+  bridge request.
 - **Navigation** — the host's menu merges its static platform views with one
   entry per discovered app (label from the resource title, icon from the
-  resource icons). Catalog failures degrade the menu to platform views only;
-  they never block the shell.
+  resource icons). Discovery failures are isolated by server and surface.
+  Healthy Apps remain available beside a typed degradation notice, and a
+  failed server never blocks the shell or the rest of the catalog.
+- **Context links** — an App may send `ui/open-link` for another exact `ui://`
+  resource or one of the two declared platform targets. The Console resolves
+  App targets against its current caller-visible catalog and never accepts a
+  browser-supplied server alias or arbitrary Console route.
+- **Always-on agent messages** — an App may send `veoveo/agents/message` only
+  when its listed resource declares that exact agent in
+  `_meta["io.veoveo/agent-message-targets"]`. The bridge accepts a closed
+  `{agentId, requestId, message}` object, requires a UUIDv7 request identity and
+  at most 16 KiB of nonempty UTF-8 text, and forwards it to the ordinary
+  same-origin BFF mutation. The BFF and gateway retain human identity, Work
+  Context, CSRF, policy, audit, idempotency, and durable-wake authority. The
+  iframe receives no cookie, gateway bearer, agent credential, or database
+  access, and malformed metadata grants no targets.
 
 ## Governed Cross-Server Resources
 
@@ -141,6 +175,9 @@ The view side of the postMessage protocol (see
   `ui/resource-teardown`.
 - Handle tool/resource failures inline (authorization errors surface as
   ordinary failed requests — degrade to read-only or show the error).
+- A reactive view subscribes only to resources owned by its server, treats
+  each update as a wake to read current state, and unsubscribes during
+  teardown. It does not use a timer as a substitute for resource updates.
 
 ## Why not admin REST
 

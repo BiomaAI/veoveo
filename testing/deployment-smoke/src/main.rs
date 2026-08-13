@@ -5,6 +5,7 @@ use clap::{Parser, Subcommand};
 
 #[path = "../../smoke/src/bin/smoke/deployment.rs"]
 mod deployment;
+mod gitops;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -60,6 +61,29 @@ enum Command {
         #[arg(long)]
         profile: PathBuf,
     },
+    /// Refresh and observe an exact GitOps revision through deployment readiness.
+    GitopsConverge {
+        #[arg(long)]
+        context: String,
+        #[arg(long, default_value = "argocd")]
+        control_namespace: String,
+        #[arg(long)]
+        parent: String,
+        #[arg(long, required = true)]
+        child: Vec<String>,
+        #[arg(long, default_value = "configuration")]
+        source_ref: String,
+        #[arg(long)]
+        parent_revision: String,
+        #[arg(long)]
+        configuration_revision: String,
+        #[arg(long, required = true, value_name = "NAMESPACE/NAME")]
+        deployment: Vec<String>,
+        #[arg(long, default_value_t = 300)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        evidence_output: PathBuf,
+    },
 }
 
 fn run() -> Result<()> {
@@ -72,6 +96,29 @@ fn run() -> Result<()> {
         Command::ProfileUp { profile, lock } => deployment::profile_up(&profile, &lock),
         Command::ProfileGpuVerify { profile } => deployment::profile_gpu_verify(&profile),
         Command::ProfileDown { profile } => deployment::profile_down(&profile),
+        Command::GitopsConverge {
+            context,
+            control_namespace,
+            parent,
+            child,
+            source_ref,
+            parent_revision,
+            configuration_revision,
+            deployment,
+            timeout_seconds,
+            evidence_output,
+        } => gitops::converge(gitops::GitopsConvergeArgs {
+            context,
+            control_namespace,
+            parent,
+            children: child,
+            source_ref,
+            parent_revision,
+            configuration_revision,
+            deployments: deployment,
+            timeout: std::time::Duration::from_secs(timeout_seconds),
+            evidence_output,
+        }),
     }
 }
 

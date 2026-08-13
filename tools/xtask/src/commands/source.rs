@@ -9,6 +9,11 @@ use url::Url;
 
 use crate::{context::RepositoryContext, process};
 
+// Publication materializes an exact revision, not every LFS payload in that
+// repository. Selected LFS build inputs remain the responsibility of the
+// build phase that consumes them.
+const GIT_SKIP_LFS_SMUDGE: &[(&str, &str)] = &[("GIT_LFS_SKIP_SMUDGE", "1")];
+
 #[derive(Debug)]
 pub(crate) struct PublicationSource {
     path: PathBuf,
@@ -41,7 +46,7 @@ impl PublicationSource {
         let source_registered = registered.iter().any(|path| path == &layout.source);
         match (source_exists, source_registered) {
             (false, false) => {
-                process::status(
+                process::status_with_env(
                     "git",
                     [
                         "worktree",
@@ -50,14 +55,16 @@ impl PublicationSource {
                         path_text(&layout.source)?,
                         revision.as_str(),
                     ],
+                    GIT_SKIP_LFS_SMUDGE,
                     Some(repository.root()),
                 )?;
             }
             (true, true) => {
                 require_clean(&layout.source)?;
-                process::status(
+                process::status_with_env(
                     "git",
                     ["checkout", "--detach", revision.as_str()],
+                    GIT_SKIP_LFS_SMUDGE,
                     Some(&layout.source),
                 )?;
             }
