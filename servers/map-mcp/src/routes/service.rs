@@ -9,10 +9,11 @@ use crate::{
     analytics::MapAnalytics,
     catalog::{MapCatalog, MapScope},
     contract::{
-        BuildTravelModelRequest, DatasetReleaseState, FacilityId, MapFamily, MobilityProfile,
-        OperationalSnapshot, OperationalSnapshotId, OptimizationTravelModel, ReachableArea,
-        ReachableAreaId, ReachableAreaRequest, Restriction, RestrictionEffectKind, RouteEndpoint,
-        RouteId, RouteMatrix, RouteMatrixCell, RouteMatrixId, RouteMatrixRequest, RouteObjective,
+        BuildTravelModelRequest, DatasetReleaseState, FacilityId, MAP_ROUTE_HANDOFF_SCHEMA,
+        MapFamily, MapRouteHandoff, MobilityProfile, OperationalSnapshot, OperationalSnapshotId,
+        OptimizationTravelModel, PrepareRouteHandoffRequest, ReachableArea, ReachableAreaId,
+        ReachableAreaRequest, Restriction, RestrictionEffectKind, RouteEndpoint, RouteId,
+        RouteMatrix, RouteMatrixCell, RouteMatrixId, RouteMatrixRequest, RouteObjective,
         RouteObjectiveKind, RoutePlan, RouteProvenance, RouteRequest, RouteStatus, RouteValidation,
         TRAVEL_MODEL_ARTIFACT_VERSION, TravelCostMetric, TravelModelArtifact, TravelModelMatrix,
         TravelModelProfileProvenance, ValidateRouteRequest, ValidationId, Wgs84BoundingBox,
@@ -579,6 +580,76 @@ impl RouteService {
             valid: findings.is_empty(),
             findings,
             validated_at: Utc::now(),
+        })
+    }
+
+    pub async fn prepare_route_handoff(
+        &self,
+        scope: &MapScope,
+        request: PrepareRouteHandoffRequest,
+    ) -> Result<MapRouteHandoff> {
+        let route = self
+            .catalog
+            .route(scope, &request.route_id)
+            .await?
+            .context("route is unavailable")?;
+        if matches!(
+            route.status,
+            RouteStatus::Stale | RouteStatus::Invalidated | RouteStatus::Unavailable
+        ) {
+            bail!("route status is not eligible for a domain handoff");
+        }
+        let validation = self
+            .validate_route(
+                scope,
+                ValidateRouteRequest {
+                    route: route.clone(),
+                },
+            )
+            .await?;
+        if !validation.valid {
+            bail!(
+                "route failed current Map validation: {}",
+                validation.findings.join("; ")
+            );
+        }
+        let route_digest_sha256 = hex::encode(Sha256::digest(serde_json::to_vec(&route)?));
+        let mut path = Vec::new();
+        for leg in &route.legs {
+            for position in &leg.geometry.coordinates {
+                if path.last() != Some(position) {
+                    path.push(position.clone());
+                }
+            }
+        }
+        if !(2..=10_000).contains(&path.len()) {
+            bail!("route handoff path must contain 2..=10000 distinct consecutive positions");
+        }
+        Ok(MapRouteHandoff {
+            schema_profile: MAP_ROUTE_HANDOFF_SCHEMA.to_owned(),
+            route_uri: route.route_uri.clone(),
+            route_digest_sha256,
+            route_status: route.status,
+            mobility_profile_uri: crate::uris::mobility_profile_uri(
+                route.mobility_profile_id.as_str(),
+                route.mobility_profile_version,
+            ),
+            path,
+            validation_id: validation.validation_id,
+            validated_at: validation.validated_at,
+            operational_snapshot_id: route.provenance.operational_snapshot_id.to_string(),
+            base_release_ids: route
+                .provenance
+                .base_release_ids
+                .into_iter()
+                .map(|id| id.to_string())
+                .collect(),
+            restriction_ids: route
+                .restriction_ids
+                .into_iter()
+                .map(|id| id.to_string())
+                .collect(),
+            prepared_at: Utc::now(),
         })
     }
 

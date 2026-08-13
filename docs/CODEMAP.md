@@ -502,7 +502,7 @@ provenance, and DuckDB persistence.
 | Path | Responsibility |
 |---|---|
 | `servers/map-mcp/src/contract/travel_models.rs` | exact `veoveo.io/travel-model-artifact/v1` cross-server wire profile, controlled location and vehicle-type IDs, bounds, provenance, and Map record |
-| `servers/map-mcp/src/routes/service.rs` | governed Valhalla matrix construction, immutable mobility-profile versions, persisted operational snapshots, and unavailable arcs |
+| `servers/map-mcp/src/routes/service.rs` | governed route and Valhalla matrix construction, immutable mobility-profile versions, persisted operational snapshots, unavailable arcs, and the validated `veoveo.io/map-route-handoff/v1` cross-server projection |
 | `servers/map-mcp/src/server/tasks.rs` | durable travel-model publication, owner visibility, neutral artifact manifest identity, and resource notifications |
 | `servers/optimization-mcp/src/domain/` | public routing, route-scenario, convex, MILP, solution, verification, and solver-profile contracts |
 | `servers/optimization-mcp/src/compiler/` | deterministic conversion into cuOpt routing arrays and sparse mathematical structures |
