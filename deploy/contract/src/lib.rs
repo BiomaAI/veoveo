@@ -1789,7 +1789,7 @@ impl FirstPartyMcpServer {
             Self::Datasheet => &["datasheet-mcp"],
             Self::Duckdb => &["duckdb-mcp"],
             Self::Chart => &["chart-mcp"],
-            Self::Rerun => &["mcp-stdio-bridge"],
+            Self::Rerun => &["mcp-legacy-bridge"],
             Self::Recording => &["recording-mcp"],
             Self::Stream => &["stream-mcp"],
             Self::Reason => &["reason-mcp"],
