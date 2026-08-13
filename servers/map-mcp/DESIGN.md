@@ -675,6 +675,16 @@ model version, restriction ids, facilities, and validation identity. Release
 changes and restriction withdrawal invalidate dependent routes while preserving
 the original record for review.
 
+Map is also the sole producer of the versioned
+`veoveo.io/map-route-handoff/v1` cross-server profile. A handoff is prepared
+from one persisted route only after Map rejects stale, invalidated, or
+unavailable state and repeats complete mobility and restriction validation. It
+contains the Map route identity and digest, exact mobility-profile identity,
+execution-neutral WGS84 path, validation identity, operational snapshot,
+release provenance, and restriction identities. A consuming domain may add its
+own actuation constraints, but it does not resolve places, plan a replacement
+path, or reinterpret Map restrictions.
+
 ### Durable Routing Operations
 
 Single routes, route matrices, and reachable areas use the MCP Task API. Each
@@ -767,6 +777,7 @@ as every other raster derivation.
 | `build_travel_model` | task only | `map:route_matrix` | immutable heterogeneous cuOpt cost and transit-time matrices |
 | `reachable_area` | task only | `map:route` | land isochrone |
 | `validate_route` | direct | `map:route` | typed validation findings |
+| `prepare_route_handoff` | direct | `map:route` | current validated `veoveo.io/map-route-handoff/v1` projection for a consuming domain |
 | `inspect_corridor` | direct | `map:dataset:read` | restrictions, facilities, boundaries, and gaps |
 | `publish_restriction` | direct | `map:restriction:publish` | effective restriction |
 | `withdraw_restriction` | direct | `map:restriction:withdraw` | ended restriction and invalidation count |

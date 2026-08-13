@@ -1,12 +1,15 @@
+use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::CrsId;
 
 use super::{
     Degrees, Facility, LocationId, MapLocation, Meters, ProjectedPosition, Restriction,
-    RestrictionId, RoutePlan, ValidationId, Wgs84BoundingBox, Wgs84LineString, Wgs84Polygon,
-    Wgs84Position,
+    RestrictionId, RouteId, RoutePlan, RouteStatus, ValidationId, Wgs84BoundingBox,
+    Wgs84LineString, Wgs84Polygon, Wgs84Position,
 };
+
+pub const MAP_ROUTE_HANDOFF_SCHEMA: &str = "veoveo.io/map-route-handoff/v1";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct TransformCrsRequest {
@@ -146,6 +149,31 @@ pub struct RouteValidation {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub findings: Vec<String>,
     pub validated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PrepareRouteHandoffRequest {
+    pub route_id: RouteId,
+}
+
+/// Execution-neutral, Map-owned route projection for a consuming domain.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct MapRouteHandoff {
+    pub schema_profile: String,
+    pub route_uri: String,
+    pub route_digest_sha256: String,
+    pub route_status: RouteStatus,
+    pub mobility_profile_uri: String,
+    #[schemars(length(min = 2, max = 10_000))]
+    pub path: Vec<Wgs84Position>,
+    pub validation_id: ValidationId,
+    pub validated_at: DateTime<Utc>,
+    pub operational_snapshot_id: String,
+    pub base_release_ids: Vec<String>,
+    pub restriction_ids: Vec<String>,
+    pub prepared_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

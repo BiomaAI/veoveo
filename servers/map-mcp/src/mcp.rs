@@ -33,16 +33,16 @@ use crate::{
         DeriveSpatialGeometryRequest, DisableSourceRequest, FacilityId, GeodesicDirectOutput,
         GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest,
         InspectLocationOutput, InspectLocationRequest, ListActiveDatasetReleasesOutput,
-        ListActiveDatasetReleasesRequest, LocationId, MapDatasetId, MapSourceId, MobilityProfile,
-        MobilityProfileId, PublishRestrictionRequest, QuerySourceFeaturesOutput,
-        QuerySourceFeaturesRequest, RasterDerivation, RasterDerivationId, RasterProductId,
-        ReachableArea, ReachableAreaRequest, RegisteredSource, ReleaseMutationRequest,
-        ReleaseMutationResponse, ReplaceSourceRequest, RestrictionId, RestrictionMutationOutput,
-        RouteId, RouteMatrix, RouteMatrixId, RouteMatrixRequest, RoutePlan, RouteRequest,
-        RouteValidation, SearchLocationsOutput, SearchLocationsRequest, SourceFeatureId,
-        SpatialDerivation, SpatialDerivationId, TransformCrsOutput, TransformCrsRequest,
-        TravelModelId, TravelModelRecord, ValidateGeofenceOutput, ValidateGeofenceRequest,
-        ValidateRouteRequest, WithdrawRestrictionRequest,
+        ListActiveDatasetReleasesRequest, LocationId, MapDatasetId, MapRouteHandoff, MapSourceId,
+        MobilityProfile, MobilityProfileId, PrepareRouteHandoffRequest, PublishRestrictionRequest,
+        QuerySourceFeaturesOutput, QuerySourceFeaturesRequest, RasterDerivation,
+        RasterDerivationId, RasterProductId, ReachableArea, ReachableAreaRequest, RegisteredSource,
+        ReleaseMutationRequest, ReleaseMutationResponse, ReplaceSourceRequest, RestrictionId,
+        RestrictionMutationOutput, RouteId, RouteMatrix, RouteMatrixId, RouteMatrixRequest,
+        RoutePlan, RouteRequest, RouteValidation, SearchLocationsOutput, SearchLocationsRequest,
+        SourceFeatureId, SpatialDerivation, SpatialDerivationId, TransformCrsOutput,
+        TransformCrsRequest, TravelModelId, TravelModelRecord, ValidateGeofenceOutput,
+        ValidateGeofenceRequest, ValidateRouteRequest, WithdrawRestrictionRequest,
     },
     geodesy,
     prompts::MapPrompt,
@@ -499,6 +499,31 @@ impl MapMcp {
             .await
             .map_err(invalid_params)?;
         structured_result(format!("route valid: {}", output.valid), &output)
+    }
+
+    #[tool(
+        title = "Prepare Map route handoff",
+        description = "Read one persisted Map route, reject stale or invalidated state, perform current complete mobility and restriction validation, and return a versioned execution-neutral handoff for a consuming domain.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<MapRouteHandoff>(),
+        annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn prepare_route_handoff(
+        &self,
+        Parameters(request): Parameters<PrepareRouteHandoffRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let identity = require_scope(&context, "map:route")?;
+        let scope = self.state.scope(&identity).await.map_err(internal)?;
+        let output = self
+            .state
+            .routes
+            .prepare_route_handoff(&scope, request)
+            .await
+            .map_err(invalid_params)?;
+        structured_result(
+            format!("prepared route handoff {}", output.route_uri),
+            &output,
+        )
     }
 
     #[tool(
