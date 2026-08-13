@@ -40,7 +40,6 @@ tracing.workspace = true
 uuid.workspace = true
 veoveo-artifact-client = { path = "../../platform/artifacts/client" }
 veoveo-duckdb-runtime = { path = "../../platform/runtimes/duckdb" }
-veoveo-mcp-task-extension = { path = "../../mcp/task-extension" }
 veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension" }
 veoveo-mcp-contract.workspace = true
 veoveo-platform-store = { path = "../../platform/store" }

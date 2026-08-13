@@ -46,7 +46,7 @@ MCP designs live with the crate whose public contract they specify:
 
 | Document | Domain |
 |---|---|
-| [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP server contract: protocol surface, sessionful Streamable HTTP, notification ownership, singleton deployment identity, schema profile, packaging, well-known resources, and compliance |
+| [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP `2026-07-28` server contract: Discover, stateless Streamable HTTP, official Tasks and multi-round input, request-scoped subscriptions, replica-safe state, schema bounds, packaging, well-known resources, and compliance |
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, and standalone distribution |
 | [`mcp/composer/DESIGN.md`](../mcp/composer/DESIGN.md) | offline external gateway fragment/binding composition, requirements, and deterministic provenance |
 | [`platform/runtimes/simulation/DESIGN.md`](../platform/runtimes/simulation/DESIGN.md) | canonical hardware-GPU Isaac Sim and Isaac Lab runtime, selected extension profile, and conformance probes |
@@ -175,11 +175,18 @@ constants (`io.modelcontextprotocol/ui`, `text/html;profile=mcp-app`), typed
 `_meta.ui` shapes, server helpers (capability declaration, `ui://` app
 resources, tool links), and host helpers (capability declaration, app
 detection, and visibility checks). The Console owns the generic reactive-resource
-adapter that carries ordinary MCP subscription wakes across the pinned Apps
+adapter that carries final-profile `subscriptions/listen` wakes across the pinned Apps
 bridge without exposing domain payloads. `mcp/apps-extension/DESIGN.md` is the
 canonical server↔core↔UI contract: domain reads are resources, domain
 mutations are tools, domain views are `ui://` apps — never bespoke admin
 REST or hardcoded console pages.
+
+### `mcp/bridges`
+
+| Component | Responsibility |
+|---|---|
+| `stdio` | Same-version MCP `2026-07-28` bridge for one explicitly owned local child; the HTTP endpoint is stateless and discovers the child through the final lifecycle |
+| `legacy` | Optional, isolated MCP `2025-11-25` external connector for one configured local stdio child or remote HTTP endpoint; it exposes only MCP `2026-07-28` tools, resources, prompts, and completions toward Veoveo and never fabricates Tasks, MRTR, subscriptions, or deprecated capabilities |
 
 
 ### `mcp/contract`
@@ -187,23 +194,15 @@ REST or hardcoded console pages.
 This crate owns vocabulary shared across services. It must not absorb a domain tool
 schema merely because the server is first-party.
 
-### `mcp/task-contract`
-
-Owns the storage-independent UUIDv7 task identity and retention-pin types shared by the
-final MCP task wire and the durable runtime. The optional runtime feature supplies
-conversion to the platform-store task identity without pulling storage into standalone
-protocol tooling.
-
 | File | Responsibility |
 |---|---|
 | `access.rs` | artifact access levels, user/group subjects, grant composition |
-| `agents.rs` | authenticated operator-message, elicitation-decision, wake-receipt, and elicitation-view contracts |
+| `agents.rs` | authenticated operator-message, durable input-request decision, wake-receipt, and pending-input view contracts |
 | `artifact_service.rs` | artifact-plane requests, capabilities, share links, native async port |
 | `duckdb.rs` | shared DuckDB source types and safe read-function SQL fragments |
 | `coordinates.rs` | shared coordinate spaces, world/revision/frame identities, complete frame-tree vocabulary, WGS84 positions, and operation provenance |
-| `docs.rs` | build-embedded server documents, once-built contract declarations, capability inventories, compliance parsing, and canonical llms.txt rendering |
+| `docs.rs` | build-embedded server documents, once-built revision/compliance declarations, compliance parsing, and canonical llms.txt rendering; observed capabilities come from Discover and list methods |
 | `uri.rs` | canonical hosted-server resource URI construction and shared one-segment document URI parsing |
-| `schema.rs` | canonical self-contained JSON Schema 2020-12 generation for Rust MCP tool inputs |
 | `storage.rs` | artifact metadata, release state, compliance labels |
 | `gateway.rs` | gateway control-plane aggregate and public re-exports |
 | `gateway/ids.rs` | validated identity and configuration newtypes, including bounded principal display metadata that never participates in authorization |
@@ -216,10 +215,11 @@ protocol tooling.
 | `internal_auth.rs` | Ed25519 signing keys, JWKS trust, internal issuer/verifier |
 | `deployment.rs` | Connected/offline Kubernetes topology contract |
 | `bootstrap.rs` | generic installation-time server bootstrap envelope, constants, and semantics |
-| `tasks.rs` | shared task ownership and platform task vocabulary |
+| `tasks.rs` | platform task ownership and durable routing vocabulary; official MCP Task wire types come from `rmcp` |
 | `provider.rs` | provider job/event contracts; no status polling API |
-| `subscriptions.rs` | resource subscription hub |
-| `transport.rs`, `session.rs` | canonical sessionful Streamable HTTP configuration, event-stream responses, and bounded cleanup after client disconnect |
+| `subscriptions.rs` | request-scoped resource and list-change event hub for final `subscriptions/listen` streams |
+| `protocol.rs` | sole final MCP revision, shared cache lifetimes, and bounded W3C trace metadata validation |
+| `transport.rs` | canonical stateless Streamable HTTP configuration and no-session adapter |
 | `telemetry.rs` | tracing/log initialization and guards |
 
 ### `mcp/composer`
@@ -228,11 +228,6 @@ Owns the offline `gateway-compose` native/OCI command. It reads matched anonymou
 private extension fragments and installation bindings, calls the pure contract
 composer, and writes one ordinary validated control plane plus requirements and
 path-free content provenance.
-
-### `mcp/schema-macros`
-
-The `tool` attribute composes the ordinary `rmcp` tool macro with the shared input
-schema generator. Rust servers use this attribute for every published tool handler.
 
 ### `platform/recordings/rrd`
 
@@ -292,17 +287,11 @@ never apply them; installation bootstrap does.
 |---|---|
 | `types.rs` | runtime configuration, recovery classes, pins, claims, outcomes |
 | `runtime.rs` | create/idempotency, lease, update, cancel, finish, recover, prune |
+| `mcp.rs` | projection from durable state into official RMCP Task and DetailedTask types |
+| `service.rs` | protocol-neutral durable service boundary delegated from RMCP handlers |
 | `lib.rs` | focused public API |
 
-### `mcp/task-extension`
-
-| File | Responsibility |
-|---|---|
-| `models.rs` | final extension request/response/discovery wire types |
-| `projection.rs` | platform task snapshot to protocol task projection |
-| `adapter.rs` | native-async handler contract, JSON-RPC middleware, SSE listen |
-
-The runtime is the source of truth. The extension is transport only.
+The runtime is the source of truth. RMCP owns the sole Tasks wire model.
 
 ## Gateway
 
@@ -337,7 +326,7 @@ The runtime is the source of truth. The extension is transport only.
 | `runtime.rs` | shared application state and HTTP clients |
 | `oauth/`, `oauth_grants/` | authorize/callback/token and grant handlers |
 | `admin/control_plane.rs` | control revision read/update |
-| `admin/tasks.rs` | policy-checked cancellation through owning task extension |
+| `admin/tasks.rs` | policy-checked cancellation through the owning server's official Tasks endpoint |
 | `admin/artifacts.rs` | release/grant/link mutations through artifact service |
 | `admin/console/mod.rs` | console snapshot handler, signed-in user label projection, branding, stream cursor bootstrap |
 | `admin/console/projection.rs` | tenant projection load and per-entity summary builders |
@@ -716,7 +705,7 @@ stays the source of truth for every wire shape and schema.
 | `host.py` | host-authority validation and 421 rejection |
 | `deployment.py`, `pagination.py` | mount identities and cursor pagination |
 | `schema.py` | self-contained JSON Schema 2020-12 generation for MCP tool inputs |
-| `task_extension/` | final task extension models, ASGI middleware, projection |
+| `task_extension/` | typed official Tasks SDK-hook adapter, models, and projection |
 | `tasks/` | durable SurrealDB task runtime port: leases, CAS transitions, outbox, recovery, prune |
 | `artifacts.py` | artifact-plane HTTP client and capability redemption |
 
@@ -725,7 +714,7 @@ stays the source of truth for every wire shape and schema.
 The canonical template for new Python servers, shipped as the working
 `datasheet` dataset-profiling server. `contract.py` and `engine.py` own the
 domain; `server/` mirrors the Rust per-server module split (config, ownership,
-task extension adapter, durable task, MCP surface, composition).
+official Tasks adapter, durable task, MCP surface, composition).
 
 ## Agents
 
@@ -735,8 +724,8 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 
 | File | Responsibility |
 |---|---|
-| `control.rs` | database-authenticated, exact-context external operator messages and elicitation decisions with UUIDv7 idempotency, durable wakes, and actor attribution |
-| `runtime.rs` | lease-fenced agent mutations, inactive-manifest reconciliation, and race-safe durable elicitation terminal waits |
+| `control.rs` | database-authenticated, exact-context external operator messages and input-request decisions with UUIDv7 idempotency, durable wakes, and actor attribution |
+| `runtime.rs` | lease-fenced agent mutations, inactive-manifest reconciliation, and race-safe durable input-request terminal waits |
 
 ### `agents/kernel`
 
@@ -750,13 +739,13 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `memory.rs` | durable memory API over analytical stores |
 | `rrd.rs`, `recorder.rs` | episode/world Rerun recording |
 | `budget.rs` | enforced episode/tool/cost budgets |
-| `connection.rs` | reconnectable gateway epoch, make-before-break resource-subscription restoration, and task resumer |
+| `connection.rs` | final-profile gateway client epoch, request-scoped listener restoration, and deferred-task resolver |
 
 ### `platform/gateway/src/bin/gateway/admin`
 
 | File | Responsibility |
 |---|---|
-| `agents.rs` | human-only policy and audit boundary for agent messages, parked-elicitation reads, and decisions; resolves the caller's tenant and Work Context before using the runtime control plane |
+| `agents.rs` | human-only policy and audit boundary for agent messages, pending input-request reads, and decisions; resolves the caller's tenant and Work Context before using the runtime control plane |
 
 ## Console
 
@@ -766,9 +755,9 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 |---|---|
 | `oauth.rs` | PKCE login, token exchange, refresh rotation |
 | `session.rs` | XChaCha20-Poly1305 cookies and CSRF material |
-| `api.rs` | snapshot, SSE, mutation, artifact preview/download, and same-origin CSRF-protected agent-message/elicitation BFF projections; browser credentials and database authority never enter an MCP App |
+| `api.rs` | snapshot, SSE, mutation, artifact preview/download, and same-origin CSRF-protected agent-message/input-request BFF projections; browser credentials and database authority never enter an MCP App |
 | `recording_playback.rs` | authenticated playback-manifest and framed live-stream pass-through; no archive bytes or BFF session store |
-| `apps.rs`, `mcp_client.rs` | MCP Apps host backend: gateway MCP session pool over the independently selected transport, public gateway authority preservation, reactive failure-isolated app catalog, sandboxed frame serving, declared agent-message targets, allowlisted tool calls, explicit resource-read settlement, and one bounded multiplexed resource-wake stream per App |
+| `apps.rs`, `mcp_client.rs` | MCP Apps host backend: auth-scoped final-profile client pool, public gateway authority preservation, reactive failure-isolated app catalog, sandboxed frame serving, declared agent-message targets, allowlisted tool calls, explicit resource-read settlement, and one bounded multiplexed resource-wake stream per App |
 | `config.rs`, `viewer_config.rs` | validated public/gateway/OAuth-resource/MCP-transport and embedded-map configuration, exact profile binding, redacted provider credentials, and the authenticated no-store Rerun map projection |
 | `outbound_http.rs` | additive installation CA trust shared by Console HTTP, streaming, live, MCP, and Kubernetes clients |
 
@@ -779,7 +768,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `App.tsx` | application shell: platform navigation plus catalog-driven MCP App entries, topbar, view routing, drawer mounting |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
 | `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `rerunLiveChannel.ts`, `recordingRrdFetch.ts`, `rerunMap.ts` | persistent WebViewer lifecycle, producer Blueprint-first opening, one native incremental-RRD or lazy-archive receiver, exact same-origin RRD authorization, duplicate-free current-head reconnect, event-driven rollover without cursor forcing, archive-only credential renewal, and installation-owned browser map-provider activation |
-| `views/Agents.tsx`, `agentControl.ts` | reactive agent state, durable message submission, parked-elicitation decisions, and client-owned UUIDv7 retry identity |
+| `views/Agents.tsx`, `agentControl.ts` | reactive agent state, durable message submission, pending input-request decisions, and client-owned UUIDv7 retry identity |
 | `views/` | remaining platform-plane views (overview, work, artifacts, MCP, apps, access, audit, cluster); domain views ship as MCP Apps, never here |
 | `drawers/ArtifactDrawer.tsx` | artifact preview, recording provenance, download, release, grant, and share-link workflows |
 | `drawers/` | remaining detail drawers with mutation workflows |
@@ -814,8 +803,8 @@ There should be no smoke lifecycle, retry, assertion, or cleanup logic in shell 
 - Change shared identity/policy/artifact semantics in `mcp/contract`, then update the
   platform store and every affected boundary.
 - Change persistence shape in `platform/store` with an ordered migration and matching Rust API.
-- Change task lifecycle in `platform/task-runtime`; change wire behavior in
-  `mcp/task-extension`.
+- Change durable task lifecycle and its official MCP projection in
+  `platform/task-runtime`; hosted handlers use `rmcp` Task types directly.
 - Change a domain tool schema in its owning `servers/*-mcp` server, not the gateway.
 - Change MCP Apps protocol constants or helpers in `mcp/apps-extension`; app views live beside
   their server (`servers/{server}-mcp/assets/`), and the console host surface in

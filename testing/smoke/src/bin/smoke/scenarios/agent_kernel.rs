@@ -897,7 +897,7 @@ pub(crate) async fn agent_pilot_mission(
 /// The proof is arithmetic. The task takes ~15s (webhook-delayed provider);
 /// the manifest sets the poll cadence to 60s and the heartbeat to 600s, so a
 /// wake episode starting within seconds of completion can only have come
-/// from the blocking `tasks/result` long-poll and the task-status
+/// from the blocking official Tasks subscription and the task-status
 /// notification the gateway forwards. The ledger's episode timestamps pin
 /// both halves: the agent really slept (gap well above zero, no episodes in
 /// between) and really woke promptly (gap bounded near the task duration).

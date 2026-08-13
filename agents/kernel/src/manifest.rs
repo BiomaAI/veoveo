@@ -116,10 +116,10 @@ pub struct ScheduleConfig {
     /// How long the scheduler drains the bus before starting an episode.
     #[serde(default = "default_wake_coalesce_window_ms")]
     pub wake_coalesce_window_ms: u64,
-    /// Grace an in-flight elicitation waits for an inline operator answer
+    /// Grace an in-flight input request waits for an inline operator answer
     /// before parking.
-    #[serde(default = "default_elicitation_grace_s")]
-    pub elicitation_grace_s: u64,
+    #[serde(default = "default_input_grace_s")]
+    pub input_grace_s: u64,
 }
 
 impl Default for ScheduleConfig {
@@ -128,7 +128,7 @@ impl Default for ScheduleConfig {
             heartbeat_interval_s: default_heartbeat_interval_s(),
             min_wake_interval_s: 0,
             wake_coalesce_window_ms: default_wake_coalesce_window_ms(),
-            elicitation_grace_s: default_elicitation_grace_s(),
+            input_grace_s: default_input_grace_s(),
         }
     }
 }
@@ -254,7 +254,7 @@ fn default_wake_coalesce_window_ms() -> u64 {
     250
 }
 
-fn default_elicitation_grace_s() -> u64 {
+fn default_input_grace_s() -> u64 {
     30
 }
 

@@ -1,27 +1,26 @@
-use chrono::Utc;
 use futures::{StreamExt, stream};
 use rmcp::{
     model::{
         ErrorData as McpError, ListResourceTemplatesResult, ListResourcesResult,
         PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult, ResourceContents,
-        ResourceTemplate, SubscribeRequestParams, UnsubscribeRequestParams,
+        ResourceTemplate, TaskPayload,
     },
     service::{RequestContext, RoleServer},
 };
 use veoveo_mcp_contract::{
     GATEWAY_TASK_RESOURCE_TEMPLATE, GatewayAction, GatewayDiscoverySurface,
-    GatewayResourceProjection, GatewayResourceSubscription, GatewayTaskStatus,
-    GatewayTaskStatusDocument, PolicyReasonCode, paginate, parse_gateway_task_resource_uri,
+    GatewayResourceProjection, GatewayTaskStatus, GatewayTaskStatusDocument, paginate,
+    parse_gateway_task_resource_uri,
 };
 
 use crate::mcp_support::{
     mcp_internal, mcp_invalid_params, project_app_resource_dependencies,
     project_gateway_resource_uri_for_upstream, project_listed_resource,
     project_listed_resource_uri, project_read_resource_result, project_resource_template_uri,
-    resource_policy_target, resource_read_action, upstream_error,
+    resource_read_action, upstream_error,
 };
 
-use super::tools::{project_detailed_task_resource_uris, project_task_from_detailed};
+use super::tools::{project_detailed_task_resource_uris, rewrite_detailed_task_id};
 use super::{
     GATEWAY_PAGE_SIZE, GatewayMcp,
     discovery::{DiscoveryCacheKey, MAX_CONCURRENT_DISCOVERY, isolate_discovery_failures},
@@ -116,6 +115,9 @@ impl GatewayMcp {
         Ok(ListResourcesResult {
             resources: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: degradation.into_meta(),
         })
     }
@@ -206,6 +208,9 @@ impl GatewayMcp {
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: degradation.into_meta(),
         })
     }
@@ -281,22 +286,25 @@ impl GatewayMcp {
         let route = self
             .authorize_canonical_task_for_subject(&subject, GatewayAction::TasksGet, task_id)
             .await?;
-        let client = self
-            .final_task_client(&route.server, &route.subject)
+        let upstream = self
+            .upstream_with_tasks(&route.server, context.peer.clone(), &route.subject, true)
             .await?;
-        let mut detailed = client.get(route.task_id).await?;
+        let mut detailed = upstream
+            .peer
+            .get_task(rmcp::model::GetTaskParams::new(route.task_id))
+            .await
+            .map_err(upstream_error)?
+            .task;
         let catalog = self.catalog.current();
         let manifest = catalog
             .server(&route.server)
             .ok_or_else(|| mcp_internal(format!("unknown task server `{}`", route.server)))?;
         project_detailed_task_resource_uris(manifest, &mut detailed)?;
-        let task = project_task_from_detailed(&detailed);
-        let status = GatewayTaskStatus::from_task(&task)
+        rewrite_detailed_task_id(&mut detailed, task_id);
+        let status = GatewayTaskStatus::from_task(&detailed.task)
             .map_err(|error| mcp_internal(format!("failed to project task status: {error}")))?;
-        let result = match detailed {
-            veoveo_mcp_task_extension::DetailedTask::Completed { result, .. } => {
-                Some(serde_json::Value::Object(result.into_iter().collect()))
-            }
+        let result = match detailed.payload {
+            TaskPayload::Completed { result } => Some(serde_json::Value::Object(result)),
             _ => None,
         };
         let document = GatewayTaskStatusDocument {
@@ -308,110 +316,5 @@ impl GatewayMcp {
         Ok(ReadResourceResult::new(vec![
             ResourceContents::text(text, uri.to_owned()).with_mime_type("application/json"),
         ]))
-    }
-
-    pub(super) async fn handle_subscribe(
-        &self,
-        mut request: SubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let uri = request.uri.clone();
-        let projection = self.project_resource_for_upstream(&uri)?;
-        let resource_uri = projection.gateway_uri.clone();
-        let subject = self
-            .authorize_projected_resource(&context, GatewayAction::ResourcesSubscribe, &projection)
-            .await?;
-        request.uri = projection.upstream_uri.to_string();
-        let upstream = self
-            .upstream(&projection.server, context.peer.clone(), &subject)
-            .await?;
-        upstream
-            .peer
-            .subscribe(request)
-            .await
-            .map_err(upstream_error)?;
-        let now = Utc::now();
-        self.state
-            .record_resource_subscription(&GatewayResourceSubscription {
-                profile: self.profile_id.clone(),
-                owner: subject.principal.id,
-                upstream_server: projection.server,
-                resource_uri,
-                created_at: now,
-                updated_at: now,
-            })
-            .await
-            .map_err(|err| {
-                mcp_internal(format!(
-                    "failed to persist gateway resource subscription: {err}"
-                ))
-            })?;
-        Ok(())
-    }
-
-    pub(super) async fn handle_unsubscribe(
-        &self,
-        mut request: UnsubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let uri = request.uri.clone();
-        let projection = self.project_resource_for_upstream(&uri)?;
-        let resource_uri = projection.gateway_uri.clone();
-        let server = projection.server.clone();
-        let subject = self.authenticated(&context)?;
-        let subscription = self
-            .state
-            .resource_subscription(
-                &self.profile_id,
-                &subject.principal.id,
-                &server,
-                &resource_uri,
-            )
-            .await
-            .map_err(|err| {
-                mcp_internal(format!(
-                    "failed to read gateway resource subscription: {err}"
-                ))
-            })?;
-        if subscription.is_none() {
-            self.record_policy_denial(
-                &subject,
-                GatewayAction::ResourcesUnsubscribe,
-                resource_policy_target(server.clone(), resource_uri.as_str())?,
-                PolicyReasonCode::UnknownResource,
-            )
-            .await?;
-            return Err(mcp_invalid_params("unknown gateway resource subscription"));
-        }
-        let subject = self
-            .authorize_projected_resource(
-                &context,
-                GatewayAction::ResourcesUnsubscribe,
-                &projection,
-            )
-            .await?;
-        request.uri = projection.upstream_uri.to_string();
-        let upstream = self
-            .upstream(&server, context.peer.clone(), &subject)
-            .await?;
-        upstream
-            .peer
-            .unsubscribe(request)
-            .await
-            .map_err(upstream_error)?;
-        self.state
-            .delete_resource_subscription(
-                &self.profile_id,
-                &subject.principal.id,
-                &server,
-                &resource_uri,
-            )
-            .await
-            .map_err(|err| {
-                mcp_internal(format!(
-                    "failed to delete gateway resource subscription: {err}"
-                ))
-            })?;
-        Ok(())
     }
 }

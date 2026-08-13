@@ -2,7 +2,7 @@ use anyhow::Context;
 use chrono::{DateTime, Utc};
 use rmcp::{
     RoleServer,
-    model::{JsonObject, Meta, ProgressNotificationParam, ProgressToken, Task, TaskStatus},
+    model::{JsonObject, MetaObject, ProgressNotificationParam, ProgressToken, Task, TaskStatus},
     service::Peer,
 };
 use schemars::JsonSchema;
@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::Duration;
 
-use crate::gateway::{ProviderTaskId, ResourceUri};
+use crate::gateway::{OpaqueTaskId, ResourceUri};
 
 const NOTIFICATION_DELIVERY_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -23,7 +23,7 @@ fn is_terminal(status: &TaskStatus) -> bool {
 
 pub const GATEWAY_TASK_RESOURCE_TEMPLATE: &str = "veoveo://task/{task_id}";
 
-pub fn gateway_task_resource_uri(task_id: &ProviderTaskId) -> ResourceUri {
+pub fn gateway_task_resource_uri(task_id: &OpaqueTaskId) -> ResourceUri {
     ResourceUri::new(format!("veoveo://task/{task_id}"))
         .expect("gateway task resource URI is valid")
 }
@@ -60,24 +60,23 @@ impl TryFrom<&TaskStatus> for GatewayTaskStatusKind {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct GatewayTaskStatus {
-    pub task_id: ProviderTaskId,
+    pub task_id: OpaqueTaskId,
     pub status: GatewayTaskStatusKind,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status_message: Option<String>,
     pub created_at: DateTime<Utc>,
     pub last_updated_at: DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ttl: Option<u64>,
+    pub ttl_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub poll_after_ms: Option<u64>,
+    pub poll_interval_ms: Option<u64>,
     pub status_resource: ResourceUri,
     pub result_available: bool,
 }
 
 impl GatewayTaskStatus {
     pub fn from_task(task: &Task) -> anyhow::Result<Self> {
-        let task_id =
-            ProviderTaskId::new(task.task_id.clone()).context("invalid provider task id")?;
+        let task_id = OpaqueTaskId::new(task.task_id.clone()).context("invalid opaque task id")?;
         let created_at = DateTime::parse_from_rfc3339(&task.created_at)
             .context("invalid gateway task created_at timestamp")?
             .with_timezone(&Utc);
@@ -89,8 +88,8 @@ impl GatewayTaskStatus {
             status_message: task.status_message.clone(),
             created_at,
             last_updated_at,
-            ttl: task.ttl,
-            poll_after_ms: task.poll_interval,
+            ttl_ms: task.ttl_ms,
+            poll_interval_ms: task.poll_interval_ms,
             status_resource: gateway_task_resource_uri(&task_id),
             result_available: is_terminal(&task.status),
             task_id,
@@ -111,16 +110,16 @@ pub fn now_utc() -> chrono::DateTime<chrono::Utc> {
 
 pub const RELATED_TASK_META_KEY: &str = "io.modelcontextprotocol/related-task";
 
-pub fn related_task_meta(task_id: impl Into<String>) -> Meta {
+pub fn related_task_meta(task_id: impl Into<String>) -> MetaObject {
     let mut meta = JsonObject::new();
     meta.insert(
         RELATED_TASK_META_KEY.to_string(),
         serde_json::json!({ "taskId": task_id.into() }),
     );
-    Meta(meta)
+    MetaObject(meta)
 }
 
-pub fn set_related_task_meta(meta: &mut Option<Meta>, task_id: impl Into<String>) {
+pub fn set_related_task_meta(meta: &mut Option<MetaObject>, task_id: impl Into<String>) {
     let task_id = task_id.into();
     let mut value = meta.take().unwrap_or_default();
     value.0.insert(
@@ -190,14 +189,14 @@ mod tests {
     fn gateway_task_status_uses_typed_task_resource_uri() {
         let task = task("gateway-task-1", TaskStatus::Working, Utc::now())
             .with_status_message("accepted")
-            .with_poll_interval(5000);
+            .with_poll_interval_ms(5000);
 
         let status = GatewayTaskStatus::from_task(&task).unwrap();
 
         assert_eq!(status.task_id.as_str(), "gateway-task-1");
         assert_eq!(status.status, GatewayTaskStatusKind::Working);
         assert_eq!(status.status_message.as_deref(), Some("accepted"));
-        assert_eq!(status.poll_after_ms, Some(5000));
+        assert_eq!(status.poll_interval_ms, Some(5000));
         assert_eq!(
             status.status_resource.as_str(),
             "veoveo://task/gateway-task-1"

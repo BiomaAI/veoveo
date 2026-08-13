@@ -7,13 +7,11 @@ members = [
     "examples/bioma/acceptance",
     "extensions/contract",
     "mcp/apps-extension",
+    "mcp/bridges/legacy",
     "mcp/bridges/stdio",
     "mcp/conformance",
     "mcp/composer",
     "mcp/contract",
-    "mcp/schema-macros",
-    "mcp/task-contract",
-    "mcp/task-extension",
     "platform/artifacts/client",
     "platform/artifacts/service",
     "platform/gateway",
@@ -103,7 +101,7 @@ quote = "1.0.46"
 rayon = "1.12.0"
 rangemap = "1.7.1"
 reqwest = { version = "0.13.4", default-features = false }
-rig-core = { git = "https://github.com/rozgo/rig.git", rev = "215a3cfb9ec696c5d1d62b5c5d218c377e515236", features = ["rmcp"] }
+rig = { git = "https://github.com/rozgo/rig.git", rev = "abbdce9711cd765bb9423b820b136443df1abb85", features = ["rmcp"] }
 prost = "=0.14.4"
 re_dataframe = "=0.35.0"
 re_chunk = "=0.35.0"
@@ -125,7 +123,7 @@ re_server = "=0.35.0"
 re_tuid = "=0.35.0"
 re_uri = "=0.35.0"
 re_build_info = "=0.35.0"
-rmcp = "2.2.0"
+rmcp = { version = "=3.1.2", git = "https://github.com/rozgo/rust-sdk", rev = "b7a5ad0f3894b7b66ad8a789cd49a79787e5d65f" }
 rstar = "0.12.2"
 rustls = { version = "0.23.41", default-features = false, features = ["ring", "std", "tls12"] }
 schemars = "1.2.1"
@@ -162,8 +160,6 @@ veoveo-mcp-contract = { path = "mcp/contract", default-features = false }
 veoveo-deploy-contract = { path = "deploy/contract" }
 veoveo-extension-contract = { path = "extensions/contract" }
 veoveo-image-build-control = { path = "tools/image-build/control" }
-veoveo-mcp-schema-macros = { path = "mcp/schema-macros" }
-veoveo-task-contract = { path = "mcp/task-contract" }
 veoveo-platform-store = { path = "platform/store" }
 veoveo-recording-protocol = { path = "platform/recordings/protocol" }
 veoveo-rrd = { path = "platform/recordings/rrd" }

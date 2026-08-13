@@ -5,6 +5,7 @@ mod audit;
 mod auth_state;
 mod refresh_tokens;
 mod subscriptions;
+mod task_routes;
 
 pub use audit::{
     GatewayAuditCounts, GatewayAuditRetentionSummary, GatewayAuthAuditMetadataSummary,
@@ -18,6 +19,7 @@ pub use refresh_tokens::{
     GatewayRefreshRotationRequest, IssuedGatewayRefreshToken, REFRESH_TOKEN_TTL_SECONDS,
     RefreshTokenDeliveryCipher,
 };
+pub(crate) use task_routes::GatewayTaskRouteDraft;
 
 /// Shared, installation-wide gateway correctness state.
 ///

@@ -385,7 +385,7 @@ string_enum! {
         ResourceChanged => "resource_changed",
         Timer => "timer",
         OperatorMessage => "operator_message",
-        Elicitation => "elicitation",
+        InputRequest => "input_request",
     }
 }
 
@@ -420,8 +420,8 @@ string_enum! {
 }
 
 string_enum! {
-    pub enum AgentElicitationState {
-        Parked => "parked",
+    pub enum AgentInputRequestState {
+        Pending => "pending",
         Answered => "answered",
         Declined => "declined",
         Cancelled => "cancelled",
@@ -1576,7 +1576,7 @@ pub struct AgentTaskRecord {
     pub id: RecordId,
     pub tenant: RecordId,
     pub agent: RecordId,
-    pub task: RecordId,
+    pub task_id: String,
     pub tool_name: String,
     pub descriptor: OpenObject,
     pub descriptor_complete: bool,
@@ -1600,14 +1600,14 @@ pub struct AgentTaskRecord {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
-pub struct AgentElicitationRecord {
+pub struct AgentInputRequestRecord {
     pub id: RecordId,
     pub tenant: RecordId,
     pub agent: RecordId,
-    pub related_task: Option<RecordId>,
+    pub related_task: Option<String>,
     pub message: String,
     pub requested_schema: Option<OpenObject>,
-    pub state: AgentElicitationState,
+    pub state: AgentInputRequestState,
     pub answer: Option<OpenObject>,
     pub answered_by: Option<String>,
     pub requested_at: DateTime<Utc>,

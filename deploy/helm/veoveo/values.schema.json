@@ -1084,6 +1084,16 @@
         "minProperties": 1
       }
     },
+    "domainServiceReplicas": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
     "serverBootstrap": {
       "type": "object",
       "additionalProperties": {
@@ -1227,11 +1237,16 @@
     "mcpWorkload": {
       "type": "object",
       "required": [
-        "image"
+        "image",
+        "replicas"
       ],
       "properties": {
         "image": {
           "$ref": "#/definitions/image"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 2
         },
         "resources": {
           "type": "object"

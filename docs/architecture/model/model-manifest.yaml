@@ -9,9 +9,9 @@ architecture:
   source_commit: 1a12539706eefcc9fde7359a4bb5f5f8114eb5f2
 
 scope:
-  rust_workspace_packages: 44
+  rust_workspace_packages: 42
   gateway_server_identities: 16
-  software_resources: 70
+  software_resources: 68
   interfaces: 43
   requirements: 20
   actual_resource_configurations: 3

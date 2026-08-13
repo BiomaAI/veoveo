@@ -5,18 +5,20 @@ use std::sync::{Arc, LazyLock};
 use axum::{Router, extract::State, http::StatusCode, middleware, routing::get};
 use chrono::Utc;
 use clap::Parser;
+use rmcp::tool;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
-        GetPromptRequestParams, GetPromptResult, ListPromptsResult, ListResourceTemplatesResult,
-        ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt,
-        ReadResourceRequestParams, ReadResourceResult, Reference, Resource, ResourceContents,
-        ResourceTemplate, ServerCapabilities, ServerInfo, SubscribeRequestParams,
-        UnsubscribeRequestParams,
+        CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams,
+        CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
+        GetPromptRequestParams, GetTaskParams, GetTaskResult, ListPromptsResult,
+        ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
+        Prompt, ReadResourceRequestParams, ReadResourceResult, Reference, Resource,
+        ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo, SubscriptionFilter,
+        UpdateTaskParams,
     },
-    service::RequestContext,
+    service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
     transport::streamable_http_server::StreamableHttpService,
 };
@@ -25,17 +27,11 @@ use serde_json::json;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
-use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalIdentity, GatewayInternalTokenVerifier,
     GatewayInternalTrustBundle, LiveSessionId, LiveViewOwner, Page, ServerSlug, SubscriptionHub,
-    TelemetryGuard, TokenIssuer, UsageKind, UsageRecord, UsageReport,
-    docs::{CapabilityInventory, ServerDocs},
+    TelemetryGuard, TokenIssuer, UsageKind, UsageRecord, UsageReport, docs::ServerDocs,
     init_server_telemetry, paginate, public_allowed_hosts,
-};
-use veoveo_mcp_task_extension::{
-    Implementation as TaskExtensionImplementation, ServerDiscovery, TaskExtensionAdapter,
-    task_extension_middleware,
 };
 use veoveo_task_runtime::{
     TaskRetentionPin, TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskStatus,
@@ -100,57 +96,17 @@ pub(super) static SERVER_DOCS: LazyLock<ServerDocs> =
 #[derive(Clone)]
 struct UavSimMcp {
     state: Arc<AppState>,
+    task_service: UavSimTaskExtension,
     #[allow(dead_code)]
     tool_router: ToolRouter<UavSimMcp>,
 }
 
-/// Task-augmented tool names declared in the `uav-sim://contract` capability
-/// inventory (contract C19); each matches a `DurableOperation` task type.
-const TASK_TOOLS: &[&str] = &["run_scenario", "execute_mission", "capture_dataset"];
-
 impl UavSimMcp {
     fn new(state: Arc<AppState>) -> Self {
         Self {
+            task_service: UavSimTaskExtension::new(state.clone()),
             state,
             tool_router: Self::tool_router(),
-        }
-    }
-
-    /// The capability inventory declared at `uav-sim://contract`
-    /// (contract C19). Tools and prompts derive from the live registrations;
-    /// resource templates come from `resource_templates`, which
-    /// `list_resource_templates` also serves, so the two cannot diverge.
-    /// Stable resources are the identity-independent indexes; per-session
-    /// resources are covered by the templates.
-    fn capability_inventory() -> CapabilityInventory {
-        let mut tools: Vec<String> = Self::tool_router()
-            .list_all()
-            .into_iter()
-            .map(|tool| tool.name.into_owned())
-            .collect();
-        tools.sort();
-        let mut prompts: Vec<String> = UavSimPrompt::ALL
-            .into_iter()
-            .map(|prompt| prompt.definition().name)
-            .collect();
-        prompts.sort();
-        let mut resources = vec![
-            uris::SESSIONS.to_owned(),
-            uris::USAGE.to_owned(),
-            uris::DOCS.to_owned(),
-            uris::CONTRACT.to_owned(),
-        ];
-        resources.extend(SERVER_DOCS.iter().map(|doc| uris::doc(doc.id)));
-        resources.sort();
-        CapabilityInventory {
-            tools,
-            resources,
-            resource_templates: resource_templates()
-                .into_iter()
-                .map(|template| template.uri_template.clone())
-                .collect(),
-            prompts,
-            tasks: TASK_TOOLS.iter().map(|name| (*name).to_owned()).collect(),
         }
     }
 
@@ -577,7 +533,6 @@ impl UavSimMcp {
         title = "Run UAV scenario",
         description = "Run a bounded live scenario as a durable non-replayable task in the loaded Google Photorealistic 3D Tiles world.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::ScenarioResult>(),
-        execution(task_support = "optional"),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
     async fn run_scenario(
@@ -593,7 +548,6 @@ impl UavSimMcp {
         title = "Execute UAV mission",
         description = "Execute typed multi-vehicle waypoints as a durable non-replayable task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::MissionResult>(),
-        execution(task_support = "optional"),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
     async fn execute_mission(
@@ -622,7 +576,6 @@ impl UavSimMcp {
         title = "Capture UAV dataset",
         description = "Capture a bounded sensor interval as a durable non-replayable task and return governed recording identities.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::CaptureDatasetResult>(),
-        execution(task_support = "optional"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn capture_dataset(
@@ -637,6 +590,12 @@ impl UavSimMcp {
 
 #[tool_handler]
 impl ServerHandler for UavSimMcp {
+    fn supported_protocol_versions(
+        &self,
+    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
+        veoveo_mcp_contract::final_protocol_versions()
+    }
+
     fn get_info(&self) -> ServerInfo {
         let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
@@ -647,14 +606,83 @@ impl ServerHandler for UavSimMcp {
             .enable_completions()
             .build();
         veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
+        capabilities.extensions.get_or_insert_default().insert(
+            rmcp::model::TASKS_EXTENSION_ID.to_owned(),
+            rmcp::model::JsonObject::new(),
+        );
         let mut info = ServerInfo::default();
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new(SERVER_SLUG, env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Govern UAV simulation sessions through typed resources and bounded controls. Logical operator cameras render inside the authoritative simulator; every active viewer lease reserves its own camera clone, RTX render, NVIDIA NVENC product, and native WebRTC peer through ui://uav-sim/live.html. Use the final task extension for scenarios, missions, and dataset captures; live operations are not replayed after an indeterminate interruption."
+            "Govern UAV simulation sessions through typed resources and bounded controls. Logical operator cameras render inside the authoritative simulator; every active viewer lease reserves its own camera clone, RTX render, NVIDIA NVENC product, and native WebRTC peer through ui://uav-sim/live.html. Use official Tasks for scenarios, missions, and dataset captures; live operations are not replayed after an indeterminate interruption."
                 .to_owned(),
         );
         info
+    }
+
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        if context
+            .meta
+            .client_capabilities()
+            .is_some_and(|caps| caps.supports_tasks())
+        {
+            let caller = veoveo_task_runtime::DurableTaskService::authenticate(
+                &self.task_service,
+                &context,
+            )?;
+            if let Some(created) = veoveo_task_runtime::DurableTaskService::start_tool_task(
+                &self.task_service,
+                &caller,
+                request.clone(),
+            )
+            .await?
+            {
+                return Ok(created.into());
+            }
+        }
+        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        self.tool_router.call(call).await
+    }
+
+    async fn get_task(
+        &self,
+        request: GetTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<GetTaskResult, McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::get_task(&self.task_service, &caller, request)
+            .await
+    }
+
+    async fn update_task(
+        &self,
+        request: UpdateTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::update_task(&self.task_service, &caller, request)
+            .await
+    }
+
+    async fn cancel_task(
+        &self,
+        request: CancelTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::cancel_task(
+            &self.task_service,
+            &caller,
+            request.task_id,
+        )
+        .await
     }
 
     async fn list_tools(
@@ -685,6 +713,9 @@ impl ServerHandler for UavSimMcp {
         Ok(ListToolsResult {
             tools: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -744,6 +775,9 @@ impl ServerHandler for UavSimMcp {
         Ok(ListResourcesResult {
             resources: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -757,6 +791,9 @@ impl ServerHandler for UavSimMcp {
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -765,152 +802,157 @@ impl ServerHandler for UavSimMcp {
         &self,
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, McpError> {
-        let uri = request.uri.as_str();
-        if uri == uris::LIVE_APP_URI {
-            require_scope(&context, "uav-sim:stream")?;
-            return Ok(ReadResourceResult::new(vec![
-                veoveo_mcp_apps_extension::app_html_contents(uri, crate::live_app::html()),
-            ]));
-        }
-        // Well-known surface (contract C18, C19): readable by any identity
-        // that can list resources.
-        if uri == uris::DOCS {
-            internal_identity(&context)?;
-            return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
-        }
-        if let Some(doc_id) = uris::parse_doc(uri) {
-            internal_identity(&context)?;
-            let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
-                McpError::resource_not_found("unknown UAV simulation document", None)
-            })?;
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-            ]));
-        }
-        if uri == uris::CONTRACT {
-            internal_identity(&context)?;
-            return json_resource(
-                uri,
-                SERVER_DOCS.contract_declaration(Self::capability_inventory),
-            );
-        }
-        let state = self.current_state().await?;
-        if let Some(session_id) = uris::parse_live_cameras(uri) {
-            require_scope(&context, "uav-sim:stream")?;
-            require_session(&state, session_id.as_str())?;
-            return json_resource(uri, &state.live_cameras);
-        }
-        if let Some((session_id, camera_id)) = uris::parse_live_camera(uri) {
-            require_scope(&context, "uav-sim:stream")?;
-            require_session(&state, session_id.as_str())?;
-            let camera = state
-                .live_cameras
-                .iter()
-                .find(|camera| camera.camera_id == camera_id)
-                .ok_or_else(|| McpError::resource_not_found("live camera not found", None))?;
-            return json_resource(uri, camera);
-        }
-        if let Some(session_id) = uris::parse_stream_products(uri) {
-            require_scope(&context, "uav-sim:stream")?;
-            require_session(&state, session_id.as_str())?;
-            return json_resource(uri, &state.stream_products);
-        }
-        if let Some((session_id, product_id)) = uris::parse_stream_product(uri) {
-            require_scope(&context, "uav-sim:stream")?;
-            require_session(&state, session_id.as_str())?;
-            let product = state
-                .stream_products
-                .iter()
-                .find(|product| product.stream_product_id == product_id)
-                .ok_or_else(|| McpError::resource_not_found("stream product not found", None))?;
-            return json_resource(uri, product);
-        }
-        if let Some(session_id) = uris::parse_live_views(uri) {
-            let identity = require_scope(&context, "uav-sim:stream")?;
-            require_session(&state, session_id.as_str())?;
-            let owner = LiveViewOwner::from_identity(&identity);
-            let views = self
+    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
+        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
+        async {
+            let uri = request.uri.as_str();
+            if uri == uris::LIVE_APP_URI {
+                require_scope(&context, "uav-sim:stream")?;
+                return Ok(ReadResourceResult::new(vec![
+                    veoveo_mcp_apps_extension::app_html_contents(uri, crate::live_app::html()),
+                ]));
+            }
+            // Well-known surface (contract C18, C19): readable by any identity
+            // that can list resources.
+            if uri == uris::DOCS {
+                internal_identity(&context)?;
+                return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
+            }
+            if let Some(doc_id) = uris::parse_doc(uri) {
+                internal_identity(&context)?;
+                let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
+                    McpError::resource_not_found("unknown UAV simulation document", None)
+                })?;
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
+                ]));
+            }
+            if uri == uris::CONTRACT {
+                internal_identity(&context)?;
+                return json_resource(uri, SERVER_DOCS.contract_declaration());
+            }
+            let state = self.current_state().await?;
+            if let Some(session_id) = uris::parse_live_cameras(uri) {
+                require_scope(&context, "uav-sim:stream")?;
+                require_session(&state, session_id.as_str())?;
+                return json_resource(uri, &state.live_cameras);
+            }
+            if let Some((session_id, camera_id)) = uris::parse_live_camera(uri) {
+                require_scope(&context, "uav-sim:stream")?;
+                require_session(&state, session_id.as_str())?;
+                let camera = state
+                    .live_cameras
+                    .iter()
+                    .find(|camera| camera.camera_id == camera_id)
+                    .ok_or_else(|| McpError::resource_not_found("live camera not found", None))?;
+                return json_resource(uri, camera);
+            }
+            if let Some(session_id) = uris::parse_stream_products(uri) {
+                require_scope(&context, "uav-sim:stream")?;
+                require_session(&state, session_id.as_str())?;
+                return json_resource(uri, &state.stream_products);
+            }
+            if let Some((session_id, product_id)) = uris::parse_stream_product(uri) {
+                require_scope(&context, "uav-sim:stream")?;
+                require_session(&state, session_id.as_str())?;
+                let product = state
+                    .stream_products
+                    .iter()
+                    .find(|product| product.stream_product_id == product_id)
+                    .ok_or_else(|| {
+                        McpError::resource_not_found("stream product not found", None)
+                    })?;
+                return json_resource(uri, product);
+            }
+            if let Some(session_id) = uris::parse_live_views(uri) {
+                let identity = require_scope(&context, "uav-sim:stream")?;
+                require_session(&state, session_id.as_str())?;
+                let owner = LiveViewOwner::from_identity(&identity);
+                let views = self
+                    .state
+                    .live_views
+                    .list(&owner, &identity.actor.id, &session_id)
+                    .await;
+                return json_resource(uri, &views);
+            }
+            if let Some((session_id, live_view_id)) = uris::parse_live_view(uri) {
+                let identity = require_scope(&context, "uav-sim:stream")?;
+                require_session(&state, session_id.as_str())?;
+                let owner = LiveViewOwner::from_identity(&identity);
+                let view = self
+                    .state
+                    .live_views
+                    .get(&owner, &identity.actor.id, &live_view_id)
+                    .await
+                    .map_err(live_view_error)?;
+                return json_resource(uri, &view);
+            }
+            if uri == uris::SESSIONS {
+                return json_resource(uri, &vec![session_summary(&state)]);
+            }
+            if let Some(session_id) = uris::parse_session(uri) {
+                require_session(&state, session_id)?;
+                return json_resource(uri, &state);
+            }
+            if let Some(session_id) = uris::parse_world(uri) {
+                require_session(&state, session_id)?;
+                return json_resource(uri, &world_view(&state));
+            }
+            if let Some(session_id) = uris::parse_tiles(uri) {
+                require_session(&state, session_id)?;
+                return json_resource(uri, &state.tiles);
+            }
+            if let Some(session_id) = uris::parse_vehicles(uri) {
+                require_session(&state, session_id)?;
+                return json_resource(uri, &state.vehicles);
+            }
+            if let Some((session_id, vehicle_id)) = uris::parse_vehicle(uri) {
+                require_session(&state, session_id)?;
+                let vehicle = state
+                    .vehicles
+                    .iter()
+                    .find(|vehicle| vehicle.vehicle_id.as_str() == vehicle_id)
+                    .ok_or_else(|| McpError::resource_not_found("vehicle not found", None))?;
+                return json_resource(uri, vehicle);
+            }
+            if let Some(session_id) = uris::parse_recordings(uri) {
+                require_session(&state, session_id)?;
+                return json_resource(uri, &state.recordings);
+            }
+            let owner = runtime_owner(&internal_identity(&context)?);
+            let tasks = self
                 .state
-                .live_views
-                .list(&owner, &identity.actor.id, &session_id)
-                .await;
-            return json_resource(uri, &views);
-        }
-        if let Some((session_id, live_view_id)) = uris::parse_live_view(uri) {
-            let identity = require_scope(&context, "uav-sim:stream")?;
-            require_session(&state, session_id.as_str())?;
-            let owner = LiveViewOwner::from_identity(&identity);
-            let view = self
-                .state
-                .live_views
-                .get(&owner, &identity.actor.id, &live_view_id)
+                .tasks
+                .list_for_owner(&owner)
                 .await
-                .map_err(live_view_error)?;
-            return json_resource(uri, &view);
+                .map_err(internal)?;
+            if uri == uris::USAGE {
+                let values = tasks
+                    .iter()
+                    .map(|task| uris::usage_task(&task.task_id.to_string()))
+                    .collect::<Vec<_>>();
+                return json_resource(uri, &values);
+            }
+            if let Some(task_id) = uris::parse_usage_task(uri) {
+                let task = require_task(&tasks, task_id)?;
+                return json_resource(uri, &task_usage(task, uri));
+            }
+            if let Some(value) = uris::parse_mission(uri) {
+                let requested_mission_id =
+                    crate::contract::MissionId::new(value).map_err(invalid)?;
+                let task = tasks
+                    .iter()
+                    .find(|task| mission_id(task).as_ref() == Some(&requested_mission_id))
+                    .ok_or_else(|| McpError::resource_not_found("mission not found", None))?;
+                return json_resource(uri, task);
+            }
+            Err(McpError::resource_not_found(
+                format!("unknown UAV simulation resource `{uri}`"),
+                None,
+            ))
         }
-        if uri == uris::SESSIONS {
-            return json_resource(uri, &vec![session_summary(&state)]);
-        }
-        if let Some(session_id) = uris::parse_session(uri) {
-            require_session(&state, session_id)?;
-            return json_resource(uri, &state);
-        }
-        if let Some(session_id) = uris::parse_world(uri) {
-            require_session(&state, session_id)?;
-            return json_resource(uri, &world_view(&state));
-        }
-        if let Some(session_id) = uris::parse_tiles(uri) {
-            require_session(&state, session_id)?;
-            return json_resource(uri, &state.tiles);
-        }
-        if let Some(session_id) = uris::parse_vehicles(uri) {
-            require_session(&state, session_id)?;
-            return json_resource(uri, &state.vehicles);
-        }
-        if let Some((session_id, vehicle_id)) = uris::parse_vehicle(uri) {
-            require_session(&state, session_id)?;
-            let vehicle = state
-                .vehicles
-                .iter()
-                .find(|vehicle| vehicle.vehicle_id.as_str() == vehicle_id)
-                .ok_or_else(|| McpError::resource_not_found("vehicle not found", None))?;
-            return json_resource(uri, vehicle);
-        }
-        if let Some(session_id) = uris::parse_recordings(uri) {
-            require_session(&state, session_id)?;
-            return json_resource(uri, &state.recordings);
-        }
-        let owner = runtime_owner(&internal_identity(&context)?);
-        let tasks = self
-            .state
-            .tasks
-            .list_for_owner(&owner)
-            .await
-            .map_err(internal)?;
-        if uri == uris::USAGE {
-            let values = tasks
-                .iter()
-                .map(|task| uris::usage_task(&task.task_id.to_string()))
-                .collect::<Vec<_>>();
-            return json_resource(uri, &values);
-        }
-        if let Some(task_id) = uris::parse_usage_task(uri) {
-            let task = require_task(&tasks, task_id)?;
-            return json_resource(uri, &task_usage(task, uri));
-        }
-        if let Some(value) = uris::parse_mission(uri) {
-            let requested_mission_id = crate::contract::MissionId::new(value).map_err(invalid)?;
-            let task = tasks
-                .iter()
-                .find(|task| mission_id(task).as_ref() == Some(&requested_mission_id))
-                .ok_or_else(|| McpError::resource_not_found("mission not found", None))?;
-            return json_resource(uri, task);
-        }
-        Err(McpError::resource_not_found(
-            format!("unknown UAV simulation resource `{uri}`"),
-            None,
-        ))
+        .await
+        .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
     }
 
     async fn list_prompts(
@@ -926,6 +968,9 @@ impl ServerHandler for UavSimMcp {
         Ok(ListPromptsResult {
             prompts: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -934,38 +979,35 @@ impl ServerHandler for UavSimMcp {
         &self,
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<GetPromptResult, McpError> {
-        UavSimPrompt::by_name(&request.name)
-            .ok_or_else(|| McpError::invalid_params("unknown UAV simulation prompt", None))?
-            .render(request.arguments)
+    ) -> Result<rmcp::model::GetPromptResponse, McpError> {
+        async {
+            UavSimPrompt::by_name(&request.name)
+                .ok_or_else(|| McpError::invalid_params("unknown UAV simulation prompt", None))?
+                .render(request.arguments)
+        }
+        .await
+        .map(Into::into)
     }
 
-    async fn subscribe(
+    fn accepted_subscription_filter(
         &self,
-        request: SubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        self.require_subscribable(&request.uri, &context).await?;
-        let identity = internal_identity(&context)?;
-        self.state
-            .subscribers
-            .subscribe(request.uri, identity.actor.id, context.peer.clone())
-            .await;
-        Ok(())
+        requested: &SubscriptionFilter,
+    ) -> Option<SubscriptionFilter> {
+        veoveo_mcp_contract::accepted_subscription_filter(requested)
     }
 
-    async fn unsubscribe(
-        &self,
-        request: UnsubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        self.require_subscribable(&request.uri, &context).await?;
-        let identity = internal_identity(&context)?;
-        self.state
-            .subscribers
-            .unsubscribe(&request.uri, &identity.actor.id)
-            .await;
-        Ok(())
+    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
+        let request_context = context.request_context().clone();
+        for uri in context.accepted().resource_subscriptions.iter().flatten() {
+            self.require_subscribable(uri, &request_context).await?;
+        }
+        veoveo_task_runtime::listen_durable_subscriptions(
+            &self.task_service,
+            context,
+            Some(self.state.subscribers.as_ref()),
+            None,
+        )
+        .await
     }
 
     async fn complete(
@@ -1199,34 +1241,14 @@ pub(super) async fn serve() -> anyhow::Result<()> {
             let state = state.clone();
             move || Ok(UavSimMcp::new(state.clone()))
         },
-        veoveo_mcp_contract::canonical_session_manager(),
+        veoveo_mcp_contract::stateless_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
             .with_cancellation_token(shutdown.child_token()),
     );
-    let extension = Arc::new(TaskExtensionAdapter::new(
-        Arc::new(UavSimTaskExtension::new(state.clone())),
-        ServerDiscovery::new(
-            BTreeMap::from([
-                ("tools".to_owned(), json!({})),
-                ("resources".to_owned(), json!({"subscribe": true})),
-                ("prompts".to_owned(), json!({})),
-                ("completions".to_owned(), json!({})),
-            ]),
-            TaskExtensionImplementation {
-                name: SERVER_SLUG.to_owned(),
-                version: env!("CARGO_PKG_VERSION").to_owned(),
-            },
-            Some("Durable UAV simulation tasks and typed resource subscriptions.".to_owned()),
-        ),
-    ));
     let mcp_router = Router::new()
         .route_service("/", mcp_service.clone())
         .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn_with_state(
-            extension,
-            task_extension_middleware::<UavSimTaskExtension>,
-        ))
         .layer(middleware::from_fn_with_state(
             InternalMcpAuthState {
                 verifier: verifier.clone(),
@@ -1998,8 +2020,7 @@ mod well_known_tests {
         CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
     };
 
-    use super::{SERVER_DOCS, TASK_TOOLS, UavSimMcp, resource_templates};
-    use crate::uris;
+    use super::SERVER_DOCS;
 
     #[test]
     fn embedded_documents_carry_the_crate_manual_and_design() {
@@ -2015,10 +2036,7 @@ mod well_known_tests {
 
     #[test]
     fn contract_declaration_resolves_from_the_embedded_manual() {
-        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(
-            &SERVER_DOCS,
-            UavSimMcp::capability_inventory(),
-        );
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
         assert_eq!(declaration.server, "uav-sim");
         assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
         for id in ["C18", "C19", "C20", "C21"] {
@@ -2034,31 +2052,9 @@ mod well_known_tests {
     }
 
     #[test]
-    fn capability_inventory_matches_the_registered_surface() {
-        let inventory = UavSimMcp::capability_inventory();
-        for tool in TASK_TOOLS {
-            assert!(
-                inventory.tools.iter().any(|name| name == tool),
-                "inventory is missing task-augmented tool {tool}"
-            );
-        }
-        for uri in [uris::DOCS, uris::CONTRACT, uris::SESSIONS, uris::USAGE] {
-            assert!(
-                inventory.resources.contains(&uri.to_owned()),
-                "inventory is missing resource {uri}"
-            );
-        }
-        assert!(inventory.resources.contains(&uris::doc("agents")));
-        assert!(
-            inventory
-                .resource_templates
-                .contains(&uris::DOC_TEMPLATE.to_owned())
-        );
-        assert_eq!(
-            resource_templates().len(),
-            inventory.resource_templates.len(),
-            "inventory templates come from resource_templates"
-        );
-        assert_eq!(inventory.tasks.len(), TASK_TOOLS.len());
+    fn contract_declaration_defers_runtime_surface_to_discover() {
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
+        let json = serde_json::to_value(declaration).unwrap();
+        assert!(json.get("capabilities").is_none());
     }
 }

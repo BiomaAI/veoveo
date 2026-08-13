@@ -77,5 +77,5 @@ Contract revision: 2
 - C27: met
 - C28: met
 - C29: met
-- C30: met — the gateway owns pooled transport while this server retains MCP session state
+- C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
 - C24: met

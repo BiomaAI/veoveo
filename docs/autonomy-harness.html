@@ -865,7 +865,7 @@ flowchart LR
         </div>
         <div class="lifecycle-return">
           ↩ wakes: <span class="wakes">task result · resource change · timer · operator message ·
-          elicitation answer</span> — and a wake survives process death: descriptors and watcher
+          input response</span> — and a wake survives process death: descriptors and watcher
           leases rehydrate from the platform store on any boot, so kill and restart resumes the
           same tasks.
         </div>
@@ -911,7 +911,7 @@ flowchart LR
               <li>A preamble and domain migrations complete the profile — cross-episode
                   instructions live here or in memory.</li>
               <li>Operators reach a running agent through durable wakes: inject a prompt, read
-                  status in the console, answer parked tool questions (elicitations).</li>
+                  status in the console, answer pending tool input requests.</li>
               <li>The Pilot rides the operator profile: geodesy inline, planning as tasks,
                   waypoints recorded when plans land.</li>
             </ul>
@@ -1141,7 +1141,7 @@ flowchart LR
           <div class="server-foot">
             <span class="cap">durable tasks</span><span class="cap">domain admin</span>
             <span class="cap plain">resources</span><span class="cap plain">subscriptions</span>
-            <span class="cap plain">stateful sessions</span><span class="cap plain">release invalidation</span>
+            <span class="cap plain">explicit state handles</span><span class="cap plain">release invalidation</span>
           </div>
         </div>
 
@@ -1606,7 +1606,7 @@ sequenceDiagram
   S-->>A: RunBatchResult { congestion_detected }
   Note over A: fresh episode assembled with the result
           </div>
-          <figcaption><b>Task sleep/wake.</b> the exact detach → sleep → wake path, on the final task extension the gateway and kernel speak.</figcaption>
+          <figcaption><b>Task sleep/wake.</b> the exact detach → sleep → wake path carried by official Tasks between the gateway and kernel.</figcaption>
         </figure>
 
         <div class="agent-grid">
@@ -1820,7 +1820,7 @@ sequenceDiagram
         <div class="term">
           <div class="term-head"><span class="term-name">Python server SDK</span><span class="term-kind k-ours">ours</span></div>
           <p><b>The language-native platform contract.</b> It supplies internal identity checks,
-             durable tasks, final task-extension transport, artifact capabilities, pagination,
+             durable official Tasks, stateless final-profile transport, artifact capabilities, pagination,
              host validation, and usage reporting to Python servers.</p>
           <p>The datasheet service is the canonical working template: full MCP discovery, direct
              dataset reads, and resumable profiling on the shared platform store.</p>

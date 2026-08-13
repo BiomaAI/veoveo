@@ -1682,16 +1682,13 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -1736,16 +1733,13 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -1787,16 +1781,13 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -1841,16 +1832,13 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -1892,8 +1880,7 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
@@ -1940,8 +1927,7 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
@@ -1985,8 +1971,7 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
@@ -2033,8 +2018,7 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
@@ -2105,6 +2089,50 @@
           ],
           "required_scopes": [
             "admin:manage"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_operator_agent_control",
+          "effect": "allow",
+          "actions": [
+            "agents_read",
+            "agents_message",
+            "agents_input_request_answer"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "roles": [
+            "operator"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_admin_agent_control",
+          "effect": "allow",
+          "actions": [
+            "agents_read",
+            "agents_message",
+            "agents_input_request_answer"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "roles": [
+            "administrator"
+          ],
+          "required_scopes": [
+            "operator:use"
           ],
           "metadata": {}
         },
@@ -2326,9 +2354,8 @@
             "resources_read",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
+            "subscriptions_listen",
             "artifact_read",
             "usage_read"
           ],
@@ -2367,9 +2394,8 @@
             "resources_read",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
+            "subscriptions_listen",
             "artifact_read",
             "usage_read"
           ],
@@ -2405,9 +2431,8 @@
             "resources_read",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
+            "subscriptions_listen",
             "artifact_read",
             "usage_read"
           ],
@@ -2446,9 +2471,8 @@
             "resources_read",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
+            "subscriptions_listen",
             "artifact_read",
             "usage_read"
           ],
@@ -2482,16 +2506,13 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -2536,16 +2557,13 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -2587,16 +2605,13 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -2641,16 +2656,13 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -2697,9 +2709,8 @@
             "completion_complete",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
+            "subscriptions_listen",
             "artifact_read",
             "usage_read"
           ],
@@ -2748,9 +2759,8 @@
             "completion_complete",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
+            "subscriptions_listen",
             "artifact_read",
             "usage_read"
           ],
@@ -2796,9 +2806,8 @@
             "completion_complete",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
+            "subscriptions_listen",
             "artifact_read",
             "usage_read"
           ],
@@ -2847,9 +2856,8 @@
             "completion_complete",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
+            "subscriptions_listen",
             "artifact_read",
             "usage_read"
           ],
@@ -2889,8 +2897,7 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "completion_complete"
           ],
           "profiles": [
@@ -2942,9 +2949,8 @@
             "tools_call",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe"
+            "subscriptions_listen"
           ],
           "profiles": [
             "operator",
@@ -2970,8 +2976,7 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
@@ -2999,8 +3004,7 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
@@ -3076,9 +3080,8 @@
             "tools_call",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe"
+            "subscriptions_listen"
           ],
           "profiles": [
             "operator",
@@ -3125,9 +3128,8 @@
             "tools_call",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe"
+            "subscriptions_listen"
           ],
           "profiles": [
             "operator",
@@ -3176,9 +3178,8 @@
             "tools_call",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe"
+            "subscriptions_listen"
           ],
           "profiles": [
             "operator",
@@ -3280,9 +3281,8 @@
             "tools_call",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe"
+            "subscriptions_listen"
           ],
           "profiles": [
             "operator",
@@ -3307,9 +3307,8 @@
             "tools_call",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe"
+            "subscriptions_listen"
           ],
           "profiles": [
             "operator",
@@ -3410,8 +3409,7 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
@@ -3462,9 +3460,8 @@
             "tools_call",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe"
+            "subscriptions_listen"
           ],
           "profiles": [
             "operator",
@@ -3490,9 +3487,8 @@
             "tools_call",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe"
+            "subscriptions_listen"
           ],
           "profiles": [
             "operator",
@@ -3564,9 +3560,8 @@
             "resources_read",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
+            "subscriptions_listen",
             "artifact_read",
             "usage_read"
           ],
@@ -3607,9 +3602,8 @@
             "resources_read",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
+            "subscriptions_listen",
             "artifact_read",
             "usage_read"
           ],
@@ -3647,9 +3641,8 @@
             "resources_read",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
+            "subscriptions_listen",
             "artifact_read",
             "usage_read"
           ],
@@ -3690,9 +3683,8 @@
             "resources_read",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
+            "subscriptions_listen",
             "artifact_read",
             "usage_read"
           ],
@@ -3728,8 +3720,7 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
@@ -3771,8 +3762,7 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
@@ -3811,8 +3801,7 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
@@ -3857,16 +3846,13 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -3911,16 +3897,13 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -3962,16 +3945,13 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -4013,16 +3993,13 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -4061,16 +4038,13 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
             "usage_read"
           ],
           "profiles": [
@@ -4121,8 +4095,7 @@
             "tools_call",
             "resources_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe"
+            "subscriptions_listen"
           ],
           "profiles": [
             "operator",
@@ -4156,16 +4129,13 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",
             "tasks_get",
             "tasks_update",
-            "tasks_result",
             "tasks_cancel",
-            "tasks_subscribe",
             "usage_read"
           ],
           "profiles": [
@@ -4214,8 +4184,7 @@
             "resources_list",
             "resources_templates_list",
             "resources_read",
-            "resources_subscribe",
-            "resources_unsubscribe",
+            "subscriptions_listen",
             "prompts_list",
             "prompts_get",
             "completion_complete",

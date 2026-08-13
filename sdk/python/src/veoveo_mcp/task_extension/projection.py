@@ -11,10 +11,8 @@ from ..tasks.types import InvalidRecord, TaskSnapshot, TaskStatus as StoreTaskSt
 from .models import (
     CancelledTask,
     CompletedTask,
-    EmbeddedRequest,
     FailedTask,
     InputRequiredTask,
-    JsonRpcErrorData,
     Task,
     TaskStatus,
     WorkingTask,
@@ -23,7 +21,7 @@ from .models import (
 
 def task_seed(snapshot: TaskSnapshot) -> Task:
     return Task(
-        task_id=snapshot.task_id,
+        task_id=str(snapshot.task_id),
         status=_task_status(snapshot.status),
         status_message=snapshot.status_message,
         created_at=snapshot.created_at,
@@ -37,7 +35,7 @@ async def project_snapshot(
     runtime: TaskRuntime, snapshot: TaskSnapshot
 ) -> WorkingTask | InputRequiredTask | CompletedTask | FailedTask | CancelledTask:
     metadata = {
-        "task_id": snapshot.task_id,
+        "task_id": str(snapshot.task_id),
         "status_message": snapshot.status_message,
         "created_at": snapshot.created_at,
         "last_updated_at": snapshot.updated_at,
@@ -58,7 +56,7 @@ async def project_snapshot(
         return InputRequiredTask(
             **metadata,
             input_requests={
-                key: EmbeddedRequest(method=request.method, params=request.params)
+                key: {"method": request.method, "params": request.params}
                 for key, request in requests.items()
             },
         )
@@ -77,11 +75,11 @@ async def project_snapshot(
             raise InvalidRecord("failed task has no durable error")
         return FailedTask(
             **metadata,
-            error=JsonRpcErrorData(
-                code=-32_603,
-                message=failure.message,
-                data={"taskCode": failure.code, "details": failure.details},
-            ),
+            error={
+                "code": -32_603,
+                "message": failure.message,
+                "data": {"taskCode": failure.code, "details": failure.details},
+            },
         )
     return CancelledTask(**metadata)
 

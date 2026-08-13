@@ -1,18 +1,17 @@
-//! Durable watchers for detached MCP tasks.
-//!
-//! Every attempt owns a SurrealDB lease. Transient transport failures persist
-//! a retry schedule and release that lease; retry count is diagnostic only and
-//! never expires a task. A terminal result and its wake commit atomically.
+//! Durable watchers for serialized deferred MCP executions.
 
 use std::time::Duration;
 
 use chrono::{TimeDelta, Utc};
-use rig_core::tool::{TaskResumer, ToolErrorKind, ToolTaskDescriptor, ToolTaskStatus};
+use rig::tool::{
+    DeferredInputHandler, DeferredToolDescriptor, DeferredToolResolver, DeferredToolState,
+    ToolErrorKind, ToolExecutionError,
+};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use veoveo_agent_runtime::{AgentRuntime, ClaimedAgentTask, json_object, wrapped_json};
 
-use crate::{connection::ConnectionEpoch, wake::WakeBus};
+use crate::{connection::ConnectionEpoch, input::DurableInputHandler, wake::WakeBus};
 
 const TASK_CLAIM_RENEW_INTERVAL: Duration = Duration::from_secs(20);
 const TASK_CLAIM_DURATION: Duration = Duration::from_secs(60);
@@ -22,10 +21,11 @@ pub fn arm_watcher(
     bus: WakeBus,
     epoch_rx: watch::Receiver<ConnectionEpoch>,
     task: ClaimedAgentTask,
+    input_grace: Duration,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
-        if let Err(error) = watch_task(runtime, bus, epoch_rx, task).await {
-            tracing::error!(%error, "durable task watcher stopped");
+        if let Err(error) = watch_task(runtime, bus, epoch_rx, task, input_grace).await {
+            tracing::error!(%error, "durable deferred-tool watcher stopped");
         }
     })
 }
@@ -35,17 +35,18 @@ async fn watch_task(
     bus: WakeBus,
     mut epoch_rx: watch::Receiver<ConnectionEpoch>,
     task: ClaimedAgentTask,
+    input_grace: Duration,
 ) -> anyhow::Result<()> {
     let descriptor_value =
         serde_json::Value::Object(task.descriptor.clone().into_map().into_iter().collect());
-    let descriptor: ToolTaskDescriptor = match serde_json::from_value(descriptor_value) {
+    let descriptor: DeferredToolDescriptor = match serde_json::from_value(descriptor_value) {
         Ok(descriptor) => descriptor,
         Err(error) => {
             let wake_id = runtime
                 .fail_task(
                     &task,
                     wrapped_json(serde_json::json!({
-                        "error": "unreadable task descriptor",
+                        "error": "unreadable deferred descriptor",
                         "detail": error.to_string(),
                     })),
                 )
@@ -56,83 +57,130 @@ async fn watch_task(
     };
 
     let epoch = epoch_rx.borrow_and_update().clone();
-    let Some(resumer) = epoch.resumer else {
-        runtime
-            .retry_task(
-                &task,
-                Utc::now() + retry_delay(task.attempt_count),
-                "gateway connection has no task resumer",
-            )
-            .await?;
+    let Some(resolver) = epoch.resolver else {
+        retry(
+            &runtime,
+            &task,
+            "gateway connection has no deferred resolver",
+        )
+        .await?;
         return Ok(());
     };
-
-    match resumer.resume(&descriptor).await {
-        Ok(Some(handle)) => {
-            let mut wait = Box::pin(handle.wait());
-            let result = loop {
+    let handle = match resolver.resolve(&descriptor).await {
+        Ok(handle) => handle,
+        Err(error) => {
+            retry(&runtime, &task, &error.to_string()).await?;
+            return Ok(());
+        }
+    };
+    let input_handler = DurableInputHandler::new(runtime.clone(), bus.clone(), input_grace);
+    let mut state = None;
+    loop {
+        let observed = match state.take() {
+            Some(state) => state,
+            None => {
+                let read = handle.state();
                 tokio::select! {
-                    result = &mut wait => break result,
+                    result = read => match result {
+                        Ok(state) => state,
+                        Err(error) => {
+                            settle_error(&runtime, &bus, &task, error).await?;
+                            return Ok(());
+                        }
+                    },
                     () = tokio::time::sleep(TASK_CLAIM_RENEW_INTERVAL) => {
-                        runtime
-                            .renew_task_claim(task.agent_task_id, TASK_CLAIM_DURATION)
-                            .await?;
+                        runtime.renew_task_claim(task.agent_task_id, TASK_CLAIM_DURATION).await?;
+                        continue;
                     }
                 }
-            };
-            let outcome = result.result();
-            let status = result.status();
-            let error_kind = outcome.error().map(|error| error.kind());
-            let transient = is_transient_task_failure(status, error_kind);
-            if transient {
+            }
+        };
+        match observed {
+            DeferredToolState::Working => {
+                tokio::time::sleep(Duration::from_millis(250)).await;
                 runtime
-                    .retry_task(
-                        &task,
-                        Utc::now() + retry_delay(task.attempt_count),
-                        &outcome.output().render(),
-                    )
+                    .renew_task_claim(task.agent_task_id, TASK_CLAIM_DURATION)
                     .await?;
+            }
+            DeferredToolState::InputRequired(requests) => {
+                let responses = input_handler.respond(&descriptor, &requests).await;
+                match responses {
+                    Ok(responses) => match handle.submit_input(responses).await {
+                        Ok(next) => state = Some(next),
+                        Err(error) => {
+                            settle_error(&runtime, &bus, &task, error).await?;
+                            return Ok(());
+                        }
+                    },
+                    Err(error) => {
+                        settle_error(&runtime, &bus, &task, error).await?;
+                        return Ok(());
+                    }
+                }
+            }
+            DeferredToolState::Completed(result) => {
+                let payload = json_object(
+                    serde_json::json!({
+                        "output": result.output().render(),
+                        "delivered": "watcher",
+                    }),
+                    "deferred result",
+                )?;
+                let wake_id = runtime
+                    .resolve_task(&task, payload, result.is_error())
+                    .await?;
+                bus.hint(wake_id);
                 return Ok(());
             }
-            let payload = json_object(
-                serde_json::json!({
-                    "output": outcome.output().render(),
-                    "delivered": "watcher",
-                }),
-                "task result",
-            )?;
-            let wake_id = if outcome.is_error_kind(ToolErrorKind::NotFound)
-                || status == ToolTaskStatus::Cancelled
-            {
-                runtime.fail_task(&task, payload).await?
-            } else {
-                runtime
-                    .resolve_task(&task, payload, outcome.is_error())
-                    .await?
-            };
-            bus.hint(wake_id);
-        }
-        Ok(None) => {
-            let wake_id = runtime
-                .fail_task(
-                    &task,
-                    wrapped_json(serde_json::json!({
-                        "error": "no task resumer accepted the canonical descriptor",
-                    })),
-                )
-                .await?;
-            bus.hint(wake_id);
-        }
-        Err(error) => {
-            runtime
-                .retry_task(
-                    &task,
-                    Utc::now() + retry_delay(task.attempt_count),
-                    &error.to_string(),
-                )
-                .await?;
+            DeferredToolState::Failed(error) => {
+                settle_error(&runtime, &bus, &task, error).await?;
+                return Ok(());
+            }
+            DeferredToolState::Cancelled => {
+                let wake_id = runtime
+                    .fail_task(
+                        &task,
+                        wrapped_json(serde_json::json!({ "error": "cancelled" })),
+                    )
+                    .await?;
+                bus.hint(wake_id);
+                return Ok(());
+            }
+            _ => {
+                retry(&runtime, &task, "unsupported deferred-tool state").await?;
+                return Ok(());
+            }
         }
     }
+}
+
+async fn settle_error(
+    runtime: &AgentRuntime,
+    bus: &WakeBus,
+    task: &ClaimedAgentTask,
+    error: ToolExecutionError,
+) -> anyhow::Result<()> {
+    if matches!(
+        error.kind(),
+        ToolErrorKind::Network | ToolErrorKind::Timeout
+    ) {
+        retry(runtime, task, &error.to_string()).await?;
+    } else {
+        let wake_id = runtime
+            .fail_task(
+                task,
+                wrapped_json(serde_json::json!({ "error": error.to_string() })),
+            )
+            .await?;
+        bus.hint(wake_id);
+    }
+    Ok(())
+}
+
+async fn retry(runtime: &AgentRuntime, task: &ClaimedAgentTask, error: &str) -> anyhow::Result<()> {
+    runtime
+        .retry_task(task, Utc::now() + retry_delay(task.attempt_count), error)
+        .await?;
     Ok(())
 }
 
@@ -141,13 +189,6 @@ fn retry_delay(attempt_count: i64) -> TimeDelta {
         .unwrap_or(u32::MAX)
         .min(6);
     TimeDelta::seconds(i64::from(2u32.saturating_pow(exponent)))
-}
-
-fn is_transient_task_failure(status: ToolTaskStatus, error_kind: Option<ToolErrorKind>) -> bool {
-    matches!(
-        error_kind,
-        Some(ToolErrorKind::Network | ToolErrorKind::Timeout)
-    ) || (error_kind == Some(ToolErrorKind::Cancelled) && status != ToolTaskStatus::Cancelled)
 }
 
 #[cfg(test)]
@@ -159,21 +200,5 @@ mod tests {
         assert_eq!(retry_delay(0), TimeDelta::seconds(1));
         assert_eq!(retry_delay(1), TimeDelta::seconds(2));
         assert_eq!(retry_delay(100_000), TimeDelta::seconds(64));
-    }
-
-    #[test]
-    fn backend_cancellation_is_terminal_but_transport_cancellation_retries() {
-        assert!(!is_transient_task_failure(
-            ToolTaskStatus::Cancelled,
-            Some(ToolErrorKind::Cancelled)
-        ));
-        assert!(is_transient_task_failure(
-            ToolTaskStatus::Failed,
-            Some(ToolErrorKind::Cancelled)
-        ));
-        assert!(is_transient_task_failure(
-            ToolTaskStatus::Failed,
-            Some(ToolErrorKind::Network)
-        ));
     }
 }

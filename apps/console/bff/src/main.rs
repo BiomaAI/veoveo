@@ -36,7 +36,7 @@ struct AppState {
     live_http: reqwest::Client,
     cluster: Option<Arc<cluster::KubernetesClient>>,
     sessions: SessionCipher,
-    mcp: Arc<mcp_client::McpSessionPool>,
+    mcp: Arc<mcp_client::AuthScopedMcpClientPool>,
     app_tasks: apps::AppTaskRegistry,
 }
 
@@ -70,7 +70,7 @@ async fn main() -> anyhow::Result<()> {
         .build()
         .context("building console live HTTP client")?;
     let cluster = cluster::KubernetesClient::from_env(&outbound_trust)?.map(Arc::new);
-    let mcp = Arc::new(mcp_client::McpSessionPool::new(&outbound_trust)?);
+    let mcp = Arc::new(mcp_client::AuthScopedMcpClientPool::new(&outbound_trust)?);
     let state = AppState {
         config: config.clone(),
         http,
@@ -104,10 +104,7 @@ async fn main() -> anyhow::Result<()> {
             post(apps::unsubscribe_app_resource),
         )
         .route("/console/api/apps/task/get", post(apps::get_app_task))
-        .route(
-            "/console/api/apps/task/result",
-            post(apps::get_app_task_result),
-        )
+        .route("/console/api/apps/task/update", post(apps::update_app_task))
         .route("/console/api/apps/task/cancel", post(apps::cancel_app_task))
         .route("/console/api/cluster", get(cluster::snapshot))
         .route(
@@ -123,12 +120,12 @@ async fn main() -> anyhow::Result<()> {
             post(api::send_agent_message),
         )
         .route(
-            "/console/api/agents/{agent_id}/elicitations",
-            get(api::list_agent_elicitations),
+            "/console/api/agents/{agent_id}/input-requests",
+            get(api::list_agent_input_requests),
         )
         .route(
-            "/console/api/agents/{agent_id}/elicitations/{elicitation_id}/decision",
-            post(api::decide_agent_elicitation),
+            "/console/api/agents/{agent_id}/input-requests/{input_request_id}/decision",
+            post(api::decide_agent_input_request),
         )
         .route(
             "/console/api/artifacts/{artifact_id}/release-state",

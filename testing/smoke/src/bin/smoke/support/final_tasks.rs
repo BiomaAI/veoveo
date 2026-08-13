@@ -1,37 +1,26 @@
-use std::sync::{
-    Arc,
-    atomic::{AtomicU64, Ordering},
-};
+use std::collections::HashMap;
 
 use anyhow::ensure;
-use reqwest::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HOST, HeaderValue};
-use rmcp::model::CallToolResult;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use serde_json::{Map, Value, json};
-use veoveo_mcp_task_extension::{
-    CreateTaskResult, DISCOVER_METHOD, DetailedTask, DiscoverParams, DiscoverResult, EXTENSION_ID,
-    GET_TASK_METHOD, GetTaskParams, GetTaskResult, HEADER_MCP_METHOD, HEADER_MCP_NAME,
-    HEADER_MCP_PROTOCOL_VERSION, PROTOCOL_VERSION, RequestMeta, ToolCallParams,
-};
+use reqwest::header::{HOST, HeaderValue};
+use rmcp::model::{CallToolResponse, CallToolResult, TaskPayload, TaskStatus};
 
 use super::*;
 
+/// Full-profile task client used by smoke scenarios that address a hosted
+/// server directly. It uses rmcp's Discover lifecycle and official Tasks
+/// methods; no duplicate JSON-RPC or task wire model lives in the harness.
 pub(crate) struct FinalTaskSmokeClient {
-    http: reqwest::Client,
     endpoint: String,
     bearer_token: String,
     host: Option<HeaderValue>,
-    request_ids: Arc<AtomicU64>,
 }
 
 impl FinalTaskSmokeClient {
     pub(crate) fn new(endpoint: &str, bearer_token: String) -> Self {
         Self {
-            http: reqwest::Client::new(),
             endpoint: endpoint.to_owned(),
             bearer_token,
             host: None,
-            request_ids: Arc::new(AtomicU64::new(1)),
         }
     }
 
@@ -46,54 +35,64 @@ impl FinalTaskSmokeClient {
         arguments: Value,
         timeout: Duration,
     ) -> Result<CallToolResult> {
-        self.discover().await?;
-        let arguments = arguments
-            .as_object()
-            .context("task tool arguments are not an object")?
-            .iter()
-            .map(|(key, value)| (key.clone(), value.clone()))
-            .collect();
-        let created: CreateTaskResult = self
-            .request(
-                "tools/call",
-                Some(name),
-                &ToolCallParams {
-                    meta: RequestMeta::new().with_task_capability(),
-                    name: name.to_owned(),
-                    arguments,
+        let mut config = StreamableHttpClientTransportConfig::with_uri(self.endpoint.clone())
+            .auth_header(self.bearer_token.clone());
+        if let Some(host) = &self.host {
+            config = config.custom_headers(HashMap::from([(HOST, host.clone())]));
+        }
+        let client = SmokeMcpHandler
+            .serve_with_lifecycle(
+                StreamableHttpClientTransport::from_config(config),
+                ClientLifecycleMode::Discover {
+                    preferred_versions: vec![rmcp::model::ProtocolVersion::V_2026_07_28],
                 },
             )
             .await?;
-        let task_id = created.task.task_id;
-        let poll_ms = created
-            .task
-            .poll_interval_ms
-            .unwrap_or(100)
-            .clamp(10, 5_000);
-        let task = tokio::time::timeout(timeout, async {
+        ensure!(
+            client
+                .peer_info()
+                .is_some_and(|info| info.capabilities.supports_tasks()),
+            "server does not advertise official MCP Tasks"
+        );
+
+        let arguments = arguments
+            .as_object()
+            .context("task tool arguments are not an object")?
+            .clone();
+        let created = match client
+            .call_tool_once(CallToolRequestParams::new(name.to_owned()).with_arguments(arguments))
+            .await?
+        {
+            CallToolResponse::Task(created) => created.task,
+            other => bail!("expected task result from {name}, got {other:?}"),
+        };
+        let task_id = created.task_id;
+        let poll_ms = created.poll_interval_ms.unwrap_or(100).clamp(10, 5_000);
+        let terminal = tokio::time::timeout(timeout, async {
             loop {
-                let task = self.get_task(task_id).await?;
+                let task = client
+                    .get_task(rmcp::model::GetTaskParams::new(&task_id))
+                    .await?
+                    .task;
                 println!(
                     "task {task_id}: {:?} {}",
                     task.status(),
-                    task.metadata().status_message.as_deref().unwrap_or("")
+                    task.task.status_message.as_deref().unwrap_or("")
                 );
-                match task {
-                    DetailedTask::Working { .. } => {
-                        tokio::time::sleep(Duration::from_millis(poll_ms)).await;
-                    }
-                    terminal => return Ok::<_, anyhow::Error>(terminal),
+                if task.status() == TaskStatus::Working {
+                    tokio::time::sleep(Duration::from_millis(poll_ms)).await;
+                    continue;
                 }
+                return Ok::<_, anyhow::Error>(task);
             }
         })
         .await
         .with_context(|| format!("timed out waiting for task {task_id}"))??;
+        client.cancel().await?;
 
-        match task {
-            DetailedTask::Completed { result, .. } => {
-                let result: CallToolResult = serde_json::from_value(Value::Object(
-                    result.into_iter().collect::<Map<String, Value>>(),
-                ))?;
+        match terminal.payload {
+            TaskPayload::Completed { result } => {
+                let result: CallToolResult = serde_json::from_value(Value::Object(result))?;
                 ensure!(
                     result.is_error != Some(true),
                     "task tool returned an error: {:?}",
@@ -101,12 +100,13 @@ impl FinalTaskSmokeClient {
                 );
                 Ok(result)
             }
-            DetailedTask::Failed { error, .. } => {
-                bail!("task failed ({}): {}", error.code, error.message)
+            TaskPayload::Failed { error } => bail!("task failed: {error:?}"),
+            TaskPayload::Cancelled => bail!("task was cancelled"),
+            TaskPayload::InputRequired { input_requests } => {
+                bail!("task unexpectedly requested input: {input_requests:?}")
             }
-            DetailedTask::Cancelled { .. } => bail!("task was cancelled"),
-            DetailedTask::InputRequired { .. } => bail!("task unexpectedly requested input"),
-            DetailedTask::Working { .. } => unreachable!("task wait returns a terminal state"),
+            TaskPayload::Working => unreachable!("task wait returns a non-working state"),
+            other => bail!("task returned an unsupported payload: {other:?}"),
         }
     }
 
@@ -121,91 +121,4 @@ impl FinalTaskSmokeClient {
             .structured_content
             .context("task completed without structured content")
     }
-
-    async fn discover(&self) -> Result<()> {
-        let result: DiscoverResult = self
-            .request(
-                DISCOVER_METHOD,
-                None,
-                &DiscoverParams {
-                    meta: RequestMeta::new(),
-                },
-            )
-            .await?;
-        let extensions = result
-            .capabilities
-            .get("extensions")
-            .and_then(Value::as_object);
-        ensure!(
-            result
-                .supported_versions
-                .iter()
-                .any(|version| version == PROTOCOL_VERSION)
-                && extensions.is_some_and(|extensions| extensions.contains_key(EXTENSION_ID)),
-            "server does not advertise final MCP tasks"
-        );
-        Ok(())
-    }
-
-    async fn get_task(
-        &self,
-        task_id: veoveo_mcp_task_extension::ProtocolTaskId,
-    ) -> Result<DetailedTask> {
-        let result: GetTaskResult = self
-            .request(
-                GET_TASK_METHOD,
-                Some(&task_id.to_string()),
-                &GetTaskParams {
-                    meta: RequestMeta::new().with_task_capability(),
-                    task_id,
-                },
-            )
-            .await?;
-        Ok(result.task)
-    }
-
-    async fn request<T, P>(&self, method: &str, name: Option<&str>, params: &P) -> Result<T>
-    where
-        T: DeserializeOwned,
-        P: Serialize + ?Sized,
-    {
-        let mut request = self
-            .http
-            .post(&self.endpoint)
-            .header(CONTENT_TYPE, "application/json")
-            .header(ACCEPT, "application/json")
-            .header(HEADER_MCP_PROTOCOL_VERSION, PROTOCOL_VERSION)
-            .header(HEADER_MCP_METHOD, method)
-            .header(AUTHORIZATION, format!("Bearer {}", self.bearer_token))
-            .json(&json!({
-                "jsonrpc": "2.0",
-                "id": self.request_ids.fetch_add(1, Ordering::Relaxed),
-                "method": method,
-                "params": params,
-            }));
-        if let Some(name) = name {
-            request = request.header(HEADER_MCP_NAME, name);
-        }
-        if let Some(host) = &self.host {
-            request = request.header(HOST, host);
-        }
-        let response = request.send().await?;
-        let status = response.status();
-        let envelope: RpcResponse<T> = response.json().await?;
-        match (envelope.result, envelope.error) {
-            (Some(result), None) if status.is_success() => Ok(result),
-            (_, Some(error)) => bail!(
-                "task extension request `{method}` failed ({}): {}",
-                error.code,
-                error.message
-            ),
-            _ => bail!("task extension request `{method}` returned invalid HTTP {status}"),
-        }
-    }
-}
-
-#[derive(Deserialize)]
-struct RpcResponse<T> {
-    result: Option<T>,
-    error: Option<veoveo_mcp_task_extension::JsonRpcErrorData>,
 }

@@ -17,7 +17,9 @@ mod tasks;
 
 use veoveo_mcp_contract::GatewayProfileId;
 
-pub(super) use agents::{decide_agent_elicitation, list_agent_elicitations, send_agent_message};
+pub(super) use agents::{
+    decide_agent_input_request, list_agent_input_requests, send_agent_message,
+};
 pub(super) use artifact_access::{
     cancel_artifact_access_request, create_artifact_access_request, decide_artifact_access_request,
     list_artifact_access_requests,

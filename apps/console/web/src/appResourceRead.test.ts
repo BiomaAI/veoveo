@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
+import type { JSONRPCMessage, Transport } from "./apps/protocol.ts";
 import { interceptResourceReadRequests } from "./apps/resourceRead.ts";
 import type { AppDescriptor } from "./types.ts";
 

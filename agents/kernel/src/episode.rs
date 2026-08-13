@@ -1,22 +1,21 @@
 //! One bounded agent episode, durably fenced and book-ended in SurrealDB.
 
-use std::str::FromStr;
 use std::sync::Arc;
 
-use anyhow::{Context, Result, bail};
-use rig_core::{
-    agent::{Agent, TaskCompletionPolicy, TaskDrainPolicy},
-    tool::{ToolContext, ToolTaskDescriptor},
+use anyhow::{Context, Result};
+use rig::{
+    agent::Agent,
+    tool::{DeferredExecutionPolicy, DeferredToolResolverRegistry, ToolContext},
 };
-use veoveo_agent_runtime::{AgentRuntime, EpisodeCompletion, json_object};
-use veoveo_mcp_task_extension::TASK_RETENTION_PIN_META_KEY;
-use veoveo_platform_store::{AgentEpisodeId, AgentEpisodeState, TaskId, WakeId};
+use veoveo_agent_runtime::{AgentRuntime, EpisodeCompletion};
+use veoveo_platform_store::{AgentEpisodeId, AgentEpisodeState, WakeId};
+use veoveo_task_runtime::TASK_RETENTION_PIN_META_KEY;
 
 use crate::{
     budget::{BUDGET_TERMINATED_PREFIX, BudgetHook},
     connection::GatewayConnection,
     context,
-    llm::KernelModel,
+    input::DurableInputHandler,
     manifest::AgentManifest,
     memory::{EpisodeOutcome, MemoryStore},
     recorder::RecorderHook,
@@ -26,7 +25,7 @@ use crate::{
 
 pub struct EpisodeDriver {
     manifest: AgentManifest,
-    agent: Agent<KernelModel>,
+    agent: Agent,
     runtime: AgentRuntime,
     memory: MemoryStore,
     rrd: Arc<RrdRecorder>,
@@ -43,7 +42,7 @@ pub struct EpisodeReport {
 impl EpisodeDriver {
     pub fn new(
         manifest: AgentManifest,
-        agent: Agent<KernelModel>,
+        agent: Agent,
         runtime: AgentRuntime,
         memory: MemoryStore,
         rrd: Arc<RrdRecorder>,
@@ -93,51 +92,48 @@ impl EpisodeDriver {
             episode.retention_pin.clone(),
         );
         let tool_calls = recorder.tool_call_counter();
-        let mut meta = rmcp::model::Meta::new();
-        meta.0.insert(
+        let mut meta = rmcp::model::RequestMetaObject::new();
+        meta.insert(
             TASK_RETENTION_PIN_META_KEY.to_owned(),
             serde_json::json!(episode.retention_pin),
         );
         let mut tool_context = ToolContext::new();
         tool_context.insert(meta);
+        let resolvers = DeferredToolResolverRegistry::new();
+        if let Some(resolver) = connection.epoch().resolver {
+            resolvers
+                .register(resolver)
+                .context("registering gateway deferred-tool resolver")?;
+        }
+        let mut deferred_policy = DeferredExecutionPolicy::default();
+        deferred_policy.timeout = self.manifest.task_deadline();
+        deferred_policy.working_poll_interval = std::time::Duration::from_millis(250);
+        deferred_policy.max_state_reads = 10_000;
         let response = self
             .agent
             .runner(prompt)
             .tool_context(tool_context)
+            .deferred_tool_resolvers(resolvers)
+            .deferred_input_handler(DurableInputHandler::new(
+                self.runtime.clone(),
+                connection.handlers().bus.clone(),
+                connection.handlers().input_grace,
+            ))
+            .deferred_execution_policy(deferred_policy)
             .add_hook(recorder)
             .add_hook(BudgetHook::new(self.manifest.budgets.per_episode.clone()))
             .max_turns(self.manifest.episode.max_turns)
-            .task_completion_policy(TaskCompletionPolicy::ContinueTurns)
-            .task_deadline(self.manifest.task_deadline())
-            .task_drain(TaskDrainPolicy::Detach)
             .run()
             .await;
 
         let tool_calls = tool_calls.load(std::sync::atomic::Ordering::Relaxed);
         match response {
             Ok(response) => {
-                for descriptor in &response.unresolved_tasks {
-                    let task_id = canonical_task_id(&descriptor.task_id)?;
-                    let descriptor = json_object(
-                        serde_json::to_value(descriptor)
-                            .context("serializing detached task descriptor")?,
-                        "task descriptor",
-                    )?;
-                    self.runtime
-                        .complete_task_descriptor(task_id, descriptor)
-                        .await?;
-                    tracing::info!(
-                        episode_id = %episode.episode_id,
-                        %task_id,
-                        tool_name = descriptor_tool_name(&response.unresolved_tasks, task_id),
-                        "task detached"
-                    );
-                }
                 let report = EpisodeReport {
                     episode_id: episode.episode_id,
                     seq: episode.sequence,
                     output: response.output,
-                    detached_tasks: response.unresolved_tasks.len(),
+                    detached_tasks: 0,
                 };
                 let summary = summary::deterministic(&report, wake_note, tool_calls);
                 self.runtime
@@ -177,7 +173,7 @@ impl EpisodeDriver {
                 );
                 Ok(report)
             }
-            Err(rig_core::completion::PromptError::PromptCancelled { reason, .. })
+            Err(rig::completion::PromptError::PromptCancelled { reason, .. })
                 if reason.starts_with(BUDGET_TERMINATED_PREFIX) =>
             {
                 self.runtime
@@ -253,31 +249,5 @@ impl EpisodeDriver {
         if let Err(error) = self.rrd.rotate_if_needed() {
             tracing::warn!(%error, "rrd rotation failed");
         }
-    }
-}
-
-fn canonical_task_id(value: &str) -> Result<TaskId> {
-    let task_id = TaskId::from_str(value).context("task id is not a UUID")?;
-    if task_id.as_uuid().get_version_num() != 7 {
-        bail!("task id `{value}` is not the canonical UUIDv7 identity");
-    }
-    Ok(task_id)
-}
-
-fn descriptor_tool_name(descriptors: &[ToolTaskDescriptor], task_id: TaskId) -> &str {
-    descriptors
-        .iter()
-        .find(|descriptor| descriptor.task_id == task_id.to_string())
-        .map_or("unknown", |descriptor| descriptor.tool_name.as_str())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn rejects_noncanonical_task_ids() {
-        assert!(canonical_task_id(&uuid::Uuid::new_v4().to_string()).is_err());
-        assert!(canonical_task_id(&uuid::Uuid::now_v7().to_string()).is_ok());
     }
 }

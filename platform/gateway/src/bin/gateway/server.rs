@@ -23,15 +23,14 @@ use veoveo_mcp_contract::{
 };
 use veoveo_mcp_gateway::{
     GatewayCatalog, GatewayCatalogHandle, GatewayControlStore, GatewayMcp,
-    GatewayRefreshDeliveryWindow, GatewayTaskExtension, GatewayUpstreamHttpClientPool,
-    RefreshTokenDeliveryCipher,
+    GatewayRefreshDeliveryWindow, GatewayUpstreamHttpClientPool, RefreshTokenDeliveryCipher,
 };
 
 use super::{
     admin::{
         authorize_console_cluster, cancel_artifact_access_request, cancel_task,
-        create_artifact_access_request, create_artifact_share_link, decide_agent_elicitation,
-        decide_artifact_access_request, grant_artifact, list_agent_elicitations,
+        create_artifact_access_request, create_artifact_share_link, decide_agent_input_request,
+        decide_artifact_access_request, grant_artifact, list_agent_input_requests,
         list_artifact_access_requests, proxy_server_admin, prune_jwt_revocations,
         read_console_snapshot, read_control_plane, revoke_artifact_grant,
         revoke_artifact_share_link, revoke_jwt, send_agent_message, set_artifact_release_state,
@@ -139,7 +138,6 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
     let mcp_state = DynamicMcpState {
         catalog: catalog.clone(),
         gateway_state: gateway_state.clone(),
-        platform_store: control_store.platform_store().clone(),
         internal_token_issuer: internal_token_issuer.clone(),
         upstream_http: upstream_http.clone(),
         allowed_hosts: allowed_hosts.clone(),
@@ -252,12 +250,12 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             post(send_agent_message),
         )
         .route(
-            "/admin/{profile}/agents/{agent_id}/elicitations",
-            get(list_agent_elicitations),
+            "/admin/{profile}/agents/{agent_id}/input-requests",
+            get(list_agent_input_requests),
         )
         .route(
-            "/admin/{profile}/agents/{agent_id}/elicitations/{elicitation_id}/decision",
-            post(decide_agent_elicitation),
+            "/admin/{profile}/agents/{agent_id}/input-requests/{input_request_id}/decision",
+            post(decide_agent_input_request),
         )
         .route(
             "/admin/{profile}/servers/{server}/{*path}",
@@ -374,7 +372,6 @@ fn build_profile_mcp_service(
         {
             let catalog = state.catalog.clone();
             let gateway_state = state.gateway_state.clone();
-            let platform_store = state.platform_store.clone();
             let profile_id = profile_id.clone();
             let upstream_http = state.upstream_http.clone();
             move || {
@@ -382,48 +379,19 @@ fn build_profile_mcp_service(
                     catalog.clone(),
                     profile_id.clone(),
                     gateway_state.clone(),
-                    platform_store.clone(),
                     internal_token_issuer.clone(),
                     upstream_http.clone(),
                 ))
             }
         },
-        veoveo_mcp_contract::canonical_session_manager(),
+        veoveo_mcp_contract::stateless_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(state.allowed_hosts.iter().cloned())
             .with_cancellation_token(state.cancellation_token.child_token()),
     );
-    let task_extension = Arc::new(veoveo_mcp_task_extension::TaskExtensionAdapter::new(
-        Arc::new(GatewayTaskExtension::new(GatewayMcp::new(
-            state.catalog.clone(),
-            profile_id,
-            state.gateway_state.clone(),
-            state.platform_store.clone(),
-            state.internal_token_issuer.clone(),
-            state.upstream_http.clone(),
-        ))),
-        veoveo_mcp_task_extension::ServerDiscovery::new(
-            BTreeMap::from([
-                ("tools".to_owned(), serde_json::json!({})),
-                ("resources".to_owned(), serde_json::json!({})),
-            ]),
-            veoveo_mcp_task_extension::Implementation {
-                name: "veoveo-mcp-gateway".to_owned(),
-                version: env!("CARGO_PKG_VERSION").to_owned(),
-            },
-            Some(
-                "Profile-aware canonical task routing across governed Veoveo MCP servers."
-                    .to_owned(),
-            ),
-        ),
-    ));
     Router::new()
         .route_service("/", mcp_service.clone())
         .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn_with_state(
-            task_extension,
-            veoveo_mcp_task_extension::task_extension_middleware::<GatewayTaskExtension>,
-        ))
 }
 
 async fn readyz(State(state): State<AppState>) -> Json<Readiness> {

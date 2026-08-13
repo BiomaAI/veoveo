@@ -3,7 +3,7 @@ use super::*;
 const SMOKE_CSV: &str = "city,population,elevation_m,region\nQuito,2800000,2850,sierra\nGuayaquil,3100000,4,costa\nCuenca,640000,2560,sierra\nLoja,290000,2060,sierra\nManta,310000,6,costa\n";
 
 /// Direct hosted smoke for the Python template server: auth boundary, full MCP
-/// surface, the final task extension, artifact-plane output, and usage.
+/// surface, official Tasks, artifact-plane output, and usage.
 pub(crate) async fn datasheet_mcp(conformance: &Path, artifact_service: &Path) -> Result<()> {
     assert_executable(conformance)?;
     assert_executable(artifact_service)?;

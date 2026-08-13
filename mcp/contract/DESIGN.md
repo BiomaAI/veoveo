@@ -8,7 +8,7 @@ that were previously stated across `AGENTS.md`, `docs/TECH_DESIGN.md`, and
 this directory, `veoveo_mcp_contract`, implements the shared mechanics that
 make most of the contract hold by construction.
 
-**Contract revision: 2.** The crate exports the same value as
+**Contract revision: 3.** The crate exports the same value as
 `veoveo_mcp_contract::CONTRACT_REVISION`. A server declares the revision it
 complies with in its crate documents and in its contract resource.
 
@@ -16,10 +16,14 @@ complies with in its crate documents and in its contract resource.
 
 | Standard or protocol | Supported profile |
 |---|---|
-| Model Context Protocol | protocol version `2025-11-25` with the Veoveo hosted-server requirements in this document |
-| MCP Streamable HTTP | sessionful event-stream responses, reconnectable GET, and explicit DELETE; legacy HTTP+SSE is excluded |
-| JSON Schema 2020-12 | self-contained controlled tool, gateway, fragment, binding, and provenance schemas |
-| OAuth 2.0 and protected-resource metadata | typed installation profiles and the extensions declared below; unsupported grants are rejected |
+| Model Context Protocol | protocol version `2026-07-28`; Discover is mandatory and Initialize is excluded from the hosted profile |
+| MCP Streamable HTTP | stateless POST requests with JSON terminal responses; SSE is used only by methods whose final flow requires a stream; protocol sessions, reconnect GET, DELETE, and replay are excluded |
+| MCP Tasks, SEP-2663 | official `tasks/get`, `tasks/update`, and `tasks/cancel`, optional task notifications, opaque task IDs, and typed terminal payloads |
+| MCP multi-round requests, SEP-2322 | `input_required`, protected opaque `requestState`, and retry `inputResponses`; server-initiated elicitation is excluded |
+| MCP subscriptions | request-scoped `subscriptions/listen` with an authorized accepted filter; resource subscribe and unsubscribe are excluded |
+| JSON Schema 2020-12 | ordinary SDK and Pydantic generation with bounded references and composition; controlled gateway, fragment, binding, and provenance schemas remain typed |
+| W3C Trace Context and Baggage | `traceparent`, `tracestate`, and `baggage` in MCP request metadata with the authenticated HTTP boundary as the trust gate |
+| OAuth 2.0, RFC 8414, RFC 9207, RFC 8707, RFC 9728, and OpenID Connect Discovery 1.0 | private-installation profile with pre-registered clients, exact issuer and resource binding, step-up scopes, and `private_key_jwt`; Dynamic Client Registration is excluded |
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned server capabilities and platform requirements |
 | `veoveo.io/gateway-binding/v1` | installation-owned exposure, policy, artifact audience, and recording producer declarations |
 | `veoveo.io/gateway-composition-provenance/v1` | exact input/output SHA-256 identities and contributed-object summaries |
@@ -80,8 +84,8 @@ server uses the protocol surface that matches its domain:
 | addressable state | resource or resource template |
 | discovery | resource list/template plus completion |
 | reusable interaction | prompt |
-| live condition | resource subscription and notification |
-| progress/result wake | task subscription |
+| live condition | `subscriptions/listen` and a resource notification filter |
+| progress/result wake | task-ID filter on `subscriptions/listen`; `tasks/get` remains the correctness path |
 | cross-server identity | canonical URI and resource link |
 
 Compatibility helpers are allowed only when they are explicit product features
@@ -101,47 +105,33 @@ subscription, returns the terminal tool result, and attaches the canonical
 task ID. The typed `veoveo://task/{task_id}` resource exposes its current
 status and terminal result without introducing another task store.
 
-## Transport And Sessions
+## Stateless Transport And Explicit State
 
-Every network endpoint uses MCP Streamable HTTP. The server creates a session
-for initialization and retains it while its event stream is connected.
-Explicit DELETE ends the session immediately. A disconnected session keeps a
-fixed 60-second reconnection grace, then the canonical session manager closes
-its transport and drops the owning handler. This bound also cleans up clients
-that terminate without sending DELETE. Responses use event-stream framing,
-including ordinary request results. Direct JSON responses are not part of the
-Veoveo profile.
+Every network endpoint uses MCP Streamable HTTP with stateless POST requests.
+Clients call Discover and attach the selected protocol version, client identity,
+and effective per-request capabilities to each ordinary request. Terminal results
+use JSON. A request uses SSE only when its final protocol flow requires a stream,
+including `subscriptions/listen` and in-flight progress. Initialize, protocol
+session IDs, reconnect GET, DELETE, and Last-Event-ID replay are rejected.
 
 Legacy HTTP+SSE is unsupported. Network stdio is not a transport or
 registration value. Stdio may exist only between one local bridge process and
 the child MCP server whose lifecycle that bridge owns. The gateway always sees
 the bridge as a Streamable HTTP endpoint.
 
-Sessions carry subscriptions, task and progress signals, and every other MCP
-notification. Notification delivery preserves protocol order by awaiting the
-session peer. Each delivery has a fixed bound on backpressure. A server never
-detaches peer delivery into an unowned task.
+Every cross-call state value is an opaque typed handle whose authority, expiry,
+integrity, and replay rules are validated on each request. Domain sessions such as
+UAV simulation sessions remain application state; they never derive authority or
+lifetime from MCP transport locality.
 
-The gateway owns one immutable internal invocation authority for each
-gateway-to-server session. It signs a fresh, short-lived internal assertion for
-every Streamable HTTP request in that session, including GET reconnection and
-DELETE cleanup. A static bearer captured at initialization is prohibited
-because its expiry would break a live notification stream and prevent session
-cleanup. The session owner stops minting assertions when the session ends.
-Within that owner, upstream connection reuse keys contain the actor's stable
-authorization attributes and resolved invocation authority. The timestamp of
-each HTTP bearer re-verification is audit metadata and never creates a new
-protocol session.
+The gateway signs a fresh short-lived internal assertion for every upstream
+request. Connection reuse depends only on validated transport security and
+catalog generation; request authority stays in the assertion and request metadata.
 
-Protocol sessions remain independent because their authority, subscriptions,
-notifications, and cleanup are independent. Their HTTP transport does not.
 Gateway traffic with the same validated transport-security configuration and
-active catalog revision shares one process-wide connection pool and one
+active catalog revision shares one process-wide HTTP connection pool and one
 initialized TLS trust store. Construction is single-flight under concurrency.
 A catalog revision or transport-security change selects a new pool identity.
-This boundary prevents catalog fan-out and health probes from rebuilding the
-system trust store per server or per session while preserving session-local
-authorization and protocol state.
 
 Capability declarations name the exact signal a server can produce.
 `tools.listChanged`, `prompts.listChanged`, and `resources.listChanged` are
@@ -158,17 +148,11 @@ without polling. Direct resource reads and tool calls remain fail closed.
 
 ## Schemas And Types
 
-Tool inputs publish one canonical JSON Schema 2020-12 document generated from
-the request type. The document has an object root, contains no references, and
-declares the immediate JSON type of every property. Object-shaped unions
-expose `type: object` alongside their variants. Recursive tool arguments are
-outside this profile; domain contracts model bounded collections explicitly.
-
-Rust servers import `tool` from `veoveo_mcp_contract`, which selects the
-shared Schemars generator for every `Parameters<T>` handler and supplies the
-closed empty-object schema for handlers without arguments. Python servers pass
-each Pydantic request model through `veoveo_mcp.schema.mcp_input_schema`
-before publishing it.
+Tool inputs publish JSON Schema 2020-12 generated by the ordinary rmcp/Schemars
+path in Rust and the official SDK/Pydantic path in Python. References and
+composition are allowed when emitted by those generators. Recursive or excessive
+schemas are rejected by explicit depth, node-count, reference-count, branch-count,
+and serialized-size bounds.
 
 Strong types govern every controlled shape: typed structs, enums, and explicit
 domain types wherever the shape is known or owned by this contract. Raw JSON
@@ -193,16 +177,11 @@ URI conventions, Work Context propagation, and internal identity.
 
 ## Deployment Identity
 
-One active process owns each logical MCP endpoint. Kubernetes workloads for
-MCP servers, the gateway MCP frontend, and stdio bridges run with one replica
-and a non-overlapping replacement strategy. A PodDisruptionBudget does not
-pretend that a singleton is highly available.
-
-Capacity is expressed as separately named and registered MCP endpoints.
-Load-balanced replicas under one endpoint identity are prohibited because
-sessions, subscriptions, notifications, and task links belong to one process.
-Stateless services outside the MCP boundary may retain independent replica
-configuration.
+Ordinary hosted MCP endpoints and the gateway run behind load-balanced replicas.
+Durable Tasks, explicit handles, and shared event sources preserve correctness
+across replica changes. A workload remains singleton only when it owns real
+exclusive state or hardware, such as DuckDB or a GPU simulation runtime; protocol
+session locality is never a reason for singleton deployment.
 
 ## Packaging And Registration
 
@@ -223,7 +202,7 @@ Every server is self-describing. Under its canonical URI scheme it serves:
 |---|---|
 | `{scheme}://docs` | index of the server's documents |
 | `{scheme}://docs/{doc_id}` | a document body: at minimum `agents` (the crate `AGENTS.md`) and `design` (the crate `DESIGN.md`) |
-| `{scheme}://contract` | machine-readable contract declaration: contract revision, per-item compliance status, and the server's capability inventory |
+| `{scheme}://contract` | machine-readable contract declaration: contract revision, per-item compliance status, and embedded-document evidence; Discover and list methods own the observed runtime surface |
 
 On its administrative mount the server serves the same material as a read-only
 HTTP projection at `{mount}/admin/docs/llms.txt` (an index in llms.txt form) and
@@ -267,8 +246,8 @@ Server crates are named `*-mcp`.
 | C04 | MUST | Addressable state is exposed as resources or resource templates under the server's canonical scheme. |
 | C05 | MUST | The server is not flattened to a tool-only convenience surface. |
 | C06 | MUST | Compatibility helpers are additive projections reusing canonical models, policy, audit, tasks, and URIs. |
-| C07 | MUST | Tool input schemas follow the canonical 2020-12 profile: object root, no references, immediate types. |
-| C08 | MUST | Schemas are generated through the shared machinery (`tool` macro; `mcp_input_schema` for Python). |
+| C07 | MUST | Tool input schemas use JSON Schema 2020-12 and pass the shared depth, node, reference, branch, and size bounds. |
+| C08 | MUST | Schemas are generated through ordinary rmcp/Schemars or official SDK/Pydantic machinery. |
 | C09 | MUST | Controlled shapes use strong domain types; raw JSON only at open boundaries. |
 | C10 | MUST | Shared mechanics come from `veoveo_mcp_contract`, not reimplementation. |
 | C11 | MUST | Artifact and recording operations use the forwarded internal identity. |
@@ -286,12 +265,12 @@ Server crates are named `*-mcp`.
 | C23 | MUST | `AGENTS.md` exists beside the crate with the required sections. |
 | C24 | MUST | The crate is named `*-mcp`. |
 | C25 | MUST | Every network endpoint uses Streamable HTTP; stdio exists only inside a local bridge that owns its child. |
-| C26 | MUST | Streamable HTTP is sessionful and every response uses event-stream framing rather than direct JSON. |
-| C27 | MUST | Notification delivery is ordered, awaited by the owning session, bounded for backpressure, and never detached. |
+| C26 | MUST | Streamable HTTP is stateless, requires final per-request protocol metadata, returns JSON terminal responses, and rejects session, reconnect, DELETE, and replay surfaces. |
+| C27 | MUST | `subscriptions/listen` uses an authorized accepted filter, a request-scoped sink, bounded backpressure, and a shared restart-safe event source; legacy subscribe and unsubscribe are absent. |
 | C28 | MUST | Tool, prompt, and resource list-change capabilities are declared independently and match emitted notifications. |
-| C29 | MUST | Each logical MCP endpoint has one active process and a non-overlapping replacement strategy. |
-| C30 | MUST | Gateway sessions with equivalent upstream transport security share one catalog-revision-scoped HTTP connection pool and initialized TLS trust store while retaining independent MCP session state. |
-| C31 | MUST | Federated list discovery preserves healthy server results when one server fails, reports typed degradation metadata, caches only successful exact-authority results, and invalidates those results from MCP list-change notifications without polling. |
+| C29 | MUST | Ordinary hosted servers and the gateway tolerate load-balanced replica changes; singleton workloads name the real exclusive state or GPU owner. |
+| C30 | MUST | Requests with equivalent upstream transport security share one catalog-revision-scoped HTTP connection pool and TLS trust store without sharing request authority. |
+| C31 | MUST | Readiness calls Discover and required list methods, compares the observed surface with installation allow/require policy, and fails closed on mismatch. |
 
 ## Enforcement
 
@@ -303,11 +282,10 @@ rules:
   sections and a parseable `Contract Compliance` declaration.
 - **Protocol conformance** — the conformance client validates advertised
   schemas (C07) and the client-facing protocol shape against a running
-  server. Certification for `veoveo.io/hosted-mcp/v1` always checks C18–C21;
+  server. Certification for `veoveo.io/hosted-mcp/v3` always checks C18–C21;
   a profile cannot forbid resources or omit the administrative docs URL.
   The client reads `{scheme}://contract`, requires the selected revision,
-  matches its server identity to the initialized implementation, and compares
-  its stable capability inventory with the observed MCP lists. It follows the
+  matches its server identity to the discovered implementation. It follows the
   links actually published by `llms.txt` and authenticates those requests with
   credentials supplied out of band after proving the projection rejects an
   unauthenticated request at both its index and document bodies. Credentials
@@ -316,19 +294,15 @@ rules:
   Internal-assertion verification still proves only the selected boundary
   checks; forged, expired, and misaddressed assertion cases remain explicit
   profile or component tests.
-- **Construction** — C03, C08, C10, C18–C21 are inherited by consuming
+- **Construction** — C03, C10, C18–C21 are inherited by consuming
   `veoveo_mcp_contract`; avoiding them requires bypassing the shared crate,
   which review treats as a contract change.
 - **Transport conformance** — the shared Streamable HTTP constructor, gateway
-  upstream client pool, and deployment checks enforce C25–C30 for first-party Rust servers. Packaged
+  upstream client pool, and deployment checks enforce C25–C31 for first-party Rust servers. Packaged
   servers must pass the same black-box checks.
 - **Review** — C05, C06, C09, C13, and C14 are review-enforced boundaries;
   their violation is architectural, not stylistic.
 
-Capability inventories contain stable tool names, resource URIs, resource
-template URIs, prompt names, and task-augmented tool names. Tools, templates,
-and prompts match the observed lists exactly. Declared resources must appear in
-the observed list, which may also contain dynamic instance resources. Every
-declared task must name an observed tool, and a non-empty task inventory
-requires the task extension capability. These comparisons make protocol
-surface changes reviewable diffs rather than silent drift.
+The installation manifest owns allowed and required exposure policy. Discover
+and list methods own runtime observations. Readiness intersects and compares
+those two surfaces without copying observations into the contract resource.

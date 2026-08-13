@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use rig_core::tool::{Tool, ToolContext};
+use rig::tool::{Tool, ToolContext};
 use serde::{Deserialize, Serialize};
 
 use crate::{

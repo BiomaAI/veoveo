@@ -1,8 +1,8 @@
 //! DuckDB MCP server.
 //!
 //! MCP surface:
-//!   tool `query(db, sql, ...)` — read-only SQL, direct or final task extension
-//!   tool `execute(db, sql, ...)` — arbitrary DDL/DML, direct or final task extension
+//!   tool `query(db, sql, ...)` — read-only SQL, direct or official Tasks
+//!   tool `execute(db, sql, ...)` — arbitrary DDL/DML, direct or official Tasks
 //!   tool `ingest(db, table, source, mode)` — final task-extension source loading
 //!   tool `export(db, selection, format)` — final task-extension artifact export
 //!   resource `duckdb://dbs` — databases visible to the caller
@@ -22,15 +22,18 @@ use axum::{Router, middleware, routing::get};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{TimeDelta, Utc};
 use clap::Parser;
+use rmcp::tool;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, ContentBlock, ListResourceTemplatesResult, ListResourcesResult,
+        CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams, ContentBlock,
+        GetTaskParams, GetTaskResult, ListResourceTemplatesResult, ListResourcesResult,
         ListToolsResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult,
         Resource, ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo,
+        SubscriptionFilter, UpdateTaskParams,
     },
-    service::RequestContext,
+    service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
     transport::streamable_http_server::StreamableHttpService,
 };
@@ -49,17 +52,11 @@ use veoveo_duckdb_mcp::{
     state::TaskOwner,
     uris,
 };
-use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
     IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, Page, ServerSlug,
-    TelemetryGuard, TokenIssuer, UsageReport,
-    docs::{CapabilityInventory, ServerDocs},
-    init_server_telemetry, paginate, public_allowed_hosts,
-};
-use veoveo_mcp_task_extension::{
-    Implementation as TaskExtensionImplementation, ServerDiscovery, TaskExtensionAdapter,
-    task_extension_middleware,
+    TelemetryGuard, TokenIssuer, UsageReport, docs::ServerDocs, init_server_telemetry, paginate,
+    public_allowed_hosts,
 };
 use veoveo_task_runtime::{
     CreateTask as DurableCreateTask, RecoveryClass, TaskError, TaskFailure, TaskId,
@@ -96,7 +93,7 @@ use ownership::{
     task_owner_allows, task_owner_from_identity, task_owner_from_runtime,
 };
 use sql_ops::ArtifactWriteContext;
-use task_extension::DuckdbTaskExtension;
+use task_extension::DuckdbTaskService;
 
 const MCP_TASK_POLL_INTERVAL_MS: u64 = 3000;
 const MCP_TASK_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1000;
@@ -112,11 +109,6 @@ const LIST_PAGE_SIZE: usize = 100;
 static SERVER_DOCS: LazyLock<ServerDocs> =
     LazyLock::new(|| veoveo_mcp_contract::server_docs!(SERVER_SLUG));
 
-/// Task-augmented tool names declared at `duckdb://contract`. `query` and
-/// `execute` accept optional task invocation; `ingest` and `export` require
-/// the final task extension.
-const TASK_TOOLS: &[&str] = &["execute", "export", "ingest", "query"];
-
 fn install_rustls_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
 }
@@ -128,6 +120,7 @@ fn direct_call_owner(identity: &veoveo_mcp_contract::GatewayInternalIdentity) ->
 #[derive(Clone)]
 struct DuckdbMcp {
     state: Arc<AppState>,
+    task_service: DuckdbTaskService,
     #[allow(dead_code)]
     tool_router: ToolRouter<DuckdbMcp>,
 }
@@ -136,37 +129,9 @@ struct DuckdbMcp {
 impl DuckdbMcp {
     fn new(state: Arc<AppState>) -> Self {
         Self {
+            task_service: DuckdbTaskService::new(state.clone()),
             state,
             tool_router: Self::tool_router(),
-        }
-    }
-
-    /// The capability inventory declared at `duckdb://contract` (contract
-    /// C19). Tools derive from the live registration; stable resources and
-    /// templates come from the lists those surfaces are served from, so the
-    /// declaration cannot silently diverge from the handler.
-    fn capability_inventory() -> CapabilityInventory {
-        let mut tools: Vec<String> = Self::tool_router()
-            .list_all()
-            .into_iter()
-            .map(|tool| tool.name.into_owned())
-            .collect();
-        tools.sort();
-        let mut resources: Vec<String> = well_known_resources()
-            .into_iter()
-            .map(|resource| resource.uri.clone())
-            .collect();
-        resources.extend([uris::DBS_ROOT_URI, uris::USAGE_ROOT_URI].map(str::to_owned));
-        resources.sort();
-        CapabilityInventory {
-            tools,
-            resources,
-            resource_templates: resource_templates()
-                .into_iter()
-                .map(|template| template.uri_template.clone())
-                .collect(),
-            prompts: Vec::new(),
-            tasks: TASK_TOOLS.iter().map(|name| (*name).to_owned()).collect(),
         }
     }
 
@@ -174,7 +139,6 @@ impl DuckdbMcp {
         title = "Query a DuckDB database",
         description = "Run one read-only SQL statement against a database you own. DuckDB Spatial is preloaded by the server. Read-only is enforced by the connection, and SQL cannot touch files, the network, additional extensions, or engine settings. Inline output is capped; pass output = {mode: \"artifact\", format: \"parquet\"} for large results, which returns one duckdb://artifact/{artifact_id} link. To query another principal's data, have them export a snapshot to the artifact plane and grant it, then ingest it here with an artifact:// source.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<DuckDbQueryOutput>(),
-        execution(task_support = "optional"),
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -199,7 +163,6 @@ impl DuckdbMcp {
         title = "Execute SQL on a DuckDB database",
         description = "Run DDL/DML SQL on a database owned by the caller, creating it when create_if_missing is set. DuckDB Spatial is preloaded by the server. Writes serialize per database. SQL cannot touch files, the network, additional extensions, or engine settings.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<DuckDbExecuteOutput>(),
-        execution(task_support = "optional"),
         annotations(
             read_only_hint = false,
             destructive_hint = true,
@@ -219,9 +182,8 @@ impl DuckdbMcp {
 
     #[tool(
         title = "Ingest data into a DuckDB table",
-        description = "Load a typed source into one table: inline CSV, allowlisted HTTPS URIs, or an authorized artifact:// reference. The server resolves sources itself and SQL never reaches the network. Invoke through the final task extension; the completed task carries the result.",
+        description = "Load a typed source into one table: inline CSV, allowlisted HTTPS URIs, or an authorized artifact:// reference. The server resolves sources itself and SQL never reaches the network. Invoke through official Tasks; the completed task carries the result.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<DuckDbIngestOutput>(),
-        execution(task_support = "required"),
         annotations(
             read_only_hint = false,
             destructive_hint = false,
@@ -241,9 +203,8 @@ impl DuckdbMcp {
 
     #[tool(
         title = "Export DuckDB data to an artifact",
-        description = "Export a table, a read-only SQL result, or a full owned-database snapshot to one immutable duckdb://artifact/{artifact_id} artifact (parquet, csv, or duck_db snapshot). Invoke through the final task extension; the completed task carries the artifact link.",
+        description = "Export a table, a read-only SQL result, or a full owned-database snapshot to one immutable duckdb://artifact/{artifact_id} artifact (parquet, csv, or duck_db snapshot). Invoke through official Tasks; the completed task carries the artifact link.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<DuckDbExportOutput>(),
-        execution(task_support = "required"),
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -307,11 +268,21 @@ fn parse_task_args(name: &str, arguments: Value) -> Result<TaskArgs, String> {
 
 #[tool_handler]
 impl ServerHandler for DuckdbMcp {
+    fn supported_protocol_versions(
+        &self,
+    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
+        veoveo_mcp_contract::final_protocol_versions()
+    }
+
     fn get_info(&self) -> ServerInfo {
-        let caps: ServerCapabilities = ServerCapabilities::builder()
+        let mut caps: ServerCapabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_resources()
             .build();
+        caps.extensions.get_or_insert_default().insert(
+            rmcp::model::TASKS_EXTENSION_ID.to_owned(),
+            rmcp::model::JsonObject::new(),
+        );
         let mut info = ServerInfo::default();
         info.capabilities = caps;
         info.server_info = rmcp::model::Implementation::new("duckdb", env!("CARGO_PKG_VERSION"));
@@ -327,6 +298,83 @@ impl ServerHandler for DuckdbMcp {
         info
     }
 
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        if context
+            .meta
+            .client_capabilities()
+            .is_some_and(|capabilities| capabilities.supports_tasks())
+        {
+            let caller = veoveo_task_runtime::DurableTaskService::authenticate(
+                &self.task_service,
+                &context,
+            )?;
+            if let Some(created) = veoveo_task_runtime::DurableTaskService::start_tool_task(
+                &self.task_service,
+                &caller,
+                request.clone(),
+            )
+            .await?
+            {
+                return Ok(created.into());
+            }
+        }
+        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        self.tool_router.call(call).await
+    }
+
+    async fn get_task(
+        &self,
+        request: GetTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<GetTaskResult, McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::get_task(&self.task_service, &caller, request)
+            .await
+    }
+
+    async fn update_task(
+        &self,
+        request: UpdateTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::update_task(&self.task_service, &caller, request)
+            .await
+    }
+
+    async fn cancel_task(
+        &self,
+        request: CancelTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::cancel_task(
+            &self.task_service,
+            &caller,
+            request.task_id,
+        )
+        .await
+    }
+
+    fn accepted_subscription_filter(
+        &self,
+        requested: &SubscriptionFilter,
+    ) -> Option<SubscriptionFilter> {
+        veoveo_mcp_contract::accepted_subscription_filter(requested)
+    }
+
+    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
+        veoveo_task_runtime::listen_durable_subscriptions(&self.task_service, context, None, None)
+            .await
+    }
+
     async fn list_tools(
         &self,
         request: Option<PaginatedRequestParams>,
@@ -338,6 +386,9 @@ impl ServerHandler for DuckdbMcp {
         Ok(ListToolsResult {
             tools: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -402,6 +453,9 @@ impl ServerHandler for DuckdbMcp {
         Ok(ListResourcesResult {
             resources: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -415,6 +469,9 @@ impl ServerHandler for DuckdbMcp {
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -423,134 +480,154 @@ impl ServerHandler for DuckdbMcp {
         &self,
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, McpError> {
-        let identity = internal_identity(&context)?;
-        let uri = request.uri.as_str();
-        // Well-known surface (contract C18, C19): readable by any
-        // authenticated identity, like `list_resources`.
-        if uri == uris::DOCS_URI {
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(
-                    serde_json::to_string(&SERVER_DOCS.iter().collect::<Vec<_>>())
-                        .unwrap_or_default(),
-                    uri,
-                )
-                .with_mime_type("application/json"),
-            ]));
-        }
-        if let Some(doc_id) = uris::parse_doc_uri(uri) {
-            let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
-                McpError::resource_not_found(format!("unknown server document '{doc_id}'"), None)
-            })?;
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-            ]));
-        }
-        if uri == uris::CONTRACT_URI {
-            let declaration = SERVER_DOCS.contract_declaration(Self::capability_inventory);
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(serde_json::to_string(declaration).unwrap_or_default(), uri)
+    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
+        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
+        async {
+            let identity = internal_identity(&context)?;
+            let uri = request.uri.as_str();
+            // Well-known surface (contract C18, C19): readable by any
+            // authenticated identity, like `list_resources`.
+            if uri == uris::DOCS_URI {
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(
+                        serde_json::to_string(&SERVER_DOCS.iter().collect::<Vec<_>>())
+                            .unwrap_or_default(),
+                        uri,
+                    )
                     .with_mime_type("application/json"),
-            ]));
-        }
-        if uri == uris::DBS_ROOT_URI {
-            let mut entries = Vec::new();
-            for database in databases_for_identity(&self.state, &identity)? {
-                entries.push(json!({
-                    "db_id": database.db_id.as_str(),
-                    "db_uri": uris::db_uri(database.db_id.as_str()),
-                    "owned": database.principal_id == identity.actor.id,
-                }));
+                ]));
             }
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(serde_json::to_string(&entries).unwrap_or_default(), uri)
+            if let Some(doc_id) = uris::parse_doc_uri(uri) {
+                let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
+                    McpError::resource_not_found(
+                        format!("unknown server document '{doc_id}'"),
+                        None,
+                    )
+                })?;
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
+                ]));
+            }
+            if uri == uris::CONTRACT_URI {
+                let declaration = SERVER_DOCS.contract_declaration();
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(
+                        serde_json::to_string(declaration).unwrap_or_default(),
+                        uri,
+                    )
                     .with_mime_type("application/json"),
-            ]));
-        }
-        if uri == uris::USAGE_ROOT_URI {
-            let mut entries = Vec::new();
-            for task_id in self
-                .state
-                .tasks
-                .platform_store()
-                .domain_usage_task_ids(SERVER_SLUG)
-                .await
-                .map_err(|err| McpError::internal_error(err.to_string(), None))?
-            {
-                let task_id = task_id.to_string();
-                let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
-                    continue;
-                };
-                if task_owner_allows(&owner, &identity) {
+                ]));
+            }
+            if uri == uris::DBS_ROOT_URI {
+                let mut entries = Vec::new();
+                for database in databases_for_identity(&self.state, &identity)? {
                     entries.push(json!({
-                        "task_id": task_id,
-                        "usage_uri": uris::usage_task_uri(&task_id),
+                        "db_id": database.db_id.as_str(),
+                        "db_uri": uris::db_uri(database.db_id.as_str()),
+                        "owned": database.principal_id == identity.actor.id,
                     }));
                 }
-            }
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(serde_json::to_string(&entries).unwrap_or_default(), uri)
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(
+                        serde_json::to_string(&entries).unwrap_or_default(),
+                        uri,
+                    )
                     .with_mime_type("application/json"),
-            ]));
-        }
-        if let Some(db_id) = uris::parse_db_uri(uri) {
-            let schema = database_schema_document(&self.state, &identity, db_id).await?;
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(serde_json::to_string(&schema).unwrap_or_default(), uri)
-                    .with_mime_type("application/json"),
-            ]));
-        }
-        if let Some(task_id) = uris::parse_usage_task_uri(uri) {
-            require_task_owner(&self.state, &context, task_id).await?;
-            let durable_task_id = task_id
-                .parse::<TaskId>()
-                .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
-            let records = self
-                .state
-                .tasks
-                .platform_store()
-                .domain_usage_for_task(SERVER_SLUG, durable_task_id)
-                .await
-                .map_err(|err| McpError::internal_error(err.to_string(), None))?
-                .into_iter()
-                .map(|record| usage_record(task_id, record))
-                .collect::<Vec<_>>();
-            if records.is_empty() {
-                return Err(McpError::resource_not_found(
-                    format!("unknown usage task '{task_id}'"),
-                    None,
-                ));
+                ]));
             }
-            let report = UsageReport::new(task_id, uri).with_records(records);
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(serde_json::to_string(&report).unwrap_or_default(), uri)
+            if uri == uris::USAGE_ROOT_URI {
+                let mut entries = Vec::new();
+                for task_id in self
+                    .state
+                    .tasks
+                    .platform_store()
+                    .domain_usage_task_ids(SERVER_SLUG)
+                    .await
+                    .map_err(|err| McpError::internal_error(err.to_string(), None))?
+                {
+                    let task_id = task_id.to_string();
+                    let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
+                        continue;
+                    };
+                    if task_owner_allows(&owner, &identity) {
+                        entries.push(json!({
+                            "task_id": task_id,
+                            "usage_uri": uris::usage_task_uri(&task_id),
+                        }));
+                    }
+                }
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(
+                        serde_json::to_string(&entries).unwrap_or_default(),
+                        uri,
+                    )
                     .with_mime_type("application/json"),
-            ]));
-        }
-        if let Some(artifact_id) = uris::parse_artifact_uri(uri) {
-            // The plane enforces access with the caller's identity; a denial
-            // surfaces as an error rather than None.
-            let caller = internal_caller(&context)?;
-            let artifact = self
-                .state
-                .artifacts
-                .get(&caller, &artifact_id)
-                .await
-                .map_err(|err| McpError::internal_error(err.to_string(), None))?
-                .ok_or_else(|| {
-                    McpError::resource_not_found(format!("unknown artifact '{artifact_id}'"), None)
-                })?;
-            let blob = BASE64_STANDARD.encode(&artifact.bytes);
-            let mut content = ResourceContents::blob(blob, uri);
-            if let Some(mime_type) = artifact.metadata.mime_type {
-                content = content.with_mime_type(mime_type);
+                ]));
             }
-            return Ok(ReadResourceResult::new(vec![content]));
+            if let Some(db_id) = uris::parse_db_uri(uri) {
+                let schema = database_schema_document(&self.state, &identity, db_id).await?;
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(serde_json::to_string(&schema).unwrap_or_default(), uri)
+                        .with_mime_type("application/json"),
+                ]));
+            }
+            if let Some(task_id) = uris::parse_usage_task_uri(uri) {
+                require_task_owner(&self.state, &context, task_id).await?;
+                let durable_task_id = task_id
+                    .parse::<TaskId>()
+                    .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
+                let records = self
+                    .state
+                    .tasks
+                    .platform_store()
+                    .domain_usage_for_task(SERVER_SLUG, durable_task_id)
+                    .await
+                    .map_err(|err| McpError::internal_error(err.to_string(), None))?
+                    .into_iter()
+                    .map(|record| usage_record(task_id, record))
+                    .collect::<Vec<_>>();
+                if records.is_empty() {
+                    return Err(McpError::resource_not_found(
+                        format!("unknown usage task '{task_id}'"),
+                        None,
+                    ));
+                }
+                let report = UsageReport::new(task_id, uri).with_records(records);
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(serde_json::to_string(&report).unwrap_or_default(), uri)
+                        .with_mime_type("application/json"),
+                ]));
+            }
+            if let Some(artifact_id) = uris::parse_artifact_uri(uri) {
+                // The plane enforces access with the caller's identity; a denial
+                // surfaces as an error rather than None.
+                let caller = internal_caller(&context)?;
+                let artifact = self
+                    .state
+                    .artifacts
+                    .get(&caller, &artifact_id)
+                    .await
+                    .map_err(|err| McpError::internal_error(err.to_string(), None))?
+                    .ok_or_else(|| {
+                        McpError::resource_not_found(
+                            format!("unknown artifact '{artifact_id}'"),
+                            None,
+                        )
+                    })?;
+                let blob = BASE64_STANDARD.encode(&artifact.bytes);
+                let mut content = ResourceContents::blob(blob, uri);
+                if let Some(mime_type) = artifact.metadata.mime_type {
+                    content = content.with_mime_type(mime_type);
+                }
+                return Ok(ReadResourceResult::new(vec![content]));
+            }
+            Err(McpError::invalid_params(
+                format!("unknown resource uri: {uri}"),
+                None,
+            ))
         }
-        Err(McpError::resource_not_found(
-            format!("unknown resource uri: {uri}"),
-            None,
-        ))
+        .await
+        .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
     }
 }
 
@@ -1076,35 +1153,14 @@ async fn main() -> anyhow::Result<()> {
             let state = state.clone();
             move || Ok(DuckdbMcp::new(state.clone()))
         },
-        veoveo_mcp_contract::canonical_session_manager(),
+        veoveo_mcp_contract::stateless_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
             .with_cancellation_token(ct.child_token()),
     );
-    let task_extension = Arc::new(TaskExtensionAdapter::new(
-        Arc::new(DuckdbTaskExtension::new(state.clone())),
-        ServerDiscovery::new(
-            std::collections::BTreeMap::from([
-                ("tools".to_owned(), json!({})),
-                ("resources".to_owned(), json!({})),
-            ]),
-            TaskExtensionImplementation {
-                name: "duckdb".to_owned(),
-                version: env!("CARGO_PKG_VERSION").to_owned(),
-            },
-            Some(
-                "Sandboxed arbitrary DuckDB SQL with durable final-extension tasks and shared artifacts."
-                    .to_owned(),
-            ),
-        ),
-    ));
     let mcp_router = Router::new()
         .route_service("/", mcp_service.clone())
         .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn_with_state(
-            task_extension,
-            task_extension_middleware::<DuckdbTaskExtension>,
-        ))
         .layer(middleware::from_fn_with_state(
             internal_auth_state.clone(),
             authenticate_internal_mcp,
@@ -1153,7 +1209,7 @@ mod well_known_tests {
         CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
     };
 
-    use super::{DuckdbMcp, SERVER_DOCS, TASK_TOOLS, resource_templates, uris};
+    use super::SERVER_DOCS;
 
     #[test]
     fn embedded_documents_carry_the_crate_manual_and_design() {
@@ -1169,10 +1225,7 @@ mod well_known_tests {
 
     #[test]
     fn contract_declaration_resolves_from_the_embedded_manual() {
-        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(
-            &SERVER_DOCS,
-            DuckdbMcp::capability_inventory(),
-        );
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
         assert_eq!(declaration.server, "duckdb");
         assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
         for id in ["C18", "C19", "C20", "C21"] {
@@ -1191,36 +1244,10 @@ mod well_known_tests {
     }
 
     #[test]
-    fn capability_inventory_matches_the_registered_surface() {
-        let inventory = DuckdbMcp::capability_inventory();
-        for tool in ["query", "execute", "ingest", "export"] {
-            assert!(
-                inventory.tools.iter().any(|name| name == tool),
-                "inventory is missing tool {tool}"
-            );
-        }
-        for uri in [
-            uris::DOCS_URI,
-            uris::CONTRACT_URI,
-            uris::DBS_ROOT_URI,
-            uris::USAGE_ROOT_URI,
-        ] {
-            assert!(
-                inventory.resources.contains(&uri.to_owned()),
-                "inventory is missing resource {uri}"
-            );
-        }
-        assert!(inventory.resources.contains(&uris::doc_uri("agents")));
-        assert!(
-            inventory
-                .resource_templates
-                .contains(&uris::DOC_TEMPLATE.to_owned())
-        );
-        assert_eq!(
-            resource_templates().len(),
-            inventory.resource_templates.len()
-        );
-        assert_eq!(inventory.tasks, TASK_TOOLS);
+    fn contract_declaration_defers_runtime_surface_to_discover() {
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
+        let json = serde_json::to_value(declaration).unwrap();
+        assert!(json.get("capabilities").is_none());
     }
 }
 

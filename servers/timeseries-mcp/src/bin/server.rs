@@ -17,15 +17,18 @@ use axum::{Router, middleware, routing::get};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{TimeDelta, Utc};
 use clap::Parser;
+use rmcp::tool;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, ContentBlock, ListResourceTemplatesResult, ListResourcesResult,
+        CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams, ContentBlock,
+        GetTaskParams, GetTaskResult, ListResourceTemplatesResult, ListResourcesResult,
         ListToolsResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult,
         Resource, ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo,
+        SubscriptionFilter, UpdateTaskParams,
     },
-    service::RequestContext,
+    service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
     transport::streamable_http_server::StreamableHttpService,
 };
@@ -34,17 +37,11 @@ use serde_json::json;
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_duckdb_runtime::HttpsSourcePolicy;
-use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
     IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, Page, ServerSlug,
-    TelemetryGuard, TokenIssuer, UsageReport,
-    docs::{CapabilityInventory, ServerDocs},
-    init_server_telemetry, paginate, public_allowed_hosts,
-};
-use veoveo_mcp_task_extension::{
-    Implementation as TaskExtensionImplementation, ServerDiscovery, TaskExtensionAdapter,
-    task_extension_middleware,
+    TelemetryGuard, TokenIssuer, UsageReport, docs::ServerDocs, init_server_telemetry, paginate,
+    public_allowed_hosts,
 };
 use veoveo_task_runtime::{
     CreateTask as DurableCreateTask, RecoveryClass, TaskError, TaskFailure, TaskId,
@@ -83,7 +80,7 @@ use ownership::{
     internal_caller, internal_identity, optional_task_owner, require_task_owner, runtime_owner,
     task_owner_allows, task_owner_from_identity, task_owner_from_runtime,
 };
-use task_extension::TimeseriesTaskExtension;
+use task_extension::TimeseriesTaskService;
 
 const MCP_TASK_POLL_INTERVAL_MS: u64 = 3000;
 const MCP_TASK_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1000;
@@ -92,6 +89,7 @@ const TASK_LEASE_HEARTBEAT: Duration = Duration::from_secs(40);
 const ARTIFACT_CAPABILITY_TTL: TimeDelta = TimeDelta::hours(24);
 const SERVER_SLUG: &str = "timeseries";
 const LIST_PAGE_SIZE: usize = 100;
+const TASK_RETENTION_PIN_META_KEY: &str = "ai.bioma.veoveo/taskRetentionPin";
 
 /// The crate documents embedded at build time and served under the well-known
 /// surface: `timeseries://docs`, `timeseries://docs/{doc_id}`,
@@ -113,6 +111,7 @@ fn install_rustls_provider() {
 #[derive(Clone)]
 struct TimeseriesMcp {
     state: Arc<AppState>,
+    task_service: TimeseriesTaskService,
     #[allow(dead_code)]
     tool_router: ToolRouter<TimeseriesMcp>,
 }
@@ -121,38 +120,9 @@ struct TimeseriesMcp {
 impl TimeseriesMcp {
     fn new(state: Arc<AppState>) -> Self {
         Self {
+            task_service: TimeseriesTaskService::new(state.clone()),
             state,
             tool_router: Self::tool_router(),
-        }
-    }
-
-    /// The capability inventory declared at `timeseries://contract`
-    /// (contract C19). Tools derive from the live registration; the stable
-    /// resource and template lists mirror `list_resources` and
-    /// `list_resource_templates`. The `forecast` tool is the one
-    /// task-augmented execution.
-    fn capability_inventory() -> CapabilityInventory {
-        CapabilityInventory {
-            tools: Self::tool_router()
-                .list_all()
-                .into_iter()
-                .map(|tool| tool.name.into_owned())
-                .collect(),
-            resources: vec![
-                uris::FORECAST_APP_URI.to_owned(),
-                uris::USAGE_ROOT_URI.to_owned(),
-                uris::DOCS_URI.to_owned(),
-                uris::doc_uri(veoveo_mcp_contract::docs::DOC_ID_AGENTS),
-                uris::doc_uri(veoveo_mcp_contract::docs::DOC_ID_DESIGN),
-                uris::CONTRACT_URI.to_owned(),
-            ],
-            resource_templates: vec![
-                uris::ARTIFACT_TEMPLATE.to_owned(),
-                uris::USAGE_TASK_TEMPLATE.to_owned(),
-                uris::DOC_TEMPLATE.to_owned(),
-            ],
-            prompts: Vec::new(),
-            tasks: vec!["forecast".to_owned()],
         }
     }
 
@@ -160,7 +130,6 @@ impl TimeseriesMcp {
         title = "Forecast timeseries",
         description = "Ingest a DuckDB-readable time-series source, compute a forecast, and return one timeseries://artifact/{artifact_id} Rerun RRD artifact.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<TimeseriesForecastOutput>(),
-        execution(task_support = "optional"),
         annotations(
             read_only_hint = false,
             destructive_hint = false,
@@ -234,12 +203,22 @@ fn mcp_page<T>(
 
 #[tool_handler]
 impl ServerHandler for TimeseriesMcp {
+    fn supported_protocol_versions(
+        &self,
+    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
+        veoveo_mcp_contract::final_protocol_versions()
+    }
+
     fn get_info(&self) -> ServerInfo {
         let mut caps: ServerCapabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_resources()
             .build();
         veoveo_mcp_apps_extension::extend_capabilities(&mut caps);
+        caps.extensions.get_or_insert_default().insert(
+            rmcp::model::TASKS_EXTENSION_ID.to_owned(),
+            rmcp::model::JsonObject::new(),
+        );
         let mut info = ServerInfo::default();
         info.capabilities = caps;
         info.server_info =
@@ -250,6 +229,64 @@ impl ServerHandler for TimeseriesMcp {
                 .into(),
         );
         info
+    }
+
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        if context
+            .meta
+            .client_capabilities()
+            .is_some_and(|capabilities| capabilities.supports_tasks())
+            && let Some(created) = self
+                .task_service
+                .start_tool_task(&request, &context)
+                .await?
+        {
+            return Ok(created.into());
+        }
+        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        self.tool_router.call(call).await
+    }
+
+    async fn get_task(
+        &self,
+        request: GetTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<GetTaskResult, McpError> {
+        self.task_service.get_task(request, &context).await
+    }
+
+    async fn update_task(
+        &self,
+        request: UpdateTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        self.task_service.update_task(request, &context).await
+    }
+
+    async fn cancel_task(
+        &self,
+        request: CancelTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        self.task_service
+            .cancel_task(&request.task_id, &context)
+            .await
+    }
+
+    fn accepted_subscription_filter(
+        &self,
+        requested: &SubscriptionFilter,
+    ) -> Option<SubscriptionFilter> {
+        veoveo_mcp_contract::accepted_subscription_filter(requested)
+    }
+
+    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
+        veoveo_task_runtime::listen_durable_subscriptions(&self.task_service, context, None, None)
+            .await
     }
 
     async fn list_tools(
@@ -282,6 +319,9 @@ impl ServerHandler for TimeseriesMcp {
         Ok(ListToolsResult {
             tools: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -354,6 +394,9 @@ impl ServerHandler for TimeseriesMcp {
         Ok(ListResourcesResult {
             resources: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -383,6 +426,9 @@ impl ServerHandler for TimeseriesMcp {
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -391,123 +437,137 @@ impl ServerHandler for TimeseriesMcp {
         &self,
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, McpError> {
-        let identity = internal_identity(&context)?;
-        let uri = request.uri.as_str();
-        // Well-known surface (contract C18, C19): readable by any identity
-        // that can list resources.
-        if uri == uris::DOCS_URI {
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(
-                    serde_json::to_string(&SERVER_DOCS.iter().collect::<Vec<_>>())
-                        .unwrap_or_default(),
-                    uri,
-                )
-                .with_mime_type("application/json"),
-            ]));
-        }
-        if let Some(doc_id) = uris::parse_doc(uri) {
-            let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
-                McpError::resource_not_found(format!("unknown document '{doc_id}'"), None)
-            })?;
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-            ]));
-        }
-        if uri == uris::CONTRACT_URI {
-            let declaration = SERVER_DOCS.contract_declaration(Self::capability_inventory);
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(serde_json::to_string(declaration).unwrap_or_default(), uri)
+    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
+        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
+        async {
+            let identity = internal_identity(&context)?;
+            let uri = request.uri.as_str();
+            // Well-known surface (contract C18, C19): readable by any identity
+            // that can list resources.
+            if uri == uris::DOCS_URI {
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(
+                        serde_json::to_string(&SERVER_DOCS.iter().collect::<Vec<_>>())
+                            .unwrap_or_default(),
+                        uri,
+                    )
                     .with_mime_type("application/json"),
-            ]));
-        }
-        if uri == uris::FORECAST_APP_URI {
-            return Ok(ReadResourceResult::new(vec![
-                veoveo_mcp_apps_extension::app_html_contents(
-                    uri,
-                    include_str!("../../assets/forecast-app.html"),
-                ),
-            ]));
-        }
-        if uri == uris::USAGE_ROOT_URI {
-            let mut entries = Vec::new();
-            for task_id in self
-                .state
-                .tasks
-                .platform_store()
-                .domain_usage_task_ids(SERVER_SLUG)
-                .await
-                .map_err(|err| McpError::internal_error(err.to_string(), None))?
-            {
-                let task_id = task_id.to_string();
-                let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
-                    continue;
-                };
-                if task_owner_allows(&owner, &identity) {
-                    entries.push(json!({
-                        "task_id": task_id,
-                        "usage_uri": uris::usage_task_uri(&task_id),
-                    }));
-                }
+                ]));
             }
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(serde_json::to_string(&entries).unwrap_or_default(), uri)
-                    .with_mime_type("application/json"),
-            ]));
-        }
-        if let Some(task_id) = uris::parse_usage_task_uri(uri) {
-            require_task_owner(&self.state, &context, task_id).await?;
-            let durable_task_id = task_id
-                .parse::<TaskId>()
-                .map_err(|err| McpError::invalid_params(format!("invalid task id: {err}"), None))?;
-            let records = self
-                .state
-                .tasks
-                .platform_store()
-                .domain_usage_for_task(SERVER_SLUG, durable_task_id)
-                .await
-                .map_err(|err| McpError::internal_error(err.to_string(), None))?
-                .into_iter()
-                .map(|record| usage_record(task_id, record))
-                .collect::<Vec<_>>();
-            if records.is_empty() {
-                return Err(McpError::resource_not_found(
-                    format!("unknown usage task '{task_id}'"),
-                    None,
-                ));
-            }
-            let report = UsageReport::new(task_id, uri).with_records(records);
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(serde_json::to_string(&report).unwrap_or_default(), uri)
-                    .with_mime_type("application/json"),
-            ]));
-        }
-        if let Some(artifact_id) = uris::parse_artifact_uri(uri) {
-            // The plane enforces access with the caller's identity.
-            let caller = internal_caller(&context)?;
-            let artifact = self
-                .state
-                .artifacts
-                .get(&caller, &artifact_id)
-                .await
-                .map_err(|err| McpError::internal_error(err.to_string(), None))?
-                .ok_or_else(|| {
-                    McpError::resource_not_found(format!("unknown artifact '{artifact_id}'"), None)
+            if let Some(doc_id) = uris::parse_doc(uri) {
+                let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
+                    McpError::resource_not_found(format!("unknown document '{doc_id}'"), None)
                 })?;
-            let blob = BASE64_STANDARD.encode(&artifact.bytes);
-            let mut content = ResourceContents::blob(blob, uri);
-            content = content.with_mime_type(
-                artifact
-                    .metadata
-                    .mime_type
-                    .unwrap_or_else(|| RRD_MIME_TYPE.to_string()),
-            );
-            return Ok(ReadResourceResult::new(vec![content]));
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
+                ]));
+            }
+            if uri == uris::CONTRACT_URI {
+                let declaration = SERVER_DOCS.contract_declaration();
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(
+                        serde_json::to_string(declaration).unwrap_or_default(),
+                        uri,
+                    )
+                    .with_mime_type("application/json"),
+                ]));
+            }
+            if uri == uris::FORECAST_APP_URI {
+                return Ok(ReadResourceResult::new(vec![
+                    veoveo_mcp_apps_extension::app_html_contents(
+                        uri,
+                        include_str!("../../assets/forecast-app.html"),
+                    ),
+                ]));
+            }
+            if uri == uris::USAGE_ROOT_URI {
+                let mut entries = Vec::new();
+                for task_id in self
+                    .state
+                    .tasks
+                    .platform_store()
+                    .domain_usage_task_ids(SERVER_SLUG)
+                    .await
+                    .map_err(|err| McpError::internal_error(err.to_string(), None))?
+                {
+                    let task_id = task_id.to_string();
+                    let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
+                        continue;
+                    };
+                    if task_owner_allows(&owner, &identity) {
+                        entries.push(json!({
+                            "task_id": task_id,
+                            "usage_uri": uris::usage_task_uri(&task_id),
+                        }));
+                    }
+                }
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(
+                        serde_json::to_string(&entries).unwrap_or_default(),
+                        uri,
+                    )
+                    .with_mime_type("application/json"),
+                ]));
+            }
+            if let Some(task_id) = uris::parse_usage_task_uri(uri) {
+                require_task_owner(&self.state, &context, task_id).await?;
+                let durable_task_id = task_id.parse::<TaskId>().map_err(|err| {
+                    McpError::invalid_params(format!("invalid task id: {err}"), None)
+                })?;
+                let records = self
+                    .state
+                    .tasks
+                    .platform_store()
+                    .domain_usage_for_task(SERVER_SLUG, durable_task_id)
+                    .await
+                    .map_err(|err| McpError::internal_error(err.to_string(), None))?
+                    .into_iter()
+                    .map(|record| usage_record(task_id, record))
+                    .collect::<Vec<_>>();
+                if records.is_empty() {
+                    return Err(McpError::resource_not_found(
+                        format!("unknown usage task '{task_id}'"),
+                        None,
+                    ));
+                }
+                let report = UsageReport::new(task_id, uri).with_records(records);
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(serde_json::to_string(&report).unwrap_or_default(), uri)
+                        .with_mime_type("application/json"),
+                ]));
+            }
+            if let Some(artifact_id) = uris::parse_artifact_uri(uri) {
+                // The plane enforces access with the caller's identity.
+                let caller = internal_caller(&context)?;
+                let artifact = self
+                    .state
+                    .artifacts
+                    .get(&caller, &artifact_id)
+                    .await
+                    .map_err(|err| McpError::internal_error(err.to_string(), None))?
+                    .ok_or_else(|| {
+                        McpError::resource_not_found(
+                            format!("unknown artifact '{artifact_id}'"),
+                            None,
+                        )
+                    })?;
+                let blob = BASE64_STANDARD.encode(&artifact.bytes);
+                let mut content = ResourceContents::blob(blob, uri);
+                content = content.with_mime_type(
+                    artifact
+                        .metadata
+                        .mime_type
+                        .unwrap_or_else(|| RRD_MIME_TYPE.to_string()),
+                );
+                return Ok(ReadResourceResult::new(vec![content]));
+            }
+            Err(McpError::invalid_params(
+                format!("unknown resource uri: {uri}"),
+                None,
+            ))
         }
-        Err(McpError::resource_not_found(
-            format!("unknown resource uri: {uri}"),
-            None,
-        ))
+        .await
+        .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
     }
 }
 
@@ -778,35 +838,14 @@ async fn main() -> anyhow::Result<()> {
             let state = state.clone();
             move || Ok(TimeseriesMcp::new(state.clone()))
         },
-        veoveo_mcp_contract::canonical_session_manager(),
+        veoveo_mcp_contract::stateless_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
             .with_cancellation_token(ct.child_token()),
     );
-    let task_extension = Arc::new(TaskExtensionAdapter::new(
-        Arc::new(TimeseriesTaskExtension::new(state.clone())),
-        ServerDiscovery::new(
-            std::collections::BTreeMap::from([
-                ("tools".to_owned(), json!({})),
-                ("resources".to_owned(), json!({})),
-            ]),
-            TaskExtensionImplementation {
-                name: "timeseries".to_owned(),
-                version: env!("CARGO_PKG_VERSION").to_owned(),
-            },
-            Some(
-                "Timeseries forecasting with durable asynchronous tasks and immutable Rerun artifacts."
-                    .to_owned(),
-            ),
-        ),
-    ));
     let mcp_router = Router::new()
         .route_service("/", mcp_service.clone())
         .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn_with_state(
-            task_extension,
-            task_extension_middleware::<TimeseriesTaskExtension>,
-        ))
         .layer(middleware::from_fn_with_state(
             internal_auth_state.clone(),
             authenticate_internal_mcp,
@@ -868,8 +907,7 @@ mod well_known_tests {
         CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
     };
 
-    use super::{SERVER_DOCS, TimeseriesMcp};
-    use veoveo_timeseries_mcp::uris;
+    use super::SERVER_DOCS;
 
     #[test]
     fn embedded_documents_carry_the_crate_manual_and_design() {
@@ -885,10 +923,7 @@ mod well_known_tests {
 
     #[test]
     fn contract_declaration_resolves_from_the_embedded_manual() {
-        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(
-            &SERVER_DOCS,
-            TimeseriesMcp::capability_inventory(),
-        );
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
         assert_eq!(declaration.server, "timeseries");
         assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
         for id in ["C18", "C19", "C20", "C21"] {
@@ -904,21 +939,9 @@ mod well_known_tests {
     }
 
     #[test]
-    fn capability_inventory_matches_the_registered_surface() {
-        let inventory = TimeseriesMcp::capability_inventory();
-        assert_eq!(inventory.tools, vec!["forecast".to_owned()]);
-        for uri in [uris::DOCS_URI, uris::CONTRACT_URI, uris::USAGE_ROOT_URI] {
-            assert!(
-                inventory.resources.contains(&uri.to_owned()),
-                "inventory is missing resource {uri}"
-            );
-        }
-        assert!(inventory.resources.contains(&uris::doc_uri("agents")));
-        assert!(
-            inventory
-                .resource_templates
-                .contains(&uris::DOC_TEMPLATE.to_owned())
-        );
-        assert_eq!(inventory.tasks, vec!["forecast".to_owned()]);
+    fn contract_declaration_defers_runtime_surface_to_discover() {
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
+        let json = serde_json::to_value(declaration).unwrap();
+        assert!(json.get("capabilities").is_none());
     }
 }

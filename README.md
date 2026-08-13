@@ -216,7 +216,7 @@ from natural language and rendered by an external MCP host.
 | [![Map administration MCP App](docs/screenshots/gallery/console-app-map.png)](docs/screenshots/gallery/console-app-map.png) | [![Reason MCP protocol surface](docs/screenshots/gallery/console-mcp-reason.png)](docs/screenshots/gallery/console-mcp-reason.png) |
 | Governed map sources and releases | Tools, prompts, resources, tasks, and scopes |
 | [![Map MCP protocol surface](docs/screenshots/gallery/console-mcp-map.png)](docs/screenshots/gallery/console-mcp-map.png) | <a href="docs/images/task-sleepwake.png"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/task-sleepwake-dark.png"><img src="docs/images/task-sleepwake.png" alt="Durable task sequence: call, task handle, sleep, wake, result"></picture></a> |
-| The map server's complete MCP capability inventory | The final task extension: call, sleep, wake, result |
+| The map server's complete MCP capability inventory | Official durable Tasks: call, sleep, wake, result |
 
 ## Capability Catalog
 
@@ -422,7 +422,7 @@ profile rather than support for every optional feature of each standard.
 
 | Area | Implemented standards and protocols |
 |---|---|
-| Agent and app interfaces | [Model Context Protocol](https://modelcontextprotocol.io/specification/) over JSON-RPC 2.0 and Streamable HTTP; JSON Schema Draft 2020-12; the [Veoveo final task extension](mcp/task-extension); and [MCP Apps SEP-1865](mcp/apps-extension/DESIGN.md). |
+| Agent and app interfaces | Model Context Protocol `2026-07-28` over JSON-RPC 2.0 and stateless Streamable HTTP; official durable Tasks; JSON Schema 2020-12; and [MCP Apps](mcp/apps-extension/DESIGN.md). |
 | Identity and authorization | OpenID Connect Core; OAuth 2.0 Authorization Code with S256 PKCE, Client Credentials, and JWT Bearer grants; RFC 8414 metadata; RFC 9728 protected-resource metadata; RFC 8707 resource indicators; JWT, JWS, and JWK; MCP enterprise-managed authorization and ID-JAG. |
 | Recordings, data, and media | Rerun RRD and `VideoStream`; versioned protobuf recording ingest; S3-compatible object APIs; DuckDB SQL; Apache Parquet; and OTLP/HTTP telemetry. |
 | Geography and time | WGS84/EPSG identities; GeoJSON RFC 7946; OGC JSON-FG and CQL2; GeoParquet 1.0; Mapbox Vector Tile 2.1; MapLibre Style 8; RFC 3339; RFC 9557; IANA TZDB/TZif and leap-second data; TAI and GPS time. |

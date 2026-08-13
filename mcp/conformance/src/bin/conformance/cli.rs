@@ -416,11 +416,11 @@ pub(super) enum Cmd {
         /// Tool arguments as a JSON object.
         #[arg(long)]
         arguments: String,
-        /// Invoke through the explicit core-task compatibility projection.
+        /// Require the server to create an official durable Task.
         #[arg(long)]
         task: bool,
     },
-    /// Invoke one tool through the canonical final MCP task extension.
+    /// Invoke one tool through official MCP Tasks.
     TaskCall {
         /// Tool name to invoke.
         #[arg(long)]
@@ -447,8 +447,6 @@ pub(super) enum Cmd {
         /// Completion prefix.
         prefix: String,
     },
-    /// List MCP tasks visible to the authenticated principal.
-    Tasks,
     /// Read the full schema resource for one model.
     Schema { model_id: String },
     /// Read the live state of a prediction resource.

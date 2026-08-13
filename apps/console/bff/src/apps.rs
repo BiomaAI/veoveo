@@ -23,7 +23,7 @@ use veoveo_mcp_contract::{
     GatewayDiscoveryFailure,
 };
 
-use crate::{AppState, api, mcp_client::McpSession};
+use crate::{AppState, api, mcp_client::SharedMcpClient};
 
 const MAX_APP_HTML_BYTES: usize = 2 * 1024 * 1024;
 const MAX_CALL_ARGUMENT_BYTES: usize = 256 * 1024;
@@ -189,9 +189,8 @@ fn evict_expired_app_tasks(tasks: &mut VecDeque<(String, AppTaskOwner)>, now: In
     }
 }
 
-/// Transport-level failures mean the pooled session's connection is gone
-/// (rmcp's single-attempt expired-session recovery has already run inside
-/// the transport); a server-side `McpError` means the session is healthy
+/// Transport-level failures mean the pooled client's connection is gone;
+/// a server-side `McpError` means the client is healthy
 /// and retrying would re-execute work.
 fn is_transport_error(error: &rmcp::ServiceError) -> bool {
     matches!(
@@ -201,7 +200,7 @@ fn is_transport_error(error: &rmcp::ServiceError) -> bool {
 }
 
 struct AppsSessionOutcome<T> {
-    session: McpSession,
+    client: SharedMcpClient,
     response_headers: HeaderMap,
     access_expires_at: i64,
     result: Result<T, rmcp::ServiceError>,
@@ -212,14 +211,13 @@ fn with_session_headers(mut response: Response, headers: HeaderMap) -> Response 
     response
 }
 
-/// Run `operation` against the pooled gateway MCP session, rebuilding the
-/// session and retrying once when the transport is dead (e.g. the gateway
-/// restarted and discarded every session). Returns the session actually
+/// Run `operation` against the auth-scoped gateway MCP client, rebuilding the
+/// client and retrying once when the transport is dead. Returns the client actually
 /// used so callers can issue follow-up calls without re-entering the pool.
 async fn with_apps_session<T, F>(
     state: &AppState,
     request_headers: &HeaderMap,
-    operation: impl Fn(McpSession) -> F,
+    operation: impl Fn(SharedMcpClient) -> F,
 ) -> Result<AppsSessionOutcome<T>, Response>
 where
     F: Future<Output = Result<T, rmcp::ServiceError>>,
@@ -231,14 +229,14 @@ where
     loop {
         let mcp = state
             .mcp
-            .session(
+            .client(
                 &state.config,
                 &upstream.session.access_token,
                 upstream.session.access_expires_at,
             )
             .await
             .map_err(|error| {
-                tracing::error!(%error, "console apps MCP session failed");
+                tracing::error!(%error, "console apps MCP client failed");
                 StatusCode::BAD_GATEWAY.into_response()
             })?;
         match operation(mcp.clone()).await {
@@ -246,7 +244,7 @@ where
                 retried = true;
                 tracing::warn!(
                     %error,
-                    "console apps MCP transport failed; retrying on a fresh session"
+                    "console apps MCP transport failed; retrying with a fresh client"
                 );
                 state
                     .mcp
@@ -255,7 +253,7 @@ where
             }
             result => {
                 return Ok(AppsSessionOutcome {
-                    session: mcp,
+                    client: mcp,
                     response_headers,
                     access_expires_at: upstream.session.access_expires_at,
                     result,
@@ -672,7 +670,7 @@ pub(crate) async fn app_resource_events(
     })
     .await;
     let AppsSessionOutcome {
-        session,
+        client,
         response_headers,
         access_expires_at,
         result,
@@ -698,7 +696,7 @@ pub(crate) async fn app_resource_events(
         );
     }
     let results = futures::future::join_all(request.subscriptions.iter().map(|subscription| {
-        session.subscribe_app_resource(subscription.subscription_id, subscription.uri.clone())
+        client.subscribe_app_resource(subscription.subscription_id, subscription.uri.clone())
     }))
     .await;
     let mut receiver = None;
@@ -719,7 +717,7 @@ pub(crate) async fn app_resource_events(
                 );
                 for subscription_id in newly_registered {
                     if let Err(rollback_error) =
-                        session.unsubscribe_app_resource(subscription_id).await
+                        client.unsubscribe_app_resource(subscription_id).await
                     {
                         tracing::warn!(
                             %rollback_error,
@@ -823,7 +821,7 @@ pub(crate) async fn unsubscribe_app_resource(
     })
     .await;
     let AppsSessionOutcome {
-        session,
+        client,
         response_headers,
         result,
         ..
@@ -835,7 +833,7 @@ pub(crate) async fn unsubscribe_app_resource(
         tracing::error!(%error, "console App unsubscribe catalog failed");
         return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
     }
-    let response = match session
+    let response = match client
         .unsubscribe_app_resource(request.subscription_id)
         .await
     {
@@ -859,7 +857,9 @@ pub(crate) struct CallAppToolRequest {
     #[serde(default)]
     arguments: serde_json::Value,
     #[serde(default)]
-    task: Option<rmcp::model::TaskMetadata>,
+    input_responses: Option<rmcp::model::InputResponses>,
+    #[serde(default)]
+    request_state: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -918,11 +918,11 @@ pub(crate) async fn call_app_tool(
         mcp.app_catalog().await
     })
     .await;
-    // The tool call below deliberately stays single-shot on the session the
+    // The tool call below deliberately stays single-shot on the client the
     // listing just proved healthy: tool calls are not idempotent, so only
     // rmcp's own in-transport replay may retry them.
     let AppsSessionOutcome {
-        session: mcp,
+        client: mcp,
         response_headers,
         result: listing,
         ..
@@ -971,46 +971,30 @@ pub(crate) async fn call_app_tool(
             );
         }
     }
-    if let Some(task) = request.task {
-        // The typed `call_tool` helper only accepts a `CallToolResult`; a
-        // task-augmented call answers with a `CreateTaskResult`, so it goes
-        // through the generic request path.
-        let result = match mcp
-            .send_request(rmcp::model::ClientRequest::CallToolRequest(
-                rmcp::model::CallToolRequest::new(params.with_task(task)),
-            ))
-            .await
-        {
-            Ok(rmcp::model::ServerResult::CreateTaskResult(result)) => result,
-            Ok(_) => {
-                return with_session_headers(
-                    call_error(
-                        StatusCode::BAD_GATEWAY,
-                        "task-augmented call returned an unexpected result",
-                    ),
-                    response_headers,
-                );
-            }
-            Err(error) => {
-                return with_session_headers(
-                    call_error(
-                        StatusCode::BAD_GATEWAY,
-                        &format!("tool call failed: {error}"),
-                    ),
-                    response_headers,
-                );
-            }
-        };
-        state
-            .app_tasks
-            .record(&result.task.task_id, &request.server, &request.app_uri);
-        return with_session_headers(
-            capped_json_response(&result, "tool result exceeds the cap"),
-            response_headers,
-        );
-    }
-    let result = match mcp.call_tool(params).await {
-        Ok(result) => result,
+    params.input_responses = request.input_responses;
+    params.request_state = request.request_state;
+    let result = match mcp.call_tool_once(params).await {
+        Ok(rmcp::model::CallToolResponse::Task(result)) => {
+            state
+                .app_tasks
+                .record(&result.task.task_id, &request.server, &request.app_uri);
+            return with_session_headers(
+                capped_json_response(&result, "tool result exceeds the cap"),
+                response_headers,
+            );
+        }
+        Ok(rmcp::model::CallToolResponse::Complete(result)) => {
+            serde_json::to_value(result).expect("CallToolResult serializes")
+        }
+        Ok(rmcp::model::CallToolResponse::InputRequired(result)) => {
+            serde_json::to_value(result).expect("InputRequiredResult serializes")
+        }
+        Ok(_) => {
+            return with_session_headers(
+                call_error(StatusCode::BAD_GATEWAY, "unsupported tools/call result"),
+                response_headers,
+            );
+        }
         Err(error) => {
             return with_session_headers(
                 call_error(
@@ -1033,6 +1017,15 @@ pub(crate) struct AppTaskRequest {
     server: String,
     app_uri: String,
     task_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct UpdateAppTaskRequest {
+    server: String,
+    app_uri: String,
+    task_id: String,
+    input_responses: rmcp::model::InputResponses,
 }
 
 /// The allowlist mirrors `call_app_tool`: the view must belong to the named
@@ -1097,46 +1090,6 @@ pub(crate) async fn get_app_task(
     with_session_headers(response, response_headers)
 }
 
-pub(crate) async fn get_app_task_result(
-    State(state): State<AppState>,
-    request_headers: HeaderMap,
-    Json(request): Json<AppTaskRequest>,
-) -> Response {
-    if let Some(response) = app_task_access_denied(&state, &request) {
-        return response;
-    }
-    let task_id = request.task_id.as_str();
-    let outcome = with_apps_session(&state, &request_headers, |mcp| async move {
-        mcp.send_request(rmcp::model::ClientRequest::GetTaskPayloadRequest(
-            rmcp::model::GetTaskPayloadRequest::new(rmcp::model::GetTaskPayloadParams::new(
-                task_id,
-            )),
-        ))
-        .await
-    })
-    .await;
-    let AppsSessionOutcome {
-        response_headers,
-        result,
-        ..
-    } = match outcome {
-        Ok(outcome) => outcome,
-        Err(response) => return response,
-    };
-    let response = match result {
-        // Per spec the payload takes the shape of the original request's
-        // result (`CallToolResult` for the calls this registry admits), so
-        // whichever untagged variant it decoded into is serialized back
-        // unchanged.
-        Ok(result) => capped_json_response(&result, "task result exceeds the cap"),
-        Err(error) => call_error(
-            StatusCode::BAD_GATEWAY,
-            &format!("task result failed: {error}"),
-        ),
-    };
-    with_session_headers(response, response_headers)
-}
-
 pub(crate) async fn cancel_app_task(
     State(state): State<AppState>,
     request_headers: HeaderMap,
@@ -1147,10 +1100,8 @@ pub(crate) async fn cancel_app_task(
     }
     let task_id = request.task_id.as_str();
     let outcome = with_apps_session(&state, &request_headers, |mcp| async move {
-        mcp.send_request(rmcp::model::ClientRequest::CancelTaskRequest(
-            rmcp::model::CancelTaskRequest::new(rmcp::model::CancelTaskParams::new(task_id)),
-        ))
-        .await
+        mcp.cancel_task(rmcp::model::CancelTaskParams::new(task_id))
+            .await
     })
     .await;
     // The registry entry deliberately stays: polling after a cancel keeps
@@ -1164,21 +1115,57 @@ pub(crate) async fn cancel_app_task(
         Err(response) => return response,
     };
     let response = match result {
-        // `CancelTaskResult` shares `GetTaskResult`'s wire shape, so the
-        // untagged decode lands on the latter.
-        Ok(rmcp::model::ServerResult::GetTaskResult(result)) => {
-            capped_json_response(&result, "task status exceeds the cap")
-        }
-        Ok(rmcp::model::ServerResult::CancelTaskResult(result)) => {
-            capped_json_response(&result, "task status exceeds the cap")
-        }
-        Ok(_) => call_error(
-            StatusCode::BAD_GATEWAY,
-            "task cancel returned an unexpected result",
+        Ok(()) => capped_json_response(
+            &serde_json::json!({ "resultType": "complete" }),
+            "task acknowledgement exceeds the cap",
         ),
         Err(error) => call_error(
             StatusCode::BAD_GATEWAY,
             &format!("task cancel failed: {error}"),
+        ),
+    };
+    with_session_headers(response, response_headers)
+}
+
+pub(crate) async fn update_app_task(
+    State(state): State<AppState>,
+    request_headers: HeaderMap,
+    Json(request): Json<UpdateAppTaskRequest>,
+) -> Response {
+    let access = AppTaskRequest {
+        server: request.server,
+        app_uri: request.app_uri,
+        task_id: request.task_id,
+    };
+    if let Some(response) = app_task_access_denied(&state, &access) {
+        return response;
+    }
+    let task_id = access.task_id.as_str();
+    let input_responses = request.input_responses;
+    let outcome = with_apps_session(&state, &request_headers, |mcp| {
+        let input_responses = input_responses.clone();
+        async move {
+            mcp.update_task(rmcp::model::UpdateTaskParams::new(task_id, input_responses))
+                .await
+        }
+    })
+    .await;
+    let AppsSessionOutcome {
+        response_headers,
+        result,
+        ..
+    } = match outcome {
+        Ok(outcome) => outcome,
+        Err(response) => return response,
+    };
+    let response = match result {
+        Ok(()) => capped_json_response(
+            &serde_json::json!({ "resultType": "complete" }),
+            "task acknowledgement exceeds the cap",
+        ),
+        Err(error) => call_error(
+            StatusCode::BAD_GATEWAY,
+            &format!("task update failed: {error}"),
         ),
     };
     with_session_headers(response, response_headers)
@@ -1277,8 +1264,7 @@ mod tests {
             veoveo_mcp_apps_extension::app_resource("ui://mission/operations.html", "operations");
         resource
             .meta
-            .get_or_insert_with(rmcp::model::Meta::new)
-            .0
+            .get_or_insert_with(rmcp::model::MetaObject::new)
             .insert(
                 APP_RESOURCE_DEPENDENCIES_META_KEY.to_owned(),
                 serde_json::to_value(vec![AppResourceDependency {

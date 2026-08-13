@@ -108,7 +108,7 @@ mod tests {
         assert_eq!(uav["resource_projection"], "server_owned");
         assert_eq!(
             uav["referenced_resource_schemes"],
-            serde_json::json!(["artifact", "frames", "recording"])
+            serde_json::json!(["frames", "recording"])
         );
     }
 

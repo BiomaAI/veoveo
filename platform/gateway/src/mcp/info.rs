@@ -1,10 +1,5 @@
-use rmcp::{
-    handler::server::ServerHandler,
-    model::{
-        ErrorData as McpError, ExtensionCapabilities, Implementation, InitializeRequestParams,
-        InitializeResult, JsonObject, ServerCapabilities, ServerInfo, TasksCapability,
-    },
-    service::{RequestContext, RoleServer},
+use rmcp::model::{
+    ExtensionCapabilities, Implementation, JsonObject, ServerCapabilities, ServerInfo,
 };
 use veoveo_mcp_contract::{McpSurfaceCapabilities, ServerSlug};
 
@@ -52,6 +47,19 @@ impl GatewayMcp {
             extensions.get_or_insert_default().insert(id, declaration);
         }
         capabilities.extensions = extensions;
+        if catalog
+            .profile_servers(&self.profile_id)
+            .iter()
+            .any(|(exposure, server)| {
+                exposure.tasks == veoveo_mcp_contract::TaskExposure::Enabled
+                    && server.capabilities.tasks
+            })
+        {
+            capabilities.extensions.get_or_insert_default().insert(
+                rmcp::model::TASKS_EXTENSION_ID.to_owned(),
+                JsonObject::new(),
+            );
+        }
 
         let mut info = ServerInfo::default();
         info.capabilities = capabilities;
@@ -61,32 +69,6 @@ impl GatewayMcp {
                 .to_string(),
         );
         info
-    }
-
-    pub(super) async fn handle_initialize(
-        &self,
-        request: InitializeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<InitializeResult, McpError> {
-        let subject = self.authenticated(&context)?;
-        context.peer.set_peer_info(request);
-        let mut info = self.get_info();
-        if self.client_allows_task_projection(&subject)?
-            && self
-                .catalog
-                .current()
-                .profile_servers(&self.profile_id)
-                .into_iter()
-                .any(|(exposure, server)| {
-                    exposure.tasks == veoveo_mcp_contract::TaskExposure::Enabled
-                        && server.capabilities.tasks
-                })
-        {
-            let mut tasks = TasksCapability::server_default();
-            tasks.list = None;
-            info.capabilities.tasks = Some(tasks);
-        }
-        Ok(info)
     }
 }
 

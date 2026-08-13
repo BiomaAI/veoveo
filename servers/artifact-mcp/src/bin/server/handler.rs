@@ -1,21 +1,23 @@
 use std::{
+    collections::BTreeSet,
     num::NonZeroU64,
     sync::{Arc, LazyLock},
 };
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use rmcp::tool;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
-        GetPromptRequestParams, GetPromptResult, ListPromptsResult, ListResourceTemplatesResult,
-        ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt,
-        ReadResourceRequestParams, ReadResourceResult, Reference, Resource, ResourceContents,
-        ResourceTemplate, ServerCapabilities, ServerInfo, SubscribeRequestParams,
-        UnsubscribeRequestParams,
+        CacheScope, CallToolResult, CompleteRequestParams, CompleteResult, CompletionInfo,
+        ContentBlock, GetPromptRequestParams, GetPromptResponse, ListPromptsResult,
+        ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
+        Prompt, ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult, Reference,
+        Resource, ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo,
+        SubscriptionFilter,
     },
-    service::RequestContext,
+    service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
 };
 use serde::Serialize;
@@ -27,11 +29,9 @@ use veoveo_artifact_mcp::{
     RevokeArtifactGrantRequest, RevokeArtifactShareRequest, SetArtifactReleaseRequest, doc_uri,
     parse_doc_uri, parse_grants_uri, parse_metadata_uri,
 };
-use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     AccessLevel, ArtifactId, ArtifactMetadata, ArtifactPlane, ArtifactPlaneError,
-    CreateArtifactShareLinkRequest, ListArtifactsRequest, Page, PlaneCaller,
-    docs::{CapabilityInventory, ServerDocs},
+    CreateArtifactShareLinkRequest, ListArtifactsRequest, Page, PlaneCaller, docs::ServerDocs,
     paginate, parse_artifact_plane_uri,
 };
 
@@ -84,38 +84,6 @@ impl ArtifactMcp {
         Self {
             state,
             tool_router: Self::tool_router(),
-        }
-    }
-
-    /// The capability inventory declared at `artifact://contract` (contract
-    /// C19). Tools and prompts derive from the live registrations; stable
-    /// resources and templates come from the lists those surfaces are served
-    /// from, so the declaration cannot silently diverge from the handler.
-    pub(super) fn capability_inventory() -> CapabilityInventory {
-        let mut tools: Vec<String> = Self::tool_router()
-            .list_all()
-            .into_iter()
-            .map(|tool| tool.name.into_owned())
-            .collect();
-        tools.sort();
-        let mut resources: Vec<String> = well_known_resources()
-            .into_iter()
-            .map(|resource| resource.uri.clone())
-            .collect();
-        resources.push(INDEX_URI.to_owned());
-        resources.sort();
-        CapabilityInventory {
-            tools,
-            resources,
-            resource_templates: resource_templates()
-                .into_iter()
-                .map(|template| template.uri_template.clone())
-                .collect(),
-            prompts: ArtifactPrompt::ALL
-                .into_iter()
-                .map(|prompt| prompt.prompt().name)
-                .collect(),
-            tasks: Vec::new(),
         }
     }
 
@@ -309,6 +277,12 @@ impl ArtifactMcp {
 
 #[tool_handler]
 impl ServerHandler for ArtifactMcp {
+    fn supported_protocol_versions(
+        &self,
+    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
+        veoveo_mcp_contract::final_protocol_versions()
+    }
+
     fn get_info(&self) -> ServerInfo {
         let mut info = ServerInfo::default();
         info.capabilities = ServerCapabilities::builder()
@@ -335,11 +309,11 @@ impl ServerHandler for ArtifactMcp {
         let mut tools = self.tool_router.list_all();
         tools.sort_by(|left, right| left.name.cmp(&right.name));
         let page = static_page(tools, request.as_ref())?;
-        Ok(ListToolsResult {
-            tools: page.items,
-            next_cursor: page.next_cursor,
-            meta: None,
-        })
+        let mut result = ListToolsResult::with_all_items(page.items)
+            .with_ttl_ms(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS)
+            .with_cache_scope(CacheScope::Private);
+        result.next_cursor = page.next_cursor;
+        Ok(result)
     }
 
     async fn list_prompts(
@@ -352,23 +326,24 @@ impl ServerHandler for ArtifactMcp {
             .map(ArtifactPrompt::prompt)
             .collect();
         let page = static_page(prompts, request.as_ref())?;
-        Ok(ListPromptsResult {
-            prompts: page.items,
-            next_cursor: page.next_cursor,
-            meta: None,
-        })
+        let mut result = ListPromptsResult::with_all_items(page.items)
+            .with_ttl_ms(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS)
+            .with_cache_scope(CacheScope::Private);
+        result.next_cursor = page.next_cursor;
+        Ok(result)
     }
 
     async fn get_prompt(
         &self,
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<GetPromptResult, McpError> {
+    ) -> Result<GetPromptResponse, McpError> {
         ArtifactPrompt::by_name(&request.name)
             .ok_or_else(|| {
                 McpError::invalid_params(format!("unknown prompt '{}'", request.name), None)
             })?
             .render(request.arguments)
+            .map(Into::into)
     }
 
     async fn list_resources(
@@ -419,11 +394,11 @@ impl ServerHandler for ArtifactMcp {
                     .unwrap_or_else(|| "application/octet-stream".to_owned()),
             )
         }));
-        Ok(ListResourcesResult {
-            resources,
-            next_cursor: page.next_cursor.map(|cursor| cursor.to_string()),
-            meta: None,
-        })
+        let mut result = ListResourcesResult::with_all_items(resources)
+            .with_ttl_ms(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS)
+            .with_cache_scope(CacheScope::Private);
+        result.next_cursor = page.next_cursor.map(|cursor| cursor.to_string());
+        Ok(result)
     }
 
     async fn list_resource_templates(
@@ -432,18 +407,18 @@ impl ServerHandler for ArtifactMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
         let page = static_page(resource_templates(), request.as_ref())?;
-        Ok(ListResourceTemplatesResult {
-            resource_templates: page.items,
-            next_cursor: page.next_cursor,
-            meta: None,
-        })
+        let mut result = ListResourceTemplatesResult::with_all_items(page.items)
+            .with_ttl_ms(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS)
+            .with_cache_scope(CacheScope::Private);
+        result.next_cursor = page.next_cursor;
+        Ok(result)
     }
 
     async fn read_resource(
         &self,
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, McpError> {
+    ) -> Result<ReadResourceResponse, McpError> {
         let caller = auth::caller(&context)?;
         let uri = request.uri.as_str();
         // Well-known surface (contract C18, C19): readable by any
@@ -454,16 +429,14 @@ impl ServerHandler for ArtifactMcp {
         if let Some(doc_id) = parse_doc_uri(uri) {
             let doc = SERVER_DOCS
                 .doc(doc_id)
-                .ok_or_else(|| McpError::resource_not_found("unknown server document", None))?;
-            return Ok(ReadResourceResult::new(vec![
+                .ok_or_else(|| McpError::invalid_params("unknown server document", None))?;
+            return Ok(private_resource(vec![
                 ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-            ]));
+            ])
+            .into());
         }
         if uri == CONTRACT_URI {
-            return json_resource(
-                uri,
-                SERVER_DOCS.contract_declaration(Self::capability_inventory),
-            );
+            return json_resource(uri, SERVER_DOCS.contract_declaration());
         }
         if uri == INDEX_URI {
             let mut page = self
@@ -522,74 +495,126 @@ impl ServerHandler for ArtifactMcp {
                     .mime_type
                     .unwrap_or_else(|| "application/octet-stream".to_owned()),
             );
-            return Ok(ReadResourceResult::new(vec![contents]));
+            return Ok(private_resource(vec![contents]).into());
         }
-        Err(McpError::resource_not_found(
+        Err(McpError::invalid_params(
             format!("unknown resource uri: {uri}"),
             None,
         ))
     }
 
-    async fn subscribe(
+    fn accepted_subscription_filter(
         &self,
-        request: SubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let caller = auth::caller(&context)?;
-        let uri = request.uri;
-        let (kind, visible) = if uri == INDEX_URI {
-            (
-                SubscriptionKind::Index,
+        requested: &SubscriptionFilter,
+    ) -> Option<SubscriptionFilter> {
+        veoveo_mcp_contract::accepted_subscription_filter(requested)
+    }
+
+    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
+        let caller = auth::caller(context.request_context())?;
+        let accepted = context.accepted().clone();
+        let mut subscriptions = Vec::new();
+        for uri in accepted.resource_subscriptions.iter().flatten() {
+            let kind = if uri == INDEX_URI {
+                SubscriptionKind::Index
+            } else if let Some(id) = parse_metadata_uri(uri) {
+                self.state
+                    .plane
+                    .head(&caller, &id)
+                    .await
+                    .map_err(plane_error)?;
+                SubscriptionKind::Metadata(id)
+            } else if let Some(id) = parse_grants_uri(uri) {
+                self.state
+                    .plane
+                    .list_grants(&caller, &id)
+                    .await
+                    .map_err(plane_error)?;
+                SubscriptionKind::Grants(id)
+            } else if let Some(id) = parse_artifact_plane_uri(uri) {
+                self.state
+                    .plane
+                    .head(&caller, &id)
+                    .await
+                    .map_err(plane_error)?;
+                SubscriptionKind::Content(id)
+            } else {
+                return Err(McpError::invalid_params(
+                    "resource is not subscribable",
+                    None,
+                ));
+            };
+            subscriptions.push((uri.clone(), kind));
+        }
+        let tracks_list = accepted.resources_list_changed == Some(true)
+            || subscriptions
+                .iter()
+                .any(|(_, kind)| *kind == SubscriptionKind::Index);
+        let mut visible = if tracks_list {
+            visible_ids(&self.state.plane, &caller)
+                .await
+                .map_err(plane_error)?
+        } else {
+            BTreeSet::new()
+        };
+        let mut updates = self.state.subscriptions.listen();
+        loop {
+            let artifact_id = tokio::select! {
+                () = context.cancelled() => return Ok(()),
+                update = updates.recv() => match update {
+                    Ok(artifact_id) => artifact_id,
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                        tracing::warn!(skipped, "artifact subscription updates lagged");
+                        if accepted.resources_list_changed == Some(true) {
+                            context.sink().notify_resource_list_changed().await.map_err(subscription_error)?;
+                        }
+                        continue;
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return Ok(()),
+                }
+            };
+            let current = if tracks_list {
                 Some(
                     visible_ids(&self.state.plane, &caller)
                         .await
                         .map_err(plane_error)?,
-                ),
-            )
-        } else if let Some(id) = parse_metadata_uri(&uri) {
-            self.state
-                .plane
-                .head(&caller, &id)
-                .await
-                .map_err(plane_error)?;
-            (SubscriptionKind::Metadata(id), None)
-        } else if let Some(id) = parse_grants_uri(&uri) {
-            self.state
-                .plane
-                .list_grants(&caller, &id)
-                .await
-                .map_err(plane_error)?;
-            (SubscriptionKind::Grants(id), None)
-        } else if let Some(id) = parse_artifact_plane_uri(&uri) {
-            self.state
-                .plane
-                .head(&caller, &id)
-                .await
-                .map_err(plane_error)?;
-            (SubscriptionKind::Content(id), None)
-        } else {
-            return Err(McpError::invalid_params(
-                "resource is not subscribable",
-                None,
-            ));
-        };
-        self.state
-            .subscriptions
-            .subscribe(uri, kind, caller, context.peer.clone(), visible)
-            .await;
-        Ok(())
-    }
-
-    async fn unsubscribe(
-        &self,
-        request: UnsubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        self.state
-            .subscriptions
-            .unsubscribe(&request.uri, &auth::caller(&context)?)
-            .await;
-        Ok(())
+                )
+            } else {
+                None
+            };
+            let list_changed = current.as_ref().is_some_and(|current| current != &visible);
+            if let Some(current) = current {
+                visible = current;
+            }
+            if list_changed && accepted.resources_list_changed == Some(true) {
+                context
+                    .sink()
+                    .notify_resource_list_changed()
+                    .await
+                    .map_err(subscription_error)?;
+            }
+            for (uri, kind) in &subscriptions {
+                let notify = match kind {
+                    SubscriptionKind::Index => list_changed || visible.contains(&artifact_id),
+                    SubscriptionKind::Content(id) | SubscriptionKind::Metadata(id)
+                        if *id == artifact_id =>
+                    {
+                        self.state.plane.head(&caller, id).await.is_ok()
+                    }
+                    SubscriptionKind::Grants(id) if *id == artifact_id => {
+                        self.state.plane.list_grants(&caller, id).await.is_ok()
+                    }
+                    _ => false,
+                };
+                if notify {
+                    context
+                        .sink()
+                        .notify_resource_updated(uri.clone())
+                        .await
+                        .map_err(subscription_error)?;
+                }
+            }
+        }
     }
 
     async fn complete(
@@ -645,9 +670,7 @@ impl ServerHandler for ArtifactMcp {
 }
 
 /// Well-known surface resources (contract C18, C19). The first
-/// `list_resources` page serves these for every authenticated identity and
-/// `capability_inventory` declares them at `artifact://contract`, so the two
-/// cannot diverge.
+/// `list_resources` page serves these for every authenticated identity.
 fn well_known_resources() -> Vec<Resource> {
     let mut resources = vec![
         Resource::new(DOCS_URI, "artifact-docs")
@@ -674,8 +697,7 @@ fn well_known_resources() -> Vec<Resource> {
     resources
 }
 
-/// Templates served by `list_resource_templates` and declared in the
-/// `artifact://contract` capability inventory.
+/// Templates served by `list_resource_templates`.
 fn resource_templates() -> Vec<ResourceTemplate> {
     vec![
         ResourceTemplate::new(DOC_TEMPLATE, "artifact-doc")
@@ -714,18 +736,25 @@ fn structured<T: Serialize>(text: String, output: &T) -> Result<CallToolResult, 
     Ok(result)
 }
 
-fn json_resource<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResult, McpError> {
+fn private_resource(contents: Vec<ResourceContents>) -> ReadResourceResult {
+    ReadResourceResult::new(contents)
+        .with_ttl_ms(veoveo_mcp_contract::PRIVATE_RESOURCE_TTL_MS)
+        .with_cache_scope(CacheScope::Private)
+}
+
+fn json_resource<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResponse, McpError> {
     let text = serde_json::to_string(value)
         .map_err(|error| McpError::internal_error(error.to_string(), None))?;
-    Ok(ReadResourceResult::new(vec![
+    Ok(private_resource(vec![
         ResourceContents::text(text, uri).with_mime_type("application/json"),
-    ]))
+    ])
+    .into())
 }
 
 fn resource_error(error: ArtifactPlaneError) -> McpError {
     match error {
         ArtifactPlaneError::NotFound | ArtifactPlaneError::Denied(_) => {
-            McpError::resource_not_found("artifact is unavailable", None)
+            McpError::invalid_params("artifact is unavailable", None)
         }
         other => plane_error(other),
     }
@@ -746,6 +775,10 @@ fn plane_error(error: ArtifactPlaneError) -> McpError {
     }
 }
 
+fn subscription_error(error: rmcp::service::SubscriptionSendError) -> McpError {
+    McpError::internal_error(error.to_string(), None)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -758,12 +791,12 @@ mod tests {
 
 #[cfg(test)]
 mod well_known_tests {
-    use veoveo_artifact_mcp::{CONTRACT_URI, DOC_TEMPLATE, DOCS_URI, INDEX_URI, doc_uri};
+
     use veoveo_mcp_contract::docs::{
         CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
     };
 
-    use super::{ArtifactMcp, SERVER_DOCS, resource_templates};
+    use super::SERVER_DOCS;
 
     #[test]
     fn embedded_documents_carry_the_crate_manual_and_design() {
@@ -779,10 +812,7 @@ mod well_known_tests {
 
     #[test]
     fn contract_declaration_resolves_from_the_embedded_manual() {
-        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(
-            &SERVER_DOCS,
-            ArtifactMcp::capability_inventory(),
-        );
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
         assert_eq!(declaration.server, "artifact");
         assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
         for id in ["C18", "C19", "C20", "C21"] {
@@ -801,36 +831,9 @@ mod well_known_tests {
     }
 
     #[test]
-    fn capability_inventory_matches_the_registered_surface() {
-        let inventory = ArtifactMcp::capability_inventory();
-        for tool in ["metadata", "grant_access", "create_share_link"] {
-            assert!(
-                inventory.tools.iter().any(|name| name == tool),
-                "inventory is missing tool {tool}"
-            );
-        }
-        for uri in [DOCS_URI, CONTRACT_URI, INDEX_URI] {
-            assert!(
-                inventory.resources.contains(&uri.to_owned()),
-                "inventory is missing resource {uri}"
-            );
-        }
-        assert!(inventory.resources.contains(&doc_uri("agents")));
-        assert!(
-            inventory
-                .resource_templates
-                .contains(&DOC_TEMPLATE.to_owned())
-        );
-        assert_eq!(
-            resource_templates().len(),
-            inventory.resource_templates.len()
-        );
-        assert!(
-            inventory
-                .prompts
-                .iter()
-                .any(|name| name == "artifact-share-review")
-        );
-        assert!(inventory.tasks.is_empty());
+    fn contract_declaration_defers_runtime_surface_to_discover() {
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
+        let json = serde_json::to_value(declaration).unwrap();
+        assert!(json.get("capabilities").is_none());
     }
 }

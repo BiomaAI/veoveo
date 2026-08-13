@@ -10,7 +10,6 @@ use anyhow::{Context, Result};
 use axum::{Json, Router, http::StatusCode, middleware, routing::get};
 use clap::Parser;
 use rmcp::transport::streamable_http_server::StreamableHttpService;
-use serde_json::json;
 use tokio::sync::Semaphore;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_artifact_client::HttpArtifactPlane;
@@ -31,7 +30,7 @@ use crate::{
 use auth::{InternalAuthState, authenticate_internal};
 use config::Args;
 use host::validate_host;
-use tasks::{ViewTaskExtension, recover_tasks};
+use tasks::recover_tasks;
 
 pub(crate) const SERVER_SLUG: &str = "view";
 
@@ -110,32 +109,14 @@ pub async fn run() -> Result<()> {
             let state = state.clone();
             move || Ok(ViewMcp::new(state.clone()))
         },
-        veoveo_mcp_contract::canonical_session_manager(),
+        veoveo_mcp_contract::stateless_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
             .with_cancellation_token(cancellation.child_token()),
     );
-    let task_extension = Arc::new(veoveo_mcp_task_extension::TaskExtensionAdapter::new(
-        Arc::new(ViewTaskExtension::new(state.clone())),
-        veoveo_mcp_task_extension::ServerDiscovery::new(
-            std::collections::BTreeMap::from([
-                ("tools".to_owned(), json!({})),
-                ("resources".to_owned(), json!({})),
-            ]),
-            veoveo_mcp_task_extension::Implementation {
-                name: SERVER_SLUG.to_owned(),
-                version: env!("CARGO_PKG_VERSION").to_owned(),
-            },
-            Some("Headless hardware-rendered 3D Tiles points of view.".to_owned()),
-        ),
-    ));
     let mcp_router = Router::new()
         .route_service("/", mcp_service.clone())
         .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn_with_state(
-            task_extension,
-            veoveo_mcp_task_extension::task_extension_middleware::<ViewTaskExtension>,
-        ))
         .layer(middleware::from_fn_with_state(
             auth_state.clone(),
             authenticate_internal,

@@ -41,4 +41,3 @@ url.workspace = true
 uuid.workspace = true
 veoveo-mcp-apps-extension = { path = "../apps-extension" }
 veoveo-mcp-contract.workspace = true
-veoveo-mcp-task-extension = { path = "../task-extension", default-features = false }

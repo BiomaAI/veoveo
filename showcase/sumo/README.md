@@ -30,7 +30,7 @@ images declare that architecture explicitly.
   forwarder and retained by Recording Hub.
 
 Task state lives in the required SurrealDB 3.2.1 platform store. The server uses
-Veoveo's final task extension and shared task runtime.
+official MCP Tasks and Veoveo's shared task runtime.
 
 ## Tests
 

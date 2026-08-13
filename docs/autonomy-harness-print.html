@@ -418,7 +418,7 @@
     </tbody>
   </table>
   <p class="body" style="font-size:9.5px;color:var(--muted)">
-    Wakes: task result · resource change · timer · operator message · elicitation answer. A wake
+    Wakes: task result · resource change · timer · operator message · input response. A wake
     survives process death — descriptors and watcher leases rehydrate from the platform store on
     any boot, so kill and restart resumes the same tasks.
   </p>
@@ -615,7 +615,7 @@
   <h1 class="section">8. Durable Tasks and Shared Planes</h1>
   <h3 class="minor">Shared durable tasks</h3>
   <p class="body">
-    Every long-running tool runs on the shared task runtime and the final Veoveo task extension.
+    Every long-running tool runs on the shared task runtime and official MCP Tasks.
     Task IDs are UUIDv7; creation, leases, transitions, results, and outbox events are atomic in
     the platform store. Recovery is declared per operation:
   </p>
@@ -703,7 +703,7 @@
   <span class="runhead">Veoveo · Autonomy Harness</span>
   <h2 class="sub" style="margin-top:0">10.1 Task Sleep/Wake</h2>
   <p class="body">
-    The exact detach → sleep → wake path, on the final task extension the gateway and kernel
+    The exact detach → sleep → wake path, carried by official Tasks between the gateway and kernel
     speak: the agent calls a task-augmented tool, receives a durable handle immediately, persists
     the descriptor, ends the episode, and sleeps. The server runs on; completion pushes a wake,
     and a fresh episode assembles with the result — within a second, across process death.

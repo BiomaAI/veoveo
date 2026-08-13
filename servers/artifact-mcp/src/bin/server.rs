@@ -66,7 +66,7 @@ async fn main() -> anyhow::Result<()> {
         GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
     );
     let cancellation = CancellationToken::new();
-    start_dispatcher(store, plane, subscriptions, cancellation.child_token()).await?;
+    start_dispatcher(store, subscriptions, cancellation.child_token()).await?;
 
     let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
     allowed_hosts.extend(args.allowed_hosts);
@@ -76,7 +76,7 @@ async fn main() -> anyhow::Result<()> {
             let state = state.clone();
             move || Ok(ArtifactMcp::new(state.clone()))
         },
-        veoveo_mcp_contract::canonical_session_manager(),
+        veoveo_mcp_contract::stateless_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
             .with_cancellation_token(cancellation.child_token()),

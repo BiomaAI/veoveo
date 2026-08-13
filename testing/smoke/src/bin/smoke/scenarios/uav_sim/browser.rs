@@ -162,6 +162,7 @@ pub(crate) struct ConsoleRecordingCaptureEvidence {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub(crate) struct ConsoleRecordingArchiveCaptureEvidence {
     schema: &'static str,
     captured_at: chrono::DateTime<chrono::Utc>,
@@ -348,6 +349,7 @@ pub(crate) async fn capture_console_recording(
     .with_context(|| format!("Console Rerun capture exceeded {timeout:?}"))?
 }
 
+#[allow(dead_code)]
 pub(crate) async fn capture_console_recording_archive(
     cdp_base: &str,
     public_base_url: &str,
@@ -996,6 +998,7 @@ async fn capture_console_recording_inner(
     Ok(evidence)
 }
 
+#[allow(dead_code)]
 async fn capture_console_recording_archive_inner(
     cdp_base: &str,
     page_url: &str,

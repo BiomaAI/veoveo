@@ -22,8 +22,8 @@ pub use control_store::{
     GatewayControlPlaneRevisionHead, GatewayControlStore, new_gateway_control_plane_revision_id,
 };
 pub use mcp::{
-    FinalTaskClient, GatewayMcp, GatewayServerHealth, GatewayServerHealthState,
-    GatewayTaskExtension, GatewayUpstreamHttpClientPool, probe_gateway_server_health,
+    GatewayMcp, GatewayServerHealth, GatewayServerHealthState, GatewayUpstreamHttpClientPool,
+    probe_gateway_server_health,
 };
 pub use metadata::{
     AuthorizationExtensionMetadata, AuthorizationServerMetadata, GatewayMetadataError,

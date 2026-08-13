@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { Bot, Check, RefreshCw, Send, X } from "lucide-react";
 import {
-  decideAgentElicitation,
-  loadAgentElicitations,
+  decideAgentInputRequest,
+  loadAgentInputRequests,
   sendAgentMessage,
 } from "../api";
 import { agentDisplayState, uuidV7 } from "../agentControl";
 import { EmptyState, SectionHeader, StatusPill } from "../components/primitives";
 import { formatDate } from "../format";
-import type { AgentElicitation, AgentSummary, InstallationSnapshot } from "../types";
+import type { AgentInputRequest, AgentSummary, InstallationSnapshot } from "../types";
 
 function useAgentDisplayState(agent: AgentSummary) {
   const [, refreshAtExpiry] = useState(0);
@@ -36,8 +36,8 @@ function AgentCard({ agent }: { agent: AgentSummary }) {
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<string>();
   const [error, setError] = useState<string>();
-  const [elicitations, setElicitations] = useState<AgentElicitation[]>([]);
-  const [loadingElicitations, setLoadingElicitations] = useState(true);
+  const [inputRequests, setInputRequests] = useState<AgentInputRequest[]>([]);
+  const [loadingInputRequests, setLoadingInputRequests] = useState(true);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [decisionRequests, setDecisionRequests] = useState<Record<string, {
     requestId: string;
@@ -46,22 +46,22 @@ function AgentCard({ agent }: { agent: AgentSummary }) {
   const [decidingId, setDecidingId] = useState<string>();
   const displayState = useAgentDisplayState(agent);
 
-  const refreshElicitations = useCallback(async (signal?: AbortSignal) => {
-    setLoadingElicitations(true);
+  const refreshInputRequests = useCallback(async (signal?: AbortSignal) => {
+    setLoadingInputRequests(true);
     try {
-      setElicitations(await loadAgentElicitations(agent.id, signal));
+      setInputRequests(await loadAgentInputRequests(agent.id, signal));
     } catch (cause) {
       if (!signal?.aborted) setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      if (!signal?.aborted) setLoadingElicitations(false);
+      if (!signal?.aborted) setLoadingInputRequests(false);
     }
   }, [agent.id]);
 
   useEffect(() => {
     const controller = new AbortController();
-    loadAgentElicitations(agent.id, controller.signal).then(
+    loadAgentInputRequests(agent.id, controller.signal).then(
       (values) => {
-        if (!controller.signal.aborted) setElicitations(values);
+        if (!controller.signal.aborted) setInputRequests(values);
       },
       (cause: unknown) => {
         if (!controller.signal.aborted) {
@@ -69,7 +69,7 @@ function AgentCard({ agent }: { agent: AgentSummary }) {
         }
       },
     ).finally(() => {
-      if (!controller.signal.aborted) setLoadingElicitations(false);
+      if (!controller.signal.aborted) setLoadingInputRequests(false);
     });
     return () => controller.abort();
   }, [agent.id, agent.lastEpisodeAt, agent.pendingWakes, agent.state]);
@@ -90,7 +90,7 @@ function AgentCard({ agent }: { agent: AgentSummary }) {
       setMessage("");
       setMessageRequestId(undefined);
       setNotice(`Accepted as wake ${receipt.wakeId}`);
-      await refreshElicitations();
+      await refreshInputRequests();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -99,35 +99,35 @@ function AgentCard({ agent }: { agent: AgentSummary }) {
   };
 
   const decide = async (
-    elicitation: AgentElicitation,
+    input_request: AgentInputRequest,
     action: "accept" | "decline" | "cancel",
   ) => {
     const decision = action === "accept"
-      ? { action, content: { response: answers[elicitation.elicitationId]?.trim() ?? "" } } as const
+      ? { action, content: { response: answers[input_request.inputRequestId]?.trim() ?? "" } } as const
       : { action } as const;
     const fingerprint = JSON.stringify(decision);
-    const existing = decisionRequests[elicitation.elicitationId];
+    const existing = decisionRequests[input_request.inputRequestId];
     const requestId = existing?.fingerprint === fingerprint ? existing.requestId : uuidV7();
     setDecisionRequests((current) => ({
       ...current,
-      [elicitation.elicitationId]: { requestId, fingerprint },
+      [input_request.inputRequestId]: { requestId, fingerprint },
     }));
     setError(undefined);
-    setDecidingId(elicitation.elicitationId);
+    setDecidingId(input_request.inputRequestId);
     try {
-      await decideAgentElicitation(
+      await decideAgentInputRequest(
         agent.id,
-        elicitation.elicitationId,
+        input_request.inputRequestId,
         requestId,
         decision,
       );
       setDecisionRequests((current) => {
         const next = { ...current };
-        delete next[elicitation.elicitationId];
+        delete next[input_request.inputRequestId];
         return next;
       });
-      setNotice(`Elicitation ${{ accept: "answered", decline: "declined", cancel: "cancelled" }[action]} and the agent was woken`);
-      await refreshElicitations();
+      setNotice(`Input request ${{ accept: "answered", decline: "declined", cancel: "cancelled" }[action]} and the agent was woken`);
+      await refreshInputRequests();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -173,39 +173,39 @@ function AgentCard({ agent }: { agent: AgentSummary }) {
         </button>
         <p className="control-help">Accepted messages become durable, non-coalesced priority wakes even while an episode is running.</p>
       </div>
-      <div className="agent-elicitations">
-        <div className="agent-elicitations-head">
+      <div className="agent-input-requests">
+        <div className="agent-input-requests-head">
           <strong>Waiting for you</strong>
           <button
             className="button button-secondary"
-            disabled={loadingElicitations}
-            onClick={() => void refreshElicitations()}
-            aria-label={`Refresh ${agent.name} elicitations`}
+            disabled={loadingInputRequests}
+            onClick={() => void refreshInputRequests()}
+            aria-label={`Refresh ${agent.name} input requests`}
           >
-            <RefreshCw size={13} className={loadingElicitations ? "spin" : ""} />
+            <RefreshCw size={13} className={loadingInputRequests ? "spin" : ""} />
           </button>
         </div>
-        {loadingElicitations && elicitations.length === 0 ? (
-          <span className="subdued">Loading elicitations…</span>
-        ) : elicitations.length === 0 ? (
-          <span className="subdued">No parked elicitations.</span>
-        ) : elicitations.map((elicitation) => (
-          <div className="agent-elicitation" key={elicitation.elicitationId}>
-            <strong>{elicitation.message}</strong>
-            <span className="subdued">Requested {formatDate(elicitation.requestedAt)}</span>
+        {loadingInputRequests && inputRequests.length === 0 ? (
+          <span className="subdued">Loading input requests…</span>
+        ) : inputRequests.length === 0 ? (
+          <span className="subdued">No pending input requests.</span>
+        ) : inputRequests.map((input_request) => (
+          <div className="agent-input-request" key={input_request.inputRequestId}>
+            <strong>{input_request.message}</strong>
+            <span className="subdued">Requested {formatDate(input_request.requestedAt)}</span>
             <textarea
-              value={answers[elicitation.elicitationId] ?? ""}
+              value={answers[input_request.inputRequestId] ?? ""}
               onChange={(event) => setAnswers((current) => ({
                 ...current,
-                [elicitation.elicitationId]: event.target.value,
+                [input_request.inputRequestId]: event.target.value,
               }))}
               rows={2}
               placeholder="Response"
             />
             <div className="agent-decision-actions">
-              <button className="button button-primary" disabled={decidingId === elicitation.elicitationId} onClick={() => void decide(elicitation, "accept")}><Check size={13} /> Answer</button>
-              <button className="button button-secondary" disabled={decidingId === elicitation.elicitationId} onClick={() => void decide(elicitation, "decline")}><X size={13} /> Decline</button>
-              <button className="button button-secondary" disabled={decidingId === elicitation.elicitationId} onClick={() => void decide(elicitation, "cancel")}>Cancel request</button>
+              <button className="button button-primary" disabled={decidingId === input_request.inputRequestId} onClick={() => void decide(input_request, "accept")}><Check size={13} /> Answer</button>
+              <button className="button button-secondary" disabled={decidingId === input_request.inputRequestId} onClick={() => void decide(input_request, "decline")}><X size={13} /> Decline</button>
+              <button className="button button-secondary" disabled={decidingId === input_request.inputRequestId} onClick={() => void decide(input_request, "cancel")}>Cancel request</button>
             </div>
           </div>
         ))}

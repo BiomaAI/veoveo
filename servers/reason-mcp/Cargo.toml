@@ -38,7 +38,6 @@ re_log_types.workspace = true
 
 veoveo-artifact-client = { path = "../../platform/artifacts/client" }
 veoveo-mcp-contract.workspace = true
-veoveo-mcp-task-extension = { path = "../../mcp/task-extension" }
 veoveo-platform-store.workspace = true
 veoveo-recording-mcp = { path = "../recording-mcp" }
 veoveo-recording-video = { path = "../../platform/recordings/video" }

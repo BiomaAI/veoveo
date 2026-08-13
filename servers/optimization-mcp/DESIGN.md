@@ -32,8 +32,8 @@ retain the `optimization://` scheme.
 
 | Standard or protocol | Implemented profile |
 |---|---|
-| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | Protocol version `2025-11-25`; JSON-RPC 2.0 over sessionful Streamable HTTP with tools, resources and templates, prompts, completions, subscriptions, ordered notifications, and structured content. |
-| [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; all five tools require durable task invocation. |
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | Protocol version `2026-07-28`; JSON-RPC 2.0 over stateless Streamable HTTP with per-request metadata, Discover, tools, resources and templates, prompts, completions, subscriptions, ordered notifications, and structured content. |
+| MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; all five tools require durable task invocation. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Self-contained schemas generated from strong Rust request and response types through the shared MCP contract machinery. |
 | [NVIDIA cuOpt](https://github.com/NVIDIA/cuOpt) | Stable release `26.06`, running from `nvidia/cuopt:26.6.0-cuda13.2-py3.14` at manifest-list digest `sha256:0faac7182b32f5be747e30f081427e80e8dfeccd8f49613814d3d217167fe1ad`. |
 | CUDA | CUDA 13.2 runtime supplied by the pinned cuOpt image. A hardware NVIDIA GPU is mandatory. |

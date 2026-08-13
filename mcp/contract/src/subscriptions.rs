@@ -1,73 +1,38 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    time::Duration,
+//! Request-scoped final-profile subscription fan-out.
+
+use std::future::pending;
+
+use rmcp::{
+    ErrorData,
+    model::SubscriptionFilter,
+    service::{SubscriptionContext, SubscriptionSendError},
 };
+use tokio::sync::broadcast;
 
-use futures::{StreamExt, stream::FuturesUnordered};
-use rmcp::{RoleServer, model::ResourceUpdatedNotificationParam, service::Peer};
-use tokio::sync::Mutex;
+const SUBSCRIPTION_BUFFER: usize = 256;
 
-use crate::PrincipalId;
+fn send_error(error: SubscriptionSendError) -> ErrorData {
+    ErrorData::internal_error(error.to_string(), None)
+}
 
-type ResourceSubscriptionMap = HashMap<String, PrincipalSubscriptions>;
-type PrincipalSubscriptions = BTreeMap<PrincipalId, Vec<Peer<RoleServer>>>;
-
-const NOTIFICATION_DELIVERY_TIMEOUT: Duration = Duration::from_secs(2);
-
-/// Delivers a resource-list change through the session that owns `peer`.
+/// Process-wide resource update broadcaster.
 ///
-/// Delivery is awaited to preserve protocol ordering. The timeout bounds
-/// backpressure without detaching work from the session lifecycle.
-pub async fn notify_resource_list_changed(peer: &Peer<RoleServer>) {
-    match tokio::time::timeout(
-        NOTIFICATION_DELIVERY_TIMEOUT,
-        peer.notify_resource_list_changed(),
-    )
-    .await
-    {
-        Ok(Ok(())) => {}
-        Ok(Err(error)) => {
-            tracing::warn!(%error, "failed to deliver MCP resource-list change");
-        }
-        Err(_) => {
-            tracing::warn!("timed out delivering MCP resource-list change");
-        }
-    }
-}
-
-/// Sessions that have observed a dynamic resource list since its last change.
-///
-/// A list-change notification consumes the observation. A conforming client
-/// lists again after receiving the signal, which registers the session for
-/// the next change and prevents stale peers from accumulating indefinitely.
-#[derive(Default)]
-pub struct ResourceListObservers {
-    peers: Mutex<Vec<Peer<RoleServer>>>,
-}
-
-impl ResourceListObservers {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub async fn observe(&self, peer: Peer<RoleServer>) {
-        self.peers.lock().await.push(peer);
-    }
-
-    pub async fn notify_changed(&self) {
-        let peers = std::mem::take(&mut *self.peers.lock().await);
-        let mut deliveries = peers
-            .into_iter()
-            .map(|peer| async move { notify_resource_list_changed(&peer).await })
-            .collect::<FuturesUnordered<_>>();
-        while deliveries.next().await.is_some() {}
-    }
-}
-
-/// In-memory resource subscription registry keyed by resource URI and principal.
-#[derive(Default)]
+/// The broadcaster carries facts, not peers or authorization state. Each
+/// `subscriptions/listen` request validates its own filter and owns its sink.
 pub struct SubscriptionHub {
-    subscribers: Mutex<ResourceSubscriptionMap>,
+    updates: broadcast::Sender<String>,
+    list_changes: broadcast::Sender<()>,
+}
+
+impl Default for SubscriptionHub {
+    fn default() -> Self {
+        let (updates, _) = broadcast::channel(SUBSCRIPTION_BUFFER);
+        let (list_changes, _) = broadcast::channel(SUBSCRIPTION_BUFFER);
+        Self {
+            updates,
+            list_changes,
+        }
+    }
 }
 
 impl SubscriptionHub {
@@ -75,70 +40,113 @@ impl SubscriptionHub {
         Self::default()
     }
 
-    pub async fn subscribe(
-        &self,
-        uri: impl Into<String>,
-        principal: PrincipalId,
-        peer: Peer<RoleServer>,
-    ) {
-        self.subscribers
-            .lock()
-            .await
-            .entry(uri.into())
-            .or_default()
-            .entry(principal)
-            .or_default()
-            .push(peer);
+    pub fn listen(&self) -> broadcast::Receiver<String> {
+        self.updates.subscribe()
     }
 
-    pub async fn unsubscribe(&self, uri: &str, principal: &PrincipalId) {
-        let mut subscribers = self.subscribers.lock().await;
-        if let Some(uri_subscribers) = subscribers.get_mut(uri) {
-            uri_subscribers.remove(principal);
-            if uri_subscribers.is_empty() {
-                subscribers.remove(uri);
-            }
-        }
+    pub fn listen_resource_list_changes(&self) -> broadcast::Receiver<()> {
+        self.list_changes.subscribe()
     }
 
     pub async fn notify_resource_updated(&self, uri: impl Into<String>) {
-        let uri = uri.into();
-        let peers = self
-            .subscribers
-            .lock()
-            .await
-            .get(&uri)
-            .map(|uri_subscribers| {
-                uri_subscribers
-                    .values()
-                    .flat_map(|peers| peers.iter().cloned())
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        let mut deliveries = peers
-            .into_iter()
-            .map(|peer| {
-                let uri = uri.clone();
-                async move {
-                    match tokio::time::timeout(
-                        NOTIFICATION_DELIVERY_TIMEOUT,
-                        peer.notify_resource_updated(ResourceUpdatedNotificationParam::new(
-                            uri.clone(),
-                        )),
-                    )
-                    .await
-                    {
-                        Ok(Ok(())) => {}
-                        Ok(Err(error)) => {
-                            tracing::warn!(%uri, %error, "failed to deliver MCP resource update");
-                        }
-                        Err(_) => {
-                            tracing::warn!(%uri, "timed out delivering MCP resource update");
-                        }
-                    }
-                }
-            })
-            .collect::<FuturesUnordered<_>>();
-        while deliveries.next().await.is_some() {}
+        let _ = self.updates.send(uri.into());
     }
+
+    pub async fn notify_resource_list_changed(&self) {
+        let _ = self.list_changes.send(());
+    }
+}
+
+/// Resource-list change broadcaster used where list mutations originate in a
+/// worker that does not otherwise share the server's resource hub.
+pub struct ResourceListObservers {
+    changes: broadcast::Sender<()>,
+}
+
+impl Default for ResourceListObservers {
+    fn default() -> Self {
+        let (changes, _) = broadcast::channel(SUBSCRIPTION_BUFFER);
+        Self { changes }
+    }
+}
+
+impl ResourceListObservers {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn listen(&self) -> broadcast::Receiver<()> {
+        self.changes.subscribe()
+    }
+
+    pub async fn notify_changed(&self) {
+        let _ = self.changes.send(());
+    }
+}
+
+pub async fn receive_resource_update(receiver: &mut Option<broadcast::Receiver<String>>) -> String {
+    loop {
+        let Some(receiver) = receiver.as_mut() else {
+            pending::<()>().await;
+            unreachable!();
+        };
+        match receiver.recv().await {
+            Ok(uri) => return uri,
+            Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                tracing::warn!(skipped, "subscription resource updates lagged");
+            }
+            Err(broadcast::error::RecvError::Closed) => pending::<()>().await,
+        }
+    }
+}
+
+pub async fn receive_resource_list_change(receiver: &mut Option<broadcast::Receiver<()>>) {
+    loop {
+        let Some(receiver) = receiver.as_mut() else {
+            pending::<()>().await;
+            unreachable!();
+        };
+        match receiver.recv().await {
+            Ok(()) => return,
+            Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                tracing::warn!(skipped, "subscription resource-list updates lagged");
+            }
+            Err(broadcast::error::RecvError::Closed) => pending::<()>().await,
+        }
+    }
+}
+
+/// Runs a resource-only final-profile listener after the caller has validated
+/// every accepted URI.
+pub async fn listen_resources(
+    context: SubscriptionContext,
+    resources: &SubscriptionHub,
+    extra_list_changes: Option<&ResourceListObservers>,
+) -> Result<(), ErrorData> {
+    let accepted = context.accepted().clone();
+    let mut updates = Some(resources.listen());
+    let mut hub_lists = Some(resources.listen_resource_list_changes());
+    let mut extra_lists = extra_list_changes.map(ResourceListObservers::listen);
+    loop {
+        tokio::select! {
+            () = context.cancelled() => return Ok(()),
+            uri = receive_resource_update(&mut updates) => {
+                if accepted.resource_subscriptions.as_ref().is_some_and(|uris| uris.contains(&uri)) {
+                    context.sink().notify_resource_updated(uri).await.map_err(send_error)?;
+                }
+            }
+            () = receive_resource_list_change(&mut hub_lists), if accepted.resources_list_changed == Some(true) => {
+                context.sink().notify_resource_list_changed().await.map_err(send_error)?;
+            }
+            () = receive_resource_list_change(&mut extra_lists), if accepted.resources_list_changed == Some(true) => {
+                context.sink().notify_resource_list_changed().await.map_err(send_error)?;
+            }
+        }
+    }
+}
+
+/// Lets the SDK intersect a server's request with its advertised capability
+/// set while retaining only final `subscriptions/listen` fields.
+pub fn accepted_subscription_filter(requested: &SubscriptionFilter) -> Option<SubscriptionFilter> {
+    Some(requested.clone())
 }

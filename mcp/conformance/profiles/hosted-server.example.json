@@ -1,7 +1,7 @@
 {
   "schemaVersion": "veoveo.io/mcp-conformance-profile/v1",
   "profileId": "anonymous-extension-ci",
-  "contractRevision": "veoveo.io/hosted-mcp/v1",
+  "contractRevision": "veoveo.io/hosted-mcp/v3",
   "endpoint": "https://extension.example.internal/domain/mcp",
   "serverSlug": "domain",
   "ownedResourceSchemes": [

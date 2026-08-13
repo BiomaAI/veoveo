@@ -22,26 +22,31 @@ pub(super) struct GatewayUpstreamHandler {
     downstream: Peer<RoleServer>,
     progress_tokens: GatewayProgressTokens,
     discovery: std::sync::Arc<CatalogDiscoveryCache>,
+    tasks: bool,
+}
+
+pub(super) struct GatewayUpstreamHandlerConfig {
+    pub(super) catalog: GatewayCatalogHandle,
+    pub(super) profile_id: GatewayProfileId,
+    pub(super) principal_id: PrincipalId,
+    pub(super) upstream_server: ServerSlug,
+    pub(super) downstream: Peer<RoleServer>,
+    pub(super) progress_tokens: GatewayProgressTokens,
+    pub(super) discovery: std::sync::Arc<CatalogDiscoveryCache>,
+    pub(super) tasks: bool,
 }
 
 impl GatewayUpstreamHandler {
-    pub(super) fn new(
-        catalog: GatewayCatalogHandle,
-        profile_id: GatewayProfileId,
-        principal_id: PrincipalId,
-        upstream_server: ServerSlug,
-        downstream: Peer<RoleServer>,
-        progress_tokens: GatewayProgressTokens,
-        discovery: std::sync::Arc<CatalogDiscoveryCache>,
-    ) -> Self {
+    pub(super) fn new(config: GatewayUpstreamHandlerConfig) -> Self {
         Self {
-            catalog,
-            profile_id,
-            principal_id,
-            upstream_server,
-            downstream,
-            progress_tokens,
-            discovery,
+            catalog: config.catalog,
+            profile_id: config.profile_id,
+            principal_id: config.principal_id,
+            upstream_server: config.upstream_server,
+            downstream: config.downstream,
+            progress_tokens: config.progress_tokens,
+            discovery: config.discovery,
+            tasks: config.tasks,
         }
     }
 }
@@ -50,6 +55,11 @@ impl ClientHandler for GatewayUpstreamHandler {
     fn get_info(&self) -> ClientInfo {
         let mut info = ClientInfo::default();
         info.client_info = Implementation::new("veoveo-internal", env!("CARGO_PKG_VERSION"));
+        if self.tasks {
+            info.capabilities = rmcp::model::ClientCapabilities::builder()
+                .enable_tasks()
+                .build();
+        }
         info
     }
 

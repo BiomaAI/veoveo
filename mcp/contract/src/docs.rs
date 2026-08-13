@@ -14,7 +14,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// The normative contract revision this crate implements.
-pub const CONTRACT_REVISION: u32 = 2;
+pub const CONTRACT_REVISION: u32 = 3;
 
 /// Identifier of the required agent manual document.
 pub const DOC_ID_AGENTS: &str = "agents";
@@ -97,14 +97,14 @@ impl ServerDocs {
         self.doc(DOC_ID_AGENTS).map(|doc| doc.body)
     }
 
-    /// Returns the declaration built once from this document set and the
-    /// server's stable registered capability inventory.
-    pub fn contract_declaration(
-        &self,
-        capabilities: impl FnOnce() -> CapabilityInventory,
-    ) -> &ContractDeclaration {
+    /// Returns the declaration built once from this document set.
+    ///
+    /// Discover and the list methods are the only authority for the observed
+    /// running protocol surface. The embedded contract resource declares only
+    /// repository-owned revision and compliance evidence.
+    pub fn contract_declaration(&self) -> &ContractDeclaration {
         self.declaration
-            .get_or_init(|| ContractDeclaration::from_docs(self, capabilities()))
+            .get_or_init(|| ContractDeclaration::from_docs(self))
     }
 }
 
@@ -125,35 +125,18 @@ pub struct ComplianceItem {
     pub note: Option<String>,
 }
 
-/// The protocol surface a server advertises, as stable name lists.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct CapabilityInventory {
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub tools: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub resources: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub resource_templates: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub prompts: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub tasks: Vec<String>,
-}
-
 /// The machine-readable declaration served at `{scheme}://contract` (C19).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ContractDeclaration {
     pub server: String,
     pub contract_revision: u32,
     pub compliance: Vec<ComplianceItem>,
-    #[serde(default)]
-    pub capabilities: CapabilityInventory,
 }
 
 impl ContractDeclaration {
     /// Builds the declaration from the embedded agent manual so the served
     /// declaration and the crate `AGENTS.md` cannot diverge.
-    pub fn from_docs(docs: &ServerDocs, capabilities: CapabilityInventory) -> Self {
+    pub fn from_docs(docs: &ServerDocs) -> Self {
         let compliance = docs
             .agent_manual()
             .map(parse_compliance)
@@ -162,7 +145,6 @@ impl ContractDeclaration {
             server: docs.server().to_string(),
             contract_revision: CONTRACT_REVISION,
             compliance,
-            capabilities,
         }
     }
 }
@@ -230,7 +212,7 @@ macro_rules! server_docs {
 mod tests {
     use super::*;
 
-    const MANUAL: &str = "# Example\n\n## Purpose\n\nText.\n\n## Contract Compliance\n\nContract revision: 2\n\n- C01: met\n- C02: pending — well-known surface not yet wired\n- C03: pending - unverified\n\n## Build And Test\n\n- cargo test\n";
+    const MANUAL: &str = "# Example\n\n## Purpose\n\nText.\n\n## Contract Compliance\n\nContract revision: 3\n\n- C01: met\n- C02: pending — well-known surface not yet wired\n- C03: pending - unverified\n\n## Build And Test\n\n- cargo test\n";
 
     #[test]
     fn parses_met_and_pending_items_within_section_bounds() {
@@ -262,7 +244,7 @@ mod tests {
     #[test]
     fn declaration_derives_from_the_embedded_manual() {
         let docs = ServerDocs::new("example").with_doc(DOC_ID_AGENTS, "Agent work manual", MANUAL);
-        let declaration = ContractDeclaration::from_docs(&docs, CapabilityInventory::default());
+        let declaration = ContractDeclaration::from_docs(&docs);
         assert_eq!(declaration.server, "example");
         assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
         assert_eq!(declaration.compliance.len(), 3);
@@ -274,21 +256,10 @@ mod tests {
     #[test]
     fn server_docs_builds_the_declaration_once() {
         let docs = ServerDocs::new("example").with_doc(DOC_ID_AGENTS, "Agent work manual", MANUAL);
-        let builds = std::cell::Cell::new(0);
-        let first = docs.contract_declaration(|| {
-            builds.set(builds.get() + 1);
-            CapabilityInventory {
-                tools: vec!["inspect".to_owned()],
-                ..CapabilityInventory::default()
-            }
-        });
-        let second = docs.contract_declaration(|| {
-            builds.set(builds.get() + 1);
-            CapabilityInventory::default()
-        });
+        let first = docs.contract_declaration();
+        let second = docs.contract_declaration();
         assert!(std::ptr::eq(first, second));
-        assert_eq!(builds.get(), 1);
-        assert_eq!(first.capabilities.tools, ["inspect"]);
+        assert_eq!(first.contract_revision, 3);
     }
 
     #[test]

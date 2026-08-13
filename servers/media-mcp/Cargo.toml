@@ -35,7 +35,6 @@ tower-http.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 veoveo-artifact-client = { path = "../../platform/artifacts/client" }
-veoveo-mcp-task-extension = { path = "../../mcp/task-extension" }
 veoveo-mcp-contract.workspace = true
 veoveo-platform-store = { path = "../../platform/store" }
 veoveo-task-runtime = { path = "../../platform/task-runtime" }

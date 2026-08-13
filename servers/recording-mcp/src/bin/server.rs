@@ -13,6 +13,7 @@ use axum::{
 };
 use clap::Parser;
 use re_protos::cloud::v1alpha1::rerun_cloud_service_server::RerunCloudServiceServer;
+use rmcp::tool;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -21,10 +22,9 @@ use rmcp::{
         GetPromptRequestParams, GetPromptResult, ListPromptsResult, ListResourceTemplatesResult,
         ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt,
         ReadResourceRequestParams, ReadResourceResult, Reference, Resource, ResourceContents,
-        ResourceTemplate, ServerCapabilities, ServerInfo, SubscribeRequestParams,
-        UnsubscribeRequestParams,
+        ResourceTemplate, ServerCapabilities, ServerInfo, SubscriptionFilter,
     },
-    service::RequestContext,
+    service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
     transport::streamable_http_server::StreamableHttpService,
 };
@@ -33,11 +33,9 @@ use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_artifact_client::HttpArtifactPlane;
-use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle, Page,
-    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, docs::CapabilityInventory,
-    init_server_telemetry, paginate,
+    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry, paginate,
 };
 use veoveo_platform_store::{PlatformStore, RecordingId, StoreConfig, StoreCredentials};
 use veoveo_recording_mcp::blueprint_playback::recording_scoped_blueprint;
@@ -86,42 +84,6 @@ impl RecordingMcp {
         Self {
             state,
             tool_router: Self::tool_router(),
-        }
-    }
-
-    /// The capability inventory declared at `recording://contract` (contract
-    /// C19). Tools and prompts derive from the live registrations; stable
-    /// resources and resource templates come from the lists the handler
-    /// serves, so the declaration cannot silently diverge.
-    fn capability_inventory() -> CapabilityInventory {
-        let mut tools: Vec<String> = Self::tool_router()
-            .list_all()
-            .into_iter()
-            .map(|tool| tool.name.into_owned())
-            .collect();
-        tools.sort();
-        let mut prompts: Vec<String> = RecordingPrompt::ALL
-            .into_iter()
-            .map(|prompt| prompt.definition().name)
-            .collect();
-        prompts.sort();
-        let mut resources = vec![
-            uris::DOCS_URI.to_owned(),
-            uris::CONTRACT_URI.to_owned(),
-            uris::CATALOG_URI.to_owned(),
-        ];
-        resources.extend(SERVER_DOCS.iter().map(|doc| uris::doc_uri(doc.id)));
-        resources.sort();
-        CapabilityInventory {
-            tools,
-            resources,
-            resource_templates: vec![
-                uris::DOC_TEMPLATE.to_owned(),
-                uris::RECORDING_TEMPLATE.to_owned(),
-                uris::SEGMENTS_TEMPLATE.to_owned(),
-            ],
-            prompts,
-            tasks: Vec::new(),
         }
     }
 
@@ -184,13 +146,19 @@ impl RecordingMcp {
             .subscribers
             .notify_resource_updated(uris::segments_uri(&request.recording_id))
             .await;
-        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
+        self.state.subscribers.notify_resource_list_changed().await;
         structured_result("recording sealed".to_owned(), &output)
     }
 }
 
 #[tool_handler]
 impl ServerHandler for RecordingMcp {
+    fn supported_protocol_versions(
+        &self,
+    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
+        veoveo_mcp_contract::final_protocol_versions()
+    }
+
     fn get_info(&self) -> ServerInfo {
         let capabilities = ServerCapabilities::builder()
             .enable_tools()
@@ -221,6 +189,9 @@ impl ServerHandler for RecordingMcp {
         Ok(ListToolsResult {
             tools: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -286,6 +257,9 @@ impl ServerHandler for RecordingMcp {
         Ok(ListResourcesResult {
             resources: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -313,6 +287,9 @@ impl ServerHandler for RecordingMcp {
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -321,65 +298,67 @@ impl ServerHandler for RecordingMcp {
         &self,
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, McpError> {
-        let identity = identity(&context)?;
-        let uri = request.uri.as_str();
-        // Well-known surface (contract C18, C19): readable by any identity
-        // that can list resources.
-        if uri == uris::DOCS_URI {
-            return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
-        }
-        if let Some(doc_id) = uris::parse_doc(uri) {
-            let doc = SERVER_DOCS
-                .doc(doc_id)
-                .ok_or_else(|| McpError::resource_not_found("server document not found", None))?;
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-            ]));
-        }
-        if uri == uris::CONTRACT_URI {
-            return json_resource(
-                uri,
-                SERVER_DOCS.contract_declaration(Self::capability_inventory),
-            );
-        }
-        if uri == uris::CATALOG_URI {
-            return json_resource(
-                uri,
-                &self
+    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
+        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
+        async {
+            let identity = identity(&context)?;
+            let uri = request.uri.as_str();
+            // Well-known surface (contract C18, C19): readable by any identity
+            // that can list resources.
+            if uri == uris::DOCS_URI {
+                return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
+            }
+            if let Some(doc_id) = uris::parse_doc(uri) {
+                let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
+                    McpError::resource_not_found("server document not found", None)
+                })?;
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
+                ]));
+            }
+            if uri == uris::CONTRACT_URI {
+                return json_resource(uri, SERVER_DOCS.contract_declaration());
+            }
+            if uri == uris::CATALOG_URI {
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .recordings
+                        .list_visible(&identity)
+                        .await
+                        .map_err(internal)?,
+                );
+            }
+            if let Some(value) = uris::parse_segments_uri(uri) {
+                let recording_id = parse_recording_id(value)?;
+                let segments = self
                     .state
                     .recordings
-                    .list_visible(&identity)
+                    .segment_views(&identity, recording_id)
                     .await
-                    .map_err(internal)?,
-            );
+                    .map_err(internal)?
+                    .ok_or_else(|| McpError::resource_not_found("recording not found", None))?;
+                return json_resource(uri, &segments);
+            }
+            if let Some(value) = uris::parse_recording_uri(uri) {
+                let recording_id = parse_recording_id(value)?;
+                let recording = self
+                    .state
+                    .recordings
+                    .recording_view(&identity, recording_id)
+                    .await
+                    .map_err(internal)?
+                    .ok_or_else(|| McpError::resource_not_found("recording not found", None))?;
+                return json_resource(uri, &recording);
+            }
+            Err(McpError::resource_not_found(
+                format!("unknown recording resource `{uri}`"),
+                None,
+            ))
         }
-        if let Some(value) = uris::parse_segments_uri(uri) {
-            let recording_id = parse_recording_id(value)?;
-            let segments = self
-                .state
-                .recordings
-                .segment_views(&identity, recording_id)
-                .await
-                .map_err(internal)?
-                .ok_or_else(|| McpError::resource_not_found("recording not found", None))?;
-            return json_resource(uri, &segments);
-        }
-        if let Some(value) = uris::parse_recording_uri(uri) {
-            let recording_id = parse_recording_id(value)?;
-            let recording = self
-                .state
-                .recordings
-                .recording_view(&identity, recording_id)
-                .await
-                .map_err(internal)?
-                .ok_or_else(|| McpError::resource_not_found("recording not found", None))?;
-            return json_resource(uri, &recording);
-        }
-        Err(McpError::resource_not_found(
-            format!("unknown recording resource `{uri}`"),
-            None,
-        ))
+        .await
+        .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
     }
 
     async fn list_prompts(
@@ -395,6 +374,9 @@ impl ServerHandler for RecordingMcp {
         Ok(ListPromptsResult {
             prompts: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -403,58 +385,40 @@ impl ServerHandler for RecordingMcp {
         &self,
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<GetPromptResult, McpError> {
-        RecordingPrompt::by_name(&request.name)
-            .ok_or_else(|| McpError::invalid_params("unknown recording prompt", None))?
-            .render(request.arguments)
+    ) -> Result<rmcp::model::GetPromptResponse, McpError> {
+        async {
+            RecordingPrompt::by_name(&request.name)
+                .ok_or_else(|| McpError::invalid_params("unknown recording prompt", None))?
+                .render(request.arguments)
+        }
+        .await
+        .map(Into::into)
     }
 
-    async fn subscribe(
+    fn accepted_subscription_filter(
         &self,
-        request: SubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let identity = identity(&context)?;
-        let recording_id = subscribable_recording_id(&request.uri)?;
-        if self
-            .state
-            .recordings
-            .recording_view(&identity, recording_id)
-            .await
-            .map_err(internal)?
-            .is_none()
-        {
-            return Err(McpError::resource_not_found("recording not found", None));
-        }
-        self.state
-            .subscribers
-            .subscribe(request.uri, identity.actor.id, context.peer.clone())
-            .await;
-        Ok(())
+        requested: &SubscriptionFilter,
+    ) -> Option<SubscriptionFilter> {
+        veoveo_mcp_contract::accepted_subscription_filter(requested)
     }
 
-    async fn unsubscribe(
-        &self,
-        request: UnsubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let identity = identity(&context)?;
-        let recording_id = subscribable_recording_id(&request.uri)?;
-        if self
-            .state
-            .recordings
-            .recording_view(&identity, recording_id)
-            .await
-            .map_err(internal)?
-            .is_none()
-        {
-            return Err(McpError::resource_not_found("recording not found", None));
+    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
+        let request_context = context.request_context().clone();
+        let identity = identity(&request_context)?;
+        for uri in context.accepted().resource_subscriptions.iter().flatten() {
+            let recording_id = subscribable_recording_id(uri)?;
+            if self
+                .state
+                .recordings
+                .recording_view(&identity, recording_id)
+                .await
+                .map_err(internal)?
+                .is_none()
+            {
+                return Err(McpError::resource_not_found("recording not found", None));
+            }
         }
-        self.state
-            .subscribers
-            .unsubscribe(&request.uri, &identity.actor.id)
-            .await;
-        Ok(())
+        veoveo_mcp_contract::listen_resources(context, &self.state.subscribers, None).await
     }
 
     async fn complete(
@@ -811,7 +775,7 @@ async fn main() -> anyhow::Result<()> {
             let state = state.clone();
             move || Ok(RecordingMcp::new(state.clone()))
         },
-        veoveo_mcp_contract::canonical_session_manager(),
+        veoveo_mcp_contract::stateless_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts)
             .with_cancellation_token(cancellation.child_token()),
@@ -903,10 +867,7 @@ mod tests {
     fn contract_declaration_resolves_from_the_embedded_manual() {
         use veoveo_mcp_contract::docs::{CONTRACT_REVISION, ComplianceStatus};
 
-        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(
-            &SERVER_DOCS,
-            RecordingMcp::capability_inventory(),
-        );
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
         assert_eq!(declaration.server, "recording");
         assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
         for id in ["C18", "C19", "C20", "C21"] {
@@ -917,16 +878,7 @@ mod tests {
                 .expect("declared checklist item");
             assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
         }
-        let inventory = &declaration.capabilities;
-        assert!(inventory.tools.contains(&"query_recording".to_owned()));
-        assert!(inventory.resources.contains(&uris::DOCS_URI.to_owned()));
-        assert!(inventory.resources.contains(&uris::CONTRACT_URI.to_owned()));
-        assert!(inventory.resources.contains(&uris::doc_uri("agents")));
-        assert!(
-            inventory
-                .resource_templates
-                .contains(&uris::DOC_TEMPLATE.to_owned())
-        );
-        assert!(!inventory.prompts.is_empty());
+        let json = serde_json::to_value(declaration).unwrap();
+        assert!(json.get("capabilities").is_none());
     }
 }

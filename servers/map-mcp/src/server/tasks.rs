@@ -7,7 +7,6 @@ use std::{
 
 use anyhow::{Context, bail};
 use chrono::{TimeDelta, Utc};
-use futures::StreamExt;
 use rmcp::model::{CallToolResult, ContentBlock, Resource};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -17,11 +16,6 @@ use veoveo_mcp_contract::{
     ArtifactId, ArtifactProvenance, ArtifactPut, ArtifactWriteIdempotencyKey, ComplianceMetadata,
     GatewayInternalIdentity, InvocationMode, InvocationProvenance,
     IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, PlaneCaller, PrincipalKind,
-};
-use veoveo_mcp_task_extension::{
-    AcknowledgeTaskResult, AdapterError, CancelTaskParams, CreateTaskResult, GetTaskParams,
-    GetTaskResult, ProtocolTaskId, TaskExtensionHandler, TaskSubscription, ToolCallParams,
-    UpdateTaskParams, project_snapshot, task_seed,
 };
 use veoveo_task_runtime::{
     CreateTask, RecoveryClass, TaskError, TaskFailure, TaskId, TaskOwner, TaskRetentionPin,
@@ -51,21 +45,6 @@ const EXPORT_FEATURE_LAYER_TASK: &str = "export_feature_layer";
 const BUILD_VECTOR_TILES_TASK: &str = "build_vector_tiles";
 const DERIVE_RASTER_TASK: &str = "derive_raster";
 
-/// Tool names `start_tool_task` accepts as durable task invocations. The
-/// `map://contract` capability inventory declares this list; keep it in
-/// lockstep with the `start_tool_task` match arms so the served declaration
-/// cannot silently diverge from the task-augmented surface.
-pub(crate) const TASK_TOOLS: &[&str] = &[
-    ROUTE_TASK,
-    ROUTE_MATRIX_TASK,
-    BUILD_TRAVEL_MODEL_TASK,
-    REACHABLE_AREA_TASK,
-    IMPORT_FEATURE_LAYER_TASK,
-    EXPORT_FEATURE_LAYER_TASK,
-    BUILD_VECTOR_TILES_TASK,
-    DERIVE_RASTER_TASK,
-];
-
 const TASK_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1_000;
 const TASK_POLL_INTERVAL_MS: u64 = 3_000;
 const TASK_LEASE_DURATION: Duration = Duration::from_secs(120);
@@ -73,12 +52,12 @@ const TASK_LEASE_HEARTBEAT: Duration = Duration::from_secs(40);
 const ARTIFACT_CAPABILITY_TTL: TimeDelta = TimeDelta::hours(24);
 
 #[derive(Clone)]
-pub(super) struct MapTaskExtension {
+pub(crate) struct MapTaskExtension {
     state: Arc<MapApplication>,
 }
 
 #[derive(Clone)]
-pub(super) struct AuthenticatedCaller {
+pub(crate) struct AuthenticatedCaller {
     identity: GatewayInternalIdentity,
     caller: PlaneCaller,
 }
@@ -144,85 +123,69 @@ enum MapTaskRequest {
 }
 
 impl MapTaskExtension {
-    pub(super) fn new(state: Arc<MapApplication>) -> Self {
+    pub(crate) fn new(state: Arc<MapApplication>) -> Self {
         Self { state }
-    }
-
-    async fn authorized_snapshot(
-        &self,
-        caller: &AuthenticatedCaller,
-        task_id: ProtocolTaskId,
-    ) -> Result<TaskSnapshot, AdapterError> {
-        let snapshot = self
-            .state
-            .tasks
-            .get(&task_id.to_string())
-            .await
-            .map_err(|error| AdapterError::internal(error.to_string()))?
-            .ok_or_else(|| AdapterError::invalid_params("unknown task id"))?;
-        let owner = runtime_owner(&caller.identity);
-        if snapshot.owner.allows(
-            &owner.principal_key,
-            &owner.profile,
-            owner.tenant_key.as_deref(),
-            &owner.data_labels,
-        ) && snapshot.owner.authority.work_context == owner.authority.work_context
-        {
-            Ok(snapshot)
-        } else {
-            Err(AdapterError::invalid_params("unknown task id"))
-        }
     }
 }
 
-impl TaskExtensionHandler for MapTaskExtension {
+impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
     type Caller = AuthenticatedCaller;
 
     fn authenticate(
         &self,
-        extensions: &axum::http::Extensions,
-    ) -> Result<Self::Caller, AdapterError> {
-        let identity = extensions
+        context: &rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> Result<Self::Caller, rmcp::ErrorData> {
+        let parts = context
+            .extensions
+            .get::<axum::http::request::Parts>()
+            .ok_or_else(|| rmcp::ErrorData::invalid_request("gateway identity missing", None))?;
+        let identity = parts
+            .extensions
             .get::<GatewayInternalIdentity>()
             .cloned()
-            .ok_or_else(|| AdapterError::unauthorized("gateway identity missing"))?;
-        let bearer = extensions
+            .ok_or_else(|| rmcp::ErrorData::invalid_request("gateway identity missing", None))?;
+        let bearer = parts
+            .extensions
             .get::<ForwardedBearer>()
-            .cloned()
-            .ok_or_else(|| AdapterError::unauthorized("forwarded bearer missing"))?;
-        let caller = self.state.caller(identity.clone(), bearer.0);
-        Ok(AuthenticatedCaller { identity, caller })
+            .map(|bearer| bearer.0.clone())
+            .ok_or_else(|| rmcp::ErrorData::invalid_request("forwarded bearer missing", None))?;
+        Ok(AuthenticatedCaller {
+            caller: self.state.caller(identity.clone(), bearer),
+            identity,
+        })
     }
 
     async fn start_tool_task(
         &self,
         caller: &Self::Caller,
-        request: ToolCallParams,
-    ) -> Result<Option<CreateTaskResult>, AdapterError> {
-        let arguments = serde_json::Value::Object(request.arguments.into_iter().collect());
+        request: rmcp::model::CallToolRequestParams,
+    ) -> Result<Option<rmcp::model::CreateTaskResult>, rmcp::ErrorData> {
+        let arguments = serde_json::Value::Object(request.arguments.unwrap_or_default());
         let task_id = TaskId::new();
-        let args = match request.name.as_str() {
+        let args = match request.name.as_ref() {
             ROUTE_TASK => {
                 require_scope(&caller.identity, "map:route")?;
                 MapTaskRequest::Route(
-                    serde_json::from_value(arguments)
-                        .map_err(|error| AdapterError::invalid_params(error.to_string()))?,
+                    serde_json::from_value(arguments).map_err(|error| {
+                        rmcp::ErrorData::invalid_params(error.to_string(), None)
+                    })?,
                 )
             }
             ROUTE_MATRIX_TASK => {
                 require_scope(&caller.identity, "map:route_matrix")?;
                 MapTaskRequest::RouteMatrix(
-                    serde_json::from_value(arguments)
-                        .map_err(|error| AdapterError::invalid_params(error.to_string()))?,
+                    serde_json::from_value(arguments).map_err(|error| {
+                        rmcp::ErrorData::invalid_params(error.to_string(), None)
+                    })?,
                 )
             }
             BUILD_TRAVEL_MODEL_TASK => {
                 require_scope(&caller.identity, "map:route_matrix")?;
                 let input: BuildTravelModelRequest = serde_json::from_value(arguments)
-                    .map_err(|error| AdapterError::invalid_params(error.to_string()))?;
+                    .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 input
                     .validate()
-                    .map_err(|error| AdapterError::invalid_params(error.to_string()))?;
+                    .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 MapTaskRequest::BuildTravelModel(DurableTravelModelRequest {
                     input,
                     identity: caller.identity.clone(),
@@ -234,33 +197,36 @@ impl TaskExtensionHandler for MapTaskExtension {
                         &task_id,
                     )
                     .await
-                    .map_err(|error| AdapterError::internal(error.to_string()))?,
+                    .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?,
                 })
             }
             REACHABLE_AREA_TASK => {
                 require_scope(&caller.identity, "map:route")?;
                 MapTaskRequest::ReachableArea(
-                    serde_json::from_value(arguments)
-                        .map_err(|error| AdapterError::invalid_params(error.to_string()))?,
+                    serde_json::from_value(arguments).map_err(|error| {
+                        rmcp::ErrorData::invalid_params(error.to_string(), None)
+                    })?,
                 )
             }
             IMPORT_FEATURE_LAYER_TASK => {
                 require_scope(&caller.identity, "map:feature:write")?;
                 let input: ImportFeatureLayerRequest = serde_json::from_value(arguments)
-                    .map_err(|error| AdapterError::invalid_params(error.to_string()))?;
+                    .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 MapTaskRequest::ImportFeatureLayer(
                     prepare_import_request(self.state.as_ref(), caller, &task_id, input)
                         .await
-                        .map_err(|error| AdapterError::invalid_params(error.to_string()))?,
+                        .map_err(|error| {
+                            rmcp::ErrorData::invalid_params(error.to_string(), None)
+                        })?,
                 )
             }
             EXPORT_FEATURE_LAYER_TASK => {
                 require_scope(&caller.identity, "map:feature:publish")?;
                 let input: ExportFeatureLayerRequest = serde_json::from_value(arguments)
-                    .map_err(|error| AdapterError::invalid_params(error.to_string()))?;
+                    .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 validate_publication_request(self.state.as_ref(), &caller.identity, &input)
                     .await
-                    .map_err(|error| AdapterError::invalid_params(error.to_string()))?;
+                    .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 MapTaskRequest::ExportFeatureLayer(DurableExportRequest {
                     input,
                     identity: caller.identity.clone(),
@@ -272,15 +238,15 @@ impl TaskExtensionHandler for MapTaskExtension {
                         &task_id,
                     )
                     .await
-                    .map_err(|error| AdapterError::internal(error.to_string()))?,
+                    .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?,
                 })
             }
             BUILD_VECTOR_TILES_TASK => {
                 require_scope(&caller.identity, "map:feature:publish")?;
                 let input: BuildVectorTilesRequest = serde_json::from_value(arguments)
-                    .map_err(|error| AdapterError::invalid_params(error.to_string()))?;
+                    .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 validate_tile_request(&input)
-                    .map_err(|error| AdapterError::invalid_params(error.to_string()))?;
+                    .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 validate_publication_request(
                     self.state.as_ref(),
                     &caller.identity,
@@ -291,7 +257,7 @@ impl TaskExtensionHandler for MapTaskExtension {
                     },
                 )
                 .await
-                .map_err(|error| AdapterError::invalid_params(error.to_string()))?;
+                .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 MapTaskRequest::BuildVectorTiles(DurableVectorTileRequest {
                     input,
                     identity: caller.identity.clone(),
@@ -303,23 +269,25 @@ impl TaskExtensionHandler for MapTaskExtension {
                         &task_id,
                     )
                     .await
-                    .map_err(|error| AdapterError::internal(error.to_string()))?,
+                    .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?,
                 })
             }
             DERIVE_RASTER_TASK => {
                 require_scope(&caller.identity, "map:dataset:read")?;
                 require_scope(&caller.identity, "map:raster:derive")?;
                 let input: DeriveRasterRequest = serde_json::from_value(arguments)
-                    .map_err(|error| AdapterError::invalid_params(error.to_string()))?;
+                    .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 MapTaskRequest::DeriveRaster(
                     prepare_raster_request(self.state.as_ref(), caller, &task_id, input)
                         .await
-                        .map_err(|error| AdapterError::invalid_params(error.to_string()))?,
+                        .map_err(|error| {
+                            rmcp::ErrorData::invalid_params(error.to_string(), None)
+                        })?,
                 )
             }
             _ => return Ok(None),
         };
-        let retention_pins = request.meta.task_retention_pin.into_iter().collect();
+        let retention_pins = veoveo_task_runtime::retention_pins(request.meta.as_ref())?;
         let uses_task_directory = args.uses_task_directory();
         let task_key = task_id.to_string();
         let snapshot = start_map_task(
@@ -336,103 +304,64 @@ impl TaskExtensionHandler for MapTaskExtension {
                 if uses_task_directory {
                     cleanup_task_directory(self.state.as_ref(), &task_key).await;
                 }
-                return Err(AdapterError::internal(error.to_string()));
+                return Err(rmcp::ErrorData::internal_error(error.to_string(), None));
             }
         };
-        Ok(Some(CreateTaskResult::new(task_seed(&snapshot))))
+        Ok(Some(rmcp::model::CreateTaskResult::new(
+            veoveo_task_runtime::task_seed(&snapshot),
+        )))
     }
 
     async fn get_task(
         &self,
         caller: &Self::Caller,
-        request: GetTaskParams,
-    ) -> Result<GetTaskResult, AdapterError> {
-        let snapshot = self.authorized_snapshot(caller, request.task_id).await?;
-        let task = project_snapshot(&self.state.tasks, snapshot)
-            .await
-            .map_err(|error| AdapterError::internal(error.to_string()))?;
-        Ok(GetTaskResult::new(task))
+        request: rmcp::model::GetTaskParams,
+    ) -> Result<rmcp::model::GetTaskResult, rmcp::ErrorData> {
+        veoveo_task_runtime::get_durable_task(
+            &self.state.tasks,
+            &runtime_owner(&caller.identity),
+            request,
+        )
+        .await
     }
 
     async fn update_task(
         &self,
         caller: &Self::Caller,
-        request: UpdateTaskParams,
-    ) -> Result<AcknowledgeTaskResult, AdapterError> {
-        self.authorized_snapshot(caller, request.task_id).await?;
-        self.state
-            .tasks
-            .submit_input_responses(&request.task_id.to_string(), request.input_responses)
-            .await
-            .map_err(|error| AdapterError::internal(error.to_string()))?;
-        Ok(AcknowledgeTaskResult::complete())
+        request: rmcp::model::UpdateTaskParams,
+    ) -> Result<(), rmcp::ErrorData> {
+        veoveo_task_runtime::update_durable_task(
+            &self.state.tasks,
+            &runtime_owner(&caller.identity),
+            request,
+        )
+        .await
     }
 
     async fn cancel_task(
         &self,
         caller: &Self::Caller,
-        request: CancelTaskParams,
-    ) -> Result<AcknowledgeTaskResult, AdapterError> {
-        self.authorized_snapshot(caller, request.task_id).await?;
-        self.state
-            .tasks
-            .cancel(&request.task_id.to_string())
-            .await
-            .map_err(|error| AdapterError::internal(error.to_string()))?;
-        Ok(AcknowledgeTaskResult::complete())
+        task_id: String,
+    ) -> Result<(), rmcp::ErrorData> {
+        veoveo_task_runtime::cancel_durable_task(
+            &self.state.tasks,
+            &runtime_owner(&caller.identity),
+            task_id,
+        )
+        .await
     }
 
     async fn subscribe_tasks(
         &self,
         caller: &Self::Caller,
-        task_ids: Vec<ProtocolTaskId>,
-    ) -> Result<TaskSubscription, AdapterError> {
-        let updates = self
-            .state
-            .tasks
-            .live_updates()
-            .await
-            .map_err(|error| AdapterError::internal(error.to_string()))?;
-        let mut accepted = Vec::new();
-        for task_id in task_ids {
-            if self.authorized_snapshot(caller, task_id).await.is_ok() {
-                accepted.push(task_id);
-            }
-        }
-        let accepted_set: BTreeSet<_> = accepted.iter().copied().collect();
-        let runtime = self.state.tasks.clone();
-        let owner = runtime_owner(&caller.identity);
-        let stream = updates.filter_map(move |update| {
-            let accepted = accepted_set.clone();
-            let runtime = runtime.clone();
-            let owner = owner.clone();
-            async move {
-                let snapshot = match update {
-                    Ok(update) => update.snapshot,
-                    Err(error) => return Some(Err(AdapterError::internal(error.to_string()))),
-                };
-                if !accepted.contains(&ProtocolTaskId::from(snapshot.task_id))
-                    || !snapshot.owner.allows(
-                        &owner.principal_key,
-                        &owner.profile,
-                        owner.tenant_key.as_deref(),
-                        &owner.data_labels,
-                    )
-                    || snapshot.owner.authority.work_context != owner.authority.work_context
-                {
-                    return None;
-                }
-                Some(
-                    project_snapshot(&runtime, snapshot)
-                        .await
-                        .map_err(|error| AdapterError::internal(error.to_string())),
-                )
-            }
-        });
-        Ok(TaskSubscription {
-            accepted_task_ids: accepted,
-            updates: Box::pin(stream),
-        })
+        task_ids: Vec<String>,
+    ) -> Result<veoveo_task_runtime::DurableTaskSubscription, rmcp::ErrorData> {
+        veoveo_task_runtime::subscribe_durable_tasks(
+            &self.state.tasks,
+            runtime_owner(&caller.identity),
+            task_ids,
+        )
+        .await
     }
 }
 
@@ -1431,14 +1360,19 @@ async fn update_task(state: &MapApplication, task_id: &str, transition: TaskTran
     }
 }
 
-fn require_scope(identity: &GatewayInternalIdentity, required: &str) -> Result<(), AdapterError> {
+fn require_scope(
+    identity: &GatewayInternalIdentity,
+    required: &str,
+) -> Result<(), rmcp::ErrorData> {
     identity
         .actor
         .scopes
         .iter()
         .any(|scope| scope.as_str() == required)
         .then_some(())
-        .ok_or_else(|| AdapterError::unauthorized(format!("required scope `{required}` missing")))
+        .ok_or_else(|| {
+            rmcp::ErrorData::invalid_request(format!("required scope `{required}` missing"), None)
+        })
 }
 
 fn runtime_owner(identity: &GatewayInternalIdentity) -> TaskOwner {

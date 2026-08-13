@@ -22,7 +22,7 @@ listed next to each obligation is where this template satisfies it.
 | Gateway Ed25519 assertion verification, `kid` required | `veoveo_mcp.internal_auth` |
 | Self-contained JSON Schema 2020-12 tool inputs with explicit property types | `veoveo_mcp.schema` |
 | Full MCP surface: tools, resources, templates, prompts, completions, pagination, typed structured content | `server/mcp_server.py` |
-| Final task extension, protocol `2026-06-30`: `server/discover`, task-augmented `tools/call`, `tasks/get`, `tasks/update`, `tasks/cancel`, `subscriptions/listen` SSE | `veoveo_mcp.task_extension` + `server/task_extension.py` |
+| MCP `2026-07-28` with mandatory Discover, official Tasks, and request-scoped `subscriptions/listen` | MCP Python SDK 2.0 + `veoveo_mcp.task_extension` + `server/task_extension.py` |
 | Durable tasks in the SurrealDB platform store with atomic outbox events, UUIDv7 ids, leases, recovery classes, retention pins | `veoveo_mcp.tasks` + `server/profile_task.py` |
 | Artifact output through task-bound write capabilities; no identity minting in background work | `server/profile_task.py` |
 | Per-task domain usage rows and `{scheme}://usage/task/{id}` resources | `server/profile_task.py`, `server/mcp_server.py` |
@@ -38,9 +38,9 @@ listed next to each obligation is where this template satisfies it.
    Keep the exact supported `veoveo-mcp` version, then run `uv lock`. The resulting
    lock belongs to the extension repository.
 3. Replace `contract.py` and `engine.py` with your domain types and
-   computation. Publish request models with `mcp_input_schema`; recursive tool
-   arguments are not supported. Keep the engine pure; it runs inside worker threads.
-4. Keep `server/` structurally intact: config, ownership, the task-extension
+   computation. Publish complete JSON Schema 2020-12 request models with
+   `mcp_input_schema`. Keep the engine pure; it runs inside worker threads.
+4. Keep `server/` structurally intact: config, ownership, the official Tasks
    handler, and the durable task module change names, not shape.
 5. Package the workload with the private `veoveo-extension` Helm library. Publish an
    extension-owned gateway server fragment, image, application chart, domain smoke

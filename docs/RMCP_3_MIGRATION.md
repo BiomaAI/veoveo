@@ -1,17 +1,17 @@
-# rmcp 3 And MCP 2026-07-28 Migration Plan
+# rmcp 3 And MCP 2026-07-28 Migration And Implementation Report
 
-Status: approved implementation direction.
+Status: implemented in `codex/rmcp3-migration`; source acceptance passed and
+operator-run rollout verification remains.
 
 Revalidated: 2026-08-12 against Veoveo main `87dc1798`, the complete official MCP
 `2026-07-28` changelog, Rig `abbdce97`, and `rmcp` `3.1.2` with the task-status
 subscription fix at `b7a5ad0f`.
 
-This document records the investigation and hard-cut plan for moving Veoveo from
-`rmcp` 2 and the MCP `2025-11-25` profile to `rmcp` 3 and MCP `2026-07-28`. It
-does not change the current hosted-server contract by itself.
-[`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) remains authoritative until
-the implementing change, contract revision, deployment update, and acceptance
-evidence land together.
+This document records the investigation, hard-cut design, implementation, and
+acceptance status for moving Veoveo from `rmcp` 2 and the MCP `2025-11-25`
+profile to `rmcp` 3 and MCP `2026-07-28`.
+[`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) now defines hosted-server
+contract revision 3 as the sole first-party protocol profile.
 
 ## Standards And Protocols
 
@@ -72,6 +72,50 @@ Authoritative upstream sources are:
 - the [MCP Python SDK 2.0.0 release](https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.0.0);
 - the [MCP TypeScript client 2.0.0 release](https://github.com/modelcontextprotocol/typescript-sdk/releases/tag/%40modelcontextprotocol%2Fclient%402.0.0)
   and [server 2.0.0 release](https://github.com/modelcontextprotocol/typescript-sdk/releases/tag/%40modelcontextprotocol%2Fserver%402.0.0).
+
+## Implementation Report
+
+The source migration was completed on 2026-08-12. The implementation is a hard
+cut: Veoveo-owned endpoints and first-party clients have one final protocol path.
+The optional legacy bridge is a separate binary and contains the only admitted
+`2025-11-25` lifecycle.
+
+| Area | Implemented state |
+|---|---|
+| Dependency graph | Workspace `rmcp` resolves once to exact `3.1.2` commit `b7a5ad0f3894b7b66ad8a789cd49a79787e5d65f`; Rig resolves to exact `abbdce9711cd765bb9423b820b136443df1abb85`. |
+| Contract | Revision 3 and MCP `2026-07-28` are canonical. Contract declarations retain stable documentation identity and defer the live surface to mandatory Discover. |
+| Transport | Owned endpoints use stateless final-profile Streamable HTTP. Ordinary requests create request-owned upstream services; the gateway retains only its HTTP/TLS connection pool and no protocol peer, session, replay log, or sticky upstream cache. |
+| Effective surface | Typed client, installation, policy, gateway, and upstream capability intersection controls each request. Discovery degradation remains explicit, and self-reported capabilities never grant authority. |
+| Durable Tasks | Official `io.modelcontextprotocol/tasks` methods and models replace the repository task protocol. Durable routing, state transitions, update cursors, cancellation, notifications, direct-call projection, and opaque upstream identifiers use the shared task runtime and store migrations `0037` through `0039`. |
+| Subscriptions and input | `subscriptions/listen` replaces resource subscribe and unsubscribe methods. Shared Console listeners use acknowledged final cancellation. Multi-round `input_required` requests persist opaque request state and accept typed input responses without server-initiated elicitation. |
+| Protocol details | Final result discrimination, JSON Schema 2020-12, `-32602` resource errors, the MCP server-error range, cache TTL and scope, deterministic listing, routing headers, trace-context sanitization, issuer validation, and issuer-bound authorization state are implemented in shared boundaries. |
+| Language clients | The Python SDK, Python template, external fixture, Console TypeScript client, embedded Apps, and Chart MCP server use the final lifecycle. The Chart server isolates its typed v2 adapter in `flint-v2.mjs`. |
+| Legacy interoperation | `mcp/bridges/legacy` is an optional explicit adapter. It terminates configured `2025-11-25` servers and exposes only the final profile toward Veoveo; no automatic downgrade exists. |
+| Deployment | Gateway and Chart deployments default to two replicas. Final-profile configuration and policy actions replace the old lifecycle and agent elicitation names in local, smoke, Bioma, SUMO, and extension bindings. |
+| Deletion | The old session and schema helpers, custom task contract and extension crates, gateway task adapters, upstream protocol cache, replay surfaces, and deprecated first-party method names are removed. Repository architecture catalogs now describe 42 Rust packages and 68 software components. |
+
+The non-E2E source gate passed with these commands:
+
+| Gate | Result |
+|---|---|
+| `cargo check --workspace --all-targets` | passed |
+| `cargo clippy --workspace --all-targets -- -D warnings` | passed |
+| `cargo test --workspace --lib --bins` | passed |
+| Python SDK tests | 56 passed |
+| Python template tests | 15 passed |
+| External Python fixture tests against the local migrated SDK | 9 passed |
+| Console `npm test`, `npm run lint`, and `npm run build` | 39 tests passed; lint and production build passed |
+| Chart syntax and internal-auth unit tests | syntax checks passed; 3 tests passed |
+| Helm lint and render | passed |
+| Architecture render and validation | passed for 42 Rust packages, 16 gateway servers, 68 resources, 43 interfaces, 20 requirements, 11 SVGs, and 29 PDF pages |
+| Dependency and hard-cut audit | one pinned `rmcp` 3 node, one pinned Rig node, valid changed JSON, clean diff whitespace, and no forbidden owned-protocol residue |
+
+No live deployment, end-to-end smoke scenario, browser automation, GPU visual check,
+or demo verification was run because the operator reserved those checks for the
+rollout. The published-wheel, source-free external fixture could not reach its
+configured package registry because that registry name did not resolve; the same
+fixture passed against the local migrated SDK. These exclusions are not presented
+as runtime acceptance evidence.
 
 ## Objective
 
@@ -186,11 +230,14 @@ input to conformance; the summary table is not a substitute for that diff.
 | Python and TypeScript | final-profile official SDK lifecycle with thin typed extension bindings only where an official released binding is absent |
 | Rollout | one coordinated source and deployment cut after the complete acceptance gate |
 
-## Audited Baseline
+## Pre-implementation Audited Baseline
+
+This section preserves the state audited before implementation. It is historical
+input to the phase plan and does not describe the migrated tree.
 
 ### Workspace dependency
 
-The workspace currently declares:
+The workspace declared:
 
 ```toml
 rmcp = "2.2.0"
@@ -201,16 +248,16 @@ packages consume it directly or through a feature. The consumers include the sha
 contract, gateway, Console BFF, agent kernel, conformance, smoke harness, stdio
 bridge, first-party servers, and showcase servers.
 
-The published Rig dependency is not currently usable as a replacement. Veoveo pins
+The prior published Rig dependency was not usable as a replacement. Veoveo pinned
 `rig-core` to commit `215a3cfb9ec696c5d1d62b5c5d218c377e515236` in a fork. That
 commit is based on the pre-0.41 runtime layout, pins `rmcp` 2.2, and adds draft
 task orchestration across the agent and MCP adapter. Upstream Rig 0.41 split the
 portable contracts into `rig-core` and the classic runtime into `rig-agent`; the
 root `rig` crate is the supported facade.
 
-The completed replacement is the immutable Rig commit
-`abbdce9711cd765bb9423b820b136443df1abb85`. Veoveo has not adopted it yet. The
-downstream cutover must use this exact source revision:
+The selected replacement was the immutable Rig commit
+`abbdce9711cd765bb9423b820b136443df1abb85`. The downstream cutover used this
+exact source revision:
 
 ```toml
 rig = { git = "https://github.com/rozgo/rig", rev = "abbdce9711cd765bb9423b820b136443df1abb85" }

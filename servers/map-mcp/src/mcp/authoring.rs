@@ -1,3 +1,4 @@
+use rmcp::tool;
 use rmcp::{
     ErrorData as McpError, RoleServer,
     handler::server::wrapper::Parameters,
@@ -6,7 +7,6 @@ use rmcp::{
     tool_router,
 };
 use serde::Serialize;
-use veoveo_mcp_contract::tool;
 
 use crate::{
     contract::{
@@ -50,7 +50,10 @@ impl MapMcp {
             .subscriptions
             .notify_resource_updated(uris::FEATURE_LAYERS_URI)
             .await;
-        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
+        self.state
+            .subscriptions
+            .notify_resource_list_changed()
+            .await;
         structured_with_links(
             "created authored feature layer",
             &layer,
@@ -255,7 +258,10 @@ impl MapMcp {
             .subscriptions
             .notify_resource_updated(&publication_uri)
             .await;
-        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
+        self.state
+            .subscriptions
+            .notify_resource_list_changed()
+            .await;
         structured_with_links(
             "published authored feature layer",
             &publication,
@@ -291,7 +297,10 @@ impl MapMcp {
             .subscriptions
             .notify_resource_updated(&layer_uri)
             .await;
-        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
+        self.state
+            .subscriptions
+            .notify_resource_list_changed()
+            .await;
         structured_with_links(
             "archived authored feature layer",
             &layer,
@@ -396,7 +405,6 @@ impl MapMcp {
         title = "Import feature layer artifact",
         description = "Validate and atomically import up to 10000 GeoJSON FeatureCollection or RFC 8142 GeoJSON text sequence features from an authorized artifact. This operation requires durable task invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ImportFeatureLayerOutput>(),
-        execution(task_support = "required"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
     async fn import_feature_layer(
@@ -414,7 +422,6 @@ impl MapMcp {
         title = "Export published feature layer",
         description = "Export an immutable layer publication as RFC 8142 GeoJSON text sequence or GeoParquet 1.0 WKB through a governed artifact. This operation requires durable task invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ExportFeatureLayerOutput>(),
-        execution(task_support = "required"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn export_feature_layer(
@@ -432,7 +439,6 @@ impl MapMcp {
         title = "Build published feature vector tiles",
         description = "Build a bounded sorted set of Mapbox Vector Tile 2.1 tiles and a MapLibre Style projection from an immutable layer publication. This operation requires durable task invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<BuildVectorTilesOutput>(),
-        execution(task_support = "required"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn build_vector_tiles(
@@ -449,7 +455,7 @@ impl MapMcp {
 
 async fn notify_composition(
     service: &MapMcp,
-    context: &RequestContext<RoleServer>,
+    _context: &RequestContext<RoleServer>,
     composition: &MapComposition,
 ) {
     service
@@ -462,12 +468,16 @@ async fn notify_composition(
         .subscriptions
         .notify_resource_updated(&uris::composition_uri(composition.composition_id.as_str()))
         .await;
-    veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
+    service
+        .state
+        .subscriptions
+        .notify_resource_list_changed()
+        .await;
 }
 
 async fn notify_commit(
     service: &MapMcp,
-    context: &RequestContext<RoleServer>,
+    _context: &RequestContext<RoleServer>,
     output: &CommitFeatureChangesOutput,
 ) {
     let layer_uri = uris::feature_layer_uri(output.changeset.layer_id.as_str());
@@ -496,7 +506,11 @@ async fn notify_commit(
             ))
             .await;
     }
-    veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
+    service
+        .state
+        .subscriptions
+        .notify_resource_list_changed()
+        .await;
 }
 
 fn structured_with_links<T, I, U, L>(

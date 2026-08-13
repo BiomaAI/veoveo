@@ -385,8 +385,8 @@ pub(crate) async fn gateway_authenticated(
         ["info".into()],
         [("MCP_BEARER_TOKEN", ema_token.into())],
     )?;
-    let live_policy_session = connect_mcp_session(&gateway_mcp_url, token).await?;
-    read_mcp_resource_json(&live_policy_session, "media://usage").await?;
+    let live_policy_client = connect_mcp_client(&gateway_mcp_url, token).await?;
+    read_mcp_resource_json(&live_policy_client, "media://usage").await?;
 
     let cui_control_plane = tmpdir.join("gateway.cui.json");
     write_cui_control_plane(control_plane, &cui_control_plane)?;
@@ -422,8 +422,8 @@ pub(crate) async fn gateway_authenticated(
         token,
         ["complete".into(), "fake".into()],
     )?;
-    assert_mcp_session_resource_denied(&live_policy_session, "media://usage").await?;
-    live_policy_session.cancel().await?;
+    assert_mcp_client_resource_denied(&live_policy_client, "media://usage").await?;
+    live_policy_client.cancel().await?;
     let missing_group_token = gateway_id_jag_token(
         conformance,
         &gateway_base,

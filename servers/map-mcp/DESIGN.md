@@ -44,7 +44,7 @@ the `map://` scheme.
 | Standard or protocol | Implemented profile |
 |---|---|
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with tools, resources and templates, prompts, completions, subscriptions, notifications, and typed structured content. |
-| [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; acquisition, routing, import, export, publication, and vector-product operations use durable task semantics where declared. |
+| MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; acquisition, routing, import, export, publication, and vector-product operations use durable task semantics where declared. |
 | [MCP Apps SEP-1865](../../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; `ui://map/admin.html` and `ui://map/editor.html` use the sandboxed host bridge and canonical Map tools and resources. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | MCP schemas and immutable authored-layer property contracts. Layer schemas reject remote references. |
 | WGS 84 and EPSG identifiers | Longitude, latitude, and ellipsoidal height are the geographic exchange. PROJ handles bounded projected-CRS conversion; EPSG:4978 and vertical transformations are outside that 2D operation. |
@@ -794,9 +794,9 @@ The listed scope is necessary but not sufficient for a Work Context-owned
 object. Reads require effective read access, edits require write access, and
 publication, product creation, or archival requires effective admin access.
 
-Map uses stateful Streamable HTTP sessions and SSE responses. This transport
-keeps Task API traffic, resource subscriptions, `resources/updated`, and
-`resources/list_changed` notifications on the canonical MCP session.
+Map uses stateless Streamable HTTP. Ordinary responses are JSON, while
+`subscriptions/listen` owns the request-scoped SSE stream carrying task,
+resource, and resource-list notifications.
 
 ### Resources
 

@@ -27,7 +27,7 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 37] = [
+const MIGRATIONS: [Migration; 40] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -249,6 +249,24 @@ const MIGRATIONS: [Migration; 37] = [
         name: "remove_simulation_view_mirror_state",
         filename: "0036_remove_simulation_view_mirror_state.surql",
         sql: include_str!("../migrations/0036_remove_simulation_view_mirror_state.surql"),
+    },
+    Migration {
+        version: 37,
+        name: "gateway_task_routes",
+        filename: "0037_gateway_task_routes.surql",
+        sql: include_str!("../migrations/0037_gateway_task_routes.surql"),
+    },
+    Migration {
+        version: 38,
+        name: "mcp_interactions",
+        filename: "0038_mcp_interactions.surql",
+        sql: include_str!("../migrations/0038_mcp_interactions.surql"),
+    },
+    Migration {
+        version: 39,
+        name: "agent_opaque_task_ids",
+        filename: "0039_agent_opaque_task_ids.surql",
+        sql: include_str!("../migrations/0039_agent_opaque_task_ids.surql"),
     },
 ];
 

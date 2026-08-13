@@ -12,10 +12,6 @@ use veoveo_mcp_contract::{
     ResourceListObservers, ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer,
     init_server_telemetry, public_allowed_hosts,
 };
-use veoveo_mcp_task_extension::{
-    Implementation as TaskExtensionImplementation, ServerDiscovery, TaskExtensionAdapter,
-    task_extension_middleware,
-};
 use veoveo_optimization_mcp::{
     artifacts::ArtifactRepository,
     domain::CUOPT_STABLE_VERSION,
@@ -54,7 +50,7 @@ use config::Args;
 use host::validate_host;
 use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
 use service::OptimizationMcp;
-use task_extension::{OptimizationTaskExtension, recover_tasks};
+use task_extension::recover_tasks;
 
 const SERVER_SLUG: &str = "optimization";
 
@@ -146,33 +142,14 @@ async fn main() -> anyhow::Result<()> {
             let state = state.clone();
             move || Ok(OptimizationMcp::new(state.clone()))
         },
-        veoveo_mcp_contract::canonical_session_manager(),
+        veoveo_mcp_contract::stateless_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
             .with_cancellation_token(cancellation.child_token()),
     );
-    let task_extension = Arc::new(TaskExtensionAdapter::new(
-        Arc::new(OptimizationTaskExtension::new(state.clone())),
-        ServerDiscovery::new(
-            std::collections::BTreeMap::from([
-                ("tools".to_owned(), json!({})),
-                ("resources".to_owned(), json!({})),
-                ("prompts".to_owned(), json!({})),
-            ]),
-            TaskExtensionImplementation {
-                name: SERVER_SLUG.to_owned(),
-                version: env!("CARGO_PKG_VERSION").to_owned(),
-            },
-            Some("Durable GPU routing and mathematical optimization through cuOpt.".to_owned()),
-        ),
-    ));
     let mcp_router = Router::new()
         .route_service("/", mcp_service.clone())
         .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn_with_state(
-            task_extension,
-            task_extension_middleware::<OptimizationTaskExtension>,
-        ))
         .layer(middleware::from_fn_with_state(
             auth_state.clone(),
             authenticate_internal_mcp,
@@ -250,15 +227,10 @@ mod schema_tests {
     use super::*;
 
     #[test]
-    fn all_five_tools_require_tasks_and_use_canonical_schemas() {
+    fn all_five_tools_use_canonical_schemas() {
         let tools = OptimizationMcp::tool_definitions();
         assert_eq!(tools.len(), 5);
-        assert!(tools.iter().all(|tool| {
-            tool.execution
-                .as_ref()
-                .and_then(|execution| execution.task_support)
-                == Some(rmcp::model::TaskSupport::Required)
-        }));
+        assert!(tools.iter().all(|tool| !tool.name.is_empty()));
     }
 }
 
@@ -267,9 +239,8 @@ mod well_known_tests {
     use veoveo_mcp_contract::docs::{
         CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
     };
-    use veoveo_optimization_mcp::uris;
 
-    use super::service::{OptimizationMcp, SERVER_DOCS};
+    use super::service::SERVER_DOCS;
 
     #[test]
     fn embedded_documents_carry_the_crate_manual_and_design() {
@@ -285,10 +256,7 @@ mod well_known_tests {
 
     #[test]
     fn contract_declaration_matches_the_cuopt_surface() {
-        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(
-            &SERVER_DOCS,
-            OptimizationMcp::capability_inventory(),
-        );
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
         assert_eq!(declaration.server, "optimization");
         assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
         for id in ["C18", "C19", "C20", "C21"] {
@@ -299,23 +267,7 @@ mod well_known_tests {
                 .expect("declared checklist item");
             assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
         }
-        let inventory = &declaration.capabilities;
-        for tool in [
-            "optimize_routes",
-            "optimize_route_scenarios",
-            "solve_convex",
-            "solve_milp",
-            "verify_solution",
-        ] {
-            assert!(inventory.tools.contains(&tool.to_owned()));
-            assert!(inventory.tasks.contains(&tool.to_owned()));
-        }
-        assert!(inventory.resources.contains(&uris::DOCS_URI.to_owned()));
-        assert!(inventory.resources.contains(&uris::CONTRACT_URI.to_owned()));
-        assert!(
-            inventory
-                .resource_templates
-                .contains(&uris::DOC_TEMPLATE.to_owned())
-        );
+        let json = serde_json::to_value(declaration).unwrap();
+        assert!(json.get("capabilities").is_none());
     }
 }

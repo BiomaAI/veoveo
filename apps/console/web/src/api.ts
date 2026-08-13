@@ -1,17 +1,16 @@
 import { demoSnapshot } from "./demo";
-import { agentElicitationDecisionPath, agentElicitationsApiPath } from "./agentControl";
+import { agentInputRequestDecisionPath, agentInputRequestsApiPath } from "./agentControl";
 import type {
-  CallToolResult,
-  CancelTaskResult,
-  CreateTaskResult,
-  GetTaskPayloadResult,
-  GetTaskResult,
-  ReadResourceResult,
-  TaskMetadata,
-} from "@modelcontextprotocol/sdk/types.js";
+  AppReadResourceResult,
+  AppToolRequestExtras,
+  AppToolResult,
+  InputResponses,
+  TaskAckResult,
+  TaskDetailResult,
+} from "./apps/protocol";
 import type {
   AppCatalog,
-  AgentElicitation,
+  AgentInputRequest,
   AgentWakeReceipt,
   ArtifactAccessRequest,
   ArtifactAccessRequestPage,
@@ -134,8 +133,8 @@ interface AgentWakeReceiptWire {
   accepted_at: string;
 }
 
-interface AgentElicitationWire {
-  elicitation_id: string;
+interface AgentInputRequestWire {
+  input_request_id: string;
   message: string;
   requested_schema?: unknown;
   requested_at: string;
@@ -166,12 +165,12 @@ export async function sendAgentMessage(
   return agentWakeReceipt(wire);
 }
 
-export async function loadAgentElicitations(
+export async function loadAgentInputRequests(
   agentId: string,
   signal?: AbortSignal,
-): Promise<AgentElicitation[]> {
+): Promise<AgentInputRequest[]> {
   const response = await fetch(
-    agentElicitationsApiPath(agentId),
+    agentInputRequestsApiPath(agentId),
     {
       credentials: "same-origin",
       headers: { Accept: "application/json" },
@@ -182,26 +181,26 @@ export async function loadAgentElicitations(
   if (rotatedToken) csrfToken = rotatedToken;
   if (response.status === 401) authenticationRequired();
   if (response.status === 403) {
-    throw new Error("Agent elicitations are not permitted for this Console session.");
+    throw new Error("Agent input_requests are not permitted for this Console session.");
   }
-  if (!response.ok) throw new Error(`Agent elicitations returned ${response.status}`);
-  const values = (await response.json()) as AgentElicitationWire[];
+  if (!response.ok) throw new Error(`Agent input_requests returned ${response.status}`);
+  const values = (await response.json()) as AgentInputRequestWire[];
   return values.map((wire) => ({
-    elicitationId: wire.elicitation_id,
+    inputRequestId: wire.input_request_id,
     message: wire.message,
     requestedSchema: wire.requested_schema,
     requestedAt: wire.requested_at,
   }));
 }
 
-export async function decideAgentElicitation(
+export async function decideAgentInputRequest(
   agentId: string,
-  elicitationId: string,
+  inputRequestId: string,
   requestId: string,
   decision: { action: "accept"; content: Record<string, unknown> } | { action: "decline" | "cancel" },
 ): Promise<AgentWakeReceipt> {
   const wire = await consoleMutation<AgentWakeReceiptWire>(
-    agentElicitationDecisionPath(agentId, elicitationId),
+    agentInputRequestDecisionPath(agentId, inputRequestId),
     {
       method: "POST",
       body: JSON.stringify({ request_id: requestId, ...decision }),
@@ -436,25 +435,12 @@ export async function callAppTool(
   server: string,
   appUri: string,
   tool: string,
-  toolArguments: Record<string, unknown>
-): Promise<CallToolResult>;
-export async function callAppTool(
-  server: string,
-  appUri: string,
-  tool: string,
   toolArguments: Record<string, unknown>,
-  task: TaskMetadata
-): Promise<CreateTaskResult>;
-export async function callAppTool(
-  server: string,
-  appUri: string,
-  tool: string,
-  toolArguments: Record<string, unknown>,
-  task?: TaskMetadata
-): Promise<CallToolResult | CreateTaskResult> {
-  return consoleMutation<CallToolResult | CreateTaskResult>("apps/call", {
+  extras: AppToolRequestExtras = {},
+): Promise<AppToolResult> {
+  return consoleMutation<AppToolResult>("apps/call", {
     method: "POST",
-    body: JSON.stringify({ server, appUri, tool, arguments: toolArguments, ...(task ? { task } : {}) }),
+    body: JSON.stringify({ server, appUri, tool, arguments: toolArguments, ...extras }),
   });
 }
 
@@ -462,21 +448,22 @@ export async function getAppTask(
   server: string,
   appUri: string,
   taskId: string
-): Promise<GetTaskResult> {
-  return consoleMutation<GetTaskResult>("apps/task/get", {
+): Promise<TaskDetailResult> {
+  return consoleMutation<TaskDetailResult>("apps/task/get", {
     method: "POST",
     body: JSON.stringify({ server, appUri, taskId }),
   });
 }
 
-export async function getAppTaskResult(
+export async function updateAppTask(
   server: string,
   appUri: string,
-  taskId: string
-): Promise<GetTaskPayloadResult> {
-  return consoleMutation<GetTaskPayloadResult>("apps/task/result", {
+  taskId: string,
+  inputResponses: InputResponses,
+): Promise<TaskAckResult> {
+  return consoleMutation<TaskAckResult>("apps/task/update", {
     method: "POST",
-    body: JSON.stringify({ server, appUri, taskId }),
+    body: JSON.stringify({ server, appUri, taskId, inputResponses }),
   });
 }
 
@@ -484,8 +471,8 @@ export async function cancelAppTask(
   server: string,
   appUri: string,
   taskId: string
-): Promise<CancelTaskResult> {
-  return consoleMutation<CancelTaskResult>("apps/task/cancel", {
+): Promise<TaskAckResult> {
+  return consoleMutation<TaskAckResult>("apps/task/cancel", {
     method: "POST",
     body: JSON.stringify({ server, appUri, taskId }),
   });
@@ -495,8 +482,8 @@ export async function readAppResource(
   server: string,
   appUri: string,
   uri: string
-): Promise<ReadResourceResult> {
-  return consoleMutation<ReadResourceResult>("apps/read", {
+): Promise<AppReadResourceResult> {
+  return consoleMutation<AppReadResourceResult>("apps/read", {
     method: "POST",
     body: JSON.stringify({ server, appUri, uri }),
   });

@@ -14,7 +14,7 @@ use anyhow::{Context, bail};
 use axum::{Router, routing::get};
 use clap::Parser;
 use rmcp::{
-    ServiceExt,
+    ClientLifecycleMode, ClientServiceExt,
     transport::{TokioChildProcess, streamable_http_server::StreamableHttpService},
 };
 use tokio::process::Command;
@@ -59,17 +59,26 @@ async fn main() -> anyhow::Result<()> {
     let transport = TokioChildProcess::new(command)
         .with_context(|| format!("failed to spawn stdio MCP child `{program}`"))?;
     let child = ()
-        .serve(transport)
+        .serve_with_lifecycle(
+            transport,
+            ClientLifecycleMode::Discover {
+                preferred_versions: vec![rmcp::model::ProtocolVersion::V_2026_07_28],
+            },
+        )
         .await
-        .with_context(|| format!("failed to initialize stdio MCP child `{program}`"))?;
+        .with_context(|| format!("failed to discover stdio MCP child `{program}`"))?;
     let child_info = child
         .peer_info()
         .context("stdio MCP child returned no server info")?;
-    tracing::info!(
-        server = %child_info.server_info.name,
-        version = %child_info.server_info.version,
-        "stdio MCP child initialized"
-    );
+    if let Some(server_info) = &child_info.server_info {
+        tracing::info!(
+            server = %server_info.name,
+            version = %server_info.version,
+            "stdio MCP child discovered"
+        );
+    } else {
+        tracing::info!("stdio MCP child discovered without an implementation identity");
+    }
     let server_info = handler::bridge_server_info(&child_info);
     let peer = child.peer().clone();
 
@@ -81,7 +90,7 @@ async fn main() -> anyhow::Result<()> {
     }
     let mcp_service = StreamableHttpService::new(
         move || Ok(BridgeMcp::new(peer.clone(), server_info.clone())),
-        veoveo_mcp_contract::canonical_session_manager(),
+        veoveo_mcp_contract::stateless_session_manager(),
         http_config,
     );
     let router = Router::new()

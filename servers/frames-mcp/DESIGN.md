@@ -89,7 +89,7 @@ resolve locally and deterministically. A conversion through a dynamic node
 fails with a request for timestamped stream or recording data; the server does
 not invent a current pose.
 
-`batch_transform` uses the final Veoveo task extension. Direct calls are
+`batch_transform` uses official Tasks. Direct calls are
 rejected. Large results go through the artifact plane.
 
 ## Resources

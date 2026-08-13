@@ -1,6 +1,5 @@
 from typing import Annotated, Literal
 
-import pytest
 from pydantic import BaseModel, Field
 
 from veoveo_mcp.schema import MCP_INPUT_SCHEMA_DIALECT, mcp_input_schema
@@ -33,23 +32,26 @@ class RecursiveRequest(BaseModel):
     child: "RecursiveRequest | None" = None
 
 
-def test_mcp_input_schema_is_self_contained_and_explicitly_typed():
+def test_mcp_input_schema_preserves_complete_2020_12_shape():
     schema = mcp_input_schema(Request)
 
     assert schema["$schema"] == MCP_INPUT_SCHEMA_DIALECT
     assert schema["type"] == "object"
-    assert "$defs" not in schema
-    assert "$ref" not in str(schema)
-    assert schema["properties"]["nested"]["type"] == "object"
+    assert schema["properties"]["nested"]["$ref"] == "#/$defs/Nested"
+    assert schema["$defs"]["Nested"]["type"] == "object"
     assert schema["properties"]["optional"]["type"] == ["string", "null"]
 
 
-def test_mcp_input_schema_exposes_discriminated_union_as_an_object():
+def test_mcp_input_schema_preserves_discriminated_composition():
     schema = mcp_input_schema(UnionRequest)
 
-    assert schema["properties"]["choice"]["type"] == "object"
+    choice = schema["properties"]["choice"]
+    assert len(choice["oneOf"]) == 2
+    assert choice["discriminator"]["propertyName"] == "kind"
 
 
-def test_mcp_input_schema_rejects_recursive_tool_inputs():
-    with pytest.raises(ValueError, match="recursive"):
-        mcp_input_schema(RecursiveRequest)
+def test_mcp_input_schema_supports_bounded_local_recursion():
+    schema = mcp_input_schema(RecursiveRequest)
+    assert schema["$defs"]["RecursiveRequest"]["properties"]["child"]["anyOf"][0] == {
+        "$ref": "#/$defs/RecursiveRequest"
+    }

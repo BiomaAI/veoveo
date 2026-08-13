@@ -53,7 +53,6 @@ uuid.workspace = true
 veoveo-artifact-client = { path = "../../platform/artifacts/client" }
 veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension" }
 veoveo-mcp-contract.workspace = true
-veoveo-mcp-task-extension = { path = "../../mcp/task-extension" }
 veoveo-task-runtime = { path = "../../platform/task-runtime" }
 
 [dev-dependencies]

@@ -15,7 +15,6 @@ use veoveo_mcp_gateway::{
     GatewayCatalog, GatewayCatalogHandle, GatewayControlStore, GatewayRefreshDeliveryWindow,
     GatewayState, GatewayUpstreamHttpClientPool, RefreshTokenDeliveryCipher,
 };
-use veoveo_platform_store::PlatformStore;
 
 const GATEWAY_AUTH_HTTP_TIMEOUT: Duration = Duration::from_secs(10);
 const REFRESH_DELIVERY_GC_INTERVAL: Duration = Duration::from_secs(60);
@@ -69,7 +68,6 @@ pub(super) struct AdminState {
 pub(super) struct DynamicMcpState {
     pub(super) catalog: SharedCatalog,
     pub(super) gateway_state: GatewayState,
-    pub(super) platform_store: PlatformStore,
     pub(super) internal_token_issuer: GatewayInternalTokenIssuer,
     pub(super) upstream_http: GatewayUpstreamHttpClientPool,
     pub(super) allowed_hosts: Arc<Vec<String>>,

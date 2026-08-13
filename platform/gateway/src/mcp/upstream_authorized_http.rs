@@ -19,14 +19,11 @@ use veoveo_mcp_contract::{
 
 const INTERNAL_REQUEST_TOKEN_TTL_SECONDS: i64 = 60;
 
-/// HTTP authorization owned by one gateway-to-server MCP session.
+/// Per-request HTTP authorization for one auth-scoped gateway-to-server client.
 ///
-/// Streamable HTTP may issue POST, GET/reconnect, and DELETE requests long
-/// after initialization. A static JWT cannot safely represent that session:
-/// it expires under a live notification stream and then also prevents the
-/// transport from deleting its server-side session. This client signs a
-/// short-lived assertion for each HTTP request while retaining one MCP
-/// session and one immutable invocation authority.
+/// This client signs a short-lived assertion for every request while retaining
+/// one immutable invocation authority. Final-profile POSTs and request-scoped
+/// listener streams therefore never derive authority from connection locality.
 #[derive(Clone)]
 pub(super) struct GatewayAuthorizedHttpClient {
     http: reqwest::Client,
@@ -141,7 +138,7 @@ impl StreamableHttpClient for GatewayAuthorizedHttpClient {
     async fn get_stream(
         &self,
         uri: Arc<str>,
-        session_id: Arc<str>,
+        session_id: Option<Arc<str>>,
         last_event_id: Option<String>,
         _static_auth_header: Option<String>,
         custom_headers: HashMap<HeaderName, HeaderValue>,

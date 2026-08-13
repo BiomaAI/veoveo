@@ -1,12 +1,7 @@
-use std::{
-    collections::{BTreeSet, HashMap},
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::BTreeSet, time::Duration};
 
 use futures::StreamExt;
-use rmcp::{RoleServer, model::ResourceUpdatedNotificationParam, service::Peer};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{ArtifactId, ArtifactPlane, ListArtifactsRequest, PlaneCaller};
@@ -15,6 +10,7 @@ use veoveo_platform_store::{LiveStream, OutboxEventRecord, PlatformStore, Platfo
 const OUTBOX_PAGE_SIZE: u32 = 1_000;
 const RECONCILE_INTERVAL: Duration = Duration::from_secs(15);
 const LIVE_RECONNECT_DELAY: Duration = Duration::from_secs(1);
+const SUBSCRIPTION_BUFFER: usize = 256;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum SubscriptionKind {
@@ -25,128 +21,24 @@ pub(super) enum SubscriptionKind {
 }
 
 #[derive(Clone)]
-struct Subscriber {
-    key: String,
-    uri: String,
-    kind: SubscriptionKind,
-    caller: PlaneCaller,
-    peer: Peer<RoleServer>,
-    visible: Option<Arc<Mutex<BTreeSet<ArtifactId>>>>,
+pub(super) struct ArtifactSubscriptions {
+    updates: broadcast::Sender<ArtifactId>,
 }
 
-#[derive(Clone, Default)]
-pub(super) struct ArtifactSubscriptions {
-    entries: Arc<RwLock<HashMap<String, Vec<Subscriber>>>>,
+impl Default for ArtifactSubscriptions {
+    fn default() -> Self {
+        let (updates, _) = broadcast::channel(SUBSCRIPTION_BUFFER);
+        Self { updates }
+    }
 }
 
 impl ArtifactSubscriptions {
-    pub(super) async fn subscribe(
-        &self,
-        uri: String,
-        kind: SubscriptionKind,
-        caller: PlaneCaller,
-        peer: Peer<RoleServer>,
-        visible: Option<BTreeSet<ArtifactId>>,
-    ) {
-        let key = subscriber_key(&caller);
-        let entry = Subscriber {
-            key: key.clone(),
-            uri: uri.clone(),
-            kind,
-            caller,
-            peer,
-            visible: visible.map(|ids| Arc::new(Mutex::new(ids))),
-        };
-        let mut entries = self.entries.write().await;
-        let subscribers = entries.entry(uri).or_default();
-        subscribers.retain(|existing| existing.key != key);
-        subscribers.push(entry);
+    pub(super) fn listen(&self) -> broadcast::Receiver<ArtifactId> {
+        self.updates.subscribe()
     }
 
-    pub(super) async fn unsubscribe(&self, uri: &str, caller: &PlaneCaller) {
-        let key = subscriber_key(caller);
-        let mut entries = self.entries.write().await;
-        if let Some(subscribers) = entries.get_mut(uri) {
-            subscribers.retain(|entry| entry.key != key);
-            if subscribers.is_empty() {
-                entries.remove(uri);
-            }
-        }
-    }
-
-    async fn snapshot(&self) -> Vec<Subscriber> {
-        self.entries
-            .read()
-            .await
-            .values()
-            .flat_map(|entries| entries.iter().cloned())
-            .collect()
-    }
-
-    async fn remove(&self, uri: &str, key: &str) {
-        let mut entries = self.entries.write().await;
-        if let Some(subscribers) = entries.get_mut(uri) {
-            subscribers.retain(|entry| entry.key != key);
-            if subscribers.is_empty() {
-                entries.remove(uri);
-            }
-        }
-    }
-
-    pub(super) async fn notify_artifact(&self, plane: &HttpArtifactPlane, artifact_id: ArtifactId) {
-        for subscriber in self.snapshot().await {
-            let decision = match subscriber.kind {
-                SubscriptionKind::Index => {
-                    let current = match visible_ids(plane, &subscriber.caller).await {
-                        Ok(current) => current,
-                        Err(error) => {
-                            tracing::warn!("artifact index subscription recheck failed: {error}");
-                            continue;
-                        }
-                    };
-                    let visible = subscriber
-                        .visible
-                        .as_ref()
-                        .expect("index subscriptions carry a visible set");
-                    let mut previous = visible.lock().await;
-                    let changed = *previous != current || current.contains(&artifact_id);
-                    *previous = current;
-                    changed
-                }
-                SubscriptionKind::Content(id) | SubscriptionKind::Metadata(id)
-                    if id == artifact_id =>
-                {
-                    plane.head(&subscriber.caller, &id).await.is_ok()
-                }
-                SubscriptionKind::Grants(id) if id == artifact_id => {
-                    plane.list_grants(&subscriber.caller, &id).await.is_ok()
-                }
-                _ => false,
-            };
-            if !decision {
-                if !matches!(subscriber.kind, SubscriptionKind::Index) {
-                    self.remove(&subscriber.uri, &subscriber.key).await;
-                }
-                continue;
-            }
-            if let Err(error) = subscriber
-                .peer
-                .notify_resource_updated(ResourceUpdatedNotificationParam::new(
-                    subscriber.uri.clone(),
-                ))
-                .await
-            {
-                tracing::debug!("artifact resource notification failed: {error}");
-                self.remove(&subscriber.uri, &subscriber.key).await;
-                continue;
-            }
-            if subscriber.kind == SubscriptionKind::Index
-                && let Err(error) = subscriber.peer.notify_resource_list_changed().await
-            {
-                tracing::debug!("artifact resource-list notification failed: {error}");
-                self.remove(&subscriber.uri, &subscriber.key).await;
-            }
-        }
+    async fn notify_artifact(&self, artifact_id: ArtifactId) {
+        let _ = self.updates.send(artifact_id);
     }
 }
 
@@ -181,7 +73,6 @@ pub(super) async fn visible_ids(
 
 pub(super) async fn start_dispatcher(
     store: PlatformStore,
-    plane: HttpArtifactPlane,
     subscriptions: ArtifactSubscriptions,
     cancellation: CancellationToken,
 ) -> anyhow::Result<()> {
@@ -191,7 +82,6 @@ pub(super) async fn start_dispatcher(
     let cursor = store.latest_outbox_sequence().await?;
     tokio::spawn(dispatch_loop(
         store,
-        plane,
         subscriptions,
         cancellation,
         cursor,
@@ -202,7 +92,6 @@ pub(super) async fn start_dispatcher(
 
 async fn dispatch_loop(
     store: PlatformStore,
-    plane: HttpArtifactPlane,
     subscriptions: ArtifactSubscriptions,
     cancellation: CancellationToken,
     mut cursor: i64,
@@ -224,13 +113,13 @@ async fn dispatch_loop(
             }
         };
         if wake {
-            if let Err(error) = drain_outbox(&store, &plane, &subscriptions, &mut cursor).await {
+            if let Err(error) = drain_outbox(&store, &subscriptions, &mut cursor).await {
                 tracing::warn!("artifact outbox replay failed: {error}");
             }
             continue;
         }
 
-        if let Err(error) = drain_outbox(&store, &plane, &subscriptions, &mut cursor).await {
+        if let Err(error) = drain_outbox(&store, &subscriptions, &mut cursor).await {
             tracing::warn!("artifact outbox gap replay failed: {error}");
         }
         tokio::select! {
@@ -260,7 +149,6 @@ async fn dispatch_loop(
 
 async fn drain_outbox(
     store: &PlatformStore,
-    plane: &HttpArtifactPlane,
     subscriptions: &ArtifactSubscriptions,
     cursor: &mut i64,
 ) -> anyhow::Result<()> {
@@ -274,7 +162,7 @@ async fn drain_outbox(
             if event.aggregate_type == "artifact"
                 && let Ok(artifact_id) = ArtifactId::parse(&event.aggregate_id)
             {
-                subscriptions.notify_artifact(plane, artifact_id).await;
+                subscriptions.notify_artifact(artifact_id).await;
             }
         }
         *cursor = page.next_sequence;
@@ -282,18 +170,4 @@ async fn drain_outbox(
             return Ok(());
         }
     }
-}
-
-fn subscriber_key(caller: &PlaneCaller) -> String {
-    format!(
-        "{}:{}:{}",
-        caller.identity.profile,
-        caller
-            .identity
-            .actor
-            .tenant
-            .as_ref()
-            .map_or("", |tenant| tenant.as_str()),
-        caller.identity.actor.id
-    )
 }

@@ -190,8 +190,8 @@ export interface AgentWakeReceipt {
   acceptedAt: string;
 }
 
-export interface AgentElicitation {
-  elicitationId: string;
+export interface AgentInputRequest {
+  inputRequestId: string;
   message: string;
   requestedSchema?: unknown;
   requestedAt: string;

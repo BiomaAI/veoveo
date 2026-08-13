@@ -11,15 +11,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from veoveo_mcp.contract import (
-    CapabilityInventory,
     ContractDeclaration,
-    DOC_ID_AGENTS,
-    DOC_ID_DESIGN,
     ServerDocs,
     server_docs,
 )
 
-from . import prompts, uris
+from . import uris
 
 _PACKAGE = __package__ or "datasheet_mcp"
 _SOURCE_ROOT = Path(__file__).resolve().parents[2]
@@ -30,21 +27,4 @@ SERVER_DOCS: ServerDocs = server_docs(
 
 LLMS_TXT: str = SERVER_DOCS.llms_txt()
 
-CAPABILITY_INVENTORY = CapabilityInventory(
-    tools=("column_stats", "preview_dataset", "profile_dataset"),
-    resources=(
-        uris.REPORTS_URI,
-        uris.USAGE_ROOT_URI,
-        uris.DOCS_URI,
-        uris.doc_uri(DOC_ID_AGENTS),
-        uris.doc_uri(DOC_ID_DESIGN),
-        uris.CONTRACT_URI,
-    ),
-    resource_templates=(uris.USAGE_TASK_TEMPLATE, uris.ARTIFACT_TEMPLATE),
-    prompts=(prompts.PROFILE_PROMPT, prompts.REVIEW_PROMPT),
-    tasks=("profile_dataset",),
-)
-
-CONTRACT_DECLARATION = ContractDeclaration.from_docs(
-    SERVER_DOCS, CAPABILITY_INVENTORY
-)
+CONTRACT_DECLARATION = ContractDeclaration.from_docs(SERVER_DOCS)

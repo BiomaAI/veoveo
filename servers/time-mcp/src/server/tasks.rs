@@ -1,15 +1,9 @@
 use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
-use futures::StreamExt;
 use rmcp::model::{CallToolResult, ContentBlock};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{GatewayInternalIdentity, PrincipalKind};
-use veoveo_mcp_task_extension::{
-    AcknowledgeTaskResult, AdapterError, CancelTaskParams, CreateTaskResult, GetTaskParams,
-    GetTaskResult, ProtocolTaskId, TaskExtensionHandler, TaskSubscription, ToolCallParams,
-    UpdateTaskParams, project_snapshot, task_seed,
-};
 use veoveo_task_runtime::{
     CreateTask, RecoveryClass, TaskError, TaskFailure, TaskId, TaskOwner, TaskRetentionPin,
     TaskSnapshot, TaskTransition,
@@ -25,21 +19,18 @@ const SERVER_SLUG: &str = "time";
 const EXPAND_SCHEDULE_TASK: &str = "expand_schedule";
 const VALIDATE_TIMELINE_TASK: &str = "validate_timeline";
 
-/// Task-augmented tool names declared in the `time://contract` capability
-/// inventory (contract C19).
-pub(crate) const TASK_TOOLS: &[&str] = &[EXPAND_SCHEDULE_TASK, VALIDATE_TIMELINE_TASK];
 const TASK_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1_000;
 const TASK_POLL_INTERVAL_MS: u64 = 1_000;
 const TASK_LEASE_DURATION: Duration = Duration::from_secs(120);
 const TASK_LEASE_HEARTBEAT: Duration = Duration::from_secs(40);
 
 #[derive(Clone)]
-pub(super) struct TimeTaskExtension {
+pub(crate) struct TimeTaskExtension {
     state: Arc<TimeApplication>,
 }
 
 #[derive(Clone)]
-pub(super) struct AuthenticatedCaller {
+pub(crate) struct AuthenticatedCaller {
     identity: GatewayInternalIdentity,
 }
 
@@ -51,77 +42,62 @@ enum TimeTaskRequest {
 }
 
 impl TimeTaskExtension {
-    pub(super) fn new(state: Arc<TimeApplication>) -> Self {
+    pub(crate) fn new(state: Arc<TimeApplication>) -> Self {
         Self { state }
-    }
-
-    async fn authorized_snapshot(
-        &self,
-        caller: &AuthenticatedCaller,
-        task_id: ProtocolTaskId,
-    ) -> Result<TaskSnapshot, AdapterError> {
-        let snapshot = self
-            .state
-            .tasks
-            .get(&task_id.to_string())
-            .await
-            .map_err(|error| AdapterError::internal(error.to_string()))?
-            .ok_or_else(|| AdapterError::invalid_params("unknown task id"))?;
-        let owner = runtime_owner(&caller.identity);
-        if snapshot.owner.allows(
-            &owner.principal_key,
-            &owner.profile,
-            owner.tenant_key.as_deref(),
-            &owner.data_labels,
-        ) {
-            Ok(snapshot)
-        } else {
-            Err(AdapterError::invalid_params("unknown task id"))
-        }
     }
 }
 
-impl TaskExtensionHandler for TimeTaskExtension {
+impl veoveo_task_runtime::DurableTaskService for TimeTaskExtension {
     type Caller = AuthenticatedCaller;
 
     fn authenticate(
         &self,
-        extensions: &axum::http::Extensions,
-    ) -> Result<Self::Caller, AdapterError> {
-        let identity = extensions
+        context: &rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> Result<Self::Caller, rmcp::ErrorData> {
+        let parts = context
+            .extensions
+            .get::<axum::http::request::Parts>()
+            .ok_or_else(|| rmcp::ErrorData::invalid_request("gateway identity missing", None))?;
+        let identity = parts
+            .extensions
             .get::<GatewayInternalIdentity>()
             .cloned()
-            .ok_or_else(|| AdapterError::unauthorized("gateway identity missing"))?;
-        extensions
+            .ok_or_else(|| rmcp::ErrorData::invalid_request("gateway identity missing", None))?;
+        parts
+            .extensions
             .get::<ForwardedBearer>()
-            .ok_or_else(|| AdapterError::unauthorized("forwarded bearer missing"))?;
+            .ok_or_else(|| rmcp::ErrorData::invalid_request("forwarded bearer missing", None))?;
         Ok(AuthenticatedCaller { identity })
     }
 
     async fn start_tool_task(
         &self,
         caller: &Self::Caller,
-        request: ToolCallParams,
-    ) -> Result<Option<CreateTaskResult>, AdapterError> {
-        let arguments = serde_json::Value::Object(request.arguments.into_iter().collect());
-        let task = match request.name.as_str() {
+        request: rmcp::model::CallToolRequestParams,
+    ) -> Result<Option<rmcp::model::CreateTaskResult>, rmcp::ErrorData> {
+        let arguments = serde_json::Value::Object(request.arguments.unwrap_or_default());
+        let task = match request.name.as_ref() {
             EXPAND_SCHEDULE_TASK => {
-                require_scope(&caller.identity, "time:schedule")?;
+                require_scope(&caller.identity, "time:schedule")
+                    .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 TimeTaskRequest::ExpandSchedule(Box::new(
-                    serde_json::from_value(arguments)
-                        .map_err(|error| AdapterError::invalid_params(error.to_string()))?,
+                    serde_json::from_value(arguments).map_err(|error| {
+                        rmcp::ErrorData::invalid_params(error.to_string(), None)
+                    })?,
                 ))
             }
             VALIDATE_TIMELINE_TASK => {
-                require_scope(&caller.identity, "time:timeline")?;
+                require_scope(&caller.identity, "time:timeline")
+                    .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 TimeTaskRequest::ValidateTimeline(
-                    serde_json::from_value(arguments)
-                        .map_err(|error| AdapterError::invalid_params(error.to_string()))?,
+                    serde_json::from_value(arguments).map_err(|error| {
+                        rmcp::ErrorData::invalid_params(error.to_string(), None)
+                    })?,
                 )
             }
             _ => return Ok(None),
         };
-        let retention_pins = request.meta.task_retention_pin.into_iter().collect();
+        let retention_pins = veoveo_task_runtime::retention_pins(request.meta.as_ref())?;
         let snapshot = start_time_task(
             self.state.clone(),
             caller.identity.clone(),
@@ -129,100 +105,62 @@ impl TaskExtensionHandler for TimeTaskExtension {
             retention_pins,
         )
         .await
-        .map_err(|error| AdapterError::internal(error.to_string()))?;
-        Ok(Some(CreateTaskResult::new(task_seed(&snapshot))))
+        .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?;
+        Ok(Some(rmcp::model::CreateTaskResult::new(
+            veoveo_task_runtime::task_seed(&snapshot),
+        )))
     }
 
     async fn get_task(
         &self,
         caller: &Self::Caller,
-        request: GetTaskParams,
-    ) -> Result<GetTaskResult, AdapterError> {
-        let snapshot = self.authorized_snapshot(caller, request.task_id).await?;
-        let task = project_snapshot(&self.state.tasks, snapshot)
-            .await
-            .map_err(|error| AdapterError::internal(error.to_string()))?;
-        Ok(GetTaskResult::new(task))
+        request: rmcp::model::GetTaskParams,
+    ) -> Result<rmcp::model::GetTaskResult, rmcp::ErrorData> {
+        veoveo_task_runtime::get_durable_task(
+            &self.state.tasks,
+            &runtime_owner(&caller.identity),
+            request,
+        )
+        .await
     }
 
     async fn update_task(
         &self,
         caller: &Self::Caller,
-        request: UpdateTaskParams,
-    ) -> Result<AcknowledgeTaskResult, AdapterError> {
-        self.authorized_snapshot(caller, request.task_id).await?;
-        self.state
-            .tasks
-            .submit_input_responses(&request.task_id.to_string(), request.input_responses)
-            .await
-            .map_err(|error| AdapterError::internal(error.to_string()))?;
-        Ok(AcknowledgeTaskResult::complete())
+        request: rmcp::model::UpdateTaskParams,
+    ) -> Result<(), rmcp::ErrorData> {
+        veoveo_task_runtime::update_durable_task(
+            &self.state.tasks,
+            &runtime_owner(&caller.identity),
+            request,
+        )
+        .await
     }
 
     async fn cancel_task(
         &self,
         caller: &Self::Caller,
-        request: CancelTaskParams,
-    ) -> Result<AcknowledgeTaskResult, AdapterError> {
-        self.authorized_snapshot(caller, request.task_id).await?;
-        self.state
-            .tasks
-            .cancel(&request.task_id.to_string())
-            .await
-            .map_err(|error| AdapterError::internal(error.to_string()))?;
-        Ok(AcknowledgeTaskResult::complete())
+        task_id: String,
+    ) -> Result<(), rmcp::ErrorData> {
+        veoveo_task_runtime::cancel_durable_task(
+            &self.state.tasks,
+            &runtime_owner(&caller.identity),
+            task_id,
+        )
+        .await
     }
 
     async fn subscribe_tasks(
         &self,
         caller: &Self::Caller,
-        task_ids: Vec<ProtocolTaskId>,
-    ) -> Result<TaskSubscription, AdapterError> {
-        let updates = self
-            .state
-            .tasks
-            .live_updates()
-            .await
-            .map_err(|error| AdapterError::internal(error.to_string()))?;
-        let mut accepted = Vec::new();
-        for task_id in task_ids {
-            if self.authorized_snapshot(caller, task_id).await.is_ok() {
-                accepted.push(task_id);
-            }
-        }
-        let accepted_set: BTreeSet<_> = accepted.iter().copied().collect();
-        let runtime = self.state.tasks.clone();
-        let owner = runtime_owner(&caller.identity);
-        let stream = updates.filter_map(move |update| {
-            let accepted = accepted_set.clone();
-            let runtime = runtime.clone();
-            let owner = owner.clone();
-            async move {
-                let snapshot = match update {
-                    Ok(update) => update.snapshot,
-                    Err(error) => return Some(Err(AdapterError::internal(error.to_string()))),
-                };
-                if !accepted.contains(&ProtocolTaskId::from(snapshot.task_id))
-                    || !snapshot.owner.allows(
-                        &owner.principal_key,
-                        &owner.profile,
-                        owner.tenant_key.as_deref(),
-                        &owner.data_labels,
-                    )
-                {
-                    return None;
-                }
-                Some(
-                    project_snapshot(&runtime, snapshot)
-                        .await
-                        .map_err(|error| AdapterError::internal(error.to_string())),
-                )
-            }
-        });
-        Ok(TaskSubscription {
-            accepted_task_ids: accepted,
-            updates: Box::pin(stream),
-        })
+        task_ids: Vec<String>,
+    ) -> Result<veoveo_task_runtime::DurableTaskSubscription, rmcp::ErrorData> {
+        veoveo_task_runtime::subscribe_durable_tasks(
+            &self.state.tasks,
+            runtime_owner(&caller.identity),
+            task_ids,
+        )
+        .await
     }
 }
 
@@ -420,14 +358,19 @@ async fn update_task(state: &TimeApplication, task_id: &str, transition: TaskTra
     }
 }
 
-fn require_scope(identity: &GatewayInternalIdentity, required: &str) -> Result<(), AdapterError> {
+fn require_scope(
+    identity: &GatewayInternalIdentity,
+    required: &str,
+) -> Result<(), rmcp::ErrorData> {
     identity
         .actor
         .scopes
         .iter()
         .any(|scope| scope.as_str() == required)
         .then_some(())
-        .ok_or_else(|| AdapterError::unauthorized(format!("required scope `{required}` missing")))
+        .ok_or_else(|| {
+            rmcp::ErrorData::invalid_request(format!("required scope `{required}` missing"), None)
+        })
 }
 
 fn runtime_owner(identity: &GatewayInternalIdentity) -> TaskOwner {

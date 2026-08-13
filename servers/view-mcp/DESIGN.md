@@ -35,7 +35,7 @@ identities keep the `view://` scheme.
 |---|---|
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with view tools, task-only capture, resources and templates, completions, subscriptions, notifications, image content, and structured results. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Camera, immutable scene composition, overlay geometry, capture policy, layer, tile, frame, and structured-result contracts. |
-| [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; frame capture uses durable creation, progress, cancellation, results, and subscriptions. |
+| MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; frame capture uses durable creation, progress, cancellation, terminal `tasks/get` payloads, and `subscriptions/listen`. |
 | [MCP Apps SEP-1865](../../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; `ui://view/preview.html` drives canonical resources, direct view tools, and task-based capture. |
 | OGC 3D Tiles 1.0 and 1.1 | Explicit tile trees, external tilesets, bounding boxes/spheres/regions, transforms, geometric error, and `REPLACE`/`ADD` refinement. Implicit tiling and legacy payloads are rejected. |
 | glTF/GLB 2.0 | Meshes, standard materials and textures, node transforms, and GLB binary content. |

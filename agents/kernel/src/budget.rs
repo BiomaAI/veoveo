@@ -8,11 +8,8 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use rig_core::{
-    agent::{
-        AgentHook, CompletionCallAction, CompletionCallEvent, HookContext, ToolCall, ToolCallAction,
-    },
-    completion::CompletionModel,
+use rig::agent::{
+    AgentHook, CompletionCallAction, CompletionCallEvent, HookContext, ToolCall, ToolCallAction,
 };
 
 use crate::manifest::PerEpisodeBudget;
@@ -35,10 +32,7 @@ impl BudgetHook {
     }
 }
 
-impl<M> AgentHook<M> for BudgetHook
-where
-    M: CompletionModel,
-{
+impl AgentHook for BudgetHook {
     async fn on_completion_call(
         &self,
         _ctx: &HookContext,

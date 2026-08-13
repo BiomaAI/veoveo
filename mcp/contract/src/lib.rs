@@ -6,7 +6,7 @@
 //! normalizes catalog and prediction behavior.
 
 /// Canonical Veoveo hosted MCP server contract revision.
-pub const HOSTED_MCP_CONTRACT_REVISION: &str = "veoveo.io/hosted-mcp/v1";
+pub const HOSTED_MCP_CONTRACT_REVISION: &str = "veoveo.io/hosted-mcp/v3";
 
 pub mod access;
 pub mod agents;
@@ -25,9 +25,8 @@ pub mod host;
 pub mod internal_auth;
 pub mod live_view;
 pub mod pagination;
+pub mod protocol;
 pub mod provider;
-pub mod schema;
-pub mod session;
 pub mod storage;
 pub mod subscriptions;
 pub mod tasks;
@@ -44,8 +43,7 @@ pub use access::{
     parse_artifact_plane_uri, role_in_group,
 };
 pub use agents::{
-    AgentElicitationDecisionRequest, AgentElicitationView, AgentOperatorMessageRequest,
-    AgentWakeReceipt,
+    AgentInputRequestDecision, AgentInputRequestView, AgentOperatorMessageRequest, AgentWakeReceipt,
 };
 #[cfg(feature = "analytics")]
 pub use analytics::{DuckDbAnalytics, SharedDuckDbConnection, open_duckdb};
@@ -120,22 +118,21 @@ pub use gateway::{
     McpSurfaceCapability, MountPath, OAuthAuthorizationCode, OAuthClientAuthMethod, OAuthClientId,
     OAuthClientRegistration, OAuthClientSurface, OAuthEndpointUrl, OAuthGrantType,
     OAuthRedirectUri, OAuthRefreshToken, OAuthStateValue, OAuthTokenTypeHint, OidcClientAuthMethod,
-    OidcClientId, OidcClientRegistrationId, OidcNonce, OwnedRoute, OwnedRoutePurpose,
+    OidcClientId, OidcClientRegistrationId, OidcNonce, OpaqueTaskId, OwnedRoute, OwnedRoutePurpose,
     PkceCodeChallenge, PkceCodeChallengeMethod, PkceCodeVerifier, PlatformCapabilityId,
     PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId, PolicySet,
     PolicyTarget, PolicyVersion, Principal, PrincipalAssurance, PrincipalAuditAttributes,
     PrincipalDisplayName, PrincipalId, PrincipalKind, ProfileServerExposure, PromptName,
-    ProtectedResourceId, ProtectedResourceName, ProviderTaskId, RecordingApplicationId,
-    RecordingDatasetName, RecordingIngestResource, RecordingIngestStreamId,
-    RecordingProducerBlueprintPolicy, RecordingProducerId, RecordingProducerQuotas,
-    RecordingProducerRegistration, RecordingRetentionPolicy, ResourceAuthorizationServer,
-    ResourceProjectionMode, ResourceScheme, ResourceSelector, ResourceUri, ResourceUriPrefix,
-    ResourceUriTemplate, RoleId, ScopeName, SecretLocator, SecretOwner, SecretPurpose,
-    SecretReference, SecretReferenceId, SecretSource, ServerManifest, ServerSlug, TaskExposure,
-    TenantDefinition, TenantId, TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint,
-    UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl, WorkContextId,
-    compose_gateway_control_plane, gateway_binding_schema, gateway_composition_provenance_schema,
-    gateway_server_fragment_schema,
+    ProtectedResourceId, ProtectedResourceName, RecordingApplicationId, RecordingDatasetName,
+    RecordingIngestResource, RecordingIngestStreamId, RecordingProducerBlueprintPolicy,
+    RecordingProducerId, RecordingProducerQuotas, RecordingProducerRegistration,
+    RecordingRetentionPolicy, ResourceAuthorizationServer, ResourceProjectionMode, ResourceScheme,
+    ResourceSelector, ResourceUri, ResourceUriPrefix, ResourceUriTemplate, RoleId, ScopeName,
+    SecretLocator, SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource,
+    ServerManifest, ServerSlug, TaskExposure, TenantDefinition, TenantId, TokenIssuer,
+    TokenSubject, TraceId, UpstreamEndpoint, UpstreamTransport, UpstreamTransportSecurity,
+    UpstreamUrl, WorkContextId, compose_gateway_control_plane, gateway_binding_schema,
+    gateway_composition_provenance_schema, gateway_server_fragment_schema,
 };
 pub use generation::{GenerationPredictionSummary, GenerationRunOutput};
 pub use host::{
@@ -161,28 +158,31 @@ pub use live_view::{
     LiveViewUri, LiveViewerInstanceId, is_valid_live_signaling_url,
 };
 pub use pagination::{Page, PaginationError, paginate};
-pub use provider::Provider;
-pub use schema::{mcp_empty_input_schema, mcp_input_schema};
-pub use session::{
-    BoundedLocalSessionManager, MCP_SESSION_DISCONNECT_GRACE, canonical_session_manager,
+pub use protocol::{
+    MAX_BAGGAGE_BYTES, MAX_TRACESTATE_BYTES, PRIVATE_CATALOG_TTL_MS, PRIVATE_RESOURCE_TTL_MS,
+    PUBLIC_IMMUTABLE_TTL_MS, final_protocol_versions, private_resource_response,
+    sanitized_request_meta, trace_id_from_traceparent,
 };
+pub use provider::Provider;
 pub use storage::{
     ArtifactMetadata, ArtifactObject, ArtifactProvenance, ArtifactPut, ArtifactReleaseState,
     ComplianceMetadata,
 };
-pub use subscriptions::{ResourceListObservers, SubscriptionHub, notify_resource_list_changed};
+pub use subscriptions::{
+    ResourceListObservers, SubscriptionHub, accepted_subscription_filter, listen_resources,
+    receive_resource_list_change, receive_resource_update,
+};
 pub use tasks::{
     GATEWAY_TASK_RESOURCE_TEMPLATE, GatewayTaskStatus, GatewayTaskStatusDocument,
     GatewayTaskStatusKind, RELATED_TASK_META_KEY, gateway_task_resource_uri, notify_progress,
     now_utc, parse_gateway_task_resource_uri, related_task_meta, set_related_task_meta,
 };
 pub use telemetry::{TelemetryGuard, init_server_telemetry};
-pub use transport::canonical_streamable_http_server_config;
+pub use transport::{canonical_streamable_http_server_config, stateless_session_manager};
 pub use uri::{
     ServerResourceUri, ServerResourceUriError, ServerResourceUris, parse_server_doc_uri,
 };
 pub use usage::{UsageKind, UsageRecord, UsageReport};
-pub use veoveo_mcp_schema_macros::tool;
 pub use waiters::WebhookWaiters;
 pub use work_context::{
     AccessSubject, InvocationAuthority, InvocationMode, InvocationProvenance,

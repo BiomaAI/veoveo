@@ -8,7 +8,6 @@ import pytest
 from veoveo_mcp.contract import (
     CHECKLIST_IDS,
     CONTRACT_REVISION,
-    CapabilityInventory,
     ComplianceStatus,
     ContractDeclaration,
     DOC_ID_AGENTS,
@@ -24,7 +23,7 @@ from veoveo_mcp.contract import (
 
 MANUAL = (
     "# Example\n\n## Purpose\n\nText.\n\n## Contract Compliance\n\n"
-    "Contract revision: 2\n\n- C01: met\n"
+    "Contract revision: 3\n\n- C01: met\n"
     "- C02: pending — well-known surface not yet wired\n"
     "- C03: pending - unverified\n\n## Build And Test\n\n- cargo test\n"
 )
@@ -64,7 +63,7 @@ def test_llms_txt_renders_the_exact_served_format():
     )
     assert docs.llms_txt() == (
         "# example\n\n"
-        "> Veoveo MCP server documents. Contract revision 2.\n\n"
+        "> Veoveo MCP server documents. Contract revision 3.\n\n"
         "## Docs\n\n"
         "- [Agent work manual](agents)\n"
         "- [Domain design](design)\n"
@@ -73,7 +72,7 @@ def test_llms_txt_renders_the_exact_served_format():
 
 def test_declaration_derives_from_the_embedded_manual():
     docs = _docs(ServerDoc(id=DOC_ID_AGENTS, title=DOC_TITLE_AGENTS, body=MANUAL))
-    declaration = ContractDeclaration.from_docs(docs, CapabilityInventory())
+    declaration = ContractDeclaration.from_docs(docs)
     assert declaration.server == "example"
     assert declaration.contract_revision == CONTRACT_REVISION
     assert len(declaration.compliance) == 3
@@ -81,7 +80,7 @@ def test_declaration_derives_from_the_embedded_manual():
     assert json.loads(json.dumps(wire)) == wire
     assert wire == {
         "server": "example",
-        "contract_revision": 2,
+        "contract_revision": 3,
         "compliance": [
             {"id": "C01", "status": "met"},
             {
@@ -91,7 +90,6 @@ def test_declaration_derives_from_the_embedded_manual():
             },
             {"id": "C03", "status": "pending", "note": "unverified"},
         ],
-        "capabilities": {},
     }
 
 
@@ -99,14 +97,6 @@ def test_checklist_ids_are_dense_and_stable():
     assert len(CHECKLIST_IDS) == 30
     for index, checklist_id in enumerate(CHECKLIST_IDS):
         assert checklist_id == f"C{index + 1:02}"
-
-
-def test_capability_inventory_wire_omits_empty_lists():
-    inventory = CapabilityInventory(
-        tools=("preview",), tasks=("profile",)
-    )
-    assert inventory.wire() == {"tools": ["preview"], "tasks": ["profile"]}
-    assert CapabilityInventory().wire() == {}
 
 
 def test_docs_index_wire_never_carries_bodies():

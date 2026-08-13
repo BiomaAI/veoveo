@@ -27,6 +27,7 @@
 {{- $sourceSecretName := get $sourceMount "secretName" | default $service.sourceSecretName -}}
 {{- $baseResources := default $.Values.gateway.resources $service.resources -}}
 {{- $serviceResources := default $baseResources (index $.Values.domainServiceResources $service.name) -}}
+{{- $serviceReplicas := get $.Values.domainServiceReplicas $service.name | default 1 -}}
 {{- if $service.persistence }}
 ---
 apiVersion: v1
@@ -71,7 +72,7 @@ metadata:
     {{- include "veoveo.labels" $ | nindent 4 }}
     app.kubernetes.io/component: {{ $service.name }}
 spec:
-  replicas: 1
+  replicas: {{ $serviceReplicas }}
   strategy:
     type: Recreate
   selector:

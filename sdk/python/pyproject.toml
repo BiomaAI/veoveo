@@ -1,7 +1,7 @@
 [project]
 name = "veoveo-mcp"
 version = "0.1.0"
-description = "Veoveo platform contract, task runtime, and final MCP task extension for Python MCP servers"
+description = "Veoveo platform contract, task runtime, and official Tasks adapter for Python MCP servers"
 readme = "README.md"
 license = "LicenseRef-Proprietary"
 requires-python = ">=3.12,<3.15"

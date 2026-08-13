@@ -168,6 +168,8 @@ pub enum StoreError {
     TaskNotFound(String),
     #[error("task `{task_id}` does not belong to MCP server `{server}`")]
     TaskServerMismatch { task_id: String, server: String },
+    #[error("invalid gateway task route: {reason}")]
+    InvalidGatewayTaskRoute { reason: String },
     #[error("artifact write capability redemption was denied")]
     ArtifactWriteDenied,
     #[error("artifact write idempotency key `{key}` was reused for a different request")]

@@ -15,7 +15,7 @@ returns structured output with a bounded chartable preview.
 - Owns the `timeseries://` URI scheme plus the `ui://timeseries/forecast.html`
   app view.
 - `forecast` executes only as a durable task on the shared task runtime
-  through the final task extension; there is no alternate completion path.
+  through official Tasks; there is no alternate completion path.
 - The immutable RRD artifact is the full resolution record. The `preview`
   layer is derived, capped at 500 points per series by
   `PREVIEW_POINTS_PER_SERIES`, and exists so clients chart without re-reading
@@ -71,5 +71,5 @@ Contract revision: 2
 - C27: met
 - C28: met
 - C29: met
-- C30: met — the gateway owns pooled transport while this server retains MCP session state
+- C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
 - C24: met

@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use anyhow::{Context, Result, anyhow};
 use reqwest::header::HOST;
 use rmcp::{
-    ClientHandler, ServiceExt,
-    model::{ClientCapabilities, ClientInfo, Implementation, TaskSupport, Tool},
+    ClientHandler, ClientLifecycleMode, ClientServiceExt,
+    model::{ClientCapabilities, ClientInfo, Implementation, Tool},
     transport::{
         StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
     },
@@ -118,22 +118,31 @@ pub async fn run_hosted_server_conformance(
     let mut transport = StreamableHttpClientTransportConfig::with_uri(profile.endpoint.clone());
     transport = transport.auth_header(bearer_token.to_owned());
     let client = CertificationClient
-        .serve(StreamableHttpClientTransport::from_config(transport))
+        .serve_with_lifecycle(
+            StreamableHttpClientTransport::from_config(transport),
+            ClientLifecycleMode::Discover {
+                preferred_versions: vec![rmcp::model::ProtocolVersion::V_2026_07_28],
+            },
+        )
         .await
-        .context("initializing the MCP conformance session")?;
+        .context("discovering the MCP server")?;
     let info = client
         .peer_info()
-        .ok_or_else(|| anyhow!("MCP initialization returned no server information"))?
+        .ok_or_else(|| anyhow!("MCP Discover returned no server information"))?
         .clone();
     checks.push(passed(
         "VV-MCP-TRANSPORT-001",
-        "sessionful Streamable HTTP initialization succeeded",
+        "stateless Streamable HTTP Discover succeeded",
         Some(json!({"endpoint": profile.endpoint})),
     ));
 
+    let server_info = info
+        .server_info
+        .as_ref()
+        .ok_or_else(|| anyhow!("MCP Discover omitted serverInfo"))?;
     let implementation = ObservedImplementation {
-        name: info.server_info.name.clone(),
-        version: info.server_info.version.clone(),
+        name: server_info.name.clone(),
+        version: server_info.version.clone(),
         protocol_version: info.protocol_version.to_string(),
     };
     checks.push(if implementation.name == profile.server_slug {
@@ -157,10 +166,25 @@ pub async fn run_hosted_server_conformance(
     let resources_advertised = capability_present(&capabilities, "resources");
     let prompts_advertised = capability_present(&capabilities, "prompts");
     let completions_advertised = capability_present(&capabilities, "completions");
-    let tasks_advertised =
-        contains_enabled_key(&capabilities, veoveo_mcp_task_extension::EXTENSION_ID)
-            || contains_enabled_key(&capabilities, "tasks");
-    let subscriptions_advertised = contains_enabled_key(&capabilities, "subscribe");
+    let tasks_advertised = info.capabilities.supports_tasks();
+    let subscriptions_advertised = info
+        .capabilities
+        .tools
+        .as_ref()
+        .is_some_and(|capability| capability.list_changed == Some(true))
+        || info
+            .capabilities
+            .resources
+            .as_ref()
+            .is_some_and(|capability| {
+                capability.list_changed == Some(true) || capability.subscribe == Some(true)
+            })
+        || info
+            .capabilities
+            .prompts
+            .as_ref()
+            .is_some_and(|capability| capability.list_changed == Some(true))
+        || tasks_advertised;
 
     let tools = if should_query(profile.surfaces.tools, tools_advertised) {
         match client.list_tools(Default::default()).await {
@@ -186,22 +210,6 @@ pub async fn run_hosted_server_conformance(
                 .collect::<BTreeSet<_>>()
         })
         .unwrap_or_default();
-    let task_tool_names = tools
-        .as_ref()
-        .map(|tools| {
-            tools
-                .iter()
-                .filter(|tool| {
-                    tool.execution
-                        .as_ref()
-                        .and_then(|execution| execution.task_support)
-                        .is_some_and(|support| support != TaskSupport::Forbidden)
-                })
-                .map(|tool| tool.name.to_string())
-                .collect::<BTreeSet<_>>()
-        })
-        .unwrap_or_default();
-
     let resources = if should_query(profile.surfaces.resources, resources_advertised) {
         match client.list_resources(Default::default()).await {
             Ok(result) => Some(result.resources),
@@ -362,7 +370,6 @@ pub async fn run_hosted_server_conformance(
         resource_uris,
         template_uris,
         prompt_names,
-        task_tool_names,
         tasks_advertised,
     };
     check_well_known_surface(
@@ -402,7 +409,6 @@ struct ObservedSurface {
     resource_uris: BTreeSet<String>,
     template_uris: BTreeSet<String>,
     prompt_names: BTreeSet<String>,
-    task_tool_names: BTreeSet<String>,
     tasks_advertised: bool,
 }
 
@@ -539,7 +545,7 @@ async fn check_well_known_surface(
                         failed(
                             "VV-MCP-CONTRACT-001",
                             format!(
-                                "declaration server {:?}, initialized server {:?}, expected profile server {:?}; revision {} (expected {} for {}), unmet well-known items {unmet:?}",
+                                "declaration server {:?}, observed server {:?}, expected profile server {:?}; revision {} (expected {} for {}), unmet well-known items {unmet:?}",
                                 declaration.server,
                                 implementation.name,
                                 profile.server_slug,
@@ -549,9 +555,16 @@ async fn check_well_known_surface(
                             ),
                         )
                     });
-                    checks.push(check_declared_capabilities(
-                        &declaration.capabilities,
-                        observed,
+                    checks.push(passed(
+                        "VV-MCP-CONTRACT-002",
+                        "Discover and list methods provide the observed running surface",
+                        Some(json!({
+                            "tools": observed.tool_names,
+                            "resources": observed.resource_uris,
+                            "resourceTemplates": observed.template_uris,
+                            "prompts": observed.prompt_names,
+                            "tasksAdvertised": observed.tasks_advertised,
+                        })),
                     ));
                 }
                 Err(error) => {
@@ -566,112 +579,6 @@ async fn check_well_known_surface(
             checks.push(failed("VV-MCP-CONTRACT-001", summary.clone()));
             checks.push(failed("VV-MCP-CONTRACT-002", summary));
         }
-    }
-}
-
-fn check_declared_capabilities(
-    declared: &veoveo_mcp_contract::docs::CapabilityInventory,
-    observed: &ObservedSurface,
-) -> CheckResult {
-    let declared_tools = declared.tools.iter().cloned().collect::<BTreeSet<_>>();
-    let declared_resources = declared.resources.iter().cloned().collect::<BTreeSet<_>>();
-    let declared_templates = declared
-        .resource_templates
-        .iter()
-        .cloned()
-        .collect::<BTreeSet<_>>();
-    let declared_prompts = declared.prompts.iter().cloned().collect::<BTreeSet<_>>();
-    let declared_tasks = declared.tasks.iter().cloned().collect::<BTreeSet<_>>();
-
-    let mut mismatches = Vec::new();
-    for (name, values, unique) in [
-        ("tools", &declared.tools, &declared_tools),
-        ("resources", &declared.resources, &declared_resources),
-        (
-            "resource templates",
-            &declared.resource_templates,
-            &declared_templates,
-        ),
-        ("prompts", &declared.prompts, &declared_prompts),
-        ("tasks", &declared.tasks, &declared_tasks),
-    ] {
-        if values.len() != unique.len() {
-            mismatches.push(format!("declared {name} contain duplicate identities"));
-        }
-    }
-    compare_exact(
-        "tools",
-        &declared_tools,
-        &observed.tool_names,
-        &mut mismatches,
-    );
-    compare_subset(
-        "resources",
-        &declared_resources,
-        &observed.resource_uris,
-        &mut mismatches,
-    );
-    compare_exact(
-        "resource templates",
-        &declared_templates,
-        &observed.template_uris,
-        &mut mismatches,
-    );
-    compare_exact(
-        "prompts",
-        &declared_prompts,
-        &observed.prompt_names,
-        &mut mismatches,
-    );
-    compare_exact(
-        "task-augmented tools",
-        &declared_tasks,
-        &observed.task_tool_names,
-        &mut mismatches,
-    );
-    if !declared_tasks.is_empty() && !observed.tasks_advertised {
-        mismatches.push("task inventory is non-empty but task capability is absent".to_owned());
-    }
-
-    if mismatches.is_empty() {
-        passed(
-            "VV-MCP-CONTRACT-002",
-            "contract capability inventory matches the observed stable MCP surface",
-            Some(json!({
-                "tools": declared_tools,
-                "resources": declared_resources,
-                "resourceTemplates": declared_templates,
-                "prompts": declared_prompts,
-                "tasks": declared_tasks,
-            })),
-        )
-    } else {
-        failed("VV-MCP-CONTRACT-002", mismatches.join("; "))
-    }
-}
-
-fn compare_exact(
-    name: &str,
-    declared: &BTreeSet<String>,
-    observed: &BTreeSet<String>,
-    mismatches: &mut Vec<String>,
-) {
-    if declared != observed {
-        mismatches.push(format!(
-            "{name} differ: declared {declared:?}, observed {observed:?}"
-        ));
-    }
-}
-
-fn compare_subset(
-    name: &str,
-    declared: &BTreeSet<String>,
-    observed: &BTreeSet<String>,
-    mismatches: &mut Vec<String>,
-) {
-    let missing = declared.difference(observed).cloned().collect::<Vec<_>>();
-    if !missing.is_empty() {
-        mismatches.push(format!("declared {name} are not listed: {missing:?}"));
     }
 }
 
@@ -1025,21 +932,6 @@ fn contains_key(value: &Value, key: &str) -> bool {
     }
 }
 
-fn contains_enabled_key(value: &Value, key: &str) -> bool {
-    match value {
-        Value::Object(object) => {
-            object
-                .get(key)
-                .is_some_and(|value| !value.is_null() && value != &Value::Bool(false))
-                || object
-                    .values()
-                    .any(|value| contains_enabled_key(value, key))
-        }
-        Value::Array(values) => values.iter().any(|value| contains_enabled_key(value, key)),
-        _ => false,
-    }
-}
-
 fn passed(
     requirement_id: impl Into<String>,
     summary: impl Into<String>,
@@ -1068,56 +960,5 @@ fn skipped(requirement_id: impl Into<String>, summary: impl Into<String>) -> Che
         status: CheckStatus::Skipped,
         summary: summary.into(),
         evidence: None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use veoveo_mcp_contract::docs::CapabilityInventory;
-
-    #[test]
-    fn declaration_inventory_cannot_omit_an_observed_tool() {
-        let result = check_declared_capabilities(
-            &CapabilityInventory::default(),
-            &ObservedSurface {
-                tool_names: BTreeSet::from(["inspect".to_owned()]),
-                ..ObservedSurface::default()
-            },
-        );
-        assert_eq!(result.status, CheckStatus::Failed);
-        assert!(result.summary.contains("inspect"));
-    }
-
-    #[test]
-    fn declaration_inventory_cannot_claim_an_unobserved_resource() {
-        let result = check_declared_capabilities(
-            &CapabilityInventory {
-                resources: vec!["domain://missing".to_owned()],
-                ..CapabilityInventory::default()
-            },
-            &ObservedSurface {
-                resource_uris: BTreeSet::from(["domain://docs".to_owned()]),
-                ..ObservedSurface::default()
-            },
-        );
-        assert_eq!(result.status, CheckStatus::Failed);
-        assert!(result.summary.contains("domain://missing"));
-    }
-
-    #[test]
-    fn declaration_inventory_cannot_repeat_an_identity() {
-        let result = check_declared_capabilities(
-            &CapabilityInventory {
-                tools: vec!["inspect".to_owned(), "inspect".to_owned()],
-                ..CapabilityInventory::default()
-            },
-            &ObservedSurface {
-                tool_names: BTreeSet::from(["inspect".to_owned()]),
-                ..ObservedSurface::default()
-            },
-        );
-        assert_eq!(result.status, CheckStatus::Failed);
-        assert!(result.summary.contains("duplicate"));
     }
 }

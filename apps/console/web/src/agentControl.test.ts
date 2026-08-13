@@ -2,24 +2,24 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   agentDisplayState,
-  agentElicitationDecisionPath,
-  agentElicitationsApiPath,
-  agentElicitationsPath,
+  agentInputRequestDecisionPath,
+  agentInputRequestsApiPath,
+  agentInputRequestsPath,
   uuidV7,
 } from "./agentControl.ts";
 
-test("elicitation paths retain and encode the symbolic agent key", () => {
+test("input request paths retain and encode the symbolic agent key", () => {
   const agentKey = "mission-supervisor";
-  const elicitationId = "019fd9bc-e7d1-7fff-bfff-ffffffffffff";
-  assert.equal(agentElicitationsPath(agentKey), `agents/${agentKey}/elicitations`);
-  assert.equal(agentElicitationsApiPath(agentKey), `/console/api/agents/${agentKey}/elicitations`);
+  const inputRequestId = "019fd9bc-e7d1-7fff-bfff-ffffffffffff";
+  assert.equal(agentInputRequestsPath(agentKey), `agents/${agentKey}/input-requests`);
+  assert.equal(agentInputRequestsApiPath(agentKey), `/console/api/agents/${agentKey}/input-requests`);
   assert.equal(
-    agentElicitationDecisionPath(agentKey, elicitationId),
-    `agents/${agentKey}/elicitations/${elicitationId}/decision`,
+    agentInputRequestDecisionPath(agentKey, inputRequestId),
+    `agents/${agentKey}/input-requests/${inputRequestId}/decision`,
   );
   assert.equal(
-    agentElicitationsPath("supervisor/primary"),
-    "agents/supervisor%2Fprimary/elicitations",
+    agentInputRequestsPath("supervisor/primary"),
+    "agents/supervisor%2Fprimary/input-requests",
   );
 });
 

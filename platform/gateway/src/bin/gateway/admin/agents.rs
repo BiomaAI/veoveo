@@ -7,15 +7,15 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use veoveo_agent_runtime::{
-    AgentControlReceipt, AgentControlTarget, AgentRuntimeError, ElicitationAnswer,
-    ElicitationDecisionDraft, GovernedElicitation, OperatorMessageDraft, json_object,
+    AgentControlReceipt, AgentControlTarget, AgentRuntimeError, GovernedInputRequest,
+    InputRequestAnswer, InputRequestDecisionDraft, OperatorMessageDraft, json_object,
 };
 use veoveo_mcp_contract::{
-    AgentElicitationDecisionRequest, AgentElicitationView, AgentOperatorMessageRequest,
+    AgentInputRequestDecision, AgentInputRequestView, AgentOperatorMessageRequest,
     AgentWakeReceipt, GatewayAction, GatewayProfile, PolicyTarget, PrincipalKind,
 };
 use veoveo_mcp_gateway::AuthenticatedSubject;
-use veoveo_platform_store::{AgentElicitationId, AgentElicitationState};
+use veoveo_platform_store::{AgentInputRequestId, AgentInputRequestState};
 
 use crate::{
     admin::admin_profile_id,
@@ -29,47 +29,48 @@ use crate::{
 
 const AGENT_MESSAGE_METHOD: &str = "admin/agents/messages";
 const AGENT_MESSAGE_RESULT_METHOD: &str = "admin/agents/messages/result";
-const AGENT_ELICITATIONS_METHOD: &str = "admin/agents/elicitations";
-const AGENT_ELICITATIONS_RESULT_METHOD: &str = "admin/agents/elicitations/result";
-const AGENT_ELICITATION_DECISION_METHOD: &str = "admin/agents/elicitations/decision";
-const AGENT_ELICITATION_DECISION_RESULT_METHOD: &str = "admin/agents/elicitations/decision/result";
+const AGENT_INPUT_REQUESTS_METHOD: &str = "admin/agents/input-requests";
+const AGENT_INPUT_REQUESTS_RESULT_METHOD: &str = "admin/agents/input-requests/result";
+const AGENT_INPUT_REQUEST_DECISION_METHOD: &str = "admin/agents/input-requests/decision";
+const AGENT_INPUT_REQUEST_DECISION_RESULT_METHOD: &str =
+    "admin/agents/input-requests/decision/result";
 
 #[derive(Clone, Copy)]
 enum AgentOperation {
-    ReadElicitations,
+    ReadInputRequests,
     SendMessage,
-    DecideElicitation,
+    DecideInputRequest,
 }
 
 impl AgentOperation {
     const fn action(self) -> GatewayAction {
         match self {
-            Self::ReadElicitations => GatewayAction::AgentsRead,
+            Self::ReadInputRequests => GatewayAction::AgentsRead,
             Self::SendMessage => GatewayAction::AgentsMessage,
-            Self::DecideElicitation => GatewayAction::AgentsElicitationAnswer,
+            Self::DecideInputRequest => GatewayAction::AgentsInputRequestAnswer,
         }
     }
 
     const fn method(self) -> &'static str {
         match self {
-            Self::ReadElicitations => AGENT_ELICITATIONS_METHOD,
+            Self::ReadInputRequests => AGENT_INPUT_REQUESTS_METHOD,
             Self::SendMessage => AGENT_MESSAGE_METHOD,
-            Self::DecideElicitation => AGENT_ELICITATION_DECISION_METHOD,
+            Self::DecideInputRequest => AGENT_INPUT_REQUEST_DECISION_METHOD,
         }
     }
 
     const fn result_method(self) -> &'static str {
         match self {
-            Self::ReadElicitations => AGENT_ELICITATIONS_RESULT_METHOD,
+            Self::ReadInputRequests => AGENT_INPUT_REQUESTS_RESULT_METHOD,
             Self::SendMessage => AGENT_MESSAGE_RESULT_METHOD,
-            Self::DecideElicitation => AGENT_ELICITATION_DECISION_RESULT_METHOD,
+            Self::DecideInputRequest => AGENT_INPUT_REQUEST_DECISION_RESULT_METHOD,
         }
     }
 
     const fn failure(self) -> AdminOperationFailure {
         match self {
-            Self::ReadElicitations | Self::DecideElicitation => {
-                AdminOperationFailure::AgentElicitation
+            Self::ReadInputRequests | Self::DecideInputRequest => {
+                AdminOperationFailure::AgentInputRequest
             }
             Self::SendMessage => AdminOperationFailure::AgentMessage,
         }
@@ -77,9 +78,9 @@ impl AgentOperation {
 
     const fn name(self) -> &'static str {
         match self {
-            Self::ReadElicitations => "list_agent_elicitations",
+            Self::ReadInputRequests => "list_agent_input_requests",
             Self::SendMessage => "send_agent_message",
-            Self::DecideElicitation => "decide_agent_elicitation",
+            Self::DecideInputRequest => "decide_agent_input_request",
         }
     }
 }
@@ -120,13 +121,13 @@ pub(crate) async fn send_agent_message(
     finish_receipt(&state, context, operation, started_at, result).await
 }
 
-pub(crate) async fn list_agent_elicitations(
+pub(crate) async fn list_agent_input_requests(
     State(state): State<AdminState>,
     AxumPath((profile, agent_id)): AxumPath<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
 ) -> Response {
     let started_at = Instant::now();
-    let operation = AgentOperation::ReadElicitations;
+    let operation = AgentOperation::ReadInputRequests;
     let context =
         match authorize_agent_operation(&state, profile, agent_id, subject, operation, started_at)
             .await
@@ -136,13 +137,13 @@ pub(crate) async fn list_agent_elicitations(
         };
     match state
         .agent_control
-        .parked_elicitations(&context.target)
+        .pending_input_requests(&context.target)
         .await
     {
-        Ok(elicitations) => {
-            let views = match elicitations
+        Ok(input_requests) => {
+            let views = match input_requests
                 .into_iter()
-                .map(elicitation_view)
+                .map(input_request_view)
                 .collect::<Result<Vec<_>, _>>()
             {
                 Ok(views) => views,
@@ -168,18 +169,18 @@ pub(crate) async fn list_agent_elicitations(
     }
 }
 
-pub(crate) async fn decide_agent_elicitation(
+pub(crate) async fn decide_agent_input_request(
     State(state): State<AdminState>,
-    AxumPath((profile, agent_id, elicitation_id)): AxumPath<(String, String, String)>,
+    AxumPath((profile, agent_id, input_request_id)): AxumPath<(String, String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<AgentElicitationDecisionRequest>,
+    Json(request): Json<AgentInputRequestDecision>,
 ) -> Response {
     let started_at = Instant::now();
-    let operation = AgentOperation::DecideElicitation;
-    let Ok(elicitation_id) = AgentElicitationId::from_str(&elicitation_id) else {
+    let operation = AgentOperation::DecideInputRequest;
+    let Ok(input_request_id) = AgentInputRequestId::from_str(&input_request_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    if elicitation_id.as_uuid().get_version_num() != 7 {
+    if input_request_id.as_uuid().get_version_num() != 7 {
         return StatusCode::NOT_FOUND.into_response();
     }
     let context =
@@ -191,7 +192,7 @@ pub(crate) async fn decide_agent_elicitation(
         };
     let request_id = request.request_id();
     let (state_value, answer) = match request {
-        AgentElicitationDecisionRequest::Accept { content, .. } => {
+        AgentInputRequestDecision::Accept { content, .. } => {
             let answer = match json_object(content, "content") {
                 Ok(answer) => answer,
                 Err(error) => {
@@ -199,19 +200,19 @@ pub(crate) async fn decide_agent_elicitation(
                         .await;
                 }
             };
-            (AgentElicitationState::Answered, Some(answer))
+            (AgentInputRequestState::Answered, Some(answer))
         }
-        AgentElicitationDecisionRequest::Decline { .. } => (AgentElicitationState::Declined, None),
-        AgentElicitationDecisionRequest::Cancel { .. } => (AgentElicitationState::Cancelled, None),
+        AgentInputRequestDecision::Decline { .. } => (AgentInputRequestState::Declined, None),
+        AgentInputRequestDecision::Cancel { .. } => (AgentInputRequestState::Cancelled, None),
     };
     let result = state
         .agent_control
-        .decide_elicitation(
+        .decide_input_request(
             &context.target,
-            ElicitationDecisionDraft {
+            InputRequestDecisionDraft {
                 request_id,
-                elicitation_id,
-                answer: ElicitationAnswer {
+                input_request_id,
+                answer: InputRequestAnswer {
                     state: state_value,
                     answer,
                     answered_by: context.subject.principal.id.to_string(),
@@ -287,9 +288,11 @@ async fn authorize_agent_operation(
     Ok(context)
 }
 
-fn elicitation_view(value: GovernedElicitation) -> Result<AgentElicitationView, serde_json::Error> {
-    Ok(AgentElicitationView {
-        elicitation_id: value.elicitation_id.as_uuid(),
+fn input_request_view(
+    value: GovernedInputRequest,
+) -> Result<AgentInputRequestView, serde_json::Error> {
+    Ok(AgentInputRequestView {
+        input_request_id: value.input_request_id.as_uuid(),
         message: value.message,
         requested_schema: value
             .requested_schema
@@ -422,10 +425,10 @@ mod tests {
         for method in [
             AGENT_MESSAGE_METHOD,
             AGENT_MESSAGE_RESULT_METHOD,
-            AGENT_ELICITATIONS_METHOD,
-            AGENT_ELICITATIONS_RESULT_METHOD,
-            AGENT_ELICITATION_DECISION_METHOD,
-            AGENT_ELICITATION_DECISION_RESULT_METHOD,
+            AGENT_INPUT_REQUESTS_METHOD,
+            AGENT_INPUT_REQUESTS_RESULT_METHOD,
+            AGENT_INPUT_REQUEST_DECISION_METHOD,
+            AGENT_INPUT_REQUEST_DECISION_RESULT_METHOD,
         ] {
             assert!(veoveo_mcp_contract::McpMethodName::new(method).is_ok());
         }

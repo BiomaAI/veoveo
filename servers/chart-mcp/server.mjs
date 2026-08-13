@@ -1,27 +1,23 @@
-import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
+import { createMcpHandler } from "@modelcontextprotocol/server";
+import { toNodeHandler } from "@modelcontextprotocol/node";
 
-import { createServer } from "./dist/server.js";
+import { createServer } from "./flint-v2.mjs";
 import {
   loadInternalTokenVerifier,
   requireInternalIdentity,
 } from "./internal-auth.mjs";
 
-const DEFAULT_MAX_BODY_BYTES = 32 * 1024 * 1024;
-const SESSION_DISCONNECT_GRACE_MS = 60_000;
-const SESSION_REAP_INTERVAL_MS = 5_000;
 
 // Well-known surface of `mcp/contract/DESIGN.md` (C18-C21). The launcher
 // serves the crate documents baked into the image beside this file, the
 // contract declaration parsed from the agent manual, and the administrative
 // llms.txt projection. Shapes mirror `veoveo_mcp_contract::docs`.
-const CONTRACT_REVISION = 2;
+const CONTRACT_REVISION = 3;
 const SERVER_SLUG = "charts";
 const SERVER_MOUNT = `/${SERVER_SLUG}`;
 const MCP_PATH = `${SERVER_MOUNT}/mcp`;
@@ -134,57 +130,25 @@ function registerWellKnownResources(server) {
     {
       title: "Contract declaration",
       description:
-        "Machine-readable contract revision, compliance, and capability inventory.",
+        "Machine-readable contract revision and compliance evidence.",
       mimeType: "application/json",
     },
     async (uri) =>
       textResource(uri, "application/json", JSON.stringify(declaration)),
   );
-  declaration = contractDeclaration(server);
+  declaration = contractDeclaration();
 }
 
-function contractDeclaration(server) {
-  const enabledNames = (registry) =>
-    Object.entries(registry)
-      .filter(([, value]) => value.enabled)
-      .map(([name]) => name)
-      .sort();
-  const resourceTemplates = Object.values(server._registeredResourceTemplates)
-    .filter((resource) => resource.enabled)
-    .map((resource) => resource.resourceTemplate.uriTemplate.toString())
-    .sort();
-  const tasks = Object.entries(server._registeredTools)
-    .filter(([, tool]) =>
-      ["optional", "required"].includes(tool.execution?.taskSupport),
-    )
-    .map(([name]) => name)
-    .sort();
+function contractDeclaration() {
   return {
     server: SERVER_SLUG,
     contract_revision: CONTRACT_REVISION,
     compliance: parseCompliance(SERVER_DOCS[0].body),
-    capabilities: {
-      tools: enabledNames(server._registeredTools),
-      resources: enabledNames(server._registeredResources),
-      resource_templates: resourceTemplates,
-      prompts: enabledNames(server._registeredPrompts),
-      tasks,
-    },
   };
 }
 
 function createHostedServer(options) {
   const server = createServer(options);
-  if (
-    server?.server?._serverInfo == null ||
-    typeof server.server._serverInfo !== "object"
-  ) {
-    throw new Error("upstream chart server exposes no mutable MCP identity");
-  }
-  server.server._serverInfo = {
-    ...server.server._serverInfo,
-    name: SERVER_SLUG,
-  };
   registerWellKnownResources(server);
   return server;
 }
@@ -252,84 +216,22 @@ function jsonError(response, status, message) {
   );
 }
 
-async function readBody(request) {
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of request) {
-    size += chunk.length;
-    if (size > DEFAULT_MAX_BODY_BYTES) {
-      throw new Error("request body exceeds 32 MiB");
-    }
-    chunks.push(chunk);
-  }
-  if (chunks.length === 0) {
-    return undefined;
-  }
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
-}
-
 const options = parseArgs(process.argv.slice(2));
 const verifyInternalIdentity = loadInternalTokenVerifier(
   process.env.VEOVEO_INTERNAL_TRUST_JWKS,
   SERVER_SLUG,
 );
-// Fail closed at boot when the pinned upstream server cannot host the
-// well-known resources, rather than on the first MCP session.
-createHostedServer({ disableFileReference: options.disableFileReference });
-const sessions = new Map();
-
-async function closeSession(session) {
-  const sessionId = session.transport.sessionId;
-  if (sessionId) {
-    sessions.delete(sessionId);
-  }
-  await session.transport.close();
-}
-
-function trackRequest(transport, response) {
-  let tracked = false;
-  const begin = () => {
-    if (tracked || !transport.sessionId) {
-      return;
-    }
-    const session = sessions.get(transport.sessionId);
-    if (!session) {
-      return;
-    }
-    tracked = true;
-    session.activeRequests += 1;
-    session.lastActivity = Date.now();
-  };
-  response.once("close", () => {
-    begin();
-    if (!tracked || !transport.sessionId) {
-      return;
-    }
-    const session = sessions.get(transport.sessionId);
-    if (!session) {
-      return;
-    }
-    session.activeRequests = Math.max(0, session.activeRequests - 1);
-    session.lastActivity = Date.now();
-  });
-  begin();
-  return begin;
-}
-
-const sessionReaper = setInterval(() => {
-  const now = Date.now();
-  for (const session of sessions.values()) {
-    if (
-      session.activeRequests === 0 &&
-      now - session.lastActivity >= SESSION_DISCONNECT_GRACE_MS
-    ) {
-      void closeSession(session).catch((error) => {
-        process.stderr.write(`failed to reap abandoned MCP session: ${String(error)}\n`);
-      });
-    }
-  }
-}, SESSION_REAP_INTERVAL_MS);
-sessionReaper.unref();
+const mcpHandler = createMcpHandler(
+  () => createHostedServer({ disableFileReference: options.disableFileReference }),
+  {
+    legacy: "reject",
+    responseMode: "json",
+    onerror: (error) => process.stderr.write(`MCP request failed: ${String(error)}\n`),
+  },
+);
+const handleMcpRequest = toNodeHandler(mcpHandler, {
+  onerror: (error) => process.stderr.write(`MCP adapter failed: ${String(error)}\n`),
+});
 
 const httpServer = createHttpServer(async (request, response) => {
   try {
@@ -389,50 +291,7 @@ const httpServer = createHttpServer(async (request, response) => {
       return;
     }
 
-    const sessionId = request.headers["mcp-session-id"];
-    let transport =
-      typeof sessionId === "string" ? sessions.get(sessionId)?.transport : undefined;
-    let beginRequestTracking = () => {};
-    let body;
-    if (request.method === "POST") {
-      body = await readBody(request);
-      if (!transport && !sessionId && isInitializeRequest(body)) {
-        const server = createHostedServer({
-          disableFileReference: options.disableFileReference,
-        });
-        transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: () => randomUUID(),
-          enableJsonResponse: false,
-          enableDnsRebindingProtection: options.allowedHosts.length > 0,
-          allowedHosts: options.allowedHosts,
-          onsessioninitialized: (initializedSessionId) => {
-            sessions.set(initializedSessionId, {
-              transport,
-              activeRequests: 0,
-              lastActivity: Date.now(),
-            });
-            beginRequestTracking();
-          },
-        });
-        transport.onclose = () => {
-          if (transport.sessionId) {
-            sessions.delete(transport.sessionId);
-          }
-        };
-        await server.connect(transport);
-      }
-    }
-
-    if (!transport) {
-      jsonError(response, 400, "missing or invalid MCP session");
-      return;
-    }
-    if (!["GET", "POST", "DELETE"].includes(request.method ?? "")) {
-      response.writeHead(405, { allow: "GET, POST, DELETE" }).end();
-      return;
-    }
-    beginRequestTracking = trackRequest(transport, response);
-    await transport.handleRequest(request, response, body);
+    await handleMcpRequest(request, response);
   } catch (error) {
     if (!response.headersSent) {
       jsonError(response, 500, error instanceof Error ? error.message : "internal error");
@@ -444,13 +303,12 @@ const httpServer = createHttpServer(async (request, response) => {
 
 httpServer.listen(options.port, options.host, () => {
   process.stderr.write(
-    `flint-chart-mcp listening on http://${options.host}:${options.port}${options.path} with sessionful Streamable HTTP\n`,
+    `flint-chart-mcp listening on http://${options.host}:${options.port}${options.path} with MCP 2026-07-28 stateless HTTP\n`,
   );
 });
 
 async function shutdown() {
-  clearInterval(sessionReaper);
-  await Promise.all([...sessions.values()].map(closeSession));
+  await mcpHandler.close();
   httpServer.close(() => process.exit(0));
 }
 

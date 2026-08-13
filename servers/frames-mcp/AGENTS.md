@@ -23,7 +23,7 @@ work, geodesics, geofences, and routing belong to `map-mcp`.
 - Durable state (worlds, immutable revisions, operations, tasks, usage, ownership) lives in
   SurrealDB through the shared `TaskRuntime`. Large batch results go through
   the artifact plane, never object store paths or content URLs.
-- `batch_transform` requires the final task extension; direct calls are
+- `batch_transform` requires official Tasks; direct calls are
   rejected. Direct conversions write their operation record before returning.
 - Frames starts empty. Helm and installation bootstrap never create a world,
   frame, origin, or revision. Clients author worlds with `create_world` and
@@ -75,5 +75,5 @@ Contract revision: 2
 - C27: met
 - C28: met
 - C29: met
-- C30: met — the gateway owns pooled transport while this server retains MCP session state
+- C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
 - C24: met
