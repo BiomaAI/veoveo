@@ -3,15 +3,15 @@
 Datasheet profiles tabular datasets and is the canonical template for a Python
 MCP server hosted inside a Veoveo installation. Every obligation of the
 hosted-server contract in [`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md),
-revision 2, has a running Python reference implementation here.
+revision 3, has a running Python reference implementation here.
 
 ## Standards And Protocols
 
 | Standard or protocol | Supported boundary |
 |---|---|
-| Model Context Protocol | Sessionful Streamable HTTP with event-stream responses under `/datasheet/mcp` |
-| JSON Schema 2020-12 | Closed, dereferenced tool input shapes produced by `veoveo_mcp.schema.mcp_input_schema` |
-| Final MCP task extension `2026-06-30` | `server/discover`, task-augmented `tools/call`, `tasks/get`, `tasks/update`, `tasks/cancel`, `subscriptions/listen` SSE |
+| Model Context Protocol `2026-07-28` | Stateless Streamable HTTP under `/datasheet/mcp`, mandatory Discover, per-request capabilities, JSON terminal responses, and request-scoped subscription streams |
+| JSON Schema 2020-12 | Complete bounded tool input schemas produced by `veoveo_mcp.schema.mcp_input_schema`, including same-document references and composition |
+| Tasks extension, SEP-2663 | Server-directed `tools/call`, `tasks/get`, `tasks/update`, `tasks/cancel`, and optional `notifications/tasks` through `subscriptions/listen` |
 | CSV and Apache Parquet | Dataset inputs resolved from shared-plane artifacts or bounded inline CSV |
 | `datasheet://` URI scheme | Canonical resource identities for reports, usage, artifacts, and documents |
 

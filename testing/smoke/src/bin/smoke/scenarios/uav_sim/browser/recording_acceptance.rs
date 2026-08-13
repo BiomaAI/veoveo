@@ -201,6 +201,7 @@ pub(super) fn analyze_rerun_camera_render(
     })
 }
 
+#[allow(dead_code)]
 pub(super) fn analyze_rerun_camera_frame(
     screenshot_path: &Path,
     viewer_bounds: ElementBounds,

@@ -114,7 +114,7 @@ domain_id!(AgentId, "agent");
 domain_id!(WakeId, "wake");
 domain_id!(AgentEpisodeId, "agent_episode");
 domain_id!(AgentTaskId, "agent_task");
-domain_id!(AgentElicitationId, "agent_elicitation");
+domain_id!(AgentInputRequestId, "agent_input_request");
 domain_id!(AuditEventId, "audit_event");
 domain_id!(OutboxEventId, "outbox_event");
 

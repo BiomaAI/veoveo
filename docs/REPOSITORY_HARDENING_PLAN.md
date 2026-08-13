@@ -27,7 +27,7 @@ profiles:
 | Docker BuildKit and Docker Buildx Bake | internal OCI build graph, builder-family composition, cache mounts, and image publication; the implementation verifies and pins the latest stable compatible releases before making them canonical |
 | `veoveo.io/image-build-plan/v1` | internal typed projection of one source-local Bake selection, its Cargo build units, builder families, cache identities, image coordinates, and release evidence; it is not a public extension contract |
 | `veoveo.io/image-build-run/v1` | internal immutable record of an image execution, its output mode, elapsed time, result, and Buildx metadata reference |
-| Model Context Protocol | public server protocol governed by `mcp/contract/DESIGN.md`; the current Streamable HTTP verification uses protocol version `2025-11-25` and only claims the repository profile defined there |
+| Model Context Protocol | public server protocol governed by `mcp/contract/DESIGN.md`; Streamable HTTP verification uses protocol version `2026-07-28` and only claims the repository profile defined there |
 | JSON Schema 2020-12 | canonical MCP tool-input and controlled configuration schemas |
 | `veoveo.io/deployment/v6` | repository-development profile for independently resolved sources, exact platform targets, installation-owned Helm values, typed registry transport, and a managed GPU allocator closure |
 | `veoveo.io/deployment-lock/v6` | immutable installation revision, combined source evidence, and managed GPU allocator artifacts emitted by repository-development publication |
@@ -502,8 +502,7 @@ The hard cuts produce the following ownership structure:
 mcp/
 ├── contract/                   normative types and shared implementation
 ├── conformance/                executable protocol certification
-├── apps-extension/
-└── task-extension/
+└── apps-extension/
 
 deploy/
 ├── contract/                   typed deployment-profile model

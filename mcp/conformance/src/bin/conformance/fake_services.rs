@@ -720,18 +720,14 @@ impl ServerHandler for FakeHostedMcp {
                         "Render a deterministic chart fixture.",
                         input_schema.clone(),
                     )
-                    .with_title("render chart")
-                    .with_execution(ToolExecution::new().with_task_support(TaskSupport::Forbidden)),
+                    .with_title("render chart"),
                     veoveo_mcp_apps_extension::link_tool_to_app(
                         Tool::new(
                             "create_chart_view",
                             "Create a deterministic chart view fixture.",
                             input_schema,
                         )
-                        .with_title("create chart view")
-                        .with_execution(
-                            ToolExecution::new().with_task_support(TaskSupport::Forbidden),
-                        ),
+                        .with_title("create chart view"),
                         self.chart_view_uri(),
                         &[
                             veoveo_mcp_apps_extension::UiVisibility::Model,
@@ -740,6 +736,9 @@ impl ServerHandler for FakeHostedMcp {
                     ),
                 ],
                 next_cursor: None,
+                result_type: Some(rmcp::model::ResultType::COMPLETE),
+                ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+                cache_scope: Some(rmcp::model::CacheScope::Private),
                 meta: None,
             });
         }
@@ -757,11 +756,13 @@ impl ServerHandler for FakeHostedMcp {
             format!("Run a deterministic {} fixture scenario.", self.server),
             input_schema,
         )
-        .with_title(format!("{} run", self.server))
-        .with_execution(ToolExecution::new().with_task_support(TaskSupport::Forbidden));
+        .with_title(format!("{} run", self.server));
         Ok(ListToolsResult {
             tools: vec![tool],
             next_cursor: None,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -770,7 +771,7 @@ impl ServerHandler for FakeHostedMcp {
         &self,
         request: CallToolRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResult, rmcp::ErrorData> {
+    ) -> Result<CallToolResponse, rmcp::ErrorData> {
         if self.is_chart_fixture() {
             if request.name != "render_chart" && request.name != "create_chart_view" {
                 return Err(rmcp::ErrorData::invalid_params(
@@ -787,7 +788,7 @@ impl ServerHandler for FakeHostedMcp {
                 "chart_types_uri": self.chart_types_uri(),
                 "view_resource_uri": self.chart_view_uri()
             }));
-            return Ok(result);
+            return Ok(result.into());
         }
         if request.name != "run" {
             return Err(rmcp::ErrorData::invalid_params(
@@ -810,7 +811,7 @@ impl ServerHandler for FakeHostedMcp {
             "scenario": scenario,
             "scenario_uri": self.scenario_uri(scenario)
         }));
-        Ok(result)
+        Ok(result.into())
     }
 
     async fn list_resources(
@@ -830,6 +831,9 @@ impl ServerHandler for FakeHostedMcp {
                         .with_description("Deterministic chart fixture MCP App view."),
                 ],
                 next_cursor: None,
+                result_type: Some(rmcp::model::ResultType::COMPLETE),
+                ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+                cache_scope: Some(rmcp::model::CacheScope::Private),
                 meta: None,
             });
         }
@@ -841,6 +845,9 @@ impl ServerHandler for FakeHostedMcp {
                     .with_mime_type("application/json"),
             ],
             next_cursor: None,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -854,6 +861,9 @@ impl ServerHandler for FakeHostedMcp {
             return Ok(ListResourceTemplatesResult {
                 resource_templates: Vec::new(),
                 next_cursor: None,
+                result_type: Some(rmcp::model::ResultType::COMPLETE),
+                ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+                cache_scope: Some(rmcp::model::CacheScope::Private),
                 meta: None,
             });
         }
@@ -865,6 +875,9 @@ impl ServerHandler for FakeHostedMcp {
                     .with_mime_type("application/json"),
             ],
             next_cursor: None,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -873,7 +886,7 @@ impl ServerHandler for FakeHostedMcp {
         &self,
         request: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, rmcp::ErrorData> {
+    ) -> Result<ReadResourceResponse, rmcp::ErrorData> {
         let text = if self.is_chart_fixture() && request.uri == self.chart_types_uri() {
             serde_json::to_string(&json!({
                 "server": self.server,
@@ -893,7 +906,7 @@ impl ServerHandler for FakeHostedMcp {
                         "</script></body></html>"
                     ),
                 ),
-            ]));
+            ]).into());
         } else if request.uri == self.scenarios_uri() {
             serde_json::to_string(&json!({
                 "server": self.server,
@@ -917,7 +930,7 @@ impl ServerHandler for FakeHostedMcp {
                 "uri": self.scenario_uri(scenario_id)
             }))
         } else {
-            return Err(rmcp::ErrorData::resource_not_found(
+            return Err(rmcp::ErrorData::invalid_params(
                 format!("unknown fixture resource `{}`", request.uri),
                 None,
             ));
@@ -925,7 +938,8 @@ impl ServerHandler for FakeHostedMcp {
         .map_err(|err| rmcp::ErrorData::internal_error(err.to_string(), None))?;
         Ok(ReadResourceResult::new(vec![
             ResourceContents::text(text, request.uri).with_mime_type("application/json"),
-        ]))
+        ])
+        .into())
     }
 
     async fn list_prompts(
@@ -948,6 +962,9 @@ impl ServerHandler for FakeHostedMcp {
                     .with_title("author chart"),
                 ],
                 next_cursor: None,
+                result_type: Some(rmcp::model::ResultType::COMPLETE),
+                ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+                cache_scope: Some(rmcp::model::CacheScope::Private),
                 meta: None,
             });
         }
@@ -965,6 +982,9 @@ impl ServerHandler for FakeHostedMcp {
                 .with_title(format!("{} plan", self.server)),
             ],
             next_cursor: None,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -973,48 +993,52 @@ impl ServerHandler for FakeHostedMcp {
         &self,
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<GetPromptResult, rmcp::ErrorData> {
-        if self.is_chart_fixture() {
-            if request.name != "author_chart" {
+    ) -> Result<rmcp::model::GetPromptResponse, rmcp::ErrorData> {
+        async {
+            if self.is_chart_fixture() {
+                if request.name != "author_chart" {
+                    return Err(rmcp::ErrorData::invalid_params(
+                        format!("unknown prompt `{}`", request.name),
+                        None,
+                    ));
+                }
+                let chart_type = request
+                    .arguments
+                    .and_then(|args| args.get("chart_type").cloned())
+                    .and_then(|value| value.as_str().map(str::to_string))
+                    .unwrap_or_else(|| "bar".to_string());
+                return Ok(GetPromptResult::new(vec![PromptMessage::new_text(
+                    Role::User,
+                    format!(
+                        "Author a {chart_type} chart using {}.",
+                        self.chart_types_uri()
+                    ),
+                )])
+                .with_description("chart fixture authoring prompt"));
+            }
+            if request.name != self.prompt_name() {
                 return Err(rmcp::ErrorData::invalid_params(
                     format!("unknown prompt `{}`", request.name),
                     None,
                 ));
             }
-            let chart_type = request
+            let scenario = request
                 .arguments
-                .and_then(|args| args.get("chart_type").cloned())
+                .and_then(|args| args.get("scenario").cloned())
                 .and_then(|value| value.as_str().map(str::to_string))
-                .unwrap_or_else(|| "bar".to_string());
-            return Ok(GetPromptResult::new(vec![PromptMessage::new_text(
+                .unwrap_or_else(|| "unspecified".to_string());
+            Ok(GetPromptResult::new(vec![PromptMessage::new_text(
                 Role::User,
                 format!(
-                    "Author a {chart_type} chart using {}.",
-                    self.chart_types_uri()
+                    "Prepare a {} fixture plan for scenario `{scenario}`. Read {} first.",
+                    self.server,
+                    self.scenario_uri(&scenario)
                 ),
             )])
-            .with_description("chart fixture authoring prompt"));
+            .with_description(format!("{} fixture plan", self.server)))
         }
-        if request.name != self.prompt_name() {
-            return Err(rmcp::ErrorData::invalid_params(
-                format!("unknown prompt `{}`", request.name),
-                None,
-            ));
-        }
-        let scenario = request
-            .arguments
-            .and_then(|args| args.get("scenario").cloned())
-            .and_then(|value| value.as_str().map(str::to_string))
-            .unwrap_or_else(|| "unspecified".to_string());
-        Ok(GetPromptResult::new(vec![PromptMessage::new_text(
-            Role::User,
-            format!(
-                "Prepare a {} fixture plan for scenario `{scenario}`. Read {} first.",
-                self.server,
-                self.scenario_uri(&scenario)
-            ),
-        )])
-        .with_description(format!("{} fixture plan", self.server)))
+        .await
+        .map(Into::into)
     }
 
     async fn complete(
@@ -1063,7 +1087,7 @@ pub(super) async fn cmd_fake_hosted_mcp(
             let scheme = scheme.clone();
             move || Ok(FakeHostedMcp::new(server.clone(), scheme.clone()))
         },
-        LocalSessionManager::default().into(),
+        veoveo_mcp_contract::stateless_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts),
     );

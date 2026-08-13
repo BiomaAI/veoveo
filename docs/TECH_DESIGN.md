@@ -13,9 +13,9 @@ catalog.
 
 | Standard or protocol | Technical boundary |
 |---|---|
-| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over sessionful Streamable HTTP at client-to-gateway and gateway-to-server boundaries. Every response uses event-stream framing. Catalog projection preserves canonical resources, prompts, completions, subscriptions, notifications, and structured content. |
-| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Closed, dereferenced MCP tool input schemas generated from Rust or Python types. Controlled persisted and structured-result models use the same typed vocabulary. |
-| [Veoveo final task extension](../mcp/task-extension) | Version `2026-06-30`; durable task augmentation, discovery, lifecycle methods, results, cancellation, and subscriptions use MCP messages rather than a job REST API. |
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | Version `2026-07-28`; JSON-RPC 2.0 over stateless Streamable HTTP at client-to-gateway and gateway-to-server boundaries. Per-request metadata and `server/discover` replace protocol sessions. Ordinary responses use JSON; `subscriptions/listen` owns request-scoped event streams. |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Complete bounded MCP tool input schemas generated from Rust or Python types. Local references and composition are supported; remote references are rejected. Controlled persisted and structured-result models use the same typed vocabulary. |
+| MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; durable task creation, discovery, lifecycle updates, cancellation, terminal payloads, and subscriptions use official MCP messages rather than a job REST API. |
 | [MCP Apps SEP-1865](../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; server-owned `ui://` resources use the sandboxed MCP Apps host bridge. |
 | OpenID Connect and OAuth 2.0 | OIDC Core login; S256 PKCE; Client Credentials and JWT Bearer grants; RFC 8414 authorization-server metadata; RFC 9728 protected-resource metadata; RFC 8707 resource indicators; signed JWT/JWS/JWK tokens and key discovery. |
 | MCP Enterprise-Managed Authorization / ID-JAG | Explicit enterprise grant profile with durable replay protection, client binding, tenant mapping, and scope reduction. |
@@ -61,7 +61,7 @@ the schema; the gateway does not rewrite schemas or convert JSON-encoded strings
 The MCP conformance client's `info` command validates every advertised tool schema
 against its declared dialect and enforces this client-facing shape.
 
-Full-MCP clients can use the final task extension directly through a gateway profile.
+Tasks-capable MCP clients use the official Tasks methods directly through a gateway profile.
 The gateway routes task-augmented tool calls, get, update, cancel, and subscriptions to
 the owning server without changing the canonical task identity. It applies profile
 exposure, ownership, policy, audit, and resource-URI projection at that boundary. The
@@ -223,9 +223,9 @@ leases, claims, progress, input requests, cancellation, terminal results, retent
 recovery, and outbox transitions. Tenant, principal, profile, server, and operation are
 part of idempotency scope.
 
-`veoveo-mcp-task-extension` implements the final `2026-06-30` extension wire contract:
-discovery, task-required tool invocation, get, update, cancel, list, and event-stream task
-subscriptions. It projects the shared runtime's task snapshots; it does not persist a
+Official MCP Tasks `2026-07-28` are projected directly by `rmcp` handlers:
+discovery, task-required tool invocation, get, update, cancel, and event-stream task
+subscriptions. Each handler projects the shared runtime's task snapshots; it does not persist a
 parallel task model. Traits use native Rust return-position `impl Future`; the workspace
 does not require `async-trait` for controlled async contracts.
 
@@ -426,7 +426,7 @@ delivery at the configured deadline. Consuming that successor clears its envelop
 the same transaction; otherwise a dedicated one-minute GC removes expired ciphertext.
 
 Gateway runtime and admin modules use the same policy/audit path. Console task
-cancellation calls the owning server's final task extension; it never edits task rows.
+cancellation calls the owning server's official Tasks endpoint; it never edits task rows.
 Artifact release/grant/link mutations call the artifact service; the console snapshot is
 only a safe projection and never includes token hashes or reusable link URLs.
 

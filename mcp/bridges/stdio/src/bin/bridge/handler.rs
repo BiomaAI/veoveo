@@ -1,16 +1,19 @@
+use std::borrow::Cow;
+
 use rmcp::{
     handler::server::ServerHandler,
     model::{
-        CallToolRequestParams, CallToolResult, ErrorData as McpError, ListToolsResult,
-        PaginatedRequestParams, ServerCapabilities, ServerInfo,
+        CallToolRequestParams, CallToolResponse, ErrorData as McpError, ListToolsResult,
+        PaginatedRequestParams, ProtocolVersion, ServerCapabilities, ServerInfo, ServerPeerInfo,
     },
     service::{Peer, RequestContext, RoleClient, RoleServer, ServiceError},
 };
 
 /// MCP server that forwards the tool surface of one stdio MCP child.
 ///
-/// All HTTP sessions share the single child process: the child owns one
-/// stateful surface (for rerun, one viewer), so sessions are views onto it.
+/// All stateless HTTP requests share the single child process. The child may
+/// own an explicit application resource (for Rerun, one viewer), but no MCP
+/// protocol state is retained by the HTTP endpoint.
 #[derive(Clone)]
 pub(crate) struct BridgeMcp {
     child: Peer<RoleClient>,
@@ -25,10 +28,12 @@ impl BridgeMcp {
 
 /// Advertise a tools-only surface while preserving the child's identity and
 /// instructions, so clients see which server they are really talking to.
-pub(crate) fn bridge_server_info(child: &ServerInfo) -> ServerInfo {
+pub(crate) fn bridge_server_info(child: &ServerPeerInfo) -> ServerInfo {
     let mut info = ServerInfo::default();
     info.capabilities = ServerCapabilities::builder().enable_tools().build();
-    info.server_info = child.server_info.clone();
+    if let Some(server_info) = child.server_info.clone() {
+        info.server_info = server_info;
+    }
     info.instructions = child.instructions.clone();
     info
 }
@@ -41,6 +46,10 @@ fn child_error(err: ServiceError) -> McpError {
 }
 
 impl ServerHandler for BridgeMcp {
+    fn supported_protocol_versions(&self) -> Cow<'static, [ProtocolVersion]> {
+        Cow::Borrowed(&[ProtocolVersion::V_2026_07_28])
+    }
+
     fn get_info(&self) -> ServerInfo {
         self.info.clone()
     }
@@ -57,7 +66,11 @@ impl ServerHandler for BridgeMcp {
         &self,
         request: CallToolRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResult, McpError> {
-        self.child.call_tool(request).await.map_err(child_error)
+    ) -> Result<CallToolResponse, McpError> {
+        self.child
+            .call_tool(request)
+            .await
+            .map(Into::into)
+            .map_err(child_error)
     }
 }

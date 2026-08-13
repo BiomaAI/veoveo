@@ -1,10 +1,11 @@
-import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
-  ErrorCode,
-  isJSONRPCRequest,
+  INTERNAL_ERROR,
+  INVALID_PARAMS,
+  isJsonRpcRequest,
   type ReadResourceResult,
   type Result,
-} from "@modelcontextprotocol/sdk/types.js";
+  type Transport,
+} from "./protocol.ts";
 import type { AppDescriptor } from "../types";
 
 export type AppResourceReader = (
@@ -49,7 +50,7 @@ export function interceptResourceReadRequests(
 
   const reply = (id: string | number, result: ReadResourceResult) =>
     inner.send({ jsonrpc: "2.0", id, result: result as Result });
-  const reject = (id: string | number, code: ErrorCode, message: string) =>
+  const reject = (id: string | number, code: number, message: string) =>
     inner.send({ jsonrpc: "2.0", id, error: { code, message } });
   const report = (error: unknown) =>
     transport.onerror?.(error instanceof Error ? error : new Error(String(error)));
@@ -57,7 +58,7 @@ export function interceptResourceReadRequests(
   inner.onclose = () => transport.onclose?.();
   inner.onerror = report;
   inner.onmessage = (message, extra) => {
-    if (!isJSONRPCRequest(message) || message.method !== "resources/read") {
+    if (!isJsonRpcRequest(message) || message.method !== "resources/read") {
       transport.onmessage?.(message, extra);
       return;
     }
@@ -66,7 +67,7 @@ export function interceptResourceReadRequests(
       typeof uri !== "string" ||
       (!ownedResource(app, uri) && !declaredDependency(app, uri))
     ) {
-      void reject(message.id, ErrorCode.InvalidParams, "resource is not declared for this App")
+      void reject(message.id, INVALID_PARAMS, "resource is not declared for this App")
         .catch(report);
       return;
     }
@@ -76,7 +77,7 @@ export function interceptResourceReadRequests(
         (error: unknown) =>
           reject(
             message.id,
-            ErrorCode.InternalError,
+            INTERNAL_ERROR,
             error instanceof Error ? error.message : String(error),
           ),
       )

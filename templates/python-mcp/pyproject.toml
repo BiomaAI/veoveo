@@ -2,7 +2,7 @@
 name = "datasheet-mcp"
 version = "0.1.0"
 description = "Veoveo dataset profiling MCP server — the Python hosted-server template"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.15"
 dependencies = [
     "veoveo-mcp==0.1.0",
     "mcp==2.0.0",
@@ -35,3 +35,6 @@ packages = ["src/datasheet_mcp"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.uv.sources]
+veoveo-mcp = { path = "../../sdk/python", editable = true }

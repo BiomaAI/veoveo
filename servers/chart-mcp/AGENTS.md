@@ -1,7 +1,7 @@
 # Chart MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 2.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
 
 ## Purpose
 
@@ -13,20 +13,19 @@ remains upstream.
 
 ## Invariants
 
-- This is a packaged server from a third party. Do not vendor or patch
-  upstream behavior in this directory; change the pinned `flint-chart-mcp`
-  version in the Dockerfile and follow the root Dependency Currency policy.
-- `server.mjs` owns the sessionful Streamable HTTP lifecycle and the
+- This is a packaged domain implementation from a third party. Keep rendering
+  and chart assembly on the pinned upstream exports; `flint-v2.mjs` owns the
+  Veoveo final-protocol registration only.
+- `server.mjs` owns stateless MCP `2026-07-28` HTTP and the
   well-known surface around that implementation: it serves `charts://docs`,
   the document bodies, and `charts://contract` on every session, plus the
   `admin/docs` HTTP projection, from `AGENTS.md` and `DESIGN.md` baked into
   the image beside it. The MCP endpoint and admin projection both require a
   gateway internal token audienced to `charts`. Boot fails when the trust
-  bundle or either document is missing. Transport close removes the session
-  exactly once and must not re-enter protocol-server shutdown.
+  bundle or either document is missing.
 - Domain behavior is stateless: `platformStore: false`, no persistence
-  volume, and `--disable-file-reference` stays set. MCP sessions live in the
-  singleton Veoveo launcher.
+  volume, and `--disable-file-reference` stays set. Requests can land on any
+  replica because no protocol connection owns cross-call state.
 - The service listens on port 8795 and is reached only through the gateway;
   keep `--allowed-hosts chart-mcp:8795`.
 - The container runs as the `veoveo` user with uid 10001.
@@ -45,7 +44,7 @@ remains upstream.
 
 ## Contract Compliance
 
-Contract revision: 2
+Contract revision: 3
 
 - C01: pending — upstream surface not audited against the protocol table
 - C02: pending — unverified
@@ -75,5 +74,5 @@ Contract revision: 2
 - C27: pending — upstream notification behavior is not yet audited
 - C28: met
 - C29: met
-- C30: met — the gateway owns pooled transport while this server retains MCP session state
+- C30: met — the server is stateless and does not require sticky routing
 - C24: pending — no Rust crate; the server is a pinned upstream npm package

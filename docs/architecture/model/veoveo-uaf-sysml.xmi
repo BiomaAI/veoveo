@@ -141,7 +141,7 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-005-COMMENT" body="Accepts gateway-authorized recording batches, journals small durable RRD parts, and publishes keyframe-aligned immutable archive shards through one footer-writing object-store compaction pass." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-006" name="Agent kernel">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-006-COMMENT" body="Runs bounded autonomous episodes with MCP tools, elicitation, memory, replay, budgets, recording, and detach/resume behavior." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-006-COMMENT" body="Runs bounded autonomous episodes with MCP tools, durable input requests, memory, replay, budgets, recording, and detach/resume behavior." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-007" name="Agent runtime">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-007-COMMENT" body="Persists agents, wakes, episodes, watcher leases, retry schedules, task descriptors, results, and retention pins across process restart." />
@@ -150,16 +150,13 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-008-COMMENT" body="Owns persistence record types, ordered migrations, stable identities, transactional outbox, changefeed replay, and platform-store access." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-009" name="Durable task runtime">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-009-COMMENT" body="Owns UUIDv7 task creation, idempotency, leases, claims, progress, elicited input, cancellation, terminal results, retention, recovery, and outbox transitions." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-009-COMMENT" body="Owns UUIDv7 task creation, idempotency, leases, claims, progress, durable input, cancellation, terminal results, retention, recovery, and outbox transitions." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-010" name="DuckDB runtime">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-010-COMMENT" body="Provides owner-scoped DuckDB workspace construction and locked analytical execution primitives." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-011" name="Shared MCP contract">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-011-COMMENT" body="Defines cross-service Rust models and domain identifiers for gateway configuration, policy vocabulary, artifacts, coordinates, storage, tasks, subscriptions, usage, and URI conventions." />
-      </packagedElement>
-      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-012" name="Final MCP task extension">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-012-COMMENT" body="Implements discovery, task-required invocation, get, update, cancel, list, notifications, and SSE subscription projection over the shared runtime." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-013" name="MCP stdio bridge">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-013-COMMENT" body="Projects a child stdio MCP server onto bounded Streamable HTTP while preserving the registered gateway identity." />
@@ -213,7 +210,7 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-029-COMMENT" body="Runs the pinned LuST traffic scenario and exposes private TraCI control to the SUMO MCP owner." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-030" name="Python hosted-server SDK">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-030-COMMENT" body="Provides Python models and helpers for identity, pagination, internal authentication, telemetry, artifacts, deployment, task runtime, and the final task extension." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-030-COMMENT" body="Provides Python models and helpers for identity, pagination, internal authentication, telemetry, artifacts, deployment, task runtime, and official Tasks SDK hooks." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-031" name="Map data acquisition helper">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-031-COMMENT" body="Normalizes authoritative OSM, GTFS, maritime, aviation, and authority datasets into bounded acquisition products." />
@@ -299,9 +296,6 @@
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-058" name="Recorded video materialization">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-058-COMMENT" body="Applies recording authority, resolves frozen or sealed RRD segments, extracts decoder-reentrant keyframe ranges, and remuxes bounded H.264 selections without re-encoding." />
       </packagedElement>
-      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-059" name="MCP schema macro">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-059-COMMENT" body="Publishes each typed tool parameter through the canonical client-facing JSON Schema generator while preserving the ordinary rmcp handler contract." />
-      </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-060" name="Deployment profile contract">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-060-COMMENT" body="Owns the typed repository deployment-profile schema and validates the image targets and managed GPU allocator selected by an installation profile." />
       </packagedElement>
@@ -317,9 +311,6 @@
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-064" name="Gateway composer">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-064-COMMENT" body="Deterministically joins extension-owned server fragments with installation-owned bindings and emits a canonically validated gateway control plane requirements closure and provenance." />
       </packagedElement>
-      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-065" name="MCP task wire contract">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-065-COMMENT" body="Owns storage-independent UUIDv7 task identities and bounded retention pins shared by the final MCP task extension and durable runtime." />
-      </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-070" name="cuOpt executor">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-070-COMMENT" body="Loads the pinned cuOpt runtime, owns the CUDA context and bounded RMM pool, executes one prepared routing batch or mathematical model at a time, and returns solver-native results to the Rust control plane." />
       </packagedElement>
@@ -334,6 +325,9 @@
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-074" name="Image build control">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-074-COMMENT" body="Owns the shared pinned Buildx and BuildKit configuration, cross-worktree builder lease, cache namespaces, and deterministic builder preparation used by image publication and certification." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-075" name="Legacy MCP bridge">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-075-COMMENT" body="Terminates one MCP 2025-11-25 local stdio child or remote HTTP connection and projects only exactly translatable tools resources prompts and completions through an MCP 2026-07-28 stateless endpoint." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-SYS-001" name="Veoveo Installation System">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-SYS-001-COMMENT" body="Aggregate resource performer composed from the canonical Veoveo software and infrastructure service graph." />
@@ -368,8 +362,8 @@
       <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-010" name="Installation bootstrap" informationSource="VV-CMP-001" informationTarget="VV-CMP-038">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-010-COMMENT" body="SurrealDB WebSocket at root scope. Direction: outbound. Identity and policy: Separate bootstrap credentials. Data: Ordered migrations, runtime user rotation, initial control revision. Availability and recovery: Runs to completion before long-lived services." />
       </packagedElement>
-      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-011" name="Task protocol projection" informationSource="VV-CMP-HOSTED" informationTarget="VV-CMP-012">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-011-COMMENT" body="MCP final task extension over Streamable HTTP event streams. Direction: bidirectional. Identity and policy: Same principal and policy context as tool invocation. Data: Task create, get, update, cancel, list, notifications, progress, result. Availability and recovery: Projects the shared task runtime without a second task store." />
+      <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-011" name="Official Tasks projection" informationSource="VV-CMP-HOSTED" informationTarget="VV-CMP-001">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-011-COMMENT" body="MCP 2026-07-28 Tasks and request-scoped subscriptions over stateless Streamable HTTP. Direction: bidirectional. Identity and policy: Same principal and policy context as tool invocation. Data: Task create, get, update, cancel, status notifications, progress, terminal result. Availability and recovery: Projects the shared task runtime without a second task store." />
       </packagedElement>
       <packagedElement xmi:type="uml:InformationFlow" xmi:id="VV-IF-012" name="Task persistence" informationSource="VV-CMP-009" informationTarget="VV-CMP-008">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-IF-012-COMMENT" body="Rust API and transactional outbox. Direction: bidirectional. Identity and policy: Task owner includes tenant, principal, profile, server, and operation. Data: Tasks, leases, inputs, results, provider jobs, retention pins. Availability and recovery: Resume." />
@@ -567,17 +561,16 @@
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-02-3" name="tracesTo" client="VV-OPA-002" supplier="VV-SVC-001" />
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-01" name="satisfy" client="VV-CMP-001" supplier="VV-REQ-002" />
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-02" name="satisfy" client="VV-CMP-011" supplier="VV-REQ-002" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-03" name="satisfy" client="VV-CMP-012" supplier="VV-REQ-002" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-04" name="satisfy" client="VV-CMP-016" supplier="VV-REQ-002" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-05" name="satisfy" client="VV-CMP-017" supplier="VV-REQ-002" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-06" name="satisfy" client="VV-CMP-019" supplier="VV-REQ-002" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-07" name="satisfy" client="VV-CMP-020" supplier="VV-REQ-002" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-08" name="satisfy" client="VV-CMP-021" supplier="VV-REQ-002" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-09" name="satisfy" client="VV-CMP-022" supplier="VV-REQ-002" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-10" name="satisfy" client="VV-CMP-023" supplier="VV-REQ-002" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-11" name="satisfy" client="VV-CMP-025" supplier="VV-REQ-002" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-12" name="satisfy" client="VV-CMP-052" supplier="VV-REQ-002" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-13" name="satisfy" client="VV-CMP-054" supplier="VV-REQ-002" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-03" name="satisfy" client="VV-CMP-016" supplier="VV-REQ-002" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-04" name="satisfy" client="VV-CMP-017" supplier="VV-REQ-002" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-05" name="satisfy" client="VV-CMP-019" supplier="VV-REQ-002" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-06" name="satisfy" client="VV-CMP-020" supplier="VV-REQ-002" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-07" name="satisfy" client="VV-CMP-021" supplier="VV-REQ-002" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-08" name="satisfy" client="VV-CMP-022" supplier="VV-REQ-002" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-09" name="satisfy" client="VV-CMP-023" supplier="VV-REQ-002" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-10" name="satisfy" client="VV-CMP-025" supplier="VV-REQ-002" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-11" name="satisfy" client="VV-CMP-052" supplier="VV-REQ-002" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-02-12" name="satisfy" client="VV-CMP-054" supplier="VV-REQ-002" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-03-1" name="tracesTo" client="VV-REQ-003" supplier="VV-CAP-001" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-03-2" name="tracesTo" client="VV-CAP-001" supplier="VV-OPA-001" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-03-3" name="tracesTo" client="VV-OPA-001" supplier="VV-SVC-001" />
@@ -596,8 +589,7 @@
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-05-3" name="tracesTo" client="VV-OPA-003" supplier="VV-SVC-003" />
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-05-01" name="satisfy" client="VV-CMP-008" supplier="VV-REQ-005" />
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-05-02" name="satisfy" client="VV-CMP-009" supplier="VV-REQ-005" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-05-03" name="satisfy" client="VV-CMP-012" supplier="VV-REQ-005" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-05-04" name="satisfy" client="VV-CMP-038" supplier="VV-REQ-005" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-05-03" name="satisfy" client="VV-CMP-038" supplier="VV-REQ-005" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-06-1" name="tracesTo" client="VV-REQ-006" supplier="VV-CAP-003" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-06-2" name="tracesTo" client="VV-CAP-003" supplier="VV-OPA-004" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-06-3" name="tracesTo" client="VV-OPA-004" supplier="VV-SVC-004" />
@@ -691,9 +683,8 @@
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-18-3" name="tracesTo" client="VV-OPA-002" supplier="VV-SVC-001" />
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-18-01" name="satisfy" client="VV-CMP-001" supplier="VV-REQ-018" />
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-18-02" name="satisfy" client="VV-CMP-011" supplier="VV-REQ-018" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-18-03" name="satisfy" client="VV-CMP-012" supplier="VV-REQ-018" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-18-04" name="satisfy" client="VV-CMP-030" supplier="VV-REQ-018" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-18-05" name="satisfy" client="VV-CMP-025" supplier="VV-REQ-018" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-18-03" name="satisfy" client="VV-CMP-030" supplier="VV-REQ-018" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-18-04" name="satisfy" client="VV-CMP-025" supplier="VV-REQ-018" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-19-1" name="tracesTo" client="VV-REQ-019" supplier="VV-CAP-006" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-19-2" name="tracesTo" client="VV-CAP-006" supplier="VV-OPA-007" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-19-3" name="tracesTo" client="VV-OPA-007" supplier="VV-SVC-012" />
@@ -709,12 +700,11 @@
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-20-3" name="tracesTo" client="VV-OPA-011" supplier="VV-SVC-013" />
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-01" name="satisfy" client="VV-CMP-004" supplier="VV-REQ-020" />
       <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-02" name="satisfy" client="VV-CMP-009" supplier="VV-REQ-020" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-03" name="satisfy" client="VV-CMP-012" supplier="VV-REQ-020" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-04" name="satisfy" client="VV-CMP-020" supplier="VV-REQ-020" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-05" name="satisfy" client="VV-CMP-021" supplier="VV-REQ-020" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-06" name="satisfy" client="VV-CMP-038" supplier="VV-REQ-020" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-07" name="satisfy" client="VV-CMP-070" supplier="VV-REQ-020" />
-      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-08" name="satisfy" client="VV-CMP-071" supplier="VV-REQ-020" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-03" name="satisfy" client="VV-CMP-020" supplier="VV-REQ-020" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-04" name="satisfy" client="VV-CMP-021" supplier="VV-REQ-020" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-05" name="satisfy" client="VV-CMP-038" supplier="VV-REQ-020" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-06" name="satisfy" client="VV-CMP-070" supplier="VV-REQ-020" />
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="VV-SAT-20-07" name="satisfy" client="VV-CMP-071" supplier="VV-REQ-020" />
     </packagedElement>
   </uml:Model>
   <UAF:Capability xmi:id="VV-CAP-001-UAF" base_Class="VV-CAP-001" />
@@ -776,8 +766,6 @@
   <SysML:Block xmi:id="VV-CMP-010-SYSML" base_Class="VV-CMP-010" isEncapsulated="true" />
   <UAF:Software xmi:id="VV-CMP-011-UAF" base_Class="VV-CMP-011" />
   <SysML:Block xmi:id="VV-CMP-011-SYSML" base_Class="VV-CMP-011" isEncapsulated="true" />
-  <UAF:Software xmi:id="VV-CMP-012-UAF" base_Class="VV-CMP-012" />
-  <SysML:Block xmi:id="VV-CMP-012-SYSML" base_Class="VV-CMP-012" isEncapsulated="true" />
   <UAF:Software xmi:id="VV-CMP-013-UAF" base_Class="VV-CMP-013" />
   <SysML:Block xmi:id="VV-CMP-013-SYSML" base_Class="VV-CMP-013" isEncapsulated="true" />
   <UAF:Software xmi:id="VV-CMP-014-UAF" base_Class="VV-CMP-014" />
@@ -870,8 +858,6 @@
   <SysML:Block xmi:id="VV-CMP-057-SYSML" base_Class="VV-CMP-057" isEncapsulated="true" />
   <UAF:Software xmi:id="VV-CMP-058-UAF" base_Class="VV-CMP-058" />
   <SysML:Block xmi:id="VV-CMP-058-SYSML" base_Class="VV-CMP-058" isEncapsulated="true" />
-  <UAF:Software xmi:id="VV-CMP-059-UAF" base_Class="VV-CMP-059" />
-  <SysML:Block xmi:id="VV-CMP-059-SYSML" base_Class="VV-CMP-059" isEncapsulated="true" />
   <UAF:Software xmi:id="VV-CMP-060-UAF" base_Class="VV-CMP-060" />
   <SysML:Block xmi:id="VV-CMP-060-SYSML" base_Class="VV-CMP-060" isEncapsulated="true" />
   <UAF:Software xmi:id="VV-CMP-061-UAF" base_Class="VV-CMP-061" />
@@ -882,8 +868,6 @@
   <SysML:Block xmi:id="VV-CMP-063-SYSML" base_Class="VV-CMP-063" isEncapsulated="true" />
   <UAF:Software xmi:id="VV-CMP-064-UAF" base_Class="VV-CMP-064" />
   <SysML:Block xmi:id="VV-CMP-064-SYSML" base_Class="VV-CMP-064" isEncapsulated="true" />
-  <UAF:Software xmi:id="VV-CMP-065-UAF" base_Class="VV-CMP-065" />
-  <SysML:Block xmi:id="VV-CMP-065-SYSML" base_Class="VV-CMP-065" isEncapsulated="true" />
   <UAF:Software xmi:id="VV-CMP-070-UAF" base_Class="VV-CMP-070" />
   <SysML:Block xmi:id="VV-CMP-070-SYSML" base_Class="VV-CMP-070" isEncapsulated="true" />
   <UAF:System xmi:id="VV-CMP-071-UAF" base_Class="VV-CMP-071" />
@@ -894,6 +878,8 @@
   <SysML:Block xmi:id="VV-CMP-073-SYSML" base_Class="VV-CMP-073" isEncapsulated="true" />
   <UAF:Software xmi:id="VV-CMP-074-UAF" base_Class="VV-CMP-074" />
   <SysML:Block xmi:id="VV-CMP-074-SYSML" base_Class="VV-CMP-074" isEncapsulated="true" />
+  <UAF:Software xmi:id="VV-CMP-075-UAF" base_Class="VV-CMP-075" />
+  <SysML:Block xmi:id="VV-CMP-075-SYSML" base_Class="VV-CMP-075" isEncapsulated="true" />
   <UAF:System xmi:id="VV-SYS-001-UAF" base_Class="VV-SYS-001" />
   <SysML:Block xmi:id="VV-SYS-001-SYSML" base_Class="VV-SYS-001" isEncapsulated="true" />
   <UAF:ActualResource xmi:id="VV-AR-001-UAF" base_InstanceSpecification="VV-AR-001" />
@@ -943,7 +929,6 @@
   <SysML:Satisfy xmi:id="VV-SAT-02-10-SYSML" base_Abstraction="VV-SAT-02-10" />
   <SysML:Satisfy xmi:id="VV-SAT-02-11-SYSML" base_Abstraction="VV-SAT-02-11" />
   <SysML:Satisfy xmi:id="VV-SAT-02-12-SYSML" base_Abstraction="VV-SAT-02-12" />
-  <SysML:Satisfy xmi:id="VV-SAT-02-13-SYSML" base_Abstraction="VV-SAT-02-13" />
   <SysML:Satisfy xmi:id="VV-SAT-03-01-SYSML" base_Abstraction="VV-SAT-03-01" />
   <SysML:Satisfy xmi:id="VV-SAT-03-02-SYSML" base_Abstraction="VV-SAT-03-02" />
   <SysML:Satisfy xmi:id="VV-SAT-03-03-SYSML" base_Abstraction="VV-SAT-03-03" />
@@ -954,7 +939,6 @@
   <SysML:Satisfy xmi:id="VV-SAT-05-01-SYSML" base_Abstraction="VV-SAT-05-01" />
   <SysML:Satisfy xmi:id="VV-SAT-05-02-SYSML" base_Abstraction="VV-SAT-05-02" />
   <SysML:Satisfy xmi:id="VV-SAT-05-03-SYSML" base_Abstraction="VV-SAT-05-03" />
-  <SysML:Satisfy xmi:id="VV-SAT-05-04-SYSML" base_Abstraction="VV-SAT-05-04" />
   <SysML:Satisfy xmi:id="VV-SAT-06-01-SYSML" base_Abstraction="VV-SAT-06-01" />
   <SysML:Satisfy xmi:id="VV-SAT-06-02-SYSML" base_Abstraction="VV-SAT-06-02" />
   <SysML:Satisfy xmi:id="VV-SAT-06-03-SYSML" base_Abstraction="VV-SAT-06-03" />
@@ -1011,7 +995,6 @@
   <SysML:Satisfy xmi:id="VV-SAT-18-02-SYSML" base_Abstraction="VV-SAT-18-02" />
   <SysML:Satisfy xmi:id="VV-SAT-18-03-SYSML" base_Abstraction="VV-SAT-18-03" />
   <SysML:Satisfy xmi:id="VV-SAT-18-04-SYSML" base_Abstraction="VV-SAT-18-04" />
-  <SysML:Satisfy xmi:id="VV-SAT-18-05-SYSML" base_Abstraction="VV-SAT-18-05" />
   <SysML:Satisfy xmi:id="VV-SAT-19-01-SYSML" base_Abstraction="VV-SAT-19-01" />
   <SysML:Satisfy xmi:id="VV-SAT-19-02-SYSML" base_Abstraction="VV-SAT-19-02" />
   <SysML:Satisfy xmi:id="VV-SAT-19-03-SYSML" base_Abstraction="VV-SAT-19-03" />
@@ -1026,5 +1009,4 @@
   <SysML:Satisfy xmi:id="VV-SAT-20-05-SYSML" base_Abstraction="VV-SAT-20-05" />
   <SysML:Satisfy xmi:id="VV-SAT-20-06-SYSML" base_Abstraction="VV-SAT-20-06" />
   <SysML:Satisfy xmi:id="VV-SAT-20-07-SYSML" base_Abstraction="VV-SAT-20-07" />
-  <SysML:Satisfy xmi:id="VV-SAT-20-08-SYSML" base_Abstraction="VV-SAT-20-08" />
 </xmi:XMI>

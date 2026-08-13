@@ -2,19 +2,19 @@ import type { AgentSummary } from "./types";
 
 export type AgentDisplayState = AgentSummary["state"] | "offline";
 
-export function agentElicitationsPath(agentKey: string): string {
-  return `agents/${encodeURIComponent(agentKey)}/elicitations`;
+export function agentInputRequestsPath(agentKey: string): string {
+  return `agents/${encodeURIComponent(agentKey)}/input-requests`;
 }
 
-export function agentElicitationsApiPath(agentKey: string): string {
-  return `/console/api/${agentElicitationsPath(agentKey)}`;
+export function agentInputRequestsApiPath(agentKey: string): string {
+  return `/console/api/${agentInputRequestsPath(agentKey)}`;
 }
 
-export function agentElicitationDecisionPath(
+export function agentInputRequestDecisionPath(
   agentKey: string,
-  elicitationId: string,
+  inputRequestId: string,
 ): string {
-  return `${agentElicitationsPath(agentKey)}/${encodeURIComponent(elicitationId)}/decision`;
+  return `${agentInputRequestsPath(agentKey)}/${encodeURIComponent(inputRequestId)}/decision`;
 }
 
 /** Project durable episode state through the exact runner-lease deadline. */

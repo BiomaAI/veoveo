@@ -237,7 +237,7 @@ mod tests {
         HostedServerConformanceProfile {
             schema_version: HostedServerProfileSchema::V1,
             profile_id: "extension-ci".to_owned(),
-            contract_revision: "veoveo.io/hosted-mcp/v1".to_owned(),
+            contract_revision: "veoveo.io/hosted-mcp/v3".to_owned(),
             endpoint: "https://extension.example.internal/domain/mcp".to_owned(),
             server_slug: "domain".to_owned(),
             owned_resource_schemes: BTreeSet::from(["domain".to_owned()]),

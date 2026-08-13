@@ -33,7 +33,7 @@ use crate::{
 use auth::{AdminAuthState, InternalAuthState, authenticate_internal, authorize_admin};
 use config::Args;
 use host::validate_host;
-use tasks::{TimeTaskExtension, recover_tasks};
+use tasks::recover_tasks;
 
 const SERVER_SLUG: &str = "time";
 
@@ -122,33 +122,14 @@ pub async fn run() -> Result<()> {
             let state = state.clone();
             move || Ok(TimeMcp::new(state.clone()))
         },
-        veoveo_mcp_contract::canonical_session_manager(),
+        veoveo_mcp_contract::stateless_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
             .with_cancellation_token(cancellation.child_token()),
     );
-    let task_extension = Arc::new(veoveo_mcp_task_extension::TaskExtensionAdapter::new(
-        Arc::new(TimeTaskExtension::new(state.clone())),
-        veoveo_mcp_task_extension::ServerDiscovery::new(
-            std::collections::BTreeMap::from([
-                ("tools".to_owned(), json!({})),
-                ("resources".to_owned(), json!({})),
-                ("prompts".to_owned(), json!({})),
-            ]),
-            veoveo_mcp_task_extension::Implementation {
-                name: SERVER_SLUG.to_owned(),
-                version: env!("CARGO_PKG_VERSION").to_owned(),
-            },
-            Some("Versioned temporal authority and operational scheduling.".to_owned()),
-        ),
-    ));
     let mcp_router = Router::new()
         .route_service("/", mcp_service.clone())
         .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn_with_state(
-            task_extension,
-            veoveo_mcp_task_extension::task_extension_middleware::<TimeTaskExtension>,
-        ))
         .layer(middleware::from_fn_with_state(
             auth_state.clone(),
             authenticate_internal,

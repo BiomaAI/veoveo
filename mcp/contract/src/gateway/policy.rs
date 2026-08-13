@@ -69,21 +69,18 @@ pub enum GatewayAction {
     ResourcesList,
     ResourcesTemplatesList,
     ResourcesRead,
-    ResourcesSubscribe,
-    ResourcesUnsubscribe,
+    SubscriptionsListen,
     PromptsList,
     PromptsGet,
     CompletionComplete,
     TasksGet,
     TasksUpdate,
-    TasksResult,
     TasksCancel,
-    TasksSubscribe,
     ArtifactRead,
     UsageRead,
     AgentsRead,
     AgentsMessage,
-    AgentsElicitationAnswer,
+    AgentsInputRequestAnswer,
     AdminRead,
     AdminWrite,
     RecordingStreamOpen,
@@ -101,21 +98,18 @@ impl GatewayAction {
             Self::ResourcesList => Some("resources/list"),
             Self::ResourcesTemplatesList => Some("resources/templates/list"),
             Self::ResourcesRead => Some("resources/read"),
-            Self::ResourcesSubscribe => Some("resources/subscribe"),
-            Self::ResourcesUnsubscribe => Some("resources/unsubscribe"),
+            Self::SubscriptionsListen => Some("subscriptions/listen"),
             Self::PromptsList => Some("prompts/list"),
             Self::PromptsGet => Some("prompts/get"),
             Self::CompletionComplete => Some("completion/complete"),
             Self::TasksGet => Some("tasks/get"),
             Self::TasksUpdate => Some("tasks/update"),
-            Self::TasksResult => Some("tasks/result"),
             Self::TasksCancel => Some("tasks/cancel"),
-            Self::TasksSubscribe => Some("subscriptions/listen"),
             Self::ArtifactRead
             | Self::UsageRead
             | Self::AgentsRead
             | Self::AgentsMessage
-            | Self::AgentsElicitationAnswer
+            | Self::AgentsInputRequestAnswer
             | Self::AdminRead
             | Self::AdminWrite
             | Self::RecordingStreamOpen
@@ -140,7 +134,7 @@ impl GatewayAction {
     pub fn is_agent_control(self) -> bool {
         matches!(
             self,
-            Self::AgentsRead | Self::AgentsMessage | Self::AgentsElicitationAnswer
+            Self::AgentsRead | Self::AgentsMessage | Self::AgentsInputRequestAnswer
         )
     }
 }

@@ -1,28 +1,25 @@
 use std::sync::{Arc, LazyLock};
 
+use rmcp::tool;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
-        GetPromptRequestParams, GetPromptResult, ListPromptsResult, ListResourceTemplatesResult,
-        ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt,
-        ReadResourceRequestParams, ReadResourceResult, Reference, Resource, ResourceContents,
-        ResourceTemplate, ServerCapabilities, ServerInfo, SubscribeRequestParams,
-        UnsubscribeRequestParams,
+        CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams,
+        CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
+        GetPromptRequestParams, GetTaskParams, GetTaskResult, ListPromptsResult,
+        ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
+        Prompt, ReadResourceRequestParams, ReadResourceResult, Reference, Resource,
+        ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo, SubscriptionFilter,
+        UpdateTaskParams,
     },
-    service::RequestContext,
+    service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
 };
 use serde::Serialize;
 use serde_json::json;
 use uuid::Uuid;
-use veoveo_mcp_contract::tool;
-use veoveo_mcp_contract::{
-    GatewayInternalIdentity, Page,
-    docs::{CapabilityInventory, ServerDocs},
-    paginate,
-};
+use veoveo_mcp_contract::{GatewayInternalIdentity, Page, docs::ServerDocs, paginate};
 
 use crate::{
     clock::assess_clock,
@@ -34,6 +31,7 @@ use crate::{
         ValidateTimelineOutput, ValidateTimelineRequest,
     },
     prompts::TimePrompt,
+    server::tasks::TimeTaskExtension,
     state::TimeApplication,
     uris,
 };
@@ -49,6 +47,7 @@ pub(crate) static SERVER_DOCS: LazyLock<ServerDocs> =
 #[derive(Clone)]
 pub struct TimeMcp {
     state: Arc<TimeApplication>,
+    task_service: TimeTaskExtension,
     #[allow(dead_code)]
     tool_router: ToolRouter<TimeMcp>,
 }
@@ -57,6 +56,7 @@ pub struct TimeMcp {
 impl TimeMcp {
     pub fn new(state: Arc<TimeApplication>) -> Self {
         Self {
+            task_service: TimeTaskExtension::new(state.clone()),
             state,
             tool_router: Self::tool_router(),
         }
@@ -64,38 +64,6 @@ impl TimeMcp {
 
     /// The capability inventory declared at `time://contract` (contract C19).
     ///
-    /// Tools and prompts derive from the live registrations. Stable resources,
-    /// resource templates, and task-augmented tool names come from the lists
-    /// those surfaces are served from (`stable_resource_uris`,
-    /// `resource_templates`, `crate::server::tasks::TASK_TOOLS`), so the
-    /// declaration cannot silently diverge from what the handler registers.
-    pub(crate) fn capability_inventory() -> CapabilityInventory {
-        let mut tools: Vec<String> = Self::tool_router()
-            .list_all()
-            .into_iter()
-            .map(|tool| tool.name.into_owned())
-            .collect();
-        tools.sort();
-        let mut prompts: Vec<String> = TimePrompt::ALL
-            .into_iter()
-            .map(|prompt| prompt.definition().name)
-            .collect();
-        prompts.sort();
-        CapabilityInventory {
-            tools,
-            resources: stable_resource_uris(),
-            resource_templates: resource_templates()
-                .into_iter()
-                .map(|template| template.uri_template.clone())
-                .collect(),
-            prompts,
-            tasks: crate::server::tasks::TASK_TOOLS
-                .iter()
-                .map(|name| (*name).to_owned())
-                .collect(),
-        }
-    }
-
     #[tool(
         title = "Resolve operational time",
         description = "Resolve RFC 3339/9557, civil, military DTG, Unix, TAI, GPS, Julian TAI, or mission-relative time against the active versioned authority releases.",
@@ -200,7 +168,6 @@ impl TimeMcp {
         title = "Expand operational calendar",
         description = "Expand a versioned civil-time operational calendar into authority-bound half-open windows. This bulk operation requires Task API invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ExpandScheduleOutput>(),
-        execution(task_support = "required"),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
     async fn expand_schedule(
@@ -218,7 +185,6 @@ impl TimeMcp {
         title = "Validate mission timeline",
         description = "Resolve named temporal points and validate precedence plus minimum and maximum separation constraints. This bulk operation requires Task API invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ValidateTimelineOutput>(),
-        execution(task_support = "required"),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
     async fn validate_timeline(
@@ -286,7 +252,10 @@ impl TimeMcp {
             .subscriptions
             .notify_resource_updated(uris::EVENTS_URI)
             .await;
-        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
+        self.state
+            .subscriptions
+            .notify_resource_list_changed()
+            .await;
         structured_result(format!("scheduled {}", event.event_id), &event)
     }
 
@@ -326,8 +295,14 @@ impl TimeMcp {
 
 #[tool_handler]
 impl ServerHandler for TimeMcp {
+    fn supported_protocol_versions(
+        &self,
+    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
+        veoveo_mcp_contract::final_protocol_versions()
+    }
+
     fn get_info(&self) -> ServerInfo {
-        let capabilities = ServerCapabilities::builder()
+        let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_prompts()
             .enable_resources()
@@ -335,11 +310,80 @@ impl ServerHandler for TimeMcp {
             .enable_resources_list_changed()
             .enable_completions()
             .build();
+        capabilities.extensions.get_or_insert_default().insert(
+            rmcp::model::TASKS_EXTENSION_ID.to_owned(),
+            rmcp::model::JsonObject::new(),
+        );
         let mut info = ServerInfo::default();
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("time", env!("CARGO_PKG_VERSION"));
         info.instructions = Some("Authoritative time interpretation and operational scheduling for agents. Resolve civil, military, GNSS, Unix, TAI, and mission-relative expressions against versioned TZDB and leap-second releases. Invoke schedule expansion and timeline validation through the Task API. Carry TimeInstant authority bindings and uncertainty into Map and Optimization calls.".to_owned());
         info
+    }
+
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        if context
+            .meta
+            .client_capabilities()
+            .is_some_and(|caps| caps.supports_tasks())
+        {
+            let caller = veoveo_task_runtime::DurableTaskService::authenticate(
+                &self.task_service,
+                &context,
+            )?;
+            if let Some(created) = veoveo_task_runtime::DurableTaskService::start_tool_task(
+                &self.task_service,
+                &caller,
+                request.clone(),
+            )
+            .await?
+            {
+                return Ok(created.into());
+            }
+        }
+        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        self.tool_router.call(call).await
+    }
+
+    async fn get_task(
+        &self,
+        request: GetTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<GetTaskResult, McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::get_task(&self.task_service, &caller, request)
+            .await
+    }
+
+    async fn update_task(
+        &self,
+        request: UpdateTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::update_task(&self.task_service, &caller, request)
+            .await
+    }
+
+    async fn cancel_task(
+        &self,
+        request: CancelTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::cancel_task(
+            &self.task_service,
+            &caller,
+            request.task_id,
+        )
+        .await
     }
 
     async fn list_tools(
@@ -353,6 +397,9 @@ impl ServerHandler for TimeMcp {
         Ok(ListToolsResult {
             tools: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -413,6 +460,9 @@ impl ServerHandler for TimeMcp {
         Ok(ListResourcesResult {
             resources: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -426,6 +476,9 @@ impl ServerHandler for TimeMcp {
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -434,7 +487,9 @@ impl ServerHandler for TimeMcp {
         &self,
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, McpError> {
+    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
+        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
+        async {
         let identity = require_scope(&context, "time:read")?;
         let uri = request.uri.as_str();
         // Well-known surface (contract C18, C19): readable by any identity
@@ -451,10 +506,7 @@ impl ServerHandler for TimeMcp {
             ]));
         }
         if uri == uris::CONTRACT_URI {
-            return json_resource(
-                uri,
-                SERVER_DOCS.contract_declaration(Self::capability_inventory),
-            );
+            return json_resource(uri, SERVER_DOCS.contract_declaration());
         }
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let engine = self.state.engine(&scope).await.map_err(internal)?;
@@ -581,6 +633,9 @@ impl ServerHandler for TimeMcp {
             format!("unknown Time resource `{uri}`"),
             None,
         ))
+        }
+        .await
+        .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
     }
 
     async fn list_prompts(
@@ -596,6 +651,9 @@ impl ServerHandler for TimeMcp {
         Ok(ListPromptsResult {
             prompts: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -604,10 +662,14 @@ impl ServerHandler for TimeMcp {
         &self,
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<GetPromptResult, McpError> {
-        TimePrompt::by_name(&request.name)
-            .ok_or_else(|| McpError::invalid_params("unknown Time prompt", None))?
-            .render(request.arguments)
+    ) -> Result<rmcp::model::GetPromptResponse, McpError> {
+        async {
+            TimePrompt::by_name(&request.name)
+                .ok_or_else(|| McpError::invalid_params("unknown Time prompt", None))?
+                .render(request.arguments)
+        }
+        .await
+        .map(Into::into)
     }
 
     async fn complete(
@@ -688,71 +750,60 @@ impl ServerHandler for TimeMcp {
         ))
     }
 
-    async fn subscribe(
+    fn accepted_subscription_filter(
         &self,
-        request: SubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let identity = require_scope(&context, "time:read")?;
-        if !is_subscribable(&request.uri) {
-            return Err(McpError::invalid_params(
-                "resource is immutable or not subscribable",
-                None,
-            ));
-        }
-        let scope = self.state.scope(&identity).await.map_err(internal)?;
-        if request.uri == uris::EVENTS_URI {
-            for event in self
-                .state
-                .catalog
-                .list_events(&scope)
-                .await
-                .map_err(internal)?
-            {
-                self.state
-                    .schedule_event(scope.clone(), event)
-                    .await
-                    .map_err(internal)?;
-            }
-        } else if let Some(event_id) = uris::parse_event(&request.uri) {
-            let event_id = TemporalEventId::new(event_id).map_err(invalid_params)?;
-            if let Some(event) = self
-                .state
-                .catalog
-                .event(&scope, &event_id)
-                .await
-                .map_err(internal)?
-            {
-                self.state
-                    .schedule_event(scope, event)
-                    .await
-                    .map_err(internal)?;
-            }
-        }
-        self.state
-            .subscriptions
-            .subscribe(request.uri, identity.actor.id, context.peer.clone())
-            .await;
-        Ok(())
+        requested: &SubscriptionFilter,
+    ) -> Option<SubscriptionFilter> {
+        veoveo_mcp_contract::accepted_subscription_filter(requested)
     }
 
-    async fn unsubscribe(
-        &self,
-        request: UnsubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let identity = require_scope(&context, "time:read")?;
-        if !is_subscribable(&request.uri) {
-            return Err(McpError::invalid_params(
-                "resource is immutable or not subscribable",
-                None,
-            ));
+    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
+        let request_context = context.request_context().clone();
+        let identity = require_scope(&request_context, "time:read")?;
+        let scope = self.state.scope(&identity).await.map_err(internal)?;
+        for uri in context.accepted().resource_subscriptions.iter().flatten() {
+            if !is_subscribable(uri) {
+                return Err(McpError::invalid_params(
+                    "resource is immutable or not subscribable",
+                    None,
+                ));
+            }
+            if uri == uris::EVENTS_URI {
+                for event in self
+                    .state
+                    .catalog
+                    .list_events(&scope)
+                    .await
+                    .map_err(internal)?
+                {
+                    self.state
+                        .schedule_event(scope.clone(), event)
+                        .await
+                        .map_err(internal)?;
+                }
+            } else if let Some(event_id) = uris::parse_event(uri) {
+                let event_id = TemporalEventId::new(event_id).map_err(invalid_params)?;
+                if let Some(event) = self
+                    .state
+                    .catalog
+                    .event(&scope, &event_id)
+                    .await
+                    .map_err(internal)?
+                {
+                    self.state
+                        .schedule_event(scope.clone(), event)
+                        .await
+                        .map_err(internal)?;
+                }
+            }
         }
-        self.state
-            .subscriptions
-            .unsubscribe(&request.uri, &identity.actor.id)
-            .await;
-        Ok(())
+        veoveo_task_runtime::listen_durable_subscriptions(
+            &self.task_service,
+            context,
+            Some(self.state.subscriptions.as_ref()),
+            None,
+        )
+        .await
     }
 }
 
@@ -869,16 +920,6 @@ fn well_known_resources() -> Vec<Resource> {
     ));
     resources
 }
-/// Stable resource URIs declared in the `time://contract` capability
-/// inventory: the well-known surface plus the index resources
-/// `list_resources` always serves. Per-entity resources are enumerated per
-/// identity at list time and are covered by the resource templates instead.
-fn stable_resource_uris() -> Vec<String> {
-    root_resources()
-        .into_iter()
-        .map(|resource| resource.uri.clone())
-        .collect()
-}
 /// Every advertised resource template. `list_resource_templates` serves this
 /// list and the `time://contract` capability inventory declares it, so the
 /// two cannot diverge.
@@ -948,8 +989,7 @@ mod well_known_tests {
         CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
     };
 
-    use super::{SERVER_DOCS, TimeMcp, resource_templates, stable_resource_uris};
-    use crate::uris;
+    use super::SERVER_DOCS;
 
     #[test]
     fn embedded_documents_carry_the_crate_manual_and_design() {
@@ -965,10 +1005,7 @@ mod well_known_tests {
 
     #[test]
     fn contract_declaration_resolves_from_the_embedded_manual() {
-        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(
-            &SERVER_DOCS,
-            TimeMcp::capability_inventory(),
-        );
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
         assert_eq!(declaration.server, "time");
         assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
         for id in ["C18", "C19", "C20", "C21"] {
@@ -984,39 +1021,9 @@ mod well_known_tests {
     }
 
     #[test]
-    fn capability_inventory_matches_the_registered_surface() {
-        let inventory = TimeMcp::capability_inventory();
-        for tool in ["resolve_time", "expand_schedule", "create_temporal_event"] {
-            assert!(
-                inventory.tools.iter().any(|name| name == tool),
-                "inventory is missing tool {tool}"
-            );
-        }
-        for uri in [uris::DOCS_URI, uris::CONTRACT_URI, uris::EVENTS_URI] {
-            assert!(
-                inventory.resources.contains(&uri.to_owned()),
-                "inventory is missing resource {uri}"
-            );
-        }
-        assert!(inventory.resources.contains(&uris::doc_uri("agents")));
-        assert_eq!(
-            stable_resource_uris().len(),
-            inventory.resources.len(),
-            "inventory resources come from stable_resource_uris"
-        );
-        assert!(
-            inventory
-                .resource_templates
-                .contains(&uris::DOC_TEMPLATE.to_owned())
-        );
-        assert_eq!(
-            resource_templates().len(),
-            inventory.resource_templates.len(),
-            "inventory templates come from resource_templates"
-        );
-        assert_eq!(
-            inventory.tasks,
-            vec!["expand_schedule".to_owned(), "validate_timeline".to_owned()]
-        );
+    fn contract_declaration_defers_runtime_surface_to_discover() {
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
+        let json = serde_json::to_value(declaration).unwrap();
+        assert!(json.get("capabilities").is_none());
     }
 }

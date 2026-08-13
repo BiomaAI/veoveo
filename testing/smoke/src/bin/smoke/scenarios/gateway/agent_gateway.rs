@@ -2,14 +2,14 @@ use super::*;
 
 /// Pre-validations for the agent kernel's gateway usage:
 ///
-/// 1. A client-initiated task-augmented `tools/call` on a task-OPTIONAL tool
-///    (duckdb `execute`/`query`, `taskSupport: optional`) returns a
+/// 1. A client-initiated task-augmented `tools/call` on a tool whose effective
+///    capabilities permit task creation (duckdb `execute`/`query`) returns a
 ///    `CreateTaskResult` and completes through the client-driven task
 ///    lifecycle. This is the dispatch shape rig's `McpTaskPolicy::Preferred`
 ///    emits for every optional-support tool.
 /// 2. Task continuity across sessions of the same principal: a task created
 ///    on session A stays visible to a later session B holding a fresh token
-///    for the same service client — `tasks/get` and `tasks/result` succeed.
+///    for the same service client — `tasks/get` returns the terminal payload.
 ///    This is what makes kernel token rotation safe.
 pub(crate) async fn agent_gateway(
     conformance: &Path,
@@ -103,27 +103,18 @@ pub(crate) async fn agent_gateway(
         &["--scope", "operator:use"],
     )?;
     let token_a = token_a.trim();
-    let session_a = connect_mcp_session(&format!("{gateway_base}/mcp/operator"), token_a).await?;
+    let session_a = connect_mcp_client(&format!("{gateway_base}/mcp/operator"), token_a).await?;
 
-    // The gateway must project duckdb's genuine task support: optional stays
-    // optional (rig Preferred will task it) and required stays required for
-    // full-MCP clients.
+    // Task support is negotiated once through the official extension. Tool
+    // definitions no longer carry per-tool draft task annotations.
     let tools = session_a.list_tools(Default::default()).await?;
-    for (tool_name, expected) in [
-        ("duckdb__query", rmcp::model::TaskSupport::Optional),
-        ("duckdb__execute", rmcp::model::TaskSupport::Optional),
-        ("duckdb__export", rmcp::model::TaskSupport::Required),
-    ] {
-        let tool = tools
+    for tool_name in ["duckdb__query", "duckdb__execute", "duckdb__export"] {
+        if !tools
             .tools
             .iter()
-            .find(|tool| tool.name.as_ref() == tool_name)
-            .ok_or_else(|| anyhow!("gateway did not list {tool_name}: {tools:?}"))?;
-        if tool.task_support() != expected {
-            bail!(
-                "{tool_name} task support was {:?}, expected {expected:?}",
-                tool.task_support()
-            );
+            .any(|tool| tool.name.as_ref() == tool_name)
+        {
+            bail!("gateway did not list {tool_name}: {tools:?}");
         }
     }
 
@@ -143,11 +134,11 @@ pub(crate) async fn agent_gateway(
         created.task_id, created.status
     );
     let completed = await_task_terminal(&session_a, &created.task_id).await?;
-    if completed.status != rmcp::model::TaskStatus::Completed {
+    if completed.status() != rmcp::model::TaskStatus::Completed {
         bail!(
             "task-augmented duckdb__execute ended {:?}: {:?}",
-            completed.status,
-            completed.status_message
+            completed.status(),
+            completed.task.status_message
         );
     }
     let payload = task_payload(&session_a, &created.task_id).await?;
@@ -179,13 +170,13 @@ pub(crate) async fn agent_gateway(
     if token_a == token_b {
         bail!("expected a fresh token for session B");
     }
-    let session_b = connect_mcp_session(&format!("{gateway_base}/mcp/operator"), token_b).await?;
+    let session_b = connect_mcp_client(&format!("{gateway_base}/mcp/operator"), token_b).await?;
     let completed = await_task_terminal(&session_b, &continuity.task_id).await?;
-    if completed.status != rmcp::model::TaskStatus::Completed {
+    if completed.status() != rmcp::model::TaskStatus::Completed {
         bail!(
             "cross-session duckdb__query ended {:?}: {:?}",
-            completed.status,
-            completed.status_message
+            completed.status(),
+            completed.task.status_message
         );
     }
     let payload = task_payload(&session_b, &continuity.task_id).await?;

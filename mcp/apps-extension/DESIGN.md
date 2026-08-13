@@ -15,10 +15,10 @@ Implemented in this workspace.
 |---|---|
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | App discovery and invocation remain ordinary MCP resource, tool, and task traffic. The hosting path uses JSON-RPC 2.0 over Streamable HTTP. |
 | MCP Apps SEP-1865 / `ext-apps` | Version `2026-01-26`, with `ui://` resources, `text/html;profile=mcp-app`, tool-to-app metadata, host context, lifecycle notifications, and the `postMessage` bridge. |
-| Veoveo reactive App resource adapter | Repository-owned extension over MCP Apps `2026-01-26`. A sandboxed App may request ordinary MCP `resources/subscribe` and `resources/unsubscribe`; the Console projects contentless `ui/notifications/resource-updated` wakes from the authenticated pooled MCP session. This adapter is not claimed as part of SEP-1865. |
+| Veoveo reactive App resource adapter | Repository-owned extension over MCP Apps `2026-01-26`. A sandboxed App requests an authorized resource filter through one final-profile `subscriptions/listen` stream; the Console projects contentless `ui/notifications/resource-updated` wakes from its auth-scoped MCP client. This adapter is not claimed as part of SEP-1865. |
 | Veoveo internal App navigation adapter | Repository-owned `ui/open-link` profile. Exact `ui://` targets navigate only when present in the caller-visible App catalog; `veoveo-console://agents` and `veoveo-console://recordings` are the only platform-view targets. Other custom, missing, or unexposed targets fail closed. |
 | Veoveo App agent-message adapter | Repository-owned `veoveo/agents/message` profile. An App resource declares exact targets in `_meta["io.veoveo/agent-message-targets"]`; the Console validates that declaration and submits only UUIDv7-idempotent bounded text through its existing authenticated human-message BFF path. This adapter is not part of SEP-1865. |
-| [Veoveo final task extension](../task-extension) | Version `2026-06-30`; app-started durable work retains the same task lifecycle and ownership rules as a normal MCP client. |
+| MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; app-started durable work retains the same task lifecycle and ownership rules as a normal MCP client. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Linked tool arguments and structured results use the same canonical schemas exposed outside the app. |
 | HTML iframe sandbox and Content Security Policy | HTML runs in an opaque-origin `sandbox="allow-scripts"` frame. The default CSP denies remote network access while permitting local `data:` fetches; a live-data App may declare exact origins through `_meta.ui.csp`, which the host validates before adding them. Cookies, storage, and same-origin privilege remain absent. |
 
@@ -94,7 +94,7 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
   server, URI scheme and prefix, required scope, operation, and optional data
   labels. Gateway policy remains the authoritative second wall.
 - **Tasks** — task-based tools stay task-based inside apps. A view may send
-  `tools/call` with a `task` augmentation plus `tasks/get`, `tasks/result`,
+  `tools/call` with final request metadata plus `tasks/get`, `tasks/update`,
   and `tasks/cancel`; the console host intercepts these ahead of the
   AppBridge (which rejects task traffic) and proxies them through the BFF,
   which records task ownership per app view and forwards spec task requests
@@ -102,10 +102,10 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
   tools may start tasks, and a view may only poll tasks it started
   (`servers/view-mcp/assets/preview-app.template.html` is the reference
   task-driving view).
-- **Reactive resources** — the Console intercepts App `resources/subscribe`
-  and `resources/unsubscribe` requests because MCP Apps `2026-01-26` does not
-  include them. The BFF registers UUID-bound references concurrently on the
-  pooled MCP session and returns one contentless authenticated SSE wake stream
+- **Reactive resources** — the Console intercepts App `subscriptions/listen`
+  requests because MCP Apps `2026-01-26` does not include the final listener.
+  The BFF registers UUID-bound references concurrently on the auth-scoped MCP
+  client and returns one contentless authenticated SSE wake stream
   for the App's bounded subscription set. This multiplexed fetch stream avoids
   the browser's per-origin `EventSource` limit. Upstream
   `notifications/resources/updated` becomes

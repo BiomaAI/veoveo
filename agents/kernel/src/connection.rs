@@ -15,20 +15,18 @@
 
 use std::{
     collections::HashMap,
-    sync::Arc,
     time::{Duration, Instant},
 };
 
 use anyhow::{Context, Result, bail};
 use base64::Engine as _;
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
-use rig_core::tool::{
-    rmcp::{McpClientHandler, McpTaskPolicy, McpTaskResumer},
+use rig::tool::{
+    rmcp::{McpClientConfig, McpClientGuard, McpClientHandler, McpDeferredResolver},
     server::ToolServerHandle,
 };
 use rmcp::{
-    model::{ClientCapabilities, ClientInfo, Implementation, SubscribeRequestParams},
-    service::{RoleClient, RunningService},
+    model::Implementation,
     transport::{
         StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
     },
@@ -37,19 +35,16 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
 use veoveo_agent_runtime::AgentRuntime;
 
-use crate::{
-    delegate::KernelNotificationDelegate, elicitation::ParkedElicitationHandler,
-    manifest::AgentManifest, wake::WakeBus,
-};
+use crate::{manifest::AgentManifest, wake::WakeBus};
 
 /// Kernel surfaces wired into every gateway session (and re-wired on each
 /// rotation): the wake bus behind the notification delegate and the parked
-/// elicitation handler.
+/// input request handler.
 #[derive(Clone)]
 pub struct KernelHandlers {
     pub bus: WakeBus,
     pub runtime: AgentRuntime,
-    pub elicitation_grace: Duration,
+    pub input_grace: Duration,
 }
 
 const CLIENT_ASSERTION_TYPE_JWT_BEARER: &str =
@@ -76,7 +71,7 @@ struct TokenEndpointResponse {
 
 /// One connected session: the running MCP service plus its resume surface.
 struct Live {
-    service: RunningService<RoleClient, McpClientHandler>,
+    guard: McpClientGuard,
     minted_at: Instant,
     token_ttl: Duration,
 }
@@ -87,7 +82,7 @@ struct Live {
 #[derive(Clone)]
 pub struct ConnectionEpoch {
     pub epoch: u64,
-    pub resumer: Option<Arc<McpTaskResumer>>,
+    pub resolver: Option<McpDeferredResolver>,
 }
 
 pub struct GatewayConnection {
@@ -139,7 +134,7 @@ impl GatewayConnection {
             epoch: 0,
             epoch_tx: watch::channel(ConnectionEpoch {
                 epoch: 0,
-                resumer: None,
+                resolver: None,
             })
             .0,
         };
@@ -151,6 +146,10 @@ impl GatewayConnection {
     /// The current epoch's resumer, for arming watchers at boot.
     pub fn epoch(&self) -> ConnectionEpoch {
         self.epoch_tx.borrow().clone()
+    }
+
+    pub fn handlers(&self) -> &KernelHandlers {
+        &self.handlers
     }
 
     /// Rotate before the token enters its configured stale fraction.
@@ -184,41 +183,22 @@ impl GatewayConnection {
                 .auth_header(token.access_token.clone())
                 .custom_headers(transport_headers),
         );
-        let handler = McpClientHandler::new(
-            ClientInfo::new(
-                ClientCapabilities::default(),
-                Implementation::new("veoveo-agent", env!("CARGO_PKG_VERSION")),
-            ),
-            self.tool_server_handle.clone(),
-        )
-        .with_timeout(self.manifest.request_timeout())
-        .with_task_policy(McpTaskPolicy::Preferred)
-        .with_notification_delegate(KernelNotificationDelegate::new(self.handlers.bus.clone()))
-        .with_elicitation_handler(ParkedElicitationHandler::new(
-            self.handlers.runtime.clone(),
-            self.handlers.bus.clone(),
-            self.handlers.elicitation_grace,
-        ));
-        let service = handler
+        let config = McpClientConfig::new(Implementation::new(
+            "veoveo-agent",
+            env!("CARGO_PKG_VERSION"),
+        ))
+        .with_deferred_backend_id("mcp:veoveo-gateway");
+        let handler = McpClientHandler::new(config, self.tool_server_handle.clone())
+            .with_timeout(self.manifest.request_timeout());
+        let guard = handler
             .connect(transport)
             .await
             .map_err(|err| anyhow::anyhow!("connecting to gateway MCP: {err}"))?;
         let subscription_count = self.manifest.resource_subscriptions.len();
-        if let Err(error) =
-            restore_resource_subscriptions(&service, &self.manifest.resource_subscriptions).await
-        {
-            match service.cancel().await {
-                Ok(reason) => tracing::debug!(?reason, "unready gateway session closed"),
-                Err(close_error) => {
-                    tracing::warn!(%close_error, "unready gateway session join failed")
-                }
-            }
-            return Err(error);
-        }
-        let resumer = Arc::new(service.service().task_resumer(service.peer().clone()));
+        let resolver = guard.deferred_resolver();
 
         let previous = self.live.replace(Live {
-            service,
+            guard,
             minted_at: Instant::now(),
             token_ttl: Duration::from_secs(token.expires_in),
         });
@@ -226,14 +206,14 @@ impl GatewayConnection {
         let epoch = self.epoch;
         self.epoch_tx.send_replace(ConnectionEpoch {
             epoch,
-            resumer: Some(resumer),
+            resolver: Some(resolver),
         });
         tracing::info!(epoch, subscription_count, "gateway connection rotated");
 
         if let Some(previous) = previous {
-            match previous.service.cancel().await {
-                Ok(reason) => tracing::debug!(?reason, "previous gateway session closed"),
-                Err(err) => tracing::warn!(%err, "previous gateway session join failed"),
+            match previous.guard.cancel().await {
+                Ok(()) => tracing::debug!("previous gateway connection closed"),
+                Err(err) => tracing::warn!(%err, "previous gateway connection close failed"),
             }
         }
         Ok(())
@@ -292,22 +272,4 @@ impl GatewayConnection {
         }
         Ok(token)
     }
-}
-
-async fn restore_resource_subscriptions(
-    service: &RunningService<RoleClient, McpClientHandler>,
-    subscriptions: &[crate::manifest::ResourceSubscription],
-) -> Result<()> {
-    for subscription in subscriptions {
-        service
-            .subscribe(SubscribeRequestParams::new(subscription.uri.clone()))
-            .await
-            .with_context(|| {
-                format!(
-                    "restoring declared resource subscription `{}`",
-                    subscription.uri
-                )
-            })?;
-    }
-    Ok(())
 }

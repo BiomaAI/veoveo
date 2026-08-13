@@ -16,7 +16,6 @@ from .artifacts import (
 from .docs import (
     CHECKLIST_IDS,
     CONTRACT_REVISION,
-    CapabilityInventory,
     ComplianceItem,
     ComplianceStatus,
     ContractDeclaration,
@@ -69,7 +68,6 @@ __all__ = [
     "RedeemArtifactWriteCapabilityRequest",
     "CHECKLIST_IDS",
     "CONTRACT_REVISION",
-    "CapabilityInventory",
     "ComplianceItem",
     "ComplianceStatus",
     "ContractDeclaration",

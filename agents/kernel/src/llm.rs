@@ -5,20 +5,17 @@
 //! used explicitly: the responses API is an OpenAI-only dialect.
 
 use anyhow::{Context, Result};
-use rig_core::{
-    agent::Agent, client::CompletionClient, providers::openai::CompletionsClient,
+use rig::{
+    agent::Agent, client::AgentClientExt, providers::openai::CompletionsClient,
     tool::server::ToolServerHandle,
 };
 
 use crate::manifest::AgentManifest;
 
-/// The concrete completion model every kernel agent runs on.
-pub type KernelModel = <CompletionsClient as CompletionClient>::CompletionModel;
-
 pub fn build_agent(
     manifest: &AgentManifest,
     tool_server_handle: ToolServerHandle,
-) -> Result<Agent<KernelModel>> {
+) -> Result<Agent> {
     let api_key = std::env::var(&manifest.model.api_key_env).with_context(|| {
         format!(
             "model api key env `{}` is not set",

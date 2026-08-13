@@ -5,7 +5,7 @@ use crate::models::{
     ResourceUiMeta, ToolUiMeta, UI_META_KEY,
 };
 
-/// The host-side capability declaration announced at `initialize`:
+/// The host-side capability declaration announced through per-request final-profile client capabilities:
 /// `capabilities.extensions["io.modelcontextprotocol/ui"]`. Declaring is
 /// optional per the spec — servers degrade to text-only for hosts that
 /// don't — so there is no rejection path for peers without it.

@@ -1,0 +1,19 @@
+[package]
+name = "veoveo-mcp-legacy-bridge"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "legacy-bridge"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+clap.workspace = true
+dotenvy.workspace = true
+rmcp = { workspace = true, features = ["server", "client", "transport-child-process", "transport-streamable-http-client", "transport-streamable-http-client-reqwest", "transport-streamable-http-server"] }
+tokio = { workspace = true, features = ["full"] }
+tokio-util.workspace = true
+tracing.workspace = true
+veoveo-mcp-contract.workspace = true

@@ -676,22 +676,18 @@ fn auth_modes_expose_mcp_extension_ids() {
 }
 
 #[test]
-fn gateway_actions_expose_resource_and_task_extension_methods() {
+fn gateway_actions_expose_final_subscription_and_task_methods() {
     assert_eq!(
-        GatewayAction::ResourcesSubscribe.mcp_method(),
-        Some("resources/subscribe")
-    );
-    assert_eq!(
-        GatewayAction::ResourcesUnsubscribe.mcp_method(),
-        Some("resources/unsubscribe")
+        GatewayAction::SubscriptionsListen.mcp_method(),
+        Some("subscriptions/listen")
     );
     assert_eq!(
         GatewayAction::TasksUpdate.mcp_method(),
         Some("tasks/update")
     );
     assert_eq!(
-        GatewayAction::TasksSubscribe.mcp_method(),
-        Some("subscriptions/listen")
+        GatewayAction::TasksCancel.mcp_method(),
+        Some("tasks/cancel")
     );
 }
 
@@ -2023,16 +2019,20 @@ fn control_plane_rejects_unknown_policy_rule_references() {
 fn control_plane_rejects_policy_action_outside_server_capabilities() {
     let mut manifest = media_manifest();
     manifest.capabilities.resource_subscriptions = false;
+    manifest.capabilities.tasks = false;
+    manifest.capabilities.resources_list_changed = false;
     let mut policy = default_policy();
-    policy.rules[0].actions = BTreeSet::from([GatewayAction::ResourcesUnsubscribe]);
+    policy.rules[0].actions = BTreeSet::from([GatewayAction::SubscriptionsListen]);
     policy.rules[0].tools.clear();
     policy.rules[0].resource_schemes = BTreeSet::from([ResourceScheme::new("media").unwrap()]);
+    let mut profile = default_profile();
+    profile.servers[0].tasks = TaskExposure::Disabled;
     let config = GatewayControlPlane {
         branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![manifest],
-        profiles: vec![default_profile()],
+        profiles: vec![profile],
         recording_ingest_resources: Vec::new(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
@@ -2051,7 +2051,7 @@ fn control_plane_rejects_policy_action_outside_server_capabilities() {
     assert!(matches!(
         err,
         GatewayControlPlaneError::PolicyRuleActionUnsupportedByServerScope {
-            action: GatewayAction::ResourcesUnsubscribe,
+            action: GatewayAction::SubscriptionsListen,
             ..
         }
     ));
@@ -2064,7 +2064,7 @@ fn agent_control_actions_are_gateway_scoped() {
     rule.actions = BTreeSet::from([
         GatewayAction::AgentsRead,
         GatewayAction::AgentsMessage,
-        GatewayAction::AgentsElicitationAnswer,
+        GatewayAction::AgentsInputRequestAnswer,
     ]);
     rule.servers.clear();
     rule.tools.clear();
@@ -2081,7 +2081,7 @@ fn agent_control_actions_are_gateway_scoped() {
         GatewayControlPlaneError::PolicyRuleActionUnsupportedByServerScope {
             action: GatewayAction::AgentsRead
                 | GatewayAction::AgentsMessage
-                | GatewayAction::AgentsElicitationAnswer,
+                | GatewayAction::AgentsInputRequestAnswer,
             ..
         }
     ));

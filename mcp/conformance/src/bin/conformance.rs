@@ -32,25 +32,22 @@ use jsonwebtoken::{
 use rcgen::generate_simple_self_signed;
 use reqwest::header::WWW_AUTHENTICATE;
 use rmcp::{
-    ClientHandler, RoleServer, ServerHandler, ServiceExt,
+    ClientHandler, ClientLifecycleMode, ClientServiceExt, RoleServer, ServerHandler,
     model::{
-        ArgumentInfo, CallToolRequestParams, CallToolResult, ClientCapabilities, ClientInfo,
-        ClientRequest, CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
-        GetPromptRequestParams, GetPromptResult, GetTaskParams, GetTaskPayloadParams,
-        Implementation, JsonObject, ListPromptsResult, ListResourceTemplatesResult,
-        ListResourcesResult, ListTasksRequest, ListToolsResult, PaginatedRequestParams,
-        ProgressNotificationParam, Prompt, PromptArgument, PromptMessage,
-        ReadResourceRequestParams, ReadResourceResult, Reference, Request, Resource,
-        ResourceContents, ResourceTemplate, ResourceUpdatedNotificationParam, Role,
-        ServerCapabilities, ServerInfo, ServerResult, SubscribeRequestParams, TaskMetadata,
-        TaskStatus, TaskStatusNotificationParam, TaskSupport, Tool, ToolExecution,
-        UnsubscribeRequestParams,
+        ArgumentInfo, CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams,
+        ClientCapabilities, ClientInfo, CompleteRequestParams, CompleteResult, CompletionInfo,
+        ContentBlock, GetPromptRequestParams, GetPromptResult, GetTaskParams, Implementation,
+        JsonObject, ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult,
+        ListToolsResult, PaginatedRequestParams, ProgressNotificationParam, Prompt, PromptArgument,
+        PromptMessage, ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult,
+        Reference, Resource, ResourceContents, ResourceTemplate, ResourceUpdatedNotificationParam,
+        Role, ServerCapabilities, ServerInfo, SubscriptionFilter, TaskPayload, TaskStatus,
+        TaskStatusNotificationParams, Tool,
     },
     service::{NotificationContext, RequestContext},
     transport::{
-        StreamableHttpClientTransport,
-        streamable_http_client::StreamableHttpClientTransportConfig,
-        streamable_http_server::{StreamableHttpService, session::local::LocalSessionManager},
+        StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
+        streamable_http_server::StreamableHttpService,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -96,7 +93,7 @@ mod tokens;
 
 use auth_discovery::{AuthDiscoveryCheck, cmd_auth_discovery};
 use cli::{Args, Cmd};
-use client::{FinalTaskClient, bearer_token_from_args, connect};
+use client::{bearer_token_from_args, connect};
 use control_plane::{
     cmd_gateway_agent_smoke_control_plane, cmd_gateway_pilot_smoke_control_plane,
     cmd_gateway_smoke_control_plane, cmd_gateway_two_server_smoke_control_plane,
@@ -108,7 +105,7 @@ use fake_services::{
 use mcp_commands::{
     RunCommand, cmd_apps_check, cmd_call, cmd_complete, cmd_complete_resource, cmd_info,
     cmd_models_from_catalog, cmd_prompt, cmd_prompts, cmd_resource, cmd_resources, cmd_run,
-    cmd_task_call, cmd_tasks, read_resource_json, save_output_uri,
+    cmd_task_call, read_resource_json, save_output_uri,
 };
 use schema::cmd_contract_schemas;
 use tokens::{
@@ -417,7 +414,6 @@ async fn main() -> Result<()> {
     }
 
     let client = connect(&args).await?;
-    let final_tasks = FinalTaskClient::from_args(&args)?;
     let uris = ServerResourceUris::new(args.scheme);
 
     let result = match args.cmd {
@@ -468,7 +464,7 @@ async fn main() -> Result<()> {
             timeout_seconds,
         } => {
             cmd_task_call(
-                &final_tasks,
+                &client,
                 tool_name,
                 arguments,
                 Duration::from_secs(timeout_seconds),
@@ -480,7 +476,6 @@ async fn main() -> Result<()> {
             argument,
             prefix,
         } => cmd_complete_resource(&client, uri, argument, prefix).await,
-        Cmd::Tasks => cmd_tasks(&client).await,
         Cmd::Schema { model_id } => {
             let value = read_resource_json(&client, &uris.model_uri(&model_id)).await?;
             println!("{}", serde_json::to_string_pretty(&value)?);
@@ -514,7 +509,6 @@ async fn main() -> Result<()> {
         } => {
             cmd_run(
                 &client,
-                &final_tasks,
                 &uris,
                 RunCommand {
                     tool_name,

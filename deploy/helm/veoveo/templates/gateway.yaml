@@ -24,9 +24,7 @@ metadata:
     {{- include "veoveo.labels" . | nindent 4 }}
     app.kubernetes.io/component: gateway
 spec:
-  replicas: 1
-  strategy:
-    type: Recreate
+  replicas: {{ .Values.gateway.replicas }}
   selector:
     matchLabels:
       {{- include "veoveo.selectorLabels" . | nindent 6 }}

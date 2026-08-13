@@ -18,7 +18,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any, Iterator
 
-CONTRACT_REVISION = 2
+CONTRACT_REVISION = 3
 """The normative contract revision this package implements."""
 
 DOC_ID_AGENTS = "agents"
@@ -136,45 +136,14 @@ class ComplianceItem:
 
 
 @dataclass(frozen=True)
-class CapabilityInventory:
-    """The protocol surface a server advertises, as stable name lists."""
-
-    tools: tuple[str, ...] = ()
-    resources: tuple[str, ...] = ()
-    resource_templates: tuple[str, ...] = ()
-    prompts: tuple[str, ...] = ()
-    tasks: tuple[str, ...] = ()
-
-    def wire(self) -> dict[str, list[str]]:
-        """Serialization matching the Rust `CapabilityInventory`: empty lists
-        are omitted."""
-        out: dict[str, list[str]] = {}
-        if self.tools:
-            out["tools"] = list(self.tools)
-        if self.resources:
-            out["resources"] = list(self.resources)
-        if self.resource_templates:
-            out["resource_templates"] = list(self.resource_templates)
-        if self.prompts:
-            out["prompts"] = list(self.prompts)
-        if self.tasks:
-            out["tasks"] = list(self.tasks)
-        return out
-
-
-@dataclass(frozen=True)
 class ContractDeclaration:
     """The machine-readable declaration served at `{scheme}://contract` (C19)."""
 
     server: str
     contract_revision: int
     compliance: tuple[ComplianceItem, ...]
-    capabilities: CapabilityInventory
-
     @classmethod
-    def from_docs(
-        cls, docs: ServerDocs, capabilities: CapabilityInventory
-    ) -> "ContractDeclaration":
+    def from_docs(cls, docs: ServerDocs) -> "ContractDeclaration":
         """Builds the declaration from the embedded agent manual so the served
         declaration and the package `AGENTS.md` cannot diverge."""
         manual = docs.agent_manual()
@@ -183,7 +152,6 @@ class ContractDeclaration:
             server=docs.server,
             contract_revision=CONTRACT_REVISION,
             compliance=compliance,
-            capabilities=capabilities,
         )
 
     def wire(self) -> dict[str, Any]:
@@ -191,7 +159,6 @@ class ContractDeclaration:
             "server": self.server,
             "contract_revision": self.contract_revision,
             "compliance": [item.wire() for item in self.compliance],
-            "capabilities": self.capabilities.wire(),
         }
 
 

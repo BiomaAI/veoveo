@@ -77,14 +77,14 @@ impl WakeKindExt for WakeKind {
             WakeKind::ResourceChanged => "resource_changed",
             WakeKind::Timer => "timer",
             WakeKind::OperatorMessage => "operator_message",
-            WakeKind::Elicitation => "elicitation",
+            WakeKind::InputRequest => "input_request",
         }
     }
 }
 
 pub fn is_priority(wake: &ClaimedWake) -> bool {
     wake.kind == WakeKind::OperatorMessage
-        || (wake.kind == WakeKind::Elicitation
+        || (wake.kind == WakeKind::InputRequest
             && wake
                 .payload
                 .as_map()

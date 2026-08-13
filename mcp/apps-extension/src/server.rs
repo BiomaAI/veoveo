@@ -1,4 +1,4 @@
-use rmcp::model::{Meta, Resource, ResourceContents, ServerCapabilities, Tool};
+use rmcp::model::{MetaObject, Resource, ResourceContents, ServerCapabilities, Tool};
 
 use crate::models::{
     AGENT_MESSAGE_TARGETS_META_KEY, APP_MIME_TYPE, AgentMessageTargets, EXTENSION_ID,
@@ -42,7 +42,7 @@ pub fn with_agent_message_targets(
     targets: impl IntoIterator<Item = String>,
 ) -> Option<Resource> {
     let targets = AgentMessageTargets::new(targets)?;
-    resource.meta.get_or_insert_with(Meta::new).insert(
+    resource.meta.get_or_insert_with(MetaObject::new).insert(
         AGENT_MESSAGE_TARGETS_META_KEY.to_owned(),
         serde_json::to_value(targets).expect("agent message targets serialize"),
     );
@@ -63,8 +63,8 @@ pub fn link_tool_to_app(tool: Tool, resource_uri: &str, visibility: &[UiVisibili
     tool.with_meta(ui_meta(&link))
 }
 
-fn ui_meta<T: serde::Serialize>(value: &T) -> Meta {
-    let mut meta = Meta::new();
+fn ui_meta<T: serde::Serialize>(value: &T) -> MetaObject {
+    let mut meta = MetaObject::new();
     meta.insert(
         UI_META_KEY.to_owned(),
         serde_json::to_value(value).expect("ui meta shapes serialize"),

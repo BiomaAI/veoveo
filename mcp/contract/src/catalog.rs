@@ -1,4 +1,4 @@
-use rmcp::model::Meta;
+use rmcp::model::MetaObject;
 use serde::{Deserialize, Serialize};
 
 use crate::ServerSlug;
@@ -52,11 +52,11 @@ impl GatewayDiscoveryDegradation {
         self.failures.dedup();
     }
 
-    pub fn into_meta(self) -> Option<Meta> {
+    pub fn into_meta(self) -> Option<MetaObject> {
         if self.is_empty() {
             return None;
         }
-        let mut meta = Meta::new();
+        let mut meta = MetaObject::new();
         meta.0.insert(
             GATEWAY_DISCOVERY_DEGRADATION_META_KEY.to_owned(),
             serde_json::to_value(self).expect("gateway discovery degradation serializes"),
@@ -64,7 +64,7 @@ impl GatewayDiscoveryDegradation {
         Some(meta)
     }
 
-    pub fn from_meta(meta: Option<&Meta>) -> Result<Self, serde_json::Error> {
+    pub fn from_meta(meta: Option<&MetaObject>) -> Result<Self, serde_json::Error> {
         let Some(value) =
             meta.and_then(|meta| meta.0.get(GATEWAY_DISCOVERY_DEGRADATION_META_KEY).cloned())
         else {

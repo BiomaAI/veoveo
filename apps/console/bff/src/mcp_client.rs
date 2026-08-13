@@ -11,10 +11,10 @@ use std::{
 use anyhow::Context;
 use chrono::Utc;
 use rmcp::{
-    ClientHandler, ServiceExt,
+    ClientHandler, ClientLifecycleMode, ClientServiceExt,
     model::{
         ClientCapabilities, ClientInfo, Implementation, PaginatedRequestParams, Resource,
-        ResourceUpdatedNotificationParam, SubscribeRequestParams, Tool, UnsubscribeRequestParams,
+        ResourceUpdatedNotificationParam, ServerNotification, SubscriptionFilter, Tool,
     },
     service::{NotificationContext, RoleClient, RunningService},
     transport::{
@@ -22,7 +22,7 @@ use rmcp::{
     },
 };
 use sha2::{Digest, Sha256};
-use tokio::sync::{Mutex, broadcast};
+use tokio::sync::{Mutex, broadcast, oneshot};
 use uuid::Uuid;
 use veoveo_mcp_contract::GatewayDiscoveryDegradation;
 
@@ -60,6 +60,11 @@ impl ClientHandler for ConsoleHostHandler {
             .extensions
             .get_or_insert_default()
             .insert(id, declaration);
+        capabilities
+            .extensions
+            .get_or_insert_default()
+            .entry(rmcp::model::TASKS_EXTENSION_ID.to_owned())
+            .or_default();
         ClientInfo::new(
             capabilities,
             Implementation::new("veoveo-console", env!("CARGO_PKG_VERSION")),
@@ -83,10 +88,10 @@ impl ClientHandler for ConsoleHostHandler {
     }
 }
 
-type RunningMcpSession = RunningService<rmcp::RoleClient, ConsoleHostHandler>;
+type RunningMcpClient = RunningService<rmcp::RoleClient, ConsoleHostHandler>;
 
-/// The App authorization surface projected by one initialized gateway
-/// session. MCP list-change notifications invalidate its successful snapshot;
+/// The App authorization surface projected by one auth-scoped gateway client.
+/// MCP list-change notifications invalidate its successful snapshot;
 /// partial snapshots retry unavailable servers on the next explicit request.
 #[derive(Debug)]
 pub(crate) struct McpAppCatalog {
@@ -114,8 +119,8 @@ struct CachedMcpAppCatalog {
     catalog: Arc<McpAppCatalog>,
 }
 
-pub(crate) struct McpSessionContext {
-    service: Arc<RunningMcpSession>,
+pub(crate) struct AuthScopedMcpClient {
+    service: Arc<RunningMcpClient>,
     app_catalog: Mutex<Option<CachedMcpAppCatalog>>,
     catalog_revision: Arc<AtomicU64>,
     resource_updates: broadcast::Sender<String>,
@@ -132,17 +137,23 @@ pub(crate) struct AppResourceSubscription {
 struct AppResourceSubscriptions {
     by_id: BTreeMap<Uuid, String>,
     counts_by_uri: BTreeMap<String, usize>,
+    listeners_by_uri: BTreeMap<String, AppResourceListener>,
 }
 
-impl Deref for McpSessionContext {
-    type Target = RunningMcpSession;
+struct AppResourceListener {
+    cancel: oneshot::Sender<()>,
+    stopped: oneshot::Receiver<()>,
+}
+
+impl Deref for AuthScopedMcpClient {
+    type Target = RunningMcpClient;
 
     fn deref(&self) -> &Self::Target {
         &self.service
     }
 }
 
-impl McpSessionContext {
+impl AuthScopedMcpClient {
     pub(crate) async fn app_catalog(&self) -> Result<Arc<McpAppCatalog>, rmcp::ServiceError> {
         let revision = self.catalog_revision.load(Ordering::Acquire);
         let mut cached = self.app_catalog.lock().await;
@@ -171,7 +182,7 @@ impl McpSessionContext {
         Ok(catalog)
     }
 
-    /// Register one browser-App subscription on the pooled MCP session.
+    /// Register one browser-App subscription on the auth-scoped MCP client.
     /// EventSource reconnects reuse the same UUID and therefore do not add
     /// another upstream subscription or reference count.
     pub(crate) async fn subscribe_app_resource(
@@ -196,20 +207,49 @@ impl McpSessionContext {
         let first_for_uri = !subscriptions.counts_by_uri.contains_key(&uri);
         if first_for_uri {
             drop(subscriptions);
-            self.service
-                .subscribe(SubscribeRequestParams::new(uri.clone()))
+            let filter = SubscriptionFilter::builder()
+                .resource_subscription(uri.clone())
+                .build();
+            let mut listener = self
+                .service
+                .listen(filter)
                 .await
-                .context("subscribing pooled Console MCP session to App resource")?;
+                .context("opening Console App resource listener")?;
+            let (cancel_tx, mut cancel_rx) = oneshot::channel();
+            let (stopped_tx, stopped_rx) = oneshot::channel();
+            let resource_updates = self.resource_updates.clone();
+            let catalog_revision = self.catalog_revision.clone();
+            tokio::spawn(async move {
+                loop {
+                    tokio::select! {
+                        _ = &mut cancel_rx => {
+                            let _ = listener.cancel().await;
+                            break;
+                        }
+                        notification = listener.next() => match notification {
+                            Ok(Some(ServerNotification::ResourceUpdatedNotification(update))) => {
+                                let _ = resource_updates.send(update.params.uri);
+                            }
+                            Ok(Some(ServerNotification::ResourceListChangedNotification(_))) => {
+                                catalog_revision.fetch_add(1, Ordering::AcqRel);
+                            }
+                            Ok(Some(_)) => {}
+                            Ok(None) | Err(_) => break,
+                        }
+                    }
+                }
+                let _ = stopped_tx.send(());
+            });
             subscriptions = self.app_resource_subscriptions.lock().await;
             if let Some(existing) = subscriptions.by_id.get(&subscription_id) {
-                if existing != &uri {
-                    drop(subscriptions);
-                    self.service
-                        .unsubscribe(UnsubscribeRequestParams::new(uri))
-                        .await
-                        .context(
-                            "rolling back App resource subscription with a conflicting identity",
-                        )?;
+                let same_uri = existing == &uri;
+                drop(subscriptions);
+                Self::stop_app_resource_listener(AppResourceListener {
+                    cancel: cancel_tx,
+                    stopped: stopped_rx,
+                })
+                .await?;
+                if !same_uri {
                     anyhow::bail!(
                         "app resource subscription identity is already bound to another URI"
                     );
@@ -219,6 +259,13 @@ impl McpSessionContext {
                     newly_registered: false,
                 });
             }
+            subscriptions.listeners_by_uri.insert(
+                uri.clone(),
+                AppResourceListener {
+                    cancel: cancel_tx,
+                    stopped: stopped_rx,
+                },
+            );
         }
         subscriptions.by_id.insert(subscription_id, uri.clone());
         *subscriptions.counts_by_uri.entry(uri).or_default() += 1;
@@ -229,7 +276,7 @@ impl McpSessionContext {
     }
 
     /// Release one App subscription. Multiple tabs sharing the same Console
-    /// MCP session retain the one upstream subscription until the final UUID
+    /// MCP client retain the one upstream subscription until the final UUID
     /// closes.
     pub(crate) async fn unsubscribe_app_resource(
         &self,
@@ -256,21 +303,28 @@ impl McpSessionContext {
             "app resource subscription identity changed URI while unsubscribing"
         );
         let final_for_uri = subscriptions.counts_by_uri.get(&uri).copied() == Some(1);
-        if final_for_uri {
-            drop(subscriptions);
-            self.service
-                .unsubscribe(UnsubscribeRequestParams::new(uri.clone()))
-                .await
-                .context("unsubscribing pooled Console MCP session from App resource")?;
-            subscriptions = self.app_resource_subscriptions.lock().await;
-        }
+        let listener = final_for_uri
+            .then(|| subscriptions.listeners_by_uri.remove(&uri))
+            .flatten();
         subscriptions.by_id.remove(&subscription_id);
         if final_for_uri {
             subscriptions.counts_by_uri.remove(&uri);
         } else if let Some(count) = subscriptions.counts_by_uri.get_mut(&uri) {
             *count -= 1;
         }
+        drop(subscriptions);
+        if let Some(listener) = listener {
+            Self::stop_app_resource_listener(listener).await?;
+        }
         Ok(())
+    }
+
+    async fn stop_app_resource_listener(listener: AppResourceListener) -> anyhow::Result<()> {
+        let _ = listener.cancel.send(());
+        tokio::time::timeout(Duration::from_secs(2), listener.stopped)
+            .await
+            .context("timed out stopping Console App resource listener")?
+            .context("Console App resource listener stopped without acknowledgement")
     }
 
     async fn app_resource_subscription_lock(&self, uri: &str) -> Arc<Mutex<()>> {
@@ -283,25 +337,24 @@ impl McpSessionContext {
     }
 }
 
-pub(crate) type McpSession = Arc<McpSessionContext>;
+pub(crate) type SharedMcpClient = Arc<AuthScopedMcpClient>;
 
-struct CachedSession {
-    session: McpSession,
+struct CachedClient {
+    client: SharedMcpClient,
     expires_at: i64,
 }
 
-/// One MCP session to the gateway per browser session per token generation,
-/// keyed by an access-token fingerprint (the token itself is never stored).
-/// Token refresh rolls to a new key; expired entries are swept on access, so
-/// a signed-out session dies with its token TTL.
-pub(crate) struct McpSessionPool {
+/// One gateway MCP client per access-token generation, keyed by a token
+/// fingerprint. The token itself is never retained as a map key. Protocol
+/// requests remain stateless; this pool only reuses transport and auth scope.
+pub(crate) struct AuthScopedMcpClientPool {
     http: reqwest::Client,
-    sessions: Mutex<BTreeMap<String, CachedSession>>,
+    clients: Mutex<BTreeMap<String, CachedClient>>,
 }
 
 const SESSION_EXPIRY_MARGIN_SECS: i64 = 5;
 
-impl McpSessionPool {
+impl AuthScopedMcpClientPool {
     pub(crate) fn new(outbound_trust: &OutboundTrust) -> anyhow::Result<Self> {
         // The MCP stream outlives ordinary request timeouts; only connection
         // establishment is bounded.
@@ -313,26 +366,26 @@ impl McpSessionPool {
             .context("building console MCP HTTP client")?;
         Ok(Self {
             http,
-            sessions: Mutex::new(BTreeMap::new()),
+            clients: Mutex::new(BTreeMap::new()),
         })
     }
 
-    pub(crate) async fn session(
+    pub(crate) async fn client(
         &self,
         config: &Config,
         access_token: &str,
         access_expires_at: i64,
-    ) -> anyhow::Result<McpSession> {
+    ) -> anyhow::Result<SharedMcpClient> {
         let key = fingerprint(access_token);
         let now = Utc::now().timestamp();
-        let mut sessions = self.sessions.lock().await;
-        for (_, stale) in sessions.extract_if(.., |_, cached| {
+        let mut clients = self.clients.lock().await;
+        for (_, stale) in clients.extract_if(.., |_, cached| {
             cached.expires_at <= now + SESSION_EXPIRY_MARGIN_SECS
         }) {
-            stale.session.cancellation_token().cancel();
+            stale.client.cancellation_token().cancel();
         }
-        if let Some(cached) = sessions.get(&key) {
-            return Ok(cached.session.clone());
+        if let Some(cached) = clients.get(&key) {
+            return Ok(cached.client.clone());
         }
         let mut transport_headers = HashMap::new();
         transport_headers.insert(
@@ -348,23 +401,22 @@ impl McpSessionPool {
                 .auth_header(access_token.to_owned())
                 // The internal transport address is not the gateway's public
                 // authority. Preserve that authority for gateway Host checks.
-                .custom_headers(transport_headers)
-                // The gateway keeps MCP sessions in memory; a gateway restart
-                // discards them all while this pool still holds the old
-                // session ID. Let rmcp redo the handshake and replay the
-                // failed request instead of pinning HTTP 404 until the
-                // access token rotates.
-                .reinit_on_expired_session(true),
+                .custom_headers(transport_headers),
         );
         let handler = ConsoleHostHandler::default();
         let service = Arc::new(
             handler
                 .clone()
-                .serve(transport)
+                .serve_with_lifecycle(
+                    transport,
+                    ClientLifecycleMode::Discover {
+                        preferred_versions: vec![rmcp::model::ProtocolVersion::V_2026_07_28],
+                    },
+                )
                 .await
-                .context("initializing console MCP session to the gateway")?,
+                .context("starting auth-scoped Console MCP client")?,
         );
-        let session = Arc::new(McpSessionContext {
+        let client = Arc::new(AuthScopedMcpClient {
             service,
             app_catalog: Mutex::new(None),
             catalog_revision: handler.catalog_revision,
@@ -372,34 +424,32 @@ impl McpSessionPool {
             app_resource_subscriptions: Mutex::new(AppResourceSubscriptions::default()),
             app_resource_subscription_locks: Mutex::new(BTreeMap::new()),
         });
-        sessions.insert(
+        clients.insert(
             key,
-            CachedSession {
-                session: session.clone(),
+            CachedClient {
+                client: client.clone(),
                 expires_at: access_expires_at,
             },
         );
-        Ok(session)
+        Ok(client)
     }
 
-    /// Drop `stale` from the pool (if it is still the cached entry for this
-    /// token) so the next `session` call builds a fresh one. Used after a
-    /// transport-level failure that outlived rmcp's own single-attempt
-    /// expired-session recovery, e.g. a session whose worker task has died.
-    pub(crate) async fn invalidate(&self, access_token: &str, stale: &McpSession) {
+    /// Drop `stale` from the pool if it is still the client cached for this
+    /// token, so the next call creates a fresh transport.
+    pub(crate) async fn invalidate(&self, access_token: &str, stale: &SharedMcpClient) {
         let key = fingerprint(access_token);
-        let mut sessions = self.sessions.lock().await;
-        if let Some(cached) = sessions.get(&key)
-            && Arc::ptr_eq(&cached.session, stale)
+        let mut clients = self.clients.lock().await;
+        if let Some(cached) = clients.get(&key)
+            && Arc::ptr_eq(&cached.client, stale)
         {
-            let cached = sessions.remove(&key).expect("entry observed under lock");
-            cached.session.cancellation_token().cancel();
+            let cached = clients.remove(&key).expect("entry observed under lock");
+            cached.client.cancellation_token().cancel();
         }
     }
 }
 
 async fn list_resources_with_degradation(
-    service: &RunningMcpSession,
+    service: &RunningMcpClient,
 ) -> Result<(Vec<Resource>, GatewayDiscoveryDegradation), rmcp::ServiceError> {
     let mut cursor = None;
     let mut resources = Vec::new();
@@ -425,7 +475,7 @@ async fn list_resources_with_degradation(
 }
 
 async fn list_tools_with_degradation(
-    service: &RunningMcpSession,
+    service: &RunningMcpClient,
 ) -> Result<(Vec<Tool>, GatewayDiscoveryDegradation), rmcp::ServiceError> {
     let mut cursor = None;
     let mut tools = Vec::new();
@@ -466,11 +516,11 @@ mod tests {
 
     use axum::Router;
     use rmcp::{
-        ErrorData as McpError, RoleServer, ServerHandler,
-        model::{ServerCapabilities, ServerInfo, SubscribeRequestParams, UnsubscribeRequestParams},
-        service::RequestContext,
+        ErrorData as McpError, ServerHandler,
+        model::{ServerCapabilities, ServerInfo, SubscriptionFilter},
+        service::SubscriptionContext,
         transport::streamable_http_server::{
-            StreamableHttpService, session::local::LocalSessionManager,
+            StreamableHttpService, session::never::NeverSessionManager,
         },
     };
     use tokio::{sync::Semaphore, task::JoinHandle};
@@ -492,7 +542,6 @@ mod tests {
         unsubscribe_calls: AtomicUsize,
         in_flight: AtomicUsize,
         max_in_flight: AtomicUsize,
-        fail_next: AtomicUsize,
         release: Semaphore,
     }
 
@@ -503,7 +552,6 @@ mod tests {
                 unsubscribe_calls: AtomicUsize::new(0),
                 in_flight: AtomicUsize::new(0),
                 max_in_flight: AtomicUsize::new(0),
-                fail_next: AtomicUsize::new(0),
                 release: Semaphore::new(0),
             }
         }
@@ -516,47 +564,34 @@ mod tests {
 
     impl ServerHandler for DelayedSubscriptionMcp {
         fn get_info(&self) -> ServerInfo {
-            ServerInfo::new(ServerCapabilities::builder().enable_resources().build())
+            ServerInfo::new(
+                ServerCapabilities::builder()
+                    .enable_resources()
+                    .enable_resources_subscribe()
+                    .build(),
+            )
         }
 
-        async fn subscribe(
+        fn accepted_subscription_filter(
             &self,
-            _request: SubscribeRequestParams,
-            _context: RequestContext<RoleServer>,
-        ) -> Result<(), McpError> {
+            requested: &SubscriptionFilter,
+        ) -> Option<SubscriptionFilter> {
+            Some(requested.clone())
+        }
+
+        async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
             self.probe.subscribe_calls.fetch_add(1, Ordering::SeqCst);
             let in_flight = self.probe.in_flight.fetch_add(1, Ordering::SeqCst) + 1;
             self.probe
                 .max_in_flight
                 .fetch_max(in_flight, Ordering::SeqCst);
-            self.probe
-                .release
-                .acquire()
-                .await
-                .expect("subscription test release remains open")
-                .forget();
-            self.probe.in_flight.fetch_sub(1, Ordering::SeqCst);
-            if self
-                .probe
-                .fail_next
-                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
-                    remaining.checked_sub(1)
-                })
-                .is_ok()
-            {
-                return Err(McpError::internal_error(
-                    "injected subscription failure",
-                    None,
-                ));
+            tokio::select! {
+                permit = self.probe.release.acquire() => {
+                    permit.expect("subscription test release remains open").forget();
+                }
+                () = context.cancelled() => {}
             }
-            Ok(())
-        }
-
-        async fn unsubscribe(
-            &self,
-            _request: UnsubscribeRequestParams,
-            _context: RequestContext<RoleServer>,
-        ) -> Result<(), McpError> {
+            self.probe.in_flight.fetch_sub(1, Ordering::SeqCst);
             self.probe.unsubscribe_calls.fetch_add(1, Ordering::SeqCst);
             Ok(())
         }
@@ -564,17 +599,17 @@ mod tests {
 
     async fn subscription_test_session(
         handler: DelayedSubscriptionMcp,
-    ) -> (McpSession, JoinHandle<()>) {
+    ) -> (SharedMcpClient, JoinHandle<()>) {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind subscription test MCP");
         let address = listener
             .local_addr()
             .expect("subscription test MCP address");
-        let service: StreamableHttpService<DelayedSubscriptionMcp, LocalSessionManager> =
+        let service: StreamableHttpService<DelayedSubscriptionMcp, NeverSessionManager> =
             StreamableHttpService::new(
                 move || Ok(handler.clone()),
-                LocalSessionManager::default().into(),
+                veoveo_mcp_contract::stateless_session_manager(),
                 veoveo_mcp_contract::canonical_streamable_http_server_config(),
             );
         let server = tokio::spawn(async move {
@@ -584,15 +619,15 @@ mod tests {
         });
         let gateway_url = Url::parse(&format!("http://{address}")).unwrap();
         let config = Config::for_test(gateway_url);
-        let pool = McpSessionPool::new(&OutboundTrust::default()).unwrap();
+        let pool = AuthScopedMcpClientPool::new(&OutboundTrust::default()).unwrap();
         let session = pool
-            .session(
+            .client(
                 &config,
                 "subscription-test-access-token",
                 Utc::now().timestamp() + 60,
             )
             .await
-            .expect("initialize subscription test MCP client");
+            .expect("connect subscription test MCP client");
         (session, server)
     }
 
@@ -669,38 +704,6 @@ mod tests {
         server.abort();
     }
 
-    #[tokio::test]
-    async fn failed_app_resource_subscription_can_be_retried() {
-        let handler = DelayedSubscriptionMcp::default();
-        let probe = handler.probe.clone();
-        probe.fail_next.store(1, Ordering::SeqCst);
-        let (session, server) = subscription_test_session(handler).await;
-        let subscription_id = Uuid::now_v7();
-        let failed_session = session.clone();
-        let failed = tokio::spawn(async move {
-            failed_session
-                .subscribe_app_resource(subscription_id, "fleet://plans".to_owned())
-                .await
-        });
-        wait_for_subscribe_calls(&probe, 1).await;
-        probe.release.add_permits(1);
-        assert!(failed.await.unwrap().is_err());
-
-        let retry_session = session.clone();
-        let retry = tokio::spawn(async move {
-            retry_session
-                .subscribe_app_resource(subscription_id, "fleet://plans".to_owned())
-                .await
-        });
-        wait_for_subscribe_calls(&probe, 2).await;
-        probe.release.add_permits(1);
-        retry.await.unwrap().unwrap();
-        assert_eq!(probe.subscribe_calls.load(Ordering::SeqCst), 2);
-
-        session.cancellation_token().cancel();
-        server.abort();
-    }
-
     #[derive(Clone, Default)]
     struct PrivateCaMcp;
 
@@ -732,10 +735,10 @@ mod tests {
             .set_nonblocking(true)
             .expect("nonblocking private CA MCP listener");
         let address = listener.local_addr().expect("private CA MCP address");
-        let service: StreamableHttpService<PrivateCaMcp, LocalSessionManager> =
+        let service: StreamableHttpService<PrivateCaMcp, NeverSessionManager> =
             StreamableHttpService::new(
                 || Ok(PrivateCaMcp),
-                LocalSessionManager::default().into(),
+                veoveo_mcp_contract::stateless_session_manager(),
                 veoveo_mcp_contract::canonical_streamable_http_server_config()
                     .with_allowed_hosts(vec!["console.example".to_owned()]),
             );
@@ -757,9 +760,9 @@ mod tests {
         let internal_url = Url::parse(&format!("https://{address}/mcp/admin")).unwrap();
         let config = Config::for_test(public_url).with_mcp_transport_url(internal_url);
         let trust = OutboundTrust::for_test_pem_bundle(certificate_pem.as_bytes()).unwrap();
-        let pool = McpSessionPool::new(&trust).unwrap();
+        let pool = AuthScopedMcpClientPool::new(&trust).unwrap();
         let session = pool
-            .session(
+            .client(
                 &config,
                 "private-ca-access-token",
                 Utc::now().timestamp() + 60,

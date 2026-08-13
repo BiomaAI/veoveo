@@ -4,15 +4,14 @@ use rmcp::{
     service::{RequestContext, RoleServer},
 };
 use veoveo_mcp_contract::{
-    AuditEvent, CanonicalTaskId, CompatibilityHelperId, GatewayAction, GatewayProfileId,
-    GatewayResourceProjection, LocalToolName, OAuthClientRegistration, OAuthClientSurface,
-    PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget, Principal,
-    PrincipalAuditAttributes, PromptName, ServerSlug, TenantId, TraceId,
+    AuditEvent, CanonicalTaskId, CompatibilityHelperId, GatewayAction, GatewayResourceProjection,
+    LocalToolName, OAuthClientRegistration, OAuthClientSurface, PolicyDecision, PolicyEffect,
+    PolicyReasonCode, PolicyTarget, PrincipalAuditAttributes, PromptName, ServerSlug, TraceId,
+    trace_id_from_traceparent,
 };
-use veoveo_mcp_task_extension::ProtocolTaskId;
-use veoveo_platform_store::TaskRecord;
-use veoveo_task_runtime::TaskOwner;
-use veoveo_task_runtime::TaskSnapshot;
+use veoveo_platform_store::{
+    RecordIdKey, deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id,
+};
 
 use crate::{
     AuthenticatedSubject, PolicyRequest,
@@ -26,7 +25,7 @@ use crate::{
 use super::GatewayMcp;
 
 pub(super) struct CanonicalTaskRoute {
-    pub(super) task_id: ProtocolTaskId,
+    pub(super) task_id: String,
     pub(super) server: ServerSlug,
     pub(super) subject: AuthenticatedSubject,
 }
@@ -39,7 +38,8 @@ impl GatewayMcp {
         task_id: &str,
     ) -> Result<CanonicalTaskRoute, McpError> {
         let subject = self.authenticated(context)?;
-        self.authorize_canonical_task_for_subject(&subject, action, task_id)
+        let trace_id = trace_id_for_context(context)?;
+        self.authorize_canonical_task_with_trace(&subject, action, task_id, Some(trace_id))
             .await
     }
 
@@ -49,44 +49,62 @@ impl GatewayMcp {
         action: GatewayAction,
         task_id: &str,
     ) -> Result<CanonicalTaskRoute, McpError> {
-        let task_id = task_id
-            .parse::<ProtocolTaskId>()
-            .map_err(|error| mcp_invalid_params(format!("invalid canonical task id: {error}")))?;
-        let mut response = self
-            .platform_store
-            .client()
-            .query("SELECT * FROM ONLY $task;")
-            .bind(("task", task_id.task_id().record_id()))
+        self.authorize_canonical_task_with_trace(subject, action, task_id, None)
             .await
-            .map_err(|error| mcp_internal(format!("failed to read canonical task: {error}")))?
-            .check()
-            .map_err(|error| mcp_internal(format!("canonical task query failed: {error}")))?;
-        let record: Option<TaskRecord> = response
-            .take(0)
-            .map_err(|error| mcp_internal(format!("failed to decode canonical task: {error}")))?;
-        let snapshot = record
-            .map(TaskSnapshot::try_from)
-            .transpose()
-            .map_err(|error| mcp_internal(format!("invalid canonical task record: {error}")))?;
-        let Some(snapshot) = snapshot else {
+    }
+
+    async fn authorize_canonical_task_with_trace(
+        &self,
+        subject: &AuthenticatedSubject,
+        action: GatewayAction,
+        task_id: &str,
+        trace_id: Option<TraceId>,
+    ) -> Result<CanonicalTaskRoute, McpError> {
+        let canonical_task_id = CanonicalTaskId::new(task_id.to_owned())
+            .map_err(|error| mcp_invalid_params(format!("invalid canonical task id: {error}")))?;
+        let Some(route) = self
+            .state
+            .task_route(&canonical_task_id)
+            .await
+            .map_err(|error| {
+                mcp_internal(format!("failed to read canonical task route: {error}"))
+            })?
+        else {
             tracing::warn!(%task_id, "canonical task record was not found");
             return Err(mcp_invalid_params("unknown task id"));
         };
-        if !task_owner_allows_actor(&snapshot.owner, &subject.actor, &self.profile_id) {
+        let tenant_key = subject.authority.tenant.as_str();
+        let expected_tenant = deterministic_tenant_id(tenant_key)
+            .map_err(|error| mcp_internal(format!("invalid task tenant: {error}")))?
+            .record_id();
+        let expected_owner = deterministic_principal_id(tenant_key, subject.actor.id.as_str())
+            .map_err(|error| mcp_internal(format!("invalid task owner: {error}")))?
+            .record_id();
+        let expected_work_context =
+            deterministic_work_context_id(tenant_key, subject.authority.work_context.as_str())
+                .map_err(|error| mcp_internal(format!("invalid task Work Context: {error}")))?
+                .record_id();
+        let authority_digest = hex::encode(super::invocation_authorization_fingerprint(
+            &subject.actor,
+            &subject.authority,
+        )?);
+        if route.tenant != expected_tenant
+            || route.owner != expected_owner
+            || route.work_context != expected_work_context
+            || record_key(&route.profile)? != self.profile_id.as_str()
+            || route.authority_digest != authority_digest
+        {
             tracing::warn!(
                 %task_id,
-                task_owner = %snapshot.owner.principal_key,
                 caller_actor = %subject.actor.id,
                 caller_initiator = %subject.principal.id,
-                task_profile = %snapshot.owner.profile,
                 caller_profile = %self.profile_id,
-                task_tenant = ?snapshot.owner.tenant_key,
                 caller_tenant = ?subject.actor.tenant,
                 "canonical task ownership did not match the authenticated subject"
             );
             return Err(mcp_invalid_params("unknown task id"));
         }
-        let server = ServerSlug::new(snapshot.server)
+        let server = ServerSlug::new(record_key(&route.server)?)
             .map_err(|error| mcp_internal(format!("task has invalid server: {error}")))?;
         let exposed = self
             .catalog
@@ -107,20 +125,19 @@ impl GatewayMcp {
             );
             return Err(mcp_invalid_params("unknown task id"));
         }
-        let canonical_task_id = CanonicalTaskId::new(task_id.to_string())
-            .map_err(|error| mcp_internal(format!("invalid canonical task id: {error}")))?;
-        let subject = self
-            .authorize_subject(
-                subject,
-                action,
-                PolicyTarget::Task {
-                    server: server.clone(),
-                    task_id: canonical_task_id,
-                },
-            )
-            .await?;
+        let target = PolicyTarget::Task {
+            server: server.clone(),
+            task_id: canonical_task_id,
+        };
+        let subject = match trace_id {
+            Some(trace_id) => {
+                self.authorize_subject_with_trace(subject, action, target, trace_id)
+                    .await?
+            }
+            None => self.authorize_subject(subject, action, target).await?,
+        };
         Ok(CanonicalTaskRoute {
-            task_id,
+            task_id: route.source_task_id,
             server,
             subject,
         })
@@ -206,7 +223,9 @@ impl GatewayMcp {
         target: PolicyTarget,
     ) -> Result<AuthenticatedSubject, McpError> {
         let subject = self.authenticated(context)?;
-        self.authorize_subject(&subject, action, target).await
+        let trace_id = trace_id_for_context(context)?;
+        self.authorize_subject_with_trace(&subject, action, target, trace_id)
+            .await
     }
 
     pub(super) async fn authorize_subject(
@@ -235,6 +254,33 @@ impl GatewayMcp {
         }
     }
 
+    async fn authorize_subject_with_trace(
+        &self,
+        subject: &AuthenticatedSubject,
+        action: GatewayAction,
+        target: PolicyTarget,
+        trace_id: TraceId,
+    ) -> Result<AuthenticatedSubject, McpError> {
+        let (subject, decision) = self
+            .evaluate_policy_for_subject_with_trace(subject, action, target, trace_id)
+            .await?;
+        if decision.effect == PolicyEffect::Allow {
+            Ok(subject)
+        } else {
+            tracing::warn!(
+                profile = %self.profile_id,
+                principal = %subject.principal.id,
+                action = ?action,
+                reason = ?decision.reason,
+                "gateway policy denied MCP request"
+            );
+            Err(mcp_invalid_request(format!(
+                "gateway policy denied request: {:?}",
+                decision.reason
+            )))
+        }
+    }
+
     pub(super) async fn allows(
         &self,
         context: &RequestContext<RoleServer>,
@@ -242,17 +288,9 @@ impl GatewayMcp {
         target: PolicyTarget,
     ) -> Result<bool, McpError> {
         let subject = self.authenticated(context)?;
-        self.allows_subject(&subject, action, target).await
-    }
-
-    pub(super) async fn allows_subject(
-        &self,
-        subject: &AuthenticatedSubject,
-        action: GatewayAction,
-        target: PolicyTarget,
-    ) -> Result<bool, McpError> {
+        let trace_id = trace_id_for_context(context)?;
         let (_subject, decision) = self
-            .evaluate_policy_for_subject(subject, action, target)
+            .evaluate_policy_for_subject_with_trace(&subject, action, target, trace_id)
             .await?;
         Ok(decision.effect == PolicyEffect::Allow)
     }
@@ -265,6 +303,17 @@ impl GatewayMcp {
     ) -> Result<(AuthenticatedSubject, PolicyDecision), McpError> {
         let trace_id = TraceId::new(uuid::Uuid::new_v4().to_string())
             .map_err(|err| mcp_internal(format!("failed to create trace id: {err}")))?;
+        self.evaluate_policy_for_subject_with_trace(subject, action, target, trace_id)
+            .await
+    }
+
+    async fn evaluate_policy_for_subject_with_trace(
+        &self,
+        subject: &AuthenticatedSubject,
+        action: GatewayAction,
+        target: PolicyTarget,
+        trace_id: TraceId,
+    ) -> Result<(AuthenticatedSubject, PolicyDecision), McpError> {
         let catalog = self.catalog.current();
         let decision = catalog.decide(PolicyRequest {
             principal: &subject.principal,
@@ -305,17 +354,6 @@ impl GatewayMcp {
         tool: LocalToolName,
     ) -> Result<AuthenticatedSubject, McpError> {
         self.authorize(context, action, PolicyTarget::Tool { server, tool })
-            .await
-    }
-
-    pub(super) async fn authorize_tool_for_subject(
-        &self,
-        subject: &AuthenticatedSubject,
-        action: GatewayAction,
-        server: ServerSlug,
-        tool: LocalToolName,
-    ) -> Result<AuthenticatedSubject, McpError> {
-        self.authorize_subject(subject, action, PolicyTarget::Tool { server, tool })
             .await
     }
 
@@ -489,18 +527,25 @@ impl GatewayMcp {
     }
 }
 
-fn task_owner_allows_actor(
-    owner: &TaskOwner,
-    actor: &Principal,
-    profile: &GatewayProfileId,
-) -> bool {
-    let labels = actor.data_labels.iter().map(ToString::to_string).collect();
-    owner.allows(
-        actor.id.as_str(),
-        profile.as_str(),
-        actor.tenant.as_ref().map(TenantId::as_str),
-        &labels,
-    )
+fn trace_id_for_context(context: &RequestContext<RoleServer>) -> Result<TraceId, McpError> {
+    let value = context
+        .meta
+        .get_traceparent()
+        .and_then(trace_id_from_traceparent)
+        .map(str::to_owned)
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    TraceId::new(value).map_err(|error| mcp_internal(format!("failed to create trace id: {error}")))
+}
+
+fn record_key(record: &veoveo_platform_store::RecordId) -> Result<String, McpError> {
+    match &record.key {
+        RecordIdKey::String(value) => Ok(value.clone()),
+        RecordIdKey::Uuid(value) => Ok(value.to_string()),
+        RecordIdKey::Number(value) => Ok(value.to_string()),
+        other => Err(mcp_internal(format!(
+            "gateway task route has unsupported record key {other:?}"
+        ))),
+    }
 }
 
 fn client_surface_allows_task_projection(
@@ -515,18 +560,9 @@ fn client_surface_allows_task_projection(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
+    use veoveo_mcp_contract::OAuthClientSurface;
 
-    use chrono::Utc;
-    use veoveo_mcp_contract::{
-        AccessSubject, DataLabelId, GatewayProfileId, InvocationAuthority, InvocationProvenance,
-        OAuthClientSurface, PolicyVersion, Principal, PrincipalId, PrincipalKind, TenantId,
-        TokenIssuer, TokenSubject, WorkContextId, WorkContextMembershipLevel,
-        WorkContextOutputPolicy,
-    };
-    use veoveo_task_runtime::TaskOwner;
-
-    use super::{client_surface_allows_task_projection, task_owner_allows_actor};
+    use super::client_surface_allows_task_projection;
 
     #[test]
     fn full_mcp_always_receives_canonical_tasks() {
@@ -538,64 +574,6 @@ mod tests {
             OAuthClientSurface::FullMcp,
             true
         ));
-    }
-
-    #[test]
-    fn delegated_task_ownership_uses_the_effective_actor() {
-        let initiator = principal("https://idp.example.com", "user-1", PrincipalKind::User);
-        let actor = principal(
-            "https://veoveo.example/oauth",
-            "operator-delegated",
-            PrincipalKind::Service,
-        );
-        let profile = GatewayProfileId::new("operator").unwrap();
-        let owner = TaskOwner {
-            principal_key: actor.id.to_string(),
-            principal_kind: veoveo_task_runtime::PrincipalKind::Service,
-            issuer: actor.issuer.to_string(),
-            subject: actor.subject.to_string(),
-            profile: profile.to_string(),
-            tenant_key: actor.tenant.as_ref().map(ToString::to_string),
-            data_labels: actor.data_labels.iter().map(ToString::to_string).collect(),
-            authority: InvocationAuthority {
-                work_context: WorkContextId::new("operations").unwrap(),
-                tenant: TenantId::new("tenant-a").unwrap(),
-                membership: WorkContextMembershipLevel::Contributor,
-                policy_revision: PolicyVersion::new("r1").unwrap(),
-                output_policy: WorkContextOutputPolicy {
-                    owner: AccessSubject::Principal(initiator.id.clone()),
-                    initial_grants: Vec::new(),
-                    classification: None,
-                    data_labels: BTreeSet::new(),
-                },
-                provenance: InvocationProvenance::Delegated {
-                    initiator: initiator.id.clone(),
-                    delegation_id: veoveo_mcp_contract::DelegationId::new("delegation-1").unwrap(),
-                },
-            },
-        };
-
-        assert!(task_owner_allows_actor(&owner, &actor, &profile));
-        assert!(!task_owner_allows_actor(&owner, &initiator, &profile));
-    }
-
-    fn principal(issuer: &str, subject: &str, kind: PrincipalKind) -> Principal {
-        let issuer = TokenIssuer::new(issuer).unwrap();
-        let subject = TokenSubject::new(subject).unwrap();
-        Principal {
-            id: PrincipalId::new(format!("{issuer}#{subject}")).unwrap(),
-            kind,
-            issuer,
-            subject,
-            tenant: Some(TenantId::new("tenant-a").unwrap()),
-            groups: BTreeSet::new(),
-            group_roles: BTreeSet::new(),
-            roles: BTreeSet::new(),
-            scopes: BTreeSet::new(),
-            data_labels: BTreeSet::from([DataLabelId::new("cui").unwrap()]),
-            assurances: BTreeSet::new(),
-            authenticated_at: Some(Utc::now()),
-        }
     }
 
     #[test]

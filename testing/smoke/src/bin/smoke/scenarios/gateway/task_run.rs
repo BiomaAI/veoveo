@@ -137,7 +137,7 @@ pub(crate) async fn gateway_task_run(
         "subscribed to media://prediction/".to_string(),
         "  [resource updated] media://prediction/".to_string(),
         "poll: Completed — completed; 1 artifact(s)".to_string(),
-        "unsubscribed from media://prediction/".to_string(),
+        "subscription cancelled".to_string(),
     ] {
         contains(&run_output, &expected)?;
     }
@@ -170,7 +170,7 @@ pub(crate) async fn gateway_task_run(
     )?;
     assert_usage_report(&usage, "media", &task_id)?;
 
-    let full_session = connect_mcp_session(&format!("{gateway_base}/mcp/operator"), token).await?;
+    let full_session = connect_mcp_client(&format!("{gateway_base}/mcp/operator"), token).await?;
     let full_tools = full_session.list_tools(Default::default()).await?;
     if full_tools.tools.iter().any(|tool| {
         matches!(
@@ -180,16 +180,12 @@ pub(crate) async fn gateway_task_run(
     }) {
         bail!("full-MCP client unexpectedly saw compatibility helpers: {full_tools:?}");
     }
-    let full_run_tool = full_tools
+    if !full_tools
         .tools
         .iter()
-        .find(|tool| tool.name.as_ref() == "media__run")
-        .ok_or_else(|| anyhow!("full-MCP client did not see media__run: {full_tools:?}"))?;
-    if full_run_tool.task_support() != rmcp::model::TaskSupport::Required {
-        bail!(
-            "full-MCP media__run task support was {:?}, expected Required",
-            full_run_tool.task_support()
-        );
+        .any(|tool| tool.name.as_ref() == "media__run")
+    {
+        bail!("full-MCP client did not see media__run: {full_tools:?}");
     }
 
     let compat_token = gateway_hosted_public_id_jag_token(
@@ -207,8 +203,7 @@ pub(crate) async fn gateway_task_run(
         ],
     )?;
     let compat_token = compat_token.trim();
-    let session =
-        connect_mcp_session(&format!("{gateway_base}/mcp/operator"), compat_token).await?;
+    let session = connect_mcp_client(&format!("{gateway_base}/mcp/operator"), compat_token).await?;
     let listed_tools = session.list_tools(Default::default()).await?;
     for expected_tool in [
         "media__artifact",
@@ -282,17 +277,6 @@ pub(crate) async fn gateway_task_run(
             .is_some_and(|required| required.iter().any(|field| field == "prompt"))
     {
         bail!("media__model_schema did not return fake/image prompt schema: {schema_structured}");
-    }
-    let media_tool = listed_tools
-        .tools
-        .iter()
-        .find(|tool| tool.name.as_ref() == "media__run")
-        .ok_or_else(|| anyhow!("gateway did not list media__run: {listed_tools:?}"))?;
-    if media_tool.task_support() != rmcp::model::TaskSupport::Optional {
-        bail!(
-            "gateway media__run task support was {:?}, expected Optional",
-            media_tool.task_support()
-        );
     }
     let direct_result = session
         .call_tool(
@@ -420,8 +404,7 @@ pub(crate) async fn gateway_task_run(
     assert_audit_method(&audit_summary, "tools/call", 6, 0)?;
     assert_audit_method(&audit_summary, "tasks/cancel", 1, 0)?;
     assert_audit_method(&audit_summary, "tasks/get", 3, 0)?;
-    assert_audit_method(&audit_summary, "resources/subscribe", 1, 0)?;
-    assert_audit_method(&audit_summary, "resources/unsubscribe", 1, 0)?;
+    assert_audit_method(&audit_summary, "subscriptions/listen", 1, 0)?;
     assert_audit_method(&audit_summary, "resources/read", 2, 0)?;
 
     media_child.stop();

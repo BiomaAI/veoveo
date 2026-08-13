@@ -153,7 +153,9 @@ pub(crate) fn project_app_resource_dependencies(
     if dependencies.is_empty() {
         return Ok(());
     }
-    let metadata = resource.meta.get_or_insert_with(rmcp::model::Meta::new);
+    let metadata = resource
+        .meta
+        .get_or_insert_with(rmcp::model::MetaObject::new);
     metadata.0.insert(
         APP_RESOURCE_DEPENDENCIES_META_KEY.to_owned(),
         serde_json::to_value(dependencies)
@@ -384,7 +386,6 @@ pub(crate) fn unexpected_upstream_response(method: &str, response: ServerResult)
 
 fn server_result_name(result: &ServerResult) -> &'static str {
     match result {
-        ServerResult::InitializeResult(_) => "initialize",
         ServerResult::CompleteResult(_) => "complete",
         ServerResult::GetPromptResult(_) => "get_prompt",
         ServerResult::ListPromptsResult(_) => "list_prompts",
@@ -394,13 +395,13 @@ fn server_result_name(result: &ServerResult) -> &'static str {
         ServerResult::ListToolsResult(_) => "list_tools",
         ServerResult::ElicitResult(_) => "elicit",
         ServerResult::CreateTaskResult(_) => "create_task",
-        ServerResult::ListTasksResult(_) => "list_tasks",
         ServerResult::GetTaskResult(_) => "get_task",
-        ServerResult::CancelTaskResult(_) => "cancel_task",
+        ServerResult::TaskAckResult(_) => "task_ack",
         ServerResult::CallToolResult(_) => "call_tool",
-        ServerResult::GetTaskPayloadResult(_) => "get_task_payload",
+        ServerResult::InputRequiredResult(_) => "input_required",
         ServerResult::EmptyResult(_) => "empty",
         ServerResult::CustomResult(_) => "custom",
+        _ => "unknown",
     }
 }
 
@@ -627,7 +628,7 @@ mod tests {
     fn server_owned_projection_preserves_app_websocket_csp_origins() {
         let server = test_server("uav-sim", "uav-sim", ResourceProjectionMode::ServerOwned);
         let mut resource = Resource::new("ui://uav-sim/live.html", "uav-sim-live-app").with_meta({
-            let mut meta = rmcp::model::Meta::new();
+            let mut meta = rmcp::model::MetaObject::new();
             meta.insert(
                 "ui".to_owned(),
                 serde_json::json!({

@@ -1,11 +1,10 @@
 //! Atomic durable operations for one autonomous agent replica.
 //!
-//! Lease, wake, episode, task, elicitation, and recovery mutations stay in one
+//! Lease, wake, episode, task, input_request, and recovery mutations stay in one
 //! module because they share the same fencing invariant and transaction state
 //! machine. Contract types live in `types`; process and protocol wiring live in
 //! their owning crates.
 
-use std::str::FromStr;
 use std::sync::{
     Arc,
     atomic::{AtomicI64, Ordering},
@@ -17,20 +16,20 @@ use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
 use veoveo_platform_store::{
-    AgentElicitationId, AgentElicitationRecord, AgentElicitationState, AgentEpisodeId,
-    AgentEpisodeRecord, AgentEpisodeState, AgentId, AgentRecord, AgentState, AgentTaskId,
+    AgentEpisodeId, AgentEpisodeRecord, AgentEpisodeState, AgentId, AgentInputRequestId,
+    AgentInputRequestRecord, AgentInputRequestState, AgentRecord, AgentState, AgentTaskId,
     AgentTaskRecord, AgentTaskWatchState, InvocationAuthorityRecord, OpenObject, OutboxDraft,
     OutboxEventRecord, PlatformIdentity, PlatformStore, PlatformTable, PrincipalKind,
-    StoreAuthLevel, TaskId, TaskRecord, WakeId, WakeKind, WakeRecord, WakeState,
-    deterministic_work_context_id,
+    StoreAuthLevel, WakeId, WakeKind, WakeRecord, WakeState, deterministic_work_context_id,
 };
 use veoveo_task_runtime::TaskRetentionPin;
 
 use crate::types::{
     AgentInstanceId, AgentLease, AgentRuntimeError, AgentSpec, AgentTaskResult, ClaimedAgentTask,
-    ClaimedWake, ElicitationAnswer, EpisodeCompletion, EpisodeHandle, NewAgentTask, NewElicitation,
-    NewWake, ParkedElicitation, Result, checked_i64, object, task_id_from_record, uuid_from_record,
+    ClaimedWake, EpisodeCompletion, EpisodeHandle, InputRequestAnswer, NewAgentTask,
+    NewInputRequest, NewWake, PendingInputRequest, Result, checked_i64, object, uuid_from_record,
 };
+use veoveo_mcp_contract::CanonicalTaskId;
 
 const EVENT_SCHEMA_VERSION: i64 = 1;
 
@@ -104,7 +103,7 @@ struct EpisodeContent {
 struct AgentTaskContent {
     tenant: RecordId,
     agent: RecordId,
-    task: RecordId,
+    task_id: String,
     tool_name: String,
     descriptor: OpenObject,
     descriptor_complete: bool,
@@ -128,13 +127,13 @@ struct AgentTaskContent {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
-struct ElicitationContent {
+struct InputRequestContent {
     tenant: RecordId,
     agent: RecordId,
-    related_task: Option<RecordId>,
+    related_task: Option<String>,
     message: String,
     requested_schema: Option<OpenObject>,
-    state: AgentElicitationState,
+    state: AgentInputRequestState,
     answer: Option<OpenObject>,
     answered_by: Option<String>,
     requested_at: DateTime<Utc>,
@@ -510,7 +509,7 @@ impl AgentRuntime {
         );
         self.store
             .client()
-            .query("BEGIN TRANSACTION; LET $lease = (SELECT * FROM ONLY $agent WHERE lease_owner = $owner AND fence = $fence AND lease_expires_at > $now); IF $lease = NONE { THROW 'agent lease lost'; }; LET $finished = (UPDATE ONLY $episode SET state = $state, final_output = $output, summary = $summary, input_tokens = $input_tokens, output_tokens = $output_tokens, completion_calls = $completion_calls, tool_calls = $tool_calls, error = $error, finished_at = $now, revision += 1 WHERE state = 'running' RETURN AFTER); IF $finished = NONE { THROW 'episode completion conflict'; }; UPDATE wake SET state = 'acked', acked_at = $now, acked_by_episode = $episode, claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, updated_at = $now, revision += 1 WHERE id IN $wakes AND agent = $agent AND state = 'claimed' AND claimed_by = $owner AND claim_fence = $fence RETURN NONE; LET $deliveries = (SELECT task, retention_pin FROM agent_task WHERE agent = $agent AND result_wake IN $wakes AND consumed_by_episode = NONE); FOR $delivery IN $deliveries { UPDATE ONLY $delivery.task SET retention_pins -= $delivery.retention_pin RETURN NONE; }; UPDATE agent_task SET consumed_by_episode = $episode, retention_pin_active = false, lease_owner = NONE, lease_expires_at = NONE, updated_at = $now, revision += 1 WHERE agent = $agent AND result_wake IN $wakes AND consumed_by_episode = NONE RETURN NONE; UPDATE ONLY $agent SET state = 'idle', revision += 1, updated_at = $now WHERE lease_owner = $owner AND fence = $fence RETURN NONE; CREATE outbox_event CONTENT $episode_event RETURN NONE; CREATE outbox_event CONTENT $wake_event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $lease = (SELECT * FROM ONLY $agent WHERE lease_owner = $owner AND fence = $fence AND lease_expires_at > $now); IF $lease = NONE { THROW 'agent lease lost'; }; LET $finished = (UPDATE ONLY $episode SET state = $state, final_output = $output, summary = $summary, input_tokens = $input_tokens, output_tokens = $output_tokens, completion_calls = $completion_calls, tool_calls = $tool_calls, error = $error, finished_at = $now, revision += 1 WHERE state = 'running' RETURN AFTER); IF $finished = NONE { THROW 'episode completion conflict'; }; UPDATE wake SET state = 'acked', acked_at = $now, acked_by_episode = $episode, claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, updated_at = $now, revision += 1 WHERE id IN $wakes AND agent = $agent AND state = 'claimed' AND claimed_by = $owner AND claim_fence = $fence RETURN NONE; UPDATE agent_task SET consumed_by_episode = $episode, retention_pin_active = false, lease_owner = NONE, lease_expires_at = NONE, updated_at = $now, revision += 1 WHERE agent = $agent AND result_wake IN $wakes AND consumed_by_episode = NONE RETURN NONE; UPDATE ONLY $agent SET state = 'idle', revision += 1, updated_at = $now WHERE lease_owner = $owner AND fence = $fence RETURN NONE; CREATE outbox_event CONTENT $episode_event RETURN NONE; CREATE outbox_event CONTENT $wake_event RETURN NONE; COMMIT TRANSACTION;")
             .bind(("agent", self.agent_id.record_id()))
             .bind(("owner", self.instance_id.to_string()))
             .bind(("fence", fence))
@@ -646,7 +645,7 @@ impl AgentRuntime {
 
     pub async fn record_task(&self, draft: NewAgentTask) -> Result<AgentTaskId> {
         self.fence()?;
-        if let Some(existing) = self.task_by_task_id(draft.task_id).await? {
+        if let Some(existing) = self.task_by_task_id(draft.task_id.clone()).await? {
             if existing.retention_pin != draft.retention_pin.to_string()
                 || existing.started_by_episode != draft.started_by_episode.record_id()
             {
@@ -662,7 +661,7 @@ impl AgentRuntime {
         let content = AgentTaskContent {
             tenant: self.identity.tenant_id.record_id(),
             agent: self.agent_id.record_id(),
-            task: draft.task_id.record_id(),
+            task_id: draft.task_id.to_string(),
             tool_name: draft.tool_name.clone(),
             descriptor: draft.descriptor,
             descriptor_complete: draft.descriptor_complete,
@@ -700,9 +699,7 @@ impl AgentRuntime {
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; LET $pinned = (SELECT * FROM ONLY $task WHERE retention_pins CONTAINS $retention_pin); IF $pinned = NONE { THROW 'canonical task retention pin is missing'; }; CREATE ONLY $agent_task CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
-            .bind(("task", draft.task_id.record_id()))
-            .bind(("retention_pin", draft.retention_pin.to_string()))
+            .query("BEGIN TRANSACTION; CREATE ONLY $agent_task CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
             .bind(("agent_task", agent_task_id.record_id()))
             .bind(("content", content))
             .bind(("event", event))
@@ -727,7 +724,7 @@ impl AgentRuntime {
             Err(error) => Err(AgentRuntimeError::Database(error)),
         };
         if let Err(error) = result {
-            if let Some(existing) = self.task_by_task_id(draft.task_id).await? {
+            if let Some(existing) = self.task_by_task_id(draft.task_id.clone()).await? {
                 return agent_task_id_from_record(&existing.id);
             }
             return Err(error);
@@ -737,18 +734,18 @@ impl AgentRuntime {
 
     pub async fn complete_task_descriptor(
         &self,
-        task_id: TaskId,
+        task_id: CanonicalTaskId,
         descriptor: OpenObject,
     ) -> Result<()> {
         let now = Utc::now();
         let mut response = self
             .store
             .client()
-            .query("UPDATE ONLY agent_task SET descriptor = $descriptor, descriptor_complete = true, updated_at = $now, revision += 1 WHERE agent = $agent AND task = $task AND state IN ['pending', 'watching'] RETURN AFTER;")
+            .query("UPDATE ONLY agent_task SET descriptor = $descriptor, descriptor_complete = true, updated_at = $now, revision += 1 WHERE agent = $agent AND task_id = $task_id AND state IN ['pending', 'watching'] RETURN AFTER;")
             .bind(("descriptor", descriptor))
             .bind(("now", now))
             .bind(("agent", self.agent_id.record_id()))
-            .bind(("task", task_id.record_id()))
+            .bind(("task_id", task_id.to_string()))
             .await?
             .check()?;
         let updated: Option<AgentTaskRecord> = response.take(0)?;
@@ -793,65 +790,11 @@ impl AgentRuntime {
         Ok(claimed)
     }
 
-    /// Recover tasks that were atomically pinned by a server but whose
-    /// `ToolTaskStarted` hook did not run before the agent process died.
+    /// Opaque gateway tasks are recovered from serialized Rig descriptors.
+    /// There is no process-local canonical task table to scan.
     pub async fn recover_pinned_tasks(&self) -> Result<usize> {
         self.fence()?;
-        let prefix = format!("agent:{}:episode:", self.agent_id);
-        let mut response = self
-            .store
-            .client()
-            .query(
-                "SELECT * FROM task WHERE array::len(retention_pins) > 0 ORDER BY created_at ASC;",
-            )
-            .await?
-            .check()?;
-        let tasks: Vec<TaskRecord> = response.take(0)?;
-        let mut recovered = 0;
-        for task in tasks {
-            let Some(pin) = task
-                .retention_pins
-                .iter()
-                .find(|pin| pin.starts_with(&prefix))
-            else {
-                continue;
-            };
-            let task_id = task_id_from_record(&task.id)?;
-            if self.task_by_task_id(task_id).await?.is_some() {
-                continue;
-            }
-            let episode_id = AgentEpisodeId::from_str(&pin[prefix.len()..]).map_err(|error| {
-                AgentRuntimeError::InvalidField {
-                    field: "task retention pin episode",
-                    reason: error.to_string(),
-                }
-            })?;
-            let retention_pin = TaskRetentionPin::new(pin.clone()).map_err(|error| {
-                AgentRuntimeError::InvalidField {
-                    field: "task retention pin",
-                    reason: error.to_string(),
-                }
-            })?;
-            let descriptor = object([
-                ("backend".to_owned(), serde_json::json!("mcp")),
-                ("task_id".to_owned(), serde_json::json!(task_id)),
-                (
-                    "tool_name".to_owned(),
-                    serde_json::json!(task.task_type.clone()),
-                ),
-            ]);
-            self.record_task(NewAgentTask {
-                task_id,
-                tool_name: task.task_type,
-                descriptor,
-                descriptor_complete: true,
-                retention_pin,
-                started_by_episode: episode_id,
-            })
-            .await?;
-            recovered += 1;
-        }
-        Ok(recovered)
+        Ok(0)
     }
 
     pub async fn renew_task_claim(
@@ -932,7 +875,7 @@ impl AgentRuntime {
 
     pub async fn resolve_task_in_episode(
         &self,
-        task_id: TaskId,
+        task_id: CanonicalTaskId,
         episode_id: AgentEpisodeId,
         result: OpenObject,
         is_error: bool,
@@ -951,9 +894,7 @@ impl AgentRuntime {
         };
         self.store
             .client()
-            .query("BEGIN TRANSACTION; UPDATE ONLY $canonical_task SET retention_pins -= $retention_pin RETURN NONE; LET $settled = (UPDATE ONLY $agent_task SET state = $state, result = $result, result_is_error = $is_error, consumed_by_episode = $episode, retention_pin_active = false, lease_owner = NONE, lease_expires_at = NONE, resolved_at = $now, updated_at = $now, revision += 1 WHERE agent = $agent AND state IN ['pending', 'watching'] RETURN AFTER); IF $settled = NONE { THROW 'agent task settlement conflict'; }; COMMIT TRANSACTION;")
-            .bind(("canonical_task", task_id.record_id()))
-            .bind(("retention_pin", existing.retention_pin))
+            .query("BEGIN TRANSACTION; LET $settled = (UPDATE ONLY $agent_task SET state = $state, result = $result, result_is_error = $is_error, consumed_by_episode = $episode, retention_pin_active = false, lease_owner = NONE, lease_expires_at = NONE, resolved_at = $now, updated_at = $now, revision += 1 WHERE agent = $agent AND state IN ['pending', 'watching'] RETURN AFTER); IF $settled = NONE { THROW 'agent task settlement conflict'; }; COMMIT TRANSACTION;")
             .bind(("agent_task", existing.id))
             .bind(("state", state))
             .bind(("result", result))
@@ -979,7 +920,12 @@ impl AgentRuntime {
             .into_iter()
             .map(|record| {
                 Ok(AgentTaskResult {
-                    task_id: task_id_from_record(&record.task)?,
+                    task_id: CanonicalTaskId::new(record.task_id).map_err(|error| {
+                        AgentRuntimeError::InvalidField {
+                            field: "agent_task.task_id",
+                            reason: error.to_string(),
+                        }
+                    })?,
                     tool_name: record.tool_name,
                     result: record.result.ok_or(AgentRuntimeError::InvalidField {
                         field: "agent_task.result",
@@ -1009,15 +955,15 @@ impl AgentRuntime {
             .map_or(0, |count| count.count.max(0) as usize))
     }
 
-    pub async fn park_elicitation(&self, draft: NewElicitation) -> Result<WakeId> {
+    pub async fn create_input_request(&self, draft: NewInputRequest) -> Result<WakeId> {
         let now = Utc::now();
-        let content = ElicitationContent {
+        let content = InputRequestContent {
             tenant: self.identity.tenant_id.record_id(),
             agent: self.agent_id.record_id(),
-            related_task: draft.related_task.map(TaskId::record_id),
+            related_task: draft.related_task.map(|task_id| task_id.to_string()),
             message: draft.message,
             requested_schema: draft.requested_schema,
-            state: AgentElicitationState::Parked,
+            state: AgentInputRequestState::Pending,
             answer: None,
             answered_by: None,
             requested_at: now,
@@ -1025,12 +971,12 @@ impl AgentRuntime {
             revision: 0,
         };
         let wake = NewWake::now(
-            WakeKind::Elicitation,
-            Some(format!("elicitation:{}:pending", draft.elicitation_id)),
+            WakeKind::InputRequest,
+            Some(format!("input_request:{}:pending", draft.input_request_id)),
             object([
                 (
-                    "elicitation_id".to_owned(),
-                    serde_json::json!(draft.elicitation_id),
+                    "input_request_id".to_owned(),
+                    serde_json::json!(draft.input_request_id),
                 ),
                 ("phase".to_owned(), serde_json::json!("pending")),
             ]),
@@ -1038,15 +984,15 @@ impl AgentRuntime {
         let wake_content = self.wake_content(&wake, now);
         let event = outbox(
             &self.identity,
-            "agent_elicitation",
-            draft.elicitation_id.to_string(),
-            "agent_elicitation.parked",
+            "agent_input_request",
+            draft.input_request_id.to_string(),
+            "agent_input_request.pending",
             object([("wake_id".to_owned(), serde_json::json!(wake.wake_id))]),
         );
         self.store
             .client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $elicitation CONTENT $content RETURN NONE; CREATE ONLY $wake CONTENT $wake_content RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
-            .bind(("elicitation", draft.elicitation_id.record_id()))
+            .query("BEGIN TRANSACTION; CREATE ONLY $input_request CONTENT $content RETURN NONE; CREATE ONLY $wake CONTENT $wake_content RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .bind(("input_request", draft.input_request_id.record_id()))
             .bind(("content", content))
             .bind(("wake", wake.wake_id.record_id()))
             .bind(("wake_content", wake_content))
@@ -1056,31 +1002,31 @@ impl AgentRuntime {
         Ok(wake.wake_id)
     }
 
-    pub async fn answer_elicitation(
+    pub async fn answer_input_request(
         &self,
-        elicitation_id: AgentElicitationId,
-        answer: ElicitationAnswer,
+        input_request_id: AgentInputRequestId,
+        answer: InputRequestAnswer,
     ) -> Result<WakeId> {
-        if answer.state == AgentElicitationState::Parked {
+        if answer.state == AgentInputRequestState::Pending {
             return Err(AgentRuntimeError::InvalidField {
-                field: "elicitation answer state",
+                field: "input_request answer state",
                 reason: "must be terminal".to_owned(),
             });
         }
-        let existing = self.elicitation_record(elicitation_id).await?;
-        if existing.state != AgentElicitationState::Parked {
+        let existing = self.input_request_record(input_request_id).await?;
+        if existing.state != AgentInputRequestState::Pending {
             return Err(AgentRuntimeError::Conflict {
-                entity: "agent_elicitation",
+                entity: "agent_input_request",
             });
         }
         let now = Utc::now();
         let wake = NewWake::now(
-            WakeKind::Elicitation,
-            Some(format!("elicitation:{elicitation_id}:answered")),
+            WakeKind::InputRequest,
+            Some(format!("input_request:{input_request_id}:answered")),
             object([
                 (
-                    "elicitation_id".to_owned(),
-                    serde_json::json!(elicitation_id),
+                    "input_request_id".to_owned(),
+                    serde_json::json!(input_request_id),
                 ),
                 ("phase".to_owned(), serde_json::json!("answered")),
             ]),
@@ -1088,15 +1034,15 @@ impl AgentRuntime {
         let wake_content = self.wake_content(&wake, now);
         let event = outbox(
             &self.identity,
-            "agent_elicitation",
-            elicitation_id.to_string(),
-            "agent_elicitation.answered",
+            "agent_input_request",
+            input_request_id.to_string(),
+            "agent_input_request.answered",
             object([("wake_id".to_owned(), serde_json::json!(wake.wake_id))]),
         );
         self.store
             .client()
-            .query("BEGIN TRANSACTION; LET $answered = (UPDATE ONLY $elicitation SET state = $state, answer = $answer, answered_by = $answered_by, answered_at = $now, revision += 1 WHERE state = 'parked' AND revision = $revision RETURN AFTER); IF $answered = NONE { THROW 'elicitation answer conflict'; }; CREATE ONLY $wake CONTENT $wake_content RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
-            .bind(("elicitation", elicitation_id.record_id()))
+            .query("BEGIN TRANSACTION; LET $answered = (UPDATE ONLY $input_request SET state = $state, answer = $answer, answered_by = $answered_by, answered_at = $now, revision += 1 WHERE state = 'pending' AND revision = $revision RETURN AFTER); IF $answered = NONE { THROW 'input_request answer conflict'; }; CREATE ONLY $wake CONTENT $wake_content RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .bind(("input_request", input_request_id.record_id()))
             .bind(("state", answer.state))
             .bind(("answer", answer.answer))
             .bind(("answered_by", answer.answered_by))
@@ -1110,25 +1056,28 @@ impl AgentRuntime {
         Ok(wake.wake_id)
     }
 
-    pub async fn parked_elicitations(&self) -> Result<Vec<ParkedElicitation>> {
+    pub async fn pending_input_requests(&self) -> Result<Vec<PendingInputRequest>> {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM agent_elicitation WHERE agent = $agent AND state = 'parked' ORDER BY requested_at ASC;")
+            .query("SELECT * FROM agent_input_request WHERE agent = $agent AND state = 'pending' ORDER BY requested_at ASC;")
             .bind(("agent", self.agent_id.record_id()))
             .await?
             .check()?;
-        let records: Vec<AgentElicitationRecord> = response.take(0)?;
+        let records: Vec<AgentInputRequestRecord> = response.take(0)?;
         records
             .into_iter()
             .map(|record| {
-                Ok(ParkedElicitation {
-                    elicitation_id: elicitation_id_from_record(&record.id)?,
+                Ok(PendingInputRequest {
+                    input_request_id: input_request_id_from_record(&record.id)?,
                     related_task: record
                         .related_task
-                        .as_ref()
-                        .map(task_id_from_record)
-                        .transpose()?,
+                        .map(CanonicalTaskId::new)
+                        .transpose()
+                        .map_err(|error| AgentRuntimeError::InvalidField {
+                            field: "agent_input_request.related_task",
+                            reason: error.to_string(),
+                        })?,
                     message: record.message,
                     requested_schema: record.requested_schema,
                 })
@@ -1424,42 +1373,47 @@ impl AgentRuntime {
         select_only(&self.store, task_id.record_id(), "agent_task").await
     }
 
-    async fn elicitation_record(
+    async fn input_request_record(
         &self,
-        elicitation_id: AgentElicitationId,
-    ) -> Result<AgentElicitationRecord> {
-        select_only(&self.store, elicitation_id.record_id(), "agent_elicitation").await
+        input_request_id: AgentInputRequestId,
+    ) -> Result<AgentInputRequestRecord> {
+        select_only(
+            &self.store,
+            input_request_id.record_id(),
+            "agent_input_request",
+        )
+        .await
     }
 
-    pub async fn elicitation(
+    pub async fn input_request(
         &self,
-        elicitation_id: AgentElicitationId,
-    ) -> Result<AgentElicitationRecord> {
-        self.elicitation_record(elicitation_id).await
+        input_request_id: AgentInputRequestId,
+    ) -> Result<AgentInputRequestRecord> {
+        self.input_request_record(input_request_id).await
     }
 
     /// Wait for an externally governed answer without exposing the agent pod
     /// as ingress. LIVE is a wake hint; the authoritative record is reread
     /// after each edge, and subscribing before the first read closes the race.
-    pub async fn wait_for_elicitation_terminal(
+    pub async fn wait_for_input_request_terminal(
         &self,
-        elicitation_id: AgentElicitationId,
+        input_request_id: AgentInputRequestId,
         maximum_wait: Duration,
-    ) -> Result<Option<AgentElicitationRecord>> {
+    ) -> Result<Option<AgentInputRequestRecord>> {
         let mut live = self
             .store
             .live::<OutboxEventRecord>(PlatformTable::OutboxEvent)
             .await?;
-        let current = self.elicitation_record(elicitation_id).await?;
-        if current.state != AgentElicitationState::Parked {
+        let current = self.input_request_record(input_request_id).await?;
+        if current.state != AgentInputRequestState::Pending {
             return Ok(Some(current));
         }
         let wait = async {
             loop {
                 match live.next().await {
                     Some(Ok(_)) => {
-                        let current = self.elicitation_record(elicitation_id).await?;
-                        if current.state != AgentElicitationState::Parked {
+                        let current = self.input_request_record(input_request_id).await?;
+                        if current.state != AgentInputRequestState::Pending {
                             return Ok(Some(current));
                         }
                     }
@@ -1474,13 +1428,13 @@ impl AgentRuntime {
         }
     }
 
-    async fn task_by_task_id(&self, task_id: TaskId) -> Result<Option<AgentTaskRecord>> {
+    async fn task_by_task_id(&self, task_id: CanonicalTaskId) -> Result<Option<AgentTaskRecord>> {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM agent_task WHERE agent = $agent AND task = $task LIMIT 1;")
+            .query("SELECT * FROM agent_task WHERE agent = $agent AND task_id = $task_id LIMIT 1;")
             .bind(("agent", self.agent_id.record_id()))
-            .bind(("task", task_id.record_id()))
+            .bind(("task_id", task_id.to_string()))
             .await?
             .check()?;
         let records: Vec<AgentTaskRecord> = response.take(0)?;
@@ -1603,7 +1557,12 @@ fn claimed_wake(record: WakeRecord) -> Result<ClaimedWake> {
 fn claimed_task(record: AgentTaskRecord) -> Result<ClaimedAgentTask> {
     Ok(ClaimedAgentTask {
         agent_task_id: agent_task_id_from_record(&record.id)?,
-        task_id: task_id_from_record(&record.task)?,
+        task_id: CanonicalTaskId::new(record.task_id).map_err(|error| {
+            AgentRuntimeError::InvalidField {
+                field: "agent_task.task_id",
+                reason: error.to_string(),
+            }
+        })?,
         tool_name: record.tool_name,
         descriptor: record.descriptor,
         descriptor_complete: record.descriptor_complete,
@@ -1633,9 +1592,9 @@ fn agent_task_id_from_record(record: &RecordId) -> Result<AgentTaskId> {
     )?))
 }
 
-fn elicitation_id_from_record(record: &RecordId) -> Result<AgentElicitationId> {
-    Ok(AgentElicitationId::from_uuid(uuid_from_record(
+fn input_request_id_from_record(record: &RecordId) -> Result<AgentInputRequestId> {
+    Ok(AgentInputRequestId::from_uuid(uuid_from_record(
         record,
-        "agent_elicitation.id",
+        "agent_input_request.id",
     )?))
 }

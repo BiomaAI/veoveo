@@ -13,9 +13,8 @@
 pub mod budget;
 pub mod connection;
 pub mod context;
-pub mod delegate;
-pub mod elicitation;
 pub mod episode;
+pub mod input;
 pub mod llm;
 pub mod manifest;
 pub mod memory;

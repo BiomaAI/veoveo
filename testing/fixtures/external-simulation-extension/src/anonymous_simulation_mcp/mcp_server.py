@@ -8,11 +8,11 @@ from typing import Any
 
 import mcp.types as types
 from mcp.server import Server, ServerRequestContext
+from mcp.server.caching import CacheHint
 from mcp.shared.exceptions import MCPError
 from pydantic import ValidationError
 
 from veoveo_mcp.contract import (
-    CapabilityInventory,
     ContractDeclaration,
     DOC_ID_AGENTS,
     DOC_ID_DESIGN,
@@ -58,17 +58,7 @@ AGENTS_DOCUMENT = SERVER_DOCS.doc(DOC_ID_AGENTS)
 DESIGN_DOCUMENT = SERVER_DOCS.doc(DOC_ID_DESIGN)
 if AGENTS_DOCUMENT is None or DESIGN_DOCUMENT is None:
     raise RuntimeError("shared server_docs omitted a required document")
-CAPABILITY_INVENTORY = CapabilityInventory(
-    tools=(
-        "list_live_cameras",
-        "open_live_view",
-        "renew_live_view",
-        "close_live_view",
-        "get_fixture_state",
-    ),
-    resources=(STATE_URI, APP_URI, DOCS_URI, AGENTS_URI, DESIGN_URI, CONTRACT_URI),
-)
-CONTRACT_DECLARATION = ContractDeclaration.from_docs(SERVER_DOCS, CAPABILITY_INVENTORY)
+CONTRACT_DECLARATION = ContractDeclaration.from_docs(SERVER_DOCS)
 
 
 def build_mcp_server(runtime: FixtureRuntime) -> Server:
@@ -225,10 +215,17 @@ def build_mcp_server(runtime: FixtureRuntime) -> Server:
         SERVER_NAME,
         version="0.1.0",
         instructions=INSTRUCTIONS,
+        cache_hints={
+            "server/discover": CacheHint(ttl_ms=5_000, scope="private"),
+            "tools/list": CacheHint(ttl_ms=5_000, scope="private"),
+            "resources/list": CacheHint(ttl_ms=5_000, scope="private"),
+            "resources/read": CacheHint(ttl_ms=1_000, scope="private"),
+        },
         on_list_tools=list_tools,
         on_call_tool=call_tool,
         on_list_resources=list_resources,
         on_read_resource=read_resource,
+        on_ping=None,
     )
 
 

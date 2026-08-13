@@ -1,30 +1,27 @@
 # Chart MCP Server
 
-The chart server retains the pinned upstream `flint-chart-mcp` domain
-implementation. Veoveo owns its network launcher because upstream HTTP mode
-is stateless and returns direct JSON. The launcher gives the complete
-upstream surface a sessionful Streamable HTTP endpoint with event-stream
-responses.
+The chart server retains the pinned upstream `flint-chart-mcp` rendering and
+Flint domain implementation. Veoveo owns its MCP registration and network
+launcher because the upstream release still targets an older MCP SDK.
 
 ## Standards And Protocols
 
-Model Context Protocol over JSON-RPC 2.0, sessionful Streamable HTTP with
-event-stream responses, and MCP Apps per
-[`mcp/apps-extension/DESIGN.md`](../../mcp/apps-extension/DESIGN.md).
+Model Context Protocol `2026-07-28` over JSON-RPC 2.0 and stateless Streamable
+HTTP, JSON terminal responses, request-scoped subscription streams, JSON
+Schema 2020-12, and MCP Apps per
+[`mcp/apps-extension/DESIGN.md`](../../mcp/apps-extension/DESIGN.md). The
+official TypeScript server and Node packages are pinned to `2.0.0`.
 
 ## Packaging Contract
 
-- The Dockerfile pins the upstream version (`flint-chart-mcp@0.4.1`) and the
+- The Dockerfile pins the upstream version (`flint-chart-mcp@0.5.0`) and the
   Node base image; upgrades are explicit digest and version changes reviewed
   like any dependency bump.
 - The container runs as an unprivileged system user with a fixed uid and
   serves on port 8795.
 - The server keeps no domain data in a private database
-  (`platformStore: false`). MCP sessions remain local to the one active
-  launcher process.
-- The launcher owns each transport lifecycle. MCP `DELETE` closes the
-  transport and removes its session without recursively closing the connected
-  protocol server.
+  (`platformStore: false`). Every MCP request uses a fresh protocol instance;
+  there is no protocol session or sticky-replica state.
 - The canonical endpoint is `/charts/mcp`. Health is `/charts/healthz`, and
   the authenticated read-only document projection is under
   `/charts/admin/docs`. The launcher verifies the gateway's Ed25519 internal
@@ -35,6 +32,5 @@ event-stream responses, and MCP Apps per
 ## Upstream Surface
 
 Chart validation, compilation, static rendering, and the interactive chart
-MCP App are upstream behavior. Protocol compliance for that surface is
-verified through the conformance client against the running server; source
-review of the upstream package is out of scope for this repository.
+MCP App use the upstream domain and render exports. `flint-v2.mjs` owns only
+their final-protocol registration and schemas.

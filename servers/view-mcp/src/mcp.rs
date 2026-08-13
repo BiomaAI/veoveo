@@ -1,33 +1,30 @@
 use std::sync::{Arc, LazyLock};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use rmcp::tool;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
-        ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
-        ReadResourceRequestParams, ReadResourceResult, Reference, Resource, ResourceContents,
-        ResourceTemplate, ServerCapabilities, ServerInfo, SubscribeRequestParams,
-        UnsubscribeRequestParams,
+        CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams,
+        CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock, GetTaskParams,
+        GetTaskResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
+        PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult, Reference, Resource,
+        ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo, SubscriptionFilter,
+        UpdateTaskParams,
     },
-    service::RequestContext,
+    service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
 };
 use serde::Serialize;
-use veoveo_mcp_contract::tool;
-use veoveo_mcp_contract::{
-    GatewayInternalIdentity, Page, PlaneCaller,
-    docs::{CapabilityInventory, ServerDocs},
-    paginate,
-};
+use veoveo_mcp_contract::{GatewayInternalIdentity, Page, PlaneCaller, docs::ServerDocs, paginate};
 
 use crate::{
     contract::{
         CaptureFrameRequest, CloseViewRequest, CloseViewResult, CreateSceneCompositionRequest,
         CreateViewRequest, FrameRecord, SceneComposition, SetCameraRequest, ViewRecord,
     },
-    server::{AppState, auth::ForwardedBearer},
+    server::{AppState, auth::ForwardedBearer, tasks::ViewTaskExtension},
     state::ResourceOwner,
     uris,
 };
@@ -56,6 +53,7 @@ const PREVIEW_APP_ICON: &str = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cD
 #[derive(Clone)]
 pub(crate) struct ViewMcp {
     state: Arc<AppState>,
+    task_service: ViewTaskExtension,
     #[allow(dead_code)]
     tool_router: ToolRouter<ViewMcp>,
 }
@@ -64,6 +62,7 @@ pub(crate) struct ViewMcp {
 impl ViewMcp {
     pub(crate) fn new(state: Arc<AppState>) -> Self {
         Self {
+            task_service: ViewTaskExtension::new(state.clone()),
             state,
             tool_router: Self::tool_router(),
         }
@@ -71,33 +70,6 @@ impl ViewMcp {
 
     /// The capability inventory declared at `view://contract` (contract C19).
     ///
-    /// Tools derive from the live registration. Stable resources, resource
-    /// templates, and task-augmented tool names come from the lists those
-    /// surfaces are served from (`stable_resource_uris`, `resource_templates`,
-    /// `crate::server::tasks::TASK_TOOLS`), so the declaration cannot
-    /// silently diverge from what the handler registers.
-    pub(crate) fn capability_inventory() -> CapabilityInventory {
-        let mut tools: Vec<String> = Self::tool_router()
-            .list_all()
-            .into_iter()
-            .map(|tool| tool.name.into_owned())
-            .collect();
-        tools.sort();
-        CapabilityInventory {
-            tools,
-            resources: stable_resource_uris(),
-            resource_templates: resource_templates()
-                .into_iter()
-                .map(|template| template.uri_template.clone())
-                .collect(),
-            prompts: Vec::new(),
-            tasks: crate::server::tasks::TASK_TOOLS
-                .iter()
-                .map(|name| (*name).to_owned())
-                .collect(),
-        }
-    }
-
     #[tool(
         title = "Create scene composition",
         description = "Create an immutable owner-scoped scene composition from one configured 3D Tiles base layer, exact governed inputs, an optional Frames revision binding, and bounded ordered overlays.",
@@ -121,7 +93,10 @@ impl ViewMcp {
             .subscriptions
             .notify_resource_updated(uris::COMPOSITIONS)
             .await;
-        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
+        self.state
+            .subscriptions
+            .notify_resource_list_changed()
+            .await;
         structured_result(
             format!("created {}", composition.composition_uri),
             &composition,
@@ -151,7 +126,10 @@ impl ViewMcp {
             .subscriptions
             .notify_resource_updated(uris::VIEWS)
             .await;
-        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
+        self.state
+            .subscriptions
+            .notify_resource_list_changed()
+            .await;
         structured_result(format!("created {}", view.view_uri), &view)
     }
 
@@ -189,7 +167,6 @@ impl ViewMcp {
         title = "Capture map view frame",
         description = "Render one hardware-accelerated offscreen image from a fixed view revision. This operation requires task-based invocation and returns image content plus typed frame metadata.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<FrameRecord>(),
-        execution(task_support = "required"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = true)
     )]
     async fn capture_frame(
@@ -228,13 +205,22 @@ impl ViewMcp {
             .subscriptions
             .notify_resource_updated(uris::VIEWS)
             .await;
-        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
+        self.state
+            .subscriptions
+            .notify_resource_list_changed()
+            .await;
         structured_result(format!("closed view {}", result.view_id), &result)
     }
 }
 
 #[tool_handler]
 impl ServerHandler for ViewMcp {
+    fn supported_protocol_versions(
+        &self,
+    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
+        veoveo_mcp_contract::final_protocol_versions()
+    }
+
     fn get_info(&self) -> ServerInfo {
         let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
@@ -244,6 +230,10 @@ impl ServerHandler for ViewMcp {
             .enable_completions()
             .build();
         veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
+        capabilities.extensions.get_or_insert_default().insert(
+            rmcp::model::TASKS_EXTENSION_ID.to_owned(),
+            rmcp::model::JsonObject::new(),
+        );
         let mut info = ServerInfo::default();
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("view", env!("CARGO_PKG_VERSION"));
@@ -252,6 +242,71 @@ impl ServerHandler for ViewMcp {
                 .to_owned(),
         );
         info
+    }
+
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        if context
+            .meta
+            .client_capabilities()
+            .is_some_and(|caps| caps.supports_tasks())
+        {
+            let caller = veoveo_task_runtime::DurableTaskService::authenticate(
+                &self.task_service,
+                &context,
+            )?;
+            if let Some(created) = veoveo_task_runtime::DurableTaskService::start_tool_task(
+                &self.task_service,
+                &caller,
+                request.clone(),
+            )
+            .await?
+            {
+                return Ok(created.into());
+            }
+        }
+        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        self.tool_router.call(call).await
+    }
+
+    async fn get_task(
+        &self,
+        request: GetTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<GetTaskResult, McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::get_task(&self.task_service, &caller, request)
+            .await
+    }
+
+    async fn update_task(
+        &self,
+        request: UpdateTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::update_task(&self.task_service, &caller, request)
+            .await
+    }
+
+    async fn cancel_task(
+        &self,
+        request: CancelTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::cancel_task(
+            &self.task_service,
+            &caller,
+            request.task_id,
+        )
+        .await
     }
 
     async fn list_tools(
@@ -283,6 +338,9 @@ impl ServerHandler for ViewMcp {
         Ok(ListToolsResult {
             tools: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -363,6 +421,9 @@ impl ServerHandler for ViewMcp {
         Ok(ListResourcesResult {
             resources: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -376,6 +437,9 @@ impl ServerHandler for ViewMcp {
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -384,107 +448,115 @@ impl ServerHandler for ViewMcp {
         &self,
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, McpError> {
-        let uri = request.uri.as_str();
-        // The app is gated like the tools it drives, ahead of the blanket
-        // read gate: view:capture holders may lack nothing the app needs.
-        if uri == uris::PREVIEW_APP_URI {
-            require_scope(&context, "view:capture")?;
-            return Ok(ReadResourceResult::new(vec![
-                veoveo_mcp_apps_extension::app_html_contents(uri, crate::app::preview_app_html()),
-            ]));
-        }
-        let identity = require_scope(&context, "view:read")?;
-        // Well-known surface (contract C18, C19): readable by any identity
-        // that can list resources.
-        if uri == uris::DOCS {
-            return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
-        }
-        if let Some(doc_id) = uris::parse_doc(uri) {
-            let doc = SERVER_DOCS.doc(doc_id).ok_or_else(not_found)?;
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-            ]));
-        }
-        if uri == uris::CONTRACT {
-            return json_resource(
-                uri,
-                SERVER_DOCS.contract_declaration(Self::capability_inventory),
-            );
-        }
-        let owner = ResourceOwner::from_identity(&identity);
-        match uri {
-            uris::LAYERS => return json_resource(uri, self.state.views.layers()),
-            uris::COMPOSITIONS => {
-                return json_resource(uri, &self.state.views.list_scene_compositions(&owner).await);
+    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
+        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
+        async {
+            let uri = request.uri.as_str();
+            // The app is gated like the tools it drives, ahead of the blanket
+            // read gate: view:capture holders may lack nothing the app needs.
+            if uri == uris::PREVIEW_APP_URI {
+                require_scope(&context, "view:capture")?;
+                return Ok(ReadResourceResult::new(vec![
+                    veoveo_mcp_apps_extension::app_html_contents(
+                        uri,
+                        crate::app::preview_app_html(),
+                    ),
+                ]));
             }
-            uris::VIEWS => {
-                return json_resource(uri, &self.state.views.list_views(&owner).await);
+            let identity = require_scope(&context, "view:read")?;
+            // Well-known surface (contract C18, C19): readable by any identity
+            // that can list resources.
+            if uri == uris::DOCS {
+                return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
             }
-            uris::FRAMES => return json_resource(uri, &self.state.views.list_frames(&owner)),
-            _ => {}
+            if let Some(doc_id) = uris::parse_doc(uri) {
+                let doc = SERVER_DOCS.doc(doc_id).ok_or_else(not_found)?;
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
+                ]));
+            }
+            if uri == uris::CONTRACT {
+                return json_resource(uri, SERVER_DOCS.contract_declaration());
+            }
+            let owner = ResourceOwner::from_identity(&identity);
+            match uri {
+                uris::LAYERS => return json_resource(uri, self.state.views.layers()),
+                uris::COMPOSITIONS => {
+                    return json_resource(
+                        uri,
+                        &self.state.views.list_scene_compositions(&owner).await,
+                    );
+                }
+                uris::VIEWS => {
+                    return json_resource(uri, &self.state.views.list_views(&owner).await);
+                }
+                uris::FRAMES => return json_resource(uri, &self.state.views.list_frames(&owner)),
+                _ => {}
+            }
+            if let Some(layer_id) = uris::parse_layer(uri) {
+                let layer = self
+                    .state
+                    .views
+                    .layers()
+                    .iter()
+                    .find(|layer| layer.layer_id == layer_id)
+                    .ok_or_else(not_found)?;
+                return json_resource(uri, layer);
+            }
+            if let Some((view_id, policy)) =
+                uris::parse_view_scene(uri).map_err(|error| read_error(error.into()))?
+            {
+                let record = self
+                    .state
+                    .views
+                    .preview_scene(&owner, &view_id, policy, context.ct.child_token())
+                    .await
+                    .map_err(read_error)?;
+                return json_resource(uri, &record);
+            }
+            if let Some(tile_key) = uris::parse_tile(uri) {
+                let (bytes, mime) = self
+                    .state
+                    .views
+                    .read_tile_bytes(&tile_key, context.ct.child_token())
+                    .await
+                    .map_err(read_error)?;
+                let content = ResourceContents::blob(BASE64_STANDARD.encode(bytes.as_slice()), uri)
+                    .with_mime_type(mime);
+                return Ok(ReadResourceResult::new(vec![content]));
+            }
+            if let Some(view_id) = uris::parse_view(uri) {
+                let view = self
+                    .state
+                    .views
+                    .get_view(&owner, &view_id)
+                    .await
+                    .map_err(|_| not_found())?;
+                return json_resource(uri, &view);
+            }
+            if let Some(composition_id) = uris::parse_composition(uri) {
+                let composition = self
+                    .state
+                    .views
+                    .get_scene_composition(&owner, &composition_id)
+                    .await
+                    .map_err(|_| not_found())?;
+                return json_resource(uri, &composition);
+            }
+            if let Some(frame_id) = uris::parse_frame(uri) {
+                let frame = self
+                    .state
+                    .views
+                    .get_frame(&owner, &frame_id)
+                    .map_err(|_| not_found())?;
+                let content = ResourceContents::blob(BASE64_STANDARD.encode(&frame.bytes), uri)
+                    .with_mime_type(frame.record.mime_type.clone());
+                return Ok(ReadResourceResult::new(vec![content]));
+            }
+            Err(not_found())
         }
-        if let Some(layer_id) = uris::parse_layer(uri) {
-            let layer = self
-                .state
-                .views
-                .layers()
-                .iter()
-                .find(|layer| layer.layer_id == layer_id)
-                .ok_or_else(not_found)?;
-            return json_resource(uri, layer);
-        }
-        if let Some((view_id, policy)) =
-            uris::parse_view_scene(uri).map_err(|error| read_error(error.into()))?
-        {
-            let record = self
-                .state
-                .views
-                .preview_scene(&owner, &view_id, policy, context.ct.child_token())
-                .await
-                .map_err(read_error)?;
-            return json_resource(uri, &record);
-        }
-        if let Some(tile_key) = uris::parse_tile(uri) {
-            let (bytes, mime) = self
-                .state
-                .views
-                .read_tile_bytes(&tile_key, context.ct.child_token())
-                .await
-                .map_err(read_error)?;
-            let content = ResourceContents::blob(BASE64_STANDARD.encode(bytes.as_slice()), uri)
-                .with_mime_type(mime);
-            return Ok(ReadResourceResult::new(vec![content]));
-        }
-        if let Some(view_id) = uris::parse_view(uri) {
-            let view = self
-                .state
-                .views
-                .get_view(&owner, &view_id)
-                .await
-                .map_err(|_| not_found())?;
-            return json_resource(uri, &view);
-        }
-        if let Some(composition_id) = uris::parse_composition(uri) {
-            let composition = self
-                .state
-                .views
-                .get_scene_composition(&owner, &composition_id)
-                .await
-                .map_err(|_| not_found())?;
-            return json_resource(uri, &composition);
-        }
-        if let Some(frame_id) = uris::parse_frame(uri) {
-            let frame = self
-                .state
-                .views
-                .get_frame(&owner, &frame_id)
-                .map_err(|_| not_found())?;
-            let content = ResourceContents::blob(BASE64_STANDARD.encode(&frame.bytes), uri)
-                .with_mime_type(frame.record.mime_type.clone());
-            return Ok(ReadResourceResult::new(vec![content]));
-        }
-        Err(not_found())
+        .await
+        .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
     }
 
     async fn complete(
@@ -553,49 +625,39 @@ impl ServerHandler for ViewMcp {
         ))
     }
 
-    async fn subscribe(
+    fn accepted_subscription_filter(
         &self,
-        request: SubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let identity = require_scope(&context, "view:read")?;
-        let owner = ResourceOwner::from_identity(&identity);
-        if !is_subscribable(&request.uri) {
-            return Err(McpError::invalid_params(
-                "resource is immutable or not subscribable",
-                None,
-            ));
-        }
-        if let Some(view_id) = uris::parse_view(&request.uri) {
-            self.state
-                .views
-                .get_view(&owner, &view_id)
-                .await
-                .map_err(|_| not_found())?;
-        }
-        self.state
-            .subscriptions
-            .subscribe(
-                request.uri,
-                owner.subscription_principal(),
-                context.peer.clone(),
-            )
-            .await;
-        Ok(())
+        requested: &SubscriptionFilter,
+    ) -> Option<SubscriptionFilter> {
+        veoveo_mcp_contract::accepted_subscription_filter(requested)
     }
 
-    async fn unsubscribe(
-        &self,
-        request: UnsubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let identity = require_scope(&context, "view:read")?;
+    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
+        let request_context = context.request_context().clone();
+        let identity = require_scope(&request_context, "view:read")?;
         let owner = ResourceOwner::from_identity(&identity);
-        self.state
-            .subscriptions
-            .unsubscribe(&request.uri, &owner.subscription_principal())
-            .await;
-        Ok(())
+        for uri in context.accepted().resource_subscriptions.iter().flatten() {
+            if !is_subscribable(uri) {
+                return Err(McpError::invalid_params(
+                    "resource is immutable or not subscribable",
+                    None,
+                ));
+            }
+            if let Some(view_id) = uris::parse_view(uri) {
+                self.state
+                    .views
+                    .get_view(&owner, &view_id)
+                    .await
+                    .map_err(|_| not_found())?;
+            }
+        }
+        veoveo_task_runtime::listen_durable_subscriptions(
+            &self.task_service,
+            context,
+            Some(&self.state.subscriptions),
+            None,
+        )
+        .await
     }
 }
 
@@ -716,30 +778,6 @@ fn well_known_resources() -> Vec<Resource> {
     resources
 }
 
-/// Stable resource URIs declared in the `view://contract` capability
-/// inventory: the well-known surface, the app view, and the index resources
-/// `list_resources` always serves. Per-entity resources are enumerated per
-/// identity at list time and are covered by the resource templates instead.
-fn stable_resource_uris() -> Vec<String> {
-    let mut resource_uris: Vec<String> = well_known_resources()
-        .into_iter()
-        .map(|resource| resource.uri.clone())
-        .collect();
-    resource_uris.extend(
-        [
-            uris::PREVIEW_APP_URI,
-            uris::LAYERS,
-            uris::COMPOSITIONS,
-            uris::VIEWS,
-            uris::FRAMES,
-        ]
-        .into_iter()
-        .map(str::to_owned),
-    );
-    resource_uris.sort();
-    resource_uris
-}
-
 /// Every advertised resource template. `list_resource_templates` serves this
 /// list and the `view://contract` capability inventory declares it, so the
 /// two cannot diverge.
@@ -833,8 +871,7 @@ mod well_known_tests {
         CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
     };
 
-    use super::{SERVER_DOCS, ViewMcp, resource_templates, stable_resource_uris};
-    use crate::uris;
+    use super::SERVER_DOCS;
 
     #[test]
     fn embedded_documents_carry_the_crate_manual_and_design() {
@@ -850,10 +887,7 @@ mod well_known_tests {
 
     #[test]
     fn contract_declaration_resolves_from_the_embedded_manual() {
-        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(
-            &SERVER_DOCS,
-            ViewMcp::capability_inventory(),
-        );
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
         assert_eq!(declaration.server, "view");
         assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
         for id in ["C18", "C19", "C20", "C21"] {
@@ -869,41 +903,9 @@ mod well_known_tests {
     }
 
     #[test]
-    fn capability_inventory_matches_the_registered_surface() {
-        let inventory = ViewMcp::capability_inventory();
-        for tool in ["create_view", "set_camera", "capture_frame"] {
-            assert!(
-                inventory.tools.iter().any(|name| name == tool),
-                "inventory is missing tool {tool}"
-            );
-        }
-        for uri in [
-            uris::DOCS,
-            uris::CONTRACT,
-            uris::PREVIEW_APP_URI,
-            uris::VIEWS,
-        ] {
-            assert!(
-                inventory.resources.contains(&uri.to_owned()),
-                "inventory is missing resource {uri}"
-            );
-        }
-        assert!(inventory.resources.contains(&uris::doc("agents")));
-        assert_eq!(
-            stable_resource_uris().len(),
-            inventory.resources.len(),
-            "inventory resources come from stable_resource_uris"
-        );
-        assert!(
-            inventory
-                .resource_templates
-                .contains(&uris::DOC_TEMPLATE.to_owned())
-        );
-        assert_eq!(
-            resource_templates().len(),
-            inventory.resource_templates.len(),
-            "inventory templates come from resource_templates"
-        );
-        assert_eq!(inventory.tasks, vec!["capture_frame".to_owned()]);
+    fn contract_declaration_defers_runtime_surface_to_discover() {
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
+        let json = serde_json::to_value(declaration).unwrap();
+        assert!(json.get("capabilities").is_none());
     }
 }

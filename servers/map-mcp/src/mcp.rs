@@ -4,28 +4,25 @@ use std::{
 };
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use rmcp::tool;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
-        GetPromptRequestParams, GetPromptResult, ListPromptsResult, ListResourceTemplatesResult,
-        ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt,
-        ReadResourceRequestParams, ReadResourceResult, Reference, Resource, ResourceContents,
-        ResourceTemplate, ServerCapabilities, ServerInfo, SubscribeRequestParams,
-        UnsubscribeRequestParams,
+        CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams,
+        CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
+        GetPromptRequestParams, GetTaskParams, GetTaskResult, ListPromptsResult,
+        ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
+        Prompt, ReadResourceRequestParams, ReadResourceResult, Reference, Resource,
+        ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo, SubscriptionFilter,
+        UpdateTaskParams,
     },
-    service::RequestContext,
+    service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
 };
 use serde::Serialize;
 use serde_json::json;
-use veoveo_mcp_contract::tool;
-use veoveo_mcp_contract::{
-    GatewayInternalIdentity, Page, PlaneCaller,
-    docs::{CapabilityInventory, ServerDocs},
-    paginate,
-};
+use veoveo_mcp_contract::{GatewayInternalIdentity, Page, PlaneCaller, docs::ServerDocs, paginate};
 
 use crate::{
     administration::{self, AdminOpError},
@@ -49,7 +46,7 @@ use crate::{
     },
     geodesy,
     prompts::MapPrompt,
-    server::auth::ForwardedBearer,
+    server::{auth::ForwardedBearer, tasks::MapTaskExtension},
     state::MapApplication,
     uris,
 };
@@ -106,6 +103,7 @@ const ADMIN_APP_ICON: &str = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDov
 #[derive(Clone)]
 pub struct MapMcp {
     state: Arc<MapApplication>,
+    task_service: MapTaskExtension,
     #[allow(dead_code)]
     tool_router: ToolRouter<MapMcp>,
 }
@@ -114,6 +112,7 @@ pub struct MapMcp {
 impl MapMcp {
     pub fn new(state: Arc<MapApplication>) -> Self {
         Self {
+            task_service: MapTaskExtension::new(state.clone()),
             state,
             tool_router: Self::full_tool_router(),
         }
@@ -130,38 +129,6 @@ impl MapMcp {
 
     /// The capability inventory declared at `map://contract` (contract C19).
     ///
-    /// Tools and prompts derive from the live registrations. Stable resources,
-    /// resource templates, and task-augmented tool names come from the lists
-    /// those surfaces are served from (`stable_resource_uris`,
-    /// `resource_templates`, `crate::server::tasks::TASK_TOOLS`), so the
-    /// declaration cannot silently diverge from what the handler registers.
-    pub(crate) fn capability_inventory() -> CapabilityInventory {
-        let mut tools: Vec<String> = Self::full_tool_router()
-            .list_all()
-            .into_iter()
-            .map(|tool| tool.name.into_owned())
-            .collect();
-        tools.sort();
-        let mut prompts: Vec<String> = MapPrompt::ALL
-            .into_iter()
-            .map(|prompt| prompt.definition().name)
-            .collect();
-        prompts.sort();
-        CapabilityInventory {
-            tools,
-            resources: stable_resource_uris(),
-            resource_templates: resource_templates()
-                .into_iter()
-                .map(|template| template.uri_template.clone())
-                .collect(),
-            prompts,
-            tasks: crate::server::tasks::TASK_TOOLS
-                .iter()
-                .map(|name| (*name).to_owned())
-                .collect(),
-        }
-    }
-
     #[tool(
         title = "Search map locations",
         description = "Find authorized named locations and facilities inside an explicit WGS84 bounding box.",
@@ -297,7 +264,6 @@ impl MapMcp {
         title = "Derive a governed raster product",
         description = "Run one bounded sample, terrain-corridor maximum, window, class-mask, contour, polygonize, skeletonize, or line-derivation operation against an immutable raster product. This operation requires durable task invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RasterDerivation>(),
-        execution(task_support = "required"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn derive_raster(
@@ -340,7 +306,10 @@ impl MapMcp {
             .subscriptions
             .notify_resource_updated(uris::SPATIAL_DERIVATIONS_URI)
             .await;
-        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
+        self.state
+            .subscriptions
+            .notify_resource_list_changed()
+            .await;
         structured_result(
             format!(
                 "derived {} spatial geometry product(s); valid: {}",
@@ -446,7 +415,6 @@ impl MapMcp {
         title = "Calculate logistics route",
         description = "Calculate a governed route for one versioned human or vehicle mobility profile through durable task invocation. The result pins releases, restrictions, a snapshot, costs, and validation state; unavailable coverage is never replaced by a straight line.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RoutePlan>(),
-        execution(task_support = "required"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn route(
@@ -464,7 +432,6 @@ impl MapMcp {
         title = "Calculate logistics route matrix",
         description = "Calculate a bounded many-to-many route matrix for one versioned mobility profile. Task-capable clients should invoke this as a durable task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RouteMatrix>(),
-        execution(task_support = "required"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn route_matrix(
@@ -482,7 +449,6 @@ impl MapMcp {
         title = "Build optimization travel model",
         description = "Build immutable square cost and transit-time matrices for up to 128 shared locations and multiple cuOpt vehicle types. Each vehicle type binds a versioned Map mobility profile; the implementation uses one governed Valhalla many-to-many request per requested vehicle type, preserves unreachable arcs, and publishes a canonical artifact manifest for Optimization MCP. This operation requires durable task invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<TravelModelRecord>(),
-        execution(task_support = "required"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn build_travel_model(
@@ -500,7 +466,6 @@ impl MapMcp {
         title = "Calculate land reachable area",
         description = "Calculate a governed Valhalla network isochrone for a human or road-vehicle profile. This operation requires durable task invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ReachableArea>(),
-        execution(task_support = "required"),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn reachable_area(
@@ -591,7 +556,10 @@ impl MapMcp {
             .subscriptions
             .notify_resource_updated(uris::RESTRICTIONS_URI)
             .await;
-        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
+        self.state
+            .subscriptions
+            .notify_resource_list_changed()
+            .await;
         structured_result("published restriction".to_owned(), &output)
     }
 
@@ -822,6 +790,12 @@ impl MapMcp {
 
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for MapMcp {
+    fn supported_protocol_versions(
+        &self,
+    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
+        veoveo_mcp_contract::final_protocol_versions()
+    }
+
     fn get_info(&self) -> ServerInfo {
         let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
@@ -832,6 +806,10 @@ impl ServerHandler for MapMcp {
             .enable_completions()
             .build();
         veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
+        capabilities.extensions.get_or_insert_default().insert(
+            rmcp::model::TASKS_EXTENSION_ID.to_owned(),
+            rmcp::model::JsonObject::new(),
+        );
         let mut info = ServerInfo::default();
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("map", env!("CARGO_PKG_VERSION"));
@@ -840,6 +818,71 @@ impl ServerHandler for MapMcp {
                 .to_owned(),
         );
         info
+    }
+
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        if context
+            .meta
+            .client_capabilities()
+            .is_some_and(|caps| caps.supports_tasks())
+        {
+            let caller = veoveo_task_runtime::DurableTaskService::authenticate(
+                &self.task_service,
+                &context,
+            )?;
+            if let Some(created) = veoveo_task_runtime::DurableTaskService::start_tool_task(
+                &self.task_service,
+                &caller,
+                request.clone(),
+            )
+            .await?
+            {
+                return Ok(created.into());
+            }
+        }
+        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        self.tool_router.call(call).await
+    }
+
+    async fn get_task(
+        &self,
+        request: GetTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<GetTaskResult, McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::get_task(&self.task_service, &caller, request)
+            .await
+    }
+
+    async fn update_task(
+        &self,
+        request: UpdateTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::update_task(&self.task_service, &caller, request)
+            .await
+    }
+
+    async fn cancel_task(
+        &self,
+        request: CancelTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::cancel_task(
+            &self.task_service,
+            &caller,
+            request.task_id,
+        )
+        .await
     }
 
     async fn list_tools(
@@ -880,6 +923,9 @@ impl ServerHandler for MapMcp {
         Ok(ListToolsResult {
             tools: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -899,15 +945,14 @@ impl ServerHandler for MapMcp {
                 None,
             ));
         }
-        self.state
-            .resource_observers
-            .observe(context.peer.clone())
-            .await;
         let resources = discoverable_resources(ResourceDiscoveryAccess::from_identity(&identity));
         let page = mcp_page(resources, request.as_ref())?;
         Ok(ListResourcesResult {
             resources: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -921,6 +966,9 @@ impl ServerHandler for MapMcp {
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -929,656 +977,673 @@ impl ServerHandler for MapMcp {
         &self,
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, McpError> {
-        let uri = request.uri.as_str();
-        // Well-known surface (contract C18, C19): readable by any identity
-        // that can list resources.
-        if uri == uris::DOCS_URI {
-            require_any_scope(&context, WELL_KNOWN_SCOPES)?;
-            return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
-        }
-        if let Some(doc_id) = uris::parse_doc(uri) {
-            require_any_scope(&context, WELL_KNOWN_SCOPES)?;
-            let doc = SERVER_DOCS
-                .doc(doc_id)
-                .ok_or_else(|| not_found("server document"))?;
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-            ]));
-        }
-        if uri == uris::CONTRACT_URI {
-            require_any_scope(&context, WELL_KNOWN_SCOPES)?;
-            return json_resource(
-                uri,
-                SERVER_DOCS.contract_declaration(Self::capability_inventory),
-            );
-        }
-        // Administration resources carry the admin scope, not dataset read.
-        if uri == uris::ADMIN_APP_URI {
-            require_scope(&context, "map:admin")?;
-            return Ok(ReadResourceResult::new(vec![
-                veoveo_mcp_apps_extension::app_html_contents(
-                    uri,
-                    include_str!("../assets/admin-app.html"),
-                ),
-            ]));
-        }
-        if uri == uris::EDITOR_APP_URI {
-            require_scope(&context, "map:feature:read")?;
-            return Ok(ReadResourceResult::new(vec![
-                veoveo_mcp_apps_extension::app_html_contents(
-                    uri,
-                    include_str!("../assets/editor-app.html"),
-                ),
-            ]));
-        }
-        if uri == uris::ACQUISITIONS_URI {
-            let identity = require_scope(&context, "map:admin")?;
-            let scope = self.state.scope(&identity).await.map_err(internal)?;
-            self.state
-                .acquisitions
-                .reconcile_interrupted(&scope)
-                .await
-                .map_err(internal)?;
-            let jobs = self
-                .state
-                .catalog
-                .list_acquisitions(&scope)
-                .await
-                .map_err(internal)?;
-            return json_resource(uri, &jobs);
-        }
-        if uri == uris::ACTIVE_RELEASES_URI {
-            let identity = require_scope(&context, "map:admin")?;
-            let scope = self.state.scope(&identity).await.map_err(internal)?;
-            let pointers = self
-                .state
-                .catalog
-                .list_active_releases(&scope)
-                .await
-                .map_err(internal)?;
-            return json_resource(uri, &pointers);
-        }
-        if let Some(value) = uris::parse_single(uri, "map://acquisition/") {
-            let identity = require_scope(&context, "map:admin")?;
-            let scope = self.state.scope(&identity).await.map_err(internal)?;
-            let id = AcquisitionId::parse(value).map_err(invalid_params)?;
-            let job = self
-                .state
-                .catalog
-                .acquisition(&scope, &id)
-                .await
-                .map_err(internal)?
-                .ok_or_else(|| not_found("acquisition"))?;
-            return json_resource(uri, &job);
-        }
-        if uri == uris::FEATURE_LAYERS_URI
-            || uri == uris::PUBLICATIONS_URI
-            || uri == uris::LAYER_PRODUCTS_URI
-            || uri == uris::COMPOSITIONS_URI
-            || uri.starts_with("map://feature-layer/")
-            || uri.starts_with("map://composition/")
-        {
-            let identity = require_scope(&context, "map:feature:read")?;
-            let scope = self.state.scope(&identity).await.map_err(internal)?;
-            if uri == uris::FEATURE_LAYERS_URI {
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .authoring
-                        .list_layers(&identity, &scope, false)
-                        .await
-                        .map_err(internal)?,
-                );
+    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
+        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
+        async {
+            let uri = request.uri.as_str();
+            // Well-known surface (contract C18, C19): readable by any identity
+            // that can list resources.
+            if uri == uris::DOCS_URI {
+                require_any_scope(&context, WELL_KNOWN_SCOPES)?;
+                return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
             }
-            if uri == uris::PUBLICATIONS_URI {
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .authoring
-                        .list_publications(&identity, &scope, None)
-                        .await
-                        .map_err(internal)?,
-                );
+            if let Some(doc_id) = uris::parse_doc(uri) {
+                require_any_scope(&context, WELL_KNOWN_SCOPES)?;
+                let doc = SERVER_DOCS
+                    .doc(doc_id)
+                    .ok_or_else(|| not_found("server document"))?;
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
+                ]));
             }
-            if uri == uris::LAYER_PRODUCTS_URI {
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .authoring
-                        .list_layer_products(&identity, &scope, None)
-                        .await
-                        .map_err(internal)?,
-                );
+            if uri == uris::CONTRACT_URI {
+                require_any_scope(&context, WELL_KNOWN_SCOPES)?;
+                return json_resource(uri, SERVER_DOCS.contract_declaration());
             }
-            if uri == uris::COMPOSITIONS_URI {
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .authoring
-                        .list_compositions(&identity, &scope, false)
-                        .await
-                        .map_err(internal)?,
-                );
+            // Administration resources carry the admin scope, not dataset read.
+            if uri == uris::ADMIN_APP_URI {
+                require_scope(&context, "map:admin")?;
+                return Ok(ReadResourceResult::new(vec![
+                    veoveo_mcp_apps_extension::app_html_contents(
+                        uri,
+                        include_str!("../assets/admin-app.html"),
+                    ),
+                ]));
             }
-            if let Some((composition, revision)) = uris::parse_composition_revision(uri) {
-                let composition_id: crate::contract::MapCompositionId =
-                    composition.parse().map_err(invalid_params)?;
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .authoring
-                        .composition_revision(&identity, &scope, &composition_id, revision)
-                        .await
-                        .map_err(internal)?
-                        .ok_or_else(|| not_found("map composition revision"))?,
-                );
+            if uri == uris::EDITOR_APP_URI {
+                require_scope(&context, "map:feature:read")?;
+                return Ok(ReadResourceResult::new(vec![
+                    veoveo_mcp_apps_extension::app_html_contents(
+                        uri,
+                        include_str!("../assets/editor-app.html"),
+                    ),
+                ]));
             }
-            if let Some(composition) = uris::parse_composition(uri) {
-                let composition_id: crate::contract::MapCompositionId =
-                    composition.parse().map_err(invalid_params)?;
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .authoring
-                        .composition(&identity, &scope, &composition_id)
-                        .await
-                        .map_err(internal)?
-                        .ok_or_else(|| not_found("map composition"))?,
-                );
-            }
-            if let Some(request) = uris::parse_features_request(uri).map_err(invalid_params)? {
-                let output = self
-                    .state
-                    .authoring
-                    .query_features(&identity, &scope, request)
-                    .await
-                    .map_err(invalid_params)?;
-                return json_resource(uri, &output);
-            }
-            if let Some((layer, feature, revision)) = uris::parse_feature_revision(uri) {
-                let layer_id: crate::contract::FeatureLayerId =
-                    layer.parse().map_err(invalid_params)?;
-                let feature_id: crate::contract::MapFeatureId =
-                    feature.parse().map_err(invalid_params)?;
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .authoring
-                        .feature_revision(&identity, &scope, &layer_id, &feature_id, revision)
-                        .await
-                        .map_err(internal)?
-                        .ok_or_else(|| not_found("feature revision"))?,
-                );
-            }
-            if let Some((layer, version)) = uris::parse_feature_schema(uri) {
-                let layer_id: crate::contract::FeatureLayerId =
-                    layer.parse().map_err(invalid_params)?;
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .authoring
-                        .schema_revision(&identity, &scope, &layer_id, version)
-                        .await
-                        .map_err(internal)?
-                        .ok_or_else(|| not_found("feature schema revision"))?,
-                );
-            }
-            if let Some((layer, version)) = uris::parse_feature_style(uri) {
-                let layer_id: crate::contract::FeatureLayerId =
-                    layer.parse().map_err(invalid_params)?;
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .authoring
-                        .style_revision(&identity, &scope, &layer_id, version)
-                        .await
-                        .map_err(internal)?
-                        .ok_or_else(|| not_found("feature style revision"))?,
-                );
-            }
-            if let Some((layer, feature)) = uris::parse_feature(uri) {
-                let layer_id: crate::contract::FeatureLayerId =
-                    layer.parse().map_err(invalid_params)?;
-                let feature_id: crate::contract::MapFeatureId =
-                    feature.parse().map_err(invalid_params)?;
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .authoring
-                        .feature(&identity, &scope, &layer_id, &feature_id)
-                        .await
-                        .map_err(internal)?
-                        .ok_or_else(|| not_found("feature"))?,
-                );
-            }
-            if let Some((layer, changeset)) = uris::parse_changeset(uri) {
-                let layer_id: crate::contract::FeatureLayerId =
-                    layer.parse().map_err(invalid_params)?;
-                let changeset_id: crate::contract::FeatureChangeSetId =
-                    changeset.parse().map_err(invalid_params)?;
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .authoring
-                        .changeset(&identity, &scope, &layer_id, &changeset_id)
-                        .await
-                        .map_err(internal)?
-                        .ok_or_else(|| not_found("feature changeset"))?,
-                );
-            }
-            if let Some((layer, publication)) = uris::parse_publication(uri) {
-                let layer_id: crate::contract::FeatureLayerId =
-                    layer.parse().map_err(invalid_params)?;
-                let publication_id: crate::contract::LayerPublicationId =
-                    publication.parse().map_err(invalid_params)?;
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .authoring
-                        .publication(&identity, &scope, &layer_id, &publication_id)
-                        .await
-                        .map_err(internal)?
-                        .ok_or_else(|| not_found("layer publication"))?,
-                );
-            }
-            if let Some((layer, publication, product)) = uris::parse_layer_product(uri) {
-                let layer_id: crate::contract::FeatureLayerId =
-                    layer.parse().map_err(invalid_params)?;
-                let publication_id: crate::contract::LayerPublicationId =
-                    publication.parse().map_err(invalid_params)?;
-                let product_id: crate::contract::LayerProductId =
-                    product.parse().map_err(invalid_params)?;
-                let product = self
-                    .state
-                    .authoring
-                    .layer_product(&identity, &scope, &product_id)
-                    .await
-                    .map_err(internal)?
-                    .filter(|product| {
-                        product.layer_id == layer_id && product.publication_id == publication_id
-                    })
-                    .ok_or_else(|| not_found("map layer product"))?;
-                return json_resource(uri, &product);
-            }
-            if let Some(layer) = uris::parse_feature_layer(uri) {
-                let layer_id: crate::contract::FeatureLayerId =
-                    layer.parse().map_err(invalid_params)?;
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .authoring
-                        .layer(&identity, &scope, &layer_id)
-                        .await
-                        .map_err(internal)?
-                        .ok_or_else(|| not_found("feature layer"))?,
-                );
-            }
-        }
-        if let Some(artifact_id) = uris::parse_artifact(uri) {
-            require_any_scope(&context, &["map:dataset:read", "map:feature:read"])?;
-            let artifact = self
-                .state
-                .artifacts
-                .get(&internal_caller(&context)?, &artifact_id)
-                .await
-                .map_err(internal)?
-                .ok_or_else(|| not_found("artifact"))?;
-            let content = ResourceContents::blob(BASE64_STANDARD.encode(&artifact.bytes), uri)
-                .with_mime_type(
-                    artifact
-                        .metadata
-                        .mime_type
-                        .unwrap_or_else(|| "application/octet-stream".to_owned()),
-                );
-            return Ok(ReadResourceResult::new(vec![content]));
-        }
-        let identity = require_scope(&context, "map:dataset:read")?;
-        let scope = self.state.scope(&identity).await.map_err(internal)?;
-        match uri {
-            uris::SOURCES_URI => {
-                let sources = self
-                    .state
-                    .catalog
-                    .list_sources(&scope)
+            if uri == uris::ACQUISITIONS_URI {
+                let identity = require_scope(&context, "map:admin")?;
+                let scope = self.state.scope(&identity).await.map_err(internal)?;
+                self.state
+                    .acquisitions
+                    .reconcile_interrupted(&scope)
                     .await
                     .map_err(internal)?;
-                return json_resource(uri, &sources.iter().map(public_source).collect::<Vec<_>>());
+                let jobs = self
+                    .state
+                    .catalog
+                    .list_acquisitions(&scope)
+                    .await
+                    .map_err(internal)?;
+                return json_resource(uri, &jobs);
             }
-            uris::DATASETS_URI => {
-                return json_resource(
-                    uri,
-                    &dataset_index(
-                        self.state
-                            .catalog
-                            .list_releases(&scope)
+            if uri == uris::ACTIVE_RELEASES_URI {
+                let identity = require_scope(&context, "map:admin")?;
+                let scope = self.state.scope(&identity).await.map_err(internal)?;
+                let pointers = self
+                    .state
+                    .catalog
+                    .list_active_releases(&scope)
+                    .await
+                    .map_err(internal)?;
+                return json_resource(uri, &pointers);
+            }
+            if let Some(value) = uris::parse_single(uri, "map://acquisition/") {
+                let identity = require_scope(&context, "map:admin")?;
+                let scope = self.state.scope(&identity).await.map_err(internal)?;
+                let id = AcquisitionId::parse(value).map_err(invalid_params)?;
+                let job = self
+                    .state
+                    .catalog
+                    .acquisition(&scope, &id)
+                    .await
+                    .map_err(internal)?
+                    .ok_or_else(|| not_found("acquisition"))?;
+                return json_resource(uri, &job);
+            }
+            if uri == uris::FEATURE_LAYERS_URI
+                || uri == uris::PUBLICATIONS_URI
+                || uri == uris::LAYER_PRODUCTS_URI
+                || uri == uris::COMPOSITIONS_URI
+                || uri.starts_with("map://feature-layer/")
+                || uri.starts_with("map://composition/")
+            {
+                let identity = require_scope(&context, "map:feature:read")?;
+                let scope = self.state.scope(&identity).await.map_err(internal)?;
+                if uri == uris::FEATURE_LAYERS_URI {
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .authoring
+                            .list_layers(&identity, &scope, false)
                             .await
                             .map_err(internal)?,
-                    ),
-                );
+                    );
+                }
+                if uri == uris::PUBLICATIONS_URI {
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .authoring
+                            .list_publications(&identity, &scope, None)
+                            .await
+                            .map_err(internal)?,
+                    );
+                }
+                if uri == uris::LAYER_PRODUCTS_URI {
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .authoring
+                            .list_layer_products(&identity, &scope, None)
+                            .await
+                            .map_err(internal)?,
+                    );
+                }
+                if uri == uris::COMPOSITIONS_URI {
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .authoring
+                            .list_compositions(&identity, &scope, false)
+                            .await
+                            .map_err(internal)?,
+                    );
+                }
+                if let Some((composition, revision)) = uris::parse_composition_revision(uri) {
+                    let composition_id: crate::contract::MapCompositionId =
+                        composition.parse().map_err(invalid_params)?;
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .authoring
+                            .composition_revision(&identity, &scope, &composition_id, revision)
+                            .await
+                            .map_err(internal)?
+                            .ok_or_else(|| not_found("map composition revision"))?,
+                    );
+                }
+                if let Some(composition) = uris::parse_composition(uri) {
+                    let composition_id: crate::contract::MapCompositionId =
+                        composition.parse().map_err(invalid_params)?;
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .authoring
+                            .composition(&identity, &scope, &composition_id)
+                            .await
+                            .map_err(internal)?
+                            .ok_or_else(|| not_found("map composition"))?,
+                    );
+                }
+                if let Some(request) = uris::parse_features_request(uri).map_err(invalid_params)? {
+                    let output = self
+                        .state
+                        .authoring
+                        .query_features(&identity, &scope, request)
+                        .await
+                        .map_err(invalid_params)?;
+                    return json_resource(uri, &output);
+                }
+                if let Some((layer, feature, revision)) = uris::parse_feature_revision(uri) {
+                    let layer_id: crate::contract::FeatureLayerId =
+                        layer.parse().map_err(invalid_params)?;
+                    let feature_id: crate::contract::MapFeatureId =
+                        feature.parse().map_err(invalid_params)?;
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .authoring
+                            .feature_revision(&identity, &scope, &layer_id, &feature_id, revision)
+                            .await
+                            .map_err(internal)?
+                            .ok_or_else(|| not_found("feature revision"))?,
+                    );
+                }
+                if let Some((layer, version)) = uris::parse_feature_schema(uri) {
+                    let layer_id: crate::contract::FeatureLayerId =
+                        layer.parse().map_err(invalid_params)?;
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .authoring
+                            .schema_revision(&identity, &scope, &layer_id, version)
+                            .await
+                            .map_err(internal)?
+                            .ok_or_else(|| not_found("feature schema revision"))?,
+                    );
+                }
+                if let Some((layer, version)) = uris::parse_feature_style(uri) {
+                    let layer_id: crate::contract::FeatureLayerId =
+                        layer.parse().map_err(invalid_params)?;
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .authoring
+                            .style_revision(&identity, &scope, &layer_id, version)
+                            .await
+                            .map_err(internal)?
+                            .ok_or_else(|| not_found("feature style revision"))?,
+                    );
+                }
+                if let Some((layer, feature)) = uris::parse_feature(uri) {
+                    let layer_id: crate::contract::FeatureLayerId =
+                        layer.parse().map_err(invalid_params)?;
+                    let feature_id: crate::contract::MapFeatureId =
+                        feature.parse().map_err(invalid_params)?;
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .authoring
+                            .feature(&identity, &scope, &layer_id, &feature_id)
+                            .await
+                            .map_err(internal)?
+                            .ok_or_else(|| not_found("feature"))?,
+                    );
+                }
+                if let Some((layer, changeset)) = uris::parse_changeset(uri) {
+                    let layer_id: crate::contract::FeatureLayerId =
+                        layer.parse().map_err(invalid_params)?;
+                    let changeset_id: crate::contract::FeatureChangeSetId =
+                        changeset.parse().map_err(invalid_params)?;
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .authoring
+                            .changeset(&identity, &scope, &layer_id, &changeset_id)
+                            .await
+                            .map_err(internal)?
+                            .ok_or_else(|| not_found("feature changeset"))?,
+                    );
+                }
+                if let Some((layer, publication)) = uris::parse_publication(uri) {
+                    let layer_id: crate::contract::FeatureLayerId =
+                        layer.parse().map_err(invalid_params)?;
+                    let publication_id: crate::contract::LayerPublicationId =
+                        publication.parse().map_err(invalid_params)?;
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .authoring
+                            .publication(&identity, &scope, &layer_id, &publication_id)
+                            .await
+                            .map_err(internal)?
+                            .ok_or_else(|| not_found("layer publication"))?,
+                    );
+                }
+                if let Some((layer, publication, product)) = uris::parse_layer_product(uri) {
+                    let layer_id: crate::contract::FeatureLayerId =
+                        layer.parse().map_err(invalid_params)?;
+                    let publication_id: crate::contract::LayerPublicationId =
+                        publication.parse().map_err(invalid_params)?;
+                    let product_id: crate::contract::LayerProductId =
+                        product.parse().map_err(invalid_params)?;
+                    let product = self
+                        .state
+                        .authoring
+                        .layer_product(&identity, &scope, &product_id)
+                        .await
+                        .map_err(internal)?
+                        .filter(|product| {
+                            product.layer_id == layer_id && product.publication_id == publication_id
+                        })
+                        .ok_or_else(|| not_found("map layer product"))?;
+                    return json_resource(uri, &product);
+                }
+                if let Some(layer) = uris::parse_feature_layer(uri) {
+                    let layer_id: crate::contract::FeatureLayerId =
+                        layer.parse().map_err(invalid_params)?;
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .authoring
+                            .layer(&identity, &scope, &layer_id)
+                            .await
+                            .map_err(internal)?
+                            .ok_or_else(|| not_found("feature layer"))?,
+                    );
+                }
             }
-            uris::LOCATIONS_URI => {
+            if let Some(artifact_id) = uris::parse_artifact(uri) {
+                require_any_scope(&context, &["map:dataset:read", "map:feature:read"])?;
+                let artifact = self
+                    .state
+                    .artifacts
+                    .get(&internal_caller(&context)?, &artifact_id)
+                    .await
+                    .map_err(internal)?
+                    .ok_or_else(|| not_found("artifact"))?;
+                let content = ResourceContents::blob(BASE64_STANDARD.encode(&artifact.bytes), uri)
+                    .with_mime_type(
+                        artifact
+                            .metadata
+                            .mime_type
+                            .unwrap_or_else(|| "application/octet-stream".to_owned()),
+                    );
+                return Ok(ReadResourceResult::new(vec![content]));
+            }
+            let identity = require_scope(&context, "map:dataset:read")?;
+            let scope = self.state.scope(&identity).await.map_err(internal)?;
+            match uri {
+                uris::SOURCES_URI => {
+                    let sources = self
+                        .state
+                        .catalog
+                        .list_sources(&scope)
+                        .await
+                        .map_err(internal)?;
+                    return json_resource(
+                        uri,
+                        &sources.iter().map(public_source).collect::<Vec<_>>(),
+                    );
+                }
+                uris::DATASETS_URI => {
+                    return json_resource(
+                        uri,
+                        &dataset_index(
+                            self.state
+                                .catalog
+                                .list_releases(&scope)
+                                .await
+                                .map_err(internal)?,
+                        ),
+                    );
+                }
+                uris::LOCATIONS_URI => {
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .analytics
+                            .list_locations(&scope.tenant_key(), 10_000)
+                            .map_err(internal)?,
+                    );
+                }
+                uris::FACILITIES_URI => {
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .analytics
+                            .list_facilities(&scope.tenant_key(), 10_000)
+                            .map_err(internal)?,
+                    );
+                }
+                uris::MOBILITY_PROFILES_URI => {
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .catalog
+                            .list_mobility_profiles(&scope)
+                            .await
+                            .map_err(internal)?,
+                    );
+                }
+                uris::RESTRICTIONS_URI => {
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .catalog
+                            .list_restrictions(&scope)
+                            .await
+                            .map_err(internal)?,
+                    );
+                }
+                uris::ROUTES_URI => {
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .catalog
+                            .list_routes(&scope)
+                            .await
+                            .map_err(internal)?,
+                    );
+                }
+                uris::MATRICES_URI => {
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .catalog
+                            .list_matrices(&scope)
+                            .await
+                            .map_err(internal)?,
+                    );
+                }
+                uris::TRAVEL_MODELS_URI => {
+                    return json_resource(
+                        uri,
+                        &crate::server::tasks::visible_travel_models(
+                            self.state.as_ref(),
+                            &identity,
+                        )
+                        .await
+                        .map_err(internal)?,
+                    );
+                }
+                uris::RASTERS_URI => {
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .analytics
+                            .list_raster_products(&scope.tenant_key(), None, 10_000)
+                            .map_err(internal)?,
+                    );
+                }
+                uris::RASTER_DERIVATIONS_URI => {
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .analytics
+                            .list_raster_derivations(
+                                &scope.tenant_key(),
+                                &identity.authority.work_context,
+                                10_000,
+                            )
+                            .map_err(internal)?,
+                    );
+                }
+                uris::SPATIAL_DERIVATIONS_URI => {
+                    if !identity_has_scope(&identity, "map:spatial:derive") {
+                        return Err(McpError::invalid_request(
+                            "scope `map:spatial:derive` is required",
+                            None,
+                        ));
+                    }
+                    return json_resource(
+                        uri,
+                        &self
+                            .state
+                            .analytics
+                            .list_spatial_derivations(
+                                &scope.tenant_key(),
+                                &identity.authority.work_context,
+                                10_000,
+                            )
+                            .map_err(internal)?,
+                    );
+                }
+                _ => {}
+            }
+            if let Some(value) = uris::parse_single(uri, "map://source/") {
+                let id = MapSourceId::parse(value).map_err(invalid_params)?;
+                let source = self
+                    .state
+                    .catalog
+                    .source(&scope, &id)
+                    .await
+                    .map_err(internal)?
+                    .ok_or_else(|| not_found("source"))?;
+                return json_resource(uri, &public_source(&source));
+            }
+            if let Some((dataset, release)) = uris::parse_release(uri) {
+                let dataset_id = MapDatasetId::parse(dataset).map_err(invalid_params)?;
+                let release_id = DatasetReleaseId::parse(release).map_err(invalid_params)?;
+                let release = self
+                    .state
+                    .catalog
+                    .release(&scope, &release_id)
+                    .await
+                    .map_err(internal)?
+                    .filter(|release| release.dataset_id == dataset_id)
+                    .ok_or_else(|| not_found("release"))?;
+                return json_resource(uri, &release);
+            }
+            if let Some((release, feature)) = uris::parse_source_feature(uri) {
+                let release_id = DatasetReleaseId::parse(release).map_err(invalid_params)?;
+                let feature_id = SourceFeatureId::parse(feature).map_err(invalid_params)?;
+                self.state
+                    .catalog
+                    .release(&scope, &release_id)
+                    .await
+                    .map_err(internal)?
+                    .ok_or_else(|| not_found("dataset release"))?;
                 return json_resource(
                     uri,
                     &self
                         .state
                         .analytics
-                        .list_locations(&scope.tenant_key(), 10_000)
-                        .map_err(internal)?,
+                        .source_feature(&scope.tenant_key(), &release_id, &feature_id)
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("source feature"))?,
                 );
             }
-            uris::FACILITIES_URI => {
+            if let Some(value) = uris::parse_single(uri, "map://dataset/") {
+                let id = MapDatasetId::parse(value).map_err(invalid_params)?;
+                let releases = self
+                    .state
+                    .catalog
+                    .list_releases(&scope)
+                    .await
+                    .map_err(internal)?
+                    .into_iter()
+                    .filter(|release| release.dataset_id == id)
+                    .collect::<Vec<_>>();
+                if releases.is_empty() {
+                    return Err(not_found("dataset"));
+                }
+                return json_resource(uri, &releases);
+            }
+            if let Some(value) = uris::parse_single(uri, "map://location/") {
+                let id = LocationId::parse(value).map_err(invalid_params)?;
                 return json_resource(
                     uri,
                     &self
                         .state
                         .analytics
-                        .list_facilities(&scope.tenant_key(), 10_000)
-                        .map_err(internal)?,
+                        .location(&scope.tenant_key(), &id)
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("location"))?,
                 );
             }
-            uris::MOBILITY_PROFILES_URI => {
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .catalog
-                        .list_mobility_profiles(&scope)
-                        .await
-                        .map_err(internal)?,
-                );
-            }
-            uris::RESTRICTIONS_URI => {
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .catalog
-                        .list_restrictions(&scope)
-                        .await
-                        .map_err(internal)?,
-                );
-            }
-            uris::ROUTES_URI => {
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .catalog
-                        .list_routes(&scope)
-                        .await
-                        .map_err(internal)?,
-                );
-            }
-            uris::MATRICES_URI => {
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .catalog
-                        .list_matrices(&scope)
-                        .await
-                        .map_err(internal)?,
-                );
-            }
-            uris::TRAVEL_MODELS_URI => {
-                return json_resource(
-                    uri,
-                    &crate::server::tasks::visible_travel_models(self.state.as_ref(), &identity)
-                        .await
-                        .map_err(internal)?,
-                );
-            }
-            uris::RASTERS_URI => {
+            if let Some(value) = uris::parse_single(uri, "map://facility/") {
+                let id = FacilityId::parse(value).map_err(invalid_params)?;
                 return json_resource(
                     uri,
                     &self
                         .state
                         .analytics
-                        .list_raster_products(&scope.tenant_key(), None, 10_000)
-                        .map_err(internal)?,
+                        .facility(&scope.tenant_key(), &id)
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("facility"))?,
                 );
             }
-            uris::RASTER_DERIVATIONS_URI => {
+            if let Some(value) = uris::parse_single(uri, "map://raster/") {
+                let id = RasterProductId::parse(value).map_err(invalid_params)?;
                 return json_resource(
                     uri,
                     &self
                         .state
                         .analytics
-                        .list_raster_derivations(
+                        .raster_product(&scope.tenant_key(), &id)
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("raster product"))?,
+                );
+            }
+            if let Some(value) = uris::parse_single(uri, "map://raster-derivation/") {
+                let id = RasterDerivationId::parse(value).map_err(invalid_params)?;
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .analytics
+                        .raster_derivation(
                             &scope.tenant_key(),
                             &identity.authority.work_context,
-                            10_000,
+                            &id,
                         )
-                        .map_err(internal)?,
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("raster derivation"))?,
                 );
             }
-            uris::SPATIAL_DERIVATIONS_URI => {
+            if let Some(value) = uris::parse_single(uri, "map://spatial-derivation/") {
                 if !identity_has_scope(&identity, "map:spatial:derive") {
                     return Err(McpError::invalid_request(
                         "scope `map:spatial:derive` is required",
                         None,
                     ));
                 }
+                let id = SpatialDerivationId::parse(value).map_err(invalid_params)?;
                 return json_resource(
                     uri,
                     &self
                         .state
                         .analytics
-                        .list_spatial_derivations(
+                        .spatial_derivation(
                             &scope.tenant_key(),
                             &identity.authority.work_context,
-                            10_000,
+                            &id,
                         )
-                        .map_err(internal)?,
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("spatial derivation"))?,
                 );
             }
-            _ => {}
-        }
-        if let Some(value) = uris::parse_single(uri, "map://source/") {
-            let id = MapSourceId::parse(value).map_err(invalid_params)?;
-            let source = self
-                .state
-                .catalog
-                .source(&scope, &id)
-                .await
-                .map_err(internal)?
-                .ok_or_else(|| not_found("source"))?;
-            return json_resource(uri, &public_source(&source));
-        }
-        if let Some((dataset, release)) = uris::parse_release(uri) {
-            let dataset_id = MapDatasetId::parse(dataset).map_err(invalid_params)?;
-            let release_id = DatasetReleaseId::parse(release).map_err(invalid_params)?;
-            let release = self
-                .state
-                .catalog
-                .release(&scope, &release_id)
-                .await
-                .map_err(internal)?
-                .filter(|release| release.dataset_id == dataset_id)
-                .ok_or_else(|| not_found("release"))?;
-            return json_resource(uri, &release);
-        }
-        if let Some((release, feature)) = uris::parse_source_feature(uri) {
-            let release_id = DatasetReleaseId::parse(release).map_err(invalid_params)?;
-            let feature_id = SourceFeatureId::parse(feature).map_err(invalid_params)?;
-            self.state
-                .catalog
-                .release(&scope, &release_id)
-                .await
-                .map_err(internal)?
-                .ok_or_else(|| not_found("dataset release"))?;
-            return json_resource(
-                uri,
-                &self
-                    .state
-                    .analytics
-                    .source_feature(&scope.tenant_key(), &release_id, &feature_id)
-                    .map_err(internal)?
-                    .ok_or_else(|| not_found("source feature"))?,
-            );
-        }
-        if let Some(value) = uris::parse_single(uri, "map://dataset/") {
-            let id = MapDatasetId::parse(value).map_err(invalid_params)?;
-            let releases = self
-                .state
-                .catalog
-                .list_releases(&scope)
-                .await
-                .map_err(internal)?
-                .into_iter()
-                .filter(|release| release.dataset_id == id)
-                .collect::<Vec<_>>();
-            if releases.is_empty() {
-                return Err(not_found("dataset"));
+            if let Some((value, version)) = uris::parse_profile(uri) {
+                let id = MobilityProfileId::parse(value).map_err(invalid_params)?;
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .catalog
+                        .mobility_profile(&scope, &id, version)
+                        .await
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("mobility profile"))?,
+                );
             }
-            return json_resource(uri, &releases);
-        }
-        if let Some(value) = uris::parse_single(uri, "map://location/") {
-            let id = LocationId::parse(value).map_err(invalid_params)?;
-            return json_resource(
-                uri,
-                &self
-                    .state
-                    .analytics
-                    .location(&scope.tenant_key(), &id)
-                    .map_err(internal)?
-                    .ok_or_else(|| not_found("location"))?,
-            );
-        }
-        if let Some(value) = uris::parse_single(uri, "map://facility/") {
-            let id = FacilityId::parse(value).map_err(invalid_params)?;
-            return json_resource(
-                uri,
-                &self
-                    .state
-                    .analytics
-                    .facility(&scope.tenant_key(), &id)
-                    .map_err(internal)?
-                    .ok_or_else(|| not_found("facility"))?,
-            );
-        }
-        if let Some(value) = uris::parse_single(uri, "map://raster/") {
-            let id = RasterProductId::parse(value).map_err(invalid_params)?;
-            return json_resource(
-                uri,
-                &self
-                    .state
-                    .analytics
-                    .raster_product(&scope.tenant_key(), &id)
-                    .map_err(internal)?
-                    .ok_or_else(|| not_found("raster product"))?,
-            );
-        }
-        if let Some(value) = uris::parse_single(uri, "map://raster-derivation/") {
-            let id = RasterDerivationId::parse(value).map_err(invalid_params)?;
-            return json_resource(
-                uri,
-                &self
-                    .state
-                    .analytics
-                    .raster_derivation(&scope.tenant_key(), &identity.authority.work_context, &id)
-                    .map_err(internal)?
-                    .ok_or_else(|| not_found("raster derivation"))?,
-            );
-        }
-        if let Some(value) = uris::parse_single(uri, "map://spatial-derivation/") {
-            if !identity_has_scope(&identity, "map:spatial:derive") {
-                return Err(McpError::invalid_request(
-                    "scope `map:spatial:derive` is required",
-                    None,
-                ));
+            if let Some(value) = uris::parse_single(uri, "map://restriction/") {
+                let id = RestrictionId::parse(value).map_err(invalid_params)?;
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .catalog
+                        .restriction(&scope, &id)
+                        .await
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("restriction"))?,
+                );
             }
-            let id = SpatialDerivationId::parse(value).map_err(invalid_params)?;
-            return json_resource(
-                uri,
-                &self
-                    .state
-                    .analytics
-                    .spatial_derivation(&scope.tenant_key(), &identity.authority.work_context, &id)
-                    .map_err(internal)?
-                    .ok_or_else(|| not_found("spatial derivation"))?,
-            );
+            if let Some(value) = uris::parse_single(uri, "map://route/") {
+                let id = RouteId::parse(value).map_err(invalid_params)?;
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .catalog
+                        .route(&scope, &id)
+                        .await
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("route"))?,
+                );
+            }
+            if let Some(value) = uris::parse_single(uri, "map://matrix/") {
+                let id = RouteMatrixId::parse(value).map_err(invalid_params)?;
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .catalog
+                        .matrix(&scope, &id)
+                        .await
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("matrix"))?,
+                );
+            }
+            if let Some(value) = uris::parse_single(uri, "map://travel-model/") {
+                let id = TravelModelId::parse(value).map_err(invalid_params)?;
+                let model =
+                    crate::server::tasks::visible_travel_models(self.state.as_ref(), &identity)
+                        .await
+                        .map_err(internal)?
+                        .into_iter()
+                        .find(|model| model.travel_model_id == id)
+                        .ok_or_else(|| not_found("travel model"))?;
+                return json_resource(uri, &model);
+            }
+            Err(McpError::resource_not_found(
+                format!("unknown Map resource `{uri}`"),
+                None,
+            ))
         }
-        if let Some((value, version)) = uris::parse_profile(uri) {
-            let id = MobilityProfileId::parse(value).map_err(invalid_params)?;
-            return json_resource(
-                uri,
-                &self
-                    .state
-                    .catalog
-                    .mobility_profile(&scope, &id, version)
-                    .await
-                    .map_err(internal)?
-                    .ok_or_else(|| not_found("mobility profile"))?,
-            );
-        }
-        if let Some(value) = uris::parse_single(uri, "map://restriction/") {
-            let id = RestrictionId::parse(value).map_err(invalid_params)?;
-            return json_resource(
-                uri,
-                &self
-                    .state
-                    .catalog
-                    .restriction(&scope, &id)
-                    .await
-                    .map_err(internal)?
-                    .ok_or_else(|| not_found("restriction"))?,
-            );
-        }
-        if let Some(value) = uris::parse_single(uri, "map://route/") {
-            let id = RouteId::parse(value).map_err(invalid_params)?;
-            return json_resource(
-                uri,
-                &self
-                    .state
-                    .catalog
-                    .route(&scope, &id)
-                    .await
-                    .map_err(internal)?
-                    .ok_or_else(|| not_found("route"))?,
-            );
-        }
-        if let Some(value) = uris::parse_single(uri, "map://matrix/") {
-            let id = RouteMatrixId::parse(value).map_err(invalid_params)?;
-            return json_resource(
-                uri,
-                &self
-                    .state
-                    .catalog
-                    .matrix(&scope, &id)
-                    .await
-                    .map_err(internal)?
-                    .ok_or_else(|| not_found("matrix"))?,
-            );
-        }
-        if let Some(value) = uris::parse_single(uri, "map://travel-model/") {
-            let id = TravelModelId::parse(value).map_err(invalid_params)?;
-            let model = crate::server::tasks::visible_travel_models(self.state.as_ref(), &identity)
-                .await
-                .map_err(internal)?
-                .into_iter()
-                .find(|model| model.travel_model_id == id)
-                .ok_or_else(|| not_found("travel model"))?;
-            return json_resource(uri, &model);
-        }
-        Err(McpError::resource_not_found(
-            format!("unknown Map resource `{uri}`"),
-            None,
-        ))
+        .await
+        .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
     }
 
     async fn list_prompts(
@@ -1594,6 +1659,9 @@ impl ServerHandler for MapMcp {
         Ok(ListPromptsResult {
             prompts: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -1602,10 +1670,14 @@ impl ServerHandler for MapMcp {
         &self,
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<GetPromptResult, McpError> {
-        MapPrompt::by_name(&request.name)
-            .ok_or_else(|| McpError::invalid_params("unknown Map prompt", None))?
-            .render(request.arguments)
+    ) -> Result<rmcp::model::GetPromptResponse, McpError> {
+        async {
+            MapPrompt::by_name(&request.name)
+                .ok_or_else(|| McpError::invalid_params("unknown Map prompt", None))?
+                .render(request.arguments)
+        }
+        .await
+        .map(Into::into)
     }
 
     async fn complete(
@@ -1651,50 +1723,35 @@ impl ServerHandler for MapMcp {
         ))
     }
 
-    async fn subscribe(
+    fn accepted_subscription_filter(
         &self,
-        request: SubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        if !is_subscribable(&request.uri) {
-            return Err(McpError::invalid_params(
-                "resource is immutable or not subscribable",
-                None,
-            ));
-        }
-        let identity = if is_feature_subscribable(&request.uri) {
-            require_scope(&context, "map:feature:read")?
-        } else {
-            require_scope(&context, "map:dataset:read")?
-        };
-        self.state
-            .subscriptions
-            .subscribe(request.uri, identity.actor.id, context.peer.clone())
-            .await;
-        Ok(())
+        requested: &SubscriptionFilter,
+    ) -> Option<SubscriptionFilter> {
+        veoveo_mcp_contract::accepted_subscription_filter(requested)
     }
 
-    async fn unsubscribe(
-        &self,
-        request: UnsubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        if !is_subscribable(&request.uri) {
-            return Err(McpError::invalid_params(
-                "resource is immutable or not subscribable",
-                None,
-            ));
+    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
+        let request_context = context.request_context().clone();
+        for uri in context.accepted().resource_subscriptions.iter().flatten() {
+            if !is_subscribable(uri) {
+                return Err(McpError::invalid_params(
+                    "resource is immutable or not subscribable",
+                    None,
+                ));
+            }
+            if is_feature_subscribable(uri) {
+                require_scope(&request_context, "map:feature:read")?;
+            } else {
+                require_scope(&request_context, "map:dataset:read")?;
+            }
         }
-        let identity = if is_feature_subscribable(&request.uri) {
-            require_scope(&context, "map:feature:read")?
-        } else {
-            require_scope(&context, "map:dataset:read")?
-        };
-        self.state
-            .subscriptions
-            .unsubscribe(&request.uri, &identity.actor.id)
-            .await;
-        Ok(())
+        veoveo_task_runtime::listen_durable_subscriptions(
+            &self.task_service,
+            context,
+            Some(self.state.subscriptions.as_ref()),
+            Some(self.state.resource_observers.as_ref()),
+        )
+        .await
     }
 }
 
@@ -2070,13 +2127,7 @@ fn well_known_resources() -> Vec<Resource> {
     resources
 }
 
-/// Stable resource URIs declared in the `map://contract` capability
-/// inventory: the well-known surface, the app views, and the index resources
-/// `list_resources` always serves. Per-entity resources are enumerated per
-/// identity at list time and are covered by the resource templates instead.
-/// Constructed beside `list_resources`; when a stable resource is added or
-/// removed there, update this list in the same change so the served
-/// declaration cannot silently diverge.
+#[cfg(test)]
 fn stable_resource_uris() -> Vec<String> {
     let mut resource_uris: Vec<String> = well_known_resources()
         .into_iter()
@@ -2380,8 +2431,7 @@ mod well_known_tests {
     };
 
     use super::{
-        MapMcp, ResourceDiscoveryAccess, SERVER_DOCS, discoverable_resources, resource_templates,
-        stable_resource_uris,
+        ResourceDiscoveryAccess, SERVER_DOCS, discoverable_resources, stable_resource_uris,
     };
     use crate::uris;
 
@@ -2399,10 +2449,7 @@ mod well_known_tests {
 
     #[test]
     fn contract_declaration_resolves_from_the_embedded_manual() {
-        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(
-            &SERVER_DOCS,
-            MapMcp::capability_inventory(),
-        );
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
         assert_eq!(declaration.server, "map");
         assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
         for id in ["C17", "C18", "C19", "C20", "C21"] {
@@ -2418,71 +2465,10 @@ mod well_known_tests {
     }
 
     #[test]
-    fn capability_inventory_matches_the_registered_surface() {
-        let inventory = MapMcp::capability_inventory();
-        for tool in [
-            "search_locations",
-            "list_active_dataset_releases",
-            "route",
-            "commit_feature_changes",
-        ] {
-            assert!(
-                inventory.tools.iter().any(|name| name == tool),
-                "inventory is missing tool {tool}"
-            );
-        }
-        for uri in [
-            uris::DOCS_URI,
-            uris::CONTRACT_URI,
-            uris::ADMIN_APP_URI,
-            uris::EDITOR_APP_URI,
-            uris::DATASETS_URI,
-        ] {
-            assert!(
-                inventory.resources.contains(&uri.to_owned()),
-                "inventory is missing resource {uri}"
-            );
-        }
-        assert!(inventory.resources.contains(&uris::doc_uri("agents")));
-        assert_eq!(
-            stable_resource_uris().len(),
-            inventory.resources.len(),
-            "inventory resources come from stable_resource_uris"
-        );
-        assert!(
-            inventory
-                .resource_templates
-                .contains(&uris::DOC_TEMPLATE.to_owned())
-        );
-        assert_eq!(
-            resource_templates().len(),
-            inventory.resource_templates.len()
-        );
-        assert!(
-            inventory
-                .prompts
-                .iter()
-                .any(|name| name == "prepare_route_request")
-        );
-        assert_eq!(
-            inventory.tasks,
-            [
-                "route",
-                "route_matrix",
-                "build_travel_model",
-                "reachable_area",
-                "import_feature_layer",
-                "export_feature_layer",
-                "build_vector_tiles",
-                "derive_raster",
-            ]
-        );
-        for task in &inventory.tasks {
-            assert!(
-                inventory.tools.contains(task),
-                "task-augmented tool {task} must also be a registered tool"
-            );
-        }
+    fn contract_declaration_defers_runtime_surface_to_discover() {
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
+        let json = serde_json::to_value(declaration).unwrap();
+        assert!(json.get("capabilities").is_none());
     }
 
     #[test]

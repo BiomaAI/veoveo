@@ -6,9 +6,10 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use surrealdb::types::{RecordId, RecordIdKey};
 use uuid::Uuid;
+use veoveo_mcp_contract::CanonicalTaskId;
 use veoveo_platform_store::{
-    AgentElicitationId, AgentElicitationState, AgentEpisodeId, AgentEpisodeState, AgentTaskId,
-    InvocationAuthorityRecord, OpenObject, TaskId, WakeId, WakeKind,
+    AgentEpisodeId, AgentEpisodeState, AgentInputRequestId, AgentInputRequestState, AgentTaskId,
+    InvocationAuthorityRecord, OpenObject, WakeId, WakeKind,
 };
 use veoveo_task_runtime::TaskRetentionPin;
 
@@ -113,7 +114,7 @@ pub struct EpisodeCompletion {
 
 #[derive(Clone, Debug)]
 pub struct NewAgentTask {
-    pub task_id: TaskId,
+    pub task_id: CanonicalTaskId,
     pub tool_name: String,
     pub descriptor: OpenObject,
     pub descriptor_complete: bool,
@@ -124,7 +125,7 @@ pub struct NewAgentTask {
 #[derive(Clone, Debug)]
 pub struct ClaimedAgentTask {
     pub agent_task_id: AgentTaskId,
-    pub task_id: TaskId,
+    pub task_id: CanonicalTaskId,
     pub tool_name: String,
     pub descriptor: OpenObject,
     pub descriptor_complete: bool,
@@ -133,31 +134,31 @@ pub struct ClaimedAgentTask {
 
 #[derive(Clone, Debug)]
 pub struct AgentTaskResult {
-    pub task_id: TaskId,
+    pub task_id: CanonicalTaskId,
     pub tool_name: String,
     pub result: OpenObject,
     pub is_error: bool,
 }
 
 #[derive(Clone, Debug)]
-pub struct NewElicitation {
-    pub elicitation_id: AgentElicitationId,
-    pub related_task: Option<TaskId>,
+pub struct NewInputRequest {
+    pub input_request_id: AgentInputRequestId,
+    pub related_task: Option<CanonicalTaskId>,
     pub message: String,
     pub requested_schema: Option<OpenObject>,
 }
 
 #[derive(Clone, Debug)]
-pub struct ParkedElicitation {
-    pub elicitation_id: AgentElicitationId,
-    pub related_task: Option<TaskId>,
+pub struct PendingInputRequest {
+    pub input_request_id: AgentInputRequestId,
+    pub related_task: Option<CanonicalTaskId>,
     pub message: String,
     pub requested_schema: Option<OpenObject>,
 }
 
 #[derive(Clone, Debug)]
-pub struct ElicitationAnswer {
-    pub state: AgentElicitationState,
+pub struct InputRequestAnswer {
+    pub state: AgentInputRequestState,
     pub answer: Option<OpenObject>,
     pub answered_by: String,
 }
@@ -228,10 +229,6 @@ pub(crate) fn uuid_from_record(record: &RecordId, entity: &'static str) -> Resul
         field: entity,
         reason: error.to_string(),
     })
-}
-
-pub(crate) fn task_id_from_record(record: &RecordId) -> Result<TaskId> {
-    Ok(TaskId::from_uuid(uuid_from_record(record, "task.id")?))
 }
 
 pub(crate) fn checked_i64(value: u64, field: &'static str) -> Result<i64> {

@@ -40,8 +40,8 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
     .await?;
     let token_a = issue_view_token("view-smoke-a")?;
     let token_b = issue_view_token("view-smoke-b")?;
-    let session_a = connect_mcp_session(&format!("{}/view/mcp", running.base), &token_a).await?;
-    let session_b = connect_mcp_session(&format!("{}/view/mcp", running.base), &token_b).await?;
+    let session_a = connect_mcp_client(&format!("{}/view/mcp", running.base), &token_a).await?;
+    let session_b = connect_mcp_client(&format!("{}/view/mcp", running.base), &token_b).await?;
     let tools = session_a.list_tools(Default::default()).await?;
     for name in [
         "create_scene_composition",
@@ -251,7 +251,7 @@ pub(crate) async fn view_google_live(view_image: &str, output: &Path) -> Result<
     let platform = spawn_platform_store_smoke().await?;
     let running = start_view_container(view_image, &catalog, None, &platform, true).await?;
     let token = issue_view_token("view-google-live")?;
-    let session = connect_mcp_session(&format!("{}/view/mcp", running.base), &token).await?;
+    let session = connect_mcp_client(&format!("{}/view/mcp", running.base), &token).await?;
     let composition = create_composition(&session, GOOGLE_LAYER, false).await?;
     let view = call_structured(
         &session,
@@ -457,7 +457,7 @@ fn inspect_view_image(image: &str) -> Result<()> {
     Ok(())
 }
 
-async fn call_structured(session: &SmokeMcpSession, name: &str, arguments: Value) -> Result<Value> {
+async fn call_structured(session: &SmokeMcpClient, name: &str, arguments: Value) -> Result<Value> {
     let arguments = arguments
         .as_object()
         .cloned()
@@ -476,7 +476,7 @@ async fn call_structured(session: &SmokeMcpSession, name: &str, arguments: Value
 }
 
 async fn read_blob_resource(
-    session: &SmokeMcpSession,
+    session: &SmokeMcpClient,
     uri: &str,
     expected_mime: &str,
 ) -> Result<Vec<u8>> {
@@ -497,7 +497,7 @@ async fn read_blob_resource(
     Ok(STANDARD.decode(blob)?)
 }
 
-async fn assert_preview_app_resource(session: &SmokeMcpSession) -> Result<()> {
+async fn assert_preview_app_resource(session: &SmokeMcpClient) -> Result<()> {
     let result = session
         .read_resource(ReadResourceRequestParams::new("ui://view/preview.html"))
         .await?;
@@ -615,7 +615,7 @@ fn capture_request(view_id: &str, revision: u64, google: bool) -> Value {
 }
 
 async fn create_composition(
-    session: &SmokeMcpSession,
+    session: &SmokeMcpClient,
     base_layer: &str,
     with_overlays: bool,
 ) -> Result<Value> {

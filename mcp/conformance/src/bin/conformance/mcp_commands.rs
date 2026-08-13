@@ -2,11 +2,8 @@ use std::collections::BTreeSet;
 
 use anyhow::{bail, ensure};
 
-use super::client::{Client, FinalTaskClient};
+use super::client::Client;
 use super::*;
-use veoveo_mcp_task_extension::{
-    DetailedTask, RequestMeta as FinalRequestMeta, TaskStatus as FinalTaskStatus, ToolCallParams,
-};
 
 pub(super) async fn read_resource_json(client: &Client, uri: &str) -> Result<Value> {
     let (text, _) = read_resource_text(client, uri).await?;
@@ -50,10 +47,11 @@ pub(super) async fn cmd_info(client: &Client) -> Result<()> {
     let info = client
         .peer_info()
         .ok_or_else(|| anyhow!("no server info"))?;
-    println!(
-        "server: {} v{}",
-        info.server_info.name, info.server_info.version
-    );
+    let server = info
+        .server_info
+        .as_ref()
+        .ok_or_else(|| anyhow!("Discover omitted serverInfo"))?;
+    println!("server: {} v{}", server.name, server.version);
     println!("protocol: {}", info.protocol_version);
     println!(
         "capabilities: {}",
@@ -66,11 +64,7 @@ pub(super) async fn cmd_info(client: &Client) -> Result<()> {
     validate_tool_schemas(&tools.tools)?;
     println!("schema compatibility: {} tool(s) valid", tools.tools.len());
     for tool in tools.tools {
-        println!(
-            "\ntool `{}` (task support: {:?})",
-            tool.name,
-            tool.execution.as_ref().map(|e| &e.task_support)
-        );
+        println!("\ntool `{}`", tool.name);
         if let Some(annotations) = &tool.annotations {
             println!("  annotations: {}", serde_json::to_string(annotations)?);
         }
@@ -514,67 +508,14 @@ pub(super) async fn cmd_call(
         return Ok(());
     }
 
-    let params = CallToolRequestParams::new(tool_name)
-        .with_arguments(arguments)
-        .with_task(TaskMetadata::new().with_ttl(3_600_000));
-    let created = client
-        .send_request(ClientRequest::CallToolRequest(Request::new(params)))
-        .await?;
-    let ServerResult::CreateTaskResult(created) = created else {
-        return Err(anyhow!("expected CreateTaskResult, got {created:?}"));
-    };
-    let task_id = created.task.task_id.clone();
-    println!("task {task_id} created (status {:?})", created.task.status);
-
-    let poll_ms = created.task.poll_interval.unwrap_or(3000);
-    let final_task = loop {
-        tokio::time::sleep(Duration::from_millis(poll_ms)).await;
-        let info = client
-            .send_request(ClientRequest::GetTaskRequest(Request::new(
-                GetTaskParams::new(task_id.clone()),
-            )))
-            .await?;
-        let ServerResult::GetTaskResult(info) = info else {
-            return Err(anyhow!("expected GetTaskResult, got {info:?}"));
-        };
-        println!(
-            "poll: {:?} — {}",
-            info.task.status,
-            info.task.status_message.as_deref().unwrap_or_default()
-        );
-        match info.task.status {
-            TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Cancelled => {
-                break info.task;
-            }
-            _ => {}
-        }
-    };
-    if final_task.status != TaskStatus::Completed {
-        let err = client
-            .send_request(ClientRequest::GetTaskPayloadRequest(Request::new(
-                GetTaskPayloadParams::new(task_id.clone()),
-            )))
-            .await
-            .err()
-            .map(|e| e.to_string())
-            .unwrap_or_else(|| "unknown error".into());
-        return Err(anyhow!("task ended {:?}: {err}", final_task.status));
-    }
-
-    let payload = client
-        .send_request(ClientRequest::GetTaskPayloadRequest(Request::new(
-            GetTaskPayloadParams::new(task_id.clone()),
-        )))
-        .await?;
-    let ServerResult::CallToolResult(result) = payload else {
-        return Err(anyhow!("expected CallToolResult payload, got {payload:?}"));
-    };
+    let created = start_task(client, tool_name, arguments).await?;
+    let result = await_task(client, created, Duration::from_secs(3_600)).await?;
     print_call_tool_result(&result);
     Ok(())
 }
 
 pub(super) async fn cmd_task_call(
-    final_tasks: &FinalTaskClient,
+    client: &Client,
     tool_name: String,
     arguments: String,
     timeout: Duration,
@@ -583,14 +524,37 @@ pub(super) async fn cmd_task_call(
         .as_object()
         .cloned()
         .ok_or_else(|| anyhow!("tool arguments must be a JSON object"))?;
-    let created = final_tasks
-        .start_tool(ToolCallParams {
-            meta: FinalRequestMeta::new().with_task_capability(),
-            name: tool_name,
-            arguments: arguments.into_iter().collect(),
-        })
-        .await?;
-    let task_id = created.task.task_id;
+    let created = start_task(client, tool_name, arguments).await?;
+    let result = await_task(client, created, timeout).await?;
+    ensure_call_tool_succeeded(&result)?;
+    print_call_tool_result(&result);
+    Ok(())
+}
+
+async fn start_task(
+    client: &Client,
+    tool_name: String,
+    arguments: JsonObject,
+) -> Result<rmcp::model::CreateTaskResult> {
+    match client
+        .call_tool_once(CallToolRequestParams::new(tool_name).with_arguments(arguments))
+        .await?
+    {
+        CallToolResponse::Task(created) => Ok(created),
+        CallToolResponse::Complete(_) => Err(anyhow!("tool completed without creating a task")),
+        CallToolResponse::InputRequired(_) => Err(anyhow!(
+            "tool requires direct multi-round input before task creation"
+        )),
+        _ => Err(anyhow!("unsupported tools/call response")),
+    }
+}
+
+async fn await_task(
+    client: &Client,
+    created: rmcp::model::CreateTaskResult,
+    timeout: Duration,
+) -> Result<CallToolResult> {
+    let task_id = created.task.task_id.clone();
     let poll_ms = created
         .task
         .poll_interval_ms
@@ -600,17 +564,22 @@ pub(super) async fn cmd_task_call(
         "task {task_id} created (status {:?}, poll {poll_ms}ms)",
         created.task.status
     );
-
-    let final_task = tokio::time::timeout(timeout, async {
+    let terminal = tokio::time::timeout(timeout, async {
         loop {
-            let task = final_tasks.get(task_id).await?;
-            let message = task.metadata().status_message.as_deref().unwrap_or("");
-            println!("poll: {:?} - {message}", task.status());
-            match task {
-                DetailedTask::Working { .. } => {
-                    tokio::time::sleep(Duration::from_millis(poll_ms)).await;
-                }
-                DetailedTask::InputRequired { .. } => {
+            let current = client.get_task(GetTaskParams::new(task_id.clone())).await?;
+            println!(
+                "poll: {:?} — {}",
+                current.task.status(),
+                current
+                    .task
+                    .task
+                    .status_message
+                    .as_deref()
+                    .unwrap_or_default()
+            );
+            match current.task.payload {
+                TaskPayload::Working => tokio::time::sleep(Duration::from_millis(poll_ms)).await,
+                TaskPayload::InputRequired { .. } => {
                     return Err(anyhow!("task {task_id} requires additional input"));
                 }
                 terminal => return Ok(terminal),
@@ -619,22 +588,17 @@ pub(super) async fn cmd_task_call(
     })
     .await
     .map_err(|_| anyhow!("timed out waiting {timeout:?} for task {task_id}"))??;
-
-    match final_task {
-        DetailedTask::Completed { result, .. } => {
-            let result: CallToolResult =
-                serde_json::from_value(Value::Object(result.into_iter().collect()))?;
-            ensure_call_tool_succeeded(&result)?;
-            print_call_tool_result(&result);
-            Ok(())
-        }
-        DetailedTask::Failed { error, .. } => {
-            Err(anyhow!("task failed ({}): {}", error.code, error.message))
-        }
-        DetailedTask::Cancelled { .. } => Err(anyhow!("task was cancelled")),
-        DetailedTask::Working { .. } | DetailedTask::InputRequired { .. } => {
-            unreachable!("task wait returns only terminal states")
-        }
+    match terminal {
+        TaskPayload::Completed { result } => Ok(serde_json::from_value(Value::Object(
+            result.into_iter().collect(),
+        ))?),
+        TaskPayload::Failed { error } => Err(anyhow!(
+            "task failed: {}",
+            Value::Object(error.into_iter().collect())
+        )),
+        TaskPayload::Cancelled => Err(anyhow!("task was cancelled")),
+        TaskPayload::Working | TaskPayload::InputRequired { .. } => unreachable!(),
+        _ => Err(anyhow!("unsupported terminal task payload")),
     }
 }
 
@@ -659,28 +623,6 @@ pub(super) async fn cmd_complete_resource(
         result.completion.total,
         result.completion.has_more
     );
-    Ok(())
-}
-
-pub(super) async fn cmd_tasks(client: &Client) -> Result<()> {
-    let result = client
-        .send_request(ClientRequest::ListTasksRequest(ListTasksRequest::default()))
-        .await?;
-    let ServerResult::ListTasksResult(result) = result else {
-        return Err(anyhow!("expected ListTasksResult, got {result:?}"));
-    };
-    for task in &result.tasks {
-        println!(
-            "{} {:?} {}",
-            task.task_id,
-            task.status,
-            task.status_message.as_deref().unwrap_or_default()
-        );
-    }
-    println!("{} task(s)", result.tasks.len());
-    if let Some(cursor) = result.next_cursor {
-        println!("next cursor: {cursor}");
-    }
     Ok(())
 }
 
@@ -788,7 +730,6 @@ pub(super) struct RunCommand {
 
 pub(super) async fn cmd_run(
     client: &Client,
-    final_tasks: &FinalTaskClient,
     uris: &ServerResourceUris,
     command: RunCommand,
 ) -> Result<()> {
@@ -800,19 +741,12 @@ pub(super) async fn cmd_run(
         cancel,
     } = command;
     let input: Value = serde_json::from_str(&input)?;
-    let created = final_tasks
-        .start_tool(ToolCallParams {
-            meta: FinalRequestMeta::new().with_task_capability(),
-            name: tool_name,
-            arguments: serde_json::json!({ "model": model_id, "input": input })
-                .as_object()
-                .cloned()
-                .unwrap()
-                .into_iter()
-                .collect(),
-        })
-        .await?;
-    let task_id = created.task.task_id;
+    let arguments = serde_json::json!({ "model": model_id, "input": input })
+        .as_object()
+        .cloned()
+        .expect("run arguments are an object");
+    let created = start_task(client, tool_name, arguments).await?;
+    let task_id = created.task.task_id.clone();
     println!(
         "task {task_id} created (status {:?}, poll {}ms)",
         created.task.status,
@@ -822,15 +756,16 @@ pub(super) async fn cmd_run(
     if cancel {
         let ready = tokio::time::timeout(Duration::from_secs(10), async {
             loop {
-                let task = final_tasks.get(task_id).await?;
-                let message = task.metadata().status_message.clone().unwrap_or_default();
+                let task = client
+                    .get_task(GetTaskParams::new(task_id.clone()))
+                    .await?
+                    .task;
+                let message = task.task.status_message.clone().unwrap_or_default();
                 if message.contains("prediction ") {
                     return Ok(message);
                 }
                 match task.status() {
-                    FinalTaskStatus::Completed
-                    | FinalTaskStatus::Failed
-                    | FinalTaskStatus::Cancelled => {
+                    TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Cancelled => {
                         return Err(anyhow!(
                             "task reached {:?} before provider cancellation could be requested",
                             task.status()
@@ -843,13 +778,18 @@ pub(super) async fn cmd_run(
         .await
         .map_err(|_| anyhow!("timed out waiting for task {task_id} provider binding"))??;
         println!("cancel target ready: {ready}");
-        final_tasks.cancel(task_id).await?;
+        client
+            .cancel_task(CancelTaskParams::new(task_id.clone()))
+            .await?;
         let cancelled = tokio::time::timeout(Duration::from_secs(10), async {
             loop {
-                let task = final_tasks.get(task_id).await?;
+                let task = client
+                    .get_task(GetTaskParams::new(task_id.clone()))
+                    .await?
+                    .task;
                 match task.status() {
-                    FinalTaskStatus::Cancelled => return Ok(task),
-                    FinalTaskStatus::Completed | FinalTaskStatus::Failed => {
+                    TaskStatus::Cancelled => return Ok(task),
+                    TaskStatus::Completed | TaskStatus::Failed => {
                         return Err(anyhow!(
                             "task reached {:?} while cancellation was pending",
                             task.status()
@@ -861,9 +801,7 @@ pub(super) async fn cmd_run(
         })
         .await
         .map_err(|_| anyhow!("timed out waiting for task {task_id} cancellation"))??;
-        if cancelled.status() != FinalTaskStatus::Cancelled
-            || cancelled.metadata().task_id != task_id
-        {
+        if cancelled.status() != TaskStatus::Cancelled || cancelled.task.task_id != task_id {
             return Err(anyhow!(
                 "tasks/get after cancellation returned {cancelled:?}"
             ));
@@ -875,15 +813,18 @@ pub(super) async fn cmd_run(
     // Poll final tasks/get, honoring the server's suggested interval. Subscribe
     // to the prediction resource as soon as the status message names it.
     let poll_ms = created.task.poll_interval_ms.unwrap_or(3000);
-    let mut subscribed_uri = None::<String>;
+    let mut subscription = None;
     let final_task = loop {
         tokio::time::sleep(Duration::from_millis(poll_ms)).await;
-        let task = final_tasks.get(task_id).await?;
-        let message = task.metadata().status_message.clone().unwrap_or_default();
+        let task = client
+            .get_task(GetTaskParams::new(task_id.clone()))
+            .await?
+            .task;
+        let message = task.task.status_message.clone().unwrap_or_default();
         println!("poll: {:?} — {message}", task.status());
 
         let prediction_prefix = format!("{}://prediction/", uris.scheme());
-        if subscribed_uri.is_none()
+        if subscription.is_none()
             && let Some(idx) = message.find(&prediction_prefix)
         {
             let uri: String = message[idx..]
@@ -892,35 +833,35 @@ pub(super) async fn cmd_run(
                 .unwrap_or_default()
                 .trim_end_matches([';', ','])
                 .to_string();
-            client
-                .subscribe(SubscribeRequestParams::new(uri.clone()))
-                .await?;
+            let filter = SubscriptionFilter::builder()
+                .resource_subscription(uri.clone())
+                .build();
+            subscription = Some(client.listen(filter).await?);
             println!("subscribed to {uri}");
-            subscribed_uri = Some(uri);
         }
 
         match task.status() {
-            FinalTaskStatus::Completed | FinalTaskStatus::Failed | FinalTaskStatus::Cancelled => {
+            TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Cancelled => {
                 break task;
             }
             _ => {}
         }
     };
 
-    let result: CallToolResult = match final_task {
-        DetailedTask::Completed { result, .. } => {
+    let result: CallToolResult = match final_task.payload {
+        TaskPayload::Completed { result } => {
             serde_json::from_value(Value::Object(result.into_iter().collect()))?
         }
-        DetailedTask::Failed { error, .. } => {
-            if let Some(uri) = subscribed_uri {
-                client
-                    .unsubscribe(UnsubscribeRequestParams::new(uri.clone()))
-                    .await?;
-                println!("unsubscribed from {uri}");
+        TaskPayload::Failed { error } => {
+            if let Some(mut subscription) = subscription {
+                subscription.cancel().await?;
             }
-            return Err(anyhow!("task failed ({}): {}", error.code, error.message));
+            return Err(anyhow!(
+                "task failed: {}",
+                Value::Object(error.into_iter().collect())
+            ));
         }
-        DetailedTask::Cancelled { .. } => return Err(anyhow!("task was cancelled")),
+        TaskPayload::Cancelled => return Err(anyhow!("task was cancelled")),
         other => return Err(anyhow!("unexpected non-terminal task state: {other:?}")),
     };
     let outputs = print_call_tool_result(&result);
@@ -932,11 +873,9 @@ pub(super) async fn cmd_run(
             save_output_uri(client, uris, &http, &output_dir, &uri).await?;
         }
     }
-    if let Some(uri) = subscribed_uri {
-        client
-            .unsubscribe(UnsubscribeRequestParams::new(uri.clone()))
-            .await?;
-        println!("unsubscribed from {uri}");
+    if let Some(mut subscription) = subscription {
+        subscription.cancel().await?;
+        println!("subscription cancelled");
     }
     Ok(())
 }

@@ -16,7 +16,7 @@ use reqwest::{
     redirect::Policy,
 };
 use rmcp::{
-    ClientHandler, ServiceExt,
+    ClientHandler, ClientLifecycleMode, ClientServiceExt,
     model::{
         CallToolRequestParams, ClientCapabilities, ClientInfo, Implementation,
         ReadResourceRequestParams, ResourceContents,

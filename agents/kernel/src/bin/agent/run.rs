@@ -1,7 +1,7 @@
 use std::{collections::HashMap, str::FromStr, sync::Arc, time::Duration};
 
 use anyhow::{Context, Result, bail};
-use rig_core::tool::server::ToolServer;
+use rig::tool::server::ToolServer;
 use veoveo_agent_kernel::{
     connection::{ConnectionEpoch, GatewayConnection, KernelHandlers},
     episode::EpisodeDriver,
@@ -17,7 +17,7 @@ use veoveo_agent_runtime::{
     AgentInstanceId, AgentRuntime, AgentSpec, DEFAULT_AGENT_LEASE, DEFAULT_CLAIM_LEASE, json_object,
 };
 use veoveo_platform_store::{
-    AgentElicitationId, AgentTaskId, PlatformStore, StoreConfig, StoreCredentials, WakeKind,
+    AgentInputRequestId, AgentTaskId, PlatformStore, StoreConfig, StoreCredentials, WakeKind,
 };
 
 use crate::cli::RunArgs;
@@ -100,7 +100,7 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
     let handlers = KernelHandlers {
         bus: bus.clone(),
         runtime: runtime.clone(),
-        elicitation_grace: Duration::from_secs(manifest.schedule.elicitation_grace_s),
+        input_grace: Duration::from_secs(manifest.schedule.input_grace_s),
     };
 
     let tool_server_handle = ToolServer::new().run();
@@ -149,7 +149,8 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
     let mut task_scan = tokio::time::interval(Duration::from_secs(1));
     task_scan.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     let mut watchers = HashMap::new();
-    arm_available_tasks(&runtime, &bus, &epoch_rx, &mut watchers).await?;
+    let input_grace = Duration::from_secs(schedule.input_grace_s);
+    arm_available_tasks(&runtime, &bus, &epoch_rx, &mut watchers, input_grace).await?;
 
     let (lease_lost_tx, mut lease_lost_rx) = tokio::sync::watch::channel(false);
     {
@@ -186,7 +187,7 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
                 }
             }
             _ = task_scan.tick() => {
-                arm_available_tasks(&runtime, &bus, &epoch_rx, &mut watchers).await?;
+                arm_available_tasks(&runtime, &bus, &epoch_rx, &mut watchers, input_grace).await?;
             }
             batch = receiver.next_batch() => {
                 let batch = batch?;
@@ -210,7 +211,7 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
                         receiver.retry_batch(&batch, &error.to_string()).await?;
                     }
                 }
-                arm_available_tasks(&runtime, &bus, &epoch_rx, &mut watchers).await?;
+                arm_available_tasks(&runtime, &bus, &epoch_rx, &mut watchers, input_grace).await?;
             }
         }
     }
@@ -235,11 +236,18 @@ async fn arm_available_tasks(
     bus: &WakeBus,
     epoch_rx: &tokio::sync::watch::Receiver<ConnectionEpoch>,
     watchers: &mut HashMap<AgentTaskId, tokio::task::JoinHandle<()>>,
+    input_grace: Duration,
 ) -> Result<()> {
     watchers.retain(|_, watcher| !watcher.is_finished());
     for task in runtime.claim_tasks(64, DEFAULT_CLAIM_LEASE).await? {
         let id = task.agent_task_id;
-        let watcher = arm_watcher(runtime.clone(), bus.clone(), epoch_rx.clone(), task);
+        let watcher = arm_watcher(
+            runtime.clone(),
+            bus.clone(),
+            epoch_rx.clone(),
+            task,
+            input_grace,
+        );
         watchers.insert(id, watcher);
     }
     Ok(())
@@ -349,7 +357,7 @@ async fn render_wake_body(runtime: &AgentRuntime, batch: &WakeBatch) -> Result<S
                     ));
                 }
             }
-            WakeKind::Elicitation => {
+            WakeKind::InputRequest => {
                 if wake
                     .payload
                     .as_map()
@@ -360,18 +368,18 @@ async fn render_wake_body(runtime: &AgentRuntime, batch: &WakeBatch) -> Result<S
                     if let Some(id) = wake
                         .payload
                         .as_map()
-                        .get("elicitation_id")
+                        .get("input_request_id")
                         .and_then(serde_json::Value::as_str)
-                        && let Ok(id) = AgentElicitationId::from_str(id)
+                        && let Ok(id) = AgentInputRequestId::from_str(id)
                     {
-                        let elicitation = runtime.elicitation(id).await?;
+                        let input_request = runtime.input_request(id).await?;
                         parts.push(format!(
-                            "Operator answered elicitation `{id}`: {}",
-                            serde_json::to_string(&elicitation.answer)?
+                            "Operator answered input request `{id}`: {}",
+                            serde_json::to_string(&input_request.answer)?
                         ));
                     }
                 } else {
-                    parts.push("A tool requested operator input. The durable elicitation is awaiting an authorized answer.".to_owned());
+                    parts.push("A tool requested operator input. The durable input request is awaiting an authorized answer.".to_owned());
                 }
             }
         }

@@ -38,8 +38,8 @@ Apps.
   Optimization.
 - Domain profile pins (DESIGN.md, Standards And Protocols): GeoJSON RFC 7946,
   OGC JSON-FG 1.0, RFC 8142 text sequences, Basic CQL2-JSON from OGC CQL2
-  1.0, GeoParquet 1.0.0, Mapbox Vector Tile 2.1, MapLibre Style 8, final task
-  extension `2026-06-30`, apps extension `2026-01-26`.
+  1.0, GeoParquet 1.0.0, Mapbox Vector Tile 2.1, MapLibre Style 8, official
+  MCP Tasks `2026-07-28`, apps extension `2026-01-26`.
 
 ## Build And Test
 
@@ -87,5 +87,5 @@ Contract revision: 2
 - C27: met
 - C28: met
 - C29: met
-- C30: met — the gateway owns pooled transport while this server retains MCP session state
+- C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
 - C24: met

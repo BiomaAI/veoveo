@@ -1,20 +1,17 @@
 use std::{collections::BTreeMap, time::Instant};
 
 use axum::{
-    Json,
     extract::{Extension, Path as AxumPath, State},
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use chrono::{TimeDelta, Utc};
 use veoveo_mcp_contract::{
-    CanonicalTaskId, GatewayAction, GatewayProfile, GatewayProfileId, PolicyTarget, ServerSlug,
-    TaskExposure, TenantId,
+    CanonicalTaskId, GatewayAction, GatewayProfile, PolicyTarget, ServerSlug, TaskExposure,
+    TenantId,
 };
-use veoveo_mcp_gateway::{AuthenticatedSubject, FinalTaskClient};
-use veoveo_mcp_task_extension::{AcknowledgeTaskResult, ProtocolTaskId};
-use veoveo_platform_store::TaskRecord;
-use veoveo_task_runtime::TaskSnapshot;
+use veoveo_mcp_gateway::AuthenticatedSubject;
+use veoveo_platform_store::{TaskId, TaskRecord};
+use veoveo_task_runtime::{TaskRuntime, TaskSnapshot};
 
 use crate::{
     admin::admin_profile_id,
@@ -26,7 +23,6 @@ use crate::{
     runtime::AdminState,
 };
 
-const INTERNAL_TASK_TOKEN_TTL_SECONDS: i64 = 60;
 const ADMIN_TASK_CANCEL_METHOD: &str = "admin/tasks/cancel";
 const ADMIN_TASK_CANCEL_RESULT_METHOD: &str = "admin/tasks/cancel/result";
 
@@ -39,7 +35,7 @@ pub(crate) async fn cancel_task(
     let Some(profile_id) = admin_profile_id(profile) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let Ok(task_id) = task_id.parse::<ProtocolTaskId>() else {
+    let Ok(task_id) = task_id.parse::<TaskId>() else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let snapshot = match load_task(&state, task_id).await {
@@ -133,86 +129,13 @@ pub(crate) async fn cancel_task(
         return StatusCode::NOT_FOUND.into_response();
     }
 
-    let owner_profile = match GatewayProfileId::new(snapshot.owner.profile) {
-        Ok(profile) => profile,
-        Err(error) => {
-            return audited_task_failure(
-                &state,
-                &profile,
-                &subject,
-                target,
-                started_at,
-                AdminOperationFailure::TaskRoute,
-                metadata,
-                error,
-            )
-            .await;
-        }
-    };
-    let expires_at = std::cmp::min(
-        subject.access_token.expires_at,
-        Utc::now() + TimeDelta::seconds(INTERNAL_TASK_TOKEN_TTL_SECONDS),
+    let task_runtime = TaskRuntime::new(
+        state.control_store.platform_store().clone(),
+        server_slug.to_string(),
+        "gateway-admin",
     );
-    let internal_token = match state.internal_token_issuer.issue(
-        owner_profile,
-        server_slug.clone(),
-        subject.actor.clone(),
-        subject.authority.clone(),
-        expires_at,
-    ) {
-        Ok(token) => token,
-        Err(error) => {
-            return audited_task_failure(
-                &state,
-                &profile,
-                &subject,
-                target,
-                started_at,
-                AdminOperationFailure::IssueInternalToken,
-                metadata,
-                error,
-            )
-            .await;
-        }
-    };
-    let Some(server) = catalog.server(&server_slug).cloned() else {
-        return audited_task_failure(
-            &state,
-            &profile,
-            &subject,
-            target,
-            started_at,
-            AdminOperationFailure::TaskRoute,
-            metadata,
-            "canonical task server is no longer configured",
-        )
-        .await;
-    };
-    let client = match FinalTaskClient::for_server(
-        &state.upstream_http,
-        &catalog,
-        &server,
-        internal_token.bearer_token,
-    )
-    .await
-    {
-        Ok(client) => client,
-        Err(error) => {
-            return audited_task_failure(
-                &state,
-                &profile,
-                &subject,
-                target,
-                started_at,
-                AdminOperationFailure::ConnectFinalTaskExtension,
-                metadata,
-                error,
-            )
-            .await;
-        }
-    };
-    let result = match client.cancel(task_id).await {
-        Ok(result) => result,
+    match task_runtime.cancel(&task_id.to_string()).await {
+        Ok(_) => {}
         Err(error) => {
             return audited_task_failure(
                 &state,
@@ -241,19 +164,16 @@ pub(crate) async fn cancel_task(
     {
         return internal_error_response(error);
     }
-    Json::<AcknowledgeTaskResult>(result).into_response()
+    StatusCode::NO_CONTENT.into_response()
 }
 
-async fn load_task(
-    state: &AdminState,
-    task_id: ProtocolTaskId,
-) -> anyhow::Result<Option<TaskSnapshot>> {
+async fn load_task(state: &AdminState, task_id: TaskId) -> anyhow::Result<Option<TaskSnapshot>> {
     let mut response = state
         .control_store
         .platform_store()
         .client()
         .query("SELECT * FROM ONLY $task;")
-        .bind(("task", task_id.task_id().record_id()))
+        .bind(("task", task_id.record_id()))
         .await?
         .check()?;
     let record: Option<TaskRecord> = response.take(0)?;

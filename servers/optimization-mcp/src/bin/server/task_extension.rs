@@ -6,14 +6,8 @@ use std::{
 };
 
 use chrono::{TimeDelta, Utc};
-use futures::StreamExt;
 use veoveo_mcp_contract::{
     GatewayInternalIdentity, IssueArtifactWriteCapabilityRequest, PlaneCaller,
-};
-use veoveo_mcp_task_extension::{
-    AcknowledgeTaskResult, AdapterError, CancelTaskParams, CreateTaskResult, GetTaskParams,
-    GetTaskResult, ProtocolTaskId, TaskExtensionHandler, TaskSubscription, ToolCallParams,
-    UpdateTaskParams, project_snapshot, task_seed,
 };
 use veoveo_optimization_mcp::{
     domain::{
@@ -78,49 +72,29 @@ impl OptimizationTaskExtension {
     pub(super) fn new(state: Arc<AppState>) -> Self {
         Self { state }
     }
-
-    async fn authorized_snapshot(
-        &self,
-        caller: &AuthenticatedCaller,
-        task_id: ProtocolTaskId,
-    ) -> Result<TaskSnapshot, AdapterError> {
-        let snapshot = self
-            .state
-            .tasks
-            .get(&task_id.to_string())
-            .await
-            .map_err(|error| AdapterError::internal(error.to_string()))?
-            .ok_or_else(|| AdapterError::invalid_params("unknown task id"))?;
-        let owner = runtime_owner(&caller.identity);
-        if snapshot.owner.allows(
-            &owner.principal_key,
-            &owner.profile,
-            owner.tenant_key.as_deref(),
-            &owner.data_labels,
-        ) && snapshot.owner.authority.work_context == owner.authority.work_context
-        {
-            Ok(snapshot)
-        } else {
-            Err(AdapterError::invalid_params("unknown task id"))
-        }
-    }
 }
 
-impl TaskExtensionHandler for OptimizationTaskExtension {
+impl veoveo_task_runtime::DurableTaskService for OptimizationTaskExtension {
     type Caller = AuthenticatedCaller;
 
     fn authenticate(
         &self,
-        extensions: &axum::http::Extensions,
-    ) -> Result<Self::Caller, AdapterError> {
-        let identity = extensions
+        context: &rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> Result<Self::Caller, rmcp::ErrorData> {
+        let parts = context
+            .extensions
+            .get::<axum::http::request::Parts>()
+            .ok_or_else(|| rmcp::ErrorData::invalid_request("gateway identity missing", None))?;
+        let identity = parts
+            .extensions
             .get::<GatewayInternalIdentity>()
             .cloned()
-            .ok_or_else(|| AdapterError::unauthorized("gateway identity missing"))?;
-        let bearer = extensions
+            .ok_or_else(|| rmcp::ErrorData::invalid_request("gateway identity missing", None))?;
+        let bearer = parts
+            .extensions
             .get::<ForwardedBearer>()
             .map(|bearer| bearer.0.clone())
-            .ok_or_else(|| AdapterError::unauthorized("forwarded bearer missing"))?;
+            .ok_or_else(|| rmcp::ErrorData::invalid_request("forwarded bearer missing", None))?;
         Ok(AuthenticatedCaller {
             plane: caller_from(identity.clone(), bearer),
             identity,
@@ -130,15 +104,15 @@ impl TaskExtensionHandler for OptimizationTaskExtension {
     async fn start_tool_task(
         &self,
         caller: &Self::Caller,
-        request: ToolCallParams,
-    ) -> Result<Option<CreateTaskResult>, AdapterError> {
-        if !TASK_TOOLS.contains(&request.name.as_str()) {
+        request: rmcp::model::CallToolRequestParams,
+    ) -> Result<Option<rmcp::model::CreateTaskResult>, rmcp::ErrorData> {
+        if !TASK_TOOLS.contains(&request.name.as_ref()) {
             return Ok(None);
         }
-        let arguments = serde_json::Value::Object(request.arguments.into_iter().collect());
+        let arguments = serde_json::Value::Object(request.arguments.unwrap_or_default());
         let task_id = TaskId::new();
         let submitted_at = Utc::now();
-        let durable = match request.name.as_str() {
+        let durable = match request.name.as_ref() {
             "optimize_routes" => {
                 let input: OptimizeRoutesRequest = decode(arguments)?;
                 executor_profile(&input.policy, ProblemFamily::Routing, false).map_err(invalid)?;
@@ -303,8 +277,9 @@ impl TaskExtensionHandler for OptimizationTaskExtension {
                 .await
                 .map_err(invalid)?;
                 if prepared.resource().record.problem_uri != solution.problem_uri {
-                    return Err(AdapterError::invalid_params(
+                    return Err(rmcp::ErrorData::invalid_params(
                         "solution problem identity does not match the prepared problem",
+                        None,
                     ));
                 }
                 let prepared_ref = find_prepared_ref(
@@ -330,7 +305,7 @@ impl TaskExtensionHandler for OptimizationTaskExtension {
             }
             _ => return Ok(None),
         };
-        let retention_pins = request.meta.task_retention_pin.into_iter().collect();
+        let retention_pins = veoveo_task_runtime::retention_pins(request.meta.as_ref())?;
         let snapshot = start_task(
             self.state.clone(),
             task_id,
@@ -340,100 +315,61 @@ impl TaskExtensionHandler for OptimizationTaskExtension {
         )
         .await
         .map_err(internal)?;
-        Ok(Some(CreateTaskResult::new(task_seed(&snapshot))))
+        Ok(Some(rmcp::model::CreateTaskResult::new(
+            veoveo_task_runtime::task_seed(&snapshot),
+        )))
     }
 
     async fn get_task(
         &self,
         caller: &Self::Caller,
-        request: GetTaskParams,
-    ) -> Result<GetTaskResult, AdapterError> {
-        let snapshot = self.authorized_snapshot(caller, request.task_id).await?;
-        let task = project_snapshot(&self.state.tasks, snapshot)
-            .await
-            .map_err(|error| AdapterError::internal(error.to_string()))?;
-        Ok(GetTaskResult::new(task))
+        request: rmcp::model::GetTaskParams,
+    ) -> Result<rmcp::model::GetTaskResult, rmcp::ErrorData> {
+        veoveo_task_runtime::get_durable_task(
+            &self.state.tasks,
+            &runtime_owner(&caller.identity),
+            request,
+        )
+        .await
     }
 
     async fn update_task(
         &self,
         caller: &Self::Caller,
-        request: UpdateTaskParams,
-    ) -> Result<AcknowledgeTaskResult, AdapterError> {
-        self.authorized_snapshot(caller, request.task_id).await?;
-        self.state
-            .tasks
-            .submit_input_responses(&request.task_id.to_string(), request.input_responses)
-            .await
-            .map_err(|error| AdapterError::internal(error.to_string()))?;
-        Ok(AcknowledgeTaskResult::complete())
+        request: rmcp::model::UpdateTaskParams,
+    ) -> Result<(), rmcp::ErrorData> {
+        veoveo_task_runtime::update_durable_task(
+            &self.state.tasks,
+            &runtime_owner(&caller.identity),
+            request,
+        )
+        .await
     }
 
     async fn cancel_task(
         &self,
         caller: &Self::Caller,
-        request: CancelTaskParams,
-    ) -> Result<AcknowledgeTaskResult, AdapterError> {
-        self.authorized_snapshot(caller, request.task_id).await?;
-        self.state
-            .tasks
-            .cancel(&request.task_id.to_string())
-            .await
-            .map_err(|error| AdapterError::internal(error.to_string()))?;
-        Ok(AcknowledgeTaskResult::complete())
+        task_id: String,
+    ) -> Result<(), rmcp::ErrorData> {
+        veoveo_task_runtime::cancel_durable_task(
+            &self.state.tasks,
+            &runtime_owner(&caller.identity),
+            task_id,
+        )
+        .await
     }
 
     async fn subscribe_tasks(
         &self,
         caller: &Self::Caller,
-        task_ids: Vec<ProtocolTaskId>,
-    ) -> Result<TaskSubscription, AdapterError> {
-        let updates = self
-            .state
-            .tasks
-            .live_updates()
-            .await
-            .map_err(|error| AdapterError::internal(error.to_string()))?;
-        let mut accepted = Vec::new();
-        for task_id in task_ids {
-            if self.authorized_snapshot(caller, task_id).await.is_ok() {
-                accepted.push(task_id);
-            }
-        }
-        let accepted_set: BTreeSet<_> = accepted.iter().copied().collect();
-        let runtime = self.state.tasks.clone();
-        let caller_owner = runtime_owner(&caller.identity);
-        let stream = updates.filter_map(move |update| {
-            let accepted = accepted_set.clone();
-            let runtime = runtime.clone();
-            let caller_owner = caller_owner.clone();
-            async move {
-                let snapshot = match update {
-                    Ok(update) => update.snapshot,
-                    Err(error) => return Some(Err(AdapterError::internal(error.to_string()))),
-                };
-                if !accepted.contains(&ProtocolTaskId::from(snapshot.task_id))
-                    || !snapshot.owner.allows(
-                        &caller_owner.principal_key,
-                        &caller_owner.profile,
-                        caller_owner.tenant_key.as_deref(),
-                        &caller_owner.data_labels,
-                    )
-                    || snapshot.owner.authority.work_context != caller_owner.authority.work_context
-                {
-                    return None;
-                }
-                Some(
-                    project_snapshot(&runtime, snapshot)
-                        .await
-                        .map_err(|error| AdapterError::internal(error.to_string())),
-                )
-            }
-        });
-        Ok(TaskSubscription {
-            accepted_task_ids: accepted,
-            updates: Box::pin(stream),
-        })
+        task_ids: Vec<String>,
+    ) -> Result<veoveo_task_runtime::DurableTaskSubscription, rmcp::ErrorData> {
+        veoveo_task_runtime::subscribe_durable_tasks(
+            &self.state.tasks,
+            runtime_owner(&caller.identity),
+            task_ids,
+        )
+        .await
     }
 }
 
@@ -1172,7 +1108,7 @@ fn common(
     _task_id: TaskId,
     submitted_at: chrono::DateTime<Utc>,
     artifact_write_capability: veoveo_mcp_contract::IssuedArtifactWriteCapability,
-) -> Result<SolveTaskCommon, AdapterError> {
+) -> Result<SolveTaskCommon, rmcp::ErrorData> {
     Ok(SolveTaskCommon {
         problem_id: prepared.resource().record.problem_id.clone(),
         run_id: veoveo_optimization_mcp::domain::RunId::new(),
@@ -1247,14 +1183,15 @@ async fn fail_task(state: &AppState, task_id: &str, code: &str, error: impl std:
     .await;
 }
 
-fn decode<T: serde::de::DeserializeOwned>(value: serde_json::Value) -> Result<T, AdapterError> {
-    serde_json::from_value(value).map_err(|error| AdapterError::invalid_params(error.to_string()))
+fn decode<T: serde::de::DeserializeOwned>(value: serde_json::Value) -> Result<T, rmcp::ErrorData> {
+    serde_json::from_value(value)
+        .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))
 }
 
-fn invalid(error: impl std::fmt::Display) -> AdapterError {
-    AdapterError::invalid_params(error.to_string())
+fn invalid(error: impl std::fmt::Display) -> rmcp::ErrorData {
+    rmcp::ErrorData::invalid_params(error.to_string(), None)
 }
 
-fn internal(error: impl std::fmt::Display) -> AdapterError {
-    AdapterError::internal(error.to_string())
+fn internal(error: impl std::fmt::Display) -> rmcp::ErrorData {
+    rmcp::ErrorData::internal_error(error.to_string(), None)
 }

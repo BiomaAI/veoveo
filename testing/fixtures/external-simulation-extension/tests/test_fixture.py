@@ -14,7 +14,6 @@ from anonymous_simulation_mcp.contract import (
     RenewLiveViewRequest,
 )
 from anonymous_simulation_mcp.mcp_server import (
-    APP_URI,
     CONTRACT_DECLARATION,
     DOCS_INDEX,
     LLMS_TXT,
@@ -128,17 +127,12 @@ def test_llms_txt_lists_every_document() -> None:
     assert f"Contract revision {CONTRACT_REVISION}." in LLMS_TXT
 
 
-def test_contract_declares_live_tools_and_app() -> None:
+def test_contract_defers_live_surface_to_discover() -> None:
     declaration = CONTRACT_DECLARATION.wire()
     assert declaration["server"] == "anonymous-simulation"
-    assert declaration["contract_revision"] == 2
-    assert APP_URI in declaration["capabilities"]["resources"]
-    assert {
-        "list_live_cameras",
-        "open_live_view",
-        "renew_live_view",
-        "close_live_view",
-    }.issubset(declaration["capabilities"]["tools"])
+    assert declaration["contract_revision"] == 3
+    assert "capabilities" not in declaration
+    assert declaration["compliance"]
 
 
 def test_parse_compliance_reads_status_and_note() -> None:

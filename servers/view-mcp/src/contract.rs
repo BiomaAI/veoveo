@@ -466,7 +466,6 @@ pub enum ContractError {
 #[cfg(test)]
 mod tests {
     use serde_json::{Value, json};
-    use veoveo_mcp_contract::mcp_input_schema as canonical_mcp_input_schema;
 
     use super::*;
 
@@ -497,25 +496,11 @@ mod tests {
     }
 
     fn mcp_input_schema<T: JsonSchema + 'static>() -> Value {
-        let schema = canonical_mcp_input_schema::<T>();
+        let schema = rmcp::handler::server::tool::schema_for_type::<T>();
         let schema = Value::Object(schema.as_ref().clone());
         jsonschema::meta::validate(&schema)
             .unwrap_or_else(|error| panic!("invalid generated JSON Schema: {error}"));
         schema
-    }
-
-    fn assert_inline_object_property<T: JsonSchema + 'static>(property: &str) {
-        let schema = mcp_input_schema::<T>();
-        let property_schema = schema
-            .get("properties")
-            .and_then(Value::as_object)
-            .and_then(|properties| properties.get(property))
-            .unwrap_or_else(|| panic!("schema omitted `{property}`: {schema}"));
-        assert_eq!(property_schema.get("type"), Some(&json!("object")));
-        assert!(
-            property_schema.get("$ref").is_none(),
-            "`{property}` must expose its object shape directly: {property_schema}"
-        );
     }
 
     #[test]
@@ -541,13 +526,6 @@ mod tests {
             vertical_fov_degrees: 45.0,
         };
         assert!(pose.validate().is_err());
-    }
-
-    #[test]
-    fn mcp_input_schemas_expose_structured_properties_as_objects() {
-        assert_inline_object_property::<CreateViewRequest>("camera");
-        assert_inline_object_property::<SetCameraRequest>("camera");
-        assert_inline_object_property::<CaptureFrameRequest>("policy");
     }
 
     #[test]

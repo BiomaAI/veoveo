@@ -162,6 +162,14 @@ fn validate_uuid_v7(value: &str) -> Result<(), IdentifierError> {
     Ok(())
 }
 
+fn validate_opaque_handle(value: &str) -> Result<(), IdentifierError> {
+    validate_token_text(value)?;
+    if value.len() > 128 {
+        return Err(IdentifierError::new(value, "must be at most 128 bytes"));
+    }
+    Ok(())
+}
+
 typed_id!(
     ServerSlug,
     validate_path_id,
@@ -379,13 +387,13 @@ typed_id!(
 );
 typed_id!(
     CanonicalTaskId,
-    validate_uuid_v7,
-    "Canonical UUIDv7 task id shared by the task authority and every MCP projection."
+    validate_opaque_handle,
+    "Opaque bounded gateway task route checked against current authority on every use."
 );
 typed_id!(
-    ProviderTaskId,
+    OpaqueTaskId,
     validate_token_text,
-    "Provider-server task identifier used by the pre-extension in-process task runtime."
+    "Provider-server task identifier used by the final MCP task identity."
 );
 typed_id!(
     GatewayControlPlaneRevisionId,

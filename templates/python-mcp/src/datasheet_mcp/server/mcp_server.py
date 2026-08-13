@@ -13,6 +13,7 @@ from typing import Any
 
 import mcp.types as types
 from mcp.server import Server, ServerRequestContext
+from mcp.server.caching import CacheHint
 from mcp.shared.exceptions import MCPError
 from pydantic import ValidationError
 
@@ -370,6 +371,14 @@ def build_mcp_server(state: AppState) -> Server:
         "datasheet",
         version="0.1.0",
         instructions=INSTRUCTIONS,
+        cache_hints={
+            "server/discover": CacheHint(ttl_ms=5_000, scope="private"),
+            "tools/list": CacheHint(ttl_ms=5_000, scope="private"),
+            "resources/list": CacheHint(ttl_ms=5_000, scope="private"),
+            "resources/templates/list": CacheHint(ttl_ms=5_000, scope="private"),
+            "resources/read": CacheHint(ttl_ms=1_000, scope="private"),
+            "prompts/list": CacheHint(ttl_ms=5_000, scope="private"),
+        },
         on_list_tools=list_tools,
         on_call_tool=call_tool,
         on_list_resources=list_resources,
@@ -378,6 +387,7 @@ def build_mcp_server(state: AppState) -> Server:
         on_completion=complete,
         on_list_prompts=list_prompts,
         on_get_prompt=get_prompt,
+        on_ping=None,
     )
 
 

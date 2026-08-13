@@ -11,7 +11,7 @@ structured output.
 |---|---|
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with one task-capable tool, resources and templates, structured content, and usage resources. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Forecast source, mapping, horizon, output, and app-call argument contracts. |
-| [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; forecasting executes through durable create, status, cancellation, result, and subscription operations. |
+| MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; forecasting executes through durable create, status, cancellation, terminal `tasks/get` payloads, and `subscriptions/listen`. |
 | [MCP Apps SEP-1865](../../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; the self-contained `ui://timeseries/forecast.html` view uses the sandboxed host bridge. |
 | CSV, JSON/NDJSON, and Apache Parquet | Governed inline, HTTPS, or artifact sources are materialized through the shared DuckDB source contract. |
 | [Rerun 0.35.0](https://rerun.io/docs/) RRD | Full-resolution observations, forecast quantiles, and provenance are encoded into an immutable recording artifact. |

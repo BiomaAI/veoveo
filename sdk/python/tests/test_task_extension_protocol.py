@@ -1,418 +1,155 @@
-"""Protocol tests mirroring the Rust `mcp-task-extension/tests/protocol.rs`.
+"""Contract tests for the thin MCP 2026-07-28 Tasks binding."""
 
-The Rust suite is the reference; these fixtures must not drift from it.
-"""
-
-import asyncio
-import json
-import uuid
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Any
 
+import mcp.types as types
 import pytest
-import uuid_extensions
+from mcp.server import Server
+from mcp.shared.exceptions import MCPError
 
 from veoveo_mcp.task_extension import (
     EXTENSION_ID,
     PROTOCOL_VERSION,
-    TASK_RETENTION_PIN_META_KEY,
-    UPDATE_TASK_METHOD,
     AcknowledgeTaskResult,
-    AdapterError,
-    CancelTaskParams,
     CreateTaskResult,
-    GetTaskParams,
     GetTaskResult,
-    Implementation,
-    RequestMeta,
-    ServerDiscovery,
     Task,
-    TaskExtensionMiddleware,
-    TaskStatus,
+    TasksExtension,
     TaskSubscription,
-    ToolCallParams,
-    UpdateTaskParams,
     WorkingTask,
-    dump,
+    bind_tasks_extension,
 )
 
 
-def uuid7() -> uuid.UUID:
-    return uuid_extensions.uuid7()
+def working(task_id: str = "provider/opaque-task") -> WorkingTask:
+    now = datetime.now(timezone.utc)
+    return WorkingTask(
+        task_id=task_id,
+        status_message="working",
+        created_at=now,
+        last_updated_at=now,
+        ttl_ms=60_000,
+        poll_interval_ms=3_000,
+    )
+
+
+class FakeSession:
+    def __init__(self, with_tasks: bool = True) -> None:
+        extensions = {EXTENSION_ID: {}} if with_tasks else {}
+        self.client_capabilities = types.ClientCapabilities(extensions=extensions)
+        self.sent: list[tuple[Any, Any]] = []
+
+    async def send_notification(self, notification, related_request_id=None) -> None:
+        self.sent.append((notification, related_request_id))
+
+
+def context(with_tasks: bool = True):
+    return SimpleNamespace(session=FakeSession(with_tasks), request_id="listen-1")
 
 
 class FakeHandler:
-    def __init__(self, task_id: uuid.UUID) -> None:
-        self.task_id = task_id
-        self.authentications = 0
+    def authenticate(self, _ctx):
+        return "caller"
 
-    def task(self) -> Task:
-        now = datetime.now(timezone.utc)
-        return Task(
-            task_id=self.task_id,
-            status=TaskStatus.WORKING,
-            status_message="working",
-            created_at=now,
-            last_updated_at=now,
-            ttl_ms=60_000,
-            poll_interval_ms=3_000,
-        )
-
-    def detailed(self) -> WorkingTask:
-        task = self.task()
-        return WorkingTask(
-            task_id=task.task_id,
-            status_message=task.status_message,
-            created_at=task.created_at,
-            last_updated_at=task.last_updated_at,
-            ttl_ms=task.ttl_ms,
-            poll_interval_ms=task.poll_interval_ms,
-        )
-
-    def authenticate(self, scope: dict[str, Any]) -> None:
-        self.authentications += 1
-        return None
-
-    async def start_tool_task(
-        self, caller: Any, request: ToolCallParams
-    ) -> CreateTaskResult | None:
+    async def start_tool_task(self, _caller, _ctx, request):
         if request.name != "forecast":
             return None
-        return CreateTaskResult.from_task(self.task())
+        seed = working()
+        return CreateTaskResult.from_task(Task(**seed.model_dump()))
 
-    async def get_task(self, caller: Any, request: GetTaskParams) -> GetTaskResult:
-        return GetTaskResult(task=self.detailed())
+    async def get_task(self, _caller, _ctx, request):
+        return GetTaskResult(task=working(request.task_id))
 
-    async def update_task(
-        self, caller: Any, request: UpdateTaskParams
-    ) -> AcknowledgeTaskResult:
+    async def update_task(self, _caller, _ctx, _request):
         return AcknowledgeTaskResult()
 
-    async def cancel_task(
-        self, caller: Any, request: CancelTaskParams
-    ) -> AcknowledgeTaskResult:
+    async def cancel_task(self, _caller, _ctx, _request):
         return AcknowledgeTaskResult()
 
-    async def subscribe_tasks(self, caller: Any, task_ids: list) -> TaskSubscription:
+    async def subscribe_tasks(self, _caller, _ctx, task_ids):
         async def updates():
-            yield self.detailed()
+            yield working(task_ids[0])
 
-        return TaskSubscription(accepted_task_ids=list(task_ids), updates=updates())
+        return TaskSubscription(list(task_ids), updates())
 
 
-async def fallback_app(scope, receive, send):
-    body = json.dumps({"forwarded": True}).encode()
-    await send(
-        {
-            "type": "http.response.start",
-            "status": 200,
-            "headers": [(b"content-type", b"application/json")],
-        }
+async def ordinary_call(_ctx, _params):
+    return types.CallToolResult(
+        content=[types.TextContent(type="text", text="ordinary")]
     )
-    await send({"type": "http.response.body", "body": body})
 
 
-def app(handler: FakeHandler) -> TaskExtensionMiddleware:
-    discovery = ServerDiscovery(
-        capabilities={"tools": {}, "resources": {}},
-        server_info=Implementation(name="test-server", version="1.0.0"),
-    )
-    return TaskExtensionMiddleware(fallback_app, handler, discovery)
+def server() -> tuple[Server, TasksExtension]:
+    instance = Server("tasks-test", on_call_tool=ordinary_call, on_ping=None)
+    extension = TasksExtension(FakeHandler())
+    bind_tasks_extension(instance, extension)
+    return instance, extension
 
 
-def meta(with_tasks: bool) -> dict[str, Any]:
-    extensions = {EXTENSION_ID: {}} if with_tasks else {}
-    return {
-        "io.modelcontextprotocol/protocolVersion": PROTOCOL_VERSION,
-        "io.modelcontextprotocol/clientCapabilities": {"extensions": extensions},
-    }
-
-
-class Response:
-    def __init__(self) -> None:
-        self.status: int | None = None
-        self.headers: dict[str, str] = {}
-        self.body = b""
-
-    async def send(self, message: dict[str, Any]) -> None:
-        if message["type"] == "http.response.start":
-            self.status = message["status"]
-            self.headers = {
-                name.decode(): value.decode() for name, value in message["headers"]
-            }
-        elif message["type"] == "http.response.body":
-            self.body += message.get("body", b"")
-
-    def json(self) -> Any:
-        return json.loads(self.body)
-
-
-async def request(
-    middleware: TaskExtensionMiddleware,
-    method: str,
-    name: str | None,
-    params: Any,
-) -> Response:
-    headers = [
-        (b"content-type", b"application/json"),
-        (b"mcp-protocol-version", PROTOCOL_VERSION.encode()),
-        (b"mcp-method", method.encode()),
-    ]
-    if name is not None:
-        headers.append((b"mcp-name", name.encode()))
-    scope = {"type": "http", "method": "POST", "path": "/mcp", "headers": headers}
-    body = json.dumps(
-        {"jsonrpc": "2.0", "id": "request-1", "method": method, "params": params}
-    ).encode()
-    sent = False
-
-    async def receive() -> dict[str, Any]:
-        nonlocal sent
-        if sent:
-            return {"type": "http.disconnect"}
-        sent = True
-        return {"type": "http.request", "body": body, "more_body": False}
-
-    response = Response()
-    await middleware(scope, receive, response.send)
-    return response
-
-
-async def test_discovery_advertises_only_the_final_task_extension():
-    handler = FakeHandler(uuid7())
-    response = await request(
-        app(handler), "server/discover", None, {"_meta": meta(False)}
-    )
-    assert response.status == 200
-    body = response.json()
-    assert body["result"]["supportedVersions"] == [PROTOCOL_VERSION]
-    assert body["result"]["capabilities"]["extensions"][EXTENSION_ID] == {}
-    assert handler.authentications == 1
-
-    handler = FakeHandler(uuid7())
-    response = await request(
-        app(handler),
-        "server/discover",
-        None,
-        {"_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28"}},
-    )
-    assert response.status == 400
-    assert response.json()["error"]["code"] == -32_602
+def test_binding_advertises_tasks_and_registers_final_methods():
+    instance, _ = server()
+    assert PROTOCOL_VERSION == "2026-07-28"
+    assert instance.extensions == {EXTENSION_ID: {}}
+    assert instance.get_request_handler("tasks/get") is not None
+    assert instance.get_request_handler("tasks/update") is not None
+    assert instance.get_request_handler("tasks/cancel") is not None
+    assert instance.get_request_handler("subscriptions/listen") is not None
+    assert instance.get_request_handler("ping") is None
 
 
 async def test_task_creation_is_per_request_capability_gated():
-    handler = FakeHandler(uuid7())
-    response = await request(
-        app(handler), "tools/call", "forecast", {"name": "forecast", "arguments": {}}
+    _, extension = server()
+    params = types.CallToolRequestParams(name="forecast", arguments={})
+
+    async def fallback(_ctx):
+        return {"resultType": "complete", "ordinary": True}
+
+    created = await extension.intercept_tool_call(params, context(), fallback)
+    assert created.result_type == "task"
+    assert created.task_id == "provider/opaque-task"
+
+    direct = await extension.intercept_tool_call(
+        params, context(with_tasks=False), fallback
     )
-    assert response.json()["forwarded"] is True
-    assert handler.authentications == 0
+    assert direct == {"resultType": "complete", "ordinary": True}
 
-    handler = FakeHandler(uuid7())
-    middleware = app(handler)
-    response = await request(
-        middleware,
-        "tools/call",
-        "forecast",
-        {"_meta": meta(False), "name": "forecast", "arguments": {}},
+
+async def test_task_methods_require_capability_and_emit_flattened_results():
+    _, extension = server()
+    result = await extension._get_task(
+        context(), SimpleNamespace(task_id="upstream:opaque")
     )
-    assert response.json()["forwarded"] is True
+    assert result["resultType"] == "complete"
+    assert result["taskId"] == "upstream:opaque"
+    assert "task" not in result
 
-    response = await request(
-        middleware,
-        "tools/call",
-        "forecast",
-        {"_meta": meta(True), "name": "forecast", "arguments": {}},
-    )
-    body = response.json()
-    assert body["result"]["resultType"] == "task"
-    assert body["result"]["status"] == "working"
-
-    handler = FakeHandler(uuid7())
-    response = await request(
-        app(handler),
-        "tools/call",
-        "forecast",
-        {
-            "_meta": meta(False),
-            "name": "forecast",
-            "arguments": {},
-            "task": {"ttl": 60_000},
-        },
-    )
-    assert response.status == 400
-    assert response.json()["error"]["code"] == -32_602
-
-
-async def test_passthrough_replay_preserves_the_live_disconnect_signal():
-    handler = FakeHandler(uuid7())
-    discovery = ServerDiscovery(
-        capabilities={"tools": {}},
-        server_info=Implementation(name="streaming-server", version="1.0.0"),
-    )
-    client_disconnected = asyncio.Event()
-    inner_received_request = asyncio.Event()
-
-    async def streaming_app(scope, receive, send):
-        request = await receive()
-        assert request["type"] == "http.request"
-        inner_received_request.set()
-        pending_disconnect = asyncio.create_task(receive())
-        await asyncio.sleep(0)
-        assert not pending_disconnect.done()
-        client_disconnected.set()
-        assert await pending_disconnect == {"type": "http.disconnect"}
-        await send(
-            {
-                "type": "http.response.start",
-                "status": 200,
-                "headers": [(b"content-type", b"text/event-stream")],
-            }
+    with pytest.raises(MCPError) as caught:
+        await extension._get_task(
+            context(with_tasks=False), SimpleNamespace(task_id="task")
         )
-        await send(
-            {
-                "type": "http.response.body",
-                "body": b"event: message\ndata: {}\n\n",
-            }
-        )
+    assert caught.value.code == types.MISSING_REQUIRED_CLIENT_CAPABILITY
 
-    middleware = TaskExtensionMiddleware(streaming_app, handler, discovery)
-    body = json.dumps(
-        {
-            "jsonrpc": "2.0",
-            "id": "initialize-1",
-            "method": "initialize",
-            "params": {},
-        }
-    ).encode()
-    body_available = True
 
-    async def receive() -> dict[str, Any]:
-        nonlocal body_available
-        if body_available:
-            body_available = False
-            return {"type": "http.request", "body": body, "more_body": False}
-        await client_disconnected.wait()
-        return {"type": "http.disconnect"}
-
-    response = Response()
-    await middleware(
-        {
-            "type": "http",
-            "method": "POST",
-            "path": "/mcp",
-            "headers": [(b"content-type", b"application/json")],
-        },
-        receive,
-        response.send,
+async def test_task_subscription_uses_the_request_scoped_channel():
+    _, extension = server()
+    ctx = context()
+    params = SimpleNamespace(
+        notifications=SimpleNamespace(task_ids=["provider/opaque-task"])
     )
-    assert inner_received_request.is_set()
-    assert response.status == 200
-    assert response.headers["content-type"] == "text/event-stream"
-
-
-async def test_lifecycle_methods_require_capability_and_exact_routing_headers():
-    task_id = uuid7()
-    handler = FakeHandler(task_id)
-    response = await request(
-        app(handler),
-        "tasks/get",
-        str(task_id),
-        {"_meta": meta(False), "taskId": str(task_id)},
+    result = await extension.listen(ctx, params)
+    assert result.result_type == "complete"
+    assert len(ctx.session.sent) == 2
+    assert [related for _, related in ctx.session.sent] == ["listen-1", "listen-1"]
+    acknowledged = ctx.session.sent[0][0].model_dump(
+        by_alias=True, mode="json", exclude_none=True
     )
-    assert response.status == 400
-    assert response.json()["error"]["code"] == -32_003
-
-    response = await request(
-        app(handler),
-        "tasks/get",
-        "wrong-task",
-        {"_meta": meta(True), "taskId": str(task_id)},
+    assert acknowledged["params"]["notifications"]["taskIds"] == [
+        "provider/opaque-task"
+    ]
+    update = ctx.session.sent[1][0].model_dump(
+        by_alias=True, mode="json", exclude_none=True
     )
-    assert response.status == 400
-    assert response.json()["error"]["code"] == -32_602
-
-
-async def test_update_and_cancel_have_final_shapes():
-    task_id = uuid7()
-    handler = FakeHandler(task_id)
-    middleware = app(handler)
-    for method in ["tasks/update", "tasks/cancel"]:
-        if method == "tasks/update":
-            params = {
-                "_meta": meta(True),
-                "taskId": str(task_id),
-                "inputResponses": {},
-            }
-        else:
-            params = {"_meta": meta(True), "taskId": str(task_id)}
-        response = await request(middleware, method, str(task_id), params)
-        assert response.json()["result"]["resultType"] == "complete"
-
-
-async def test_subscription_stream_acknowledges_then_emits_full_task_notification():
-    task_id = uuid7()
-    handler = FakeHandler(task_id)
-    response = await request(
-        app(handler),
-        "subscriptions/listen",
-        None,
-        {"_meta": meta(True), "notifications": {"taskIds": [str(task_id)]}},
-    )
-    assert response.status == 200
-    assert response.headers["content-type"] == "text/event-stream"
-    body = response.body.decode()
-    assert "notifications/subscriptions/acknowledged" in body
-    assert "notifications/tasks" in body
-    assert "io.modelcontextprotocol/subscriptionId" in body
-
-
-def test_constants_and_discriminators_match_final_sep():
-    assert PROTOCOL_VERSION == "2026-06-30"
-    assert EXTENSION_ID == "io.modelcontextprotocol/tasks"
-    assert UPDATE_TASK_METHOD == "tasks/update"
-    assert TASK_RETENTION_PIN_META_KEY == "ai.bioma.veoveo/taskRetentionPin"
-    assert dump(AcknowledgeTaskResult()) == {"resultType": "complete"}
-
-
-def test_request_ids_reject_non_v7_uuids():
-    value = {
-        "_meta": {
-            "io.modelcontextprotocol/protocolVersion": PROTOCOL_VERSION,
-            "io.modelcontextprotocol/clientCapabilities": {
-                "extensions": {EXTENSION_ID: {}}
-            },
-        },
-        "taskId": str(uuid.uuid4()),
-    }
-    with pytest.raises(Exception):
-        GetTaskParams.model_validate(value)
-
-
-def test_retention_pin_meta_is_typed_and_validated():
-    parsed = RequestMeta.model_validate(
-        {
-            "io.modelcontextprotocol/protocolVersion": PROTOCOL_VERSION,
-            "ai.bioma.veoveo/taskRetentionPin": "agent-episode:019",
-        }
-    )
-    assert parsed.task_retention_pin == "agent-episode:019"
-    with pytest.raises(Exception):
-        RequestMeta.model_validate(
-            {
-                "io.modelcontextprotocol/protocolVersion": PROTOCOL_VERSION,
-                "ai.bioma.veoveo/taskRetentionPin": "bad\nvalue",
-            }
-        )
-
-
-def test_task_capability_requires_exactly_an_empty_object():
-    strict_empty = RequestMeta.model_validate(
-        {
-            "io.modelcontextprotocol/protocolVersion": PROTOCOL_VERSION,
-            "io.modelcontextprotocol/clientCapabilities": {
-                "extensions": {EXTENSION_ID: {"unexpected": True}}
-            },
-        }
-    )
-    assert not strict_empty.declares_tasks()
+    assert update["method"] == "notifications/tasks"
+    assert update["params"]["taskId"] == "provider/opaque-task"

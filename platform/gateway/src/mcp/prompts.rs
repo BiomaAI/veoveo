@@ -53,6 +53,9 @@ impl GatewayMcp {
         Ok(ListPromptsResult {
             prompts: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }

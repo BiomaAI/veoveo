@@ -5,21 +5,17 @@ use rmcp::{
     RoleServer, ServerHandler,
     model::{
         Implementation, JsonObject, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
-        ReadResourceRequestParams, ReadResourceResult, Resource, ResourceContents,
-        ServerCapabilities, ServerInfo, Tool,
+        ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult, Resource,
+        ResourceContents, ServerCapabilities, ServerInfo, Tool,
     },
     service::RequestContext,
-    transport::streamable_http_server::{
-        StreamableHttpService, session::local::LocalSessionManager,
-    },
+    transport::streamable_http_server::StreamableHttpService,
 };
 use veoveo_mcp_conformance::{
     ConformanceCredentials, HostedServerConformanceProfile, HostedServerProfileSchema,
     HttpBoundaryProfile, SurfaceExpectation, SurfaceProfile, run_hosted_server_conformance,
 };
-use veoveo_mcp_contract::docs::{
-    CapabilityInventory, ContractDeclaration, DOC_ID_AGENTS, DOC_ID_DESIGN, ServerDocs,
-};
+use veoveo_mcp_contract::docs::{ContractDeclaration, DOC_ID_AGENTS, DOC_ID_DESIGN, ServerDocs};
 
 const FIXTURE_MANUAL: &str = "# Domain\n\n## Purpose\n\nConformance fixture.\n\n\
 ## Invariants\n\nNone.\n\n## Build And Test\n\ncargo test\n\n\
@@ -34,23 +30,8 @@ static FIXTURE_DOCS: LazyLock<ServerDocs> = LazyLock::new(|| {
             "# Domain design\n\nFixture.",
         )
 });
-static FIXTURE_DECLARATION: LazyLock<ContractDeclaration> = LazyLock::new(|| {
-    ContractDeclaration::from_docs(
-        &FIXTURE_DOCS,
-        CapabilityInventory {
-            tools: vec!["inspect".to_owned()],
-            resources: vec![
-                "domain://contract".to_owned(),
-                "domain://docs".to_owned(),
-                "domain://docs/agents".to_owned(),
-                "domain://docs/design".to_owned(),
-            ],
-            resource_templates: Vec::new(),
-            prompts: Vec::new(),
-            tasks: Vec::new(),
-        },
-    )
-});
+static FIXTURE_DECLARATION: LazyLock<ContractDeclaration> =
+    LazyLock::new(|| ContractDeclaration::from_docs(&FIXTURE_DOCS));
 
 #[derive(Clone)]
 struct DomainFixture;
@@ -82,6 +63,9 @@ impl ServerHandler for DomainFixture {
         Ok(ListToolsResult {
             tools: vec![Tool::new("inspect", "Inspect one value.", schema)],
             next_cursor: None,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -99,6 +83,9 @@ impl ServerHandler for DomainFixture {
                 Resource::new("domain://contract", "contract declaration"),
             ],
             next_cursor: None,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -107,28 +94,22 @@ impl ServerHandler for DomainFixture {
         &self,
         request: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, rmcp::ErrorData> {
+    ) -> Result<ReadResourceResponse, rmcp::ErrorData> {
         let uri = request.uri.as_str();
         if uri == "domain://docs" {
             let entries: Vec<_> = FIXTURE_DOCS.iter().collect();
             let text = serde_json::to_string(&entries).expect("doc index serializes");
-            return Ok(ReadResourceResult::new(vec![ResourceContents::text(
-                text, uri,
-            )]));
+            return Ok(ReadResourceResult::new(vec![ResourceContents::text(text, uri)]).into());
         }
         if let Some(id) = uri.strip_prefix("domain://docs/")
             && let Some(doc) = FIXTURE_DOCS.doc(id)
         {
-            return Ok(ReadResourceResult::new(vec![ResourceContents::text(
-                doc.body, uri,
-            )]));
+            return Ok(ReadResourceResult::new(vec![ResourceContents::text(doc.body, uri)]).into());
         }
         if uri == "domain://contract" {
             let text =
                 serde_json::to_string(&*FIXTURE_DECLARATION).expect("declaration serializes");
-            return Ok(ReadResourceResult::new(vec![ResourceContents::text(
-                text, uri,
-            )]));
+            return Ok(ReadResourceResult::new(vec![ResourceContents::text(text, uri)]).into());
         }
         Err(rmcp::ErrorData::invalid_params("unknown resource", None))
     }
@@ -136,12 +117,14 @@ impl ServerHandler for DomainFixture {
 
 #[tokio::test]
 async fn certifies_a_domain_without_linking_its_implementation() -> anyhow::Result<()> {
-    let service: StreamableHttpService<DomainFixture, LocalSessionManager> =
-        StreamableHttpService::new(
-            || Ok(DomainFixture),
-            LocalSessionManager::default().into(),
-            veoveo_mcp_contract::canonical_streamable_http_server_config(),
-        );
+    let service: StreamableHttpService<
+        DomainFixture,
+        rmcp::transport::streamable_http_server::session::never::NeverSessionManager,
+    > = StreamableHttpService::new(
+        || Ok(DomainFixture),
+        veoveo_mcp_contract::stateless_session_manager(),
+        veoveo_mcp_contract::canonical_streamable_http_server_config(),
+    );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;
     let admin = Router::new()
@@ -188,7 +171,7 @@ async fn certifies_a_domain_without_linking_its_implementation() -> anyhow::Resu
     let profile = HostedServerConformanceProfile {
         schema_version: HostedServerProfileSchema::V1,
         profile_id: "anonymous-extension".to_owned(),
-        contract_revision: "veoveo.io/hosted-mcp/v1".to_owned(),
+        contract_revision: "veoveo.io/hosted-mcp/v3".to_owned(),
         endpoint: format!("http://{address}/domain/mcp"),
         server_slug: "domain".to_owned(),
         owned_resource_schemes: BTreeSet::from(["domain".to_owned()]),

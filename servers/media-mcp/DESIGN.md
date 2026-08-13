@@ -29,6 +29,6 @@ retry.
 ## Standards And Protocols
 
 Model Context Protocol over JSON-RPC 2.0 and Streamable HTTP; JSON Schema
-2020-12 tool contracts; the final task extension per
-[`mcp/task-extension`](../../mcp/task-extension); provider webhook
+2020-12 tool contracts; official Tasks per
+official MCP Tasks `2026-07-28`; provider webhook
 completion as documented in the crate.

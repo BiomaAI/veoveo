@@ -10,7 +10,7 @@
 | OAuth 2.0 protected-resource metadata | unauthenticated Bearer rejection checks selected by the profile |
 | `veoveo.io/mcp-conformance-profile/v1` | domain-neutral declaration of applicable hosted-server checks |
 | `veoveo.io/mcp-conformance-report/v1` | machine-readable implementation identity, capabilities, requirement results, and evidence |
-| `veoveo.io/hosted-mcp/v1` | initial Veoveo hosted-server contract revision |
+| `veoveo.io/hosted-mcp/v3` | Veoveo hosted-server contract revision for MCP `2026-07-28` |
 | `veoveo.io/live-view/v2` | optional provider-neutral authoritative camera, bounded viewer-product, actor/browser lease, signaling, and redaction profile layered on a domain-owned simulation server |
 
 ## Boundary
@@ -29,7 +29,7 @@ A profile names the expected implementation slug, selected contract revision, al
 resource URI schemes, HTTP boundary checks, and required, optional, or forbidden MCP
 surfaces. Required tool, resource, template, and prompt identities are extension-owned
 inputs rather than compiled registry entries. A hosted-server certificate selects
-exactly `veoveo.io/hosted-mcp/v1`: resources are required, and the profile must name
+exactly `veoveo.io/hosted-mcp/v3`: resources are required, and the profile must name
 the administrative `llms.txt` URL. Unauthenticated Bearer rejection is required for
 the MCP endpoint. C18–C21 cannot be disabled by a profile.
 

@@ -17,7 +17,7 @@ struct UpstreamHttpClientKey {
 
 /// Shared transport clients for gateway-to-server traffic.
 ///
-/// MCP sessions retain their own protocol state and invocation authority, but
+/// Stateless MCP clients retain immutable invocation authority, while
 /// transport-equivalent upstreams share one reqwest connection pool and one
 /// initialized TLS trust store for the active catalog revision.
 #[derive(Debug, Clone, Default)]
@@ -82,9 +82,9 @@ async fn build_upstream_http_client(
     server: &ServerManifest,
 ) -> Result<reqwest::Client, McpError> {
     let mut builder = reqwest::Client::builder()
-        // Streamable HTTP keeps a GET/SSE response open for the lifetime of the
-        // MCP session. A total request timeout would tear that stream down and
-        // create notification gaps, so bound connection establishment only.
+        // `subscriptions/listen` keeps an SSE response open for the request's
+        // lifetime. A total request timeout would tear that stream down and
+        // create notification gaps, so only connection establishment is bounded.
         .connect_timeout(UPSTREAM_CONNECT_TIMEOUT)
         .redirect(reqwest::redirect::Policy::none());
 

@@ -88,6 +88,7 @@ gateway:
     repository: veoveo/mcp-gateway
     tag: 0.1.0
     digest: ""
+  replicas: 2
   existingControlPlaneConfigMap: veoveo-gateway-control-plane
   controlPlaneKey: gateway.json
   controlPlaneRevision: ""
@@ -294,6 +295,12 @@ domainServiceSourceMounts: {}
 #       cpu: "8"
 #       memory: 8Gi
 domainServiceResources: {}
+
+# Stateless ordinary MCP servers may scale independently. Workloads that own a
+# GPU, a ReadWriteOnce volume, or another singleton resource remain at one
+# replica unless their component-specific chart explicitly models that owner.
+domainServiceReplicas:
+  chart-mcp: 2
 
 consoleBff:
   image:

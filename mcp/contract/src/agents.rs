@@ -15,7 +15,7 @@ pub struct AgentOperatorMessageRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
-pub enum AgentElicitationDecisionRequest {
+pub enum AgentInputRequestDecision {
     Accept {
         request_id: Uuid,
         #[serde(default)]
@@ -29,7 +29,7 @@ pub enum AgentElicitationDecisionRequest {
     },
 }
 
-impl AgentElicitationDecisionRequest {
+impl AgentInputRequestDecision {
     pub const fn request_id(&self) -> Uuid {
         match self {
             Self::Accept { request_id, .. }
@@ -51,8 +51,8 @@ pub struct AgentWakeReceipt {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct AgentElicitationView {
-    pub elicitation_id: Uuid,
+pub struct AgentInputRequestView {
+    pub input_request_id: Uuid,
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub requested_schema: Option<Value>,
@@ -74,17 +74,14 @@ mod tests {
     }
 
     #[test]
-    fn elicitation_decisions_are_closed_and_tagged() {
+    fn input_request_decisions_are_closed_and_tagged() {
         let value = serde_json::json!({
             "request_id": Uuid::now_v7(),
             "action": "accept",
             "content": {"approved": true}
         });
-        let request: AgentElicitationDecisionRequest =
+        let request: AgentInputRequestDecision =
             serde_json::from_value(value).expect("decision parses");
-        assert!(matches!(
-            request,
-            AgentElicitationDecisionRequest::Accept { .. }
-        ));
+        assert!(matches!(request, AgentInputRequestDecision::Accept { .. }));
     }
 }

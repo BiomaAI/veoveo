@@ -24,10 +24,9 @@ re_dataframe.workspace = true
 re_sdk.workspace = true
 re_sdk_types.workspace = true
 reqwest = { workspace = true, features = ["rustls-no-provider"] }
-rig-core.workspace = true
+rig.workspace = true
 rmcp = { workspace = true, features = [
     "client",
-    "elicitation",
     "transport-streamable-http-client",
     "transport-streamable-http-client-reqwest",
 ] }
@@ -41,7 +40,6 @@ url.workspace = true
 uuid.workspace = true
 veoveo-duckdb-runtime = { path = "../../platform/runtimes/duckdb" }
 veoveo-agent-runtime = { path = "../runtime" }
-veoveo-mcp-task-extension = { path = "../../mcp/task-extension" }
 veoveo-mcp-contract.workspace = true
 veoveo-platform-store.workspace = true
 veoveo-task-runtime = { path = "../../platform/task-runtime" }

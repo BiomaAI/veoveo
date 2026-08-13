@@ -712,20 +712,22 @@ fn server_supports_gateway_action(server: &ServerManifest, action: GatewayAction
             server.capabilities.resources
         }
         GatewayAction::ResourcesTemplatesList => server.capabilities.resource_templates,
-        GatewayAction::ResourcesSubscribe | GatewayAction::ResourcesUnsubscribe => {
+        GatewayAction::SubscriptionsListen => {
             server.capabilities.resource_subscriptions
+                || server.capabilities.tasks
+                || server.capabilities.tools_list_changed
+                || server.capabilities.prompts_list_changed
+                || server.capabilities.resources_list_changed
         }
         GatewayAction::PromptsList | GatewayAction::PromptsGet => server.capabilities.prompts,
         GatewayAction::CompletionComplete => server.capabilities.completions,
-        GatewayAction::TasksGet
-        | GatewayAction::TasksUpdate
-        | GatewayAction::TasksResult
-        | GatewayAction::TasksCancel
-        | GatewayAction::TasksSubscribe => server.capabilities.tasks,
+        GatewayAction::TasksGet | GatewayAction::TasksUpdate | GatewayAction::TasksCancel => {
+            server.capabilities.tasks
+        }
         GatewayAction::ArtifactRead | GatewayAction::UsageRead => server.capabilities.resources,
         GatewayAction::AgentsRead
         | GatewayAction::AgentsMessage
-        | GatewayAction::AgentsElicitationAnswer => false,
+        | GatewayAction::AgentsInputRequestAnswer => false,
         GatewayAction::AdminRead | GatewayAction::AdminWrite => true,
         GatewayAction::RecordingStreamOpen
         | GatewayAction::RecordingStreamStatus

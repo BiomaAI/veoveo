@@ -144,7 +144,7 @@ impl AdminOperationStatus {
 #[derive(Debug, Clone, Copy)]
 pub(super) enum AdminOperationFailure {
     AgentCaller,
-    AgentElicitation,
+    AgentInputRequest,
     AgentMessage,
     ArtifactGrant,
     ArtifactGrantRevoke,
@@ -153,7 +153,6 @@ pub(super) enum AdminOperationFailure {
     ArtifactShareLinkRevoke,
     BuildHttpClient,
     CancelTask,
-    ConnectFinalTaskExtension,
     ControlPlaneSha,
     ExpiredRevocation,
     InvalidControlPlane,
@@ -172,7 +171,7 @@ impl AdminOperationFailure {
     fn as_str(self) -> &'static str {
         match self {
             Self::AgentCaller => "agent_caller",
-            Self::AgentElicitation => "agent_elicitation",
+            Self::AgentInputRequest => "agent_input_request",
             Self::AgentMessage => "agent_message",
             Self::ArtifactGrant => "artifact_grant",
             Self::ArtifactGrantRevoke => "artifact_grant_revoke",
@@ -181,7 +180,6 @@ impl AdminOperationFailure {
             Self::ArtifactShareLinkRevoke => "artifact_share_link_revoke",
             Self::BuildHttpClient => "build_http_client",
             Self::CancelTask => "cancel_task",
-            Self::ConnectFinalTaskExtension => "connect_final_task_extension",
             Self::ControlPlaneSha => "control_plane_sha",
             Self::ExpiredRevocation => "expired_revocation",
             Self::InvalidControlPlane => "invalid_control_plane",

@@ -6,7 +6,7 @@
 //!   /media/files/*         — optional static media dir so providers can fetch inputs by URL
 //!
 //! MCP surface (protocol-maximal):
-//!   tool `run(model, input)`         — durable final task extension
+//!   tool `run(model, input)`         — durable official Tasks
 //!   tool `models(query?, type?, limit?)` — catalog search for tools-only clients
 //!   tool `model_schema(model)`       — exact input schema for tools-only clients
 //!   tool `artifact(artifact_uri)`     — artifact image blocks for tools-only clients
@@ -34,18 +34,19 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{TimeDelta, Utc};
 use clap::Parser;
+use rmcp::tool;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, CompleteRequestParams, CompleteResult, CompletionInfo,
-        GetPromptRequestParams, GetPromptResult, ListPromptsResult, ListResourceTemplatesResult,
+        CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams,
+        CompleteRequestParams, CompleteResult, CompletionInfo, GetPromptRequestParams,
+        GetTaskParams, GetTaskResult, ListPromptsResult, ListResourceTemplatesResult,
         ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt,
         ReadResourceRequestParams, ReadResourceResult, Reference, Resource, ResourceContents,
-        ResourceTemplate, ServerCapabilities, ServerInfo, SubscribeRequestParams,
-        UnsubscribeRequestParams,
+        ResourceTemplate, ServerCapabilities, ServerInfo, SubscriptionFilter, UpdateTaskParams,
     },
-    service::RequestContext,
+    service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
     transport::streamable_http_server::StreamableHttpService,
 };
@@ -53,17 +54,11 @@ use secrecy::ExposeSecret;
 use serde_json::{Value, json};
 use tokio::sync::RwLock;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
-use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
     GenerationRunOutput, IssueArtifactWriteCapabilityRequest, Page, ResourceListObservers,
-    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, UsageReport,
-    docs::{CapabilityInventory, ServerDocs},
+    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, UsageReport, docs::ServerDocs,
     init_server_telemetry, paginate, public_allowed_hosts,
-};
-use veoveo_mcp_task_extension::{
-    Implementation as TaskExtensionImplementation, ServerDiscovery, TaskExtensionAdapter,
-    task_extension_middleware,
 };
 use veoveo_media_mcp::{
     artifacts::ArtifactRepository,
@@ -142,13 +137,10 @@ const TASK_LEASE_DURATION: Duration = Duration::from_secs(120);
 static SERVER_DOCS: LazyLock<ServerDocs> =
     LazyLock::new(|| veoveo_mcp_contract::server_docs!(SERVER_SLUG));
 
-/// Task-augmented tool names declared at `media://contract`; `run` requires
-/// the final task extension.
-const TASK_TOOLS: &[&str] = &["run"];
-
 #[derive(Clone)]
 struct MediaMcp {
     state: Arc<AppState>,
+    task_service: MediaTaskExtension,
     #[allow(dead_code)]
     tool_router: ToolRouter<MediaMcp>,
 }
@@ -157,6 +149,7 @@ struct MediaMcp {
 impl MediaMcp {
     fn new(state: Arc<AppState>) -> Self {
         Self {
+            task_service: MediaTaskExtension::new(state.clone()),
             state,
             tool_router: Self::tool_router(),
         }
@@ -168,7 +161,6 @@ impl MediaMcp {
         title = "Run media model",
         description = "Run any media model as a durable asynchronous task. Read tasks/get for status and the terminal typed result. Discover models through media://models, schemas through media://model/{model_id}, and billing through media://usage/task/{task_id}.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<GenerationRunOutput>(),
-        execution(task_support = "required"),
         annotations(
             read_only_hint = false,
             destructive_hint = false,
@@ -262,38 +254,6 @@ impl MediaMcp {
 }
 
 impl MediaMcp {
-    /// The capability inventory declared at `media://contract` (contract
-    /// C19). Tools and prompts derive from the live registrations; stable
-    /// resources and templates come from the lists those surfaces are served
-    /// from, so the declaration cannot silently diverge from the handler.
-    fn capability_inventory() -> CapabilityInventory {
-        let mut tools: Vec<String> = Self::tool_router()
-            .list_all()
-            .into_iter()
-            .map(|tool| tool.name.into_owned())
-            .collect();
-        tools.sort();
-        let mut resources: Vec<String> = well_known_resources()
-            .into_iter()
-            .map(|resource| resource.uri.clone())
-            .collect();
-        resources.extend([uris::MODELS_URI, uris::USAGE_ROOT_URI].map(str::to_owned));
-        resources.sort();
-        CapabilityInventory {
-            tools,
-            resources,
-            resource_templates: resource_templates()
-                .into_iter()
-                .map(|template| template.uri_template.clone())
-                .collect(),
-            prompts: MediaPrompt::ALL
-                .into_iter()
-                .map(|prompt| prompt.prompt().name)
-                .collect(),
-            tasks: TASK_TOOLS.iter().map(|name| (*name).to_owned()).collect(),
-        }
-    }
-
     fn models_index_json(models: &[ModelEntry]) -> Value {
         Value::Array(
             models
@@ -385,8 +345,14 @@ fn resource_templates() -> Vec<ResourceTemplate> {
 
 #[tool_handler]
 impl ServerHandler for MediaMcp {
+    fn supported_protocol_versions(
+        &self,
+    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
+        veoveo_mcp_contract::final_protocol_versions()
+    }
+
     fn get_info(&self) -> ServerInfo {
-        let caps: ServerCapabilities = ServerCapabilities::builder()
+        let mut caps: ServerCapabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_prompts()
             .enable_resources()
@@ -394,6 +360,10 @@ impl ServerHandler for MediaMcp {
             .enable_resources_list_changed()
             .enable_completions()
             .build();
+        caps.extensions.get_or_insert_default().insert(
+            rmcp::model::TASKS_EXTENSION_ID.to_owned(),
+            rmcp::model::JsonObject::new(),
+        );
         let mut info = ServerInfo::default();
         info.capabilities = caps;
         info.server_info = rmcp::model::Implementation::new("media", env!("CARGO_PKG_VERSION"));
@@ -411,6 +381,71 @@ impl ServerHandler for MediaMcp {
         info
     }
 
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        if context
+            .meta
+            .client_capabilities()
+            .is_some_and(|caps| caps.supports_tasks())
+        {
+            let caller = veoveo_task_runtime::DurableTaskService::authenticate(
+                &self.task_service,
+                &context,
+            )?;
+            if let Some(created) = veoveo_task_runtime::DurableTaskService::start_tool_task(
+                &self.task_service,
+                &caller,
+                request.clone(),
+            )
+            .await?
+            {
+                return Ok(created.into());
+            }
+        }
+        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        self.tool_router.call(call).await
+    }
+
+    async fn get_task(
+        &self,
+        request: GetTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<GetTaskResult, McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::get_task(&self.task_service, &caller, request)
+            .await
+    }
+
+    async fn update_task(
+        &self,
+        request: UpdateTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::update_task(&self.task_service, &caller, request)
+            .await
+    }
+
+    async fn cancel_task(
+        &self,
+        request: CancelTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::cancel_task(
+            &self.task_service,
+            &caller,
+            request.task_id,
+        )
+        .await
+    }
+
     async fn list_tools(
         &self,
         request: Option<PaginatedRequestParams>,
@@ -422,6 +457,9 @@ impl ServerHandler for MediaMcp {
         Ok(ListToolsResult {
             tools: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -439,6 +477,9 @@ impl ServerHandler for MediaMcp {
         Ok(ListPromptsResult {
             prompts: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -447,14 +488,18 @@ impl ServerHandler for MediaMcp {
         &self,
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<GetPromptResult, McpError> {
-        let prompt = MediaPrompt::by_name(&request.name).ok_or_else(|| {
-            McpError::invalid_params(
-                format!("unknown prompt '{}'; read prompts/list", request.name),
-                None,
-            )
-        })?;
-        prompt.render(request.arguments)
+    ) -> Result<rmcp::model::GetPromptResponse, McpError> {
+        async {
+            let prompt = MediaPrompt::by_name(&request.name).ok_or_else(|| {
+                McpError::invalid_params(
+                    format!("unknown prompt '{}'; read prompts/list", request.name),
+                    None,
+                )
+            })?;
+            prompt.render(request.arguments)
+        }
+        .await
+        .map(Into::into)
     }
 
     async fn list_resources(
@@ -462,10 +507,6 @@ impl ServerHandler for MediaMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
-        self.state
-            .resource_lists
-            .observe(context.peer.clone())
-            .await;
         let identity = internal_identity(&context)?;
         let mut resources = well_known_resources();
         resources.extend([
@@ -531,6 +572,9 @@ impl ServerHandler for MediaMcp {
         Ok(ListResourcesResult {
             resources: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -544,6 +588,9 @@ impl ServerHandler for MediaMcp {
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -552,189 +599,182 @@ impl ServerHandler for MediaMcp {
         &self,
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, McpError> {
-        let identity = internal_identity(&context)?;
-        let uri = request.uri.as_str();
-        // Well-known surface (contract C18, C19): readable by any
-        // authenticated identity, like `list_resources`.
-        if uri == uris::DOCS_URI {
-            let text = serde_json::to_string(&SERVER_DOCS.iter().collect::<Vec<_>>())
-                .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(text, uri).with_mime_type("application/json"),
-            ]));
-        }
-        if let Some(doc_id) = uris::parse_doc_uri(uri) {
-            let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
-                McpError::resource_not_found(format!("unknown server document '{doc_id}'"), None)
-            })?;
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-            ]));
-        }
-        if uri == uris::CONTRACT_URI {
-            let declaration = SERVER_DOCS.contract_declaration(Self::capability_inventory);
-            let text = serde_json::to_string(declaration)
-                .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(text, uri).with_mime_type("application/json"),
-            ]));
-        }
-        let text = if uri == uris::MODELS_URI {
-            let models = self
-                .state
-                .registry()
-                .await
-                .map_err(|e| McpError::internal_error(e, None))?;
-            Self::models_index_json(&models).to_string()
-        } else if uri == uris::USAGE_ROOT_URI {
-            let task_ids = self
-                .state
-                .durable
-                .usage_task_ids()
-                .await
-                .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-            let mut entries: Vec<Value> = Vec::new();
-            for task_id in task_ids {
-                let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
-                    continue;
-                };
-                if !task_owner_allows(&owner, &identity) {
-                    continue;
-                }
-                entries.push(json!({
-                    "task_id": task_id,
-                    "usage_uri": uris::usage_task_uri(&task_id),
-                }));
+    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
+        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
+        async {
+            let identity = internal_identity(&context)?;
+            let uri = request.uri.as_str();
+            // Well-known surface (contract C18, C19): readable by any
+            // authenticated identity, like `list_resources`.
+            if uri == uris::DOCS_URI {
+                let text = serde_json::to_string(&SERVER_DOCS.iter().collect::<Vec<_>>())
+                    .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(text, uri).with_mime_type("application/json"),
+                ]));
             }
-            serde_json::to_string(&entries)
-                .map_err(|e| McpError::internal_error(e.to_string(), None))?
-        } else if let Some(model_id) = uris::parse_model_uri(uri) {
-            let entry = self
-                .state
-                .find_model(model_id)
-                .await
-                .map_err(|e| McpError::internal_error(e, None))?
-                .ok_or_else(|| {
+            if let Some(doc_id) = uris::parse_doc_uri(uri) {
+                let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
                     McpError::resource_not_found(
-                        format!("unknown model '{model_id}'; browse media://models"),
+                        format!("unknown server document '{doc_id}'"),
                         None,
                     )
                 })?;
-            serde_json::to_string(&entry)
-                .map_err(|e| McpError::internal_error(e.to_string(), None))?
-        } else if let Some(id) = uris::parse_prediction_uri(uri) {
-            let owner = prediction_owner(&self.state, id).await?;
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
+                ]));
+            }
+            if uri == uris::CONTRACT_URI {
+                let declaration = SERVER_DOCS.contract_declaration();
+                let text = serde_json::to_string(declaration)
+                    .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(text, uri).with_mime_type("application/json"),
+                ]));
+            }
+            let text = if uri == uris::MODELS_URI {
+                let models = self
+                    .state
+                    .registry()
+                    .await
+                    .map_err(|e| McpError::internal_error(e, None))?;
+                Self::models_index_json(&models).to_string()
+            } else if uri == uris::USAGE_ROOT_URI {
+                let task_ids = self
+                    .state
+                    .durable
+                    .usage_task_ids()
+                    .await
+                    .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+                let mut entries: Vec<Value> = Vec::new();
+                for task_id in task_ids {
+                    let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
+                        continue;
+                    };
+                    if !task_owner_allows(&owner, &identity) {
+                        continue;
+                    }
+                    entries.push(json!({
+                        "task_id": task_id,
+                        "usage_uri": uris::usage_task_uri(&task_id),
+                    }));
+                }
+                serde_json::to_string(&entries)
+                    .map_err(|e| McpError::internal_error(e.to_string(), None))?
+            } else if let Some(model_id) = uris::parse_model_uri(uri) {
+                let entry = self
+                    .state
+                    .find_model(model_id)
+                    .await
+                    .map_err(|e| McpError::internal_error(e, None))?
+                    .ok_or_else(|| {
+                        McpError::resource_not_found(
+                            format!("unknown model '{model_id}'; browse media://models"),
+                            None,
+                        )
+                    })?;
+                serde_json::to_string(&entry)
+                    .map_err(|e| McpError::internal_error(e.to_string(), None))?
+            } else if let Some(id) = uris::parse_prediction_uri(uri) {
+                let owner = prediction_owner(&self.state, id).await?;
+                if !task_owner_allows(&owner, &identity) {
+                    return Err(McpError::invalid_request(
+                        "media prediction policy denied request",
+                        None,
+                    ));
+                }
+                let prediction = self
+                    .state
+                    .durable
+                    .provider_job_for_external(id)
+                    .await
+                    .map_err(|error| McpError::internal_error(error.to_string(), None))?
+                    .map(|job| job.prediction)
+                    .ok_or_else(|| {
+                        McpError::resource_not_found(format!("unknown prediction '{id}'"), None)
+                    })?;
+                serde_json::to_string(&public_prediction(&prediction))
+                    .map_err(|e| McpError::internal_error(e.to_string(), None))?
+            } else if let Some(task_id) = uris::parse_usage_task_uri(uri) {
+                require_task_owner(&self.state, &context, task_id).await?;
+                let records = self
+                    .state
+                    .durable
+                    .usage_records(task_id)
+                    .await
+                    .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+                if records.is_empty() {
+                    return Err(McpError::resource_not_found(
+                        format!("unknown usage task '{task_id}'"),
+                        None,
+                    ));
+                }
+                let report = UsageReport::new(task_id, uri).with_records(records);
+                serde_json::to_string(&report)
+                    .map_err(|e| McpError::internal_error(e.to_string(), None))?
+            } else if let Some(artifact_id) = uris::parse_artifact_uri(uri) {
+                // The plane enforces access with the caller's identity.
+                let caller = internal_caller(&context)?;
+                let artifact = self
+                    .state
+                    .artifacts
+                    .get(&caller, &artifact_id)
+                    .await
+                    .map_err(|e| McpError::internal_error(e.to_string(), None))?
+                    .ok_or_else(|| {
+                        McpError::resource_not_found(
+                            format!("unknown artifact '{artifact_id}'"),
+                            None,
+                        )
+                    })?;
+                let blob = BASE64_STANDARD.encode(&artifact.bytes);
+                let mut content = ResourceContents::blob(blob, uri);
+                if let Some(mime) = artifact.metadata.mime_type {
+                    content = content.with_mime_type(mime);
+                }
+                return Ok(ReadResourceResult::new(vec![content]));
+            } else {
+                return Err(McpError::resource_not_found(
+                    format!("unknown resource uri: {uri}"),
+                    None,
+                ));
+            };
+            Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(text, uri).with_mime_type("application/json"),
+            ]))
+        }
+        .await
+        .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
+    }
+
+    fn accepted_subscription_filter(
+        &self,
+        requested: &SubscriptionFilter,
+    ) -> Option<SubscriptionFilter> {
+        veoveo_mcp_contract::accepted_subscription_filter(requested)
+    }
+
+    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
+        let request_context = context.request_context().clone();
+        let identity = internal_identity(&request_context)?;
+        for uri in context.accepted().resource_subscriptions.iter().flatten() {
+            let prediction_id = uris::parse_prediction_uri(uri)
+                .ok_or_else(|| McpError::invalid_params("resource is not subscribable", None))?;
+            let owner = prediction_owner(&self.state, prediction_id).await?;
             if !task_owner_allows(&owner, &identity) {
                 return Err(McpError::invalid_request(
-                    "media prediction policy denied request",
+                    "media subscription policy denied request",
                     None,
                 ));
             }
-            let prediction = self
-                .state
-                .durable
-                .provider_job_for_external(id)
-                .await
-                .map_err(|error| McpError::internal_error(error.to_string(), None))?
-                .map(|job| job.prediction)
-                .ok_or_else(|| {
-                    McpError::resource_not_found(format!("unknown prediction '{id}'"), None)
-                })?;
-            serde_json::to_string(&public_prediction(&prediction))
-                .map_err(|e| McpError::internal_error(e.to_string(), None))?
-        } else if let Some(task_id) = uris::parse_usage_task_uri(uri) {
-            require_task_owner(&self.state, &context, task_id).await?;
-            let records = self
-                .state
-                .durable
-                .usage_records(task_id)
-                .await
-                .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-            if records.is_empty() {
-                return Err(McpError::resource_not_found(
-                    format!("unknown usage task '{task_id}'"),
-                    None,
-                ));
-            }
-            let report = UsageReport::new(task_id, uri).with_records(records);
-            serde_json::to_string(&report)
-                .map_err(|e| McpError::internal_error(e.to_string(), None))?
-        } else if let Some(artifact_id) = uris::parse_artifact_uri(uri) {
-            // The plane enforces access with the caller's identity.
-            let caller = internal_caller(&context)?;
-            let artifact = self
-                .state
-                .artifacts
-                .get(&caller, &artifact_id)
-                .await
-                .map_err(|e| McpError::internal_error(e.to_string(), None))?
-                .ok_or_else(|| {
-                    McpError::resource_not_found(format!("unknown artifact '{artifact_id}'"), None)
-                })?;
-            let blob = BASE64_STANDARD.encode(&artifact.bytes);
-            let mut content = ResourceContents::blob(blob, uri);
-            if let Some(mime) = artifact.metadata.mime_type {
-                content = content.with_mime_type(mime);
-            }
-            return Ok(ReadResourceResult::new(vec![content]));
-        } else {
-            return Err(McpError::resource_not_found(
-                format!("unknown resource uri: {uri}"),
-                None,
-            ));
-        };
-        Ok(ReadResourceResult::new(vec![
-            ResourceContents::text(text, uri).with_mime_type("application/json"),
-        ]))
-    }
-
-    async fn subscribe(
-        &self,
-        request: SubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let identity = internal_identity(&context)?;
-        let prediction_id = uris::parse_prediction_uri(&request.uri)
-            .ok_or_else(|| McpError::invalid_params("resource is not subscribable", None))?;
-        let owner = prediction_owner(&self.state, prediction_id).await?;
-        if !task_owner_allows(&owner, &identity) {
-            return Err(McpError::invalid_request(
-                "media subscription policy denied request",
-                None,
-            ));
         }
-        self.state
-            .subscribers
-            .subscribe(
-                request.uri.clone(),
-                identity.actor.id.clone(),
-                context.peer.clone(),
-            )
-            .await;
-        Ok(())
-    }
-
-    async fn unsubscribe(
-        &self,
-        request: UnsubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let identity = internal_identity(&context)?;
-        let prediction_id = uris::parse_prediction_uri(&request.uri)
-            .ok_or_else(|| McpError::invalid_params("resource is not subscribable", None))?;
-        let owner = prediction_owner(&self.state, prediction_id).await?;
-        if !task_owner_allows(&owner, &identity) {
-            return Err(McpError::invalid_request(
-                "media subscription policy denied request",
-                None,
-            ));
-        }
-        self.state
-            .subscribers
-            .unsubscribe(&request.uri, &identity.actor.id)
-            .await;
-        Ok(())
+        veoveo_task_runtime::listen_durable_subscriptions(
+            &self.task_service,
+            context,
+            Some(&self.state.subscribers),
+            Some(&self.state.resource_lists),
+        )
+        .await
     }
 
     async fn complete(
@@ -1008,35 +1048,14 @@ async fn main() -> anyhow::Result<()> {
             let state = state.clone();
             move || Ok(MediaMcp::new(state.clone()))
         },
-        veoveo_mcp_contract::canonical_session_manager(),
+        veoveo_mcp_contract::stateless_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
             .with_cancellation_token(ct.child_token()),
     );
-    let task_extension = Arc::new(TaskExtensionAdapter::new(
-        Arc::new(MediaTaskExtension::new(state.clone())),
-        ServerDiscovery::new(
-            std::collections::BTreeMap::from([
-                ("tools".to_owned(), json!({})),
-                ("resources".to_owned(), json!({})),
-            ]),
-            TaskExtensionImplementation {
-                name: "media".to_owned(),
-                version: env!("CARGO_PKG_VERSION").to_owned(),
-            },
-            Some(
-                "Webhook-completed media generation with durable tasks and immutable artifacts."
-                    .to_owned(),
-            ),
-        ),
-    ));
     let mcp_router = Router::new()
         .route_service("/", mcp_service.clone())
         .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn_with_state(
-            task_extension,
-            task_extension_middleware::<MediaTaskExtension>,
-        ))
         .layer(middleware::from_fn_with_state(
             internal_auth_state.clone(),
             authenticate_internal_mcp,
@@ -1096,7 +1115,7 @@ mod well_known_tests {
         CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
     };
 
-    use super::{MediaMcp, SERVER_DOCS, TASK_TOOLS, resource_templates, uris};
+    use super::SERVER_DOCS;
 
     #[test]
     fn embedded_documents_carry_the_crate_manual_and_design() {
@@ -1112,10 +1131,7 @@ mod well_known_tests {
 
     #[test]
     fn contract_declaration_resolves_from_the_embedded_manual() {
-        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(
-            &SERVER_DOCS,
-            MediaMcp::capability_inventory(),
-        );
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
         assert_eq!(declaration.server, "media");
         assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
         for id in ["C18", "C19", "C20", "C21"] {
@@ -1134,42 +1150,10 @@ mod well_known_tests {
     }
 
     #[test]
-    fn capability_inventory_matches_the_registered_surface() {
-        let inventory = MediaMcp::capability_inventory();
-        for tool in ["run", "models", "model_schema", "artifact"] {
-            assert!(
-                inventory.tools.iter().any(|name| name == tool),
-                "inventory is missing tool {tool}"
-            );
-        }
-        for uri in [
-            uris::DOCS_URI,
-            uris::CONTRACT_URI,
-            uris::MODELS_URI,
-            uris::USAGE_ROOT_URI,
-        ] {
-            assert!(
-                inventory.resources.contains(&uri.to_owned()),
-                "inventory is missing resource {uri}"
-            );
-        }
-        assert!(inventory.resources.contains(&uris::doc_uri("agents")));
-        assert!(
-            inventory
-                .resource_templates
-                .contains(&uris::DOC_TEMPLATE.to_owned())
-        );
-        assert_eq!(
-            resource_templates().len(),
-            inventory.resource_templates.len()
-        );
-        assert!(
-            inventory
-                .prompts
-                .iter()
-                .any(|name| name == "media-model-select")
-        );
-        assert_eq!(inventory.tasks, TASK_TOOLS);
+    fn contract_declaration_defers_runtime_surface_to_discover() {
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
+        let json = serde_json::to_value(declaration).unwrap();
+        assert!(json.get("capabilities").is_none());
     }
 }
 

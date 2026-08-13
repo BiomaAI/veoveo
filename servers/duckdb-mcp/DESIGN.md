@@ -67,7 +67,7 @@ duckdb__export
 |---|---|
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with tools, resources and templates, structured content, notifications, and usage resources. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Canonical tool inputs and structured results. Open-ended DuckDB values remain JSON only where the SQL type system is genuinely dynamic. |
-| [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; query, mutation, ingest, and export select a declared direct or durable execution mode. |
+| MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; query, mutation, ingest, and export select a declared direct or durable execution mode. |
 | DuckDB SQL | The pinned DuckDB dialect is accepted inside the hardened database boundary. Veoveo does not claim a narrower ISO SQL subset or translate SQL through another query language. |
 | CSV, JSON/NDJSON, and [Apache Parquet](https://parquet.apache.org/docs/) | Governed source materialization and immutable export. Parsing behavior is pinned to the installed DuckDB release and explicit read options. |
 | DuckDB Spatial | Locally pinned extension support for OGC-style geometry operations, WGS84/EPSG CRS transformation, GeoJSON, WKB, spatial indexes, and spatial joins. |
@@ -149,7 +149,8 @@ health routes only.
 /duckdb/healthz   operational health
 ```
 
-The MCP transport is sessionful Streamable HTTP with event-stream responses.
+The MCP transport is stateless Streamable HTTP. Ordinary terminal responses are JSON;
+streaming is reserved for final request-scoped methods that require it.
 Durable task continuity comes from the shared task runtime rather than an
 in-memory task registry.
 
@@ -161,14 +162,14 @@ The core server surface provides:
 - resources
 - resource templates
 
-The final task extension adds:
+Official Tasks add:
 
 - task-capable tool invocation
 - task discovery and retrieval
 - task cancellation and input update
 - SSE task subscriptions
 - task status notifications
-- durable result retrieval across MCP sessions
+- durable result retrieval across stateless MCP requests
 
 Prompts, completions, and resource subscriptions are not part of the current
 server. SQL and database schema discovery already have direct domain surfaces.
@@ -726,8 +727,8 @@ Current task timing is:
 | worker lease | 120 seconds |
 | lease heartbeat | 40 seconds |
 
-The final task extension supports creation, get, update, cancellation, and SSE
-subscriptions. A later MCP session with a fresh gateway token can continue a
+Official Tasks support creation, get, update, cancellation, and request-scoped
+subscriptions. A later stateless MCP request with a fresh gateway token can continue a
 task created by the same durable principal and profile.
 
 Recovery classes follow side-effect semantics:
@@ -927,7 +928,7 @@ Server tests cover:
 
 The Rust multi-process smoke harness covers gateway projection of DuckDB tools,
 task-capable execution, durable task completion, and result continuity across
-MCP sessions with a fresh token for the same principal. Its native path fetches
+Stateless MCP requests with a fresh token for the same principal. Its native path fetches
 the same versioned Spatial archive as the image, verifies both the archive and
 installed extension digests, and keeps the verified file in the Cargo target
 cache. Deployment checks cover the image, shared library packaging, edge-route

@@ -9,12 +9,12 @@ use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 use veoveo_platform_store::{
-    AgentElicitationId, AgentElicitationRecord, AgentElicitationState, AgentRecord, AgentState,
+    AgentInputRequestId, AgentInputRequestRecord, AgentInputRequestState, AgentRecord, AgentState,
     OpenObject, OutboxDraft, PlatformStore, StoreAuthLevel, WakeId, WakeKind, WakeRecord,
     WakeState, deterministic_tenant_id, deterministic_work_context_id,
 };
 
-use crate::{AgentRuntimeError, ElicitationAnswer, Result, object, uuid_from_record};
+use crate::{AgentRuntimeError, InputRequestAnswer, Result, object, uuid_from_record};
 
 const EVENT_SCHEMA_VERSION: i64 = 1;
 const MAX_OPERATOR_MESSAGE_BYTES: usize = 16 * 1024;
@@ -41,10 +41,10 @@ pub struct OperatorMessageDraft {
 }
 
 #[derive(Clone, Debug)]
-pub struct ElicitationDecisionDraft {
+pub struct InputRequestDecisionDraft {
     pub request_id: Uuid,
-    pub elicitation_id: AgentElicitationId,
-    pub answer: ElicitationAnswer,
+    pub input_request_id: AgentInputRequestId,
+    pub answer: InputRequestAnswer,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -57,8 +57,8 @@ pub struct AgentControlReceipt {
 }
 
 #[derive(Clone, Debug)]
-pub struct GovernedElicitation {
-    pub elicitation_id: AgentElicitationId,
+pub struct GovernedInputRequest {
+    pub input_request_id: AgentInputRequestId,
     pub message: String,
     pub requested_schema: Option<OpenObject>,
     pub requested_at: DateTime<Utc>,
@@ -143,27 +143,27 @@ impl AgentControl {
         Ok(receipt(target, wake_id, draft.request_id, accepted_at))
     }
 
-    pub async fn parked_elicitations(
+    pub async fn pending_input_requests(
         &self,
         target: &AgentControlTarget,
-    ) -> Result<Vec<GovernedElicitation>> {
+    ) -> Result<Vec<GovernedInputRequest>> {
         let agent = self.resolve_target(target).await?;
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM agent_elicitation WHERE agent = $agent AND tenant = $tenant AND state = 'parked' ORDER BY requested_at ASC LIMIT 128;")
+            .query("SELECT * FROM agent_input_request WHERE agent = $agent AND tenant = $tenant AND state = 'pending' ORDER BY requested_at ASC LIMIT 128;")
             .bind(("agent", agent.id.clone()))
             .bind(("tenant", agent.tenant.clone()))
             .await?
             .check()?;
-        let records: Vec<AgentElicitationRecord> = response.take(0)?;
+        let records: Vec<AgentInputRequestRecord> = response.take(0)?;
         records
             .into_iter()
             .map(|record| {
-                Ok(GovernedElicitation {
-                    elicitation_id: AgentElicitationId::from_uuid(uuid_from_record(
+                Ok(GovernedInputRequest {
+                    input_request_id: AgentInputRequestId::from_uuid(uuid_from_record(
                         &record.id,
-                        "agent_elicitation.id",
+                        "agent_input_request.id",
                     )?),
                     message: record.message,
                     requested_schema: record.requested_schema,
@@ -173,21 +173,21 @@ impl AgentControl {
             .collect()
     }
 
-    pub async fn decide_elicitation(
+    pub async fn decide_input_request(
         &self,
         target: &AgentControlTarget,
-        draft: ElicitationDecisionDraft,
+        draft: InputRequestDecisionDraft,
     ) -> Result<AgentControlReceipt> {
         validate_request_id(draft.request_id)?;
         validate_actor(&draft.answer.answered_by)?;
-        validate_elicitation_answer(&draft.answer)?;
+        validate_input_request_answer(&draft.answer)?;
         let agent = self.resolve_target(target).await?;
         let existing = self
-            .elicitation_for_agent(draft.elicitation_id, &agent)
+            .input_request_for_agent(draft.input_request_id, &agent)
             .await?;
-        if existing.state != AgentElicitationState::Parked {
+        if existing.state != AgentInputRequestState::Pending {
             return self
-                .existing_elicitation_receipt(target, draft, existing)
+                .existing_input_request_receipt(target, draft, existing)
                 .await;
         }
 
@@ -195,8 +195,8 @@ impl AgentControl {
         let wake_id = WakeId::from_uuid(draft.request_id);
         let payload = object([
             (
-                "elicitation_id".to_owned(),
-                serde_json::json!(draft.elicitation_id),
+                "input_request_id".to_owned(),
+                serde_json::json!(draft.input_request_id),
             ),
             ("phase".to_owned(), serde_json::json!("answered")),
             ("request_id".to_owned(), serde_json::json!(draft.request_id)),
@@ -211,16 +211,16 @@ impl AgentControl {
         ]);
         let wake_content = wake_content(
             &agent,
-            WakeKind::Elicitation,
-            format!("elicitation:{}:answered", draft.elicitation_id),
+            WakeKind::InputRequest,
+            format!("input_request:{}:answered", draft.input_request_id),
             payload,
             now,
         );
         let event = OutboxDraft::now(
             Some(agent.tenant.clone()),
-            "agent_elicitation",
-            draft.elicitation_id.to_string(),
-            "agent_elicitation.answered",
+            "agent_input_request",
+            draft.input_request_id.to_string(),
+            "agent_input_request.answered",
             EVENT_SCHEMA_VERSION,
             object([
                 ("wake_id".to_owned(), serde_json::json!(wake_id)),
@@ -237,8 +237,8 @@ impl AgentControl {
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; LET $answered = (UPDATE ONLY $elicitation SET state = $state, answer = $answer, answered_by = $answered_by, answered_at = $now, revision += 1 WHERE agent = $agent AND tenant = $tenant AND state = 'parked' AND revision = $revision RETURN AFTER); IF $answered = NONE { THROW 'agent elicitation answer conflict'; }; CREATE ONLY $wake CONTENT $wake_content RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
-            .bind(("elicitation", draft.elicitation_id.record_id()))
+            .query("BEGIN TRANSACTION; LET $answered = (UPDATE ONLY $input_request SET state = $state, answer = $answer, answered_by = $answered_by, answered_at = $now, revision += 1 WHERE agent = $agent AND tenant = $tenant AND state = 'pending' AND revision = $revision RETURN AFTER); IF $answered = NONE { THROW 'agent input_request answer conflict'; }; CREATE ONLY $wake CONTENT $wake_content RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .bind(("input_request", draft.input_request_id.record_id()))
             .bind(("agent", agent.id.clone()))
             .bind(("tenant", agent.tenant.clone()))
             .bind(("state", draft.answer.state))
@@ -253,14 +253,14 @@ impl AgentControl {
             .and_then(|response| response.check());
         if let Err(error) = result {
             let current = self
-                .elicitation_for_agent(draft.elicitation_id, &agent)
+                .input_request_for_agent(draft.input_request_id, &agent)
                 .await?;
             if current.state == draft.answer.state
                 && current.answer == draft.answer.answer
                 && current.answered_by.as_deref() == Some(&draft.answer.answered_by)
             {
                 return self
-                    .existing_elicitation_receipt(target, draft, current)
+                    .existing_input_request_receipt(target, draft, current)
                     .await;
             }
             return Err(AgentRuntimeError::Database(error));
@@ -268,18 +268,18 @@ impl AgentControl {
         Ok(receipt(target, wake_id, draft.request_id, now))
     }
 
-    async fn existing_elicitation_receipt(
+    async fn existing_input_request_receipt(
         &self,
         target: &AgentControlTarget,
-        draft: ElicitationDecisionDraft,
-        existing: AgentElicitationRecord,
+        draft: InputRequestDecisionDraft,
+        existing: AgentInputRequestRecord,
     ) -> Result<AgentControlReceipt> {
         if existing.state != draft.answer.state
             || existing.answer != draft.answer.answer
             || existing.answered_by.as_deref() != Some(&draft.answer.answered_by)
         {
             return Err(AgentRuntimeError::Conflict {
-                entity: "agent_elicitation",
+                entity: "agent_input_request",
             });
         }
         let wake_id = WakeId::from_uuid(draft.request_id);
@@ -287,15 +287,15 @@ impl AgentControl {
             .wake(wake_id)
             .await?
             .ok_or(AgentRuntimeError::Conflict {
-                entity: "agent_elicitation",
+                entity: "agent_input_request",
             })?;
-        let expected_dedupe_key = format!("elicitation:{}:answered", draft.elicitation_id);
+        let expected_dedupe_key = format!("input_request:{}:answered", draft.input_request_id);
         if wake.agent != existing.agent
-            || wake.kind != WakeKind::Elicitation
+            || wake.kind != WakeKind::InputRequest
             || wake.dedupe_key.as_deref() != Some(expected_dedupe_key.as_str())
         {
             return Err(AgentRuntimeError::Conflict {
-                entity: "agent_elicitation",
+                entity: "agent_input_request",
             });
         }
         Ok(receipt(
@@ -339,24 +339,24 @@ impl AgentControl {
         Ok(agent)
     }
 
-    async fn elicitation_for_agent(
+    async fn input_request_for_agent(
         &self,
-        elicitation_id: AgentElicitationId,
+        input_request_id: AgentInputRequestId,
         agent: &AgentRecord,
-    ) -> Result<AgentElicitationRecord> {
+    ) -> Result<AgentInputRequestRecord> {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM ONLY $elicitation WHERE agent = $agent AND tenant = $tenant;")
-            .bind(("elicitation", elicitation_id.record_id()))
+            .query("SELECT * FROM ONLY $input_request WHERE agent = $agent AND tenant = $tenant;")
+            .bind(("input_request", input_request_id.record_id()))
             .bind(("agent", agent.id.clone()))
             .bind(("tenant", agent.tenant.clone()))
             .await?
             .check()?;
         response
-            .take::<Option<AgentElicitationRecord>>(0)?
+            .take::<Option<AgentInputRequestRecord>>(0)?
             .ok_or(AgentRuntimeError::NotFound {
-                entity: "agent_elicitation",
+                entity: "agent_input_request",
             })
     }
 
@@ -492,17 +492,17 @@ fn validate_actor(actor_id: &str) -> Result<()> {
     Ok(())
 }
 
-fn validate_elicitation_answer(answer: &ElicitationAnswer) -> Result<()> {
+fn validate_input_request_answer(answer: &InputRequestAnswer) -> Result<()> {
     let valid = match answer.state {
-        AgentElicitationState::Answered => answer.answer.is_some(),
-        AgentElicitationState::Declined | AgentElicitationState::Cancelled => {
+        AgentInputRequestState::Answered => answer.answer.is_some(),
+        AgentInputRequestState::Declined | AgentInputRequestState::Cancelled => {
             answer.answer.is_none()
         }
-        AgentElicitationState::Parked => false,
+        AgentInputRequestState::Pending => false,
     };
     if !valid {
         return Err(AgentRuntimeError::InvalidField {
-            field: "elicitation answer",
+            field: "input_request answer",
             reason: "state and content do not form a terminal answer".to_owned(),
         });
     }

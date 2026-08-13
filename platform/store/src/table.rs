@@ -68,7 +68,7 @@ pub enum PlatformTable {
     Wake,
     AgentEpisode,
     AgentTask,
-    AgentElicitation,
+    AgentInputRequest,
     AuditEvent,
     OutboxEvent,
 }
@@ -137,7 +137,7 @@ impl PlatformTable {
         Self::Wake,
         Self::AgentEpisode,
         Self::AgentTask,
-        Self::AgentElicitation,
+        Self::AgentInputRequest,
         Self::AuditEvent,
         Self::OutboxEvent,
     ];
@@ -206,7 +206,7 @@ impl PlatformTable {
             Self::Wake => "wake",
             Self::AgentEpisode => "agent_episode",
             Self::AgentTask => "agent_task",
-            Self::AgentElicitation => "agent_elicitation",
+            Self::AgentInputRequest => "agent_input_request",
             Self::AuditEvent => "audit_event",
             Self::OutboxEvent => "outbox_event",
         }

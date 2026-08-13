@@ -6,28 +6,26 @@
  * app-scoped tool allowlisting, confirmed HTTPS links, inline display, and
  * bounded frame sizing.
  */
+import { AppBridge as McpAppBridge, PostMessageTransport } from "./appBridge.ts";
 import {
-  AppBridge as McpAppBridge,
-  PostMessageTransport,
-} from "@modelcontextprotocol/ext-apps/app-bridge";
-import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import {
-  ErrorCode,
-  isJSONRPCRequest,
+  INTERNAL_ERROR,
+  INVALID_PARAMS,
+  isJsonRpcRequest,
   type CallToolResult,
-  type JSONRPCRequest,
+  type InputResponses,
+  type JsonRpcRequest,
   type Result,
-  type TaskMetadata,
-} from "@modelcontextprotocol/sdk/types.js";
+  type Transport,
+} from "./protocol.ts";
 import {
   callAppTool,
   cancelAppTask,
   getAppTask,
-  getAppTaskResult,
   openAppResourceEvents,
   readAppResource,
   sendAgentMessage,
   unsubscribeAppResource,
+  updateAppTask,
 } from "../api";
 import { appFrameOuterHeight } from "../appFrameSizing";
 import { isFullBleedApp } from "../appPresentation";
@@ -38,7 +36,7 @@ import {
   openResourceEventStream,
   type ResourceEventStream,
 } from "./resourceEventStream";
-import { interceptResourceReadRequests } from "./resourceRead";
+import { interceptResourceReadRequests } from "./resourceRead.ts";
 
 export interface AppBridge {
   dispose: () => void;
@@ -48,7 +46,7 @@ export interface AppBridge {
 
 export type InternalAppLinkHandler = (url: string) => boolean;
 
-const TASK_METHODS = new Set(["tasks/get", "tasks/result", "tasks/cancel"]);
+const TASK_METHODS = new Set(["tasks/get", "tasks/update", "tasks/cancel"]);
 
 /**
  * Agent messaging is admitted only for exact targets declared by the App
@@ -64,7 +62,7 @@ function interceptAgentMessages(inner: Transport, app: AppDescriptor): Transport
   inner.onclose = () => transport.onclose?.();
   inner.onerror = (error) => transport.onerror?.(error);
   inner.onmessage = (message, extra) => {
-    if (!isJSONRPCRequest(message) || message.method !== AGENT_MESSAGE_METHOD) {
+    if (!isJsonRpcRequest(message) || message.method !== AGENT_MESSAGE_METHOD) {
       transport.onmessage?.(message, extra);
       return;
     }
@@ -73,7 +71,7 @@ function interceptAgentMessages(inner: Transport, app: AppDescriptor): Transport
       void inner.send({
         jsonrpc: "2.0",
         id: message.id,
-        error: { code: ErrorCode.InvalidParams, message: "agent message request is not allowed" },
+        error: { code: INVALID_PARAMS, message: "agent message request is not allowed" },
       });
       return;
     }
@@ -86,7 +84,7 @@ function interceptAgentMessages(inner: Transport, app: AppDescriptor): Transport
             jsonrpc: "2.0",
             id: message.id,
             error: {
-              code: ErrorCode.InternalError,
+              code: INTERNAL_ERROR,
               message: error instanceof Error ? error.message : String(error),
             },
           }),
@@ -96,24 +94,7 @@ function interceptAgentMessages(inner: Transport, app: AppDescriptor): Transport
   return transport;
 }
 
-function isTaskAugmentedCall(request: JSONRPCRequest): boolean {
-  if (request.method !== "tools/call") return false;
-  const { task } = (request.params ?? {}) as { task?: unknown };
-  return typeof task === "object" && task !== null;
-}
-
-async function dispatchTaskRequest(app: AppDescriptor, request: JSONRPCRequest): Promise<Result> {
-  if (request.method === "tools/call") {
-    const { name, arguments: toolArguments, task } = request.params as {
-      name?: unknown;
-      arguments?: Record<string, unknown>;
-      task?: TaskMetadata;
-    };
-    if (typeof name !== "string" || !app.tools.some((tool) => tool.name === name)) {
-      throw new Error(`tool ${String(name)} is not available to this app`);
-    }
-    return callAppTool(app.server, app.resourceUri, name, toolArguments ?? {}, task ?? {});
-  }
+async function dispatchTaskRequest(app: AppDescriptor, request: JsonRpcRequest): Promise<Result> {
   const { taskId } = (request.params ?? {}) as { taskId?: unknown };
   if (typeof taskId !== "string" || taskId.length === 0) {
     throw new Error("taskId must be a non-empty string");
@@ -121,8 +102,18 @@ async function dispatchTaskRequest(app: AppDescriptor, request: JSONRPCRequest):
   switch (request.method) {
     case "tasks/get":
       return getAppTask(app.server, app.resourceUri, taskId);
-    case "tasks/result":
-      return getAppTaskResult(app.server, app.resourceUri, taskId);
+    case "tasks/update": {
+      const { inputResponses } = request.params as { inputResponses?: unknown };
+      if (typeof inputResponses !== "object" || inputResponses === null || Array.isArray(inputResponses)) {
+        throw new Error("inputResponses must be an object");
+      }
+      return updateAppTask(
+        app.server,
+        app.resourceUri,
+        taskId,
+        inputResponses as InputResponses,
+      );
+    }
     case "tasks/cancel":
       return cancelAppTask(app.server, app.resourceUri, taskId);
     default:
@@ -131,11 +122,9 @@ async function dispatchTaskRequest(app: AppDescriptor, request: JSONRPCRequest):
 }
 
 /**
- * The stock AppBridge refuses the task lifecycle outright (its task
- * capability asserts throw), so task traffic is answered at the transport
- * seam before the bridge sees it: `tasks/get|result|cancel` and
- * task-augmented `tools/call` go straight to the BFF task proxies for the
- * app's own server; every other frame flows to the AppBridge unchanged.
+ * Tasks are a core MCP extension rather than part of MCP Apps. Task lifecycle
+ * requests cross the Apps transport seam and are admitted only for task IDs
+ * created by this app view.
  */
 function interceptTaskRequests(inner: Transport, app: AppDescriptor): Transport {
   const transport: Transport = {
@@ -147,8 +136,8 @@ function interceptTaskRequests(inner: Transport, app: AppDescriptor): Transport 
   inner.onerror = (error) => transport.onerror?.(error);
   inner.onmessage = (message, extra) => {
     if (
-      !isJSONRPCRequest(message) ||
-      !(TASK_METHODS.has(message.method) || isTaskAugmentedCall(message))
+      !isJsonRpcRequest(message) ||
+      !TASK_METHODS.has(message.method)
     ) {
       transport.onmessage?.(message, extra);
       return;
@@ -161,7 +150,7 @@ function interceptTaskRequests(inner: Transport, app: AppDescriptor): Transport 
             jsonrpc: "2.0",
             id: message.id,
             error: {
-              code: ErrorCode.InternalError,
+              code: INTERNAL_ERROR,
               message: error instanceof Error ? error.message : String(error),
             },
           })
@@ -171,10 +160,10 @@ function interceptTaskRequests(inner: Transport, app: AppDescriptor): Transport 
   return transport;
 }
 
-interface ResourceSubscription {
-  id: string;
-  opened: boolean;
-  requests: Array<string | number>;
+interface ResourceListener {
+  requestId: string | number;
+  registrations: Array<{ subscriptionId: string; uri: string }>;
+  source: ResourceEventStream;
 }
 
 function resourceOwnedByApp(app: AppDescriptor, uri: string): boolean {
@@ -182,20 +171,16 @@ function resourceOwnedByApp(app: AppDescriptor, uri: string): boolean {
 }
 
 /**
- * MCP Apps 2026-01-26 does not carry MCP resource subscribe/unsubscribe or
- * resource-updated notifications. Veoveo's generic host adapter projects
- * those three frames through one authenticated SSE wake stream while every
- * payload read remains an ordinary app-scoped `resources/read`.
+ * MCP Apps and core MCP remain separate protocols on the iframe channel.
+ * Each final-profile `subscriptions/listen` request owns one authenticated
+ * wake stream. Notifications carry no domain payload; views read current
+ * state through their ordinary app-scoped `resources/read` permission.
  */
 function interceptResourceSubscriptions(
   inner: Transport,
   app: AppDescriptor
 ): { transport: Transport; dispose: () => void } {
-  const subscriptions = new Map<string, ResourceSubscription>();
-  let source: ResourceEventStream | undefined;
-  let openScheduled = false;
-  let recoveryTimer: ReturnType<typeof setTimeout> | undefined;
-  let generation = 0;
+  const listeners = new Map<string, ResourceListener>();
   let disposed = false;
   const transport: Transport = {
     start: () => inner.start(),
@@ -203,154 +188,116 @@ function interceptResourceSubscriptions(
     close: () => inner.close(),
   };
 
-  const reply = (id: string | number, result: Result) =>
-    inner.send({ jsonrpc: "2.0", id, result });
   const reject = (id: string | number, message: string) =>
     inner.send({
       jsonrpc: "2.0",
       id,
-      error: { code: ErrorCode.InternalError, message },
+      error: { code: INTERNAL_ERROR, message },
     });
   const report = (error: unknown) =>
     transport.onerror?.(error instanceof Error ? error : new Error(String(error)));
-  const notifyUpdated = (uri: string) => {
-    if (!subscriptions.has(uri)) return;
-    void inner.send({
+  const listenerKey = (id: string | number) => `${typeof id}:${id}`;
+  const notify = (method: string, params: Record<string, unknown>) =>
+    inner.send({
       jsonrpc: "2.0",
-      method: "ui/notifications/resource-updated",
-      params: { uri },
-    } as never).catch(report);
+      method,
+      params,
+    } as never);
+  const closeListener = (listener: ResourceListener) => {
+    listener.source.close();
+    listeners.delete(listenerKey(listener.requestId));
+    return Promise.all(
+      listener.registrations.map(({ subscriptionId }) =>
+        unsubscribeAppResource(subscriptionId),
+      ),
+    );
   };
-  const open = () => {
-    openScheduled = false;
-    source?.close();
-    source = undefined;
-    const active = [...subscriptions.entries()];
-    if (disposed || active.length === 0) return;
-    const activeGeneration = ++generation;
-    const batch = active.map(([uri, subscription]) => ({
-      subscriptionId: subscription.id,
+  const open = (requestId: string | number, uris: string[]) => {
+    const registrations = uris.map((uri) => ({
+      subscriptionId: crypto.randomUUID(),
       uri,
     }));
-    source = openResourceEventStream(
+    const key = listenerKey(requestId);
+    const source = openResourceEventStream(
       "/console/api/apps/resource-events",
       {
         onOpen: () => {
-          if (disposed || generation !== activeGeneration) return;
-          for (const [uri, subscription] of active) {
-            if (subscriptions.get(uri) !== subscription) continue;
-            if (subscription.opened) {
-              notifyUpdated(uri);
-              continue;
-            }
-            subscription.opened = true;
-            for (const requestId of subscription.requests) {
-              void reply(requestId, {}).catch(report);
-            }
-            subscription.requests = [];
-          }
+          if (disposed || !listeners.has(key)) return;
+          void notify("notifications/subscriptions/acknowledged", {
+            notifications: { resourceSubscriptions: uris },
+            _meta: { "io.modelcontextprotocol/subscriptionId": requestId },
+          }).catch(report);
         },
         onEvent: (event) => {
-          if (event.type !== "resource-updated" || generation !== activeGeneration) return;
+          if (event.type !== "resource-updated" || !listeners.has(key)) return;
           try {
             const params = JSON.parse(event.data) as { uri?: string; uris?: string[] };
-            if (typeof params.uri === "string") notifyUpdated(params.uri);
+            if (typeof params.uri === "string" && uris.includes(params.uri)) {
+              void notify("notifications/resources/updated", { uri: params.uri }).catch(report);
+            }
             if (Array.isArray(params.uris)) {
-              for (const uri of params.uris) notifyUpdated(uri);
+              for (const uri of params.uris) {
+                if (uris.includes(uri)) {
+                  void notify("notifications/resources/updated", { uri }).catch(report);
+                }
+              }
             }
           } catch (error) {
             report(error);
           }
         },
         onInitialError: (error) => {
-          if (disposed || generation !== activeGeneration) return;
-          for (const [uri, subscription] of active) {
-            if (subscription.opened || subscriptions.get(uri) !== subscription) continue;
-            subscriptions.delete(uri);
-            for (const requestId of subscription.requests) {
-              void reject(requestId, "resource subscription stream failed to open").catch(report);
-            }
-          }
-          if (subscriptions.size > 0) {
-            recoveryTimer = setTimeout(() => {
-              recoveryTimer = undefined;
-              open();
-            }, 250);
-          }
+          listeners.delete(key);
+          void reject(requestId, "subscription stream failed to open").catch(report);
           report(error);
         },
       },
-      (_input, init) => openAppResourceEvents(app.server, app.resourceUri, batch, init?.signal),
+      (_input, init) =>
+        openAppResourceEvents(app.server, app.resourceUri, registrations, init?.signal),
     );
-  };
-  const scheduleOpen = () => {
-    if (disposed || openScheduled) return;
-    if (recoveryTimer !== undefined) {
-      clearTimeout(recoveryTimer);
-      recoveryTimer = undefined;
-    }
-    openScheduled = true;
-    queueMicrotask(open);
-  };
-  const close = (uri: string) => {
-    const subscription = subscriptions.get(uri);
-    if (!subscription) return Promise.resolve();
-    subscriptions.delete(uri);
-    for (const requestId of subscription.requests) {
-      void reject(requestId, "resource subscription was cancelled before admission").catch(report);
-    }
-    scheduleOpen();
-    return unsubscribeAppResource(subscription.id);
+    listeners.set(key, { requestId, registrations, source });
   };
 
   inner.onclose = () => transport.onclose?.();
   inner.onerror = (error) => transport.onerror?.(error);
   inner.onmessage = (message, extra) => {
     if (
-      !isJSONRPCRequest(message) ||
-      (message.method !== "resources/subscribe" && message.method !== "resources/unsubscribe")
+      !isJsonRpcRequest(message) ||
+      message.method !== "subscriptions/listen"
     ) {
       transport.onmessage?.(message, extra);
       return;
     }
-    const { uri } = (message.params ?? {}) as { uri?: unknown };
-    if (typeof uri !== "string" || !resourceOwnedByApp(app, uri)) {
-      void reject(message.id, "resource subscription is not owned by this App's server");
+    const notifications = message.params?.notifications;
+    const uris =
+      typeof notifications === "object" && notifications !== null && !Array.isArray(notifications)
+        ? (notifications as { resourceSubscriptions?: unknown }).resourceSubscriptions
+        : undefined;
+    if (
+      !Array.isArray(uris) ||
+      uris.length === 0 ||
+      uris.length > 64 ||
+      !uris.every((uri): uri is string => typeof uri === "string" && resourceOwnedByApp(app, uri)) ||
+      new Set(uris).size !== uris.length
+    ) {
+      void reject(message.id, "listen request must contain unique app-owned resource subscriptions");
       return;
     }
-    if (message.method === "resources/unsubscribe") {
-      void close(uri).then(
-        () => reply(message.id, {}),
-        (error: unknown) => reject(message.id, error instanceof Error ? error.message : String(error))
-      );
+    const key = listenerKey(message.id);
+    if (listeners.has(key)) {
+      void reject(message.id, "listen request id is already active");
       return;
     }
-    if (subscriptions.has(uri)) {
-      const subscription = subscriptions.get(uri)!;
-      if (subscription.opened) void reply(message.id, {}).catch(report);
-      else subscription.requests.push(message.id);
-      return;
-    }
-    const subscriptionId = crypto.randomUUID();
-    const subscription: ResourceSubscription = {
-      id: subscriptionId,
-      opened: false,
-      requests: [message.id],
-    };
-    subscriptions.set(uri, subscription);
-    scheduleOpen();
+    open(message.id, uris);
   };
 
   return {
     transport,
     dispose: () => {
       disposed = true;
-      generation += 1;
-      if (recoveryTimer !== undefined) clearTimeout(recoveryTimer);
-      source?.close();
-      for (const uri of [...subscriptions.keys()]) {
-        void close(uri).catch((error: unknown) =>
-          console.error("MCP App resource unsubscribe failed", error)
+      for (const listener of [...listeners.values()]) {
+        void closeListener(listener).catch((error: unknown) =>
+          console.error("MCP App subscription close failed", error)
         );
       }
     },
@@ -381,11 +328,19 @@ export function attachAppBridge(
     },
   );
 
-  bridge.oncalltool = async ({ name, arguments: toolArguments }) => {
+  bridge.oncalltool = async ({
+    name,
+    arguments: toolArguments,
+    inputResponses,
+    requestState,
+  }) => {
     if (!app.tools.some((tool) => tool.name === name)) {
       throw new Error(`tool ${name} is not available to this app`);
     }
-    return callAppTool(app.server, app.resourceUri, name, toolArguments ?? {});
+    return callAppTool(app.server, app.resourceUri, name, toolArguments ?? {}, {
+      inputResponses,
+      requestState,
+    });
   };
   bridge.onreadresource = async ({ uri }) => {
     if (!uri.startsWith(`${app.server}://`) && !uri.startsWith(`ui://${app.server}/`)) {

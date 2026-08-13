@@ -1,5 +1,8 @@
-use std::collections::{BTreeMap, BTreeSet};
-use std::str::FromStr;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+    str::FromStr,
+};
 
 use chrono::{DateTime, Utc};
 use secrecy::SecretString;
@@ -12,7 +15,44 @@ use veoveo_platform_store::{
     StoreCredentials, TaskId, TaskRecord, TaskStatus as StoreTaskStatus,
     deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id,
 };
-pub use veoveo_task_contract::{TaskRetentionPin, TaskRetentionPinError};
+
+/// Stable internal pin that prevents pruning while another durable owner needs a task result.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(transparent)]
+pub struct TaskRetentionPin(String);
+
+impl TaskRetentionPin {
+    pub fn new(value: impl Into<String>) -> Result<Self, TaskRetentionPinError> {
+        let value = value.into();
+        if value.is_empty() || value.len() > 256 || value.chars().any(char::is_control) {
+            return Err(TaskRetentionPinError);
+        }
+        Ok(Self(value))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for TaskRetentionPin {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for TaskRetentionPin {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Self::new(String::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("task retention pin is empty, too long, or contains a control character")]
+pub struct TaskRetentionPinError;
 
 const INSTALLATION_TENANT: &str = "installation";
 

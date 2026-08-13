@@ -4,46 +4,41 @@
 //! recording ranges, remuxes H.264 samples, invokes the configured DeepStream
 //! runner, and publishes typed results plus immutable Rerun annotation layers.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 use std::net::SocketAddr;
 use std::sync::{Arc, LazyLock};
 
 use axum::{Router, extract::State, http::StatusCode, middleware, routing::get};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use clap::Parser;
+use rmcp::tool;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
-        GetPromptRequestParams, GetPromptResult, ListPromptsResult, ListResourceTemplatesResult,
-        ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt,
-        ReadResourceRequestParams, ReadResourceResult, Reference, Resource, ResourceContents,
-        ResourceTemplate, ServerCapabilities, ServerInfo, SubscribeRequestParams,
-        UnsubscribeRequestParams,
+        CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams,
+        CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
+        GetPromptRequestParams, GetTaskParams, GetTaskResult, ListPromptsResult,
+        ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
+        Prompt, ReadResourceRequestParams, ReadResourceResult, Reference, Resource,
+        ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo, SubscriptionFilter,
+        UpdateTaskParams,
     },
-    service::RequestContext,
+    service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
     transport::streamable_http_server::StreamableHttpService,
 };
 use serde::Serialize;
-use serde_json::json;
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_apps_extension::{
     UiVisibility, app_html_contents, app_resource, extend_capabilities, link_tool_to_app,
 };
-use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle, Page,
-    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer,
-    docs::{CapabilityInventory, ServerDocs},
+    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, docs::ServerDocs,
     init_server_telemetry, paginate, public_allowed_hosts,
-};
-use veoveo_mcp_task_extension::{
-    Implementation as TaskExtensionImplementation, ServerDiscovery, TaskExtensionAdapter,
-    task_extension_middleware,
 };
 use veoveo_platform_store::TaskStatus;
 use veoveo_recording_mcp::RecordingService;
@@ -93,7 +88,7 @@ use ownership::{
     internal_caller, internal_identity, require_task_owner, runtime_owner, task_owner_allows,
 };
 use prompts::StreamPrompt;
-use task_extension::StreamTaskExtension;
+use task_extension::StreamTaskService;
 use tasks::{
     SERVER_SLUG, StreamTaskInput, TaskProgress, completed_payload, resume_task, start_stream_task,
 };
@@ -109,6 +104,7 @@ pub(crate) static SERVER_DOCS: LazyLock<ServerDocs> =
 #[derive(Clone)]
 struct StreamMcp {
     state: Arc<AppState>,
+    task_service: StreamTaskService,
     #[allow(dead_code)]
     tool_router: ToolRouter<StreamMcp>,
 }
@@ -117,55 +113,9 @@ struct StreamMcp {
 impl StreamMcp {
     fn new(state: Arc<AppState>) -> Self {
         Self {
+            task_service: StreamTaskService::new(state.clone()),
             state,
             tool_router: Self::tool_router(),
-        }
-    }
-
-    /// The capability inventory declared at `stream://contract` (contract
-    /// C19). Tools and prompts derive from the live registrations; stable
-    /// resources, resource templates, and task-augmented tool names come from
-    /// the lists the handler serves, so the declaration cannot silently
-    /// diverge.
-    fn capability_inventory() -> CapabilityInventory {
-        let mut tools: Vec<String> = Self::tool_router()
-            .list_all()
-            .into_iter()
-            .map(|tool| tool.name.into_owned())
-            .collect();
-        tools.sort();
-        let mut prompts: Vec<String> = StreamPrompt::ALL
-            .into_iter()
-            .map(|prompt| prompt.definition().name)
-            .collect();
-        prompts.sort();
-        let mut resources = vec![
-            uris::DOCS_URI.to_owned(),
-            uris::CONTRACT_URI.to_owned(),
-            uris::PIPELINES_URI.to_owned(),
-            uris::MODELS_URI.to_owned(),
-            uris::RUNS_URI.to_owned(),
-            uris::SESSIONS_URI.to_owned(),
-            uris::LIVE_APP_URI.to_owned(),
-        ];
-        resources.extend(SERVER_DOCS.iter().map(|doc| uris::doc_uri(doc.id)));
-        resources.sort();
-        CapabilityInventory {
-            tools,
-            resources,
-            resource_templates: vec![
-                uris::DOC_TEMPLATE.to_owned(),
-                uris::PIPELINE_TEMPLATE.to_owned(),
-                uris::MODEL_TEMPLATE.to_owned(),
-                uris::RUN_TEMPLATE.to_owned(),
-                uris::RUN_RESULTS_TEMPLATE.to_owned(),
-                uris::SESSION_TEMPLATE.to_owned(),
-                uris::SESSION_RESULTS_TEMPLATE.to_owned(),
-                uris::SESSION_PREVIEW_TEMPLATE.to_owned(),
-                uris::ARTIFACT_TEMPLATE.to_owned(),
-            ],
-            prompts,
-            tasks: vec!["run_recording".to_owned()],
         }
     }
 
@@ -173,7 +123,6 @@ impl StreamMcp {
         title = "Run a pipeline over recorded video",
         description = "Resolve an authorized Rerun VideoStream range, run an admitted Stream pipeline, and publish typed results plus an immutable Rerun annotation layer.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RunRecordingOutput>(),
-        execution(task_support = "optional"),
         annotations(
             read_only_hint = false,
             destructive_hint = false,
@@ -200,7 +149,7 @@ impl StreamMcp {
         .await
         .map_err(internal)?;
         let task_id = snapshot.task_id.to_string();
-        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
+        self.state.subscribers.notify_resource_list_changed().await;
         completed_payload(&self.state, &task_id).await
     }
 
@@ -222,7 +171,7 @@ impl StreamMcp {
             .start(&request.pipeline_id, owner)
             .await
             .map_err(invalid_params)?;
-        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
+        self.state.subscribers.notify_resource_list_changed().await;
         structured_result(format!("started {}", output.session_uri), &output)
     }
 
@@ -251,6 +200,12 @@ impl StreamMcp {
 
 #[tool_handler]
 impl ServerHandler for StreamMcp {
+    fn supported_protocol_versions(
+        &self,
+    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
+        veoveo_mcp_contract::final_protocol_versions()
+    }
+
     fn get_info(&self) -> ServerInfo {
         let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
@@ -261,6 +216,10 @@ impl ServerHandler for StreamMcp {
             .enable_completions()
             .build();
         extend_capabilities(&mut capabilities);
+        capabilities.extensions.get_or_insert_default().insert(
+            rmcp::model::TASKS_EXTENSION_ID.to_owned(),
+            rmcp::model::JsonObject::new(),
+        );
         let mut info = ServerInfo::default();
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new(SERVER_SLUG, env!("CARGO_PKG_VERSION"));
@@ -269,6 +228,71 @@ impl ServerHandler for StreamMcp {
                 .to_owned(),
         );
         info
+    }
+
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        if context
+            .meta
+            .client_capabilities()
+            .is_some_and(|capabilities| capabilities.supports_tasks())
+        {
+            let caller = veoveo_task_runtime::DurableTaskService::authenticate(
+                &self.task_service,
+                &context,
+            )?;
+            if let Some(created) = veoveo_task_runtime::DurableTaskService::start_tool_task(
+                &self.task_service,
+                &caller,
+                request.clone(),
+            )
+            .await?
+            {
+                return Ok(created.into());
+            }
+        }
+        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        self.tool_router.call(call).await
+    }
+
+    async fn get_task(
+        &self,
+        request: GetTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<GetTaskResult, McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::get_task(&self.task_service, &caller, request)
+            .await
+    }
+
+    async fn update_task(
+        &self,
+        request: UpdateTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::update_task(&self.task_service, &caller, request)
+            .await
+    }
+
+    async fn cancel_task(
+        &self,
+        request: CancelTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::cancel_task(
+            &self.task_service,
+            &caller,
+            request.task_id,
+        )
+        .await
     }
 
     async fn list_tools(
@@ -300,6 +324,9 @@ impl ServerHandler for StreamMcp {
         Ok(ListToolsResult {
             tools: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -417,6 +444,9 @@ impl ServerHandler for StreamMcp {
         Ok(ListResourcesResult {
             resources: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -459,6 +489,9 @@ impl ServerHandler for StreamMcp {
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -467,131 +500,141 @@ impl ServerHandler for StreamMcp {
         &self,
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, McpError> {
-        let uri = request.uri.as_str();
-        if uri == uris::LIVE_APP_URI {
-            return Ok(ReadResourceResult::new(vec![app_html_contents(
-                uri,
-                app::LIVE_APP_HTML,
-            )]));
-        }
-        // Well-known surface (contract C18, C19): readable by any identity
-        // that can list resources.
-        if uri == uris::DOCS_URI {
-            return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
-        }
-        if let Some(doc_id) = uris::parse_doc(uri) {
-            let doc = SERVER_DOCS
-                .doc(doc_id)
-                .ok_or_else(|| McpError::resource_not_found("server document not found", None))?;
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-            ]));
-        }
-        if uri == uris::CONTRACT_URI {
-            return json_resource(
-                uri,
-                SERVER_DOCS.contract_declaration(Self::capability_inventory),
-            );
-        }
-        if uri == uris::PIPELINES_URI {
-            return json_resource(uri, &self.state.catalog.pipeline_views());
-        }
-        if uri == uris::MODELS_URI {
-            return json_resource(uri, &self.state.catalog.model_views());
-        }
-        if let Some(id) = uris::parse_pipeline_uri(uri) {
-            let pipeline = self
-                .state
-                .catalog
-                .pipeline(id)
-                .map(pipeline_view)
-                .ok_or_else(|| McpError::resource_not_found("pipeline not found", None))?;
-            return json_resource(uri, &pipeline);
-        }
-        if let Some(id) = uris::parse_model_uri(uri) {
-            let model = self
-                .state
-                .catalog
-                .model(id)
-                .map(model_view)
-                .ok_or_else(|| McpError::resource_not_found("model not found", None))?;
-            return json_resource(uri, &model);
-        }
-        let identity = internal_identity(&context)?;
-        let live_owner = runtime_owner(&identity);
-        if uri == uris::SESSIONS_URI {
-            return json_resource(uri, &self.state.live.visible(&live_owner).await);
-        }
-        if let Some(session_id) = uris::parse_session_uri(uri) {
-            let view = self
-                .state
-                .live
-                .view(session_id, &live_owner)
-                .await
-                .ok_or_else(|| McpError::resource_not_found("Stream session not found", None))?;
-            return json_resource(uri, &view);
-        }
-        if let Some(session_id) = uris::parse_session_results_uri(uri) {
-            let results = self
-                .state
-                .live
-                .results(session_id, &live_owner)
-                .await
-                .ok_or_else(|| McpError::resource_not_found("Stream session not found", None))?;
-            return json_resource(uri, &results);
-        }
-        if let Some(session_id) = uris::parse_session_preview_uri(uri) {
-            let preview = self
-                .state
-                .live
-                .preview(session_id, &live_owner)
-                .await
-                .ok_or_else(|| McpError::resource_not_found("Stream session not found", None))?;
-            return json_resource(uri, &preview);
-        }
-        if uri == uris::RUNS_URI {
-            let views = visible_runs(&self.state, &identity)
-                .await?
-                .iter()
-                .map(run_view)
-                .collect::<Result<Vec<_>, _>>()?;
-            return json_resource(uri, &views);
-        }
-        if let Some(task_id) = uris::parse_run_uri(uri) {
-            require_task_owner(&self.state, &context, task_id).await?;
-            let snapshot = run_snapshot(&self.state, task_id).await?;
-            return json_resource(uri, &run_view(&snapshot)?);
-        }
-        if let Some(task_id) = uris::parse_results_uri(uri) {
-            require_task_owner(&self.state, &context, task_id).await?;
-            let snapshot = run_snapshot(&self.state, task_id).await?;
-            let output = run_output(&snapshot).ok_or_else(|| {
-                McpError::resource_not_found("run results are not available", None)
-            })?;
-            let caller = internal_caller(&context)?;
-            let artifact =
-                inline_artifact(&self.state, &caller, &output.results_artifact.artifact_id).await?;
-            let text = String::from_utf8(artifact.bytes)
-                .map_err(|_| McpError::internal_error("results artifact is not UTF-8", None))?;
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(text, uri)
-                    .with_mime_type("application/vnd.veoveo.stream-results+json"),
-            ]));
-        }
-        if let Some(artifact_id) = uris::parse_artifact_uri(uri) {
-            let caller = internal_caller(&context)?;
-            let artifact = inline_artifact(&self.state, &caller, &artifact_id).await?;
-            let mut content = ResourceContents::blob(BASE64_STANDARD.encode(artifact.bytes), uri);
-            if let Some(mime_type) = artifact.metadata.mime_type {
-                content = content.with_mime_type(mime_type);
+    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
+        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
+        async {
+            let uri = request.uri.as_str();
+            if uri == uris::LIVE_APP_URI {
+                return Ok(ReadResourceResult::new(vec![app_html_contents(
+                    uri,
+                    app::LIVE_APP_HTML,
+                )]));
             }
-            return Ok(ReadResourceResult::new(vec![content]));
+            // Well-known surface (contract C18, C19): readable by any identity
+            // that can list resources.
+            if uri == uris::DOCS_URI {
+                return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
+            }
+            if let Some(doc_id) = uris::parse_doc(uri) {
+                let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
+                    McpError::resource_not_found("server document not found", None)
+                })?;
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
+                ]));
+            }
+            if uri == uris::CONTRACT_URI {
+                return json_resource(uri, SERVER_DOCS.contract_declaration());
+            }
+            if uri == uris::PIPELINES_URI {
+                return json_resource(uri, &self.state.catalog.pipeline_views());
+            }
+            if uri == uris::MODELS_URI {
+                return json_resource(uri, &self.state.catalog.model_views());
+            }
+            if let Some(id) = uris::parse_pipeline_uri(uri) {
+                let pipeline = self
+                    .state
+                    .catalog
+                    .pipeline(id)
+                    .map(pipeline_view)
+                    .ok_or_else(|| McpError::resource_not_found("pipeline not found", None))?;
+                return json_resource(uri, &pipeline);
+            }
+            if let Some(id) = uris::parse_model_uri(uri) {
+                let model = self
+                    .state
+                    .catalog
+                    .model(id)
+                    .map(model_view)
+                    .ok_or_else(|| McpError::resource_not_found("model not found", None))?;
+                return json_resource(uri, &model);
+            }
+            let identity = internal_identity(&context)?;
+            let live_owner = runtime_owner(&identity);
+            if uri == uris::SESSIONS_URI {
+                return json_resource(uri, &self.state.live.visible(&live_owner).await);
+            }
+            if let Some(session_id) = uris::parse_session_uri(uri) {
+                let view = self
+                    .state
+                    .live
+                    .view(session_id, &live_owner)
+                    .await
+                    .ok_or_else(|| {
+                        McpError::resource_not_found("Stream session not found", None)
+                    })?;
+                return json_resource(uri, &view);
+            }
+            if let Some(session_id) = uris::parse_session_results_uri(uri) {
+                let results = self
+                    .state
+                    .live
+                    .results(session_id, &live_owner)
+                    .await
+                    .ok_or_else(|| {
+                        McpError::resource_not_found("Stream session not found", None)
+                    })?;
+                return json_resource(uri, &results);
+            }
+            if let Some(session_id) = uris::parse_session_preview_uri(uri) {
+                let preview = self
+                    .state
+                    .live
+                    .preview(session_id, &live_owner)
+                    .await
+                    .ok_or_else(|| {
+                        McpError::resource_not_found("Stream session not found", None)
+                    })?;
+                return json_resource(uri, &preview);
+            }
+            if uri == uris::RUNS_URI {
+                let views = visible_runs(&self.state, &identity)
+                    .await?
+                    .iter()
+                    .map(run_view)
+                    .collect::<Result<Vec<_>, _>>()?;
+                return json_resource(uri, &views);
+            }
+            if let Some(task_id) = uris::parse_run_uri(uri) {
+                require_task_owner(&self.state, &context, task_id).await?;
+                let snapshot = run_snapshot(&self.state, task_id).await?;
+                return json_resource(uri, &run_view(&snapshot)?);
+            }
+            if let Some(task_id) = uris::parse_results_uri(uri) {
+                require_task_owner(&self.state, &context, task_id).await?;
+                let snapshot = run_snapshot(&self.state, task_id).await?;
+                let output = run_output(&snapshot).ok_or_else(|| {
+                    McpError::resource_not_found("run results are not available", None)
+                })?;
+                let caller = internal_caller(&context)?;
+                let artifact =
+                    inline_artifact(&self.state, &caller, &output.results_artifact.artifact_id)
+                        .await?;
+                let text = String::from_utf8(artifact.bytes)
+                    .map_err(|_| McpError::internal_error("results artifact is not UTF-8", None))?;
+                return Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(text, uri)
+                        .with_mime_type("application/vnd.veoveo.stream-results+json"),
+                ]));
+            }
+            if let Some(artifact_id) = uris::parse_artifact_uri(uri) {
+                let caller = internal_caller(&context)?;
+                let artifact = inline_artifact(&self.state, &caller, &artifact_id).await?;
+                let mut content =
+                    ResourceContents::blob(BASE64_STANDARD.encode(artifact.bytes), uri);
+                if let Some(mime_type) = artifact.metadata.mime_type {
+                    content = content.with_mime_type(mime_type);
+                }
+                return Ok(ReadResourceResult::new(vec![content]));
+            }
+            Err(McpError::resource_not_found(
+                format!("unknown Stream resource `{uri}`"),
+                None,
+            ))
         }
-        Err(McpError::resource_not_found(
-            format!("unknown Stream resource `{uri}`"),
-            None,
-        ))
+        .await
+        .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
     }
 
     async fn list_prompts(
@@ -607,6 +650,9 @@ impl ServerHandler for StreamMcp {
         Ok(ListPromptsResult {
             prompts: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -615,60 +661,47 @@ impl ServerHandler for StreamMcp {
         &self,
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<GetPromptResult, McpError> {
-        StreamPrompt::by_name(&request.name)
-            .ok_or_else(|| McpError::invalid_params("unknown Stream prompt", None))?
-            .render(request.arguments)
+    ) -> Result<rmcp::model::GetPromptResponse, McpError> {
+        async {
+            StreamPrompt::by_name(&request.name)
+                .ok_or_else(|| McpError::invalid_params("unknown Stream prompt", None))?
+                .render(request.arguments)
+        }
+        .await
+        .map(Into::into)
     }
 
-    async fn subscribe(
+    fn accepted_subscription_filter(
         &self,
-        request: SubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let identity = internal_identity(&context)?;
-        if let Some(session_id) = subscribable_session_id(&request.uri) {
-            let owner = runtime_owner(&identity);
-            if !self.state.live.readable_by(session_id, &owner).await {
-                return Err(McpError::resource_not_found(
-                    "Stream session not found",
-                    None,
-                ));
-            }
-        } else {
-            let task_id = subscribable_run_id(&request.uri)?;
-            require_task_owner(&self.state, &context, task_id).await?;
-        }
-        self.state
-            .subscribers
-            .subscribe(request.uri, identity.actor.id, context.peer.clone())
-            .await;
-        Ok(())
+        requested: &SubscriptionFilter,
+    ) -> Option<SubscriptionFilter> {
+        veoveo_mcp_contract::accepted_subscription_filter(requested)
     }
 
-    async fn unsubscribe(
-        &self,
-        request: UnsubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let identity = internal_identity(&context)?;
-        if let Some(session_id) = subscribable_session_id(&request.uri) {
-            let owner = runtime_owner(&identity);
-            if !self.state.live.readable_by(session_id, &owner).await {
-                return Err(McpError::resource_not_found(
-                    "Stream session not found",
-                    None,
-                ));
+    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
+        let request_context = context.request_context().clone();
+        let identity = internal_identity(&request_context)?;
+        for uri in context.accepted().resource_subscriptions.iter().flatten() {
+            if let Some(session_id) = subscribable_session_id(uri) {
+                let owner = runtime_owner(&identity);
+                if !self.state.live.readable_by(session_id, &owner).await {
+                    return Err(McpError::resource_not_found(
+                        "Stream session not found",
+                        None,
+                    ));
+                }
+            } else {
+                let task_id = subscribable_run_id(uri)?;
+                require_task_owner(&self.state, &request_context, task_id).await?;
             }
-        } else {
-            let task_id = subscribable_run_id(&request.uri)?;
-            require_task_owner(&self.state, &context, task_id).await?;
         }
-        self.state
-            .subscribers
-            .unsubscribe(&request.uri, &identity.actor.id)
-            .await;
-        Ok(())
+        veoveo_task_runtime::listen_durable_subscriptions(
+            &self.task_service,
+            context,
+            Some(self.state.subscribers.as_ref()),
+            None,
+        )
+        .await
     }
 
     async fn complete(
@@ -1010,39 +1043,15 @@ async fn main() -> anyhow::Result<()> {
             let state = state.clone();
             move || Ok(StreamMcp::new(state.clone()))
         },
-        veoveo_mcp_contract::canonical_session_manager(),
+        veoveo_mcp_contract::stateless_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
             .with_cancellation_token(cancellation.child_token()),
     );
-    let task_extension = Arc::new(TaskExtensionAdapter::new(
-        Arc::new(StreamTaskExtension::new(state.clone())),
-        ServerDiscovery::new(
-            HashMap::from([
-                ("tools".to_owned(), json!({})),
-                ("resources".to_owned(), json!({})),
-                ("prompts".to_owned(), json!({})),
-            ])
-            .into_iter()
-            .collect(),
-            TaskExtensionImplementation {
-                name: SERVER_SLUG.to_owned(),
-                version: env!("CARGO_PKG_VERSION").to_owned(),
-            },
-            Some(
-                "Governed Rerun video analysis with durable tasks and NVIDIA DeepStream/TensorRT execution."
-                    .to_owned(),
-            ),
-        ),
-    ));
     let auth_state = InternalMcpAuthState { verifier };
     let mcp_router = Router::new()
         .route_service("/", mcp_service.clone())
         .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn_with_state(
-            task_extension,
-            task_extension_middleware::<StreamTaskExtension>,
-        ))
         .layer(middleware::from_fn_with_state(
             auth_state.clone(),
             authenticate_internal_mcp,
@@ -1101,7 +1110,7 @@ mod well_known_tests {
         CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
     };
 
-    use super::{SERVER_DOCS, StreamMcp, uris};
+    use super::SERVER_DOCS;
 
     #[test]
     fn embedded_documents_carry_the_crate_manual_and_design() {
@@ -1117,10 +1126,7 @@ mod well_known_tests {
 
     #[test]
     fn contract_declaration_resolves_from_the_embedded_manual() {
-        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(
-            &SERVER_DOCS,
-            StreamMcp::capability_inventory(),
-        );
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
         assert_eq!(declaration.server, "stream");
         assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
         for id in ["C18", "C19", "C20", "C21"] {
@@ -1131,17 +1137,7 @@ mod well_known_tests {
                 .expect("declared checklist item");
             assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
         }
-        let inventory = &declaration.capabilities;
-        assert!(inventory.tools.contains(&"run_recording".to_owned()));
-        assert!(inventory.tasks.contains(&"run_recording".to_owned()));
-        assert!(inventory.resources.contains(&uris::DOCS_URI.to_owned()));
-        assert!(inventory.resources.contains(&uris::CONTRACT_URI.to_owned()));
-        assert!(inventory.resources.contains(&uris::doc_uri("agents")));
-        assert!(
-            inventory
-                .resource_templates
-                .contains(&uris::DOC_TEMPLATE.to_owned())
-        );
-        assert!(!inventory.prompts.is_empty());
+        let json = serde_json::to_value(declaration).unwrap();
+        assert!(json.get("capabilities").is_none());
     }
 }

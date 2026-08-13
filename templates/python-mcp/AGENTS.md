@@ -1,7 +1,7 @@
 # Datasheet MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 2.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
 
 ## Purpose
 
@@ -16,15 +16,15 @@ every change here must keep the template a complete, working reference.
 - Owns the `datasheet://` URI scheme; all addressable state — reports, usage,
   artifacts, documents, and the contract declaration — lives under it.
 - `profile_dataset` executes only as a durable task on the shared task
-  runtime through the final task extension; direct `tools/call` rejects it.
+  runtime through official Tasks; direct `tools/call` rejects it.
 - The dataset is materialized while the gateway identity is live and embedded
   in the durable request, so `resume` recovery replays from persisted state
   without re-minting identity.
 - Artifact bytes flow through the shared artifact plane using the forwarded
   gateway identity or a task-bound write capability reserved at submission.
 - The middleware order is fixed: host validation outermost, then gateway
-  internal-auth, then the final task extension, then the streamable HTTP MCP
-  session (`json_response=False`, `stateless=False`).
+  internal-auth, then the stateless Streamable HTTP MCP endpoint. Tasks bind
+  through the SDK extension API (`json_response=True`, `stateless=True`).
 - The well-known surface is consumed from `veoveo_mcp.contract.docs`: this
   directory's `AGENTS.md` and `DESIGN.md` are embedded into the wheel and
   served at `datasheet://docs`, `datasheet://docs/{doc_id}`,
@@ -32,8 +32,8 @@ every change here must keep the template a complete, working reference.
   `/datasheet/admin/docs/llms.txt` plus `/datasheet/admin/docs/{doc_id}`.
   The MCP endpoint and this projection pass through the same gateway
   internal-auth middleware.
-- Tool inputs are published with `mcp_input_schema`; recursive tool arguments
-  are not supported.
+- Tool inputs are published as complete, bounded JSON Schema 2020-12 documents
+  with `mcp_input_schema`; local references and composition remain intact.
 
 ## Build And Test
 
@@ -49,7 +49,7 @@ every change here must keep the template a complete, working reference.
 
 ## Contract Compliance
 
-Contract revision: 2
+Contract revision: 3
 
 - C01: met
 - C02: met
@@ -80,4 +80,4 @@ Contract revision: 2
 - C27: met
 - C28: met
 - C29: met
-- C30: met — the gateway owns pooled upstream transport while this server retains MCP session state
+- C30: met — the server is stateless at the MCP boundary and retains only explicit durable domain state

@@ -17,13 +17,11 @@ use chrono::Utc;
 use futures::StreamExt;
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    AccessSubject, AgentElicitationDecisionRequest, AgentOperatorMessageRequest,
-    ArtifactAccessRequestId, ArtifactAccessRequestScope, ArtifactAccessRequestState, ArtifactId,
-    ArtifactShareLinkId, CreateArtifactAccessRequest, CreateArtifactShareLinkRequest,
-    DecideArtifactAccessRequest, ListArtifactAccessRequests, PutGrantRequest,
-    SetArtifactReleaseStateRequest,
+    AccessSubject, AgentInputRequestDecision, AgentOperatorMessageRequest, ArtifactAccessRequestId,
+    ArtifactAccessRequestScope, ArtifactAccessRequestState, ArtifactId, ArtifactShareLinkId,
+    CreateArtifactAccessRequest, CreateArtifactShareLinkRequest, DecideArtifactAccessRequest,
+    ListArtifactAccessRequests, PutGrantRequest, SetArtifactReleaseStateRequest,
 };
-use veoveo_mcp_task_extension::ProtocolTaskId;
 
 use crate::{
     AppState,
@@ -189,9 +187,12 @@ pub(crate) async fn cancel_task(
     Path(task_id): Path<String>,
     request_headers: HeaderMap,
 ) -> Response {
-    let Ok(task_id) = task_id.parse::<ProtocolTaskId>() else {
+    let Ok(task_id) = uuid::Uuid::parse_str(&task_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
+    if task_id.get_version_num() != 7 {
+        return StatusCode::NOT_FOUND.into_response();
+    }
     proxy_json::<()>(
         &state,
         &request_headers,
@@ -221,7 +222,7 @@ pub(crate) async fn send_agent_message(
     .await
 }
 
-pub(crate) async fn list_agent_elicitations(
+pub(crate) async fn list_agent_input_requests(
     State(state): State<AppState>,
     Path(agent_id): Path<String>,
     request_headers: HeaderMap,
@@ -233,29 +234,29 @@ pub(crate) async fn list_agent_elicitations(
         &state,
         &request_headers,
         Method::GET,
-        &format!("agents/{agent_id}/elicitations"),
+        &format!("agents/{agent_id}/input-requests"),
         None,
     )
     .await
 }
 
-pub(crate) async fn decide_agent_elicitation(
+pub(crate) async fn decide_agent_input_request(
     State(state): State<AppState>,
-    Path((agent_id, elicitation_id)): Path<(String, String)>,
+    Path((agent_id, input_request_id)): Path<(String, String)>,
     request_headers: HeaderMap,
-    axum::Json(request): axum::Json<AgentElicitationDecisionRequest>,
+    axum::Json(request): axum::Json<AgentInputRequestDecision>,
 ) -> Response {
-    let Ok(elicitation_id) = uuid::Uuid::parse_str(&elicitation_id) else {
+    let Ok(input_request_id) = uuid::Uuid::parse_str(&input_request_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    if !valid_agent_id(&agent_id) || elicitation_id.get_version_num() != 7 {
+    if !valid_agent_id(&agent_id) || input_request_id.get_version_num() != 7 {
         return StatusCode::NOT_FOUND.into_response();
     }
     proxy_json(
         &state,
         &request_headers,
         Method::POST,
-        &format!("agents/{agent_id}/elicitations/{elicitation_id}/decision"),
+        &format!("agents/{agent_id}/input-requests/{input_request_id}/decision"),
         Some(&request),
     )
     .await
@@ -838,7 +839,7 @@ mod tests {
         AppState,
         apps::AppTaskRegistry,
         config::Config,
-        mcp_client::McpSessionPool,
+        mcp_client::AuthScopedMcpClientPool,
         session::{ConsoleSession, SESSION_AAD, SESSION_COOKIE, SessionCipher},
     };
 
@@ -1017,7 +1018,7 @@ mod tests {
             live_http: reqwest::Client::new(),
             cluster: None,
             sessions,
-            mcp: Arc::new(McpSessionPool::new(&Default::default()).unwrap()),
+            mcp: Arc::new(AuthScopedMcpClientPool::new(&Default::default()).unwrap()),
             app_tasks: AppTaskRegistry::default(),
         };
         let response = stream(State(state), RawQuery(None), request_headers).await;

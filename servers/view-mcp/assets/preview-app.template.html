@@ -355,9 +355,8 @@ function toolFailureText(result, name) {
 }
 
 /* Full CallToolResult (content blocks included); throws on isError. */
-async function callToolRaw(name, args, task) {
+async function callToolRaw(name, args) {
   const params = { name: projectedToolName(name), arguments: args };
-  if (task) params.task = task;
   const result = await bridge.request("tools/call", params);
   if (result && (result.isError || result.is_error)) {
     throw new Error(toolFailureText(result, name));
@@ -372,7 +371,6 @@ async function callTool(name, args) {
 
 const tasks = {
   get: (taskId) => bridge.request("tasks/get", { taskId }),
-  result: (taskId) => bridge.request("tasks/result", { taskId }),
   cancel: (taskId) => bridge.request("tasks/cancel", { taskId }),
 };
 
@@ -1707,21 +1705,21 @@ async function captureFrame() {
         expected_revision: app.view.revision,
         scene_time: new Date().toISOString(),
         policy: capturePolicy(),
-      },
-      { ttl: 600000 }
+      }
     );
     const task = created && (created.task || created);
     const taskId = task && (task.taskId || task.task_id);
     if (!taskId) throw new Error("host did not return a task for capture_frame");
     app.captureTaskId = taskId;
-    const pollInterval = Math.min(Math.max(task.pollInterval || task.poll_interval_ms || 500, 250), 5000);
+    const pollInterval = Math.min(Math.max(task.pollIntervalMs || 500, 250), 5000);
     setStatus(`capture task ${taskId.slice(0, 8)}… queued`, true);
+    let snapshot = task;
     let status = task.status || "working";
     let statusMessage = task.statusMessage || "";
     while (!TERMINAL_STATUSES.has(status)) {
       await new Promise((resolve) => setTimeout(resolve, pollInterval));
       const current = await tasks.get(app.captureTaskId);
-      const snapshot = (current && (current.task || current)) || {};
+      snapshot = current || {};
       status = snapshot.status || status;
       statusMessage = snapshot.statusMessage || snapshot.status_message || "";
       setStatus(`capture ${status}${statusMessage ? ` — ${statusMessage}` : ""}`, true);
@@ -1731,8 +1729,7 @@ async function captureFrame() {
       setStatus("capture cancelled", false);
       return;
     }
-    const payload = await tasks.result(app.captureTaskId);
-    const result = (payload && (payload.result || payload)) || {};
+    const result = snapshot.result || {};
     if (result.isError) throw new Error(toolFailureText(result, "capture_frame"));
     applyFrameResult(result);
     setStatus("frame captured", false);

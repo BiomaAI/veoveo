@@ -6,8 +6,8 @@ MCP surface:
   templates for per-task usage and shared-plane artifacts
 
 Middleware order matches the Rust hosted servers: host validation outermost,
-then the gateway internal-auth requirement, then the final task extension,
-then the streamable HTTP MCP session.
+then the gateway internal-auth requirement, then stateless Streamable HTTP.
+Tasks bind through the SDK extension API inside the MCP server.
 """
 
 from __future__ import annotations
@@ -29,11 +29,7 @@ from veoveo_mcp.internal_auth import (
     GatewayInternalTrustBundle,
     InternalAuthMiddleware,
 )
-from veoveo_mcp.task_extension import (
-    Implementation,
-    ServerDiscovery,
-    TaskExtensionMiddleware,
-)
+from veoveo_mcp.task_extension import TasksExtension, bind_tasks_extension
 from veoveo_mcp.tasks import TaskRuntime
 from veoveo_mcp.telemetry import JsonLogger
 
@@ -186,29 +182,15 @@ async def serve(config: Config) -> None:
         logger.info("resumed recovered datasheet tasks", count=resumed)
 
     mcp_server = build_mcp_server(state)
+    bind_tasks_extension(mcp_server, TasksExtension(DatasheetTaskExtension(state)))
     session_manager = StreamableHTTPSessionManager(
         app=mcp_server,
-        json_response=False,
-        stateless=False,
-        session_idle_timeout=60,
+        json_response=True,
+        stateless=True,
     )
 
     async def mcp_asgi(scope, receive, send):
         await session_manager.handle_request(scope, receive, send)
-
-    discovery = ServerDiscovery(
-        capabilities={
-            "tools": {},
-            "resources": {},
-            "prompts": {},
-            "completions": {},
-        },
-        server_info=Implementation(name="datasheet", version="0.1.0"),
-        instructions=INSTRUCTIONS,
-    )
-    task_app = TaskExtensionMiddleware(
-        mcp_asgi, DatasheetTaskExtension(state), discovery
-    )
 
     docs_llms_path = endpoint.path("admin/docs/llms.txt")
     docs_prefix = endpoint.path("admin/docs/")
@@ -225,7 +207,7 @@ async def serve(config: Config) -> None:
             else:
                 await _markdown(send, doc.body)
         elif path == mcp_path or path.startswith(f"{mcp_path}/"):
-            await task_app(scope, receive, send)
+            await mcp_asgi(scope, receive, send)
         else:
             await _plain(send, 404, b"not found")
 

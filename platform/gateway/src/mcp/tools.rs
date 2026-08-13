@@ -3,26 +3,26 @@ use std::borrow::Cow;
 use futures::{StreamExt, stream};
 use rmcp::{
     model::{
-        CallToolRequest, CallToolRequestParams, CallToolResult, ClientRequest, CreateTaskResult,
-        ErrorData as McpError, ListToolsResult, Notification, PaginatedRequestParams, ServerResult,
-        Task, TaskStatus, TaskStatusNotificationParam, TaskSupport, Tool,
+        CallToolRequest, CallToolRequestParams, CallToolResponse, CallToolResult, ClientRequest,
+        CreateTaskResult, DetailedTask, ErrorData as McpError, ListToolsResult,
+        PaginatedRequestParams, ServerResult, TaskPayload,
     },
-    service::{PeerRequestOptions, RequestContext, RoleServer},
+    service::{Peer, PeerRequestOptions, RequestContext, RoleClient, RoleServer},
 };
 use serde_json::Value;
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayDiscoverySurface, LocalToolName, paginate, related_task_meta,
+    GatewayAction, GatewayDiscoverySurface, LocalToolName, TaskExposure, paginate,
+    related_task_meta, sanitized_request_meta,
 };
-use veoveo_mcp_task_extension::{
-    CLIENT_CAPABILITIES_META_KEY, DetailedTask, PROTOCOL_VERSION_META_KEY, ProtocolTaskId,
-    RequestMeta, TASK_RETENTION_PIN_META_KEY, Task as FinalTask, TaskStatus as FinalTaskStatus,
-    ToolCallParams,
-};
-use veoveo_task_runtime::TaskRetentionPin;
+use veoveo_platform_store::PrincipalKind as StorePrincipalKind;
 
-use crate::mcp_support::{
-    mcp_internal, mcp_invalid_params, parse_gateway_tool, project_call_tool_resource_uris,
-    project_tool_resource_metadata, unexpected_upstream_response, upstream_error,
+use crate::{
+    AuthenticatedSubject,
+    mcp_support::{
+        mcp_internal, mcp_invalid_params, parse_gateway_tool, project_call_tool_resource_uris,
+        project_tool_resource_metadata, unexpected_upstream_response, upstream_error,
+    },
+    state::GatewayTaskRouteDraft,
 };
 
 use super::{
@@ -38,8 +38,6 @@ impl GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
         let subject = self.authenticated(&context)?;
-        let project_tasks = self.client_allows_task_projection(&subject)?;
-        let adapt_required_tasks = self.client_uses_direct_task_call_adapter(&subject)?;
         let snapshot = self.catalog.snapshot();
         let catalog = snapshot.catalog().clone();
         let catalog_generation = snapshot.generation();
@@ -60,22 +58,9 @@ impl GatewayMcp {
                     return (server_slug, Ok::<_, McpError>(tools));
                 }
                 let result = async {
-                    let (_, exposure, manifest) = catalog
-                        .profile_server(&self.profile_id, &server_slug)
-                        .ok_or_else(|| {
-                            mcp_internal(format!("unknown profile server `{server_slug}`"))
-                        })?;
-                    let tasks_exposed =
-                        exposure.tasks == veoveo_mcp_contract::TaskExposure::Enabled;
-                    let manifest = manifest.clone();
-                    let final_tasks =
-                        if project_tasks && tasks_exposed && manifest.capabilities.tasks {
-                            let client = self.final_task_client(&server_slug, subject).await?;
-                            client.discover().await?;
-                            true
-                        } else {
-                            false
-                        };
+                    let manifest = catalog.server(&server_slug).ok_or_else(|| {
+                        mcp_internal(format!("unknown profile server `{server_slug}`"))
+                    })?;
                     let upstream_tools = self
                         .idempotent_upstream_request(
                             &server_slug,
@@ -108,16 +93,13 @@ impl GatewayMcp {
                         {
                             continue;
                         }
-                        project_tool_resource_metadata(&manifest, &mut tool)?;
+                        project_tool_resource_metadata(manifest, &mut tool)?;
                         let gateway_name = catalog
                             .project_tool_name(&server_slug, &local_tool)
                             .map_err(|err| {
                                 mcp_internal(format!("failed to project tool name: {err}"))
                             })?;
                         tool.name = Cow::Owned(gateway_name.to_string());
-                        if final_tasks && adapt_required_tasks {
-                            adapt_required_task_tool(&mut tool);
-                        }
                         tools.push(tool);
                     }
                     self.discovery.store_tools(key, tools.clone()).await;
@@ -141,6 +123,9 @@ impl GatewayMcp {
         Ok(ListToolsResult {
             tools: page.items,
             next_cursor: page.next_cursor,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: degradation.into_meta(),
         })
     }
@@ -149,7 +134,7 @@ impl GatewayMcp {
         &self,
         mut request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResult, McpError> {
+    ) -> Result<CallToolResponse, McpError> {
         let catalog = self.catalog.current();
         let projection = parse_gateway_tool(&catalog, &request.name)?;
         let subject = self.authenticated(&context)?;
@@ -180,36 +165,28 @@ impl GatewayMcp {
             .await?;
         restore_request_meta(&mut request, &context.meta);
         request.name = Cow::Owned(projection.tool.to_string());
-        let direct_task_call_adapter = self.client_uses_direct_task_call_adapter(&subject)?;
+
+        let downstream_tasks = context
+            .meta
+            .client_capabilities()
+            .is_some_and(|capabilities| capabilities.supports_tasks());
+        let project_tasks = downstream_tasks && self.client_allows_task_projection(&subject)?;
+        let direct_adapter = self.client_uses_direct_task_call_adapter(&subject)?;
+        let server_supports_tasks = catalog
+            .profile_server(&self.profile_id, &projection.server)
+            .is_some_and(|(_, exposure, manifest)| {
+                exposure.tasks == TaskExposure::Enabled && manifest.capabilities.tasks
+            });
+        let effective_tasks = server_supports_tasks && (project_tasks || direct_adapter);
         let downstream_progress_token = context.meta.get_progress_token();
         let upstream = self
-            .upstream(&projection.server, context.peer.clone(), &subject)
+            .upstream_with_tasks(
+                &projection.server,
+                context.peer.clone(),
+                &subject,
+                effective_tasks,
+            )
             .await?;
-        if direct_task_call_adapter {
-            let upstream_tools = upstream
-                .peer
-                .list_all_tools()
-                .await
-                .map_err(upstream_error)?;
-            let upstream_tool = upstream_tools
-                .iter()
-                .find(|tool| tool.name.as_ref() == projection.tool.as_str())
-                .ok_or_else(|| mcp_invalid_params("unknown tool"))?;
-            if upstream_tool.task_support() == TaskSupport::Required {
-                let final_request = final_tool_request(request, projection.tool.as_str())?;
-                let client = self.final_task_client(&projection.server, &subject).await?;
-                let created = client.start_tool(final_request).await?;
-                let task_id = created.task.task_id;
-                let task = client.await_terminal(task_id).await?;
-                let mut result = completed_tool_result(task)?;
-                let manifest = catalog.server(&projection.server).ok_or_else(|| {
-                    mcp_internal(format!("unknown tool server `{}`", projection.server))
-                })?;
-                project_call_tool_resource_uris(manifest, &mut result)?;
-                result.meta = Some(related_task_meta(task_id.to_string()));
-                return Ok(result);
-            }
-        }
         let handle = upstream
             .peer
             .send_cancellable_request(
@@ -239,192 +216,159 @@ impl GatewayMcp {
                 &upstream_token,
             )
             .await;
+
         match result? {
             ServerResult::CallToolResult(mut result) => {
                 let manifest = catalog.server(&projection.server).ok_or_else(|| {
                     mcp_internal(format!("unknown tool server `{}`", projection.server))
                 })?;
                 project_call_tool_resource_uris(manifest, &mut result)?;
-                Ok(result)
+                Ok(CallToolResponse::Complete(result))
             }
+            ServerResult::InputRequiredResult(result) => {
+                Ok(CallToolResponse::InputRequired(result))
+            }
+            ServerResult::CreateTaskResult(created) if project_tasks => {
+                let created = self
+                    .project_created_task(&subject, &projection.server, created)
+                    .await?;
+                Ok(CallToolResponse::Task(created))
+            }
+            ServerResult::CreateTaskResult(created) if direct_adapter => {
+                let source_task_id = created.task.task_id.clone();
+                let projected = self
+                    .project_created_task(&subject, &projection.server, created)
+                    .await?;
+                let canonical_task_id = projected.task.task_id;
+                let detailed = await_terminal_task(
+                    &upstream.peer,
+                    source_task_id,
+                    context.ct.clone(),
+                    projected.task.poll_interval_ms,
+                )
+                .await?;
+                let mut result = completed_tool_result(detailed)?;
+                let manifest = catalog.server(&projection.server).ok_or_else(|| {
+                    mcp_internal(format!("unknown tool server `{}`", projection.server))
+                })?;
+                project_call_tool_resource_uris(manifest, &mut result)?;
+                result.meta = Some(related_task_meta(canonical_task_id));
+                Ok(CallToolResponse::Complete(result))
+            }
+            ServerResult::CreateTaskResult(_) => Err(McpError::missing_required_client_capability(
+                rmcp::model::ClientCapabilities::builder()
+                    .enable_tasks()
+                    .build(),
+            )),
             other => Err(unexpected_upstream_response("tools/call", other)),
         }
     }
 
-    pub(super) async fn handle_enqueue_task(
+    async fn project_created_task(
         &self,
-        mut request: CallToolRequestParams,
-        context: RequestContext<RoleServer>,
+        subject: &AuthenticatedSubject,
+        server: &veoveo_mcp_contract::ServerSlug,
+        mut created: CreateTaskResult,
     ) -> Result<CreateTaskResult, McpError> {
-        let catalog = self.catalog.current();
-        let projection = parse_gateway_tool(&catalog, &request.name)?;
-        let subject = self.authenticated(&context)?;
-        if !self.client_allows_task_projection(&subject)? {
-            return Err(mcp_invalid_params("unknown method"));
-        }
-        let subject = self
-            .authorize_tool(
-                &context,
-                GatewayAction::ToolsCall,
-                projection.server.clone(),
-                projection.tool.clone(),
-            )
-            .await?;
-        restore_request_meta(&mut request, &context.meta);
-        let final_request = final_tool_request(request, projection.tool.as_str())?;
-        let client = self.final_task_client(&projection.server, &subject).await?;
-        let created = client.start_tool(final_request).await?;
-        let task_id = created.task.task_id;
-        let task = project_task_from_seed(created.task);
-        self.forward_task_updates(
-            client,
-            task_id,
-            context.peer.clone(),
-            subject.principal.id.clone(),
-            projection.server,
-        )
-        .await?;
-        Ok(CreateTaskResult::new(task).with_meta(related_task_meta(task_id.to_string())))
-    }
-
-    async fn forward_task_updates(
-        &self,
-        client: super::final_tasks::FinalTaskClient,
-        task_id: ProtocolTaskId,
-        downstream: rmcp::service::Peer<RoleServer>,
-        principal: veoveo_mcp_contract::PrincipalId,
-        server: veoveo_mcp_contract::ServerSlug,
-    ) -> Result<(), McpError> {
-        let mut updates = client.subscribe(vec![task_id]).await?;
-        let profile = self.profile_id.clone();
-        tokio::spawn(async move {
-            while let Some(update) = updates.next().await {
-                let update = match update {
-                    Ok(update) => update,
-                    Err(error) => {
-                        tracing::warn!(%profile, %principal, %server, %task_id, %error, "task projection subscription ended");
-                        break;
-                    }
-                };
-                let task = project_task_from_detailed(&update);
-                let notification = rmcp::model::ServerNotification::TaskStatusNotification(
-                    Notification::new(TaskStatusNotificationParam::new(task)),
-                );
-                if let Err(error) = downstream.send_notification(notification).await {
-                    tracing::warn!(%profile, %principal, %server, %task_id, %error, "failed to forward task projection notification");
-                    break;
-                }
-                if update.status().is_terminal() {
-                    break;
-                }
-            }
-        });
-        Ok(())
+        let authority_digest = hex::encode(invocation_authorization_fingerprint(
+            &subject.actor,
+            &subject.authority,
+        )?);
+        let owner_kind = match subject.actor.kind {
+            veoveo_mcp_contract::PrincipalKind::User => StorePrincipalKind::User,
+            veoveo_mcp_contract::PrincipalKind::Service => StorePrincipalKind::Service,
+        };
+        let (canonical, _) = self
+            .state
+            .create_task_route(GatewayTaskRouteDraft {
+                tenant_key: subject.authority.tenant.to_string(),
+                owner_key: subject.actor.id.to_string(),
+                owner_issuer: subject.actor.issuer.to_string(),
+                owner_subject: subject.actor.subject.to_string(),
+                owner_kind,
+                work_context: subject.authority.work_context.to_string(),
+                profile: self.profile_id.to_string(),
+                server: server.to_string(),
+                source_task_id: created.task.task_id.clone(),
+                authority_digest,
+                ttl_ms: created.task.ttl_ms,
+            })
+            .await
+            .map_err(|error| {
+                mcp_internal(format!("failed to persist gateway task route: {error}"))
+            })?;
+        created.task.task_id = canonical.to_string();
+        created.meta = Some(related_task_meta(canonical.to_string()));
+        Ok(created)
     }
 }
 
-fn restore_request_meta(request: &mut CallToolRequestParams, context_meta: &rmcp::model::Meta) {
-    if context_meta.0.is_empty() {
+fn restore_request_meta(
+    request: &mut CallToolRequestParams,
+    context_meta: &rmcp::model::RequestMetaObject,
+) {
+    if context_meta.is_empty() {
         return;
     }
-    let request_meta = request.meta.get_or_insert_with(rmcp::model::Meta::new);
-    request_meta.0.extend(context_meta.0.clone());
+    request
+        .meta
+        .get_or_insert_with(rmcp::model::RequestMetaObject::new)
+        .extend(sanitized_request_meta(context_meta));
 }
 
-fn final_tool_request(
-    request: CallToolRequestParams,
-    upstream_name: &str,
-) -> Result<ToolCallParams, McpError> {
-    let mut meta = RequestMeta::new().with_task_capability();
-    if let Some(request_meta) = request.meta {
-        for (key, value) in request_meta.0 {
-            if key == TASK_RETENTION_PIN_META_KEY {
-                let pin: TaskRetentionPin = serde_json::from_value(value).map_err(|error| {
-                    mcp_invalid_params(format!("invalid task retention pin: {error}"))
-                })?;
-                meta = meta.with_retention_pin(pin);
-            } else if key == PROTOCOL_VERSION_META_KEY || key == CLIENT_CAPABILITIES_META_KEY {
-                continue;
-            } else {
-                meta.additional.insert(key, value);
-            }
+async fn await_terminal_task(
+    peer: &Peer<RoleClient>,
+    task_id: String,
+    cancellation: tokio_util::sync::CancellationToken,
+    initial_poll_interval_ms: Option<u64>,
+) -> Result<DetailedTask, McpError> {
+    let mut poll_interval_ms = initial_poll_interval_ms.unwrap_or(1_000).clamp(100, 30_000);
+    loop {
+        let current = peer
+            .get_task(rmcp::model::GetTaskParams::new(task_id.clone()))
+            .await
+            .map_err(upstream_error)?
+            .task;
+        if current.status().is_terminal() {
+            return Ok(current);
         }
-    }
-    Ok(ToolCallParams {
-        meta,
-        name: upstream_name.to_owned(),
-        arguments: request.arguments.unwrap_or_default().into_iter().collect(),
-    })
-}
-
-fn adapt_required_task_tool(tool: &mut Tool) {
-    if tool.task_support() == TaskSupport::Required {
-        tool.execution = Some(
-            tool.execution
-                .take()
-                .unwrap_or_default()
-                .with_task_support(TaskSupport::Optional),
-        );
-    }
-}
-
-pub(super) fn project_task_from_seed(task: FinalTask) -> Task {
-    let mut projected = Task::new(
-        task.task_id.to_string(),
-        project_task_status(task.status),
-        task.created_at.to_rfc3339(),
-        task.last_updated_at.to_rfc3339(),
-    );
-    projected.status_message = task.status_message;
-    projected.ttl = task.ttl_ms;
-    projected.poll_interval = task.poll_interval_ms;
-    projected
-}
-
-pub(super) fn project_task_from_detailed(task: &DetailedTask) -> Task {
-    let metadata = task.metadata();
-    let mut projected = Task::new(
-        metadata.task_id.to_string(),
-        project_task_status(task.status()),
-        metadata.created_at.to_rfc3339(),
-        metadata.last_updated_at.to_rfc3339(),
-    );
-    projected.status_message = metadata.status_message.clone();
-    projected.ttl = metadata.ttl_ms;
-    projected.poll_interval = metadata.poll_interval_ms;
-    projected
-}
-
-fn project_task_status(status: FinalTaskStatus) -> TaskStatus {
-    match status {
-        FinalTaskStatus::Working => TaskStatus::Working,
-        FinalTaskStatus::InputRequired => TaskStatus::InputRequired,
-        FinalTaskStatus::Completed => TaskStatus::Completed,
-        FinalTaskStatus::Cancelled => TaskStatus::Cancelled,
-        FinalTaskStatus::Failed => TaskStatus::Failed,
+        poll_interval_ms = current
+            .task
+            .poll_interval_ms
+            .unwrap_or(poll_interval_ms)
+            .clamp(100, 30_000);
+        tokio::select! {
+            () = cancellation.cancelled() => {
+                let _ = peer.cancel_task(rmcp::model::CancelTaskParams::new(task_id)).await;
+                return Err(McpError::invalid_request("task wait was cancelled", None));
+            }
+            () = tokio::time::sleep(std::time::Duration::from_millis(poll_interval_ms)) => {}
+        }
     }
 }
 
 pub(super) fn completed_tool_result(task: DetailedTask) -> Result<CallToolResult, McpError> {
-    match task {
-        DetailedTask::Completed { result, .. } => {
-            serde_json::from_value(Value::Object(result.into_iter().collect())).map_err(|error| {
+    match task.payload {
+        TaskPayload::Completed { result } => {
+            serde_json::from_value(Value::Object(result)).map_err(|error| {
                 mcp_internal(format!(
                     "upstream task result was not a tool result: {error}"
                 ))
             })
         }
-        DetailedTask::Failed { error, .. } => Err(McpError::new(
-            rmcp::model::ErrorCode(error.code),
-            error.message,
-            error.data,
-        )),
-        DetailedTask::Cancelled { .. } => {
-            Err(McpError::invalid_request("task was cancelled", None))
+        TaskPayload::Failed { error } => {
+            let error = serde_json::from_value(Value::Object(error)).map_err(|decode| {
+                mcp_internal(format!("upstream task error was malformed: {decode}"))
+            })?;
+            Err(error)
         }
-        DetailedTask::Working { .. } | DetailedTask::InputRequired { .. } => {
+        TaskPayload::Cancelled => Err(McpError::invalid_request("task was cancelled", None)),
+        TaskPayload::Working | TaskPayload::InputRequired { .. } => {
             Err(mcp_internal("task result requested before completion"))
         }
+        _ => Err(mcp_internal(
+            "upstream returned an unsupported task payload",
+        )),
     }
 }
 
@@ -432,107 +376,46 @@ pub(super) fn project_detailed_task_resource_uris(
     manifest: &veoveo_mcp_contract::ServerManifest,
     task: &mut DetailedTask,
 ) -> Result<(), McpError> {
-    let DetailedTask::Completed { result, .. } = task else {
+    let TaskPayload::Completed { result } = &mut task.payload else {
         return Ok(());
     };
-    let value = Value::Object(result.clone().into_iter().collect());
-    let mut tool_result: CallToolResult = serde_json::from_value(value).map_err(|error| {
-        mcp_internal(format!(
-            "upstream completed task result was not a tool result: {error}"
-        ))
-    })?;
+    let mut tool_result: CallToolResult = serde_json::from_value(Value::Object(result.clone()))
+        .map_err(|error| {
+            mcp_internal(format!(
+                "upstream completed task result was not a tool result: {error}"
+            ))
+        })?;
     project_call_tool_resource_uris(manifest, &mut tool_result)?;
-    let projected = serde_json::to_value(tool_result)
+    *result = serde_json::to_value(tool_result)
         .map_err(|error| mcp_internal(format!("failed to encode projected task result: {error}")))?
         .as_object()
         .cloned()
         .ok_or_else(|| mcp_internal("projected task result was not an object"))?;
-    *result = projected.into_iter().collect();
     Ok(())
 }
 
-trait FinalTaskStatusExt {
-    fn is_terminal(&self) -> bool;
-}
-
-impl FinalTaskStatusExt for FinalTaskStatus {
-    fn is_terminal(&self) -> bool {
-        matches!(
-            *self,
-            FinalTaskStatus::Completed | FinalTaskStatus::Cancelled | FinalTaskStatus::Failed
-        )
-    }
+pub(super) fn rewrite_detailed_task_id(task: &mut DetailedTask, canonical_task_id: &str) {
+    task.task.task_id = canonical_task_id.to_owned();
 }
 
 #[cfg(test)]
 mod tests {
-    use rmcp::model::{JsonObject, ToolExecution};
-
     use super::*;
 
     #[test]
-    fn direct_call_adapter_downgrades_required_task_tool() {
-        let mut tool = Tool::new("forecast", "Forecast.", JsonObject::new())
-            .with_execution(ToolExecution::new().with_task_support(TaskSupport::Required));
-        adapt_required_task_tool(&mut tool);
-        assert_eq!(tool.task_support(), TaskSupport::Optional);
-    }
-
-    #[test]
-    fn direct_call_adapter_preserves_optional_task_tool() {
-        let mut tool = Tool::new("forecast", "Forecast.", JsonObject::new())
-            .with_execution(ToolExecution::new().with_task_support(TaskSupport::Optional));
-        adapt_required_task_tool(&mut tool);
-        assert_eq!(tool.task_support(), TaskSupport::Optional);
-    }
-
-    #[test]
-    fn direct_call_adapter_preserves_forbidden_task_tool() {
-        let mut tool = Tool::new("forecast", "Forecast.", JsonObject::new())
-            .with_execution(ToolExecution::new().with_task_support(TaskSupport::Forbidden));
-        adapt_required_task_tool(&mut tool);
-        assert_eq!(tool.task_support(), TaskSupport::Forbidden);
-    }
-
-    #[test]
-    fn retention_pin_is_preserved_in_final_request_meta() {
+    fn request_context_metadata_is_restored_before_upstream_projection() {
         let mut request = CallToolRequestParams::new("timeseries__forecast");
-        let mut meta = rmcp::model::Meta::new();
-        meta.0.insert(
-            TASK_RETENTION_PIN_META_KEY.to_owned(),
-            serde_json::json!("agent-episode:test"),
-        );
-        request.meta = Some(meta);
-        let projected = final_tool_request(request, "forecast").unwrap();
-        assert_eq!(
-            projected
-                .meta
-                .task_retention_pin
-                .as_ref()
-                .map(TaskRetentionPin::as_str),
-            Some("agent-episode:test")
-        );
-    }
-
-    #[test]
-    fn rmcp_context_meta_is_restored_before_task_projection() {
-        let mut request = CallToolRequestParams::new("timeseries__forecast");
-        let mut context_meta = rmcp::model::Meta::new();
-        context_meta.0.insert(
-            TASK_RETENTION_PIN_META_KEY.to_owned(),
-            serde_json::json!("agent-episode:test"),
-        );
+        let mut context_meta = rmcp::model::RequestMetaObject::new();
+        context_meta.set_traceparent("00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-01");
 
         restore_request_meta(&mut request, &context_meta);
-        let projected = final_tool_request(request, "forecast").unwrap();
 
         assert_eq!(
-            projected
+            request
                 .meta
-                .task_retention_pin
                 .as_ref()
-                .map(TaskRetentionPin::as_str),
-            Some("agent-episode:test")
+                .and_then(|meta| meta.get_traceparent()),
+            context_meta.get_traceparent()
         );
     }
 }

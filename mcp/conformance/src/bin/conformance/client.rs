@@ -1,16 +1,5 @@
 use super::*;
 
-use std::sync::atomic::{AtomicU64, Ordering};
-
-use reqwest::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
-use serde::{Serialize, de::DeserializeOwned};
-use veoveo_mcp_task_extension::{
-    AcknowledgeTaskResult, CANCEL_TASK_METHOD, CancelTaskParams, CreateTaskResult, DISCOVER_METHOD,
-    DetailedTask, DiscoverParams, DiscoverResult, EXTENSION_ID, GET_TASK_METHOD, GetTaskParams,
-    GetTaskResult, HEADER_MCP_METHOD, HEADER_MCP_NAME, HEADER_MCP_PROTOCOL_VERSION,
-    PROTOCOL_VERSION, ProtocolTaskId, RequestMeta, ToolCallParams,
-};
-
 /// Client handler that surfaces every server-initiated notification.
 #[derive(Clone, Default)]
 pub(super) struct CliHandler;
@@ -18,7 +7,7 @@ pub(super) struct CliHandler;
 impl ClientHandler for CliHandler {
     fn get_info(&self) -> ClientInfo {
         ClientInfo::new(
-            ClientCapabilities::default(),
+            ClientCapabilities::builder().enable_tasks().build(),
             Implementation::new("veoveo-conformance", env!("CARGO_PKG_VERSION")),
         )
     }
@@ -40,14 +29,14 @@ impl ClientHandler for CliHandler {
 
     async fn on_task_status(
         &self,
-        params: TaskStatusNotificationParam,
+        params: TaskStatusNotificationParams,
         _context: NotificationContext<rmcp::RoleClient>,
     ) {
         eprintln!(
             "  [task {}] {:?}: {}",
-            params.task.task_id,
-            params.task.status,
-            params.task.status_message.as_deref().unwrap_or("")
+            params.task.task.task_id,
+            params.task.status(),
+            params.task.task.status_message.as_deref().unwrap_or("")
         );
     }
 
@@ -66,148 +55,20 @@ impl ClientHandler for CliHandler {
 
 pub(super) type Client = rmcp::service::RunningService<rmcp::RoleClient, CliHandler>;
 
-#[derive(Clone)]
-pub(super) struct FinalTaskClient {
-    http: reqwest::Client,
-    endpoint: String,
-    bearer_token: Option<String>,
-    request_ids: Arc<AtomicU64>,
-}
-
-impl FinalTaskClient {
-    pub(super) fn from_args(args: &Args) -> Result<Self> {
-        let bearer_token = bearer_token_from_args(args)?;
-        Ok(Self {
-            http: reqwest::Client::new(),
-            endpoint: args.url.clone(),
-            bearer_token,
-            request_ids: Arc::new(AtomicU64::new(1)),
-        })
-    }
-
-    pub(super) async fn discover(&self) -> Result<DiscoverResult> {
-        let result: DiscoverResult = self
-            .request(
-                DISCOVER_METHOD,
-                None,
-                &DiscoverParams {
-                    meta: RequestMeta::new(),
-                },
-            )
-            .await?;
-        let extensions = result
-            .capabilities
-            .get("extensions")
-            .and_then(Value::as_object);
-        if result
-            .supported_versions
-            .iter()
-            .all(|version| version != PROTOCOL_VERSION)
-            || !extensions.is_some_and(|extensions| extensions.contains_key(EXTENSION_ID))
-        {
-            return Err(anyhow!(
-                "server does not advertise the final MCP task extension"
-            ));
-        }
-        Ok(result)
-    }
-
-    pub(super) async fn start_tool(&self, request: ToolCallParams) -> Result<CreateTaskResult> {
-        self.discover().await?;
-        self.request("tools/call", Some(&request.name), &request)
-            .await
-    }
-
-    pub(super) async fn get(&self, task_id: ProtocolTaskId) -> Result<DetailedTask> {
-        let result: GetTaskResult = self
-            .request(
-                GET_TASK_METHOD,
-                Some(&task_id.to_string()),
-                &GetTaskParams {
-                    meta: task_meta(),
-                    task_id,
-                },
-            )
-            .await?;
-        Ok(result.task)
-    }
-
-    pub(super) async fn cancel(&self, task_id: ProtocolTaskId) -> Result<AcknowledgeTaskResult> {
-        self.request(
-            CANCEL_TASK_METHOD,
-            Some(&task_id.to_string()),
-            &CancelTaskParams {
-                meta: task_meta(),
-                task_id,
-            },
-        )
-        .await
-    }
-
-    async fn request<T, P>(&self, method: &str, name: Option<&str>, params: &P) -> Result<T>
-    where
-        T: DeserializeOwned,
-        P: Serialize + ?Sized,
-    {
-        let mut request = self
-            .http
-            .post(&self.endpoint)
-            .header(CONTENT_TYPE, "application/json")
-            .header(ACCEPT, "application/json, text/event-stream")
-            .header(HEADER_MCP_PROTOCOL_VERSION, PROTOCOL_VERSION)
-            .header(HEADER_MCP_METHOD, method)
-            .json(&json!({
-                "jsonrpc": "2.0",
-                "id": self.request_ids.fetch_add(1, Ordering::Relaxed),
-                "method": method,
-                "params": params,
-            }));
-        if let Some(name) = name {
-            request = request.header(HEADER_MCP_NAME, name);
-        }
-        if let Some(token) = &self.bearer_token {
-            request = request.header(AUTHORIZATION, format!("Bearer {token}"));
-        }
-        let response = request.send().await?;
-        let status = response.status();
-        let body = response.bytes().await?;
-        let envelope: RpcResponse<T> = serde_json::from_slice(&body).map_err(|error| {
-            anyhow!(
-                "decoding task extension response from {} (HTTP {status}): {error}",
-                self.endpoint
-            )
-        })?;
-        match (envelope.result, envelope.error) {
-            (Some(result), None) if status.is_success() => Ok(result),
-            (_, Some(error)) => Err(anyhow!(
-                "task extension request `{method}` failed ({}): {}",
-                error.code,
-                error.message
-            )),
-            _ => Err(anyhow!(
-                "task extension request `{method}` returned invalid HTTP {status} response"
-            )),
-        }
-    }
-}
-
-fn task_meta() -> RequestMeta {
-    RequestMeta::new().with_task_capability()
-}
-
-#[derive(Deserialize)]
-struct RpcResponse<T> {
-    result: Option<T>,
-    error: Option<veoveo_mcp_task_extension::JsonRpcErrorData>,
-}
-
 pub(super) async fn connect(args: &Args) -> Result<Client> {
     let mut config = StreamableHttpClientTransportConfig::with_uri(args.url.clone());
     if let Some(token) = bearer_token_from_args(args)? {
         config = config.auth_header(token);
     }
     let transport = StreamableHttpClientTransport::from_config(config);
-    Ok(CliHandler.serve(transport).await?)
+    Ok(CliHandler
+        .serve_with_lifecycle(
+            transport,
+            ClientLifecycleMode::Discover {
+                preferred_versions: vec![rmcp::model::ProtocolVersion::V_2026_07_28],
+            },
+        )
+        .await?)
 }
 
 pub(super) fn bearer_token_from_args(args: &Args) -> Result<Option<String>> {

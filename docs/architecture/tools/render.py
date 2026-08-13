@@ -799,15 +799,14 @@ def diagram_resource_structure() -> None:
         ("User and control surfaces", ["VV-CMP-001", "VV-CMP-002", "VV-CMP-003"], "#d9ebe7", 4),
         (
             "Core platform libraries and services",
-            [f"VV-CMP-{i:03d}" for i in range(4, 16)]
+            [f"VV-CMP-{i:03d}" for i in range(4, 16) if i != 12]
             + [
                 "VV-CMP-051",
                 "VV-CMP-052",
                 "VV-CMP-053",
                 "VV-CMP-058",
-                "VV-CMP-059",
                 "VV-CMP-063",
-                "VV-CMP-065",
+                "VV-CMP-075",
             ],
             "#deebf2",
             6,
@@ -1375,7 +1374,7 @@ def diagram_task_lifecycle() -> None:
     states = {
         "Created": (110, 220, "Persist owner, request, idempotency, recovery class"),
         "Running": (440, 220, "Claim lease, heartbeat, progress, bounded execution"),
-        "Input required": (770, 110, "Persist elicitation request and await authorized submission"),
+        "Input required": (770, 110, "Persist input request and await authorized submission"),
         "Webhook wait": (
             770,
             350,

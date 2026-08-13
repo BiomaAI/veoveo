@@ -1,59 +1,41 @@
-"""Wire models for the final MCP task extension, protocol version 2026-06-30.
+"""Typed bindings for the MCP 2026-07-28 Tasks extension (SEP-2663).
 
-This module is the Python equivalent of the Rust `veoveo-mcp-task-extension`
-crate's `models.rs`. The constants and JSON shapes here are pinned to the same
-final SEP revision; the Rust protocol tests are the reference fixtures.
+The Python SDK 2.0 lifecycle owns discovery, request metadata, routing headers,
+result stamping, and Streamable HTTP. This module contains only the task types
+that are not yet shipped by that SDK release.
 """
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime
-from enum import Enum
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import (
-    AfterValidator,
-    BaseModel,
-    ConfigDict,
-    Field,
-    PlainSerializer,
-)
+import mcp.types as types
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
-PROTOCOL_VERSION = "2026-06-30"
+PROTOCOL_VERSION = "2026-07-28"
 EXTENSION_ID = "io.modelcontextprotocol/tasks"
-DISCOVER_METHOD = "server/discover"
 GET_TASK_METHOD = "tasks/get"
 UPDATE_TASK_METHOD = "tasks/update"
 CANCEL_TASK_METHOD = "tasks/cancel"
-LISTEN_METHOD = "subscriptions/listen"
 TASK_NOTIFICATION_METHOD = "notifications/tasks"
-SUBSCRIPTION_ACKNOWLEDGED_METHOD = "notifications/subscriptions/acknowledged"
-CLIENT_CAPABILITIES_META_KEY = "io.modelcontextprotocol/clientCapabilities"
-PROTOCOL_VERSION_META_KEY = "io.modelcontextprotocol/protocolVersion"
 SUBSCRIPTION_ID_META_KEY = "io.modelcontextprotocol/subscriptionId"
 TASK_RETENTION_PIN_META_KEY = "ai.bioma.veoveo/taskRetentionPin"
-MISSING_REQUIRED_CLIENT_CAPABILITY = -32_003
-HEADER_MCP_METHOD = "mcp-method"
-HEADER_MCP_NAME = "mcp-name"
-HEADER_MCP_PROTOCOL_VERSION = "mcp-protocol-version"
 
 
-def _require_uuid_v7(value: uuid.UUID) -> uuid.UUID:
-    if value.version != 7:
-        raise ValueError("task id must be a UUIDv7")
+def _validate_task_id(value: str) -> str:
+    if not value or len(value.encode()) > 1024:
+        raise ValueError("task id must contain 1..1024 encoded bytes")
+    if any(ch < " " or ch == "\x7f" for ch in value):
+        raise ValueError("task id must not contain control characters")
     return value
 
 
-ProtocolTaskId = Annotated[
-    uuid.UUID,
-    AfterValidator(_require_uuid_v7),
-    PlainSerializer(str, return_type=str, when_used="always"),
-]
+OpaqueTaskId = Annotated[str, AfterValidator(_validate_task_id)]
 
 
 def validate_retention_pin(value: str) -> str:
-    if not value or len(value) > 256 or any(ch for ch in value if ch < " " or ch == "\x7f"):
+    if not value or len(value) > 256 or any(ch < " " or ch == "\x7f" for ch in value):
         raise ValueError(
             "task retention pin is empty, too long, or contains a control character"
         )
@@ -63,7 +45,7 @@ def validate_retention_pin(value: str) -> str:
 TaskRetentionPin = Annotated[str, AfterValidator(validate_retention_pin)]
 
 
-class TaskStatus(str, Enum):
+class TaskStatus(str):
     WORKING = "working"
     INPUT_REQUIRED = "input_required"
     COMPLETED = "completed"
@@ -71,75 +53,37 @@ class TaskStatus(str, Enum):
     FAILED = "failed"
 
 
-class ClientCapabilities(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
-    extensions: dict[str, Any] = Field(default_factory=dict)
-
-    def declares_tasks(self) -> bool:
-        declared = self.extensions.get(EXTENSION_ID)
-        return isinstance(declared, dict) and not declared
+TaskStatusValue = Literal[
+    "working", "input_required", "completed", "cancelled", "failed"
+]
 
 
-class RequestMeta(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-    protocol_version: str = Field(
-        default=PROTOCOL_VERSION, alias=PROTOCOL_VERSION_META_KEY
-    )
-    client_capabilities: ClientCapabilities | None = Field(
-        default=None, alias=CLIENT_CAPABILITIES_META_KEY
-    )
-    task_retention_pin: TaskRetentionPin | None = Field(
-        default=None, alias=TASK_RETENTION_PIN_META_KEY
-    )
-
-    def with_task_capability(self) -> "RequestMeta":
-        update = self.model_copy()
-        update.client_capabilities = ClientCapabilities(extensions={EXTENSION_ID: {}})
-        return update
-
-    def declares_tasks(self) -> bool:
-        return (
-            self.client_capabilities is not None
-            and self.client_capabilities.declares_tasks()
-        )
+def _to_camel(value: str) -> str:
+    first, *rest = value.split("_")
+    return first + "".join(part.capitalize() for part in rest)
 
 
-class _CamelModel(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+class _TaskModel(BaseModel):
+    model_config = ConfigDict(alias_generator=_to_camel, populate_by_name=True)
 
 
-class Task(_CamelModel):
-    task_id: ProtocolTaskId = Field(alias="taskId")
-    status: TaskStatus
-    status_message: str | None = Field(default=None, alias="statusMessage")
-    created_at: datetime = Field(alias="createdAt")
-    last_updated_at: datetime = Field(alias="lastUpdatedAt")
-    ttl_ms: int | None = Field(default=None, alias="ttlMs")
-    poll_interval_ms: int | None = Field(default=None, alias="pollIntervalMs")
+class Task(_TaskModel):
+    task_id: OpaqueTaskId
+    status: TaskStatusValue
+    status_message: str | None = None
+    created_at: datetime
+    last_updated_at: datetime
+    ttl_ms: int | None = Field(default=None, ge=0)
+    poll_interval_ms: int | None = Field(default=None, ge=0)
 
 
-class _TaskMetadataFields(_CamelModel):
-    task_id: ProtocolTaskId = Field(alias="taskId")
-    status_message: str | None = Field(default=None, alias="statusMessage")
-    created_at: datetime = Field(alias="createdAt")
-    last_updated_at: datetime = Field(alias="lastUpdatedAt")
-    ttl_ms: int | None = Field(default=None, alias="ttlMs")
-    poll_interval_ms: int | None = Field(default=None, alias="pollIntervalMs")
-
-
-class EmbeddedRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    method: str
-    params: dict[str, Any] = Field(default_factory=dict)
-
-
-class JsonRpcErrorData(BaseModel):
-    code: int
-    message: str
-    data: Any | None = None
+class _TaskMetadataFields(_TaskModel):
+    task_id: OpaqueTaskId
+    status_message: str | None = None
+    created_at: datetime
+    last_updated_at: datetime
+    ttl_ms: int | None = Field(default=None, ge=0)
+    poll_interval_ms: int | None = Field(default=None, ge=0)
 
 
 class WorkingTask(_TaskMetadataFields):
@@ -148,7 +92,7 @@ class WorkingTask(_TaskMetadataFields):
 
 class InputRequiredTask(_TaskMetadataFields):
     status: Literal["input_required"] = "input_required"
-    input_requests: dict[str, EmbeddedRequest] = Field(alias="inputRequests")
+    input_requests: types.InputRequests
 
 
 class CompletedTask(_TaskMetadataFields):
@@ -158,7 +102,7 @@ class CompletedTask(_TaskMetadataFields):
 
 class FailedTask(_TaskMetadataFields):
     status: Literal["failed"] = "failed"
-    error: JsonRpcErrorData
+    error: dict[str, Any]
 
 
 class CancelledTask(_TaskMetadataFields):
@@ -171,18 +115,18 @@ DetailedTask = Annotated[
 ]
 
 
-class CreateTaskResult(Task):
-    result_type: Literal["task"] = Field(default="task", alias="resultType")
+class CreateTaskResult(Task, types.Result):
+    result_type: Literal["task"] = "task"
 
     @classmethod
     def from_task(cls, task: Task) -> "CreateTaskResult":
         return cls.model_validate({"resultType": "task", **dump(task)})
 
 
-class GetTaskResult(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+class GetTaskResult(types.Result):
+    """Typed internal result whose ``wire`` method emits the flattened shape."""
 
-    result_type: Literal["complete"] = Field(default="complete", alias="resultType")
+    result_type: Literal["complete"] = "complete"
     task: DetailedTask
 
     def wire(self) -> dict[str, Any]:
@@ -191,82 +135,53 @@ class GetTaskResult(BaseModel):
     @classmethod
     def from_wire(cls, value: dict[str, Any]) -> "GetTaskResult":
         body = dict(value)
-        result_type = body.pop("resultType", None)
-        if result_type != "complete":
+        if body.pop("resultType", None) != "complete":
             raise ValueError("resultType must be `complete`")
         return cls(task=body)
 
 
-class AcknowledgeTaskResult(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    result_type: Literal["complete"] = Field(default="complete", alias="resultType")
+class AcknowledgeTaskResult(types.Result):
+    result_type: Literal["complete"] = "complete"
 
 
-class GetTaskParams(_CamelModel):
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-    meta: RequestMeta = Field(alias="_meta")
-    task_id: ProtocolTaskId = Field(alias="taskId")
+class GetTaskParams(types.RequestParams):
+    task_id: OpaqueTaskId
 
 
-class UpdateTaskParams(_CamelModel):
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-    meta: RequestMeta = Field(alias="_meta")
-    task_id: ProtocolTaskId = Field(alias="taskId")
-    input_responses: dict[str, dict[str, Any]] = Field(alias="inputResponses")
+class UpdateTaskParams(types.RequestParams):
+    task_id: OpaqueTaskId
+    input_responses: types.InputResponses
 
 
-class CancelTaskParams(_CamelModel):
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-    meta: RequestMeta = Field(alias="_meta")
-    task_id: ProtocolTaskId = Field(alias="taskId")
+class CancelTaskParams(types.RequestParams):
+    task_id: OpaqueTaskId
 
 
-class ToolCallParams(_CamelModel):
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-    meta: RequestMeta = Field(alias="_meta")
-    name: str
-    arguments: dict[str, Any] = Field(default_factory=dict)
+class TaskSubscriptionFilter(types.SubscriptionFilter):
+    task_ids: list[OpaqueTaskId] | None = None
 
 
-class DiscoverParams(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-    meta: RequestMeta = Field(alias="_meta")
+class TaskSubscriptionsListenParams(types.RequestParams):
+    notifications: TaskSubscriptionFilter
 
 
-class Implementation(BaseModel):
-    name: str
-    version: str
+class TaskStatusNotificationParams(types.NotificationParams):
+    task: DetailedTask
+
+    def wire(self) -> dict[str, Any]:
+        value = dump(self.task)
+        if self.meta is not None:
+            value["_meta"] = self.meta
+        return value
 
 
-class DiscoverResult(_CamelModel):
-    result_type: Literal["complete"] = Field(default="complete", alias="resultType")
-    supported_versions: list[str] = Field(
-        default_factory=lambda: [PROTOCOL_VERSION], alias="supportedVersions"
-    )
-    capabilities: dict[str, Any]
-    server_info: Implementation = Field(alias="serverInfo")
-    instructions: str | None = None
+class TaskStatusNotification(BaseModel):
+    method: Literal["notifications/tasks"] = "notifications/tasks"
+    params: TaskStatusNotificationParams
 
-
-class NotificationSelection(_CamelModel):
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-    task_ids: list[ProtocolTaskId] | None = Field(default=None, alias="taskIds")
-
-
-class ListenParams(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-    meta: RequestMeta = Field(alias="_meta")
-    notifications: NotificationSelection
+    def model_dump(self, **kwargs: Any) -> dict[str, Any]:
+        return {"method": self.method, "params": self.params.wire()}
 
 
 def dump(model: BaseModel) -> dict[str, Any]:
-    """Serialize a wire model exactly as the Rust contract does."""
     return model.model_dump(mode="json", by_alias=True, exclude_none=True)

@@ -4,31 +4,27 @@ use std::sync::Arc;
 
 use axum::{Router, middleware, routing::get};
 use clap::Parser;
+use rmcp::tool;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, ContentBlock, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
+        CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams, ContentBlock,
+        GetTaskParams, GetTaskResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
         ReadResourceRequestParams, ReadResourceResult, Resource, ResourceContents,
-        ServerCapabilities, ServerInfo, SubscribeRequestParams, UnsubscribeRequestParams,
+        ServerCapabilities, ServerInfo, SubscriptionFilter, UpdateTaskParams,
     },
-    service::RequestContext,
+    service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
     transport::streamable_http_server::StreamableHttpService,
 };
 use serde::Serialize;
-use serde_json::json;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
-use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
     SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry, public_allowed_hosts,
-};
-use veoveo_mcp_task_extension::{
-    Implementation as TaskExtensionImplementation, ServerDiscovery, TaskExtensionAdapter,
-    task_extension_middleware,
 };
 use veoveo_task_runtime::{TaskRetentionPin, TaskRuntime, TaskRuntimeConfig};
 
@@ -57,6 +53,7 @@ const CONGESTION_THRESHOLD_MPS: f64 = 5.0;
 #[derive(Clone)]
 struct SumoMcp {
     state: Arc<AppState>,
+    task_service: SumoTaskExtension,
     #[allow(dead_code)]
     tool_router: ToolRouter<SumoMcp>,
 }
@@ -64,6 +61,7 @@ struct SumoMcp {
 impl SumoMcp {
     fn new(state: Arc<AppState>) -> Self {
         Self {
+            task_service: SumoTaskExtension::new(state.clone()),
             state,
             tool_router: Self::tool_router(),
         }
@@ -332,19 +330,95 @@ impl SumoMcp {
 
 #[tool_handler]
 impl ServerHandler for SumoMcp {
+    fn supported_protocol_versions(
+        &self,
+    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
+        veoveo_mcp_contract::final_protocol_versions()
+    }
+
     fn get_info(&self) -> ServerInfo {
         let mut info = ServerInfo::default();
-        info.capabilities = ServerCapabilities::builder()
+        let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_resources()
             .enable_resources_subscribe()
             .build();
+        capabilities.extensions.get_or_insert_default().insert(
+            rmcp::model::TASKS_EXTENSION_ID.to_owned(),
+            rmcp::model::JsonObject::new(),
+        );
+        info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("sumo", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
             "SUMO traffic-world controls. Long operations use the final durable task extension; subscribe to sumo://congestion for condition changes."
                 .into(),
         );
         info
+    }
+
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        if context
+            .meta
+            .client_capabilities()
+            .is_some_and(|caps| caps.supports_tasks())
+        {
+            let caller = veoveo_task_runtime::DurableTaskService::authenticate(
+                &self.task_service,
+                &context,
+            )?;
+            if let Some(created) = veoveo_task_runtime::DurableTaskService::start_tool_task(
+                &self.task_service,
+                &caller,
+                request.clone(),
+            )
+            .await?
+            {
+                return Ok(created.into());
+            }
+        }
+        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        self.tool_router.call(call).await
+    }
+
+    async fn get_task(
+        &self,
+        request: GetTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<GetTaskResult, McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::get_task(&self.task_service, &caller, request)
+            .await
+    }
+
+    async fn update_task(
+        &self,
+        request: UpdateTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::update_task(&self.task_service, &caller, request)
+            .await
+    }
+
+    async fn cancel_task(
+        &self,
+        request: CancelTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let caller =
+            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
+        veoveo_task_runtime::DurableTaskService::cancel_task(
+            &self.task_service,
+            &caller,
+            request.task_id,
+        )
+        .await
     }
 
     async fn list_tools(
@@ -357,6 +431,9 @@ impl ServerHandler for SumoMcp {
         Ok(ListToolsResult {
             tools,
             next_cursor: None,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -379,6 +456,9 @@ impl ServerHandler for SumoMcp {
                     .with_description("Subscribable congestion condition."),
             ],
             next_cursor: None,
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: None,
         })
     }
@@ -387,60 +467,53 @@ impl ServerHandler for SumoMcp {
         &self,
         request: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, McpError> {
-        let mut world = self.state.world.lock().await;
-        match request.uri.as_str() {
-            STATE_URI => json_resource(STATE_URI, &world.driver.state().map_err(internal)?),
-            SCENARIO_URI => {
-                json_resource(SCENARIO_URI, &world.driver.describe().map_err(internal)?)
+    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
+        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
+        async {
+            let mut world = self.state.world.lock().await;
+            match request.uri.as_str() {
+                STATE_URI => json_resource(STATE_URI, &world.driver.state().map_err(internal)?),
+                SCENARIO_URI => {
+                    json_resource(SCENARIO_URI, &world.driver.describe().map_err(internal)?)
+                }
+                CONGESTION_URI => json_resource(
+                    CONGESTION_URI,
+                    &congestion(&world.driver.state().map_err(internal)?),
+                ),
+                uri => Err(McpError::resource_not_found(
+                    format!("unknown SUMO resource `{uri}`"),
+                    None,
+                )),
             }
-            CONGESTION_URI => json_resource(
-                CONGESTION_URI,
-                &congestion(&world.driver.state().map_err(internal)?),
-            ),
-            uri => Err(McpError::resource_not_found(
-                format!("unknown SUMO resource `{uri}`"),
-                None,
-            )),
         }
+        .await
+        .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
     }
 
-    async fn subscribe(
+    fn accepted_subscription_filter(
         &self,
-        request: SubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        if request.uri != CONGESTION_URI {
-            return Err(McpError::resource_not_found(
-                "only sumo://congestion is subscribable",
-                None,
-            ));
-        }
-        let identity = internal_identity(&context)?;
-        self.state
-            .subscribers
-            .subscribe(request.uri, identity.actor.id, context.peer.clone())
-            .await;
-        Ok(())
+        requested: &SubscriptionFilter,
+    ) -> Option<SubscriptionFilter> {
+        veoveo_mcp_contract::accepted_subscription_filter(requested)
     }
 
-    async fn unsubscribe(
-        &self,
-        request: UnsubscribeRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        if request.uri != CONGESTION_URI {
-            return Err(McpError::resource_not_found(
-                "only sumo://congestion is subscribable",
-                None,
-            ));
+    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
+        internal_identity(context.request_context())?;
+        for uri in context.accepted().resource_subscriptions.iter().flatten() {
+            if uri != CONGESTION_URI {
+                return Err(McpError::resource_not_found(
+                    "only sumo://congestion is subscribable",
+                    None,
+                ));
+            }
         }
-        let identity = internal_identity(&context)?;
-        self.state
-            .subscribers
-            .unsubscribe(&request.uri, &identity.actor.id)
-            .await;
-        Ok(())
+        veoveo_task_runtime::listen_durable_subscriptions(
+            &self.task_service,
+            context,
+            Some(&self.state.subscribers),
+            None,
+        )
+        .await
     }
 }
 
@@ -539,32 +612,14 @@ pub(super) async fn serve() -> anyhow::Result<()> {
             let state = state.clone();
             move || Ok(SumoMcp::new(state.clone()))
         },
-        veoveo_mcp_contract::canonical_session_manager(),
+        veoveo_mcp_contract::stateless_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
             .with_cancellation_token(shutdown.child_token()),
     );
-    let extension = Arc::new(TaskExtensionAdapter::new(
-        Arc::new(SumoTaskExtension::new(state.clone())),
-        ServerDiscovery::new(
-            std::collections::BTreeMap::from([
-                ("tools".to_owned(), json!({})),
-                ("resources".to_owned(), json!({"subscribe": true})),
-            ]),
-            TaskExtensionImplementation {
-                name: "sumo".to_owned(),
-                version: env!("CARGO_PKG_VERSION").to_owned(),
-            },
-            Some("Durable SUMO traffic-world tasks and push subscriptions.".to_owned()),
-        ),
-    ));
     let mcp_router = Router::new()
         .route_service("/", mcp_service.clone())
         .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn_with_state(
-            extension,
-            task_extension_middleware::<SumoTaskExtension>,
-        ))
         .layer(middleware::from_fn_with_state(
             InternalMcpAuthState { verifier },
             authenticate_internal_mcp,

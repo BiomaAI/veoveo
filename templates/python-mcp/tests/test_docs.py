@@ -11,9 +11,7 @@ from veoveo_mcp.contract import (
     REQUIRED_AGENT_SECTIONS,
 )
 
-from datasheet_mcp import uris
 from datasheet_mcp.docs import (
-    CAPABILITY_INVENTORY,
     CONTRACT_DECLARATION,
     LLMS_TXT,
     SERVER_DOCS,
@@ -32,7 +30,7 @@ def test_docs_index_lists_the_embedded_documents():
 def test_llms_txt_renders_the_contract_format():
     assert LLMS_TXT == (
         "# datasheet\n\n"
-        "> Veoveo MCP server documents. Contract revision 2.\n\n"
+        "> Veoveo MCP server documents. Contract revision 3.\n\n"
         "## Docs\n\n"
         "- [Agent work manual](agents)\n"
         "- [Domain design](design)\n"
@@ -46,9 +44,9 @@ def test_agent_manual_contains_the_required_sections():
         assert section in manual
 
 
-def test_declaration_states_revision_2_with_a_dense_checklist():
+def test_declaration_states_revision_3_with_a_dense_checklist():
     assert CONTRACT_DECLARATION.server == "datasheet"
-    assert CONTRACT_DECLARATION.contract_revision == CONTRACT_REVISION == 2
+    assert CONTRACT_DECLARATION.contract_revision == CONTRACT_REVISION == 3
     declared = [item.id for item in CONTRACT_DECLARATION.compliance]
     assert declared == list(CHECKLIST_IDS)
 
@@ -62,15 +60,11 @@ def test_declaration_meets_the_well_known_surface_items():
             assert item.note, f"{item.id} is pending without a reason"
 
 
-def test_declaration_wire_shape_and_capability_inventory():
+def test_declaration_wire_shape_defers_runtime_surface_to_discover():
     wire = CONTRACT_DECLARATION.wire()
-    assert set(wire) == {"server", "contract_revision", "compliance", "capabilities"}
+    assert set(wire) == {"server", "contract_revision", "compliance"}
     assert wire["server"] == "datasheet"
-    assert wire["contract_revision"] == 2
-    assert wire["capabilities"]["tools"] == list(CAPABILITY_INVENTORY.tools)
-    assert uris.DOCS_URI in wire["capabilities"]["resources"]
-    assert uris.CONTRACT_URI in wire["capabilities"]["resources"]
-    assert wire["capabilities"]["tasks"] == ["profile_dataset"]
+    assert wire["contract_revision"] == 3
     assert json.loads(json.dumps(wire)) == wire
 
 

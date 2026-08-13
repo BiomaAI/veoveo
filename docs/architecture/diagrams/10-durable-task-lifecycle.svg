@@ -41,8 +41,8 @@
 <tspan x="788" dy="0">Input required</tspan>
 </text>
 <text x="788" y="180" class="small" text-anchor="start">
-<tspan x="788" dy="0">Persist elicitation request and</tspan>
-<tspan x="788" dy="16">await authorized submission</tspan>
+<tspan x="788" dy="0">Persist input request and await</tspan>
+<tspan x="788" dy="16">authorized submission</tspan>
 </text>
 <rect x="770" y="350" width="275" height="145" rx="9" fill="#eee5d8" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="770" y="350" width="7" height="145" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>

@@ -63,8 +63,8 @@ def main() -> None:
     interfaces = rows("interfaces-and-protocols.csv")
     requirements = rows("requirements-traceability.csv")
     glossary = rows("model-glossary.csv")
-    if len(components) != 70:
-        fail(f"expected 70 components, found {len(components)}")
+    if len(components) != 68:
+        fail(f"expected 68 components, found {len(components)}")
     if len(interfaces) != 43:
         fail(f"expected 43 interfaces, found {len(interfaces)}")
     if len(requirements) != 20:
@@ -96,8 +96,8 @@ def main() -> None:
     missing_workspace_paths = sorted(workspace_paths - catalog_paths)
     if missing_workspace_paths:
         fail(f"workspace packages missing from component catalog: {missing_workspace_paths}")
-    if len(workspace_paths) != 44:
-        fail(f"expected 44 Rust workspace packages, found {len(workspace_paths)}")
+    if len(workspace_paths) != 42:
+        fail(f"expected 42 Rust workspace packages, found {len(workspace_paths)}")
 
     gateway = json.loads((REPO / "configs/gateway.local.json").read_text(encoding="utf-8"))
     slugs = {server["slug"] for server in gateway["servers"]}

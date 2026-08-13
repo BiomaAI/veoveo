@@ -34,7 +34,6 @@ tracing.workspace = true
 uuid.workspace = true
 veoveo-mcp-contract.workspace = true
 veoveo-artifact-client = { path = "../../../platform/artifacts/client" }
-veoveo-mcp-task-extension = { path = "../../../mcp/task-extension" }
 veoveo-task-runtime = { path = "../../../platform/task-runtime" }
 
 [dev-dependencies]

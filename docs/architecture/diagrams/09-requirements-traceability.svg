@@ -67,9 +67,9 @@
 <text x="1085" y="274" class="small" text-anchor="start">VV-OPA-002</text>
 <text x="1275" y="274" class="small" text-anchor="start">VV-SVC-001</text>
 <text x="1465" y="268" class="tiny" text-anchor="start">
-<tspan x="1465" dy="0">VV-CMP-001, VV-CMP-011, VV-CMP-012, VV-CMP-016, VV-CMP-017,</tspan>
-<tspan x="1465" dy="13">VV-CMP-019, VV-CMP-020, VV-CMP-021, VV-CMP-022, VV-CMP-023,</tspan>
-<tspan x="1465" dy="13">VV-CMP-025, VV-CMP-052, VV-CMP-054</tspan>
+<tspan x="1465" dy="0">VV-CMP-001, VV-CMP-011, VV-CMP-016, VV-CMP-017, VV-CMP-019,</tspan>
+<tspan x="1465" dy="13">VV-CMP-020, VV-CMP-021, VV-CMP-022, VV-CMP-023, VV-CMP-025,</tspan>
+<tspan x="1465" dy="13">VV-CMP-052, VV-CMP-054</tspan>
 </text>
 <text x="2005" y="268" class="tiny" text-anchor="start">
 <tspan x="2005" dy="0">configs/gateway.local.json; mcp/conformance;</tspan>
@@ -136,11 +136,11 @@
 <text x="1085" y="478" class="small" text-anchor="start">VV-OPA-003</text>
 <text x="1275" y="478" class="small" text-anchor="start">VV-SVC-003</text>
 <text x="1465" y="472" class="tiny" text-anchor="start">
-<tspan x="1465" dy="0">VV-CMP-008, VV-CMP-009, VV-CMP-012, VV-CMP-038</tspan>
+<tspan x="1465" dy="0">VV-CMP-008, VV-CMP-009, VV-CMP-038</tspan>
 </text>
 <text x="2005" y="472" class="tiny" text-anchor="start">
-<tspan x="2005" dy="0">platform/task-runtime tests; mcp/task-extension</tspan>
-<tspan x="2005" dy="13">tests; testing/smoke</tspan>
+<tspan x="2005" dy="0">platform/task-runtime tests; official Tasks</tspan>
+<tspan x="2005" dy="13">integration tests; testing/smoke</tspan>
 </text>
 <rect x="35" y="517" width="150" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
 <rect x="190" y="517" width="690" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
@@ -429,7 +429,7 @@
 <text x="1085" y="1362" class="small" text-anchor="start">VV-OPA-002</text>
 <text x="1275" y="1362" class="small" text-anchor="start">VV-SVC-001</text>
 <text x="1465" y="1356" class="tiny" text-anchor="start">
-<tspan x="1465" dy="0">VV-CMP-001, VV-CMP-011, VV-CMP-012, VV-CMP-030, VV-CMP-025</tspan>
+<tspan x="1465" dy="0">VV-CMP-001, VV-CMP-011, VV-CMP-030, VV-CMP-025</tspan>
 </text>
 <text x="2005" y="1356" class="tiny" text-anchor="start">
 <tspan x="2005" dy="0">templates/python-mcp tests; gateway catalog</tspan>
@@ -479,8 +479,8 @@
 <text x="1085" y="1498" class="small" text-anchor="start">VV-OPA-011</text>
 <text x="1275" y="1498" class="small" text-anchor="start">VV-SVC-013</text>
 <text x="1465" y="1492" class="tiny" text-anchor="start">
-<tspan x="1465" dy="0">VV-CMP-004, VV-CMP-009, VV-CMP-012, VV-CMP-020, VV-CMP-021,</tspan>
-<tspan x="1465" dy="13">VV-CMP-038, VV-CMP-070, VV-CMP-071</tspan>
+<tspan x="1465" dy="0">VV-CMP-004, VV-CMP-009, VV-CMP-020, VV-CMP-021, VV-CMP-038,</tspan>
+<tspan x="1465" dy="13">VV-CMP-070, VV-CMP-071</tspan>
 </text>
 <text x="2005" y="1492" class="tiny" text-anchor="start">
 <tspan x="2005" dy="0">servers/optimization-mcp tests and cuOpt GPU</tspan>
