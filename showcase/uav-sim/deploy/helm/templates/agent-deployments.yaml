@@ -25,6 +25,7 @@ spec:
   template:
     metadata:
       annotations:
+        veoveo.ai/chart-revision: {{ $.Chart.Version | quote }}
         checksum/manifest: {{ $.Files.Get "files/agents/pilot/manifest.json" | sha256sum }}
         checksum/migrations: {{ $.Files.Get "files/agents/pilot/migrations/0001_mission_state.sql" | sha256sum }}
       labels:
