@@ -324,6 +324,9 @@ export function attachAppBridge(
         locale: navigator.language,
         platform: "web",
         containerDimensions: { width: iframe.clientWidth },
+        _meta: {
+          "io.veoveo/agent-message-targets": app.agentMessageTargets,
+        },
       },
     },
   );

@@ -73,8 +73,8 @@ const LIVE_APP_TOOLS: &[&str] = &[
 ];
 const LIVE_APP_ICON: &str = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2NmU0ZmYiIHN0cm9rZS13aWR0aD0iMiI+PHJlY3QgeD0iMiIgeT0iNSIgd2lkdGg9IjIwIiBoZWlnaHQ9IjE0IiByeD0iMiIvPjxwYXRoIGQ9Im04IDlsNiAzLTYgM3oiLz48L3N2Zz4=";
 
-fn live_app_resource(connect_origin: &str) -> Resource {
-    veoveo_mcp_apps_extension::app_resource_with_meta(
+fn live_app_resource(connect_origin: &str, agent_message_targets: &[String]) -> Resource {
+    let resource = veoveo_mcp_apps_extension::app_resource_with_meta(
         uris::LIVE_APP_URI,
         "uav-sim-live-app",
         veoveo_mcp_apps_extension::ResourceUiMeta {
@@ -89,7 +89,16 @@ fn live_app_resource(connect_origin: &str) -> Resource {
     .with_description(
         "Authoritative simulator camera collection with one isolated native NVIDIA WebRTC product per active viewer.",
     )
-    .with_icons(vec![rmcp::model::Icon::new(LIVE_APP_ICON)])
+    .with_icons(vec![rmcp::model::Icon::new(LIVE_APP_ICON)]);
+    if agent_message_targets.is_empty() {
+        resource
+    } else {
+        veoveo_mcp_apps_extension::with_agent_message_targets(
+            resource,
+            agent_message_targets.iter().cloned(),
+        )
+        .expect("validated UAV App agent message targets")
+    }
 }
 
 /// The crate documents embedded at build time and served under the well-known
@@ -1008,7 +1017,10 @@ impl ServerHandler for UavSimMcp {
             }));
         }
         if identity_has_scope(&identity, "uav-sim:stream") {
-            resources.push(live_app_resource(&self.state.live_view_connect_origin));
+            resources.push(live_app_resource(
+                &self.state.live_view_connect_origin,
+                &self.state.agent_message_targets,
+            ));
             let live_session_id: LiveSessionId =
                 state.session_id.as_str().parse().map_err(invalid)?;
             let owner = LiveViewOwner::from_identity(&identity);
@@ -1587,6 +1599,16 @@ pub(super) async fn serve() -> anyhow::Result<()> {
         "public live-view signaling URL must have an HTTP(S) origin"
     );
     let subscribers = Arc::new(SubscriptionHub::new());
+    let agent_message_targets = if args.agent_message_targets.is_empty() {
+        Vec::new()
+    } else {
+        let resource = veoveo_mcp_apps_extension::with_agent_message_targets(
+            veoveo_mcp_apps_extension::app_resource(uris::LIVE_APP_URI, "uav-sim-live-app"),
+            args.agent_message_targets.iter().cloned(),
+        )
+        .ok_or_else(|| anyhow::anyhow!("UAV_SIM_AGENT_MESSAGE_TARGETS is invalid"))?;
+        veoveo_mcp_apps_extension::resource_agent_message_targets(&resource)
+    };
     let runtime_event_listener = (args.adapter == AdapterKind::Http).then(|| {
         super::runtime_events::RuntimeEventListener::new(
             runtime_session_id,
@@ -1602,6 +1624,7 @@ pub(super) async fn serve() -> anyhow::Result<()> {
         live_views: live_views.clone(),
         live_view_audit,
         live_view_connect_origin,
+        agent_message_targets,
     });
     for snapshot in recovery.resumable {
         resume_queued_operation(state.clone(), snapshot)
@@ -2437,7 +2460,7 @@ mod tests {
 
     #[test]
     fn live_app_uses_the_default_complete_console_content_workspace() {
-        let resource = live_app_resource("wss://stream.example.com");
+        let resource = live_app_resource("wss://stream.example.com", &["uav-1-pilot".to_owned()]);
         let metadata = veoveo_mcp_apps_extension::resource_ui_meta(&resource)
             .expect("live App UI metadata is valid");
         assert_eq!(metadata.prefers_border, None);
@@ -2447,6 +2470,10 @@ mod tests {
                 .expect("live App CSP is present")
                 .connect_domains,
             vec!["wss://stream.example.com"]
+        );
+        assert_eq!(
+            veoveo_mcp_apps_extension::resource_agent_message_targets(&resource),
+            ["uav-1-pilot"]
         );
     }
 }

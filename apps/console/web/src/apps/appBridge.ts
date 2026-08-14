@@ -16,6 +16,7 @@ interface HostContext {
   locale: string;
   platform: "web";
   containerDimensions: { width: number };
+  _meta?: Record<string, unknown>;
 }
 
 interface AppBridgeOptions {

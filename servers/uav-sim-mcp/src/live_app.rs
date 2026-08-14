@@ -48,6 +48,10 @@ mod tests {
             "Camera recovery is waiting for simulator readiness",
             "ensureSubscription",
             "retrySelectedNow",
+            "veoveo/agents/message",
+            "io.veoveo/agent-message-targets",
+            "uuidV7",
+            "Send instruction",
         ] {
             assert!(html.contains(expected), "missing {expected}");
         }

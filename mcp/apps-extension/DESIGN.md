@@ -133,7 +133,10 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
   same-origin BFF mutation. The BFF and gateway retain human identity, Work
   Context, CSRF, policy, audit, idempotency, and durable-wake authority. The
   iframe receives no cookie, gateway bearer, agent credential, or database
-  access, and malformed metadata grants no targets.
+  access, and malformed metadata grants no targets. The Console projects the
+  already validated target list into
+  `hostContext._meta["io.veoveo/agent-message-targets"]` during App
+  initialization, which lets a generic view render only its admitted choices.
 
 ## Governed Cross-Server Resources
 

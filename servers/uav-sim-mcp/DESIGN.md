@@ -104,7 +104,12 @@ Live state uses these canonical resources:
 - `uav-sim://mission-plan/{plan_id}`
 
 `ui://uav-sim/live.html` is the only live-view App resource. There are no aliases for
-the removed hosted viewer service, scene mirror, or pose protocol.
+the removed hosted viewer service, scene mirror, or pose protocol. An installation may
+declare exact generic agent ids with `UAV_SIM_AGENT_MESSAGE_TARGETS`. The App resource
+publishes that closed list through the Apps extension, and the Console's authenticated
+human-message bridge projects it into App host context. This gives the domain App a
+prompt surface without granting the iframe agent credentials or adding UAV concepts to
+the Console.
 
 ## World And Session Lifecycle
 

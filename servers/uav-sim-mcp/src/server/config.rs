@@ -101,6 +101,15 @@ pub(super) struct Args {
     pub(super) live_view_maximum_frame_age_ms: u32,
     #[arg(long, env = "UAV_SIM_LIVE_VIEW_MAXIMUM_VIEWERS", default_value_t = 64)]
     pub(super) live_view_maximum_viewers: u32,
+    /// Installation-configured generic agent ids the UAV App may message
+    /// through the authenticated Console bridge.
+    #[arg(
+        long,
+        env = "UAV_SIM_AGENT_MESSAGE_TARGETS",
+        value_delimiter = ',',
+        value_name = "AGENT_ID"
+    )]
+    pub(super) agent_message_targets: Vec<String>,
 }
 
 impl Args {
