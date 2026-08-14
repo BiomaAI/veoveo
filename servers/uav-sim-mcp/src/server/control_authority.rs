@@ -534,9 +534,10 @@ impl VehicleControlAuthority {
             .await?
             .check()?;
         let existing: Option<LeaseRecord> = existing_response.take(0)?;
-        if existing
-            .as_ref()
-            .is_some_and(|lease| lease.released_at.is_none() && lease.expires_at > now)
+        if let Some(existing) = existing.as_ref()
+            && existing.released_at.is_none()
+            && existing.expires_at > now
+            && self.lease_has_executing_plan(existing).await?
         {
             return Err(ControlAuthorityError::VehicleBusy(
                 plan.vehicle_id.to_string(),
@@ -574,13 +575,30 @@ impl VehicleControlAuthority {
         let now = Utc::now();
         self.store
             .client()
-            .query("UPDATE ONLY $record SET released_at = $now, updated_at = $now, revision += 1 WHERE lease_token = $token AND released_at = NONE RETURN NONE;")
+            .query("UPDATE ONLY $record SET released_at = $now, updated_at = $now, revision += 1 WHERE lease_token = $lease_token AND released_at = NONE RETURN NONE;")
             .bind(("record", lease.record_id.clone()))
-            .bind(("token", lease.lease_token.clone()))
+            .bind(("lease_token", lease.lease_token.clone()))
             .bind(("now", now))
             .await?
             .check()?;
         Ok(())
+    }
+
+    async fn lease_has_executing_plan(&self, lease: &LeaseRecord) -> Result<bool> {
+        let mut response = self
+            .store
+            .client()
+            .query("SELECT VALUE count() FROM uav_vehicle_mission_plan WHERE tenant = $tenant AND work_context = $work_context AND session_id = $session_id AND vehicle_id = $vehicle_id AND principal_key = $principal_key AND mission_id = $mission_id AND state = 'executing' GROUP ALL;")
+            .bind(("tenant", lease.tenant.clone()))
+            .bind(("work_context", lease.work_context.clone()))
+            .bind(("session_id", lease.session_id.clone()))
+            .bind(("vehicle_id", lease.vehicle_id.clone()))
+            .bind(("principal_key", lease.principal_key.clone()))
+            .bind(("mission_id", lease.mission_id.clone()))
+            .await?
+            .check()?;
+        let counts: Vec<i64> = response.take(0)?;
+        Ok(counts.into_iter().next().unwrap_or_default() > 0)
     }
 
     async fn grant_record(&self, record_id: &RecordId) -> Result<GrantRecord> {
