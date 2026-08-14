@@ -269,6 +269,7 @@ to Times Square.
 | Recording Hub ingest stream | `recording_ingest_stream:01a00156-3271-7fb2-bae0-165dc4ee068c` |
 | Recording Hub checkpoint | Finished; durable and materialized through batch 12,513 |
 | Mission recording samples | Camera-bearing batches 9,720 at 18:55:54, 10,600 at 19:03:29, and 11,290 at 19:09:16 UTC |
+| README mission replay | 1,538 leader-camera samples; 30×; 26.2 seconds; [animated preview](assets/uav-e2e-001-flight-timelapse.gif); [H.264 MP4](assets/uav-e2e-001-flight-timelapse.mp4) |
 | Console evidence | Signed-in terminal entry: `Mission completed successfully.` |
 | Headless evidence | Signed same-origin conversation request returned HTTP 200 and the same completed entry |
 
@@ -282,7 +283,8 @@ Hub was accepting batch 9,557, which left the Hub's materialized view stopped at
 9,556 even as the recording forwarder continued to capture into its durable queue. The
 recovered Hub replayed the missing batches, materialized through batch 12,513, and
 finished the affected ingest stream. The archived data now spans the full mission and
-can support a separately produced timelapse.
+supports the published 30× timelapse. Its MP4 SHA-256 is
+`be7d575ef907961094d0d177c28f46e285145bb049a6ee8d353a5b8d21a54547`.
 
 ## Automation Boundary
 
