@@ -1,8 +1,10 @@
 //! Authenticated external control over one registered agent's durable inbox.
 //!
 //! The gateway supplies actor and Work Context authority. This module resolves
-//! the target inside that exact tenant/context/profile tuple, then commits the
-//! wake and outbox edge atomically. It never acquires the scheduler lease.
+//! the tenant-unique public agent key inside that exact tenant/context tuple,
+//! then commits the wake and outbox edge atomically. The agent's stored MCP
+//! profile governs its own tool session and is not a human-control selector.
+//! This module never acquires the scheduler lease.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -34,7 +36,6 @@ pub struct AgentControl {
 pub struct AgentControlTarget {
     pub tenant_key: String,
     pub work_context_key: String,
-    pub profile: String,
     pub agent_key: String,
 }
 
@@ -400,24 +401,22 @@ impl AgentControl {
     }
 
     async fn resolve_target(&self, target: &AgentControlTarget) -> Result<AgentRecord> {
-        if target.agent_key.trim().is_empty() || target.profile.trim().is_empty() {
+        if target.agent_key.trim().is_empty() {
             return Err(AgentRuntimeError::InvalidField {
                 field: "agent control target",
-                reason: "agent_key and profile must not be empty".to_owned(),
+                reason: "agent_key must not be empty".to_owned(),
             });
         }
         let tenant = deterministic_tenant_id(&target.tenant_key)?.record_id();
         let work_context =
             deterministic_work_context_id(&target.tenant_key, &target.work_context_key)?
                 .record_id();
-        let profile = RecordId::new("profile", target.profile.clone());
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM agent WHERE tenant = $tenant AND work_context = $work_context AND profile = $profile AND agent_key = $agent_key LIMIT 2;")
+            .query("SELECT * FROM agent WHERE tenant = $tenant AND work_context = $work_context AND agent_key = $agent_key LIMIT 2;")
             .bind(("tenant", tenant))
             .bind(("work_context", work_context))
-            .bind(("profile", profile))
             .bind(("agent_key", target.agent_key.clone()))
             .await?
             .check()?;
