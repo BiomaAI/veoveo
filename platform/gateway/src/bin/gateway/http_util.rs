@@ -259,6 +259,8 @@ fn internal_error_response(err: impl std::fmt::Display) -> axum::response::Respo
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use super::*;
 
     #[test]
@@ -269,5 +271,34 @@ mod tests {
         let debug = format!("{response:?}");
         assert!(debug.contains("[REDACTED]"));
         assert!(!debug.contains("sensitive-id-token"));
+    }
+
+    #[test]
+    fn oauth_error_redirect_returns_to_registered_client_with_state() {
+        let redirect_uri = OAuthRedirectUri::new("https://console.example/auth/callback").unwrap();
+        let state = OAuthStateValue::new("opaque-console-state").unwrap();
+        let response = redirect_with_oauth_error(
+            &redirect_uri,
+            "invalid_scope",
+            Some("requested scope is not allowed"),
+            Some(&state),
+        );
+
+        assert_eq!(response.status(), StatusCode::FOUND);
+        let location = response.headers().get(LOCATION).unwrap().to_str().unwrap();
+        let location = Url::parse(location).unwrap();
+        let query = location.query_pairs().collect::<BTreeMap<_, _>>();
+        assert_eq!(
+            query.get("error").map(|value| value.as_ref()),
+            Some("invalid_scope")
+        );
+        assert_eq!(
+            query.get("error_description").map(|value| value.as_ref()),
+            Some("requested scope is not allowed")
+        );
+        assert_eq!(
+            query.get("state").map(|value| value.as_ref()),
+            Some("opaque-console-state")
+        );
     }
 }
