@@ -1178,6 +1178,7 @@
             "mode": "listed",
             "items": [
               "get_simulation_state",
+              "list_active_vehicle_control_grants",
               "prepare_vehicle_mission",
               "arm_vehicle",
               "takeoff_vehicle",
