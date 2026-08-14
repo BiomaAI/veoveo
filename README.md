@@ -163,6 +163,42 @@ and acceptance tests.
 
 ### UAV flight in Isaac Sim
 
+Address one durable pilot in ordinary language:
+
+> Fly uav-1 to Times Square now. Read your active UAV control grant, ask Map MCP to
+> resolve and route this named location from current telemetry, then use UAV MCP to admit
+> and execute the mission only for your bound vehicle. Report the terminal result.
+
+<p align="center">
+  <a href="showcase/uav-sim/assets/uav-e2e-001-flight-timelapse.mp4">
+    <picture>
+      <source media="(prefers-reduced-motion: no-preference)" srcset="showcase/uav-sim/assets/uav-e2e-001-flight-timelapse.gif">
+      <img src="showcase/uav-sim/assets/uav-e2e-001-flight-poster.png" width="640" alt="Recorded downward camera view from uav-1 crossing New York during its mission from the Statue of Liberty area to Times Square">
+    </picture>
+  </a>
+</p>
+
+*The actual leader-camera recording accelerated 30×. The full
+[26-second H.264 replay](showcase/uav-sim/assets/uav-e2e-001-flight-timelapse.mp4)
+comes from the governed Recording Hub archive.*
+
+The first accepted run covered 9.227 km in 13 minutes 10 seconds. It completed all four
+admitted waypoints, arrived at 40.7580° N, 73.9855° W with zero collisions, and released
+its command lease.
+
+| Boundary | What happened |
+|---|---|
+| Addressed agent | `uav-1-pilot` accepted the operator message and ran one durable episode. |
+| Map MCP | Resolved Times Square and returned the admitted route from current telemetry. |
+| UAV Simulation MCP | Enforced the pilot-to-`uav-1` grant and protected execution with one command lease. |
+| Recording Hub | Archived the leader camera, pose, telemetry, and mission lifecycle across the complete execution interval. |
+
+The prompt carried no coordinates and granted no vehicle authority. The signed-in
+Console and headless conversation projection returned the same terminal result.
+[Inspect the Console evidence](showcase/uav-sim/assets/uav-e2e-001-console-complete.png)
+or repeat the
+[`UAV-E2E-001` acceptance](showcase/uav-sim/ACCEPTANCE.md#uav-e2e-001-per-agent-named-location-mission-e2e).
+
 | San Salvador | Midtown Manhattan |
 |---|---|
 | [![Isaac Sim UAV flight over San Salvador](docs/screenshots/gallery/isaac-uav-san-salvador.png)](docs/screenshots/gallery/isaac-uav-san-salvador.png) | [![Isaac Sim UAV flight over Midtown Manhattan](docs/screenshots/gallery/isaac-uav-new-york.png)](docs/screenshots/gallery/isaac-uav-new-york.png) |
@@ -170,7 +206,7 @@ and acceptance tests.
 
 Both frames come from the live headless Isaac Sim RTX viewport. The showcase
 camera follows the Pegasus vehicle after PX4 reaches the configured flight
-altitude. [Run the UAV showcase](showcase/uav-sim/README.md).
+altitude. [Explore the complete UAV showcase](showcase/uav-sim/README.md).
 
 | Governed UAV recording | SUMO traffic world |
 |---|---|
