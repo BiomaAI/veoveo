@@ -22,6 +22,38 @@ publishes their NVIDIA NVENC products to the governed live-view App.
 | OGC 3D Tiles | Cesium Omniverse `0.29.0` and its pinned Cesium Native revision stream photorealistic terrain and buildings. A repository-owned internal event extension reports redacted load lifecycle state. |
 | WGS 84, ECEF, ENU, NED, and FLU | Explicit Frames-governed world, physics, entity, sensor, and operator-camera mappings. |
 
+## What Can This Do?
+
+Address one vehicle's pilot as a durable agent and give it a destination in ordinary
+language:
+
+> Fly uav-1 to Times Square now. Read your active UAV control grant, ask Map MCP to
+> resolve and route this named location from current telemetry, then use UAV MCP to admit
+> and execute the mission only for your bound vehicle. Report the terminal result.
+
+The pilot does not invent coordinates or acquire authority from the prompt. It reads its
+active vehicle-control grant, asks Map MCP to resolve the place and build the route, then
+hands that governed route to UAV Simulation MCP. The UAV server checks the authenticated
+pilot, exact vehicle, mobility profile, and world revision before it acquires an exclusive
+command lease and sends the mission to the PX4-backed runtime.
+
+The first deployed run flew `uav-1` 9.227 km from the Statue of Liberty area to Times
+Square. It completed all four admitted waypoints in 13 minutes 10 seconds, arrived at
+40.7580° N, 73.9855° W, and released its command lease. The task survived an MCP
+credential rotation without replaying mission execution. The signed-in Console and the
+headless conversation projection returned the same durable terminal result.
+
+[![The signed-in Console showing uav-1-pilot's completed Times Square mission](assets/uav-e2e-001-console-complete.png)](assets/uav-e2e-001-console-complete.png)
+
+*The actual signed-in Console result from the first accepted run. Open the image to inspect
+the pilot identity, terminal position, PX4 state, collision count, recording reference,
+and durable wake receipt.*
+
+The repeatable evidence contract is
+[`UAV-E2E-001: Per-Agent Named-Location Mission E2E`](ACCEPTANCE.md#uav-e2e-001-per-agent-named-location-mission-e2e).
+It names the prerequisites, expected MCP sequence, binding proof, timing model,
+headless requests, pass criteria, and evidence record for another run.
+
 ## Ownership
 
 | Path | Responsibility |
@@ -254,6 +286,10 @@ per active viewer, RTX/NVENC/WebRTC playback, simultaneous same-camera viewer is
 one-App multi-camera grid isolation, sensor separation, simulation real-time factor,
 source-to-render latency, and browser motion-to-photon latency. Stream, Recording, and
 mission acceptance remain independent consumer checkpoints.
+
+Named-location mission acceptance follows
+[`UAV-E2E-001`](ACCEPTANCE.md#uav-e2e-001-per-agent-named-location-mission-e2e).
+That functional test remains independent of the live-view performance commands below.
 
 ```sh
 cargo xtask smoke uav-showcase-up \
