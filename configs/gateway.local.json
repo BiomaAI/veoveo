@@ -4107,6 +4107,29 @@
           "metadata": {}
         },
         {
+          "id": "allow_uav_sim_administration",
+          "effect": "allow",
+          "actions": [
+            "tools_call"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "uav-sim"
+          ],
+          "tools": [
+            "grant_vehicle_control",
+            "revoke_vehicle_control"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "admin:manage",
+            "uav-sim:admin"
+          ],
+          "metadata": {}
+        },
+        {
           "id": "allow_uav_sim_use",
           "effect": "allow",
           "actions": [
