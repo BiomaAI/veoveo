@@ -300,7 +300,6 @@ async fn authorize_agent_operation(
     let target = AgentControlTarget {
         tenant_key: subject.authority.tenant.to_string(),
         work_context_key: subject.authority.work_context.to_string(),
-        profile: profile_id.to_string(),
         agent_key: agent_id,
     };
     let context = AuthorizedAgentOperation {

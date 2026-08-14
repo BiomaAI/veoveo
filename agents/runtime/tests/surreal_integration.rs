@@ -217,7 +217,6 @@ async fn operator_message_is_untrusted_idempotent_and_restart_durable() {
     let target = AgentControlTarget {
         tenant_key: "integration".to_owned(),
         work_context_key: "integration-mission".to_owned(),
-        profile: "integration".to_owned(),
         agent_key: "durability-agent".to_owned(),
     };
     let request_id = Uuid::now_v7();
@@ -319,7 +318,6 @@ async fn operator_messages_remain_distinct_and_claim_in_acceptance_order() {
     let target = AgentControlTarget {
         tenant_key: "integration".to_owned(),
         work_context_key: "integration-mission".to_owned(),
-        profile: "integration".to_owned(),
         agent_key: "durability-agent".to_owned(),
     };
     let edits = [
