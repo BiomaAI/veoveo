@@ -69,3 +69,73 @@ serverBootstrap:
         record_version: 1
         created_at: '2026-07-15T00:00:00Z'
         updated_at: '2026-07-15T00:00:00Z'
+      - source_id: source-019ffdb2-0596-7c91-ac83-0a45b82d7952
+        dataset_id: dataset-019ffdb2-0598-7717-b916-e359c426f8cf
+        name: New York UAV showcase operational map
+        adapter_kind: authority_vector
+        authority: synthetic_test
+        acquisition_model: snapshot
+        map_families:
+        - aviation
+        location:
+          kind: https
+          endpoint: https://raw.githubusercontent.com/BiomaAI/veoveo/89133b70ea53e06b87b6a6aa268eae7727b0b27d/showcase/uav-sim/map/new-york-showcase.geojson
+          allowed_redirect_hosts:
+          - raw.githubusercontent.com
+        publisher_key_refs: []
+        expected_media_types:
+        - application/geo+json
+        - application/json
+        - text/plain
+        maximum_download_bytes: 1048576
+        maximum_elapsed_seconds: 120
+        license:
+          license_id: veoveo-showcase-synthetic-v1
+          source_terms_uri: https://github.com/BiomaAI/veoveo/blob/89133b70ea53e06b87b6a6aa268eae7727b0b27d/showcase/uav-sim/map/README.md
+          attribution: Veoveo synthetic simulation planning data
+          redistribution_allowed: true
+          derivatives_allowed: true
+          offline_bundle_allowed: true
+        enabled: true
+        record_version: 1
+        created_at: '2026-08-13T00:00:00Z'
+        updated_at: '2026-08-13T00:00:00Z'
+      mobility_profiles:
+      - family: uas
+        profile:
+          metadata:
+            profile_id: mobility-019ffdb2-0598-7476-96d3-f3d7b0769f9e
+            name: New York showcase multirotor
+            version: 1
+            valid_from: '2026-08-13T00:00:00Z'
+            labels: [planning-advisory, showcase]
+          planning:
+            minimum_speed: 0.1
+            maximum_climb_angle: 45.0
+            maximum_descent_angle: 45.0
+            vertical_clearance: 15.0
+            lateral_clearance: 10.0
+            operating_ceiling: 500.0
+            maximum_range: 30000.0
+            maximum_route_points: 1024
+            maximum_segment_length: 5000.0
+          class: multirotor
+          dimensions:
+            length: 1.2
+            width: 1.2
+            height: 0.5
+          maximum_takeoff_mass: 25.0
+          performance:
+            maximum_speed: 30.0
+            cruise_speed: 20.0
+            service_ceiling: 500.0
+            maximum_range: 30000.0
+            payload_capacity: 5.0
+            minimum_reserve: 0.2
+          energy:
+            source: battery
+            battery_capacity: 20.0
+            minimum_reserve: 0.2
+          beyond_visual_line_of_sight: true
+          navigation_capabilities: [gnss, px4]
+          airspace_permissions: [showcase-planning-advisory]
