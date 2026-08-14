@@ -175,7 +175,9 @@ Execution acquires one durable exclusive lease for the Work Context, session, an
 vehicle. A concurrent mission for that vehicle fails closed. Completion, failure,
 cancellation, task-start failure, and task-lease loss all finalize the mission plan and
 release the exact command lease. Physical task interruption remains indeterminate and
-is never replayed.
+is never replayed. Admission may reclaim an unreleased lease only when no matching
+mission plan remains in the executing state. This repairs terminal finalization residue
+without weakening exclusion for active work.
 
 Restart behavior is intentionally simple. Simulator objects are runtime state. A pod
 restart recreates the configured world, cameras, and products through the one-shot
