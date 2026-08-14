@@ -1,0 +1,24 @@
+{{- if .Values.agents.enabled }}
+{{- range $index, $pilot := .Values.agents.pilots }}
+{{- if $index }}
+---
+{{- end }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $pilot.agentId }}
+  labels:
+    {{- include "uav-sim.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: uav-pilot-agent
+    veoveo.ai/agent-id: {{ $pilot.agentId | quote }}
+spec:
+  accessModes:
+    - {{ $.Values.agents.persistence.accessMode }}
+  {{- with $.Values.agents.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $.Values.agents.persistence.size }}
+{{- end }}
+{{- end }}

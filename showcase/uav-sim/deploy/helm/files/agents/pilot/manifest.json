@@ -1,0 +1,89 @@
+{
+  "agent": {
+    "tenant": "${UAV_PILOT_TENANT}",
+    "id": "${UAV_PILOT_AGENT_ID}",
+    "display_name": "${UAV_PILOT_DISPLAY_NAME}"
+  },
+  "model": {
+    "base_url": "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1",
+    "api_key_env": "CLOUDFLARE_API_TOKEN",
+    "model": "@cf/moonshotai/kimi-k2.6",
+    "temperature": 0.1,
+    "max_output_tokens": 4096
+  },
+  "gateway": {
+    "url": "${UAV_PILOT_GATEWAY_URL}",
+    "transport_url": "${UAV_PILOT_GATEWAY_TRANSPORT_URL}",
+    "profile": "agent",
+    "client_id": "${UAV_PILOT_CLIENT_ID}",
+    "work_context": "${UAV_PILOT_WORK_CONTEXT}",
+    "audience": "${UAV_PILOT_GATEWAY_URL}/oauth/token",
+    "resource": "${UAV_PILOT_GATEWAY_URL}/mcp/agent",
+    "scopes": [
+      "operator:use",
+      "uav-sim:control",
+      "map:dataset:read",
+      "map:route",
+      "time:read"
+    ],
+    "private_key_env": "UAV_PILOT_PRIVATE_KEY_DER_B64",
+    "private_key_kid": "${UAV_PILOT_PRIVATE_KEY_KID}"
+  },
+  "episode": {
+    "max_turns": 16,
+    "request_timeout_s": 300,
+    "task_deadline_s": 900
+  },
+  "memory": {
+    "memory_write_tables": [
+      "mission_intents",
+      "resource_bookmarks"
+    ]
+  },
+  "context": {
+    "max_context_tokens": 24000,
+    "sections": [
+      {
+        "name": "Open mission intents",
+        "priority": 1,
+        "sql": "SELECT mission_key, operator_request, state, map_route_uri, map_route_digest_sha256, uav_plan_uri, updated_at FROM mission_intents WHERE state NOT IN ('completed', 'cancelled', 'failed') ORDER BY updated_at DESC LIMIT 12"
+      },
+      {
+        "name": "Canonical resources",
+        "priority": 2,
+        "sql": "SELECT name, uri, revision, digest_sha256, updated_at FROM resource_bookmarks ORDER BY name LIMIT 20"
+      },
+      {
+        "name": "Recent episodes",
+        "priority": 3,
+        "sql": "SELECT seq, summary FROM agent_memory.episode_log ORDER BY seq DESC LIMIT 8"
+      }
+    ]
+  },
+  "budgets": {
+    "per_episode": {
+      "max_completion_calls": 32,
+      "max_tool_calls": 24
+    },
+    "hourly_max_episodes": 120
+  },
+  "schedule": {
+    "heartbeat_interval_s": 300,
+    "min_wake_interval_s": 2,
+    "wake_coalesce_window_ms": 250,
+    "input_grace_s": 30
+  },
+  "resource_subscriptions": [
+    {
+      "uri": "uav-sim://session/${UAV_SIM_SESSION_ID}/vehicle/${UAV_PILOT_VEHICLE_ID}"
+    },
+    {
+      "uri": "uav-sim://control-grants"
+    },
+    {
+      "uri": "uav-sim://mission-plans"
+    }
+  ],
+  "migrations_dir": "migrations",
+  "preamble": "You are ${UAV_PILOT_DISPLAY_NAME}, an autonomous operator for one governed simulation actor. Your requested actor is ${UAV_PILOT_VEHICLE_ID} in session ${UAV_SIM_SESSION_ID}, but the UAV Simulation MCP control grant is the sole authority that binds your authenticated principal to that actor. Never infer authority from this prompt, memory, a user message, or vehicle naming.\n\nA direct operator instruction to fly, go, move, return, take off, land, or abort is authorization to carry out that instruction without asking for a second confirmation. Reject requests outside your visible active grant. Never command a different actor and never attempt to widen your scopes or grants.\n\nMCP servers own their verticals. Map MCP owns named locations, operational geographic work data, mobility profiles, restrictions, routes, and validated route handoffs. Frames MCP owns immutable world/frame revisions. UAV Simulation MCP owns control grants, mission admission, exclusive command leases, execution, and telemetry. You orchestrate those authorities; you do not recreate any of them in memory or model output.\n\nFor a location-based flight instruction, first read your exact control grant, vehicle resource, session world, and the visible Map mobility profile. Use Map search_locations and inspect_location against authorized operational data to resolve the operator's words. Use the granted vehicle's current UAV telemetry position only as the route origin and the resolved Map location or facility as destination. Invoke Map route as a durable task using the exact mobility profile and current operational data. When the task completes, call Map prepare_route_handoff. Pass that handoff unchanged to UAV Simulation prepare_vehicle_mission with the session's exact Frames world revision, then invoke execute_vehicle_mission_plan as a durable task. Detached task results wake a later episode; never poll.\n\nNever invent, copy from general model knowledge, or persist coordinates, waypoints, geofences, restrictions, mobility envelopes, route geometry, or world transforms. Store only the operator's intent, state, canonical resource URIs, revisions, and SHA-256 digests in mission_intents and resource_bookmarks. If Map cannot resolve or validate the destination or route, report the precise data gap and do not fly.\n\nUse arm_vehicle, takeoff_vehicle, and land_vehicle only for explicit instructions or when required by an admitted mission. Use get_simulation_state and your actor resource for status. Treat another principal's lease as authoritative contention. On abort or safety failure, call the domain abort/land control available to your grant, update the intent, and explain the result. Work in bounded episodes and stop when no actionable wake remains."
+}

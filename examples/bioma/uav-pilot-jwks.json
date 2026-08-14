@@ -1,0 +1,36 @@
+{
+  "keys": [
+    {
+      "alg": "RS256",
+      "e": "AQAB",
+      "kid": "uav-1-pilot-2026",
+      "kty": "RSA",
+      "n": "n6SoJzvNz9fBm65E8vHXwDq-slgRJVqpjkK5XbtraTB9gFCxLBDRiR7RZyPncJiUG3iw6gAjIrNlKDIVk5JO8fk30yxtC4yQbEagdT6cHUsLNtb5VhC32RaY5zEO3Q3-u_0BR-Y3wUyJnnSADm9Lz-dACzXVywMUVvn9oE_FyAgtmFiryJU_-VH6xqDocAnTeOf5JDkxFkvWB6Mf_VQo1TBC2lmM1_zqMlg9BUrTLOsx5lTQ9NjuLEandaGj0w1ZWYR8lHAbDm-X8QGsLSKzJzK7UcVTXDJk4Ekjmx_XNSvjnS-uhc7L0jch7wNEc71uqj-0-ll5w2iYSHE8ReXs9w",
+      "use": "sig"
+    },
+    {
+      "alg": "RS256",
+      "e": "AQAB",
+      "kid": "uav-2-pilot-2026",
+      "kty": "RSA",
+      "n": "wY_FnhihjnYL9Lo-XF8tTvhKKsZbDKmJgI8J2LfLLx18uOGpOBMs96ZDyneGqnqkBCKBevIKTfyJz8otkpzGA5p7yjQEhXL_JSo1QLoS4m4zqTdXjf058HffNS1x1gMNd9wQjHfJYOsyQ8S0HPDRTlywLDOGJikrloFdcE7DSc9iUWRjXtvX1ONWPfUjtWaZLnVIKCJUxhBMqolCo_iaSa7OcGMewrIWMegEheWtF-wJ7XcMWLKnDHAt_2pfJO0c8sWNj1JJ_21b5Ta-GyB6ajvrZWuMXo_IgQ99YVf9CMdXVGoW1TBO_zYoPs9W-3GNrcrHtcVXWycQEiSymfJsQQ",
+      "use": "sig"
+    },
+    {
+      "alg": "RS256",
+      "e": "AQAB",
+      "kid": "uav-3-pilot-2026",
+      "kty": "RSA",
+      "n": "j5tm8L2gJLcj9DXtri-7DVqga9vpgvb8lPvOFIR11E9qQMHtViplmxIM69_oIghVc6Vk0U6KDXFXjcmnvgfXKguAZbcW7A2auSszeY167Btaqq2cYyGTiweB8IjdWVJSINNkolVoK_8IYgfC6q59XlYSMCR9rOceNr71aLe915BcF07i6JLIwJNwDNRAH96d6Wa8B5_5FDXyKXvpyvXKxYBHigGHJvSFw0M2VZYaGFtIC0BmwCfkY6JYXqEMOIvr3uYE3O9b2kxJddJ3xJFIkR4UtT_AMpH3Sue95XMKDyYYRbZByBUSdpvrhgqp0KmOuyjQ6QzzT3fArSsH-kFRpQ",
+      "use": "sig"
+    },
+    {
+      "alg": "RS256",
+      "e": "AQAB",
+      "kid": "uav-4-pilot-2026",
+      "kty": "RSA",
+      "n": "ySNbMLB8b6JtmYgYg8pZNKASYL1NI73629ceH_uOih9FuoOIkqpu0IvQmQ0B7whOwPONbBPReHFi4tWgUA-dh7pWW2f7UJ36QtoOquN_3tJbh--Vy0qffIPd-KjXJEOV6MjzjG1UR41JALXOixlmypkrGBzii2O3UqGnNe5WFE0FdjZ6whCNZzO31vPF3NUuf622Eut74UiGnKorl2kCe3_YhsixQXYfi-hcPJEuqvxtci0srHTuNpCEoGipWJGP4y95sZAb475GeBfIrNgnri_XFDkt6BffcTP27F0EiozmzLeUaUMmaZRKewc9PIQMVXvoRVeZPjZDjZhzYvXa5Q",
+      "use": "sig"
+    }
+  ]
+}

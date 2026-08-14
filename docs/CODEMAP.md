@@ -121,7 +121,7 @@ Hub, administration, and GPU policy.
 | `testing/` | conformance tooling and multi-process smoke harnesses |
 | `sdk/` | language SDK workspaces |
 | `deploy/helm/veoveo/` | Kubernetes installation chart, chart-owned first-party service definitions, and typed component/server presets |
-| `showcase/uav-sim/deploy/helm/` | authoritative GPU simulator, UAV MCP server, live-view signaling/media ingress, render-product capacity, and per-viewer lease configuration |
+| `showcase/uav-sim/deploy/helm/` | authoritative GPU simulator, UAV MCP server, isolated generic pilot agents, live-view signaling/media ingress, render-product capacity, and per-viewer lease configuration |
 | `testing/smoke/src/bin/smoke/deployment.rs` | profile validation and orchestration, immutable gateway activation, and ordered Helm release inputs |
 | `testing/smoke/src/bin/smoke/deployment/gpu.rs` | managed NVIDIA DRA orchestration, ResourceSlice inventory, persistent-claim preservation, and workload placement proof |
 | `testing/smoke/src/bin/smoke/deployment/gpu/helm.rs` | Helm v4 release metadata, exact allocator artifact and render verification, and atomic installation |
@@ -421,6 +421,8 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `servers/uav-sim-mcp/src/server/live_view_audit.rs` | durable audit projection for camera, product, lease, denial, expiry, and revocation events |
 | `servers/uav-sim-mcp/src/server/runtime_events.rs` | strict authenticated adapter-ready and final-ready HTTP stream ingestion, immutable binding reapplication trigger, and subscribed live-camera notification |
 | `servers/uav-sim-mcp/assets/live-app.html` | self-contained authoritative-camera selection and multi-view live App |
+| `showcase/uav-sim/agents/` | reviewed parameterized pilot manifest and durable memory schema; geographic work data remains outside agent memory |
+| `showcase/uav-sim/map/` | Map-owned named-place and operational air-network source fixture for the showcase |
 | `showcase/uav-sim/runtime/` | thin domain overlay on the canonical Isaac runtime with Cesium/Pegasus compatibility, PX4 lifecycle, RTX domain sensors, authoritative logical cameras, isolated per-viewer RTX/NVENC products, direct Stream publication, and Rerun publication |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera.py` | operator-camera orchestration over focused rig, smoothing, product, and health modules |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_rigs.py` | authoritative target sampling and desired poses for every supported camera rig |
@@ -437,7 +439,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `showcase/uav-sim/runtime/patches/cesium-0.29.0-lifecycle-events.patch` | pinned Omniverse extension events, load generations, and query-secret log redaction |
 | `showcase/uav-sim/runtime/patches/cesium-native-ca0311f-tile-load-events.patch` | pinned Cesium Native child-content failure delivery through the existing tileset callback |
 | `servers/uav-sim-mcp/src/server/world_bootstrap.rs` | strict startup application and reactive same-binding reapplication of an installation-owned immutable world binding |
-| `showcase/uav-sim/deploy/` | commit-addressed OCI publication, MCP-configured GPU simulator workload, signaling/media ingress, render-product capacity, versioned persistent cache, typed sensor configuration, and network policy |
+| `showcase/uav-sim/deploy/` | commit-addressed OCI publication, MCP-configured GPU simulator workload, four identity- and storage-isolated generic pilot workloads, signaling/media ingress, render-product capacity, versioned persistent cache, typed sensor configuration, and network policy |
 | `showcase/uav-sim/scenarios/` | reusable world trees plus strongly typed live mission and acceptance parameters outside the Isaac image context |
 | `examples/bioma/uav-sim-values.yaml` | reference authoritative camera, product, public gateway origin, and recording tenant binding |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | runtime world publication plus credentialed Google tiles, PX4, independent live Stream processing, Recording Hub replay, Reason, and concurrent GPU acceptance |

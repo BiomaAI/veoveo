@@ -14,6 +14,7 @@
     "liveView",
     "streamPublication",
     "interactive",
+    "agents",
     "service",
     "resources",
     "scheduling",
@@ -53,12 +54,13 @@
     "images": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["pullPolicy", "runtime", "mcp", "forwarder"],
+      "required": ["pullPolicy", "runtime", "mcp", "forwarder", "agent"],
       "properties": {
         "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]},
         "runtime": {"$ref": "#/definitions/image"},
         "mcp": {"$ref": "#/definitions/image"},
-        "forwarder": {"$ref": "#/definitions/image"}
+        "forwarder": {"$ref": "#/definitions/image"},
+        "agent": {"$ref": "#/definitions/image"}
       }
     },
     "platform": {
@@ -1102,6 +1104,88 @@
         "progressDeadlineSeconds": {"type": "integer", "minimum": 600, "maximum": 3600}
       }
     },
+    "agents": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "tenant",
+        "workContext",
+        "gatewayUrl",
+        "gatewayTransportUrl",
+        "llmSecret",
+        "privateKeySecret",
+        "persistence",
+        "pilots",
+        "coordinator"
+      ],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "tenant": {"$ref": "#/definitions/identity"},
+        "workContext": {"$ref": "#/definitions/identity"},
+        "gatewayUrl": {"type": "string", "pattern": "^https?://[A-Za-z0-9._:-]+/?$"},
+        "gatewayTransportUrl": {"type": "string", "pattern": "^https?://[A-Za-z0-9._:-]+/?$"},
+        "llmSecret": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["existingSecret", "accountIdKey", "apiTokenKey"],
+          "properties": {
+            "existingSecret": {"type": "string", "minLength": 1},
+            "accountIdKey": {"type": "string", "minLength": 1},
+            "apiTokenKey": {"type": "string", "minLength": 1}
+          }
+        },
+        "privateKeySecret": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["existingSecret"],
+          "properties": {
+            "existingSecret": {"type": "string", "minLength": 1}
+          }
+        },
+        "persistence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["size", "storageClass", "accessMode"],
+          "properties": {
+            "size": {"type": "string", "pattern": "^[1-9][0-9]*(Ei|Pi|Ti|Gi|Mi|Ki)$"},
+            "storageClass": {"type": "string"},
+            "accessMode": {"enum": ["ReadWriteOnce", "ReadWriteMany"]}
+          }
+        },
+        "pilots": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "agentId",
+              "displayName",
+              "clientId",
+              "privateKeyId",
+              "privateKeySecretKey",
+              "vehicleId"
+            ],
+            "properties": {
+              "agentId": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,127}$"},
+              "displayName": {"type": "string", "minLength": 1, "maxLength": 128},
+              "clientId": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,127}$"},
+              "privateKeyId": {"type": "string", "minLength": 1, "maxLength": 128},
+              "privateKeySecretKey": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+              "vehicleId": {"$ref": "#/definitions/identity"}
+            }
+          }
+        },
+        "coordinator": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "properties": {"enabled": {"const": false}}
+        }
+      }
+    },
     "service": {
       "type": "object",
       "additionalProperties": false,
@@ -1111,19 +1195,21 @@
     "resources": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["runtime", "mcp"],
+      "required": ["runtime", "mcp", "agent"],
       "properties": {
         "runtime": {"type": "object"},
-        "mcp": {"type": "object"}
+        "mcp": {"type": "object"},
+        "agent": {"type": "object"}
       }
     },
     "scheduling": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["runtime", "mcp"],
+      "required": ["runtime", "mcp", "agent"],
       "properties": {
         "runtime": {"$ref": "#/definitions/runtimeScheduling"},
-        "mcp": {"$ref": "#/definitions/mcpScheduling"}
+        "mcp": {"$ref": "#/definitions/mcpScheduling"},
+        "agent": {"$ref": "#/definitions/mcpScheduling"}
       }
     },
     "networkPolicy": {
