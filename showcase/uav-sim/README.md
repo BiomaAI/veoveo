@@ -43,6 +43,10 @@ Square. It completed all four admitted waypoints in 13 minutes 10 seconds, arriv
 credential rotation without replaying mission execution. The signed-in Console and the
 headless conversation projection returned the same durable terminal result.
 
+The leader camera recorded the flight throughout a database outage. Its durable
+forwarder retained the pending batches, and Recording Hub materialized the complete
+mission interval after service recovery.
+
 [![The signed-in Console showing uav-1-pilot's completed Times Square mission](assets/uav-e2e-001-console-complete.png)](assets/uav-e2e-001-console-complete.png)
 
 *The actual signed-in Console result from the first accepted run. Open the image to inspect
