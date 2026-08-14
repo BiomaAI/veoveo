@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::PathBuf};
+    use std::{collections::BTreeSet, fs, path::PathBuf};
 
     use serde_json::Value;
     use veoveo_mcp_contract::{GatewayControlPlane, GatewayProfileId, ScopeName};
@@ -20,6 +20,29 @@ mod tests {
     fn load(path: &str) -> Value {
         serde_json::from_slice(&fs::read(repository_root().join(path)).expect("read control plane"))
             .expect("parse control plane")
+    }
+
+    fn load_yaml(path: &str) -> Value {
+        serde_yaml_ng::from_slice(
+            &fs::read(repository_root().join(path)).expect("read YAML configuration"),
+        )
+        .expect("parse YAML configuration")
+    }
+
+    fn console_oauth_scopes(path: &str) -> BTreeSet<ScopeName> {
+        load_yaml(path)["consoleBff"]["oauthScopes"]
+            .as_array()
+            .expect("consoleBff.oauthScopes is an array")
+            .iter()
+            .map(|scope| {
+                ScopeName::new(
+                    scope
+                        .as_str()
+                        .expect("consoleBff.oauthScopes contains strings"),
+                )
+                .expect("valid Console OAuth scope")
+            })
+            .collect()
     }
 
     fn normalize_bioma(value: &mut Value) {
@@ -97,6 +120,46 @@ mod tests {
     }
 
     #[test]
+    fn console_requests_only_allowed_supported_admin_scopes() {
+        let requested = console_oauth_scopes("examples/bioma/values.yaml");
+        assert_eq!(
+            requested,
+            console_oauth_scopes("deploy/helm/veoveo/values.yaml"),
+            "Bioma and the canonical chart must request the same Console authority"
+        );
+
+        let catalog =
+            GatewayCatalog::load_json(repository_root().join("examples/bioma/gateway.json"))
+                .expect("load Bioma control plane");
+        let profile_id = GatewayProfileId::new("admin").expect("admin profile ID");
+        let profile = catalog.profile(&profile_id).expect("admin profile");
+        let client_id =
+            veoveo_mcp_contract::OAuthClientId::new("admin-console").expect("Console client ID");
+        let client = catalog
+            .oauth_client(&client_id)
+            .expect("Console OAuth client");
+        let supported = catalog.profile_supported_scopes(profile);
+
+        let disallowed = requested
+            .difference(&client.allowed_scopes)
+            .map(ScopeName::as_str)
+            .collect::<Vec<_>>();
+        assert!(
+            disallowed.is_empty(),
+            "Console requested scopes outside its OAuth registration: {disallowed:?}"
+        );
+
+        let unsupported = requested
+            .difference(&supported)
+            .map(ScopeName::as_str)
+            .collect::<Vec<_>>();
+        assert!(
+            unsupported.is_empty(),
+            "Console requested scopes outside the admin protected resource: {unsupported:?}"
+        );
+    }
+
+    #[test]
     fn uav_registration_preserves_cross_server_resource_identities() {
         let control_plane = load("examples/bioma/gateway.json");
         let uav = control_plane["servers"]
@@ -108,7 +171,7 @@ mod tests {
         assert_eq!(uav["resource_projection"], "server_owned");
         assert_eq!(
             uav["referenced_resource_schemes"],
-            serde_json::json!(["frames", "recording"])
+            serde_json::json!(["frames", "map", "recording"])
         );
     }
 

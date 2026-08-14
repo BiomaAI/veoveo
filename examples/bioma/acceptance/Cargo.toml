@@ -6,5 +6,6 @@ publish = false
 
 [dependencies]
 serde_json.workspace = true
+serde_yaml_ng = "=0.10.0"
 veoveo-mcp-contract.workspace = true
 veoveo-mcp-gateway = { path = "../../../platform/gateway" }
