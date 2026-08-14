@@ -37,6 +37,7 @@ const QUALIFIED_CAMERA_IDS: [&str; 5] = [
 ];
 const OPERATOR_PROFILE_SCOPES: &[&str] = &[
     "operator:use",
+    "uav-sim:read",
     "uav-sim:stream",
     "view:read",
     "view:write",
