@@ -286,9 +286,6 @@ agents:
       privateKeyId: uav-4-pilot-2026
       privateKeySecretKey: uav-4-private-key-der-b64
       vehicleId: uav-4
-  coordinator:
-    enabled: false
-
 service:
   port: 8802
 

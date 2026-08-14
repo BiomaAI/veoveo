@@ -52,10 +52,11 @@ receives no agent credential. Headless users use the same actor-attributed agent
 API, while each pilot wakes from its own durable queue and talks to Map, Time, and UAV
 Simulation MCP through the generic `agent` gateway profile.
 
-Coordination remains an optional composition outside vehicle authority. A coordinator may
-resolve a shared operational plan and address individual pilots through the generic agent
-message contract, but it receives no vehicle grant and cannot bypass per-pilot admission
-or leases. The Bioma reference leaves that role disabled.
+Coordination remains an optional composition outside vehicle authority. A human or
+headless client may submit related instructions to several exact pilot targets through
+the generic agent message API. Each message enters a separate actor-attributed
+conversation, and each pilot still needs its own grant, Map admission, and command lease.
+The reference installation does not deploy a privileged fleet coordinator.
 
 ## Canonical Runtime
 
