@@ -299,24 +299,13 @@ fn wait_for_application(
     if predicate(&initial) {
         return Ok(());
     }
-    let resource_version = initial
-        .pointer("/metadata/resourceVersion")
-        .and_then(Value::as_str)
-        .with_context(|| format!("Application {application} omits metadata.resourceVersion"))?;
     let remaining = deadline.remaining(&format!("Application {application} observation"))?;
     let mut command = kubectl(arguments);
-    command.args([
-        "--namespace",
+    command.args(application_watch_arguments(
         &arguments.control_namespace,
-        "get",
-        "applications.argoproj.io",
         application,
-        "--watch-only",
-        "--output-watch-events",
-        "--output=json",
-        &format!("--resource-version={resource_version}"),
-        &format!("--request-timeout={}s", remaining.as_secs().max(1)),
-    ]);
+        remaining,
+    ));
     command.stdout(Stdio::piped()).stderr(Stdio::inherit());
     let mut child = command
         .spawn()
@@ -344,6 +333,24 @@ fn wait_for_application(
     bail!(
         "Application {application} did not reach its required state before its watch ended with {status}"
     )
+}
+
+fn application_watch_arguments(
+    namespace: &str,
+    application: &str,
+    timeout: Duration,
+) -> Vec<String> {
+    vec![
+        "--namespace".into(),
+        namespace.into(),
+        "get".into(),
+        "applications.argoproj.io".into(),
+        application.into(),
+        "--watch".into(),
+        "--output-watch-events".into(),
+        "--output=json".into(),
+        format!("--request-timeout={}s", timeout.as_secs().max(1)),
+    ]
 }
 
 fn get_application(arguments: &GitopsConvergeArgs, application: &str) -> Result<Value> {
@@ -549,5 +556,23 @@ mod tests {
         assert!(DeploymentRef::parse("console-bff").is_err());
         assert!(validate_revision("--revision", REVISION).is_ok());
         assert!(validate_revision("--revision", "01234567").is_err());
+    }
+
+    #[test]
+    fn application_watch_lists_before_watching_with_portable_arguments() {
+        let arguments = application_watch_arguments("argocd", "bioma", Duration::from_secs(30));
+
+        assert!(arguments.iter().any(|argument| argument == "--watch"));
+        assert!(arguments.iter().all(|argument| argument != "--watch-only"));
+        assert!(
+            arguments
+                .iter()
+                .all(|argument| !argument.starts_with("--resource-version"))
+        );
+        assert!(
+            arguments
+                .iter()
+                .any(|argument| argument == "--request-timeout=30s")
+        );
     }
 }
