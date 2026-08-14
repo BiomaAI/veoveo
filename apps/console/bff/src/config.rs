@@ -158,6 +158,15 @@ impl Config {
             .expect("validated base URL")
     }
 
+    pub(crate) fn protected_resource_metadata_url(&self) -> Url {
+        self.gateway_url
+            .join(&format!(
+                "/.well-known/oauth-protected-resource/mcp/{}",
+                self.admin_profile
+            ))
+            .expect("validated profile and base URL")
+    }
+
     pub(crate) fn token_url(&self) -> Url {
         self.gateway_url
             .join("/oauth/token")
@@ -508,6 +517,15 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(error.contains("profile `admin` must match"), "{error}");
+    }
+
+    #[test]
+    fn protected_resource_metadata_uses_the_private_gateway_and_bound_profile() {
+        let config = Config::for_test(Url::parse("http://mcp-gateway:8788").unwrap());
+        assert_eq!(
+            config.protected_resource_metadata_url().as_str(),
+            "http://mcp-gateway:8788/.well-known/oauth-protected-resource/mcp/admin"
+        );
     }
 
     #[test]
