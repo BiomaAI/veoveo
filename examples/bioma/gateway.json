@@ -4243,7 +4243,63 @@
             "usage_read"
           ],
           "profiles": [
-            "operator",
+            "operator"
+          ],
+          "servers": [
+            "uav-sim"
+          ],
+          "tools": [
+            "configure_world",
+            "get_simulation_state",
+            "grant_vehicle_control",
+            "revoke_vehicle_control",
+            "prepare_vehicle_mission",
+            "pause_simulation",
+            "resume_simulation",
+            "reset_simulation",
+            "step_simulation",
+            "arm_vehicle",
+            "takeoff_vehicle",
+            "land_vehicle",
+            "run_scenario",
+            "execute_vehicle_mission_plan",
+            "capture_dataset"
+          ],
+          "resource_schemes": [
+            "uav-sim"
+          ],
+          "prompts": [
+            "uav-sim-mission-plan",
+            "uav-sim-session-review"
+          ],
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#operator-service"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "uav-sim:read"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_admin_service_uav_sim_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "subscriptions_listen",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_update",
+            "tasks_cancel",
+            "usage_read"
+          ],
+          "profiles": [
             "admin"
           ],
           "servers": [
@@ -4274,11 +4330,11 @@
             "uav-sim-session-review"
           ],
           "principal_ids": [
-            "https://veoveo.bioma.ai/oauth#operator-service",
             "https://veoveo.bioma.ai/oauth#admin-service"
           ],
           "required_scopes": [
-            "operator:use"
+            "operator:use",
+            "uav-sim:admin"
           ],
           "metadata": {}
         },
