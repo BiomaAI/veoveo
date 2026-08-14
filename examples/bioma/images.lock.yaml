@@ -2,7 +2,7 @@ global:
   veoveoRegistry: k3d-veoveo-registry.localhost:5000
   veoveoTag: ""
   imageDigests:
-    veoveo/agent-kernel: sha256:d70209154f644c5049a21b36d4816aeea5ef089c297d0b455a71267c8544d4e5
+    veoveo/agent-kernel: sha256:b0fb226f6fe5a30ad3322671c76e24f7b8e4bbae5948259b7e5521c79f2369fc
     veoveo/artifact-mcp: sha256:b7d880cbf59910a5a6e53eac7c349a27efdd4a722ccfaf9715d2b62e972bc4e3
     veoveo/artifact-service: sha256:0b4259982d1312ecfe6435d7398677ca35c9d1ef9ad2efd6cc06502b85a38fd9
     veoveo/chart-mcp: sha256:94c98811ff1ff0ed00bf150afde86d043668c24e529a0c8da61ff62e44fa6d7d
@@ -25,6 +25,6 @@ global:
     veoveo/simulation-runtime: sha256:dff172c25ff5b3d71388549ade9ef460765e85913daae8416da341bb3d367b15
     veoveo/time-mcp: sha256:0cadb6d29bf921ce97019a5a50152aca8d23cd888142e3d0ab5f209f813828fb
     veoveo/timeseries-mcp: sha256:77ea3f2fb9341d921a05a62942103f2a67b2b8ab566036cf2d516b96b181ce49
-    veoveo/uav-sim-mcp: sha256:d647d27b2960312ad55ffb57f6971458a86d638cf315154f98e303f1a145eaaf
+    veoveo/uav-sim-mcp: sha256:5ca00b163fec0a2c27427d809dc8535cb668eb8669265d0a0d45b5e22e665f84
     veoveo/uav-sim-runtime: sha256:732c3bc78dfaf1739be52af8b53f6f6c17a739eb6eeb0a4cce60e8d1f36aba94
     veoveo/view-mcp: sha256:3c3e5db51f29dcbb98181cd3a2031dee80149e0ecead31af66a69babf1b92a98
