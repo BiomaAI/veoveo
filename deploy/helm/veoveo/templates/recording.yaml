@@ -137,15 +137,18 @@ spec:
             - name: ingest-api
               containerPort: 9878
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /readyz
               port: ingest-api
             periodSeconds: 5
             timeoutSeconds: 3
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /healthz
               port: ingest-api
             initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 3
           securityContext:
             {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
           resources:

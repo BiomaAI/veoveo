@@ -219,6 +219,12 @@ impl RecordingIngestService {
         self.diagnostics.document()
     }
 
+    /// Verify that the durable catalog dependency can serve a query.
+    pub async fn healthcheck(&self) -> Result<()> {
+        self.store.healthcheck().await?;
+        Ok(())
+    }
+
     pub async fn open(
         &self,
         gateway: &GatewayInternalResourceIdentity,

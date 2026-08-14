@@ -103,6 +103,14 @@ commits; a process restart or conflict rehydrates both checkpoints from
 SurrealDB. Successful commits project the exact written fields locally and
 avoid redundant database and catalog readbacks on the live path.
 
+Every storage-backed Hub operation has an eight-second deadline. Expiration
+returns the retryable `storage_unavailable` protocol error and drops the active
+future, which releases the ordered materialization lock without acknowledging
+the producer batch. A retry remains idempotent whether the interrupted database
+transaction committed or rolled back. Kubernetes readiness and liveness probes
+execute a bounded SurrealDB query through the Hub process. An open TCP listener
+does not qualify an ingest replica as healthy.
+
 Authenticated ingest exposes bounded aggregate diagnostics at the cluster-internal
 `/internal/recording-ingest/v1/diagnostics` route. The same gateway assertion required by
 the write routes protects this projection. It reports unique accepted batches, messages,

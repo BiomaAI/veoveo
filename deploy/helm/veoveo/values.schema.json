@@ -228,7 +228,9 @@
         "database",
         "adminExistingSecret",
         "runtimeExistingSecret",
-        "persistence"
+        "persistence",
+        "rocksdb",
+        "resources"
       ],
       "properties": {
         "image": {
@@ -240,7 +242,7 @@
               "type": "object",
               "properties": {
                 "tag": {
-                  "const": "v3.2.1"
+                  "const": "v3.2.3"
                 }
               }
             }
@@ -264,6 +266,29 @@
         },
         "persistence": {
           "$ref": "#/definitions/persistence"
+        },
+        "rocksdb": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "blockCacheBytes",
+            "writeBufferBytes",
+            "maximumWriteBuffers"
+          ],
+          "properties": {
+            "blockCacheBytes": {
+              "type": "integer",
+              "minimum": 16777216
+            },
+            "writeBufferBytes": {
+              "type": "integer",
+              "minimum": 1048576
+            },
+            "maximumWriteBuffers": {
+              "type": "integer",
+              "minimum": 2
+            }
+          }
         },
         "resources": {
           "type": "object"

@@ -34,7 +34,7 @@ serde_json.workspace = true
 secrecy.workspace = true
 sha2.workspace = true
 sse-stream.workspace = true
-surrealdb = { version = "=3.2.1", default-features = false }
+surrealdb = { version = "=3.2.3", default-features = false }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tokio-util.workspace = true

@@ -1,5 +1,7 @@
 //! Cluster-internal protobuf HTTP surface for Recording Hub ingest.
 
+use std::{future::Future, time::Duration};
+
 use axum::{
     Json, Router,
     body::Bytes,
@@ -27,6 +29,7 @@ use crate::RecordingIngestService;
 
 const INTERNAL_STREAMS_PATH: &str = "/internal/recording-ingest/v1/streams";
 const INTERNAL_DIAGNOSTICS_PATH: &str = "/internal/recording-ingest/v1/diagnostics";
+const STORAGE_OPERATION_TIMEOUT: Duration = Duration::from_secs(8);
 
 #[derive(Clone)]
 struct IngestHttpState {
@@ -57,6 +60,8 @@ pub fn recording_ingest_internal_router(
         .unwrap_or(usize::MAX)
         .saturating_add(64 * 1024);
     Router::new()
+        .route("/healthz", get(health))
+        .route("/readyz", get(health))
         .route(INTERNAL_DIAGNOSTICS_PATH, get(ingest_diagnostics))
         .route(INTERNAL_STREAMS_PATH, post(open_stream))
         .route(
@@ -77,6 +82,13 @@ pub fn recording_ingest_internal_router(
         )
         .layer(DefaultBodyLimit::max(maximum_body_bytes))
         .with_state(IngestHttpState { service, verifier })
+}
+
+async fn health(State(state): State<IngestHttpState>) -> Response {
+    match bounded_service_operation("healthcheck", state.service.healthcheck()).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    }
 }
 
 async fn ingest_diagnostics(State(state): State<IngestHttpState>, headers: HeaderMap) -> Response {
@@ -115,19 +127,20 @@ async fn open_stream(
             None,
         );
     };
-    match state
-        .service
-        .open(
+    match bounded_service_operation(
+        "open stream",
+        state.service.open(
             &gateway,
             producer,
             &request.source_stream_id,
             &request.application_id,
             &request.recording_id,
-        )
-        .await
+        ),
+    )
+    .await
     {
         Ok(stream) => protobuf_response(StatusCode::OK, &stream),
-        Err(error) => service_error(error),
+        Err(response) => response,
     }
 }
 
@@ -149,9 +162,14 @@ async fn stream_status(
         Ok(stream_id) => stream_id,
         Err(error) => return error.into_response(),
     };
-    match state.service.status(&gateway, &producer, stream_id).await {
+    match bounded_service_operation(
+        "read stream status",
+        state.service.status(&gateway, &producer, stream_id),
+    )
+    .await
+    {
         Ok(stream) => protobuf_response(StatusCode::OK, &stream),
-        Err(error) => service_error(error),
+        Err(response) => response,
     }
 }
 
@@ -197,13 +215,14 @@ async fn append_batch(
         Ok(stream_id) => stream_id,
         Err(error) => return error.into_response(),
     };
-    match state
-        .service
-        .append(&gateway, producer, stream_id, batch)
-        .await
+    match bounded_service_operation(
+        "append batch",
+        state.service.append(&gateway, producer, stream_id, batch),
+    )
+    .await
     {
         Ok(result) => protobuf_response(StatusCode::OK, &result),
-        Err(error) => service_error(error),
+        Err(response) => response,
     }
 }
 
@@ -249,13 +268,16 @@ async fn publish_blueprint(
         Ok(stream_id) => stream_id,
         Err(error) => return error.into_response(),
     };
-    match state
-        .service
-        .publish_blueprint(&gateway, producer, stream_id, blueprint)
-        .await
+    match bounded_service_operation(
+        "publish Blueprint",
+        state
+            .service
+            .publish_blueprint(&gateway, producer, stream_id, blueprint),
+    )
+    .await
     {
         Ok(result) => protobuf_response(StatusCode::OK, &result),
-        Err(error) => service_error(error),
+        Err(response) => response,
     }
 }
 
@@ -309,10 +331,11 @@ async fn finish_stream(
         Ok(stream_id) => stream_id,
         Err(error) => return error.into_response(),
     };
-    match state
-        .service
-        .finish(&gateway, producer, stream_id, mode)
-        .await
+    match bounded_service_operation(
+        "finish stream",
+        state.service.finish(&gateway, producer, stream_id, mode),
+    )
+    .await
     {
         Ok(stream) => protobuf_response(
             StatusCode::OK,
@@ -320,7 +343,38 @@ async fn finish_stream(
                 stream: Some(stream),
             },
         ),
-        Err(error) => service_error(error),
+        Err(response) => response,
+    }
+}
+
+async fn bounded_service_operation<T>(
+    operation: &'static str,
+    future: impl Future<Output = anyhow::Result<T>>,
+) -> Result<T, Response> {
+    bounded_service_operation_with_timeout(operation, STORAGE_OPERATION_TIMEOUT, future).await
+}
+
+async fn bounded_service_operation_with_timeout<T>(
+    operation: &'static str,
+    timeout: Duration,
+    future: impl Future<Output = anyhow::Result<T>>,
+) -> Result<T, Response> {
+    match tokio::time::timeout(timeout, future).await {
+        Ok(Ok(value)) => Ok(value),
+        Ok(Err(error)) => Err(service_error(error)),
+        Err(_) => {
+            tracing::warn!(
+                operation,
+                timeout_milliseconds = timeout.as_millis(),
+                "recording ingest storage operation timed out"
+            );
+            Err(ingest_error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                IngestErrorCode::StorageUnavailable,
+                "recording ingest storage operation timed out",
+                None,
+            ))
+        }
     }
 }
 
@@ -607,6 +661,25 @@ mod tests {
         assert_eq!(
             quota_response(StoreRecordingIngestQuota::MaximumBytesPerDay),
             (ProtocolRecordingIngestQuota::MaximumBytesPerDay, Some(60))
+        );
+    }
+
+    #[tokio::test]
+    async fn storage_operation_timeout_returns_retryable_unavailable() {
+        let result = bounded_service_operation_with_timeout(
+            "test operation",
+            Duration::from_millis(1),
+            std::future::pending::<anyhow::Result<()>>(),
+        )
+        .await;
+        let response = match result {
+            Ok(()) => panic!("pending storage operation unexpectedly completed"),
+            Err(response) => response,
+        };
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers().get(header::CONTENT_TYPE),
+            Some(&HeaderValue::from_static(MEDIA_TYPE))
         );
     }
 }

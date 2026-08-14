@@ -1,4 +1,4 @@
-# Veoveo supports one SurrealDB 3.2.1 RocksDB node. This StatefulSet does not
+# Veoveo supports one SurrealDB 3.2.3 RocksDB node. This StatefulSet does not
 # claim database HA; protect the PVC with the operator's backup policy.
 {{- if include "veoveo.componentEnabled" (list . "platform-store") }}
 apiVersion: v1
@@ -78,6 +78,12 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.surrealdb.adminExistingSecret }}
                   key: password
+            - name: SURREAL_ROCKSDB_BLOCK_CACHE_SIZE
+              value: {{ printf "%.0f" .Values.surrealdb.rocksdb.blockCacheBytes | quote }}
+            - name: SURREAL_ROCKSDB_WRITE_BUFFER_SIZE
+              value: {{ printf "%.0f" .Values.surrealdb.rocksdb.writeBufferBytes | quote }}
+            - name: SURREAL_ROCKSDB_MAX_WRITE_BUFFER_NUMBER
+              value: {{ .Values.surrealdb.rocksdb.maximumWriteBuffers | quote }}
           ports:
             - name: rpc
               containerPort: 8000
