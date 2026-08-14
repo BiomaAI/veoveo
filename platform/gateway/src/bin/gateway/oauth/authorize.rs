@@ -19,7 +19,7 @@ use crate::{
     },
     http_util::{
         oauth_error_response, pkce_s256_challenge, random_oauth_state, random_oidc_nonce,
-        random_pkce_verifier, redirect_response, scope_string,
+        random_pkce_verifier, redirect_response, redirect_with_oauth_error, scope_string,
     },
     oauth_grants::{authorization_code_client_allowed, requested_token_scopes},
     runtime::{AppState, current_catalog},
@@ -268,61 +268,6 @@ pub(crate) async fn authorize_endpoint(
             );
         }
     };
-    let scopes = match requested_token_scopes(&catalog, profile, client, request.scope.as_deref()) {
-        Ok(scopes) => scopes,
-        Err(err) => {
-            tracing::warn!(client = %client_id, "rejected authorization scope request: {err}");
-            if let Err(err) = record_oidc_auth_audit(
-                &state.gateway_state,
-                profile,
-                AuthAuditRecord {
-                    authorization_server: Some(authorization_server),
-                    client_id: Some(&client_id),
-                    principal: None,
-                    jwt_id: None,
-                    outcome: AuthOutcome::Deny,
-                    reason: AuthReasonCode::InvalidScope,
-                    started_at,
-                },
-            )
-            .await
-            {
-                return auth_audit_error_response(err);
-            }
-            return oauth_error_response(
-                StatusCode::BAD_REQUEST,
-                "invalid_scope",
-                "requested scope is not allowed",
-            );
-        }
-    };
-    let code_challenge = match PkceCodeChallenge::new(request.code_challenge.trim()) {
-        Ok(challenge) if request.code_challenge_method == "S256" => challenge,
-        _ => {
-            if let Err(err) = record_oidc_auth_audit(
-                &state.gateway_state,
-                profile,
-                AuthAuditRecord {
-                    authorization_server: Some(authorization_server),
-                    client_id: Some(&client_id),
-                    principal: None,
-                    jwt_id: None,
-                    outcome: AuthOutcome::Deny,
-                    reason: AuthReasonCode::InvalidPkce,
-                    started_at,
-                },
-            )
-            .await
-            {
-                return auth_audit_error_response(err);
-            }
-            return oauth_error_response(
-                StatusCode::BAD_REQUEST,
-                "invalid_request",
-                "PKCE S256 code challenge is required",
-            );
-        }
-    };
     let client_state = match request
         .state
         .as_deref()
@@ -348,10 +293,68 @@ pub(crate) async fn authorize_endpoint(
             {
                 return auth_audit_error_response(err);
             }
-            return oauth_error_response(
-                StatusCode::BAD_REQUEST,
+            return redirect_with_oauth_error(
+                &redirect_uri,
                 "invalid_request",
-                "state value is invalid",
+                Some("state value is invalid"),
+                None,
+            );
+        }
+    };
+    let scopes = match requested_token_scopes(&catalog, profile, client, request.scope.as_deref()) {
+        Ok(scopes) => scopes,
+        Err(err) => {
+            tracing::warn!(client = %client_id, "rejected authorization scope request: {err}");
+            if let Err(err) = record_oidc_auth_audit(
+                &state.gateway_state,
+                profile,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidScope,
+                    started_at,
+                },
+            )
+            .await
+            {
+                return auth_audit_error_response(err);
+            }
+            return redirect_with_oauth_error(
+                &redirect_uri,
+                "invalid_scope",
+                Some("requested scope is not allowed"),
+                client_state.as_ref(),
+            );
+        }
+    };
+    let code_challenge = match PkceCodeChallenge::new(request.code_challenge.trim()) {
+        Ok(challenge) if request.code_challenge_method == "S256" => challenge,
+        _ => {
+            if let Err(err) = record_oidc_auth_audit(
+                &state.gateway_state,
+                profile,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidPkce,
+                    started_at,
+                },
+            )
+            .await
+            {
+                return auth_audit_error_response(err);
+            }
+            return redirect_with_oauth_error(
+                &redirect_uri,
+                "invalid_request",
+                Some("PKCE S256 code challenge is required"),
+                client_state.as_ref(),
             );
         }
     };

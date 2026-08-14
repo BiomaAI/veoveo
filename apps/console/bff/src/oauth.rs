@@ -87,17 +87,13 @@ pub(crate) async fn callback(
 ) -> Response {
     let pending = read_authorization(&headers, &state.sessions);
     if let Some(error) = query.error.as_deref() {
+        let failure = CallbackFailure::from_oauth_error(error);
         let return_path = valid_callback_return_path(
             pending.as_ref(),
             query.state.as_deref(),
             Utc::now().timestamp(),
         );
-        return callback_error(
-            &state,
-            StatusCode::UNAUTHORIZED,
-            CallbackFailure::from_oauth_error(error),
-            return_path,
-        );
+        return callback_error(&state, failure.status(), failure, return_path);
     }
     let Some(pending) = pending else {
         return callback_error(
@@ -318,6 +314,7 @@ pub(crate) async fn logout(State(state): State<AppState>, request_headers: Heade
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum CallbackFailure {
     AccessDenied,
+    AuthorizationChanged,
     ProviderUnavailable,
     SessionExpired,
     InvalidResponse,
@@ -329,14 +326,27 @@ impl CallbackFailure {
     fn from_oauth_error(error: &str) -> Self {
         match error {
             "access_denied" => Self::AccessDenied,
+            "invalid_scope" => Self::AuthorizationChanged,
             "server_error" | "temporarily_unavailable" => Self::ProviderUnavailable,
             _ => Self::InvalidResponse,
+        }
+    }
+
+    const fn status(self) -> StatusCode {
+        match self {
+            Self::AccessDenied | Self::AuthenticationFailed => StatusCode::UNAUTHORIZED,
+            Self::AuthorizationChanged | Self::ProviderUnavailable => {
+                StatusCode::SERVICE_UNAVAILABLE
+            }
+            Self::SessionExpired | Self::InvalidResponse => StatusCode::BAD_REQUEST,
+            Self::Internal => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
     const fn code(self) -> &'static str {
         match self {
             Self::AccessDenied => "access_denied",
+            Self::AuthorizationChanged => "authorization_changed",
             Self::ProviderUnavailable => "provider_unavailable",
             Self::SessionExpired => "session_expired",
             Self::InvalidResponse => "invalid_response",
@@ -348,6 +358,7 @@ impl CallbackFailure {
     const fn title(self) -> &'static str {
         match self {
             Self::AccessDenied => "Sign-in was cancelled",
+            Self::AuthorizationChanged => "Console authorization changed",
             Self::ProviderUnavailable => "Sign-in service unavailable",
             Self::SessionExpired => "Sign-in session expired",
             Self::InvalidResponse => "Sign-in response was invalid",
@@ -359,6 +370,9 @@ impl CallbackFailure {
     const fn message(self) -> &'static str {
         match self {
             Self::AccessDenied => "No Console session was created. Retry when you are ready.",
+            Self::AuthorizationChanged => {
+                "The Console and the active authorization policy do not agree. This is an installation configuration problem, not an issue with your account. Retry after the installation operator resolves it."
+            }
             Self::ProviderUnavailable => {
                 "The identity service could not complete this request. Retry sign-in."
             }
@@ -632,6 +646,10 @@ mod tests {
             CallbackFailure::AccessDenied
         );
         assert_eq!(
+            CallbackFailure::from_oauth_error("invalid_scope"),
+            CallbackFailure::AuthorizationChanged
+        );
+        assert_eq!(
             CallbackFailure::from_oauth_error("server_error"),
             CallbackFailure::ProviderUnavailable
         );
@@ -711,6 +729,25 @@ mod tests {
         assert!(body.contains("share reference"));
         assert!(!body.contains("identity provider token exchange failed"));
         assert!(!body.contains("provider-private-detail"));
+    }
+
+    #[tokio::test]
+    async fn authorization_change_error_explains_operator_recovery() {
+        let response = callback_error_response(
+            true,
+            CallbackFailure::AuthorizationChanged.status(),
+            CallbackFailure::AuthorizationChanged,
+            None,
+        );
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+        let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+        let body = String::from_utf8(body.to_vec()).unwrap();
+        assert!(body.contains("Console authorization changed"));
+        assert!(body.contains("installation configuration problem"));
+        assert!(body.contains("Retry sign-in"));
+        assert!(body.contains("Return to Console"));
+        assert!(!body.contains("invalid_scope"));
     }
 
     #[test]
