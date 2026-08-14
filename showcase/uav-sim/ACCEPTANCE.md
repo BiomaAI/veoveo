@@ -196,6 +196,8 @@ The test passes only when all of these claims hold:
   commanded by the request;
 - the durable execution task succeeds and is consumed by a task-result wake without a
   second execution call;
+- Recording Hub durably accepts and materializes the recording batches that span the
+  mission execution interval;
 - the Console displays the terminal completed entry;
 - the headless conversation API returns the same request lineage and terminal result.
 
@@ -208,8 +210,8 @@ mission execution call or create a second mission plan.
 The test fails on any cross-vehicle admission, unvalidated or locally invented route,
 route/world revision mismatch, missing command lease, unreleased terminal lease,
 duplicated execution, terminal task error, lost task-result wake, final position outside
-tolerance, missing actor attribution, or disagreement between Console and headless
-conversation projections.
+tolerance, missing mission-interval data in Recording Hub, missing actor attribution, or
+disagreement between Console and headless conversation projections.
 
 An expired user session, absent grant, occupied command lease, unavailable Map route,
 unready PX4 connection, or non-hardware browser is a failed prerequisite. Record it as
@@ -237,6 +239,7 @@ authorization audit sequence
 Console capture
 headless HTTP status and matching terminal conversation entry
 recording URI when the showcase recording is active
+Recording Hub ingest stream, durable checkpoint, and materialized checkpoint
 ```
 
 Secrets, browser cookies, OAuth tokens, private keys, and provider credentials never
@@ -263,6 +266,9 @@ to Times Square.
 | Final position | 40.7579989505, -73.9854950592 |
 | Final vehicle state | Stationary at destination; PX4 connected; battery 51%; zero collisions |
 | Runtime-reported recording | `recording://recordings/01a00156-326d-7893-83f9-0a08733d70cf` |
+| Recording Hub ingest stream | `recording_ingest_stream:01a00156-3271-7fb2-bae0-165dc4ee068c` |
+| Recording Hub checkpoint | Finished; durable and materialized through batch 12,513 |
+| Mission recording samples | Camera-bearing batches 9,720 at 18:55:54, 10,600 at 19:03:29, and 11,290 at 19:09:16 UTC |
 | Console evidence | Signed-in terminal entry: `Mission completed successfully.` |
 | Headless evidence | Signed same-origin conversation request returned HTTP 200 and the same completed entry |
 
@@ -271,11 +277,12 @@ reconnected, resolved the existing task, and produced the terminal wake without 
 mission execution. The UAV plan completed at revision 2, its server task succeeded, and
 the command lease was released at `2026-08-14T19:09:01.769488563Z`.
 
-Recording coverage was not part of this functional acceptance. Inspection during the
-README media follow-up found that the stored stream ended at 18:54:31 UTC, 80 seconds
-before mission execution began. The runtime-reported recording URI is retained as
-conversation evidence, but it cannot support a timelapse or a claim that this flight was
-archived.
+The UAV camera recorded the mission. SurrealDB was OOM-killed at 18:54:32 UTC while the
+Hub was accepting batch 9,557, which left the Hub's materialized view stopped at batch
+9,556 even as the recording forwarder continued to capture into its durable queue. The
+recovered Hub replayed the missing batches, materialized through batch 12,513, and
+finished the affected ingest stream. The archived data now spans the full mission and
+can support a separately produced timelapse.
 
 ## Automation Boundary
 
