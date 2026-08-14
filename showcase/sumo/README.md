@@ -29,7 +29,7 @@ images declare that architecture explicitly.
 - `/world/sumo/**` is pushed continuously through an authenticated recording
   forwarder and retained by Recording Hub.
 
-Task state lives in the required SurrealDB 3.2.1 platform store. The server uses
+Task state lives in the required SurrealDB 3.2.3 platform store. The server uses
 official MCP Tasks and Veoveo's shared task runtime.
 
 ## Tests

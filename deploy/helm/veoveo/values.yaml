@@ -36,7 +36,7 @@ serviceAccount:
 surrealdb:
   image:
     repository: surrealdb/surrealdb
-    tag: v3.2.1
+    tag: v3.2.3
     digest: ""
   namespace: veoveo
   database: platform
@@ -46,13 +46,20 @@ surrealdb:
     size: 20Gi
     storageClass: ""
     accessModes: [ReadWriteOnce]
+  rocksdb:
+    # Keep the RocksDB cache stable when the pod memory limit changes. The
+    # upstream default scales the cache from detected memory and would consume
+    # the additional headroom intended for the query engine and RPC sessions.
+    blockCacheBytes: 1073741824
+    writeBufferBytes: 67108864
+    maximumWriteBuffers: 4
   resources:
     requests:
       cpu: 250m
-      memory: 512Mi
+      memory: 1Gi
     limits:
       cpu: "2"
-      memory: 4Gi
+      memory: 8Gi
 
 objectStore:
   mode: rustfs
