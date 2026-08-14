@@ -288,6 +288,26 @@ impl VehicleControlAuthority {
         records.into_iter().map(grant_view).collect()
     }
 
+    pub(super) async fn active_visible_grants(
+        &self,
+        identity: &GatewayInternalIdentity,
+        session_id: &SessionId,
+        include_all: bool,
+    ) -> Result<Vec<VehicleControlGrant>> {
+        let now = Utc::now();
+        Ok(self
+            .visible_grants(identity, include_all)
+            .await?
+            .into_iter()
+            .filter(|grant| {
+                grant.session_id == *session_id
+                    && grant.revoked_at.is_none()
+                    && grant.valid_from <= now
+                    && grant.valid_until.is_none_or(|until| now < until)
+            })
+            .collect())
+    }
+
     pub(super) async fn require_permission(
         &self,
         identity: &GatewayInternalIdentity,

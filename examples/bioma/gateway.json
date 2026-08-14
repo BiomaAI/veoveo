@@ -124,6 +124,7 @@
       "tools": [
         "configure_world",
         "get_simulation_state",
+        "list_active_vehicle_control_grants",
         "grant_vehicle_control",
         "revoke_vehicle_control",
         "prepare_vehicle_mission",
@@ -4158,6 +4159,7 @@
           "tools": [
             "configure_world",
             "get_simulation_state",
+            "list_active_vehicle_control_grants",
             "grant_vehicle_control",
             "revoke_vehicle_control",
             "prepare_vehicle_mission",
@@ -4251,6 +4253,7 @@
           "tools": [
             "configure_world",
             "get_simulation_state",
+            "list_active_vehicle_control_grants",
             "grant_vehicle_control",
             "revoke_vehicle_control",
             "prepare_vehicle_mission",
@@ -4308,6 +4311,7 @@
           "tools": [
             "configure_world",
             "get_simulation_state",
+            "list_active_vehicle_control_grants",
             "grant_vehicle_control",
             "revoke_vehicle_control",
             "prepare_vehicle_mission",
@@ -4361,6 +4365,7 @@
           ],
           "tools": [
             "get_simulation_state",
+            "list_active_vehicle_control_grants",
             "prepare_vehicle_mission",
             "arm_vehicle",
             "takeoff_vehicle",

@@ -300,6 +300,32 @@ impl UavSimMcp {
     }
 
     #[tool(
+        title = "List active vehicle control grants",
+        description = "Read the active UAV-domain principal-to-vehicle grants visible to the authenticated caller in one session. Each grant supplies the exact vehicle id, permissions, and canonical Map mobility-profile URI that downstream Map route requests must use; caller input never establishes vehicle authority.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<Vec<crate::contract::VehicleControlGrant>>(),
+        annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn list_active_vehicle_control_grants(
+        &self,
+        Parameters(request): Parameters<SessionRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let identity = require_any_scope(&context, &["uav-sim:control", "uav-sim:admin"])?;
+        self.state_for(&request.session_id).await?;
+        let include_all = identity_has_scope(&identity, "uav-sim:admin");
+        let grants = self
+            .state
+            .control_authority
+            .active_visible_grants(&identity, &request.session_id, include_all)
+            .await
+            .map_err(authority_error)?;
+        structured_result(
+            format!("{} active vehicle control grant(s)", grants.len()),
+            &grants,
+        )
+    }
+
+    #[tool(
         title = "Grant vehicle control",
         description = "Bind one authenticated principal to one simulated vehicle with explicit UAV-domain permissions and one exact Map mobility profile.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::VehicleControlGrant>(),
@@ -2428,6 +2454,12 @@ mod tests {
         let tools = UavSimMcp::tool_router().list_all();
         assert!(!tools.is_empty());
         assert!(tools.iter().any(|tool| tool.name == "configure_world"));
+        assert!(
+            tools
+                .iter()
+                .any(|tool| tool.name == "list_active_vehicle_control_grants"),
+            "UAV server must expose active caller-visible control authority to tool-only agents"
+        );
         for owned in LIVE_APP_TOOLS {
             assert!(
                 tools.iter().any(|tool| tool.name == *owned),

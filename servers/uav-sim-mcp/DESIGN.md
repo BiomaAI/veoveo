@@ -76,10 +76,18 @@ and port `8802`.
 The domain tools govern session configuration, simulation execution, single-vehicle
 mission admission, dataset capture, and typed inspection. Vehicle authority uses:
 
+- `list_active_vehicle_control_grants`
 - `grant_vehicle_control`
 - `revoke_vehicle_control`
 - `prepare_vehicle_mission`
 - `execute_vehicle_mission_plan`
+
+`list_active_vehicle_control_grants` is the tool projection of the canonical grant
+resources for clients whose execution surface exposes tools but not resource reads. It
+applies the same tenant, Work Context, caller-visibility, session, revocation, and
+validity filters as the resource surface. Its Map mobility-profile URI is an authority
+binding, not a copy of Map work data. Map MCP remains authoritative for the referenced
+profile and every route derived from it.
 
 The old public multi-vehicle `execute_mission` surface does not exist. The simulator's
 typed multi-vehicle adapter request is cluster-private and cannot establish principal
