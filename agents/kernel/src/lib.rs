@@ -10,6 +10,7 @@
 //! Their descriptors, retry schedule, retention pins, results, and result wakes
 //! remain durable across process restarts.
 
+pub mod background_tasks;
 pub mod budget;
 pub mod connection;
 pub mod context;

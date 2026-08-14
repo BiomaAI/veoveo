@@ -5,13 +5,16 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use rig::{
     agent::Agent,
-    tool::{DeferredExecutionPolicy, DeferredToolResolverRegistry, ToolContext},
+    tool::{
+        DeferredExecutionPolicy, DeferredToolResolver, DeferredToolResolverRegistry, ToolContext,
+    },
 };
 use veoveo_agent_runtime::{AgentRuntime, EpisodeCompletion};
 use veoveo_platform_store::{AgentEpisodeId, AgentEpisodeState, WakeId};
 use veoveo_task_runtime::TASK_RETENTION_PIN_META_KEY;
 
 use crate::{
+    background_tasks::BackgroundTaskResolver,
     budget::{BUDGET_TERMINATED_PREFIX, BudgetHook},
     connection::GatewayConnection,
     context,
@@ -92,6 +95,7 @@ impl EpisodeDriver {
             episode.retention_pin.clone(),
         );
         let tool_calls = recorder.tool_call_counter();
+        let detached_tasks = recorder.detached_task_counter();
         let mut meta = rmcp::model::RequestMetaObject::new();
         meta.insert(
             TASK_RETENTION_PIN_META_KEY.to_owned(),
@@ -102,8 +106,8 @@ impl EpisodeDriver {
         let resolvers = DeferredToolResolverRegistry::new();
         if let Some(resolver) = connection.epoch().resolver {
             resolvers
-                .register(resolver)
-                .context("registering gateway deferred-tool resolver")?;
+                .register(BackgroundTaskResolver::new(resolver.backend_type()))
+                .context("registering gateway background-task resolver")?;
         }
         let mut deferred_policy = DeferredExecutionPolicy::default();
         deferred_policy.timeout = self.manifest.task_deadline();
@@ -133,7 +137,8 @@ impl EpisodeDriver {
                     episode_id: episode.episode_id,
                     seq: episode.sequence,
                     output: response.output,
-                    detached_tasks: 0,
+                    detached_tasks: detached_tasks.load(std::sync::atomic::Ordering::Relaxed)
+                        as usize,
                 };
                 let summary = summary::deterministic(&report, wake_note, tool_calls);
                 self.runtime
@@ -207,7 +212,8 @@ impl EpisodeDriver {
                     episode_id: episode.episode_id,
                     seq: episode.sequence,
                     output: reason,
-                    detached_tasks: 0,
+                    detached_tasks: detached_tasks.load(std::sync::atomic::Ordering::Relaxed)
+                        as usize,
                 })
             }
             Err(error) => {

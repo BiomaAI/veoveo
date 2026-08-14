@@ -737,6 +737,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 |---|---|
 | `manifest.rs` | agent, model, profile, tool, budget, and bounded MCP resource-subscription configuration models |
 | `episode.rs` | bounded reasoning episode lifecycle |
+| `background_tasks.rs` | immediate model-visible handoff from accepted durable tool calls to credential-rotating kernel watchers |
 | `tools.rs` | MCP tool dispatch and durable task descriptor capture |
 | `tasks.rs` | detached watcher lease/resume/result-to-wake flow |
 | `wake.rs` | outbox/changefeed wake delivery |

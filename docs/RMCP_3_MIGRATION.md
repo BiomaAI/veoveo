@@ -1100,6 +1100,13 @@ Rig does not own Veoveo persistence, authorization, audit, resource URIs, Work
 Context, or provider-webhook behavior. Veoveo supplies those policies through the
 resolver, persistence, and lifecycle boundaries.
 
+The Veoveo agent kernel records each accepted deferred descriptor before returning an
+immediate background-task handoff to the model. The bounded reasoning episode then
+ends without polling or repeating the tool. A separately leased kernel watcher resumes
+the canonical task through the current gateway connection epoch and emits a durable
+task-result wake after terminal settlement. Credential rotation and process restarts
+therefore do not extend one model episode or replay the original tool call.
+
 ### Connection ownership
 
 The selected API returns a connection guard that owns the HTTP client, listener task,

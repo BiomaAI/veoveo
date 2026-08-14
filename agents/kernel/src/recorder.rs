@@ -21,6 +21,7 @@ use veoveo_mcp_contract::CanonicalTaskId;
 use veoveo_platform_store::AgentEpisodeId;
 use veoveo_task_runtime::TaskRetentionPin;
 
+use crate::background_tasks::BackgroundTaskDetached;
 use crate::rrd::RrdRecorder;
 
 const RRD_PAYLOAD_CAP: usize = 8 * 1024;
@@ -43,6 +44,7 @@ pub struct RecorderHook {
     episode_id: AgentEpisodeId,
     retention_pin: TaskRetentionPin,
     tool_calls: Arc<AtomicU64>,
+    detached_tasks: Arc<AtomicU64>,
     deferred: Mutex<HashMap<String, CanonicalTaskId>>,
 }
 
@@ -59,12 +61,17 @@ impl RecorderHook {
             episode_id,
             retention_pin,
             tool_calls: Arc::new(AtomicU64::new(0)),
+            detached_tasks: Arc::new(AtomicU64::new(0)),
             deferred: Mutex::new(HashMap::new()),
         }
     }
 
     pub fn tool_call_counter(&self) -> Arc<AtomicU64> {
         self.tool_calls.clone()
+    }
+
+    pub fn detached_task_counter(&self) -> Arc<AtomicU64> {
+        self.detached_tasks.clone()
     }
 
     async fn settle_without_result(
@@ -127,6 +134,26 @@ impl AgentHook for RecorderHook {
                 capped(&result)
             ),
         );
+        if let Some(detached) = event.tool_context.result::<BackgroundTaskDetached>() {
+            let task_id = self.deferred.lock().await.remove(event.internal_call_id);
+            let Some(task_id) = task_id else {
+                return ToolResultAction::stop(
+                    "background task handoff has no persisted descriptor".to_owned(),
+                );
+            };
+            if task_id != detached.task_id {
+                return ToolResultAction::stop(format!(
+                    "background task handoff id mismatch: expected {task_id}, received {}",
+                    detached.task_id
+                ));
+            }
+            self.detached_tasks.fetch_add(1, Ordering::Relaxed);
+            self.rrd.log_text(
+                &format!("/agent/tasks/{task_id}"),
+                "detached for durable watcher",
+            );
+            return ToolResultAction::keep();
+        }
         if let Some(task_id) = self.deferred.lock().await.remove(event.internal_call_id) {
             let payload = match json_object(
                 serde_json::json!({ "output": result, "delivered": "in_run" }),
