@@ -27,7 +27,7 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 40] = [
+const MIGRATIONS: [Migration; 41] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -267,6 +267,12 @@ const MIGRATIONS: [Migration; 40] = [
         name: "agent_opaque_task_ids",
         filename: "0039_agent_opaque_task_ids.surql",
         sql: include_str!("../migrations/0039_agent_opaque_task_ids.surql"),
+    },
+    Migration {
+        version: 40,
+        name: "uav_vehicle_authority",
+        filename: "0040_uav_vehicle_authority.surql",
+        sql: include_str!("../migrations/0040_uav_vehicle_authority.surql"),
     },
 ];
 
@@ -512,6 +518,9 @@ mod tests {
             "outbox_event_sequence_unique",
             "artifact_occurrence_search",
             "task_queued_count",
+            "uav_control_grant_context_id_unique",
+            "uav_mission_plan_context_id_unique",
+            "uav_command_lease_vehicle_unique",
         ] {
             assert!(sql.contains(&format!("DEFINE INDEX IF NOT EXISTS {index}")));
         }

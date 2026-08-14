@@ -26,6 +26,8 @@ for visualization.
 | RTSP, RTP, and H.264 | RTSP 1.0 over loopback TCP with interleaved RTP/RTCP. The adapter supports the RFC 6184 single-NAL, STAP-A, and FU-A packetization modes and emits decoder-reentrant Annex B access units. |
 | OGC 3D Tiles | Cesium Omniverse `0.29.0` with pinned Cesium Native commit `ca0311f25c412b74ad1af9a3636924122cc76156`, one simulator-owned world, and one cache. The repository extension adds private redacted lifecycle events; it does not add an MCP wire protocol. |
 | WGS 84, ECEF, ENU, NED, and FLU | Explicit world, physics, entity, rig, and camera coordinate boundaries. |
+| `veoveo.io/map-route-handoff/v1` | Map MCP-owned, execution-neutral route projection with exact route, digest, mobility-profile, snapshot, release, restriction, and validation provenance. |
+| `frames://world/{world_id}/revision/{revision_id}` | Frames MCP-owned immutable world revision identity consumed by session configuration and mission admission. |
 | MAVLink 2 and ROS 2 Jazzy | Private simulator integrations. Neither protocol is projected as high-rate MCP traffic. |
 | Rerun RRD | Version `0.35.0` recording data and producer-authored Blueprint stores sent independently to Recording Hub. |
 | NVIDIA Container Runtime | One Kubernetes GPU allocation with compute, graphics, utility, and video driver capabilities. CPU rendering and encoding are unsupported. |
@@ -34,8 +36,12 @@ for visualization.
 
 The simulation runtime is authoritative for physics, entity transforms, the OpenUSD
 stage, Cesium georeference, domain sensors, operator cameras, Hydra render products,
-and NVENC products. The Rust server owns caller authorization, MCP state projection,
-ephemeral viewer leases, signaling authorization, and access audit.
+and NVENC products. The Rust server owns caller authorization, principal-to-vehicle
+grants, mission admission, exclusive command leases, MCP state projection, ephemeral
+viewer leases, signaling authorization, and access audit. Map MCP owns operational
+geography, place resolution, mobility profiles, restrictions, routing, and the route
+handoff. Frames MCP owns world trees and immutable revisions. The UAV server consumes
+those exact products and never reimplements either vertical.
 
 The cluster-private adapter is the only boundary between those responsibilities. It exposes
 typed configuration, command, state, and live-product activation operations. It does
@@ -47,7 +53,7 @@ gateway actor
     |
     v
 UAV Simulation MCP server
-  governance + ephemeral viewer leases + signaling + audit + App
+  grants + mission admission + command leases + telemetry + App
     |
     | authenticated cluster-private typed adapter
     v
@@ -67,14 +73,22 @@ physics.
 The server owns the `uav-sim://` scheme, slug `uav-sim`, MCP path `/uav-sim/mcp`,
 and port `8802`.
 
-The domain tools govern session configuration, simulation execution, missions, dataset
-capture, and typed inspection. The live-view profile adds:
+The domain tools govern session configuration, simulation execution, single-vehicle
+mission admission, dataset capture, and typed inspection. Vehicle authority uses:
+
+- `grant_vehicle_control`
+- `revoke_vehicle_control`
+- `prepare_vehicle_mission`
+- `execute_vehicle_mission_plan`
+
+The old public multi-vehicle `execute_mission` surface does not exist. The simulator's
+typed multi-vehicle adapter request is cluster-private and cannot establish principal
+authority. The live-view profile adds:
 
 - `list_live_cameras`
 - `open_live_view`
 - `renew_live_view`
 - `close_live_view`
-- `set_operator_camera`
 
 Live state uses these canonical resources:
 
@@ -84,6 +98,10 @@ Live state uses these canonical resources:
 - `uav-sim://session/{session_id}/stream-product/{product_id}`
 - `uav-sim://session/{session_id}/live-views`
 - `uav-sim://session/{session_id}/live-view/{live_view_id}`
+- `uav-sim://control-grants`
+- `uav-sim://control-grant/{grant_id}`
+- `uav-sim://mission-plans`
+- `uav-sim://mission-plan/{plan_id}`
 
 `ui://uav-sim/live.html` is the only live-view App resource. There are no aliases for
 the removed hosted viewer service, scene mirror, or pose protocol.
@@ -105,6 +123,46 @@ tool once.
 Durable task tools use `interrupted_indeterminate` recovery. An unclean interruption
 never replays physical work. The default fleet controller keeps the configured fleet
 on its admitted loop until a later mission command takes authority.
+
+## Vehicle Authority And Mission Admission
+
+An authenticated gateway principal controls a vehicle only through a UAV-owned grant.
+The grant binds the exact principal key, Work Context, session, vehicle, permissions,
+validity interval, and one versioned Map mobility-profile URI. Initial showcase policy
+uses one principal per vehicle. This is packaging policy rather than a platform concept;
+the UAV contract also supports bounded many-to-one grants when a later use case admits
+them explicitly.
+
+`inspect`, `plan`, `execute`, and `abort` are separate permissions. A caller with only
+`uav-sim:control` sees telemetry for vehicles covered by a current `inspect` grant. The
+`uav-sim:read` and `uav-sim:admin` scopes retain domain-wide operator visibility. Tool
+metadata, an agent manifest, a chat target, or a claimed vehicle ID never creates
+vehicle authority.
+
+Mission admission has one vertical handoff:
+
+```text
+operator prompt
+  -> Map MCP resolves places, applies active data, and routes
+  -> Map MCP prepares veoveo.io/map-route-handoff/v1
+  -> UAV MCP verifies grant, profile, provenance, freshness, and Frames revision
+  -> UAV MCP persists one principal-bound single-vehicle plan
+  -> UAV MCP acquires the exclusive vehicle command lease
+  -> private simulator adapter executes the admitted waypoints
+```
+
+The handoff contains WGS 84 geometry and Map provenance, but no UAV command semantics.
+The UAV server converts its admitted path into the private simulator request, applies
+the granted speed and destination hold, and never asks Map to execute a vehicle. Mission
+plans expire after 15 minutes. Route validation may be at most five minutes old when a
+plan is admitted. Every executable position requires ellipsoidal height. A
+planning-advisory route is accepted only when the vehicle grant says so.
+
+Execution acquires one durable exclusive lease for the Work Context, session, and
+vehicle. A concurrent mission for that vehicle fails closed. Completion, failure,
+cancellation, task-start failure, and task-lease loss all finalize the mission plan and
+release the exact command lease. Physical task interruption remains indeterminate and
+is never replayed.
 
 Restart behavior is intentionally simple. Simulator objects are runtime state. A pod
 restart recreates the configured world, cameras, and products through the one-shot

@@ -41,15 +41,17 @@ use crate::adapter::{Adapter, FakeAdapter, HttpAdapter};
 use crate::contract::{
     CameraCodec, CameraEncoder, CameraLifecycle, CameraState, CaptureDatasetRequest,
     CloseLiveViewRequest, CommandAcknowledgement, ConfigureWorldOutput, ConfigureWorldRequest,
-    DurableOperation, ExecuteMissionRequest, OpenLiveViewRequest, RenewLiveViewRequest,
-    RunScenarioRequest, SessionId, SessionRequest, SimulationCommand, SimulationLifecycle,
-    SimulationState, StepSimulationRequest, TakeoffRequest, TileLifecycle, TileState, VehicleId,
-    VehicleRequest, VehicleState, Wgs84Position,
+    ControlGrantId, DurableOperation, ExecuteVehicleMissionPlanRequest, GrantVehicleControlRequest,
+    MissionPlanId, OpenLiveViewRequest, PrepareVehicleMissionRequest, RenewLiveViewRequest,
+    RevokeVehicleControlRequest, RunScenarioRequest, SessionId, SessionRequest, SimulationCommand,
+    SimulationLifecycle, SimulationState, StepSimulationRequest, TakeoffRequest, TileLifecycle,
+    TileState, VehicleControlPermission, VehicleId, VehicleRequest, VehicleState, Wgs84Position,
 };
 use crate::uris;
 
 use super::auth::{InternalMcpAuthState, authenticate_internal_mcp};
 use super::config::{AdapterKind, Args};
+use super::control_authority::{ControlAuthorityError, VehicleControlAuthority};
 use super::host::validate_host;
 use super::live_view::{LiveViewConfig, LiveViewError, LiveViewService};
 use super::live_view_audit::LiveViewAudit;
@@ -57,7 +59,9 @@ use super::ownership::{internal_caller, internal_identity, runtime_owner};
 use super::prompts::UavSimPrompt;
 use super::state::AppState;
 use super::task_extension::UavSimTaskExtension;
-use super::task_worker::{await_result, resume_queued_operation, start_operation};
+use super::task_worker::{
+    await_result, resume_queued_operation, start_operation, start_vehicle_mission_plan,
+};
 
 const SERVER_SLUG: &str = "uav-sim";
 const LIST_PAGE_SIZE: usize = 100;
@@ -131,6 +135,50 @@ impl UavSimMcp {
         }
     }
 
+    async fn visible_state(
+        &self,
+        identity: &GatewayInternalIdentity,
+    ) -> Result<SimulationState, McpError> {
+        let mut state = self.current_state().await?;
+        if identity_has_scope(identity, "uav-sim:read")
+            || identity_has_scope(identity, "uav-sim:admin")
+        {
+            return Ok(state);
+        }
+        if !identity_has_scope(identity, "uav-sim:control") {
+            return Err(McpError::invalid_request(
+                "one of scopes uav-sim:read, uav-sim:control, uav-sim:admin is required",
+                None,
+            ));
+        }
+        let now = Utc::now();
+        let visible_vehicle_ids = self
+            .state
+            .control_authority
+            .visible_grants(identity, false)
+            .await
+            .map_err(authority_error)?
+            .into_iter()
+            .filter(|grant| {
+                grant.session_id == state.session_id
+                    && grant.revoked_at.is_none()
+                    && grant.valid_from <= now
+                    && grant.valid_until.is_none_or(|until| now < until)
+                    && grant
+                        .permissions
+                        .contains(&VehicleControlPermission::Inspect)
+            })
+            .map(|grant| grant.vehicle_id)
+            .collect::<BTreeSet<_>>();
+        state
+            .vehicles
+            .retain(|vehicle| visible_vehicle_ids.contains(&vehicle.vehicle_id));
+        state
+            .cameras
+            .retain(|camera| visible_vehicle_ids.contains(&camera.vehicle_id));
+        Ok(state)
+    }
+
     async fn apply_command(&self, command: SimulationCommand) -> Result<CallToolResult, McpError> {
         let result = self
             .state
@@ -148,6 +196,30 @@ impl UavSimMcp {
             .notify_resource_updated(uris::session(session_id))
             .await;
         structured_result(result.detail.clone(), &result)
+    }
+
+    async fn require_vehicle_permission(
+        &self,
+        context: &RequestContext<RoleServer>,
+        session_id: &SessionId,
+        vehicle_id: &VehicleId,
+        permission: VehicleControlPermission,
+    ) -> Result<GatewayInternalIdentity, McpError> {
+        let identity = require_scope(context, "uav-sim:control")?;
+        let state = self.state_for(session_id).await?;
+        if !state
+            .vehicles
+            .iter()
+            .any(|vehicle| &vehicle.vehicle_id == vehicle_id)
+        {
+            return Err(McpError::resource_not_found("vehicle not found", None));
+        }
+        self.state
+            .control_authority
+            .require_permission(&identity, session_id, vehicle_id, permission)
+            .await
+            .map_err(authority_error)?;
+        Ok(identity)
     }
 
     async fn start_and_wait(
@@ -178,7 +250,9 @@ impl UavSimMcp {
     async fn configure_world(
         &self,
         Parameters(request): Parameters<ConfigureWorldRequest>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        require_scope(&context, "uav-sim:admin")?;
         let output = self
             .state
             .adapter
@@ -205,9 +279,136 @@ impl UavSimMcp {
     async fn get_simulation_state(
         &self,
         Parameters(request): Parameters<SessionRequest>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let state = self.state_for(&request.session_id).await?;
+        let identity = require_any_scope(
+            &context,
+            &["uav-sim:read", "uav-sim:control", "uav-sim:admin"],
+        )?;
+        let state = self.visible_state(&identity).await?;
+        require_session(&state, request.session_id.as_str())?;
         structured_result("current UAV simulation state".to_owned(), &state)
+    }
+
+    #[tool(
+        title = "Grant vehicle control",
+        description = "Bind one authenticated principal to one simulated vehicle with explicit UAV-domain permissions and one exact Map mobility profile.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::VehicleControlGrant>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn grant_vehicle_control(
+        &self,
+        Parameters(request): Parameters<GrantVehicleControlRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let identity = require_scope(&context, "uav-sim:admin")?;
+        let state = self.state_for(&request.session_id).await?;
+        if !state
+            .vehicles
+            .iter()
+            .any(|vehicle| vehicle.vehicle_id == request.vehicle_id)
+        {
+            return Err(McpError::resource_not_found("vehicle not found", None));
+        }
+        let grant = self
+            .state
+            .control_authority
+            .grant(&identity, request)
+            .await
+            .map_err(authority_error)?;
+        self.state
+            .subscribers
+            .notify_resource_updated(uris::CONTROL_GRANTS)
+            .await;
+        self.state
+            .subscribers
+            .notify_resource_updated(uris::control_grant(&grant.grant_id))
+            .await;
+        structured_result(
+            format!("granted vehicle control {}", grant.grant_id),
+            &grant,
+        )
+    }
+
+    #[tool(
+        title = "Revoke vehicle control",
+        description = "Revoke one UAV-domain principal-to-vehicle grant using optimistic revision control.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::VehicleControlGrant>(),
+        annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
+    )]
+    async fn revoke_vehicle_control(
+        &self,
+        Parameters(request): Parameters<RevokeVehicleControlRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let identity = require_scope(&context, "uav-sim:admin")?;
+        let grant = self
+            .state
+            .control_authority
+            .revoke(&identity, request)
+            .await
+            .map_err(authority_error)?;
+        self.state
+            .subscribers
+            .notify_resource_updated(uris::CONTROL_GRANTS)
+            .await;
+        self.state
+            .subscribers
+            .notify_resource_updated(uris::control_grant(&grant.grant_id))
+            .await;
+        structured_result(
+            format!("revoked vehicle control {}", grant.grant_id),
+            &grant,
+        )
+    }
+
+    #[tool(
+        title = "Prepare vehicle mission",
+        description = "Admit one Map-produced route handoff for the calling principal's granted vehicle and immutable Frames world revision.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::VehicleMissionPlan>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
+    )]
+    async fn prepare_vehicle_mission(
+        &self,
+        Parameters(request): Parameters<PrepareVehicleMissionRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let identity = require_scope(&context, "uav-sim:control")?;
+        let state = self.state_for(&request.session_id).await?;
+        if !state
+            .vehicles
+            .iter()
+            .any(|vehicle| vehicle.vehicle_id == request.vehicle_id)
+        {
+            return Err(McpError::resource_not_found("vehicle not found", None));
+        }
+        let Some(world) = state.world else {
+            return Err(McpError::invalid_request(
+                "simulation world is not configured",
+                None,
+            ));
+        };
+        if request.expected_world_revision_uri != world.revision_uri {
+            return Err(McpError::invalid_params(
+                "mission expected_world_revision_uri does not match the session",
+                None,
+            ));
+        }
+        let plan = self
+            .state
+            .control_authority
+            .prepare_plan(&identity, request)
+            .await
+            .map_err(authority_error)?;
+        self.state
+            .subscribers
+            .notify_resource_updated(uris::MISSION_PLANS)
+            .await;
+        self.state
+            .subscribers
+            .notify_resource_updated(uris::mission_plan(&plan.plan_id))
+            .await;
+        structured_result(format!("prepared vehicle mission {}", plan.plan_id), &plan)
     }
 
     #[tool(
@@ -446,7 +647,9 @@ impl UavSimMcp {
     async fn pause_simulation(
         &self,
         Parameters(request): Parameters<SessionRequest>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        require_scope(&context, "uav-sim:admin")?;
         self.apply_command(SimulationCommand::Pause(request)).await
     }
 
@@ -459,7 +662,9 @@ impl UavSimMcp {
     async fn resume_simulation(
         &self,
         Parameters(request): Parameters<SessionRequest>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        require_scope(&context, "uav-sim:admin")?;
         self.apply_command(SimulationCommand::Resume(request)).await
     }
 
@@ -472,7 +677,9 @@ impl UavSimMcp {
     async fn reset_simulation(
         &self,
         Parameters(request): Parameters<SessionRequest>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        require_scope(&context, "uav-sim:admin")?;
         self.apply_command(SimulationCommand::Reset(request)).await
     }
 
@@ -485,7 +692,9 @@ impl UavSimMcp {
     async fn step_simulation(
         &self,
         Parameters(request): Parameters<StepSimulationRequest>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        require_scope(&context, "uav-sim:admin")?;
         self.apply_command(SimulationCommand::Step(request)).await
     }
 
@@ -498,7 +707,15 @@ impl UavSimMcp {
     async fn arm_vehicle(
         &self,
         Parameters(request): Parameters<VehicleRequest>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        self.require_vehicle_permission(
+            &context,
+            &request.session_id,
+            &request.vehicle_id,
+            VehicleControlPermission::Execute,
+        )
+        .await?;
         self.apply_command(SimulationCommand::Arm(request)).await
     }
 
@@ -511,7 +728,15 @@ impl UavSimMcp {
     async fn takeoff_vehicle(
         &self,
         Parameters(request): Parameters<TakeoffRequest>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        self.require_vehicle_permission(
+            &context,
+            &request.session_id,
+            &request.vehicle_id,
+            VehicleControlPermission::Execute,
+        )
+        .await?;
         self.apply_command(SimulationCommand::Takeoff(request))
             .await
     }
@@ -525,7 +750,15 @@ impl UavSimMcp {
     async fn land_vehicle(
         &self,
         Parameters(request): Parameters<VehicleRequest>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        self.require_vehicle_permission(
+            &context,
+            &request.session_id,
+            &request.vehicle_id,
+            VehicleControlPermission::Abort,
+        )
+        .await?;
         self.apply_command(SimulationCommand::Land(request)).await
     }
 
@@ -540,36 +773,32 @@ impl UavSimMcp {
         Parameters(request): Parameters<RunScenarioRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        require_scope(&context, "uav-sim:admin")?;
         self.start_and_wait(&context, DurableOperation::RunScenario(request))
             .await
     }
 
     #[tool(
-        title = "Execute UAV mission",
-        description = "Execute typed multi-vehicle waypoints as a durable non-replayable task.",
+        title = "Execute vehicle mission plan",
+        description = "Execute one admitted single-vehicle mission plan under the calling principal's exclusive UAV command lease.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::MissionResult>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
-    async fn execute_mission(
+    async fn execute_vehicle_mission_plan(
         &self,
-        Parameters(request): Parameters<ExecuteMissionRequest>,
+        Parameters(request): Parameters<ExecuteVehicleMissionPlanRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let state = self.state_for(&request.session_id).await?;
-        let Some(world) = &state.world else {
-            return Err(McpError::invalid_request(
-                "simulation world is not configured",
-                None,
-            ));
-        };
-        if request.expected_world_revision_uri != world.revision_uri {
-            return Err(McpError::invalid_params(
-                "mission expected_world_revision_uri does not match the session",
-                None,
-            ));
-        }
-        self.start_and_wait(&context, DurableOperation::ExecuteMission(request))
-            .await
+        require_scope(&context, "uav-sim:control")?;
+        let snapshot = start_vehicle_mission_plan(
+            self.state.clone(),
+            internal_caller(&context)?,
+            request,
+            BTreeSet::<TaskRetentionPin>::new(),
+        )
+        .await
+        .map_err(|error| McpError::invalid_request(error, None))?;
+        await_result(&self.state, &snapshot.task_id.to_string()).await
     }
 
     #[tool(
@@ -583,6 +812,7 @@ impl UavSimMcp {
         Parameters(request): Parameters<CaptureDatasetRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        require_scope(&context, "uav-sim:admin")?;
         self.start_and_wait(&context, DurableOperation::CaptureDataset(request))
             .await
     }
@@ -614,7 +844,7 @@ impl ServerHandler for UavSimMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new(SERVER_SLUG, env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Govern UAV simulation sessions through typed resources and bounded controls. Logical operator cameras render inside the authoritative simulator; every active viewer lease reserves its own camera clone, RTX render, NVIDIA NVENC product, and native WebRTC peer through ui://uav-sim/live.html. Use official Tasks for scenarios, missions, and dataset captures; live operations are not replayed after an indeterminate interruption."
+            "Govern UAV simulation sessions through typed resources and bounded controls. Map MCP owns operational geography and route handoffs; Frames owns immutable world revisions; this server owns principal-to-vehicle grants, mission admission, exclusive command leases, execution, telemetry, and the UAV App. Logical operator cameras render inside the authoritative simulator; every active viewer lease reserves its own camera clone, RTX render, NVIDIA NVENC product, and native WebRTC peer through ui://uav-sim/live.html. Use official Tasks for scenarios, admitted vehicle mission plans, and dataset captures; live operations are not replayed after an indeterminate interruption."
                 .to_owned(),
         );
         info
@@ -725,8 +955,9 @@ impl ServerHandler for UavSimMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
-        let state = self.current_state().await?;
-        let owner = runtime_owner(&internal_identity(&context)?);
+        let identity = internal_identity(&context)?;
+        let state = self.visible_state(&identity).await?;
+        let owner = runtime_owner(&identity);
         let tasks = self
             .state
             .tasks
@@ -735,7 +966,47 @@ impl ServerHandler for UavSimMcp {
             .map_err(internal)?;
         let mut resources = session_resources(&state);
         resources.extend(well_known_resources());
-        let identity = internal_identity(&context)?;
+        if identity_has_scope(&identity, "uav-sim:control")
+            || identity_has_scope(&identity, "uav-sim:admin")
+        {
+            let include_all = identity_has_scope(&identity, "uav-sim:admin");
+            let grants = self
+                .state
+                .control_authority
+                .visible_grants(&identity, include_all)
+                .await
+                .map_err(authority_error)?;
+            let plans = self
+                .state
+                .control_authority
+                .visible_plans(&identity, include_all)
+                .await
+                .map_err(authority_error)?;
+            resources.push(descriptor(
+                uris::CONTROL_GRANTS.to_owned(),
+                "Vehicle control grants".to_owned(),
+                "Caller-visible UAV principal-to-vehicle authority grants.",
+            ));
+            resources.push(descriptor(
+                uris::MISSION_PLANS.to_owned(),
+                "Vehicle mission plans".to_owned(),
+                "Caller-visible UAV mission plans admitted from Map route handoffs.",
+            ));
+            resources.extend(grants.iter().map(|grant| {
+                descriptor(
+                    uris::control_grant(&grant.grant_id),
+                    format!("Vehicle control grant {}", grant.grant_id),
+                    "One UAV-owned principal-to-vehicle authority grant.",
+                )
+            }));
+            resources.extend(plans.iter().map(|plan| {
+                descriptor(
+                    uris::mission_plan(&plan.plan_id),
+                    format!("Vehicle mission plan {}", plan.plan_id),
+                    "One UAV-owned mission plan admitted from a Map route handoff.",
+                )
+            }));
+        }
         if identity_has_scope(&identity, "uav-sim:stream") {
             resources.push(live_app_resource(&self.state.live_view_connect_origin));
             let live_session_id: LiveSessionId =
@@ -831,7 +1102,53 @@ impl ServerHandler for UavSimMcp {
                 internal_identity(&context)?;
                 return json_resource(uri, SERVER_DOCS.contract_declaration());
             }
-            let state = self.current_state().await?;
+            if uri == uris::CONTROL_GRANTS || uris::parse_control_grant(uri).is_some() {
+                let identity = require_any_scope(&context, &["uav-sim:control", "uav-sim:admin"])?;
+                let grants = self
+                    .state
+                    .control_authority
+                    .visible_grants(&identity, identity_has_scope(&identity, "uav-sim:admin"))
+                    .await
+                    .map_err(authority_error)?;
+                if uri == uris::CONTROL_GRANTS {
+                    return json_resource(uri, &grants);
+                }
+                let grant_id = ControlGrantId::new(
+                    uris::parse_control_grant(uri).expect("checked control grant URI"),
+                )
+                .map_err(invalid)?;
+                let grant = grants
+                    .iter()
+                    .find(|grant| grant.grant_id == grant_id)
+                    .ok_or_else(|| McpError::resource_not_found("control grant not found", None))?;
+                return json_resource(uri, grant);
+            }
+            if uri == uris::MISSION_PLANS || uris::parse_mission_plan(uri).is_some() {
+                let identity = require_any_scope(&context, &["uav-sim:control", "uav-sim:admin"])?;
+                let plans = self
+                    .state
+                    .control_authority
+                    .visible_plans(&identity, identity_has_scope(&identity, "uav-sim:admin"))
+                    .await
+                    .map_err(authority_error)?;
+                if uri == uris::MISSION_PLANS {
+                    return json_resource(uri, &plans);
+                }
+                let plan_id = MissionPlanId::new(
+                    uris::parse_mission_plan(uri).expect("checked mission plan URI"),
+                )
+                .map_err(invalid)?;
+                let plan = plans
+                    .iter()
+                    .find(|plan| plan.plan_id == plan_id)
+                    .ok_or_else(|| McpError::resource_not_found("mission plan not found", None))?;
+                return json_resource(uri, plan);
+            }
+            let identity = require_any_scope(
+                &context,
+                &["uav-sim:read", "uav-sim:control", "uav-sim:admin"],
+            )?;
+            let state = self.visible_state(&identity).await?;
             if let Some(session_id) = uris::parse_live_cameras(uri) {
                 require_scope(&context, "uav-sim:stream")?;
                 require_session(&state, session_id.as_str())?;
@@ -1018,8 +1335,9 @@ impl ServerHandler for UavSimMcp {
         let Reference::Resource(reference) = &request.r#ref else {
             return Ok(CompleteResult::default());
         };
-        let state = self.current_state().await?;
-        let owner = runtime_owner(&internal_identity(&context)?);
+        let identity = internal_identity(&context)?;
+        let state = self.visible_state(&identity).await?;
+        let owner = runtime_owner(&identity);
         let tasks = self
             .state
             .tasks
@@ -1059,6 +1377,28 @@ impl ServerHandler for UavSimMcp {
                 .filter_map(mission_id)
                 .map(|id| id.to_string())
                 .collect(),
+            (uris::CONTROL_GRANT_TEMPLATE, "grant_id") => {
+                require_any_identity_scope(&identity, &["uav-sim:control", "uav-sim:admin"])?;
+                self.state
+                    .control_authority
+                    .visible_grants(&identity, identity_has_scope(&identity, "uav-sim:admin"))
+                    .await
+                    .map_err(authority_error)?
+                    .into_iter()
+                    .map(|grant| grant.grant_id.to_string())
+                    .collect()
+            }
+            (uris::MISSION_PLAN_TEMPLATE, "plan_id") => {
+                require_any_identity_scope(&identity, &["uav-sim:control", "uav-sim:admin"])?;
+                self.state
+                    .control_authority
+                    .visible_plans(&identity, identity_has_scope(&identity, "uav-sim:admin"))
+                    .await
+                    .map_err(authority_error)?
+                    .into_iter()
+                    .map(|plan| plan.plan_id.to_string())
+                    .collect()
+            }
             (uris::USAGE_TASK_TEMPLATE, "task_id") => {
                 tasks.iter().map(|task| task.task_id.to_string()).collect()
             }
@@ -1077,7 +1417,49 @@ impl UavSimMcp {
         uri: &str,
         context: &RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
-        let state = self.current_state().await?;
+        let identity = internal_identity(context)?;
+        let state = self.visible_state(&identity).await?;
+        if uri == uris::CONTROL_GRANTS || uris::parse_control_grant(uri).is_some() {
+            let identity = require_any_scope(context, &["uav-sim:control", "uav-sim:admin"])?;
+            if uri == uris::CONTROL_GRANTS {
+                return Ok(());
+            }
+            let requested = uris::parse_control_grant(uri).expect("checked control grant URI");
+            if self
+                .state
+                .control_authority
+                .visible_grants(&identity, identity_has_scope(&identity, "uav-sim:admin"))
+                .await
+                .map_err(authority_error)?
+                .iter()
+                .any(|grant| grant.grant_id.as_str() == requested)
+            {
+                return Ok(());
+            }
+            return Err(McpError::resource_not_found(
+                "control grant not found",
+                None,
+            ));
+        }
+        if uri == uris::MISSION_PLANS || uris::parse_mission_plan(uri).is_some() {
+            let identity = require_any_scope(context, &["uav-sim:control", "uav-sim:admin"])?;
+            if uri == uris::MISSION_PLANS {
+                return Ok(());
+            }
+            let requested = uris::parse_mission_plan(uri).expect("checked mission plan URI");
+            if self
+                .state
+                .control_authority
+                .visible_plans(&identity, identity_has_scope(&identity, "uav-sim:admin"))
+                .await
+                .map_err(authority_error)?
+                .iter()
+                .any(|plan| plan.plan_id.as_str() == requested)
+            {
+                return Ok(());
+            }
+            return Err(McpError::resource_not_found("mission plan not found", None));
+        }
         if let Some(session_id) = live_session_from_subscribable(uri) {
             require_scope(context, "uav-sim:stream")?;
             require_session(&state, session_id.as_str())?;
@@ -1167,6 +1549,7 @@ pub(super) async fn serve() -> anyhow::Result<()> {
     )
     .await?;
     let recovery = tasks.recover().await?;
+    let control_authority = VehicleControlAuthority::new(tasks.platform_store().clone());
     let adapter = match args.adapter {
         AdapterKind::Http => Adapter::Http(Box::new(HttpAdapter::new(
             args.adapter_url()?,
@@ -1214,6 +1597,7 @@ pub(super) async fn serve() -> anyhow::Result<()> {
     let state = Arc::new(AppState {
         adapter,
         tasks,
+        control_authority,
         subscribers: subscribers.clone(),
         live_views: live_views.clone(),
         live_view_audit,
@@ -1655,6 +2039,16 @@ fn resource_templates() -> Vec<ResourceTemplate> {
             "Authorized durable mission task state.",
         ),
         template(
+            uris::CONTROL_GRANT_TEMPLATE,
+            "Vehicle control grant",
+            "One UAV-owned principal-to-vehicle authority grant.",
+        ),
+        template(
+            uris::MISSION_PLAN_TEMPLATE,
+            "Vehicle mission plan",
+            "One UAV-owned plan admitted from a Map route handoff.",
+        ),
+        template(
             uris::USAGE_TASK_TEMPLATE,
             "Simulation task usage",
             "Usage report for one authorized task.",
@@ -1846,6 +2240,49 @@ fn require_scope(
     identity_has_scope(&identity, required)
         .then_some(identity)
         .ok_or_else(|| McpError::invalid_request(format!("scope `{required}` is required"), None))
+}
+
+fn require_any_scope(
+    context: &RequestContext<RoleServer>,
+    required: &[&str],
+) -> Result<GatewayInternalIdentity, McpError> {
+    let identity = internal_identity(context)?;
+    require_any_identity_scope(&identity, required)?;
+    Ok(identity)
+}
+
+fn require_any_identity_scope(
+    identity: &GatewayInternalIdentity,
+    required: &[&str],
+) -> Result<(), McpError> {
+    required
+        .iter()
+        .any(|required| identity_has_scope(identity, required))
+        .then_some(())
+        .ok_or_else(|| {
+            McpError::invalid_request(
+                format!("one of scopes {} is required", required.join(", ")),
+                None,
+            )
+        })
+}
+
+fn authority_error(error: ControlAuthorityError) -> McpError {
+    match error {
+        ControlAuthorityError::Invalid(message) => McpError::invalid_params(message, None),
+        ControlAuthorityError::Forbidden => {
+            McpError::invalid_request("vehicle control is not authorized", None)
+        }
+        ControlAuthorityError::NotFound => {
+            McpError::resource_not_found("vehicle control record not found", None)
+        }
+        ControlAuthorityError::Conflict | ControlAuthorityError::VehicleBusy(_) => {
+            McpError::invalid_request(error.to_string(), None)
+        }
+        ControlAuthorityError::Store(_)
+        | ControlAuthorityError::Database(_)
+        | ControlAuthorityError::Json(_) => McpError::internal_error(error.to_string(), None),
+    }
 }
 
 fn identity_has_scope(identity: &GatewayInternalIdentity, required: &str) -> bool {

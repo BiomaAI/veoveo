@@ -2,6 +2,7 @@
 mod admin;
 mod auth;
 mod config;
+mod control_authority;
 mod host;
 mod live_view;
 mod live_view_audit;

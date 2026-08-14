@@ -1,7 +1,7 @@
 # UAV Sim MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 2.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
 
 ## Purpose
 
@@ -20,9 +20,18 @@ authoritative operator cameras and encoded products.
 - MAVLink and ROS 2 remain data plane protocols; they are never projected as
   high rate MCP tools. The simulator adapter HTTP endpoint stays cluster
   private and accepts only typed requests from this server.
-- Durable tools (`run_scenario`, `execute_mission`, `capture_dataset`) use
+- Durable tools (`run_scenario`, `execute_vehicle_mission_plan`, `capture_dataset`) use
   `interrupted_indeterminate` recovery; live simulator work is never replayed
   after an unclean interruption. Compatibility task tools are not added.
+- Map MCP owns place resolution, active operational geography, mobility profiles,
+  restrictions, routing, and `veoveo.io/map-route-handoff/v1`. Frames MCP owns
+  immutable world revisions. This server owns principal-to-vehicle grants,
+  mission admission, exclusive command leases, execution, telemetry, and its
+  domain App. Do not move Map or Frames behavior into UAV code.
+- A gateway scope, agent manifest, message target, or requested vehicle ID never
+  grants vehicle authority. Every vehicle mutation requires a current UAV-owned
+  principal grant; mission execution additionally requires the exact admitted
+  plan revision and an exclusive vehicle command lease.
 - Every session starts `unconfigured`. `configure_world` binds it exactly once
   to an immutable Frames world revision and a static simulation frame from that
   revision. The adapter derives Cesium and Pegasus georeferencing from that
@@ -66,7 +75,7 @@ authoritative operator cameras and encoded products.
 
 ## Contract Compliance
 
-Contract revision: 2
+Contract revision: 3
 
 - C01: met
 - C02: met
@@ -98,3 +107,4 @@ Contract revision: 2
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
 - C24: met
+- C31: met

@@ -113,6 +113,14 @@ domain_id!(
     "Stable identity of one vehicle inside a session."
 );
 domain_id!(MissionId, "Stable identity of one submitted mission.");
+domain_id!(
+    MissionPlanId,
+    "Stable identity of one admitted single-vehicle mission plan."
+);
+domain_id!(
+    ControlGrantId,
+    "Stable identity of one principal-to-vehicle control grant."
+);
 domain_id!(RecordingId, "Stable identity of one governed recording.");
 domain_id!(RecordingKey, "Producer identity of one recording stream.");
 
@@ -228,6 +236,25 @@ pub enum MissionLifecycle {
     Failed,
 }
 
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum VehicleControlPermission {
+    Inspect,
+    Plan,
+    Execute,
+    Abort,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MissionPlanLifecycle {
+    Prepared,
+    Executing,
+    Completed,
+    Failed,
+    Cancelled,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EnuVector {
@@ -307,6 +334,128 @@ pub struct VehicleState {
     pub battery_percent: f32,
     pub collision_count: u64,
     pub px4_connected: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct GrantVehicleControlRequest {
+    pub grant_id: ControlGrantId,
+    pub session_id: SessionId,
+    pub vehicle_id: VehicleId,
+    pub principal_key: String,
+    pub permissions: std::collections::BTreeSet<VehicleControlPermission>,
+    pub map_mobility_profile_uri: String,
+    #[serde(default)]
+    pub allow_planning_advisory: bool,
+    pub valid_from: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub valid_until: Option<DateTime<Utc>>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RevokeVehicleControlRequest {
+    pub grant_id: ControlGrantId,
+    pub expected_revision: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VehicleControlGrant {
+    pub grant_id: ControlGrantId,
+    pub session_id: SessionId,
+    pub vehicle_id: VehicleId,
+    pub principal_key: String,
+    pub permissions: std::collections::BTreeSet<VehicleControlPermission>,
+    pub map_mobility_profile_uri: String,
+    pub allow_planning_advisory: bool,
+    pub valid_from: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub valid_until: Option<DateTime<Utc>>,
+    pub created_by: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revoked_at: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revoked_by: Option<String>,
+    pub revision: u64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+pub const MAP_ROUTE_HANDOFF_SCHEMA: &str = "veoveo.io/map-route-handoff/v1";
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MapRouteHandoffStatus {
+    PlanningAdvisory,
+    Validated,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct MapRoutePosition {
+    pub longitude_deg: f64,
+    pub latitude_deg: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ellipsoidal_height_m: Option<f64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct MapRouteHandoff {
+    pub schema_profile: String,
+    pub route_uri: String,
+    pub route_digest_sha256: String,
+    pub route_status: MapRouteHandoffStatus,
+    pub mobility_profile_uri: String,
+    #[schemars(length(min = 2, max = 10_000))]
+    pub path: Vec<MapRoutePosition>,
+    pub validation_id: String,
+    pub validated_at: DateTime<Utc>,
+    pub operational_snapshot_id: String,
+    pub base_release_ids: Vec<String>,
+    pub restriction_ids: Vec<String>,
+    pub prepared_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PrepareVehicleMissionRequest {
+    pub session_id: SessionId,
+    pub mission_id: MissionId,
+    pub vehicle_id: VehicleId,
+    pub expected_world_revision_uri: FrameWorldRevisionUri,
+    pub map_route: MapRouteHandoff,
+    #[schemars(range(min = 0.1, max = 100.0))]
+    pub speed_mps: f64,
+    #[schemars(range(min = 0.0, max = 3600.0))]
+    pub hold_seconds_at_destination: f64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ExecuteVehicleMissionPlanRequest {
+    pub plan_id: MissionPlanId,
+    pub expected_revision: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VehicleMissionPlan {
+    pub plan_id: MissionPlanId,
+    pub mission_id: MissionId,
+    pub principal_key: String,
+    pub session_id: SessionId,
+    pub vehicle_id: VehicleId,
+    pub expected_world_revision_uri: FrameWorldRevisionUri,
+    pub map_route: MapRouteHandoff,
+    pub speed_mps: f64,
+    pub hold_seconds_at_destination: f64,
+    pub state: MissionPlanLifecycle,
+    pub expires_at: DateTime<Utc>,
+    pub revision: u64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -570,7 +719,7 @@ impl DurableOperation {
     pub const fn task_type(&self) -> &'static str {
         match self {
             Self::RunScenario(_) => "run_scenario",
-            Self::ExecuteMission(_) => "execute_mission",
+            Self::ExecuteMission(_) => "execute_vehicle_mission_plan",
             Self::CaptureDataset(_) => "capture_dataset",
         }
     }
@@ -647,5 +796,35 @@ mod tests {
             sensors: vec!["down-camera".to_owned()],
         });
         assert_eq!(operation.task_type(), "capture_dataset");
+    }
+
+    #[test]
+    fn map_route_handoff_wire_shape_is_consumable_without_translation() {
+        let now = Utc::now();
+        let produced = veoveo_map_mcp::MapRouteHandoff {
+            schema_profile: veoveo_map_mcp::MAP_ROUTE_HANDOFF_SCHEMA.to_owned(),
+            route_uri: format!("map://route/{}", veoveo_map_mcp::RouteId::new()),
+            route_digest_sha256: "a".repeat(64),
+            route_status: veoveo_map_mcp::RouteStatus::Validated,
+            mobility_profile_uri: "map://mobility-profile/uas-demo/1".to_owned(),
+            path: vec![
+                veoveo_map_mcp::contract::Wgs84Position::new(-74.006, 40.7128, Some(100.0))
+                    .unwrap(),
+                veoveo_map_mcp::contract::Wgs84Position::new(-74.0445, 40.6892, Some(100.0))
+                    .unwrap(),
+            ],
+            validation_id: veoveo_map_mcp::ValidationId::new(),
+            validated_at: now,
+            operational_snapshot_id: "snapshot-demo".to_owned(),
+            base_release_ids: vec!["release-demo".to_owned()],
+            restriction_ids: Vec::new(),
+            prepared_at: now,
+        };
+
+        let consumed: MapRouteHandoff =
+            serde_json::from_value(serde_json::to_value(produced).unwrap()).unwrap();
+        assert_eq!(consumed.schema_profile, MAP_ROUTE_HANDOFF_SCHEMA);
+        assert_eq!(consumed.route_status, MapRouteHandoffStatus::Validated);
+        assert_eq!(consumed.path.len(), 2);
     }
 }

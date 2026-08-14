@@ -124,6 +124,9 @@
       "tools": [
         "configure_world",
         "get_simulation_state",
+        "grant_vehicle_control",
+        "revoke_vehicle_control",
+        "prepare_vehicle_mission",
         "list_live_cameras",
         "open_live_view",
         "renew_live_view",
@@ -136,7 +139,7 @@
         "takeoff_vehicle",
         "land_vehicle",
         "run_scenario",
-        "execute_mission",
+        "execute_vehicle_mission_plan",
         "capture_dataset"
       ],
       "prompts": [
@@ -144,8 +147,7 @@
         "uav-sim-session-review"
       ],
       "required_scopes": [
-        "operator:use",
-        "uav-sim:stream"
+        "operator:use"
       ],
       "metadata": {
         "runtime": "isaac-sim-6.0.1",
@@ -154,6 +156,7 @@
       "resource_projection": "server_owned",
       "referenced_resource_schemes": [
         "frames",
+        "map",
         "recording"
       ]
     },
@@ -4057,6 +4060,9 @@
           "tools": [
             "configure_world",
             "get_simulation_state",
+            "grant_vehicle_control",
+            "revoke_vehicle_control",
+            "prepare_vehicle_mission",
             "pause_simulation",
             "resume_simulation",
             "reset_simulation",
@@ -4065,7 +4071,7 @@
             "takeoff_vehicle",
             "land_vehicle",
             "run_scenario",
-            "execute_mission",
+            "execute_vehicle_mission_plan",
             "capture_dataset"
           ],
           "resource_schemes": [
@@ -4148,6 +4154,9 @@
           "tools": [
             "configure_world",
             "get_simulation_state",
+            "grant_vehicle_control",
+            "revoke_vehicle_control",
+            "prepare_vehicle_mission",
             "pause_simulation",
             "resume_simulation",
             "reset_simulation",
@@ -4156,7 +4165,7 @@
             "takeoff_vehicle",
             "land_vehicle",
             "run_scenario",
-            "execute_mission",
+            "execute_vehicle_mission_plan",
             "capture_dataset"
           ],
           "resource_schemes": [
@@ -4365,6 +4374,8 @@
       ],
       "allowed_scopes": [
         "operator:use",
+        "uav-sim:read",
+        "uav-sim:control",
         "uav-sim:stream",
         "view:read",
         "view:write",
@@ -4428,6 +4439,8 @@
       ],
       "allowed_scopes": [
         "operator:use",
+        "uav-sim:read",
+        "uav-sim:control",
         "uav-sim:stream",
         "view:read",
         "view:write",
@@ -4481,6 +4494,9 @@
       "allowed_scopes": [
         "operator:use",
         "admin:manage",
+        "uav-sim:read",
+        "uav-sim:control",
+        "uav-sim:admin",
         "uav-sim:stream",
         "view:read",
         "view:write",
@@ -4534,6 +4550,8 @@
       ],
       "allowed_scopes": [
         "operator:use",
+        "uav-sim:read",
+        "uav-sim:control",
         "uav-sim:stream",
         "view:read",
         "view:write",
@@ -4581,6 +4599,9 @@
       "allowed_scopes": [
         "operator:use",
         "admin:manage",
+        "uav-sim:read",
+        "uav-sim:control",
+        "uav-sim:admin",
         "uav-sim:stream",
         "view:read",
         "view:write",
@@ -4631,6 +4652,7 @@
       ],
       "allowed_scopes": [
         "operator:use",
+        "uav-sim:control",
         "uav-sim:stream",
         "view:read",
         "view:write",

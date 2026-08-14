@@ -60,7 +60,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) | temporal authority, operational calendars, clock quality, and events |
 | [`servers/timeseries-mcp/DESIGN.md`](../servers/timeseries-mcp/DESIGN.md) | timeseries forecasting, preview contract, and the forecast MCP App view |
 | [`servers/view-mcp/DESIGN.md`](../servers/view-mcp/DESIGN.md) | governed static scene compositions, 3D Tiles residency, declarative overlays, and GPU frame capture |
-| [`servers/uav-sim-mcp/DESIGN.md`](../servers/uav-sim-mcp/DESIGN.md) | governed UAV simulation sessions, missions, vehicles, tiles, recordings, authoritative cameras and render products, ephemeral viewer leases, signaling, and the live-view App |
+| [`servers/uav-sim-mcp/DESIGN.md`](../servers/uav-sim-mcp/DESIGN.md) | governed UAV simulation sessions, principal-to-vehicle authority, Map route admission, exclusive command leases, telemetry, authoritative cameras and render products, signaling, and the UAV App |
 
 Deployment, examples, templates, and fixtures keep their instructions beside the
 material they operate:
@@ -274,6 +274,7 @@ The only durable platform persistence layer.
 | `usage.rs` | shared domain/media usage records |
 | `outbox.rs`, `changefeed.rs` | transactional events, checkpoints, LIVE acceleration |
 | `live_views.rs` | append-only audit records for authoritative simulation live-view products and ephemeral viewer leases |
+| `migrations/0040_uav_vehicle_authority.surql` | UAV-owned principal-to-vehicle grants, admitted single-vehicle mission plans, and exclusive command leases scoped by tenant and Work Context |
 | `store.rs` | connection and transaction helpers over domain records |
 
 Migrations `0001` through the current version live under `migrations/`. Runtime services
@@ -402,7 +403,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifacts |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | immutable governed scene compositions, owner and Work Context scoped geospatial views, shared 3D Tiles streaming, GPU overlays, and captured frames |
-| `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, missions, vehicles, tasks, subscriptions, recording references, authoritative logical cameras, isolated per-viewer GPU products, ephemeral viewer leases, authenticated signaling, and the live-view App |
+| `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, principal-to-vehicle grants, Map route admission, exclusive command leases, missions, telemetry, tasks, recording references, authoritative logical cameras, isolated per-viewer GPU products, authenticated signaling, and the UAV App |
 
 The packaged Node chart server keeps its Veoveo boundary beside the image:
 
@@ -565,8 +566,9 @@ Authoritative simulation live-view ownership:
 | Path | Responsibility |
 |---|---|
 | `mcp/contract/src/live_view.rs` | shared provider-neutral logical-camera, encoded-product, per-viewer lease, capacity, health, and signaling contract |
-| `servers/uav-sim-mcp/src/contract.rs` | UAV session and authoritative live-view tool schemas built from the shared contract |
-| `servers/uav-sim-mcp/src/server/state.rs` | authoritative session, vehicle, mission, logical-camera, and product state |
+| `servers/uav-sim-mcp/src/contract.rs` | UAV session, control-grant, Map handoff consumer, mission-plan, and authoritative live-view schemas built from the shared contract |
+| `servers/uav-sim-mcp/src/server/state.rs` | composed simulator, durable control-authority, task, logical-camera, and product services |
+| `servers/uav-sim-mcp/src/server/control_authority.rs` | Work Context-scoped principal-to-vehicle grants, strict Map handoff admission, mission plans, and exclusive command-lease lifecycle |
 | `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser viewer leases, exclusive viewer-slot assignment, bounded capacity, expiry, closure, and typed denial behavior |
 | `servers/uav-sim-mcp/src/server/signaling.rs` | authenticated signaling sessions that attach viewer peers to simulator-owned encoded products |
 | `servers/uav-sim-mcp/src/server/live_view_audit.rs` | append-only live-view audit writes without runtime coupling |
