@@ -29,6 +29,7 @@ const NAMESPACE: &str = "veoveo";
 const GOOGLE_PHOTOREALISTIC_3D_TILES_ASSET_ID: u64 = 2_275_207;
 const OPERATOR_PROFILE_SCOPES: &[&str] = &[
     "operator:use",
+    "uav-sim:read",
     "uav-sim:stream",
     "view:read",
     "view:write",
