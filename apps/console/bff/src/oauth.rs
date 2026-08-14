@@ -37,16 +37,25 @@ pub(crate) async fn login(
     State(state): State<AppState>,
     Query(query): Query<LoginQuery>,
 ) -> Response {
-    match begin_login(&state, query.return_to.as_deref()) {
+    let return_path = ConsoleReturnPath::from_untrusted(query.return_to.as_deref());
+    if let Some(failure) = authorization_configuration_failure(&state).await {
+        return callback_error(&state, failure.status(), failure, Some(&return_path));
+    }
+    match begin_login(&state, return_path.clone()) {
         Ok(response) => response,
         Err(error) => {
             tracing::error!(%error, "failed to begin console login");
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            callback_error(
+                &state,
+                CallbackFailure::Internal.status(),
+                CallbackFailure::Internal,
+                Some(&return_path),
+            )
         }
     }
 }
 
-fn begin_login(state: &AppState, return_to: Option<&str>) -> anyhow::Result<Response> {
+fn begin_login(state: &AppState, return_path: ConsoleReturnPath) -> anyhow::Result<Response> {
     let oauth_state = random_value()?;
     let code_verifier = random_value()?;
     let code_challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(code_verifier.as_bytes()));
@@ -54,7 +63,7 @@ fn begin_login(state: &AppState, return_to: Option<&str>) -> anyhow::Result<Resp
         state: oauth_state.clone(),
         code_verifier,
         expires_at: Utc::now().timestamp() + 600,
-        return_path: ConsoleReturnPath::from_untrusted(return_to),
+        return_path,
     };
     let encrypted = state.sessions.seal(&pending, AUTHORIZATION_AAD)?;
     let mut authorize = state.config.authorize_url();
@@ -71,6 +80,63 @@ fn begin_login(state: &AppState, return_to: Option<&str>) -> anyhow::Result<Resp
     let mut headers = no_store_headers();
     set_authorization_cookie(&mut headers, &encrypted, state.config.secure_cookie())?;
     Ok((headers, Redirect::to(authorize.as_str())).into_response())
+}
+
+#[derive(Debug, Deserialize)]
+struct ProtectedResourceMetadata {
+    resource: String,
+    scopes_supported: BTreeSet<ScopeName>,
+}
+
+async fn authorization_configuration_failure(state: &AppState) -> Option<CallbackFailure> {
+    let response = match state
+        .http
+        .get(state.config.protected_resource_metadata_url())
+        .header(HOST, state.config.gateway_host())
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(error) => {
+            tracing::error!(%error, "failed to read Console protected-resource metadata");
+            return Some(CallbackFailure::ProviderUnavailable);
+        }
+    };
+    if !response.status().is_success() {
+        tracing::error!(
+            status = %response.status(),
+            "gateway rejected Console protected-resource metadata discovery"
+        );
+        return Some(CallbackFailure::ProviderUnavailable);
+    }
+    let metadata = match response.json::<ProtectedResourceMetadata>().await {
+        Ok(metadata) => metadata,
+        Err(error) => {
+            tracing::error!(%error, "gateway returned invalid protected-resource metadata");
+            return Some(CallbackFailure::ProviderUnavailable);
+        }
+    };
+    if authorization_configuration_matches(
+        state.config.oauth_resource().as_str(),
+        state.config.oauth_scopes(),
+        &metadata,
+    ) {
+        None
+    } else {
+        tracing::error!(
+            resource = %metadata.resource,
+            "Console OAuth configuration does not match the active protected resource"
+        );
+        Some(CallbackFailure::AuthorizationChanged)
+    }
+}
+
+fn authorization_configuration_matches(
+    resource: &str,
+    required_scopes: &BTreeSet<ScopeName>,
+    metadata: &ProtectedResourceMetadata,
+) -> bool {
+    metadata.resource == resource && required_scopes.is_subset(&metadata.scopes_supported)
 }
 
 #[derive(Debug, Deserialize)]
@@ -748,6 +814,41 @@ mod tests {
         assert!(body.contains("Retry sign-in"));
         assert!(body.contains("Return to Console"));
         assert!(!body.contains("invalid_scope"));
+    }
+
+    #[test]
+    fn authorization_configuration_requires_exact_resource_and_complete_scope_support() {
+        let required = ["admin:manage", "operator:use"]
+            .into_iter()
+            .map(|scope| ScopeName::new(scope).unwrap())
+            .collect();
+        let metadata = ProtectedResourceMetadata {
+            resource: "https://console.example/mcp/admin".to_owned(),
+            scopes_supported: ["admin:manage", "operator:use", "view:read"]
+                .into_iter()
+                .map(|scope| ScopeName::new(scope).unwrap())
+                .collect(),
+        };
+        assert!(authorization_configuration_matches(
+            "https://console.example/mcp/admin",
+            &required,
+            &metadata
+        ));
+
+        let missing_scope = ["admin:manage", "operator:use", "view:write"]
+            .into_iter()
+            .map(|scope| ScopeName::new(scope).unwrap())
+            .collect();
+        assert!(!authorization_configuration_matches(
+            "https://console.example/mcp/admin",
+            &missing_scope,
+            &metadata
+        ));
+        assert!(!authorization_configuration_matches(
+            "https://console.example/mcp/operator",
+            &required,
+            &metadata
+        ));
     }
 
     #[test]
