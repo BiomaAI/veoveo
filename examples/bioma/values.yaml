@@ -27,8 +27,6 @@ consoleBff:
   oauthScopes:
     - operator:use
     - admin:manage
-    - uav-sim:read
-    - uav-sim:control
     - uav-sim:admin
     - uav-sim:stream
     - map:admin

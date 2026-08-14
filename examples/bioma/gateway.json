@@ -4639,8 +4639,6 @@
       "allowed_scopes": [
         "operator:use",
         "admin:manage",
-        "uav-sim:read",
-        "uav-sim:control",
         "uav-sim:admin",
         "uav-sim:stream",
         "view:read",
