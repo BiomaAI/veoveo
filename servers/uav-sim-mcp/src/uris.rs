@@ -1,4 +1,4 @@
-use crate::contract::{MissionId, SessionId, VehicleId};
+use crate::contract::{ControlGrantId, MissionId, MissionPlanId, SessionId, VehicleId};
 use veoveo_mcp_contract::{
     LiveCameraId, LiveSessionId, LiveStreamProductId, LiveViewId, ServerResourceUris,
 };
@@ -11,6 +11,8 @@ pub const DOCS: &str = "uav-sim://docs";
 pub const CONTRACT: &str = "uav-sim://contract";
 pub const SESSIONS: &str = "uav-sim://sessions";
 pub const USAGE: &str = "uav-sim://usage";
+pub const CONTROL_GRANTS: &str = "uav-sim://control-grants";
+pub const MISSION_PLANS: &str = "uav-sim://mission-plans";
 pub const LIVE_APP_URI: &str = "ui://uav-sim/live.html";
 pub const DOC_TEMPLATE: &str = "uav-sim://docs/{doc_id}";
 pub const SESSION_TEMPLATE: &str = "uav-sim://session/{session_id}";
@@ -20,6 +22,8 @@ pub const VEHICLES_TEMPLATE: &str = "uav-sim://session/{session_id}/vehicles";
 pub const VEHICLE_TEMPLATE: &str = "uav-sim://session/{session_id}/vehicle/{vehicle_id}";
 pub const RECORDINGS_TEMPLATE: &str = "uav-sim://session/{session_id}/recordings";
 pub const MISSION_TEMPLATE: &str = "uav-sim://mission/{mission_id}";
+pub const CONTROL_GRANT_TEMPLATE: &str = "uav-sim://control-grant/{grant_id}";
+pub const MISSION_PLAN_TEMPLATE: &str = "uav-sim://mission-plan/{plan_id}";
 pub const USAGE_TASK_TEMPLATE: &str = "uav-sim://usage/task/{task_id}";
 pub const LIVE_CAMERAS_TEMPLATE: &str = "uav-sim://session/{session_id}/live-cameras";
 pub const LIVE_CAMERA_TEMPLATE: &str = "uav-sim://session/{session_id}/live-camera/{camera_id}";
@@ -83,6 +87,14 @@ pub fn doc(doc_id: &str) -> String {
 
 pub fn mission(mission_id: &MissionId) -> String {
     format!("uav-sim://mission/{mission_id}")
+}
+
+pub fn control_grant(grant_id: &ControlGrantId) -> String {
+    format!("uav-sim://control-grant/{grant_id}")
+}
+
+pub fn mission_plan(plan_id: &MissionPlanId) -> String {
+    format!("uav-sim://mission-plan/{plan_id}")
 }
 
 pub fn usage_task(task_id: &str) -> String {
@@ -154,6 +166,14 @@ pub fn parse_mission(uri: &str) -> Option<&str> {
     parse_one(uri, "uav-sim://mission/")
 }
 
+pub fn parse_control_grant(uri: &str) -> Option<&str> {
+    parse_one(uri, "uav-sim://control-grant/")
+}
+
+pub fn parse_mission_plan(uri: &str) -> Option<&str> {
+    parse_one(uri, "uav-sim://mission-plan/")
+}
+
 pub fn parse_usage_task(uri: &str) -> Option<&str> {
     ServerResourceUris::new(SCHEME).parse_usage_task_uri(uri)
 }
@@ -200,6 +220,13 @@ mod tests {
             Some(("alpha", "uav-1"))
         );
         assert_eq!(parse_usage_task(&usage_task("task-1")), Some("task-1"));
+        let grant_id = ControlGrantId::new("pilot-uav-1").unwrap();
+        let plan_id = MissionPlanId::new("plan-1").unwrap();
+        assert_eq!(
+            parse_control_grant(&control_grant(&grant_id)),
+            Some("pilot-uav-1")
+        );
+        assert_eq!(parse_mission_plan(&mission_plan(&plan_id)), Some("plan-1"));
         assert_eq!(parse_session("uav-sim://session/a/world"), None);
     }
 
