@@ -410,6 +410,7 @@
         "import_feature_layer",
         "publish_restriction",
         "publish_feature_layer",
+        "prepare_route_handoff",
         "query_features",
         "list_active_dataset_releases",
         "query_source_features",
@@ -953,6 +954,7 @@
               "import_feature_layer",
               "publish_restriction",
               "publish_feature_layer",
+              "prepare_route_handoff",
               "query_features",
               "list_active_dataset_releases",
               "query_source_features",
@@ -1152,6 +1154,69 @@
       "metadata": {
         "tenant": "enterprise"
       }
+    },
+    {
+      "id": "agent",
+      "identity_provider": "enterprise",
+      "authorization_server": "veoveo",
+      "protected_resource": "https://veoveo.example/mcp/agent",
+      "policy_version": "2026-07-02",
+      "auth_modes": ["oauth_client_credentials"],
+      "required_scopes": [
+        "operator:use",
+        "uav-sim:control",
+        "map:dataset:read",
+        "map:route",
+        "time:read"
+      ],
+      "servers": [
+        {
+          "server": "uav-sim",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "get_simulation_state",
+              "prepare_vehicle_mission",
+              "arm_vehicle",
+              "takeoff_vehicle",
+              "land_vehicle",
+              "execute_vehicle_mission_plan"
+            ]
+          },
+          "resources": {"mode": "listed", "items": [{"kind": "scheme", "scheme": "uav-sim"}]},
+          "prompts": {"mode": "none"},
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "map",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "search_locations",
+              "inspect_location",
+              "list_active_dataset_releases",
+              "query_source_features",
+              "route",
+              "validate_route",
+              "prepare_route_handoff"
+            ]
+          },
+          "resources": {"mode": "listed", "items": [{"kind": "scheme", "scheme": "map"}]},
+          "prompts": {"mode": "listed", "items": ["prepare_route_request", "review_route"]},
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "time",
+          "tools": {"mode": "listed", "items": ["assess_clock", "convert_time", "resolve_time"]},
+          "resources": {"mode": "listed", "items": [{"kind": "scheme", "scheme": "time"}]},
+          "prompts": {"mode": "none"},
+          "completions": "disabled",
+          "tasks": "disabled"
+        }
+      ],
+      "metadata": {"tenant": "enterprise"}
     },
     {
       "id": "admin",
@@ -2987,7 +3052,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "agent"
           ],
           "servers": [
             "map"
@@ -3231,7 +3297,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "agent"
           ],
           "servers": [
             "map"
@@ -3257,16 +3324,22 @@
           "id": "allow_map_route_tools",
           "effect": "allow",
           "actions": [
-            "tools_call"
+            "tools_call",
+            "tasks_get",
+            "tasks_update",
+            "tasks_cancel",
+            "subscriptions_listen"
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "agent"
           ],
           "servers": [
             "map"
           ],
           "tools": [
+            "prepare_route_handoff",
             "route",
             "validate_route"
           ],
@@ -3420,7 +3493,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "agent"
           ],
           "servers": [
             "time"
@@ -3439,7 +3513,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "agent"
           ],
           "servers": [
             "time"
@@ -4184,6 +4259,50 @@
           "metadata": {}
         },
         {
+          "id": "allow_uav_pilot_vehicle_control",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "subscriptions_listen",
+            "tasks_get",
+            "tasks_update",
+            "tasks_cancel",
+            "usage_read"
+          ],
+          "profiles": [
+            "agent"
+          ],
+          "servers": [
+            "uav-sim"
+          ],
+          "tools": [
+            "get_simulation_state",
+            "prepare_vehicle_mission",
+            "arm_vehicle",
+            "takeoff_vehicle",
+            "land_vehicle",
+            "execute_vehicle_mission_plan"
+          ],
+          "resource_schemes": [
+            "uav-sim"
+          ],
+          "principal_ids": [
+            "https://veoveo.example/oauth#uav-1-pilot",
+            "https://veoveo.example/oauth#uav-2-pilot",
+            "https://veoveo.example/oauth#uav-3-pilot",
+            "https://veoveo.example/oauth#uav-4-pilot"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "uav-sim:control"
+          ],
+          "metadata": {}
+        },
+        {
           "id": "allow_admin_service_recording_use",
           "effect": "allow",
           "actions": [
@@ -4297,7 +4416,10 @@
             "operator-local-public",
             "operator-hosted-public",
             "operator-service",
-            "pilot-agent"
+            "uav-1-pilot",
+            "uav-2-pilot",
+            "uav-3-pilot",
+            "uav-4-pilot"
           ]
         }
       ]
@@ -4618,50 +4740,98 @@
       "tenant": "enterprise"
     },
     {
-      "id": "pilot-agent",
+      "id": "uav-1-pilot",
       "authorization_server": "veoveo",
       "default_work_context": "operations",
       "invocation_mode": "automated",
-      "display_name": "Veoveo AI Pilot Agent",
+      "display_name": "UAV 1 Pilot",
       "client_surface": "full_mcp",
-      "allowed_resources": [
-        "https://veoveo.example/mcp/operator",
-        "https://veoveo.example/mcp/rerun"
-      ],
-      "grant_types": [
-        "client_credentials"
-      ],
-      "auth_methods": [
-        "private_key_jwt"
-      ],
+      "allowed_resources": ["https://veoveo.example/mcp/agent"],
+      "grant_types": ["client_credentials"],
+      "auth_methods": ["private_key_jwt"],
       "allowed_scopes": [
         "operator:use",
         "uav-sim:control",
-        "uav-sim:stream",
-        "view:read",
-        "view:write",
-        "view:capture",
         "map:dataset:read",
-        "map:feature:read",
-        "map:feature:write",
-        "map:feature:publish",
-        "map:raster:derive",
-        "map:spatial:derive",
         "map:route",
-        "map:route_matrix",
-        "map:restriction:publish",
-        "map:restriction:withdraw",
-        "time:event:write",
-        "time:read",
-        "time:schedule",
-        "time:timeline"
+        "time:read"
       ],
-      "metadata": {
-        "client_boundary": "agent"
-      },
+      "metadata": {"client_boundary": "agent"},
       "jwks": {
-        "source": "remote",
-        "jwks_uri": "https://services.enterprise.example/.well-known/veoveo-service-jwks.json"
+        "source": "file",
+        "path": "examples/bioma/uav-pilot-jwks.json"
+      },
+      "tenant": "enterprise"
+    },
+    {
+      "id": "uav-2-pilot",
+      "authorization_server": "veoveo",
+      "default_work_context": "operations",
+      "invocation_mode": "automated",
+      "display_name": "UAV 2 Pilot",
+      "client_surface": "full_mcp",
+      "allowed_resources": ["https://veoveo.example/mcp/agent"],
+      "grant_types": ["client_credentials"],
+      "auth_methods": ["private_key_jwt"],
+      "allowed_scopes": [
+        "operator:use",
+        "uav-sim:control",
+        "map:dataset:read",
+        "map:route",
+        "time:read"
+      ],
+      "metadata": {"client_boundary": "agent"},
+      "jwks": {
+        "source": "file",
+        "path": "examples/bioma/uav-pilot-jwks.json"
+      },
+      "tenant": "enterprise"
+    },
+    {
+      "id": "uav-3-pilot",
+      "authorization_server": "veoveo",
+      "default_work_context": "operations",
+      "invocation_mode": "automated",
+      "display_name": "UAV 3 Pilot",
+      "client_surface": "full_mcp",
+      "allowed_resources": ["https://veoveo.example/mcp/agent"],
+      "grant_types": ["client_credentials"],
+      "auth_methods": ["private_key_jwt"],
+      "allowed_scopes": [
+        "operator:use",
+        "uav-sim:control",
+        "map:dataset:read",
+        "map:route",
+        "time:read"
+      ],
+      "metadata": {"client_boundary": "agent"},
+      "jwks": {
+        "source": "file",
+        "path": "examples/bioma/uav-pilot-jwks.json"
+      },
+      "tenant": "enterprise"
+    },
+    {
+      "id": "uav-4-pilot",
+      "authorization_server": "veoveo",
+      "default_work_context": "operations",
+      "invocation_mode": "automated",
+      "display_name": "UAV 4 Pilot",
+      "client_surface": "full_mcp",
+      "allowed_resources": ["https://veoveo.example/mcp/agent"],
+      "grant_types": ["client_credentials"],
+      "auth_methods": ["private_key_jwt"],
+      "allowed_scopes": [
+        "operator:use",
+        "uav-sim:control",
+        "map:dataset:read",
+        "map:route",
+        "time:read"
+      ],
+      "metadata": {"client_boundary": "agent"},
+      "jwks": {
+        "source": "file",
+        "path": "examples/bioma/uav-pilot-jwks.json"
       },
       "tenant": "enterprise"
     }

@@ -1,0 +1,123 @@
+{{- if .Values.agents.enabled }}
+{{- range $index, $pilot := .Values.agents.pilots }}
+{{- if $index }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $pilot.agentId }}
+  labels:
+    {{- include "uav-sim.labels" $ | nindent 4 }}
+    app.kubernetes.io/name: {{ $pilot.agentId }}
+    app.kubernetes.io/component: uav-pilot-agent
+    veoveo.ai/agent-id: {{ $pilot.agentId | quote }}
+spec:
+  replicas: 1
+  progressDeadlineSeconds: {{ $.Values.interactive.progressDeadlineSeconds }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $pilot.agentId }}
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+      app.kubernetes.io/component: uav-pilot-agent
+  template:
+    metadata:
+      annotations:
+        checksum/manifest: {{ $.Files.Get "files/agents/pilot/manifest.json" | sha256sum }}
+        checksum/migrations: {{ $.Files.Get "files/agents/pilot/migrations/0001_mission_state.sql" | sha256sum }}
+      labels:
+        app.kubernetes.io/name: {{ $pilot.agentId }}
+        app.kubernetes.io/instance: {{ $.Release.Name }}
+        app.kubernetes.io/part-of: veoveo
+        app.kubernetes.io/managed-by: {{ $.Release.Service }}
+        app.kubernetes.io/component: uav-pilot-agent
+        veoveo.ai/installation: {{ $.Values.platform.installationId }}
+        veoveo.ai/agent-id: {{ $pilot.agentId | quote }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        {{- include "uav-sim.podSecurityContext" $ | nindent 8 }}
+      {{- with $.Values.scheduling.agent.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.scheduling.agent.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.scheduling.agent.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: agent
+          image: {{ include "uav-sim.image" (list $ $.Values.images.agent) }}
+          imagePullPolicy: {{ $.Values.images.pullPolicy }}
+          args:
+            - run
+            - --manifest
+            - /etc/veoveo/agent/manifest.json
+            - --data-dir
+            - /var/lib/veoveo/pilot
+          securityContext:
+            {{- include "uav-sim.containerSecurityContext" $ | nindent 12 }}
+          env:
+            - {name: UAV_PILOT_TENANT, value: {{ $.Values.agents.tenant | quote }}}
+            - {name: UAV_PILOT_AGENT_ID, value: {{ $pilot.agentId | quote }}}
+            - {name: UAV_PILOT_DISPLAY_NAME, value: {{ $pilot.displayName | quote }}}
+            - {name: UAV_PILOT_CLIENT_ID, value: {{ $pilot.clientId | quote }}}
+            - {name: UAV_PILOT_PRIVATE_KEY_KID, value: {{ $pilot.privateKeyId | quote }}}
+            - {name: UAV_PILOT_VEHICLE_ID, value: {{ $pilot.vehicleId | quote }}}
+            - {name: UAV_PILOT_WORK_CONTEXT, value: {{ $.Values.agents.workContext | quote }}}
+            - {name: UAV_PILOT_GATEWAY_URL, value: {{ $.Values.agents.gatewayUrl | quote }}}
+            - {name: UAV_PILOT_GATEWAY_TRANSPORT_URL, value: {{ $.Values.agents.gatewayTransportUrl | quote }}}
+            - {name: UAV_SIM_SESSION_ID, value: {{ $.Values.session.id | quote }}}
+            - name: CLOUDFLARE_ACCOUNT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.agents.llmSecret.existingSecret }}
+                  key: {{ $.Values.agents.llmSecret.accountIdKey }}
+            - name: CLOUDFLARE_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.agents.llmSecret.existingSecret }}
+                  key: {{ $.Values.agents.llmSecret.apiTokenKey }}
+            - name: UAV_PILOT_PRIVATE_KEY_DER_B64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.agents.privateKeySecret.existingSecret }}
+                  key: {{ $pilot.privateKeySecretKey }}
+            - {name: VEOVEO_SURREAL_ENDPOINT, value: {{ printf "ws://%s:8000" $.Values.platform.surrealService | quote }}}
+            - {name: VEOVEO_SURREAL_NAMESPACE, value: {{ $.Values.platform.surrealNamespace | quote }}}
+            - {name: VEOVEO_SURREAL_DATABASE, value: {{ $.Values.platform.surrealDatabase | quote }}}
+            - {name: VEOVEO_SURREAL_AUTH_LEVEL, value: database}
+            - name: VEOVEO_SURREAL_USERNAME
+              valueFrom: {secretKeyRef: {name: {{ $.Values.platform.surrealRuntimeSecret }}, key: username}}
+            - name: VEOVEO_SURREAL_PASSWORD
+              valueFrom: {secretKeyRef: {name: {{ $.Values.platform.surrealRuntimeSecret }}, key: password}}
+            - {name: RUST_LOG, value: info}
+          resources:
+            {{- toYaml $.Values.resources.agent | nindent 12 }}
+          volumeMounts:
+            - {name: agent-config, mountPath: /etc/veoveo/agent/manifest.json, subPath: manifest.json, readOnly: true}
+            - {name: agent-config, mountPath: /etc/veoveo/agent/migrations/0001_mission_state.sql, subPath: 0001_mission_state.sql, readOnly: true}
+            - {name: agent-data, mountPath: /var/lib/veoveo/pilot}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: agent-config
+          configMap:
+            name: uav-pilot-agent
+        - name: agent-data
+          persistentVolumeClaim:
+            claimName: {{ $pilot.agentId }}
+        - name: tmp
+          emptyDir: {}
+{{- end }}
+{{- end }}

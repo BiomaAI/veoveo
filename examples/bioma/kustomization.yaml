@@ -13,6 +13,7 @@ configMapGenerator:
       - gateway.json
       - recording-producer-jwks.json
       - service-client-jwks.json
+      - uav-pilot-jwks.json
   - name: uav-sim-world-binding
     namespace: veoveo
     files:
