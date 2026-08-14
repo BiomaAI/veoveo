@@ -44,8 +44,8 @@ pub struct AgentManifest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ResourceSubscription {
-    /// Absolute resource URI. `${VAR}` placeholders are expanded from the
-    /// environment while loading the manifest.
+    /// Absolute resource URI. Like every manifest string, `${VAR}`
+    /// placeholders are expanded from the environment while loading.
     pub uri: String,
 }
 
@@ -160,8 +160,7 @@ pub struct AgentIdentity {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelConfig {
-    /// OpenAI-compatible chat-completions base URL. `${VAR}` placeholders are
-    /// expanded from the environment at load time.
+    /// OpenAI-compatible chat-completions base URL.
     pub base_url: String,
     /// Environment variable holding the API key.
     pub api_key_env: String,
@@ -181,10 +180,9 @@ pub struct ModelConfig {
 #[serde(deny_unknown_fields)]
 pub struct GatewayAccess {
     /// Canonical public gateway origin used for HTTP authority and OAuth
-    /// identity. `${VAR}` placeholders are expanded at load time.
+    /// identity.
     pub url: String,
     /// Physical HTTP(S) origin used to reach the gateway from this network.
-    /// `${VAR}` placeholders are expanded at load time.
     pub transport_url: String,
     /// Gateway profile mounted under `/mcp/{profile}`.
     pub profile: String,
@@ -274,16 +272,11 @@ impl AgentManifest {
     pub fn load(path: &Path) -> Result<Self> {
         let raw = std::fs::read_to_string(path)
             .with_context(|| format!("reading agent manifest {}", path.display()))?;
-        let mut manifest: AgentManifest = serde_json::from_str(&raw)
+        let mut value: serde_json::Value = serde_json::from_str(&raw)
             .with_context(|| format!("parsing agent manifest {}", path.display()))?;
-        manifest.model.base_url = expand_env_placeholders(&manifest.model.base_url)?;
-        manifest.gateway.url = expand_env_placeholders(&manifest.gateway.url)?;
-        manifest.gateway.transport_url = expand_env_placeholders(&manifest.gateway.transport_url)?;
-        manifest.gateway.audience = expand_env_placeholders(&manifest.gateway.audience)?;
-        manifest.gateway.resource = expand_env_placeholders(&manifest.gateway.resource)?;
-        for subscription in &mut manifest.resource_subscriptions {
-            subscription.uri = expand_env_placeholders(&subscription.uri)?;
-        }
+        expand_manifest_strings(&mut value)?;
+        let mut manifest: AgentManifest = serde_json::from_value(value)
+            .with_context(|| format!("decoding agent manifest {}", path.display()))?;
         if let (Some(dir), Some(parent)) = (&manifest.migrations_dir, path.parent())
             && dir.is_relative()
         {
@@ -457,6 +450,30 @@ impl AgentManifest {
     }
 }
 
+/// Expand deployment placeholders throughout the typed manifest before it is
+/// decoded. This keeps one immutable manifest reusable across isolated agent
+/// instances while unknown fields and invalid expanded values still fail
+/// closed during deserialization and validation.
+fn expand_manifest_strings(value: &mut serde_json::Value) -> Result<()> {
+    match value {
+        serde_json::Value::String(string) => {
+            *string = expand_env_placeholders(string)?;
+        }
+        serde_json::Value::Array(values) => {
+            for value in values {
+                expand_manifest_strings(value)?;
+            }
+        }
+        serde_json::Value::Object(fields) => {
+            for value in fields.values_mut() {
+                expand_manifest_strings(value)?;
+            }
+        }
+        serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {}
+    }
+    Ok(())
+}
+
 fn validate_http_origin(field: &str, value: &str) -> Result<url::Url> {
     let url = url::Url::parse(value).with_context(|| format!("{field} must be an absolute URL"))?;
     if !matches!(url.scheme(), "http" | "https")
@@ -472,8 +489,8 @@ fn validate_http_origin(field: &str, value: &str) -> Result<url::Url> {
     Ok(url)
 }
 
-/// Expand `${VAR}` placeholders from the environment, failing closed on any
-/// unset variable.
+/// Expand `${VAR}` placeholders from the environment, failing closed on an
+/// empty name, unset variable, or unterminated placeholder.
 fn expand_env_placeholders(value: &str) -> Result<String> {
     let mut result = String::with_capacity(value.len());
     let mut rest = value;
@@ -484,6 +501,9 @@ fn expand_env_placeholders(value: &str) -> Result<String> {
             bail!("unterminated `${{` placeholder in `{value}`");
         };
         let name = &after[..end];
+        if name.is_empty() {
+            bail!("empty environment placeholder in `{value}`");
+        }
         let expanded = std::env::var(name)
             .with_context(|| format!("environment variable `{name}` referenced by `{value}`"))?;
         result.push_str(&expanded);
@@ -583,6 +603,51 @@ mod tests {
         );
         assert!(expand_env_placeholders("${TEST_MANIFEST_MISSING_VAR}").is_err());
         assert!(expand_env_placeholders("${unterminated").is_err());
+        assert!(expand_env_placeholders("${}").is_err());
+    }
+
+    #[test]
+    fn load_expands_identity_authority_and_domain_strings() {
+        // SAFETY: test-only env mutation, keys are unique to this test.
+        unsafe {
+            std::env::set_var("TEST_DYNAMIC_API_KEY", "k");
+            std::env::set_var("TEST_DYNAMIC_PRIVATE_KEY", "p");
+            std::env::set_var("TEST_DYNAMIC_TENANT", "tenant-a");
+            std::env::set_var("TEST_DYNAMIC_AGENT_ID", "worker-7");
+            std::env::set_var("TEST_DYNAMIC_CLIENT_ID", "worker-client-7");
+            std::env::set_var("TEST_DYNAMIC_SCOPE", "domain:execute");
+            std::env::set_var("TEST_DYNAMIC_RESOURCE_ID", "asset-9");
+        }
+        let mut value = manifest_json();
+        value["agent"]["tenant"] = serde_json::json!("${TEST_DYNAMIC_TENANT}");
+        value["agent"]["id"] = serde_json::json!("${TEST_DYNAMIC_AGENT_ID}");
+        value["agent"]["display_name"] = serde_json::json!("Worker ${TEST_DYNAMIC_AGENT_ID}");
+        value["model"]["api_key_env"] = serde_json::json!("TEST_DYNAMIC_API_KEY");
+        value["gateway"]["client_id"] = serde_json::json!("${TEST_DYNAMIC_CLIENT_ID}");
+        value["gateway"]["scopes"] = serde_json::json!(["${TEST_DYNAMIC_SCOPE}"]);
+        value["gateway"]["private_key_env"] = serde_json::json!("TEST_DYNAMIC_PRIVATE_KEY");
+        value["resource_subscriptions"] = serde_json::json!([{
+            "uri": "domain://asset/${TEST_DYNAMIC_RESOURCE_ID}"
+        }]);
+        value["preamble"] = serde_json::json!(
+            "Operate only ${TEST_DYNAMIC_RESOURCE_ID} as ${TEST_DYNAMIC_AGENT_ID}."
+        );
+        let directory = tempfile::tempdir().expect("temp directory");
+        let path = directory.path().join("manifest.json");
+        std::fs::write(&path, serde_json::to_vec(&value).expect("manifest json"))
+            .expect("write manifest");
+
+        let manifest = AgentManifest::load(&path).expect("manifest loads");
+        assert_eq!(manifest.agent.tenant, "tenant-a");
+        assert_eq!(manifest.agent.id, "worker-7");
+        assert_eq!(manifest.agent.display_name, "Worker worker-7");
+        assert_eq!(manifest.gateway.client_id, "worker-client-7");
+        assert_eq!(manifest.gateway.scopes, ["domain:execute"]);
+        assert_eq!(
+            manifest.resource_subscriptions[0].uri,
+            "domain://asset/asset-9"
+        );
+        assert_eq!(manifest.preamble, "Operate only asset-9 as worker-7.");
     }
 
     #[test]
