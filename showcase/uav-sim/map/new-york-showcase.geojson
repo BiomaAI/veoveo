@@ -1,0 +1,120 @@
+{
+  "type": "FeatureCollection",
+  "name": "New York UAV showcase operational map",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "times-square",
+      "properties": {"name": "Times Square", "kind": "operational_location"},
+      "geometry": {"type": "Point", "coordinates": [-73.9855, 40.7580, 180.0]}
+    },
+    {
+      "type": "Feature",
+      "id": "statue-of-liberty",
+      "properties": {"name": "Statue of Liberty", "kind": "operational_location"},
+      "geometry": {"type": "Point", "coordinates": [-74.0445, 40.6892, 180.0]}
+    },
+    {
+      "type": "Feature",
+      "id": "central-park-center",
+      "properties": {
+        "name": "Central part of Central Park",
+        "alternate_names": ["Central Park", "central part of Central Park"],
+        "kind": "operational_location"
+      },
+      "geometry": {"type": "Point", "coordinates": [-73.9654, 40.7829, 180.0]}
+    },
+    {
+      "type": "Feature",
+      "id": "empire-state-building",
+      "properties": {"name": "Empire State Building", "kind": "operational_location"},
+      "geometry": {"type": "Point", "coordinates": [-73.9857, 40.7484, 180.0]}
+    },
+    {
+      "type": "Feature",
+      "id": "brooklyn-bridge-center",
+      "properties": {"name": "Brooklyn Bridge Center", "kind": "operational_location"},
+      "geometry": {"type": "Point", "coordinates": [-73.9969, 40.7061, 180.0]}
+    },
+    {
+      "type": "Feature",
+      "id": "corridor-times-statue",
+      "properties": {
+        "name": "Times Square to Statue of Liberty showcase corridor",
+        "map_family": "aviation",
+        "from_node": "times-square",
+        "to_node": "statue-of-liberty",
+        "nominal_duration_s": 390.0,
+        "bidirectional": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-73.9855, 40.7580, 180.0],
+          [-74.0030, 40.7350, 180.0],
+          [-74.0160, 40.7120, 180.0],
+          [-74.0445, 40.6892, 180.0]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "corridor-times-central-park",
+      "properties": {
+        "name": "Times Square to Central Park showcase corridor",
+        "map_family": "aviation",
+        "from_node": "times-square",
+        "to_node": "central-park-center",
+        "nominal_duration_s": 150.0,
+        "bidirectional": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-73.9855, 40.7580, 180.0],
+          [-73.9760, 40.7705, 180.0],
+          [-73.9654, 40.7829, 180.0]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "corridor-times-empire-state",
+      "properties": {
+        "name": "Times Square to Empire State Building showcase corridor",
+        "map_family": "aviation",
+        "from_node": "times-square",
+        "to_node": "empire-state-building",
+        "nominal_duration_s": 50.0,
+        "bidirectional": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-73.9855, 40.7580, 180.0],
+          [-73.9857, 40.7484, 180.0]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "corridor-times-brooklyn-bridge",
+      "properties": {
+        "name": "Times Square to Brooklyn Bridge showcase corridor",
+        "map_family": "aviation",
+        "from_node": "times-square",
+        "to_node": "brooklyn-bridge-center",
+        "nominal_duration_s": 250.0,
+        "bidirectional": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-73.9855, 40.7580, 180.0],
+          [-73.9890, 40.7350, 180.0],
+          [-73.9969, 40.7061, 180.0]
+        ]
+      }
+    }
+  ]
+}
