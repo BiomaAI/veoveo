@@ -5,7 +5,10 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use duckdb::{Connection, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use veoveo_duckdb_runtime::{EngineSettings, FileAccess, SharedDatabase, TrustedExtension};
+use veoveo_duckdb_runtime::{
+    EngineSettings, FileAccess, SharedDatabase, SpatialAxisPolicy, TrustedExtension,
+    verify_spatial_axis_policy,
+};
 use veoveo_mcp_contract::WorkContextId;
 
 use crate::contract::{
@@ -21,6 +24,14 @@ mod projection;
 pub(crate) use projection::ReleaseProjectionWriter;
 
 const SCHEMA_VERSION: i64 = 9;
+const NEARBY_FACILITIES_SQL: &str = "WITH scored AS MATERIALIZED (\
+       SELECT canonical_json, facility_key, source_release_key, \
+       ST_Distance_Sphere(ST_Point2D(longitude_deg, latitude_deg), ST_Point2D(?, ?)) AS distance_m \
+       FROM map_visible_facility \
+       WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?)\
+     ) \
+     SELECT canonical_json FROM scored WHERE distance_m <= ? \
+     ORDER BY distance_m ASC, facility_key ASC, source_release_key ASC LIMIT ?";
 
 #[derive(Clone, Debug)]
 pub struct MapAnalyticsConfig {
@@ -64,6 +75,7 @@ impl MapAnalytics {
         settings
             .trusted_extensions
             .push(TrustedExtension::new("spatial", config.spatial_extension)?);
+        settings.spatial_axis_policy = SpatialAxisPolicy::GeoJsonLongitudeLatitude;
         if !config.authoring_task_root.is_absolute() {
             bail!("authoring task root must be absolute");
         }
@@ -95,6 +107,7 @@ impl MapAnalytics {
 
     pub fn verify_spatial(&self) -> Result<()> {
         let connection = self.connection()?;
+        verify_spatial_axis_policy(&connection, SpatialAxisPolicy::GeoJsonLongitudeLatitude)?;
         let text: String = connection
             .query_row("SELECT ST_AsText(ST_Point(1, 2))", [], |row| row.get(0))
             .context("verifying DuckDB Spatial")?;
@@ -226,21 +239,13 @@ impl MapAnalytics {
             bail!("nearby facility limit must be within 1..=100");
         }
         let connection = self.read_connection()?;
-        let mut statement = connection.prepare(
-            "SELECT canonical_json FROM map_visible_facility \
-             WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?) \
-             AND ST_Distance_Sphere(ST_Point(longitude_deg, latitude_deg), ST_Point(?, ?)) <= ? \
-             ORDER BY ST_Distance_Sphere(ST_Point(longitude_deg, latitude_deg), ST_Point(?, ?)) ASC, facility_key ASC, source_release_key ASC \
-             LIMIT ?",
-        )?;
+        let mut statement = connection.prepare(NEARBY_FACILITIES_SQL)?;
         let mut rows = statement.query(params![
-            tenant_key,
-            tenant_key,
             position.longitude_deg,
             position.latitude_deg,
+            tenant_key,
+            tenant_key,
             radius.get(),
-            position.longitude_deg,
-            position.latitude_deg,
             limit,
         ])?;
         let mut facilities = Vec::new();
@@ -491,94 +496,7 @@ impl MapAnalytics {
         {
             bail!("source-feature cursor belongs to a different query");
         }
-
-        let mut predicates = vec![
-            format!("feature.tenant_key = {}", duckdb_string_literal(tenant_key)),
-            format!(
-                "feature.release_key = {}",
-                duckdb_string_literal(request.release_id.as_str())
-            ),
-        ];
-        if let Some(source_id) = &request.source_id {
-            predicates.push(format!(
-                "feature.source_key = {}",
-                duckdb_string_literal(source_id.as_str())
-            ));
-        }
-        if let Some(source_element_id) = &request.source_element_id {
-            predicates.push(format!(
-                "feature.source_element_key = {}",
-                duckdb_string_literal(source_element_id)
-            ));
-        }
-        if let Some(representation) = request.representation {
-            let representation = enum_wire(representation)?;
-            predicates.push(format!(
-                "feature.representation = {}",
-                duckdb_string_literal(&representation)
-            ));
-        }
-        if let Some(text) = request.normalized_text.as_deref() {
-            predicates.push(format!(
-                "feature.normalized_text LIKE {}",
-                duckdb_string_literal(&format!("%{}%", text.trim().to_lowercase()))
-            ));
-        }
-        for filter in &request.tags_equal {
-            let path = json_pointer_path(&filter.key);
-            predicates.push(format!(
-                "json_exists(feature.tags_json, {}) AND json_type(feature.tags_json, {}) = 'VARCHAR' AND json_extract_string(feature.tags_json, {}) = {}",
-                duckdb_string_literal(&path),
-                duckdb_string_literal(&path),
-                duckdb_string_literal(&path),
-                duckdb_string_literal(&filter.value)
-            ));
-        }
-        for key in &request.tags_exist {
-            let path = json_pointer_path(key);
-            predicates.push(format!(
-                "json_exists(feature.tags_json, {})",
-                duckdb_string_literal(&path)
-            ));
-        }
-
-        let distance_expression = request
-            .spatial
-            .as_ref()
-            .and_then(source_distance_expression);
-        if let Some(spatial) = &request.spatial {
-            predicates.push(source_spatial_predicate(spatial)?);
-        }
-        if let Some(cursor) = &cursor {
-            if let (Some(expression), Some(distance)) =
-                (distance_expression.as_deref(), cursor.distance_m)
-            {
-                predicates.push(format!(
-                    "(({expression}) > {distance} OR (({expression}) = {distance} AND feature.feature_key > {}))",
-                    duckdb_string_literal(&cursor.feature_id)
-                ));
-            } else {
-                predicates.push(format!(
-                    "feature.feature_key > {}",
-                    duckdb_string_literal(&cursor.feature_id)
-                ));
-            }
-        }
-
-        let distance_projection = distance_expression
-            .as_deref()
-            .map_or_else(|| "NULL::DOUBLE".to_owned(), str::to_owned);
-        let ordering = distance_expression.as_deref().map_or_else(
-            || "feature.feature_key ASC".to_owned(),
-            |expression| format!("{expression} ASC, feature.feature_key ASC"),
-        );
-        let sql = format!(
-            "SELECT feature.canonical_json, {distance_projection} AS distance_m \
-             FROM map_visible_source_feature AS feature \
-             WHERE {} ORDER BY {ordering} LIMIT {}",
-            predicates.join(" AND "),
-            u64::from(request.limit) + 1
-        );
+        let sql = source_feature_query_sql(tenant_key, request, cursor.as_ref())?;
         let connection = self.read_connection()?;
         let mut statement = connection.prepare(&sql)?;
         let mut rows = statement.query([])?;
@@ -593,6 +511,7 @@ impl MapAnalytics {
         let next_cursor = if has_more {
             features.last().map(|item| {
                 encode_source_cursor(&SourceFeatureCursor {
+                    query_domain: SOURCE_FEATURE_QUERY_DOMAIN.to_owned(),
                     query_digest_sha256: query_digest.clone(),
                     distance_m: item.distance.map(Meters::get),
                     feature_id: item.feature.feature_id.to_string(),
@@ -1022,8 +941,12 @@ fn line_geojson(line: &Wgs84LineString) -> Result<String> {
     ))?)
 }
 
+const SOURCE_FEATURE_QUERY_DOMAIN: &str = "veoveo.io/map/source-feature-query/v2";
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct SourceFeatureCursor {
+    query_domain: String,
     query_digest_sha256: String,
     distance_m: Option<f64>,
     feature_id: String,
@@ -1033,7 +956,11 @@ fn source_query_digest(request: &QuerySourceFeaturesRequest) -> Result<String> {
     let mut canonical = request.clone();
     canonical.cursor = None;
     let bytes = serde_json::to_vec(&canonical)?;
-    Ok(hex::encode(Sha256::digest(bytes)))
+    let mut digest = Sha256::new();
+    digest.update(SOURCE_FEATURE_QUERY_DOMAIN.as_bytes());
+    digest.update(b"\0");
+    digest.update(bytes);
+    Ok(hex::encode(digest.finalize()))
 }
 
 fn encode_source_cursor(cursor: &SourceFeatureCursor) -> Result<String> {
@@ -1046,17 +973,143 @@ fn decode_source_cursor(value: &str) -> Result<SourceFeatureCursor> {
         .context("source-feature cursor is not canonical base64url")?;
     let cursor: SourceFeatureCursor =
         serde_json::from_slice(&bytes).context("source-feature cursor is invalid")?;
-    if cursor.query_digest_sha256.len() != 64
+    if cursor.query_domain != SOURCE_FEATURE_QUERY_DOMAIN
+        || cursor.query_digest_sha256.len() != 64
         || !cursor
             .query_digest_sha256
             .bytes()
             .all(|byte| byte.is_ascii_hexdigit())
         || SourceFeatureId::parse(cursor.feature_id.clone()).is_err()
-        || cursor.distance_m.is_some_and(|value| !value.is_finite())
+        || cursor
+            .distance_m
+            .is_some_and(|value| !value.is_finite() || value < 0.0)
     {
         bail!("source-feature cursor fields are invalid");
     }
     Ok(cursor)
+}
+
+fn validate_source_cursor_order(
+    cursor: &SourceFeatureCursor,
+    distance_ordered: bool,
+) -> Result<()> {
+    if cursor.distance_m.is_some() != distance_ordered {
+        bail!("source-feature cursor does not match the query ordering");
+    }
+    Ok(())
+}
+
+fn source_feature_query_sql(
+    tenant_key: &str,
+    request: &QuerySourceFeaturesRequest,
+    cursor: Option<&SourceFeatureCursor>,
+) -> Result<String> {
+    let mut source_predicates = vec![
+        format!("feature.tenant_key = {}", duckdb_string_literal(tenant_key)),
+        format!(
+            "feature.release_key = {}",
+            duckdb_string_literal(request.release_id.as_str())
+        ),
+    ];
+    if let Some(source_id) = &request.source_id {
+        source_predicates.push(format!(
+            "feature.source_key = {}",
+            duckdb_string_literal(source_id.as_str())
+        ));
+    }
+    if let Some(source_element_id) = &request.source_element_id {
+        source_predicates.push(format!(
+            "feature.source_element_key = {}",
+            duckdb_string_literal(source_element_id)
+        ));
+    }
+    if let Some(representation) = request.representation {
+        let representation = enum_wire(representation)?;
+        source_predicates.push(format!(
+            "feature.representation = {}",
+            duckdb_string_literal(&representation)
+        ));
+    }
+    if let Some(text) = request.normalized_text.as_deref() {
+        source_predicates.push(format!(
+            "feature.normalized_text LIKE {}",
+            duckdb_string_literal(&format!("%{}%", text.trim().to_lowercase()))
+        ));
+    }
+    for filter in &request.tags_equal {
+        let path = json_pointer_path(&filter.key);
+        source_predicates.push(format!(
+            "json_exists(feature.tags_json, {}) AND json_type(feature.tags_json, {}) = 'VARCHAR' AND json_extract_string(feature.tags_json, {}) = {}",
+            duckdb_string_literal(&path),
+            duckdb_string_literal(&path),
+            duckdb_string_literal(&path),
+            duckdb_string_literal(&filter.value)
+        ));
+    }
+    for key in &request.tags_exist {
+        let path = json_pointer_path(key);
+        source_predicates.push(format!(
+            "json_exists(feature.tags_json, {})",
+            duckdb_string_literal(&path)
+        ));
+    }
+
+    let distance_expression = request
+        .spatial
+        .as_ref()
+        .and_then(source_distance_expression);
+    let distance_ordered = distance_expression.is_some();
+    if let Some(cursor) = cursor {
+        validate_source_cursor_order(cursor, distance_ordered)?;
+    }
+    if let Some(spatial) = request.spatial.as_ref() {
+        if let Some(predicate) = source_base_spatial_predicate(spatial)? {
+            source_predicates.push(predicate);
+        }
+    }
+
+    let mut scored_predicates = Vec::new();
+    if let Some(spatial) = request.spatial.as_ref() {
+        if let Some(limit) = source_distance_limit(spatial) {
+            scored_predicates.push(format!("scored.distance_m <= {limit}"));
+        }
+    }
+    if let Some(cursor) = cursor {
+        if let Some(distance) = cursor.distance_m {
+            scored_predicates.push(format!(
+                "(scored.distance_m > {distance} OR (scored.distance_m = {distance} AND scored.feature_key > {}))",
+                duckdb_string_literal(&cursor.feature_id)
+            ));
+        } else {
+            scored_predicates.push(format!(
+                "scored.feature_key > {}",
+                duckdb_string_literal(&cursor.feature_id)
+            ));
+        }
+    }
+
+    let distance_projection = distance_expression.as_deref().unwrap_or("NULL::DOUBLE");
+    let ordering = if distance_ordered {
+        "scored.distance_m ASC, scored.feature_key ASC"
+    } else {
+        "scored.feature_key ASC"
+    };
+    let scored_filter = if scored_predicates.is_empty() {
+        "TRUE".to_owned()
+    } else {
+        scored_predicates.join(" AND ")
+    };
+    Ok(format!(
+        "WITH scored AS MATERIALIZED (\
+           SELECT feature.canonical_json, feature.feature_key, {distance_projection} AS distance_m \
+           FROM map_visible_source_feature AS feature \
+           WHERE {}\
+         ) \
+         SELECT scored.canonical_json, scored.distance_m \
+         FROM scored WHERE {scored_filter} ORDER BY {ordering} LIMIT {}",
+        source_predicates.join(" AND "),
+        u64::from(request.limit) + 1
+    ))
 }
 
 fn source_feature_normalized_text(feature: &SourceFeature) -> Result<String> {
@@ -1080,21 +1133,21 @@ fn source_distance_expression(spatial: &SourceSpatialQuery) -> Option<String> {
         _ => return None,
     };
     Some(format!(
-        "ST_Distance_Sphere(ST_Centroid(feature.geometry), ST_Point({}, {}))",
+        "ST_Distance_Sphere(CAST(ST_Centroid(feature.geometry) AS POINT_2D), ST_Point2D({}, {}))",
         position.longitude_deg, position.latitude_deg
     ))
 }
 
-fn source_spatial_predicate(spatial: &SourceSpatialQuery) -> Result<String> {
+fn source_base_spatial_predicate(spatial: &SourceSpatialQuery) -> Result<Option<String>> {
     match spatial {
         SourceSpatialQuery::BoundingBox { bounds } => {
             if bounds.west <= bounds.east {
-                Ok(format!(
+                Ok(Some(format!(
                     "ST_Intersects(feature.geometry, ST_MakeEnvelope({}, {}, {}, {}))",
                     bounds.west, bounds.south, bounds.east, bounds.north
-                ))
+                )))
             } else {
-                Ok(format!(
+                Ok(Some(format!(
                     "(ST_Intersects(feature.geometry, ST_MakeEnvelope({}, {}, 180, {})) OR ST_Intersects(feature.geometry, ST_MakeEnvelope(-180, {}, {}, {})))",
                     bounds.west,
                     bounds.south,
@@ -1102,38 +1155,32 @@ fn source_spatial_predicate(spatial: &SourceSpatialQuery) -> Result<String> {
                     bounds.south,
                     bounds.east,
                     bounds.north
-                ))
+                )))
             }
         }
-        SourceSpatialQuery::Intersects { geometry } => Ok(format!(
+        SourceSpatialQuery::Intersects { geometry } => Ok(Some(format!(
             "ST_Intersects(feature.geometry, ST_GeomFromGeoJSON({}))",
             duckdb_string_literal(&geometry.to_geojson_string()?)
-        )),
-        SourceSpatialQuery::Contains { geometry } => Ok(format!(
+        ))),
+        SourceSpatialQuery::Contains { geometry } => Ok(Some(format!(
             "ST_Contains(feature.geometry, ST_GeomFromGeoJSON({}))",
             duckdb_string_literal(&geometry.to_geojson_string()?)
-        )),
-        SourceSpatialQuery::Within { geometry } => Ok(format!(
+        ))),
+        SourceSpatialQuery::Within { geometry } => Ok(Some(format!(
             "ST_Within(feature.geometry, ST_GeomFromGeoJSON({}))",
             duckdb_string_literal(&geometry.to_geojson_string()?)
-        )),
-        SourceSpatialQuery::WithinDistance { distance, .. } => Ok(format!(
-            "{} <= {}",
-            source_distance_expression(spatial).expect("distance expression"),
-            distance.get()
-        )),
+        ))),
+        SourceSpatialQuery::WithinDistance { .. } | SourceSpatialQuery::Nearest { .. } => Ok(None),
+    }
+}
+
+fn source_distance_limit(spatial: &SourceSpatialQuery) -> Option<f64> {
+    match spatial {
+        SourceSpatialQuery::WithinDistance { distance, .. } => Some(distance.get()),
         SourceSpatialQuery::Nearest {
             maximum_distance, ..
-        } => Ok(maximum_distance.as_ref().map_or_else(
-            || "TRUE".to_owned(),
-            |distance| {
-                format!(
-                    "{} <= {}",
-                    source_distance_expression(spatial).expect("distance expression"),
-                    distance.get()
-                )
-            },
-        )),
+        } => maximum_distance.map(Meters::get),
+        _ => None,
     }
 }
 
@@ -1244,7 +1291,17 @@ mod tests {
     }
 
     fn test_source_feature(release_id: &DatasetReleaseId, index: usize) -> SourceFeature {
-        let geometry = FeatureGeometry::Point(GeoJsonPosition::new(-73.9857, 40.7484, None));
+        test_source_feature_at(release_id, index, -73.9857, 40.7484)
+    }
+
+    fn test_source_feature_at(
+        release_id: &DatasetReleaseId,
+        index: usize,
+        longitude_deg: f64,
+        latitude_deg: f64,
+    ) -> SourceFeature {
+        let geometry =
+            FeatureGeometry::Point(GeoJsonPosition::new(longitude_deg, latitude_deg, None));
         let geometry_digest_sha256 =
             hex::encode(Sha256::digest(geometry.to_geojson_string().unwrap()));
         SourceFeature {
@@ -1325,6 +1382,7 @@ mod tests {
         };
         let digest = source_query_digest(&request).unwrap();
         let encoded = encode_source_cursor(&SourceFeatureCursor {
+            query_domain: SOURCE_FEATURE_QUERY_DOMAIN.to_owned(),
             query_digest_sha256: digest.clone(),
             distance_m: None,
             feature_id: SourceFeatureId::new().to_string(),
@@ -1334,6 +1392,142 @@ mod tests {
             decode_source_cursor(&encoded).unwrap().query_digest_sha256,
             digest
         );
+    }
+
+    #[test]
+    fn source_cursor_rejects_the_previous_domain_and_invalid_distance_shape() {
+        let feature_id = SourceFeatureId::new().to_string();
+        let legacy = URL_SAFE_NO_PAD.encode(
+            serde_json::to_vec(&serde_json::json!({
+                "query_digest_sha256": hex::encode(Sha256::digest(b"legacy-query")),
+                "distance_m": null,
+                "feature_id": feature_id,
+            }))
+            .unwrap(),
+        );
+        assert!(decode_source_cursor(&legacy).is_err());
+
+        let negative = encode_source_cursor(&SourceFeatureCursor {
+            query_domain: SOURCE_FEATURE_QUERY_DOMAIN.to_owned(),
+            query_digest_sha256: hex::encode(Sha256::digest(b"current-query")),
+            distance_m: Some(-1.0),
+            feature_id: SourceFeatureId::new().to_string(),
+        })
+        .unwrap();
+        assert!(decode_source_cursor(&negative).is_err());
+
+        let feature_ordered = SourceFeatureCursor {
+            query_domain: SOURCE_FEATURE_QUERY_DOMAIN.to_owned(),
+            query_digest_sha256: hex::encode(Sha256::digest(b"feature-query")),
+            distance_m: None,
+            feature_id: SourceFeatureId::new().to_string(),
+        };
+        assert!(validate_source_cursor_order(&feature_ordered, true).is_err());
+
+        let distance_ordered = SourceFeatureCursor {
+            query_domain: SOURCE_FEATURE_QUERY_DOMAIN.to_owned(),
+            query_digest_sha256: hex::encode(Sha256::digest(b"distance-query")),
+            distance_m: Some(1.0),
+            feature_id: SourceFeatureId::new().to_string(),
+        };
+        assert!(validate_source_cursor_order(&distance_ordered, false).is_err());
+    }
+
+    #[test]
+    fn source_distance_query_materializes_one_typed_score() {
+        let request = QuerySourceFeaturesRequest {
+            release_id: crate::contract::DatasetReleaseId::new(),
+            source_id: None,
+            source_element_id: None,
+            representation: None,
+            tags_equal: Vec::new(),
+            tags_exist: Vec::new(),
+            normalized_text: None,
+            spatial: Some(SourceSpatialQuery::Nearest {
+                position: Wgs84Position::new(-89.2, 13.7, None).unwrap(),
+                maximum_distance: Some(Meters::new(1_000.0).unwrap()),
+            }),
+            limit: 50,
+            cursor: None,
+        };
+        let sql = source_feature_query_sql("tenant", &request, None).unwrap();
+        assert!(sql.contains("AS MATERIALIZED"));
+        assert_eq!(sql.matches("ST_Distance_Sphere").count(), 1);
+        assert!(sql.contains("CAST(ST_Centroid(feature.geometry) AS POINT_2D)"));
+        assert!(sql.contains("ST_Point2D(-89.2, 13.7)"));
+        assert!(sql.contains("scored.distance_m <= 1000"));
+        assert!(sql.contains("ORDER BY scored.distance_m ASC"));
+
+        assert!(NEARBY_FACILITIES_SQL.contains("AS MATERIALIZED"));
+        assert_eq!(
+            NEARBY_FACILITIES_SQL.matches("ST_Distance_Sphere").count(),
+            1
+        );
+        assert!(NEARBY_FACILITIES_SQL.contains("ST_Point2D(longitude_deg, latitude_deg)"));
+    }
+
+    #[test]
+    fn geojson_axis_distance_order_and_cursor_survive_restart() {
+        let Some(extension) = std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION") else {
+            return;
+        };
+        let root = TempDir::new().unwrap();
+        let release = DatasetReleaseId::new();
+        let first = test_source_feature_at(&release, 0, -89.2, 13.7);
+        let second = test_source_feature_at(&release, 1, -88.2, 13.7);
+        let analytics = configured_analytics(&root, &extension);
+        analytics
+            .replace_release_products("tenant", &release, |writer| {
+                writer.put_source_feature("tenant", &first)?;
+                writer.put_source_feature("tenant", &second)
+            })
+            .unwrap();
+        let always_xy: bool = analytics
+            .connection()
+            .unwrap()
+            .query_row("SELECT current_setting('geometry_always_xy')", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert!(always_xy);
+
+        let request = QuerySourceFeaturesRequest {
+            release_id: release,
+            source_id: None,
+            source_element_id: None,
+            representation: None,
+            tags_equal: Vec::new(),
+            tags_exist: Vec::new(),
+            normalized_text: None,
+            spatial: Some(SourceSpatialQuery::Nearest {
+                position: Wgs84Position::new(-89.2, 13.7, None).unwrap(),
+                maximum_distance: Some(Meters::new(150_000.0).unwrap()),
+            }),
+            limit: 1,
+            cursor: None,
+        };
+        let first_page = analytics.query_source_features("tenant", &request).unwrap();
+        assert_eq!(first_page.features[0].feature.feature_id, first.feature_id);
+        assert!(first_page.features[0].distance.unwrap().get() < 0.01);
+        let mut second_request = request.clone();
+        second_request.cursor = first_page.next_cursor;
+        let second_page = analytics
+            .query_source_features("tenant", &second_request)
+            .unwrap();
+        assert_eq!(
+            second_page.features[0].feature.feature_id,
+            second.feature_id
+        );
+        let second_distance = second_page.features[0].distance.unwrap().get();
+        assert!((107_000.0..109_500.0).contains(&second_distance));
+
+        drop(analytics);
+        let reopened = configured_analytics(&root, &extension);
+        let replay = reopened
+            .query_source_features("tenant", &second_request)
+            .unwrap();
+        assert_eq!(replay.features[0].feature.feature_id, second.feature_id);
+        assert!((replay.features[0].distance.unwrap().get() - second_distance).abs() < 0.001);
     }
 
     #[test]

@@ -48,6 +48,7 @@ the `map://` scheme.
 | [MCP Apps SEP-1865](../../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; `ui://map/admin.html` and `ui://map/editor.html` use the sandboxed host bridge and canonical Map tools and resources. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | MCP schemas and immutable authored-layer property contracts. Layer schemas reject remote references. |
 | WGS 84 and EPSG identifiers | Longitude, latitude, and ellipsoidal height are the geographic exchange. PROJ handles bounded projected-CRS conversion; EPSG:4978 and vertical transformations are outside that 2D operation. |
+| DuckDB 1.5.5 and DuckDB Spatial | Map selects `geometry_always_xy = true`, constructs longitude/latitude as `POINT_2D`, and uses one materialized spherical-distance score per candidate. |
 | [GeoJSON RFC 7946](https://www.rfc-editor.org/rfc/rfc7946.html), OGC JSON-FG 1.0, and [GeoJSON Text Sequences RFC 8142](https://www.rfc-editor.org/rfc/rfc8142.html) | Canonical feature geometry, semantic feature types, valid time, bulk import, and immutable export. |
 | OGC CQL2 1.0 | Bounded Basic CQL2-JSON predicates over top-level authored properties. Arbitrary CQL2 and spatial predicates are not claimed. |
 | GeoParquet 1.0.0 | WKB primary geometry and verified `geo` metadata for immutable analytical products. |
@@ -212,7 +213,9 @@ governed network edges, authored feature revision and head projections, and
 Work Context-scoped raster and spatial derivations.
 Spatial queries use `ST_Contains`, `ST_Intersects`, and `ST_Distance_Sphere`.
 The Spatial extension is copied into the image at build time and loaded only
-from its pinned local path.
+from its pinned local path. Map selects the shared runtime's closed
+`GeoJsonLongitudeLatitude` axis policy before configuration is locked. Startup and
+health read `current_setting('geometry_always_xy')` and require `true`.
 
 Release-product projection is attempt scoped. Each preparation receives a
 private UUIDv7 attempt and writes complete source features in transactions of
@@ -531,8 +534,12 @@ product and record position when the source supplies no element identity.
 and element identity, exact tag equality, tag existence, normalized text,
 representation, bounding box, intersection, containment, distance, and nearest
 predicates. Results use a deterministic identity order, or distance then
-identity for distance queries. An opaque cursor binds to the canonical query
-digest and cannot be replayed against another query.
+identity for distance queries. Spherical distance casts the feature centroid to
+`POINT_2D`, constructs query positions with `ST_Point2D(longitude, latitude)`, and
+materializes `distance_m` once for limits, cursor comparison, projection, and order.
+An opaque cursor binds to the `veoveo.io/map/source-feature-query/v2` digest domain.
+The decoder requires distance state to match the selected order and rejects prior
+cursor domains.
 
 Environmental acquisition publishes the COG and its metadata sidecar as
 separate immutable artifacts. Release activation indexes a `RasterProduct`
@@ -1148,7 +1155,9 @@ The implementation is checked at several boundaries:
   source validation, geodesics, graph costs, Valhalla profile limits, URI
   parsing, paging, stable feature ids, routing archive bounds, travel-model
   bounds, and activation;
-- DuckDB runtime tests cover controlled HTTPS source policy;
+- DuckDB runtime tests cover controlled HTTPS source policy, closed Spatial axis
+  selection, effective-setting verification, and a pinned extension-backed meter
+  baseline;
 - Python tests cover typed contracts, a bounded GTFS acquisition with validator
   execution, unsafe ZIP rejection, subprocess timeout, process-group
   termination, and bounded diagnostics;

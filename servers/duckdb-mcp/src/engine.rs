@@ -9,7 +9,9 @@ use veoveo_duckdb_runtime as runtime;
 
 use crate::contract::DuckDbColumn;
 
-pub use runtime::{AttachSpec, EngineSettings, TrustedExtension, quote_sql_literal};
+pub use runtime::{
+    AttachSpec, EngineSettings, SpatialAxisPolicy, TrustedExtension, quote_sql_literal,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FileExchange {
@@ -39,6 +41,7 @@ pub fn open_connection(
 pub fn verify_spatial(settings: &EngineSettings) -> Result<()> {
     let conn = runtime::open_in_memory(&runtime::FileAccess::Denied, settings)
         .context("opening DuckDB spatial verification connection")?;
+    runtime::verify_spatial_axis_policy(&conn, SpatialAxisPolicy::Native)?;
     let point: String = conn
         .query_row("SELECT ST_AsText(ST_Point(1, 2))", [], |row| row.get(0))
         .context("executing DuckDB Spatial verification query")?;
@@ -76,4 +79,24 @@ pub fn run_query(conn: &Connection, sql: &str, row_cap: u64, byte_cap: u64) -> R
         row_count: rows.row_count,
         truncated: rows.truncated,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn duckdb_mcp_spatial_verification_retains_native_axis_policy() {
+        let Some(extension) = std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION") else {
+            return;
+        };
+        let root = tempfile::tempdir().unwrap();
+        let mut settings = EngineSettings::new(root.path().join("spill"));
+        settings
+            .trusted_extensions
+            .push(TrustedExtension::new("spatial", PathBuf::from(extension)).unwrap());
+        settings.spatial_axis_policy = SpatialAxisPolicy::Native;
+
+        verify_spatial(&settings).unwrap();
+    }
 }

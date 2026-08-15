@@ -10,8 +10,8 @@ mod source;
 
 pub use engine::{
     AttachSpec, EngineSettings, FileAccess, QueryColumn, QueryLimits, QueryRows, SharedDatabase,
-    TrustedExtension, open_connection, open_in_memory, quote_sql_literal, run_query,
-    run_read_only_query, validate_single_statement,
+    SpatialAxisPolicy, TrustedExtension, open_connection, open_in_memory, quote_sql_literal,
+    run_query, run_read_only_query, validate_single_statement, verify_spatial_axis_policy,
 };
 pub use source::{
     AuthorizedArtifact, HttpsSourcePolicy, RequestWorkspace, is_public_ip,

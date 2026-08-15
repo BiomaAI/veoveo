@@ -548,7 +548,7 @@ DuckDB-specific ownership:
 | Path | Responsibility |
 |---|---|
 | `servers/duckdb-mcp/DESIGN.md` | public contract, runtime boundary, tasks, persistence, deployment, and limits |
-| `platform/runtimes/duckdb/` | bounded engine runtime and sandbox primitives |
+| `platform/runtimes/duckdb/` | bounded engine runtime, closed Spatial axis policy, effective-setting verification, and sandbox primitives |
 | `mcp/contract/src/duckdb.rs` | cross-server governed source vocabulary |
 | `servers/duckdb-mcp/src/contract.rs` | server-local tool request and result types |
 | `servers/duckdb-mcp/src/engine.rs` | adapter from server results to the shared runtime |
