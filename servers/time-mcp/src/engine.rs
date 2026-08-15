@@ -438,6 +438,7 @@ impl TemporalEngine {
         let julian_day_tai = julian_day_tai(&instant);
         Ok(ResolveTimeOutput {
             instant,
+            effective_authority: self.authority.effective.clone(),
             utc_rfc3339: render_leap_second(timestamp.to_string(), utc_coordinate.is_leap_second)?,
             utc_is_leap_second: utc_coordinate.is_leap_second,
             military_dtg: utc.format("%d%H%MZ%b%y").to_string().to_uppercase(),
@@ -762,22 +763,45 @@ mod tests {
     use crate::{
         authority::LeapSecondTable,
         contract::{
-            AuthorityReleaseId, CalendarId, CalendarWindow, MissionEpochId, OperationalCalendar,
-            RecurrenceRule, TimelineConstraint, TimelinePoint,
+            AuthorityDatasetKind, AuthorityReleaseId, CalendarId, CalendarWindow,
+            EffectiveTimeAuthority, MissionEpochId, OperationalCalendar, RecurrenceRule,
+            TimeAuthorityReference, TimeAuthorityReleaseUri, TimeAuthoritySource,
+            TimelineConstraint, TimelinePoint,
         },
     };
 
     const LEAPS: &str = "2272060800 10\n2287785600 11\n2303683200 12\n2335219200 13\n2366755200 14\n2398291200 15\n2429913600 16\n2461449600 17\n2492985600 18\n2524521600 19\n2571782400 20\n2603318400 21\n2634854400 22\n2698012800 23\n2776982400 24\n2840140800 25\n2871676800 26\n2918937600 27\n2950473600 28\n2982009600 29\n3029443200 30\n3076704000 31\n3124137600 32\n3345062400 33\n3439756800 34\n3550089600 35\n3644697600 36\n3692217600 37\n";
 
     fn engine() -> TemporalEngine {
+        let tzdb_release_id = AuthorityReleaseId::new("time-release-tzdb-test").unwrap();
+        let leap_release_id = AuthorityReleaseId::new("time-release-leaps-test").unwrap();
         let authority = AuthorityContext::from_paths(
-            AuthorityReleaseId::new("time-release-tzdb-test").unwrap(),
-            AuthorityReleaseId::new("time-release-leaps-test").unwrap(),
+            EffectiveTimeAuthority {
+                tzdb: test_authority_reference(tzdb_release_id, AuthorityDatasetKind::Tzdb),
+                leap_seconds: test_authority_reference(
+                    leap_release_id,
+                    AuthorityDatasetKind::LeapSeconds,
+                ),
+            },
             "/usr/share/zoneinfo",
             LeapSecondTable::from_iana_content(LEAPS).unwrap(),
         )
         .unwrap();
         TemporalEngine::new(authority)
+    }
+
+    fn test_authority_reference(
+        release_id: AuthorityReleaseId,
+        dataset_kind: AuthorityDatasetKind,
+    ) -> TimeAuthorityReference {
+        TimeAuthorityReference {
+            release_uri: TimeAuthorityReleaseUri::new(&release_id),
+            version_label: release_id.to_string(),
+            release_id,
+            dataset_kind,
+            source: TimeAuthoritySource::Bootstrap,
+            source_digest: veoveo_mcp_contract::Sha256Digest::from_hex("a".repeat(64)).unwrap(),
+        }
     }
 
     #[test]
@@ -810,6 +834,23 @@ mod tests {
             })
             .unwrap();
         assert_eq!(rfc.instant, gps.instant);
+    }
+
+    #[test]
+    fn deterministic_resolution_contains_authorities_but_no_live_clock_observation() {
+        let output = engine()
+            .resolve(&ResolveTimeRequest {
+                expression: TimeExpression::Rfc3339 {
+                    value: "2024-06-01T12:30:00Z".to_owned(),
+                },
+                additional_uncertainty_nanoseconds: 0,
+            })
+            .unwrap();
+        let value = serde_json::to_value(output).unwrap();
+
+        assert!(value["effective_authority"]["tzdb"]["source_digest"].is_string());
+        assert!(value.get("clock_quality").is_none());
+        assert!(value.get("effective_policy").is_none());
     }
 
     #[test]

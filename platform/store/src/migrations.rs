@@ -27,7 +27,7 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 43] = [
+const MIGRATIONS: [Migration; 44] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -285,6 +285,12 @@ const MIGRATIONS: [Migration; 43] = [
         name: "optimization_task_indexes",
         filename: "0042_optimization_task_indexes.surql",
         sql: include_str!("../migrations/0042_optimization_task_indexes.surql"),
+    },
+    Migration {
+        version: 43,
+        name: "time_acquisition_release_index",
+        filename: "0043_time_acquisition_release_index.surql",
+        sql: include_str!("../migrations/0043_time_acquisition_release_index.surql"),
     },
 ];
 
@@ -574,6 +580,16 @@ mod tests {
         ] {
             assert!(migration.sql.contains(index), "missing {index}");
         }
+    }
+
+    #[test]
+    fn time_acquisition_release_index_is_declared() {
+        let migration = migrations()
+            .iter()
+            .find(|migration| migration.version == 43)
+            .expect("time acquisition release migration");
+        assert!(migration.sql.contains("time_acquisition_staged_release"));
+        assert!(migration.sql.contains("tenant, staged_release_key"));
     }
 
     #[test]

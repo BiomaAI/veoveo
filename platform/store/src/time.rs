@@ -532,6 +532,23 @@ impl PlatformStore {
         .await
     }
 
+    pub async fn time_acquisition_for_release(
+        &self,
+        tenant_id: TenantId,
+        release_key: &str,
+    ) -> Result<Option<TimeAcquisitionRecord>, StoreError> {
+        validate_key("staged_release_key", release_key, "time-release-")?;
+        let mut response = self
+            .client()
+            .query("SELECT * FROM time_acquisition WHERE tenant = $tenant AND staged_release_key = $release_key LIMIT 1;")
+            .bind(("tenant", tenant_id.record_id()))
+            .bind(("release_key", release_key.to_owned()))
+            .await?
+            .check()?;
+        let records: Vec<TimeAcquisitionRecord> = response.take(0)?;
+        Ok(records.into_iter().next())
+    }
+
     pub async fn update_time_acquisition(
         &self,
         update: TimeAcquisitionUpdate,

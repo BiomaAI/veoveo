@@ -1,7 +1,7 @@
 # Time MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 2.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
 
 ## Purpose
 
@@ -17,7 +17,12 @@ leap second assumptions.
   admin REST `/time/admin`, port 8800.
 - The canonical instant is `TimeInstant`: integral TAI seconds plus nanosecond,
   uncertainty, and the TZDB and leap second release ids. Never emit an instant
-  without its authority binding. Intervals are half open `[start, end)`.
+  without its authority binding. Deterministic results also emit both exact
+  release URIs, version labels, canonical SHA-256 digests, and explicit
+  bootstrap or acquisition provenance. Intervals are half open `[start, end)`.
+- Deterministic resolution and conversion do not contain a live clock
+  observation. `time://clock/current` carries the effective clock policy and
+  measured quality, including holdover evidence.
 - Durable state lives in the SurrealDB platform tables (`time_*`) and the
   authority release volume under `/var/lib/veoveo/time`. The server never
   applies migrations. Tenant engine caches are derived and rebuilt from the
@@ -38,7 +43,8 @@ leap second assumptions.
 - `cargo check -p veoveo-time-mcp`
 - `cargo test -p veoveo-time-mcp`
 - Platform store behavior lives in `platform/store` (`src/time.rs`,
-  migration `0019_time_domain.surql`); run its tests when touching
+  migrations `0019_time_domain.surql` and
+  `0043_time_acquisition_release_index.surql`); run its tests when touching
   persistence. The shared SurrealDB integration harness covers the store
   boundary.
 - The container builds from `servers/time-mcp/Dockerfile` (needs Docker);
@@ -49,7 +55,7 @@ leap second assumptions.
 
 ## Contract Compliance
 
-Contract revision: 2
+Contract revision: 3
 
 - C01: met
 - C02: met
@@ -67,7 +73,7 @@ Contract revision: 2
 - C14: met
 - C15: met
 - C16: met
-- C17: pending — gateway registration does not state the contract revision
+- C17: met
 - C18: met
 - C19: met
 - C20: met

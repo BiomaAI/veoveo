@@ -3,7 +3,7 @@ use std::{path::Path, sync::Arc};
 use anyhow::{Context, Result, bail};
 use jiff::tz::TimeZoneDatabase;
 
-use crate::contract::{AuthorityBinding, AuthorityReleaseId};
+use crate::contract::AuthorityBinding;
 
 const NTP_UNIX_EPOCH_DELTA_SECONDS: i64 = 2_208_988_800;
 
@@ -142,17 +142,31 @@ impl LeapSecondTable {
 #[derive(Clone)]
 pub struct AuthorityContext {
     pub binding: AuthorityBinding,
+    pub effective: crate::contract::EffectiveTimeAuthority,
     pub tzdb: TimeZoneDatabase,
     pub leap_seconds: Arc<LeapSecondTable>,
 }
 
 impl AuthorityContext {
     pub fn from_paths(
-        tzdb_release_id: AuthorityReleaseId,
-        leap_seconds_release_id: AuthorityReleaseId,
+        effective: crate::contract::EffectiveTimeAuthority,
         tzdb_directory: impl AsRef<Path>,
         leap_seconds: LeapSecondTable,
     ) -> Result<Self> {
+        if effective.tzdb.dataset_kind != crate::contract::AuthorityDatasetKind::Tzdb
+            || effective.leap_seconds.dataset_kind
+                != crate::contract::AuthorityDatasetKind::LeapSeconds
+        {
+            anyhow::bail!("effective time authority has mismatched dataset kinds");
+        }
+        for reference in [&effective.tzdb, &effective.leap_seconds] {
+            if reference.release_uri.release_id() != reference.release_id {
+                anyhow::bail!("effective time authority release URI and identity do not match");
+            }
+            if reference.version_label.trim().is_empty() {
+                anyhow::bail!("effective time authority version label must not be blank");
+            }
+        }
         let tzdb = TimeZoneDatabase::from_dir(tzdb_directory.as_ref()).with_context(|| {
             format!(
                 "loading TZif authority from {}",
@@ -163,9 +177,10 @@ impl AuthorityContext {
             .context("TZDB authority does not contain UTC")?;
         Ok(Self {
             binding: AuthorityBinding {
-                tzdb_release_id,
-                leap_seconds_release_id,
+                tzdb_release_id: effective.tzdb.release_id.clone(),
+                leap_seconds_release_id: effective.leap_seconds.release_id.clone(),
             },
+            effective,
             tzdb,
             leap_seconds: Arc::new(leap_seconds),
         })

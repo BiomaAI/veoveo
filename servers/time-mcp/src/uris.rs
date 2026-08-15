@@ -13,6 +13,7 @@ pub const EVENTS_URI: &str = "time://events";
 
 pub const DOC_TEMPLATE: &str = "time://docs/{doc_id}";
 pub const ZONE_TEMPLATE: &str = "time://zones/{zone_id}";
+pub const AUTHORITY_RELEASE_TEMPLATE: &str = "time://authorities/releases/{release_id}";
 pub const CALENDAR_TEMPLATE: &str = "time://calendars/{calendar_id}/versions/{version}";
 pub const EPOCH_TEMPLATE: &str = "time://epochs/{epoch_id}";
 pub const EVENT_TEMPLATE: &str = "time://events/{event_id}";
@@ -23,6 +24,10 @@ pub fn doc_uri(doc_id: &str) -> String {
 
 pub fn zone_uri(zone_id: &str) -> String {
     format!("time://zones/{zone_id}")
+}
+
+pub fn authority_release_uri(release_id: &str) -> String {
+    format!("time://authorities/releases/{release_id}")
 }
 
 pub fn calendar_uri(calendar_id: &str, version: u64) -> String {
@@ -43,6 +48,10 @@ pub fn parse_doc(uri: &str) -> Option<&str> {
 
 pub fn parse_zone(uri: &str) -> Option<&str> {
     parse_single(uri, "time://zones/")
+}
+
+pub fn parse_authority_release(uri: &str) -> Option<&str> {
+    parse_single(uri, "time://authorities/releases/")
 }
 
 pub fn parse_calendar(uri: &str) -> Option<(&str, u64)> {
@@ -77,6 +86,10 @@ mod tests {
         assert_eq!(
             parse_calendar(&calendar_uri("calendar-abc", 4)),
             Some(("calendar-abc", 4))
+        );
+        assert_eq!(
+            parse_authority_release(&authority_release_uri("time-release-abc")),
+            Some("time-release-abc")
         );
     }
 

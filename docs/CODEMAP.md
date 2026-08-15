@@ -529,7 +529,7 @@ provenance, and DuckDB persistence.
 |---|---|
 | `servers/time-mcp` | authority-bound time resolution and conversion, calendar expansion, timeline validation, interval algebra, clock assessment, mission epochs, and temporal events |
 | `servers/time-mcp/src/acquisition/` | bounded IANA TZDB and leap-second acquisition, validation, compilation, and staging |
-| `platform/store/src/time.rs` | tenant temporal catalog, optimistic release activation, owner events, and clock policy |
+| `platform/store/src/time.rs` | tenant temporal catalog, optimistic release activation, exact acquisition-to-release provenance lookup, owner events, and clock policy |
 
 [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) owns the complete
 protocol, authority, administration, deployment, and synchronization-observation

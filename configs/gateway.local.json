@@ -528,7 +528,9 @@
       "required_scopes": [
         "operator:use"
       ],
-      "metadata": {}
+      "metadata": {
+        "contract_revision": 3
+      }
     },
     {
       "slug": "datasheet",

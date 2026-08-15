@@ -5,6 +5,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl tzdata \
     && rm -rf /var/lib/apt/lists/* \
     && test -x /usr/sbin/zic \
+    && test -f /usr/share/zoneinfo/tzdata.zi \
     && test -f /usr/share/zoneinfo/leap-seconds.list \
     && useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo \
     && mkdir -p /var/lib/veoveo/time/acquisitions /var/lib/veoveo/time/releases \

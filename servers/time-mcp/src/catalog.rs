@@ -1,4 +1,5 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
+use veoveo_mcp_contract::Sha256Digest;
 use veoveo_platform_store::{
     PlatformIdentity, PlatformStore, TimeAcquisitionDraft, TimeAcquisitionRecord,
     TimeAcquisitionState as StoreAcquisitionState, TimeAcquisitionUpdate,
@@ -12,7 +13,8 @@ use veoveo_platform_store::{
 use crate::contract::{
     AuthorityRelease, AuthorityReleaseState, CalendarId, ClockQualityPolicy, MissionEpoch,
     OperationalCalendar, TemporalEvent, TemporalEventId, TemporalEventState, TimeAcquisition,
-    TimeAcquisitionId, TimeAcquisitionStatus, TimeSource, TimeSourceId,
+    TimeAcquisitionId, TimeAcquisitionStatus, TimeAuthorityReference, TimeAuthorityReleaseUri,
+    TimeAuthoritySource, TimeSource, TimeSourceId,
 };
 
 #[derive(Clone, Debug)]
@@ -202,6 +204,41 @@ impl TimeCatalog {
         Ok(releases)
     }
 
+    pub async fn authority_reference(
+        &self,
+        scope: &TimeScope,
+        release: &AuthorityRelease,
+    ) -> Result<TimeAuthorityReference> {
+        let acquisition = self
+            .acquisition_for_release(scope, &release.release_id)
+            .await?
+            .with_context(|| {
+                format!(
+                    "authority release `{}` has no producing acquisition",
+                    release.release_id
+                )
+            })?;
+        if acquisition.source_id != release.source_id
+            || acquisition.staged_release_id.as_ref() != Some(&release.release_id)
+        {
+            bail!(
+                "authority release `{}` provenance does not match its producing acquisition",
+                release.release_id
+            );
+        }
+        Ok(TimeAuthorityReference {
+            release_uri: TimeAuthorityReleaseUri::new(&release.release_id),
+            release_id: release.release_id.clone(),
+            dataset_kind: release.dataset_kind,
+            source: TimeAuthoritySource::Acquisition {
+                source_id: release.source_id.clone(),
+                acquisition_id: acquisition.acquisition_id,
+            },
+            source_digest: Sha256Digest::from_hex(release.source_digest_sha256.clone())?,
+            version_label: release.version_label.clone(),
+        })
+    }
+
     pub async fn create_acquisition(
         &self,
         scope: &TimeScope,
@@ -236,6 +273,18 @@ impl TimeCatalog {
     ) -> Result<Option<TimeAcquisition>> {
         self.store
             .time_acquisition(scope.identity.tenant_id, id.as_str())
+            .await?
+            .map(acquisition_from_record)
+            .transpose()
+    }
+
+    pub async fn acquisition_for_release(
+        &self,
+        scope: &TimeScope,
+        release_id: &crate::contract::AuthorityReleaseId,
+    ) -> Result<Option<TimeAcquisition>> {
+        self.store
+            .time_acquisition_for_release(scope.identity.tenant_id, release_id.as_str())
             .await?
             .map(acquisition_from_record)
             .transpose()
