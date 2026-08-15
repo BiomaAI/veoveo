@@ -36,7 +36,9 @@ async fn discover_is_an_ordinary_stateless_json_exchange() -> anyhow::Result<()>
 
     let response = reqwest::Client::new()
         .post(format!("http://{address}/mcp"))
-        .header("accept", "application/json")
+        .header("accept", "application/json, text/event-stream")
+        .header("mcp-protocol-version", "2026-07-28")
+        .header("mcp-method", "server/discover")
         .json(&serde_json::json!({
             "jsonrpc": "2.0",
             "id": 1,
@@ -55,7 +57,7 @@ async fn discover_is_an_ordinary_stateless_json_exchange() -> anyhow::Result<()>
         .send()
         .await?;
 
-    assert!(response.status().is_success());
+    assert_eq!(response.status(), reqwest::StatusCode::OK);
     assert!(!response.headers().contains_key("mcp-session-id"));
     assert_eq!(
         response
