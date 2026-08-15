@@ -447,7 +447,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `examples/bioma/uav-sim-values.yaml` | reference authoritative camera, product, public gateway origin, and recording tenant binding |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | runtime world publication plus credentialed Google tiles, PX4, independent live Stream processing, Recording Hub replay, Reason, and concurrent GPU acceptance |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim/showcase.rs` | showcase-owned authoritative UAV cameras and products, real authenticated Console checkpoints, governed Rerun playback, and revision-qualified evidence |
-| `testing/smoke/src/bin/smoke/scenarios/uav_sim/browser.rs` | headed authenticated Chrome attachment, hardware WebGPU-or-WebGL enforcement, dedicated simultaneous-viewer windows, Console live-view interaction, and screenshots |
+| `testing/smoke/src/bin/smoke/scenarios/uav_sim/browser.rs` | headed authenticated Chrome attachment, hardware WebGPU-or-WebGL enforcement, dedicated simultaneous-viewer windows, shared Console/standalone-App boundary checks, Console live-view interaction, and screenshots |
 | `testing/browser-smoke/src/restart.rs` | focused same-document native live-view recovery across independent MCP-pod and simulator-container restarts, including proof that MCP replacement leaves the GPU pod unchanged |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim/browser/recording_acceptance.rs` | scoped Redap network evidence, live-source continuity, archive-request rejection, and nonblank Rerun viewport measurement |
 
@@ -761,11 +761,12 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 
 | File | Responsibility |
 |---|---|
-| `oauth.rs` | PKCE login, token exchange, refresh rotation |
-| `session.rs` | XChaCha20-Poly1305 cookies and CSRF material |
+| `oauth.rs` | PKCE login, token exchange, refresh rotation, and shared Console/standalone-App return settlement |
+| `session.rs` | XChaCha20-Poly1305 cookies, CSRF material, and bounded same-origin `BrowserReturnPath` authority |
+| `app_host.rs` | typed `/apps/{server}/{page...}` route authority, public no-store entry document, and caller-authorized App bootstrap |
 | `api.rs` | snapshot, SSE, mutation, artifact preview/download, and same-origin CSRF-protected agent-message/input-request BFF projections; browser credentials and database authority never enter an MCP App |
 | `recording_playback.rs` | authenticated playback-manifest and framed live-stream pass-through; no archive bytes or BFF session store |
-| `apps.rs`, `mcp_client.rs` | MCP Apps host backend: auth-scoped final-profile client pool, public gateway authority preservation, reactive failure-isolated app catalog, sandboxed frame serving, declared agent-message targets, allowlisted tool calls, explicit resource-read settlement, and one bounded multiplexed resource-wake stream per App |
+| `apps.rs`, `mcp_client.rs` | MCP Apps host backend: auth-scoped final-profile client pool, public gateway authority preservation, reactive failure-isolated app catalog, standalone descriptors, sandboxed frame serving, declared agent-message targets, allowlisted tool calls, explicit resource-read settlement, configured listener/subscription admission, bounded token-replacement cancellation, and one multiplexed resource-wake stream per App |
 | `config.rs`, `viewer_config.rs` | validated public/gateway/OAuth-resource/MCP-transport and embedded-map configuration, exact profile binding, redacted provider credentials, and the authenticated no-store Rerun map projection |
 | `outbound_http.rs` | additive installation CA trust shared by Console HTTP, streaming, live, MCP, and Kubernetes clients |
 
@@ -774,6 +775,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | File | Responsibility |
 |---|---|
 | `App.tsx` | application shell: platform navigation plus catalog-driven MCP App entries, topbar, view routing, drawer mounting |
+| `appHost.tsx`, `StandaloneAppHost.tsx`, `standaloneBootstrap.ts` | minimal standalone App entry, authorized same-path bootstrap, shared OAuth/CSRF settlement, authorized title, and Console return link |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
 | `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `rerunLiveChannel.ts`, `recordingRrdFetch.ts`, `rerunMap.ts` | persistent WebViewer lifecycle, producer Blueprint-first opening, one native incremental-RRD or lazy-archive receiver, exact same-origin RRD authorization, duplicate-free current-head reconnect, event-driven rollover without cursor forcing, archive-only credential renewal, and installation-owned browser map-provider activation |
 | `views/Agents.tsx`, `agentControl.ts` | reactive agent state, actor-attributed conversation, durable message submission, pending input-request decisions, and client-owned UUIDv7 retry identity |
@@ -786,7 +788,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `queries.ts`, `queryClient.ts` | TanStack Query keys, snapshot/apps/cluster queries, mutation hooks with targeted cache patches |
 | `live.ts` | EventSource console stream feeding row upserts into the snapshot cache |
 | `theme.ts`, `ThemeProvider.tsx` | persisted Console theme registry, semantic palette selection, and MCP App light/dark host context |
-| `apps/` | MCP Apps host: sandboxed iframe component, stable postMessage bridge, closed internal navigation, declared agent messages, explicit resource-read adapter, and fetch-backed multiplexed SSE wake decoder |
+| `apps/` | MCP Apps host: one exported opaque-origin sandbox policy, shared iframe component, stable postMessage bridge, closed internal navigation, declared agent messages, explicit resource-read adapter, and fetch-backed multiplexed SSE wake decoder |
 | `auth.ts` | one-way authentication transition shared by every 401 handler |
 | `api.ts` | ordered same-origin BFF calls and CSRF rotation |
 | `types.ts` | TypeScript snapshot and mutation response shapes |

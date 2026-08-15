@@ -15,9 +15,10 @@ use url::Url;
 use veoveo_mcp_contract::ScopeName;
 
 const NONCE_BYTES: usize = 24;
-const MAX_CONSOLE_RETURN_PATH_BYTES: usize = 4096;
-const CONSOLE_RETURN_ORIGIN: &str = "https://console.invalid/";
+const MAX_BROWSER_RETURN_PATH_BYTES: usize = 4096;
+const BROWSER_RETURN_ORIGIN: &str = "https://console.invalid/";
 const CONSOLE_ROOT: &str = "/console/";
+const BROWSER_RETURN_ROOTS: [&str; 2] = [CONSOLE_ROOT, "/apps/"];
 pub(crate) const SESSION_COOKIE: &str = "veoveo_console";
 const AUTHORIZATION_COOKIE: &str = "veoveo_console_authorization";
 pub(crate) const SESSION_AAD: &[u8] = b"veoveo-console-session-v1";
@@ -85,27 +86,31 @@ pub(crate) struct PendingAuthorization {
     pub(crate) state: String,
     pub(crate) code_verifier: String,
     pub(crate) expires_at: i64,
-    pub(crate) return_path: ConsoleReturnPath,
+    pub(crate) return_path: BrowserReturnPath,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub(crate) struct ConsoleReturnPath(String);
+pub(crate) struct BrowserReturnPath(String);
 
-impl ConsoleReturnPath {
+impl BrowserReturnPath {
     pub(crate) fn from_untrusted(candidate: Option<&str>) -> Self {
         let Some(candidate) = candidate
-            .filter(|value| !value.is_empty() && value.len() <= MAX_CONSOLE_RETURN_PATH_BYTES)
+            .filter(|value| !value.is_empty() && value.len() <= MAX_BROWSER_RETURN_PATH_BYTES)
         else {
             return Self::root();
         };
-        let Ok(base) = Url::parse(CONSOLE_RETURN_ORIGIN) else {
+        let Ok(base) = Url::parse(BROWSER_RETURN_ORIGIN) else {
             return Self::root();
         };
         let Ok(parsed) = base.join(candidate) else {
             return Self::root();
         };
-        if parsed.origin() != base.origin() || !parsed.path().starts_with(CONSOLE_ROOT) {
+        if parsed.origin() != base.origin()
+            || !BROWSER_RETURN_ROOTS
+                .iter()
+                .any(|root| parsed.path().starts_with(root))
+        {
             return Self::root();
         }
 
@@ -289,11 +294,11 @@ mod tests {
     #[test]
     fn console_return_path_preserves_local_routes_and_rejects_redirects() {
         assert_eq!(
-            ConsoleReturnPath::from_untrusted(Some("/console/#/apps/uav-sim/live.html")).as_str(),
+            BrowserReturnPath::from_untrusted(Some("/console/#/apps/uav-sim/live.html")).as_str(),
             "/console/#/apps/uav-sim/live.html"
         );
         assert_eq!(
-            ConsoleReturnPath::from_untrusted(Some("/console/?theme=dark#/recordings/019fa8b0"))
+            BrowserReturnPath::from_untrusted(Some("/console/?theme=dark#/recordings/019fa8b0"))
                 .as_str(),
             "/console/?theme=dark#/recordings/019fa8b0"
         );
@@ -304,14 +309,33 @@ mod tests {
             "/console/../../admin",
         ] {
             assert_eq!(
-                ConsoleReturnPath::from_untrusted(Some(rejected)).as_str(),
+                BrowserReturnPath::from_untrusted(Some(rejected)).as_str(),
                 CONSOLE_ROOT
             );
         }
-        let oversized = format!("/console/#/{}", "a".repeat(MAX_CONSOLE_RETURN_PATH_BYTES));
+        let oversized = format!("/console/#/{}", "a".repeat(MAX_BROWSER_RETURN_PATH_BYTES));
         assert_eq!(
-            ConsoleReturnPath::from_untrusted(Some(&oversized)).as_str(),
+            BrowserReturnPath::from_untrusted(Some(&oversized)).as_str(),
             CONSOLE_ROOT
         );
+    }
+
+    #[test]
+    fn browser_return_path_preserves_standalone_apps_without_open_redirects() {
+        assert_eq!(
+            BrowserReturnPath::from_untrusted(Some("/apps/uav-sim/live.html")).as_str(),
+            "/apps/uav-sim/live.html"
+        );
+        for rejected in [
+            "https://attacker.example/apps/map/admin.html",
+            "//attacker.example/apps/map/admin.html",
+            "/appswitch/map/admin.html",
+            "/apps/../../admin",
+        ] {
+            assert_eq!(
+                BrowserReturnPath::from_untrusted(Some(rejected)).as_str(),
+                CONSOLE_ROOT
+            );
+        }
     }
 }

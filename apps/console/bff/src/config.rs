@@ -54,6 +54,8 @@ pub(crate) struct Config {
     rerun_map_provider: RerunMapProvider,
     session_key: [u8; 32],
     asset_dir: PathBuf,
+    max_app_resource_listeners: usize,
+    max_app_resource_subscriptions: usize,
 }
 
 impl Config {
@@ -94,6 +96,10 @@ impl Config {
         let asset_dir = std::env::var_os("VEOVEO_CONSOLE_ASSET_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("/app/console"));
+        let max_app_resource_listeners =
+            bounded_capacity("VEOVEO_CONSOLE_MAX_APP_RESOURCE_LISTENERS", "64", 1024)?;
+        let max_app_resource_subscriptions =
+            bounded_capacity("VEOVEO_CONSOLE_MAX_APP_RESOURCE_SUBSCRIPTIONS", "256", 4096)?;
 
         Ok(Self {
             bind,
@@ -108,6 +114,8 @@ impl Config {
             rerun_map_provider,
             session_key,
             asset_dir,
+            max_app_resource_listeners,
+            max_app_resource_subscriptions,
         })
     }
 
@@ -138,6 +146,12 @@ impl Config {
     }
     pub(crate) fn asset_dir(&self) -> &Path {
         &self.asset_dir
+    }
+    pub(crate) const fn max_app_resource_listeners(&self) -> usize {
+        self.max_app_resource_listeners
+    }
+    pub(crate) const fn max_app_resource_subscriptions(&self) -> usize {
+        self.max_app_resource_subscriptions
     }
     pub(crate) fn outbound_ca_bundle(&self) -> Option<&Path> {
         self.outbound_ca_bundle.as_deref()
@@ -260,6 +274,8 @@ impl Config {
             rerun_map_provider: RerunMapProvider::OpenStreetMap,
             session_key: [7; 32],
             asset_dir: PathBuf::from("/tmp/veoveo-console-test-assets"),
+            max_app_resource_listeners: 64,
+            max_app_resource_subscriptions: 256,
             gateway_url,
         }
     }
@@ -290,6 +306,17 @@ fn optional(key: &'static str) -> anyhow::Result<Option<String>> {
 
 fn env_or(key: &str, default: &str) -> String {
     std::env::var(key).unwrap_or_else(|_| default.to_owned())
+}
+
+fn bounded_capacity(key: &'static str, default: &str, maximum: usize) -> anyhow::Result<usize> {
+    let value = env_or(key, default);
+    let parsed = value
+        .parse::<usize>()
+        .with_context(|| format!("{key} must be a positive integer"))?;
+    if parsed == 0 || parsed > maximum {
+        bail!("{key} must be between 1 and {maximum}");
+    }
+    Ok(parsed)
 }
 
 fn parse_rerun_map_provider(
@@ -423,6 +450,14 @@ impl std::fmt::Debug for Config {
             .field("rerun_map_provider", &self.rerun_map_provider)
             .field("session_key", &"[REDACTED]")
             .field("asset_dir", &self.asset_dir)
+            .field(
+                "max_app_resource_listeners",
+                &self.max_app_resource_listeners,
+            )
+            .field(
+                "max_app_resource_subscriptions",
+                &self.max_app_resource_subscriptions,
+            )
             .finish()
     }
 }
@@ -451,6 +486,17 @@ mod tests {
             ["admin:manage", "operator:use"]
         );
         assert!(parse_oauth_scopes(" ").is_err());
+    }
+
+    #[test]
+    fn app_resource_capacity_is_positive_and_bounded() {
+        assert_eq!(
+            bounded_capacity("UNSET_TEST_CAPACITY", "64", 1024).unwrap(),
+            64
+        );
+        for invalid in ["0", "1025", "many"] {
+            assert!(bounded_capacity("UNSET_TEST_CAPACITY", invalid, 1024).is_err());
+        }
     }
 
     #[test]

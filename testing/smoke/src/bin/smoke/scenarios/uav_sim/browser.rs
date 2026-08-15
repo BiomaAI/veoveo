@@ -333,6 +333,20 @@ pub(crate) async fn preflight_console_live_app(
     .with_context(|| format!("Console live-App preflight exceeded {timeout:?}"))?
 }
 
+pub(crate) async fn preflight_standalone_live_app(
+    cdp_base: &str,
+    public_base_url: &str,
+    timeout: Duration,
+) -> Result<()> {
+    let page_url = standalone_acceptance_url(public_base_url, "/apps/uav-sim/live.html");
+    tokio::time::timeout(
+        timeout,
+        preflight_standalone_live_app_inner(cdp_base, &page_url),
+    )
+    .await
+    .with_context(|| format!("standalone UAV App preflight exceeded {timeout:?}"))?
+}
+
 pub(crate) async fn capture_console_recording(
     cdp_base: &str,
     public_base_url: &str,
@@ -389,6 +403,10 @@ fn console_acceptance_url(public_base_url: &str, route: &str) -> String {
     )
 }
 
+fn standalone_acceptance_url(public_base_url: &str, route: &str) -> String {
+    format!("{}{}", public_base_url.trim_end_matches('/'), route)
+}
+
 async fn preflight_console_live_app_inner(cdp_base: &str, page_url: &str) -> Result<()> {
     let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, page_url).await?;
     let acceptance: Result<()> = async {
@@ -405,6 +423,72 @@ async fn preflight_console_live_app_inner(cdp_base: &str, page_url: &str) -> Res
             "UAV live cameras",
         )
         .await?;
+        cdp.assert_no_software_renderer_events()?;
+        Ok(())
+    }
+    .await;
+    let close = close_target(&mut cdp, &target_id).await;
+    acceptance?;
+    close?;
+    Ok(())
+}
+
+async fn preflight_standalone_live_app_inner(cdp_base: &str, page_url: &str) -> Result<()> {
+    let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, page_url).await?;
+    let acceptance: Result<()> = async {
+        wait_for_document(&mut cdp, &session_id).await?;
+        assert_page_visible(&mut cdp, &session_id).await?;
+        let hardware: HardwareIdentity =
+            cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
+        hardware.validate()?;
+        wait_for_console_app_body(
+            &mut cdp,
+            &target_id,
+            &session_id,
+            "uav-sim",
+            "UAV live cameras",
+        )
+        .await?;
+        let host: Value = cdp
+            .evaluate(
+                &session_id,
+                r#"(async () => {
+                  const frame = document.querySelector("iframe.app-frame");
+                  const response = frame ? await fetch(frame.src, {credentials:"same-origin"}) : null;
+                  return {
+                    path:location.pathname,
+                    title:document.querySelector(".standalone-app-header h1")?.textContent ?? "",
+                    returnHref:document.querySelector(".standalone-app-header a")?.getAttribute("href") ?? "",
+                    frameTitle:frame?.title ?? "",
+                    sandbox:frame?.getAttribute("sandbox") ?? "",
+                    referrerPolicy:frame?.referrerPolicy ?? "",
+                    frameStatus:response?.status ?? 0,
+                    frameCsp:response?.headers.get("content-security-policy") ?? ""
+                  };
+                })()"#,
+                true,
+            )
+            .await?;
+        ensure!(
+            host.get("path").and_then(Value::as_str) == Some("/apps/uav-sim/live.html")
+                && host
+                    .get("title")
+                    .and_then(Value::as_str)
+                    .is_some_and(|title| title.contains("UAV live cameras"))
+                && host.get("returnHref").and_then(Value::as_str) == Some("/console/#/apps")
+                && host
+                    .get("frameTitle")
+                    .and_then(Value::as_str)
+                    .is_some_and(|title| title.contains("UAV live cameras"))
+                && host.get("sandbox").and_then(Value::as_str) == Some("allow-scripts")
+                && host.get("referrerPolicy").and_then(Value::as_str) == Some("no-referrer")
+                && host.get("frameStatus").and_then(Value::as_u64) == Some(200)
+                && host
+                    .get("frameCsp")
+                    .and_then(Value::as_str)
+                    .is_some_and(|csp| csp.contains("frame-ancestors 'self'")),
+            "standalone App did not retain the shared authorized frame boundary: {host}"
+        );
         cdp.assert_no_software_renderer_events()?;
         Ok(())
     }
@@ -3541,6 +3625,18 @@ mod tests {
         assert_eq!(page.path(), "/console/");
         assert_eq!(page.fragment(), Some("/apps/uav-sim/live.html"));
         assert!(uuid::Uuid::parse_str(&nonce).is_ok());
+    }
+
+    #[test]
+    fn standalone_acceptance_url_uses_the_canonical_no_store_route() {
+        let page = Url::parse(&standalone_acceptance_url(
+            "https://installation.example/",
+            "/apps/uav-sim/live.html",
+        ))
+        .unwrap();
+        assert_eq!(page.path(), "/apps/uav-sim/live.html");
+        assert!(page.query().is_none());
+        assert!(page.fragment().is_none());
     }
 
     #[test]

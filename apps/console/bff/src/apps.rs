@@ -23,7 +23,11 @@ use veoveo_mcp_contract::{
     GatewayDiscoveryFailure,
 };
 
-use crate::{AppState, api, mcp_client::SharedMcpClient};
+use crate::{
+    AppState, api,
+    app_host::StandaloneAppRoute,
+    mcp_client::{AppResourceSubscriptionError, McpAppCatalog, SharedMcpClient},
+};
 
 const MAX_APP_HTML_BYTES: usize = 2 * 1024 * 1024;
 const MAX_CALL_ARGUMENT_BYTES: usize = 256 * 1024;
@@ -50,6 +54,7 @@ struct AppCatalog {
 struct AppDescriptor {
     server: String,
     resource_uri: String,
+    standalone_path: String,
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     title: Option<String>,
@@ -233,6 +238,7 @@ where
                 &state.config,
                 &upstream.session.access_token,
                 upstream.session.access_expires_at,
+                &upstream.session.csrf_token,
             )
             .await
             .map_err(|error| {
@@ -248,7 +254,7 @@ where
                 );
                 state
                     .mcp
-                    .invalidate(&upstream.session.access_token, &mcp)
+                    .invalidate(&upstream.session.csrf_token, &mcp)
                     .await;
             }
             result => {
@@ -286,12 +292,30 @@ pub(crate) async fn list_apps(
             return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
         }
     };
+    let apps = app_descriptors(&catalog);
+    let degradations = catalog.degradation().failures.clone();
+    if !degradations.is_empty() {
+        tracing::warn!(
+            degraded_surfaces = degradations.len(),
+            "console returned a partial MCP App catalog"
+        );
+    }
+    with_session_headers(
+        Json(AppCatalog { apps, degradations }).into_response(),
+        response_headers,
+    )
+}
+
+fn app_descriptors(catalog: &McpAppCatalog) -> Vec<AppDescriptor> {
     let mut apps = Vec::new();
     for resource in catalog
         .resources()
         .iter()
         .filter(|resource| is_app_resource(resource))
     {
+        let Ok(route) = StandaloneAppRoute::from_resource_uri(&resource.uri) else {
+            continue;
+        };
         let Some(server) = app_uri_server(&resource.uri) else {
             continue;
         };
@@ -317,6 +341,7 @@ pub(crate) async fn list_apps(
         apps.push(AppDescriptor {
             server: server.to_owned(),
             resource_uri: resource.uri.clone(),
+            standalone_path: route.path(),
             name: resource.name.clone(),
             title: resource.title.clone(),
             description: resource.description.as_deref().map(ToOwned::to_owned),
@@ -333,17 +358,47 @@ pub(crate) async fn list_apps(
             agent_message_targets: resource_agent_message_targets(resource),
         });
     }
-    let degradations = catalog.degradation().failures.clone();
-    if !degradations.is_empty() {
-        tracing::warn!(
-            degraded_surfaces = degradations.len(),
-            "console returned a partial MCP App catalog"
-        );
-    }
-    with_session_headers(
-        Json(AppCatalog { apps, degradations }).into_response(),
+    apps
+}
+
+fn authorized_app_descriptor(catalog: &McpAppCatalog, resource_uri: &str) -> Option<AppDescriptor> {
+    app_descriptors(catalog)
+        .into_iter()
+        .find(|app| app.resource_uri == resource_uri)
+}
+
+pub(crate) async fn standalone_app_bootstrap(
+    state: &AppState,
+    request_headers: &HeaderMap,
+    route: &StandaloneAppRoute,
+) -> Response {
+    let resource_uri = route.resource_uri();
+    let listing = with_apps_session(state, request_headers, |mcp| async move {
+        mcp.app_catalog().await
+    })
+    .await;
+    let AppsSessionOutcome {
         response_headers,
-    )
+        result,
+        ..
+    } = match listing {
+        Ok(outcome) => outcome,
+        Err(response) => return response,
+    };
+    let catalog = match result {
+        Ok(catalog) => catalog,
+        Err(error) => {
+            tracing::error!(%error, "standalone App bootstrap catalog failed");
+            return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
+        }
+    };
+    let descriptor = authorized_app_descriptor(&catalog, &resource_uri);
+    match descriptor {
+        Some(descriptor) => {
+            with_session_headers(Json(descriptor).into_response(), response_headers)
+        }
+        None => with_session_headers(StatusCode::NOT_FOUND.into_response(), response_headers),
+    }
 }
 
 #[derive(Deserialize)]
@@ -710,11 +765,6 @@ pub(crate) async fn app_resource_events(
                 }
             }
             Err(error) => {
-                tracing::error!(
-                    %error,
-                    uri = %subscription.uri,
-                    "console App resource subscription batch failed"
-                );
                 for subscription_id in newly_registered {
                     if let Err(rollback_error) =
                         client.unsubscribe_app_resource(subscription_id).await
@@ -726,6 +776,22 @@ pub(crate) async fn app_resource_events(
                         );
                     }
                 }
+                let error = match error {
+                    AppResourceSubscriptionError::Capacity { resource, limit } => {
+                        tracing::warn!(
+                            resource,
+                            limit,
+                            uri = %subscription.uri,
+                            "console App resource subscription capacity exhausted"
+                        );
+                        return with_session_headers(
+                            app_resource_capacity_error(resource, limit),
+                            response_headers,
+                        );
+                    }
+                    error => error,
+                };
+                tracing::error!(%error, uri = %subscription.uri, "console App resource subscription batch failed");
                 return with_session_headers(
                     call_error(StatusCode::BAD_GATEWAY, "resource subscription failed"),
                     response_headers,
@@ -865,6 +931,28 @@ pub(crate) struct CallAppToolRequest {
 #[derive(Serialize)]
 struct CallAppToolError {
     error: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AppResourceCapacityError {
+    error: &'static str,
+    code: &'static str,
+    resource: &'static str,
+    limit: usize,
+}
+
+fn app_resource_capacity_error(resource: &'static str, limit: usize) -> Response {
+    (
+        StatusCode::TOO_MANY_REQUESTS,
+        Json(AppResourceCapacityError {
+            error: "App resource subscription capacity is exhausted",
+            code: "app_resource_capacity_exhausted",
+            resource,
+            limit,
+        }),
+    )
+        .into_response()
 }
 
 fn call_error(status: StatusCode, message: &str) -> Response {
@@ -1173,6 +1261,8 @@ pub(crate) async fn update_app_task(
 
 #[cfg(test)]
 mod tests {
+    use axum::body::to_bytes;
+
     use super::*;
 
     #[test]
@@ -1338,6 +1428,7 @@ mod tests {
         let descriptor = AppDescriptor {
             server: "fleet".to_owned(),
             resource_uri: "ui://fleet/overview.html".to_owned(),
+            standalone_path: "/apps/fleet/overview.html".to_owned(),
             name: "overview".to_owned(),
             title: Some("Overview".to_owned()),
             description: None,
@@ -1349,6 +1440,18 @@ mod tests {
         };
         let value = serde_json::to_value(descriptor).expect("descriptor serializes");
         assert_eq!(value["prefersBorder"], false);
+    }
+
+    #[test]
+    fn standalone_descriptor_requires_an_exact_authorized_catalog_resource() {
+        let resource = veoveo_mcp_apps_extension::app_resource("ui://map/admin.html", "map-admin")
+            .with_title("Map administration");
+        let catalog = McpAppCatalog::for_test(vec![resource], Vec::new());
+        let descriptor = authorized_app_descriptor(&catalog, "ui://map/admin.html")
+            .expect("cataloged route is authorized");
+        assert_eq!(descriptor.standalone_path, "/apps/map/admin.html");
+        assert!(authorized_app_descriptor(&catalog, "ui://map/editor.html").is_none());
+        assert!(authorized_app_descriptor(&catalog, "ui://other/admin.html").is_none());
     }
 
     #[test]
@@ -1402,6 +1505,17 @@ mod tests {
             app_resource_event_uris("fleet", &oversized).unwrap_err().0,
             StatusCode::BAD_REQUEST
         );
+    }
+
+    #[tokio::test]
+    async fn app_resource_capacity_error_is_bounded_and_machine_readable() {
+        let response = app_resource_capacity_error("upstream_listeners", 64);
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        let body = to_bytes(response.into_body(), 1024).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["code"], "app_resource_capacity_exhausted");
+        assert_eq!(value["resource"], "upstream_listeners");
+        assert_eq!(value["limit"], 64);
     }
 
     #[test]

@@ -3,6 +3,7 @@ import { appFrameUrl } from "../api";
 import { attachAppBridge, type AppBridge, type InternalAppLinkHandler } from "./bridge";
 import type { AppDescriptor } from "../types";
 import { useTheme } from "../theme";
+import { APP_FRAME_SANDBOX } from "./framePolicy";
 
 /**
  * One sandboxed MCP App view. `sandbox="allow-scripts"` without
@@ -38,7 +39,7 @@ export function AppFrame({
       ref={frameRef}
       className="app-frame"
       src={appFrameUrl(app.resourceUri)}
-      sandbox="allow-scripts"
+      sandbox={APP_FRAME_SANDBOX}
       referrerPolicy="no-referrer"
       title={app.title ?? app.name}
     />

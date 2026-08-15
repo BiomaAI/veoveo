@@ -379,6 +379,7 @@ export interface AppToolDescriptor {
 export interface AppDescriptor {
   server: string;
   resourceUri: string;
+  standalonePath: string;
   name: string;
   title?: string;
   description?: string;

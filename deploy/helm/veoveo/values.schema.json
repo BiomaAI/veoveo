@@ -898,6 +898,8 @@
         "oauthClientId",
         "oauthResource",
         "mcpTransportUrl",
+        "maxAppResourceListeners",
+        "maxAppResourceSubscriptions",
         "outboundCa",
         "rerunMap",
         "oauthScopes",
@@ -922,6 +924,16 @@
         "mcpTransportUrl": {
           "type": "string",
           "pattern": "^$|^https?://[^?#]+/mcp/[A-Za-z0-9_.-]+$"
+        },
+        "maxAppResourceListeners": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
+        },
+        "maxAppResourceSubscriptions": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
         },
         "outboundCa": {
           "type": "object",

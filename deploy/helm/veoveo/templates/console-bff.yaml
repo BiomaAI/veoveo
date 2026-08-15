@@ -61,6 +61,10 @@ spec:
             - name: VEOVEO_CONSOLE_MCP_TRANSPORT_URL
               value: {{ .Values.consoleBff.mcpTransportUrl | quote }}
             {{- end }}
+            - name: VEOVEO_CONSOLE_MAX_APP_RESOURCE_LISTENERS
+              value: {{ .Values.consoleBff.maxAppResourceListeners | quote }}
+            - name: VEOVEO_CONSOLE_MAX_APP_RESOURCE_SUBSCRIPTIONS
+              value: {{ .Values.consoleBff.maxAppResourceSubscriptions | quote }}
             {{- if .Values.consoleBff.outboundCa.existingConfigMap }}
             - name: VEOVEO_CONSOLE_OUTBOUND_CA_BUNDLE
               value: /etc/veoveo/console-outbound-ca/ca.pem
