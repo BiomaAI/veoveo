@@ -11,7 +11,8 @@ use veoveo_mcp_contract::{
 
 use crate::{
     contract::{
-        ConvertFrameOutput, ConvertFrameRequest, CoordinatePoint, EcefPosition, WorldFramePosition,
+        ConvertFrameOutput, ConvertFrameRequest, CoordinatePoint, EcefPosition,
+        FrameSourceReference, WorldFramePosition,
     },
     uris, world,
 };
@@ -43,6 +44,15 @@ impl ResolvedWorlds {
             .get(&revision_uri)
             .ok_or_else(|| anyhow!("world revision `{revision_uri}` was not resolved"))
     }
+
+    fn require_revision(
+        &self,
+        revision_uri: &FrameWorldRevisionUri,
+    ) -> Result<&FrameWorldRevision> {
+        self.revisions
+            .get(revision_uri)
+            .ok_or_else(|| anyhow!("world revision `{revision_uri}` was not resolved"))
+    }
 }
 
 pub fn convert_frame(
@@ -56,12 +66,17 @@ pub fn convert_frame(
         bail!("approximate frame conversion is not supported");
     }
 
-    let output_points = request
-        .points
-        .iter()
-        .map(|point| point_to_ecef(point, worlds))
-        .map(|ecef| ecef.and_then(|ecef| ecef_to_target(ecef, &request.target, worlds)))
-        .collect::<Result<Vec<_>>>()?;
+    let mut used_revisions = BTreeSet::new();
+    let mut output_points = Vec::with_capacity(request.points.len());
+    for point in &request.points {
+        let ecef = point_to_ecef(point, worlds, &mut used_revisions)?;
+        output_points.push(ecef_to_target(
+            ecef,
+            &request.target,
+            worlds,
+            &mut used_revisions,
+        )?);
+    }
     let source_spaces = request
         .points
         .iter()
@@ -78,13 +93,29 @@ pub fn convert_frame(
         Some(target_frame.clone()),
         crs_for_space(&target_frame),
     );
+    let sources = used_revisions
+        .into_iter()
+        .map(|revision_uri| {
+            let revision = worlds.require_revision(&revision_uri)?;
+            Ok(FrameSourceReference {
+                revision_uri,
+                revision_id: revision.revision_id.clone(),
+                digest: revision.spec_digest.clone(),
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
     Ok(ConvertFrameOutput {
         points: output_points,
         provenance,
+        sources,
     })
 }
 
-fn point_to_ecef(point: &CoordinatePoint, worlds: &ResolvedWorlds) -> Result<DVec3> {
+fn point_to_ecef(
+    point: &CoordinatePoint,
+    worlds: &ResolvedWorlds,
+    used_revisions: &mut BTreeSet<FrameWorldRevisionUri>,
+) -> Result<DVec3> {
     match point {
         CoordinatePoint::Wgs84(position) => {
             position.validate().map_err(anyhow::Error::msg)?;
@@ -98,6 +129,7 @@ fn point_to_ecef(point: &CoordinatePoint, worlds: &ResolvedWorlds) -> Result<DVe
             ensure_finite(&[position.x_m, position.y_m, position.z_m])?;
             let revision = worlds.require_for_frame(&position.frame_uri)?;
             let ecef_from_frame = world::ecef_from_frame(revision, &position.frame_uri)?;
+            used_revisions.insert(revision.revision_uri.clone());
             Ok(ecef_from_frame.transform_point3(DVec3::new(
                 position.x_m,
                 position.y_m,
@@ -111,6 +143,7 @@ fn ecef_to_target(
     ecef: DVec3,
     target: &CoordinateSpace,
     worlds: &ResolvedWorlds,
+    used_revisions: &mut BTreeSet<FrameWorldRevisionUri>,
 ) -> Result<CoordinatePoint> {
     match target {
         CoordinateSpace::Wgs84 => Ok(CoordinatePoint::Wgs84(ecef_to_wgs84(ecef))),
@@ -127,6 +160,7 @@ fn ecef_to_target(
                 bail!("frame `{frame_uri}` has a non-invertible transform");
             }
             let point = ecef_from_frame.inverse().transform_point3(ecef);
+            used_revisions.insert(revision.revision_uri.clone());
             Ok(CoordinatePoint::WorldFrame(WorldFramePosition {
                 frame_uri: frame_uri.clone(),
                 x_m: point.x,
@@ -226,7 +260,7 @@ mod tests {
             revision_id,
             revision_uri: revision_uri.clone(),
             revision: 1,
-            spec_sha256: "a".repeat(64),
+            spec_digest: veoveo_mcp_contract::Sha256Digest::from_hex("a".repeat(64)).unwrap(),
             root_frame_uri: WorldFrameUri::new(&revision_uri, &FrameId::new("earth-ecef").unwrap()),
             tree: FrameWorldTree {
                 frames: vec![
@@ -259,6 +293,7 @@ mod tests {
     #[test]
     fn world_frame_round_trips_through_wgs84() {
         let revision = revision();
+        let expected_revision_uri = revision.revision_uri.clone();
         let frame_uri = WorldFrameUri::new(
             &revision.revision_uri,
             &FrameId::new("times-square-enu").unwrap(),
@@ -284,6 +319,8 @@ mod tests {
         };
         assert!((origin.latitude_degrees - 40.758).abs() < 1.0e-8);
         assert!((origin.longitude_degrees + 73.9855).abs() < 1.0e-8);
+        assert_eq!(to_wgs84.sources.len(), 1);
+        assert_eq!(to_wgs84.sources[0].revision_uri, expected_revision_uri);
 
         let back = convert_frame(
             ConvertFrameRequest {
@@ -298,5 +335,67 @@ mod tests {
             panic!("expected world frame");
         };
         assert!(DVec3::new(local.x_m, local.y_m, local.z_m).length() < 1.0e-6);
+        assert_eq!(back.sources.len(), 1);
+    }
+
+    #[test]
+    fn conversion_without_a_world_has_no_frame_sources() {
+        let converted = convert_frame(
+            ConvertFrameRequest {
+                target: CoordinateSpace::EcefWgs84,
+                points: vec![CoordinatePoint::Wgs84(Wgs84Position {
+                    latitude_degrees: 40.0,
+                    longitude_degrees: -105.0,
+                    ellipsoid_height_m: 1_700.0,
+                })],
+                allow_approximation: false,
+            },
+            &ResolvedWorlds::default(),
+        )
+        .unwrap();
+
+        assert!(converted.sources.is_empty());
+    }
+
+    #[test]
+    fn conversion_excludes_prefetched_but_unused_world_revisions() {
+        let used = revision();
+        let used_uri = used.revision_uri.clone();
+        let mut unused = revision();
+        let unused_world_id = FrameWorldId::new("unused-world").unwrap();
+        let unused_revision_id = FrameWorldRevisionId::new("revision-unused").unwrap();
+        let unused_revision_uri = FrameWorldRevisionUri::new(&unused_world_id, &unused_revision_id);
+        unused.world_id = unused_world_id.clone();
+        unused.world_uri = FrameWorldUri::new(&unused_world_id);
+        unused.revision_id = unused_revision_id;
+        unused.revision_uri = unused_revision_uri.clone();
+        unused.root_frame_uri =
+            WorldFrameUri::new(&unused_revision_uri, &FrameId::new("earth-ecef").unwrap());
+
+        let frame_uri = WorldFrameUri::new(
+            &used.revision_uri,
+            &FrameId::new("times-square-enu").unwrap(),
+        );
+        let mut worlds = ResolvedWorlds::default();
+        worlds.insert(used).unwrap();
+        worlds.insert(unused).unwrap();
+
+        let converted = convert_frame(
+            ConvertFrameRequest {
+                target: CoordinateSpace::Wgs84,
+                points: vec![CoordinatePoint::WorldFrame(WorldFramePosition {
+                    frame_uri,
+                    x_m: 0.0,
+                    y_m: 0.0,
+                    z_m: 0.0,
+                })],
+                allow_approximation: false,
+            },
+            &worlds,
+        )
+        .unwrap();
+
+        assert_eq!(converted.sources.len(), 1);
+        assert_eq!(converted.sources[0].revision_uri, used_uri);
     }
 }

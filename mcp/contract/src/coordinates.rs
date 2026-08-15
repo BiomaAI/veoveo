@@ -4,6 +4,8 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::Sha256Digest;
+
 fn validate_coordinate_id(value: &str) -> Result<(), CoordinateIdError> {
     if value.is_empty() || value.len() > 128 {
         return Err(CoordinateIdError::new(value, "must be 1 to 128 characters"));
@@ -540,7 +542,7 @@ pub struct FrameWorldRevision {
     pub revision_id: FrameWorldRevisionId,
     pub revision_uri: FrameWorldRevisionUri,
     pub revision: u64,
-    pub spec_sha256: String,
+    pub spec_digest: Sha256Digest,
     pub root_frame_uri: WorldFrameUri,
     pub tree: FrameWorldTree,
     pub created_at: DateTime<Utc>,
