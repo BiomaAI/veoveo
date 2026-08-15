@@ -12,6 +12,7 @@ pub const ARTIFACT_TEMPLATE: &str = "timeseries://artifact/{artifact_id}";
 /// URI is stable end to end.
 pub const FORECAST_APP_URI: &str = "ui://timeseries/forecast.html";
 pub const USAGE_ROOT_URI: &str = "timeseries://usage";
+pub const USAGE_INDEX_TEMPLATE: &str = "timeseries://usage{?cursor}";
 pub const USAGE_TASK_TEMPLATE: &str = "timeseries://usage/task/{task_id}";
 
 fn timeseries_uris() -> ServerResourceUris {

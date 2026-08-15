@@ -28,6 +28,8 @@ mod app_state;
 mod config;
 #[path = "server/host.rs"]
 mod host;
+#[path = "server/index.rs"]
+mod index;
 #[path = "server/internal_auth.rs"]
 mod internal_auth;
 #[path = "server/outputs.rs"]

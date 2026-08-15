@@ -1,7 +1,7 @@
 # Timeseries MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 2.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
 
 ## Purpose
 
@@ -28,6 +28,9 @@ returns structured output with a bounded chartable preview.
   app.
 - The gateway manifest keeps `resource_projection: server_owned`,
   `capabilities.apps: true`, and `resource_schemes: ["timeseries","ui"]`.
+- Forecast completion exposes one canonical `result_uri`, one resource link,
+  and identity-free status text. Usage discovery is bounded and cursor-paged;
+  exact task usage remains directly addressable.
 
 ## Build And Test
 
@@ -41,7 +44,7 @@ returns structured output with a bounded chartable preview.
 
 ## Contract Compliance
 
-Contract revision: 2
+Contract revision: 3
 
 - C01: met
 - C02: met
@@ -59,7 +62,7 @@ Contract revision: 2
 - C14: met
 - C15: met
 - C16: met
-- C17: pending — gateway registration does not state the contract revision
+- C17: met
 - C18: met
 - C19: met
 - C20: met
@@ -73,3 +76,4 @@ Contract revision: 2
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
 - C24: met
+- C31: met

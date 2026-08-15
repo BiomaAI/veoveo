@@ -88,6 +88,20 @@ server uses the protocol surface that matches its domain:
 | progress/result wake | task-ID filter on `subscriptions/listen`; `tasks/get` remains the correctness path |
 | cross-server identity | canonical URI and resource link |
 
+A successful terminal task that creates an addressable product returns one
+top-level `result_uri` in `structuredContent`. The value is the canonical URI
+owned by the producing domain. The adjacent human-readable content is a short,
+identity-free status and contains one resource link for that result. Typed
+provenance and artifact metadata remain in structured content. A task that does
+not create an addressable product omits `result_uri` and does not invent a
+resource identity.
+
+Growing domain collections are read through bounded domain-owned pages with a
+stable order and opaque cursors. Exact canonical-URI reads use the owning
+domain identity and do not require a full collection scan. `resources/list`
+advertises stable roots and templates rather than enumerating every dynamic
+record. Completion queries are bounded at their authoritative store.
+
 Compatibility helpers are allowed only when they are explicit product features
 for clients that cannot use the richer MCP surfaces well. They must be
 additive projections over the canonical protocol behavior and must reuse the
@@ -157,6 +171,10 @@ and serialized-size bounds.
 Strong types govern every controlled shape: typed structs, enums, and explicit
 domain types wherever the shape is known or owned by this contract. Raw JSON
 is reserved for genuinely open-ended boundaries.
+
+Content digests establish integrity and provenance. They do not become a
+parallel public address. Artifact occurrences use fresh opaque UUIDv7
+identities and may be presented under the producing domain's canonical scheme.
 
 ## Runtime Boundary
 
@@ -249,9 +267,9 @@ Server crates are named `*-mcp`.
 | ID | Level | Requirement |
 |---|---|---|
 | C01 | MUST | Each capability uses the canonical MCP surface for its need per the Protocol Surface table. |
-| C02 | MUST | Every tool declares input and output JSON Schemas. |
+| C02 | MUST | Every tool declares input and output JSON Schemas; an addressable terminal product has one top-level canonical `result_uri`, while a no-product task omits it. |
 | C03 | MUST | Durable operations are task-augmented tools on the shared task runtime. |
-| C04 | MUST | Addressable state is exposed as resources or resource templates under the server's canonical scheme. |
+| C04 | MUST | Addressable state is exposed as resources or resource templates under the server's canonical scheme; growing collections use bounded domain-owned pages and exact reads do not scan the full collection. |
 | C05 | MUST | The server is not flattened to a tool-only convenience surface. |
 | C06 | MUST | Compatibility helpers are additive projections reusing canonical models, policy, audit, tasks, and URIs. |
 | C07 | MUST | Tool input schemas use JSON Schema 2020-12 and pass the shared depth, node, reference, branch, and size bounds. |

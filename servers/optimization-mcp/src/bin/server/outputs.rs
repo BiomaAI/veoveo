@@ -141,7 +141,7 @@ pub(super) async fn solution_result(
             &solution.run_id,
         ))?,
         problem_uri: solution.problem_uri.clone(),
-        solution_uri: solution.solution_uri.clone(),
+        result_uri: solution.solution_uri.clone(),
         family,
         feasibility: solution.feasibility,
         termination: solution.termination,
@@ -152,51 +152,19 @@ pub(super) async fn solution_result(
     };
     record_usage(state, task_id, problem, &solution).await?;
 
-    let mut content = vec![ContentBlock::text(format!(
-        "{} completed with {:?} termination; solution {} is {:?} and independently verified: {}",
-        family_name(family),
-        output.termination,
-        solution.solution_id,
-        output.feasibility,
-        solution.verification.verified
-    ))];
-    content.extend([
+    let content = vec![
+        ContentBlock::text(solution_status(
+            family,
+            output.termination,
+            output.feasibility,
+            solution.verification.verified,
+        )),
         json_link(
-            output.problem_uri.as_str(),
-            format!("problem {}", problem.record.problem_id),
-            "Immutable normalized optimization problem.",
-        ),
-        json_link(
-            output.run_uri.as_str(),
-            format!("run {}", solution.run_id),
-            "Durable cuOpt execution record and engine provenance.",
-        ),
-        json_link(
-            output.solution_uri.as_str(),
-            format!("solution {}", solution.solution_id),
+            output.result_uri.as_str(),
+            "optimization result".to_owned(),
             "Verified optimization solution and quality metrics.",
         ),
-        artifact_link(
-            &output.problem_artifact,
-            "canonical problem JSON",
-            "Canonical normalized problem bytes.",
-        ),
-        artifact_link(
-            &output.solution_artifact,
-            "canonical solution JSON",
-            "Canonical verified solution bytes.",
-        ),
-    ]);
-    content.extend(output.artifacts.iter().map(|artifact| {
-        artifact_link(
-            artifact,
-            artifact
-                .filename
-                .as_deref()
-                .unwrap_or("optimization artifact"),
-            "Optional optimization evidence artifact.",
-        )
-    }));
+    ];
     let mut result = CallToolResult::success(content);
     result.structured_content = Some(serde_json::to_value(output)?);
     Ok(result)
@@ -224,24 +192,10 @@ pub(super) async fn verification_result(
         report: report.clone(),
         report_artifact: Some(report_artifact.clone()),
     };
-    let mut result = CallToolResult::success(vec![
-        ContentBlock::text(format!(
-            "solution {} independently verified: {}; {} finding(s)",
-            solution.solution_id,
-            report.verified,
-            report.findings.len()
-        )),
-        json_link(
-            &uris::solution_verification_uri(&solution.solution_id),
-            format!("published verification for {}", solution.solution_id),
-            "The verification report embedded when the immutable solution was published.",
-        ),
-        artifact_link(
-            &report_artifact,
-            "verification report JSON",
-            "Independent verification evidence.",
-        ),
-    ]);
+    let mut result = CallToolResult::success(vec![ContentBlock::text(verification_status(
+        report.verified,
+        report.findings.len(),
+    ))]);
     result.structured_content = Some(serde_json::to_value(output)?);
     Ok(result)
 }
@@ -296,7 +250,8 @@ async fn store_bytes_artifact(
             put,
         )
         .await?
-        .without_download_url())
+        .without_download_url()
+        .presented_under_scheme("optimization"))
 }
 
 fn json_link(uri: &str, title: String, description: &str) -> ContentBlock {
@@ -306,16 +261,6 @@ fn json_link(uri: &str, title: String, description: &str) -> ContentBlock {
             .with_description(description.to_owned())
             .with_mime_type("application/json"),
     )
-}
-
-fn artifact_link(artifact: &ArtifactMetadata, title: &str, description: &str) -> ContentBlock {
-    let mut resource = Resource::new(artifact.artifact_uri.clone(), title.to_owned())
-        .with_title(title.to_owned())
-        .with_description(description.to_owned());
-    if let Some(mime_type) = &artifact.mime_type {
-        resource = resource.with_mime_type(mime_type.clone());
-    }
-    ContentBlock::resource_link(resource)
 }
 
 fn solution_variables(
@@ -413,5 +358,57 @@ fn family_name(family: ProblemFamily) -> &'static str {
         ProblemFamily::RouteScenarios => "route-scenario optimization",
         ProblemFamily::Convex => "convex optimization",
         ProblemFamily::Milp => "MILP optimization",
+    }
+}
+
+fn solution_status(
+    family: ProblemFamily,
+    termination: veoveo_optimization_mcp::domain::SolverTermination,
+    feasibility: veoveo_optimization_mcp::domain::SolutionFeasibility,
+    verified: bool,
+) -> String {
+    format!(
+        "{} completed; termination: {termination:?}; feasibility: {feasibility:?}; independently verified: {verified}",
+        family_name(family)
+    )
+}
+
+fn verification_status(verified: bool, findings: usize) -> String {
+    format!("independent verification completed; verified: {verified}; findings: {findings}")
+}
+
+#[cfg(test)]
+mod terminal_status_tests {
+    use super::*;
+    use veoveo_optimization_mcp::domain::{SolutionFeasibility, SolverTermination};
+
+    #[test]
+    fn terminal_status_is_short_and_identity_free() {
+        let status = solution_status(
+            ProblemFamily::Routing,
+            SolverTermination::Optimal,
+            SolutionFeasibility::Feasible,
+            true,
+        );
+
+        assert_eq!(
+            status,
+            "route optimization completed; termination: Optimal; feasibility: Feasible; independently verified: true"
+        );
+        assert!(!status.contains("://"));
+        assert!(!status.contains("solution-"));
+        assert!(status.len() < 256);
+    }
+
+    #[test]
+    fn verification_without_a_product_does_not_invent_a_result_uri() {
+        let status = verification_status(false, 2);
+
+        assert_eq!(
+            status,
+            "independent verification completed; verified: false; findings: 2"
+        );
+        assert!(!status.contains("://"));
+        assert!(!status.contains("result_uri"));
     }
 }

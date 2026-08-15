@@ -12,10 +12,10 @@ use veoveo_optimization_mcp::{
         ArtifactModelFormat, ConvexProblem, ConvexProblemSource, MapTravelModelUri, MilpProblem,
         MilpProblemSource, OptimizationAuthority, OptimizationProblemDefinition,
         OptimizationProblemRecord, OptimizationProblemResource, OptimizationProblemUri,
-        OptimizationSolution, OptimizationToolOutput, OptimizeRouteScenariosRequest,
-        OptimizeRoutesRequest, ProblemDimensions, ProblemFamily, ProblemId, RouteScenario,
-        RoutingProblem, RoutingProblemSource, SolveConvexRequest, SolveMilpRequest,
-        TRAVEL_MODEL_ARTIFACT_VERSION, TravelModelArtifact, TravelModelSource,
+        OptimizationSolution, OptimizeRouteScenariosRequest, OptimizeRoutesRequest,
+        ProblemDimensions, ProblemFamily, ProblemId, RouteScenario, RoutingProblem,
+        RoutingProblemSource, SolveConvexRequest, SolveMilpRequest, TRAVEL_MODEL_ARTIFACT_VERSION,
+        TravelModelArtifact, TravelModelSource,
     },
     problem_store::{PreparedProblem, PreparedRouteCase},
     solution_builder::verify_solution_digest,
@@ -24,8 +24,7 @@ use veoveo_optimization_mcp::{
 
 use super::{
     app_state::AppState,
-    ownership::{task_owner_allows, task_owner_from_runtime},
-    records::OptimizationTaskRequest,
+    index::{find_problem_task, find_solution_task},
 };
 
 pub(super) async fn prepare_routes(
@@ -171,41 +170,27 @@ pub(super) async fn load_solution(
     caller: &PlaneCaller,
     solution_uri: &str,
 ) -> anyhow::Result<OptimizationSolution> {
-    for snapshot in state.tasks.list().await? {
-        if !snapshot_visible(&snapshot, identity)? {
-            continue;
-        }
-        let Some(result) = &snapshot.result else {
-            continue;
-        };
-        let Some(structured) = result
-            .get("structuredContent")
-            .or_else(|| result.get("structured_content"))
-        else {
-            continue;
-        };
-        let Ok(output) = serde_json::from_value::<OptimizationToolOutput>(structured.clone())
-        else {
-            continue;
-        };
-        if output.solution_uri.as_str() != solution_uri {
-            continue;
-        }
-        let artifact_id = uris::parse_artifact_uri(&output.solution_artifact.artifact_uri)
-            .ok_or_else(|| anyhow::anyhow!("solution artifact has an invalid URI"))?;
-        let artifact = state
-            .artifacts
-            .get(caller, &artifact_id)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("solution artifact is unavailable"))?;
-        let solution: OptimizationSolution = serde_json::from_slice(&artifact.bytes)?;
-        if solution.solution_uri.as_str() != solution_uri {
-            anyhow::bail!("solution artifact identity does not match its resource");
-        }
-        verify_solution_digest(&solution)?;
-        return Ok(solution);
+    let solution_uri =
+        veoveo_optimization_mcp::domain::OptimizationSolutionUri::parse(solution_uri.to_owned())?;
+    let task = find_solution_task(state, identity, &solution_uri)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("unknown or unauthorized solution {solution_uri}"))?;
+    let output = task
+        .output
+        .ok_or_else(|| anyhow::anyhow!("solution task has no terminal output"))?;
+    let artifact_id = uris::parse_artifact_uri(&output.solution_artifact.artifact_uri)
+        .ok_or_else(|| anyhow::anyhow!("solution artifact has an invalid URI"))?;
+    let artifact = state
+        .artifacts
+        .get(caller, &artifact_id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("solution artifact is unavailable"))?;
+    let solution: OptimizationSolution = serde_json::from_slice(&artifact.bytes)?;
+    if solution.solution_uri != solution_uri {
+        anyhow::bail!("solution artifact identity does not match its resource");
     }
-    anyhow::bail!("unknown or unauthorized solution {solution_uri}")
+    verify_solution_digest(&solution)?;
+    Ok(solution)
 }
 
 pub(super) async fn load_prepared_problem_by_uri(
@@ -213,23 +198,16 @@ pub(super) async fn load_prepared_problem_by_uri(
     identity: &GatewayInternalIdentity,
     problem_uri: &str,
 ) -> anyhow::Result<PreparedProblem> {
-    for snapshot in state.tasks.list().await? {
-        if !snapshot_visible(&snapshot, identity)? {
-            continue;
-        }
-        let Ok(request) =
-            serde_json::from_value::<OptimizationTaskRequest>(snapshot.request.clone())
-        else {
-            continue;
-        };
-        let Some(common) = request.common() else {
-            continue;
-        };
-        if uris::problem_uri(&common.problem_id) == problem_uri {
-            return state.problem_store.load(&common.prepared).await;
-        }
-    }
-    anyhow::bail!("unknown or unauthorized problem {problem_uri}")
+    let problem_id = uris::parse_problem_uri(problem_uri)
+        .ok_or_else(|| anyhow::anyhow!("invalid Optimization problem URI"))?;
+    let task = find_problem_task(state, identity, &problem_id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("unknown or unauthorized problem {problem_uri}"))?;
+    let common = task
+        .request
+        .common()
+        .ok_or_else(|| anyhow::anyhow!("problem task is not a solve task"))?;
+    state.problem_store.load(&common.prepared).await
 }
 
 async fn materialize_routing_source(
@@ -441,15 +419,6 @@ fn sum(left: Option<u64>, right: Option<u64>) -> Option<u64> {
         (Some(left), Some(right)) => Some(left.saturating_add(right)),
         (left, right) => left.or(right),
     }
-}
-
-fn snapshot_visible(
-    snapshot: &veoveo_task_runtime::TaskSnapshot,
-    identity: &GatewayInternalIdentity,
-) -> anyhow::Result<bool> {
-    let owner = task_owner_from_runtime(&snapshot.task_id.to_string(), &snapshot.owner)
-        .map_err(anyhow::Error::msg)?;
-    Ok(task_owner_allows(&owner, identity))
 }
 
 fn solution_variable_map(

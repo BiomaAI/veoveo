@@ -9,13 +9,14 @@ structured output.
 
 | Standard or protocol | Implemented profile |
 |---|---|
-| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with one task-capable tool, resources and templates, structured content, and usage resources. |
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | Protocol version `2026-07-28`; JSON-RPC 2.0 over stateless Streamable HTTP with Discover, one task-capable tool, resources and templates, structured content, and usage resources. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Forecast source, mapping, horizon, output, and app-call argument contracts. |
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; forecasting executes through durable create, status, cancellation, terminal `tasks/get` payloads, and `subscriptions/listen`. |
 | [MCP Apps SEP-1865](../../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; the self-contained `ui://timeseries/forecast.html` view uses the sandboxed host bridge. |
 | CSV, JSON/NDJSON, and Apache Parquet | Governed inline, HTTPS, or artifact sources are materialized through the shared DuckDB source contract. |
 | [Rerun 0.35.0](https://rerun.io/docs/) RRD | Full-resolution observations, forecast quantiles, and provenance are encoded into an immutable recording artifact. |
 | SVG | The MCP App renders its bounded preview as inline vector graphics without external network access. |
+| Veoveo MCP server contract | Revision 3, including canonical result handoff, bounded discovery, and the 8 MiB final serialized-response cap. |
 
 ## MCP surface
 
@@ -24,17 +25,28 @@ structured output.
 | tool | `forecast` | task-capable; structured output `TimeseriesForecastOutput` |
 | resource | `ui://timeseries/forecast.html` | MCP App view (see below) |
 | resource | `timeseries://usage` | usage ledger index |
+| resource template | `timeseries://usage{?cursor}` | bounded usage-ledger page selected by an opaque cursor |
 | resource template | `timeseries://usage/task/{task_id}` | per-task usage rows |
 | resource template | `timeseries://artifact/{artifact_id}` | immutable RRD artifact blob |
 
 Structured output carries three layers:
 
+- `result_uri` — the canonical `timeseries://artifact/{artifact_id}` handoff
+  for the immutable full-resolution product.
 - `forecast` — the summary (method, horizon, per-series row counts).
 - `preview` — downsampled chartable series (observed points plus
   mean/q10/q90 forecast steps, capped at 500 points per series by
   `PREVIEW_POINTS_PER_SERIES`). This exists so app views and other clients
   can chart without re-reading the RRD.
 - `artifact` — metadata for the full-resolution Rerun recording.
+
+Human content contains a short identity-free completion status and one resource
+link for `result_uri`. `resources/list` advertises the stable usage root and
+templates without enumerating task records. Usage reads return at most 100
+authorized task identities in stable task order, with a versioned opaque cursor;
+the per-task URI remains an exact lookup. The shared transport discards any
+final serialized JSON response larger than 8 MiB and returns the canonical
+response-budget diagnostic without partial content.
 
 ## MCP App (ext-apps "2026-01-26")
 
