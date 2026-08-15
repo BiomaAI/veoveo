@@ -1,5 +1,6 @@
-# Disposable credentials for the loopback-only k3d development cluster.
-# Never apply this manifest to a shared or production cluster.
+# Installation-owner fixture for the loopback-only k3d development cluster.
+# Apply it explicitly before profile-up. Veoveo profile tooling never applies it.
+# Never use these disposable credentials in a shared or production cluster.
 apiVersion: v1
 kind: Namespace
 metadata:

@@ -1,5 +1,14 @@
 //! Typed repository deployment profiles and local registry declarations.
 
+mod secret_closure;
+
+pub use secret_closure::{
+    CustomSecretReferenceRegistry, CustomSecretReferenceSpec, KubernetesObjectKey, SecretClosure,
+    SecretClosureError, SecretClosureStatus, SecretObjectKey, SecretObservation,
+    SecretObservationStatus, SecretPresenceResult, SecretReferenceKind, SecretReferenceRequirement,
+    collect_secret_requirements,
+};
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
@@ -70,7 +79,7 @@ pub struct DeploymentProfile {
     pub kubernetes: KubernetesTarget,
     /// Installation namespace.
     pub namespace: String,
-    /// Resources applied before Helm.
+    /// Non-Secret resources applied before Helm.
     #[serde(default)]
     pub resources: ResourceSet,
     /// Optional revisioned gateway document and public trust activation.
@@ -237,17 +246,17 @@ pub struct LocalClusterSpec {
     pub node_bootstrap_manifests: Vec<PathBuf>,
 }
 
-/// Kubernetes resources applied before Helm.
+/// Kubernetes resources applied before Helm without Secret ownership.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ResourceSet {
-    /// Raw manifest paths.
+    /// Raw manifest paths. Rendered Secret objects are forbidden.
     #[serde(default)]
     pub manifests: Vec<PathBuf>,
     /// File-backed ConfigMaps.
     #[serde(default)]
     pub config_maps: Vec<ConfigMapSpec>,
-    /// Environment-backed Secrets.
+    /// Reserved legacy shape. Validation requires this collection to be empty.
     #[serde(default)]
     pub secrets: Vec<SecretSpec>,
 }
@@ -262,7 +271,7 @@ pub struct ConfigMapSpec {
     pub files: BTreeMap<String, PathBuf>,
 }
 
-/// An environment-backed development Secret.
+/// A prohibited legacy Secret declaration retained in the v6 serialized shape.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SecretSpec {
@@ -272,7 +281,7 @@ pub struct SecretSpec {
     pub data_from_env: Vec<SecretEnvironmentEntry>,
 }
 
-/// One Secret data entry loaded from an environment variable.
+/// One prohibited legacy environment mapping retained in the v6 serialized shape.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SecretEnvironmentEntry {
@@ -1053,29 +1062,10 @@ impl LoadedProfile {
                 require_file(&self.resolve(path), "ConfigMap source")?;
             }
         }
-        ensure_unique(
-            "Secret",
-            profile.resources.secrets.iter().map(|item| &item.name),
-        )?;
-        for secret in &profile.resources.secrets {
-            validate_name("Secret", &secret.name)?;
-            ensure!(
-                !secret.data_from_env.is_empty(),
-                "Secret {} has no data",
-                secret.name
-            );
-            ensure_unique(
-                "Secret data key",
-                secret.data_from_env.iter().map(|item| &item.key),
-            )?;
-            for item in &secret.data_from_env {
-                validate_data_key(&item.key)?;
-                ensure!(
-                    !item.environment.trim().is_empty(),
-                    "Secret environment name cannot be empty"
-                );
-            }
-        }
+        ensure!(
+            profile.resources.secrets.is_empty(),
+            "resources.secrets is not an installation authority; supply every Secret before profile-up"
+        );
         if let Some(activation) = &profile.gateway_activation {
             validate_name(
                 "gateway activation ConfigMap prefix",
