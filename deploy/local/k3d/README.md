@@ -107,6 +107,8 @@ LOCK=output/deployments/sumo/deployment.lock.json
 REVISION=$(git rev-parse HEAD)
 cargo xtask smoke profile-validate --profile "$PROFILE"
 cargo xtask smoke profile-cluster-up --profile "$PROFILE"
+kubectl --context k3d-veoveo-sumo apply \
+  -f deploy/local/k3d/development-resources.yaml
 cargo xtask image builder ensure
 cargo xtask release images \
   --profile "$PROFILE" \
@@ -120,10 +122,18 @@ BuildKit pushes image layers directly to the registry. The SUMO images share
 their pinned upstream runtime and LuST scenario through the layer cache; the
 cluster pulls only missing blobs into containerd.
 
-[`development-resources.yaml`](development-resources.yaml) contains public,
-fixed development credentials, including the recording-scoped Redap signing
-key. It is valid only for this loopback cluster. A shared cluster must use
-operator-created Secrets instead.
+[`development-resources.yaml`](development-resources.yaml) is an
+installation-owner fixture with public, fixed development credentials, including the
+recording-scoped Redap signing key. Apply it explicitly after the cluster exists and
+before `profile-up`. The profile tooling never applies, patches, replaces, or copies a
+Secret. This fixture is valid only for this loopback cluster. A shared cluster uses
+operator-created Secrets from its own reconciliation path.
+
+`profile-up` renders every locked Helm chart and raw manifest before its first
+Kubernetes or Helm write. It computes the complete Secret-reference closure, reads only
+the presence and required key names from existing Secrets, and fails closed when a
+Secret or key is missing or cannot be verified. Closure evidence never retains Secret
+values.
 
 Useful control commands remain standard Kubernetes operations:
 

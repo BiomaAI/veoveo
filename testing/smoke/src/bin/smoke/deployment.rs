@@ -14,11 +14,14 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use url::Url;
 use veoveo_deploy_contract::{
-    ConfigMapSpec, DeploymentLock, DeploymentSource, DeploymentSourceRole, FirstPartyMcpServer,
-    LoadedProfile, LockedSource, PlannedImage, PlatformComponent, ReleaseSpec,
-    ReleaseValuesContract, SecretFormat, SecretSpec, SourceRepository, load_local_registry,
+    ConfigMapSpec, CustomSecretReferenceRegistry, DeploymentLock, DeploymentSource,
+    DeploymentSourceRole, FirstPartyMcpServer, KubernetesObjectKey, LoadedProfile, LockedSource,
+    PlannedImage, PlatformComponent, ReleaseSpec, ReleaseValuesContract, SecretClosure,
+    SecretClosureStatus, SecretObjectKey, SecretObservation, SecretObservationStatus,
+    SecretReferenceKind, SecretReferenceRequirement, SourceRepository, collect_secret_requirements,
+    load_local_registry,
 };
-use veoveo_mcp_contract::{GatewayControlPlane, GatewayInternalTrustBundle};
+use veoveo_mcp_contract::GatewayControlPlane;
 
 #[path = "deployment/gpu.rs"]
 mod gpu;
@@ -93,6 +96,7 @@ struct PreparedGatewayActivation {
 
 pub(crate) fn profile_validate(path: &Path) -> Result<()> {
     let profile = load_profile(path)?;
+    validate_node_bootstrap_secret_boundary(&profile)?;
     let _gateway_activation = prepare_gateway_activation(&profile)?;
     let _gpu_placement = prepare_gpu_placement(&profile)?;
     let sources = resolve_sources(&profile)?;
@@ -130,6 +134,7 @@ pub(crate) fn profile_registry_up(path: &Path) -> Result<()> {
 
 pub(crate) fn profile_cluster_up(path: &Path) -> Result<()> {
     let profile = load_profile(path)?;
+    validate_node_bootstrap_secret_boundary(&profile)?;
     ensure_local_registry(&profile)?;
     let cluster = profile
         .definition
@@ -226,108 +231,111 @@ pub(crate) fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
     validate_helm_releases(&profile, &sources)?;
     let platform = profile.resolved_platform()?;
     let context = profile.definition.kubernetes.context.as_str();
-    apply_local_cluster_bootstrap(&profile)?;
-    if platform.gpu_scheduling.is_some() {
-        wait_for_cluster_nodes(context, Duration::from_secs(120))?;
-    } else {
-        wait_for_cluster_gpu(context, Duration::from_secs(120))?;
-    }
-
-    kubectl_apply_value(
-        context,
-        &serde_json::json!({
-            "apiVersion": "v1",
-            "kind": "Namespace",
-            "metadata": {"name": profile.definition.namespace}
-        }),
+    let secret_closure = prepare_secret_closure(
+        path,
+        lock_path,
+        &profile,
+        &sources,
+        &platform.components,
+        &platform.mcp_servers,
+        gateway_activation.as_ref(),
     )?;
 
-    if let Some(placement) = prepare_gpu_placement(&profile)? {
-        let scheduling = platform
-            .gpu_scheduling
-            .as_ref()
-            .context("prepared GPU placement has no resolved scheduling profile")?;
-        ensure_gpu_allocator(context, &profile.definition.namespace, scheduling)?;
-        apply_gpu_placement(
-            context,
-            &profile.definition.namespace,
-            scheduling,
-            &placement,
-        )?;
-    }
+    after_secret_closure(secret_closure, |_closure| {
+        apply_local_cluster_bootstrap(&profile)?;
+        if platform.gpu_scheduling.is_some() {
+            wait_for_cluster_nodes(context, Duration::from_secs(120))?;
+        } else {
+            wait_for_cluster_gpu(context, Duration::from_secs(120))?;
+        }
 
-    for manifest in &profile.definition.resources.manifests {
-        let manifest = profile.resolve(manifest);
-        status_checked(
-            "kubectl",
-            [
-                "--context",
-                context,
-                "--namespace",
-                profile.definition.namespace.as_str(),
-                "apply",
-                "-f",
-                path_str(&manifest)?,
-            ],
-            &[],
-            None,
-        )?;
-    }
-    for config_map in &profile.definition.resources.config_maps {
-        apply_config_map(&profile, context, config_map)?;
-    }
-    for secret in &profile.definition.resources.secrets {
-        apply_secret(&profile, context, secret)?;
-    }
-    if let Some(activation) = &gateway_activation {
-        validate_gateway_secret(
+        kubectl_apply_value(
             context,
-            &profile.definition.namespace,
-            &activation.confidential_secret,
-            &activation.required_secret_keys,
+            &serde_json::json!({
+                "apiVersion": "v1",
+                "kind": "Namespace",
+                "metadata": {"name": profile.definition.namespace}
+            }),
         )?;
-        apply_gateway_activation(context, &profile.definition.namespace, activation)?;
-    }
 
-    for source in &sources {
-        for release in &source.definition.releases {
-            helm_up(
-                &profile,
-                source,
+        if let Some(placement) = prepare_gpu_placement(&profile)? {
+            let scheduling = platform
+                .gpu_scheduling
+                .as_ref()
+                .context("prepared GPU placement has no resolved scheduling profile")?;
+            ensure_gpu_allocator(context, &profile.definition.namespace, scheduling)?;
+            apply_gpu_placement(
                 context,
-                release,
-                &platform.components,
-                &platform.mcp_servers,
+                &profile.definition.namespace,
+                scheduling,
+                &placement,
             )?;
         }
-    }
-    for deployment in &profile.definition.wait_for_deployments {
-        let target = format!("deployment/{deployment}");
-        status_checked(
-            "kubectl",
-            [
-                "--context",
-                context,
-                "--namespace",
-                profile.definition.namespace.as_str(),
-                "rollout",
-                "status",
-                target.as_str(),
-                "--timeout=10m",
-            ],
-            &[],
-            None,
-        )?;
-    }
-    if let Some(scheduling) = &platform.gpu_scheduling {
-        verify_gpu_placement(context, &profile.definition.namespace, scheduling)?;
-    }
-    println!(
-        "Deployment profile {} now runs {} digest-locked sources",
-        profile.definition.name,
-        sources.len()
-    );
-    Ok(())
+
+        for manifest in &profile.definition.resources.manifests {
+            let manifest = profile.resolve(manifest);
+            status_checked(
+                "kubectl",
+                [
+                    "--context",
+                    context,
+                    "--namespace",
+                    profile.definition.namespace.as_str(),
+                    "apply",
+                    "-f",
+                    path_str(&manifest)?,
+                ],
+                &[],
+                None,
+            )?;
+        }
+        for config_map in &profile.definition.resources.config_maps {
+            apply_config_map(&profile, context, config_map)?;
+        }
+        if let Some(activation) = &gateway_activation {
+            apply_gateway_activation(context, &profile.definition.namespace, activation)?;
+        }
+
+        for source in &sources {
+            for release in &source.definition.releases {
+                helm_up(
+                    &profile,
+                    source,
+                    context,
+                    release,
+                    &platform.components,
+                    &platform.mcp_servers,
+                )?;
+            }
+        }
+        for deployment in &profile.definition.wait_for_deployments {
+            let target = format!("deployment/{deployment}");
+            status_checked(
+                "kubectl",
+                [
+                    "--context",
+                    context,
+                    "--namespace",
+                    profile.definition.namespace.as_str(),
+                    "rollout",
+                    "status",
+                    target.as_str(),
+                    "--timeout=10m",
+                ],
+                &[],
+                None,
+            )?;
+        }
+        if let Some(scheduling) = &platform.gpu_scheduling {
+            verify_gpu_placement(context, &profile.definition.namespace, scheduling)?;
+        }
+        println!(
+            "Deployment profile {} now runs {} digest-locked sources",
+            profile.definition.name,
+            sources.len()
+        );
+        Ok(())
+    })
 }
 
 pub(crate) fn profile_gpu_verify(path: &Path) -> Result<()> {
@@ -1126,6 +1134,254 @@ fn apply_config_map(
     )
 }
 
+fn after_secret_closure<T>(
+    closure: SecretClosure,
+    action: impl FnOnce(&SecretClosure) -> Result<T>,
+) -> Result<T> {
+    ensure!(
+        closure.status == SecretClosureStatus::Satisfied,
+        "rendered Secret-reference closure failed: {}",
+        serde_json::to_string(&closure)?
+    );
+    action(&closure)
+}
+
+fn prepare_secret_closure(
+    profile_path: &Path,
+    lock_path: &Path,
+    profile: &LoadedProfile,
+    sources: &[ResolvedSource],
+    components: &BTreeSet<PlatformComponent>,
+    mcp_servers: &BTreeSet<FirstPartyMcpServer>,
+    gateway_activation: Option<&PreparedGatewayActivation>,
+) -> Result<SecretClosure> {
+    let mut objects = Vec::new();
+    if let Some(cluster) = &profile.definition.kubernetes.local_cluster {
+        for manifest in &cluster.node_bootstrap_manifests {
+            append_yaml_objects(&profile.resolve(manifest), &mut objects)?;
+        }
+    }
+    for manifest in &profile.definition.resources.manifests {
+        append_yaml_objects(&profile.resolve(manifest), &mut objects)?;
+    }
+    for source in sources {
+        for release in &source.definition.releases {
+            let rendered = helm_render_locked(profile, source, release, components, mcp_servers)?;
+            append_yaml_bytes(
+                rendered.as_bytes(),
+                &format!("Helm release {}", release.name),
+                &mut objects,
+            )?;
+        }
+    }
+
+    let mut requirements = collect_secret_requirements(
+        &objects,
+        &profile.definition.namespace,
+        &CustomSecretReferenceRegistry::default(),
+    )?;
+    if let Some(activation) = gateway_activation {
+        for key in &activation.required_secret_keys {
+            requirements.push(SecretReferenceRequirement {
+                secret: SecretObjectKey {
+                    namespace: profile.definition.namespace.clone(),
+                    name: activation.confidential_secret.clone(),
+                },
+                key: Some(key.clone()),
+                optional: false,
+                kind: SecretReferenceKind::GatewayActivation,
+                referring_object: KubernetesObjectKey {
+                    group: String::new(),
+                    version: "v1".to_owned(),
+                    kind: "ConfigMap".to_owned(),
+                    namespace: Some(profile.definition.namespace.clone()),
+                    name: activation.config_map_name.clone(),
+                },
+                field_path: "/gatewayActivation/requiredSecretKeys".to_owned(),
+            });
+        }
+    }
+    requirements.sort();
+    requirements.dedup();
+    let secret_keys = requirements
+        .iter()
+        .map(|requirement| requirement.secret.clone())
+        .collect::<BTreeSet<_>>();
+    let observations = secret_keys
+        .into_iter()
+        .map(|secret| observe_secret(&profile.definition.kubernetes.context, secret))
+        .collect::<Vec<_>>();
+    let profile_digest = file_digest(profile_path, "deployment profile")?;
+    let lock_digest = file_digest(lock_path, "deployment lock")?;
+    SecretClosure::evaluate(profile_digest, lock_digest, requirements, observations)
+        .map_err(Into::into)
+}
+
+fn validate_node_bootstrap_secret_boundary(profile: &LoadedProfile) -> Result<()> {
+    let mut objects = Vec::new();
+    if let Some(cluster) = &profile.definition.kubernetes.local_cluster {
+        for manifest in &cluster.node_bootstrap_manifests {
+            append_yaml_objects(&profile.resolve(manifest), &mut objects)?;
+        }
+    }
+    let requirements = collect_secret_requirements(
+        &objects,
+        &profile.definition.namespace,
+        &CustomSecretReferenceRegistry::default(),
+    )?;
+    ensure!(
+        requirements.is_empty(),
+        "node bootstrap manifests cannot depend on Secrets before the installation owner can supply them"
+    );
+    Ok(())
+}
+
+fn file_digest(path: &Path, label: &str) -> Result<String> {
+    let bytes = fs::read(path).with_context(|| format!("reading {label} {}", path.display()))?;
+    Ok(format!("sha256:{}", hex::encode(Sha256::digest(bytes))))
+}
+
+fn append_yaml_objects(path: &Path, output: &mut Vec<Value>) -> Result<()> {
+    let bytes = fs::read(path).with_context(|| format!("reading manifest {}", path.display()))?;
+    append_yaml_bytes(&bytes, &format!("manifest {}", path.display()), output)
+}
+
+fn append_yaml_bytes(bytes: &[u8], source: &str, output: &mut Vec<Value>) -> Result<()> {
+    for document in serde_yaml_ng::Deserializer::from_slice(bytes) {
+        let yaml = serde_yaml_ng::Value::deserialize(document)
+            .with_context(|| format!("decoding {source}"))?;
+        if yaml.is_null() {
+            continue;
+        }
+        let value = serde_json::to_value(yaml).with_context(|| format!("normalizing {source}"))?;
+        if value.get("kind").and_then(Value::as_str) == Some("List") {
+            let items = value
+                .get("items")
+                .and_then(Value::as_array)
+                .with_context(|| format!("Kubernetes List in {source} has no items"))?;
+            output.extend(items.iter().cloned());
+        } else {
+            output.push(value);
+        }
+    }
+    Ok(())
+}
+
+fn helm_render_locked(
+    profile: &LoadedProfile,
+    source: &ResolvedSource,
+    release: &ReleaseSpec,
+    components: &BTreeSet<PlatformComponent>,
+    mcp_servers: &BTreeSet<FirstPartyMcpServer>,
+) -> Result<String> {
+    let chart = source.repository.join(&release.chart);
+    let mut args = vec![
+        "template".to_owned(),
+        release.name.clone(),
+        path_str(&chart)?.to_owned(),
+        "--namespace".to_owned(),
+        profile.definition.namespace.clone(),
+        "--include-crds".to_owned(),
+    ];
+    for values in ordered_release_values(&source.repository, &profile.directory, release) {
+        args.push("--values".to_owned());
+        args.push(path_str(&values)?.to_owned());
+    }
+    let image_digests = release_image_digests(
+        release.values_contract,
+        &source.image_digests,
+        &source.deployment_image_digests,
+    );
+    append_release_values(
+        &mut args,
+        profile,
+        release,
+        &source.revision,
+        Some(image_digests),
+        components,
+        mcp_servers,
+    )?;
+    let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+    let rendered = output_checked("helm", refs, None)
+        .with_context(|| format!("rendering locked Helm release {}", release.name))?;
+    String::from_utf8(rendered).context("Helm output is not UTF-8")
+}
+
+fn observe_secret(context: &str, secret: SecretObjectKey) -> SecretObservation {
+    let output = Command::new("kubectl")
+        .args([
+            "--context",
+            context,
+            "--namespace",
+            secret.namespace.as_str(),
+            "get",
+            "secret",
+            secret.name.as_str(),
+            "--ignore-not-found=true",
+            "--request-timeout=10s",
+            "--output=json",
+        ])
+        .output();
+    match output {
+        Ok(output) => decode_secret_observation(
+            secret,
+            output.status.success(),
+            &output.stdout,
+            &output.stderr,
+        ),
+        Err(_) => SecretObservation {
+            secret,
+            status: SecretObservationStatus::Transport,
+        },
+    }
+}
+
+fn decode_secret_observation(
+    secret: SecretObjectKey,
+    success: bool,
+    stdout: &[u8],
+    stderr: &[u8],
+) -> SecretObservation {
+    let status = if success && stdout.iter().all(u8::is_ascii_whitespace) {
+        SecretObservationStatus::Missing
+    } else if success {
+        decode_present_secret(&secret, stdout).unwrap_or(SecretObservationStatus::Malformed)
+    } else {
+        let diagnostic = String::from_utf8_lossy(stderr).to_ascii_lowercase();
+        if diagnostic.contains("forbidden") {
+            SecretObservationStatus::Forbidden
+        } else if diagnostic.contains("timed out")
+            || diagnostic.contains("timeout")
+            || diagnostic.contains("deadline exceeded")
+        {
+            SecretObservationStatus::Timeout
+        } else {
+            SecretObservationStatus::Transport
+        }
+    };
+    SecretObservation { secret, status }
+}
+
+fn decode_present_secret(
+    expected: &SecretObjectKey,
+    bytes: &[u8],
+) -> Option<SecretObservationStatus> {
+    let value: Value = serde_json::from_slice(bytes).ok()?;
+    if value.get("apiVersion").and_then(Value::as_str) != Some("v1")
+        || value.get("kind").and_then(Value::as_str) != Some("Secret")
+        || value.pointer("/metadata/name").and_then(Value::as_str) != Some(&expected.name)
+        || value.pointer("/metadata/namespace").and_then(Value::as_str) != Some(&expected.namespace)
+    {
+        return None;
+    }
+    let keys = value
+        .get("data")
+        .and_then(Value::as_object)
+        .map(|data| data.keys().cloned().collect())
+        .unwrap_or_default();
+    Some(SecretObservationStatus::Present { keys })
+}
+
 fn prepare_gateway_activation(
     profile: &LoadedProfile,
 ) -> Result<Option<PreparedGatewayActivation>> {
@@ -1238,44 +1494,6 @@ fn validate_gateway_public_file(key: &str, text: &str, jwks: bool, ca: bool) -> 
     Ok(())
 }
 
-fn validate_gateway_secret(
-    context: &str,
-    namespace: &str,
-    name: &str,
-    required_keys: &BTreeSet<String>,
-) -> Result<()> {
-    let bytes = output_checked(
-        "kubectl",
-        [
-            "--context",
-            context,
-            "--namespace",
-            namespace,
-            "get",
-            "secret",
-            name,
-            "--output=json",
-        ],
-        None,
-    )
-    .with_context(|| format!("reading installation-owned gateway Secret {name}"))?;
-    let secret: Value = serde_json::from_slice(&bytes)
-        .with_context(|| format!("decoding installation-owned gateway Secret {name}"))?;
-    let data = secret
-        .get("data")
-        .and_then(Value::as_object)
-        .with_context(|| format!("installation-owned gateway Secret {name} has no data"))?;
-    for key in required_keys {
-        ensure!(
-            data.get(key)
-                .and_then(Value::as_str)
-                .is_some_and(|value| !value.is_empty()),
-            "installation-owned gateway Secret {name} is missing required key {key}"
-        );
-    }
-    Ok(())
-}
-
 fn apply_gateway_activation(
     context: &str,
     namespace: &str,
@@ -1299,35 +1517,6 @@ fn apply_gateway_activation(
             },
             "immutable": true,
             "data": activation.data
-        }),
-    )
-}
-
-fn apply_secret(profile: &LoadedProfile, context: &str, secret: &SecretSpec) -> Result<()> {
-    let mut data = BTreeMap::new();
-    for entry in &secret.data_from_env {
-        let value = required_environment(&entry.environment)?;
-        if matches!(entry.format, SecretFormat::GatewayInternalTrustJwks) {
-            GatewayInternalTrustBundle::from_json(&value).with_context(|| {
-                format!(
-                    "{} must contain canonical gateway trust JSON",
-                    entry.environment
-                )
-            })?;
-        }
-        data.insert(entry.key.clone(), value);
-    }
-    kubectl_apply_value(
-        context,
-        &serde_json::json!({
-            "apiVersion": "v1",
-            "kind": "Secret",
-            "metadata": {
-                "name": secret.name,
-                "namespace": profile.definition.namespace
-            },
-            "type": "Opaque",
-            "stringData": data
         }),
     )
 }
@@ -1647,47 +1836,6 @@ fn repository_root(directory: &Path) -> Result<PathBuf> {
     Ok(PathBuf::from(String::from_utf8(output)?.trim()))
 }
 
-fn required_environment(name: &str) -> Result<String> {
-    let value = match env::var(name) {
-        Ok(value) => value,
-        Err(env::VarError::NotPresent) => environment_from_main_worktree(name)?.with_context(|| {
-            format!(
-                "required environment variable {name} is absent from the process and main worktree .env"
-            )
-        })?,
-        Err(error) => return Err(error).with_context(|| format!("reading {name}")),
-    };
-    ensure!(
-        !value.trim().is_empty(),
-        "required environment variable {name} is empty"
-    );
-    Ok(value)
-}
-
-fn environment_from_main_worktree(name: &str) -> Result<Option<String>> {
-    let output = output_checked("git", ["worktree", "list", "--porcelain"], None)?;
-    let listing = String::from_utf8(output)?;
-    let Some(main_worktree) = listing
-        .lines()
-        .find_map(|line| line.strip_prefix("worktree "))
-    else {
-        return Ok(None);
-    };
-    let environment_file = Path::new(main_worktree).join(".env");
-    if !environment_file.is_file() {
-        return Ok(None);
-    }
-    for item in dotenvy::from_path_iter(&environment_file)
-        .with_context(|| format!("reading {}", environment_file.display()))?
-    {
-        let (key, value) = item.context("decoding main worktree .env")?;
-        if key == name {
-            return Ok(Some(value));
-        }
-    }
-    Ok(None)
-}
-
 fn output_checked<'a>(
     program: &str,
     args: impl IntoIterator<Item = &'a str>,
@@ -1771,19 +1919,21 @@ fn path_str(path: &Path) -> Result<&str> {
 #[cfg(test)]
 mod tests {
     use std::{
+        cell::Cell,
         collections::BTreeMap,
         path::{Path, PathBuf},
     };
 
     use veoveo_deploy_contract::{
         DeploymentSourceRole, LoadedProfile, LockedImage, LockedSource, ReleaseSpec,
-        ReleaseValuesContract,
+        ReleaseValuesContract, SecretClosure, SecretClosureStatus, SecretObjectKey,
+        SecretObservationStatus,
     };
 
     use super::{
-        gateway_mount_key, locked_image_digests_for_registry, normalize_origin,
-        ordered_release_values, prepare_gateway_activation, release_image_digests,
-        validate_gateway_public_file,
+        after_secret_closure, decode_secret_observation, gateway_mount_key,
+        locked_image_digests_for_registry, normalize_origin, ordered_release_values,
+        prepare_gateway_activation, release_image_digests, validate_gateway_public_file,
     };
 
     const DIGEST_A: &str =
@@ -1941,5 +2091,97 @@ mod tests {
         );
         assert!(gateway_mount_key("/tmp/ca.pem").is_err());
         assert!(gateway_mount_key("/etc/veoveo/gateway/trust/ca.pem").is_err());
+    }
+
+    #[test]
+    fn failed_secret_closure_never_enters_the_mutation_phase() {
+        let called = Cell::new(false);
+        let closure = SecretClosure {
+            profile_digest: DIGEST_A.to_owned(),
+            lock_digest: DIGEST_B.to_owned(),
+            requirements: Vec::new(),
+            presence: Vec::new(),
+            status: SecretClosureStatus::MissingSecret,
+        };
+
+        let error = after_secret_closure(closure, |_| {
+            called.set(true);
+            Ok(())
+        })
+        .expect_err("failed closure must stop before mutation");
+        assert!(!called.get());
+        assert!(error.to_string().contains("missing_secret"));
+    }
+
+    #[test]
+    fn secret_read_decoding_retains_only_presence_and_key_names() {
+        let secret = SecretObjectKey {
+            namespace: "mission".to_owned(),
+            name: "runtime".to_owned(),
+        };
+        let observed = decode_secret_observation(
+            secret.clone(),
+            true,
+            br#"{"apiVersion":"v1","kind":"Secret","metadata":{"name":"runtime","namespace":"mission"},"data":{"token":"secret-value-canary"}}"#,
+            &[],
+        );
+        assert!(matches!(
+            observed.status,
+            SecretObservationStatus::Present { ref keys } if keys.contains("token")
+        ));
+        assert!(
+            !serde_json::to_string(&observed)
+                .unwrap()
+                .contains("secret-value-canary")
+        );
+
+        let forbidden = decode_secret_observation(
+            secret.clone(),
+            false,
+            &[],
+            b"Error from server (Forbidden): secret-value-canary",
+        );
+        assert_eq!(forbidden.status, SecretObservationStatus::Forbidden);
+        assert!(
+            !serde_json::to_string(&forbidden)
+                .unwrap()
+                .contains("secret-value-canary")
+        );
+
+        let missing = decode_secret_observation(secret, true, b"\n", &[]);
+        assert_eq!(missing.status, SecretObservationStatus::Missing);
+
+        let malformed = decode_secret_observation(
+            SecretObjectKey {
+                namespace: "mission".to_owned(),
+                name: "runtime".to_owned(),
+            },
+            true,
+            b"not-json",
+            &[],
+        );
+        assert_eq!(malformed.status, SecretObservationStatus::Malformed);
+
+        let timeout = decode_secret_observation(
+            SecretObjectKey {
+                namespace: "mission".to_owned(),
+                name: "runtime".to_owned(),
+            },
+            false,
+            &[],
+            b"request deadline exceeded: secret-value-canary",
+        );
+        assert_eq!(timeout.status, SecretObservationStatus::Timeout);
+
+        let transport = decode_secret_observation(
+            SecretObjectKey {
+                namespace: "mission".to_owned(),
+                name: "runtime".to_owned(),
+            },
+            false,
+            &[],
+            b"connection refused: secret-value-canary",
+        );
+        assert_eq!(transport.status, SecretObservationStatus::Transport);
     }
 }

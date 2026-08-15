@@ -69,9 +69,7 @@
   },
   "namespace": "veoveo",
   "resources": {
-    "manifests": [
-      "../../../deploy/local/k3d/development-resources.yaml"
-    ],
+    "manifests": [],
     "configMaps": [],
     "secrets": []
   },

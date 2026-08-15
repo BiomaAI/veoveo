@@ -109,7 +109,7 @@ Hub, administration, and GPU policy.
 | `configs/stream/` | admitted GStreamer graph, typed profile, TensorRT model, and live-ingress catalog example |
 | `configs/reason/` | world-model checkpoint reason catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
-| `deploy/contract/` | multi-source deployment v5 profiles and locks, platform/workload/extension ownership, exact platform-image and managed DRA closure, split source/installation Helm values, typed registry transport, physical-GPU topology, collision-free publication preflight, schema generation, and pure validation |
+| `deploy/contract/` | multi-source deployment v6 profiles and locks, platform/workload/extension ownership, exact platform-image and managed DRA closure, rendered Secret-reference closure, split source/installation Helm values, typed registry transport, physical-GPU topology, collision-free publication preflight, schema generation, and pure validation |
 | `docs/GPU_PLACEMENT.md` | managed NVIDIA DRA artifacts, installation schema, lifecycle, conflict transition, validation, upgrade, rollback, and recovery contract |
 | `extensions/contract/` | typed external artifact, compatibility-manifest, extension-release, simulation build-lock/result/evidence, and schema contracts |
 | `extensions/examples/` | anonymous external fragment and installation-binding examples |
@@ -125,7 +125,7 @@ Hub, administration, and GPU policy.
 | `sdk/` | language SDK workspaces |
 | `deploy/helm/veoveo/` | Kubernetes installation chart, chart-owned first-party service definitions, and typed component/server presets |
 | `showcase/uav-sim/deploy/helm/` | authoritative GPU simulator, UAV MCP server, isolated generic pilot agents, live-view signaling/media ingress, render-product capacity, and per-viewer lease configuration |
-| `testing/smoke/src/bin/smoke/deployment.rs` | profile validation and orchestration, immutable gateway activation, and ordered Helm release inputs |
+| `testing/smoke/src/bin/smoke/deployment.rs` | profile validation and orchestration, pre-mutation Secret presence closure, immutable gateway activation, and ordered Helm release inputs |
 | `testing/smoke/src/bin/smoke/deployment/gpu.rs` | managed NVIDIA DRA orchestration, ResourceSlice inventory, persistent-claim preservation, and workload placement proof |
 | `testing/smoke/src/bin/smoke/deployment/gpu/helm.rs` | Helm v4 release metadata, exact allocator artifact and render verification, and atomic installation |
 | `testing/smoke/src/bin/smoke/deployment/gpu/admission.rs` | kubelet-plugin selector, DaemonSet readiness, node taint, and pod scheduling diagnostics |

@@ -9,6 +9,9 @@
 | `veoveo.io/local-registry/v1` | repository-owned loopback registry declaration |
 | Docker Buildx Bake | one exact multi-target platform build plus source-owned workload and extension groups |
 | Kubernetes/K3s v1.36.2 and Helm v4.2.3 | qualified DRA destination and ordered release inputs; process execution remains outside this crate |
+| Kubernetes core `v1`, apps `v1`, and batch `v1` | Secret references in Pods and pod templates, including environment variables, image pulls, and volume projections |
+| Kubernetes Ingress `networking.k8s.io/v1` | TLS Secret references |
+| Kubernetes Gateway API `gateway.networking.k8s.io/v1` | listener certificate references to core Secrets; other certificate kinds remain outside this profile |
 | Kubernetes Dynamic Resource Allocation `resource.k8s.io/v1` | persistent `ResourceClaim` allocation, named requests, per-container claims, and distinct-device constraints |
 | NVIDIA DRA Driver for GPUs Helm chart `0.4.1` and `resource.nvidia.com/v1beta1` | digest-locked standalone GPU allocation, full-GPU and MIG DeviceClasses, CDI preparation, and measured time-slicing configuration; GPU allocation and `TimeSlicingSettings` remain upstream technology-preview features |
 
@@ -26,14 +29,28 @@ non-platform Bake groups. Exactly one source has the `platform` role. Separately
 selected Veoveo applications use `workload`; independently owned integrations use
 `extension`. Their values contracts remain distinct.
 
+The installation owner supplies every Secret through its own reconciliation path.
+Deployment profiles do not create, patch, replace, copy, or transfer ownership of a
+Secret. The v6 `resources.secrets` shape remains reserved and validation requires it to
+be empty. Raw profile and rendered Helm objects that define a Secret fail before
+mutation.
+
+`profile-up` renders the complete locked Helm and raw-manifest closure before its first
+Kubernetes or Helm write. The pure contract extracts Secret references from container
+environments, image pulls, volumes, Ingress TLS, Gateway listeners, and registered
+custom-resource shapes. An unregistered Secret-bearing custom resource makes the
+closure unverifiable. Presence checks retain the Secret name, declared key names, and a
+bounded terminal status. Values are discarded and never enter evidence or diagnostics.
+Missing, forbidden, timed-out, malformed, and transport-failed observations remain
+distinct fail-closed results.
+
 An optional gateway activation binds one composed control-plane document, every
 file-backed public JWKS or CA bundle it references, and one pre-existing confidential
-Secret. Profile validation parses the complete typed document and public files before
-cluster mutation. `profile-up` creates one immutable digest-qualified ConfigMap, proves
-that the Secret contains every declared key without copying its values, and supplies the
-exact activation revision to the platform Helm release. Repeating the command reuses the
-same public bundle. A changed document or trust file creates a new bundle before rollout;
-the installation-owned Secret is never rewritten by this path.
+Secret. Profile validation parses the complete typed document and public files. The
+Secret and every required key enter the same rendered closure. After that gate succeeds,
+`profile-up` creates one immutable digest-qualified ConfigMap and supplies the exact
+activation revision to the platform Helm release. Repeating the command reuses the same
+public bundle. A changed document or trust file creates a new bundle before rollout.
 
 The lock records the exact installation-repository revision, host-push endpoint,
 cluster-pull endpoint, and registry transport
