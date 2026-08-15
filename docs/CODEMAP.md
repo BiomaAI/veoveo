@@ -222,7 +222,7 @@ schema merely because the server is first-party.
 | `provider.rs` | provider job/event contracts; no status polling API |
 | `subscriptions.rs` | request-scoped resource and list-change event hub for final `subscriptions/listen` streams |
 | `protocol.rs` | sole final MCP revision, shared cache lifetimes, and bounded W3C trace metadata validation |
-| `transport.rs` | canonical stateless Streamable HTTP configuration and no-session adapter |
+| `transport.rs` | canonical stateless Streamable HTTP configuration, no-session adapter, and whole-response 8 MiB final JSON budget enforcement |
 | `telemetry.rs` | tracing/log initialization and guards |
 
 ### `mcp/composer`

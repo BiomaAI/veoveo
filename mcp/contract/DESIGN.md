@@ -17,7 +17,7 @@ complies with in its crate documents and in its contract resource.
 | Standard or protocol | Supported profile |
 |---|---|
 | Model Context Protocol | protocol version `2026-07-28`; Discover is mandatory and Initialize is excluded from the hosted profile |
-| MCP Streamable HTTP | stateless POST requests with JSON terminal responses; SSE is used only by methods whose final flow requires a stream; protocol sessions, reconnect GET, DELETE, and replay are excluded |
+| MCP Streamable HTTP | stateless POST requests with JSON terminal responses capped at 8 MiB after serialization; SSE is used only by methods whose final flow requires a stream; protocol sessions, reconnect GET, DELETE, and replay are excluded |
 | MCP Tasks, SEP-2663 | official `tasks/get`, `tasks/update`, and `tasks/cancel`, optional task notifications, opaque task IDs, and typed terminal payloads |
 | MCP multi-round requests, SEP-2322 | `input_required`, protected opaque `requestState`, and retry `inputResponses`; server-initiated elicitation is excluded |
 | MCP subscriptions | request-scoped `subscriptions/listen` with an authorized accepted filter; resource subscribe and unsubscribe are excluded |
@@ -174,6 +174,14 @@ URI conventions, Work Context propagation, and internal identity.
 - A server has no private control database. Durable state lives in the
   platform stores.
 - A server has no private byte route. Bytes flow through the artifact plane.
+- Every Rust Streamable HTTP endpoint applies the shared terminal-response
+  middleware after final JSON serialization. A response through 8 MiB is
+  delivered unchanged. A larger response is discarded in full and replaced
+  by JSON-RPC error `-32010` with diagnostic code
+  `response_budget_exceeded`, `maximum_bytes`, and `actual_bytes` when the
+  completed byte count is available. A body collection failure uses
+  `response_serialization_failed`. Neither diagnostic contains a partial
+  result or an internal error detail.
 
 ## Deployment Identity
 
@@ -249,7 +257,7 @@ Server crates are named `*-mcp`.
 | C07 | MUST | Tool input schemas use JSON Schema 2020-12 and pass the shared depth, node, reference, branch, and size bounds. |
 | C08 | MUST | Schemas are generated through ordinary rmcp/Schemars or official SDK/Pydantic machinery. |
 | C09 | MUST | Controlled shapes use strong domain types; raw JSON only at open boundaries. |
-| C10 | MUST | Shared mechanics come from `veoveo_mcp_contract`, not reimplementation. |
+| C10 | MUST | Shared mechanics, including the final 8 MiB serialized JSON response cap, come from `veoveo_mcp_contract`, not reimplementation. |
 | C11 | MUST | Artifact and recording operations use the forwarded internal identity. |
 | C12 | MUST | Administrative HTTP exists only under the canonical mount. |
 | C13 | MUST | No private control database. |
@@ -297,9 +305,10 @@ rules:
 - **Construction** — C03, C10, C18–C21 are inherited by consuming
   `veoveo_mcp_contract`; avoiding them requires bypassing the shared crate,
   which review treats as a contract change.
-- **Transport conformance** — the shared Streamable HTTP constructor, gateway
-  upstream client pool, and deployment checks enforce C25–C31 for first-party Rust servers. Packaged
-  servers must pass the same black-box checks.
+- **Transport conformance** — the shared Streamable HTTP constructor, terminal
+  response-budget middleware, gateway upstream client pool, and deployment
+  checks enforce C10 and C25–C31 for first-party Rust servers. Packaged servers
+  must pass the same black-box checks.
 - **Review** — C05, C06, C09, C13, and C14 are review-enforced boundaries;
   their violation is architectural, not stylistic.
 

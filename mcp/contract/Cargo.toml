@@ -13,6 +13,7 @@ analytics = ["dep:duckdb"]
 
 [dependencies]
 anyhow.workspace = true
+axum.workspace = true
 base64.workspace = true
 chrono.workspace = true
 duckdb = { workspace = true, optional = true }
@@ -35,8 +36,8 @@ url.workspace = true
 uuid = { workspace = true, features = ["v7"] }
 
 [dev-dependencies]
-axum.workspace = true
 jsonschema.workspace = true
 reqwest = { workspace = true, features = ["rustls-no-provider"] }
 rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest", "reqwest-tls-no-provider"] }
 rustls.workspace = true
+tower.workspace = true

@@ -190,6 +190,9 @@ async fn serve(args: Args) -> Result<()> {
     let mcp_router = Router::new()
         .route_service("/", mcp_service.clone())
         .route_service("/{*path}", mcp_service)
+        .layer(middleware::from_fn(
+            veoveo_mcp_contract::enforce_serialized_mcp_response,
+        ))
         .layer(middleware::from_fn_with_state(
             auth_state.clone(),
             authenticate_internal,
