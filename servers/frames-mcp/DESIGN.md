@@ -15,6 +15,15 @@ health      /frames/healthz
 port        8793
 ```
 
+## Standards And Protocols
+
+Frames implements Model Context Protocol `2026-07-28` under Veoveo hosted MCP
+contract revision 3. Resource and tool payloads use JSON. Geodetic positions
+use WGS84, while ECEF positions use the EPSG:4978 coordinate reference system.
+Published revision integrity uses SHA-256 with the repository-owned canonical
+`sha256:` plus 64 lowercase hexadecimal representation. Frame-world and
+operation resources are Veoveo extensions rather than external protocols.
+
 Frames owns complete spatial-frame worlds and bounded coordinate conversion.
 Map MCP owns Earth geography, projected coordinate reference systems,
 geodesics, geofences, and routing. High-rate transforms remain in live streams
@@ -67,7 +76,7 @@ updates.
 |---|---|---|
 | `create_world` | direct | Empty world identity and mutable head metadata. |
 | `publish_world` | direct | Immutable validated revision, digest, root, and updated world head. |
-| `convert_frame` | direct | Bounded typed conversion with durable provenance. |
+| `convert_frame` | direct | Bounded typed conversion with durable provenance and exact source revisions. |
 | `batch_transform` | task required | Durable conversion with optional artifact output. |
 
 Coordinate points are strongly typed:
@@ -129,6 +138,11 @@ the tree to ECEF and invert for the target frame.
 Approximation permission is explicit. The current engine rejects approximate
 conversion because no approximate implementation is exposed. Every successful
 conversion stores a `CoordinateOperationProvenance` record before returning.
+The output lists only frame-world revisions traversed while converting the
+source points or target. Each sorted, deduplicated reference contains the
+immutable revision URI, revision identity, and canonical SHA-256 digest.
+Prefetched revisions that were not used are absent. A WGS84/ECEF-only
+conversion returns an empty source list.
 
 ## Persistence
 

@@ -13,9 +13,10 @@ pub fn world_binding(request: &ConfigureWorldRequest) -> Result<SimulationWorldB
     }
     let encoded = serde_json::to_vec(&revision.tree)
         .context("encoding frame world tree for integrity verification")?;
-    let actual_sha256 = hex::encode(Sha256::digest(encoded));
-    if actual_sha256 != revision.spec_sha256 {
-        bail!("world revision tree does not match spec_sha256");
+    let actual_digest =
+        veoveo_mcp_contract::Sha256Digest::from_hex(hex::encode(Sha256::digest(encoded)))?;
+    if actual_digest != revision.spec_digest {
+        bail!("world revision tree does not match spec_digest");
     }
     let frames = revision
         .tree
@@ -57,7 +58,7 @@ pub fn world_binding(request: &ConfigureWorldRequest) -> Result<SimulationWorldB
     };
     Ok(SimulationWorldBinding {
         revision_uri: revision.revision_uri.clone(),
-        spec_sha256: revision.spec_sha256.clone(),
+        spec_sha256: revision.spec_digest.hex().to_owned(),
         simulation_frame_uri: request.simulation_frame_uri.clone(),
         georeference_origin,
     })
@@ -113,7 +114,10 @@ mod tests {
                 },
             ],
         };
-        let spec_sha256 = hex::encode(Sha256::digest(serde_json::to_vec(&tree).unwrap()));
+        let spec_digest = veoveo_mcp_contract::Sha256Digest::from_hex(hex::encode(Sha256::digest(
+            serde_json::to_vec(&tree).unwrap(),
+        )))
+        .unwrap();
         let request = ConfigureWorldRequest {
             session_id: crate::contract::SessionId::new("showcase").unwrap(),
             simulation_frame_uri: WorldFrameUri::new(
@@ -126,7 +130,7 @@ mod tests {
                 revision_id,
                 revision_uri,
                 revision: 1,
-                spec_sha256,
+                spec_digest,
                 root_frame_uri: WorldFrameUri::new(
                     &FrameWorldRevisionUri::new(
                         &world_id,

@@ -106,7 +106,7 @@ impl FramesState {
                 world_key: request.world_id.to_string(),
                 expected_head_revision_key: request.expected_head_revision_id.map(String::from),
                 revision_key: revision_id.to_string(),
-                spec_sha256: validated.spec_sha256,
+                spec_sha256: validated.spec_digest.hex().to_owned(),
                 root_frame_key: validated.root_frame_id.to_string(),
                 definition: object_from_value(serde_json::to_value(validated.tree)?)?,
             })
@@ -266,7 +266,7 @@ fn world_revision(record: FrameWorldRevisionRecord) -> Result<FrameWorldRevision
         revision_id,
         revision_uri: revision_uri.clone(),
         revision: u64::try_from(record.revision).context("negative frame world revision")?,
-        spec_sha256: record.spec_sha256,
+        spec_digest: veoveo_mcp_contract::Sha256Digest::from_hex(record.spec_sha256)?,
         root_frame_uri: WorldFrameUri::new(&revision_uri, &root_frame_id),
         tree: serde_json::from_value(value_from_object(record.definition))
             .context("decoding frame world revision")?,

@@ -1,7 +1,7 @@
 # Frames MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 2.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
 
 ## Purpose
 
@@ -32,7 +32,9 @@ work, geodesics, geofences, and routing belong to `map-mcp`.
   identities are the only local-frame identities. Sessions pin one immutable
   revision and never follow a mutable world head implicitly.
 - Approximation permission is explicit per request, and every result carries
-  a `CoordinateOperationProvenance` record.
+  a `CoordinateOperationProvenance` record. Results also carry canonical
+  revision references and typed SHA-256 digests for only the frame-world
+  revisions traversed by the conversion.
 
 ## Build And Test
 
@@ -45,7 +47,7 @@ work, geodesics, geofences, and routing belong to `map-mcp`.
 
 ## Contract Compliance
 
-Contract revision: 2
+Contract revision: 3
 
 - C01: met
 - C02: met
@@ -63,7 +65,7 @@ Contract revision: 2
 - C14: met
 - C15: met
 - C16: met
-- C17: pending — registration does not state the contract revision
+- C17: met
 - C18: met
 - C19: met
 - C20: met

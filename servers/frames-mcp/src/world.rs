@@ -5,7 +5,7 @@ use glam::{DMat3, DMat4, DQuat, DVec3};
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
     FrameBasis, FrameId, FrameNode, FrameParentTransform, FrameWorldRevision, FrameWorldTree,
-    Wgs84Position, WorldFrameUri,
+    Sha256Digest, Wgs84Position, WorldFrameUri,
 };
 
 const MAX_WORLD_FRAMES: usize = 10_000;
@@ -19,7 +19,7 @@ const WGS84_E2: f64 = WGS84_F * (2.0 - WGS84_F);
 pub struct ValidatedWorldTree {
     pub tree: FrameWorldTree,
     pub root_frame_id: FrameId,
-    pub spec_sha256: String,
+    pub spec_digest: Sha256Digest,
 }
 
 pub fn validate_world_tree(mut tree: FrameWorldTree) -> Result<ValidatedWorldTree> {
@@ -128,11 +128,11 @@ pub fn validate_world_tree(mut tree: FrameWorldTree) -> Result<ValidatedWorldTre
     }
 
     let encoded = serde_json::to_vec(&tree).context("encoding canonical frame world tree")?;
-    let spec_sha256 = hex::encode(Sha256::digest(encoded));
+    let spec_digest = Sha256Digest::from_hex(hex::encode(Sha256::digest(encoded)))?;
     Ok(ValidatedWorldTree {
         tree,
         root_frame_id,
-        spec_sha256,
+        spec_digest,
     })
 }
 
@@ -375,7 +375,7 @@ mod tests {
     fn validates_and_canonicalizes_a_full_world_tree() {
         let validated = validate_world_tree(new_york_tree()).unwrap();
         assert_eq!(validated.root_frame_id.as_str(), "earth-ecef");
-        assert_eq!(validated.spec_sha256.len(), 64);
+        assert_eq!(validated.spec_digest.hex().len(), 64);
         assert_eq!(validated.tree.frames[0].frame_id.as_str(), "earth-ecef");
     }
 
@@ -419,7 +419,7 @@ mod tests {
             revision_id,
             revision_uri: revision_uri.clone(),
             revision: 1,
-            spec_sha256: validated.spec_sha256,
+            spec_digest: validated.spec_digest,
             root_frame_uri: WorldFrameUri::new(&revision_uri, &validated.root_frame_id),
             tree: validated.tree,
             created_at: chrono::Utc::now(),

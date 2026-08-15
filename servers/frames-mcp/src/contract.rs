@@ -3,8 +3,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::{
     ArtifactMetadata, CoordinateOperationProvenance, CoordinateSpace, FrameWorldId,
-    FrameWorldRevision, FrameWorldRevisionId, FrameWorldTree, FrameWorldUri, Wgs84Position,
-    WorldFrameUri,
+    FrameWorldRevision, FrameWorldRevisionId, FrameWorldRevisionUri, FrameWorldTree, FrameWorldUri,
+    Sha256Digest, Wgs84Position, WorldFrameUri,
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -47,6 +47,15 @@ pub struct ConvertFrameRequest {
 pub struct ConvertFrameOutput {
     pub points: Vec<CoordinatePoint>,
     pub provenance: CoordinateOperationProvenance,
+    pub sources: Vec<FrameSourceReference>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct FrameSourceReference {
+    pub revision_uri: FrameWorldRevisionUri,
+    pub revision_id: FrameWorldRevisionId,
+    pub digest: Sha256Digest,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -136,5 +145,13 @@ mod tests {
                 .unwrap(),
             point
         );
+    }
+
+    #[test]
+    fn conversion_output_schema_requires_compiler_ready_sources() {
+        let schema = serde_json::to_value(schemars::schema_for!(ConvertFrameOutput)).unwrap();
+        let properties = schema["properties"].as_object().unwrap();
+
+        assert!(properties.contains_key("sources"));
     }
 }
