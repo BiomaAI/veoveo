@@ -94,4 +94,4 @@ pub use time::{
     TimeCalendarVersionDraft, TimeClockPolicyDraft, TimeMissionEpochDraft, TimeSourceDraft,
     TimeTemporalEventDraft,
 };
-pub use usage::DomainUsageDraft;
+pub use usage::{DomainUsageDraft, DomainUsageTaskPage};

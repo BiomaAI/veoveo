@@ -124,6 +124,52 @@ fn discovered_server_dirs() -> Vec<PathBuf> {
 }
 
 #[test]
+fn every_rust_streamable_server_enforces_the_serialized_response_budget() {
+    for server in discovered_server_dirs() {
+        let rust = rust_sources(&server);
+        if rust.contains("StreamableHttpService") {
+            assert!(
+                rust.contains("enforce_serialized_mcp_response"),
+                "{} omits the shared serialized MCP response budget",
+                server.display()
+            );
+        }
+    }
+
+    let root = repository_root();
+    for relative in [
+        "platform/gateway/src/bin/gateway/server.rs",
+        "mcp/bridges/legacy/src/main.rs",
+        "mcp/bridges/stdio/src/bin/bridge.rs",
+    ] {
+        let source = fs::read_to_string(root.join(relative)).unwrap();
+        assert!(
+            source.contains("enforce_serialized_mcp_response"),
+            "{relative} omits the shared serialized MCP response budget"
+        );
+    }
+}
+
+#[test]
+fn optimization_completion_discovery_is_bounded_at_the_store() {
+    let root = repository_root();
+    let service =
+        fs::read_to_string(root.join("servers/optimization-mcp/src/bin/server/service.rs"))
+            .unwrap();
+    let index =
+        fs::read_to_string(root.join("servers/optimization-mcp/src/bin/server/index.rs")).unwrap();
+
+    assert!(
+        !service.contains("async fn visible_tasks("),
+        "Optimization completions must not load the full task collection"
+    );
+    assert!(
+        index.contains("COMPLETION_QUERY") && index.contains("LIMIT $limit"),
+        "Optimization completion lookup must use a bounded store query"
+    );
+}
+
+#[test]
 fn every_server_crate_carries_its_contract_documents() {
     let dirs = discovered_server_dirs();
     assert!(

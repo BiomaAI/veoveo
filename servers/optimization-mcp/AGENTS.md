@@ -1,7 +1,7 @@
 # Optimization MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 2.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
 
 ## Purpose
 
@@ -36,6 +36,10 @@ run, solution, and evidence resources.
   arbitrary quadratic input is convex or independently reproduce an
   optimality proof.
 - Solver output is advisory. No code path actuates routes or decisions.
+- A solve publishes one top-level canonical `result_uri`, one result resource
+  link, and identity-free status text. Verification does not invent a product.
+- Dynamic indexes, completion search, and usage discovery stay bounded at the
+  authoritative store. Exact reads never scan the full task collection.
 
 ## Module Boundaries
 
@@ -64,7 +68,7 @@ It must exercise health, routing, convex LP, and MILP through the Rust client.
 
 ## Contract Compliance
 
-Contract revision: 2
+Contract revision: 3
 
 - C01: met
 - C02: met
@@ -96,3 +100,4 @@ Contract revision: 2
 - C28: met
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
+- C31: met

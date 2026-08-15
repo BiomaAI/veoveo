@@ -362,7 +362,7 @@ pub struct OptimizationSolution {
 pub struct OptimizationToolOutput {
     pub run_uri: OptimizationRunUri,
     pub problem_uri: OptimizationProblemUri,
-    pub solution_uri: OptimizationSolutionUri,
+    pub result_uri: OptimizationSolutionUri,
     pub family: ProblemFamily,
     pub feasibility: SolutionFeasibility,
     pub termination: SolverTermination,
@@ -402,4 +402,18 @@ pub struct VerifySolutionOutput {
     pub report: VerificationReport,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub report_artifact: Option<ArtifactMetadata>,
+}
+
+#[cfg(test)]
+mod terminal_contract_tests {
+    use super::OptimizationToolOutput;
+
+    #[test]
+    fn solve_output_schema_has_one_canonical_result_handoff() {
+        let schema = serde_json::to_value(schemars::schema_for!(OptimizationToolOutput)).unwrap();
+        let properties = schema["properties"].as_object().unwrap();
+
+        assert!(properties.contains_key("result_uri"));
+        assert!(!properties.contains_key("solution_uri"));
+    }
 }

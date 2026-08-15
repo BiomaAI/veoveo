@@ -27,7 +27,7 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 42] = [
+const MIGRATIONS: [Migration; 43] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -279,6 +279,12 @@ const MIGRATIONS: [Migration; 42] = [
         name: "task_route_source_records",
         filename: "0041_task_route_source_records.surql",
         sql: include_str!("../migrations/0041_task_route_source_records.surql"),
+    },
+    Migration {
+        version: 42,
+        name: "optimization_task_indexes",
+        filename: "0042_optimization_task_indexes.surql",
+        sql: include_str!("../migrations/0042_optimization_task_indexes.surql"),
     },
 ];
 
@@ -547,7 +553,27 @@ mod tests {
             .expect("task route source migration");
         assert!(migration.sql.contains("string::is_uuid(source_task_id)"));
         assert!(migration.sql.contains("option<record<task>>"));
-        assert!(!migration.sql.contains("REMOVE FIELD IF EXISTS source_task_id"));
+        assert!(
+            !migration
+                .sql
+                .contains("REMOVE FIELD IF EXISTS source_task_id")
+        );
+    }
+
+    #[test]
+    fn optimization_task_identity_indexes_are_declared() {
+        let migration = migrations()
+            .iter()
+            .find(|migration| migration.version == 42)
+            .expect("optimization task identity migration");
+        for index in [
+            "task_domain_owner_page",
+            "optimization_task_problem",
+            "optimization_task_run",
+            "optimization_task_solution",
+        ] {
+            assert!(migration.sql.contains(index), "missing {index}");
+        }
     }
 
     #[test]

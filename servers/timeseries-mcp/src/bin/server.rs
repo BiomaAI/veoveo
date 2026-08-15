@@ -70,6 +70,8 @@ mod outputs;
 mod ownership;
 #[path = "server/task_extension.rs"]
 mod task_extension;
+#[path = "server/usage_index.rs"]
+mod usage_index;
 
 use app_state::{AppState, update_task};
 use config::Args;
@@ -77,10 +79,11 @@ use host::validate_host;
 use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
 use outputs::{forecast_result, usage_record};
 use ownership::{
-    internal_caller, internal_identity, optional_task_owner, require_task_owner, runtime_owner,
-    task_owner_allows, task_owner_from_identity, task_owner_from_runtime,
+    internal_caller, internal_identity, require_task_owner, runtime_owner,
+    task_owner_from_identity, task_owner_from_runtime,
 };
 use task_extension::TimeseriesTaskService;
+use usage_index::{load_usage_index_page, parse_usage_index_uri};
 
 const MCP_TASK_POLL_INTERVAL_MS: u64 = 3000;
 const MCP_TASK_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1000;
@@ -329,9 +332,8 @@ impl ServerHandler for TimeseriesMcp {
     async fn list_resources(
         &self,
         request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
+        _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
-        let identity = internal_identity(&context)?;
         let mut resources = vec![
             veoveo_mcp_apps_extension::app_resource(uris::FORECAST_APP_URI, "forecast-app")
                 .with_title("Timeseries forecast view")
@@ -362,33 +364,8 @@ impl ServerHandler for TimeseriesMcp {
                     .with_mime_type("text/markdown"),
             );
         }
-        // Artifacts live on the shared plane now; this server keeps no local
-        // artifact index to enumerate. They remain readable by their
-        // artifact URI through resources/read, which resolves against the plane.
-        for task_id in self
-            .state
-            .tasks
-            .platform_store()
-            .domain_usage_task_ids(SERVER_SLUG)
-            .await
-            .map_err(|err| McpError::internal_error(err.to_string(), None))?
-        {
-            let task_id = task_id.to_string();
-            let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
-                continue;
-            };
-            if !task_owner_allows(&owner, &identity) {
-                continue;
-            }
-            resources.push(
-                Resource::new(
-                    uris::usage_task_uri(&task_id),
-                    format!("usage for task {task_id}"),
-                )
-                .with_description("Usage rows for one timeseries task.")
-                .with_mime_type("application/json"),
-            );
-        }
+        // Growing task usage stays behind the bounded usage index and exact
+        // resource template instead of inflating the MCP resource catalog.
         resources.sort_by(|left, right| left.uri.cmp(&right.uri));
         let page = mcp_page(resources, request.as_ref())?;
         Ok(ListResourcesResult {
@@ -416,6 +393,10 @@ impl ServerHandler for TimeseriesMcp {
             ResourceTemplate::new(uris::USAGE_TASK_TEMPLATE, "usage")
                 .with_title("Timeseries task usage")
                 .with_description("Usage rows for one task, addressed by task id.")
+                .with_mime_type("application/json"),
+            ResourceTemplate::new(uris::USAGE_INDEX_TEMPLATE, "usage-page")
+                .with_title("Timeseries usage page")
+                .with_description("Bounded usage index page selected by its opaque cursor.")
                 .with_mime_type("application/json"),
             ResourceTemplate::new(uris::DOC_TEMPLATE, "Server document")
                 .with_title("Server document")
@@ -480,33 +461,13 @@ impl ServerHandler for TimeseriesMcp {
                     ),
                 ]));
             }
-            if uri == uris::USAGE_ROOT_URI {
-                let mut entries = Vec::new();
-                for task_id in self
-                    .state
-                    .tasks
-                    .platform_store()
-                    .domain_usage_task_ids(SERVER_SLUG)
-                    .await
-                    .map_err(|err| McpError::internal_error(err.to_string(), None))?
-                {
-                    let task_id = task_id.to_string();
-                    let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
-                        continue;
-                    };
-                    if task_owner_allows(&owner, &identity) {
-                        entries.push(json!({
-                            "task_id": task_id,
-                            "usage_uri": uris::usage_task_uri(&task_id),
-                        }));
-                    }
-                }
+            if let Some(after) =
+                parse_usage_index_uri(uri).map_err(|error| McpError::invalid_params(error, None))?
+            {
+                let page = load_usage_index_page(&self.state, &identity, after).await?;
                 return Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(
-                        serde_json::to_string(&entries).unwrap_or_default(),
-                        uri,
-                    )
-                    .with_mime_type("application/json"),
+                    ResourceContents::text(serde_json::to_string(&page).unwrap_or_default(), uri)
+                        .with_mime_type("application/json"),
                 ]));
             }
             if let Some(task_id) = uris::parse_usage_task_uri(uri) {

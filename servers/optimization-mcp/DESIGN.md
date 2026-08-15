@@ -44,7 +44,7 @@ retain the `optimization://` scheme.
 | `veoveo.io/travel-model-artifact/v1` | Immutable Map-to-Optimization matrix exchange with location order, vehicle types, units, unavailable cells, and Map resource attestation. |
 | `veoveo.io/cuopt-executor/v1` | Private control-to-executor protocol over a Unix-domain socket. Each JSON message has an unsigned 64-bit big-endian length prefix and a configured byte bound. It is not a public contract. |
 | SHA-256 and UUID version 7 | Canonical problem and solution digests use SHA-256. Problem, run, solution, and verification identities use UUIDv7-derived controlled identifiers. |
-| Veoveo MCP server contract | Revision 2, including the canonical hosted runtime, artifact plane, platform store, documentation resources, and gateway registration. |
+| Veoveo MCP server contract | Revision 3, including canonical result handoff, bounded discovery, the 8 MiB final serialized-response cap, the hosted runtime, artifact plane, platform store, documentation resources, and gateway registration. |
 
 ## Design Position
 
@@ -125,10 +125,13 @@ All tools declare task support as `required`. A direct non-task call is
 rejected with instructions to use the MCP Task API. Task subscriptions carry
 progress and terminal wakeups; agents do not poll the solver.
 
-Tool outputs contain short text for conversation, typed `structuredContent`,
-resource links for the problem, run, and solution, and artifact links for
-canonical evidence. The structured result never embeds an ungoverned download
-URL.
+Each successful solve returns typed `structuredContent` with one top-level
+`result_uri` for its canonical `optimization://solution/{solution_id}`. Human
+content contains an identity-free status and one resource link for that
+solution. Problem, run, artifact, provenance, and verification detail remains
+in structured content. `verify_solution` creates a report and artifact but no
+new addressable domain product, so it does not fabricate `result_uri`. No
+structured result embeds an ungoverned download URL.
 
 ## Problem Sources
 
@@ -301,25 +304,29 @@ The stable roots are:
 |---|---|
 | `optimization://capabilities` | Live GPU identity, cuOpt version and digest, supported families, limits, and verification inventory. |
 | `optimization://profiles` | Solver profile catalog. |
-| `optimization://problems` | Visible immutable problem records. |
-| `optimization://runs` | Visible durable execution records. |
-| `optimization://solutions` | Visible completed solution records. |
-| `optimization://usage` | Visible task usage index. |
+| `optimization://problems` | First bounded page of visible immutable problem discriminators. |
+| `optimization://runs` | First bounded page of visible durable-run discriminators. |
+| `optimization://solutions` | First bounded page of visible completed-solution discriminators. |
+| `optimization://usage` | First bounded page of visible task usage identities. |
 | `optimization://docs` | Embedded server documents. |
-| `optimization://contract` | Machine-readable revision-2 compliance declaration and capability inventory. |
+| `optimization://contract` | Machine-readable revision-3 compliance declaration and capability inventory. |
 
 Resource templates provide:
 
 ```text
 optimization://profile/{profile_id}
+optimization://problems{?cursor}
 optimization://problem/{problem_id}
+optimization://runs{?cursor}
 optimization://run/{run_id}
 optimization://run/{run_id}/incumbents
+optimization://solutions{?cursor}
 optimization://solution/{solution_id}
 optimization://solution/{solution_id}/routes
 optimization://solution/{solution_id}/variables
 optimization://solution/{solution_id}/verification
 optimization://artifact/{artifact_id}
+optimization://usage{?cursor}
 optimization://usage/task/{task_id}
 optimization://docs/{doc_id}
 ```
@@ -329,9 +336,13 @@ states what was solved. A run records when, where, and under which policy it
 was solved. A solution records the returned decision and verification. This
 prevents retries or alternative profiles from overwriting decision evidence.
 
-Visible task-backed lists are capped at 100 entries per response. MCP list
-calls use cursor pagination. Resource reads repeat authorization and never
-turn a denial into a missing object.
+`resources/list` advertises stable roots and templates. It does not enumerate
+dynamic problems, runs, solutions, or usage records. Their resource reads
+return at most 100 compact discriminators in stable creation and task order,
+with a versioned opaque cursor bound to the selected collection. Exact problem,
+run, and solution reads use indexed domain identities under the full caller
+authority and never load the current collection. Resource reads repeat
+authorization and never turn a denial into a missing object.
 
 ## Prompts, Completions, And Notifications
 
@@ -346,11 +357,17 @@ the Map travel-model boundary, bounded profiles, durable task invocation, and
 verification.
 
 Completions discover visible profile, problem, run, and solution identifiers.
+Dynamic completion search is authorization-scoped and limited to 101 distinct
+store values, which yields at most 100 results plus an exact `hasMore` signal.
 Subscriptions apply to the mutable problem, run, and solution collection
 resources. Individual problem, run, and solution snapshots are immutable and
 not subscribable. A completed task emits resource-list-change and
 subscribed-resource notifications in protocol order through the owning
 session.
+
+The shared transport rejects a final serialized JSON response larger than
+8 MiB and sends the canonical response-budget diagnostic without a partial
+result.
 
 ## Artifacts And Usage
 
@@ -451,6 +468,7 @@ matches the compiled provenance constant.
 | `src/profiles.rs` | Curated immutable solver profiles. |
 | `src/solution_builder.rs` | Typed solution construction, provenance, digest, and initial verification. |
 | `src/bin/server/` | Thin HTTP/MCP wiring, tasks, identity, artifacts, resources, prompts, and output publication. |
+| `src/bin/server/index.rs` | Authorization-scoped exact lookup, compact collection pages, opaque cursors, bounded completion search, and usage pages. |
 | `executor/veoveo_cuopt_executor/` | Python cuOpt GPU adapter. |
 | `tests/cuopt_gpu.rs` | Ignored hardware-GPU acceptance test. |
 
@@ -468,10 +486,10 @@ or mocked CUDA result cannot satisfy this test.
 
 ## Contract Compliance
 
-Contract revision: 2.
+Contract revision: 3.
 
-All mandatory checks C01 through C30 are met. There are no compatibility
+All mandatory checks C01 through C31 are met. There are no compatibility
 projections, so C06 is satisfied by the single canonical surface. The gateway
-registration states revision 2 and the cuOpt 26.06 engine. Documentation and
+registration states revision 3 and the cuOpt 26.06 engine. Documentation and
 contract resources are embedded at build time and served through MCP and the
 canonical administrative mount.

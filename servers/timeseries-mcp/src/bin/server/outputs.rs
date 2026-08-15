@@ -8,7 +8,7 @@ use veoveo_mcp_contract::{
 use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, DomainUsageRecord, OpenObject};
 use veoveo_task_runtime::TaskId;
 use veoveo_timeseries_mcp::{
-    contract::{TimeseriesForecastOutput, TimeseriesForecastSummary},
+    contract::{TimeseriesArtifactUri, TimeseriesForecastOutput, TimeseriesForecastSummary},
     forecast::{ForecastArtifact, RRD_FILENAME, RRD_MIME_TYPE},
     state::TaskOwner,
 };
@@ -42,16 +42,14 @@ pub(super) async fn forecast_result(
         .await?;
     record_usage(state, task_id, &artifact.summary).await?;
 
-    let public_metadata = metadata.clone().without_download_url();
-    let mut blocks = vec![ContentBlock::text(format!(
-        "timeseries forecast completed with {} source row(s), {} series, {} forecast step(s); artifact {}",
-        artifact.summary.source_rows,
-        artifact.summary.series.len(),
-        artifact.summary.horizon,
-        public_metadata.artifact_uri
-    ))];
+    let public_metadata = metadata
+        .clone()
+        .without_download_url()
+        .presented_under_scheme("timeseries");
+    let result_uri = TimeseriesArtifactUri::parse(public_metadata.artifact_uri.clone())?;
+    let mut blocks = vec![ContentBlock::text(forecast_status(&artifact.summary))];
     blocks.push(ContentBlock::ResourceLink(
-        Resource::new(public_metadata.artifact_uri.clone(), "forecast")
+        Resource::new(result_uri.as_str(), "forecast")
             .with_title("Timeseries forecast RRD")
             .with_description(
                 "Rerun recording containing observed series, forecast, and provenance.",
@@ -60,6 +58,7 @@ pub(super) async fn forecast_result(
     ));
     let mut result = CallToolResult::success(blocks);
     result.structured_content = Some(serde_json::to_value(TimeseriesForecastOutput {
+        result_uri,
         forecast: artifact.summary,
         preview: artifact.preview,
         artifact: public_metadata,
@@ -116,5 +115,38 @@ pub(super) fn usage_record(task_id: &str, record: DomainUsageRecord) -> UsageRec
         currency: record.currency,
         recorded_at: record.recorded_at,
         metadata: serde_json::Value::Object(record.metadata.into_map().into_iter().collect()),
+    }
+}
+
+fn forecast_status(summary: &TimeseriesForecastSummary) -> String {
+    format!(
+        "timeseries forecast completed; source rows: {}; series: {}; forecast steps: {}",
+        summary.source_rows,
+        summary.series.len(),
+        summary.horizon
+    )
+}
+
+#[cfg(test)]
+mod terminal_status_tests {
+    use super::*;
+    use veoveo_timeseries_mcp::contract::TimeseriesForecastMethod;
+
+    #[test]
+    fn terminal_status_is_short_and_identity_free() {
+        let status = forecast_status(&TimeseriesForecastSummary {
+            method: TimeseriesForecastMethod::NaiveTrend,
+            horizon: 12,
+            source_rows: 48,
+            series: Vec::new(),
+        });
+
+        assert_eq!(
+            status,
+            "timeseries forecast completed; source rows: 48; series: 0; forecast steps: 12"
+        );
+        assert!(!status.contains("://"));
+        assert!(!status.contains("artifact-"));
+        assert!(status.len() < 256);
     }
 }

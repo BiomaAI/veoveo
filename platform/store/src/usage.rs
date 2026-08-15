@@ -10,6 +10,13 @@ use crate::{
 };
 
 const DOMAIN_USAGE_EVENT_SCHEMA_VERSION: i64 = 1;
+const MAX_DOMAIN_USAGE_TASK_PAGE_SIZE: usize = 1_000;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DomainUsageTaskPage {
+    pub task_ids: Vec<TaskId>,
+    pub next_task_id: Option<TaskId>,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DomainUsageDraft {
@@ -148,6 +155,51 @@ impl PlatformStore {
             .into_iter()
             .map(task_id_from_record)
             .collect()
+    }
+
+    pub async fn domain_usage_task_page(
+        &self,
+        server: &str,
+        after: Option<TaskId>,
+        page_size: usize,
+    ) -> Result<DomainUsageTaskPage, StoreError> {
+        validate_server(server)?;
+        if page_size == 0 || page_size > MAX_DOMAIN_USAGE_TASK_PAGE_SIZE {
+            return Err(StoreError::InvalidUsageField {
+                field: "page_size",
+                reason: "must be in 1..=1000",
+            });
+        }
+        let query = if after.is_some() {
+            "SELECT VALUE task FROM domain_usage WHERE server = $server AND task > $after GROUP BY task ORDER BY task ASC LIMIT $limit;"
+        } else {
+            "SELECT VALUE task FROM domain_usage WHERE server = $server GROUP BY task ORDER BY task ASC LIMIT $limit;"
+        };
+        let mut request = self
+            .client()
+            .query(query)
+            .bind(("server", RecordId::new("mcp_server", server.to_owned())))
+            .bind(("limit", (page_size + 1) as i64));
+        if let Some(after) = after {
+            request = request.bind(("after", after.record_id()));
+        }
+        let mut response = request.await?.check()?;
+        let mut task_ids = response
+            .take::<Vec<RecordId>>(0)?
+            .into_iter()
+            .map(task_id_from_record)
+            .collect::<Result<Vec<_>, _>>()?;
+        let has_more = task_ids.len() > page_size;
+        task_ids.truncate(page_size);
+        let next_task_id = has_more.then(|| {
+            *task_ids
+                .last()
+                .expect("an overfull page has at least one returned task")
+        });
+        Ok(DomainUsageTaskPage {
+            task_ids,
+            next_task_id,
+        })
     }
 
     async fn task_for_usage(&self, task_id: TaskId) -> Result<Option<TaskRecord>, StoreError> {

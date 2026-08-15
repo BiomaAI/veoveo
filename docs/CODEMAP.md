@@ -403,7 +403,8 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/stream-mcp` | admitted live and replay GStreamer execution, typed pipeline profiles and results, encoded preview, and the Stream MCP App |
 | `servers/reason-mcp` | local recorded-video reasoning, grounding, and Rerun annotations |
 | `servers/recording-mcp` | governed recording catalog, queries, subscriptions, and sealing |
-| `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifacts |
+| `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, canonical artifact handoff, and artifacts |
+| `servers/timeseries-mcp/src/bin/server/usage_index.rs` | bounded authority-filtered usage discovery with stable task ordering and opaque cursors |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | immutable governed scene compositions, owner and Work Context scoped geospatial views, shared 3D Tiles streaming, GPU overlays, and captured frames |
 | `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, principal-to-vehicle grants, Map route admission, exclusive command leases, missions, telemetry, tasks, recording references, authoritative logical cameras, isolated per-viewer GPU products, authenticated signaling, and the UAV App |
@@ -516,6 +517,7 @@ provenance, and DuckDB persistence.
 | `servers/optimization-mcp/src/executor/` | private bounded Unix-socket protocol and Rust client |
 | `servers/optimization-mcp/executor/` | pinned Python cuOpt 26.06 GPU adapter and hardware health check |
 | `servers/optimization-mcp/src/bin/server/` | MCP tasks, GPU queue, problem/run/solution resources, artifact publication, prompts, and identity |
+| `servers/optimization-mcp/src/bin/server/index.rs` | authority-scoped exact domain lookup, compact stable pages, opaque collection cursors, bounded completion search, and usage discovery |
 | `deploy/contract/src/lib.rs` | portable Optimization capability, exact Optimization image closure, and mandatory `cuopt-executor` GPU scheduling declaration |
 | `deploy/helm/veoveo/definitions/domain-services.yaml` | single Optimization Pod, CPU control container, one-GPU cuOpt sidecar, shared socket, memory-backed shared memory, and persistent workspace |
 | `examples/bioma/images.lock.yaml` | immutable Bioma release digests for both Optimization control and cuOpt executor images |
